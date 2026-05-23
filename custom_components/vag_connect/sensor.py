@@ -212,6 +212,19 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # v2.2.3 — Cariad scout #272 (VW EU arvcer 2026-05-23): third
+    # *_pending sibling — counts queued start/stop_climatisation
+    # commands. No ``condition`` filter (every brand with climatisation
+    # support — electric AND combustion alike). Disabled by default.
+    VagSensorDescription(
+        key="climatisation_status_pending",
+        translation_key="climatisation_status_pending",
+        data_key="climatisation_status_pending",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:air-conditioner",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     # v1.27.2 — Visual feedback color of the charge-port LED.
     # none / red (error) / green (idle/done) / blue (charging) — drivable by
     # automations like "notify me when LED turns red".

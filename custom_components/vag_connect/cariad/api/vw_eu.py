@@ -1375,6 +1375,17 @@ class VWEUClient(CariadBaseClient):
         d.climatisation_active = d.climatisation_state not in (None, "OFF", "CLIMATISATION_STATUS_UNAVAILABLE")
         d.target_temperature = v(raw, "climatisation", "climatisationSettings", "value", "targetTemperature_C")
 
+        # v2.2.3 — scout #272 (VW EU arvcer 2026-05-23): third member
+        # of the ``*.requests`` queue-counter family (alongside
+        # ``chargingStatus.requests`` and ``chargingSettings.requests``
+        # parsed elsewhere in this file). Counts queued
+        # ``start_climatisation`` / ``stop_climatisation`` commands at
+        # the gateway. Same diagnostic semantic, same defensive
+        # list-check, same phantom-honest None when leaf is absent.
+        clim_pending = v(raw, "climatisation", "climatisationStatus", "requests")
+        if isinstance(clim_pending, list):
+            d.climatisation_status_pending = len(clim_pending)
+
         # v1.26.0 Welle-6 (#173) — climate-at-unlock + window-heating-enabled
         # SETTINGS (distinct from front/back STATES). Scout #144 VW ID.4 Pro.
         clim_at_unlock = v(raw, "climatisation", "climatisationSettings", "value", "climatizationAtUnlock")

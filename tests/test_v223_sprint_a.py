@@ -210,6 +210,53 @@ class TestScout263ChargingSettingsError:
 # ──────────────────────────────────────────────────────────────────────
 
 
+class TestScout272ClimatisationStatusRequests:
+    """#272 (arvcer VW EU 2026-05-23) — third *_pending sibling.
+
+    Same shape as #268 chargingStatus.requests but on the climatisation
+    side. Counts queued start/stop_climatisation commands at the
+    gateway. No condition filter (electric AND combustion vehicles
+    support remote-climate).
+    """
+
+    def test_path_in_expected_keys(self) -> None:
+        src = _UNEXPECTED_KEYS_PY.read_text(encoding="utf-8")
+        assert '"climatisation.climatisationStatus.requests"' in src
+
+    def test_parser_in_vw_eu(self) -> None:
+        src = _VW_EU_PY.read_text(encoding="utf-8")
+        assert 'd.climatisation_status_pending = len(' in src
+        assert '"climatisationStatus", "requests"' in src
+
+    def test_dataclass_field_declared(self) -> None:
+        src = _MODELS_PY.read_text(encoding="utf-8")
+        assert "climatisation_status_pending: int | None" in src
+
+    def test_sensor_entity_registered(self) -> None:
+        src = _SENSOR_PY.read_text(encoding="utf-8")
+        assert 'key="climatisation_status_pending"' in src
+        assert 'data_key="climatisation_status_pending"' in src
+        assert "entity_registry_enabled_default=False" in src
+
+    def test_strings_json_translation(self) -> None:
+        src = _STRINGS_JSON.read_text(encoding="utf-8")
+        assert '"climatisation_status_pending"' in src
+
+
+class TestScout273ReadinessErrorEnvelope:
+    """#273 (gudden VW EU 2026-05-23) — readiness.readinessStatus.error.
+
+    Defensive backend-error envelope, same shape as the other ``*.error``
+    siblings already silenced (#185/#190/#191). Parser ignores it
+    cleanly — only silencer-add needed.
+    """
+
+    def test_error_envelope_silenced(self) -> None:
+        src = _UNEXPECTED_KEYS_PY.read_text(encoding="utf-8")
+        assert '"readiness.readinessStatus.error"' in src
+        assert '"readiness.readinessStatus.error.*"' in src
+
+
 class TestIssue270BrandPreservedOnError:
     """#270 (roberttco VW NA 2026-05-21): brand reset after login error."""
 

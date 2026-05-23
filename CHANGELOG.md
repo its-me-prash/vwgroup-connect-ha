@@ -153,14 +153,29 @@ Versionierung: [Semantic Versioning 2.0.0](https://semver.org/lang/de/)
   Selection nach einem 400/500-Error genau dort wo der User sie
   gelassen hat.
 
-- **Scout #268 (VW EU arvcer, 2026-05-21) —
+- **Scout #268 + #271 (VW EU arvcer, 2026-05-21/22) —
   `charging.chargingStatus.requests` parsed + silenced** — Mirror der
   bestehenden `charging.chargingSettings.requests` Parser-Logik
   (v1.27.2 #181). Liefert jetzt `d.charging_status_pending` als
   diagnostic count: 0 = idle, >0 = `start_charging`/`stop_charging`
   command ist im Gateway gequeued. Neuer optional-disabled
   `sensor.{prefix}_charging_commands_pending` (Power-User opt-in).
-  Audi erbt automatisch via brand-vererbung. **Closes #268**.
+  Audi erbt automatisch via brand-vererbung. **Closes #268, #271**.
+
+- **Scout #272 (VW EU arvcer, 2026-05-23) —
+  `climatisation.climatisationStatus.requests` parsed + silenced** —
+  Dritter Member der `*_pending` Familie nach `chargingSettings.requests`
+  und `chargingStatus.requests`. Zählt gequeuete
+  `start_climatisation`/`stop_climatisation` Commands am Gateway.
+  Neuer optional-disabled `sensor.{prefix}_climate_commands_pending`.
+  Kein `condition`-Filter (jede Marke mit Remote-Climate support —
+  EV+ICE alike). Audi erbt via brand-vererbung. **Closes #272**.
+
+- **Scout #273 (VW EU gudden, 2026-05-23) —
+  `readiness.readinessStatus.error` envelope silencer-add** —
+  Defensive `.error` Wrapper Pattern (gleiches Schema wie
+  #185/#190/#191 envelopes), Parser ignoriert es clean. Nur
+  Silencer-Add nötig, kein Code-Change. **Closes #273**.
 
 - **Scouts #263, #265, #266 ack-closed (alle pre-fixed in v2.2.2)** —
   Drei Scout-Reports für `chargingRate_kmph` und

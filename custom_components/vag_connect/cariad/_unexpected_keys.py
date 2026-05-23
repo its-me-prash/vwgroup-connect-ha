@@ -489,6 +489,11 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             "climatisation.climatisationStatus.value.climatisationState",
             "climatisation.climatisationStatus.value.remainingClimatisationTime_min",
             "climatisation.climatisationStatus.value.carCapturedTimestamp",
+            # v2.2.3 — scout #272 (VW EU arvcer 2026-05-23): pending
+            # start/stop climatisation commands queue. Mirror of the
+            # ``charging.chargingStatus.requests`` pattern added at
+            # the same time. Parsed into ``d.climatisation_status_pending``.
+            "climatisation.climatisationStatus.requests",
             "climatisation.climatisationSettings",
             "climatisation.climatisationSettings.value",
             "climatisation.climatisationSettings.value.targetTemperature_C",
@@ -652,6 +657,14 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             "vehicleHealthInspection.maintenanceStatus.error.*",
             "departureProfiles.departureProfilesStatus.error",
             "departureProfiles.departureProfilesStatus.error.*",
+            # v2.2.3 — scout #273 (VW EU gudden 2026-05-23): readiness
+            # endpoint's defensive ``.error`` envelope (Cariad-BFF
+            # "endpoint hat einen Fehler"-wrapper pattern, same shape
+            # as the other ``*.error`` siblings above). Backend hiccup,
+            # parser ignores it cleanly. No code change beyond the
+            # silencer-add.
+            "readiness.readinessStatus.error",
+            "readiness.readinessStatus.error.*",
             # v2.2.0 Phase 7 PR #5 (#245 Scout) — `measurements.
             # tirePressureStatus` 1-key container shipped alongside
             # the error rollout. Wildcard covers current + future
