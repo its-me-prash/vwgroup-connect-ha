@@ -115,7 +115,29 @@ Versionierung: [Semantic Versioning 2.0.0](https://semver.org/lang/de/)
 > phantom-protected). Tier-B (wildcards + alarm/siren) deferred
 > until tester scout-dumps liefern die unknown leaf-shapes.
 
-## [Unreleased] — v2.3.0
+## [Unreleased]
+
+_(nothing pending — v2.3.0 just shipped; new entries land here)_
+
+## [2.3.0] — 2026-05-23 — "VW North America Login Fix + Audi Route-aware Charging"
+
+> **MINOR release** — first brand-level new-functionality since v2.2.x.
+> Sprint B aus der A→B→C roadmap. 2 issues closed:
+>
+> | # | Reporter | Brand | Impact |
+> |---|---|---|---|
+> | **#269** | roberttco | VW NA | VW US/CA login war **komplett broken** seit brand-add (kein NA user konnte je konfigurieren). Jetzt fixed via 4-fold IDP override. |
+> | **#264** | moltke69 | Audi | 7 neue Cariad-BFF route-aware charging fields — 2 neue sensor entities + 5 silencer-adds + climate-timer shape-fallback. |
+>
+> Audi erbt alle Änderungen automatisch via brand-vererbung. Side-effect
+> close: **#270 (config-flow brand reset)** war ein Symptom des
+> unterliegenden #269 auth-fehlers; NA users hitten den UX-bug nicht mehr
+> nachdem login funktioniert. UX-side workaround war schon in v2.2.3.
+>
+> Keine breaking changes für EU-Marken (Audi/VW EU/Skoda/SEAT/CUPRA/
+> Bentley/Lambo/Porsche) — IDKAuth-overrides sind kwargs mit None-default,
+> Fall-back auf die existierenden Modul-Konstanten. HACS pre-release +
+> stable channels.
 
 ### Fixed
 
