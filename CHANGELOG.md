@@ -1,11 +1,13 @@
 # Changelog
 
-Alle wesentlichen Änderungen werden hier dokumentiert.
+All notable changes are documented here. / Alle wesentlichen Änderungen werden hier dokumentiert.
 
-Format: [Keep a Changelog 1.0.0](https://keepachangelog.com/de/1.0.0/)  
-Versionierung: [Semantic Versioning 2.0.0](https://semver.org/lang/de/)
+Format: [Keep a Changelog 1.0.0](https://keepachangelog.com/en/1.0.0/)
+Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
-> 📖 **Bi-lingual title convention (ab v1.12.3 / since v1.12.3):** Section-Titles sind **DE / EN** geteilt durch ` / `. Body-Inhalt bleibt auf Deutsch (Audience ist primär die deutschsprachige VAG-HA-Community + DACH FB-Gruppen). Übersetzungen einzelner Body-Texte gibt es bei Bedarf via [`docs/CHANGELOG_TECHNICAL.md`](docs/CHANGELOG_TECHNICAL.md) — dort wird das gleiche Pattern angewendet.
+> 📖 **Bi-lingual convention (v1.12.3 → v2.4.0 — DE-primary)**: section-titles were **DE / EN** joined by ` / ` and body content was German-only. Past entries are preserved as-is for historical accuracy.
+>
+> 📖 **Bi-lingual convention (v2.4.1+ — EN-primary, switched 2026-05-23)**: section-titles are now **EN / DE** joined by ` / `, body content is **English-primary** with German callouts where the original context was DACH-specific (Facebook-group threads, German tester names, brand-specific German terminology). The project's GitHub audience + the new "VW Group Connect" branding both lean international — English-primary makes the changelog readable for non-DACH users while keeping the DACH community's voice visible. Translations of individual body texts are available on request via [`docs/CHANGELOG_TECHNICAL.md`](docs/CHANGELOG_TECHNICAL.md) — same pattern.
 
 ## Semver-Regeln für dieses Projekt (pre-1.0.0)
 
@@ -117,7 +119,24 @@ Versionierung: [Semantic Versioning 2.0.0](https://semver.org/lang/de/)
 
 ## [Unreleased]
 
-_(nothing pending — v2.4.0 just shipped; new entries land here)_
+### Changed
+
+- **Bilingual convention switched: EN-primary, DE-secondary (effective v2.4.1+)** —
+  Changelog entries, release notes and GH release titles are now
+  written **English-primary** with German callouts where the original
+  context is DACH-specific (FB-group threads, German tester names,
+  brand-specific German terminology). Past entries pre-v2.4.1 are
+  preserved DE-primary for historical accuracy (same precedent as the
+  v2.4.0 marketing-rename: never rewrite history). Rationale: the new
+  "VW Group Connect" identity + landing VW North America in v2.3.0 +
+  more international brands coming make English-primary more inclusive.
+  Convention note in the CHANGELOG header + style-guide in
+  `RELEASE_PROCESS.md` both updated. Docs-only — no version bump
+  required for this commit.
+  _(DE: Sprachkonvention umgestellt — ab v2.4.1+ Englisch als
+  Hauptsprache, Deutsch als Zweitsprache. Historische Einträge bleiben
+  unverändert in DE-primary. Begründung: neuer "VW Group Connect"
+  Identity-Schwerpunkt + zunehmend internationale Audience.)_
 
 ## [2.4.0] — 2026-05-23 — "Marketing-Rename: VAG Connect → VW Group Connect (Community Tribute)"
 

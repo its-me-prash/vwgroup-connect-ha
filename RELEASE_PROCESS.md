@@ -28,6 +28,30 @@ workflow enforces this.
 - short description of the change
 ```
 
+## Language convention (v2.4.1+ — EN-primary, switched 2026-05-23)
+
+CHANGELOG entries + release notes + GH release titles use **English as
+the primary language**, with German callouts where the original
+context was DACH-specific (Facebook-group threads, German tester
+names, brand-specific German terminology like "Standheizung",
+"S-PIN", "Konfigurator").
+
+**Why the switch from DE-primary (v1.12.3 → v2.4.0)**: the project's
+new "VW Group Connect" identity + growing international audience
+(VW North America landed in v2.3.0, more brands coming) make
+English-primary more inclusive. The DACH community's voice stays
+visible via inline German callouts and the dedicated DE-translated
+[`docs/CHANGELOG_TECHNICAL.md`](docs/CHANGELOG_TECHNICAL.md).
+
+**Style guide**:
+- Section title: `## [vX.Y.Z] — date — "EN Codename / DE Codename"` (EN first)
+- Body: English-primary. Insert a German sentence/paragraph only when
+  the original context was DACH-specific or when terminology has no
+  clean English equivalent.
+- Code/log strings stay as-is (already English by convention).
+- Past entries (pre-v2.4.1) are preserved DE-primary for historical
+  accuracy — never rewrite history.
+
 Commit-message prefix conventions are listed in
 [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
