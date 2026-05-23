@@ -96,7 +96,9 @@ BRAND_VW_NA_MODEL = BrandConfig(
     redirect_uri="kombi:///login",
     user_agent="MyVW/1.0 Android",
     api_base="https://b-h-s.spr.us00.p.con-veh.net",
-    scope="openid profile email offline_access mbb vin cars dealers",
+    # v2.3.0 (#269) — single ``openid`` scope per matpoulin's working
+    # NA flow. Wider EU-style scope chain was the trigger for HTTP 400.
+    scope="openid",
 )
 
 BRAND_PORSCHE = BrandConfig(
@@ -363,6 +365,16 @@ class VehicleData:
     # ``start_climatisation`` / ``stop_climatisation`` commands at the
     # gateway. Same shape as ``charging_*_pending`` siblings.
     climatisation_status_pending: int | None = None
+    # v2.3.0 — Cariad scout #264 (Audi moltke69 2026-05-19) — route-aware
+    # smart-charging fields. Backend nun publishes a "navigation-aware"
+    # SoC target — z.B. "lade nur soviel wie du für deine nächste
+    # Navigation brauchst" — und die companion remaining-time bis dieses
+    # nav-target erreicht ist. Distinct semantics von static target_soc
+    # + remaining_charge_time, deshalb separate fields.
+    # From ``charging.batteryStatus.value.navigationTargetSOC_pct``.
+    nav_target_soc_pct: int | None = None
+    # From ``charging.chargingStatus.value.remainingChargingTimeNavigation_min``.
+    remaining_charge_time_nav_min: int | None = None
     plug_led_color: str | None = None  # none / red / green / blue
     external_power_available: bool | None = None  # plugStatus.externalPower
 

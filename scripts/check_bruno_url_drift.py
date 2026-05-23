@@ -96,6 +96,16 @@ _BRAND_DIRS: dict[str, tuple[list[str], str]] = {
         ],
         "tests/bruno/cariad_bff",
     ),
+    # v2.3.0 (#269 roberttco) — VW North America. Auth + garage are
+    # the minimal set documented in tests/bruno/vw_na for now. The
+    # status/control endpoints share the per-country host pattern
+    # ``b-h-s.spr.{us|ca}00.p.con-veh.net/{ev|rvs|rrs|ss}/v1/...``
+    # — they'll get pinned as the integration moves past auth-fix
+    # into full-feature parity with EU.
+    "vw_na": (
+        ["custom_components/vag_connect/cariad/api/vw_na.py"],
+        "tests/bruno/vw_na",
+    ),
 }
 
 

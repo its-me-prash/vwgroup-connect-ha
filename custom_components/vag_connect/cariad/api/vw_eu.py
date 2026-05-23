@@ -935,6 +935,23 @@ class VWEUClient(CariadBaseClient):
         if isinstance(status_pending, list):
             d.charging_status_pending = len(status_pending)
 
+        # v2.3.0 — scout #264 (Audi moltke69 2026-05-19) — route-aware
+        # smart charging fields. The Cariad-BFF backend ships a
+        # navigation-aware SoC target (e.g. "charge until you have
+        # enough for the next planned destination") and the companion
+        # ETA. Distinct semantic from the static ``target_soc_pct`` /
+        # ``remaining_charge_time_min`` siblings — kept as separate
+        # entities so dashboards can show both ("static target: 90%
+        # vs. nav target: 65%"). Defensive int-cast: backend ships
+        # raw ints in Audi tests, but Skoda firmware has previously
+        # surfaced floats on similar fields → safe-int handles both.
+        nav_target = v(raw, "charging", "batteryStatus", "value", "navigationTargetSOC_pct")
+        if isinstance(nav_target, (int, float)):
+            d.nav_target_soc_pct = int(nav_target)
+        nav_eta = v(raw, "charging", "chargingStatus", "value", "remainingChargingTimeNavigation_min")
+        if isinstance(nav_eta, (int, float)):
+            d.remaining_charge_time_nav_min = int(nav_eta)
+
         # v1.27.2 — Plug visual feedback (LED color on the charge port) +
         # external-power availability. Both come straight from plugStatus.
         # Helpful for "is the wallbox actually delivering power right now?"
@@ -1604,6 +1621,20 @@ class VWEUClient(CariadBaseClient):
             raw, "climatisationTimers", "climatisationTimersStatus",
             "value", "timers",
         ) or []
+        # v2.3.0 — scout #264 (Audi moltke69 2026-05-19): newer
+        # Cariad-BFF firmware restructured the timers under a unified
+        # ``departureTimers`` parent block with separate ``charging``
+        # and ``climatisation`` sub-statuses. moltke69's scout shows
+        # ``departureTimers.climatisationTimersStatus.value.timers``
+        # with ``[1 items]`` — same shape as the older
+        # ``climatisationTimers.*`` path, just relocated. Try the new
+        # location as fallback when the legacy path is empty so users
+        # on newer firmware still get a populated count.
+        if not clim_timers:
+            clim_timers = v(
+                raw, "departureTimers", "climatisationTimersStatus",
+                "value", "timers",
+            ) or []
         if clim_timers:
             d.climate_timer_enabled_count = sum(
                 1 for t in clim_timers

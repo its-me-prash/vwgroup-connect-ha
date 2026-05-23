@@ -145,6 +145,12 @@
       "climatisation_status_pending": {
         "name": "Climate Commands Pending"
       },
+      "nav_target_soc_pct": {
+        "name": "Navigation Target Charge"
+      },
+      "remaining_charge_time_nav_min": {
+        "name": "Navigation Charge ETA"
+      },
       "plug_led_color": {
         "name": "Plug LED Color"
       },

@@ -115,9 +115,38 @@ Versionierung: [Semantic Versioning 2.0.0](https://semver.org/lang/de/)
 > phantom-protected). Tier-B (wildcards + alarm/siren) deferred
 > until tester scout-dumps liefern die unknown leaf-shapes.
 
-## [Unreleased]
+## [Unreleased] — v2.3.0
 
-_(nothing pending — v2.2.3 just shipped; new entries land here)_
+### Fixed
+
+- **#269 (roberttco VW NA, 2026-05-21) — VW North America Login (US/CA) endlich funktional** — Robert Thompson hat als erster aktiver VW NA Tester gemeldet dass Login durchgehend mit HTTP 400 fehlschlägt. Sein log zeigte den root cause exakt: `MYVW_ANDROID` client_id wurde gegen `identity.vwgroup.io` (EU IDP) geschickt, wo es nicht registriert ist. Cross-Check mit der referenz-implementation matpoulin/CarConnectivity-connector-volkswagen-na (Apache-2.0, im vw_na.py Doc-Header cited) hat **vier IDP-Unterschiede** zwischen EU + NA enthüllt:
+
+  | Endpoint | EU (was wir bisher hatten) | NA (was VW US/CA tatsächlich nutzt) |
+  |---|---|---|
+  | Authorize URL | `identity.vwgroup.io/oidc/v1/authorize` | `b-h-s.spr.{us\|ca}00.p.con-veh.net/oidc/v1/authorize` |
+  | Token URL | `emea.bff.cariad.digital/login/v1/idk/token` | `b-h-s.spr.{us\|ca}00.p.con-veh.net/oidc/v1/token` |
+  | IDP host (redirect lands here) | `identity.vwgroup.io` | `identity.na.vwgroup.io` |
+  | Signin-service client GUID | `{self._brand.client_id}` (i.e. `MYVW_ANDROID`) | `b680e751-7e1f-4008-8ec1-3a528183d215@apps_vw-dilab_com` (hardcoded NA browser-IDP) |
+
+  Plus die `scope` musste von `"openid profile email offline_access mbb vin cars dealers"` auf nur `"openid"` reduziert werden (matpoulin nutzt nur das, NA IDP rejected die wider scope-chain).
+
+  **Lösung — IDKAuth generalisierung**: 4 neue optional kwargs hinzugefügt (`authorize_url_override`, `token_url_override`, `idk_base_override`, `signin_client_id_override`). EU-Marken (Audi, VW EU, Skoda, SEAT, CUPRA, Bentley, Lambo, Porsche) sind **unverändert** — kwargs sind None-default und fallen auf die existierenden Modul-Konstanten zurück. VW NA passt die 4 overrides per matpoulin-correct-Werten an. Auch die `_get_token_endpoint()` honoriert jetzt den per-Instance override.
+
+  Auch behoben (auto-close via #269 Rootcause-Fix): **#270 (roberttco VW NA, 2026-05-21) — Brand-Selection bleibt jetzt erhalten** (war Symptom des unterliegenden auth-fehlers; wurde in v2.2.3 #270 als UX-Fix gehandhabt). VW NA user können jetzt erstmals erfolgreich konfigurieren ohne dass die App ihre Marken-Wahl beim Auth-Fehler vergessen lässt.
+
+  3 bruno-files (`tests/bruno/vw_na/`) dokumentieren die NA endpoints für drift-checking. Test-coverage: 16 source-level pins in `tests/test_v230_sprint_b.py` für IDKAuth-overrides + vw_na.py wiring + scope-narrowing. **Closes #269**.
+
+### Added
+
+- **#264 (moltke69 Audi, 2026-05-19) — Route-aware Smart Charging Sensoren** — moltke69's scout-report hat 7 neue Cariad-BFF Felder enthüllt die Audi/VW EU EVs ausliefern wenn ein Navigations-Ziel im Auto eingegeben ist. Distinct semantic vom statischen `target_soc` — backend computes "lade nur soviel wie du für deine nächste route brauchst", was bei Wallbox-strom-management hilfreich ist.
+
+  **2 neue Sensor-Entities** (disabled-by-default — power-user opt-in):
+  - `sensor.{prefix}_nav_target_soc_pct` — von `charging.batteryStatus.value.navigationTargetSOC_pct`
+  - `sensor.{prefix}_remaining_charge_time_nav_min` — von `charging.chargingStatus.value.remainingChargingTimeNavigation_min`
+
+  **Plus Climate-Timer Fallback**: moltke69's report zeigte auch dass neuere Firmware die climatisation-Timers restrukturiert hat von `climatisationTimers.climatisationTimersStatus.*` auf `departureTimers.climatisationTimersStatus.*` (unified `departureTimers` Parent mit charging + climatisation Sub-Statuses). Der existierende `climate_timer_enabled_count` Parser hat jetzt einen Fallback: wenn der legacy Pfad leer ist, probiert er die neue Location. Beide alten + neuen Firmware-Versionen liefern jetzt korrekte timer-counts.
+
+  Plus 7 silencer-adds (2 für die parsed Felder, 5 für die departureTimers sub-block leaves). Audi erbt alle Änderungen automatisch via brand-vererbung. **Closes #264**.
 
 ## [2.2.3] — 2026-05-23 — "Easter Egg + Sprint A Quick-wins"
 

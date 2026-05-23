@@ -28,6 +28,7 @@ from homeassistant.const import (
     UnitOfPower,
     UnitOfSpeed,
     UnitOfTemperature,
+    UnitOfTime,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -153,6 +154,35 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:battery-charging-high",
         condition="electric",
+    ),
+    # v2.3.0 — Cariad scout #264 (Audi moltke69 2026-05-19): route-aware
+    # smart-charging SoC target. Distinct from the static ``target_soc``
+    # — backend computes how much battery you need for the next planned
+    # navigation route. Power-users on EU/Audi PHEV/BEV with active
+    # nav-routing see this populate as soon as a route is planned in
+    # the car's nav system. Disabled by default until users opt-in.
+    VagSensorDescription(
+        key="nav_target_soc_pct",
+        translation_key="nav_target_soc_pct",
+        data_key="nav_target_soc_pct",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-arrow-up",
+        condition="electric",
+        entity_registry_enabled_default=False,
+    ),
+    # v2.3.0 — companion to nav_target_soc_pct: ETA until the route-
+    # aware target SoC is reached at the current charge rate. Minutes.
+    VagSensorDescription(
+        key="remaining_charge_time_nav_min",
+        translation_key="remaining_charge_time_nav_min",
+        data_key="remaining_charge_time_nav_min",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:clock-fast",
+        condition="electric",
+        entity_registry_enabled_default=False,
     ),
     VagSensorDescription(
         key="charging_power_kw",

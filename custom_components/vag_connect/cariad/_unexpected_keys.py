@@ -458,6 +458,13 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             "charging.chargingStatus.value.chargeMode",
             "charging.chargingStatus.value.chargeType",
             "charging.chargingStatus.value.remainingChargingTimeToComplete_min",
+            # v2.3.0 — scout #264 (Audi moltke69 2026-05-19): route-aware
+            # smart-charging fields. Backend computes a navigation-target
+            # SoC + ETA based on the user's planned nav route.
+            # Both wired in vw_eu.py → d.nav_target_soc_pct +
+            # d.remaining_charge_time_nav_min → new sensors.
+            "charging.batteryStatus.value.navigationTargetSOC_pct",
+            "charging.chargingStatus.value.remainingChargingTimeNavigation_min",
             "charging.chargingStatus.value.chargingSettings",
             "charging.chargingStatus.value.chargingScenario",
             "charging.chargingStatus.value.carCapturedTimestamp",
@@ -750,6 +757,21 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # repetition pattern, etc.). Walker descends into known
             # `departureTimers.{id}` containers.
             "departureTimers.*.*",
+            # v2.3.0 — scout #264 (Audi moltke69 2026-05-19): newer
+            # Cariad-BFF firmware restructured departureTimers into a
+            # unified parent with charging + climatisation sub-status
+            # blocks (each with its own value/timers/carCapturedTimestamp
+            # shape — see the 5 reported paths). 4-segment wildcards
+            # cover the leaves; the parser fallback in vw_eu.py reads
+            # ``departureTimers.climatisationTimersStatus.value.timers``
+            # if the legacy ``climatisationTimers.*`` path is empty.
+            "departureTimers.chargingTimersStatus",
+            "departureTimers.chargingTimersStatus.value",
+            "departureTimers.chargingTimersStatus.value.*",
+            "departureTimers.climatisationTimersStatus",
+            "departureTimers.climatisationTimersStatus.value",
+            "departureTimers.climatisationTimersStatus.value.*",
+            "departureTimers.*.*.*",
             # v1.19.3 (#145 manentw + #146 ammelch + #147 gudden —
             # three convergent VW Scout-Reports 2026-05-05/06).
             # Newer CARIAD-BFF firmware ships:

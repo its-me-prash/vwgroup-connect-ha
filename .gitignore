@@ -21,3 +21,4 @@ tests/bruno/**/environments/*.local.bru
 
 # Claude Code workspace settings (local)
 .claude/
+.release_notes_*
