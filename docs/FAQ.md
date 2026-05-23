@@ -19,7 +19,7 @@ the cloud on its own schedule:
 - when the driver presses the "send to cloud now" button in the
   vehicle's infotainment system
 
-VAG Connect polls the cloud at your configured interval (default
+VW Group Connect polls the cloud at your configured interval (default
 **10 minutes** in v1.17.0+) and surfaces whatever the cloud already
 knows. **No 12V battery cost.**
 
@@ -42,7 +42,7 @@ These actions trigger an actual radio link to the vehicle:
 
 ### Wake protection
 
-VAG Connect protects your 12V battery automatically (since v1.12.0):
+VW Group Connect protects your 12V battery automatically (since v1.12.0):
 
 - **3 wakes per day per vehicle** soft cap (UTC midnight reset)
 - **5-minute wake cooldown** per vehicle (since v1.13.0)
@@ -83,7 +83,7 @@ restricts what the cloud is allowed to know about your vehicle.
 - Check that the vehicle has cell coverage and is awake
 - Verify in the app that the privacy setting actually saved
 - Open a GitHub issue with anonymized diagnostics
-  (HA Settings → Devices & Services → VAG Connect → ⋮ → Diagnostics)
+  (HA Settings → Devices & Services → VW Group Connect → ⋮ → Diagnostics)
 
 ---
 
@@ -95,7 +95,7 @@ roughly **1,500 calls/day** for SEAT/CUPRA, similar for the other
 brands. The exact limit varies per backend and is not officially
 documented.
 
-### Why does VAG Connect default to 10-minute polling (v1.17.0+)?
+### Why does VW Group Connect default to 10-minute polling (v1.17.0+)?
 
 | Poll interval | Polls/day | % of 1,500 quota | Headroom for app |
 |---|---|---|---|
@@ -118,14 +118,14 @@ until the cloud resets at ~02:00 local.
 
 ## 🔁 How do I update credentials after a manufacturer password change?
 
-VAG Connect supports HA's standard re-authentication flow since
+VW Group Connect supports HA's standard re-authentication flow since
 v1.8.x. **Since v1.19.2 IDK tokens are persisted via HA's Store
 helper** — HACS-Updates und HA-Restarts zwingen dich nicht mehr
 zu Re-Auth, solange das hinterlegte Password noch gültig ist.
 
 1. After your password change, the integration's next poll fails
    with a "Reauthenticate" notice
-2. **Settings → Devices & Services → VAG Connect → Reconfigure**
+2. **Settings → Devices & Services → VW Group Connect → Reconfigure**
 3. Enter the new password
 4. The entry updates in place
 
@@ -150,7 +150,7 @@ this sequence:
 
 ## 🆔 Entity-ID stability across versions
 
-VAG Connect follows this policy (since v1.13.0):
+VW Group Connect follows this policy (since v1.13.0):
 
 - **Bug fixes that change a sensor's value** but keep the same
   meaning → keep the entity_id, ship as a PATCH or MINOR.
@@ -173,11 +173,11 @@ when we ship semantic improvements.
 
 ## 🛡️ Read-only Mode
 
-If you want VAG Connect to give you vehicle telemetry **without any
+If you want VW Group Connect to give you vehicle telemetry **without any
 risk of accidental commands** (e.g. for guest dashboards, automations
 that should never actuate), enable Read-only Mode:
 
-1. **Settings → Devices & Services → VAG Connect → Configure**
+1. **Settings → Devices & Services → VW Group Connect → Configure**
 2. Toggle **"Read-only Mode"** on
 3. Reload the integration
 
@@ -200,7 +200,7 @@ Two possible reasons (since v1.17.0 we surface a notification for
 each):
 
 1. **Vehicle removed from your account** — sold, ownership
-   transferred, or the manufacturer deactivated it. VAG Connect
+   transferred, or the manufacturer deactivated it. VW Group Connect
    detects this on the next poll, removes the device + entities,
    and fires a persistent_notification with the reason.
    - Long-term-statistics data **is preserved** in HA's recorder
@@ -220,11 +220,11 @@ each):
 
 ## 📞 How do I report a bug?
 
-1. **Settings → Devices & Services → VAG Connect → ⋮ → Diagnose herunterladen**
+1. **Settings → Devices & Services → VW Group Connect → ⋮ → Diagnose herunterladen**
 2. The downloaded JSON has VINs masked, GPS rounded, tokens redacted,
    user_ids SHA-256-hashed (since v1.15.0). Safe to post publicly.
 3. Open an issue at
-   [github.com/its-me-prash/vag-connect-ha/issues/new](https://github.com/its-me-prash/vag-connect-ha/issues/new)
+   [github.com/its-me-prash/vwgroup-connect-ha/issues/new](https://github.com/its-me-prash/vwgroup-connect-ha/issues/new)
 4. Pick the right template — `Bug Report`, `Vehicle Data Scout`
    (for new field discoveries), or `Error Reporter` (for ring-buffer
    error dumps that the integration auto-collects)
@@ -253,7 +253,7 @@ each):
 
 ## 🚀 Push Updates (v1.18.0+ Foundation, Phase 2 pending)
 
-Since v1.18.0 (Skoda MQTT) and v1.19.0 (CUPRA/SEAT FCM), VAG Connect
+Since v1.18.0 (Skoda MQTT) and v1.19.0 (CUPRA/SEAT FCM), VW Group Connect
 ships **opt-in Push-Foundation** für Real-Time-Updates ohne 12V-
 Wake-Cycle:
 
@@ -281,7 +281,7 @@ Aktuell läuft die Foundation-Stub: Manager startet, schläft im Connect-Loop, a
 
 ## 📊 API Quota Sensor (v1.19.1+) + Quota Repair-Issue (v1.19.4+)
 
-Seit v1.19.1 zeigt VAG Connect den **API Quota** des Tages an:
+Seit v1.19.1 zeigt VW Group Connect den **API Quota** des Tages an:
 
 - `sensor.<vehicle>_requests_remaining_today` (Diagnostic) — verbleibende Anfragen heute
 - Wenn dein Backend X-RateLimit-Remaining Header sendet (alle modernen VAG-APIs tun das), siehst du wieviel Quota du noch hast
@@ -358,7 +358,7 @@ Quickest workaround if nothing helps: navigate to the view, edit
 mode, "+ Add Card" → "Entities" → filter `vag_connect` or your
 VIN-last-6 to find your sensors.
 
-Full guide + dedicated VAG Connect Lovelace card (BETA — in
+Full guide + dedicated VW Group Connect Lovelace card (BETA — in
 testing, currently still has a Mercedes-style background that's
 being redesigned): [`docs/dashboards.md`](dashboards.md).
 
@@ -371,4 +371,4 @@ being redesigned): [`docs/dashboards.md`](dashboards.md).
 - **Future roadmap + planned releases:** `docs/ROADMAP.md`
 - **Pre-implementation research:** `docs/research/`
 - **Brand Captains community:** `BRAND_CAPTAINS.md`
-- **GitHub Issues:** https://github.com/its-me-prash/vag-connect-ha/issues
+- **GitHub Issues:** https://github.com/its-me-prash/vwgroup-connect-ha/issues

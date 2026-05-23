@@ -1,4 +1,4 @@
-# Contributing to VAG Connect
+# Contributing to VW Group Connect
 
 > Thanks for taking the time to look at the code. This integration is
 > community-maintained and grows from the contributions of users who file
@@ -10,11 +10,11 @@
 ## Bug reports
 
 Use the issue templates:
-<https://github.com/its-me-prash/vag-connect-ha/issues/new/choose>
+<https://github.com/its-me-prash/vwgroup-connect-ha/issues/new/choose>
 
 A good bug report contains:
 
-- VAG Connect version (`manifest.json`)
+- VW Group Connect version (`manifest.json`)
 - Home Assistant version
 - Brand and rough vehicle model
 - Country / region (some endpoints differ)
@@ -23,7 +23,7 @@ A good bug report contains:
 - Whether an S-PIN is configured
 - Sanitised logs (filter `vag_connect` in HA logs)
 - Anonymised diagnostics (download via Settings → Devices & Services →
-  VAG Connect → ⋮ → Diagnose herunterladen)
+  VW Group Connect → ⋮ → Diagnose herunterladen)
 
 **Please remove tokens, full VINs, GPS coordinates, email addresses and
 S-PIN values before pasting anything in a public issue.** Diagnostics
@@ -119,9 +119,9 @@ nicht ob die offizielle My CUPRA-App das gleich oder über phone-GPS macht.
 
 ## FAQ — Subscription / Service Plus / paid plans (closes #47)
 
-**Q: Do I need "Security & Service Plus" or another paid subscription for VAG Connect to work?**
+**Q: Do I need "Security & Service Plus" or another paid subscription for VW Group Connect to work?**
 
-In **most countries: No.** VAG Connect uses the same free API as the manufacturer apps (myAudi, WeConnect, MyŠkoda, MyCupra). If you can log in to the app, you can use VAG Connect for vehicle status, GPS, door/window state, climate state.
+In **most countries: No.** VW Group Connect uses the same free API as the manufacturer apps (myAudi, WeConnect, MyŠkoda, MyCupra). If you can log in to the app, you can use VW Group Connect for vehicle status, GPS, door/window state, climate state.
 
 **Some countries / some vehicles: certain commands are paywalled.** Confirmed examples:
 
@@ -143,7 +143,7 @@ Check the error body. Common patterns since v1.9.1 `classify_command_failure`:
 | `404 Not Found` | Endpoint doesn't exist for vehicle's API profile (PPC/PPE 2024+) | v1.8.5 v1→v2 fallback handles most; rest needs new code. |
 | `403` no body / generic | Could be auth token expired, retry exceeded, or temp rate limit | Restart integration. |
 
-**Q: My MyCupra/myAudi app shows the function works — why does VAG Connect fail?**
+**Q: My MyCupra/myAudi app shows the function works — why does VW Group Connect fail?**
 
 Three independent reasons (#53 lesson):
 
@@ -166,8 +166,8 @@ Also confirmed by user-report on #53 (Gerhard, CUPRA Born) and others: the integ
 ## Pull requests
 
 ```bash
-git clone https://github.com/its-me-prash/vag-connect-ha
-cd vag-connect-ha
+git clone https://github.com/its-me-prash/vwgroup-connect-ha
+cd vwgroup-connect-ha
 pip install pytest pytest-asyncio pytest-cov ruff mypy aiohttp voluptuous homeassistant
 python -m pytest tests/        # all green
 python -m ruff check custom_components/
@@ -252,7 +252,7 @@ Some brands are implemented but lack real-world verification:
 | VW US/CA | Implemented, **no live test** — `new_brand.yml` template |
 
 If you have a vehicle and want to help, open the
-[`new_brand.yml`](https://github.com/its-me-prash/vag-connect-ha/issues/new?template=new_brand.yml)
+[`new_brand.yml`](https://github.com/its-me-prash/vwgroup-connect-ha/issues/new?template=new_brand.yml)
 template.
 
 ---

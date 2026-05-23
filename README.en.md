@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/its-me-prash/vag-connect-ha/main/custom_components/vag_connect/logo.png" alt="VAG Connect" width="180">
+  <img src="https://raw.githubusercontent.com/its-me-prash/vwgroup-connect-ha/main/custom_components/vag_connect/logo.png" alt="VW Group Connect" width="180">
 </p>
 
-<h1 align="center">VAG Connect</h1>
+<h1 align="center">VW Group Connect</h1>
 
 <p align="center">
   <strong>Home Assistant integration for Audi · VW · Škoda · SEAT · CUPRA · Porsche · VW US/CA</strong><br>
@@ -11,10 +11,10 @@
 
 <p align="center">
   <a href="https://hacs.xyz"><img src="https://img.shields.io/badge/HACS-Custom-orange.svg" alt="HACS"></a>
-  <a href="https://github.com/its-me-prash/vag-connect-ha/releases"><img src="https://img.shields.io/github/v/release/its-me-prash/vag-connect-ha" alt="Version"></a>
+  <a href="https://github.com/its-me-prash/vwgroup-connect-ha/releases"><img src="https://img.shields.io/github/v/release/its-me-prash/vwgroup-connect-ha" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
   <a href="https://www.home-assistant.io"><img src="https://img.shields.io/badge/Home%20Assistant-2024.4%2B-blue" alt="Home Assistant"></a>
-  <a href="https://github.com/its-me-prash/vag-connect-ha/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/its-me-prash/vag-connect-ha/ci.yml?branch=main&label=CI" alt="CI"></a>
+  <a href="https://github.com/its-me-prash/vwgroup-connect-ha/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/its-me-prash/vwgroup-connect-ha/ci.yml?branch=main&label=CI" alt="CI"></a>
   <a href="https://www.home-assistant.io/docs/quality_scale/"><img src="https://img.shields.io/badge/quality_scale-platinum-d4af37" alt="Quality Scale Platinum"></a>
 </p>
 
@@ -27,6 +27,23 @@
   <a href="README.cs.md">Čeština</a> ·
   <a href="README.sv.md">Svenska</a>
 </p>
+
+---
+
+> ### 📛 Note on the rename
+> Previously published as **`vag-connect-ha`** (VAG = Volkswagen AG, standard DACH abbreviation).
+> Turns out that abbreviation reads *quite* differently to English speakers 😅
+>
+> **What keeps working as before**: all entities (e.g. `sensor.audi_q4_battery_soc`),
+> all service-calls (`vag_connect.lock`, `vag_connect.show_vag` etc.), all automations,
+> the HACS install — **nothing breaks**. Marketing/display name changes, code internals
+> stay unchanged. See [`MIGRATION.md`](MIGRATION.md).
+>
+> Huge thanks to the **Home Assistant UK** and **HA Ideas, Projects and Solutions**
+> communities for the heads-up — especially **Si Gregory**, **Ben Johnson**, and **Evets David**.
+>
+> And a special shoutout to **Jordan Waeles**, whose `show_vag()` comment is now an officially
+> supported easter egg in this integration (`vag_connect.show_vag` service, see CHANGELOG v2.2.3).
 
 ---
 
@@ -101,23 +118,23 @@ Connects Home Assistant **directly** to your vehicle cloud account (myAudi, We C
 
 ### Option 1: One-click install (recommended)
 
-[![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=its-me-prash&repository=vag-connect-ha&category=integration)
+[![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=its-me-prash&repository=vwgroup-connect-ha&category=integration)
 
 ### Option 2: HACS custom repository (manual)
 
 1. **HACS → Integrations → ⋮ → Custom repositories**
-2. URL: `https://github.com/its-me-prash/vag-connect-ha`
+2. URL: `https://github.com/its-me-prash/vwgroup-connect-ha`
 3. Category: **Integration**
-4. Search **VAG Connect** + install
+4. Search **VW Group Connect** + install
 5. **Restart Home Assistant**
 
 ### Option 3: Manual install
 
 ```bash
 cd /config/custom_components
-git clone https://github.com/its-me-prash/vag-connect-ha.git
-mv vag-connect-ha/custom_components/vag_connect .
-rm -rf vag-connect-ha
+git clone https://github.com/its-me-prash/vwgroup-connect-ha.git
+mv vwgroup-connect-ha/custom_components/vag_connect .
+rm -rf vwgroup-connect-ha
 # Restart HA
 ```
 
@@ -125,7 +142,7 @@ rm -rf vag-connect-ha
 
 ## ⚙️ Configuration
 
-**Settings → Devices & Services → Add Integration → "VAG Connect"**
+**Settings → Devices & Services → Add Integration → "VW Group Connect"**
 
 | Field | Example | Description |
 |---|---|---|
@@ -134,7 +151,7 @@ rm -rf vag-connect-ha
 | Password | `••••••••` | Your account password |
 | S-PIN | `1234` *(optional)* | 4-digit PIN for Lock/Unlock on some brands |
 
-**Options** (Settings → Devices & Services → VAG Connect → ⋮ → Configure):
+**Options** (Settings → Devices & Services → VW Group Connect → ⋮ → Configure):
 
 - **Polling interval** (5-60 min) — Default 10 min. Lower = fresher, but burns API quota faster.
 - **Read-only mode** — when enabled, only status sensors are spawned; no switches/buttons that send commands.
@@ -201,7 +218,7 @@ data:
 response_variable: result
 ```
 
-More examples in [`docs/FAQ.md#lovelace-examples`](docs/FAQ.md). Dashboard troubleshooting + dedicated VAG Connect Lovelace card (BETA): [`docs/dashboards.md`](docs/dashboards.md).
+More examples in [`docs/FAQ.md#lovelace-examples`](docs/FAQ.md). Dashboard troubleshooting + dedicated VW Group Connect Lovelace card (BETA): [`docs/dashboards.md`](docs/dashboards.md).
 
 ---
 
@@ -214,7 +231,7 @@ More examples in [`docs/FAQ.md#lovelace-examples`](docs/FAQ.md). Dashboard troub
 | **What if Tank-% is missing on Golf 7 GTE?** | v1.25.0 added MBB VSR Phase 2 read-side fallback. See [Golf 7 GTE Tank Guide](docs/GOLF_7_GTE_TANK_GUIDE.md). |
 | **Token survives HACS update?** | ✅ yes, since v1.19.2 — token persistence via HA `Store` (no re-login after updates). |
 | **How do I report bugs?** | HA → Integration → 🔧 Repair → Bug Report. Diagnostics are anonymised (VINs masked, GPS rounded, tokens stripped). |
-| **"Add to Dashboard" doesn't show my dashboard / view?** | Most common cause: dashboard is in **YAML mode** (only Storage-mode dashboards appear in the picker). Or the view doesn't exist yet. Full guide + dedicated VAG Connect Lovelace card (BETA): [`docs/dashboards.md`](docs/dashboards.md). |
+| **"Add to Dashboard" doesn't show my dashboard / view?** | Most common cause: dashboard is in **YAML mode** (only Storage-mode dashboards appear in the picker). Or the view doesn't exist yet. Full guide + dedicated VW Group Connect Lovelace card (BETA): [`docs/dashboards.md`](docs/dashboards.md). |
 
 Full FAQ in [`docs/FAQ.md`](docs/FAQ.md).
 

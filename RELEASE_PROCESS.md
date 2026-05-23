@@ -89,7 +89,7 @@ git push origin main
 ### 5. Tag
 
 ```bash
-git tag -a v1.9.0 -m "VAG Connect v1.9.0"
+git tag -a v1.9.0 -m "VW Group Connect v1.9.0"
 git push origin v1.9.0
 ```
 

@@ -43,7 +43,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: VAG Connect Version
+      label: VW Group Connect Version
       placeholder: "e.g. 1.8.0"
     validations:
       required: true
@@ -144,10 +144,10 @@ body:
     attributes:
       label: Diagnostics / Diagnose-Daten (optional)
       description: |
-        Settings → Devices & Services → VAG Connect → ⋮ → Download diagnostics.
+        Settings → Devices & Services → VW Group Connect → ⋮ → Download diagnostics.
         Sensitive data (VIN, password, S-PIN, GPS, email, address, user_id) is auto-redacted by v1.8.x+.
 
-        HA → Einstellungen → Integrationen → VAG Connect → 3-Punkte-Menü → Diagnose herunterladen.
+        HA → Einstellungen → Integrationen → VW Group Connect → 3-Punkte-Menü → Diagnose herunterladen.
         Sensible Daten (VIN, Passwort, S-PIN, GPS, Email, Adresse, user_id) werden ab v1.8.x automatisch geschwärzt.
 
         If you are on an older version: please open the JSON, mask VINs and email manually before pasting.

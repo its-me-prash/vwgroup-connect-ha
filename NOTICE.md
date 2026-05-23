@@ -1,8 +1,8 @@
-# NOTICE — VAG Connect for Home Assistant
+# NOTICE — VW Group Connect for Home Assistant
 
 ## No Runtime Dependencies
 
-VAG Connect has zero external runtime dependencies (`requirements: []`).
+VW Group Connect has zero external runtime dependencies (`requirements: []`).
 The integration communicates directly with manufacturer APIs using Home
 Assistant's built-in `aiohttp` session.
 

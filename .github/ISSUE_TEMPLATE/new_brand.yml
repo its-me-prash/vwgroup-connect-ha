@@ -1,5 +1,5 @@
 name: 🚗 Brand live-test report / Live-Test einer Marke
-description: Report whether your brand / model works with VAG Connect / Berichte ob deine Marke / dein Modell mit VAG Connect funktioniert
+description: Report whether your brand / model works with VW Group Connect / Berichte ob deine Marke / dein Modell mit VW Group Connect funktioniert
 labels: ["testing"]
 body:
   - type: markdown
@@ -17,7 +17,7 @@ body:
         - **Škoda Enyaq, Superb iV, Karoq** (platform broadening)
 
         Not implemented and not planned: Bentley, Lamborghini, Bugatti, Ducati,
-        MAN, Scania — see [`docs/research/LUXURY_BRANDS.md`](https://github.com/its-me-prash/vag-connect-ha/blob/main/docs/research/LUXURY_BRANDS.md).
+        MAN, Scania — see [`docs/research/LUXURY_BRANDS.md`](https://github.com/its-me-prash/vwgroup-connect-ha/blob/main/docs/research/LUXURY_BRANDS.md).
 
         Nicht implementiert und auch nicht geplant: Bentley, Lamborghini,
         Bugatti, Ducati, MAN, Scania — siehe `docs/research/LUXURY_BRANDS.md`.
@@ -59,7 +59,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: VAG Connect Version
+      label: VW Group Connect Version
       placeholder: "e.g. 1.8.0"
     validations:
       required: true

@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Skonfiguruj VAG Connect",
+        "title": "Skonfiguruj VW Group Connect",
         "description": "Połącz swój pojazd z Home Assistant.\n\nWybierz markę i wprowadź dane logowania z aplikacji producenta.",
         "data": {
           "brand": "Marka pojazdu",
@@ -30,7 +30,7 @@
         }
       },
       "reconfigure": {
-        "title": "Skonfiguruj ponownie VAG Connect",
+        "title": "Skonfiguruj ponownie VW Group Connect",
         "description": "Zmień dane logowania lub ustawienia bez usuwania integracji.",
         "data": {
           "brand": "Marka pojazdu",
@@ -71,7 +71,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "VAG Connect — Ustawienia",
+        "title": "VW Group Connect — Ustawienia",
         "data": {
           "scan_interval": "Interwał aktualizacji",
           "spin": "S-PIN",
@@ -607,23 +607,23 @@
     },
     "auth_failed": {
       "title": "Logowanie nieudane — {brand}",
-      "description": "Ustawienia → Urządzenia i usługi → VAG Connect → ⋮ → Skonfiguruj ponownie."
+      "description": "Ustawienia → Urządzenia i usługi → VW Group Connect → ⋮ → Skonfiguruj ponownie."
     },
     "vehicle_data_scout_findings": {
       "title": "Obserwator API — {count} nowe pole(a) w {brand}",
-      "description": "Obserwator API wykrył **{count}** nowe pole(a) w odpowiedzi API {brand}, których VAG Connect jeszcze nie odczytuje.\n\nZazwyczaj oznacza to, że Twój pojazd ma funkcję lub wersję firmware, której nie zmapowaliśmy — Twoja pomoc nauczy integrację jej obsługi.\n\n**Raport jednym kliknięciem:**\n📤 Kliknij **Dowiedz się więcej** poniżej, aby otworzyć wstępnie wypełnione zgłoszenie GitHub.\n\n**Dla Facebooka / forum:** Ustawienia → Urządzenia → VAG Connect → Diagnostyka → Pobierz — wklej zamaskowany raport.\n\n_Prywatność: VIN-y zamaskowane, GPS zaokrąglony do 1 miejsca, userIDs/JWT/e-maile usunięte. Nic nie jest wysyłane automatycznie._"
+      "description": "Obserwator API wykrył **{count}** nowe pole(a) w odpowiedzi API {brand}, których VW Group Connect jeszcze nie odczytuje.\n\nZazwyczaj oznacza to, że Twój pojazd ma funkcję lub wersję firmware, której nie zmapowaliśmy — Twoja pomoc nauczy integrację jej obsługi.\n\n**Raport jednym kliknięciem:**\n📤 Kliknij **Dowiedz się więcej** poniżej, aby otworzyć wstępnie wypełnione zgłoszenie GitHub.\n\n**Dla Facebooka / forum:** Ustawienia → Urządzenia → VW Group Connect → Diagnostyka → Pobierz — wklej zamaskowany raport.\n\n_Prywatność: VIN-y zamaskowane, GPS zaokrąglony do 1 miejsca, userIDs/JWT/e-maile usunięte. Nic nie jest wysyłane automatycznie._"
     },
     "error_reporter_findings": {
       "title": "Raporter błędów — {count} ostatnich błędów dla {brand}",
-      "description": "Raporter błędów uchwycił **{count}** ostatnich błędów integracji z {brand}.\n\nZgłaszanie pomaga znaleźć błędy występujące tylko w określonych pojazdach lub wersjach firmware.\n\n**Raport jednym kliknięciem:**\n📤 Kliknij **Dowiedz się więcej** poniżej, aby otworzyć wstępnie wypełnione zgłoszenie GitHub.\n\n**Dla Facebooka / forum:** Ustawienia → Urządzenia → VAG Connect → Diagnostyka → Pobierz — raport zawarty, VIN-y i tokeny zamaskowane.\n\n_Prywatność: VIN-y zamaskowane, tokeny Bearer/JWT/UUID/e-mail usunięte z wiadomości i tracebacków. Brak danych logowania._"
+      "description": "Raporter błędów uchwycił **{count}** ostatnich błędów integracji z {brand}.\n\nZgłaszanie pomaga znaleźć błędy występujące tylko w określonych pojazdach lub wersjach firmware.\n\n**Raport jednym kliknięciem:**\n📤 Kliknij **Dowiedz się więcej** poniżej, aby otworzyć wstępnie wypełnione zgłoszenie GitHub.\n\n**Dla Facebooka / forum:** Ustawienia → Urządzenia → VW Group Connect → Diagnostyka → Pobierz — raport zawarty, VIN-y i tokeny zamaskowane.\n\n_Prywatność: VIN-y zamaskowane, tokeny Bearer/JWT/UUID/e-mail usunięte z wiadomości i tracebacków. Brak danych logowania._"
     },
     "quota_low": {
       "title": "API quota low — {remaining} requests remaining today",
-      "description": "Your VAG account is approaching the daily API request limit ({remaining} of {limit} remaining, {pct}%).\n\nTo protect against quota lockout (the manufacturer backend can soft-suspend the account when the daily cap is reached), consider:\n\n1. **Increase the update interval** — Settings → Devices & Services → VAG Connect → Configure → Update Interval (currently typically 5–10 min)\n2. **Reduce other VAG integrations** running on the same account (each counts against the same quota)\n3. **Wait for daily reset** — usually around midnight in the manufacturer's home time zone\n\nThis warning auto-clears when the remaining count recovers."
+      "description": "Your VAG account is approaching the daily API request limit ({remaining} of {limit} remaining, {pct}%).\n\nTo protect against quota lockout (the manufacturer backend can soft-suspend the account when the daily cap is reached), consider:\n\n1. **Increase the update interval** — Settings → Devices & Services → VW Group Connect → Configure → Update Interval (currently typically 5–10 min)\n2. **Reduce other VAG integrations** running on the same account (each counts against the same quota)\n3. **Wait for daily reset** — usually around midnight in the manufacturer's home time zone\n\nThis warning auto-clears when the remaining count recovers."
     },
     "quota_critical": {
       "title": "API quota CRITICAL — {remaining} requests remaining today",
-      "description": "Your VAG account has fewer than 25 API requests remaining today ({remaining} of {limit}, {pct}%). The manufacturer backend may soft-suspend the account if you exhaust the budget.\n\n**Immediate action:**\n1. **Pause polling** — Settings → Devices & Services → VAG Connect → Configure → Update Interval → set to 30 min or higher\n2. Avoid manual refreshes / vehicle wake-ups until the budget resets\n\nThis warning auto-clears when the remaining count recovers."
+      "description": "Your VAG account has fewer than 25 API requests remaining today ({remaining} of {limit}, {pct}%). The manufacturer backend may soft-suspend the account if you exhaust the budget.\n\n**Immediate action:**\n1. **Pause polling** — Settings → Devices & Services → VW Group Connect → Configure → Update Interval → set to 30 min or higher\n2. Avoid manual refreshes / vehicle wake-ups until the budget resets\n\nThis warning auto-clears when the remaining count recovers."
     }
   },
   "exceptions": {
@@ -631,7 +631,7 @@
       "message": "Pojazd z VIN {vin} nie znaleziony."
     },
     "spin_required": {
-      "message": "S-PIN jest wymagany do tej akcji. Skonfiguruj go w Ustawienia → Urządzenia i usługi → VAG Connect → Konfiguruj."
+      "message": "S-PIN jest wymagany do tej akcji. Skonfiguruj go w Ustawienia → Urządzenia i usługi → VW Group Connect → Konfiguruj."
     },
     "feature_not_supported": {
       "message": "Funkcja {feature} nie jest obsługiwana przez Twój pojazd lub obecnego klienta API. Akcja nie została wysłana."
@@ -643,7 +643,7 @@
       "message": "Cooldown wybudzania aktywny (pozostało {remaining_s}s). Aby chronić akumulator 12V, wybudzanie ograniczone do jednego co {cooldown_min} minut na pojazd."
     },
     "read_only_mode_active": {
-      "message": "Tryb tylko do odczytu jest włączony w opcjach integracji. Wyłącz go w Ustawienia → Urządzenia i usługi → VAG Connect → Skonfiguruj, aby wysyłać polecenia do pojazdu."
+      "message": "Tryb tylko do odczytu jest włączony w opcjach integracji. Wyłącz go w Ustawienia → Urządzenia i usługi → VW Group Connect → Skonfiguruj, aby wysyłać polecenia do pojazdu."
     }
   }
 }

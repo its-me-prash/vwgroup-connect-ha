@@ -1,15 +1,15 @@
 {
   "domain": "vag_connect",
-  "name": "VAG Connect",
+  "name": "VW Group Connect",
   "codeowners": [
     "@its-me-prash"
   ],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/its-me-prash/vag-connect-ha",
+  "documentation": "https://github.com/its-me-prash/vwgroup-connect-ha",
   "integration_type": "hub",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/its-me-prash/vag-connect-ha/issues",
+  "issue_tracker": "https://github.com/its-me-prash/vwgroup-connect-ha/issues",
   "loggers": [
     "custom_components.vag_connect"
   ],
