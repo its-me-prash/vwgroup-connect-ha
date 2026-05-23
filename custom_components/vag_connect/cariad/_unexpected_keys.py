@@ -461,6 +461,11 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             "charging.chargingStatus.value.chargingSettings",
             "charging.chargingStatus.value.chargingScenario",
             "charging.chargingStatus.value.carCapturedTimestamp",
+            # v2.2.3 — scout #268 (VW EU arvcer 2026-05-21): pending
+            # ``start_charging``/``stop_charging`` commands queue. Mirror
+            # of the existing ``chargingSettings.requests`` parser, now
+            # parsed into ``d.charging_status_pending`` (count diagnostic).
+            "charging.chargingStatus.requests",
             "charging.chargingSettings", "charging.chargingSettings.value",
             "charging.chargingSettings.value.targetSOC_pct",
             "charging.chargingSettings.value.maxChargeCurrentAC",

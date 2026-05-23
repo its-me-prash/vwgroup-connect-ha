@@ -197,6 +197,21 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # v2.2.3 — Cariad scout #268 (VW EU arvcer): mirror of the above
+    # for the chargingStatus side — counts queued ``start_charging`` /
+    # ``stop_charging`` commands. Same diagnostic semantics: 0 = idle,
+    # >0 = command queued at the gateway. Disabled by default — power
+    # users opt in. Phantom-protected (None when leaf absent).
+    VagSensorDescription(
+        key="charging_status_pending",
+        translation_key="charging_status_pending",
+        data_key="charging_status_pending",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:flash-alert",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     # v1.27.2 — Visual feedback color of the charge-port LED.
     # none / red (error) / green (idle/done) / blue (charging) — drivable by
     # automations like "notify me when LED turns red".

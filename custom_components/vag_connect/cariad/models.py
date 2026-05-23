@@ -353,6 +353,11 @@ class VehicleData:
     # requests count. Useful diagnostic for "did my putChargingSettings POST
     # actually queue?" Plus visual feedback signals from plugStatus.
     charging_settings_pending: int | None = None
+    # v2.2.3 — Cariad scout #268 (VW EU arvcer): mirror of the
+    # ``chargingSettings.requests`` queue but for chargingStatus side
+    # (i.e. queued ``start_charging`` / ``stop_charging`` commands).
+    # Same int-count diagnostic, same None semantics.
+    charging_status_pending: int | None = None
     plug_led_color: str | None = None  # none / red / green / blue
     external_power_available: bool | None = None  # plugStatus.externalPower
 

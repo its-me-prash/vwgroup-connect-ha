@@ -922,6 +922,19 @@ class VWEUClient(CariadBaseClient):
         if isinstance(pending, list):
             d.charging_settings_pending = len(pending)
 
+        # v2.2.3 — scout #268 (VW EU arvcer, 2026-05-21): mirror of the
+        # above pattern for ``charging.chargingStatus.requests`` (start/
+        # stop charging commands queued on the chargingStatus side, vs.
+        # putChargingSettings on the chargingSettings side). Same shape
+        # ``[1 items]`` observed in the scout-report. Surfaced as
+        # ``charging_status_pending`` so users can verify their
+        # ``vag_connect.start_charging`` / ``stop_charging`` requests
+        # actually queued at the backend. Defensive list-check keeps
+        # the field None when the leaf is absent (phantom-gate honest).
+        status_pending = v(raw, "charging", "chargingStatus", "requests")
+        if isinstance(status_pending, list):
+            d.charging_status_pending = len(status_pending)
+
         # v1.27.2 — Plug visual feedback (LED color on the charge port) +
         # external-power availability. Both come straight from plugStatus.
         # Helpful for "is the wallbox actually delivering power right now?"
