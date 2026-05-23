@@ -115,7 +115,35 @@ Versionierung: [Semantic Versioning 2.0.0](https://semver.org/lang/de/)
 > phantom-protected). Tier-B (wildcards + alarm/siren) deferred
 > until tester scout-dumps liefern die unknown leaf-shapes.
 
-## [Unreleased] — v2.2.3
+## [Unreleased]
+
+_(nothing pending — v2.2.3 just shipped; new entries land here)_
+
+## [2.2.3] — 2026-05-23 — "Easter Egg + Sprint A Quick-wins"
+
+> **PATCH-Release**: 1 community-feature (🥚 easter-egg tribute) + 5
+> Scout-Closures + 1 config-flow UX-Fix in einer PR (#274). Spinoff
+> aus dem rename-thread auf den HA UK + HA Ideas Facebook groups —
+> Rename selber bleibt geparkt, easter-egg shippt vorab.
+>
+> Was drin ist:
+>
+> | # | Reporter | Brand | Fix |
+> |---|---|---|---|
+> | #270 | roberttco | VW NA | config-flow brand-preserve nach auth-error |
+> | #268 + #271 | arvcer | VW EU | chargingStatus.requests parser+silencer |
+> | #272 | arvcer | VW EU | climatisationStatus.requests parser+silencer |
+> | #273 | gudden | VW EU | readiness.error envelope silencer |
+> | #263, #265, #266 | DnnsJp74, j4x5mgq94b, arvcer | Audi/VW EU | ack-close (pre-fixed in v2.2.2) |
+> | #267 | Brinki99 | VW EU | ack-close (transient Cariad 502) |
+>
+> Audi erbt alle silencer-adds via brand-vererbung. Keine Breaking
+> Changes. HACS pre-release & stable channels.
+>
+> Codename: "Easter Egg + Sprint A Quick-wins" — weil das easter-egg
+> der zentrale community-moment ist und Sprint A der erste schritt
+> einer geplanten Sprint-A→B→C release-kadenz (B = v2.3.0 mit VW NA
+> auth-fix + Audi nav-aware charging).
 
 ### Added
 
