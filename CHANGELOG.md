@@ -115,7 +115,13 @@ Versionierung: [Semantic Versioning 2.0.0](https://semver.org/lang/de/)
 > phantom-protected). Tier-B (wildcards + alarm/siren) deferred
 > until tester scout-dumps liefern die unknown leaf-shapes.
 
-## [Unreleased] — v2.4.0
+## [Unreleased]
+
+_(nothing pending — v2.4.0 just shipped; new entries land here)_
+
+## [2.4.0] — 2026-05-23 — "Marketing-Rename: VAG Connect → VW Group Connect (Community Tribute)"
+
+> **MINOR release** — marketing-only project rename. **Zero user-breakage** by design. Spinoff aus humorvoller Community-Feedback der HA UK + HA Ideas FB-Gruppen (Si Gregory, Ben Johnson, Evets David, Stuart McBride, Jordan Waeles). DOMAIN stays `vag_connect` internally → entity-IDs unchanged, automations weiterfunktionieren, recorder history bleibt, easter-egg `vag_connect.show_vag` bleibt unter Jordan's joke-name. Display-Name + Repo-URL umbenannt für die public-identity. Siehe MIGRATION.md.
 
 ### Changed
 
