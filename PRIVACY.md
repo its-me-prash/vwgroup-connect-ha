@@ -1,11 +1,11 @@
 # Privacy / Datenschutz
 
-> **TL;DR:** VAG Connect runs entirely inside your Home Assistant instance.
+> **TL;DR:** VW Group Connect runs entirely inside your Home Assistant instance.
 > Your credentials and vehicle data never leave Home Assistant unless they
 > go directly to the manufacturer's official API. We do not collect
 > telemetry, we do not have a server, we do not have your data.
 
-> **Kurzfassung:** VAG Connect läuft komplett in deiner Home Assistant
+> **Kurzfassung:** VW Group Connect läuft komplett in deiner Home Assistant
 > Instanz. Deine Zugangsdaten und Fahrzeugdaten verlassen Home Assistant
 > nur direkt zu den offiziellen Hersteller-APIs. Wir sammeln keine
 > Telemetrie, wir haben keinen Server, wir haben deine Daten nicht.
@@ -34,7 +34,7 @@ The following calls only happen if **you explicitly enable them**:
 
 | Feature | Third party | Default | How to enable |
 |---|---|---|---|
-| Reverse geocoding (parking address) | OpenStreetMap Nominatim | **OFF** | HA → VAG Connect → Configure → "Reverse Geocoding" |
+| Reverse geocoding (parking address) | OpenStreetMap Nominatim | **OFF** | HA → VW Group Connect → Configure → "Reverse Geocoding" |
 
 When reverse geocoding is on, the rounded vehicle coordinate (3 decimals,
 ~110m precision) is sent to `nominatim.openstreetmap.org` with a
@@ -71,7 +71,7 @@ do not re-download on every restart.
 
 ## EU / GDPR (DSGVO) considerations
 
-VAG Connect itself is **not a data processor under Article 28 GDPR**
+VW Group Connect itself is **not a data processor under Article 28 GDPR**
 because it does not run on a service we operate. It runs on your Home
 Assistant instance, owned and controlled by you, the data subject.
 
@@ -81,13 +81,13 @@ process any personal data of users.
 The EU Data Act (mandatory in-vehicle data access for third parties)
 takes effect in September 2026 and may give vehicle owners formal,
 documented API access — see issue
-[#59](https://github.com/its-me-prash/vag-connect-ha/issues/59).
+[#59](https://github.com/its-me-prash/vwgroup-connect-ha/issues/59).
 
 ---
 
 ## EU Cyber Resilience Act (CRA)
 
-VAG Connect is a community-maintained, non-commercial open-source
+VW Group Connect is a community-maintained, non-commercial open-source
 integration. It is not "commercial software" under the CRA, but the
 maintainer voluntarily follows CRA-aligned practices:
 

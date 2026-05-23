@@ -61,7 +61,7 @@ jobs:
           # Last 3 prior versions for the "Recent releases" pointer
           recent_prior = [(v, d) for v, d in all_entries if v != version][:3]
 
-          repo = "its-me-prash/vag-connect-ha"
+          repo = "its-me-prash/vwgroup-connect-ha"
 
           lines: list[str] = []
 

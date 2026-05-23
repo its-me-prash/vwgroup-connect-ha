@@ -1,4 +1,4 @@
-# vag-connect-ha Roadmap
+# vwgroup-connect-ha Roadmap
 
 > Living document. Updated quarterly. Last update: 2026-05-11.
 
@@ -38,8 +38,8 @@ and [strategic roadmap](docs/research/2026-05_strategic-roadmap-v1.27-to-v2.0.md
 
 ## Get involved
 
-- 🐛 Bug? → [Issues](https://github.com/its-me-prash/vag-connect-ha/issues)
-- 🧪 Tester for Skoda/SEAT/CUPRA hardware? → comment on [#13](https://github.com/its-me-prash/vag-connect-ha/issues/13)
+- 🐛 Bug? → [Issues](https://github.com/its-me-prash/vwgroup-connect-ha/issues)
+- 🧪 Tester for Skoda/SEAT/CUPRA hardware? → comment on [#13](https://github.com/its-me-prash/vwgroup-connect-ha/issues/13)
 - 💬 Pre-Cariad PHEV owner? → check the [audit doc](docs/research/2026-05_pre-cariad-mbb-and-golf-7-gte-audit.md)
   and run `scripts/verify_cariad_full.py` to inventory your VIN's data
 - 📋 Want detailed competitor analysis + ecosystem trends? → [strategic roadmap](docs/research/2026-05_strategic-roadmap-v1.27-to-v2.0.md)

@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/its-me-prash/vag-connect-ha/main/custom_components/vag_connect/logo.png" alt="VAG Connect" width="180">
+  <img src="https://raw.githubusercontent.com/its-me-prash/vwgroup-connect-ha/main/custom_components/vag_connect/logo.png" alt="VW Group Connect" width="180">
 </p>
 
-<h1 align="center">VAG Connect</h1>
+<h1 align="center">VW Group Connect</h1>
 
 <p align="center">
   <strong>Home Assistant Integratie voor Audi · VW · Škoda · SEAT · CUPRA</strong>
@@ -10,10 +10,10 @@
 
 <p align="center">
   <a href="https://hacs.xyz"><img src="https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge"></a>
-  <a href="https://github.com/its-me-prash/vag-connect-ha/releases"><img src="https://img.shields.io/github/v/release/its-me-prash/vag-connect-ha?style=for-the-badge"></a>
+  <a href="https://github.com/its-me-prash/vwgroup-connect-ha/releases"><img src="https://img.shields.io/github/v/release/its-me-prash/vwgroup-connect-ha?style=for-the-badge"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=for-the-badge"></a>
-  <a href="https://github.com/its-me-prash/vag-connect-ha/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/its-me-prash/vag-connect-ha/ci.yml?branch=main&style=for-the-badge&label=CI" alt="CI"></a>
-  <a href="https://github.com/its-me-prash/vag-connect-ha/releases"><img src="https://img.shields.io/github/downloads/its-me-prash/vag-connect-ha/total?style=for-the-badge&label=Downloads" alt="Downloads"></a>
+  <a href="https://github.com/its-me-prash/vwgroup-connect-ha/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/its-me-prash/vwgroup-connect-ha/ci.yml?branch=main&style=for-the-badge&label=CI" alt="CI"></a>
+  <a href="https://github.com/its-me-prash/vwgroup-connect-ha/releases"><img src="https://img.shields.io/github/downloads/its-me-prash/vwgroup-connect-ha/total?style=for-the-badge&label=Downloads" alt="Downloads"></a>
   <a href="../custom_components/vag_connect/quality_scale.yaml"><img src="https://img.shields.io/badge/Quality%20Scale-Platinum%20%F0%9F%8F%86-gold?style=for-the-badge"></a>
 </p>
 
@@ -29,6 +29,21 @@
 </p>
 
 ---
+
+> ### 📛 Note on the rename
+> Previously published as **`vag-connect-ha`** (VAG = Volkswagen AG, standard DACH abbreviation).
+> Turns out that abbreviation reads *quite* differently to English speakers 😅
+>
+> **What keeps working as before**: all entities (e.g. `sensor.audi_q4_battery_soc`),
+> all service-calls (`vag_connect.lock`, `vag_connect.show_vag` etc.), all automations,
+> the HACS install — **nothing breaks**. Marketing/display name changes, code internals
+> stay unchanged. See [`MIGRATION.md`](MIGRATION.md).
+>
+> Huge thanks to the **Home Assistant UK** and **HA Ideas, Projects and Solutions**
+> communities for the heads-up — especially **Si Gregory**, **Ben Johnson**, and **Evets David**.
+>
+> And a special shoutout to **Jordan Waeles**, whose `show_vag()` comment is now an officially
+> supported easter egg in this integration (`vag_connect.show_vag` service, see CHANGELOG v2.2.3).
 
 ---
 
@@ -76,7 +91,7 @@
 
 Ik wilde mijn Audi volledig in Home Assistant besturen. Dus bouwde ik dit.
 
-**VAG Connect** is een zelfstandige Home Assistant integratie voor alle VAG-merken. Geen externe afhankelijkheden, geen Docker, geen externe diensten.
+**VW Group Connect** is een zelfstandige Home Assistant integratie voor alle VAG-merken. Geen externe afhankelijkheden, geen Docker, geen externe diensten.
 
 Vanaf v0.14.1 communiceert de integratie **rechtstreeks** met de CARIAD API — eigen async-client, volledig zelfstandig. Cloud-polling architectuur, 80+ entities over 10 platforms, 14 services.
 
@@ -84,7 +99,7 @@ Vanaf v0.14.1 communiceert de integratie **rechtstreeks** met de CARIAD API — 
 
 ## Huidige status & eerlijke beperkingen / Current Status & Honest Limits (v1.12.3)
 
-VAG Connect ontwikkelt zich actief verder. Zodat je weet wat werkt en wat eraan komt:
+VW Group Connect ontwikkelt zich actief verder. Zodat je weet wat werkt en wat eraan komt:
 
 ### ✅ Wat NU werkt (alle 7 merken)
 
@@ -157,7 +172,7 @@ Field-name fallback-keten: `battery.currentSocPercentage` (Born 2026) → `curre
 ### 🚫 Bewuste beperkingen / Conscious limits
 
 - **Image-platform:** geen officiële CARIAD render-image API. De image-entity zal in een toekomstige release overgaan naar door gebruiker geleverde URLs.
-- **PPC/PPE Audi 2025+** (Q5, A5/S5, A6 e-tron, Q6 e-tron, RS e-tron GT Facelift) — nieuwe E³ 1.2 architectuur, nog niet publiek reverse-engineered (ook niet in audi_connect_ha of CarConnectivity). VAG Connect detecteert deze voertuigen en doet **graceful degradation** in plaats van 404-fouten.
+- **PPC/PPE Audi 2025+** (Q5, A5/S5, A6 e-tron, Q6 e-tron, RS e-tron GT Facelift) — nieuwe E³ 1.2 architectuur, nog niet publiek reverse-engineered (ook niet in audi_connect_ha of CarConnectivity). VW Group Connect detecteert deze voertuigen en doet **graceful degradation** in plaats van 404-fouten.
 - **Ford / niet-VAG merken:** buiten scope — zie [`marq24/ha-fordpass`](https://github.com/marq24/ha-fordpass) voor Ford.
 
 ### 🔧 Privacy-vereiste
@@ -187,7 +202,7 @@ Voor GPS-positie, voertuigstatus en standkachel moet **"Locatie delen"** ingesch
 | Porsche | Auth0 | api.ppa.porsche.com | ✅ Beta |
 | VW NA (US/CA) | VW NA Auth | b-h-s.spr.*.p.con-veh.net | ✅ Beta |
 
-> **Porsche & VW NA:** Beide merken zijn sinds v1.0.0 beschikbaar als Beta. Testers gezocht — meld feedback als [Issue](https://github.com/its-me-prash/vag-connect-ha/issues)!
+> **Porsche & VW NA:** Beide merken zijn sinds v1.0.0 beschikbaar als Beta. Testers gezocht — meld feedback als [Issue](https://github.com/its-me-prash/vwgroup-connect-ha/issues)!
 
 ---
 
@@ -228,9 +243,9 @@ Voor GPS-positie, voertuigstatus en standkachel moet **"Locatie delen"** ingesch
 ### HACS
 
 1. HACS → Integraties → ⋮ → Aangepaste opslagplaatsen
-2. URL: `https://github.com/its-me-prash/vag-connect-ha` — Categorie: Integratie
-3. **VAG Connect** installeren → Home Assistant opnieuw opstarten
-4. Instellingen → Integraties → **+ Integratie** → **VAG Connect**
+2. URL: `https://github.com/its-me-prash/vwgroup-connect-ha` — Categorie: Integratie
+3. **VW Group Connect** installeren → Home Assistant opnieuw opstarten
+4. Instellingen → Integraties → **+ Integratie** → **VW Group Connect**
 
 ### Manual
 
@@ -270,7 +285,7 @@ Herstart Home Assistant.
 
 Apache License 2.0 — [LICENSE](LICENSE)
 
-**VAG Connect™** is een niet-geregistreerd handelsmerk (™, niet ®). Gebruik deze naam niet in forks om verwarring te voorkomen.
+**VW Group Connect™** is een niet-geregistreerd handelsmerk (™, niet ®). Gebruik deze naam niet in forks om verwarring te voorkomen.
 
 Deze integratie is een onafhankelijk communityproject zonder enige verbinding met Volkswagen AG, Audi AG, Škoda Auto, SEAT S.A., CUPRA, Porsche AG of andere VAG-dochterondernemingen.
 

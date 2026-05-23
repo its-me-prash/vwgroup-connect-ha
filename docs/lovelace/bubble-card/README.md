@@ -1,4 +1,4 @@
-# Bubble Card Templates for VAG Connect
+# Bubble Card Templates for VW Group Connect
 
 > Pre-built Lovelace YAML snippets that use [**Bubble Card**](https://github.com/Clooos/Bubble-Card)
 > to give your VAG vehicles a beautiful, glass-morphism dashboard out
@@ -20,7 +20,7 @@ Drop these snippets into your dashboard and get:
 
 ## 📦 Prerequisites
 
-1. **VAG Connect** integration installed and at least one vehicle configured
+1. **VW Group Connect** integration installed and at least one vehicle configured
 2. **Bubble Card** installed via HACS:
    - HACS → Frontend → "+ Explore & Add Repositories"
    - Search "Bubble Card" → install
@@ -106,10 +106,10 @@ Update HA if you're on an older release.
 - [Bubble Card docs](https://github.com/Clooos/Bubble-Card/wiki) —
   full reference for all card types and styling options
 - [`its-me-prash/vag-connect-cards`](https://github.com/its-me-prash/vag-connect-cards) —
-  dedicated VAG Connect Lovelace card (BETA — alternative to
+  dedicated VW Group Connect Lovelace card (BETA — alternative to
   Bubble Card if you want a single-purpose VAG dashboard)
 
 ---
 
-*Templates contributed by the VAG Connect community. Issues +
+*Templates contributed by the VW Group Connect community. Issues +
 improvements welcome via PR.*

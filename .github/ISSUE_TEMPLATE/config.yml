@@ -1,11 +1,11 @@
 blank_issues_enabled: false
 contact_links:
   - name: 💬 Discussions & Questions / Diskussionen & Fragen
-    url: https://github.com/its-me-prash/vag-connect-ha/discussions
+    url: https://github.com/its-me-prash/vwgroup-connect-ha/discussions
     about: General questions, dashboard examples, community exchange / Allgemeine Fragen, Dashboard-Beispiele und Community-Austausch
   - name: 📖 HA Community Forum
     url: https://community.home-assistant.io
     about: General Home Assistant questions / Allgemeine Home Assistant Fragen
   - name: 🔒 Security vulnerability / Sicherheitslücke
-    url: https://github.com/its-me-prash/vag-connect-ha/security/advisories/new
+    url: https://github.com/its-me-prash/vwgroup-connect-ha/security/advisories/new
     about: Report privately via GitHub Security Advisories / Privat per GitHub Security Advisories melden — see SECURITY.md

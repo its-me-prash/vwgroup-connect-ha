@@ -115,9 +115,65 @@ Versionierung: [Semantic Versioning 2.0.0](https://semver.org/lang/de/)
 > phantom-protected). Tier-B (wildcards + alarm/siren) deferred
 > until tester scout-dumps liefern die unknown leaf-shapes.
 
-## [Unreleased]
+## [Unreleased] — v2.4.0
 
-_(nothing pending — v2.3.0 just shipped; new entries land here)_
+### Changed
+
+- **🪪 Marketing-Rename: "VAG Connect" → "VW Group Connect"** (repo URL
+  `vag-connect-ha` → `vwgroup-connect-ha`). Spinoff aus dem
+  Community-Feedback der **Home Assistant UK** + **HA Ideas, Projects
+  and Solutions** Facebook-Gruppen (2026-05). "VAG" — die offizielle
+  DACH-Abkürzung für Volkswagen AG — liest sich auf Englisch *quite
+  differently* 😅. Si Gregory schlug das Rename vor, Ben Johnson +
+  Evets David + Stuart McBride + Jordan Waeles bekräftigten.
+
+  **Marketing-only by design**: nur Repo-URL + Display-Name geändert.
+  Code-Internals + DOMAIN + Entity-IDs + Service-Calls + HACS-Install
+  alles **unverändert** — kein User-Breakage, keine Automation muss
+  umgeschrieben werden, Recorder-History bleibt erhalten.
+
+  | Aspect | Vorher | Jetzt |
+  |---|---|---|
+  | Repo URL | `github.com/its-me-prash/vag-connect-ha` | `github.com/its-me-prash/vwgroup-connect-ha` |
+  | HACS Display | "VAG Connect" | "VW Group Connect" |
+  | Manifest `name` | "VAG Connect" | "VW Group Connect" |
+  | Integration `domain` | `vag_connect` | **`vag_connect`** (unchanged!) |
+  | Entity-IDs | `sensor.audi_q4_battery_soc` etc. | **unchanged** |
+  | Service-Calls | `vag_connect.lock` etc. | **unchanged** |
+  | Easter-egg | `vag_connect.show_vag` (Jordan's joke) | **preserved** |
+
+  **Was wirklich geändert wurde** (~80 files, ~200 string replacements):
+  manifest.json, hacs.json, strings.json + 8 translations, 8 READMEs,
+  SECURITY/PRIVACY/CONTRIBUTING/RELEASE_PROCESS/ROADMAP/NOTICE,
+  .github workflows + issue templates, docs/dashboards.md + FAQ.md +
+  bubble-card/README.md, coordinator user-agent string.
+
+  **Bewusst NICHT geändert** (history preservation):
+  - CHANGELOG.md historische Einträge (47 Vorkommen) — die beschreiben
+    was wirklich unter dem alten Namen ausgeliefert wurde, retroaktiv
+    umschreiben wäre historisch falsch
+  - `docs/research/*-2026-*.md` (17 Dateien) — zeitstempel-archivierte
+    Research-Notes, gleiche Begründung
+  - `docs/CHANGELOG_TECHNICAL.md` — historisch
+  - Bruno-Files (URL-Pinning + historische Attribution)
+  - Tests (`from custom_components.vag_connect.*` Imports)
+  - Scripts (interne Utility-Scripts)
+
+  **Plus**: neue `MIGRATION.md` am Repo-Root erklärt das ganze Bild +
+  alle Garantien für Bestandsuser. Rename-Notice-Block am Top von
+  allen 8 READMEs mit den vollständigen Community-Credits + Verweis
+  auf das easter-egg.
+
+  Falls je ein echter DOMAIN-Rename nötig wird (Architektur-Reason,
+  nicht Marketing) → das käme als v4.0.0 MAJOR mit proper
+  `async_migrate_entry` für migration ohne Datenverlust. Bis dahin:
+  marketing-only, zero-breakage.
+
+  41 source-level regression-pins in `tests/test_v240_marketing_rename.py`
+  inkl. der kritischen Garantie-Tests dass DOMAIN + Folder + Service-IDs
+  unverändert sind.
+
+
 
 ## [2.3.0] — 2026-05-23 — "VW North America Login Fix + Audi Route-aware Charging"
 

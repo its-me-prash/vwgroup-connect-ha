@@ -1,6 +1,6 @@
 # Security Policy
 
-> **Reporting context:** VAG Connect is a Home Assistant integration that
+> **Reporting context:** VW Group Connect is a Home Assistant integration that
 > talks to manufacturer APIs on behalf of vehicle owners. It handles
 > credentials, OAuth tokens, S-PINs, vehicle GPS positions, and VINs. We
 > take security reports seriously.
@@ -31,7 +31,7 @@ versions (typically the last 4 monthly releases). Any HA below the
 Use one of the following private channels:
 
 1. **GitHub Security Advisories (preferred)**
-   <https://github.com/its-me-prash/vag-connect-ha/security/advisories/new>
+   <https://github.com/its-me-prash/vwgroup-connect-ha/security/advisories/new>
    — sends an encrypted private report to the maintainer.
 
 2. **Direct contact**
@@ -41,7 +41,7 @@ Use one of the following private channels:
 
 Please include, where possible:
 
-- Affected version(s) of VAG Connect
+- Affected version(s) of VW Group Connect
 - Affected Home Assistant version (if relevant)
 - Steps to reproduce
 - Impact assessment (what does an attacker gain?)
@@ -100,7 +100,7 @@ mitigation within **14 days** for high-severity issues.
   poll requests. This is a server-side rate-limit, not a vulnerability.
 - HA users on the same Home Assistant instance being able to read each
   other's vehicle data. This is a **Home Assistant access-control
-  matter**, not a VAG Connect issue.
+  matter**, not a VW Group Connect issue.
 
 ---
 

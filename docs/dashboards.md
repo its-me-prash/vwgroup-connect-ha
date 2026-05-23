@@ -1,9 +1,9 @@
-# Dashboard Guide — VAG Connect entities in Home Assistant Lovelace
+# Dashboard Guide — VW Group Connect entities in Home Assistant Lovelace
 
-> Audience: end-users who already have VAG Connect installed and want
+> Audience: end-users who already have VW Group Connect installed and want
 > to surface the entities on a Lovelace dashboard. Covers the most
 > frequent "Add to Dashboard does nothing" troubleshooting plus the
-> dedicated VAG Connect Lovelace card.
+> dedicated VW Group Connect Lovelace card.
 
 ---
 
@@ -18,7 +18,7 @@ If you just want to drop a sensor onto a card you already have:
 4. Search for your VAG entity by VIN (last 6 chars) or
    `vag_connect` substring
 
-If you went via **Settings → Devices → VAG Connect → \[entity\] →
+If you went via **Settings → Devices → VW Group Connect → \[entity\] →
 Add to Dashboard** instead and your target view didn't appear, see
 the next section.
 
@@ -76,9 +76,9 @@ quick-workflow. Workaround:
 
 ---
 
-## 🎨 Dedicated VAG Connect Lovelace Card (BETA)
+## 🎨 Dedicated VW Group Connect Lovelace Card (BETA)
 
-We maintain a separate Lovelace card optimised for VAG Connect:
+We maintain a separate Lovelace card optimised for VW Group Connect:
 
 **Repo:** https://github.com/its-me-prash/vag-connect-cards
 
@@ -125,7 +125,7 @@ stay here on the integration repo.
 
 ## 🫧 Ready-made Bubble Card templates (recommended starter)
 
-If you want the **fastest path to a beautiful VAG Connect dashboard**
+If you want the **fastest path to a beautiful VW Group Connect dashboard**
 without writing YAML from scratch, install
 [**Bubble Card**](https://github.com/Clooos/Bubble-Card) via HACS
 and drop in our pre-built templates:
@@ -155,11 +155,11 @@ What's in the folder:
 Bubble Card gives you the glass-morphism / gradient aesthetic shown
 in the upstream [card gallery](https://github.com/Clooos/Bubble-Card#screenshots).
 Our templates configure all buttons, pop-ups and quick-actions
-that match how VAG Connect exposes vehicle state.
+that match how VW Group Connect exposes vehicle state.
 
 ---
 
-## 🧱 Other 3rd-party cards that work with VAG Connect
+## 🧱 Other 3rd-party cards that work with VW Group Connect
 
 The integration exposes `extra_state_attributes.image_url` on the
 device-tracker + image entities, so generic vehicle cards pick it
@@ -182,7 +182,7 @@ Examples in [`docs/lovelace-example.yaml`](lovelace-example.yaml).
 
 ## 🔍 Finding the entity IDs you want
 
-VAG Connect entity-IDs follow the pattern:
+VW Group Connect entity-IDs follow the pattern:
 
 ```
 <platform>.<vehicle_nickname_or_vin>_<field>
@@ -242,9 +242,9 @@ your model / firmware doesn't ship that data.
 
 - Check [`docs/FAQ.md`](FAQ.md) for general installation +
   configuration questions
-- Open a [Discussion](https://github.com/its-me-prash/vag-connect-ha/discussions)
+- Open a [Discussion](https://github.com/its-me-prash/vwgroup-connect-ha/discussions)
   if you're unsure whether it's a bug or a config issue
-- Open an [Issue](https://github.com/its-me-prash/vag-connect-ha/issues)
+- Open an [Issue](https://github.com/its-me-prash/vwgroup-connect-ha/issues)
   with the **HA version**, **integration version**, and your
   **dashboard mode** (Storage / YAML) — saves a back-and-forth round
 

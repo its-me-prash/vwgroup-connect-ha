@@ -2037,7 +2037,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             "https://nominatim.openstreetmap.org/reverse"
             f"?lat={lat}&lon={lon}&format=json&addressdetails=1"
         )
-        headers = {"User-Agent": "VAGConnect/1.x (+https://github.com/its-me-prash/vag-connect-ha)"}
+        headers = {"User-Agent": "VAGConnect/1.x (+https://github.com/its-me-prash/vwgroup-connect-ha)"}
         try:
             async with session.get(
                 url, headers=headers, timeout=ClientTimeout(total=5)
