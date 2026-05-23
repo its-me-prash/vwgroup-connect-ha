@@ -224,9 +224,28 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     data=self._build_entry_data(brand, username, password, user_input),
                 )
 
+        # v2.2.3 (#270 roberttco VW NA, 2026-05-21) — when validation
+        # fails, re-render the form with the user's previous selections
+        # preserved. Previously ``_credentials_schema()`` was called with
+        # NO arguments → brand/username/spin/scan_interval/force-access
+        # all reset to defaults, surprising the user (they thought the
+        # rejection was about their brand pick rather than credentials).
+        # Now we thread the last user_input back into the schema so only
+        # the password field requires re-entry. Password is intentionally
+        # NOT preserved (HA convention — never echo passwords to the
+        # client even via schema-default).
+        suggested = user_input or {}
         return self.async_show_form(
             step_id="user",
-            data_schema=_credentials_schema(),
+            data_schema=_credentials_schema(
+                brand=suggested.get(CONF_BRAND, ""),
+                username=suggested.get(CONF_USERNAME, ""),
+                scan_interval=int(
+                    suggested.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+                ),
+                spin=suggested.get(CONF_SPIN, ""),
+                force_access=bool(suggested.get(CONF_FORCE_ACCESS, False)),
+            ),
             errors=errors,
         )
 

@@ -139,6 +139,12 @@
       "charging_settings_pending": {
         "name": "Charging Settings Pending"
       },
+      "charging_status_pending": {
+        "name": "Charging Commands Pending"
+      },
+      "climatisation_status_pending": {
+        "name": "Climate Commands Pending"
+      },
       "plug_led_color": {
         "name": "Plug LED Color"
       },

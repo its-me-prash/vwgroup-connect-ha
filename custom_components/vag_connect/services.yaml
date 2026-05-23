@@ -1,3 +1,20 @@
+# v2.2.3 — Community easter-egg. Spawned by humorous FB-thread
+# pointing out "VAG" reads differently in English (Si Gregory + Ben
+# Johnson + Evets David + Stuart McBride + Jordan Waeles' Pandas-style
+# show_vag() joke). Creates a persistent_notification with the credits
+# + list of currently connected vehicles. No vehicle target — account
+# level.
+show_vag:
+  name: "🥚 show_vag() — Community Easter Egg"
+  description: >-
+    Erstellt eine persistente Benachrichtigung mit den Credits der
+    Community-Mitglieder, die die VAG → VW Group Umbenennung angestoßen
+    haben (HA UK + HA Ideas Facebook-Gruppen, 2026-05). Inkludiert eine
+    Liste aller aktuell verbundenen Fahrzeuge. — Creates a persistent
+    notification crediting the community members who triggered the
+    rename discussion, plus a list of all currently connected vehicles.
+  fields: {}
+
 refresh_vehicle:
   name: Fahrzeugdaten aktualisieren (Cloud-Cache)
   description: >-

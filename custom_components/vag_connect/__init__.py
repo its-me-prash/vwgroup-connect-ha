@@ -363,6 +363,80 @@ def _register_services(hass: HomeAssistant) -> None:
         """
         await _handle_refresh(_call)
 
+    async def _handle_show_vag(_call: ServiceCall) -> None:
+        """v2.2.3 — Community easter-egg ``show_vag()``.
+
+        Background (Great VAG Renaming of 2026): multiple humorous
+        comments in the Home Assistant UK + "HA Ideas, Projects and
+        Solutions" Facebook groups pointed out that "VAG" — the official
+        DACH abbreviation for Volkswagen AG — reads quite differently
+        in English. Si Gregory suggested the project rename, Ben Johnson
+        seconded it, Evets David asked "Is it a dating integration?",
+        Stuart McBride added his support, and Jordan Waeles topped it
+        with a brilliant Pandas-style ``show_vag()`` joke.
+
+        We're keeping the spirit alive: this service is the officially
+        supported easter egg honouring that thread. Creates a
+        persistent_notification with the credits + a list of currently
+        connected vehicles per config entry.
+
+        Always-works contract: with zero vehicles configured (fresh
+        install) we still render — placeholder line instead of error.
+        """
+        from homeassistant.components import persistent_notification  # noqa: PLC0415
+
+        _LOGGER.info(
+            "show_vag() called — community easter egg triggered"
+        )
+
+        # Collect display lines per vehicle across ALL config entries.
+        # Order: entry-added order → VIN-sorted within entry (stable
+        # for screenshots).
+        vehicle_lines: list[str] = []
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            coordinator: VagConnectCoordinator | None = getattr(
+                entry, "runtime_data", None
+            )
+            if coordinator is None:
+                continue
+            brand = str(entry.data.get(CONF_BRAND, "")).strip() or "(unknown brand)"
+            vehicles_map = getattr(coordinator, "vehicles", None) or {}
+            for vin in sorted(vehicles_map.keys()):
+                v = vehicles_map.get(vin) or {}
+                # Prefer human-friendly name; fallback chain mirrors
+                # device-info name resolution in entity_base.
+                display = (
+                    v.get("media_short_name")
+                    or v.get("model")
+                    or v.get("media_long_name")
+                    or "(unnamed vehicle)"
+                )
+                vehicle_lines.append(f"• {display} — {brand}")
+
+        if not vehicle_lines:
+            vehicle_lines = ["• (no vehicles configured yet)"]
+
+        vehicles_block = "\n".join(vehicle_lines)
+        message = (
+            "In honour of the Great VAG Renaming of 2026.\n"
+            "\n"
+            "Originally inspired by Jordan Waeles' immortal Pandas-style "
+            "comment. With gratitude to: Si Gregory, Ben Johnson, "
+            "Evets David, Stuart McBride, and the HA UK + HA Ideas "
+            "communities.\n"
+            "\n"
+            "Currently connected vehicles:\n"
+            f"{vehicles_block}\n"
+            "\n"
+            "Keep the wheels turning. 🏁"
+        )
+        persistent_notification.async_create(
+            hass,
+            message,
+            title="🥚 Easter Egg unlocked: show_vag()",
+            notification_id=f"{DOMAIN}_show_vag",
+        )
+
     for name, handler, schema in [
         ("lock",                           _handle_lock,                SERVICE_VIN_SCHEMA),
         ("unlock",                         _handle_unlock,              SERVICE_VIN_SCHEMA),
@@ -377,6 +451,9 @@ def _register_services(hass: HomeAssistant) -> None:
         ("refresh_vehicle",                _handle_refresh,             vol.Schema({})),
         # v1.13.0 (#63 Phase 3) — explicit semantic-clear alias.
         ("refresh_cloud_cache",            _handle_refresh_cloud_cache, vol.Schema({})),
+        # v2.2.3 — Community easter-egg ``show_vag()``. No params.
+        # In honour of Jordan Waeles + the FB-thread renaming-suggestion.
+        ("show_vag",                       _handle_show_vag,            vol.Schema({})),
         ("set_target_soc",                 _handle_set_target_soc,
             vol.Schema({
                 vol.Required("vin"):    str,
@@ -512,6 +589,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) 
             "send_destination",
             # v2.0.0 (Big-Bang)
             "find_charging_stations",
+            # v2.2.3 — Community easter-egg
+            "show_vag",
         ]:
             if hass.services.has_service(DOMAIN, svc):
                 hass.services.async_remove(DOMAIN, svc)

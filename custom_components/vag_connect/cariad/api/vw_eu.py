@@ -922,6 +922,19 @@ class VWEUClient(CariadBaseClient):
         if isinstance(pending, list):
             d.charging_settings_pending = len(pending)
 
+        # v2.2.3 — scout #268 (VW EU arvcer, 2026-05-21): mirror of the
+        # above pattern for ``charging.chargingStatus.requests`` (start/
+        # stop charging commands queued on the chargingStatus side, vs.
+        # putChargingSettings on the chargingSettings side). Same shape
+        # ``[1 items]`` observed in the scout-report. Surfaced as
+        # ``charging_status_pending`` so users can verify their
+        # ``vag_connect.start_charging`` / ``stop_charging`` requests
+        # actually queued at the backend. Defensive list-check keeps
+        # the field None when the leaf is absent (phantom-gate honest).
+        status_pending = v(raw, "charging", "chargingStatus", "requests")
+        if isinstance(status_pending, list):
+            d.charging_status_pending = len(status_pending)
+
         # v1.27.2 — Plug visual feedback (LED color on the charge port) +
         # external-power availability. Both come straight from plugStatus.
         # Helpful for "is the wallbox actually delivering power right now?"
@@ -1361,6 +1374,17 @@ class VWEUClient(CariadBaseClient):
         d.climatisation_state = v(raw, "climatisation", "climatisationStatus", "value", "climatisationState")
         d.climatisation_active = d.climatisation_state not in (None, "OFF", "CLIMATISATION_STATUS_UNAVAILABLE")
         d.target_temperature = v(raw, "climatisation", "climatisationSettings", "value", "targetTemperature_C")
+
+        # v2.2.3 — scout #272 (VW EU arvcer 2026-05-23): third member
+        # of the ``*.requests`` queue-counter family (alongside
+        # ``chargingStatus.requests`` and ``chargingSettings.requests``
+        # parsed elsewhere in this file). Counts queued
+        # ``start_climatisation`` / ``stop_climatisation`` commands at
+        # the gateway. Same diagnostic semantic, same defensive
+        # list-check, same phantom-honest None when leaf is absent.
+        clim_pending = v(raw, "climatisation", "climatisationStatus", "requests")
+        if isinstance(clim_pending, list):
+            d.climatisation_status_pending = len(clim_pending)
 
         # v1.26.0 Welle-6 (#173) — climate-at-unlock + window-heating-enabled
         # SETTINGS (distinct from front/back STATES). Scout #144 VW ID.4 Pro.

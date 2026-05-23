@@ -115,9 +115,81 @@ Versionierung: [Semantic Versioning 2.0.0](https://semver.org/lang/de/)
 > phantom-protected). Tier-B (wildcards + alarm/siren) deferred
 > until tester scout-dumps liefern die unknown leaf-shapes.
 
-## [Unreleased]
+## [Unreleased] — v2.2.3
 
-_(nothing pending — v2.2.2 just shipped; new entries land here)_
+### Added
+
+- **🥚 Easter-Egg Service `vag_connect.show_vag` (Community Tribute)** —
+  In honour of the "Great VAG Renaming of 2026" Facebook-thread:
+  multiple humorous comments in the **Home Assistant UK** and **HA
+  Ideas, Projects and Solutions** groups pointed out dass "VAG" — die
+  offizielle DACH-Abkürzung für Volkswagen AG — auf Englisch *quite
+  differently* gelesen wird 😅. **Si Gregory** schlug ein Rename vor,
+  **Ben Johnson** stimmte zu, **Evets David** fragte "Is it a dating
+  integration?", **Stuart McBride** sekundierte, und **Jordan Waeles**
+  toppte mit einem brillanten Pandas-style `show_vag()` joke.
+
+  Wir parken das Rename selbst noch (separate PR später) aber das
+  easter-egg shippt jetzt: Service-Call `vag_connect.show_vag` (no
+  params) erstellt eine persistente HA-Benachrichtigung mit den
+  Credits + einer Liste aller aktuell verbundenen Fahrzeuge.
+  **Always-works contract** — auch bei zero vehicles konfiguriert
+  zeigt es einen Placeholder statt zu erroren. Nutzbar via Developer
+  Tools → Services oder einer Automation. Erscheint im HA-Bell und
+  bleibt screenshotbar.
+
+### Fixed
+
+- **#270 (roberttco VW NA, 2026-05-21) — Config-flow Brand-Selection
+  bleibt nach Login-Fehler erhalten** — vorher hat der Re-Render nach
+  einer Auth-Fehlschlag-Response `_credentials_schema()` ohne Argumente
+  aufgerufen → brand/username/spin/scan_interval/force_access fielen
+  alle auf die Defaults zurück. User dachte das Rejection wäre wegen
+  ihrer Brand-Selection (statt Credentials) und probierte falsche
+  Kombinationen. Fix: `suggested = user_input or {}` wird durch den
+  Schema-Builder gefädelt, alle Felder ausser Password bleiben
+  erhalten. Password wird (per HA-Konvention) nicht zurückgespiegelt
+  — sicherheitsrelevant, muss neu eingegeben werden. Damit ist die
+  Selection nach einem 400/500-Error genau dort wo der User sie
+  gelassen hat.
+
+- **Scout #268 + #271 (VW EU arvcer, 2026-05-21/22) —
+  `charging.chargingStatus.requests` parsed + silenced** — Mirror der
+  bestehenden `charging.chargingSettings.requests` Parser-Logik
+  (v1.27.2 #181). Liefert jetzt `d.charging_status_pending` als
+  diagnostic count: 0 = idle, >0 = `start_charging`/`stop_charging`
+  command ist im Gateway gequeued. Neuer optional-disabled
+  `sensor.{prefix}_charging_commands_pending` (Power-User opt-in).
+  Audi erbt automatisch via brand-vererbung. **Closes #268, #271**.
+
+- **Scout #272 (VW EU arvcer, 2026-05-23) —
+  `climatisation.climatisationStatus.requests` parsed + silenced** —
+  Dritter Member der `*_pending` Familie nach `chargingSettings.requests`
+  und `chargingStatus.requests`. Zählt gequeuete
+  `start_climatisation`/`stop_climatisation` Commands am Gateway.
+  Neuer optional-disabled `sensor.{prefix}_climate_commands_pending`.
+  Kein `condition`-Filter (jede Marke mit Remote-Climate support —
+  EV+ICE alike). Audi erbt via brand-vererbung. **Closes #272**.
+
+- **Scout #273 (VW EU gudden, 2026-05-23) —
+  `readiness.readinessStatus.error` envelope silencer-add** —
+  Defensive `.error` Wrapper Pattern (gleiches Schema wie
+  #185/#190/#191 envelopes), Parser ignoriert es clean. Nur
+  Silencer-Add nötig, kein Code-Change. **Closes #273**.
+
+- **Scouts #263, #265, #266 ack-closed (alle pre-fixed in v2.2.2)** —
+  Drei Scout-Reports für `chargingRate_kmph` und
+  `chargingSettings.error` Felder die alle schon in v2.2.2 silenced
+  wurden. Reporter (`DnnsJp74`, `j4x5mgq94b-commits`, `arvcer`) waren
+  auf älteren Versionen. Ack-Comments mit Update-Empfehlung.
+
+- **Error-Report #267 (Brinki99) ack-closed — backend hiccup** — HTTP
+  502 Bad Gateway von `emea.bff.cariad.digital` ist ein transient
+  Backend-Outage von Cariad, kein Code-Bug. Error-Reporter hat seine
+  Aufgabe erfüllt (Telemetrie sauber). Ack-Comment mit Erklärung +
+  Verweis auf nächsten Refresh-Cycle.
+
+
 
 ## [2.2.2] — 2026-05-18 — "Silencer Catch-up + Laien-friendly Names + Diesel Dashboards"
 
