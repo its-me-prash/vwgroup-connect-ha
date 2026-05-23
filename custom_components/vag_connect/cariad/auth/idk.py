@@ -132,11 +132,54 @@ def _make_absolute(base_url: str, location: str) -> str:
 class IDKAuth:
     """Handles authentication against the VAG Identity Kit (IDK) server.
 
-    Covers: VW EU, Audi, Škoda, SEAT, CUPRA.
+    Covers: VW EU, Audi, Škoda, SEAT, CUPRA. Also covers Volkswagen
+    North America (US/CA) via per-instance URL overrides (see
+    ``authorize_url_override`` / ``token_url_override`` /
+    ``idk_base_override`` / ``signin_client_id_override``).
+
     Uses the caller's injected aiohttp.ClientSession — no requests dependency.
     """
 
-    def __init__(self, session: ClientSession, brand: BrandConfig) -> None:
+    def __init__(
+        self,
+        session: ClientSession,
+        brand: BrandConfig,
+        *,
+        authorize_url_override: str | None = None,
+        token_url_override: str | None = None,
+        idk_base_override: str | None = None,
+        signin_client_id_override: str | None = None,
+    ) -> None:
+        """Construct an IDKAuth client.
+
+        v2.3.0 (#269 roberttco) — VW NA support: the legacy default
+        path uses ``identity.vwgroup.io`` for the EU IDP. VW NA users
+        hit a different OAuth flow per matpoulin/CarConnectivity-
+        connector-volkswagen-na (Apache-2.0):
+
+        - **authorize_url_override**: full URL to GET for the initial
+          authorize call. VW NA uses
+          ``https://b-h-s.spr.{country}00.p.con-veh.net/oidc/v1/authorize``
+          — co-located with the API base, not on identity.vwgroup.io.
+          When None, falls back to ``_AUTHORIZE_URL``.
+
+        - **token_url_override**: full URL for the OAuth2 token exchange
+          (auth-code → access+refresh tokens) AND refresh-token calls.
+          VW NA uses ``https://b-h-s.spr.{country}00.p.con-veh.net/oidc/v1/token``.
+          When None, falls back to ``_get_token_endpoint()`` (which
+          today handles cupra/seat/cariad-bff resolution).
+
+        - **idk_base_override**: scheme+host for ``Origin`` header on
+          Auth0 form POSTs. Mostly redundant for VW NA (which uses the
+          legacy signin-service flow, not Auth0) but kept available for
+          symmetric configuration. When None, falls back to ``_IDK_BASE``.
+
+        - **signin_client_id_override**: client-GUID used to build the
+          fallback signin-service URL when the form-action is missing
+          from the HTML response. VW NA's signin-service uses a
+          hardcoded NA GUID (``b680e751-...@apps_vw-dilab_com``)
+          distinct from the ``MYVW_ANDROID`` API client_id.
+        """
         self._session = session
         self._brand = brand
         self.user_id: str | None = None
@@ -145,6 +188,16 @@ class IDKAuth:
         # extract the cross-service-signed id_token from its query/fragment.
         # For Cariad-only callers this stays None and behaviour is unchanged.
         self.last_redirect_url: str | None = None
+        # v2.3.0 — per-instance URL overrides for non-EU IDPs.
+        self._authorize_url = authorize_url_override or _AUTHORIZE_URL
+        self._token_url_override = token_url_override
+        self._idk_base = idk_base_override or _IDK_BASE
+        self._signin_base = (
+            f"{idk_base_override}/signin-service/v1"
+            if idk_base_override
+            else _SIGNIN_BASE
+        )
+        self._signin_client_id = signin_client_id_override or self._brand.client_id
 
     async def authenticate(
         self,
@@ -200,7 +253,7 @@ class IDKAuth:
         # extract code reads BOTH query and fragment. Some IDK Auth0 setups
         # reject explicit response_mode=query for hybrid as invalid_request.
         async with self._session.get(
-            _AUTHORIZE_URL,
+            self._authorize_url,
             timeout=_AUTH_TIMEOUT, params=params, headers=self._base_headers(),
             allow_redirects=True,
         ) as resp:
@@ -274,7 +327,7 @@ class IDKAuth:
         }
         # URL-encode state for URL construction (form body is encoded by aiohttp automatically)
         from urllib.parse import quote as _quote  # noqa: PLC0415
-        post_url = f"{_IDK_BASE}/u/login?state={_quote(auth0_state, safe='')}"
+        post_url = f"{self._idk_base}/u/login?state={_quote(auth0_state, safe='')}"
         _LOGGER.debug(
             "IDK Auth0: brand=%s post_url=%s",
             self._brand.name, post_url[:80],
@@ -291,7 +344,7 @@ class IDKAuth:
                 status   = resp.status
                 raw_loc  = resp.headers.get("Location", "")
                 # Resolve relative Location → absolute (volkwagencarnet pattern)
-                location = _make_absolute(_IDK_BASE, raw_loc) if raw_loc else ""
+                location = _make_absolute(self._idk_base, raw_loc) if raw_loc else ""
                 resp_html = await resp.text(errors="replace")
         except InvalidURL as exc:
             _LOGGER.error("IDK Auth0: InvalidURL posting to %s — %s", post_url, exc)
@@ -361,7 +414,7 @@ class IDKAuth:
                         allow_redirects=False,
                     ) as mfa_resp:
                         raw = mfa_resp.headers.get("Location", "")
-                        ref = _make_absolute(_IDK_BASE, raw) if raw else ""
+                        ref = _make_absolute(self._idk_base, raw) if raw else ""
                     continue
                 else:
                     if is_email_2fa:
@@ -487,7 +540,7 @@ class IDKAuth:
             "Content-Type": "application/x-www-form-urlencoded",
             "Accept": "text/html,application/xhtml+xml,*/*",
             "User-Agent": self._brand.user_agent,
-            "Origin": _IDK_BASE,
+            "Origin": self._idk_base,
             "Referer": url,
         }
         async with self._session.post(
@@ -552,8 +605,8 @@ class IDKAuth:
             )
 
         email_url = _absolute_url(
-            _IDK_BASE,
-            csrf1.form_action or f"{_SIGNIN_BASE}/{self._brand.client_id}/login/identifier",
+            self._idk_base,
+            csrf1.form_action or f"{self._signin_base}/{self._signin_client_id}/login/identifier",
         )
 
         # audiconnect: submit_data starts with ALL step1 hidden fields + email
@@ -588,13 +641,13 @@ class IDKAuth:
             csrf2 = self._parse_csrf_robust(html2)
             submit_data = {**csrf2.fields, "email": email, "password": password}
             if csrf2.form_action:
-                pw_url = _absolute_url(_IDK_BASE, csrf2.form_action)
+                pw_url = _absolute_url(self._idk_base, csrf2.form_action)
             else:
                 pw_url = email_url.replace("identifier", "authenticate") \
                     if "identifier" in email_url \
                     else _absolute_url(
-                        _IDK_BASE,
-                        f"{_SIGNIN_BASE}/{self._brand.client_id}/login/authenticate",
+                        self._idk_base,
+                        f"{self._signin_base}/{self._signin_client_id}/login/authenticate",
                     )
             _LOGGER.debug(
                 "IDK legacy: no hmac in JS, using form fields=%s pw_url=%s",
@@ -796,9 +849,9 @@ class IDKAuth:
             _LOGGER.warning("Auth0 callback: no form fields in response (len=%d)", len(html))
             return None
 
-        callback_url = parser.form_action or f"{_IDK_BASE}/login/callback"
+        callback_url = parser.form_action or f"{self._idk_base}/login/callback"
         if not callback_url.startswith("http"):
-            callback_url = _IDK_BASE + callback_url
+            callback_url = self._idk_base + callback_url
 
         _LOGGER.debug("IDK Auth0: posting callback to %s fields=%s",
                       callback_url[:60], list(parser.fields.keys()))
@@ -1027,7 +1080,16 @@ class IDKAuth:
         return self._parse_tokens(data)
 
     def _get_token_endpoint(self) -> str:
-        """Return the correct token endpoint for the current brand."""
+        """Return the correct token endpoint for the current brand.
+
+        v2.3.0 — per-instance override wins over the brand-name lookup.
+        VW NA constructs IDKAuth with ``token_url_override=
+        f"{api_base}/oidc/v1/token"`` so the token-exchange + refresh
+        calls go to the NA-specific con-veh.net host, not to the EU
+        emea.bff.cariad.digital fallback.
+        """
+        if self._token_url_override:
+            return self._token_url_override
         if self._brand.name == "cupra":
             return f"{_IDK_BASE}/oidc/v1/token"
         if self._brand.name == "seat":

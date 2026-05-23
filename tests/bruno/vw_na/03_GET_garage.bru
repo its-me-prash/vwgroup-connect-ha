@@ -1,0 +1,35 @@
+meta {
+  name: GET garage (list user's vehicles by VIN + UUID)
+  type: http
+  seq: 3
+}
+
+get {
+  url: https://b-h-s.spr.{{country}}00.p.con-veh.net/account/v1/garage
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+  User-Agent: MyVW/1.0 Android
+}
+
+docs {
+  v2.3.0 (#269) — VW North America garage endpoint. Lists vehicles
+  in the user's account. Returns:
+    { "vehicles": [
+        { "vin": "WVW...", "uuid": "f3e4...", "vehicleId": "..." }
+      ]
+    }
+
+  Note: VW NA addresses vehicles by UUID in subsequent calls (NOT by
+  VIN as the EU stack does). Our ``VWNAClient.get_vehicles()`` caches
+  the VIN→UUID mapping after this call so the rest of the API uses
+  the right identifier.
+}

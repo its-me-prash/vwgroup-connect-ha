@@ -36,8 +36,20 @@ BRAND_VW_NA = BrandConfig(
     redirect_uri="kombi:///login",
     user_agent="MyVW/1.0 Android",
     api_base="https://b-h-s.spr.us00.p.con-veh.net",
-    scope="openid profile email offline_access mbb vin cars dealers",
+    # v2.3.0 (#269 roberttco, 2026-05-21) — single ``openid`` scope per
+    # matpoulin/CarConnectivity-connector-volkswagen-na (Apache-2.0).
+    # Previously we sent the wider VW EU-style scope chain
+    # (``openid profile email offline_access mbb vin cars dealers``)
+    # which the NA IDP rejected as part of its HTTP 400 response.
+    scope="openid",
 )
+
+# v2.3.0 (#269) — VW NA-specific IDP host: identity.na.vwgroup.io
+# (NOT identity.vwgroup.io). When the authorize-redirect lands on the
+# NA IDP, the signin-service URL uses a hardcoded NA client GUID
+# distinct from our API client_id. Per matpoulin's working flow.
+_NA_IDP_BASE = "https://identity.na.vwgroup.io"
+_NA_SIGNIN_CLIENT_GUID = "b680e751-7e1f-4008-8ec1-3a528183d215@apps_vw-dilab_com"
 
 
 class VWNAClient:
@@ -71,7 +83,40 @@ class VWNAClient:
             api_base=self._base,
             scope=BRAND_VW_NA.scope,
         )
-        self._auth = IDKAuth(session, brand)
+        # v2.3.0 (#269 roberttco, 2026-05-21) — VW NA auth requires four
+        # IDP overrides vs the default identity.vwgroup.io (EU) flow:
+        #
+        #   1. authorize_url_override → ``{api_base}/oidc/v1/authorize``
+        #      (per-country host b-h-s.spr.{us|ca}00.p.con-veh.net,
+        #      NOT identity.vwgroup.io). The MYVW_ANDROID client_id is
+        #      only registered against this host — sending it to the EU
+        #      IDP returns HTTP 400 (user's log on #269).
+        #
+        #   2. token_url_override → ``{api_base}/oidc/v1/token`` — same
+        #      host for both code-exchange and refresh-token calls. The
+        #      default fallback (emea.bff.cariad.digital/login/v1/idk/
+        #      token) does not know NA client_ids.
+        #
+        #   3. idk_base_override → identity.na.vwgroup.io. The authorize
+        #      step redirects to the NA IDP host, and our resolution of
+        #      relative form-actions + the ``Origin`` header must point
+        #      at the right base.
+        #
+        #   4. signin_client_id_override → hardcoded NA GUID
+        #      ``b680e751-7e1f-4008-8ec1-3a528183d215@apps_vw-dilab_com``.
+        #      The signin-service URL embeds a "browser IDP client" that
+        #      is distinct from our "device API client" (MYVW_ANDROID).
+        #
+        # Source: matpoulin/CarConnectivity-connector-volkswagen-na
+        # (Apache-2.0), cited at the top of this file.
+        self._auth = IDKAuth(
+            session,
+            brand,
+            authorize_url_override=f"{self._base}/oidc/v1/authorize",
+            token_url_override=f"{self._base}/oidc/v1/token",
+            idk_base_override=_NA_IDP_BASE,
+            signin_client_id_override=_NA_SIGNIN_CLIENT_GUID,
+        )
         # UUID cache: VIN → UUID (returned by garage)
         self._vin_to_uuid: dict[str, str] = {}
 

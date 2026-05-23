@@ -1,0 +1,40 @@
+meta {
+  name: POST token (exchange auth code for access+refresh tokens)
+  type: http
+  seq: 2
+}
+
+post {
+  url: https://b-h-s.spr.{{country}}00.p.con-veh.net/oidc/v1/token
+  body: formUrlEncoded
+  auth: none
+}
+
+body:form-urlencoded {
+  grant_type: authorization_code
+  client_id: 59992128-69a9-42c3-8621-7942041ba824_MYVW_ANDROID
+  code: {{auth_code}}
+  redirect_uri: kombi:///login
+  code_verifier: {{pkce_verifier}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/x-www-form-urlencoded
+  User-Agent: MyVW/1.0 Android
+}
+
+docs {
+  v2.3.0 (#269) — VW North America OAuth token endpoint.
+
+  Same host as the authorize endpoint above
+  (``b-h-s.spr.{us|ca}00.p.con-veh.net``), NOT the default
+  ``emea.bff.cariad.digital/login/v1/idk/token`` fallback used by
+  EU brands. The per-instance ``token_url_override`` kwarg on
+  IDKAuth(__init__) ensures we hit this endpoint instead of the EU
+  one for VW NA users.
+
+  Returns the standard OAuth response:
+    { "access_token": "...", "refresh_token": "...", "id_token": "...",
+      "token_type": "Bearer", "expires_in": 3600 }
+}

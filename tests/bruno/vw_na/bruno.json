@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "vag-connect-ha — Volkswagen North America (US/CA)",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}
