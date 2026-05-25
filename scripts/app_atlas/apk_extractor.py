@@ -40,10 +40,30 @@ from typing import Any
 
 _LOGGER = logging.getLogger("app_atlas.apk")
 
+# v Phase A.2 fix 2026-05-25: APKCombo's `/download/apk` page is more
+# strictly Cloudflare-protected than its plain version-name page. The
+# desktop User-Agent that worked for version-name polling gets HTTP
+# 403 on the download page from GitHub Actions IPs. Pivoting to a
+# mobile UA + a fuller browser-headers set unblocks most CI runs —
+# Cloudflare's bot-heuristics are friendlier to "user on mobile data
+# without JS" requests because mobile clients are higher-noise.
 _UA = (
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
 )
+_BROWSER_HEADERS: dict[str, str] = {
+    "User-Agent": _UA,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.7,de;q=0.3",
+    "Accept-Encoding": "gzip, deflate",
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Upgrade-Insecure-Requests": "1",
+}
 _PAGE_TIMEOUT = 30
 _DOWNLOAD_TIMEOUT = 300  # Big files; allow generous timeout for slow CDN.
 
@@ -54,10 +74,21 @@ _R2_LINK_RE = re.compile(r'href="(/r2\?u=[^"]+)"')
 
 
 def fetch(url: str, timeout: int = _PAGE_TIMEOUT) -> bytes:
-    """GET a URL with polite UA; return raw bytes."""
-    req = urllib.request.Request(url, headers={"User-Agent": _UA})
+    """GET a URL with browser-like headers; return raw bytes.
+
+    v Phase A.2 fix: uses mobile UA + full browser-header set
+    (`_BROWSER_HEADERS`) to maximize chance of bypassing Cloudflare's
+    bot-heuristic on GitHub-Actions runner IPs. May still get 403 on
+    persistent blocks — caller is expected to log and continue.
+    """
+    req = urllib.request.Request(url, headers=_BROWSER_HEADERS)
     with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return resp.read()
+        # Handle gzip-encoded responses (we requested Accept-Encoding: gzip).
+        body = resp.read()
+        if resp.headers.get("Content-Encoding") == "gzip":
+            import gzip
+            body = gzip.decompress(body)
+        return body
 
 
 def fetch_text(url: str) -> str:
@@ -88,11 +119,21 @@ def resolve_apkcombo_download(slug: str) -> str | None:
 
 
 def download_to(url: str, dest: Path) -> bool:
-    """Download a URL to ``dest``. Returns True on success."""
+    """Download a URL to ``dest`` using browser-like headers.
+
+    Returns True on success. For large files (APKs), streams to disk
+    to avoid loading 100MB+ into memory.
+    """
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": _UA})
+        req = urllib.request.Request(url, headers=_BROWSER_HEADERS)
         with urllib.request.urlopen(req, timeout=_DOWNLOAD_TIMEOUT) as resp:
-            dest.write_bytes(resp.read())
+            # Stream to disk in 1 MB chunks.
+            with dest.open("wb") as f:
+                while True:
+                    chunk = resp.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    f.write(chunk)
         return True
     except Exception as exc:  # noqa: BLE001
         _LOGGER.error("Download failed (%s): %s", url[:80], exc)
