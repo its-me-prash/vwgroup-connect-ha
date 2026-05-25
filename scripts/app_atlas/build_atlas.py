@@ -72,6 +72,7 @@ def _fetch(url: str) -> str:
 
 _APKMIRROR_BASE = "https://www.apkmirror.com/apk/"
 _UPTODOWN_BASE  = "https://{sub}.en.uptodown.com/android"
+_APKCOMBO_BASE  = "https://apkcombo.com/{slug}/"
 
 # APKMirror page regexes — multiple layouts seen in the wild.
 _APKMIRROR_VERSION_REGEXES = [
@@ -85,6 +86,14 @@ _UPTODOWN_VERSION_REGEXES = [
     re.compile(r'itemprop="softwareVersion"[^>]*>\s*([\d.]+(?:-\w+)?)', re.IGNORECASE),
     re.compile(r'"latestVersion"\s*:\s*"([^"]+)"', re.IGNORECASE),
     re.compile(r'class="version"[^>]*>\s*([\d.]+(?:-\w+)?)', re.IGNORECASE),
+]
+
+# APKCombo pattern: title includes "Volkswagen ... 3.61.0 - Updated: 2026 - com.x.y"
+_APKCOMBO_VERSION_REGEXES = [
+    # The meta-title pattern: " 3.61.0 - Updated:" — anchored by ` - Updated:` for safety.
+    re.compile(r'\b(\d+\.\d+\.\d+(?:[-.]\w+)?)\s*-\s*Updated:', re.IGNORECASE),
+    # Fallback: any `<a>...3.61.0</a>` style link.
+    re.compile(r'>(\d+\.\d+\.\d+(?:[-.]\w+)?)<\s*/\s*a\s*>', re.IGNORECASE),
 ]
 
 
@@ -122,12 +131,33 @@ def _try_uptodown(subdomain: str) -> str | None:
     return None
 
 
+def _try_apkcombo(slug: str) -> str | None:
+    url = _APKCOMBO_BASE.format(slug=slug)
+    try:
+        body = _fetch(url)
+    except urllib.error.HTTPError as exc:
+        _LOGGER.debug("APKCombo %s → HTTP %s", url, exc.code)
+        return None
+    except Exception as exc:  # noqa: BLE001
+        _LOGGER.debug("APKCombo %s → %s", url, exc)
+        return None
+    for regex in _APKCOMBO_VERSION_REGEXES:
+        m = regex.search(body)
+        if m:
+            return m.group(1)
+    return None
+
+
 def scrape_version(brand: str, sources: dict[str, str | None]) -> tuple[str | None, str | None]:
     """Multi-source fallback scrape.
 
-    Returns (version, source_name) — source_name is "apkmirror" /
-    "uptodown" / None. Tries each configured source in order;
-    returns on first success.
+    Returns (version, source_name) — source_name is one of
+    ``"apkmirror"``, ``"uptodown"``, ``"apkcombo"``, or ``None``.
+    Tries each configured source in order; returns on first success.
+
+    Adding a 4th source: implement ``_try_<name>(slug) -> str | None``
+    + add an ``if <name>_slug := sources.get("<name>_slug")`` branch
+    below.
     """
     apkmirror_slug = sources.get("apkmirror_slug")
     if apkmirror_slug:
@@ -141,9 +171,18 @@ def scrape_version(brand: str, sources: dict[str, str | None]) -> tuple[str | No
         if v:
             return v, "uptodown"
 
+    # v2.4.2+ — APKCombo as 3rd-tier fallback. Less reliable than
+    # APKMirror but covers some apps that APKMirror + Uptodown don't.
+    apkcombo_slug = sources.get("apkcombo_slug")
+    if apkcombo_slug:
+        v = _try_apkcombo(apkcombo_slug)
+        if v:
+            return v, "apkcombo"
+
     _LOGGER.warning(
-        "Brand %s: all sources failed (apkmirror_slug=%r, uptodown_subdomain=%r)",
-        brand, apkmirror_slug, uptodown_sub,
+        "Brand %s: all sources failed (apkmirror_slug=%r, "
+        "uptodown_subdomain=%r, apkcombo_slug=%r)",
+        brand, apkmirror_slug, uptodown_sub, apkcombo_slug,
     )
     return None, None
 

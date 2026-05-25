@@ -29,7 +29,8 @@
       "package_id": "com.volkswagen.weconnect",
       "sources": {
         "apkmirror_slug": "volkswagen-ag/volkswagen-we-connect-id",
-        "uptodown_subdomain": "volkswagen-we-connect-id"
+        "uptodown_subdomain": "volkswagen-we-connect-id",
+        "apkcombo_slug": "volkswagen-we-connect-id/com.volkswagen.weconnect"
       },
       "expected_backend": "cariad_bff",
       "ola_enforcement_known": false

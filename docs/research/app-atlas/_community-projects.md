@@ -39,11 +39,13 @@ header injection.
 
 | Project | Maintainer | Brand coverage | Status |
 |---|---|---|---|
-| [mitch-dc/volkswagen_we_connect_id](https://github.com/mitch-dc/volkswagen_we_connect_id) | mitch-dc | VW EU | Active, large community |
-| [audi_connect_ha](https://github.com/arjenvrh/audi_connect_ha) | arjenvrh | Audi | Active |
+| [mitch-dc/volkswagen_we_connect_id](https://github.com/mitch-dc/volkswagen_we_connect_id) | mitch-dc | VW EU | **⚠️ ARCHIVED 2025-10-29** — 254 ⭐, was THE reference; no longer maintained |
+| [audi_connect_ha](https://github.com/arjenvrh/audi_connect_ha) | arjenvrh | Audi | Maintenance only (dependency bumps since 2026-04) |
 | [volkswagencarnet](https://github.com/robinostlund/volkswagencarnet) | robinostlund | VW + Audi (legacy MBB) | Maintenance mode |
-| [tillsteinbach/CarConnectivity-connector-volkswagen](https://github.com/tillsteinbach/CarConnectivity-connector-volkswagen) | tillsteinbach | VW EU | Newer, sibling of seatcupra connector |
-| [tillsteinbach/CarConnectivity-connector-audi](https://github.com/tillsteinbach/CarConnectivity-connector-audi) | tillsteinbach | Audi | Newer |
+| [tillsteinbach/CarConnectivity-connector-volkswagen](https://github.com/tillsteinbach/CarConnectivity-connector-volkswagen) | tillsteinbach | VW EU | Active, sibling of seatcupra connector |
+| [tillsteinbach/CarConnectivity-connector-audi](https://github.com/tillsteinbach/CarConnectivity-connector-audi) | tillsteinbach | Audi | Active |
+
+With mitch-dc now archived, **we (vwgroup-connect-ha) + tillsteinbach's family** are the de-facto active VW EU + Audi references. See [`docs/research/community-audits/`](../community-audits/) for the 2026-05 cross-project scan.
 
 These are not currently monitored by automation (no Cariad-BFF
 header-enforcement detected yet), but we cross-check during major

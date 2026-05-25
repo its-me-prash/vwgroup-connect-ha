@@ -22,10 +22,10 @@
 
 | | |
 |---|---|
-| Latest version-name | `(fetch failed)` |
-| Source that responded | `(no source succeeded)` |
+| Latest version-name | `3.61.0` |
+| Source that responded | `apkcombo` |
 | Previously cached version | `(first run)` |
-| Changed since last run? | No |
+| Changed since last run? | **YES** |
 
 ## Discovered endpoints
 
