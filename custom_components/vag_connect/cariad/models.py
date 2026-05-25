@@ -392,7 +392,10 @@ class VehicleData:
     daily_power_budget_warning: bool | None = None
     insufficient_battery_level_warning: bool | None = None
     # OLA (SEAT/CUPRA): per-vehicle metadata from /v2/users/.../garage.
-    license_plate: str | None = None
+    # NOTE: ``license_plate`` already defined at the top of the dataclass
+    # (line ~264) — populated by other parsers historically. v2.4.1 T1
+    # adds the SEAT/CUPRA parser path; the field declaration stays
+    # singular to avoid mypy [no-redef] error.
     vehicle_nickname: str | None = None
     # OLA: parking position map renders (Google Maps URLs from /v1/vehicles/{vin}/parkingposition).
     parking_map_url_dark: str | None = None
