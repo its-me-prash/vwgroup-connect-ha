@@ -23,6 +23,11 @@ on:
   schedule:
     - cron: "0 4 * * *"
   workflow_dispatch:
+    inputs:
+      force_extract:
+        description: "Force APK extraction for all brands (overrides version-change cache). Use to (re)build apk-cache from scratch."
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -58,8 +63,15 @@ jobs:
       - name: Run atlas builder (Phase A.1 polling + A.2 APK extraction)
         # APK extraction only fires when a brand's version-name changed
         # since last cache — so most days this stays under 1 minute.
+        # When triggered via workflow_dispatch with force_extract=true,
+        # extracts every brand regardless of cache state (~5-10min total).
         run: |
-          python scripts/app_atlas/build_atlas.py --with-apk-extraction
+          FORCE_FLAG=""
+          if [ "${{ inputs.force_extract }}" = "true" ]; then
+            FORCE_FLAG="--force-extract"
+            echo "::notice::force_extract=true — extracting all 7 brands regardless of cache"
+          fi
+          python scripts/app_atlas/build_atlas.py --with-apk-extraction $FORCE_FLAG
 
       - name: Detect changes
         id: changes

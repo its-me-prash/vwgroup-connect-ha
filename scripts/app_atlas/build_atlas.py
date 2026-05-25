@@ -402,7 +402,17 @@ def main(argv: list[str] | None = None) -> int:
                         "on PATH. Adds significant CI runtime (~30s-2min per changed "
                         "brand) — only enable in the scheduled workflow, not for "
                         "local debugging.")
+    p.add_argument("--force-extract", action="store_true",
+                   help="Phase A.2 override: extract APKs for ALL brands "
+                        "regardless of version-change cache state. Use this to "
+                        "(re)build the apk-cache from scratch — e.g. after adding "
+                        "a new brand, or for the initial population. Implies "
+                        "--with-apk-extraction. CI-only; locally it requires "
+                        "apktool on PATH for every brand.")
     args = p.parse_args(argv)
+    # --force-extract implies --with-apk-extraction.
+    if args.force_extract:
+        args.with_apk_extraction = True
 
     config = json.loads(_CONFIG_PATH.read_text(encoding="utf-8"))
     cache = load_cache()
@@ -439,9 +449,15 @@ def main(argv: list[str] | None = None) -> int:
         else:
             _LOGGER.warning("Could not determine current version for %s — all sources failed", brand)
 
-        # Phase A.2 — APK extraction when version changed.
-        if (args.with_apk_extraction and current and current != prev_ver
-                and not args.dry_run):
+        # Phase A.2 — APK extraction when version changed (or when
+        # --force-extract is set, regardless of cache state).
+        should_extract = (
+            args.with_apk_extraction
+            and current
+            and not args.dry_run
+            and (args.force_extract or current != prev_ver)
+        )
+        if should_extract:
             try:
                 from .apk_extractor import extract_brand_apk  # noqa: PLC0415
             except ImportError:
