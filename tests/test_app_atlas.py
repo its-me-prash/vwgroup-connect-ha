@@ -263,6 +263,20 @@ class TestPhaseA2Integration:
         # The guard condition `current != prev_ver` must gate extraction.
         assert "current != prev_ver" in src
 
+    def test_force_extract_flag_bypasses_cache(self) -> None:
+        """--force-extract overrides the version-change idempotency check."""
+        src = _SCRIPT_PATH.read_text(encoding="utf-8")
+        assert "--force-extract" in src
+        assert "force_extract" in src
+        # The override must actually short-circuit the cache check.
+        assert "args.force_extract or current != prev_ver" in src
+
+    def test_force_extract_implies_with_apk_extraction(self) -> None:
+        """Setting --force-extract without --with-apk-extraction shouldn't
+        require the user to also pass the flag — implied automatically."""
+        src = _SCRIPT_PATH.read_text(encoding="utf-8")
+        assert "args.with_apk_extraction = True" in src
+
     def test_apk_findings_cache_used(self) -> None:
         """APK findings persist to .app-atlas-apk-cache/{brand}.json."""
         src = _SCRIPT_PATH.read_text(encoding="utf-8")
