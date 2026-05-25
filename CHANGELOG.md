@@ -122,6 +122,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ### Changed
 - OLA upstream watcher now runs **daily** (was weekly) and auto-opens a PR with the new app-version constants when CarConnectivity upstream drifts — instead of just opening an issue. Previous primary values are appended to the fallback chain automatically, so the multi-version retry logic self-extends. PRs require manual review + merge (no auto-merge — keeps a human safety check in case upstream pushes a mistaken bump).
 
+### Added
+- **Cross-Brand App Atlas** — new daily CI pipeline that tracks the current Android app version for all 7 VAG brands (SEAT, CUPRA, VW EU, Audi, Škoda, VW NA, Porsche). When a brand bumps a new app version, the watcher auto-opens a PR refreshing the atlas docs at `docs/research/app-atlas/`. Multi-source fallback (APKMirror → Uptodown) covers 6/7 brands today; VW EU needs a Phase A.1.1 follow-up. Phase A.2 will add APK download + extraction for definitive endpoint + header discovery — useful proactively across all brands, not just OLA-enforced ones. See `docs/research/app-atlas/README.md` + `LEGAL.md`.
+
 ## [2.4.1] — 2026-05-25 — "OLA Defense + VW NA Garage + Scout Policy"
 
 ### Fixed
