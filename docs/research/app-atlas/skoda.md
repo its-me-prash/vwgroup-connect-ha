@@ -24,8 +24,8 @@
 |---|---|
 | Latest version-name | `8.12.0` |
 | Source that responded | `uptodown` |
-| Previously cached version | `(first run)` |
-| Changed since last run? | **YES** |
+| Previously cached version | `8.12.0` |
+| Changed since last run? | No |
 
 ## Discovered endpoints
 
