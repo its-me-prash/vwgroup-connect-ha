@@ -25,6 +25,8 @@ class CariadClientFactory:
         password: str,
         spin: str = "",
         country: str = "us",
+        ola_app_version_override: str | None = None,
+        ola_user_agent_override: str | None = None,
     ) -> CariadBaseClient | PorscheClient | VWNAClient:
         """Return an authenticated-ready client for the given brand.
 
@@ -36,6 +38,11 @@ class CariadClientFactory:
           cupra         — CUPRA (OLA server)
           volkswagen_na — VW North America (US/CA, b-h-s.spr.{cc}00.p.con-veh.net)
           porsche       — Porsche Connect (Auth0, api.ppa.porsche.com)
+
+        v2.4.1 (#281+#282) — ``ola_*_override`` kwargs are forwarded
+        only to SEAT/CUPRA clients (OLA defense-in-depth Layer 2). All
+        other brands ignore them. ``None`` = use built-in defaults
+        from ``cariad/_ola_headers.py``.
         """
         lower = brand.lower()
         if lower == "volkswagen":
@@ -45,7 +52,11 @@ class CariadClientFactory:
         if lower == "skoda":
             return SkodaClient(session, email, password, spin)
         if lower in ("seat", "cupra"):
-            return SeatCupraClient(session, lower, email, password, spin)
+            return SeatCupraClient(
+                session, lower, email, password, spin,
+                ola_app_version_override=ola_app_version_override,
+                ola_user_agent_override=ola_user_agent_override,
+            )
         if lower == "volkswagen_na":
             return VWNAClient(session, email, password, spin, country=country)
         if lower == "porsche":

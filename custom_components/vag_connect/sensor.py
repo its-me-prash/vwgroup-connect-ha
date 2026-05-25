@@ -255,6 +255,92 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # v2.4.1 — Cariad scout #283 (VW EU Brinki99 2026-05-24): fourth
+    # and final ``*_pending`` family member — counts queued climate-
+    # settings commands (set_climatisation_temperature, set_window_heating,
+    # etc.) at the gateway. Same opt-in pattern as the siblings.
+    VagSensorDescription(
+        key="climatisation_settings_pending",
+        translation_key="climatisation_settings_pending",
+        data_key="climatisation_settings_pending",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:thermostat-cog",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # v2.4.1 — Scout Policy Compliance Audit T1 sensors. All disabled-
+    # by-default (opt-in) per docs/SCOUT_POLICY.md Rule 5.
+    # HV battery cell temperature (Celsius). Critical for users with
+    # home wallbox curtail automations based on battery thermal limits.
+    VagSensorDescription(
+        key="battery_temp_c",
+        translation_key="battery_temp_c",
+        data_key="battery_temp_c",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-heart",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # ETA in minutes until the climate target temperature is reached.
+    VagSensorDescription(
+        key="climate_remaining_time_min",
+        translation_key="climate_remaining_time_min",
+        data_key="climate_remaining_time_min",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:fan-clock",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # Readiness deep-diagnostics: connection sub-status string.
+    VagSensorDescription(
+        key="connection_battery_power_level",
+        translation_key="connection_battery_power_level",
+        data_key="connection_battery_power_level",
+        icon="mdi:car-battery",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # OLA-only (SEAT/CUPRA): license plate text from garage payload.
+    VagSensorDescription(
+        key="license_plate",
+        translation_key="license_plate",
+        data_key="license_plate",
+        icon="mdi:card-text",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # OLA-only: user-chosen vehicle nickname.
+    VagSensorDescription(
+        key="vehicle_nickname",
+        translation_key="vehicle_nickname",
+        data_key="vehicle_nickname",
+        icon="mdi:car-info",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # OLA-only: parking position map renders (dark + light theme URLs).
+    # Useful for Lovelace cards that want to embed a static map.
+    VagSensorDescription(
+        key="parking_map_url_dark",
+        translation_key="parking_map_url_dark",
+        data_key="parking_map_url_dark",
+        icon="mdi:map-marker",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="parking_map_url_light",
+        translation_key="parking_map_url_light",
+        data_key="parking_map_url_light",
+        icon="mdi:map-marker-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     # v1.27.2 — Visual feedback color of the charge-port LED.
     # none / red (error) / green (idle/done) / blue (charging) — drivable by
     # automations like "notify me when LED turns red".

@@ -14,6 +14,7 @@ from typing import Any
 from aiohttp import ClientSession
 
 from .._util import compute_connection_state, safe_float, safe_int
+from .._ola_headers import get_fallback_count, get_ola_headers
 from ..exceptions import APIError, SpinError
 from ..models import BRAND_CUPRA, BRAND_SEAT, BrandConfig, VehicleData
 from .base import CariadBaseClient
@@ -21,9 +22,31 @@ from .base import CariadBaseClient
 _LOGGER = logging.getLogger(__name__)
 _BASE = "https://ola.prod.code.seat.cloud.vwgroup.com"
 
+# v2.4.1 (#281+#282) — number of consecutive 403s on OLA endpoints
+# before we raise an HA Repair issue prompting the user to check for
+# integration updates. Set conservatively to avoid false positives on
+# transient backend errors (Cariad has occasional 5xx flutter on the
+# OLA path too, which 403s on stale tokens).
+_OLA_REPAIR_THRESHOLD = 5
+
 
 class SeatCupraClient(CariadBaseClient):
-    """SEAT/CUPRA API client."""
+    """SEAT/CUPRA API client.
+
+    v2.4.1 (#281+#282) — Defense-in-depth against the 2026-05-20 OLA
+    header-enforcement change (see ``cariad/_ola_headers.py`` module
+    docstring for the full architecture):
+
+    1. Inject brand-specific app-identifying headers on every request
+       via ``_request()`` override (Layer 1: centralized constants).
+    2. Honor OptionsFlow overrides for app_version + user_agent
+       (Layer 2: see ``const.py`` CONF_OLA_APP_VERSION_OVERRIDE +
+       CONF_OLA_USER_AGENT_OVERRIDE — read at construction time).
+    3. On 403, retry with the next fallback header-set from
+       ``_ola_headers.py`` (Layer 3: multi-version fallback chain).
+    4. After N consecutive unrecoverable 403s, raise an HA Repair
+       issue (Layer 4: actionable user signal).
+    """
 
     def __init__(
         self,
@@ -32,10 +55,28 @@ class SeatCupraClient(CariadBaseClient):
         email: str,
         password: str,
         spin: str = "",
+        ola_app_version_override: str | None = None,
+        ola_user_agent_override: str | None = None,
     ) -> None:
         brand_cfg: BrandConfig = BRAND_CUPRA if brand.lower() == "cupra" else BRAND_SEAT
         super().__init__(session, brand_cfg, email, password, spin)
         self._user_id: str | None = None
+        # v2.4.1 (#281+#282) — OLA defense-in-depth state.
+        self._ola_app_version_override = ola_app_version_override or None
+        self._ola_user_agent_override = ola_user_agent_override or None
+        # Counter for consecutive 403s after all fallbacks exhausted.
+        # Reset to 0 on any successful response.
+        self._ola_consecutive_403 = 0
+        # Public flag readable by the coordinator to surface a Repair
+        # issue when threshold is exceeded. Coordinator wires this to
+        # ``repairs.raise_issue_ola_headers_outdated`` (added v2.4.1).
+        self.ola_headers_repair_needed = False
+        # v2.4.1 — Scout Policy Compliance Audit T1: per-VIN caches
+        # for license plate + nickname (from /v2/users/.../garage)
+        # and parking-position map URLs (from /v1/vehicles/{vin}/
+        # parkingposition). Surfaced as sensors in get_status().
+        self._vin_to_license_plate: dict[str, str] = {}
+        self._vin_to_nickname: dict[str, str] = {}
 
     async def authenticate(self, mfa_code: str | None = None) -> None:
         """IDK auth + capture user_id from redirect chain."""
@@ -45,6 +86,73 @@ class SeatCupraClient(CariadBaseClient):
             _LOGGER.debug("SEAT/CUPRA user_id from auth redirect: %s", self._user_id[:8])
         else:
             await self._fetch_user_id()
+
+    # ── v2.4.1 OLA defense-in-depth ────────────────────────────────────────
+    async def _request(
+        self, method: str, url: str, retry: bool = True, _attempt: int = 0, **kwargs: Any
+    ) -> Any:
+        """Override to inject OLA app-identifying headers + 403 fallback chain.
+
+        v2.4.1 (#281+#282) — VW Group's OLA backend started enforcing
+        app-identifying headers on 2026-05-20. Every request against
+        ``ola.prod.code.seat.cloud.vwgroup.com`` MUST carry the brand-
+        appropriate ``app-market`` + ``app-brand`` + ``app-version`` +
+        ``origin`` headers (and ideally the matching ``User-Agent``).
+        Otherwise the backend returns HTTP 403 Forbidden regardless
+        of token validity — blocking ALL setup + operation entirely.
+
+        Layer 1: inject the headers from ``_ola_headers.py``.
+        Layer 2: honor user OptionsFlow overrides (``_ola_app_version_
+                 override`` + ``_ola_user_agent_override``).
+        Layer 3: on 403, retry once with the next fallback header-set.
+        Layer 4: track consecutive 403s — when threshold exceeded, set
+                 ``ola_headers_repair_needed`` flag so the coordinator
+                 raises an HA Repair issue.
+        """
+        # Build OLA headers for this brand + apply user overrides.
+        headers = kwargs.pop("headers", None) or {}
+        # Fallback index is encoded in _attempt: 0 = primary, 1+ = fallback chain.
+        fb_idx = -1 if _attempt == 0 else _attempt - 1
+        ola_headers = get_ola_headers(
+            self._brand.name,
+            fallback_index=fb_idx,
+            app_version_override=self._ola_app_version_override,
+            user_agent_override=self._ola_user_agent_override,
+        )
+        # Caller-supplied headers win (allows per-request override for SecToken etc).
+        for k, v in ola_headers.items():
+            headers.setdefault(k, v)
+
+        try:
+            response = await super()._request(method, url, retry=retry, _attempt=_attempt, headers=headers, **kwargs)
+            # Layer 4: reset 403 counter on any successful response.
+            self._ola_consecutive_403 = 0
+            self.ola_headers_repair_needed = False
+            return response
+        except APIError as exc:
+            # Only intercept 403s from OLA — let other errors propagate.
+            if "403" not in str(exc) or "ola.prod" not in url:
+                raise
+            # Layer 3: try the next fallback header-set if available.
+            fb_count = get_fallback_count(self._brand.name)
+            if _attempt < fb_count:
+                _LOGGER.warning(
+                    "OLA 403 on %s — retrying with fallback header-set "
+                    "#%d/%d (defense-in-depth Layer 3)",
+                    url[-60:], _attempt + 1, fb_count,
+                )
+                return await self._request(method, url, retry=False, _attempt=_attempt + 1, **kwargs)
+            # Layer 4: all fallbacks exhausted — count toward threshold.
+            self._ola_consecutive_403 += 1
+            if self._ola_consecutive_403 >= _OLA_REPAIR_THRESHOLD:
+                _LOGGER.error(
+                    "OLA 403 persistent (%d consecutive) — flagging for HA "
+                    "Repair issue. Likely cause: OLA backend updated app-"
+                    "header requirements again. Check for integration update.",
+                    self._ola_consecutive_403,
+                )
+                self.ola_headers_repair_needed = True
+            raise
 
     async def _fetch_user_id(self) -> None:
         """Fallback: extract user_id from JWT or API call."""
@@ -70,12 +178,31 @@ class SeatCupraClient(CariadBaseClient):
             _LOGGER.warning("Could not fetch SEAT/CUPRA user ID")
 
     async def get_vehicles(self) -> list[str]:
-        """Return VINs from garage."""
+        """Return VINs from garage.
+
+        v2.4.1 — Scout Policy Compliance Audit T1: cache the
+        ``licensePlate`` + ``name`` (nickname) fields from each
+        vehicle dict so the per-vehicle parser can surface them as
+        sensors. The garage response already includes these; we just
+        weren't reading them.
+        """
         if not self._user_id:
             await self._fetch_user_id()
         data = await self._get(f"{_BASE}/v2/users/{self._user_id}/garage/vehicles")
         vehicles: list[dict[str, Any]] = data.get("vehicles", [])
-        vins = [v["vin"] for v in vehicles if v.get("vin")]
+        vins = []
+        for vehicle in vehicles:
+            vin = vehicle.get("vin")
+            if not vin:
+                continue
+            vins.append(vin)
+            # v2.4.1 T1: cache license plate + nickname per VIN.
+            plate = vehicle.get("licensePlate")
+            if isinstance(plate, str) and plate:
+                self._vin_to_license_plate[vin] = plate
+            nick = vehicle.get("name") or vehicle.get("vehicleNickname")
+            if isinstance(nick, str) and nick:
+                self._vin_to_nickname[vin] = nick
         await self._fetch_renders(vins)
         await self.fetch_images()
         return vins
@@ -149,6 +276,12 @@ class SeatCupraClient(CariadBaseClient):
         """Fetch full status from OLA server."""
         v = self._val
         d = VehicleData(vin=vin)
+
+        # v2.4.1 — Scout Policy Compliance Audit T1: surface the
+        # garage-cached license plate + nickname per VIN. No extra
+        # HTTP call needed — populated during get_vehicles().
+        d.license_plate = self._vin_to_license_plate.get(vin)
+        d.vehicle_nickname = self._vin_to_nickname.get(vin)
 
         results = await asyncio.gather(
             self._get(f"{_BASE}/v5/users/{self._user_id}/vehicles/{vin}/mycar"),
@@ -751,6 +884,20 @@ class SeatCupraClient(CariadBaseClient):
             )
             if isinstance(addr, str) and addr:
                 d.parking_address = addr
+
+            # v2.4.1 — Scout Policy Compliance Audit T1: parking map
+            # renders. OLA's parkingposition endpoint includes Google-
+            # Maps-style URLs (dark + light theme) of the parking
+            # location. Useful for Lovelace cards that want to show a
+            # static map without hitting Google Maps API directly.
+            maps_data = v(parking_data, "maps") or {}
+            if isinstance(maps_data, dict):
+                dark = maps_data.get("darkMapUrl")
+                light = maps_data.get("lightMapUrl")
+                if isinstance(dark, str) and dark:
+                    d.parking_map_url_dark = dark
+                if isinstance(light, str) and light:
+                    d.parking_map_url_light = light
 
         # ── Maintenance ──────────────────────────────────────────────────────
         if isinstance(maintenance, dict):

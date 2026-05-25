@@ -365,6 +365,41 @@ class VehicleData:
     # ``start_climatisation`` / ``stop_climatisation`` commands at the
     # gateway. Same shape as ``charging_*_pending`` siblings.
     climatisation_status_pending: int | None = None
+    # v2.4.1 — Cariad scout #283 (VW EU Brinki99 2026-05-24): fourth
+    # *_pending family member — counts queued
+    # ``set_climatisation_temperature`` / ``set_window_heating`` /
+    # related climate-settings commands at the gateway.
+    climatisation_settings_pending: int | None = None
+    # v2.4.1 — Scout Policy Compliance Audit (see docs/SCOUT_POLICY.md).
+    # T1 entities: previously silenced-only paths that have been
+    # promoted to first-class parsed fields per the new "always parse"
+    # policy. All disabled-by-default in sensor.py (opt-in for users
+    # who actually need them).
+    #
+    # CARIAD-BFF: HV battery cell temperature (Celsius). Useful for
+    # users with home battery-thermal management (e.g. wallbox curtail).
+    battery_temp_c: float | None = None
+    # CARIAD-BFF climatisation: per-zone enable + battery-only mode.
+    climate_without_external_power: bool | None = None
+    climate_zone_front_left: bool | None = None
+    climate_zone_front_right: bool | None = None
+    # CARIAD-BFF climatisation: remaining-time-to-target.
+    climate_remaining_time_min: int | None = None
+    # CARIAD-BFF readiness: connection diagnostics. Already partly
+    # surfaced via legacy fields; these are the deeper sub-keys.
+    connection_battery_power_level: str | None = None  # e.g. "OK", "LOW"
+    connection_active: bool | None = None
+    daily_power_budget_warning: bool | None = None
+    insufficient_battery_level_warning: bool | None = None
+    # OLA (SEAT/CUPRA): per-vehicle metadata from /v2/users/.../garage.
+    # NOTE: ``license_plate`` already defined at the top of the dataclass
+    # (line ~264) — populated by other parsers historically. v2.4.1 T1
+    # adds the SEAT/CUPRA parser path; the field declaration stays
+    # singular to avoid mypy [no-redef] error.
+    vehicle_nickname: str | None = None
+    # OLA: parking position map renders (Google Maps URLs from /v1/vehicles/{vin}/parkingposition).
+    parking_map_url_dark: str | None = None
+    parking_map_url_light: str | None = None
     # v2.3.0 — Cariad scout #264 (Audi moltke69 2026-05-19) — route-aware
     # smart-charging fields. Backend nun publishes a "navigation-aware"
     # SoC target — z.B. "lade nur soviel wie du für deine nächste

@@ -233,6 +233,60 @@ def clear_quota_issue(hass: HomeAssistant, entry_id: str) -> None:
     ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_quota_low")
 
 
+def raise_issue_ola_headers_outdated(
+    hass: HomeAssistant,
+    entry_id: str,
+    brand: str,
+    consecutive_403_count: int,
+) -> None:
+    """v2.4.1 (#281+#282) — OLA defense-in-depth Layer 4.
+
+    Raise an HA Repair issue when the OLA backend has returned 403
+    consecutively despite our header-injection + fallback chain
+    exhaustion. Most likely cause: VW updated their app-identifying
+    requirements again and our centralized header constants
+    (``cariad/_ola_headers.py``) need bumping.
+
+    Args:
+        hass: Home Assistant runtime instance.
+        entry_id: ConfigEntry ID owning this client.
+        brand: ``"seat"`` or ``"cupra"`` — included in the message
+            so the user knows which brand-app version to check.
+        consecutive_403_count: how many in a row we've seen — included
+            in the message to give the user a sense of certainty
+            (10+ = high confidence, 5-9 = possible).
+    """
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        f"{entry_id}_ola_headers_outdated",
+        is_fixable=False,
+        is_persistent=True,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="ola_headers_outdated",
+        translation_placeholders={
+            "brand": brand.upper(),
+            "count": str(consecutive_403_count),
+        },
+        learn_more_url=(
+            "https://github.com/its-me-prash/vwgroup-connect-ha/blob/main/"
+            "custom_components/vag_connect/cariad/_ola_headers.py"
+        ),
+    )
+    _LOGGER.warning(
+        "VW Group Connect OLA-Headers Repair-Issue created: brand=%s "
+        "consecutive_403=%d. Likely cause: OLA backend updated app-"
+        "identifying requirements. Check for integration update or "
+        "use the advanced OptionsFlow override.",
+        brand, consecutive_403_count,
+    )
+
+
+def clear_ola_headers_issue(hass: HomeAssistant, entry_id: str) -> None:
+    """v2.4.1 — Clear the OLA headers repair issue when 403s stop."""
+    ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_ola_headers_outdated")
+
+
 # ─── v2.0.0 Repair-Flow Handler ──────────────────────────────────────────
 class _AuthRepairFlow(RepairsFlow):
     """v2.0.0 — Generic repair flow for auth-related issues.

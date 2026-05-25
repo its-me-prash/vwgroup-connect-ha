@@ -46,6 +46,61 @@ BINARY_DESCRIPTIONS: tuple[VagBinarySensorDescription, ...] = (
         device_class=BinarySensorDeviceClass.WINDOW,
         icon="mdi:car-windshield-outline",
     ),
+    # v2.4.1 — Scout Policy Compliance Audit T1 binary entities.
+    # All disabled-by-default per the policy doc (opt-in for users
+    # who actually need them). Climatisation zone-control, climate-
+    # without-external-power flag, readiness deep-diagnostics.
+    VagBinarySensorDescription(
+        key="climate_without_external_power",
+        translation_key="climate_without_external_power",
+        data_key="climate_without_external_power",
+        icon="mdi:car-battery",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagBinarySensorDescription(
+        key="climate_zone_front_left",
+        translation_key="climate_zone_front_left",
+        data_key="climate_zone_front_left",
+        icon="mdi:car-seat",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagBinarySensorDescription(
+        key="climate_zone_front_right",
+        translation_key="climate_zone_front_right",
+        data_key="climate_zone_front_right",
+        icon="mdi:car-seat",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagBinarySensorDescription(
+        key="connection_active",
+        translation_key="connection_active",
+        data_key="connection_active",
+        device_class=BinarySensorDeviceClass.CONNECTIVITY,
+        icon="mdi:wifi-check",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagBinarySensorDescription(
+        key="daily_power_budget_warning",
+        translation_key="daily_power_budget_warning",
+        data_key="daily_power_budget_warning",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        icon="mdi:battery-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagBinarySensorDescription(
+        key="insufficient_battery_level_warning",
+        translation_key="insufficient_battery_level_warning",
+        data_key="insufficient_battery_level_warning",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        icon="mdi:car-battery",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     VagBinarySensorDescription(
         key="plug_connected",
         translation_key="plug_connected",

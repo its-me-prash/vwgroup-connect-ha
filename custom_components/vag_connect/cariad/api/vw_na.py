@@ -119,6 +119,11 @@ class VWNAClient:
         )
         # UUID cache: VIN → UUID (returned by garage)
         self._vin_to_uuid: dict[str, str] = {}
+        # v2.4.1 (#285) — human-friendly metadata from garage payload.
+        # vehicleNickName + modelName per matpoulin's response shape.
+        # Used by get_status() / device-info to enrich the entity model.
+        self._vin_to_nickname: dict[str, str] = {}
+        self._vin_to_model: dict[str, str] = {}
 
     async def authenticate(self, mfa_code: str | None = None) -> None:
         """IDK PKCE login against VW NA endpoint."""
@@ -126,17 +131,66 @@ class VWNAClient:
         _LOGGER.debug("VW NA auth complete (%s)", self._country.upper())
 
     async def get_vehicles(self) -> list[str]:
-        """Return VINs from VW NA garage."""
+        """Return VINs from VW NA garage.
+
+        v2.4.1 (#285 roberttco, 2026-05-24) — the actual API response
+        shape per matpoulin/CarConnectivity-connector-volkswagen-na
+        (the Apache-2.0 reference cited at the top of this file) is:
+
+            {"data": {"vehicles": [{"vin": ..., "vehicleId": ..., ...}]}}
+
+        Our previous parser read ``data.get("vehicles", [])`` (top-
+        level), which returned ``[]`` and raised ``ConfigEntryNotReady
+        ("No vehicles found")`` even though the auth flow + token
+        exchange had succeeded perfectly. roberttco's debug log on #285
+        confirmed: full auth chain works, but garage call result was
+        treated as empty. Fix: walk through the ``data`` envelope with
+        defensive fallback to top-level for forward-compat if VW NA
+        ever flattens the shape.
+
+        Bonus per matpoulin: response also carries ``vehicleNickName``
+        and ``modelName`` per vehicle — cache them for device-info /
+        entity-naming downstream.
+        """
         data = await self._get(f"{self._base}/account/v1/garage")
+        # Defensive envelope walk: prefer data.data.vehicles (matpoulin
+        # confirmed), fall back to data.vehicles (legacy / forward-
+        # compat if VW NA flattens), else empty list.
+        payload = (
+            (data.get("data") or {}).get("vehicles")
+            or data.get("vehicles")
+            or []
+        )
         vins = []
-        for v in data.get("vehicles", []):
-            vin  = v.get("vin")
-            uuid = v.get("uuid") or v.get("vehicleId")
+        for vehicle_dict in payload:
+            vin = vehicle_dict.get("vin")
+            uuid = vehicle_dict.get("uuid") or vehicle_dict.get("vehicleId")
             if vin:
                 if uuid:
                     self._vin_to_uuid[vin] = uuid
+                # v2.4.1 — cache the human-friendly fields per matpoulin.
+                # Surfaced as sensors in v2.4.1 audit (T1 entities).
+                nickname = vehicle_dict.get("vehicleNickName")
+                if isinstance(nickname, str) and nickname:
+                    self._vin_to_nickname[vin] = nickname
+                model = vehicle_dict.get("modelName")
+                if isinstance(model, str) and model:
+                    self._vin_to_model[vin] = model
                 vins.append(vin)
-                _LOGGER.debug("VW NA: found VIN %s uuid=%s", _mask_vin(vin), uuid)
+                _LOGGER.debug(
+                    "VW NA: found VIN %s uuid=%s nickname=%s model=%s",
+                    _mask_vin(vin), uuid, nickname, model,
+                )
+        if not vins and payload == []:
+            # Empty envelope OR shape didn't match — log diagnostically
+            # so the next user-report includes the actual top-level
+            # keys for diagnosis.
+            _LOGGER.warning(
+                "VW NA garage returned no vehicles (top-level keys=%s) — "
+                "if this is unexpected, please open an issue with the "
+                "DEBUG log so we can adjust the parser shape",
+                list(data.keys()) if isinstance(data, dict) else type(data).__name__,
+            )
         return vins
 
     async def get_status(self, vin: str) -> VehicleData:

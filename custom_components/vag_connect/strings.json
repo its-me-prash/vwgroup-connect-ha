@@ -145,6 +145,48 @@
       "climatisation_status_pending": {
         "name": "Climate Commands Pending"
       },
+      "climatisation_settings_pending": {
+        "name": "Climate Settings Pending"
+      },
+      "battery_temp_c": {
+        "name": "Battery Temperature"
+      },
+      "climate_without_external_power": {
+        "name": "Climate Without External Power"
+      },
+      "climate_zone_front_left": {
+        "name": "Climate Zone Front Left"
+      },
+      "climate_zone_front_right": {
+        "name": "Climate Zone Front Right"
+      },
+      "climate_remaining_time_min": {
+        "name": "Climate ETA"
+      },
+      "connection_battery_power_level": {
+        "name": "Connection Battery Power Level"
+      },
+      "connection_active": {
+        "name": "Connection Active"
+      },
+      "daily_power_budget_warning": {
+        "name": "Daily Power Budget Warning"
+      },
+      "insufficient_battery_level_warning": {
+        "name": "Insufficient Battery Level Warning"
+      },
+      "license_plate": {
+        "name": "License Plate"
+      },
+      "vehicle_nickname": {
+        "name": "Vehicle Nickname"
+      },
+      "parking_map_url_dark": {
+        "name": "Parking Map URL (dark)"
+      },
+      "parking_map_url_light": {
+        "name": "Parking Map URL (light)"
+      },
       "nav_target_soc_pct": {
         "name": "Navigation Target Charge"
       },
@@ -645,6 +687,10 @@
     "quota_critical": {
       "title": "API quota CRITICAL — {remaining} requests remaining today",
       "description": "Your VAG account has fewer than 25 API requests remaining today ({remaining} of {limit}, {pct}%). The manufacturer backend may soft-suspend the account if you exhaust the budget.\n\n**Immediate action:**\n1. **Pause polling** — Settings → Devices & Services → VW Group Connect → Configure → Update Interval → set to 30 min or higher\n2. Avoid manual refreshes / vehicle wake-ups until the budget resets\n\nThis warning auto-clears when the remaining count recovers."
+    },
+    "ola_headers_outdated": {
+      "title": "{brand} OLA headers may need an update — {count} consecutive 403 errors",
+      "description": "VW Group's OLA backend (the SEAT/CUPRA server) has rejected **{count}** requests in a row with HTTP 403 Forbidden — even after we tried all built-in fallback header-sets.\n\n**Most likely cause**: VW updated their app-identifying header requirements again. This happened on 2026-05-20 and may happen again as the official {brand} app releases new versions.\n\n**What to do:**\n\n1. **Check for an integration update** — HACS → VW Group Connect → Update. Maintainers usually ship a header bump within ~1 week of upstream changes (we monitor via weekly CI workflow).\n2. **Try the OptionsFlow override** (advanced) — Settings → Devices & Services → VW Group Connect → Configure → set `ola_app_version_override` to a fresher app version (e.g. the version of the official {brand} app on your phone, visible in app settings).\n3. **If neither helps**: open a GitHub issue with your DEBUG-level log so we can investigate.\n\nThis warning auto-clears when the next request succeeds."
     }
   },
   "exceptions": {
