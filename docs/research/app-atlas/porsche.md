@@ -1,0 +1,49 @@
+# App Atlas — Porsche (My Porsche)
+
+> **Auto-generated** by `.github/workflows/app-atlas-builder.yml` ·
+> Last refreshed: 2026-05-25
+
+## Identity
+
+| Field | Value |
+|---|---|
+| Android package ID | `com.porsche.one` |
+| Expected backend | `ppa` |
+| OLA enforcement known? | No (not observed yet) |
+
+## Configured sources (fallback chain)
+
+| Source | Configured value |
+|---|---|
+| APKMirror | `dr-ing-h-c-f-porsche-ag/my-porsche` |
+| Uptodown | `(none)` |
+
+## Current version
+
+| | |
+|---|---|
+| Latest version-name | `12.24.27` |
+| Source that responded | `apkmirror` |
+| Previously cached version | `12.24.27` |
+| Changed since last run? | No |
+
+## Discovered endpoints
+
+_(Empty — Phase A.2 will populate this from APK extraction.)_
+
+## Discovered HTTP headers
+
+_(Empty — Phase A.2 will populate this from APK extraction.)_
+
+## Cross-version diff
+
+_(Empty — Phase A.3 will populate this from full decompile + diff.)_
+
+## Action items
+
+_(Auto-flagged by the pipeline when new endpoints / headers / version-bumps suggest follow-up work.)_
+
+---
+
+_See [`README.md`](README.md) for atlas methodology and
+[`LEGAL.md`](LEGAL.md) for reverse-engineering disclosure._

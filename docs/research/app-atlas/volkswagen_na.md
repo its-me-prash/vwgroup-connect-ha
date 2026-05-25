@@ -1,0 +1,49 @@
+# App Atlas — Volkswagen US/CA (myVW)
+
+> **Auto-generated** by `.github/workflows/app-atlas-builder.yml` ·
+> Last refreshed: 2026-05-25
+
+## Identity
+
+| Field | Value |
+|---|---|
+| Android package ID | `com.vw.carnet.release` |
+| Expected backend | `con_veh_net` |
+| OLA enforcement known? | No (not observed yet) |
+
+## Configured sources (fallback chain)
+
+| Source | Configured value |
+|---|---|
+| APKMirror | `volkswagen-of-america-inc/myvw` |
+| Uptodown | `(none)` |
+
+## Current version
+
+| | |
+|---|---|
+| Latest version-name | `2026.5.12-9074` |
+| Source that responded | `apkmirror` |
+| Previously cached version | `2026.5.12-9074` |
+| Changed since last run? | No |
+
+## Discovered endpoints
+
+_(Empty — Phase A.2 will populate this from APK extraction.)_
+
+## Discovered HTTP headers
+
+_(Empty — Phase A.2 will populate this from APK extraction.)_
+
+## Cross-version diff
+
+_(Empty — Phase A.3 will populate this from full decompile + diff.)_
+
+## Action items
+
+_(Auto-flagged by the pipeline when new endpoints / headers / version-bumps suggest follow-up work.)_
+
+---
+
+_See [`README.md`](README.md) for atlas methodology and
+[`LEGAL.md`](LEGAL.md) for reverse-engineering disclosure._

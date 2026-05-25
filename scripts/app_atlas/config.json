@@ -1,0 +1,98 @@
+{
+  "_comment": "Cross-brand App Atlas — per-brand metadata. Edit when an app rebrands or moves package ID. Used by scripts/app_atlas/build_atlas.py and the .github/workflows/app-atlas-builder.yml workflow.",
+  "_atlas_version": 1,
+  "brands": {
+    "seat": {
+      "display_name": "SEAT",
+      "package_id": "com.seat.myseat.ola",
+      "sources": {
+        "apkmirror_slug": "seat-s-a/myseat",
+        "uptodown_subdomain": "my-seat"
+      },
+      "expected_backend": "ola",
+      "ola_enforcement_known": true,
+      "ola_enforcement_since": "2026-05-20"
+    },
+    "cupra": {
+      "display_name": "CUPRA",
+      "package_id": "com.cupra.mycupra",
+      "sources": {
+        "apkmirror_slug": "seat-cupra-s-a/my-cupra-app",
+        "uptodown_subdomain": "my-cupra"
+      },
+      "expected_backend": "ola",
+      "ola_enforcement_known": true,
+      "ola_enforcement_since": "2026-05-20"
+    },
+    "volkswagen": {
+      "display_name": "Volkswagen EU (We Connect ID)",
+      "package_id": "com.volkswagen.weconnect",
+      "sources": {
+        "apkmirror_slug": "volkswagen-ag/volkswagen-we-connect-id",
+        "uptodown_subdomain": "volkswagen-we-connect-id"
+      },
+      "expected_backend": "cariad_bff",
+      "ola_enforcement_known": false
+    },
+    "audi": {
+      "display_name": "Audi (myAudi)",
+      "package_id": "de.myaudi.mobile.assistant",
+      "sources": {
+        "apkmirror_slug": "audi-ag/myaudi",
+        "uptodown_subdomain": "myaudi"
+      },
+      "expected_backend": "cariad_bff",
+      "ola_enforcement_known": false
+    },
+    "skoda": {
+      "display_name": "Škoda (MyŠkoda)",
+      "package_id": "cz.skodaauto.myskoda",
+      "sources": {
+        "apkmirror_slug": "skoda-auto-as/myskoda",
+        "uptodown_subdomain": "cz-skodaauto-myskoda"
+      },
+      "expected_backend": "mysmob",
+      "ola_enforcement_known": false
+    },
+    "volkswagen_na": {
+      "display_name": "Volkswagen US/CA (myVW)",
+      "package_id": "com.vw.carnet.release",
+      "sources": {
+        "apkmirror_slug": "volkswagen-of-america-inc/myvw",
+        "uptodown_subdomain": null
+      },
+      "expected_backend": "con_veh_net",
+      "ola_enforcement_known": false
+    },
+    "porsche": {
+      "display_name": "Porsche (My Porsche)",
+      "package_id": "com.porsche.one",
+      "sources": {
+        "apkmirror_slug": "dr-ing-h-c-f-porsche-ag/my-porsche",
+        "uptodown_subdomain": null
+      },
+      "expected_backend": "ppa",
+      "ola_enforcement_known": false
+    }
+  },
+  "search_patterns": {
+    "_comment": "Strings we grep for in extracted APK content. Discoveries from Phase A.2+ get appended to the per-brand atlas markdown.",
+    "ola_headers": [
+      "app-market",
+      "app-brand",
+      "app-version",
+      "origin"
+    ],
+    "known_backend_hosts": [
+      "ola.prod.code.seat.cloud.vwgroup.com",
+      "emea.bff.cariad.digital",
+      "mysmob.api.connect.skoda-auto.cz",
+      "b-h-s.spr.us00.p.con-veh.net",
+      "b-h-s.spr.ca00.p.con-veh.net",
+      "api.ppa.porsche.com",
+      "identity.vwgroup.io",
+      "identity.na.vwgroup.io",
+      "mal-1a.prd.ece.vwg-connect.com"
+    ]
+  }
+}
