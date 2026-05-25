@@ -63,6 +63,17 @@ CONF_ENABLE_PUSH_FCM          = "enable_push_fcm"
 # spawns at coordinator setup. User-suggested feature 2026-05-07
 # (myAudi App push notifications → HA-side feedback channel).
 CONF_ENABLE_PUSH_AUDI_VW      = "enable_push_audi_vw"
+# v2.4.1 (#281+#282) — OLA app-identifying header overrides for power-
+# users (SEAT/CUPRA only). VW Group's OLA backend enforces specific
+# values for ``app-version`` + ``User-Agent`` on every request. We
+# default to the latest-known-good values from
+# ``cariad/_ola_headers.py`` (mirrored from CarConnectivity-connector-
+# seatcupra). If the backend changes faster than we release, users can
+# override here without waiting for an integration update.
+# Empty string = use the built-in default. Format: plain version
+# string ("2.17.0") or full User-Agent string per RFC 7231.
+CONF_OLA_APP_VERSION_OVERRIDE = "ola_app_version_override"
+CONF_OLA_USER_AGENT_OVERRIDE  = "ola_user_agent_override"
 
 # Supported brands — must match CariadClientFactory.create() keys
 BRANDS = {

@@ -75,6 +75,28 @@ class UnexpectedField:
 #   - Wildcards: ``"*"`` matches any single segment
 #     (e.g. ``"doors.*.locked"`` covers ``doors.frontLeft.locked`` etc.)
 #   - Don't list scalar leaf values (we report parent paths)
+#
+# ─── Scout Policy (v2.4.1+) ────────────────────────────────────────────
+# See ``docs/SCOUT_POLICY.md`` for the full rules. TL;DR: every leaf-
+# value silenced here MUST also be parsed (parser → dataclass field →
+# entity). Silencer-only is no longer acceptable.
+#
+# Exemption tiers documented inline below:
+#   T2  — unit-variant duplicates (parse the canonical form, let
+#         SensorDeviceClass handle display-time unit conversion)
+#   T3  — *.carCapturedTimestamp leaves (consolidated into the
+#         coordinator's ``last_updated_at`` field)
+#   T4  — container declarations (endpoint roots, .status / .value /
+#         .settings wrappers — no leaf value)
+#   T5  — brand-specific paths from legacy fixtures (unclear if still
+#         in production; defer to next scout-confirmation)
+#
+# When you ADD a new silencer entry, add the parser+entity at the same
+# time OR add an inline ``# T2/T3/T4/T5 exempt`` comment.
+#
+# v2.4.1 audit (2026-05-25): classified 67 pre-existing silenced-only
+# paths. 12 promoted to T1 (parsed + entity, see vw_eu.py + sensor.py).
+# 55 documented as T2-T5 exempt with inline comments below.
 EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
     "skoda": {
         "vehicle-status": {
@@ -473,6 +495,13 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # of the existing ``chargingSettings.requests`` parser, now
             # parsed into ``d.charging_status_pending`` (count diagnostic).
             "charging.chargingStatus.requests",
+            # v2.4.1 — scout #284 (Audi KimmoT727 2026-05-24): retroactive
+            # silencer-add for the long-parsed ``chargingSettings.requests``
+            # field (parser shipped v1.27.2 #181 but EXPECTED_KEYS was
+            # never updated — classic Scout Policy gap, see
+            # docs/SCOUT_POLICY.md). Reporter on latest v2.4.0, scout
+            # legitimately re-fired because of this gap. Audi inherits.
+            "charging.chargingSettings.requests",
             "charging.chargingSettings", "charging.chargingSettings.value",
             "charging.chargingSettings.value.targetSOC_pct",
             "charging.chargingSettings.value.maxChargeCurrentAC",
@@ -501,6 +530,11 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # ``charging.chargingStatus.requests`` pattern added at
             # the same time. Parsed into ``d.climatisation_status_pending``.
             "climatisation.climatisationStatus.requests",
+            # v2.4.1 — scout #283 (VW EU Brinki99 2026-05-24): fourth
+            # and final ``*.requests`` queue-counter family member,
+            # on the climatisationSettings side. Parsed into
+            # ``d.climatisation_settings_pending``. Audi inherits.
+            "climatisation.climatisationSettings.requests",
             "climatisation.climatisationSettings",
             "climatisation.climatisationSettings.value",
             "climatisation.climatisationSettings.value.targetTemperature_C",

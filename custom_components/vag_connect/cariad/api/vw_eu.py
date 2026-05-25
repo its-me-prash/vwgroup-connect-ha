@@ -1403,6 +1403,57 @@ class VWEUClient(CariadBaseClient):
         if isinstance(clim_pending, list):
             d.climatisation_status_pending = len(clim_pending)
 
+        # v2.4.1 — scout #283 (VW EU Brinki99 2026-05-24): fourth and
+        # final member of the ``*.requests`` queue-counter family on
+        # the climatisationSettings side. Counts queued
+        # ``set_climatisation_temperature`` / ``set_window_heating`` /
+        # related settings-update commands at the gateway. Mirrors the
+        # ``chargingSettings.requests`` parser from v1.27.2 #181 but
+        # on the climate side. Audi inherits via brand-vererbung.
+        clim_settings_pending = v(raw, "climatisation", "climatisationSettings", "requests")
+        if isinstance(clim_settings_pending, list):
+            d.climatisation_settings_pending = len(clim_settings_pending)
+
+        # v2.4.1 — Scout Policy Compliance Audit T1: parse the
+        # silenced-but-not-parsed leaves discovered in the v2.4.1 sweep
+        # (see docs/SCOUT_POLICY.md). Each was already in EXPECTED_KEYS;
+        # we're adding parsers + entities per the new "always parse"
+        # policy. All disabled-by-default in sensor.py.
+        #
+        # HV battery cell temperature.
+        bat_temp = v(raw, "charging", "batteryStatus", "value", "temp_C")
+        if isinstance(bat_temp, (int, float)):
+            d.battery_temp_c = float(bat_temp)
+        # Climatisation: per-zone front + battery-only mode.
+        cwep = v(raw, "climatisation", "climatisationSettings", "value", "climatisationWithoutExternalPower")
+        if isinstance(cwep, bool):
+            d.climate_without_external_power = cwep
+        zfl = v(raw, "climatisation", "climatisationSettings", "value", "zoneFrontLeftEnabled")
+        if isinstance(zfl, bool):
+            d.climate_zone_front_left = zfl
+        zfr = v(raw, "climatisation", "climatisationSettings", "value", "zoneFrontRightEnabled")
+        if isinstance(zfr, bool):
+            d.climate_zone_front_right = zfr
+        # Climatisation: ETA in minutes from current to target temperature.
+        crt = v(raw, "climatisation", "climatisationStatus", "value", "remainingClimatisationTime_min")
+        if isinstance(crt, (int, float)):
+            d.climate_remaining_time_min = int(crt)
+        # Readiness: deeper connection-state diagnostics. These augment
+        # the existing aggregate ``connection_state`` field with the
+        # per-sub-key values for power-user automations.
+        cbpl = v(raw, "readiness", "readinessStatus", "value", "connectionState", "batteryPowerLevel")
+        if isinstance(cbpl, str):
+            d.connection_battery_power_level = cbpl
+        cact = v(raw, "readiness", "readinessStatus", "value", "connectionState", "isActive")
+        if isinstance(cact, bool):
+            d.connection_active = cact
+        dpbw = v(raw, "readiness", "readinessStatus", "value", "connectionWarning", "dailyPowerBudgetWarning")
+        if isinstance(dpbw, bool):
+            d.daily_power_budget_warning = dpbw
+        iblw = v(raw, "readiness", "readinessStatus", "value", "connectionWarning", "insufficientBatteryLevelWarning")
+        if isinstance(iblw, bool):
+            d.insufficient_battery_level_warning = iblw
+
         # v1.26.0 Welle-6 (#173) — climate-at-unlock + window-heating-enabled
         # SETTINGS (distinct from front/back STATES). Scout #144 VW ID.4 Pro.
         clim_at_unlock = v(raw, "climatisation", "climatisationSettings", "value", "climatizationAtUnlock")

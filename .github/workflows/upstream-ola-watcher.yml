@@ -1,0 +1,148 @@
+name: Upstream OLA Headers Watcher
+
+# v2.4.1 (#281+#282) — VW Group's OLA backend started enforcing app-
+# identifying headers on 2026-05-20. CarConnectivity-connector-seatcupra
+# fixed it in v0.6.3 by hardcoding the headers per brand. The header
+# VALUES will eventually drift as the SEAT/CUPRA apps update their
+# version numbers.
+#
+# This workflow monitors the upstream CarConnectivity reference
+# implementation weekly. If their app-version differs from ours, it
+# opens an issue prompting us to bump the version in our
+# cariad/_ola_headers.py. Goal: stay within ~1 week of upstream.
+
+on:
+  schedule:
+    # Every Monday at 08:00 UTC.
+    - cron: "0 8 * * 1"
+  workflow_dispatch:
+    # Allow manual trigger from the Actions tab.
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  compare-ola-headers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Fetch CarConnectivity upstream my_cupra_session.py
+        id: upstream
+        run: |
+          # Pull the CarConnectivity-connector-seatcupra session config
+          # from their main branch.
+          URL="https://raw.githubusercontent.com/tillsteinbach/CarConnectivity-connector-seatcupra/main/src/carconnectivity_connectors/seatcupra/auth/my_cupra_session.py"
+          curl -fsSL "$URL" -o upstream_session.py
+
+          # Extract the app-version values for each brand. The pattern in
+          # upstream is:
+          #   'app-brand': 'seat',  'app-version': '2.17.0',
+          # appearing twice (one block per brand).
+          # Use grep -A to grab a few lines after the brand match.
+          UPSTREAM_SEAT=$(grep -A2 "'app-brand': 'seat'" upstream_session.py | \
+            grep "app-version" | head -1 | sed -E "s/.*'app-version': '([^']+)'.*/\1/")
+          UPSTREAM_CUPRA=$(grep -A2 "'app-brand': 'cupra'" upstream_session.py | \
+            grep "app-version" | head -1 | sed -E "s/.*'app-version': '([^']+)'.*/\1/")
+
+          echo "Upstream SEAT: $UPSTREAM_SEAT"
+          echo "Upstream CUPRA: $UPSTREAM_CUPRA"
+
+          echo "seat=$UPSTREAM_SEAT" >> "$GITHUB_OUTPUT"
+          echo "cupra=$UPSTREAM_CUPRA" >> "$GITHUB_OUTPUT"
+
+      - name: Read our current values
+        id: ours
+        run: |
+          # Our values live in custom_components/vag_connect/cariad/
+          # _ola_headers.py. Extract them with the same approach.
+          F="custom_components/vag_connect/cariad/_ola_headers.py"
+          if [ ! -f "$F" ]; then
+            echo "::error::$F missing — has the OLA headers module been removed?"
+            exit 1
+          fi
+
+          # Pattern: "app-version": "2.17.0", inside a "seat" / "cupra" block.
+          OURS_SEAT=$(python3 -c "
+          import re, pathlib
+          text = pathlib.Path('$F').read_text()
+          m = re.search(r'\"seat\"\s*:\s*\{[^}]*?\"app-version\"\s*:\s*\"([^\"]+)\"', text, re.DOTALL)
+          print(m.group(1) if m else '')
+          ")
+          OURS_CUPRA=$(python3 -c "
+          import re, pathlib
+          text = pathlib.Path('$F').read_text()
+          m = re.search(r'\"cupra\"\s*:\s*\{[^}]*?\"app-version\"\s*:\s*\"([^\"]+)\"', text, re.DOTALL)
+          print(m.group(1) if m else '')
+          ")
+
+          echo "Ours SEAT: $OURS_SEAT"
+          echo "Ours CUPRA: $OURS_CUPRA"
+
+          echo "seat=$OURS_SEAT" >> "$GITHUB_OUTPUT"
+          echo "cupra=$OURS_CUPRA" >> "$GITHUB_OUTPUT"
+
+      - name: Compare and open issue on drift
+        if: |
+          (steps.upstream.outputs.seat != steps.ours.outputs.seat ||
+           steps.upstream.outputs.cupra != steps.ours.outputs.cupra) &&
+          steps.upstream.outputs.seat != '' &&
+          steps.upstream.outputs.cupra != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UP_SEAT: ${{ steps.upstream.outputs.seat }}
+          UP_CUPRA: ${{ steps.upstream.outputs.cupra }}
+          OUR_SEAT: ${{ steps.ours.outputs.seat }}
+          OUR_CUPRA: ${{ steps.ours.outputs.cupra }}
+        run: |
+          # Idempotent: only open the issue if one with this title
+          # doesn't already exist (open or recently closed).
+          TITLE="OLA headers drift detected — upstream CarConnectivity has newer app-version"
+
+          EXISTING=$(gh issue list --search "in:title \"$TITLE\"" --state all --limit 5 --json number,state --jq '.[] | select(.state == "OPEN") | .number' | head -1)
+          if [ -n "$EXISTING" ]; then
+            echo "Issue #$EXISTING already open — adding a comment instead."
+            gh issue comment "$EXISTING" --body "Watcher re-detected drift on $(date -u +%Y-%m-%d):
+
+| Brand | Upstream | Ours |
+|---|---|---|
+| SEAT | \`$UP_SEAT\` | \`$OUR_SEAT\` |
+| CUPRA | \`$UP_CUPRA\` | \`$OUR_CUPRA\` |
+
+Source: https://github.com/tillsteinbach/CarConnectivity-connector-seatcupra/blob/main/src/carconnectivity_connectors/seatcupra/auth/my_cupra_session.py"
+          else
+            gh issue create \
+              --title "$TITLE" \
+              --label "chore" \
+              --body "Weekly upstream watcher detected that CarConnectivity-connector-seatcupra has updated their app-version constants. Our \`cariad/_ola_headers.py\` should be bumped to match.
+
+| Brand | Upstream | Ours |
+|---|---|---|
+| SEAT | \`$UP_SEAT\` | \`$OUR_SEAT\` |
+| CUPRA | \`$UP_CUPRA\` | \`$OUR_CUPRA\` |
+
+**Why this matters**: VW Group's OLA backend started enforcing app-identifying headers on 2026-05-20 (see #281, #282). The header VALUES must match what the official SEAT/CUPRA apps send. Upstream maintainers stay closer to the apps than we do, so we mirror their values with ~1 week lag.
+
+**Action**: bump \`_OLA_HEADERS_BY_BRAND\` in \`custom_components/vag_connect/cariad/_ola_headers.py\`:
+
+\`\`\`python
+\"seat\":  {\"app-market\": \"android\", \"app-brand\": \"seat\",  \"app-version\": \"$UP_SEAT\", \"origin\": \"app\"},
+\"cupra\": {\"app-market\": \"android\", \"app-brand\": \"cupra\", \"app-version\": \"$UP_CUPRA\", \"origin\": \"app\"},
+\`\`\`
+
+Source: https://github.com/tillsteinbach/CarConnectivity-connector-seatcupra/blob/main/src/carconnectivity_connectors/seatcupra/auth/my_cupra_session.py
+
+_Auto-filed by \`.github/workflows/upstream-ola-watcher.yml\`._"
+            echo "Issue created."
+          fi
+
+      - name: Report no drift
+        if: |
+          steps.upstream.outputs.seat == steps.ours.outputs.seat &&
+          steps.upstream.outputs.cupra == steps.ours.outputs.cupra &&
+          steps.upstream.outputs.seat != '' &&
+          steps.upstream.outputs.cupra != ''
+        run: |
+          echo "✅ OLA headers in sync with upstream CarConnectivity"
+          echo "SEAT=${{ steps.upstream.outputs.seat }} CUPRA=${{ steps.upstream.outputs.cupra }}"

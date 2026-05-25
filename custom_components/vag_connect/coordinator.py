@@ -500,8 +500,21 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         password = self.entry.data[CONF_PASSWORD]
         spin     = self.entry.data.get(CONF_SPIN) or ""
 
+        # v2.4.1 (#281+#282) — OLA defense-in-depth Layer 2: read the
+        # advanced power-user overrides from entry.data (or empty if not
+        # set). Forwarded only to SEAT/CUPRA clients via the factory;
+        # other brands ignore the kwargs cleanly. Empty string / missing
+        # = use _ola_headers.py built-in defaults.
+        from .const import CONF_OLA_APP_VERSION_OVERRIDE, CONF_OLA_USER_AGENT_OVERRIDE  # noqa: PLC0415
+        ola_app_v = self.entry.data.get(CONF_OLA_APP_VERSION_OVERRIDE) or None
+        ola_ua    = self.entry.data.get(CONF_OLA_USER_AGENT_OVERRIDE) or None
+
         session = async_get_clientsession(self.hass)
-        self._cariad_client = CariadClientFactory.create(brand, session, username, password, spin)
+        self._cariad_client = CariadClientFactory.create(
+            brand, session, username, password, spin,
+            ola_app_version_override=ola_app_v,
+            ola_user_agent_override=ola_ua,
+        )
 
         # v1.19.2 (#118 eismarkt) — token persistence wire-up.
         # Load any persisted IDK tokens from HA storage BEFORE the
@@ -812,6 +825,27 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 except Exception:  # noqa: BLE001
                     pass
                 await self._async_push_update(fresh, success=any_success)
+
+                # v2.4.1 (#281+#282) — OLA defense-in-depth Layer 4:
+                # check if the SEAT/CUPRA client has flagged itself for
+                # a Repair issue (persistent 403s after all fallbacks).
+                # Cheap attribute check — no-op for non-OLA brands.
+                try:
+                    ola_flag = getattr(self._cariad_client, "ola_headers_repair_needed", False)
+                    consecutive_403 = getattr(self._cariad_client, "_ola_consecutive_403", 0)
+                    if ola_flag and consecutive_403 > 0:
+                        from .repairs import raise_issue_ola_headers_outdated  # noqa: PLC0415
+                        raise_issue_ola_headers_outdated(
+                            self.hass, self.entry.entry_id,
+                            self.entry.data.get(CONF_BRAND, "unknown"),
+                            consecutive_403,
+                        )
+                    elif not ola_flag and consecutive_403 == 0:
+                        # Successful response cleared the flag — clear the issue too.
+                        from .repairs import clear_ola_headers_issue  # noqa: PLC0415
+                        clear_ola_headers_issue(self.hass, self.entry.entry_id)
+                except Exception:  # noqa: BLE001
+                    pass
             except Exception as err:  # noqa: BLE001
                 # Auth failure that survived the client's refresh-then-relogin
                 # fallback means the credentials are stale. Trigger HA reauth.
