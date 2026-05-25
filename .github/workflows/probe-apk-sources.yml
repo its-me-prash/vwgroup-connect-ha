@@ -1,0 +1,33 @@
+name: Probe APK Sources (CI-side Diagnostic)
+
+# One-off diagnostic — checks which APK-distribution sources return
+# HTTP 200 from GitHub Actions IPs. Output appears in the action log;
+# nothing is committed. Run via workflow_dispatch only.
+#
+# Background: Phase A.2's CI bootstrap (2026-05-25) hit HTTP 403 from
+# APKCombo on every brand — Cloudflare's bot-heuristic blocks GH-Actions
+# IP ranges regardless of User-Agent. This workflow tests if APKPure
+# (and other alternatives) suffer the same blocking, informing Option A
+# (pivot to different CDN) vs Option B (lokal-authoritative cache).
+#
+# Idempotent + safe — read-only HTTP probes, no writes anywhere.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Run source probes
+        run: python scripts/app_atlas/probe_sources.py
