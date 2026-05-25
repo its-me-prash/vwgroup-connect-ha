@@ -24,16 +24,12 @@
 |---|---|
 | Latest version-name | `3.61.0` |
 | Source that responded | `apkcombo` |
-| Previously cached version | `(first run)` |
-| Changed since last run? | **YES** |
+| Previously cached version | `3.61.0` |
+| Changed since last run? | No |
 
-## Discovered endpoints
+## Discovered via APK extraction (Phase A.2)
 
-_(Empty — Phase A.2 will populate this from APK extraction.)_
-
-## Discovered HTTP headers
-
-_(Empty — Phase A.2 will populate this from APK extraction.)_
+_(Empty — Phase A.2 APK extraction not yet run for this brand, or last attempt failed. See `app_atlas/apk_extractor.py`.)_
 
 ## Cross-version diff
 

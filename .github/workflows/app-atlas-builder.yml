@@ -41,9 +41,25 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Run atlas builder (Phase A.1 — version polling)
+      - name: Install apktool (for Phase A.2 APK extraction)
         run: |
-          python scripts/app_atlas/build_atlas.py
+          # Ubuntu's apt-installed apktool is usually a few versions old
+          # but works fine for our basic decode use-case. If it's not
+          # available, we fall back gracefully — the build_atlas.py
+          # apk_extractor logs an error per brand and continues without
+          # APK findings, so the workflow still completes for
+          # version-name polling.
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq apktool ripgrep || \
+            echo "::warning::apktool/ripgrep not installable — Phase A.2 APK extraction will skip"
+          apktool --version || true
+          rg --version | head -1 || true
+
+      - name: Run atlas builder (Phase A.1 polling + A.2 APK extraction)
+        # APK extraction only fires when a brand's version-name changed
+        # since last cache — so most days this stays under 1 minute.
+        run: |
+          python scripts/app_atlas/build_atlas.py --with-apk-extraction
 
       - name: Detect changes
         id: changes

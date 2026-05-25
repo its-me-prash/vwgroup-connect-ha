@@ -1,0 +1,296 @@
+#!/usr/bin/env python3
+# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+"""APK extraction module — Phase A.2.
+
+Builds on Phase A.1's version polling. When a version changes, this
+module:
+
+1. Downloads the APK (or XAPK split-bundle) from APKCombo's R2 CDN
+2. Unpacks XAPK → base APK if needed
+3. Decodes the APK via ``apktool`` to extract AndroidManifest + smali
+4. Greps the decoded output for HTTP-related patterns (header names,
+   endpoint hosts, URL constants) per ``config.json:search_patterns``
+5. Returns a discovery dict ready to be merged into the per-brand
+   atlas markdown
+
+The actual atlas markdown rendering happens in ``build_atlas.py`` —
+this module just produces the data.
+
+CI requirements:
+- ``apktool`` on PATH (ubuntu-latest has it pre-installed via apt or
+  the workflow can `apt-get install apktool` in ~10s)
+- ``unzip``, ``find``, ``grep`` (pre-installed)
+- Python stdlib only — no extra pip deps
+
+Phase A.3 will add ``jadx`` decompile + semantic-diff between
+consecutive versions; that lives in a separate module.
+"""
+
+from __future__ import annotations
+
+import datetime
+import logging
+import re
+import subprocess
+import urllib.error
+import urllib.request
+import zipfile
+from pathlib import Path
+from typing import Any
+
+_LOGGER = logging.getLogger("app_atlas.apk")
+
+_UA = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
+_PAGE_TIMEOUT = 30
+_DOWNLOAD_TIMEOUT = 300  # Big files; allow generous timeout for slow CDN.
+
+# Regex to extract the APKCombo signed-CDN URL from a download page.
+# Pattern matches links like /r2?u=https%3A%2F%2F... or direct
+# https://apks.<hash>.r2.cloudflarestorage.com/... .
+_R2_LINK_RE = re.compile(r'href="(/r2\?u=[^"]+)"')
+
+
+def fetch(url: str, timeout: int = _PAGE_TIMEOUT) -> bytes:
+    """GET a URL with polite UA; return raw bytes."""
+    req = urllib.request.Request(url, headers={"User-Agent": _UA})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.read()
+
+
+def fetch_text(url: str) -> str:
+    """GET a URL; return text body."""
+    return fetch(url).decode("utf-8", errors="replace")
+
+
+def resolve_apkcombo_download(slug: str) -> str | None:
+    """Walk the APKCombo download page to find the R2-signed CDN URL.
+
+    ``slug`` is e.g. ``"my-cupra-app/com.cupra.mycupra"``. Returns the
+    fully-resolved download URL (XAPK or APK) or None on failure.
+    """
+    page_url = f"https://apkcombo.com/{slug}/download/apk"
+    try:
+        body = fetch_text(page_url)
+    except urllib.error.HTTPError as exc:
+        _LOGGER.warning("APKCombo %s → HTTP %s", page_url, exc.code)
+        return None
+    m = _R2_LINK_RE.search(body)
+    if not m:
+        _LOGGER.warning("APKCombo %s: no R2 link found", page_url)
+        return None
+    relative = m.group(1)
+    # APKCombo's /r2 endpoint just redirects to the actual R2 URL.
+    # urllib follows 301/302 automatically.
+    return f"https://apkcombo.com{relative}"
+
+
+def download_to(url: str, dest: Path) -> bool:
+    """Download a URL to ``dest``. Returns True on success."""
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": _UA})
+        with urllib.request.urlopen(req, timeout=_DOWNLOAD_TIMEOUT) as resp:
+            dest.write_bytes(resp.read())
+        return True
+    except Exception as exc:  # noqa: BLE001
+        _LOGGER.error("Download failed (%s): %s", url[:80], exc)
+        return False
+
+
+def unpack_xapk(xapk_path: Path, dest_dir: Path) -> Path | None:
+    """Extract a XAPK file (zip-of-APKs) and return the path to the
+    base APK inside. Returns None if no base APK found.
+
+    XAPK structure: ``{package}.apk`` is the base; other entries like
+    ``config.arm64_v8a.apk`` are split-apks for architecture-specific
+    libraries (ignored — we only need the universal base).
+
+    If the input is already a plain APK (not a XAPK), this just copies
+    it to ``dest_dir / "base.apk"`` and returns that path.
+    """
+    if not zipfile.is_zipfile(xapk_path):
+        _LOGGER.warning("%s is not a valid zip", xapk_path)
+        return None
+
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    with zipfile.ZipFile(xapk_path, "r") as zf:
+        names = zf.namelist()
+        # Heuristic: the base APK is the one named after the package
+        # OR the largest .apk file in the bundle (architecture-agnostic).
+        apks = [n for n in names if n.endswith(".apk")]
+        if not apks:
+            # Maybe it's a plain APK — check for AndroidManifest.xml.
+            if "AndroidManifest.xml" in names:
+                # It IS a plain APK. Copy it.
+                target = dest_dir / "base.apk"
+                target.write_bytes(xapk_path.read_bytes())
+                return target
+            _LOGGER.warning("%s has no .apk entries and no AndroidManifest.xml", xapk_path)
+            return None
+
+        # Prefer the entry whose name doesn't contain "config." (split-apks)
+        base_candidates = [n for n in apks if "config." not in n.lower()]
+        if base_candidates:
+            base_name = base_candidates[0]
+        else:
+            # All entries are splits → pick the largest one (most universal).
+            base_name = max(apks, key=lambda n: zf.getinfo(n).file_size)
+
+        target = dest_dir / "base.apk"
+        with zf.open(base_name) as src:
+            target.write_bytes(src.read())
+        _LOGGER.info("XAPK %s: extracted base apk %s (%d bytes)",
+                     xapk_path.name, base_name, target.stat().st_size)
+        return target
+
+
+def apktool_decode(apk_path: Path, dest_dir: Path) -> bool:
+    """Run ``apktool d <apk> -o <dest>``. Returns True on success."""
+    if dest_dir.exists():
+        # apktool refuses to overwrite by default.
+        import shutil
+        shutil.rmtree(dest_dir)
+    try:
+        result = subprocess.run(
+            ["apktool", "d", "--force-manifest", "-o", str(dest_dir), str(apk_path)],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if result.returncode != 0:
+            _LOGGER.error("apktool failed (rc=%d):\n%s\n%s",
+                          result.returncode, result.stdout[-500:], result.stderr[-500:])
+            return False
+        return True
+    except FileNotFoundError:
+        _LOGGER.error("apktool not on PATH — workflow needs `apt-get install apktool`")
+        return False
+    except subprocess.TimeoutExpired:
+        _LOGGER.error("apktool timed out after 120s for %s", apk_path)
+        return False
+
+
+def grep_patterns(decoded_dir: Path, search_patterns: dict[str, Any]) -> dict[str, Any]:
+    """Search the decoded APK for HTTP-related patterns.
+
+    Returns a discovery dict shaped like:
+
+        {
+            "headers": ["app-market", "app-brand", ...],
+            "endpoint_hosts": ["ola.prod.code.seat.cloud.vwgroup.com", ...],
+            "ola_header_values": {"app-version": "2.16.0", ...},
+        }
+
+    Implementation uses ``ripgrep`` if available (10× faster), falls
+    back to plain ``grep -r``.
+    """
+    findings: dict[str, Any] = {
+        "headers": [],
+        "endpoint_hosts": [],
+        "ola_header_values": {},
+    }
+
+    if not decoded_dir.is_dir():
+        return findings
+
+    # Use ripgrep when available; fall back to grep.
+    rg_available = subprocess.run(
+        ["which", "rg"], check=False, capture_output=True
+    ).returncode == 0
+    grep_cmd = ["rg", "-N", "--no-heading", "-i"] if rg_available else ["grep", "-rNih"]
+
+    def _search(pattern: str, limit: int = 30) -> list[str]:
+        try:
+            result = subprocess.run(
+                grep_cmd + ["-e", pattern, str(decoded_dir)],
+                check=False, capture_output=True, text=True, timeout=30,
+            )
+            lines = result.stdout.splitlines()[:limit]
+            return [ln.strip() for ln in lines if ln.strip()]
+        except Exception:  # noqa: BLE001
+            return []
+
+    # 1. OLA-style header keys.
+    for key in search_patterns.get("ola_headers", []):
+        hits = _search(rf'"{key}"', limit=5)
+        if hits:
+            findings["headers"].append(key)
+            # Try to extract a value-pattern for ``app-version`` specifically:
+            # "app-version": "2.16.0" or 'app-version', '2.16.0'
+            if key == "app-version":
+                for ln in hits:
+                    m = re.search(r'"app-version"[\s,:]+"([^"]+)"', ln)
+                    if m:
+                        findings["ola_header_values"]["app-version"] = m.group(1)
+                        break
+
+    # 2. Known backend hosts (substring match).
+    for host in search_patterns.get("known_backend_hosts", []):
+        hits = _search(re.escape(host), limit=1)
+        if hits:
+            findings["endpoint_hosts"].append(host)
+
+    return findings
+
+
+def extract_brand_apk(brand: str, brand_cfg: dict[str, Any],
+                     search_patterns: dict[str, Any],
+                     tmp_dir: Path) -> dict[str, Any] | None:
+    """End-to-end pipeline for one brand: download → unpack → decode → grep.
+
+    Returns the findings dict, or None if any step failed. Cleans up
+    transient files (APK + decoded dir) on success or failure — only
+    the findings dict is retained.
+    """
+    sources = brand_cfg.get("sources", {})
+    apkcombo_slug = sources.get("apkcombo_slug")
+    if not apkcombo_slug:
+        _LOGGER.warning("Brand %s: no apkcombo_slug — skipping APK extraction "
+                       "(Phase A.2 currently only supports APKCombo CDN)", brand)
+        return None
+
+    # 1. Resolve download URL.
+    download_url = resolve_apkcombo_download(apkcombo_slug)
+    if not download_url:
+        return None
+    _LOGGER.info("Brand %s: APK download URL resolved", brand)
+
+    # 2. Download.
+    apk_path = tmp_dir / f"{brand}.xapk"
+    if not download_to(download_url, apk_path):
+        return None
+    _LOGGER.info("Brand %s: downloaded %d bytes", brand, apk_path.stat().st_size)
+
+    # 3. Unpack XAPK (or copy if it's already a plain APK).
+    unpack_dir = tmp_dir / f"{brand}_unpacked"
+    base_apk = unpack_xapk(apk_path, unpack_dir)
+    if not base_apk:
+        return None
+
+    # 4. apktool decode.
+    decoded_dir = tmp_dir / f"{brand}_decoded"
+    if not apktool_decode(base_apk, decoded_dir):
+        return None
+    _LOGGER.info("Brand %s: apktool decode done", brand)
+
+    # 5. Grep patterns.
+    findings = grep_patterns(decoded_dir, search_patterns)
+    findings["extracted_at"] = datetime.datetime.now(
+        tz=datetime.timezone.utc
+    ).isoformat()
+    findings["xapk_size_bytes"] = apk_path.stat().st_size
+
+    # 6. Cleanup transient files.
+    import shutil
+    try:
+        apk_path.unlink(missing_ok=True)
+        shutil.rmtree(unpack_dir, ignore_errors=True)
+        shutil.rmtree(decoded_dir, ignore_errors=True)
+    except Exception:  # noqa: BLE001
+        pass
+
+    return findings
