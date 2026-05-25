@@ -229,6 +229,30 @@ class TestOLAUpstreamWatcher:
         assert "tillsteinbach/CarConnectivity-connector-seatcupra" in src
         assert "my_cupra_session.py" in src
 
+    def test_workflow_is_multi_source(self) -> None:
+        """v2.4.2+: watcher monitors MULTIPLE upstream projects in
+        parallel and only auto-PRs when all live sources agree."""
+        src = _OLA_WATCHER_YML.read_text(encoding="utf-8")
+        # PyCupra is the second source — also affected by the
+        # 2026-05-20 OLA enforcement, independent maintainer.
+        assert "WulfgarW/pycupra" in src
+        # Sources dict / per-source mapping must be present.
+        assert "SOURCES" in src or "carconnectivity" in src and "pycupra" in src
+
+    def test_workflow_handles_source_disagreement(self) -> None:
+        """When sources disagree, watcher opens an ISSUE (not a PR) —
+        manual review needed because we don't know which source to
+        trust. Example: at v2.4.2 launch, PyCupra has SEAT=2.13.3 but
+        CarConnectivity has SEAT=2.17.0 — both work in the wild."""
+        src = _OLA_WATCHER_YML.read_text(encoding="utf-8")
+        # The decision logic explicitly branches: "disagree → issue"
+        assert "divergence" in src.lower() or "disagree" in src.lower()
+        # Issue path is present (not just PR path).
+        assert "gh issue create" in src
+        # PR is skipped in disagreement case.
+        assert "action == 'issue'" in src
+        assert "action == 'pr'" in src
+
     def test_workflow_has_write_permissions(self) -> None:
         """Auto-PR needs contents:write + pull-requests:write."""
         src = _OLA_WATCHER_YML.read_text(encoding="utf-8")
