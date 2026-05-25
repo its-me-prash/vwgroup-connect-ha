@@ -6,10 +6,13 @@ name: Upstream OLA Headers Watcher
 #
 # v2.4.2 — Daily + auto-PR (was weekly + issue-only).
 #
-# v2.4.2+ — MULTI-SOURCE consensus. Checks two independent upstream
+# v2.4.2+ — MULTI-SOURCE consensus. Checks three independent upstream
 # projects per day:
 #   1. CarConnectivity-connector-seatcupra (tillsteinbach)
 #   2. PyCupra (WulfgarW) — also affected by the 2026-05-20 change
+#   3. WeConnect-Cupra-python (daernsinstantfortress) — Cariad-BFF +
+#      OLA hybrid architecture; CUPRA-only but provides 3rd vote for
+#      CUPRA-specific bumps
 #
 # Decision logic:
 #   - Both sources agree + matches ours              → ✅ no action (just log)
@@ -70,6 +73,15 @@ jobs:
                   "url": "https://raw.githubusercontent.com/WulfgarW/pycupra/main/pycupra/const.py",
                   "seat_pattern":  r"XAPPVERSION_SEAT\s*=\s*'([^']+)'",
                   "cupra_pattern": r"XAPPVERSION_CUPRA\s*=\s*'([^']+)'",
+              },
+              "daern_weconnect_cupra": {
+                  # daernsinstantfortress's CUPRA-only project. SEAT
+                  # not covered (their package is CUPRA-specific) —
+                  # missing seat votes are handled by the per-brand
+                  # consensus logic below.
+                  "url": "https://raw.githubusercontent.com/daernsinstantfortress/WeConnect-Cupra-python/main/weconnect_cupra/auth/auth_util.py",
+                  "seat_pattern":  r"NEVER_MATCH_SEAT_HERE_DAERN_IS_CUPRA_ONLY",
+                  "cupra_pattern": r'headers\["app-version"\]\s*=\s*"([^"]+)"',
               },
           }
 
