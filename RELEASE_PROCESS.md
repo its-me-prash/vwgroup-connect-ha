@@ -52,6 +52,58 @@ visible via inline German callouts and the dedicated DE-translated
 - Past entries (pre-v2.4.1) are preserved DE-primary for historical
   accuracy — never rewrite history.
 
+## Changelog format (v2.4.1+ — compact, user-focused)
+
+CHANGELOG entries are **for end-users**, not for archeology. Keep them
+short. Technical detail belongs in commit messages, pull-request
+bodies, inline code comments, and `docs/CHANGELOG_TECHNICAL.md`.
+
+**Per-release structure** (skip empty sections):
+
+```markdown
+## [vX.Y.Z] — date — "Short codename"
+
+### Fixed
+- One-line description per bug, ending with the issue number (#NNN)
+
+### Added
+- One-line description per new entity, sensor, service, or capability
+
+### Changed
+- **Topic title** — 1–3 sentence explanation when end-user
+  behaviour changes (new options, new automatic behaviour, new
+  notifications). Otherwise one line.
+
+### Notes
+- Anything noteworthy that doesn't fit above (release-process
+  changes, deprecation warnings, etc.)
+```
+
+**Do**:
+- One line per fix / feature wherever possible
+- For new architecture or behaviour the user will notice, write 1–3
+  sentences explaining what they will see / can do differently
+- Issue numbers in parentheses at the end: `(#281, #282)`
+- Plain language — avoid project-internal jargon (`*_pending family`,
+  `T1 audit`, brand-vererbung) in the user-facing changelog
+
+**Don't**:
+- Cite reference implementations (`per matpoulin`, `mirroring
+  CarConnectivity v0.6.3`) — that's commit-message territory
+- List file paths, LoC counts, function/class names
+- Quote reporter usernames inside the changelog body (we credit them
+  in the ack-comment on the closed issue instead)
+- Document tier classifications, audit methodology, or migration
+  rationale (those live in `docs/SCOUT_POLICY.md`, `MIGRATION.md`)
+- Repeat the same info in a top quote-block AND a per-section bullet
+- Use emoji unless explicitly requested
+
+**Length sanity-check**: a PATCH release should fit on one screen
+(20–40 lines). MINOR releases can be 40–80. MAJOR releases up to
+100 lines but only if there's truly new user-facing behaviour to
+explain. If the current draft is >100 lines, it's almost certainly
+too detailed for a changelog.
+
 Commit-message prefix conventions are listed in
 [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
