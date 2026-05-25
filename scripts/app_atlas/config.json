@@ -7,7 +7,8 @@
       "package_id": "com.seat.myseat.ola",
       "sources": {
         "apkmirror_slug": "seat-s-a/myseat",
-        "uptodown_subdomain": "my-seat"
+        "uptodown_subdomain": "my-seat",
+        "apkcombo_slug": "my-seat-app/com.seat.myseat.ola"
       },
       "expected_backend": "ola",
       "ola_enforcement_known": true,
@@ -18,7 +19,8 @@
       "package_id": "com.cupra.mycupra",
       "sources": {
         "apkmirror_slug": "seat-cupra-s-a/my-cupra-app",
-        "uptodown_subdomain": "my-cupra"
+        "uptodown_subdomain": "my-cupra",
+        "apkcombo_slug": "my-cupra-app/com.cupra.mycupra"
       },
       "expected_backend": "ola",
       "ola_enforcement_known": true,
@@ -40,7 +42,8 @@
       "package_id": "de.myaudi.mobile.assistant",
       "sources": {
         "apkmirror_slug": "audi-ag/myaudi",
-        "uptodown_subdomain": "myaudi"
+        "uptodown_subdomain": "myaudi",
+        "apkcombo_slug": "myaudi/de.myaudi.mobile.assistant"
       },
       "expected_backend": "cariad_bff",
       "ola_enforcement_known": false
@@ -50,7 +53,8 @@
       "package_id": "cz.skodaauto.myskoda",
       "sources": {
         "apkmirror_slug": "skoda-auto-as/myskoda",
-        "uptodown_subdomain": "cz-skodaauto-myskoda"
+        "uptodown_subdomain": "cz-skodaauto-myskoda",
+        "apkcombo_slug": "myskoda/cz.skodaauto.myskoda"
       },
       "expected_backend": "mysmob",
       "ola_enforcement_known": false
@@ -60,7 +64,8 @@
       "package_id": "com.vw.carnet.release",
       "sources": {
         "apkmirror_slug": "volkswagen-of-america-inc/myvw",
-        "uptodown_subdomain": null
+        "uptodown_subdomain": null,
+        "apkcombo_slug": "myvw/com.vw.carnet.release"
       },
       "expected_backend": "con_veh_net",
       "ola_enforcement_known": false
@@ -70,7 +75,8 @@
       "package_id": "com.porsche.one",
       "sources": {
         "apkmirror_slug": "dr-ing-h-c-f-porsche-ag/my-porsche",
-        "uptodown_subdomain": null
+        "uptodown_subdomain": null,
+        "apkcombo_slug": "my-porsche/com.porsche.one"
       },
       "expected_backend": "ppa",
       "ola_enforcement_known": false

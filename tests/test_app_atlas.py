@@ -13,11 +13,12 @@ from pathlib import Path
 import pytest
 
 
-_REPO_ROOT     = Path(__file__).resolve().parent.parent
-_CONFIG_PATH   = _REPO_ROOT / "scripts" / "app_atlas" / "config.json"
-_SCRIPT_PATH   = _REPO_ROOT / "scripts" / "app_atlas" / "build_atlas.py"
-_WORKFLOW_PATH = _REPO_ROOT / ".github" / "workflows" / "app-atlas-builder.yml"
-_ATLAS_DIR     = _REPO_ROOT / "docs" / "research" / "app-atlas"
+_REPO_ROOT      = Path(__file__).resolve().parent.parent
+_CONFIG_PATH    = _REPO_ROOT / "scripts" / "app_atlas" / "config.json"
+_SCRIPT_PATH    = _REPO_ROOT / "scripts" / "app_atlas" / "build_atlas.py"
+_EXTRACTOR_PATH = _REPO_ROOT / "scripts" / "app_atlas" / "apk_extractor.py"
+_WORKFLOW_PATH  = _REPO_ROOT / ".github" / "workflows" / "app-atlas-builder.yml"
+_ATLAS_DIR      = _REPO_ROOT / "docs" / "research" / "app-atlas"
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -204,6 +205,96 @@ class TestAtlasDocs:
     def test_per_brand_page_exists(self, brand: str) -> None:
         """Initial atlas run populates a page per brand even when fetch fails."""
         assert (_ATLAS_DIR / f"{brand}.md").exists()
+
+
+# ──────────────────────────────────────────────────────────────────────
+# 5. Phase A.2 — APK extraction module
+# ──────────────────────────────────────────────────────────────────────
+
+
+class TestApkExtractorModule:
+    """Source-level pins for the Phase A.2 APK extraction module."""
+
+    def test_module_exists(self) -> None:
+        assert _EXTRACTOR_PATH.exists()
+
+    def test_public_pipeline_function(self) -> None:
+        """The end-to-end pipeline entry-point is named extract_brand_apk."""
+        src = _EXTRACTOR_PATH.read_text(encoding="utf-8")
+        assert "def extract_brand_apk(" in src
+
+    def test_uses_apktool(self) -> None:
+        """APK decode uses apktool (not androguard / not pyaxmlparser)."""
+        src = _EXTRACTOR_PATH.read_text(encoding="utf-8")
+        assert '"apktool"' in src
+        assert "subprocess.run" in src
+
+    def test_handles_xapk_bundles(self) -> None:
+        """APKCombo serves XAPK split-bundles; unpacker must handle them."""
+        src = _EXTRACTOR_PATH.read_text(encoding="utf-8")
+        assert "def unpack_xapk(" in src
+        assert "zipfile" in src
+
+    def test_grep_uses_config_patterns(self) -> None:
+        """search_patterns dict from config.json drives the grep step."""
+        src = _EXTRACTOR_PATH.read_text(encoding="utf-8")
+        assert "def grep_patterns(" in src
+        assert "ola_headers" in src
+        assert "known_backend_hosts" in src
+
+    def test_cleanup_transient_files(self) -> None:
+        """APKs are 50-200MB — must NOT be retained after extraction."""
+        src = _EXTRACTOR_PATH.read_text(encoding="utf-8")
+        assert "rmtree" in src or "unlink" in src
+        # Either both or at minimum: the comment notes cleanup is intentional.
+        assert "Cleanup" in src or "cleanup" in src
+
+
+class TestPhaseA2Integration:
+    """build_atlas.py wires the apk_extractor in when --with-apk-extraction."""
+
+    def test_cli_flag_present(self) -> None:
+        src = _SCRIPT_PATH.read_text(encoding="utf-8")
+        assert "--with-apk-extraction" in src
+
+    def test_only_extracts_on_version_change(self) -> None:
+        """Idempotency: same version on re-runs should NOT re-extract."""
+        src = _SCRIPT_PATH.read_text(encoding="utf-8")
+        # The guard condition `current != prev_ver` must gate extraction.
+        assert "current != prev_ver" in src
+
+    def test_apk_findings_cache_used(self) -> None:
+        """APK findings persist to .app-atlas-apk-cache/{brand}.json."""
+        src = _SCRIPT_PATH.read_text(encoding="utf-8")
+        assert "_APK_CACHE_DIR" in src
+        assert "_save_apk_findings" in src
+        assert "_load_apk_findings" in src
+
+    def test_atlas_page_renders_apk_section(self) -> None:
+        """Atlas markdown includes the 'Discovered via APK extraction' section."""
+        src = _SCRIPT_PATH.read_text(encoding="utf-8")
+        assert "Discovered via APK extraction" in src
+
+    def test_workflow_installs_apktool(self) -> None:
+        src = _WORKFLOW_PATH.read_text(encoding="utf-8")
+        assert "apt-get install" in src and "apktool" in src
+
+    def test_workflow_passes_with_apk_extraction_flag(self) -> None:
+        src = _WORKFLOW_PATH.read_text(encoding="utf-8")
+        assert "--with-apk-extraction" in src
+
+
+class TestAllBrandsHaveApkcomboSlug:
+    """Phase A.2 currently uses APKCombo CDN — every brand needs a slug."""
+
+    @pytest.mark.parametrize(
+        "brand",
+        ["seat", "cupra", "volkswagen", "audi", "skoda", "volkswagen_na", "porsche"],
+    )
+    def test_brand_has_apkcombo_slug(self, brand: str) -> None:
+        data = json.loads(_CONFIG_PATH.read_text(encoding="utf-8"))
+        slug = data["brands"][brand]["sources"].get("apkcombo_slug")
+        assert slug, f"Brand {brand} missing apkcombo_slug — APK extraction can't run"
 
 
 if __name__ == "__main__":

@@ -30,8 +30,8 @@ gap by walking all 7 brand apps daily and tracking what they do.
 
 | Phase | What | Status |
 |---|---|---|
-| **A.1** | Version-polling for all 7 brands via APKMirror | ✅ Live (this PR) |
-| **A.2** | APK download + apktool extraction + grep for known patterns | 🟡 Planned |
+| **A.1** | Version-polling for all 7 brands (APKMirror → Uptodown → APKCombo fallback chain) | ✅ Live |
+| **A.2** | APK download + apktool decode + grep for header keys / endpoint hosts | ✅ Live |
 | **A.3** | jadx full decompile + cross-version semantic diff | 🟡 Planned |
 | **B** | Act on discoveries — separate per-PR | 🟡 Rolling |
 

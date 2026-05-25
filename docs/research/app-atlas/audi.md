@@ -27,13 +27,9 @@
 | Previously cached version | `5.4.1` |
 | Changed since last run? | No |
 
-## Discovered endpoints
+## Discovered via APK extraction (Phase A.2)
 
-_(Empty — Phase A.2 will populate this from APK extraction.)_
-
-## Discovered HTTP headers
-
-_(Empty — Phase A.2 will populate this from APK extraction.)_
+_(Empty — Phase A.2 APK extraction not yet run for this brand, or last attempt failed. See `app_atlas/apk_extractor.py`.)_
 
 ## Cross-version diff
 

@@ -35,6 +35,7 @@ import json
 import logging
 import re
 import sys
+import tempfile
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -43,11 +44,12 @@ from typing import Any
 _LOGGER = logging.getLogger("app_atlas")
 
 # ── Paths ───────────────────────────────────────────────────────────
-_REPO_ROOT     = Path(__file__).resolve().parent.parent.parent
-_CONFIG_PATH   = _REPO_ROOT / "scripts" / "app_atlas" / "config.json"
-_ATLAS_DIR     = _REPO_ROOT / "docs" / "research" / "app-atlas"
-_CACHE_PATH    = _REPO_ROOT / ".app-atlas-cache.json"
-_SUMMARY_PATH  = _ATLAS_DIR / "_summary.md"
+_REPO_ROOT      = Path(__file__).resolve().parent.parent.parent
+_CONFIG_PATH    = _REPO_ROOT / "scripts" / "app_atlas" / "config.json"
+_ATLAS_DIR      = _REPO_ROOT / "docs" / "research" / "app-atlas"
+_CACHE_PATH     = _REPO_ROOT / ".app-atlas-cache.json"
+_APK_CACHE_DIR  = _REPO_ROOT / ".app-atlas-apk-cache"   # NEW v Phase A.2
+_SUMMARY_PATH   = _ATLAS_DIR / "_summary.md"
 
 # ── HTTP ────────────────────────────────────────────────────────────
 _UA = (
@@ -207,6 +209,83 @@ def save_cache(cache: dict[str, Any]) -> None:
 # ── Atlas markdown emitter (Phase A.1 — version-only) ──────────────
 
 
+def _load_apk_findings(brand: str) -> dict[str, Any] | None:
+    """Load the cached APK-extraction findings for ``brand`` (if any).
+
+    Phase A.2: ``.app-atlas-apk-cache/{brand}.json`` is written by
+    the apk_extractor when extraction succeeds. None means we've
+    never run extraction for this brand OR the last attempt failed.
+    """
+    p = _APK_CACHE_DIR / f"{brand}.json"
+    if not p.exists():
+        return None
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _save_apk_findings(brand: str, findings: dict[str, Any], version: str) -> None:
+    """Persist apk-extraction findings to disk for diff + atlas rendering."""
+    _APK_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "brand": brand,
+        "extracted_for_version": version,
+        "findings": findings,
+    }
+    (_APK_CACHE_DIR / f"{brand}.json").write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _render_apk_section(findings: dict[str, Any] | None) -> str:
+    """Render the 'Discovered endpoints / headers' atlas sections.
+
+    Returns markdown lines (no leading/trailing whitespace) ready for
+    string-concat into the per-brand atlas template.
+    """
+    if findings is None:
+        return (
+            "_(Empty — Phase A.2 APK extraction not yet run for this "
+            "brand, or last attempt failed. See `app_atlas/apk_extractor.py`.)_"
+        )
+    inner_findings = findings.get("findings", findings)
+    extracted_at = inner_findings.get("extracted_at", "(unknown)")
+    extracted_for = findings.get("extracted_for_version", "(unknown)")
+    headers = inner_findings.get("headers", [])
+    endpoints = inner_findings.get("endpoint_hosts", [])
+    ola_values = inner_findings.get("ola_header_values", {})
+
+    parts = [
+        f"_Last extracted: {extracted_at[:19]} (for version `{extracted_for}`)_\n",
+        "",
+        "### HTTP header keys found in app bytecode",
+        "",
+    ]
+    if headers:
+        parts.extend(f"- `{h}`" for h in headers)
+    else:
+        parts.append("_(none of the configured OLA-style header keys found)_")
+    if ola_values:
+        parts.append("")
+        parts.append("**Extracted header values:**")
+        for key, val in sorted(ola_values.items()):
+            parts.append(f"- `{key}` = `{val}`")
+
+    parts.extend([
+        "",
+        "### Backend hosts found in app bytecode",
+        "",
+    ])
+    if endpoints:
+        parts.extend(f"- `{h}`" for h in endpoints)
+    else:
+        parts.append("_(none of the configured backend hosts found)_")
+
+    return "\n".join(parts)
+
+
 def emit_brand_atlas(brand: str, brand_cfg: dict[str, Any], current_version: str | None,
                     source_name: str | None, cache_entry: dict[str, Any]) -> None:
     """Write/update docs/research/app-atlas/{brand}.md."""
@@ -218,6 +297,7 @@ def emit_brand_atlas(brand: str, brand_cfg: dict[str, Any], current_version: str
     prev_ver   = cache_entry.get("last_version_name", "")
     sources    = brand_cfg.get("sources", {})
     now        = datetime.datetime.now(tz=datetime.timezone.utc).strftime("%Y-%m-%d")
+    apk_section = _render_apk_section(_load_apk_findings(brand))
 
     src_label = source_name or "(no source succeeded)"
     md = f"""# App Atlas — {display}
@@ -249,13 +329,9 @@ def emit_brand_atlas(brand: str, brand_cfg: dict[str, Any], current_version: str
 | Previously cached version | `{prev_ver or '(first run)'}` |
 | Changed since last run? | {'**YES**' if current_version and current_version != prev_ver else 'No'} |
 
-## Discovered endpoints
+## Discovered via APK extraction (Phase A.2)
 
-_(Empty — Phase A.2 will populate this from APK extraction.)_
-
-## Discovered HTTP headers
-
-_(Empty — Phase A.2 will populate this from APK extraction.)_
+{apk_section}
 
 ## Cross-version diff
 
@@ -320,6 +396,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--brand", help="Only process this single brand (for debugging).")
     p.add_argument("--dry-run", action="store_true",
                    help="Show what would change; don't write files.")
+    p.add_argument("--with-apk-extraction", action="store_true",
+                   help="Phase A.2: also download + decode APKs for brands where "
+                        "the version-name changed since last cache. Requires apktool "
+                        "on PATH. Adds significant CI runtime (~30s-2min per changed "
+                        "brand) — only enable in the scheduled workflow, not for "
+                        "local debugging.")
     args = p.parse_args(argv)
 
     config = json.loads(_CONFIG_PATH.read_text(encoding="utf-8"))
@@ -356,6 +438,31 @@ def main(argv: list[str] | None = None) -> int:
             _LOGGER.info("unchanged %s: %s (via %s)", brand, current, src)
         else:
             _LOGGER.warning("Could not determine current version for %s — all sources failed", brand)
+
+        # Phase A.2 — APK extraction when version changed.
+        if (args.with_apk_extraction and current and current != prev_ver
+                and not args.dry_run):
+            try:
+                from .apk_extractor import extract_brand_apk  # noqa: PLC0415
+            except ImportError:
+                # Direct-execution path (not as a package); fall back to sys.path.
+                import sys as _sys  # noqa: PLC0415
+                _sys.path.insert(0, str(Path(__file__).parent))
+                from apk_extractor import extract_brand_apk  # type: ignore[no-redef]
+            with tempfile.TemporaryDirectory(prefix=f"atlas_apk_{brand}_") as td:
+                tmp_dir = Path(td)
+                _LOGGER.info("Brand %s: starting APK extraction (version %s)", brand, current)
+                findings = extract_brand_apk(
+                    brand, brand_cfg, config["search_patterns"], tmp_dir,
+                )
+                if findings:
+                    _save_apk_findings(brand, findings, current)
+                    _LOGGER.info("Brand %s: APK extraction OK — %d headers, %d hosts found",
+                                 brand, len(findings.get("headers", [])),
+                                 len(findings.get("endpoint_hosts", [])))
+                else:
+                    _LOGGER.warning("Brand %s: APK extraction failed — atlas page will "
+                                    "render last-known findings only", brand)
 
         if not args.dry_run:
             emit_brand_atlas(brand, brand_cfg, current, src, prev_entry)
