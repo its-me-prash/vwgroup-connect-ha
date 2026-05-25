@@ -297,5 +297,120 @@ class TestAllBrandsHaveApkcomboSlug:
         assert slug, f"Brand {brand} missing apkcombo_slug — APK extraction can't run"
 
 
+# ──────────────────────────────────────────────────────────────────────
+# 6. Phase A.3 — jadx decompile + cross-version semantic diff
+# ──────────────────────────────────────────────────────────────────────
+
+
+_JADX_PATH         = _REPO_ROOT / "scripts" / "app_atlas" / "jadx_decompiler.py"
+_VERSION_DIFF_PATH = _REPO_ROOT / "scripts" / "app_atlas" / "version_diff.py"
+_DEEP_DIFF_PATH    = _REPO_ROOT / "scripts" / "app_atlas" / "run_deep_diff.py"
+_DEEP_DIFF_WF_PATH = _REPO_ROOT / ".github" / "workflows" / "app-atlas-deep-diff.yml"
+_DIFFS_DIR         = _ATLAS_DIR / "diffs"
+
+
+class TestPhaseA3Modules:
+    """Source-level pins for the Phase A.3 jadx + diff modules."""
+
+    def test_jadx_decompiler_module_exists(self) -> None:
+        assert _JADX_PATH.exists()
+
+    def test_jadx_wraps_jadx_cli(self) -> None:
+        src = _JADX_PATH.read_text(encoding="utf-8")
+        assert "def jadx_decompile(" in src
+        assert '"jadx"' in src
+        assert "--no-res" in src  # skip resource decoding for speed
+
+    def test_jadx_reuses_apkextractor_download(self) -> None:
+        """Don't reinvent the APK download wheel — reuse A.2's path."""
+        src = _JADX_PATH.read_text(encoding="utf-8")
+        assert "from apk_extractor import" in src
+        assert "download_to" in src and "unpack_xapk" in src
+
+    def test_version_diff_module_exists(self) -> None:
+        assert _VERSION_DIFF_PATH.exists()
+
+    def test_version_diff_extracts_constants(self) -> None:
+        src = _VERSION_DIFF_PATH.read_text(encoding="utf-8")
+        assert "def extract_url_constants(" in src
+        assert "def extract_header_keys(" in src
+        assert "def extract_oauth_scopes(" in src
+
+    def test_version_diff_renders_report(self) -> None:
+        src = _VERSION_DIFF_PATH.read_text(encoding="utf-8")
+        assert "def render_diff_report(" in src
+        # Report sections we promise to maintainers in the README.
+        assert "URLs added" in src
+        assert "URLs removed" in src or "Removed URLs" in src
+
+    def test_version_diff_filters_noise(self) -> None:
+        """Filter out stable noise (XML schemas, Google APIs)."""
+        src = _VERSION_DIFF_PATH.read_text(encoding="utf-8")
+        assert "schemas.android.com" in src or "android.googleapis.com" in src
+
+    def test_deep_diff_orchestrator_exists(self) -> None:
+        assert _DEEP_DIFF_PATH.exists()
+
+    def test_deep_diff_takes_brand_old_new(self) -> None:
+        src = _DEEP_DIFF_PATH.read_text(encoding="utf-8")
+        assert "--brand" in src
+        assert "--old-version" in src
+        assert "--new-version" in src
+
+
+class TestPhaseA3Workflow:
+    """Manual-trigger workflow for deep-diff generation."""
+
+    def test_workflow_exists(self) -> None:
+        assert _DEEP_DIFF_WF_PATH.exists()
+
+    def test_workflow_is_manual_only(self) -> None:
+        """Deep diff is too heavy for scheduled runs — manual only."""
+        src = _DEEP_DIFF_WF_PATH.read_text(encoding="utf-8")
+        assert "workflow_dispatch:" in src
+        # Critical: NO schedule trigger — would burn through CI budget.
+        assert "schedule:" not in src
+
+    def test_workflow_inputs_present(self) -> None:
+        src = _DEEP_DIFF_WF_PATH.read_text(encoding="utf-8")
+        assert "brand:" in src
+        assert "old_version:" in src
+        assert "new_version:" in src
+
+    def test_workflow_brand_choice_constrained(self) -> None:
+        """Brand input restricted to the 7 brands we know."""
+        src = _DEEP_DIFF_WF_PATH.read_text(encoding="utf-8")
+        # All 7 brand keys must appear as choice options.
+        for brand in ("seat", "cupra", "volkswagen", "audi",
+                      "skoda", "volkswagen_na", "porsche"):
+            assert f"          - {brand}" in src, (
+                f"workflow_dispatch brand input missing choice for {brand}"
+            )
+
+    def test_workflow_installs_jadx_and_rg(self) -> None:
+        src = _DEEP_DIFF_WF_PATH.read_text(encoding="utf-8")
+        assert "jadx" in src
+        assert "ripgrep" in src
+
+    def test_workflow_opens_pr_with_report(self) -> None:
+        src = _DEEP_DIFF_WF_PATH.read_text(encoding="utf-8")
+        assert "gh pr create" in src
+        assert "diffs/" in src
+        assert "auto-atlas-diff" in src  # label
+
+    def test_workflow_does_not_auto_merge(self) -> None:
+        """Safety: maintainer reviews + merges the diff report."""
+        src = _DEEP_DIFF_WF_PATH.read_text(encoding="utf-8")
+        assert "gh pr merge" not in src
+
+    def test_diffs_directory_has_readme(self) -> None:
+        """Empty diffs/ dir gets a README so new contributors find docs."""
+        readme = _DIFFS_DIR / "README.md"
+        assert readme.exists()
+        body = readme.read_text(encoding="utf-8")
+        assert "Phase A.3" in body
+        assert "workflow_dispatch" in body or "manual" in body.lower()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
