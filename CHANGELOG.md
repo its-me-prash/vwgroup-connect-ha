@@ -124,6 +124,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Added
 - **Cross-Brand App Atlas** — new daily CI pipeline that tracks the current Android app version for all 7 VAG brands (SEAT, CUPRA, VW EU, Audi, Škoda, VW NA, Porsche). When a brand bumps a new app version, the watcher auto-opens a PR refreshing the atlas docs at `docs/research/app-atlas/`. Multi-source fallback (APKMirror → Uptodown) covers 6/7 brands today; VW EU needs a Phase A.1.1 follow-up. Phase A.2 will add APK download + extraction for definitive endpoint + header discovery — useful proactively across all brands, not just OLA-enforced ones. See `docs/research/app-atlas/README.md` + `LEGAL.md`.
+- **OLA watcher gains daernsinstantfortress as 3rd consensus source** — for CUPRA only (their package is CUPRA-only), but it provides a stronger 3-of-3 consensus signal on CUPRA app-version bumps. Their Cariad-BFF + OLA hybrid architecture is also noted as a possible Plan-B fallback for future OLA escalations. See new `docs/research/app-atlas/_community-projects.md` for the curated index of all parallel community projects we monitor.
 
 ## [2.4.1] — 2026-05-25 — "OLA Defense + VW NA Garage + Scout Policy"
 

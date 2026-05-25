@@ -236,6 +236,10 @@ class TestOLAUpstreamWatcher:
         # PyCupra is the second source — also affected by the
         # 2026-05-20 OLA enforcement, independent maintainer.
         assert "WulfgarW/pycupra" in src
+        # daernsinstantfortress is the third source — CUPRA-only,
+        # Cariad-BFF + OLA hybrid architecture, provides extra
+        # CUPRA-side vote for stronger consensus.
+        assert "daernsinstantfortress/WeConnect-Cupra-python" in src
         # Sources dict / per-source mapping must be present.
         assert "SOURCES" in src or "carconnectivity" in src and "pycupra" in src
 
