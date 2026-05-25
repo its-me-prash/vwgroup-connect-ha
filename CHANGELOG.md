@@ -119,7 +119,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
-_(nothing pending — v2.4.1 just shipped; new entries land here)_
+### Changed
+- OLA upstream watcher now runs **daily** (was weekly) and auto-opens a PR with the new app-version constants when CarConnectivity upstream drifts — instead of just opening an issue. Previous primary values are appended to the fallback chain automatically, so the multi-version retry logic self-extends. PRs require manual review + merge (no auto-merge — keeps a human safety check in case upstream pushes a mistaken bump).
 
 ## [2.4.1] — 2026-05-25 — "OLA Defense + VW NA Garage + Scout Policy"
 
