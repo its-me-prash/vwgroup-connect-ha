@@ -92,7 +92,8 @@ bodies, inline code comments, and `docs/CHANGELOG_TECHNICAL.md`.
   CarConnectivity v0.6.3`) — that's commit-message territory
 - List file paths, LoC counts, function/class names
 - Quote reporter usernames inside the changelog body (we credit them
-  in the ack-comment on the closed issue instead)
+  in the ack-comment on the closed issue instead — **in the reporter's
+  native language**, see below)
 - Document tier classifications, audit methodology, or migration
   rationale (those live in `docs/SCOUT_POLICY.md`, `MIGRATION.md`)
 - Repeat the same info in a top quote-block AND a per-section bullet
@@ -103,6 +104,30 @@ bodies, inline code comments, and `docs/CHANGELOG_TECHNICAL.md`.
 100 lines but only if there's truly new user-facing behaviour to
 explain. If the current draft is >100 lines, it's almost certainly
 too detailed for a changelog.
+
+## Ack-comment language (when closing an issue)
+
+When responding to a reporter on a GitHub issue, **write in their
+native language** when reasonably inferable from:
+
+- the **Country** field of the issue template (`Germany` → DE,
+  `Spain` → ES, `Italy` → IT, etc.)
+- the language they wrote their issue in
+- the language of related projects they linked to
+
+Why: respect + reduces friction for non-English-speakers replying to
+follow-ups. Most German reporters reply faster in German; Spanish
+reporters appreciate Spanish; the few minutes of writing in their
+language is well spent.
+
+If unsure or no signal → default to English.
+
+If two reporters in different languages share an issue (e.g. one
+German + one French commenter), write a bilingual reply or use both
+languages in clearly marked sections.
+
+Technical terms (HACS, Home Assistant, OptionsFlow, HTTP 403) stay
+as-is — they're proper nouns / API names.
 
 Commit-message prefix conventions are listed in
 [`CONTRIBUTING.md`](CONTRIBUTING.md).

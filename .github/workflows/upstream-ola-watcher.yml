@@ -1,35 +1,37 @@
 name: Upstream OLA Headers Watcher
 
-# v2.4.1 — VW Group's OLA backend started enforcing app-identifying
-# headers on 2026-05-20 (#281, #282). CarConnectivity-connector-
-# seatcupra fixed it in v0.6.3 by hardcoding the headers per brand.
-# The header VALUES will eventually drift as the SEAT/CUPRA apps
-# update.
+# v2.4.1 — Watcher for the 2026-05-20 OLA app-identifying header
+# enforcement (#281, #282). Without these headers the SEAT/CUPRA OLA
+# backend returns HTTP 403 on every request.
 #
-# v2.4.2 — Daily + auto-PR (was weekly + issue-only). When upstream
-# CarConnectivity bumps an app-version, this workflow:
-#   1. Detects the drift (compare our _ola_headers.py to upstream)
-#   2. Branches off main
-#   3. Patches _ola_headers.py with the new primary values
-#   4. Moves the previous primary into _OLA_HEADERS_BY_BRAND_FALLBACK
-#      (so the multi-version fallback chain grows automatically —
-#      defense-in-depth Layer 3 self-extends)
-#   5. Opens a Pull Request
-#   6. Repo maintainer reviews + merges (no auto-merge — preserves
-#      human safety check in case upstream is mid-experiment)
+# v2.4.2 — Daily + auto-PR (was weekly + issue-only).
 #
-# Idempotent: if an auto-PR with the same SEAT+CUPRA values is
-# already open, the workflow skips creation. Re-runs while the PR is
-# open are no-ops.
+# v2.4.2+ — MULTI-SOURCE consensus. Checks two independent upstream
+# projects per day:
+#   1. CarConnectivity-connector-seatcupra (tillsteinbach)
+#   2. PyCupra (WulfgarW) — also affected by the 2026-05-20 change
+#
+# Decision logic:
+#   - Both sources agree + matches ours              → ✅ no action (just log)
+#   - Both sources agree + differs from ours         → auto-PR (high confidence)
+#   - Sources disagree (split community signal)      → open issue, NO PR
+#                                                       (manual decision needed —
+#                                                        e.g. SEAT was 2.13.3 in
+#                                                        PyCupra vs 2.17.0 in
+#                                                        CarConnectivity at
+#                                                        v2.4.2 launch)
+#   - Source unreachable                             → warn, ignore that source
+#                                                       (the other source's vote
+#                                                        is still actionable)
+#
+# Adding a 3rd source: extend the SOURCES dict in the "Aggregate"
+# step with a new entry providing url + per-brand regex patterns.
 
 on:
   schedule:
-    # Every day at 08:00 UTC. Lag from upstream change → our PR is
-    # at most 24h.
+    # Daily 08:00 UTC. Drift detection latency ≤24h.
     - cron: "0 8 * * *"
   workflow_dispatch:
-    # Allow manual trigger from the Actions tab (e.g. to immediately
-    # check after a known upstream release).
 
 permissions:
   contents: write
@@ -37,158 +39,206 @@ permissions:
   issues: write
 
 jobs:
-  compare-and-pr:
+  multi-source-check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
-          # Default checkout depth=1 is fine — we don't need history.
-          # But we DO need write access for the auto-PR commit.
           token: ${{ github.token }}
 
-      - name: Fetch CarConnectivity upstream my_cupra_session.py
-        id: upstream
+      - name: Aggregate upstream values + read ours + decide action
+        id: decide
         run: |
-          URL="https://raw.githubusercontent.com/tillsteinbach/CarConnectivity-connector-seatcupra/main/src/carconnectivity_connectors/seatcupra/auth/my_cupra_session.py"
-          curl -fsSL "$URL" -o upstream_session.py
+          python3 << 'PYTHON'
+          import json
+          import os
+          import pathlib
+          import re
+          import urllib.request
 
-          # Extract app-version per brand. Upstream pattern:
-          #   'app-brand': 'seat',  'app-version': '2.17.0',
-          UP_SEAT=$(grep -A2 "'app-brand': 'seat'" upstream_session.py | \
-            grep "app-version" | head -1 | sed -E "s/.*'app-version': '([^']+)'.*/\1/")
-          UP_CUPRA=$(grep -A2 "'app-brand': 'cupra'" upstream_session.py | \
-            grep "app-version" | head -1 | sed -E "s/.*'app-version': '([^']+)'.*/\1/")
+          # ── Multi-source registry ──────────────────────────────────
+          # Each entry: name → {url, seat_pattern, cupra_pattern}.
+          # Patterns must have exactly one capture group around the
+          # version string.
+          SOURCES = {
+              "carconnectivity": {
+                  "url": "https://raw.githubusercontent.com/tillsteinbach/CarConnectivity-connector-seatcupra/main/src/carconnectivity_connectors/seatcupra/auth/my_cupra_session.py",
+                  "seat_pattern":  r"'app-brand': 'seat',\s*'app-version': '([^']+)'",
+                  "cupra_pattern": r"'app-brand': 'cupra',\s*'app-version': '([^']+)'",
+              },
+              "pycupra": {
+                  "url": "https://raw.githubusercontent.com/WulfgarW/pycupra/main/pycupra/const.py",
+                  "seat_pattern":  r"XAPPVERSION_SEAT\s*=\s*'([^']+)'",
+                  "cupra_pattern": r"XAPPVERSION_CUPRA\s*=\s*'([^']+)'",
+              },
+          }
 
-          echo "Upstream SEAT: $UP_SEAT"
-          echo "Upstream CUPRA: $UP_CUPRA"
+          # ── Fetch + parse each upstream ────────────────────────────
+          results: dict[str, dict[str, str | None]] = {}
+          for name, cfg in SOURCES.items():
+              try:
+                  with urllib.request.urlopen(cfg["url"], timeout=20) as resp:
+                      text = resp.read().decode("utf-8", errors="replace")
+                  seat_m  = re.search(cfg["seat_pattern"], text)
+                  cupra_m = re.search(cfg["cupra_pattern"], text)
+                  results[name] = {
+                      "seat":  seat_m.group(1)  if seat_m  else None,
+                      "cupra": cupra_m.group(1) if cupra_m else None,
+                  }
+                  print(f"  {name}: SEAT={results[name]['seat']} CUPRA={results[name]['cupra']}")
+              except Exception as e:
+                  print(f"  ⚠️  {name}: fetch/parse failed ({e}) — ignoring this source")
+                  results[name] = None
 
-          if [ -z "$UP_SEAT" ] || [ -z "$UP_CUPRA" ]; then
-            echo "::error::Could not parse upstream session config — pattern may have changed"
-            exit 1
-          fi
+          # ── Read our current values ────────────────────────────────
+          F = pathlib.Path("custom_components/vag_connect/cariad/_ola_headers.py")
+          if not F.exists():
+              print("::error::_ola_headers.py missing")
+              raise SystemExit(2)
+          our_text = F.read_text()
+          our_seat_m  = re.search(r'"seat"\s*:\s*\{[^}]*?"app-version"\s*:\s*"([^"]+)"',  our_text, re.DOTALL)
+          our_cupra_m = re.search(r'"cupra"\s*:\s*\{[^}]*?"app-version"\s*:\s*"([^"]+)"', our_text, re.DOTALL)
+          ours = {
+              "seat":  our_seat_m.group(1)  if our_seat_m  else None,
+              "cupra": our_cupra_m.group(1) if our_cupra_m else None,
+          }
+          print(f"  ours:    SEAT={ours['seat']} CUPRA={ours['cupra']}")
 
-          echo "seat=$UP_SEAT" >> "$GITHUB_OUTPUT"
-          echo "cupra=$UP_CUPRA" >> "$GITHUB_OUTPUT"
+          # ── Consensus per brand ────────────────────────────────────
+          # Gather all non-None values from successful sources.
+          live_sources = {k: v for k, v in results.items() if v is not None}
+          if not live_sources:
+              print("::warning::All upstream sources failed — skipping run.")
+              for k in ("action", "seat_new", "cupra_new", "disagreement_msg"):
+                  print(f"::set-output name={k}::")
+              raise SystemExit(0)
 
-      - name: Read our current values
-        id: ours
-        env:
-          UP_SEAT: ${{ steps.upstream.outputs.seat }}
-          UP_CUPRA: ${{ steps.upstream.outputs.cupra }}
-        run: |
-          F="custom_components/vag_connect/cariad/_ola_headers.py"
-          if [ ! -f "$F" ]; then
-            echo "::error::$F missing — has the OLA headers module been removed?"
-            exit 1
-          fi
+          def consensus(brand: str) -> tuple[str, set[str], dict[str, str]]:
+              """Return (consensus_value, distinct_values, per_source_dict).
 
-          OURS_SEAT=$(python3 -c "
-          import re, pathlib
-          text = pathlib.Path('$F').read_text()
-          m = re.search(r'\"seat\"\s*:\s*\{[^}]*?\"app-version\"\s*:\s*\"([^\"]+)\"', text, re.DOTALL)
-          print(m.group(1) if m else '')
-          ")
-          OURS_CUPRA=$(python3 -c "
-          import re, pathlib
-          text = pathlib.Path('$F').read_text()
-          m = re.search(r'\"cupra\"\s*:\s*\{[^}]*?\"app-version\"\s*:\s*\"([^\"]+)\"', text, re.DOTALL)
-          print(m.group(1) if m else '')
-          ")
+              consensus_value is the agreed value if all live sources
+              agree; otherwise empty string.
+              """
+              per_source = {
+                  src: vals[brand] for src, vals in live_sources.items()
+                  if vals[brand] is not None
+              }
+              distinct = set(per_source.values())
+              if len(distinct) == 1:
+                  return next(iter(distinct)), distinct, per_source
+              return "", distinct, per_source
 
-          echo "Ours SEAT: $OURS_SEAT"
-          echo "Ours CUPRA: $OURS_CUPRA"
+          seat_consensus,  seat_distinct,  seat_per_source  = consensus("seat")
+          cupra_consensus, cupra_distinct, cupra_per_source = consensus("cupra")
 
-          echo "seat=$OURS_SEAT" >> "$GITHUB_OUTPUT"
-          echo "cupra=$OURS_CUPRA" >> "$GITHUB_OUTPUT"
+          # ── Decide action ─────────────────────────────────────────
+          disagreement_msgs = []
+          if not seat_consensus:
+              detail = ", ".join(f"{s}=`{v}`" for s, v in seat_per_source.items())
+              disagreement_msgs.append(f"**SEAT** sources disagree: {detail}")
+          if not cupra_consensus:
+              detail = ", ".join(f"{s}=`{v}`" for s, v in cupra_per_source.items())
+              disagreement_msgs.append(f"**CUPRA** sources disagree: {detail}")
 
-          # Decide whether action is needed.
-          if [ "$UP_SEAT" = "$OURS_SEAT" ] && [ "$UP_CUPRA" = "$OURS_CUPRA" ]; then
-            echo "drift=false" >> "$GITHUB_OUTPUT"
-            echo "✅ In sync with upstream — no action needed."
-          else
-            echo "drift=true" >> "$GITHUB_OUTPUT"
-            echo "⚠️ Drift detected — will check for existing PR + open new one if needed."
-          fi
+          if disagreement_msgs:
+              action = "issue"   # split community → human decides
+              seat_new = ""
+              cupra_new = ""
+              disagreement_full = "\n\n".join(disagreement_msgs)
+          elif seat_consensus == ours["seat"] and cupra_consensus == ours["cupra"]:
+              action = "none"
+              seat_new = ""
+              cupra_new = ""
+              disagreement_full = ""
+          else:
+              action = "pr"      # all agree + differs from ours → bump
+              seat_new = seat_consensus
+              cupra_new = cupra_consensus
+              disagreement_full = ""
 
+          # Emit GH outputs.
+          gh_out = os.environ.get("GITHUB_OUTPUT")
+          if gh_out:
+              with open(gh_out, "a") as fh:
+                  fh.write(f"action={action}\n")
+                  fh.write(f"seat_new={seat_new}\n")
+                  fh.write(f"cupra_new={cupra_new}\n")
+                  fh.write(f"seat_ours={ours['seat']}\n")
+                  fh.write(f"cupra_ours={ours['cupra']}\n")
+                  fh.write(f"disagreement<<EOF\n{disagreement_full}\nEOF\n")
+
+          # Per-source breakdown for the issue/PR body.
+          live_str = "\n".join(
+              f"- **{src}**: SEAT=`{v['seat']}` CUPRA=`{v['cupra']}`"
+              for src, v in live_sources.items()
+          )
+          if gh_out:
+              with open(gh_out, "a") as fh:
+                  fh.write(f"per_source<<EOF\n{live_str}\nEOF\n")
+
+          print(f"\nDecision: action={action}")
+          PYTHON
+
+      # ── Action path: AUTO-PR (all sources agree, differs from ours)
       - name: Check for existing auto-PR (idempotency)
         id: existing
-        if: steps.ours.outputs.drift == 'true'
+        if: steps.decide.outputs.action == 'pr'
         env:
           GH_TOKEN: ${{ github.token }}
-          UP_SEAT: ${{ steps.upstream.outputs.seat }}
-          UP_CUPRA: ${{ steps.upstream.outputs.cupra }}
+          NEW_SEAT: ${{ steps.decide.outputs.seat_new }}
+          NEW_CUPRA: ${{ steps.decide.outputs.cupra_new }}
         run: |
-          # Look for an open PR whose title encodes the SAME target
-          # values. If found, skip — repeated runs while a PR is open
-          # are no-ops (avoids spamming the maintainer with duplicates).
-          TITLE="chore(ola-headers): auto-bump to SEAT=$UP_SEAT, CUPRA=$UP_CUPRA"
+          TITLE="chore(ola-headers): auto-bump to SEAT=$NEW_SEAT, CUPRA=$NEW_CUPRA"
           EXISTING=$(gh pr list --state open --search "in:title \"$TITLE\"" --json number --jq '.[0].number')
           if [ -n "$EXISTING" ]; then
-            echo "PR #$EXISTING already open with these target values — no action."
+            echo "PR #$EXISTING already open with these target values — skip."
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Patch _ola_headers.py + grow fallback chain
-        if: steps.ours.outputs.drift == 'true' && steps.existing.outputs.skip != 'true'
+        if: steps.decide.outputs.action == 'pr' && steps.existing.outputs.skip != 'true'
         env:
-          UP_SEAT: ${{ steps.upstream.outputs.seat }}
-          UP_CUPRA: ${{ steps.upstream.outputs.cupra }}
-          OUR_SEAT: ${{ steps.ours.outputs.seat }}
-          OUR_CUPRA: ${{ steps.ours.outputs.cupra }}
+          NEW_SEAT: ${{ steps.decide.outputs.seat_new }}
+          NEW_CUPRA: ${{ steps.decide.outputs.cupra_new }}
+          OUR_SEAT: ${{ steps.decide.outputs.seat_ours }}
+          OUR_CUPRA: ${{ steps.decide.outputs.cupra_ours }}
         run: |
-          # Python in-place edit:
-          #   1. Bump the primary "app-version" for each brand
-          #   2. Prepend the OLD primary value as a new entry in
-          #      _OLA_HEADERS_BY_BRAND_FALLBACK[brand]
-          # Defense-in-depth Layer 3 self-grows.
           python3 << 'PYTHON'
           import os, pathlib, re
 
           F = pathlib.Path("custom_components/vag_connect/cariad/_ola_headers.py")
           text = F.read_text()
+          new_seat   = os.environ["NEW_SEAT"]
+          new_cupra  = os.environ["NEW_CUPRA"]
+          our_seat   = os.environ["OUR_SEAT"]
+          our_cupra  = os.environ["OUR_CUPRA"]
 
-          up_seat   = os.environ["UP_SEAT"]
-          up_cupra  = os.environ["UP_CUPRA"]
-          our_seat  = os.environ["OUR_SEAT"]
-          our_cupra = os.environ["OUR_CUPRA"]
-
-          # Bump primary values (one re.sub per brand).
-          if up_seat != our_seat:
+          if new_seat and new_seat != our_seat:
               text = re.sub(
                   r'("seat":\s*\{[^}]*?"app-version":\s*)"[^"]+"',
-                  rf'\1"{up_seat}"',
-                  text, count=1, flags=re.DOTALL,
+                  rf'\1"{new_seat}"', text, count=1, flags=re.DOTALL,
               )
-          if up_cupra != our_cupra:
+          if new_cupra and new_cupra != our_cupra:
               text = re.sub(
                   r'("cupra":\s*\{[^}]*?"app-version":\s*)"[^"]+"',
-                  rf'\1"{up_cupra}"',
-                  text, count=1, flags=re.DOTALL,
+                  rf'\1"{new_cupra}"', text, count=1, flags=re.DOTALL,
               )
 
-          # Grow the fallback chain by prepending the OLD value.
-          # Pattern: "seat": [\n  ...\n  ], — insert dict at top.
-          # If the chain doesn't exist yet (currently empty list with
-          # only comments), the re.sub inserts the first entry.
-          def grow_fallback(text: str, brand: str, old_value: str) -> str:
-              if not old_value:
+          def grow_fallback(text: str, brand: str, old: str) -> str:
+              if not old:
                   return text
               entry = (
                   f'        {{"app-market": "android", "app-brand": "{brand}", '
-                  f'"app-version": "{old_value}", "origin": "app"}},\n'
+                  f'"app-version": "{old}", "origin": "app"}},\n'
                   f'        # ↑ auto-added by upstream-ola-watcher on bump.'
               )
-              # Match the brand-fallback list opening: "seat": [ ... ]
-              # The replacement prepends our new entry right after the
-              # opening bracket, keeping any existing entries.
-              pattern = rf'("{brand}":\s*\[\n)'
-              return re.sub(pattern, rf'\1{entry}\n', text, count=1)
+              return re.sub(rf'("{brand}":\s*\[\n)', rf'\1{entry}\n', text, count=1)
 
-          if up_seat != our_seat:
+          if new_seat and new_seat != our_seat:
               text = grow_fallback(text, "seat", our_seat)
-          if up_cupra != our_cupra:
+          if new_cupra and new_cupra != our_cupra:
               text = grow_fallback(text, "cupra", our_cupra)
 
           F.write_text(text)
@@ -196,98 +246,124 @@ jobs:
           PYTHON
 
       - name: Open Pull Request
-        if: steps.ours.outputs.drift == 'true' && steps.existing.outputs.skip != 'true'
+        if: steps.decide.outputs.action == 'pr' && steps.existing.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          UP_SEAT: ${{ steps.upstream.outputs.seat }}
-          UP_CUPRA: ${{ steps.upstream.outputs.cupra }}
-          OUR_SEAT: ${{ steps.ours.outputs.seat }}
-          OUR_CUPRA: ${{ steps.ours.outputs.cupra }}
+          NEW_SEAT: ${{ steps.decide.outputs.seat_new }}
+          NEW_CUPRA: ${{ steps.decide.outputs.cupra_new }}
+          OUR_SEAT: ${{ steps.decide.outputs.seat_ours }}
+          OUR_CUPRA: ${{ steps.decide.outputs.cupra_ours }}
+          PER_SOURCE: ${{ steps.decide.outputs.per_source }}
         run: |
-          # Configure git as the bot author for the auto-commit.
           git config user.name "vw-group-connect-bot"
           git config user.email "noreply@github.com"
-
-          # Branch off main with a date-stamped name.
           DATE=$(date -u +%Y%m%d)
-          BRANCH="auto/ola-bump-${DATE}-seat${UP_SEAT}-cupra${UP_CUPRA}"
+          BRANCH="auto/ola-bump-${DATE}-seat${NEW_SEAT}-cupra${NEW_CUPRA}"
           git checkout -b "$BRANCH"
 
-          # Include the changelog entry for the bump.
-          # Insert at the top of [Unreleased] section.
+          # Add a compact CHANGELOG entry under [Unreleased].
           python3 << 'PYTHON'
           import os, pathlib, datetime
           F = pathlib.Path("CHANGELOG.md")
           text = F.read_text(encoding="utf-8")
           marker = "## [Unreleased]"
           if marker in text:
-              up_seat  = os.environ["UP_SEAT"]
-              up_cupra = os.environ["UP_CUPRA"]
-              our_seat  = os.environ["OUR_SEAT"]
-              our_cupra = os.environ["OUR_CUPRA"]
+              ns  = os.environ["NEW_SEAT"]
+              nc  = os.environ["NEW_CUPRA"]
+              os_ = os.environ["OUR_SEAT"]
+              oc  = os.environ["OUR_CUPRA"]
               date = datetime.date.today().isoformat()
               line = (
                   f"\n### Changed\n"
-                  f"- OLA app-version bumped to match upstream CarConnectivity "
-                  f"(SEAT `{our_seat}` → `{up_seat}`, CUPRA `{our_cupra}` → `{up_cupra}`) "
-                  f"on {date}. Old values appended to fallback chain.\n"
+                  f"- OLA app-version bumped (SEAT `{os_}` → `{ns}`, "
+                  f"CUPRA `{oc}` → `{nc}`) on {date}. Multi-source consensus "
+                  f"detected by upstream watcher; old values appended to "
+                  f"fallback chain.\n"
               )
-              # Insert after the "(nothing pending...)" placeholder OR
-              # right after the Unreleased header line.
               idx = text.index(marker) + len(marker)
-              # If "_(nothing pending...)_" is on the next blank line, replace it.
               if "_(nothing pending" in text[idx : idx + 200]:
-                  # Skip past the placeholder block (it spans 2 lines).
                   end = text.index("\n## ", idx)
                   text = text[: idx] + line + text[end :]
               else:
                   text = text[: idx] + line + text[idx :]
               F.write_text(text, encoding="utf-8")
-              print("✅ CHANGELOG.md updated")
           PYTHON
 
           git add custom_components/vag_connect/cariad/_ola_headers.py CHANGELOG.md
-          git commit -m "chore(ola-headers): auto-bump SEAT=${UP_SEAT}, CUPRA=${UP_CUPRA}
+          git commit -m "chore(ola-headers): auto-bump SEAT=${NEW_SEAT}, CUPRA=${NEW_CUPRA}
 
-          Upstream CarConnectivity-connector-seatcupra bumped app-version
-          constants. Auto-PR mirrors the change + appends previous primary
-          values to the fallback chain (defense-in-depth Layer 3 self-
-          extension).
+          Multi-source consensus from upstream watcher:
+          ${PER_SOURCE}
+
+          Defense-in-depth Layer 3 self-extension: old primary values
+          appended to fallback chain.
 
           Maintainer review checklist:
-          - [ ] Verify upstream commit-source looks legitimate (not mid-
-                experiment / not a vandalism PR)
-          - [ ] Glance at the resulting _ola_headers.py — fallback chain
-                ordering looks right
+          - [ ] Both upstream sources show same values (consensus confirmed)
+          - [ ] Verify upstream commits look legitimate (not vandalism)
           - [ ] CI green
           - [ ] Merge"
 
           git push -u origin "$BRANCH"
 
-          # Open the PR.
           gh pr create \
-            --title "chore(ola-headers): auto-bump to SEAT=$UP_SEAT, CUPRA=$UP_CUPRA" \
+            --title "chore(ola-headers): auto-bump to SEAT=$NEW_SEAT, CUPRA=$NEW_CUPRA" \
             --label "auto-ola-bump" \
-            --body "Upstream CarConnectivity-connector-seatcupra bumped its app-version constants. This PR mirrors the change in our \`cariad/_ola_headers.py\`.
+            --body "Multi-source consensus across all monitored upstream OLA projects — bumping app-version constants.
 
-| Brand | Old | New |
+| Brand | Old (ours) | New (consensus) |
 |---|---|---|
-| SEAT  | \`$OUR_SEAT\`  | \`$UP_SEAT\`  |
-| CUPRA | \`$OUR_CUPRA\` | \`$UP_CUPRA\` |
+| SEAT  | \`$OUR_SEAT\`  | \`$NEW_SEAT\`  |
+| CUPRA | \`$OUR_CUPRA\` | \`$NEW_CUPRA\` |
+
+**Per-source breakdown:**
+$PER_SOURCE
 
 **What this PR does:**
-1. Bumps the primary values in \`_OLA_HEADERS_BY_BRAND\`
-2. Prepends the OLD primary values into \`_OLA_HEADERS_BY_BRAND_FALLBACK\` — Layer 3 fallback chain self-extends
+1. Bumps primary values in \`_OLA_HEADERS_BY_BRAND\`
+2. Prepends OLD primary values into \`_OLA_HEADERS_BY_BRAND_FALLBACK\` — Layer 3 self-grows
 3. Adds a one-line CHANGELOG entry under \`[Unreleased]\`
 
-**Why auto-PR not auto-merge:** preserves a human safety check in case upstream is mid-experiment / mistaken bump / vandalism. If the PR looks right, just merge it.
-
-**Source**: https://github.com/tillsteinbach/CarConnectivity-connector-seatcupra/blob/main/src/carconnectivity_connectors/seatcupra/auth/my_cupra_session.py
+**Why auto-PR not auto-merge:** human safety check in case upstream pushes experimental / mistaken values. If consensus looks right, merge it.
 
 _Auto-filed by \`.github/workflows/upstream-ola-watcher.yml\` on $(date -u +%Y-%m-%d). Idempotent — workflow won't re-create this PR while it's open._"
 
-      - name: Report no drift
-        if: steps.ours.outputs.drift == 'false'
+      # ── Action path: ISSUE (sources disagree, manual decision needed)
+      - name: Open or update divergence issue
+        if: steps.decide.outputs.action == 'issue'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PER_SOURCE: ${{ steps.decide.outputs.per_source }}
+          DISAGREEMENT: ${{ steps.decide.outputs.disagreement }}
         run: |
-          echo "✅ OLA headers in sync with upstream CarConnectivity"
-          echo "SEAT=${{ steps.ours.outputs.seat }} CUPRA=${{ steps.ours.outputs.cupra }}"
+          TITLE="OLA upstream-source divergence — manual review needed"
+          EXISTING=$(gh issue list --state open --search "in:title \"$TITLE\"" --json number --jq '.[0].number')
+          BODY="Multi-source watcher detected that the monitored upstream OLA projects disagree on at least one brand's \`app-version\` constant. Manual decision needed — auto-PR is **not safe** when sources split because picking the wrong one might mean we follow a stale/experimental project.
+
+          $DISAGREEMENT
+
+          **All live sources:**
+          $PER_SOURCE
+
+          **Action:** review both projects' recent commit history, decide which value to follow (or keep ours), bump \`cariad/_ola_headers.py\` manually if needed. Close this issue when done — the watcher will re-fire next time sources diverge.
+
+          _Auto-filed by \`.github/workflows/upstream-ola-watcher.yml\` on $(date -u +%Y-%m-%d). Comments added on re-detection; won't spam duplicate issues._"
+
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "Re-detected on $(date -u +%Y-%m-%d):
+
+            $DISAGREEMENT
+
+            $PER_SOURCE"
+          else
+            gh issue create --title "$TITLE" --label "chore" --body "$BODY"
+          fi
+
+      # ── Action path: NO-OP (in sync)
+      - name: Report no drift
+        if: steps.decide.outputs.action == 'none'
+        env:
+          PER_SOURCE: ${{ steps.decide.outputs.per_source }}
+        run: |
+          echo "✅ OLA headers in sync with all upstream sources"
+          echo "$PER_SOURCE"
