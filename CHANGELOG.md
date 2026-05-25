@@ -121,171 +121,24 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 _(nothing pending — v2.4.1 just shipped; new entries land here)_
 
-## [2.4.1] — 2026-05-25 — "Sprint D / OLA Defense-in-Depth + VW NA Garage Fix + Scout Policy"
-
-> **PATCH release** — first batch under the new EN-primary changelog
-> convention. Ships 4 parallel work-streams + a methodology shift:
->
-> 1. **OLA Authentication Defense-in-Depth (#281, #282)** — VW Group's
->    OLA backend (SEAT + CUPRA) started enforcing app-identifying
->    headers on 2026-05-20. Without them, every request returns HTTP
->    403 Forbidden, blocking ALL SEAT + CUPRA setup. Fix uses a
->    4-layer defense-in-depth design that gracefully self-heals
->    through future VW header changes.
->
-> 2. **VW North America Garage Fix (#285)** — follow-up to v2.3.0.
->    Auth works perfectly; garage call returned empty list because
->    our parser missed the `data` envelope. First-time-working brand
->    for VW US/CA users now actually loads vehicles.
->
-> 3. **Scouts #283 + #284 (parse + silence)** — 4th `*_pending`
->    family member on the climatisation-settings side, plus a
->    silencer-gap retroactive fix for `chargingSettings.requests`.
->
-> 4. **Scout Policy Compliance Audit (T1 — 12 entities)** — methodology
->    shift formalized in `docs/SCOUT_POLICY.md`: every silenced leaf
->    must also be parsed. Audited 67 pre-existing silenced-only
->    paths, promoted 12 to first-class parsed-and-surfaced entities,
->    documented 55 as exempt (T2-T5 tiers).
->
-> Plus a weekly CI watcher (`.github/workflows/upstream-ola-watcher.yml`)
-> that monitors CarConnectivity upstream and opens an issue when our
-> OLA header constants drift.
->
-> _(DE: PATCH-Release. 4 parallele Work-Streams: OLA-403-Fix mit
-> 4-Layer Defense-in-Depth, VW-NA-Garage-Envelope-Fix, 2 Scout-
-> Closures, plus Methodology-Shift "always parse scouts" mit 12 neuen
-> Tier-1 Entities aus dem Compliance-Audit. CI-Watcher überwacht
-> jetzt upstream CarConnectivity wöchentlich.)_
-
-### Added
-
-- **🛡️ OLA Authentication Defense-in-Depth (Closes #281, #282)** —
-  VW Group's OLA backend (`ola.prod.code.seat.cloud.vwgroup.com`)
-  started enforcing app-identifying headers on 2026-05-20. Multiple
-  parallel projects discovered this simultaneously: PyCupra #89,
-  CarConnectivity-connector-seatcupra #112 (workaround in v0.6.3
-  released 2026-05-24). Reporter evidence:
-  - **goncal** (#281, SEAT Mii Electric 2022, Spain) — 403 on setup,
-    directly cross-referenced the CarConnectivity workaround
-  - **matthias0304** (#282, CUPRA Terramar VZ Plugin 2025, Germany) —
-    14 occurrences of 403 on `/v2/users/{uuid}/garage/vehicles`
-  - **smartmatic** comment on #282 — *"I have the same issue when
-    trying to setup the integration for the first time"* — confirmed
-    multi-user reproducibility
-
-  Our fix uses a 4-layer defense-in-depth architecture that goes
-  beyond just "hardcode the headers":
-
-  | Layer | Implementation | Purpose |
-  |---|---|---|
-  | **L1: Centralized SSoT** | New `cariad/_ola_headers.py` module with brand-conditional `_OLA_HEADERS_BY_BRAND` dict (SEAT `2.17.0` / CUPRA `2.15.0` — mirrored from CarConnectivity v0.6.3) | Single file to bump on version drift. Future version updates = 1-line PRs. |
-  | **L2: OptionsFlow override** | New `CONF_OLA_APP_VERSION_OVERRIDE` + `CONF_OLA_USER_AGENT_OVERRIDE` config keys, wired through `coordinator → factory → SeatCupraClient.__init__` | Power-users can patch live without waiting for releases when VW changes requirements next time. |
-  | **L3: Multi-version fallback** | `SeatCupraClient._request()` override retries with `_OLA_HEADERS_BY_BRAND_FALLBACK[brand][N]` on 403, walking the fallback chain | Auto-survives 1-2 future VW version bumps without code changes. |
-  | **L4: Repair-issue on persistent 403** | `_ola_consecutive_403` counter + `ola_headers_repair_needed` flag, polled by coordinator after each successful poll cycle. New `raise_issue_ola_headers_outdated()` helper in `repairs.py` + i18n string in `strings.json`. | User gets a clear HA Repair notification ("update integration or use OptionsFlow override") instead of silent failure. |
-
-  **Plus**: new `.github/workflows/upstream-ola-watcher.yml` runs
-  every Monday morning, scrapes CarConnectivity's
-  `my_cupra_session.py` header constants, and opens (or comments on
-  the existing) GitHub issue in our repo when the values drift. We
-  stay within ~1 week of upstream automatically.
-
-  The CarConnectivity community thread (#112) explicitly notes that
-  this header-based workaround may not be sustainable indefinitely —
-  VW may eventually require signed app-attestation tokens (Play
-  Integrity / App Attest). If that happens, all our defense-in-depth
-  layers break together, but at least the repair-issue + CI watcher
-  will tell us immediately rather than letting users silently fail.
-
-- **🆔 VW North America Garage Loads Vehicles (Closes #285)** —
-  Follow-up to the v2.3.0 #269 auth fix. Robert Thompson reported
-  that auth completes successfully (great — our fix works!) but
-  vehicle discovery fails with `ConfigEntryNotReady("No vehicles
-  found")`. Root cause found in matpoulin's reference implementation:
-  the API response shape is `{"data": {"vehicles": [...]}}` (nested
-  under a `data` envelope), but our parser read `data.get("vehicles",
-  [])` (top-level). Defensive fix walks `data["data"]["vehicles"]`
-  with top-level fallback for forward-compat. Bonus: also caches
-  `vehicleNickName` + `modelName` per matpoulin's response shape —
-  surfaced as new sensors in the audit T1 batch below.
-
-- **🆕 4th `*_pending` family member (Closes #283)** —
-  `climatisation.climatisationSettings.requests` parsed into
-  `d.climatisation_settings_pending` (new disabled-by-default sensor).
-  Completes the family alongside the existing `charging.*` +
-  `climatisation.climatisationStatus.requests` parsers. Reporter:
-  Brinki99 (VW EU, 2026-05-24). Audi inherits via brand-vererbung.
-
-- **📋 Scout Policy Compliance Audit — 12 T1 entities** —
-  Methodology shift: every silenced leaf must also be parsed (see
-  `docs/SCOUT_POLICY.md`). Audited 67 pre-existing silenced-only
-  paths; classified into T1-T5 tiers. 12 promoted to first-class
-  parsed-and-surfaced entities:
-
-  | Field | Type | Source endpoint |
-  |---|---|---|
-  | `battery_temp_c` | Temperature sensor | CARIAD-BFF `charging.batteryStatus.value.temp_C` |
-  | `climate_without_external_power` | Binary | CARIAD-BFF `climatisation.climatisationSettings.value.climatisationWithoutExternalPower` |
-  | `climate_zone_front_left` | Binary | CARIAD-BFF `climatisation.climatisationSettings.value.zoneFrontLeftEnabled` |
-  | `climate_zone_front_right` | Binary | CARIAD-BFF `climatisation.climatisationSettings.value.zoneFrontRightEnabled` |
-  | `climate_remaining_time_min` | Duration sensor | CARIAD-BFF `climatisation.climatisationStatus.value.remainingClimatisationTime_min` |
-  | `connection_battery_power_level` | String sensor | CARIAD-BFF `readiness.readinessStatus.value.connectionState.batteryPowerLevel` |
-  | `connection_active` | Binary | CARIAD-BFF `readiness.readinessStatus.value.connectionState.isActive` |
-  | `daily_power_budget_warning` | Binary (problem) | CARIAD-BFF `readiness.readinessStatus.value.connectionWarning.dailyPowerBudgetWarning` |
-  | `insufficient_battery_level_warning` | Binary (problem) | CARIAD-BFF `readiness.readinessStatus.value.connectionWarning.insufficientBatteryLevelWarning` |
-  | `license_plate` | Text sensor | OLA SEAT/CUPRA `/v2/users/.../garage/vehicles[].licensePlate` |
-  | `vehicle_nickname` | Text sensor | OLA SEAT/CUPRA `/v2/users/.../garage/vehicles[].name` |
-  | `parking_map_url_dark` / `_light` | URL sensors | OLA `/v1/vehicles/{vin}/parkingposition.maps.{dark,light}MapUrl` |
-
-  All disabled-by-default per `SCOUT_POLICY.md` Rule 5 — power-users
-  opt-in via entity registry. Audi inherits the CARIAD-BFF parsers
-  via brand-vererbung. The remaining 55 T2-T5 paths are documented
-  with inline exemption comments in `_unexpected_keys.py`.
-
-- **📜 `docs/SCOUT_POLICY.md` — formal methodology document** —
-  TL;DR: every scout-reported leaf MUST be parsed + silenced +
-  surfaced. Documents exemption tiers (T2 unit-variants, T3
-  timestamps, T4 containers, T5 legacy-fixture paths). Pre-merge
-  checklist for contributors. Migration history. Linked from the
-  silencer module header so anyone editing EXPECTED_KEYS sees the
-  rules.
-
-- **🤖 Weekly CI watcher for OLA header drift** —
-  `.github/workflows/upstream-ola-watcher.yml` runs every Monday
-  08:00 UTC, fetches CarConnectivity's `my_cupra_session.py`, and
-  opens (or comments on) a GitHub issue when the SEAT/CUPRA
-  `app-version` values differ from ours. Closes the loop on the
-  L1 SSoT — drift is detected within 1 week instead of by user
-  bug-reports.
+## [2.4.1] — 2026-05-25 — "OLA Defense + VW NA Garage + Scout Policy"
 
 ### Fixed
+- SEAT + CUPRA setup failed with HTTP 403 since 2026-05-20 (#281, #282)
+- VW US/CA garage returned empty after successful login (#285)
+- Scout fired on `chargingSettings.requests` despite field being parsed (#284)
 
-- **Scout #284 silencer-gap (KimmoT727, Audi)** —
-  `charging.chargingSettings.requests` was parsed since v1.27.2 (#181)
-  but never added to `EXPECTED_KEYS`. Classic silencer-only gap,
-  same class as the historical #260 case that triggered the new
-  Scout Policy. Retroactive silencer-add closes the issue. Reporter
-  was on latest v2.4.0 — confirms the gap is real, not a
-  user-version issue.
+### Added
+- 12 new diagnostic entities (all disabled-by-default — opt-in via entity registry): HV battery temperature, climate-zone toggles, climate ETA, connection diagnostics, OLA license plate, OLA vehicle nickname, OLA parking-map URLs (dark + light)
+- `climate_settings_pending` count diagnostic — completes the queued-commands family alongside the existing 3 siblings (#283)
 
 ### Changed
+- **OLA authentication — defense-in-depth** — instead of just hardcoding the new SEAT/CUPRA app-identifying headers, the integration now ships a 4-layer system: centralized constants, OptionsFlow override for power-users, automatic multi-version fallback on 403, and an HA Repair-issue if all fallbacks fail. Future VW changes can self-heal without needing an integration update — and if the fallbacks ever exhaust, you get a clear "update the integration or set an override" notification instead of silent failure. Weekly CI also monitors the upstream community reference so we react within ~1 week of any drift.
+- **Scout Policy** — every silenced backend field is now also parsed and exposed as an entity going forward. Documented in `docs/SCOUT_POLICY.md`. Past audit promoted 12 fields, classified 55 as exempt.
 
-- **Bilingual convention switched: EN-primary, DE-secondary (effective v2.4.1+)** —
-  Changelog entries, release notes and GH release titles are now
-  written **English-primary** with German callouts where the original
-  context is DACH-specific (FB-group threads, German tester names,
-  brand-specific German terminology). Past entries pre-v2.4.1 are
-  preserved DE-primary for historical accuracy (same precedent as the
-  v2.4.0 marketing-rename: never rewrite history). Rationale: the new
-  "VW Group Connect" identity + landing VW North America in v2.3.0 +
-  more international brands coming make English-primary more inclusive.
-  Convention note in the CHANGELOG header + style-guide in
-  `RELEASE_PROCESS.md` both updated. Docs-only — no version bump
-  required for this commit.
-  _(DE: Sprachkonvention umgestellt — ab v2.4.1+ Englisch als
-  Hauptsprache, Deutsch als Zweitsprache. Historische Einträge bleiben
-  unverändert in DE-primary. Begründung: neuer "VW Group Connect"
-  Identity-Schwerpunkt + zunehmend internationale Audience.)_
+### Notes
+- First release under the EN-primary changelog convention (compact style, one-liner per fix/feature, deeper notes only where end-user behaviour changes).
+- Full technical detail in commit messages + `docs/CHANGELOG_TECHNICAL.md`.
 
 ## [2.4.0] — 2026-05-23 — "Marketing-Rename: VAG Connect → VW Group Connect (Community Tribute)"
 
