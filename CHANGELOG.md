@@ -117,7 +117,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > phantom-protected). Tier-B (wildcards + alarm/siren) deferred
 > until tester scout-dumps liefern die unknown leaf-shapes.
 
-## [Unreleased] — v2.4.1 — "Sprint D / OLA Defense-in-Depth + VW NA Garage Fix + Scout Policy"
+## [Unreleased]
+
+_(nothing pending — v2.4.1 just shipped; new entries land here)_
+
+## [2.4.1] — 2026-05-25 — "Sprint D / OLA Defense-in-Depth + VW NA Garage Fix + Scout Policy"
 
 > **PATCH release** — first batch under the new EN-primary changelog
 > convention. Ships 4 parallel work-streams + a methodology shift:
