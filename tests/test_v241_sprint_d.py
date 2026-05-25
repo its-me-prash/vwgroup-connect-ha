@@ -207,26 +207,76 @@ class TestOLARepairIssue:
 
 
 class TestOLAUpstreamWatcher:
-    """CI workflow: weekly comparison with CarConnectivity upstream."""
+    """CI workflow: daily comparison + auto-PR (v2.4.2+).
+
+    v2.4.1 shipped this watcher as weekly + issue-only. v2.4.2 upgrades
+    it to daily + auto-PR with fallback-chain growth. These tests pin
+    the upgraded behavior.
+    """
 
     def test_workflow_file_exists(self) -> None:
         assert _OLA_WATCHER_YML.exists()
 
-    def test_workflow_runs_weekly(self) -> None:
+    def test_workflow_runs_daily(self) -> None:
+        """Daily cron — drift detected within 24h instead of 7d."""
         src = _OLA_WATCHER_YML.read_text(encoding="utf-8")
         assert "schedule:" in src
-        assert "cron:" in src
+        # Daily means '* * *' in the last three cron fields.
+        assert '"0 8 * * *"' in src, "Cron should be daily (0 8 * * *)"
 
     def test_workflow_fetches_upstream(self) -> None:
         src = _OLA_WATCHER_YML.read_text(encoding="utf-8")
         assert "tillsteinbach/CarConnectivity-connector-seatcupra" in src
         assert "my_cupra_session.py" in src
 
-    def test_workflow_opens_issue_on_drift(self) -> None:
+    def test_workflow_has_write_permissions(self) -> None:
+        """Auto-PR needs contents:write + pull-requests:write."""
         src = _OLA_WATCHER_YML.read_text(encoding="utf-8")
-        assert "gh issue create" in src
-        assert "gh issue comment" in src  # Idempotent: comment if already open
-        assert "_ola_headers.py" in src  # References file users need to bump
+        assert "contents: write" in src
+        assert "pull-requests: write" in src
+
+    def test_workflow_opens_pr_on_drift(self) -> None:
+        """v2.4.2 behavior: open a Pull Request, not just an issue."""
+        src = _OLA_WATCHER_YML.read_text(encoding="utf-8")
+        assert "gh pr create" in src
+        assert "auto-ola-bump" in src  # Label for filtering
+
+    def test_workflow_patches_headers_file(self) -> None:
+        """Auto-PR actually edits the file (not just describes the diff)."""
+        src = _OLA_WATCHER_YML.read_text(encoding="utf-8")
+        assert "_ola_headers.py" in src
+        # Python in-place edit via re.sub.
+        assert "re.sub(" in src
+        assert '"app-version"' in src
+
+    def test_workflow_grows_fallback_chain(self) -> None:
+        """Old primary value is appended to the fallback chain
+        automatically (defense-in-depth Layer 3 self-extension)."""
+        src = _OLA_WATCHER_YML.read_text(encoding="utf-8")
+        assert "grow_fallback" in src or "_OLA_HEADERS_BY_BRAND_FALLBACK" in src
+
+    def test_workflow_idempotent_pr_dedup(self) -> None:
+        """Repeated runs while a PR is open don't spam duplicate PRs."""
+        src = _OLA_WATCHER_YML.read_text(encoding="utf-8")
+        assert "gh pr list" in src
+        # The skip-if-existing flag-out.
+        assert 'skip=true' in src or 'skip=false' in src
+
+    def test_workflow_updates_changelog(self) -> None:
+        """Auto-PR includes a CHANGELOG entry under [Unreleased]."""
+        src = _OLA_WATCHER_YML.read_text(encoding="utf-8")
+        assert "CHANGELOG.md" in src
+        assert "[Unreleased]" in src
+
+    def test_workflow_does_not_auto_merge(self) -> None:
+        """Safety: maintainer must review + merge by hand."""
+        src = _OLA_WATCHER_YML.read_text(encoding="utf-8")
+        # Explicit: workflow should NOT contain gh pr merge.
+        assert "gh pr merge" not in src, (
+            "Auto-merge is unsafe — if upstream pushes a mistaken "
+            "bump or experimental value, we'd ship it immediately. "
+            "Keep human review in the loop."
+        )
 
 
 # ──────────────────────────────────────────────────────────────────────
