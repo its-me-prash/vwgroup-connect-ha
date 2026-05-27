@@ -119,6 +119,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- Pre-emptive scout silencer for CUPRA TGI variants (Compressed Natural Gas — Leon TGI / Ibiza TGI) — `cngLevel` / `cngLevelInPct` / `cng_level_pct` / `cngRange` / `cngRangeInKm` / `cng_range_km` registered in `cupra:charging` set. Mirrors the `diesel_range` pattern from v1.9.1 #91. Will be promoted from T5 silencer to T1 parsed + entity (sensor.cng_range_km / sensor.cng_level_pct) when a CUPRA TGI tester reports. Source: pycupra v0.2.31 (WulfgarW, 2026-05-26).
+- `_community-projects.md` refreshed with the 2026-05-27 cross-project sweep snapshot — documents the 3-of-3 OLA-projects convergence on the 2026-05-20 app-header fix, mitch-dc's continued archive status, and skodaconnect/homeassistant-myskoda PR #1102 (split-coordinator + MQTT-event-filtering pattern noted as v3.0 architecture reference).
+
 ### Changed
 - OLA upstream watcher now runs **daily** (was weekly) and auto-opens a PR with the new app-version constants when CarConnectivity upstream drifts — instead of just opening an issue. Previous primary values are appended to the fallback chain automatically, so the multi-version retry logic self-extends. PRs require manual review + merge (no auto-merge — keeps a human safety check in case upstream pushes a mistaken bump).
 
