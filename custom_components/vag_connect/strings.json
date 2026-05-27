@@ -450,6 +450,12 @@
       "trunk_locked": {
         "name": "Trunk Locked"
       },
+      "trunk_open": {
+        "name": "Trunk Open"
+      },
+      "hood_open": {
+        "name": "Hood Open"
+      },
       "sunroof_open": {
         "name": "Sunroof Open"
       },

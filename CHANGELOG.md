@@ -134,6 +134,33 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **App Atlas Phase A.2 — APK download + apktool extraction** — when a brand's version-name changes (detected by the daily watcher), the workflow now downloads the APK via APKCombo CDN, decodes it with apktool, and greps for OLA-style header keys + known backend hosts. Findings persist as `.app-atlas-apk-cache/{brand}.json` and render in each per-brand atlas page. Workflow extracts only on version-change (idempotent), keeps CI runtime under 2min/changed-brand. Phase A.3 (jadx semantic-diff between consecutive APK versions) deferred to a separate session.
 - **App Atlas Phase A.3 — jadx full decompile + cross-version semantic diff** (manual `workflow_dispatch` only — too heavy for daily). Triggers on demand when investigating a brand's version bump: downloads both versions, runs jadx full Java decompile, extracts URL constants + header-key strings + OAuth scopes, computes a targeted diff filtering out obfuscator-rename noise. Outputs a self-contained markdown report at `docs/research/app-atlas/diffs/{brand}_{old}_vs_{new}.md` and auto-opens a PR. Provides ground-truth answers to "what new endpoints / headers / scopes appeared in this version bump?" — much higher signal than the daily smali grep.
 
+## [2.5.0] — 2026-05-27 — "Have You Met Mii?" (PyCupra Parity Sprint Part 1)
+
+### Added
+- **4 new binary_sensors** for entity-parity with PyCupra (closes parser-side-data-but-no-entity gap raised by @goncal in #306 for SEAT Mii Electric and the broader CUPRA Mii/Born/Tavascan VZ user pool):
+  - `binary_sensor.hood_open` (DOOR class) — was in `VehicleData.hood_open` since v1.10.x, just no entity wrapper
+  - `binary_sensor.trunk_open` (DOOR class) — was in `VehicleData.trunk_open`, no entity
+  - `binary_sensor.trunk_locked` (LOCK class, diagnostic) — was in `VehicleData.trunk_locked`, no entity
+  - `binary_sensor.sunroof_open` (WINDOW class, phantom-protected via `_DATA_PRESENT_REQUIRED` so cars without sunroof don't show meaningless OFF entity)
+- i18n strings for the 4 new entities (English `strings.json`; translation contributions welcome)
+
+### Hints toward v3.0 — "Suit Up: The Push Tech Edition" 🎩
+v2.5.0 is **part 1** of the "Have You Met Mii?" parity sprint. PyCupra extracts ~12 more data points from the OLA backend that we currently return null for (odometer via `/v1/vehicles/{vin}/mileage`, target_soc + max_charge_current via `/v1/vehicles/{vin}/charging/info`, service intervals via `/v1/vehicles/{vin}/maintenance`, trip data via `/v2/vehicles/{vin}/driving-data/CUSTOM`, vehicle renders via `/v2/vehicles/{vin}/renders`) — these are completely **new endpoint calls** for us, scoped to v3.0-beta1.
+
+v3.0 bundle (research+planning):
+- Split-coordinator (myskoda PR #1102 pattern port — fast/slow tiers)
+- Universal FCM push manager (all 7 brands have Firebase config in dex — extracted via App Atlas Phase A.4.1)
+- Skoda MQTT (mysmob via myskoda-lib pattern) + Audi dual-channel (Paho MQTT + FCM)
+- `vag_connect.send_destination` service (HA → car nav)
+- Vehicle render Image entity
+- Trip-history Calendar + sensors
+- Editable departure-timer entities (Time/Select/MultiSelect with recurringOn weekday pattern)
+- Auxiliary heating (Standheizung) switch + temp Number — `/auxiliaryheating/` endpoint confirmed in Audi + VW EU APK
+- BLE `binary_sensor.car_nearby` + ESPHome BLE proxy guide
+
+### Risk
+Zero — additive data-table changes only. All 4 new entities source from `VehicleData` fields that have been parsed (but unused) since earlier releases. No new API calls, no behavior change. Existing pytest suite tests EXPECTED_KEYS shape; adding entities is safe.
+
 ## [2.4.2] — 2026-05-27 — "Retro-Silencer Sweep + ActiveVentilation Interim"
 
 ### Fixed
