@@ -190,11 +190,15 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # climatisation can run from the HV battery alone (without
             # being plugged into a charger). Wired as binary_sensor.
             "airConditioningWithoutExternalPower",
-            # v2.4.2 (#302, Scout-Report 2026-05-27) — Skoda mysmob now
-            # ships an ETA timestamp for when air-conditioning will reach
-            # the user-set target temperature. T3 exempt per SCOUT_POLICY.md
-            # (timestamp leaf — consolidated into existing ``last_updated_at``
-            # diagnostic, no separate entity).
+            # v2.4.2 (#302, Scout-Report 2026-05-27) — RETRO-SILENCER ADD.
+            # Field is ALREADY PARSED at skoda.py:586 since v2.1.0
+            # (``estimatedDateTimeToReachTargetTemperature`` → ``d.climate_ready_at``
+            # → ``sensor.climate_ready_at``). EXPECTED_KEYS was never
+            # updated when the parser shipped — classic silencer-lag-
+            # behind-parser gap, same class as v2.4.1 #284
+            # (chargingSettings.requests). The sensor is shipping fine
+            # for users; only the scout was noisy. T1 (parsed + entity
+            # exists, just registering the silencer side now).
             "estimatedDateTimeToReachTargetTemperature",
         },
         "parking": {
@@ -407,13 +411,14 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             "charging", "state", "status", "chargingState",
             "chargePowerInKw", "chargePower_kW", "chargedPowerInKw",
             "chargeRateInKmPerHour", "chargeRate_kmph",
-            # v2.4.2 (#299, Scout-Report 2026-05-27) — CUPRA OLA now also
-            # exposes a third spelling variant ``rateInKmph`` alongside
-            # the existing ``chargeRateInKmPerHour`` (v1.10.2) and
-            # ``chargeRate_kmph`` (v2.2.2). T2 exempt — unit-variant
-            # duplicate of canonical ``chargeRate_kmph``, already wired
-            # into ``sensor.charging_speed`` via ``vw_eu.py``. Backend
-            # likely added it for client-version-compat with Born 2026.
+            # v2.4.2 (#299, Scout-Report 2026-05-27) — RETRO-SILENCER ADD.
+            # Field is ALREADY PARSED at seat_cupra.py:747 since v2.0.1
+            # (Scout #192 — Cupra Born MY26 ships ``rateInKmph`` on the
+            # OLA charging endpoint as a 3rd-position fallback in the
+            # ``charging_rate_kmh`` chain after ``chargeRateInKmPerHour``
+            # and ``chargeRate_kmph``). Wired into ``sensor.charging_speed``.
+            # EXPECTED_KEYS just never got the silencer-side entry —
+            # silencer-lag-behind-parser gap. T1 (parsed + entity exists).
             "rateInKmph",
             "remainingTimeInMinutes", "remainingTime",
             "remainingTimeToFullyChargedInMinutes", "remainingChargingTime",
@@ -553,14 +558,26 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # ACTIVE VENTILATION subsystem (front-seat active ventilation
             # while charging — replaces older "ventilation" climatisation
             # mode on MEB ID.7 + facelift ID.3/.4). Backend ships:
-            #   - climatisation.activeVentilationStatus.* (state + ETA)
+            #   - climatisation.activeVentilationStatus.value.* (state + ETA)
             #   - climatisation.climatisationSettings.value.activeVentilationSettings.* (config)
             #   - climatisationTimers.activeVentilationTimersStatus.value.* (schedule)
-            # T5 (new subsystem) — wildcard the .* children to absorb
-            # future sub-field growth without re-registering. Full parse
-            # + binary_sensor / number / switch entities → deferred to
-            # v2.5 once we have 3+ live samples to verify the shape.
-            # Audi inherits via line 851.
+            #
+            # INTERIM SILENCER (this PR): wildcards .* absorb the unknown
+            # sub-shape so Scouts don't spam users while a follow-up PR
+            # builds the full parser + entities. The shape inferred from
+            # key-counts in the scout report aligns with the sibling
+            # ``climatisationStatus.value.{climatisationState,
+            # remainingClimatisationTime_min, carCapturedTimestamp}`` pattern
+            # but needs real-payload confirmation before shipping entities
+            # with possibly-wrong field names.
+            #
+            # FOLLOW-UP PR: parser → ``d.active_ventilation_state``,
+            # ``d.active_ventilation_remaining_min``,
+            # ``d.active_ventilation_duration_min``,
+            # ``d.active_ventilation_timer_count`` + 4 default-disabled
+            # entities (1 binary_sensor + 3 sensors). Tracked as the
+            # "make scouts useful, not just silenced" follow-up per
+            # 2026-05-27 maintainer-correction. Audi inherits via line 851.
             "climatisation.activeVentilationStatus",
             "climatisation.activeVentilationStatus.*",
             "climatisation.climatisationSettings.value.activeVentilationSettings",
