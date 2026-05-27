@@ -412,12 +412,52 @@ _NEW_BINARY: tuple[VagBinarySensorDescription, ...] = (
         icon="mdi:clock-outline",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # v2.5.0 (#306 goncal Mii electric, parity with PyCupra) — three
+    # boolean fields that were parsed into VehicleData since v1.x but
+    # never surfaced as HA entities. PyCupra ships them as binary_sensors
+    # for the same VIN; we already had the data, just no entity wrapper.
+    # All three are top-level booleans (no nested-dict-lookup needed).
+    VagBinarySensorDescription(
+        key="hood_open",
+        translation_key="hood_open",
+        data_key="hood_open",
+        device_class=BinarySensorDeviceClass.DOOR,
+        icon="mdi:car-cog",
+    ),
+    VagBinarySensorDescription(
+        key="trunk_open",
+        translation_key="trunk_open",
+        data_key="trunk_open",
+        device_class=BinarySensorDeviceClass.DOOR,
+        icon="mdi:car-back",
+    ),
+    VagBinarySensorDescription(
+        key="trunk_locked",
+        translation_key="trunk_locked",
+        data_key="trunk_locked",
+        device_class=BinarySensorDeviceClass.LOCK,
+        icon="mdi:lock",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # v2.5.0 — sunroof state for vehicles that have one. Phantom-protected
+    # below (None data → no entity), so most cars without sunroof don't
+    # show a meaningless OFF entity. Mirrors PyCupra parity for #306.
+    VagBinarySensorDescription(
+        key="sunroof_open",
+        translation_key="sunroof_open",
+        data_key="sunroof_open",
+        device_class=BinarySensorDeviceClass.WINDOW,
+        icon="mdi:car-select",
+    ),
 )
 BINARY_DESCRIPTIONS = BINARY_DESCRIPTIONS + _NEW_BINARY
 
 # v1.11.0 — same phantom-entity-prevention pattern as sensor.py.
 _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "lights_on",
+    # v2.5.0 (#306 goncal Mii) — sunroof is option-dependent. Many cars
+    # don't have a sunroof; parser leaves field None → no phantom entity.
+    "sunroof_open",
     # v1.12.0 (#23) — vehicles without lvBattery job don't get the warning.
     "warning_12v_low",
     # v1.15.0 — Skoda-only OTA. Cross-brand support deferred (Research
