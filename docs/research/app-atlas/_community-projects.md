@@ -4,7 +4,37 @@
 > Python integrations. We track these as **upstream signal sources**
 > for our cross-brand work (cf. App Atlas `README.md`).
 >
-> Last reviewed: 2026-05-25
+> Last reviewed: 2026-05-27
+
+## 2026-05-27 Cross-project convergence snapshot
+
+7-day sweep confirmed the **multi-source consensus pattern works in
+practice**:
+
+- **3 of 3 OLA-aware projects converged on the same 2026-05-20 fix**
+  within 4 days (tillsteinbach v0.6.3 / daernsinstantfortress v0.50.17 /
+  pycupra login bugfix) — all 4 app-fingerprint headers
+  (`app-market`, `app-brand`, `app-version=2.15.0`, `origin=app`).
+  We shipped the same fix as v2.4.1 with a 4-layer defense-in-depth on
+  top (centralized constants + OptionsFlow override + multi-version
+  fallback chain + HA Repair-card escalation) — the architectural
+  upgrade above just-headers.
+- **evcc** additionally adds `User-Agent: OLACupra/2.15.0 (Android 12...)`
+  on top of the 4 headers. We have brand-specific iOS-style UAs since
+  v2.4.1 (`_ola_headers._OLA_USER_AGENT_BY_BRAND`) — different platform
+  signature but functionally equivalent.
+- **mitch-dc/volkswagen_we_connect_id**: stays archived (2025-10-29). No
+  fork has resurrected it with momentum (max stars on any fork = 5).
+- **lendy007/skodaconnect**: archived since 2024-09-10 (not listed below;
+  active successor is `skodaconnect/homeassistant-myskoda`).
+- **skodaconnect/homeassistant-myskoda** very active this week:
+  [PR #1102](https://github.com/skodaconnect/homeassistant-myskoda/pull/1102)
+  splits coordinator into fast/slow + MQTT events no longer trigger full
+  refresh — directly relevant to our v3.0 push-tech architecture, see
+  research deliverable `docs/research/app-atlas/_v3.0-myskoda-architecture.md`.
+- **pycupra v0.2.31** added CNG instruments (`cng_level`, `cng_range`)
+  for CUPRA TGI variants — silenced pre-emptively in `_unexpected_keys.py`
+  cupra:charging set.
 
 ---
 

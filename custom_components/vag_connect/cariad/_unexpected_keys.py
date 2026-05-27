@@ -420,6 +420,17 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # EXPECTED_KEYS just never got the silencer-side entry —
             # silencer-lag-behind-parser gap. T1 (parsed + entity exists).
             "rateInKmph",
+            # v2.4.3 (pre-emptive, 2026-05-27 cross-project sweep) — pycupra
+            # v0.2.31 (WulfgarW, 2026-05-26) added Compressed Natural Gas
+            # (CNG) instruments for CUPRA Leon TGI / Ibiza TGI variants.
+            # We don't have a CUPRA TGI tester live yet but ship the
+            # silencer pre-emptively to avoid scout spam when one shows up.
+            # T5 (community-discovered field, not yet parser-wired — when
+            # a tester reports we'll promote to T1 with sensor.cng_range_km
+            # + sensor.cng_level_pct entities, mirroring the existing
+            # diesel_range pattern from v1.9.1 #91).
+            "cngLevel", "cngLevelInPct", "cng_level_pct",
+            "cngRange", "cngRangeInKm", "cng_range_km",
             "remainingTimeInMinutes", "remainingTime",
             "remainingTimeToFullyChargedInMinutes", "remainingChargingTime",
             "chargeType", "chargingType", "type",
