@@ -130,6 +130,24 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **App Atlas Phase A.2 — APK download + apktool extraction** — when a brand's version-name changes (detected by the daily watcher), the workflow now downloads the APK via APKCombo CDN, decodes it with apktool, and greps for OLA-style header keys + known backend hosts. Findings persist as `.app-atlas-apk-cache/{brand}.json` and render in each per-brand atlas page. Workflow extracts only on version-change (idempotent), keeps CI runtime under 2min/changed-brand. Phase A.3 (jadx semantic-diff between consecutive APK versions) deferred to a separate session.
 - **App Atlas Phase A.3 — jadx full decompile + cross-version semantic diff** (manual `workflow_dispatch` only — too heavy for daily). Triggers on demand when investigating a brand's version bump: downloads both versions, runs jadx full Java decompile, extracts URL constants + header-key strings + OAuth scopes, computes a targeted diff filtering out obfuscator-rename noise. Outputs a self-contained markdown report at `docs/research/app-atlas/diffs/{brand}_{old}_vs_{new}.md` and auto-opens a PR. Provides ground-truth answers to "what new endpoints / headers / scopes appeared in this version bump?" — much higher signal than the daily smali grep.
 
+## [2.4.2] — 2026-05-27 — "Retro-Silencer Sweep + ActiveVentilation Interim"
+
+### Fixed
+- Scout fired on 4 fields that were **already being parsed** since earlier releases — `EXPECTED_KEYS` had just never been updated to silence the source paths (classic silencer-lag-behind-parser gap, same class as v2.4.1's #284 fix). All 3 affected sensors continue to work as before; the scout is just no longer noisy. Closes #299, #302 and part of #301.
+  - **Skoda** `air-conditioning.estimatedDateTimeToReachTargetTemperature` — parsed since v2.1.0 at `skoda.py:586` → `d.climate_ready_at` → `sensor.climate_ready_at` (close #302)
+  - **CUPRA** `charging.rateInKmph` — parsed since v2.0.1 at `seat_cupra.py:747` (3rd fallback in `charging_rate_kmh` chain after `chargeRateInKmPerHour` and `chargeRate_kmph`) → `sensor.charging_speed` (close #299)
+  - **VW EU + Audi** `measurements.rangeStatus.value.adBlueRange` — parsed since v1.9.1 (#91 Audi S6 TDI live-dump) at `vw_eu.py:1282` → `d.adblue_range_km` → `sensor.adblue_range` (part of #301)
+
+### Added (interim silencer — parser follows in next PR)
+- **VW EU + Audi** new ACTIVE VENTILATION subsystem registered with wildcards (MEB ID.7 + facelift ID.3/.4 family): `climatisation.activeVentilationStatus.*`, `climatisation.climatisationSettings.value.activeVentilationSettings.*`, `climatisationTimers.activeVentilationTimersStatus.value.*`. This is an interim silencer — a follow-up PR builds the parser + 4 default-disabled entities (1 binary_sensor + 3 sensors) once the exact field-name shape is confirmed from a live diagnostics dump. Audi inherits via existing brand-chain. Part of #301.
+
+### Issues closed by this release (9 of 15 open)
+- **Silenced by code (3):** #299 (CUPRA rateInKmph), #301 (VW activeVentilation + adBlueRange retro), #302 (Skoda climate-ETA retro)
+- **Already-fixed in v2.4.1 — reporters on stale versions (4):** #283, #284, #298, #300
+- **Already-shipped fix (1):** #282 (CUPRA OLA 403 — confirmed by both reporters in v2.4.1)
+- **Working-as-designed safety circuit (1):** #303 (token refresh storm-circuit-breaker firing correctly per v1.8.7 design)
+- **Remaining 6 open** are long-lived roadmap trackers (#13, #53, #59, #160, #161, #183)
+
 ## [2.4.1] — 2026-05-25 — "OLA Defense + VW NA Garage + Scout Policy"
 
 ### Fixed

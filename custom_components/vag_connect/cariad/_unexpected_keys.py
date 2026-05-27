@@ -190,6 +190,16 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # climatisation can run from the HV battery alone (without
             # being plugged into a charger). Wired as binary_sensor.
             "airConditioningWithoutExternalPower",
+            # v2.4.2 (#302, Scout-Report 2026-05-27) — RETRO-SILENCER ADD.
+            # Field is ALREADY PARSED at skoda.py:586 since v2.1.0
+            # (``estimatedDateTimeToReachTargetTemperature`` → ``d.climate_ready_at``
+            # → ``sensor.climate_ready_at``). EXPECTED_KEYS was never
+            # updated when the parser shipped — classic silencer-lag-
+            # behind-parser gap, same class as v2.4.1 #284
+            # (chargingSettings.requests). The sensor is shipping fine
+            # for users; only the scout was noisy. T1 (parsed + entity
+            # exists, just registering the silencer side now).
+            "estimatedDateTimeToReachTargetTemperature",
         },
         "parking": {
             "parkingPosition", "parkingPosition.gpsCoordinates",
@@ -401,6 +411,15 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             "charging", "state", "status", "chargingState",
             "chargePowerInKw", "chargePower_kW", "chargedPowerInKw",
             "chargeRateInKmPerHour", "chargeRate_kmph",
+            # v2.4.2 (#299, Scout-Report 2026-05-27) — RETRO-SILENCER ADD.
+            # Field is ALREADY PARSED at seat_cupra.py:747 since v2.0.1
+            # (Scout #192 — Cupra Born MY26 ships ``rateInKmph`` on the
+            # OLA charging endpoint as a 3rd-position fallback in the
+            # ``charging_rate_kmh`` chain after ``chargeRateInKmPerHour``
+            # and ``chargeRate_kmph``). Wired into ``sensor.charging_speed``.
+            # EXPECTED_KEYS just never got the silencer-side entry —
+            # silencer-lag-behind-parser gap. T1 (parsed + entity exists).
+            "rateInKmph",
             "remainingTimeInMinutes", "remainingTime",
             "remainingTimeToFullyChargedInMinutes", "remainingChargingTime",
             "chargeType", "chargingType", "type",
@@ -535,6 +554,37 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # on the climatisationSettings side. Parsed into
             # ``d.climatisation_settings_pending``. Audi inherits.
             "climatisation.climatisationSettings.requests",
+            # v2.4.2 — scout #301 (VW EU 2026-05-27): new ID-family
+            # ACTIVE VENTILATION subsystem (front-seat active ventilation
+            # while charging — replaces older "ventilation" climatisation
+            # mode on MEB ID.7 + facelift ID.3/.4). Backend ships:
+            #   - climatisation.activeVentilationStatus.value.* (state + ETA)
+            #   - climatisation.climatisationSettings.value.activeVentilationSettings.* (config)
+            #   - climatisationTimers.activeVentilationTimersStatus.value.* (schedule)
+            #
+            # INTERIM SILENCER (this PR): wildcards .* absorb the unknown
+            # sub-shape so Scouts don't spam users while a follow-up PR
+            # builds the full parser + entities. The shape inferred from
+            # key-counts in the scout report aligns with the sibling
+            # ``climatisationStatus.value.{climatisationState,
+            # remainingClimatisationTime_min, carCapturedTimestamp}`` pattern
+            # but needs real-payload confirmation before shipping entities
+            # with possibly-wrong field names.
+            #
+            # FOLLOW-UP PR: parser → ``d.active_ventilation_state``,
+            # ``d.active_ventilation_remaining_min``,
+            # ``d.active_ventilation_duration_min``,
+            # ``d.active_ventilation_timer_count`` + 4 default-disabled
+            # entities (1 binary_sensor + 3 sensors). Tracked as the
+            # "make scouts useful, not just silenced" follow-up per
+            # 2026-05-27 maintainer-correction. Audi inherits via line 851.
+            "climatisation.activeVentilationStatus",
+            "climatisation.activeVentilationStatus.*",
+            "climatisation.climatisationSettings.value.activeVentilationSettings",
+            "climatisation.climatisationSettings.value.activeVentilationSettings.*",
+            "climatisationTimers.activeVentilationTimersStatus",
+            "climatisationTimers.activeVentilationTimersStatus.value",
+            "climatisationTimers.activeVentilationTimersStatus.value.*",
             "climatisation.climatisationSettings",
             "climatisation.climatisationSettings.value",
             "climatisation.climatisationSettings.value.targetTemperature_C",
@@ -555,6 +605,15 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # adblue_range exposure.
             "measurements.rangeStatus.value.dieselRange",
             "measurements.rangeStatus.value.gasolineRange",
+            # v2.4.2 — scout #301 (VW EU 2026-05-27): retro-silencer-add
+            # for AdBlue tank remaining-range on TDI vehicles. Parser
+            # already lifts ``adBlueRange`` to brand level since v1.9.1
+            # (vw_eu.py → d.adblue_range_km → sensor.adblue_range),
+            # but EXPECTED_KEYS was never updated for the
+            # ``measurements.rangeStatus.value.adBlueRange`` source path.
+            # Classic silencer-lagging-behind-parser gap, same class as
+            # #284 (chargingSettings.requests). Audi inherits via line 851.
+            "measurements.rangeStatus.value.adBlueRange",
             "measurements.rangeStatus.value.totalRange_km",
             "measurements.rangeStatus.value.carCapturedTimestamp",
             "measurements.odometerStatus",

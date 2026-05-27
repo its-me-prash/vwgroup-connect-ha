@@ -48,7 +48,7 @@ class TestAudiLockSpin:
 
     def test_lock_without_spin_payload_omits_spin_field(self):
         client = _vw_eu_client()
-        asyncio.get_event_loop().run_until_complete(client.command_lock("VINX"))
+        asyncio.run(client.command_lock("VINX"))
         client._post.assert_awaited_once()
         call_kwargs = client._post.await_args.kwargs
         body = call_kwargs.get("json", {})
@@ -57,7 +57,7 @@ class TestAudiLockSpin:
 
     def test_lock_with_spin_kwarg_includes_in_payload(self):
         client = _vw_eu_client()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_lock("VINX", spin="1234")
         )
         body = client._post.await_args.kwargs["json"]
@@ -66,7 +66,7 @@ class TestAudiLockSpin:
     def test_lock_with_client_default_spin_uses_it(self):
         client = _vw_eu_client()
         client._spin = "9876"
-        asyncio.get_event_loop().run_until_complete(client.command_lock("VINX"))
+        asyncio.run(client.command_lock("VINX"))
         body = client._post.await_args.kwargs["json"]
         assert body == {"action": "lock", "spin": "9876"}
 
@@ -96,7 +96,7 @@ class TestAudiLockSpin:
         coord._vehicles_lock = threading.Lock()
         coord.async_set_updated_data = MagicMock()
 
-        asyncio.get_event_loop().run_until_complete(coord.async_lock("VINA"))
+        asyncio.run(coord.async_lock("VINA"))
         coord._cariad_client.command_lock.assert_awaited_once_with("VINA", spin="1234")
 
     def test_coordinator_lock_no_spin_for_audi_falls_back_no_kwarg(self):
@@ -117,7 +117,7 @@ class TestAudiLockSpin:
         coord._vehicles_lock = threading.Lock()
         coord.async_set_updated_data = MagicMock()
 
-        asyncio.get_event_loop().run_until_complete(coord.async_lock("VINA"))
+        asyncio.run(coord.async_lock("VINA"))
         # Pre-1.9.1 behaviour: no spin kwarg when not configured.
         coord._cariad_client.command_lock.assert_awaited_once_with("VINA")
 
@@ -141,7 +141,7 @@ class TestVWEUWake:
         ``_post``) so its v1 → v2 retry takes effect on 404."""
         client = _vw_eu_client()
         client._post_command = AsyncMock(return_value=None)
-        asyncio.get_event_loop().run_until_complete(client.command_wake("VINX"))
+        asyncio.run(client.command_wake("VINX"))
         client._post_command.assert_awaited_once_with(
             "VINX", "vehicleWakeup", json={}
         )
@@ -155,7 +155,7 @@ class TestVWEUWake:
             APIError(404, "/v1/vehicleWakeup", "Not Found"),
             None,
         ])
-        asyncio.get_event_loop().run_until_complete(client.command_wake("VINX"))
+        asyncio.run(client.command_wake("VINX"))
         assert client._post.call_count == 2
         assert "/vehicle/v1/" in client._post.call_args_list[0][0][0]
         assert "/vehicle/v2/" in client._post.call_args_list[1][0][0]
@@ -285,7 +285,7 @@ class TestClassifyAndAutoRecord:
         coord.record_command_success = MagicMock()
 
         with pytest.raises(APIError):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 coord._cariad_cmd("VINA", "command_lock")
             )
 
