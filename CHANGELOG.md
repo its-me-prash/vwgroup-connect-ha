@@ -130,6 +130,18 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **App Atlas Phase A.2 — APK download + apktool extraction** — when a brand's version-name changes (detected by the daily watcher), the workflow now downloads the APK via APKCombo CDN, decodes it with apktool, and greps for OLA-style header keys + known backend hosts. Findings persist as `.app-atlas-apk-cache/{brand}.json` and render in each per-brand atlas page. Workflow extracts only on version-change (idempotent), keeps CI runtime under 2min/changed-brand. Phase A.3 (jadx semantic-diff between consecutive APK versions) deferred to a separate session.
 - **App Atlas Phase A.3 — jadx full decompile + cross-version semantic diff** (manual `workflow_dispatch` only — too heavy for daily). Triggers on demand when investigating a brand's version bump: downloads both versions, runs jadx full Java decompile, extracts URL constants + header-key strings + OAuth scopes, computes a targeted diff filtering out obfuscator-rename noise. Outputs a self-contained markdown report at `docs/research/app-atlas/diffs/{brand}_{old}_vs_{new}.md` and auto-opens a PR. Provides ground-truth answers to "what new endpoints / headers / scopes appeared in this version bump?" — much higher signal than the daily smali grep.
 
+## [2.4.2] — 2026-05-27 — "Scout Sweep + adBlue Retro-Silencer"
+
+### Fixed
+- Scout fired on legitimate new + already-parsed leaves across 3 brands (#299, #301, #302)
+
+### Changed
+- 6 new leaf-path silencers in `_unexpected_keys.py`, no API behaviour change. Closes 9 of 15 open issues with verification comments (#283, #284, #298, #299, #300, #301, #302 silenced/registered; #282 fix already shipped in v2.4.1, just confirms closure; #303 was working-as-designed safety circuit, not a bug).
+- VW EU + Audi: new ACTIVE VENTILATION climatisation subsystem registered (MEB ID.7 + facelift ID.3/.4 family — `activeVentilationStatus`, `activeVentilationSettings`, `activeVentilationTimersStatus`). T5 wildcard for now; full parse + entities deferred to v2.5 once 3+ live samples available. Audi inherits via existing brand-chain.
+- VW EU + Audi: `adBlueRange` retro-silencer-add — parser shipped v1.9.1 (#91 Audi S6 TDI live-dump), EXPECTED_KEYS never updated. Same class of silencer-lag-behind-parser gap as v2.4.1's #284 fix.
+- Skoda mysmob: `estimatedDateTimeToReachTargetTemperature` on air-conditioning endpoint silenced (T3 timestamp leaf, consolidated into existing `last_updated_at`, no new entity).
+- CUPRA OLA: third spelling variant `rateInKmph` silenced alongside the existing `chargeRateInKmPerHour` (v1.10.2) and `chargeRate_kmph` (v2.2.2). Unit-variant of canonical, already wired into `sensor.charging_speed`.
+
 ## [2.4.1] — 2026-05-25 — "OLA Defense + VW NA Garage + Scout Policy"
 
 ### Fixed

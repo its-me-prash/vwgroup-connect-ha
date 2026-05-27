@@ -190,6 +190,12 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # climatisation can run from the HV battery alone (without
             # being plugged into a charger). Wired as binary_sensor.
             "airConditioningWithoutExternalPower",
+            # v2.4.2 (#302, Scout-Report 2026-05-27) — Skoda mysmob now
+            # ships an ETA timestamp for when air-conditioning will reach
+            # the user-set target temperature. T3 exempt per SCOUT_POLICY.md
+            # (timestamp leaf — consolidated into existing ``last_updated_at``
+            # diagnostic, no separate entity).
+            "estimatedDateTimeToReachTargetTemperature",
         },
         "parking": {
             "parkingPosition", "parkingPosition.gpsCoordinates",
@@ -401,6 +407,14 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             "charging", "state", "status", "chargingState",
             "chargePowerInKw", "chargePower_kW", "chargedPowerInKw",
             "chargeRateInKmPerHour", "chargeRate_kmph",
+            # v2.4.2 (#299, Scout-Report 2026-05-27) — CUPRA OLA now also
+            # exposes a third spelling variant ``rateInKmph`` alongside
+            # the existing ``chargeRateInKmPerHour`` (v1.10.2) and
+            # ``chargeRate_kmph`` (v2.2.2). T2 exempt — unit-variant
+            # duplicate of canonical ``chargeRate_kmph``, already wired
+            # into ``sensor.charging_speed`` via ``vw_eu.py``. Backend
+            # likely added it for client-version-compat with Born 2026.
+            "rateInKmph",
             "remainingTimeInMinutes", "remainingTime",
             "remainingTimeToFullyChargedInMinutes", "remainingChargingTime",
             "chargeType", "chargingType", "type",
@@ -535,6 +549,25 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # on the climatisationSettings side. Parsed into
             # ``d.climatisation_settings_pending``. Audi inherits.
             "climatisation.climatisationSettings.requests",
+            # v2.4.2 — scout #301 (VW EU 2026-05-27): new ID-family
+            # ACTIVE VENTILATION subsystem (front-seat active ventilation
+            # while charging — replaces older "ventilation" climatisation
+            # mode on MEB ID.7 + facelift ID.3/.4). Backend ships:
+            #   - climatisation.activeVentilationStatus.* (state + ETA)
+            #   - climatisation.climatisationSettings.value.activeVentilationSettings.* (config)
+            #   - climatisationTimers.activeVentilationTimersStatus.value.* (schedule)
+            # T5 (new subsystem) — wildcard the .* children to absorb
+            # future sub-field growth without re-registering. Full parse
+            # + binary_sensor / number / switch entities → deferred to
+            # v2.5 once we have 3+ live samples to verify the shape.
+            # Audi inherits via line 851.
+            "climatisation.activeVentilationStatus",
+            "climatisation.activeVentilationStatus.*",
+            "climatisation.climatisationSettings.value.activeVentilationSettings",
+            "climatisation.climatisationSettings.value.activeVentilationSettings.*",
+            "climatisationTimers.activeVentilationTimersStatus",
+            "climatisationTimers.activeVentilationTimersStatus.value",
+            "climatisationTimers.activeVentilationTimersStatus.value.*",
             "climatisation.climatisationSettings",
             "climatisation.climatisationSettings.value",
             "climatisation.climatisationSettings.value.targetTemperature_C",
@@ -555,6 +588,15 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # adblue_range exposure.
             "measurements.rangeStatus.value.dieselRange",
             "measurements.rangeStatus.value.gasolineRange",
+            # v2.4.2 — scout #301 (VW EU 2026-05-27): retro-silencer-add
+            # for AdBlue tank remaining-range on TDI vehicles. Parser
+            # already lifts ``adBlueRange`` to brand level since v1.9.1
+            # (vw_eu.py → d.adblue_range_km → sensor.adblue_range),
+            # but EXPECTED_KEYS was never updated for the
+            # ``measurements.rangeStatus.value.adBlueRange`` source path.
+            # Classic silencer-lagging-behind-parser gap, same class as
+            # #284 (chargingSettings.requests). Audi inherits via line 851.
+            "measurements.rangeStatus.value.adBlueRange",
             "measurements.rangeStatus.value.totalRange_km",
             "measurements.rangeStatus.value.carCapturedTimestamp",
             "measurements.odometerStatus",
