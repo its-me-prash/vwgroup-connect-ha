@@ -100,6 +100,40 @@
       "identity.vwgroup.io",
       "identity.na.vwgroup.io",
       "mal-1a.prd.ece.vwg-connect.com"
-    ]
+    ],
+    "_auth_secrets_comment": "Phase A.5 (v2.5.5) — mine auth-config secrets that drift with VW backend rotations. The 2026-05-28 Azure WAF migration would have been caught proactively if these patterns had been in place. Added in response to #313 / evcc PR #30277+#30292 / volkswagencarnet #331.",
+    "auth_secrets": {
+      "header_names": [
+        "x-qmauth",
+        "x-platform",
+        "x-android-package-name",
+        "x-assertion",
+        "X-QMAuth",
+        "X-Client-ID",
+        "X-App-Version",
+        "X-App-Name"
+      ],
+      "token_path_markers": [
+        "/auth/v1/idk/oidc/token",
+        "/login/v1/idk/token",
+        "/auth/v1/idk/oidc/authorize",
+        "/login/v1/idk/openid-configuration",
+        "/oidc/v1/token",
+        "/oidc/v1/authorize",
+        "/mobile/oauth2/v1/token"
+      ],
+      "qmauth_constants": [
+        "qmClientId",
+        "qmSecret",
+        "qm_client_id",
+        "qm_secret",
+        "qmauth",
+        "QMAuth"
+      ],
+      "client_id_patterns": [
+        "@apps_vw-dilab_com",
+        "apps_vw-dilab_com"
+      ]
+    }
   }
 }

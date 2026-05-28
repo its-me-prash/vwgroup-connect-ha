@@ -275,6 +275,74 @@ def grep_patterns(decoded_dir: Path, search_patterns: dict[str, Any]) -> dict[st
         if hits:
             findings["endpoint_hosts"].append(host)
 
+    # 3. Phase A.5 (v2.5.5) — auth-config secrets discovery.
+    # The 2026-05-28 VW Azure WAF migration would have been caught
+    # proactively if these patterns had been mined. The bucket finds
+    # rotated qmauth values, new token URLs, and rotated header names
+    # BEFORE the user-facing 403 cascade hits production.
+    auth_secrets_cfg = search_patterns.get("auth_secrets") or {}
+    if auth_secrets_cfg:
+        auth_findings: dict[str, Any] = {
+            "header_names_seen": [],
+            "token_path_markers_seen": [],
+            "qmauth_constants_seen": [],
+            "qmauth_secret_candidates": [],
+            "client_id_candidates": [],
+        }
+
+        for hdr in auth_secrets_cfg.get("header_names", []):
+            if _search(re.escape(hdr), limit=1):
+                auth_findings["header_names_seen"].append(hdr)
+
+        for path in auth_secrets_cfg.get("token_path_markers", []):
+            if _search(re.escape(path), limit=1):
+                auth_findings["token_path_markers_seen"].append(path)
+
+        for name in auth_secrets_cfg.get("qmauth_constants", []):
+            hits = _search(re.escape(name), limit=3)
+            if hits:
+                auth_findings["qmauth_constants_seen"].append(name)
+                # Try to extract a quoted value from the same line — the
+                # smali decompiler typically emits ``const-string vN, "0x..."``
+                # near the constant assignment. Patterns documented in
+                # evcc PR #30292: qmSecret = 64-char hex, qmClientId = 8-char hex.
+                for ln in hits:
+                    # 64-char hex (HMAC secret rotation)
+                    m_secret = re.search(
+                        r'"([0-9a-fA-F]{64})"', ln,
+                    )
+                    if m_secret:
+                        val = m_secret.group(1).lower()
+                        if val not in auth_findings["qmauth_secret_candidates"]:
+                            auth_findings["qmauth_secret_candidates"].append(val)
+                    # 8-char hex (client id), excluding obvious non-id strings
+                    m_clientid = re.search(
+                        r'"([0-9a-fA-F]{8})"', ln,
+                    )
+                    if m_clientid:
+                        val = m_clientid.group(1).lower()
+                        # Avoid common 8-hex matches like RGBA colours.
+                        if (
+                            val not in auth_findings["client_id_candidates"]
+                            and not val.startswith(("ff", "00", "aa"))
+                        ):
+                            auth_findings["client_id_candidates"].append(val)
+
+        # Free-form client_id pattern — the @apps_vw-dilab_com suffix is
+        # the canonical VAG OAuth client_id marker. Captures the FULL
+        # UUID@suffix string for cross-checking against models.py.
+        for marker in auth_secrets_cfg.get("client_id_patterns", []):
+            hits = _search(re.escape(marker), limit=3)
+            for ln in hits:
+                m = re.search(
+                    r'"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}@apps_vw-dilab_com)"',
+                    ln, re.IGNORECASE,
+                )
+                if m and m.group(1) not in auth_findings["client_id_candidates"]:
+                    auth_findings["client_id_candidates"].append(m.group(1))
+
+        findings["auth_secrets"] = auth_findings
+
     return findings
 
 
