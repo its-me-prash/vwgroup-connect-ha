@@ -134,6 +134,24 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **App Atlas Phase A.2 — APK download + apktool extraction** — when a brand's version-name changes (detected by the daily watcher), the workflow now downloads the APK via APKCombo CDN, decodes it with apktool, and greps for OLA-style header keys + known backend hosts. Findings persist as `.app-atlas-apk-cache/{brand}.json` and render in each per-brand atlas page. Workflow extracts only on version-change (idempotent), keeps CI runtime under 2min/changed-brand. Phase A.3 (jadx semantic-diff between consecutive APK versions) deferred to a separate session.
 - **App Atlas Phase A.3 — jadx full decompile + cross-version semantic diff** (manual `workflow_dispatch` only — too heavy for daily). Triggers on demand when investigating a brand's version bump: downloads both versions, runs jadx full Java decompile, extracts URL constants + header-key strings + OAuth scopes, computes a targeted diff filtering out obfuscator-rename noise. Outputs a self-contained markdown report at `docs/research/app-atlas/diffs/{brand}_{old}_vs_{new}.md` and auto-opens a PR. Provides ground-truth answers to "what new endpoints / headers / scopes appeared in this version bump?" — much higher signal than the daily smali grep.
 
+## [2.5.1] — 2026-05-28 — "Consent Wall Auto-Skip Hotfix"
+
+### Fixed
+- **Audi/VW/Škoda/SEAT/CUPRA login regression — consent wall now auto-skipped** (closes #309 moltke69 Audi auth, cross-references audi_connect #735/PR #731, evcc #29760/PR #29980, pycupra #83, myskoda #976). The VAG identity service has been intermittently injecting an *optional* marketing-consent / interstitial page into the OAuth redirect chain throughout 2026 across all VAG brands. Pre-v2.2.0 this surfaced as a cryptic "no app:// redirect" error. v2.2.0 added detection that **raised** `MarketingConsentError` → Repair flow → manual user action required.
+  - v2.5.1 now **auto-skips** the consent interstitial transparently by following the OIDC `callback=…` URL embedded in the consent request — equivalent to the "not now" path. Login completes with `consentedScopes=openid profile mbb` only (no marketing scopes granted). User sees nothing; integration recovers silently. Python port of evcc PR #29980 (Go, MIT, merged 2026-05-17).
+  - If auto-skip itself fails (callback param missing, network error), behaviour falls back to the v2.2.0 path and `MarketingConsentError` is raised so the Repair UI surfaces a deep-link to the brand portal.
+  - Applied to **both** the Auth0 Universal Login flow (`/u/login`) and the legacy signin-service flow — symmetric implementation in `idk.py`.
+  - Added **2 new consent-URL markers** for the Audi-specific consent variant (`audi-id.vwgroup.io`, `myaudi.de/consent`) that the v2.2.0 detection did not catch. Detection coverage now: `consent/marketing`, `/u/consent`, `cupraid.vwgroup.io`, `skoda-id.vwgroup.io`, `skodaid.vwgroup.io`, `audi-id.vwgroup.io`, `myaudi.de/consent` (auto-skippable) plus `terms-and-conditions` (cannot be skipped — legal acceptance required).
+
+### Changed
+- **Better error message for "Login redirect missing after password submission"** (audi_connect PR #731 inspiration). When the legacy flow gets a 302/303 with no `Location` header AND the consent auto-skip didn't trigger, the user now sees an actionable message ("IDP may be showing a consent or terms-of-service prompt we couldn't auto-detect — please log in via app/web, accept any pending agreements, then retry") instead of the cryptic "Password POST: no Location header".
+
+### Risk
+Low. Behavioural change is confined to one new code path (auto-skip) that ONLY triggers when consent-URL markers match. Existing rejection paths (401, true credential failure, T&C wall) are unchanged. New helper `_skip_marketing_consent` is fail-safe: if the callback URL is missing or fetch fails, it returns `None` and the prior `MarketingConsentError` Repair flow surfaces unchanged.
+
+### Affected users
+Anyone on Audi/VW/Škoda/SEAT/CUPRA experiencing "Email address or password incorrect" or "Login redirect missing" errors since ~2026-05 (when VW expanded the consent-injection rollout). Confirmed reports: #309 (Audi), audi_connect#735, evcc#29760, multiple Facebook-group threads in DACH region. Porsche (separate IDP) + VW NA (separate auth flow) are unaffected.
+
 ## [2.5.0] — 2026-05-27 — "Have You Met Mii?" (PyCupra Parity Sprint Part 1)
 
 ### Added
