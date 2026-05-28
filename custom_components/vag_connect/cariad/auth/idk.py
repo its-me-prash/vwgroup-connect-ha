@@ -25,6 +25,7 @@ from urllib.parse import parse_qs, urlparse, urlunparse
 
 from aiohttp import ClientSession, ClientTimeout, InvalidURL
 
+from ._auth_config_resolver import AuthConfigResolver
 from ..exceptions import (
     AuthenticationError,
     EmailTwoFactorRequiredError,
@@ -65,7 +66,11 @@ _QM_CLIENT_ID = "01da27b0"
 _QM_SECRET = "1ab69925ac179aaa4e83abe671a9476d176418b85bd706f1436ca15be647989c"
 
 
-def _calculate_x_qmauth(now: float | None = None) -> str:
+def _calculate_x_qmauth(
+    secret_hex: str | None = None,
+    client_id: str | None = None,
+    now: float | None = None,
+) -> str:
     """Compute the ``x-qmauth`` header value.
 
     Python port of evcc PR #30292 (Go, MIT). The Audi/VW EU IDK token
@@ -73,35 +78,53 @@ def _calculate_x_qmauth(now: float | None = None) -> str:
     refresh-token grants. Time-bucket is 100-seconds (so the same value
     survives clock-skew up to ~100s between client and server).
 
+    v2.5.6 (#313 follow-on) — secret + client_id are now caller-supplied
+    so the ``AuthConfigResolver`` can inject APK-mined values. Defaults
+    to the v2.5.4 hardcoded competitor-known constants when the caller
+    omits them (e.g. unit tests).
+
     Args:
+        secret_hex: 64-char hex HMAC secret. Defaults to ``_QM_SECRET``.
+        client_id:  8-char hex client identifier. Defaults to ``_QM_CLIENT_ID``.
         now: Optional UNIX-epoch timestamp override (for tests). Default
             is ``time.time()`` at call time.
 
     Returns:
         Header value of the form ``v1:<clientId>:<hexHmac>``.
     """
+    secret_hex = secret_hex or _QM_SECRET
+    client_id = client_id or _QM_CLIENT_ID
     ts = int((now if now is not None else time.time()) / 100)
-    secret_bytes = bytes.fromhex(_QM_SECRET)
+    secret_bytes = bytes.fromhex(secret_hex)
     sig = hmac.new(secret_bytes, str(ts).encode("ascii"), hashlib.sha256).hexdigest()
-    return f"v1:{_QM_CLIENT_ID}:{sig}"
+    return f"v1:{client_id}:{sig}"
 
 
-def _cariad_token_headers(user_agent: str) -> dict[str, str]:
+def _cariad_token_headers(
+    user_agent: str,
+    *,
+    qmauth_secret: str | None = None,
+    qmauth_client_id: str | None = None,
+) -> dict[str, str]:
     """Return the assertion-header set required by the new CARIAD IDK
     token endpoint (Audi + VW EU).
 
     v2.5.4 (#313) — Sent for BOTH authorization_code exchange AND
     refresh_token. Missing any one of these results in either an HTTP
     403 (Azure WAF) or an ``{"error":"invalid assertion headers"}``
-    response body once past the gateway. evcc PR #30292 confirmed all
-    five custom headers are required.
+    response body once past the gateway.
+
+    v2.5.6 (#313 follow-on) — qmauth values are now caller-supplied so
+    the resolver can swap in APK-mined values. Caller omits = defaults
+    apply (v2.5.4 hardcoded constants, cross-verified against
+    audi_connect_ha + evcc + volkswagencarnet + ioBroker.vw-connect).
     """
     return {
         "Content-Type":            "application/x-www-form-urlencoded",
         "Accept":                  "application/json",
         "Accept-Charset":          "utf-8",
         "User-Agent":              user_agent,
-        "x-qmauth":                _calculate_x_qmauth(),
+        "x-qmauth":                _calculate_x_qmauth(qmauth_secret, qmauth_client_id),
         "x-platform":              "android",
         "x-android-package-name":  "de.myaudi.mobile.assistant",
         "x-assertion":             "0",
@@ -1141,46 +1164,97 @@ class IDKAuth:
         if self._brand.name == "skoda":
             return await self._exchange_code_skoda(code, verifier)
 
-        token_url = self._get_token_endpoint()
-        data: dict[str, str] = {
-            "client_id": self._brand.client_id,
-            "grant_type": "authorization_code",
-            "code": code,
-            "redirect_uri": self._brand.redirect_uri,
-            "code_verifier": verifier,
-        }
-        if self._brand.client_secret:
-            data["client_secret"] = self._brand.client_secret
-
-        # v2.5.4 (#313) — Audi + VW EU require the assertion header set
-        # at the CARIAD BFF token endpoint AFTER the 2026-05-28 Azure
-        # WAF migration. Without these headers we get HTTP 403 from
-        # ``Microsoft-Azure-Application-Gateway/v2`` regardless of body
-        # shape. Other brands (CUPRA on identity.vwgroup.io, SEAT on
-        # OLA, Škoda on mysmob, VW NA on con-veh.net) are unaffected
-        # and keep using the legacy form headers.
-        if self._brand.name in ("audi", "volkswagen"):
-            headers = _cariad_token_headers(self._brand.user_agent)
-        else:
-            headers = self._form_headers()
-
-        _LOGGER.debug(
-            "Token exchange: url=%s brand=%s has_secret=%s assertion=%s",
-            token_url, self._brand.name, bool(self._brand.client_secret),
-            self._brand.name in ("audi", "volkswagen"),
+        # v2.5.6 — APK-primary auth config with competitor fallback. The
+        # resolver loads values from .app-atlas-apk-cache/{brand}.json
+        # when available; falls back to v2.5.4 hardcoded constants if not.
+        resolver = AuthConfigResolver(
+            self._brand.name,
+            hardcoded_client_id=self._brand.client_id,
+            hardcoded_qmauth_secret=_QM_SECRET,
+            hardcoded_qmauth_client_id=_QM_CLIENT_ID,
+            hardcoded_token_url=_CARIAD_TOKEN_URL,
         )
-        async with self._session.post(
-            token_url,
-            timeout=_AUTH_TIMEOUT, data=data, headers=headers,
-        ) as resp:
-            if resp.status != 200:
-                body = await resp.text()
-                raise AuthenticationError(
-                    f"Token exchange failed HTTP {resp.status}: {body[:200]}"
-                )
-            payload: dict[str, Any] = await resp.json()
+        token_url = (
+            resolver.token_url()
+            if self._brand.name in ("audi", "volkswagen")
+            else self._get_token_endpoint()
+        )
 
-        return self._parse_tokens(payload)
+        # v2.5.6 — OAuth client_id fallback chain. The retro-mining of
+        # the 2026-05-27 APKs surfaced UUID@apps_vw-dilab_com values
+        # that aren't our hardcoded canonical client_id but ARE in the
+        # official app's DEX (purpose unknown — possibly region-specific
+        # or new post-WAF preferred). We try the hardcoded canonical
+        # first (worked for years; multi-source verified), then the APK
+        # alternates, and only fail if ALL candidates return 4xx.
+        # Non-Audi/VW brands stay single-shot (no fallback chain because
+        # their IDPs are stable).
+        if self._brand.name in ("audi", "volkswagen"):
+            client_id_chain = resolver.oauth_client_id_chain()
+            headers_fn = lambda: _cariad_token_headers(  # noqa: E731
+                self._brand.user_agent,
+                qmauth_secret=resolver.qmauth_secret(),
+                qmauth_client_id=resolver.qmauth_client_id(),
+            )
+            _LOGGER.debug(
+                "Token exchange (v2.5.6 resolver): brand=%s chain=%d url=%s prov=%s",
+                self._brand.name, len(client_id_chain), token_url,
+                resolver.provenance(),
+            )
+        else:
+            client_id_chain = [self._brand.client_id]
+            headers_fn = self._form_headers
+
+        last_error: AuthenticationError | None = None
+        for idx, client_id in enumerate(client_id_chain):
+            data: dict[str, str] = {
+                "client_id": client_id,
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": self._brand.redirect_uri,
+                "code_verifier": verifier,
+            }
+            if self._brand.client_secret:
+                data["client_secret"] = self._brand.client_secret
+
+            try:
+                async with self._session.post(
+                    token_url,
+                    timeout=_AUTH_TIMEOUT, data=data, headers=headers_fn(),
+                ) as resp:
+                    if resp.status == 200:
+                        if idx > 0:
+                            _LOGGER.info(
+                                "Token exchange (%s): fallback client_id #%d "
+                                "succeeded — primary candidates 4xx'd",
+                                self._brand.name, idx,
+                            )
+                        payload: dict[str, Any] = await resp.json()
+                        return self._parse_tokens(payload)
+                    body = await resp.text()
+                    # Only retry chain on 4xx — server errors (5xx) are
+                    # transient; the retry loop in `_request` handles those.
+                    if 400 <= resp.status < 500 and idx < len(client_id_chain) - 1:
+                        _LOGGER.debug(
+                            "Token exchange (%s) client_id %s..%s rejected "
+                            "(HTTP %d) — trying next candidate",
+                            self._brand.name, client_id[:8], client_id[-4:],
+                            resp.status,
+                        )
+                        last_error = AuthenticationError(
+                            f"Token exchange failed HTTP {resp.status}: {body[:200]}"
+                        )
+                        continue
+                    raise AuthenticationError(
+                        f"Token exchange failed HTTP {resp.status}: {body[:200]}"
+                    )
+            except AuthenticationError:
+                raise
+
+        # Chain exhausted without success.
+        raise last_error or AuthenticationError(
+            "Token exchange: all client_id candidates exhausted"
+        )
 
     async def _exchange_code_skoda(self, code: str, verifier: str) -> TokenSet:
         """Škoda uses a proprietary token exchange — not standard OAuth."""

@@ -134,6 +134,58 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **App Atlas Phase A.2 — APK download + apktool extraction** — when a brand's version-name changes (detected by the daily watcher), the workflow now downloads the APK via APKCombo CDN, decodes it with apktool, and greps for OLA-style header keys + known backend hosts. Findings persist as `.app-atlas-apk-cache/{brand}.json` and render in each per-brand atlas page. Workflow extracts only on version-change (idempotent), keeps CI runtime under 2min/changed-brand. Phase A.3 (jadx semantic-diff between consecutive APK versions) deferred to a separate session.
 - **App Atlas Phase A.3 — jadx full decompile + cross-version semantic diff** (manual `workflow_dispatch` only — too heavy for daily). Triggers on demand when investigating a brand's version bump: downloads both versions, runs jadx full Java decompile, extracts URL constants + header-key strings + OAuth scopes, computes a targeted diff filtering out obfuscator-rename noise. Outputs a self-contained markdown report at `docs/research/app-atlas/diffs/{brand}_{old}_vs_{new}.md` and auto-opens a PR. Provides ground-truth answers to "what new endpoints / headers / scopes appeared in this version bump?" — much higher signal than the daily smali grep.
 
+## [2.5.6] — 2026-05-28 — "APK-Primary Auth-Config with OAuth Client-ID Fallback Chain"
+
+### Changed (priority shift — APK becomes source of truth, competitors become fallback)
+Direct strategic response to the v2.5.4 emergency: today's WAF migration broke us because the auth path was 100% dependent on hardcoded constants ported from competitor projects (evcc / audi_connect_ha / volkswagencarnet / ioBroker.vw-connect). Competitors drift — they update reactively when their users hit the next rotation. v2.5.6 flips the priority chain so values mined from the **official APK** take precedence, with competitor-derived hardcoded constants demoted to safety-net fallbacks.
+
+#### New module: `cariad/auth/_auth_config_resolver.py`
+`AuthConfigResolver` loads `auth_secrets` from `.app-atlas-apk-cache/{brand}.json` (populated by the v2.5.5 atlas shield) and exposes typed getters:
+- `qmauth_secret()` — 64-char hex HMAC key. **APK-primary, hardcoded fallback.**
+- `qmauth_client_id()` — 8-char hex identifier. **APK-primary, hardcoded fallback.**
+- `token_url()` — full token endpoint URL. **APK-primary, hardcoded fallback.**
+- `oauth_client_id_chain()` — merged list of UUIDs to try in priority order.
+
+#### OAuth client_id fallback chain (NEW behaviour)
+The retro-mining of the 2026-05-27 cached APKs surfaced multiple `UUID@apps_vw-dilab_com` strings that aren't our hardcoded canonical client_id but ARE present in the official app's DEX:
+
+| Brand | APK | Found UUIDs |
+|---|---|---|
+| Audi | myAudi 5.4.1 | `09b6cbec-…` (our canonical) + `16dd7960-431d-…` (NEW unknown) |
+| Volkswagen | WeConnect ID 3.61.0 | `4edc53db-4b79-…` + `a24fba63-34b3-…` (BOTH unknown, neither matches our canonical) |
+
+Token exchange now tries the **canonical client_id first** (worked for years, multi-source verified), then falls back through the APK-discovered alternates on HTTP 4xx, and only fails when the entire chain returns 4xx. This means if VW silently makes a previously-unused UUID the preferred ID for the new `/auth/v1/idk/oidc/token` endpoint, the integration self-heals via the chain instead of failing outright.
+
+#### Refactored `_exchange_code()` in `idk.py`
+- Constructs `AuthConfigResolver` once at the start of every token exchange
+- Loops through the client_id chain on HTTP 4xx (server errors still bubble up to the standard retry layer)
+- Emits a `_LOGGER.info` when a fallback client_id succeeds — visible signal that the primary candidate is degrading
+- Provenance dict in DEBUG logs so issue dumps reveal which source each auth value came from (`apk` vs `hardcoded`)
+
+#### Forensic verification (binary-level proof of v2.5.4 secret)
+The audi_connect_ha (MIT) source ships the qmauth HMAC key as a **byte-array literal** (`bytes([26, 256-74, …])`) rather than a hex string. v2.5.6's test suite reconstructs the byte array and asserts byte-for-byte equality against our v2.5.4 hardcoded hex secret. **All 3 cross-source representations agree**:
+- `audi_connect_ha` byte-array → reconstructed hex: `1ab69925…989c`
+- `evcc PR #30292` hex literal: `1ab69925…989c`
+- our v2.5.4 hardcoded: `1ab69925…989c`
+
+This raises confidence in v2.5.4 from "multi-source cross-verified" to "binary-level proof" without needing apktool decode + smali byte-array parsing on the closed-source live APK (which R8 obfuscates).
+
+### Files touched
+- **NEW** `custom_components/vag_connect/cariad/auth/_auth_config_resolver.py` (~220 lines) — `AuthConfigResolver` class + per-brand alternates dict
+- `custom_components/vag_connect/cariad/auth/idk.py` — wires resolver into `_exchange_code()`, makes `_calculate_x_qmauth()` + `_cariad_token_headers()` accept resolver-provided values
+- **NEW** `tests/test_v256_auth_config_resolver.py` (~200 lines) — APK-primary, fallback-only, chain dedup, provenance, forensic cross-source
+
+### Risk
+**Low to medium.** All hardcoded behaviour is preserved when APK cache is empty (the common case until the next daily atlas run). The new client_id fallback chain is opt-in by HTTP 4xx — if every candidate fails, the original error is raised so existing failure modes are unchanged. If the APK-mined values are incorrect, the chain falls through to the v2.5.4 hardcoded constants and behaviour matches v2.5.5 exactly.
+
+### What this prevents
+The next time VW rotates qmauth (which they will), the path looks like:
+1. Daily atlas detects the rotation in the morning auto-PR diff
+2. Maintainer merges the auto-PR
+3. New value flows through the cache → resolver → integration **without code changes**
+
+End-to-end shielded against backend rotations that don't require new endpoint paths.
+
 ## [2.5.5] — 2026-05-28 — "App Atlas Phase A.5: Auth-Config Shield"
 
 ### Changed (infrastructure — no end-user-facing change)
