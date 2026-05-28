@@ -283,6 +283,15 @@ class SeatCupraClient(CariadBaseClient):
         d.license_plate = self._vin_to_license_plate.get(vin)
         d.vehicle_nickname = self._vin_to_nickname.get(vin)
 
+        # v2.5.3 — OLA v1↔v5 fallback chain (#306 Mii/Tavascan/Leon FR-KL
+        # null-cascade). PyCupra's pattern: when the modern ``/v5/mycar``
+        # response is offline-state, fall back to the v1 endpoints which
+        # the OLA backend caches server-side and returns even for offline
+        # vehicles. We now ALWAYS fetch ``/v1/mileage`` in parallel so the
+        # odometer + range cache is available as a fallback when v5 returns
+        # null measurements. Other v1 endpoints (ranges, maintenance,
+        # charging/info) were already in the gather; v2.5.3 widens their
+        # field-variant coverage for older vehicle generations.
         results = await asyncio.gather(
             self._get(f"{_BASE}/v5/users/{self._user_id}/vehicles/{vin}/mycar"),
             self._get(f"{_BASE}/v1/vehicles/{vin}/parkingposition"),
@@ -293,12 +302,19 @@ class SeatCupraClient(CariadBaseClient):
             self._get(f"{_BASE}/v2/vehicles/{vin}/climatisation"),
             self._get(f"{_BASE}/v1/vehicles/{vin}/maintenance"),
             self._get(f"{_BASE}/v1/vehicles/{vin}/remote-availability"),
+            self._get(f"{_BASE}/v1/vehicles/{vin}/mileage"),  # v2.5.3 (#306)
             return_exceptions=True,
         )
-        mycar, parking, ranges, status, charge_status, charge_info, climate, maintenance, availability = results
+        (
+            mycar, parking, ranges, status, charge_status, charge_info,
+            climate, maintenance, availability,
+            mileage_v1,  # v2.5.3 (#306)
+        ) = results
 
         # v1.9.0 — Vehicle Data Scout opt-in. Endpoint names match
         # ``EXPECTED_KEYS["cupra"]`` (SEAT inherits the same table).
+        # v2.5.3 — added ``mileage`` so the v1 cached-odometer block is
+        # walked by the scout same as the other endpoints.
         self.last_raw_responses = {}
         for name, payload in (
             ("mycar", mycar),
@@ -306,6 +322,7 @@ class SeatCupraClient(CariadBaseClient):
             ("charging", charge_status),
             ("charging-info", charge_info),
             ("climatisation", climate),
+            ("mileage", mileage_v1),  # v2.5.3 (#306)
         ):
             if isinstance(payload, dict):
                 self.last_raw_responses[name] = payload
@@ -474,12 +491,34 @@ class SeatCupraClient(CariadBaseClient):
                         d.fuel_tank_capacity_liters = int(tank_cap)
 
         # ── Ranges ───────────────────────────────────────────────────────────
+        # v2.5.3 (#306) — widened field-name coverage. PyCupra-style
+        # alternatives observed across firmware generations: ``electricRange``
+        # vs ``electricRangeInKm`` vs ``primaryEngineRange.remainingRangeInKm``;
+        # ``gasolineRange``/``dieselRange`` vs ``combustionRangeInKm``;
+        # ``totalRange`` vs ``totalRangeInKm``. First non-None wins.
         if isinstance(ranges, dict):
-            electric = v(ranges, "electricRange")
-            combustion = v(ranges, "gasolineRange") or v(ranges, "dieselRange")
-            d.range_km = electric or combustion or v(ranges, "totalRange")
+            electric = (
+                v(ranges, "electricRange")
+                or v(ranges, "electricRangeInKm")                           # v2.5.3
+                or v(ranges, "primaryEngineRange", "remainingRangeInKm")    # v2.5.3
+            )
+            combustion = (
+                v(ranges, "gasolineRange")
+                or v(ranges, "dieselRange")
+                or v(ranges, "combustionRangeInKm")                         # v2.5.3
+                or v(ranges, "secondaryEngineRange", "remainingRangeInKm")  # v2.5.3
+            )
+            d.range_km = (
+                electric
+                or combustion
+                or v(ranges, "totalRange")
+                or v(ranges, "totalRangeInKm")                              # v2.5.3
+            )
             d.has_combustion = combustion is not None
-            d.adblue_range_km = v(ranges, "adBlueRange")
+            d.adblue_range_km = (
+                v(ranges, "adBlueRange")
+                or v(ranges, "adBlueRangeInKm")                             # v2.5.3
+            )
 
         # ── Detailed vehicle status (doors, windows, trunk) ──────────────────
         # OLA `/v2/vehicles/{vin}/status` for SEAT/CUPRA returns a structured
@@ -900,11 +939,82 @@ class SeatCupraClient(CariadBaseClient):
                     d.parking_map_url_light = light
 
         # ── Maintenance ──────────────────────────────────────────────────────
+        # v2.5.3 (#306) — widened field-name coverage. PyCupra ports show
+        # the OLA backend has shipped at least 3 naming conventions for
+        # the same field across firmware generations. Order: snake_case →
+        # camelCase → ``*InKm``/``*InDays`` (myskoda-style). First non-None
+        # wins, so newer responses fall through cleanly.
         if isinstance(maintenance, dict):
-            d.service_km = v(maintenance, "inspectionDue_km") or v(maintenance, "distanceToInspection")
-            d.service_due_at = v(maintenance, "inspectionDue_days") or v(maintenance, "daysToInspection")
-            d.oil_service_km = v(maintenance, "oilServiceDue_km") or v(maintenance, "distanceToOilChange")
-            d.oil_service_at = v(maintenance, "oilServiceDue_days") or v(maintenance, "daysToOilChange")
+            d.service_km = (
+                v(maintenance, "inspectionDue_km")
+                or v(maintenance, "distanceToInspection")
+                or v(maintenance, "inspectionDueInKm")              # v2.5.3
+                or v(maintenance, "mileageRemainingForInspection")  # v2.5.3 (Leon FR-KL variant)
+            )
+            d.service_due_at = (
+                v(maintenance, "inspectionDue_days")
+                or v(maintenance, "daysToInspection")
+                or v(maintenance, "inspectionDueInDays")            # v2.5.3
+                or v(maintenance, "timeRemainingForInspection")     # v2.5.3
+            )
+            d.oil_service_km = (
+                v(maintenance, "oilServiceDue_km")
+                or v(maintenance, "distanceToOilChange")
+                or v(maintenance, "oilServiceDueInKm")              # v2.5.3
+                or v(maintenance, "mileageRemainingForOilService")  # v2.5.3
+            )
+            d.oil_service_at = (
+                v(maintenance, "oilServiceDue_days")
+                or v(maintenance, "daysToOilChange")
+                or v(maintenance, "oilServiceDueInDays")            # v2.5.3
+                or v(maintenance, "timeRemainingForOilService")     # v2.5.3
+            )
+
+        # ── v2.5.3 — /v1/mileage fallback (#306 Mii/Tavascan/Leon FR-KL) ────
+        # PyCupra dedicates an entire endpoint to the cached odometer
+        # because the OLA backend serves this value even when ``/v5/mycar``
+        # returns null measurements (offline vehicle). We only consume the
+        # value as a FALLBACK — when ``mycar.measurements.mileage.value``
+        # successfully populated ``d.odometer_km`` above, we keep that
+        # (it's the freshest signal). When mycar was offline / empty, the
+        # /v1/mileage response carries the last server-cached value.
+        if isinstance(mileage_v1, dict) and d.odometer_km is None:
+            # Field-name variants observed across firmware generations.
+            odo = (
+                v(mileage_v1, "mileageInKm")
+                or v(mileage_v1, "mileage")
+                or v(mileage_v1, "odometer")
+                or v(mileage_v1, "currentMileage")
+                or v(mileage_v1, "value")
+            )
+            if isinstance(odo, (int, float)) and odo > 0:
+                d.odometer_km = int(odo)
+                _LOGGER.debug(
+                    "OLA v1 mileage fallback (%s): odometer_km=%d (mycar was null)",
+                    vin[-6:], d.odometer_km,
+                )
+
+        # ── v2.5.3 — doors_locked consistency safeguard (#306 follow-on) ────
+        # When the OLA backend serves stale-cached data (typical when the
+        # vehicle is offline), the per-door ``open`` flags may report
+        # ``true`` while the door-lock state is ``LOCKED`` — physically
+        # impossible since you can't open a locked door. The lock state
+        # is more reliable than per-door position because the lock is a
+        # binary discrete signal while position uses analog sensors that
+        # can stick at the last-seen value. When the two contradict, trust
+        # the lock and force per-door + rollup to "closed".
+        if d.doors_locked is True and d.doors_open is True:
+            _LOGGER.debug(
+                "OLA stale-data safeguard (%s): doors_locked=True but "
+                "doors_open=True — forcing doors closed (lock implies closed)",
+                vin[-6:],
+            )
+            d.doors_open = False
+            if d.doors_individual:
+                # True == closed per the upstream parser convention.
+                d.doors_individual = {
+                    pos: True for pos in d.doors_individual
+                }
 
         # ── Availability ─────────────────────────────────────────────────────
         if isinstance(availability, dict):
@@ -939,9 +1049,14 @@ class SeatCupraClient(CariadBaseClient):
         # ``climatisationStatus`` and ``chargingSettings``).
         # Same Pattern as Škoda + VW EU; helper handles nested paths and
         # both string + datetime values.
+        # v2.5.3 (#306) — include mileage_v1 because OLA stamps its
+        # cached responses with ``carCapturedTimestamp`` and the v1
+        # mileage block is often newer than the v5/mycar block on
+        # offline vehicles (server keeps refreshing the cached value
+        # opportunistically when the car briefly checks in).
         d.connection_state, d.last_seen_at = compute_connection_state(
             mycar, parking, ranges, status, charge_status, charge_info,
-            climate, maintenance, availability,
+            climate, maintenance, availability, mileage_v1,
         )
 
         return d

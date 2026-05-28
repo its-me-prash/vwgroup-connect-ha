@@ -483,6 +483,19 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             "windowHeatingStateFront", "windowHeatingStateRear",
             "carCapturedTimestamp",
         },
+        # v2.5.3 (#306) — OLA /v1/vehicles/{vin}/mileage. Endpoint shipped
+        # by the OLA backend with server-side cached odometer values that
+        # remain available even when /v5/mycar reports the vehicle as
+        # offline. Field-name variants observed across firmware: snake +
+        # camel + ``*InKm`` (myskoda-style) + plain ``value``.
+        "mileage": {
+            "mileageInKm", "mileage", "odometer", "currentMileage", "value",
+            "carCapturedTimestamp", "updatedAt",
+            # Wildcard for any forward-compat OLA additions we haven't
+            # explicitly observed yet. Belt-and-braces against this
+            # endpoint being a future scout-issue magnet.
+            "*",
+        },
     },
     # SEAT shares OLA endpoints with CUPRA — same expected-keys table.
     "seat": {},  # populated at module load below
