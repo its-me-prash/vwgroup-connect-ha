@@ -134,6 +134,29 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **App Atlas Phase A.2 — APK download + apktool extraction** — when a brand's version-name changes (detected by the daily watcher), the workflow now downloads the APK via APKCombo CDN, decodes it with apktool, and greps for OLA-style header keys + known backend hosts. Findings persist as `.app-atlas-apk-cache/{brand}.json` and render in each per-brand atlas page. Workflow extracts only on version-change (idempotent), keeps CI runtime under 2min/changed-brand. Phase A.3 (jadx semantic-diff between consecutive APK versions) deferred to a separate session.
 - **App Atlas Phase A.3 — jadx full decompile + cross-version semantic diff** (manual `workflow_dispatch` only — too heavy for daily). Triggers on demand when investigating a brand's version bump: downloads both versions, runs jadx full Java decompile, extracts URL constants + header-key strings + OAuth scopes, computes a targeted diff filtering out obfuscator-rename noise. Outputs a self-contained markdown report at `docs/research/app-atlas/diffs/{brand}_{old}_vs_{new}.md` and auto-opens a PR. Provides ground-truth answers to "what new endpoints / headers / scopes appeared in this version bump?" — much higher signal than the daily smali grep.
 
+## [2.5.2] — 2026-05-28 — "Scout Pipeline Expansion"
+
+### Changed
+- **Vehicle Data Scout coverage widened across all 7 brands.** The scout pipeline (`detect_unexpected`) previously only watched responses from endpoints we already call in production, which capped its discovery surface. v2.5.2 adds a once-per-hour, per-VIN, best-effort probe pass that issues GETs against ~34 additional brand endpoints documented in the public open-source ecosystem (PyCupra, myskoda, CarConnectivity, audi_connect_ha, volkswagencarnet, evcc — all MIT/Apache). Responses feed into the same scout walk we already run, so any new VAG-side fields surface as scout reports without exposing new entities.
+- **What this means for you:** more accurate, faster v3.0 entity coverage. Field-shape changes on the VAG backend get caught earlier, and "this brand has data we don't expose" gaps become visible without users having to file `[Vehicle Data Scout]` reports manually.
+- **Public framing:** this is a scout-channel widening — purely server-side discovery. No new entities, no behaviour change for end users, no privacy implication (existing PII scrubber covers all responses; no new fields are written to disk or sent off-device).
+
+### Implementation guardrails (defence-in-depth)
+- **Rate-limit per VIN.** Each probe pass runs at most once per `_PROBE_INTERVAL_S` (default 3600s = 1 hour).
+- **Token-budget guard.** Pass is skipped entirely when the brand client's `last_rate_limit_remaining` is at or below 50 — protects users' daily quota for actual polling.
+- **Auth-storm circuit-breaker.** After 3 consecutive 401-from-probe events, the probe channel auto-disables for the session. 401s never trigger `_refresh_tokens` from the probe path (storm risk).
+- **Short timeouts.** Per-probe HTTP timeout 5s, per-pass total budget 30s. Long-running probes are killed early.
+- **Fail-safe.** Any probe error (404/403/5xx/network/parse) is swallowed silently. The probe pass NEVER affects production polling or surfaces errors to the user.
+
+### Files touched
+- `custom_components/vag_connect/cariad/api/_v3_probes.py` (NEW) — per-brand probe inventory + base-URL dispatch
+- `custom_components/vag_connect/cariad/api/base.py` — `run_v3_probe_pass()`, `_probe_request()`, `_AuthStormSignal`, 5 new guard constants
+- `custom_components/vag_connect/coordinator.py` — poll-loop hook (best-effort, hasattr-guarded)
+- `tests/test_v252_v3_probes.py` (NEW) — probe inventory shape + runner contract
+
+### Risk
+Low. The probe pass is fail-safe by design: errors NEVER surface, NEVER affect production polling, NEVER trigger token refresh storms, and NEVER write off-device. The token-budget guard preserves daily quota for user-facing polling. The circuit-breaker prevents pathological consecutive-401 loops.
+
 ## [2.5.1] — 2026-05-28 — "Consent Wall Auto-Skip Hotfix"
 
 ### Fixed

@@ -36,6 +36,27 @@ _REQUEST_TIMEOUT = 60
 _REFRESH_MAX_PER_HOUR = 3
 _REFRESH_WINDOW_S = 3600
 
+# v2.5.2 — Silent scout-channel expansion guardrails.
+#   _PROBE_INTERVAL_S    — minimum seconds between probe passes per VIN
+#   _PROBE_TIMEOUT_S     — per-probe HTTP timeout (kept short — probes are best-effort)
+#   _PROBE_BUDGET_S      — total time budget for one pass before we bail
+#   _PROBE_TOKEN_GUARD   — skip pass when last_rate_limit_remaining is at or below this
+#   _PROBE_CB_THRESHOLD  — disable probes after this many consecutive auth-storm hits
+_PROBE_INTERVAL_S    = 3600          # 1 hour
+_PROBE_TIMEOUT_S     = 5
+_PROBE_BUDGET_S      = 30
+_PROBE_TOKEN_GUARD   = 50
+_PROBE_CB_THRESHOLD  = 3
+
+
+class _AuthStormSignal(Exception):
+    """Internal sentinel — a probe got HTTP 401.
+
+    Distinct from ``AuthenticationError`` so the probe pass can abort
+    cleanly without poisoning the production ``_request`` retry path.
+    Never escapes the probe runner.
+    """
+
 # Transient network exceptions that should be retried with the same
 # exponential backoff as 5xx server errors. Verified against:
 #   - `mitch-dc/volkswagen_we_connect_id` #166 (`socket.gaierror` /
@@ -107,6 +128,17 @@ class CariadBaseClient:
         # if None (e.g. tests without storage), tokens stay in-memory.
         # Signature: ``async def on_tokens_changed(tokens: TokenSet) -> None``
         self.on_tokens_changed: Any | None = None
+
+        # v2.5.2 — Silent scout-channel expansion (see ``_v3_probes.py``).
+        # The probe pass runs at most once per ``_PROBE_INTERVAL_S`` per VIN
+        # and feeds GET responses into ``last_raw_responses`` so the
+        # coordinator's scout walk picks them up like any other response.
+        # All state is fail-safe: probe errors NEVER affect production
+        # polling, and the circuit-breaker auto-disables probes for the
+        # session if too many consecutive failures (auth-storm risk).
+        self._probe_last_pass_at: dict[str, float] = {}  # vin -> monotonic
+        self._probe_consecutive_fails: int = 0
+        self._probe_disabled: bool = False
 
     @property
     def brand(self) -> BrandConfig:
@@ -258,6 +290,153 @@ class CariadBaseClient:
     async def command_stop_window_heating(self, vin: str) -> None:
         """Stop window heating."""
         raise NotImplementedError
+
+    # ── v2.5.2 silent scout-channel probe pass ─────────────────────────────────
+
+    async def run_v3_probe_pass(self, vin: str) -> int:
+        """Issue probe GETs for the given VIN, feed responses to the scout.
+
+        Probe behaviour (silent + fail-safe):
+        - Runs at most once per ``_PROBE_INTERVAL_S`` per VIN (default 1h).
+        - Skipped entirely when ``last_rate_limit_remaining`` is at or
+          below ``_PROBE_TOKEN_GUARD`` — protects the user's daily quota.
+        - Skipped entirely after ``_PROBE_CB_THRESHOLD`` consecutive
+          pass-level failures (auth-storm circuit-breaker).
+        - Per-probe HTTP timeout ``_PROBE_TIMEOUT_S`` (short, best-effort).
+        - Total per-pass time budget ``_PROBE_BUDGET_S`` (bail if exceeded).
+        - 401/403/404/5xx/network errors are swallowed silently per-probe;
+          a 401 NEVER triggers ``_refresh_tokens`` here (would be a storm
+          risk). On 401 the entire pass aborts and increments the
+          circuit-breaker.
+        - 2xx-with-JSON responses are stored into ``last_raw_responses``
+          under a ``v3_probe:<probe_name>`` key. The coordinator runs the
+          same ``detect_unexpected`` walk it always does and emits scout
+          telemetry for any new field paths.
+
+        Returns:
+            The number of probes that completed with a 2xx JSON body
+            (zero on skip / failure / circuit-breaker tripped).
+        """
+        from ._v3_probes import probes_for_brand, base_url_for_brand  # noqa: PLC0415
+
+        if self._probe_disabled:
+            return 0
+        probes = probes_for_brand(self._brand.name)
+        if not probes:
+            return 0
+        if self._tokens is None:
+            return 0
+
+        # Rate-limit per VIN — never re-run within _PROBE_INTERVAL_S.
+        now = time.monotonic()
+        last = self._probe_last_pass_at.get(vin, 0.0)
+        if last and (now - last) < _PROBE_INTERVAL_S:
+            return 0
+
+        # Token-budget guard — don't burn the user's daily quota on probes.
+        if (
+            self.last_rate_limit_remaining is not None
+            and self.last_rate_limit_remaining <= _PROBE_TOKEN_GUARD
+        ):
+            _LOGGER.debug(
+                "v3 probe pass skipped (%s vin=%s): rate-limit remaining %d <= guard %d",
+                self._brand.name, vin[-6:],
+                self.last_rate_limit_remaining, _PROBE_TOKEN_GUARD,
+            )
+            self._probe_last_pass_at[vin] = now  # honour interval even on skip
+            return 0
+
+        base_url = base_url_for_brand(self._brand.name) or getattr(self, "_BASE", None)
+        if not base_url:
+            # No documented backend host for this brand — silently skip.
+            return 0
+
+        self._probe_last_pass_at[vin] = now
+        pass_started = time.monotonic()
+        success_count = 0
+        # Capture user_id once (set by IDKAuth during login, SEAT/CUPRA path).
+        user_id = getattr(self._auth, "user_id", "") or ""
+
+        for probe in probes:
+            # Pass-level time budget.
+            if (time.monotonic() - pass_started) > _PROBE_BUDGET_S:
+                _LOGGER.debug(
+                    "v3 probe pass aborted (%s vin=%s): time budget %ds exceeded",
+                    self._brand.name, vin[-6:], _PROBE_BUDGET_S,
+                )
+                break
+
+            host = probe.host_override or base_url
+            try:
+                path = probe.path.format(vin=vin, user_id=user_id)
+            except KeyError:
+                # Unknown placeholder — skip probe, never crash.
+                continue
+            url = f"{host}{path}"
+
+            try:
+                body = await self._probe_request(url)
+            except _AuthStormSignal:
+                # 401 from a probe — abort entire pass and trip the breaker.
+                self._probe_consecutive_fails += 1
+                if self._probe_consecutive_fails >= _PROBE_CB_THRESHOLD:
+                    self._probe_disabled = True
+                    _LOGGER.info(
+                        "v3 probe channel auto-disabled for %s (%d consecutive 401s)",
+                        self._brand.name, self._probe_consecutive_fails,
+                    )
+                return success_count
+            except Exception:  # noqa: BLE001 — probes never raise
+                continue
+
+            if not isinstance(body, dict):
+                continue
+            scout_key = f"v3_probe:{probe.name}"
+            self.last_raw_responses[scout_key] = body
+            success_count += 1
+
+        # Successful pass resets the auth-storm breaker.
+        if success_count > 0:
+            self._probe_consecutive_fails = 0
+        _LOGGER.debug(
+            "v3 probe pass complete (%s vin=%s): %d/%d probes returned JSON",
+            self._brand.name, vin[-6:], success_count, len(probes),
+        )
+        return success_count
+
+    async def _probe_request(self, url: str) -> Any:
+        """Minimal GET for v2.5.2 probe pass.
+
+        Distinct from ``_request`` in three ways:
+        1. Short timeout (``_PROBE_TIMEOUT_S``).
+        2. No retry loop — best-effort one-shot.
+        3. 401 raises ``_AuthStormSignal`` so the caller aborts the pass
+           rather than triggering ``_refresh_tokens`` (storm risk).
+
+        Returns the parsed JSON body for 2xx responses, ``None`` otherwise.
+        Caller is expected to treat all non-dict returns as no-op.
+        """
+        headers = {
+            "Authorization": f"Bearer {self._access_token}",
+            "Accept": "application/json",
+            "User-Agent": self._brand.user_agent,
+        }
+        try:
+            async with self._session.request(
+                "GET", url, headers=headers,
+                timeout=ClientTimeout(total=_PROBE_TIMEOUT_S),
+            ) as resp:
+                if resp.status == 401:
+                    raise _AuthStormSignal()
+                self._capture_rate_limit_headers(resp.headers)
+                if resp.status not in (200, 201, 207):
+                    return None
+                ct = resp.headers.get("Content-Type", "")
+                if "json" not in ct:
+                    return None
+                return await resp.json()
+        except _TRANSIENT_NET_ERRORS:
+            return None
 
     # ── HTTP helpers ───────────────────────────────────────────────────────────
 

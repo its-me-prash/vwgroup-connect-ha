@@ -754,6 +754,19 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         self.vehicle_success[vin] = True
                         self.vehicle_failure_count[vin] = 0
                         self.vehicle_last_good_at[vin] = datetime.now(tz=timezone.utc)
+                        # v2.5.2 — Silent scout-channel expansion. Once per
+                        # _PROBE_INTERVAL_S per VIN (default 1h), issue
+                        # GETs against documented public open-source
+                        # endpoints we don't currently call. Responses
+                        # land in last_raw_responses and the scout walk
+                        # below picks them up. Best-effort, fail-safe,
+                        # never blocks production polling. Brand client
+                        # gates on token-budget + circuit-breaker.
+                        try:
+                            if hasattr(self._cariad_client, "run_v3_probe_pass"):
+                                await self._cariad_client.run_v3_probe_pass(vin)
+                        except Exception:  # noqa: BLE001
+                            pass
                         # v1.9.0 — Vehicle Data Scout. Inspect raw responses
                         # the brand client opted to stash; never blocks the
                         # poll if the detector itself raises.
