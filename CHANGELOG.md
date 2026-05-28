@@ -134,6 +134,33 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **App Atlas Phase A.2 — APK download + apktool extraction** — when a brand's version-name changes (detected by the daily watcher), the workflow now downloads the APK via APKCombo CDN, decodes it with apktool, and greps for OLA-style header keys + known backend hosts. Findings persist as `.app-atlas-apk-cache/{brand}.json` and render in each per-brand atlas page. Workflow extracts only on version-change (idempotent), keeps CI runtime under 2min/changed-brand. Phase A.3 (jadx semantic-diff between consecutive APK versions) deferred to a separate session.
 - **App Atlas Phase A.3 — jadx full decompile + cross-version semantic diff** (manual `workflow_dispatch` only — too heavy for daily). Triggers on demand when investigating a brand's version bump: downloads both versions, runs jadx full Java decompile, extracts URL constants + header-key strings + OAuth scopes, computes a targeted diff filtering out obfuscator-rename noise. Outputs a self-contained markdown report at `docs/research/app-atlas/diffs/{brand}_{old}_vs_{new}.md` and auto-opens a PR. Provides ground-truth answers to "what new endpoints / headers / scopes appeared in this version bump?" — much higher signal than the daily smali grep.
 
+## [2.5.5] — 2026-05-28 — "App Atlas Phase A.5: Auth-Config Shield"
+
+### Changed (infrastructure — no end-user-facing change)
+- **App Atlas APK extraction now mines auth-config secrets too**, not just header keys + endpoint hosts. Direct response to today's v2.5.4 emergency: VW rotated the IDK qmauth secret + client_id + token URL between yesterday's APK extraction and this morning's WAF rollout. v2.5.5 widens the daily APK extraction patterns so that the NEXT rotation is visible in the morning auto-PR diff BEFORE user reports start landing.
+- **New `auth_secrets` bucket** in `.app-atlas-apk-cache/{brand}.json`, populated by `scripts/app_atlas/apk_extractor.py:grep_patterns()`. Captures:
+  - **`header_names_seen`**: presence of `x-qmauth`, `x-platform`, `x-android-package-name`, `x-assertion`, `X-Client-ID`, `X-App-Version`, `X-App-Name`, `X-QMAuth` (camelCase variant).
+  - **`token_path_markers_seen`**: which token endpoints the APK references — `/auth/v1/idk/oidc/token` (new) vs `/login/v1/idk/token` (dead) vs `/oidc/v1/token` etc. URL migrations light up as one path disappearing and a new one appearing.
+  - **`qmauth_constants_seen`**: smali variable names `qmClientId`, `qmSecret`, `qmauth` — confirms whether the APK still uses the qmauth signing scheme at all.
+  - **`qmauth_secret_candidates`**: 64-character hex literals found near a `qmauth` constant. The actual HMAC secret bytes. A rotation lights up as one literal swapped for another in the morning diff.
+  - **`client_id_candidates`**: 8-char hex client_ids (e.g. `01da27b0`) AND full UUID@apps_vw-dilab_com OAuth client_ids.
+
+### Why this matters
+The 2026-05-28 WAF migration caused **~6 hours of total Audi + VW EU login outage** because no reverse-engineered client knew about the rotation until users started reporting 403s. evcc, volkswagencarnet, ioBroker.vw-connect, and vag_connect all shipped near-identical ports of the same fix that morning. With the shield in place, the next rotation surfaces in the daily atlas auto-PR — measured in hours, not user-pain — and (Phase A.6 follow-up) eventually triggers an auto-PR proposing the matching `idk.py` constant changes.
+
+### Detection — what was bumped today (live atlas run finding)
+- **Audi**: 5.4.1 → **5.5.0** (apkmirror, 2026-05-28). Likely the post-WAF-migration APK.
+- **CUPRA**: 2.16.0 → **2.18.0**
+- VW EU: APK sources transiently unreachable today — Cloudflare 403 blocking GH Actions IPs from APKCombo. Tracked as separate v2.5.6 candidate (APK fallback chain rebuild).
+
+### Risk
+**Zero.** Only touches the App Atlas tooling. No `custom_components/vag_connect/` code changed. The new pattern matching is additive and gracefully skips brands where the patterns don't appear (e.g. CUPRA's OLA path which doesn't use qmauth). End-user behaviour identical to v2.5.4.
+
+### Files touched
+- `scripts/app_atlas/config.json` — added `auth_secrets` sub-config with 4 pattern lists
+- `scripts/app_atlas/apk_extractor.py` — extended `grep_patterns()` with the 3rd extraction pass
+- `docs/research/app-atlas/_auth-shield-phase-A5.md` — new doc explaining the shield strategy + caveats + cross-references
+
 ## [2.5.4] — 2026-05-28 — "VW Azure WAF Migration Emergency Hotfix (#313)"
 
 ### Fixed (CRITICAL — Audi + Volkswagen EU all-users login outage)
