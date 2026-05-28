@@ -134,6 +134,28 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **App Atlas Phase A.2 — APK download + apktool extraction** — when a brand's version-name changes (detected by the daily watcher), the workflow now downloads the APK via APKCombo CDN, decodes it with apktool, and greps for OLA-style header keys + known backend hosts. Findings persist as `.app-atlas-apk-cache/{brand}.json` and render in each per-brand atlas page. Workflow extracts only on version-change (idempotent), keeps CI runtime under 2min/changed-brand. Phase A.3 (jadx semantic-diff between consecutive APK versions) deferred to a separate session.
 - **App Atlas Phase A.3 — jadx full decompile + cross-version semantic diff** (manual `workflow_dispatch` only — too heavy for daily). Triggers on demand when investigating a brand's version bump: downloads both versions, runs jadx full Java decompile, extracts URL constants + header-key strings + OAuth scopes, computes a targeted diff filtering out obfuscator-rename noise. Outputs a self-contained markdown report at `docs/research/app-atlas/diffs/{brand}_{old}_vs_{new}.md` and auto-opens a PR. Provides ground-truth answers to "what new endpoints / headers / scopes appeared in this version bump?" — much higher signal than the daily smali grep.
 
+## [2.5.4] — 2026-05-28 — "VW Azure WAF Migration Emergency Hotfix (#313)"
+
+### Fixed (CRITICAL — Audi + Volkswagen EU all-users login outage)
+- **Audi and Volkswagen EU login failed with HTTP 403** from `Microsoft-Azure-Application-Gateway/v2` on token exchange — closes #313 (Audi A6 e-tron PPE, @heidle78). On **2026-05-28** VW shut down the legacy CARIAD-BFF token endpoint (`/login/v1/idk/token`) at the Azure Application Gateway WAF layer. ALL Audi and VW EU users were affected regardless of vehicle model, account state, or app version — token exchange returned 403 with no actionable error message.
+- **The fix (ported from evcc PR #30277 + PR #30292, MIT-licensed, merged hours earlier on 2026-05-28):**
+  1. **Token URL migrated** to `https://emea.bff.cariad.digital/auth/v1/idk/oidc/token` (was `/login/v1/idk/token`) for the Audi + Volkswagen EU brands. CUPRA / SEAT / Škoda / VW NA are unaffected (different IDPs, different hosts).
+  2. **`x-qmauth` HMAC-SHA256 header** added — rotated qmClientId + qmSecret values captured in evcc PR #30292. Signs against a 100-second time bucket to tolerate clock skew. Required on BOTH `authorization_code` exchange AND `refresh_token` grant.
+  3. **3 new assertion headers** required by the Azure WAF: `x-platform: android`, `x-android-package-name: de.myaudi.mobile.assistant`, `x-assertion: 0`. Sent alongside the `x-qmauth` header on every CARIAD token request.
+- **Cross-reference (independent confirmations of the same migration):**
+  - evcc PR [#30277](https://github.com/evcc-io/evcc/pull/30277) "VW: migrate WeConnect auth to OIDC token exchange" — merged 2026-05-28T06:28Z
+  - evcc PR [#30292](https://github.com/evcc-io/evcc/pull/30292) "Audi: rotate qmauth and add assertion headers" — merged 2026-05-28T12:13Z
+  - volkswagencarnet PR #331 (also the URL migration)
+  - TA2k/ioBroker.vw-connect commit 61496dc00 (same fix in Node.js)
+- **Likely also closes #309** (@moltke69 Audi auth-stuck) which was diagnosed as consent-wall-class but may have been hitting the WAF migration simultaneously. The 2026-05-28 Azure WAF rollout could explain why his auth started failing across two different integrations (vag_connect AND audi_connect_ha) at the same time.
+
+### Risk
+**Medium** — touches the production auth path for Audi + VW EU. CUPRA / SEAT / Skoda / VW NA paths untouched. Tested locally; CI matrix covers Python 3.11 / 3.12 / 3.13. Falls back gracefully (HTTP 400 → `TokenExpiredError` → reauth flow) if VW rotates the qmauth secret again.
+
+### What to expect after upgrading (Audi + VW EU users)
+- **Login was failing with `Token exchange failed HTTP 403`** since approximately 2026-05-28 morning? → Upgrade to v2.5.4, no reconfigure needed.
+- **Login still failing after upgrade?** Please attach a fresh error reporter dump to your existing issue (or open new with brand=audi/volkswagen + the exact error text). VW has been rotating values aggressively this week — we may need to chase another rotation.
+
 ## [2.5.3] — 2026-05-28 — "OLA v1↔v5 Fallback Chain (#306 Mii/Tavascan/Leon FR-KL Fix)"
 
 ### Fixed
