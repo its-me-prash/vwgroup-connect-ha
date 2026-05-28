@@ -422,34 +422,59 @@ class IDKAuth:
                     raise TwoFactorRequiredError()
 
             # v2.2.0 — Detect Marketing-Consent / T&C interstitial.
-            # 2026 trend across all VAG brands (pycupra #83, Audi PR #731,
-            # evcc #29760, myskoda #976): the IDP randomly inserts a
-            # consent screen into the OAuth redirect chain. Pre-v2.2.0
-            # this surfaced as a generic ``AuthenticationError("no app://
-            # redirect")`` which gave the user no clue what was wrong.
-            # We detect six known consent-URL fragments and raise the
-            # dedicated ``MarketingConsentError`` so the Repairs flow
-            # surfaces an actionable deep-link to the brand portal where
-            # the user can answer the prompt and resume.
+            # v2.5.1 — Try auto-skip BEFORE raising MarketingConsentError.
+            # Cross-references for the 2026 consent-wall epidemic across all
+            # VAG brands: pycupra #83, audi_connect PR #731 (#535/#735),
+            # evcc PR #29980 (#29760), myskoda #976, our #309 (moltke69).
+            # The IDP randomly interjects a consent screen into the OAuth
+            # redirect chain. evcc's solution (merged 2026-05-17) is to
+            # detect the ``/consent/marketing/`` interstitial and follow
+            # the OIDC ``callback`` URL embedded in the consent request —
+            # equivalent to the "not now / skip" path. Login completes with
+            # ``consentedScopes=openid profile mbb`` only (no marketing
+            # scopes granted). Reduces user friction: no Repair flow needed.
+            # If auto-skip fails (callback missing, fetch errors), we fall
+            # back to the v2.2.0 behaviour and raise MarketingConsentError
+            # so the Repairs UI surfaces a deep-link to the brand portal.
             #
-            # Big-Bang-Theory-grade pedantry on the URL patterns:
-            # - consent/marketing: legacy signin-service path
+            # URL patterns we recognise:
+            # - consent/marketing: legacy signin-service path (skippable)
             # - /u/consent: Auth0 Universal Login consent template
             # - cupraid.vwgroup.io: CUPRA portal-redirect for SEAT/Cupra
             # - skoda-id.vwgroup.io / skodaid.vwgroup.io: Skoda variants
-            # - signin-service/v1/terms-and-conditions: T&C prompt
+            # - signin-service/v1/terms-and-conditions: T&C prompt (not skippable)
+            # - audi-id.vwgroup.io / myaudi.de/consent: Audi-specific (added v2.5.1)
             consent_markers = (
                 "consent/marketing",
                 "/u/consent",
                 "cupraid.vwgroup.io",
                 "skoda-id.vwgroup.io",
                 "skodaid.vwgroup.io",
+                "audi-id.vwgroup.io",
+                "myaudi.de/consent",
                 "terms-and-conditions",
             )
             if any(marker in ref for marker in consent_markers):
+                # T&C prompts cannot be skipped (legal acceptance required).
+                # Marketing-consent / interstitials CAN be skipped via the
+                # embedded OIDC callback URL (evcc PR #29980).
+                if "terms-and-conditions" in ref:
+                    _LOGGER.warning(
+                        "IDK Auth0: T&C wall at %s — cannot auto-skip "
+                        "(legal acceptance required)", ref[:120],
+                    )
+                    raise TermsAndConditionsError()
+                skipped = await self._skip_marketing_consent(ref)
+                if skipped:
+                    _LOGGER.info(
+                        "IDK Auth0: marketing-consent auto-skipped (#309) → %s",
+                        skipped[:80],
+                    )
+                    ref = skipped
+                    continue
                 _LOGGER.warning(
-                    "IDK Auth0: consent/T&C wall detected at %s — raising "
-                    "MarketingConsentError for repair-flow surface",
+                    "IDK Auth0: consent wall at %s — auto-skip failed, "
+                    "raising MarketingConsentError for Repair flow",
                     ref[:120],
                 )
                 raise MarketingConsentError()
@@ -699,7 +724,17 @@ class IDKAuth:
                 f"Password POST HTTP {pw_status} at {pw_url[:80]}: {pw_body[:200]}"
             )
         if not pw_loc:
-            raise AuthenticationError("Password POST: no Location header.")
+            # v2.5.1 — audi_connect PR #731 inspiration: a missing Location
+            # header after a 302/303 typically means the IDP is showing a
+            # consent/terms page instead of redirecting. Give the user an
+            # actionable hint rather than the cryptic raw header error.
+            raise AuthenticationError(
+                "Login redirect missing after password submission "
+                f"(HTTP {pw_status}). The Audi/VW/Skoda IDP may be showing "
+                "a consent or terms-of-service prompt that we couldn't "
+                "auto-detect. Please log in once via the brand app or "
+                "website, accept any pending agreements, then retry."
+            )
 
         # Step 5 — follow redirect chain (audiconnect: 3 explicit GETs)
         prefix = self._brand.redirect_uri.split("://")[0] + "://"
@@ -968,13 +1003,9 @@ class IDKAuth:
                     _LOGGER.debug("IDK: captured user_id from redirect: %s", uid[:8])
             if location.startswith(prefix):
                 return location
-            # v2.2.0 — extend consent-detection to cover all 6 known
-            # consent/T&C wall variants. Pre-v2.2.0 only handled 2;
-            # the other 4 (CUPRA portal, Skoda portal variants, Auth0
-            # Universal Login template) leaked through as generic
-            # "no app:// redirect" errors. Cross-references: pycupra
-            # #83, Audi PR #731, evcc #29760, myskoda #976. Symmetric
-            # with the Auth0 flow detection above (line ~360).
+            # v2.2.0 / v2.5.1 — Consent-wall detection (symmetric with
+            # Auth0 flow above). v2.5.1 adds auto-skip via evcc-style
+            # OIDC callback follow (PR #29980, our #309).
             if "terms-and-conditions" in location:
                 raise TermsAndConditionsError()
             _consent_markers = (
@@ -983,10 +1014,20 @@ class IDKAuth:
                 "cupraid.vwgroup.io",
                 "skoda-id.vwgroup.io",
                 "skodaid.vwgroup.io",
+                "audi-id.vwgroup.io",
+                "myaudi.de/consent",
             )
             if any(marker in location for marker in _consent_markers):
+                skipped = await self._skip_marketing_consent(location)
+                if skipped:
+                    _LOGGER.info(
+                        "IDK legacy: marketing-consent auto-skipped (#309) → %s",
+                        skipped[:80],
+                    )
+                    location = skipped
+                    continue
                 _LOGGER.warning(
-                    "IDK legacy: consent/T&C wall detected at %s — "
+                    "IDK legacy: consent wall at %s — auto-skip failed, "
                     "raising MarketingConsentError",
                     location[:120],
                 )
@@ -1078,6 +1119,59 @@ class IDKAuth:
             data: dict[str, Any] = await resp.json()
 
         return self._parse_tokens(data)
+
+    async def _skip_marketing_consent(self, consent_url: str) -> str | None:
+        """Auto-skip the optional VW/Audi marketing-consent interstitial (v2.5.1).
+
+        Python port of evcc PR #29980 (`skipMarketingConsent`, merged
+        2026-05-17, MIT). VW periodically interjects an optional consent
+        page after an otherwise successful login. The page URL carries an
+        OIDC ``callback=https://...`` query parameter that — when followed
+        — completes the login WITHOUT granting marketing scopes (the
+        "not now" path). This recovers transparently instead of forcing
+        the user through a Repair flow.
+
+        Args:
+            consent_url: The full URL of the consent interstitial that
+                we landed on in the redirect chain.
+
+        Returns:
+            The next ``Location`` header from following the callback URL,
+            or ``None`` if auto-skip is not possible (callback missing,
+            network error, unexpected response).
+        """
+        parsed = urlparse(consent_url)
+        callback = parse_qs(parsed.query).get("callback", [""])[0]
+        if not callback:
+            _LOGGER.debug(
+                "IDK consent-skip: no callback param in %s — cannot auto-skip",
+                consent_url[:100],
+            )
+            return None
+
+        cb_url = _make_absolute(consent_url, callback)
+        try:
+            async with self._session.get(
+                cb_url,
+                timeout=_AUTH_TIMEOUT,
+                headers=self._base_headers(),
+                allow_redirects=False,
+            ) as cb_resp:
+                next_loc = cb_resp.headers.get("Location", "")
+                _LOGGER.debug(
+                    "IDK consent-skip: callback %s → status=%s next=%s",
+                    cb_url[:80], cb_resp.status,
+                    next_loc[:80] if next_loc else "(none)",
+                )
+                if not next_loc:
+                    return None
+                return _make_absolute(cb_url, next_loc)
+        except (InvalidURL, Exception) as exc:  # noqa: BLE001
+            _LOGGER.warning(
+                "IDK consent-skip: callback GET failed — %s: %s",
+                type(exc).__name__, exc,
+            )
+            return None
 
     def _get_token_endpoint(self) -> str:
         """Return the correct token endpoint for the current brand.
