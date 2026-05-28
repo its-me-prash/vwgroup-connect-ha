@@ -13,9 +13,11 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 import logging
 import os
 import re
+import time
 from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import parse_qs, urlparse, urlunparse
@@ -41,6 +43,69 @@ _AUTH_TIMEOUT = ClientTimeout(total=30)  # per-request timeout for auth flows
 _IDK_BASE = "https://identity.vwgroup.io"
 _SIGNIN_BASE = f"{_IDK_BASE}/signin-service/v1"
 _AUTHORIZE_URL = f"{_IDK_BASE}/oidc/v1/authorize"
+
+# ── CARIAD-BFF token endpoint (Audi + VW EU) ────────────────────────────────
+# v2.5.4 (#313) — On 2026-05-28 VW shut down the legacy
+# ``/login/v1/idk/token`` endpoint at the Azure Application Gateway WAF
+# layer. Requests now return HTTP 403 from
+# ``Microsoft-Azure-Application-Gateway/v2`` regardless of headers,
+# query shape, or User-Agent. The replacement endpoint adopted by the
+# official Volkswagen 3.61.0 + myAudi 4.31.0 APKs (and ported by
+# evcc PR #30277 / volkswagencarnet PR #331 / ioBroker.vw-connect):
+_CARIAD_TOKEN_URL = "https://emea.bff.cariad.digital/auth/v1/idk/oidc/token"
+
+# ── X-QMAuth signing for Audi + VW EU IDK token exchange ────────────────────
+# v2.5.4 (#313) — Audi/VW EU's IDK token endpoint validates an
+# ``x-qmauth`` HMAC-SHA256 header on both ``authorization_code`` and
+# ``refresh_token`` grants. Values rotated upstream 2026-05-28 and
+# captured by evcc PR #30292 (MIT) — cross-verified against
+# arjenvrh/audi_connect_ha (MIT) and TA2k/ioBroker.vw-connect.
+# Format: ``v1:<qmClientId>:<hmac_sha256(qmSecret, ts_hundred_seconds)>``
+_QM_CLIENT_ID = "01da27b0"
+_QM_SECRET = "1ab69925ac179aaa4e83abe671a9476d176418b85bd706f1436ca15be647989c"
+
+
+def _calculate_x_qmauth(now: float | None = None) -> str:
+    """Compute the ``x-qmauth`` header value.
+
+    Python port of evcc PR #30292 (Go, MIT). The Audi/VW EU IDK token
+    endpoint validates this header on both authorization-code and
+    refresh-token grants. Time-bucket is 100-seconds (so the same value
+    survives clock-skew up to ~100s between client and server).
+
+    Args:
+        now: Optional UNIX-epoch timestamp override (for tests). Default
+            is ``time.time()`` at call time.
+
+    Returns:
+        Header value of the form ``v1:<clientId>:<hexHmac>``.
+    """
+    ts = int((now if now is not None else time.time()) / 100)
+    secret_bytes = bytes.fromhex(_QM_SECRET)
+    sig = hmac.new(secret_bytes, str(ts).encode("ascii"), hashlib.sha256).hexdigest()
+    return f"v1:{_QM_CLIENT_ID}:{sig}"
+
+
+def _cariad_token_headers(user_agent: str) -> dict[str, str]:
+    """Return the assertion-header set required by the new CARIAD IDK
+    token endpoint (Audi + VW EU).
+
+    v2.5.4 (#313) — Sent for BOTH authorization_code exchange AND
+    refresh_token. Missing any one of these results in either an HTTP
+    403 (Azure WAF) or an ``{"error":"invalid assertion headers"}``
+    response body once past the gateway. evcc PR #30292 confirmed all
+    five custom headers are required.
+    """
+    return {
+        "Content-Type":            "application/x-www-form-urlencoded",
+        "Accept":                  "application/json",
+        "Accept-Charset":          "utf-8",
+        "User-Agent":              user_agent,
+        "x-qmauth":                _calculate_x_qmauth(),
+        "x-platform":              "android",
+        "x-android-package-name":  "de.myaudi.mobile.assistant",
+        "x-assertion":             "0",
+    }
 
 
 class _CSRFParser(HTMLParser):
@@ -801,9 +866,21 @@ class IDKAuth:
         }
         if self._brand.client_secret:
             data["client_secret"] = self._brand.client_secret
+
+        # v2.5.4 (#313) — Audi + VW EU require the assertion header set
+        # at the CARIAD BFF token endpoint AFTER the 2026-05-28 Azure
+        # WAF migration. The header set must be sent on refresh too —
+        # otherwise the access_token works for ~1h and then refresh
+        # quietly starts returning 403 (the failure mode evcc PR #30292
+        # documented). Other brands keep using the legacy form headers.
+        if self._brand.name in ("audi", "volkswagen"):
+            headers = _cariad_token_headers(self._brand.user_agent)
+        else:
+            headers = self._form_headers()
+
         async with self._session.post(
             token_url,
-            timeout=_AUTH_TIMEOUT, data=data, headers=self._form_headers()
+            timeout=_AUTH_TIMEOUT, data=data, headers=headers,
         ) as resp:
             if resp.status == 400:
                 raise TokenExpiredError("Refresh token rejected — full re-login required.")
@@ -1074,13 +1151,27 @@ class IDKAuth:
         }
         if self._brand.client_secret:
             data["client_secret"] = self._brand.client_secret
+
+        # v2.5.4 (#313) — Audi + VW EU require the assertion header set
+        # at the CARIAD BFF token endpoint AFTER the 2026-05-28 Azure
+        # WAF migration. Without these headers we get HTTP 403 from
+        # ``Microsoft-Azure-Application-Gateway/v2`` regardless of body
+        # shape. Other brands (CUPRA on identity.vwgroup.io, SEAT on
+        # OLA, Škoda on mysmob, VW NA on con-veh.net) are unaffected
+        # and keep using the legacy form headers.
+        if self._brand.name in ("audi", "volkswagen"):
+            headers = _cariad_token_headers(self._brand.user_agent)
+        else:
+            headers = self._form_headers()
+
         _LOGGER.debug(
-            "Token exchange: url=%s brand=%s has_secret=%s",
+            "Token exchange: url=%s brand=%s has_secret=%s assertion=%s",
             token_url, self._brand.name, bool(self._brand.client_secret),
+            self._brand.name in ("audi", "volkswagen"),
         )
         async with self._session.post(
             token_url,
-            timeout=_AUTH_TIMEOUT, data=data, headers=self._form_headers()
+            timeout=_AUTH_TIMEOUT, data=data, headers=headers,
         ) as resp:
             if resp.status != 200:
                 body = await resp.text()
@@ -1181,6 +1272,12 @@ class IDKAuth:
         f"{api_base}/oidc/v1/token"`` so the token-exchange + refresh
         calls go to the NA-specific con-veh.net host, not to the EU
         emea.bff.cariad.digital fallback.
+
+        v2.5.4 (#313) — VW shut down the legacy ``/login/v1/idk/token``
+        BFF endpoint at the Azure WAF layer on 2026-05-28. Audi + VW EU
+        now use the OIDC-style ``/auth/v1/idk/oidc/token`` replacement.
+        Cross-references: evcc PR #30277 + #30292 (MIT),
+        volkswagencarnet PR #331, TA2k/ioBroker.vw-connect.
         """
         if self._token_url_override:
             return self._token_url_override
@@ -1188,8 +1285,8 @@ class IDKAuth:
             return f"{_IDK_BASE}/oidc/v1/token"
         if self._brand.name == "seat":
             return "https://ola.prod.code.seat.cloud.vwgroup.com/authorization/api/v1/token"
-        # VW EU, Audi, and others: CARIAD BFF
-        return "https://emea.bff.cariad.digital/login/v1/idk/token"
+        # VW EU, Audi, and others: CARIAD BFF — v2.5.4 migrated URL.
+        return _CARIAD_TOKEN_URL
 
     def _parse_tokens(self, payload: dict[str, Any]) -> TokenSet:
         """Parse token response into a TokenSet.
