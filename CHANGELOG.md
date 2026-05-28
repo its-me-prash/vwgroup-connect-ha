@@ -134,6 +134,27 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **App Atlas Phase A.2 — APK download + apktool extraction** — when a brand's version-name changes (detected by the daily watcher), the workflow now downloads the APK via APKCombo CDN, decodes it with apktool, and greps for OLA-style header keys + known backend hosts. Findings persist as `.app-atlas-apk-cache/{brand}.json` and render in each per-brand atlas page. Workflow extracts only on version-change (idempotent), keeps CI runtime under 2min/changed-brand. Phase A.3 (jadx semantic-diff between consecutive APK versions) deferred to a separate session.
 - **App Atlas Phase A.3 — jadx full decompile + cross-version semantic diff** (manual `workflow_dispatch` only — too heavy for daily). Triggers on demand when investigating a brand's version bump: downloads both versions, runs jadx full Java decompile, extracts URL constants + header-key strings + OAuth scopes, computes a targeted diff filtering out obfuscator-rename noise. Outputs a self-contained markdown report at `docs/research/app-atlas/diffs/{brand}_{old}_vs_{new}.md` and auto-opens a PR. Provides ground-truth answers to "what new endpoints / headers / scopes appeared in this version bump?" — much higher signal than the daily smali grep.
 
+## [2.5.3] — 2026-05-28 — "OLA v1↔v5 Fallback Chain (#306 Mii/Tavascan/Leon FR-KL Fix)"
+
+### Fixed
+- **SEAT + CUPRA users on older vehicle generations (SEAT Mii Electric, CUPRA Tavascan VZ, SEAT Leon FR KL, CUPRA Born first-gen) now get odometer + service intervals + range even when their vehicle is offline.** Closes #306 (3 confirmed reports: @goncal Mii Electric, @smartmatic Tavascan VZ, @DanielBie Leon FR KL) and tightens #282.
+  - **Root cause:** the OLA `/v5/users/.../mycar` endpoint we relied on for most live-state fields returns null measurements when the vehicle is `state: OFFLINE` (engine off, no cellular check-in). The OLA backend HAS the data — it's served via separate `/v1/...` endpoints with server-side caching — but our parser wasn't consuming the v1 cached values as a fallback. PyCupra exposes these fields by reading from the v1 endpoints when v5 is null; we now do the same.
+  - **The fix (Python port of PyCupra's `_call_API` chain, MIT):**
+    1. Added `/v1/vehicles/{vin}/mileage` to the per-poll endpoint batch. This endpoint returns the **last-known odometer** even on offline vehicles. We parse `mileageInKm` / `mileage` / `odometer` / `currentMileage` / `value` (5 firmware-generation variants) and populate `d.odometer_km` as a fallback when `mycar.measurements.mileage.value` was null.
+    2. Widened field-name coverage in the existing `/v1/maintenance` parser: now reads `inspectionDueInKm`, `inspectionDueInDays`, `mileageRemainingForInspection`, `timeRemainingForInspection`, `oilServiceDueInKm`, `oilServiceDueInDays`, `mileageRemainingForOilService`, `timeRemainingForOilService` in addition to the previous 4 variants. First non-None wins.
+    3. Widened field-name coverage in the existing `/v1/ranges` parser: now reads `electricRangeInKm`, `primaryEngineRange.remainingRangeInKm`, `combustionRangeInKm`, `secondaryEngineRange.remainingRangeInKm`, `totalRangeInKm`, `adBlueRangeInKm` in addition to the previous 6 variants.
+    4. `compute_connection_state` now includes the v1 mileage block when deriving `last_seen_at` — the v1 cached responses often carry a fresher `carCapturedTimestamp` than v5/mycar on offline vehicles.
+
+- **`doors_locked` vs `doors_open` contradiction resolved** (SEAT Leon FR KL via #306 @DanielBie diagnostic). When the OLA backend serves stale-cached per-door state on offline vehicles, `doors[].open` may report `true` while `doorLockStatus` is `LOCKED` — physically impossible since you can't open a locked door. The lock state is more reliable than per-door position (binary discrete vs analog sensors that can stick), so when the two contradict we now force `doors_open=False` and per-door `doors_individual[*]=True` (closed) and log a debug message. Eliminates phantom "doors open" notifications on parked + locked vehicles.
+
+### Risk
+**Low.** All changes are additive fallbacks: existing fresh-data paths win when they succeed. New v1/mileage endpoint is best-effort (asyncio.gather with `return_exceptions=True`); a 404 / 500 / network error just skips the fallback and the field stays at the v5 value (typically null on offline). EXPECTED_KEYS table updated to silence the new endpoint from the scout. No removed code paths, no breaking changes.
+
+### What to expect after upgrading (SEAT + CUPRA users)
+- **Offline vehicle?** Odometer, service intervals (days + km), oil service, range should now populate from server-side cache instead of showing null.
+- **Online vehicle?** No behaviour change — v5/mycar still provides freshest data.
+- **Mii Electric / Tavascan VZ / Leon FR KL / Born first-gen owners** should see significantly more entities populate. If you still see null fields after this update, please attach a fresh diagnostic to your existing #306 / #282 thread so we can extend the field-variant coverage.
+
 ## [2.5.2] — 2026-05-28 — "Scout Pipeline Expansion"
 
 ### Changed

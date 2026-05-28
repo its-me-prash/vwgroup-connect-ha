@@ -1,0 +1,41 @@
+meta {
+  name: GET mileage (v1 cached odometer)
+  type: http
+  seq: 37
+}
+
+get {
+  url: {{base_url}}/v1/vehicles/{{vin}}/mileage
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  v2.5.3 (#306) — OLA v1↔v5 fallback chain.
+
+  Server-side cached odometer endpoint. Returns the last-known mileage
+  even when the vehicle is offline and /v5/users/.../mycar reports null
+  measurements. PyCupra reads from here when v5 is null; we now mirror
+  that pattern for SEAT Mii Electric, CUPRA Tavascan VZ, SEAT Leon FR KL
+  and other older generations stuck in OFFLINE state.
+
+  Observed response shapes (variant-tolerant parser):
+    {"mileageInKm": <km>, "carCapturedTimestamp": "<iso>"}
+    {"mileage": <km>}
+    {"odometer": <km>}
+    {"currentMileage": <km>}
+    {"value": <km>}
+
+  Implementation: cariad/api/seat_cupra.py:get_status (line ~298 + v1
+  mileage fallback block ~line 940).
+  Used to populate VehicleData.odometer_km as fallback when
+  mycar.measurements.mileage.value is null.
+}
