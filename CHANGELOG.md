@@ -134,6 +134,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **App Atlas Phase A.2 — APK download + apktool extraction** — when a brand's version-name changes (detected by the daily watcher), the workflow now downloads the APK via APKCombo CDN, decodes it with apktool, and greps for OLA-style header keys + known backend hosts. Findings persist as `.app-atlas-apk-cache/{brand}.json` and render in each per-brand atlas page. Workflow extracts only on version-change (idempotent), keeps CI runtime under 2min/changed-brand. Phase A.3 (jadx semantic-diff between consecutive APK versions) deferred to a separate session.
 - **App Atlas Phase A.3 — jadx full decompile + cross-version semantic diff** (manual `workflow_dispatch` only — too heavy for daily). Triggers on demand when investigating a brand's version bump: downloads both versions, runs jadx full Java decompile, extracts URL constants + header-key strings + OAuth scopes, computes a targeted diff filtering out obfuscator-rename noise. Outputs a self-contained markdown report at `docs/research/app-atlas/diffs/{brand}_{old}_vs_{new}.md` and auto-opens a PR. Provides ground-truth answers to "what new endpoints / headers / scopes appeared in this version bump?" — much higher signal than the daily smali grep.
 
+## [Unreleased] — CI infrastructure cleanup
+
+### Changed
+- **`.github/workflows/upstream-ola-watcher.yml`** — added path-scoped push trigger to silence false-positive "Run failed: No jobs were run" notifications. Pre-fix, GitHub's scheduled-workflow validation fired registration runs on every branch push regardless of triggers (10+ failure notifications during the v2.5.7→v2.5.10 sprint). Post-fix the workflow only runs on (a) daily 08:00 UTC cron, (b) manual workflow_dispatch, (c) pushes that actually change this workflow file on main. Pure infrastructure — no end-user impact.
+
 ## [2.5.10] — 2026-05-29 — "VW NA Polish (roberttco bundle, 2 of 5)"
 
 Addresses 2 of the 5 open VW NA tickets filed by @roberttco on 2026-05-28 (2023 ID.4 US). Two of the remaining 3 (#322 sensors unknown, #324 unsupported controls) need a diagnostic dump from the user to identify the exact field-shape gaps — reply-thread opened on each ticket asking for the diagnostic export. #326 (VIN decoder API) is an enhancement, deferred to v3.x.
