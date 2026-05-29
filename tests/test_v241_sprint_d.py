@@ -207,21 +207,18 @@ class TestOLARepairIssue:
 
 
 class TestOLAUpstreamWatcher:
-    """v2.5.11 — workflow DELETED (see CHANGELOG Unreleased section).
+    """CI workflow: daily comparison + auto-PR (v2.4.2+).
 
-    The 3-source consensus check is now redundant with v2.5.5 atlas
-    Phase A.5 shield + v2.5.6 APK-primary resolver + v2.5.7 R6 health-
-    probe. GitHub's scheduled-workflow validation generated 20+ false-
-    positive failure notifications during the v2.5.7→v2.5.10 sprint,
-    making the workflow's signal-to-noise ratio negative.
+    v2.4.1 shipped this watcher as weekly + issue-only. v2.4.2 upgrades
+    it to daily + auto-PR with fallback-chain growth. These tests pin
+    the upgraded behavior.
 
-    All historical pins below are retained as documentation of what the
-    workflow USED to do — but are wrapped in ``pytest.mark.skip`` since
-    the file no longer exists. Kept (not deleted outright) so future
-    archaeology has the audit trail of what was retired and why.
+    v2.5.11 — workflow temporarily deleted (b0c47e6) then RESTORED
+    with a job-level if-guard + noop catch-all to convert GitHub's
+    scheduled-workflow validation runs from "failed" to "succeeded"
+    without doing actual work. Tests below now also need to allow the
+    extra noop job in the workflow file.
     """
-
-    pytestmark = pytest.mark.skip(reason="v2.5.11 — workflow retired (see CHANGELOG)")
 
     def test_workflow_file_exists(self) -> None:
         assert _OLA_WATCHER_YML.exists()

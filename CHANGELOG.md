@@ -136,12 +136,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased] — CI infrastructure cleanup
 
-### Removed
-- **`.github/workflows/upstream-ola-watcher.yml`** — **DELETED**. The path-scoped push trigger fix from PR #340 did not stop the "Run failed: No jobs were run" notifications because GitHub's scheduled-workflow validation creates synthetic events that bypass user-defined trigger filters. After 20+ false-positive failure notifications during the v2.5.7→v2.5.10 sprint, the workflow is retired. Its function (3-source consensus check on OLA app-versions across tillsteinbach/CarConnectivity-connector-seatcupra + WulfgarW/PyCupra + daernsinstantfortress/WeConnect-Cupra-python) is now fully redundant given:
-  - **v2.5.5 App Atlas Phase A.5 Shield** — auto-detects auth-config rotations from APK diff (more direct than upstream-project consensus)
-  - **v2.5.6 APK-Primary AuthConfigResolver** — auto-uses APK-derived values with hardcoded fallback
-  - **v2.5.7 R6 OIDC health-probe** — live endpoint check
-  - **app-atlas-builder workflow** — daily app-version polling for all 7 brands (covers same ground as OLA-watcher's version-bump detection)
+### Changed
+- **`.github/workflows/upstream-ola-watcher.yml`** — workflow was **briefly deleted** (PR #341) after PR #340's path-scoped push filter failed to stop "Run failed: No jobs were run" notifications. On second thought (community feedback), the 3-source consensus signal (`tillsteinbach/CC-seatcupra` + `WulfgarW/PyCupra` + `daernsinstantfortress/WeConnect-Cupra-python`) is genuinely distinct from atlas-builder's APKMirror polling — it tracks **what other community projects classify as known-working** rather than what's available on the app store. The two signals catch different drift classes.
+  - **Fix**: restored the workflow but with a **catch-all `noop-on-non-scheduled` job** + `if:` guard on the real job. GitHub's scheduled-workflow validation creates synthetic events that fire workflows on every commit regardless of user-defined trigger filters. The noop job runs on those synthetic events, succeeds trivially, and shows the workflow as "Run succeeded" instead of "Run failed: No jobs were run". The real `multi-source-check` only runs on `schedule` or `workflow_dispatch` events. Both behaviours preserved, false-positive noise gone.
 
 ### Fixed
 - **App Atlas Builder workflow PR creation** — repo setting `Allow GitHub Actions to create and approve pull requests` was disabled. The daily atlas builder runs detected version changes correctly (creating `auto/atlas-*` branches) but failed at the final `gh pr create` step with `GitHub Actions is not permitted to create or approve pull requests`. Setting now enabled via API. Next daily run (08:00 UTC) will properly open the auto-PR.
