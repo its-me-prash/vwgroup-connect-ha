@@ -35,6 +35,19 @@ on:
     # Daily 08:00 UTC. Drift detection latency ≤24h.
     - cron: "0 8 * * *"
   workflow_dispatch:
+  # v2.5.11 — Path-scoped push trigger to silence false-positive
+  # "Run failed: No jobs were run" notifications. Pre-v2.5.11 we had
+  # only `schedule + workflow_dispatch`, but GitHub's scheduled-workflow
+  # validation fires registration runs on every branch push regardless
+  # of triggers, producing 10+ spam notifications per dev day. With an
+  # explicit push trigger filtered to this workflow file itself, the
+  # workflow only fires on pushes that actually change it (rare → no
+  # noise) and on the scheduled cron (intended).
+  push:
+    paths:
+      - '.github/workflows/upstream-ola-watcher.yml'
+    branches:
+      - main
 
 permissions:
   contents: write
