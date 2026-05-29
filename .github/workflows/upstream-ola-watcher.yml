@@ -1,0 +1,401 @@
+name: Upstream OLA Headers Watcher
+
+# v2.4.1 — Watcher for the 2026-05-20 OLA app-identifying header
+# enforcement (#281, #282). Without these headers the SEAT/CUPRA OLA
+# backend returns HTTP 403 on every request.
+#
+# v2.4.2 — Daily + auto-PR (was weekly + issue-only).
+#
+# v2.4.2+ — MULTI-SOURCE consensus. Checks three independent upstream
+# projects per day:
+#   1. CarConnectivity-connector-seatcupra (tillsteinbach)
+#   2. PyCupra (WulfgarW) — also affected by the 2026-05-20 change
+#   3. WeConnect-Cupra-python (daernsinstantfortress) — Cariad-BFF +
+#      OLA hybrid architecture; CUPRA-only but provides 3rd vote for
+#      CUPRA-specific bumps
+#
+# Decision logic:
+#   - Both sources agree + matches ours              → ✅ no action (just log)
+#   - Both sources agree + differs from ours         → auto-PR (high confidence)
+#   - Sources disagree (split community signal)      → open issue, NO PR
+#                                                       (manual decision needed —
+#                                                        e.g. SEAT was 2.13.3 in
+#                                                        PyCupra vs 2.17.0 in
+#                                                        CarConnectivity at
+#                                                        v2.4.2 launch)
+#   - Source unreachable                             → warn, ignore that source
+#                                                       (the other source's vote
+#                                                        is still actionable)
+#
+# Adding a 3rd source: extend the SOURCES dict in the "Aggregate"
+# step with a new entry providing url + per-brand regex patterns.
+
+on:
+  schedule:
+    # Daily 08:00 UTC. Drift detection latency ≤24h.
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  # v2.5.11 — Catch-all noop. GitHub's scheduled-workflow validation
+  # creates synthetic events that fire this workflow on every commit
+  # (e.g. with event_name='push') even though we only declare
+  # `schedule + workflow_dispatch` triggers. Without this job, those
+  # synthetic events show as "Run failed: No jobs were run" — generating
+  # 20+ false-positive notifications during the v2.5.7→v2.5.10 sprint.
+  # The catch-all converts those validation-only runs into clean
+  # "Run succeeded" status without doing any actual work.
+  noop-on-non-scheduled:
+    if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Workflow file validation OK
+        run: |
+          echo "GitHub Actions validation run. Real work happens on cron or workflow_dispatch only."
+          echo "event_name=${{ github.event_name }}"
+          echo "ref=${{ github.ref }}"
+
+  multi-source-check:
+    # Only run on the intended triggers — paired with noop-on-non-scheduled.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          token: ${{ github.token }}
+
+      - name: Aggregate upstream values + read ours + decide action
+        id: decide
+        run: |
+          python3 << 'PYTHON'
+          import json
+          import os
+          import pathlib
+          import re
+          import urllib.request
+
+          # ── Multi-source registry ──────────────────────────────────
+          # Each entry: name → {url, seat_pattern, cupra_pattern}.
+          # Patterns must have exactly one capture group around the
+          # version string.
+          SOURCES = {
+              "carconnectivity": {
+                  "url": "https://raw.githubusercontent.com/tillsteinbach/CarConnectivity-connector-seatcupra/main/src/carconnectivity_connectors/seatcupra/auth/my_cupra_session.py",
+                  "seat_pattern":  r"'app-brand': 'seat',\s*'app-version': '([^']+)'",
+                  "cupra_pattern": r"'app-brand': 'cupra',\s*'app-version': '([^']+)'",
+              },
+              "pycupra": {
+                  "url": "https://raw.githubusercontent.com/WulfgarW/pycupra/main/pycupra/const.py",
+                  "seat_pattern":  r"XAPPVERSION_SEAT\s*=\s*'([^']+)'",
+                  "cupra_pattern": r"XAPPVERSION_CUPRA\s*=\s*'([^']+)'",
+              },
+              "daern_weconnect_cupra": {
+                  # daernsinstantfortress's CUPRA-only project. SEAT
+                  # not covered (their package is CUPRA-specific) —
+                  # missing seat votes are handled by the per-brand
+                  # consensus logic below.
+                  "url": "https://raw.githubusercontent.com/daernsinstantfortress/WeConnect-Cupra-python/main/weconnect_cupra/auth/auth_util.py",
+                  "seat_pattern":  r"NEVER_MATCH_SEAT_HERE_DAERN_IS_CUPRA_ONLY",
+                  "cupra_pattern": r'headers\["app-version"\]\s*=\s*"([^"]+)"',
+              },
+          }
+
+          # ── Fetch + parse each upstream ────────────────────────────
+          results: dict[str, dict[str, str | None]] = {}
+          for name, cfg in SOURCES.items():
+              try:
+                  with urllib.request.urlopen(cfg["url"], timeout=20) as resp:
+                      text = resp.read().decode("utf-8", errors="replace")
+                  seat_m  = re.search(cfg["seat_pattern"], text)
+                  cupra_m = re.search(cfg["cupra_pattern"], text)
+                  results[name] = {
+                      "seat":  seat_m.group(1)  if seat_m  else None,
+                      "cupra": cupra_m.group(1) if cupra_m else None,
+                  }
+                  print(f"  {name}: SEAT={results[name]['seat']} CUPRA={results[name]['cupra']}")
+              except Exception as e:
+                  print(f"  ⚠️  {name}: fetch/parse failed ({e}) — ignoring this source")
+                  results[name] = None
+
+          # ── Read our current values ────────────────────────────────
+          F = pathlib.Path("custom_components/vag_connect/cariad/_ola_headers.py")
+          if not F.exists():
+              print("::error::_ola_headers.py missing")
+              raise SystemExit(2)
+          our_text = F.read_text()
+          our_seat_m  = re.search(r'"seat"\s*:\s*\{[^}]*?"app-version"\s*:\s*"([^"]+)"',  our_text, re.DOTALL)
+          our_cupra_m = re.search(r'"cupra"\s*:\s*\{[^}]*?"app-version"\s*:\s*"([^"]+)"', our_text, re.DOTALL)
+          ours = {
+              "seat":  our_seat_m.group(1)  if our_seat_m  else None,
+              "cupra": our_cupra_m.group(1) if our_cupra_m else None,
+          }
+          print(f"  ours:    SEAT={ours['seat']} CUPRA={ours['cupra']}")
+
+          # ── Consensus per brand ────────────────────────────────────
+          # Gather all non-None values from successful sources.
+          live_sources = {k: v for k, v in results.items() if v is not None}
+          if not live_sources:
+              print("::warning::All upstream sources failed — skipping run.")
+              for k in ("action", "seat_new", "cupra_new", "disagreement_msg"):
+                  print(f"::set-output name={k}::")
+              raise SystemExit(0)
+
+          def consensus(brand: str) -> tuple[str, set[str], dict[str, str]]:
+              """Return (consensus_value, distinct_values, per_source_dict).
+
+              consensus_value is the agreed value if all live sources
+              agree; otherwise empty string.
+              """
+              per_source = {
+                  src: vals[brand] for src, vals in live_sources.items()
+                  if vals[brand] is not None
+              }
+              distinct = set(per_source.values())
+              if len(distinct) == 1:
+                  return next(iter(distinct)), distinct, per_source
+              return "", distinct, per_source
+
+          seat_consensus,  seat_distinct,  seat_per_source  = consensus("seat")
+          cupra_consensus, cupra_distinct, cupra_per_source = consensus("cupra")
+
+          # ── Decide action ─────────────────────────────────────────
+          disagreement_msgs = []
+          if not seat_consensus:
+              detail = ", ".join(f"{s}=`{v}`" for s, v in seat_per_source.items())
+              disagreement_msgs.append(f"**SEAT** sources disagree: {detail}")
+          if not cupra_consensus:
+              detail = ", ".join(f"{s}=`{v}`" for s, v in cupra_per_source.items())
+              disagreement_msgs.append(f"**CUPRA** sources disagree: {detail}")
+
+          if disagreement_msgs:
+              action = "issue"   # split community → human decides
+              seat_new = ""
+              cupra_new = ""
+              disagreement_full = "\n\n".join(disagreement_msgs)
+          elif seat_consensus == ours["seat"] and cupra_consensus == ours["cupra"]:
+              action = "none"
+              seat_new = ""
+              cupra_new = ""
+              disagreement_full = ""
+          else:
+              action = "pr"      # all agree + differs from ours → bump
+              seat_new = seat_consensus
+              cupra_new = cupra_consensus
+              disagreement_full = ""
+
+          # Emit GH outputs.
+          gh_out = os.environ.get("GITHUB_OUTPUT")
+          if gh_out:
+              with open(gh_out, "a") as fh:
+                  fh.write(f"action={action}\n")
+                  fh.write(f"seat_new={seat_new}\n")
+                  fh.write(f"cupra_new={cupra_new}\n")
+                  fh.write(f"seat_ours={ours['seat']}\n")
+                  fh.write(f"cupra_ours={ours['cupra']}\n")
+                  fh.write(f"disagreement<<EOF\n{disagreement_full}\nEOF\n")
+
+          # Per-source breakdown for the issue/PR body.
+          live_str = "\n".join(
+              f"- **{src}**: SEAT=`{v['seat']}` CUPRA=`{v['cupra']}`"
+              for src, v in live_sources.items()
+          )
+          if gh_out:
+              with open(gh_out, "a") as fh:
+                  fh.write(f"per_source<<EOF\n{live_str}\nEOF\n")
+
+          print(f"\nDecision: action={action}")
+          PYTHON
+
+      # ── Action path: AUTO-PR (all sources agree, differs from ours)
+      - name: Check for existing auto-PR (idempotency)
+        id: existing
+        if: steps.decide.outputs.action == 'pr'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEW_SEAT: ${{ steps.decide.outputs.seat_new }}
+          NEW_CUPRA: ${{ steps.decide.outputs.cupra_new }}
+        run: |
+          TITLE="chore(ola-headers): auto-bump to SEAT=$NEW_SEAT, CUPRA=$NEW_CUPRA"
+          EXISTING=$(gh pr list --state open --search "in:title \"$TITLE\"" --json number --jq '.[0].number')
+          if [ -n "$EXISTING" ]; then
+            echo "PR #$EXISTING already open with these target values — skip."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Patch _ola_headers.py + grow fallback chain
+        if: steps.decide.outputs.action == 'pr' && steps.existing.outputs.skip != 'true'
+        env:
+          NEW_SEAT: ${{ steps.decide.outputs.seat_new }}
+          NEW_CUPRA: ${{ steps.decide.outputs.cupra_new }}
+          OUR_SEAT: ${{ steps.decide.outputs.seat_ours }}
+          OUR_CUPRA: ${{ steps.decide.outputs.cupra_ours }}
+        run: |
+          python3 << 'PYTHON'
+          import os, pathlib, re
+
+          F = pathlib.Path("custom_components/vag_connect/cariad/_ola_headers.py")
+          text = F.read_text()
+          new_seat   = os.environ["NEW_SEAT"]
+          new_cupra  = os.environ["NEW_CUPRA"]
+          our_seat   = os.environ["OUR_SEAT"]
+          our_cupra  = os.environ["OUR_CUPRA"]
+
+          if new_seat and new_seat != our_seat:
+              text = re.sub(
+                  r'("seat":\s*\{[^}]*?"app-version":\s*)"[^"]+"',
+                  rf'\1"{new_seat}"', text, count=1, flags=re.DOTALL,
+              )
+          if new_cupra and new_cupra != our_cupra:
+              text = re.sub(
+                  r'("cupra":\s*\{[^}]*?"app-version":\s*)"[^"]+"',
+                  rf'\1"{new_cupra}"', text, count=1, flags=re.DOTALL,
+              )
+
+          def grow_fallback(text: str, brand: str, old: str) -> str:
+              if not old:
+                  return text
+              entry = (
+                  f'        {{"app-market": "android", "app-brand": "{brand}", '
+                  f'"app-version": "{old}", "origin": "app"}},\n'
+                  f'        # ↑ auto-added by upstream-ola-watcher on bump.'
+              )
+              return re.sub(rf'("{brand}":\s*\[\n)', rf'\1{entry}\n', text, count=1)
+
+          if new_seat and new_seat != our_seat:
+              text = grow_fallback(text, "seat", our_seat)
+          if new_cupra and new_cupra != our_cupra:
+              text = grow_fallback(text, "cupra", our_cupra)
+
+          F.write_text(text)
+          print(f"✅ Patched {F}")
+          PYTHON
+
+      - name: Open Pull Request
+        if: steps.decide.outputs.action == 'pr' && steps.existing.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEW_SEAT: ${{ steps.decide.outputs.seat_new }}
+          NEW_CUPRA: ${{ steps.decide.outputs.cupra_new }}
+          OUR_SEAT: ${{ steps.decide.outputs.seat_ours }}
+          OUR_CUPRA: ${{ steps.decide.outputs.cupra_ours }}
+          PER_SOURCE: ${{ steps.decide.outputs.per_source }}
+        run: |
+          git config user.name "vw-group-connect-bot"
+          git config user.email "noreply@github.com"
+          DATE=$(date -u +%Y%m%d)
+          BRANCH="auto/ola-bump-${DATE}-seat${NEW_SEAT}-cupra${NEW_CUPRA}"
+          git checkout -b "$BRANCH"
+
+          # Add a compact CHANGELOG entry under [Unreleased].
+          python3 << 'PYTHON'
+          import os, pathlib, datetime
+          F = pathlib.Path("CHANGELOG.md")
+          text = F.read_text(encoding="utf-8")
+          marker = "## [Unreleased]"
+          if marker in text:
+              ns  = os.environ["NEW_SEAT"]
+              nc  = os.environ["NEW_CUPRA"]
+              os_ = os.environ["OUR_SEAT"]
+              oc  = os.environ["OUR_CUPRA"]
+              date = datetime.date.today().isoformat()
+              line = (
+                  f"\n### Changed\n"
+                  f"- OLA app-version bumped (SEAT `{os_}` → `{ns}`, "
+                  f"CUPRA `{oc}` → `{nc}`) on {date}. Multi-source consensus "
+                  f"detected by upstream watcher; old values appended to "
+                  f"fallback chain.\n"
+              )
+              idx = text.index(marker) + len(marker)
+              if "_(nothing pending" in text[idx : idx + 200]:
+                  end = text.index("\n## ", idx)
+                  text = text[: idx] + line + text[end :]
+              else:
+                  text = text[: idx] + line + text[idx :]
+              F.write_text(text, encoding="utf-8")
+          PYTHON
+
+          git add custom_components/vag_connect/cariad/_ola_headers.py CHANGELOG.md
+          git commit -m "chore(ola-headers): auto-bump SEAT=${NEW_SEAT}, CUPRA=${NEW_CUPRA}
+
+          Multi-source consensus from upstream watcher:
+          ${PER_SOURCE}
+
+          Defense-in-depth Layer 3 self-extension: old primary values
+          appended to fallback chain.
+
+          Maintainer review checklist:
+          - [ ] Both upstream sources show same values (consensus confirmed)
+          - [ ] Verify upstream commits look legitimate (not vandalism)
+          - [ ] CI green
+          - [ ] Merge"
+
+          git push -u origin "$BRANCH"
+
+          gh pr create \
+            --title "chore(ola-headers): auto-bump to SEAT=$NEW_SEAT, CUPRA=$NEW_CUPRA" \
+            --label "auto-ola-bump" \
+            --body "Multi-source consensus across all monitored upstream OLA projects — bumping app-version constants.
+
+| Brand | Old (ours) | New (consensus) |
+|---|---|---|
+| SEAT  | \`$OUR_SEAT\`  | \`$NEW_SEAT\`  |
+| CUPRA | \`$OUR_CUPRA\` | \`$NEW_CUPRA\` |
+
+**Per-source breakdown:**
+$PER_SOURCE
+
+**What this PR does:**
+1. Bumps primary values in \`_OLA_HEADERS_BY_BRAND\`
+2. Prepends OLD primary values into \`_OLA_HEADERS_BY_BRAND_FALLBACK\` — Layer 3 self-grows
+3. Adds a one-line CHANGELOG entry under \`[Unreleased]\`
+
+**Why auto-PR not auto-merge:** human safety check in case upstream pushes experimental / mistaken values. If consensus looks right, merge it.
+
+_Auto-filed by \`.github/workflows/upstream-ola-watcher.yml\` on $(date -u +%Y-%m-%d). Idempotent — workflow won't re-create this PR while it's open._"
+
+      # ── Action path: ISSUE (sources disagree, manual decision needed)
+      - name: Open or update divergence issue
+        if: steps.decide.outputs.action == 'issue'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PER_SOURCE: ${{ steps.decide.outputs.per_source }}
+          DISAGREEMENT: ${{ steps.decide.outputs.disagreement }}
+        run: |
+          TITLE="OLA upstream-source divergence — manual review needed"
+          EXISTING=$(gh issue list --state open --search "in:title \"$TITLE\"" --json number --jq '.[0].number')
+          BODY="Multi-source watcher detected that the monitored upstream OLA projects disagree on at least one brand's \`app-version\` constant. Manual decision needed — auto-PR is **not safe** when sources split because picking the wrong one might mean we follow a stale/experimental project.
+
+          $DISAGREEMENT
+
+          **All live sources:**
+          $PER_SOURCE
+
+          **Action:** review both projects' recent commit history, decide which value to follow (or keep ours), bump \`cariad/_ola_headers.py\` manually if needed. Close this issue when done — the watcher will re-fire next time sources diverge.
+
+          _Auto-filed by \`.github/workflows/upstream-ola-watcher.yml\` on $(date -u +%Y-%m-%d). Comments added on re-detection; won't spam duplicate issues._"
+
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "Re-detected on $(date -u +%Y-%m-%d):
+
+            $DISAGREEMENT
+
+            $PER_SOURCE"
+          else
+            gh issue create --title "$TITLE" --label "chore" --body "$BODY"
+          fi
+
+      # ── Action path: NO-OP (in sync)
+      - name: Report no drift
+        if: steps.decide.outputs.action == 'none'
+        env:
+          PER_SOURCE: ${{ steps.decide.outputs.per_source }}
+        run: |
+          echo "✅ OLA headers in sync with all upstream sources"
+          echo "$PER_SOURCE"
