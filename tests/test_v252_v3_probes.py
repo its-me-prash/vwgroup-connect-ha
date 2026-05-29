@@ -40,19 +40,24 @@ class TestProbeInventory:
             )
 
     def test_probe_paths_have_vin_placeholder_or_garage(self) -> None:
-        """Most probes need {vin}; a few (garage-level) explicitly do not."""
+        """Most probes need {vin}; a few (garage / OIDC health) explicitly do not.
+
+        Account/IDP-level endpoints that are deliberately VIN-independent:
+        - 'garage' in path: brand-account capability listing
+        - 'oidc' in path: v2.5.7 R6 OIDC health-probe (openid-configuration)
+        """
         from custom_components.vag_connect.cariad.api._v3_probes import (
             PROBES_BY_BRAND,
         )
         for brand, probes in PROBES_BY_BRAND.items():
             for probe in probes:
-                # Either path carries the vin placeholder OR it's clearly a
-                # garage/account-level endpoint (the name "garage" appears).
                 has_vin = "{vin}" in probe.path
                 is_garage = "garage" in probe.path.lower()
-                assert has_vin or is_garage, (
-                    f"{brand}.{probe.name} path lacks both {{vin}} and "
-                    f"'garage' — path={probe.path!r}"
+                # v2.5.7 R6 — OIDC discovery is brand-level, no VIN substitution.
+                is_oidc_config = "oidc" in probe.path.lower() and "openid-configuration" in probe.path.lower()
+                assert has_vin or is_garage or is_oidc_config, (
+                    f"{brand}.{probe.name} path lacks {{vin}}, 'garage', "
+                    f"and OIDC marker — path={probe.path!r}"
                 )
 
     def test_base_urls_cover_brands_that_have_probes(self) -> None:
