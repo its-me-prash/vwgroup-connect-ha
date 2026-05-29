@@ -200,6 +200,19 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # for users; only the scout was noisy. T1 (parsed + entity
             # exists, just registering the silencer side now).
             "estimatedDateTimeToReachTargetTemperature",
+            # v2.5.8 (#315 #316 #321 #327 #328 #329 #330 #333 — EIGHT
+            # independent Skoda Scout-Reports converging on the same
+            # field 2026-05-28/29). Skoda mysmob now exposes a
+            # ``campingMode`` toggle/object on air-conditioning. Likely
+            # the new Enyaq/iV "Camping Mode" feature: climatisation
+            # runs continuously when parked + windows lock + roof-rack
+            # power-out. Sample shows ``{1 keys}`` so it's an object,
+            # not a primitive — wildcard registers all current + future
+            # sub-keys without per-leaf whack-a-mole.
+            # v2.5.8 also wires this as binary_sensor.camping_mode for
+            # Skoda (sensor named based on the boolean enabled key).
+            "campingMode",
+            "campingMode.*",
         },
         "parking": {
             "parkingPosition", "parkingPosition.gpsCoordinates",
@@ -450,6 +463,21 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             "charging.type",
             "charging.mode",
             "charging.settings",
+            # v2.5.8 (#331 matthias0304 + #332 ColinSainsbury — TWO
+            # independent CUPRA Scout-Reports converging 2026-05-29).
+            # OLA backend now exposes lifetime charge-energy total at
+            # the top of the charging block + a rateInKmph rename of
+            # the existing chargingRateInKilometersPerHour field.
+            # T1 plan: chargeRate_kmph fallback chain already covers
+            # rateInKmph variant in seat_cupra.py:747 (silencer-lag-
+            # behind-parser, exactly the v2.4.2 #299 pattern). Adding
+            # silencer here completes T1.
+            # battery.chargeEnergyInKwh is NEW — currently parser-side
+            # null, but worth registering ahead of a future
+            # sensor.charging_session_energy_kwh entity (currently
+            # only Skoda has total_charged_energy_kwh per #35).
+            "battery.chargeEnergyInKwh",
+            "charging.rateInKmph",
         },
         "charging-info": {
             "targetSOC_pct", "targetSoc_pct", "targetStateOfChargeInPercent",

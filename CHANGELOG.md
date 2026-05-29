@@ -134,6 +134,20 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **App Atlas Phase A.2 — APK download + apktool extraction** — when a brand's version-name changes (detected by the daily watcher), the workflow now downloads the APK via APKCombo CDN, decodes it with apktool, and greps for OLA-style header keys + known backend hosts. Findings persist as `.app-atlas-apk-cache/{brand}.json` and render in each per-brand atlas page. Workflow extracts only on version-change (idempotent), keeps CI runtime under 2min/changed-brand. Phase A.3 (jadx semantic-diff between consecutive APK versions) deferred to a separate session.
 - **App Atlas Phase A.3 — jadx full decompile + cross-version semantic diff** (manual `workflow_dispatch` only — too heavy for daily). Triggers on demand when investigating a brand's version bump: downloads both versions, runs jadx full Java decompile, extracts URL constants + header-key strings + OAuth scopes, computes a targeted diff filtering out obfuscator-rename noise. Outputs a self-contained markdown report at `docs/research/app-atlas/diffs/{brand}_{old}_vs_{new}.md` and auto-opens a PR. Provides ground-truth answers to "what new endpoints / headers / scopes appeared in this version bump?" — much higher signal than the daily smali grep.
 
+## [2.5.8] — 2026-05-29 — "Silencer Sweep (campingMode + CUPRA charging rename)"
+
+### Fixed
+- **Silenced 11 scout-reports in one sweep** across Skoda + CUPRA + VW EU. New fields exposed by recent OTA-updates:
+  - **Skoda `air-conditioning.campingMode`** (8 user reports converging 2026-05-28/29 — #315 @MavericklCS, #316 + #321 @whaak58, #327 @tritanium73, #328 @microcens, #329 @derolli1976, #330 @ichwars, #333 @mk-lp). Likely the new Enyaq/iV "Camping Mode" feature — climatisation runs continuously when parked. Wildcard `campingMode.*` registers all current + future sub-keys. **Entity wiring (`binary_sensor.camping_mode`) deferred to v2.5.9** to keep this patch low-risk; silencer-only ship.
+  - **CUPRA `charging` block** (#331 @matthias0304 + #332 @ColinSainsbury, 2026-05-29): new `battery.chargeEnergyInKwh` (lifetime charge-energy total) + `charging.rateInKmph` (renamed variant of `chargingRateInKilometersPerHour`). The rate-field is already covered by the existing v2.4.2 fallback chain in `seat_cupra.py:747` — silencer-lag-behind-parser pattern, same class as #299.
+  - **VW EU `selectivestatus.charging.chargingStatus.value.chargeRate_kmph`** (#307 @PoPcornKRISs, 2026-05-28). **Was already silenced in v2.4.2 — auto-closes on next scout pass** when the user upgrades; explicit re-confirmation here for completeness.
+
+### Why a single silencer-sweep release
+The 8 Skoda reports landing simultaneously on the same field is a classic "OTA-update flipped a new firmware-side feature for many users in the same window" pattern. Rather than 11 individual scout-fix releases, this patch consolidates the response and **closes all 11 tickets on the next scout pass** for affected users.
+
+### Risk
+**Zero.** Pure silencer additions to `_unexpected_keys.py` EXPECTED_KEYS table. No parser changes, no entity changes, no behavioural change for end users.
+
 ## [Unreleased] — Phase 0 docs deliverable
 
 ### Added
