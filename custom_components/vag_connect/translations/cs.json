@@ -468,6 +468,9 @@
       },
       "siren_active": {
         "name": "Siréna Aktivní"
+      },
+      "camping_mode": {
+        "name": "Režim kempování"
       }
     },
     "switch": {

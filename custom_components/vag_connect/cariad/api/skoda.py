@@ -604,6 +604,31 @@ class SkodaClient(CariadBaseClient):
             ac_no_ext = v(ac, "airConditioningWithoutExternalPower")
             if isinstance(ac_no_ext, bool):
                 d.air_conditioning_without_external_power = ac_no_ext
+            # v2.5.9 (#315/#316/#321/#327/#328/#329/#330/#333 — EIGHT
+            # Skoda Scout-Reports converging 2026-05-28/29). New Enyaq/iV
+            # "Camping Mode" feature exposed at
+            # ``air-conditioning.campingMode``. Scout reported `{1 keys}`
+            # so the API returns an object — we don't know the exact
+            # sub-key yet (could be ``enabled``, ``active``, ``state``).
+            # Defensive parse: accept BOOL (legacy), OBJECT-with-
+            # ``enabled``/``active`` sub-key, OR plain string ("on"/"off").
+            # When a real debug-log lands we can tighten this. Phantom-
+            # protected via _DATA_PRESENT_REQUIRED in binary_sensor.py.
+            camping = v(ac, "campingMode")
+            if isinstance(camping, bool):
+                d.camping_mode = camping
+            elif isinstance(camping, dict):
+                # Try common sub-key names in priority order.
+                for key in ("enabled", "active", "isEnabled", "state"):
+                    val = camping.get(key)
+                    if isinstance(val, bool):
+                        d.camping_mode = val
+                        break
+                    if isinstance(val, str):
+                        d.camping_mode = val.lower() in ("on", "active", "enabled", "true")
+                        break
+            elif isinstance(camping, str):
+                d.camping_mode = camping.lower() in ("on", "active", "enabled", "true")
             # v2.2.0 Phase 7 PR #1 — steeringWheelPosition (LEFT/RIGHT).
             # LHD/RHD-aware automations + diagnostic for markets where
             # the same car ships both (UK, AU, JP). Defensive: only

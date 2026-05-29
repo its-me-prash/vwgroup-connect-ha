@@ -468,6 +468,9 @@
       },
       "siren_active": {
         "name": "Syrena Aktywna"
+      },
+      "camping_mode": {
+        "name": "Tryb kempingowy"
       }
     },
     "switch": {

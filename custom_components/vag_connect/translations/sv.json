@@ -468,6 +468,9 @@
       },
       "siren_active": {
         "name": "Siren Aktiv"
+      },
+      "camping_mode": {
+        "name": "Campingläge"
       }
     },
     "switch": {

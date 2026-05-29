@@ -134,6 +134,28 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **App Atlas Phase A.2 — APK download + apktool extraction** — when a brand's version-name changes (detected by the daily watcher), the workflow now downloads the APK via APKCombo CDN, decodes it with apktool, and greps for OLA-style header keys + known backend hosts. Findings persist as `.app-atlas-apk-cache/{brand}.json` and render in each per-brand atlas page. Workflow extracts only on version-change (idempotent), keeps CI runtime under 2min/changed-brand. Phase A.3 (jadx semantic-diff between consecutive APK versions) deferred to a separate session.
 - **App Atlas Phase A.3 — jadx full decompile + cross-version semantic diff** (manual `workflow_dispatch` only — too heavy for daily). Triggers on demand when investigating a brand's version bump: downloads both versions, runs jadx full Java decompile, extracts URL constants + header-key strings + OAuth scopes, computes a targeted diff filtering out obfuscator-rename noise. Outputs a self-contained markdown report at `docs/research/app-atlas/diffs/{brand}_{old}_vs_{new}.md` and auto-opens a PR. Provides ground-truth answers to "what new endpoints / headers / scopes appeared in this version bump?" — much higher signal than the daily smali grep.
 
+## [2.5.9] — 2026-05-29 — "Scout-Policy T1 — Parse What We Silenced"
+
+### Added (T1 promotion of v2.5.8 silencers)
+v2.5.8 silenced 2 new fields (Skoda `campingMode`, CUPRA `battery.chargeEnergyInKwh`) without parsing them into entities. That violates our [Scout Policy](docs/SCOUT_POLICY.md) **T1 default ("always parse what you silence")** — the policy explicitly disallows silencer-only fixes when the field has legitimate user value. v2.5.9 closes the loop:
+
+- **NEW `binary_sensor.camping_mode`** (Skoda). Parses `air-conditioning.campingMode` defensively (bool, dict-with-`enabled`/`active`/`isEnabled`/`state` sub-key, or string "on"/"off"). 8 reporting users (#315/#316/#321/#327/#328/#329/#330/#333) get the entity automatically when their Skoda OTA exposed Camping Mode. Phantom-protected via `_DATA_PRESENT_REQUIRED` — other brands stay clean. Icon: `mdi:tent`. Translations in all 8 shipped languages (cs/de/en/es/fr/nl/pl/sv).
+
+- **CUPRA `battery.chargeEnergyInKwh` → `sensor.total_charged_energy_kwh`** cross-brand wiring. Mirrors the Skoda `total_charged_energy_kwh` sensor that was Skoda-only since v1.15.0 (#35). Now CUPRA reporters @matthias0304 + @ColinSainsbury (#331 + #332) get the lifetime charge-energy tracker for free. Uses the existing cross-brand entity definition — no new entity needed, just the parser wiring.
+
+### Scout Policy enforcement
+This patch is a textbook **T1 promotion**: v2.5.8 was a quick T2 silencer-only ship for triage speed. v2.5.9 finishes the job per policy. Future scout-sweeps should default to T1 (parse-and-wire) unless there's a documented reason for T2 exemption.
+
+### Risk
+**Very low.** Both new fields are phantom-protected: vehicles where the API doesn't return the field show no entity at all. Camping Mode parser is defensive (bool/dict/string variants accepted) so a future API shape-change won't crash the parse.
+
+### Files
+- `cariad/models.py` — `camping_mode: bool | None` field
+- `cariad/api/skoda.py` — defensive 3-variant `campingMode` parser
+- `cariad/api/seat_cupra.py` — `battery.chargeEnergyInKwh` parser into `total_charged_energy_kwh`
+- `binary_sensor.py` — new `VagBinarySensorDescription` for `camping_mode` + `_DATA_PRESENT_REQUIRED` registration
+- `strings.json` + 8 translations — `camping_mode` entity name in cs/de/en/es/fr/nl/pl/sv
+
 ## [2.5.8] — 2026-05-29 — "Silencer Sweep (campingMode + CUPRA charging rename)"
 
 ### Fixed

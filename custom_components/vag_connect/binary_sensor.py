@@ -297,6 +297,18 @@ _NEW_BINARY: tuple[VagBinarySensorDescription, ...] = (
         icon="mdi:battery-charging",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # v2.5.9 (#315/#316/#321/#327/#328/#329/#330/#333 — EIGHT Skoda
+    # Scout-Reports converging 2026-05-28/29). Skoda's new Enyaq/iV
+    # "Camping Mode" — climatisation runs continuously when parked.
+    # Skoda-only today; phantom-protected below. When CUPRA/SEAT
+    # firmware ships an equivalent (which the OLA backend is likely to
+    # mirror given shared codebase), they'll auto-light up.
+    VagBinarySensorDescription(
+        key="camping_mode",
+        translation_key="camping_mode",
+        data_key="camping_mode",
+        icon="mdi:tent",
+    ),
     # v2.2.0 Phase 2 PR #9/20 — Companion to subscription_expiry_at
     # (PR #8/20). Simple True/False "is your Connect subscription
     # currently valid?" — perfect for HA automations like
@@ -476,6 +488,9 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # v2.2.0 (scout #220) — Skoda-only AC-without-external-power.
     # Other brands leave field None → no phantom entity.
     "air_conditioning_without_external_power",
+    # v2.5.9 (8 converging Skoda scouts) — Skoda-only Camping Mode today.
+    # Cross-brand auto-light-up when other OLA brands ship the feature.
+    "camping_mode",
     # v2.2.0 PR #9/20 + PR #10/20 — subscription_active companion to
     # subscription_expiry_at. SEAT/CUPRA from ``mycar.services``;
     # VW EU + Audi (PR #10) from CARIAD-BFF ``userCapabilities``.

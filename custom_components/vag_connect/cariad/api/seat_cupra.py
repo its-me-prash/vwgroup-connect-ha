@@ -747,6 +747,20 @@ class SeatCupraClient(CariadBaseClient):
                 )
                 d.has_battery = d.battery_soc is not None
 
+            # v2.5.9 (#331 matthias0304 + #332 ColinSainsbury — TWO CUPRA
+            # Scout-Reports converging 2026-05-29). OLA backend now ships
+            # ``battery.chargeEnergyInKwh`` — lifetime cumulative charge
+            # energy delivered (kWh). Mirrors Skoda's
+            # ``total_charged_energy_kwh`` (per #35 / v1.15.0) so the
+            # cross-brand `sensor.total_charged_energy_kwh` Just Works.
+            # Phantom-protected: only sets the field when the API returns
+            # a non-None numeric value, so vehicles without this field
+            # show no entity at all (HACS / SoC-pessimist owners stay
+            # clean).
+            charge_energy = v(bat, "chargeEnergyInKwh")
+            if isinstance(charge_energy, (int, float)) and charge_energy >= 0:
+                d.total_charged_energy_kwh = float(charge_energy)
+
             # v1.10.2 (#53 Gerhard) — ``battery.estimatedRangeInKm`` is the
             # new short field. Only sets ``range_km`` if not already set
             # by the dedicated ranges endpoint (which we prefer when
