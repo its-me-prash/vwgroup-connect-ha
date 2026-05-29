@@ -207,12 +207,21 @@ class TestOLARepairIssue:
 
 
 class TestOLAUpstreamWatcher:
-    """CI workflow: daily comparison + auto-PR (v2.4.2+).
+    """v2.5.11 — workflow DELETED (see CHANGELOG Unreleased section).
 
-    v2.4.1 shipped this watcher as weekly + issue-only. v2.4.2 upgrades
-    it to daily + auto-PR with fallback-chain growth. These tests pin
-    the upgraded behavior.
+    The 3-source consensus check is now redundant with v2.5.5 atlas
+    Phase A.5 shield + v2.5.6 APK-primary resolver + v2.5.7 R6 health-
+    probe. GitHub's scheduled-workflow validation generated 20+ false-
+    positive failure notifications during the v2.5.7→v2.5.10 sprint,
+    making the workflow's signal-to-noise ratio negative.
+
+    All historical pins below are retained as documentation of what the
+    workflow USED to do — but are wrapped in ``pytest.mark.skip`` since
+    the file no longer exists. Kept (not deleted outright) so future
+    archaeology has the audit trail of what was retired and why.
     """
+
+    pytestmark = pytest.mark.skip(reason="v2.5.11 — workflow retired (see CHANGELOG)")
 
     def test_workflow_file_exists(self) -> None:
         assert _OLA_WATCHER_YML.exists()
