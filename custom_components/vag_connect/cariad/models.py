@@ -603,6 +603,15 @@ class VehicleData:
     # automations where the user wants to "warm up only if not plugged in".
     air_conditioning_without_external_power: bool | None = None
 
+    # v2.5.9 (#315/#316/#321/#327/#328/#329/#330/#333 — EIGHT Skoda
+    # Scout-Reports converging 2026-05-28/29). New Enyaq/iV "Camping Mode"
+    # feature: climatisation runs continuously when parked, windows lock,
+    # roof-rack power-out. Sample showed `{1 keys}` so the API returns
+    # an object — defensive parsing handles both bool and object-with-
+    # ``enabled`` sub-key. Skoda-only today; mirror across brands when
+    # CUPRA/SEAT firmware ships equivalent.
+    camping_mode: bool | None = None
+
     # v2.2.0 Phase 7 PR #1 — quick-wins batch from the silenced-but-
     # unwired scout-audit. Four fields silenced in `_unexpected_keys.py`
     # but never exposed as entities. All defensive: brand-restricted

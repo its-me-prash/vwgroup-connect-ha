@@ -468,6 +468,9 @@
       },
       "siren_active": {
         "name": "Sirene Actief"
+      },
+      "camping_mode": {
+        "name": "Kampeermodus"
       }
     },
     "switch": {

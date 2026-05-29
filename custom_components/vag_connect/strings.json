@@ -505,6 +505,9 @@
       "air_conditioning_without_external_power": {
         "name": "AC Without External Power"
       },
+      "camping_mode": {
+        "name": "Camping Mode"
+      },
       "subscription_active": {
         "name": "Subscription Active"
       },
