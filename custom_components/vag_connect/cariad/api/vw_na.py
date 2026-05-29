@@ -272,6 +272,29 @@ class VWNAClient:
                 d.fuel_level is not None
             )
 
+            # v2.5.10 (#323 roberttco — 2023 ID.4 US) — populate
+            # last_seen_at from the VW NA RVS response. Pre-v2.5.10 we
+            # never set this field for VW NA, so the user-visible
+            # "Last Update" sensor effectively showed our local poll
+            # time instead of when the car actually reported data to
+            # the cloud. Defensive parser: VW NA RVS API has shipped at
+            # least 4 different timestamp field-name conventions across
+            # firmware generations — try them in priority order, first
+            # ISO-8601-looking string wins.
+            for path in (
+                ("vehicleStatusTime",),                  # myVW 2024+
+                ("connectionStatus", "lastConnectionTime"),  # legacy myVW
+                ("connectionStatus", "timestamp"),
+                ("carCapturedTimestamp",),               # CARIAD-aligned newer firmware
+                ("powerStatus", "carCapturedTimestamp"), # sub-block timestamp
+                ("lastUpdated",),
+                ("dataTimestamp",),
+            ):
+                ts = v(vehicle_raw, *path)
+                if isinstance(ts, str) and len(ts) >= 10 and "T" in ts:
+                    d.last_seen_at = ts
+                    break
+
         # ── Charging ──────────────────────────────────────────────────────────
         if isinstance(charge, dict):
             d.charging_state    = v(charge, "chargingStatus", "chargingState")

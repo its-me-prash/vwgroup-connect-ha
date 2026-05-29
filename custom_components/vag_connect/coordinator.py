@@ -374,6 +374,15 @@ class FeatureState:
 
     ``None`` means "not yet determined" for all three. Don't infer anything
     from a None value; only use this once a real attempt has been made.
+
+    v2.5.10 (#325 roberttco) — when a "definitive no" flag flips to False,
+    the entity becomes permanently unavailable for the session. Pre-v2.5.10
+    this required a HA restart to clear. v2.5.10 adds ``retry_after`` —
+    24 hours after the flag flip, ``is_command_known_unsupported`` returns
+    False again so the entity becomes available for one re-attempt. If the
+    backend still says no, the flag re-flips immediately. If the backend
+    now says yes (e.g. subscription renewed, model-year update), the
+    entity stays available — auto-recovery without restart.
     """
 
     supported_by_vehicle: bool | None = None
@@ -381,6 +390,13 @@ class FeatureState:
     available_now: bool | None = None
     last_error: CommandFailureReason | None = None
     last_error_at: datetime | None = None
+    # v2.5.10 (#325) — auto-recovery timestamp. None means "no recovery
+    # attempt scheduled" (i.e. command has never been definitively
+    # disabled OR command is currently working). When a definitive-no
+    # flag is set, this is populated with now + 24h. ``is_command_known
+    # _unsupported`` returns False once this is reached, prompting one
+    # re-attempt cycle.
+    retry_after: datetime | None = None
 
 
 class VagConnectCoordinator(DataUpdateCoordinator):
@@ -1153,17 +1169,26 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         explicit ``MISSING_CAPABILITY`` response. Other reasons leave the
         flag untouched so a transient backend hiccup never permanently
         hides an entity.
+
+        v2.5.10 (#325 roberttco) — when a definitive-no flag is flipped,
+        schedule ``retry_after`` 24h from now so the entity can re-
+        evaluate itself without requiring a HA restart. Auto-recovery
+        for backend changes (subscription renewed, model-year firmware
+        update, OTA-pushed feature unlock).
         """
         state = self.get_feature_state(vin, command)
         state.last_error = reason
         state.last_error_at = datetime.now(tz=timezone.utc)
+        retry_at = state.last_error_at + timedelta(hours=24)
         if reason is CommandFailureReason.MISSING_CAPABILITY:
             state.supported_by_vehicle = False
+            state.retry_after = retry_at
         elif reason in (
             CommandFailureReason.SUBSCRIPTION_EXPIRED,
             CommandFailureReason.NOT_ENTITLED,
         ):
             state.entitled_by_account = False
+            state.retry_after = retry_at
 
     def record_command_success(self, vin: str, command: str) -> None:
         """Mark a command as known-good for *vin*."""
@@ -1173,6 +1198,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         state.available_now = True
         state.last_error = None
         state.last_error_at = None
+        state.retry_after = None  # v2.5.10 — clear retry schedule on success
 
     def is_capabilities_cache_fresh(self, vin: str) -> bool:
         """Return True if cached capabilities for *vin* are within TTL."""
@@ -1190,13 +1216,16 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         v1.9.1 (Capability-Filter Phase 2, #56) — entity platforms read
         this in their ``available`` property to gracefully hide commands
         that the backend has already rejected with a definitive reason
-        (missing capability, expired subscription, not entitled). The
-        2A foundation populated ``FeatureState`` but no entity yet read
-        from it; Phase 2 wires the read side.
+        (missing capability, expired subscription, not entitled).
 
-        Conservative: returns ``True`` *only* when at least one of the
-        explicit "definitive no" flags is set. Transient backend errors
-        leave both flags as ``None`` so the entity stays visible.
+        v2.5.10 (#325 roberttco) — respect the ``retry_after`` field.
+        After 24h the entity becomes available again for one re-attempt
+        cycle. If the backend still says no, the next failure resets the
+        retry-after timestamp. If it now says yes (subscription renewed,
+        feature unlocked via OTA), the entity stays available. This
+        replaces the pre-v2.5.10 "permanent disable until HA restart"
+        behaviour that frustrated users with intermittent backend
+        permission grants.
         """
         states = getattr(self, "feature_states", None)
         if not states:
@@ -1204,6 +1233,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         state = states.get(vin, {}).get(command)
         if state is None:
             return False
+        # v2.5.10 — auto-recovery window. After retry_after passes,
+        # surface the entity as available again for one re-attempt.
+        if state.retry_after is not None:
+            try:
+                if datetime.now(tz=timezone.utc) >= state.retry_after:
+                    return False  # let the entity re-attempt
+            except Exception:  # noqa: BLE001 — defensive
+                pass
         if state.supported_by_vehicle is False:
             return True
         if state.entitled_by_account is False:

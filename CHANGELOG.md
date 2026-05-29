@@ -134,6 +134,34 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **App Atlas Phase A.2 — APK download + apktool extraction** — when a brand's version-name changes (detected by the daily watcher), the workflow now downloads the APK via APKCombo CDN, decodes it with apktool, and greps for OLA-style header keys + known backend hosts. Findings persist as `.app-atlas-apk-cache/{brand}.json` and render in each per-brand atlas page. Workflow extracts only on version-change (idempotent), keeps CI runtime under 2min/changed-brand. Phase A.3 (jadx semantic-diff between consecutive APK versions) deferred to a separate session.
 - **App Atlas Phase A.3 — jadx full decompile + cross-version semantic diff** (manual `workflow_dispatch` only — too heavy for daily). Triggers on demand when investigating a brand's version bump: downloads both versions, runs jadx full Java decompile, extracts URL constants + header-key strings + OAuth scopes, computes a targeted diff filtering out obfuscator-rename noise. Outputs a self-contained markdown report at `docs/research/app-atlas/diffs/{brand}_{old}_vs_{new}.md` and auto-opens a PR. Provides ground-truth answers to "what new endpoints / headers / scopes appeared in this version bump?" — much higher signal than the daily smali grep.
 
+## [2.5.10] — 2026-05-29 — "VW NA Polish (roberttco bundle, 2 of 5)"
+
+Addresses 2 of the 5 open VW NA tickets filed by @roberttco on 2026-05-28 (2023 ID.4 US). Two of the remaining 3 (#322 sensors unknown, #324 unsupported controls) need a diagnostic dump from the user to identify the exact field-shape gaps — reply-thread opened on each ticket asking for the diagnostic export. #326 (VIN decoder API) is an enhancement, deferred to v3.x.
+
+### Fixed
+- **#323 — "Last Update value does not reflect last time data was updated"** (2023 ID.4 US, @roberttco). VW NA RVS API ships a `vehicleStatusTime` field (and 6 known alternatives across firmware generations) that records when the vehicle actually reported data to the cloud. Pre-v2.5.10 the parser never read any of them, so `sensor.last_seen_at` was always None — HA fell back to showing the coordinator's poll-request time, which the user correctly identified as misleading. v2.5.10 adds a defensive 7-path priority chain (`vehicleStatusTime` → `connectionStatus.lastConnectionTime` → `connectionStatus.timestamp` → `carCapturedTimestamp` → `powerStatus.carCapturedTimestamp` → `lastUpdated` → `dataTimestamp`). First valid ISO-8601 string wins. Test suite covers all 6 variants + garbage-rejection edge cases.
+
+### Changed
+- **#325 — "Controls become disabled after using them"** (@roberttco). The Capability-Filter Phase 2 (v1.9.1 #56) flips `FeatureState.supported_by_vehicle=False` on `MISSING_CAPABILITY` errors and **never re-evaluated** — entities stayed unavailable until HA restart. v2.5.10 adds `FeatureState.retry_after` (datetime). When a definitive-no flag is set, `retry_after` is scheduled 24h from now. `is_command_known_unsupported` returns False once the timestamp passes, allowing the entity to re-attempt **once**:
+  - If the backend still says no → flag re-flips, retry_after re-scheduled (no entity flapping)
+  - If the backend now says yes (subscription renewed, OTA-pushed feature unlock, model-year firmware update) → entity stays available, auto-recovery succeeds
+  - Successful command anywhere also clears retry_after immediately
+
+  This eliminates the "permanently disabled after one error until HA restart" UX failure for users hitting intermittent backend permission grants.
+
+### Pending (need user diagnostic to action)
+- **#322 — "Sensors are unknown or incorrect"**: requires HA diagnostic dump from @roberttco's 2023 ID.4 to identify which specific fields VW NA RVS isn't returning vs returning under different names. Reply-thread opened.
+- **#324 — "Some controls are not valid for vehicle"**: 2023 ID.4 US doesn't support remote lock/unlock/flash — proper fix is capability-aware entity creation (Capability-Filter Phase 3). Workaround in v2.5.10: the retry-after-timeout (#325 fix) means unsupported controls auto-hide after the first attempt and don't stay phantom-active forever. Reply-thread opened asking for confirmation.
+- **#326 — VIN decoder API enhancement**: deferred to v3.x as commercial API integration. Vincario or alternatives.
+
+### Risk
+**Low.** Two additive changes: a new defensive parser path (no field-name collision) + an opt-in retry-after scheduling (existing behaviour preserved when `retry_after` is None). Tests cover both.
+
+### Files
+- `cariad/api/vw_na.py` — 7-path timestamp parser added after drivetrain block
+- `coordinator.py` — `FeatureState.retry_after` field + `record_command_failure` schedules + `record_command_success` clears + `is_command_known_unsupported` consults
+- `tests/test_v2510_vw_na_polish.py` (NEW) — 7 timestamp variant tests + 2 retry-after contract tests
+
 ## [2.5.9] — 2026-05-29 — "Scout-Policy T1 — Parse What We Silenced"
 
 ### Added (T1 promotion of v2.5.8 silencers)
