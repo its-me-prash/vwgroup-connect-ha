@@ -60,7 +60,8 @@
       "two_factor_required": "Double authentification requise. Connectez-vous manuellement dans l'application.",
       "email_two_factor_required": "Authentification 2FA par e-mail requise. Vérifiez votre boîte de réception (et spam) pour un code à 6 chiffres, puis connectez-vous manuellement dans l'application.",
       "too_many_requests": "Compte suspendu temporairement. Attendez 15 minutes.",
-      "invalid_credentials": "Adresse e-mail ou mot de passe incorrect."
+      "invalid_credentials": "Adresse e-mail ou mot de passe incorrect.",
+      "upstream_unavailable": "Backend VW temporairement indisponible. C'est un problème côté serveur chez VW, PAS un problème d'identifiants. Veuillez patienter 5 à 15 minutes puis réessayer. NE reconfigurez PAS l'intégration."
     },
     "abort": {
       "already_configured": "Ce compte est déjà configuré.",

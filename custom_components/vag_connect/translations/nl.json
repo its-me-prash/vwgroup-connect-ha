@@ -60,7 +60,8 @@
       "two_factor_required": "Tweestapsverificatie vereist. Log handmatig in via de app.",
       "email_two_factor_required": "E-mail 2FA vereist. Controleer je inbox (en spam) op een 6-cijferige code, log dan handmatig in via de app.",
       "too_many_requests": "Account tijdelijk geblokkeerd. Wacht 15 minuten.",
-      "invalid_credentials": "E-mailadres of wachtwoord onjuist."
+      "invalid_credentials": "E-mailadres of wachtwoord onjuist.",
+      "upstream_unavailable": "VW backend tijdelijk onbereikbaar. Dit is een serverprobleem bij VW, GEEN inlogfout. Wacht 5–15 minuten en probeer opnieuw. Configureer de integratie NIET opnieuw."
     },
     "abort": {
       "already_configured": "Dit account is al geconfigureerd.",

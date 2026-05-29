@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -83,6 +84,19 @@ def _resolve_cache_root() -> Path | None:
 
 
 _APK_CACHE_ROOT: Path | None = _resolve_cache_root()
+
+
+# ── OIDC Discovery cache (v2.5.7 R3) ────────────────────────────────────────
+# Stores ``{brand: (token_endpoint, fetched_at_monotonic)}`` so we don't
+# hammer the openid-configuration endpoint on every token exchange. TTL
+# matches the typical 1-hour token lifetime — long enough that auth
+# flows during the same session reuse the same discovered URL, short
+# enough that a server-side URL change is picked up within an hour.
+# Module-level so it survives across resolver instances within one HA
+# process.
+_OIDC_DISCOVERY_CACHE: dict[str, tuple[str, float]] = {}
+_OIDC_DISCOVERY_TTL_S = 3600
+_OIDC_DISCOVERY_TIMEOUT_S = 5
 
 
 def _load_apk_auth_secrets(brand_name: str) -> dict[str, Any]:
@@ -136,6 +150,8 @@ class AuthConfigResolver:
         hardcoded_qmauth_secret: str,
         hardcoded_qmauth_client_id: str,
         hardcoded_token_url: str,
+        prior_qmauth_secret: str | None = None,
+        prior_qmauth_client_id: str | None = None,
     ) -> None:
         self._brand = brand_name
         self._apk = _load_apk_auth_secrets(brand_name)
@@ -143,6 +159,9 @@ class AuthConfigResolver:
         self._hardcoded_qmauth_secret = hardcoded_qmauth_secret
         self._hardcoded_qmauth_client_id = hardcoded_qmauth_client_id
         self._hardcoded_token_url = hardcoded_token_url
+        # v2.5.7 R2 — optional prior qmauth pair as last-resort fallback.
+        self._prior_qmauth_secret = prior_qmauth_secret
+        self._prior_qmauth_client_id = prior_qmauth_client_id
         if self._apk:
             _LOGGER.debug(
                 "AuthConfigResolver(%s): loaded auth_secrets from APK cache: keys=%s",
@@ -172,16 +191,158 @@ class AuthConfigResolver:
         return self._hardcoded_qmauth_client_id
 
     def token_url(self) -> str:
-        """Token-exchange URL for the brand's IDK."""
+        """Token-exchange URL for the brand's IDK.
+
+        Resolution priority (v2.5.7 R3 addition):
+            1. OIDC discovery cache (`/auth/v1/idk/oidc/openid-configuration`
+               ``token_endpoint`` field) — populated by
+               ``refresh_via_discovery()`` once per TTL. Picks up
+               server-side URL changes within ~1 h.
+            2. APK extraction (`token_path_markers_seen`) — daily atlas
+               picks up app-bundled URL changes.
+            3. Hardcoded constant — v2.5.4 baseline as safety net.
+        """
+        cached = _OIDC_DISCOVERY_CACHE.get(self._brand)
+        if cached is not None:
+            url, ts = cached
+            if (time.monotonic() - ts) < _OIDC_DISCOVERY_TTL_S:
+                return url
+            # Stale — let the next refresh_via_discovery() update it.
+
         paths = self._apk.get("token_path_markers_seen") or []
-        # Prefer the new `/auth/v1/idk/oidc/token` if the APK confirms it.
         for p in paths:
             if p == "/auth/v1/idk/oidc/token":
-                # APK confirmed the new URL — assemble against the BFF host.
                 return "https://emea.bff.cariad.digital/auth/v1/idk/oidc/token"
         return self._hardcoded_token_url
 
+    async def refresh_via_discovery(self, session: Any) -> str | None:
+        """v2.5.7 R3 — fetch ``token_endpoint`` via OIDC discovery.
+
+        Populates the module-level ``_OIDC_DISCOVERY_CACHE`` so subsequent
+        ``token_url()`` calls return the discovered value. Best-effort:
+        a network failure / non-200 / malformed JSON silently keeps the
+        previous cache (or falls through to APK + hardcoded fallback).
+
+        The call is throttled by the TTL — within ``_OIDC_DISCOVERY_TTL_S``
+        seconds of the last successful refresh, this is a no-op.
+
+        Args:
+            session: an aiohttp ``ClientSession``.
+
+        Returns:
+            The discovered ``token_endpoint`` URL, or ``None`` if the
+            discovery call failed and there was no prior cached value.
+        """
+        # Discovery URL is shared across Audi + VW EU brands — both use
+        # the same emea.bff.cariad.digital CARIAD-BFF cluster.
+        discovery_url = (
+            "https://emea.bff.cariad.digital"
+            "/auth/v1/idk/oidc/openid-configuration"
+        )
+        # Throttle: skip if last refresh is still within TTL.
+        cached = _OIDC_DISCOVERY_CACHE.get(self._brand)
+        if cached is not None:
+            _, ts = cached
+            if (time.monotonic() - ts) < _OIDC_DISCOVERY_TTL_S:
+                return cached[0]
+
+        try:
+            # Local import to avoid circular dependency at module load.
+            from aiohttp import ClientTimeout  # noqa: PLC0415
+            async with session.get(
+                discovery_url,
+                timeout=ClientTimeout(total=_OIDC_DISCOVERY_TIMEOUT_S),
+                headers={"Accept": "application/json"},
+            ) as resp:
+                if resp.status != 200:
+                    _LOGGER.debug(
+                        "OIDC discovery (%s): HTTP %d — keeping fallback URL",
+                        self._brand, resp.status,
+                    )
+                    return cached[0] if cached else None
+                payload = await resp.json()
+        except Exception as exc:  # noqa: BLE001 — best-effort discovery
+            _LOGGER.debug(
+                "OIDC discovery (%s): %s: %s — keeping fallback",
+                self._brand, type(exc).__name__, exc,
+            )
+            return cached[0] if cached else None
+
+        token_endpoint = payload.get("token_endpoint")
+        if not isinstance(token_endpoint, str) or not token_endpoint.startswith("http"):
+            _LOGGER.debug(
+                "OIDC discovery (%s): no usable token_endpoint in response — "
+                "keeping fallback URL",
+                self._brand,
+            )
+            return cached[0] if cached else None
+
+        _OIDC_DISCOVERY_CACHE[self._brand] = (token_endpoint, time.monotonic())
+        # Log at INFO if we changed the URL since last cache — visible
+        # signal that the VW IDP rotated something.
+        prior_url = cached[0] if cached else None
+        if prior_url is not None and prior_url != token_endpoint:
+            _LOGGER.info(
+                "OIDC discovery (%s): token_endpoint CHANGED — %s → %s",
+                self._brand, prior_url, token_endpoint,
+            )
+        else:
+            _LOGGER.debug(
+                "OIDC discovery (%s): token_endpoint=%s",
+                self._brand, token_endpoint,
+            )
+        return token_endpoint
+
     # ── Multi-value chain ──────────────────────────────────────────────────
+
+    def qmauth_chain(self) -> list[tuple[str, str]]:
+        """Return ``(secret_hex, client_id)`` qmauth tuples in priority order.
+
+        v2.5.7 R2 — when VW rotates the qmauth pair, we don't immediately
+        know the new value (extraction from APK is blocked by runtime
+        obfuscation; we wait for evcc/audi_connect_ha live captures).
+        The fallback chain lets the integration try previously-working
+        pairs before giving up — buys ~hours of "still works for most
+        users" until the new pair lands.
+
+        Order:
+            1. APK-extracted pair (if v2.5.5 Phase A.5 shield captured it)
+            2. Current hardcoded pair (the v2.5.4 evcc PR #30292 values)
+            3. Prior hardcoded pair (the evcc PR #30277 baseline)
+
+        Dedupes — if all three sources agree, we return one tuple.
+        """
+        ordered: list[tuple[str, str]] = []
+        seen: set[tuple[str, str]] = set()
+
+        def _add(secret: str | None, client_id: str | None) -> None:
+            if not secret or not client_id:
+                return
+            key = (secret.lower(), client_id.lower())
+            if key not in seen:
+                ordered.append(key)
+                seen.add(key)
+
+        # 1. APK-extracted (will be empty until smali parser succeeds —
+        # currently dead-end per Path 2.5, but ready when we get there).
+        apk_secrets = self._apk.get("qmauth_secret_candidates") or []
+        apk_client_ids = self._apk.get("client_id_candidates") or []
+        # Pair-up if exactly one of each (most APKs would have just one).
+        if apk_secrets and apk_client_ids:
+            apk_8hex_ids = [c for c in apk_client_ids
+                            if isinstance(c, str) and len(c) == 8]
+            for s in apk_secrets:
+                if isinstance(s, str) and len(s) == 64:
+                    for cid in apk_8hex_ids:
+                        _add(s, cid)
+
+        # 2. Current hardcoded (the v2.5.4 baseline).
+        _add(self._hardcoded_qmauth_secret, self._hardcoded_qmauth_client_id)
+
+        # 3. Prior hardcoded (evcc PR #30277 baseline, rotated 2026-05-28).
+        _add(self._prior_qmauth_secret, self._prior_qmauth_client_id)
+
+        return ordered
 
     def oauth_client_id_chain(self) -> list[str]:
         """Return OAuth client_id candidates in try-first-success order.

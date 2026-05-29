@@ -60,7 +60,8 @@
       "two_factor_required": "Tvåfaktorsautentisering krävs. Logga in manuellt i appen.",
       "email_two_factor_required": "E-post 2FA krävs. Kolla inkorgen (och skräp) efter en 6-siffrig kod, logga sedan in manuellt i appen.",
       "too_many_requests": "Kontot är tillfälligt spärrat. Vänta 15 minuter.",
-      "invalid_credentials": "Felaktig e-postadress eller lösenord."
+      "invalid_credentials": "Felaktig e-postadress eller lösenord.",
+      "upstream_unavailable": "VW backend tillfälligt otillgänglig. Detta är ett serverproblem hos VW, INTE ett autentiseringsfel. Vänta 5–15 minuter och försök igen. Konfigurera INTE om integrationen."
     },
     "abort": {
       "already_configured": "Det här kontot är redan konfigurerat.",

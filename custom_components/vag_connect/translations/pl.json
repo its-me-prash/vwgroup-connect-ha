@@ -60,7 +60,8 @@
       "two_factor_required": "Wymagane uwierzytelnianie dwuskładnikowe. Zaloguj się ręcznie w aplikacji.",
       "email_two_factor_required": "Wymagane 2FA przez e-mail. Sprawdź skrzynkę (i spam) w poszukiwaniu 6-cyfrowego kodu, następnie zaloguj się ręcznie w aplikacji.",
       "too_many_requests": "Konto tymczasowo zablokowane. Poczekaj 15 minut.",
-      "invalid_credentials": "Nieprawidłowy e-mail lub hasło."
+      "invalid_credentials": "Nieprawidłowy e-mail lub hasło.",
+      "upstream_unavailable": "Backend VW chwilowo niedostępny. To problem po stronie serwera VW, a NIE błąd uwierzytelniania. Poczekaj 5–15 minut i spróbuj ponownie. NIE konfiguruj integracji ponownie."
     },
     "abort": {
       "already_configured": "To konto jest już skonfigurowane.",

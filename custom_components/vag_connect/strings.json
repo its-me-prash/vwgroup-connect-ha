@@ -60,7 +60,8 @@
       "two_factor_required": "Two-factor authentication required. Sign in manually in the app and confirm the email code.",
       "email_two_factor_required": "Email 2FA required. Check your inbox (and spam) for a 6-digit code from VAG IDP, then sign in manually in the brand app once.",
       "too_many_requests": "Account temporarily suspended (too many login attempts). Please wait 15 minutes.",
-      "invalid_credentials": "Email address or password incorrect."
+      "invalid_credentials": "Email address or password incorrect.",
+      "upstream_unavailable": "VW backend temporarily unavailable. This is a server-side issue at VW, not a credentials problem. Please wait 5–15 minutes and try again. Do NOT reconfigure the integration."
     },
     "abort": {
       "already_configured": "This account is already configured.",
