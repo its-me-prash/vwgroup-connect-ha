@@ -134,6 +134,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **App Atlas Phase A.2 — APK download + apktool extraction** — when a brand's version-name changes (detected by the daily watcher), the workflow now downloads the APK via APKCombo CDN, decodes it with apktool, and greps for OLA-style header keys + known backend hosts. Findings persist as `.app-atlas-apk-cache/{brand}.json` and render in each per-brand atlas page. Workflow extracts only on version-change (idempotent), keeps CI runtime under 2min/changed-brand. Phase A.3 (jadx semantic-diff between consecutive APK versions) deferred to a separate session.
 - **App Atlas Phase A.3 — jadx full decompile + cross-version semantic diff** (manual `workflow_dispatch` only — too heavy for daily). Triggers on demand when investigating a brand's version bump: downloads both versions, runs jadx full Java decompile, extracts URL constants + header-key strings + OAuth scopes, computes a targeted diff filtering out obfuscator-rename noise. Outputs a self-contained markdown report at `docs/research/app-atlas/diffs/{brand}_{old}_vs_{new}.md` and auto-opens a PR. Provides ground-truth answers to "what new endpoints / headers / scopes appeared in this version bump?" — much higher signal than the daily smali grep.
 
+## [Unreleased] — Phase 0 docs deliverable
+
+### Added
+- **`docs/research/app-atlas/vw_group_auth_profile.json`** — Single Source of Truth for VW Group auth-config across all 7 brands. Synthesises v2.5.4–v2.5.7 findings + Phase A.7 smali analysis + Path 2.5 qmauth-id trace + research-agent cross-source verification (6 competitor projects). Future WAF rotations are now fixed by editing this JSON instead of touching code (paired with v2.5.5+ atlas auto-update + v2.5.7 R3 OIDC discovery). Captures the definitive verdicts: x-qmauth is UNIVERSAL across CARIAD-BFF (refutes Audi-only hypothesis), qmauth static-extraction is DEAD-END (all 8 markers absent from Audi 5.4.1 + VW 3.61.0 DEX strings), and qmauth secret is cross-source byte-for-byte verified (audi_connect_ha byte-array == evcc PR #30292 hex == v2.5.4 hardcoded).
+
 ## [2.5.7] — 2026-05-29 — "502 Resilience + OIDC Discovery + qmauth Fallback Chain"
 
 ### Fixed (CRITICAL — 502 storm UX fix)
