@@ -1,0 +1,231 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "generated": "2026-05-29",
+    "purpose": "Single source of truth for VW Group auth-config values across all VAG brands. Successor to ad-hoc hardcoded constants in idk.py + models.py. Allows future WAF migrations to be fixed by editing this file instead of touching code (paired with v2.5.5+ atlas auto-update workflow).",
+    "scope": "vag-connect-ha (its-me-prash/vwgroup-connect-ha)",
+    "post_event": "2026-05-28 VW Azure WAF migration that shut down /login/v1/idk/token at the BFF layer, and the 2026-05-29 502-storm where users misdiagnosed VW backend incidents as credentials failures.",
+    "sources": [
+      "Phase A.7 smali analysis of cached Audi 5.4.1 + VW 3.61.0 APKs (androguard-based, see _private/smali-cryptopattern-*.json)",
+      "Path 2.5 direct qmauth-id string trace (DEFINITIVE NEGATIVE — all 8 qmauth markers ABSENT from DEX strings in both APKs)",
+      "Deep research agent across 6 competitor projects: evcc / audi_connect_ha / volkswagencarnet / pycupra / myskoda / ioBroker.vw-connect",
+      "production models.py BrandConfig hardcoded values (cross-verified against audi_connect_ha byte-array reconstruction)"
+    ],
+    "static_analysis_verdict": "DEAD-END for qmauth secret extraction. qmauth secrets + client_ids are runtime-constructed from R8-obfuscated byte arrays + likely BuildConfig injection. Static APK analysis cannot recover these without Frida/emulator setup."
+  },
+  "_shared": {
+    "bff_host": "emea.bff.cariad.digital",
+    "bff_sandbox_host": "sb.emea.bff.cariad.digital",
+    "oidc_path_prefix": "/auth/v1/idk/oidc/",
+    "oidc_discovery_url": "https://emea.bff.cariad.digital/auth/v1/idk/oidc/openid-configuration",
+    "auth0_state_required": true,
+    "deprecated_endpoints": [
+      "/user-login/v1/authorize",
+      "/user-login/login/v1/",
+      "/login/v1/idk/token",
+      "/login/v1/idk/openid-configuration"
+    ],
+    "deprecated_since": "2026-05-28T06:00:00Z",
+    "deprecation_event": "VW shut down legacy /login/v1/idk/* at Azure Application Gateway WAF. Returns HTTP 403 from Microsoft-Azure-Application-Gateway/v2 for any client regardless of headers/UA/query.",
+    "qmauth_signing": {
+      "_comment": "X-QMAuth HMAC-SHA256 header signed against 100-second time bucket. Required on ALL token exchange + refresh on CARIAD-BFF (Audi + VW EU). Universal across CARIAD-BFF — NOT Audi-only as initially hypothesised (refuted by ioBroker commit 884269b1 + research agent cross-source check).",
+      "algorithm": "HMAC-SHA256",
+      "time_bucket_seconds": 100,
+      "header_value_format": "v1:<qmClientId>:<hex_hmac>",
+      "header_name": "x-qmauth",
+      "applies_to_brands": ["audi", "volkswagen"],
+      "current_pair": {
+        "qm_client_id": "01da27b0",
+        "qm_secret": "1ab69925ac179aaa4e83abe671a9476d176418b85bd706f1436ca15be647989c",
+        "_source": "evcc PR #30292 (merged 2026-05-28T12:13Z, MIT) — values cross-verified against audi_connect_ha byte-array reconstruction (MIT) + TA2k/ioBroker.vw-connect commit 884269b1.",
+        "_verification": "Audi byte-array literal bytes([26, 256-74, 256-103, 37, ..., 256-104, 256-100]) reconstructs byte-for-byte to '1ab69925ac179aaa4e83abe671a9476d176418b85bd706f1436ca15be647989c'. 3 unaffiliated MIT-licensed sources agree on the value.",
+        "_rotated_at": "2026-05-28"
+      },
+      "prior_pair_fallback": {
+        "qm_client_id": "c95f4fd2",
+        "qm_secret": "e47866378ef0658ce75d71007a809f34616b9635e2ec228245784c1f63e88d06",
+        "_source": "evcc PR #30277 baseline (pre-2026-05-28 rotation, MIT)",
+        "_usage": "v2.5.7 R2 fallback chain — tried on HTTP 4xx with current pair, allows self-heal for ~hours when VW re-rotates while we wait for live-capture of new values."
+      },
+      "extraction_notes": "Phase A.7 + Path 2.5 confirmed: qmauth secrets are NOT statically extractable from APK. All 8 markers (01da27b0, c95f4fd2, v1:01da27b0:, v1:c95f4fd2:, v1:, x-qmauth, X-QMAuth, qmauth) ABSENT from DEX string pools in both Audi 5.4.1 and VW 3.61.0. Likely BuildConfig injection or string-deobfuscation library. Self-sufficiency requires Frida + Android emulator setup (Path 3 — blocked by SafetyNet/RootBeer on emulators)."
+    },
+    "assertion_headers": {
+      "_comment": "Required headers alongside x-qmauth on CARIAD-BFF token endpoint. Missing any one returns either HTTP 403 (Azure WAF) or HTTP 400 'invalid assertion headers' (gateway-level).",
+      "x-platform": "android",
+      "x-android-package-name": "(per brand — de.myaudi.mobile.assistant for Audi, de.volkswagen.weconnect for VW EU)",
+      "x-assertion": "0",
+      "x_assertion_validation": "Currently presence-only check; value '0' (dummy) accepted per ioBroker observation. WARNING: anna_attestation_enabled remote-config flag in VW APK could flip server-side to require real Play Integrity attestation — when that happens, dummy '0' stops working and we need real attestation values. Watch-item for daily atlas.",
+      "_source": "evcc PR #30292 + ioBroker commit 884269b1 + verified against AttestationEnabledUseCase smali in VW 3.61.0 APK (research agent finding)"
+    }
+  },
+  "brands": {
+    "vw": {
+      "_status": "VERIFIED",
+      "client_id": "a24fba63-34b3-4d43-b181-942111e6bda8@apps_vw-dilab_com",
+      "_client_id_source": "Production models.py BrandConfig.client_id — confirmed present as literal in VW APK 3.61.0 classes3.dex (Path 2.5 verified).",
+      "client_id_apk_alternates": [
+        "4edc53db-4b79-4e37-b614-19a95dea20dc@apps_vw-dilab_com"
+      ],
+      "_alternates_source": "Phase A.7 smali — found in VW 3.61.0 classes3.dex alongside canonical. Purpose unknown (possibly region-specific or feature-specific). Used in v2.5.6 OAuth fallback chain as candidate #2.",
+      "redirect_uri": "weconnect://authenticated",
+      "scopes": "openid profile badge cars dealers vin",
+      "_scopes_source": "Production models.py BrandConfig.scope — derived from volkswagencarnet (robinostlund/volkswagencarnet, MIT)",
+      "package_name": "de.volkswagen.weconnect",
+      "_package_source": "VW 3.61.0 APK xapk archive name + ioBroker commit 884269b1 (confirms used in x-android-package-name)",
+      "user_agent": "Volkswagen/3.61.0-android/14",
+      "_user_agent_source": "PR #331 (volkswagencarnet, robinostlund) baseline — VW APK 3.61.0 corresponds to this UA",
+      "headers_auth": {
+        "_comment": "Full header set sent on token exchange + refresh. v2.5.7 R2 sends qmauth-signed values per chain attempt.",
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json",
+        "Accept-Charset": "utf-8",
+        "User-Agent": "(see user_agent above)",
+        "x-qmauth": "v1:<current_or_prior_qm_client_id>:<hmac>",
+        "x-platform": "android",
+        "x-android-package-name": "de.volkswagen.weconnect",
+        "x-assertion": "0"
+      },
+      "extra_token_steps": [
+        "1. authorize: identity.vwgroup.io/oidc/v1/authorize → PKCE flow → app:// redirect with code",
+        "2. token exchange: POST emea.bff.cariad.digital/auth/v1/idk/oidc/token (with full assertion-headers + x-qmauth)",
+        "3. (optional v2.5.7 R3) cache token_endpoint from openid-configuration for 1h"
+      ],
+      "_v257_status": "VW EU fully covered by v2.5.7 R1+R2+R3+R6. x-qmauth applies (NOT Audi-only per ioBroker commit 884269b1)."
+    },
+    "audi": {
+      "_status": "VERIFIED",
+      "client_id": "09b6cbec-cd19-4589-82fd-363dfa8c24da@apps_vw-dilab_com",
+      "_client_id_source": "Production models.py + Audi APK 5.4.1 classes9.dex + classes10.dex (Path 2.5 verified)",
+      "client_id_apk_alternates": [
+        "16dd7960-431d-4b88-b3a5-35724b2fce01@apps_vw-dilab_com"
+      ],
+      "_alternates_source": "Phase A.7 smali — Audi 5.4.1 DEX. Purpose unknown (possibly internal-test or per-region fallback). Used in v2.5.6 OAuth fallback chain.",
+      "redirect_uri": "myaudi:///",
+      "scopes": "address profile badge birthdate birthplace nationalIdentifier nationality profession email vin phone nickname name picture mbb gallery openid",
+      "_scopes_source": "Production models.py — derived from arjenvrh/audi_connect_ha (MIT)",
+      "package_name": "de.myaudi.mobile.assistant",
+      "_package_source": "Audi APK 5.4.1 archive name + audi_connect_ha source",
+      "user_agent": "Android/4.31.0 (Build 800341641.root project 'myaudi_android'.ext.buildTime) Android/13",
+      "_user_agent_source": "audi_connect_ha (arjenvrh, MIT) + evcc PR #30292 (verified live)",
+      "headers_auth": {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json",
+        "Accept-Charset": "utf-8",
+        "User-Agent": "(see user_agent above)",
+        "x-qmauth": "v1:<current_or_prior_qm_client_id>:<hmac>",
+        "x-platform": "android",
+        "x-android-package-name": "de.myaudi.mobile.assistant",
+        "x-assertion": "0"
+      },
+      "extra_token_steps": [
+        "1. authorize: identity.vwgroup.io/oidc/v1/authorize → PKCE flow → app:// redirect with code",
+        "2. (option A) discover token_endpoint from /auth/v1/idk/oidc/openid-configuration (v2.5.7 R3 — preferred, matches audi_connect_ha PR #736 pattern)",
+        "3. (option B) hardcoded https://emea.bff.cariad.digital/auth/v1/idk/oidc/token (fallback)",
+        "4. token exchange: POST <token_url> with full assertion-headers + x-qmauth",
+        "5. (legacy) optional MBB-token exchange via mbboauth-1d.prd.ece.vwg-connect.com for fs-car data (not affected by 2026-05-28 WAF migration)"
+      ],
+      "_v257_status": "Audi fully covered by v2.5.7 R1+R2+R3+R6.",
+      "_special_note": "Audi APK uses OpenID Discovery (token_endpoint read from openid-configuration) rather than hardcoded URL. v2.5.7 R3 explicitly emulates this — picks up server-side URL flips within 1h TTL."
+    },
+    "skoda": {
+      "_status": "PARTIAL — VERIFIED for current production, UNVERIFIED for APK auth_secrets (5-brand scan killed at 2h on CUPRA, never reached Skoda)",
+      "client_id": "7f045eee-7003-4379-9968-9355ed2adb06@apps_vw-dilab_com",
+      "_client_id_source": "Production models.py BrandConfig",
+      "client_id_apk_alternates": "[UNVERIFIED — 5-brand smali scan killed at 2h before reaching Skoda]",
+      "redirect_uri": "myskoda://redirect/login/",
+      "scopes": "address badge birthdate cars driversLicense dealers email mileage mbb nationalIdentifier openid phone profession profile vin",
+      "package_name": "cz.skodaauto.myskoda",
+      "_package_source": "Skoda APK 8.12.0 archive name",
+      "user_agent": "MySkoda/1.0 Android",
+      "headers_auth": "[USES DIFFERENT IDP — not CARIAD-BFF, uses mysmob.api.connect.skoda-auto.cz directly. NOT affected by 2026-05-28 WAF migration.]",
+      "extra_token_steps": [
+        "1. authorize: identity.vwgroup.io/oidc/v1/authorize → app:// redirect",
+        "2. token exchange: POST mysmob.api.connect.skoda-auto.cz/api/v1/authentication/exchange-authorization-code?tokenType=CONNECT (PROPRIETARY JSON API, not OAuth)"
+      ],
+      "_v257_status": "Skoda unaffected by 2026-05-28 WAF migration (different IDP host). No v2.5.7 changes needed."
+    },
+    "cupra": {
+      "_status": "PARTIAL — VERIFIED for current production, UNVERIFIED for APK auth_secrets",
+      "client_id": "3c756d46-f1ba-4d78-9f9a-cff0d5292d5c@apps_vw-dilab_com",
+      "_client_id_source": "Production models.py BrandConfig",
+      "client_id_apk_alternates": "[UNVERIFIED]",
+      "redirect_uri": "cupra://oauth-callback",
+      "scopes": "openid mbb",
+      "package_name": "com.cupra.mycupra",
+      "user_agent": "CUPRAApp%2F2.0%20CFNetwork%2F1209%20Darwin%2F20.2.0",
+      "headers_auth": "[USES DIFFERENT IDP — identity.vwgroup.io/oidc/v1/token directly, NOT CARIAD-BFF. NOT affected by 2026-05-28 WAF migration.]",
+      "extra_token_steps": [
+        "1. authorize: identity.vwgroup.io/oidc/v1/authorize → cupra:// redirect",
+        "2. token exchange: POST identity.vwgroup.io/oidc/v1/token (with client_secret)"
+      ],
+      "_v257_status": "CUPRA unaffected by 2026-05-28 WAF migration."
+    },
+    "seat": {
+      "_status": "PARTIAL — VERIFIED for current production, UNVERIFIED for APK auth_secrets",
+      "client_id": "99a5b77d-bd88-4d53-b4e5-a539c60694a3@apps_vw-dilab_com",
+      "_client_id_source": "Production models.py BrandConfig",
+      "client_id_apk_alternates": "[UNVERIFIED]",
+      "redirect_uri": "seat://oauth-callback",
+      "scopes": "openid mbb",
+      "package_name": "com.seat.myseat.ola",
+      "headers_auth": "[USES DIFFERENT IDP — OLA backend ola.prod.code.seat.cloud.vwgroup.com directly. NOT affected by 2026-05-28 WAF migration.]",
+      "extra_token_steps": [
+        "1. authorize: identity.vwgroup.io/oidc/v1/authorize",
+        "2. token exchange: POST ola.prod.code.seat.cloud.vwgroup.com/authorization/api/v1/token"
+      ],
+      "_v257_status": "SEAT unaffected by 2026-05-28 WAF migration."
+    },
+    "volkswagen_na": {
+      "_status": "VERIFIED for current production (matpoulin port)",
+      "client_id": "59992128-69a9-42c3-8621-7942041ba823@apps_vw-dilab_com",
+      "redirect_uri": "kombi:///login",
+      "scopes": "openid profile cars mbb",
+      "package_name": "com.vw.carnet.release",
+      "headers_auth": "[USES DIFFERENT IDP — VW NA con-veh.net regional cluster. NOT affected by 2026-05-28 WAF migration.]",
+      "extra_token_steps": [
+        "1. authorize: b-h-s.spr.{country}00.p.con-veh.net/oidc/v1/authorize",
+        "2. token exchange: POST b-h-s.spr.{country}00.p.con-veh.net/oidc/v1/token"
+      ],
+      "_v257_status": "VW NA unaffected — different IDP cluster."
+    },
+    "porsche": {
+      "_status": "PARTIAL — VERIFIED for current production",
+      "client_id": "(Auth0 client_id, in production models.py)",
+      "_client_id_source": "Production models.py BrandConfig.client_id",
+      "redirect_uri": "my-porsche-app://auth0/callback",
+      "scopes": "openid profile email pid:user_profile.read pid:user_profile.write",
+      "package_name": "com.porsche.one",
+      "headers_auth": "[Auth0 standard — different from CARIAD-BFF. NOT affected by 2026-05-28 WAF migration.]",
+      "extra_token_steps": [
+        "Auth0 Universal Login flow → api.ppa.porsche.com OAuth"
+      ],
+      "_v257_status": "Porsche unaffected — different IDP (Auth0)."
+    }
+  },
+  "_action_items": [
+    {
+      "id": "watch-anna-attestation",
+      "priority": "high",
+      "description": "Monitor anna_attestation_enabled remote-config flag in VW APK. When server-side flips to true, x-assertion=0 (dummy) stops working and we need real Play Integrity attestation values.",
+      "trigger": "Daily atlas captures new VW APK + AttestationEnabledUseCase smali shows different behavior"
+    },
+    {
+      "id": "phase-a8-frida-emulator",
+      "priority": "low",
+      "description": "True self-sufficiency for qmauth secret extraction requires Frida + Android emulator setup (Path 3). Blocked today because SafetyNet/RootBeer detection may refuse myAudi to start on emulator. Multi-day investigation, defer to v3.0 Beta-1 or later.",
+      "blocker": "Phase A.7 + Path 2.5 confirmed static-analysis dead-end (qmauth runtime-constructed, not in DEX strings)"
+    },
+    {
+      "id": "complete-5-brand-smali-scan",
+      "priority": "low",
+      "description": "Re-run smali scan for Skoda/CUPRA/SEAT/Porsche/VW NA with the O(N) (not O(8×N)) bug-fixed extractor. Atlas-completeness data, not v2.5.x-blocker.",
+      "context": "Killed at 2h on CUPRA APK (248MB). Optimize script to single-pass string-pool iteration first."
+    },
+    {
+      "id": "activate-path-4-canary",
+      "priority": "medium",
+      "description": "User to activate continuous-login canary by copying _private/canary-credentials.env.template and filling real credentials. Daily cron runs auth-canary.py and logs results. Detects rotations BEFORE user reports.",
+      "infrastructure_ready": true
+    }
+  ]
+}
