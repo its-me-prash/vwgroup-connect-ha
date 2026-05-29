@@ -111,6 +111,7 @@ async def _validate_credentials(
         RateLimitError,
         TermsAndConditionsError,
         TwoFactorRequiredError,
+        UpstreamUnavailableError,
     )
 
     connector = aiohttp.TCPConnector(ssl=True)
@@ -129,6 +130,15 @@ async def _validate_credentials(
             raise ValueError(f"two_factor_required:{err}") from err
         except RateLimitError as err:
             raise ValueError("too_many_requests") from err
+        except UpstreamUnavailableError as err:
+            # v2.5.7 — 5xx from CARIAD-BFF token endpoint = VW server-side
+            # incident, NOT bad credentials. Surface as a distinct error
+            # so users do not reconfigure their integration in a panic.
+            _LOGGER.warning(
+                "VAG Connect (%s): upstream VW backend unavailable: %s",
+                brand, err,
+            )
+            raise ValueError("upstream_unavailable") from err
         except AuthenticationError as err:
             _LOGGER.warning("VAG Connect auth failed (%s): %s", brand, err)
             raise ValueError("invalid_credentials") from err
@@ -156,6 +166,7 @@ def _map_error(err_code: str) -> str:
     return err_code if err_code in {
         "terms_and_conditions", "marketing_consent", "two_factor_required",
         "too_many_requests", "invalid_credentials", "missing_library",
+        "upstream_unavailable",  # v2.5.7 — 5xx from VW backend
     } else "cannot_connect"
 
 

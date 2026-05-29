@@ -22,3 +22,11 @@ tests/bruno/**/environments/*.local.bru
 # Claude Code workspace settings (local)
 .claude/
 .release_notes_*
+
+# pb-datenschutz — sensitive local artifacts, never commit
+# Contains: real credentials, APK binaries, smali decompilation, forensic
+# captures, canary logs. Everything under _private/ stays on disk only.
+_private/
+.app-atlas-apk-cache/
+canary-credentials.env
+canary-log.jsonl

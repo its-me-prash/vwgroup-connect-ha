@@ -60,7 +60,8 @@
       "two_factor_required": "Zwei-Faktor-Bestätigung nötig. Einmal manuell in der App anmelden und den Code per E-Mail bestätigen.",
       "email_two_factor_required": "E-Mail-2FA nötig. Postfach (und Spam) auf 6-stelligen Code von VAG IDP prüfen, dann einmal manuell in der Marken-App anmelden.",
       "too_many_requests": "Account vorübergehend gesperrt (zu viele Anmeldeversuche). Bitte 15 Minuten warten.",
-      "invalid_credentials": "E-Mail-Adresse oder Passwort falsch."
+      "invalid_credentials": "E-Mail-Adresse oder Passwort falsch.",
+      "upstream_unavailable": "VW-Backend vorübergehend nicht erreichbar. Das ist ein Server-Problem bei VW, KEIN Anmeldefehler. Bitte 5–15 Minuten warten und nochmal versuchen. Die Integration NICHT neu konfigurieren."
     },
     "abort": {
       "already_configured": "Dieses Konto ist bereits eingerichtet.",

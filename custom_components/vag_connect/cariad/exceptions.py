@@ -244,6 +244,39 @@ class RateLimitError(CariadError):
         )
 
 
+class UpstreamUnavailableError(CariadError):
+    """v2.5.7 (#313 follow-on) — VAG backend (CARIAD-BFF / Azure WAF)
+    is returning HTTP 5xx on requests that would normally succeed.
+
+    Distinct from ``AuthenticationError`` so the config-flow + Repair
+    surface can show a non-credentials message: it's NOT the user's
+    password, it's VW's server side. Users were re-configuring their
+    integration during the 2026-05-28 + 2026-05-29 502-storms because
+    the failure looked like "wrong credentials" — this exception class
+    + dedicated strings.json key prevents that misdiagnosis.
+
+    Cross-references for the 502-storm class of failure:
+    - evcc #30280 + #30324 (2026-05-29)
+    - ioBroker.vw-connect #425 + #426 (2026-05-28 14:00 UTC onward)
+    - our #309 moltke69 + 9mrcookie9 fresh dumps (2026-05-29)
+    """
+
+    def __init__(self, status: int, brand: str = "") -> None:
+        msg = (
+            f"VAG backend temporarily unavailable (HTTP {status})"
+        )
+        if brand:
+            msg += f" for brand {brand}"
+        msg += (
+            ". This is a server-side issue at VW, not a credentials problem. "
+            "Please wait 5–15 minutes and try again. Do NOT reconfigure the "
+            "integration."
+        )
+        super().__init__(msg)
+        self.status = status
+        self.brand = brand
+
+
 class TokenExpiredError(CariadError):
     """Access token expired and could not be refreshed."""
 

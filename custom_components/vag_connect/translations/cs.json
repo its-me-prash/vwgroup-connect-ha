@@ -60,7 +60,8 @@
       "two_factor_required": "Vyžadováno dvoufázové ověření. Přihlaste se ručně v aplikaci.",
       "email_two_factor_required": "Vyžadováno e-mailové 2FA. Zkontrolujte schránku (i spam), pak se přihlaste ručně v aplikaci.",
       "too_many_requests": "Účet dočasně zablokován. Počkejte 15 minut.",
-      "invalid_credentials": "Nesprávná e-mailová adresa nebo heslo."
+      "invalid_credentials": "Nesprávná e-mailová adresa nebo heslo.",
+      "upstream_unavailable": "Backend VW dočasně nedostupný. Toto je problém na straně serveru VW, NIKOLI chyba přihlášení. Počkejte 5–15 minut a zkuste to znovu. Integraci znovu NEKONFIGURUJTE."
     },
     "abort": {
       "already_configured": "Tento účet je již nastaven.",

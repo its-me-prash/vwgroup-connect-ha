@@ -229,6 +229,18 @@ _CARIAD_BFF_PROBES: tuple[V3Probe, ...] = (
         path="/vehicle/v1/vehicles/garage/capabilities",
         notes="Account-level capability inventory — distinct from per-VIN capabilities",
     ),
+    # v2.5.7 R6 — OIDC health probe. Pings the openid-configuration endpoint
+    # hourly to detect token_endpoint URL changes BEFORE user-reports land.
+    # No VIN substitution — endpoint is account/brand-level only. Path
+    # carries no ``{vin}`` placeholder so the runner's path.format() leaves
+    # it unchanged. Response is parsed for ``token_endpoint`` field — if
+    # it differs from our cached value, the resolver picks up the change
+    # on the next ``token_url()`` call.
+    V3Probe(
+        name="cariad_bff_oidc_health_probe",
+        path="/auth/v1/idk/oidc/openid-configuration",
+        notes="v2.5.7 R6 health-probe — detects VW IDP URL/endpoint rotations",
+    ),
 )
 
 

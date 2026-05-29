@@ -60,7 +60,8 @@
       "two_factor_required": "Se requiere autenticación de dos factores. Inicia sesión manualmente.",
       "email_two_factor_required": "Se requiere 2FA por email. Revisa tu bandeja de entrada (y spam) para un código de 6 dígitos, luego inicia sesión manualmente en la app.",
       "too_many_requests": "Cuenta suspendida temporalmente. Espera 15 minutos.",
-      "invalid_credentials": "Correo electrónico o contraseña incorrectos."
+      "invalid_credentials": "Correo electrónico o contraseña incorrectos.",
+      "upstream_unavailable": "Backend de VW temporalmente no disponible. Es un problema del servidor de VW, NO un problema de credenciales. Espera 5–15 minutos e inténtalo de nuevo. NO reconfigures la integración."
     },
     "abort": {
       "already_configured": "Esta cuenta ya está configurada.",

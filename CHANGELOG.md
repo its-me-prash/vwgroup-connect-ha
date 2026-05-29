@@ -134,6 +134,40 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **App Atlas Phase A.2 — APK download + apktool extraction** — when a brand's version-name changes (detected by the daily watcher), the workflow now downloads the APK via APKCombo CDN, decodes it with apktool, and greps for OLA-style header keys + known backend hosts. Findings persist as `.app-atlas-apk-cache/{brand}.json` and render in each per-brand atlas page. Workflow extracts only on version-change (idempotent), keeps CI runtime under 2min/changed-brand. Phase A.3 (jadx semantic-diff between consecutive APK versions) deferred to a separate session.
 - **App Atlas Phase A.3 — jadx full decompile + cross-version semantic diff** (manual `workflow_dispatch` only — too heavy for daily). Triggers on demand when investigating a brand's version bump: downloads both versions, runs jadx full Java decompile, extracts URL constants + header-key strings + OAuth scopes, computes a targeted diff filtering out obfuscator-rename noise. Outputs a self-contained markdown report at `docs/research/app-atlas/diffs/{brand}_{old}_vs_{new}.md` and auto-opens a PR. Provides ground-truth answers to "what new endpoints / headers / scopes appeared in this version bump?" — much higher signal than the daily smali grep.
 
+## [2.5.7] — 2026-05-29 — "502 Resilience + OIDC Discovery + qmauth Fallback Chain"
+
+### Fixed (CRITICAL — 502 storm UX fix)
+- **Stop misdiagnosing VW server outages as credentials failures** (#309 follow-on). The 2026-05-28 + 2026-05-29 Azure WAF + upstream incidents caused `502 unexpected error from upstream` on the CARIAD-BFF token endpoint. Pre-v2.5.7 our `_exchange_code()` raised `AuthenticationError` on any non-200, which `config_flow` mapped to `invalid_credentials` ("Email address or password incorrect"). Users panicked and reconfigured their integration, making things worse.
+  - **New `UpstreamUnavailableError(CariadError)`** exception class — distinct from `AuthenticationError` so the config-flow / Repair UI surfaces a separate message.
+  - **`_exchange_code()` now routes HTTP 5xx → `UpstreamUnavailableError`** with the actual status code + brand. Only 4xx still uses the OAuth client_id chain + AuthenticationError.
+  - **New error key `upstream_unavailable`** in `strings.json` + all 8 translation files (cs/de/en/es/fr/nl/pl/sv). Message explicitly says "server-side issue at VW, NOT a credentials problem. Wait 5–15 min and try again. Do NOT reconfigure."
+  - Cross-references: evcc #30280 + #30324, ioBroker.vw-connect #425 + #426, our #309 moltke69 + 9mrcookie9.
+
+### Changed (resilience improvements)
+- **OIDC discovery for token URL** (R3 — addresses the next URL migration class). `AuthConfigResolver.refresh_via_discovery()` now fetches `token_endpoint` from `/auth/v1/idk/oidc/openid-configuration` and caches per-brand for 1 hour. `token_url()` priority chain is now: **OIDC discovery cache → APK extraction → hardcoded fallback**. If VW migrates the token URL again (server-side flip), we pick up the change within an hour without a code release. Pattern from audi_connect_ha PR #736.
+- **qmauth fallback chain** (R2 — addresses next qmauth rotation class). New `AuthConfigResolver.qmauth_chain()` returns `(secret, client_id)` tuples in priority order: APK-extracted → current hardcoded (evcc PR #30292 baseline) → **prior hardcoded** (evcc PR #30277 baseline, pre-2026-05-28). `_exchange_code()` iterates the Cartesian product of (OAuth client_id × qmauth pair) on 4xx — total 6 attempts max. When VW re-rotates, we self-heal via prior pair for ~hours until evcc/audi_connect_ha live-capture the new values. Pattern from ioBroker.vw-connect commit 884269b1.
+- **OIDC health-probe added to scout pipeline** (R6 — early-warning canary). New `cariad_bff_oidc_health_probe` entry in `_v3_probes.py` — runs hourly per CARIAD-BFF account, pings `/auth/v1/idk/oidc/openid-configuration`, response flows into the scout pipeline. When `token_endpoint` changes server-side, the scout flags it before user-reports land. No other open-source VW integration does this — competitive moat.
+
+### Risk
+**Low.** All 4 fixes are additive with safe fallbacks:
+- R1: new exception class doesn't affect existing AuthenticationError paths
+- R3: discovery is best-effort; failure silently uses APK/hardcoded URL
+- R2: extra qmauth tuple only tried on 4xx; success path unchanged
+- R6: pure observability; probe pass already capped to 1×/h per VIN
+
+### Files touched
+- `custom_components/vag_connect/cariad/exceptions.py` — new `UpstreamUnavailableError`
+- `custom_components/vag_connect/cariad/auth/idk.py` — qmauth prior constants + attempts-chain refactor in `_exchange_code()` + OIDC discovery call before each token POST
+- `custom_components/vag_connect/cariad/auth/_auth_config_resolver.py` — `refresh_via_discovery()` + module-level OIDC cache + `qmauth_chain()` + prior-qmauth ctor args
+- `custom_components/vag_connect/cariad/api/_v3_probes.py` — new `cariad_bff_oidc_health_probe`
+- `custom_components/vag_connect/config_flow.py` — catch `UpstreamUnavailableError` → `upstream_unavailable` error key
+- `custom_components/vag_connect/strings.json` + 8 translation files — new error key
+- `tests/test_v257_upstream_unavailable.py` (NEW) — 5 test classes for R1
+- `.gitignore` — `_private/`, `.app-atlas-apk-cache/`, canary credentials (datenschutz)
+
+### Forensic acknowledgement
+v2.5.7 was scoped using a deep-research agent that cross-checked **6 competitor projects** (evcc, audi_connect_ha, volkswagencarnet, pycupra, myskoda, ioBroker.vw-connect) plus **Phase A.7 smali analysis** of our cached Audi 5.4.1 + VW 3.61.0 APKs. Key finding: qmauth values cannot be statically extracted from APK (all 8 markers absent from DEX string pools — `01da27b0`, `c95f4fd2`, `v1:`, `x-qmauth`, `qmauth`) because they're constructed at runtime via R8-obfuscated byte arrays + likely BuildConfig injection. Static-analysis self-sufficiency is a dead-end without Frida/emulator setup. **v2.5.7 R2 (qmauth fallback chain) is our pragmatic response** — buys time when VW rotates while we wait for competitor live-captures.
+
 ## [2.5.6] — 2026-05-28 — "APK-Primary Auth-Config with OAuth Client-ID Fallback Chain"
 
 ### Changed (priority shift — APK becomes source of truth, competitors become fallback)

@@ -34,6 +34,7 @@ from ..exceptions import (
     TwoFactorRequiredError,
     RateLimitError,
     TokenExpiredError,
+    UpstreamUnavailableError,
 )
 from ..models import BrandConfig, TokenSet
 
@@ -62,8 +63,16 @@ _CARIAD_TOKEN_URL = "https://emea.bff.cariad.digital/auth/v1/idk/oidc/token"
 # captured by evcc PR #30292 (MIT) — cross-verified against
 # arjenvrh/audi_connect_ha (MIT) and TA2k/ioBroker.vw-connect.
 # Format: ``v1:<qmClientId>:<hmac_sha256(qmSecret, ts_hundred_seconds)>``
+#
+# v2.5.7 R2 — keep the PRIOR rotation pair as a fallback. ioBroker's
+# pattern: try current first, then try prior on 4xx. Reduces blast
+# radius when VW re-rotates while we wait for evcc/audi_connect_ha to
+# extract the new values via live testing. Phase 0 / Path 2.5 confirmed
+# we cannot extract these from APK static analysis.
 _QM_CLIENT_ID = "01da27b0"
 _QM_SECRET = "1ab69925ac179aaa4e83abe671a9476d176418b85bd706f1436ca15be647989c"
+_QM_PRIOR_CLIENT_ID = "c95f4fd2"  # pre-2026-05-28 rotation, evcc PR #30277 baseline
+_QM_PRIOR_SECRET = "e47866378ef0658ce75d71007a809f34616b9635e2ec228245784c1f63e88d06"
 
 
 def _calculate_x_qmauth(
@@ -1167,13 +1176,29 @@ class IDKAuth:
         # v2.5.6 — APK-primary auth config with competitor fallback. The
         # resolver loads values from .app-atlas-apk-cache/{brand}.json
         # when available; falls back to v2.5.4 hardcoded constants if not.
+        # v2.5.7 R2 — also pass the PRIOR qmauth pair as last-resort
+        # fallback in case VW rotates again and we haven't ported the
+        # new value yet.
         resolver = AuthConfigResolver(
             self._brand.name,
             hardcoded_client_id=self._brand.client_id,
             hardcoded_qmauth_secret=_QM_SECRET,
             hardcoded_qmauth_client_id=_QM_CLIENT_ID,
             hardcoded_token_url=_CARIAD_TOKEN_URL,
+            prior_qmauth_secret=_QM_PRIOR_SECRET,
+            prior_qmauth_client_id=_QM_PRIOR_CLIENT_ID,
         )
+        # v2.5.7 R3 — try OIDC discovery for the token URL before
+        # falling back to APK / hardcoded values. Best-effort: a
+        # discovery failure silently uses whatever ``token_url()``
+        # already returns. Throttled to once per hour per brand via
+        # module-level cache so this adds zero extra latency on
+        # repeated polls within the TTL window.
+        if self._brand.name in ("audi", "volkswagen"):
+            try:
+                await resolver.refresh_via_discovery(self._session)
+            except Exception:  # noqa: BLE001 — defense-in-depth
+                pass
         token_url = (
             resolver.token_url()
             if self._brand.name in ("audi", "volkswagen")
@@ -1189,24 +1214,32 @@ class IDKAuth:
         # alternates, and only fail if ALL candidates return 4xx.
         # Non-Audi/VW brands stay single-shot (no fallback chain because
         # their IDPs are stable).
+        #
+        # v2.5.7 R2 — combined client_id × qmauth attempts list. For
+        # CARIAD-BFF brands we build the Cartesian product of:
+        #   - OAuth client_id chain (canonical + APK alternates)
+        #   - qmauth chain (current + prior, in case VW re-rotated)
+        # Total attempts capped at ~6 per call (3 client_ids × 2 qmauth
+        # tuples). The first 200 short-circuits the rest.
         if self._brand.name in ("audi", "volkswagen"):
             client_id_chain = resolver.oauth_client_id_chain()
-            headers_fn = lambda: _cariad_token_headers(  # noqa: E731
-                self._brand.user_agent,
-                qmauth_secret=resolver.qmauth_secret(),
-                qmauth_client_id=resolver.qmauth_client_id(),
-            )
+            qmauth_chain = resolver.qmauth_chain()
+            attempts: list[tuple[str, str, str]] = [
+                (cid, qm_s, qm_c)
+                for cid in client_id_chain
+                for (qm_s, qm_c) in qmauth_chain
+            ]
             _LOGGER.debug(
-                "Token exchange (v2.5.6 resolver): brand=%s chain=%d url=%s prov=%s",
-                self._brand.name, len(client_id_chain), token_url,
+                "Token exchange (v2.5.7 resolver): brand=%s attempts=%d url=%s prov=%s",
+                self._brand.name, len(attempts), token_url,
                 resolver.provenance(),
             )
         else:
             client_id_chain = [self._brand.client_id]
-            headers_fn = self._form_headers
+            attempts = [(self._brand.client_id, "", "")]
 
         last_error: AuthenticationError | None = None
-        for idx, client_id in enumerate(client_id_chain):
+        for idx, (client_id, qm_secret, qm_client_id) in enumerate(attempts):
             data: dict[str, str] = {
                 "client_id": client_id,
                 "grant_type": "authorization_code",
@@ -1217,28 +1250,64 @@ class IDKAuth:
             if self._brand.client_secret:
                 data["client_secret"] = self._brand.client_secret
 
+            # v2.5.7 R2 — assertion headers signed with this attempt's qmauth.
+            if self._brand.name in ("audi", "volkswagen"):
+                headers = _cariad_token_headers(
+                    self._brand.user_agent,
+                    qmauth_secret=qm_secret,
+                    qmauth_client_id=qm_client_id,
+                )
+            else:
+                headers = self._form_headers()
+
             try:
                 async with self._session.post(
                     token_url,
-                    timeout=_AUTH_TIMEOUT, data=data, headers=headers_fn(),
+                    timeout=_AUTH_TIMEOUT, data=data, headers=headers,
                 ) as resp:
                     if resp.status == 200:
                         if idx > 0:
                             _LOGGER.info(
-                                "Token exchange (%s): fallback client_id #%d "
-                                "succeeded — primary candidates 4xx'd",
+                                "Token exchange (%s): fallback attempt #%d "
+                                "succeeded (client_id=%s..%s, qmauth_cid=%s) — "
+                                "primary candidates 4xx'd",
                                 self._brand.name, idx,
+                                client_id[:8] if client_id else "?",
+                                client_id[-4:] if client_id else "?",
+                                qm_client_id or "n/a",
                             )
                         payload: dict[str, Any] = await resp.json()
                         return self._parse_tokens(payload)
                     body = await resp.text()
-                    # Only retry chain on 4xx — server errors (5xx) are
-                    # transient; the retry loop in `_request` handles those.
-                    if 400 <= resp.status < 500 and idx < len(client_id_chain) - 1:
+                    # v2.5.7 (#313 follow-on / 502 storm 2026-05-29) — 5xx
+                    # responses from the CARIAD-BFF mean the VW backend is
+                    # flapping (Azure WAF + upstream Azure incidents), NOT
+                    # that the credentials are wrong. Raise the dedicated
+                    # ``UpstreamUnavailableError`` so the config-flow /
+                    # repair UI surfaces a non-credentials message and
+                    # users do NOT reconfigure the integration in a panic.
+                    # The _request retry layer handles its own 5xx retries
+                    # at the API call layer; the auth path here doesn't
+                    # retry because PKCE codes are single-use (a retry
+                    # would just hit "code already used").
+                    if 500 <= resp.status < 600:
+                        _LOGGER.warning(
+                            "Token exchange (%s): upstream HTTP %d — VW "
+                            "backend flapping. Not a credentials issue.",
+                            self._brand.name, resp.status,
+                        )
+                        raise UpstreamUnavailableError(
+                            resp.status, brand=self._brand.name,
+                        )
+                    # 4xx → try next (client_id, qmauth) attempt.
+                    if 400 <= resp.status < 500 and idx < len(attempts) - 1:
                         _LOGGER.debug(
-                            "Token exchange (%s) client_id %s..%s rejected "
-                            "(HTTP %d) — trying next candidate",
-                            self._brand.name, client_id[:8], client_id[-4:],
+                            "Token exchange (%s) attempt #%d (client_id=%s..%s, "
+                            "qmauth_cid=%s) rejected HTTP %d — trying next",
+                            self._brand.name, idx,
+                            client_id[:8] if client_id else "?",
+                            client_id[-4:] if client_id else "?",
+                            qm_client_id or "n/a",
                             resp.status,
                         )
                         last_error = AuthenticationError(
@@ -1248,12 +1317,12 @@ class IDKAuth:
                     raise AuthenticationError(
                         f"Token exchange failed HTTP {resp.status}: {body[:200]}"
                     )
-            except AuthenticationError:
+            except (AuthenticationError, UpstreamUnavailableError):
                 raise
 
         # Chain exhausted without success.
         raise last_error or AuthenticationError(
-            "Token exchange: all client_id candidates exhausted"
+            "Token exchange: all client_id × qmauth candidates exhausted"
         )
 
     async def _exchange_code_skoda(self, code: str, verifier: str) -> TokenSet:
