@@ -136,8 +136,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased] — CI infrastructure cleanup
 
-### Changed
-- **`.github/workflows/upstream-ola-watcher.yml`** — added path-scoped push trigger to silence false-positive "Run failed: No jobs were run" notifications. Pre-fix, GitHub's scheduled-workflow validation fired registration runs on every branch push regardless of triggers (10+ failure notifications during the v2.5.7→v2.5.10 sprint). Post-fix the workflow only runs on (a) daily 08:00 UTC cron, (b) manual workflow_dispatch, (c) pushes that actually change this workflow file on main. Pure infrastructure — no end-user impact.
+### Removed
+- **`.github/workflows/upstream-ola-watcher.yml`** — **DELETED**. The path-scoped push trigger fix from PR #340 did not stop the "Run failed: No jobs were run" notifications because GitHub's scheduled-workflow validation creates synthetic events that bypass user-defined trigger filters. After 20+ false-positive failure notifications during the v2.5.7→v2.5.10 sprint, the workflow is retired. Its function (3-source consensus check on OLA app-versions across tillsteinbach/CarConnectivity-connector-seatcupra + WulfgarW/PyCupra + daernsinstantfortress/WeConnect-Cupra-python) is now fully redundant given:
+  - **v2.5.5 App Atlas Phase A.5 Shield** — auto-detects auth-config rotations from APK diff (more direct than upstream-project consensus)
+  - **v2.5.6 APK-Primary AuthConfigResolver** — auto-uses APK-derived values with hardcoded fallback
+  - **v2.5.7 R6 OIDC health-probe** — live endpoint check
+  - **app-atlas-builder workflow** — daily app-version polling for all 7 brands (covers same ground as OLA-watcher's version-bump detection)
+
+### Fixed
+- **App Atlas Builder workflow PR creation** — repo setting `Allow GitHub Actions to create and approve pull requests` was disabled. The daily atlas builder runs detected version changes correctly (creating `auto/atlas-*` branches) but failed at the final `gh pr create` step with `GitHub Actions is not permitted to create or approve pull requests`. Setting now enabled via API. Next daily run (08:00 UTC) will properly open the auto-PR.
 
 ## [2.5.10] — 2026-05-29 — "VW NA Polish (roberttco bundle, 2 of 5)"
 
