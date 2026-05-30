@@ -62,7 +62,42 @@
       "x-android-package-name": "(per brand — de.myaudi.mobile.assistant for Audi, de.volkswagen.weconnect for VW EU)",
       "x-assertion": "0",
       "x_assertion_validation": "Currently presence-only check; value '0' (dummy) accepted per ioBroker observation. WARNING: anna_attestation_enabled remote-config flag in VW APK could flip server-side to require real Play Integrity attestation — when that happens, dummy '0' stops working and we need real attestation values. Watch-item for daily atlas.",
-      "_source": "evcc PR #30292 + ioBroker commit 884269b1 + verified against AttestationEnabledUseCase smali in VW 3.61.0 APK (research agent finding)"
+      "_source": "evcc PR #30292 + ioBroker commit 884269b1 + verified against AttestationEnabledUseCase smali in VW 3.61.0 APK (research agent finding)",
+      "_v2513_update_2026_05_30": "Audi 5.5.0 APK forensics (manual local extraction) revealed the full architecture: x-assertion is the slot that will eventually carry a Google Play Integrity JWT, not the current dummy '0'. See #347 for class-level breakdown."
+    },
+    "play_integrity_attestation": {
+      "_status": "DISCOVERED_2026_05_30 — Audi 5.5.0 APK forensics",
+      "_source_ref_issue": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/347",
+      "_overview": "VW's 2026-05-27 'client_assertion' wall is implemented as Google Play Integrity attestation. App requests nonce, calls Google's StandardIntegrityManager, sends signed JWT as x-assertion. Soft-enforced today (anna_attestation_enabled remote-config), expected to harden over weeks-to-months.",
+      "challenge_endpoint": "https://emea.bff.cariad.digital/auth/v1/android/challenge",
+      "_challenge_endpoint_source": "Audi 5.5.0 smali_classes5/technology/cariad/cat/playintegrity/NonceGenerator.smali — only smali reference in entire 82,797-file decode",
+      "smali_classes_observed": [
+        "technology.cariad.cat.playintegrity.Nonce (data class with 'challenge' field)",
+        "technology.cariad.cat.playintegrity.Nonce$Companion",
+        "technology.cariad.cat.playintegrity.Nonce$$serializer (kotlinx.serialization)",
+        "technology.cariad.cat.playintegrity.NonceGenerator (issues POST to challenge endpoint)",
+        "technology.cariad.cat.playintegrity.NonceGenerator$queryNonce$1 (coroutine continuation)",
+        "technology.cariad.cat.playintegrity.PlayIntegrityTokenProvider (uses Google StandardIntegrityManager)",
+        "technology.cariad.cat.playintegrity.PlayIntegrityTokenProvider$initIntegrityTokenProvider$1",
+        "technology.cariad.cat.playintegrity.PlayIntegrityTokenProvider$requestIntegrityToken$1",
+        "technology.cariad.cat.playintegrity.PlayIntegrityTokenProvider$requestIntegrityToken$3",
+        "technology.cariad.cat.playintegrity.PlayIntegrityTokenProvider$requestIntegrityTokenBoundToNonce$1 (the nonce-bound JWT request)",
+        "technology.cariad.cat.playintegrity.PlayIntegrityTokenProvider$retryOrFail$1",
+        "technology.cariad.cat.playintegrity.PlayIntegrityTokenProvider$tokenProviderResult$2",
+        "technology.cariad.cat.playintegrity.PlayIntegrityTokenProvider$tryRequestIntegrityToken$1",
+        "technology.cariad.cat.playintegrity.PlayIntegrityTokenProviderKt"
+      ],
+      "assertion_interface_errors": [
+        "Initialization — Google Play Integrity API init failed",
+        "Integrity — JWT signature invalid (server rejected)",
+        "QueryNonce — /auth/v1/android/challenge failed",
+        "RequestHash — request-body hash mismatch"
+      ],
+      "_assertion_interface_source": "Audi 5.5.0 smali_classes9/technology/cariad/cat/assertioninterface/*.smali",
+      "_constructor_signature": "PlayIntegrityTokenProvider(Context, Uri, HttpClient, Function) — requires Android Context = cannot be invoked from Python HA server",
+      "google_dependency": "com.google.android.play.core.integrity.StandardIntegrityManager.StandardIntegrityTokenProvider",
+      "_blocked_for_oss": "Python HA integration cannot produce a Play Integrity JWT. Requires (a) Google-signed APK + (b) Play Store install + (c) real device with Play Services + (d) app package fingerprint matching VW's registered Audi/VW app. NO static-extraction bypass exists.",
+      "_observed_enforcement_state": "Soft — dummy x-assertion='0' still accepted on most paths as of 2026-05-30 evening, hourly tightening pattern reported in iobroker thread."
     }
   },
   "brands": {
