@@ -1,7 +1,7 @@
 # App Atlas — CUPRA
 
 > **Auto-generated** by `.github/workflows/app-atlas-builder.yml` ·
-> Last refreshed: 2026-05-25
+> Last refreshed: 2026-05-30
 
 ## Identity
 
@@ -22,10 +22,10 @@
 
 | | |
 |---|---|
-| Latest version-name | `2.16.0` |
+| Latest version-name | `2.18.0` |
 | Source that responded | `uptodown` |
 | Previously cached version | `2.16.0` |
-| Changed since last run? | No |
+| Changed since last run? | **YES** |
 
 ## Discovered via APK extraction (Phase A.2)
 
