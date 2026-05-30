@@ -104,7 +104,7 @@ refactors.
 
 | Project | Maintainer | Notes |
 |---|---|---|
-| [andig/evcc vehicle/porsche](https://github.com/andig/evcc/tree/master/vehicle/porsche) | andig | Go reference, cross-vehicle EVCC project |
+| [evcc-io/evcc vehicle/porsche](https://github.com/evcc-io/evcc/tree/master/vehicle/porsche) | evcc team | Go reference, cross-vehicle EVCC project |
 
 ---
 
@@ -112,7 +112,7 @@ refactors.
 
 | Project | Notes |
 |---|---|
-| [andig/evcc](https://github.com/andig/evcc) | Go-based EV-charging coordinator. Covers 30+ vehicle brands incl. all VAG brands. Excellent reference for API patterns even though it's a different runtime. |
+| [evcc-io/evcc](https://github.com/evcc-io/evcc) | Go-based EV-charging coordinator. Covers 30+ vehicle brands incl. all VAG brands. Excellent reference for API patterns even though it's a different runtime. |
 
 ---
 
