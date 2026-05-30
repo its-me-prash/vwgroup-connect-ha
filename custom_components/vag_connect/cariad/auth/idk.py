@@ -909,6 +909,26 @@ class IDKAuth:
         if self._brand.name in ("seat", "cupra"):
             token_url = "https://ola.prod.code.seat.cloud.vwgroup.com/authorization/api/v1/token"
         else:
+            # v2.5.12 — trigger Audi market-config refresh on refresh-token
+            # path too. Throttled internally (24h TTL) so this is a no-op
+            # after the first call per process. Ensures long-running HA
+            # instances pick up Audi CDN updates over their lifetime, not
+            # only at initial login.
+            if self._brand.name == "audi":
+                try:
+                    from ._auth_config_resolver import (  # noqa: PLC0415
+                        AuthConfigResolver,
+                    )
+                    _audi_resolver = AuthConfigResolver(
+                        "audi",
+                        hardcoded_client_id=self._brand.client_id,
+                        hardcoded_qmauth_secret=_QM_SECRET,
+                        hardcoded_qmauth_client_id=_QM_CLIENT_ID,
+                        hardcoded_token_url=_CARIAD_TOKEN_URL,
+                    )
+                    await _audi_resolver.refresh_audi_market_config(self._session)
+                except Exception:  # noqa: BLE001 — defense-in-depth
+                    pass
             token_url = self._get_token_endpoint()
 
         data: dict[str, str] = {
@@ -1225,6 +1245,16 @@ class IDKAuth:
         if self._brand.name in ("audi", "volkswagen"):
             try:
                 await resolver.refresh_via_discovery(self._session)
+            except Exception:  # noqa: BLE001 — defense-in-depth
+                pass
+        # v2.5.12 — wire up the v2.5.11 Audi market-config layer.
+        # Throttled to once per 24 h per (country, language) — first
+        # call per HA process startup fetches the CDN, subsequent calls
+        # within the TTL are a no-op. Only Audi brand actually fetches
+        # (resolver.refresh_audi_market_config() returns {} for non-Audi).
+        if self._brand.name == "audi":
+            try:
+                await resolver.refresh_audi_market_config(self._session)
             except Exception:  # noqa: BLE001 — defense-in-depth
                 pass
         token_url = (

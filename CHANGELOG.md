@@ -143,6 +143,26 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ### Fixed
 - **App Atlas Builder workflow PR creation** — repo setting `Allow GitHub Actions to create and approve pull requests` was disabled. The daily atlas builder runs detected version changes correctly (creating `auto/atlas-*` branches) but failed at the final `gh pr create` step with `GitHub Actions is not permitted to create or approve pull requests`. Setting now enabled via API. Next daily run (08:00 UTC) will properly open the auto-PR.
 
+## [2.5.12] — 2026-05-30 — "Market-Config Activation + Atlas Pipeline Audit"
+
+Follow-up to v2.5.11 — wires the Audi market-config helper that was added (but inert) in v2.5.11, plus opens tracking issues for the atlas-builder pipeline gaps surfaced during today's deep audit. Also a major strategic update on #336 (VW GIS migration) capturing 3-agent industry-wide intel.
+
+### Fixed
+- **`refresh_audi_market_config()` was never called in v2.5.11** — the helper module was implemented but no lifecycle path invoked it, so the 24h cache stayed permanently empty and `oauth_client_id_chain()` / `token_url()` never saw market-config values. v2.5.12 wires the call into both `_exchange_code()` (initial login) and `refresh()` (token-refresh path) for the Audi brand. Best-effort, throttled to 24h TTL — no extra latency on the steady-state polling cycle. Now actually does what v2.5.11 promised.
+
+### Documented
+- **Atlas-builder APK extraction pipeline broken since 2026-05-25** — opened tracking issue #345. Daily workflow polls versions correctly (3 new versions detected today: Audi 5.5.0, CUPRA 2.18.0, MyVW US 2026.5.27-9076) but APK download silently 403s on APKCombo's Cloudflare for all 7 brands. Workflow takes 30s instead of 5-10min. Findings we use in `.app-atlas-apk-cache/{brand}.json` are all from **manual local extractions** during v2.5.5/v2.5.6 sprint — CI has never auto-committed APK findings.
+- **Strategic update on #336 (VW GIS Migration)** — consolidated 3-agent industry research:
+  - Confirmed **2026-05-27 wall** is `client_assertion` (cryptographic origin-proof), not just endpoint rotation. Source: byteiota.com + HN #48319509 + Skoda Facebook statement.
+  - **Industry consensus across 10+ competitor projects**: nobody is migrating to `drivesomethinggreater.com` Data Hub (B2B-only, VAT-ID gate, undisclosed DDA pricing, FOSS-incompatible per myskoda dvx76 analysis).
+  - **`mikrohard/hass-vw-eu-data-act`** (~24h old, 3 stars) is the **only existing HA integration on the consumer EU Data Act portal**. Recommended Plan B coordination target.
+  - **2026-09-12 EU Data Act Article 3 enforcement** = the only firm regulatory date in the entire narrative. Roadmap re-positions v2.5.x as the bridge to a Data-Act-API v3.0.
+
+### Notes
+- v2.5.12 is a small follow-up. No user-visible behaviour change in the steady-state. The wire-up matters when VW rotates the Audi auth config again — then the market-config layer now has 24h to discover the new URL/client_id without code release.
+- See [issue #345](https://github.com/its-me-prash/vwgroup-connect-ha/issues/345) for atlas pipeline fix plan.
+- See [issue #336](https://github.com/its-me-prash/vwgroup-connect-ha/issues/336) for GIS migration strategy doc.
+
 ## [2.5.11] — 2026-05-30 — "Field-tested Auth Hardening"
 
 Three patches driven by a deep audit of `audi_connect_ha` PR #736, `evcc` PR #30292, and `CarConnectivity-connector-seatcupra` v0.6.3 — comparing what those projects actually shipped against what we have today. Findings: one latent bug, one future-proofing gap, one missed alternate. All three patches are additive + backward-compatible. No user-visible behaviour change today; all three reduce the blast radius of the NEXT VW backend rotation.
