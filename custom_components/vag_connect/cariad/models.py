@@ -22,6 +22,21 @@ class BrandConfig:
         "nationality profession email vin phone nickname name picture mbb "
         "gallery cars dealers"
     )
+    # v2.5.11 (#brand-impersonation-fix) — Android package name sent in
+    # the ``x-android-package-name`` header on CARIAD-BFF token requests.
+    # Pre-v2.5.11 this was hardcoded to ``de.myaudi.mobile.assistant``
+    # in idk.py for ALL brands — a latent brand-impersonation bug that
+    # would have broken VW EU instantly if Azure WAF flipped on the
+    # brand-consistency anomaly check. Documented in our own atlas
+    # profile (vw_group_auth_profile.json) as the correct per-brand
+    # value all along, but the code didn't match. v2.5.11 wires the
+    # atlas truth through to the wire.
+    #
+    # Used by: ``_cariad_token_headers()`` in idk.py for the CARIAD-BFF
+    # token endpoint (Audi + VW EU). Other brands hit different IDPs
+    # that don't enforce this header — value provided defensively for
+    # future-proofing but not currently transmitted on their flows.
+    android_package_name: str = ""
 
     @property
     def app_prefix(self) -> str:
@@ -40,6 +55,11 @@ BRAND_VW_EU = BrandConfig(
     api_base="https://emea.bff.cariad.digital",
     # scope from volkswagencarnet (robinostlund/volkswagencarnet, MIT) — confirmed working
     scope="openid profile badge cars dealers vin",
+    # v2.5.11 — matches atlas profile vw_group_auth_profile.json#brands.vw.package_name.
+    # Source: VW WeConnect 3.61.0 APK xapk archive name + ioBroker commit 884269b1.
+    # Pre-v2.5.11 this was silently impersonating the Audi package via the
+    # hardcoded ``de.myaudi.mobile.assistant`` default in idk.py.
+    android_package_name="de.volkswagen.weconnect",
 )
 
 BRAND_AUDI = BrandConfig(
@@ -54,6 +74,9 @@ BRAND_AUDI = BrandConfig(
         "address profile badge birthdate birthplace nationalIdentifier nationality "
         "profession email vin phone nickname name picture mbb gallery openid"
     ),
+    # v2.5.11 — matches atlas profile vw_group_auth_profile.json#brands.audi.package_name.
+    # Source: myAudi 5.4.1 APK archive name + audi_connect_ha source.
+    android_package_name="de.myaudi.mobile.assistant",
 )
 
 BRAND_SKODA = BrandConfig(
@@ -66,6 +89,10 @@ BRAND_SKODA = BrandConfig(
         "address badge birthdate cars driversLicense dealers email mileage mbb "
         "nationalIdentifier openid phone profession profile vin"
     ),
+    # v2.5.11 — Skoda IDP not on CARIAD-BFF (uses mysmob.api.connect.skoda-auto.cz),
+    # so x-android-package-name is not currently transmitted. Value
+    # provided defensively for future-proofing / atlas consistency.
+    android_package_name="cz.skodaauto.myskoda",
 )
 
 BRAND_SEAT = BrandConfig(
@@ -77,6 +104,10 @@ BRAND_SEAT = BrandConfig(
     # `address` + `email` mirror the official My SEAT app — defense in depth so
     # OLA endpoints that conditionally require either claim never get tripped.
     scope="openid profile address phone email birthdate nickname",
+    # v2.5.11 — SEAT/CUPRA hit OLA backend (different from CARIAD-BFF), so
+    # x-android-package-name not currently used in their flows. The OLA
+    # backend uses ``app-brand`` (see _ola_headers.py) which we already set.
+    android_package_name="com.seat.myseat.ola",
 )
 
 BRAND_CUPRA = BrandConfig(
@@ -88,6 +119,7 @@ BRAND_CUPRA = BrandConfig(
     client_secret="eb8814e641c81a2640ad62eeccec11c98effc9bccd4269ab7af338b50a94b3a2",
     # See BRAND_SEAT above — same OLA backend, same scope set.
     scope="openid profile address phone email birthdate nickname",
+    android_package_name="com.cupra.mycupra",
 )
 
 BRAND_VW_NA_MODEL = BrandConfig(

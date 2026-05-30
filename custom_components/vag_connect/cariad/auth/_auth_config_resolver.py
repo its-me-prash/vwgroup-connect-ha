@@ -1,6 +1,10 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
 """v2.5.6 — APK-primary, competitor-fallback auth config resolver.
 
+v2.5.11 — added Audi market-config layer (between OIDC discovery and
+APK cache) replicating audi_connect_ha's PR #736 dynamic-URL pattern.
+See ``_audi_market_config.py`` for full rationale.
+
 The 2026-05-28 VW Azure WAF migration ([#313](https://github.com/its-me-prash/vwgroup-connect-ha/issues/313))
 exposed a fragility in our auth path: hardcoded constants for token URL,
 OAuth client_id, and the qmauth HMAC secret meant a single VW backend
@@ -59,6 +63,13 @@ _ALTERNATE_CLIENT_IDS: dict[str, tuple[str, ...]] = {
         # Discovered in classes9.dex + classes10.dex of myAudi 5.4.1.
         # Purpose unknown — possibly Audi internal-test or per-region fallback.
         "16dd7960-431d-4b88-b3a5-35724b2fce01@apps_vw-dilab_com",
+        # v2.5.11 — evcc-derived alternate. Spotted in evcc's
+        # ``vehicle/audi/`` and ``vehicle/vag/`` packages post-2026-05-28
+        # (PR #30292 / commit history). NOT in audi_connect_ha's tree —
+        # so this is a separately-discovered candidate from a different
+        # competitor's reverse-engineering. Worth trying as fallback if
+        # the canonical Audi UUID starts 401/403'ing.
+        "f4d0934f-32bf-4ce4-b3c4-699a7049ad26@apps_vw-dilab_com",
     ),
     "volkswagen": (
         # Discovered in classes3.dex of WeConnect ID 3.61.0 (post-WAF prep version).
@@ -97,6 +108,14 @@ _APK_CACHE_ROOT: Path | None = _resolve_cache_root()
 _OIDC_DISCOVERY_CACHE: dict[str, tuple[str, float]] = {}
 _OIDC_DISCOVERY_TTL_S = 3600
 _OIDC_DISCOVERY_TIMEOUT_S = 5
+
+
+class _PriorPairDeprecation:
+    """v2.5.11 — one-shot guard so the c95f4fd2 deprecation note is
+    only logged the first time the chain is built. Class-with-attr
+    pattern keeps the flag mutable while the module-level singleton
+    semantics are obvious from the call site."""
+    warned: bool = False
 
 
 def _load_apk_auth_secrets(brand_name: str) -> dict[str, Any]:
@@ -193,14 +212,19 @@ class AuthConfigResolver:
     def token_url(self) -> str:
         """Token-exchange URL for the brand's IDK.
 
-        Resolution priority (v2.5.7 R3 addition):
+        Resolution priority (v2.5.11 chain):
             1. OIDC discovery cache (`/auth/v1/idk/oidc/openid-configuration`
                ``token_endpoint`` field) — populated by
                ``refresh_via_discovery()`` once per TTL. Picks up
                server-side URL changes within ~1 h.
-            2. APK extraction (`token_path_markers_seen`) — daily atlas
+            2. Audi market-config CDN (v2.5.11 — content.app.my.audi.com,
+               24h TTL). For Audi brand, derives token URL from the
+               ``idkLoginServiceConfigurationURLProduction`` field that
+               the official Audi app reads at startup. audi_connect_ha
+               PR #736 noticed the 2026-05-28 migration via this layer.
+            3. APK extraction (`token_path_markers_seen`) — daily atlas
                picks up app-bundled URL changes.
-            3. Hardcoded constant — v2.5.4 baseline as safety net.
+            4. Hardcoded constant — v2.5.4 baseline as safety net.
         """
         cached = _OIDC_DISCOVERY_CACHE.get(self._brand)
         if cached is not None:
@@ -208,6 +232,17 @@ class AuthConfigResolver:
             if (time.monotonic() - ts) < _OIDC_DISCOVERY_TTL_S:
                 return url
             # Stale — let the next refresh_via_discovery() update it.
+
+        # v2.5.11 — Audi market-config (only meaningful for Audi brand).
+        if self._brand == "audi":
+            from ._audi_market_config import (  # noqa: PLC0415
+                cached_audi_market_config,
+                derive_token_url_from_market_config,
+            )
+            market_cfg = cached_audi_market_config()
+            derived = derive_token_url_from_market_config(market_cfg)
+            if derived:
+                return derived
 
         paths = self._apk.get("token_path_markers_seen") or []
         for p in paths:
@@ -293,6 +328,38 @@ class AuthConfigResolver:
             )
         return token_endpoint
 
+    async def refresh_audi_market_config(
+        self,
+        session: Any,
+        country: str = "DE",
+        language: str = "de",
+    ) -> dict[str, str]:
+        """v2.5.11 — fetch the Audi market-config CDN entry.
+
+        Best-effort wrapper around
+        ``_audi_market_config.fetch_audi_market_config`` that always
+        returns a dict (empty on failure). Populates the module-level
+        cache so subsequent ``token_url()`` / ``oauth_client_id_chain()``
+        calls can use the discovered values.
+
+        Only meaningful for the ``"audi"`` brand. For other brands this
+        is a no-op returning ``{}``.
+
+        Args:
+            session: an aiohttp ``ClientSession``.
+            country: ISO 3166-1 alpha-2 country. Default ``"DE"``.
+            language: ISO 639-1 language. Default ``"de"``.
+
+        Returns:
+            The cached market-config subset (3 keys max), or ``{}``.
+        """
+        if self._brand != "audi":
+            return {}
+        from ._audi_market_config import fetch_audi_market_config  # noqa: PLC0415
+        return await fetch_audi_market_config(
+            session, country=country, language=language,
+        )
+
     # ── Multi-value chain ──────────────────────────────────────────────────
 
     def qmauth_chain(self) -> list[tuple[str, str]]:
@@ -309,6 +376,15 @@ class AuthConfigResolver:
             1. APK-extracted pair (if v2.5.5 Phase A.5 shield captured it)
             2. Current hardcoded pair (the v2.5.4 evcc PR #30292 values)
             3. Prior hardcoded pair (the evcc PR #30277 baseline)
+
+        v2.5.11 — the prior pair (``c95f4fd2`` / ``e47866378e...``) is
+        CONFIRMED DEPRECATED. Cross-source verification 2026-05-29:
+        evcc PR #30292 removed it; audi_connect_ha never had it. We
+        keep it as last-resort only for the unlikely case VW rolls
+        back the rotation. A warning is logged the first time this
+        deprecated pair is reached in any process (via
+        ``_warned_about_c95f4fd2``) so users see when their auth path
+        hits a dead branch.
 
         Dedupes — if all three sources agree, we return one tuple.
         """
@@ -340,6 +416,22 @@ class AuthConfigResolver:
         _add(self._hardcoded_qmauth_secret, self._hardcoded_qmauth_client_id)
 
         # 3. Prior hardcoded (evcc PR #30277 baseline, rotated 2026-05-28).
+        # v2.5.11 — log a one-shot warning when the deprecated pair is
+        # included in the chain (it WILL be tried only if the primary
+        # pair returns 4xx, which is itself unusual now).
+        if (
+            self._prior_qmauth_client_id == "c95f4fd2"
+            and not _PriorPairDeprecation.warned
+        ):
+            _LOGGER.info(
+                "qmauth fallback chain includes the c95f4fd2 prior pair "
+                "(deprecated 2026-05-28 per evcc PR #30292). It will be "
+                "tried only if the current 01da27b0 pair returns 4xx. "
+                "If you see this followed by a 'fallback attempt succeeded' "
+                "log line, file an issue — that means VW unexpectedly "
+                "rolled back the qmauth rotation."
+            )
+            _PriorPairDeprecation.warned = True
         _add(self._prior_qmauth_secret, self._prior_qmauth_client_id)
 
         return ordered
@@ -347,11 +439,13 @@ class AuthConfigResolver:
     def oauth_client_id_chain(self) -> list[str]:
         """Return OAuth client_id candidates in try-first-success order.
 
-        Order:
-            1. UUIDs found in the latest APK (excluding the hardcoded one
+        Order (v2.5.11):
+            1. Audi market-config ``idkClientIDAndroidLive`` (Audi only,
+               24h cache populated by ``refresh_audi_market_config()``)
+            2. UUIDs found in the latest APK (excluding the hardcoded one
                if it's also present — it gets appended at the end)
-            2. Per-brand alternates from ``_ALTERNATE_CLIENT_IDS``
-            3. The hardcoded canonical client_id
+            3. Per-brand alternates from ``_ALTERNATE_CLIENT_IDS``
+            4. The hardcoded canonical client_id
 
         Dedupes while preserving order.
         """
@@ -363,17 +457,27 @@ class AuthConfigResolver:
                 ordered.append(cid)
                 seen.add(cid)
 
-        # 1. From the APK cache. The `client_id_candidates` field contains
+        # v2.5.11 — 1. Audi market-config (only for Audi brand).
+        if self._brand == "audi":
+            from ._audi_market_config import (  # noqa: PLC0415
+                cached_audi_market_config,
+            )
+            market_cfg = cached_audi_market_config()
+            market_cid = market_cfg.get("idkClientIDAndroidLive")
+            if isinstance(market_cid, str) and "@apps_vw-dilab_com" in market_cid:
+                _add(market_cid)
+
+        # 2. From the APK cache. The `client_id_candidates` field contains
         # a mix of 8-hex strings AND full UUIDs — filter to UUIDs here.
         for c in (self._apk.get("client_id_candidates") or []):
             if isinstance(c, str) and "@apps_vw-dilab_com" in c:
                 _add(c)
 
-        # 2. Per-brand alternates discovered in the 2026-05-27 retro-mining.
+        # 3. Per-brand alternates discovered in the 2026-05-27 retro-mining.
         for alt in _ALTERNATE_CLIENT_IDS.get(self._brand, ()):
             _add(alt)
 
-        # 3. The hardcoded canonical client_id — always last so it acts as
+        # 4. The hardcoded canonical client_id — always last so it acts as
         # the safety-net the rest of the chain falls back to.
         _add(self._hardcoded_client_id)
         return ordered
