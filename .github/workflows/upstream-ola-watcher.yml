@@ -35,6 +35,14 @@ on:
     # Daily 08:00 UTC. Drift detection latency ≤24h.
     - cron: "0 8 * * *"
   workflow_dispatch:
+  # Push trigger needed so the noop-on-non-scheduled job can catch
+  # GitHub's synthetic validation runs that otherwise produce
+  # 'failure: No jobs were run' for every commit to main. The noop
+  # itself takes ~5s and does no real work. Without this trigger the
+  # workflow doesn't fire on push at all, leaving the if-guarded noop
+  # job no opportunity to evaluate.
+  push:
+    branches: [main]
 
 permissions:
   contents: write
