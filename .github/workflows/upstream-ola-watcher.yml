@@ -346,27 +346,35 @@ jobs:
 
           git push -u origin "$BRANCH"
 
+          # Write body to a file to avoid YAML-multiline + bash-quote escaping pain.
+          DATE=$(date -u +%Y-%m-%d)
+          BODY_FILE=$(mktemp)
+          {
+            echo "Multi-source consensus across all monitored upstream OLA projects — bumping app-version constants."
+            echo ""
+            echo "| Brand | Old (ours) | New (consensus) |"
+            echo "|---|---|---|"
+            echo "| SEAT  | \`${OUR_SEAT}\`  | \`${NEW_SEAT}\`  |"
+            echo "| CUPRA | \`${OUR_CUPRA}\` | \`${NEW_CUPRA}\` |"
+            echo ""
+            echo "Per-source breakdown:"
+            echo "${PER_SOURCE}"
+            echo ""
+            echo "What this PR does:"
+            echo "1. Bumps primary values in _OLA_HEADERS_BY_BRAND"
+            echo "2. Prepends OLD primary values into _OLA_HEADERS_BY_BRAND_FALLBACK (Layer 3 self-grows)"
+            echo "3. Adds a one-line CHANGELOG entry under [Unreleased]"
+            echo ""
+            echo "Why auto-PR not auto-merge: human safety check in case upstream pushes experimental or mistaken values."
+            echo ""
+            echo "Auto-filed by .github/workflows/upstream-ola-watcher.yml on ${DATE}. Idempotent — workflow will not re-create this PR while it is open."
+          } > "$BODY_FILE"
+
           gh pr create \
             --title "chore(ola-headers): auto-bump to SEAT=$NEW_SEAT, CUPRA=$NEW_CUPRA" \
             --label "auto-ola-bump" \
-            --body "Multi-source consensus across all monitored upstream OLA projects — bumping app-version constants.
-
-| Brand | Old (ours) | New (consensus) |
-|---|---|---|
-| SEAT  | \`$OUR_SEAT\`  | \`$NEW_SEAT\`  |
-| CUPRA | \`$OUR_CUPRA\` | \`$NEW_CUPRA\` |
-
-**Per-source breakdown:**
-$PER_SOURCE
-
-**What this PR does:**
-1. Bumps primary values in \`_OLA_HEADERS_BY_BRAND\`
-2. Prepends OLD primary values into \`_OLA_HEADERS_BY_BRAND_FALLBACK\` — Layer 3 self-grows
-3. Adds a one-line CHANGELOG entry under \`[Unreleased]\`
-
-**Why auto-PR not auto-merge:** human safety check in case upstream pushes experimental / mistaken values. If consensus looks right, merge it.
-
-_Auto-filed by \`.github/workflows/upstream-ola-watcher.yml\` on $(date -u +%Y-%m-%d). Idempotent — workflow won't re-create this PR while it's open._"
+            --body-file "$BODY_FILE"
+          rm -f "$BODY_FILE"
 
       # ── Action path: ISSUE (sources disagree, manual decision needed)
       - name: Open or update divergence issue
@@ -378,26 +386,36 @@ _Auto-filed by \`.github/workflows/upstream-ola-watcher.yml\` on $(date -u +%Y-%
         run: |
           TITLE="OLA upstream-source divergence — manual review needed"
           EXISTING=$(gh issue list --state open --search "in:title \"$TITLE\"" --json number --jq '.[0].number')
-          BODY="Multi-source watcher detected that the monitored upstream OLA projects disagree on at least one brand's \`app-version\` constant. Manual decision needed — auto-PR is **not safe** when sources split because picking the wrong one might mean we follow a stale/experimental project.
-
-          $DISAGREEMENT
-
-          **All live sources:**
-          $PER_SOURCE
-
-          **Action:** review both projects' recent commit history, decide which value to follow (or keep ours), bump \`cariad/_ola_headers.py\` manually if needed. Close this issue when done — the watcher will re-fire next time sources diverge.
-
-          _Auto-filed by \`.github/workflows/upstream-ola-watcher.yml\` on $(date -u +%Y-%m-%d). Comments added on re-detection; won't spam duplicate issues._"
+          DATE=$(date -u +%Y-%m-%d)
+          BODY_FILE=$(mktemp)
+          {
+            echo "Multi-source watcher detected that the monitored upstream OLA projects disagree on at least one brand's app-version constant. Manual decision needed — auto-PR is not safe when sources split because picking the wrong one might mean we follow a stale/experimental project."
+            echo ""
+            echo "${DISAGREEMENT}"
+            echo ""
+            echo "All live sources:"
+            echo "${PER_SOURCE}"
+            echo ""
+            echo "Action: review both projects' recent commit history, decide which value to follow (or keep ours), bump cariad/_ola_headers.py manually if needed. Close this issue when done — the watcher will re-fire next time sources diverge."
+            echo ""
+            echo "Auto-filed by .github/workflows/upstream-ola-watcher.yml on ${DATE}. Comments added on re-detection; will not spam duplicate issues."
+          } > "$BODY_FILE"
 
           if [ -n "$EXISTING" ]; then
-            gh issue comment "$EXISTING" --body "Re-detected on $(date -u +%Y-%m-%d):
-
-            $DISAGREEMENT
-
-            $PER_SOURCE"
+            COMMENT_FILE=$(mktemp)
+            {
+              echo "Re-detected on ${DATE}:"
+              echo ""
+              echo "${DISAGREEMENT}"
+              echo ""
+              echo "${PER_SOURCE}"
+            } > "$COMMENT_FILE"
+            gh issue comment "$EXISTING" --body-file "$COMMENT_FILE"
+            rm -f "$COMMENT_FILE"
           else
-            gh issue create --title "$TITLE" --label "chore" --body "$BODY"
+            gh issue create --title "$TITLE" --label "chore" --body-file "$BODY_FILE"
           fi
+          rm -f "$BODY_FILE"
 
       # ── Action path: NO-OP (in sync)
       - name: Report no drift
