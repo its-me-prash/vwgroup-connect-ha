@@ -175,7 +175,7 @@ async def main():
                     marker = "✓2xx" if 200 <= resp.status < 300 else f"✗{resp.status}"
                     print(f"{i:<3} {app['name']:<32} {reg_marker:<10} ✓200      {marker:<8}")
                     if 200 <= resp.status < 300:
-                        print(f"\n🎉 WINNER: {app['name']}")
+                        print(f"\n WINNER: {app['name']}")
                         print(f"   appId={app['appId']}")
                         print(f"   First 300 chars of charger response:")
                         print(f"   {text[:300]}")

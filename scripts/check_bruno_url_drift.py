@@ -244,26 +244,26 @@ def check_brand(brand: str, *, strict: bool = False) -> int:
     )
 
     if py_only:
-        print(f"\n  ⚠️ Python URLs WITHOUT a matching .bru ({len(py_only)}):")
+        print(f"\n  ️ Python URLs WITHOUT a matching .bru ({len(py_only)}):")
         for url in sorted(py_only):
             print(f"    + {url}")
 
     if bru_only:
-        print(f"\n  ⚠️ Bruno URLs WITHOUT a matching Python call ({len(bru_only)}):")
+        print(f"\n  ️ Bruno URLs WITHOUT a matching Python call ({len(bru_only)}):")
         for url in sorted(bru_only):
             print(f"    - {url}")
 
     drift = bool(py_only or bru_only)
     if drift and strict:
-        print(f"\n  ❌ Drift detected for {brand} — strict mode → exit 1")
+        print(f"\n   Drift detected for {brand} — strict mode → exit 1")
         return 1
     if drift:
         print(
-            f"\n  ⚠️ Drift detected for {brand} but strict=False → exit 0\n"
+            f"\n  ️ Drift detected for {brand} but strict=False → exit 0\n"
             f"    (Run with --strict to fail CI on drift.)"
         )
     else:
-        print(f"\n  ✅ No drift for {brand}")
+        print(f"\n   No drift for {brand}")
     return 0
 
 

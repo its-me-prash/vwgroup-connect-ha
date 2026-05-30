@@ -357,7 +357,7 @@ def emit_summary(config: dict[str, Any], results: dict[str, str | None],
     for brand, cfg in config["brands"].items():
         version = results.get(brand) or "(fetch failed)"
         src = sources_used.get(brand) or "—"
-        ola_flag = "✅" if cfg.get("ola_enforcement_known") else "❌"
+        ola_flag = "" if cfg.get("ola_enforcement_known") else ""
         rows.append(
             f"| **{cfg['display_name']}** | `{cfg['package_id']}` | "
             f"`{version}` | `{src}` | `{cfg['expected_backend']}` | {ola_flag} |"

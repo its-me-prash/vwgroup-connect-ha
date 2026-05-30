@@ -115,7 +115,7 @@ reference the project under its previous name `VAG Connect`. They
 have **not** been retroactively rewritten — those releases really
 shipped under that name, and rewriting history would be inaccurate.
 
-The `docs/research/2026-*.md` files are similarly preserved as-is;
+The `_private/research-archive/2026-*.md` files are similarly preserved as-is;
 they were research notes timestamped during the original-name era and
 keep their original references for archival accuracy.
 

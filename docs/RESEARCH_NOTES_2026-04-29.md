@@ -1,7 +1,7 @@
 # Research Notes — 2026-04-29
 
 > **Audience:** Contributors, AI tools resuming work without prior session
-> context (Codex, fresh Claude session, new maintainer).
+> context (fresh maintainer session).
 >
 > **Purpose:** Single archive of every verified live-API field name, every
 > reference repo path, every Pattern observation that informed the v1.8.6 →

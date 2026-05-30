@@ -165,7 +165,7 @@ class AudiClient(VWEUClient):
             if data:
                 self._image_data = data
                 _LOGGER.info(
-                    "Audi images: ✅ render URLs for %d vehicle(s)", len(data)
+                    "Audi images:  render URLs for %d vehicle(s)", len(data)
                 )
             else:
                 # AZS token might have expired — reset to force re-exchange next time

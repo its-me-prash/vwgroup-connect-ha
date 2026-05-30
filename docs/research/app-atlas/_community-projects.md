@@ -75,7 +75,7 @@ header injection.
 | [tillsteinbach/CarConnectivity-connector-volkswagen](https://github.com/tillsteinbach/CarConnectivity-connector-volkswagen) | tillsteinbach | VW EU | Active, sibling of seatcupra connector |
 | [tillsteinbach/CarConnectivity-connector-audi](https://github.com/tillsteinbach/CarConnectivity-connector-audi) | tillsteinbach | Audi | Active |
 
-With mitch-dc now archived, **we (vwgroup-connect-ha) + tillsteinbach's family** are the de-facto active VW EU + Audi references. See [`docs/research/community-audits/`](../community-audits/) for the 2026-05 cross-project scan.
+With mitch-dc now archived, **we (vwgroup-connect-ha) + tillsteinbach's family** are the de-facto active VW EU + Audi references. See [`_private/research-archive/community-audits/`](../community-audits/) for the 2026-05 cross-project scan.
 
 These are not currently monitored by automation (no Cariad-BFF
 header-enforcement detected yet), but we cross-check during major

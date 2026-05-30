@@ -30,7 +30,7 @@ MINOR-Release. Quality-of-life Hardening basierend auf community research deep-d
 - `DEFAULT_SCAN_INTERVAL = 10` minutes (144 polls/day = 10% of 1500/day quota)
 - `MIN_SCAN_INTERVAL = 5` minutes (288 polls/day = 19%)
 
-**Reasoning** (from `docs/research/vag-ha-integration-research.md` + community research):
+**Reasoning** (from `_private/research-archive/vag-ha-integration-research.md` + community research):
 The MyCupra/MySeat portal limits API calls to ~1,500/day across the official mobile app + integrations. Our old default of 5 min ate 19% of the daily budget BEFORE the official app even logged in. Pycupra's README recommends ≥ 600s default, ≥ 900s with push enabled. The HACS-Checklist (also new in v1.17.0) tracks this as `Operational Safety / Polling interval floor → ✅ done`.
 
 **Migration:** Existing config entries are NOT coerced upward at upgrade — only the default for fresh installs changes. Power users who explicitly set 3min stay at 3min until they reconfigure (and even then can't go below 5min anymore).
@@ -121,7 +121,7 @@ Plus **`docs/upstream-contributions/wulfgar-pycupra-issues.md`** — 8 ready-to-
 
 #### Community: Bruno-Collection outreach
 
-Discovered `Timwun/Cupra-WeConnect-Bruno-Collection` mid-session — 50+ verified OLA-Endpoint specs in Bruno API-Client format. Posted Issue #1 with heartfelt thank-you (German) + brand-tester invitation. Vollscan-agent extracts the complete catalog into `docs/research/cupra-bruno-endpoints-2026-05-02.md` for v1.17.x / v1.18.0 implementation reference. Notably:
+Discovered `Timwun/Cupra-WeConnect-Bruno-Collection` mid-session — 50+ verified OLA-Endpoint specs in Bruno API-Client format. Posted Issue #1 with heartfelt thank-you (German) + brand-tester invitation. Vollscan-agent extracts the complete catalog into `_private/research-archive/cupra-bruno-endpoints-2026-05-02.md` for v1.17.x / v1.18.0 implementation reference. Notably:
 
 - `PUT /v1/users/vehicles/{vin}/destination` with full body — closes #36 Navigation in v1.17.x
 - `POST /v1/vehicles/{vin}/auxiliary-heating/{start|stop}` — Webasto remote start as new SEAT/CUPRA feature

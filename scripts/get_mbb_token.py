@@ -75,7 +75,7 @@ TwoFactorRequiredError = _exc.TwoFactorRequiredError
 MarketingConsentError = _exc.MarketingConsentError
 
 
-# 🎯 WINNER (verified 2026-05-10 via try_vw_with_mbb.py):
+#  WINNER (verified 2026-05-10 via try_vw_with_mbb.py):
 # WeConnect-ID client (a24fba63) + scope including 'mbb' produces an
 # id_token with VWGMBB01DELIV1 + VWGMBB01CNAPP1 in aud[], AND the user_id
 # inside is the VW-side PPID (matches VW MBB user database). Combined with
@@ -306,7 +306,7 @@ async def _run(email: str, password: str, mfa: str | None, brand_choice: str = "
 
             print(
                 "└─ SUCCESS ──────────────────────────────────────────────────────"
-                "\n\n🎉 MBB-Auth komplett. mbb.local.bru hat jetzt:"
+                "\n\n MBB-Auth komplett. mbb.local.bru hat jetzt:"
                 "\n   - idk_id_token (Audi-IDK, 1h gültig)"
                 "\n   - x_client_id  (frisch registriert, 1y gültig)"
                 "\n   - vw_access_token  (MBB vwToken, 1h gültig)"

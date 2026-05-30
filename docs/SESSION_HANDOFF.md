@@ -237,7 +237,7 @@ custom_components/vag_connect/
 
 ## Hard rules ("learnings" — do not repeat the bugs)
 
-1. **Never sign as Claude or AI** — commits, comments, releases. Author lines and footers stay neutral.
+1. **Never sign as AI assistant** — commits, comments, releases. Author lines and footers stay neutral.
 2. **Bilingual user-facing text** — contributor's language first, translation below.
 3. **README + 8 translations updated together** at every release.
 4. **CHANGELOG entry per version** — CI fails the PR otherwise.
@@ -415,7 +415,7 @@ section 4. Quick summary:
    section 4
 5. If anything is unclear or unverified: spawn a research agent against
    the relevant reference repo (recipe in `RESEARCH_NOTES` section 7)
-6. Implement on a branch named `claude/v1.8.X-session-name` from `main`
+6. Implement on a branch named `session/v1.8.X-name` from `main`
 7. Add tests (target: 5-12 new per session)
 8. CHANGELOG entry: human-friendly in `CHANGELOG.md`, full technical in
    `docs/CHANGELOG_TECHNICAL.md`

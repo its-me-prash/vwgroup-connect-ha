@@ -157,7 +157,7 @@ async def main():
     print()
     print("=" * 100)
     if winners:
-        print(f"\n🎉 {len(winners)} WINNING combination(s) found!\n")
+        print(f"\n {len(winners)} WINNING combination(s) found!\n")
         for body_name, header_name, body in winners:
             print(f"  Winner: {body_name} + {header_name}")
             print(f"  Response: {body[:300]}")

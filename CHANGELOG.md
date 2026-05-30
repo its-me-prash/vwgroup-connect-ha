@@ -1605,7 +1605,7 @@ Zero — additive data-table changes only. All 4 new entities source from `Vehic
   5. Vehicle-Render Picture-Card mit Popup-Detail (Map + Battery + Glance)
 
   Pure YAML, kein Python-Code im Repo. Erfüllt EXTERNAL_BLOCKED Recipe
-  A.14 + `docs/research/browser-mod-integration-2026-05-03.md §F`.
+  A.14 + `_private/research-archive/browser-mod-integration-2026-05-03.md §F`.
 
 ### Changed
 
@@ -1679,7 +1679,7 @@ Zero — additive data-table changes only. All 4 new entities source from `Vehic
 > 14. Quality Scale Platinum (re-introduced)
 > 15. DeviceInfo `configuration_url` + `suggested_area`
 >
-> Architektur-Audit: [Big-Bang Audit & Plan](docs/research/2026-05_big-bang-audit-and-plan.md).
+> Architektur-Audit: [Big-Bang Audit & Plan](_private/research-archive/2026-05_big-bang-audit-and-plan.md).
 >
 > **Migration**: keine. Alle Änderungen sind additive — bestehende
 > Automationen + Lovelace-Cards funktionieren unverändert weiter.
@@ -1874,7 +1874,7 @@ True wenn die Wallbox/EVSE aktiv Power zum Stecker liefert. False = Plug connect
 
 ### 📋 Scout-Pipeline-Policy (neu in v1.27.2)
 
-Ab jetzt: **jedes Scout-Issue wird im nächsten Minor entweder als Entity geshippt oder closed-as-not-promoted** (mit Begründung). Kein Drift mehr. Dokumentiert in [Strategic Roadmap](docs/research/2026-05_strategic-roadmap-v1.27-to-v2.0.md) Section 8.
+Ab jetzt: **jedes Scout-Issue wird im nächsten Minor entweder als Entity geshippt oder closed-as-not-promoted** (mit Begründung). Kein Drift mehr. Dokumentiert in [Strategic Roadmap](_private/research-archive/2026-05_strategic-roadmap-v1.27-to-v2.0.md) Section 8.
 
 ### 🔧 Code Changes
 
@@ -1950,8 +1950,8 @@ Parser-Bug existiert wahrscheinlich seit der initialen Cariad-BFF Implementierun
 
 ### ✨ Neue Files
 
-- **`docs/research/2026-05_pre-cariad-mbb-and-golf-7-gte-audit.md`** (413 Zeilen) — komplettes 8-Sektion Audit der Pre-Cariad MBB Auth-Landscape, IDK Client Inventory, carType-Bug-Dokumentation, ~55-60 Entity-Inventory für Golf 7 GTE
-- **`docs/research/2026-05_strategic-roadmap-v1.27-to-v2.0.md`** (300+ Zeilen) — Full Competitive Landscape Analysis, Open Issues Triage, 5 Strategic Pillars, Detailed Roadmap v1.27.0 → v2.0.0, Risk Matrix, Quick Wins
+- **`_private/research-archive/2026-05_pre-cariad-mbb-and-golf-7-gte-audit.md`** (413 Zeilen) — komplettes 8-Sektion Audit der Pre-Cariad MBB Auth-Landscape, IDK Client Inventory, carType-Bug-Dokumentation, ~55-60 Entity-Inventory für Golf 7 GTE
+- **`_private/research-archive/2026-05_strategic-roadmap-v1.27-to-v2.0.md`** (300+ Zeilen) — Full Competitive Landscape Analysis, Open Issues Triage, 5 Strategic Pillars, Detailed Roadmap v1.27.0 → v2.0.0, Risk Matrix, Quick Wins
 - **`ROADMAP.md`** (Top-Level) — Public 300-Wort Distillat des Strategic Roadmap. Wir sind die einzige VAG-HA-Integration mit publicly gepflegter Roadmap.
 - **`tests/bruno/mbb_legacy/`** — Bruno Collection mit 18+1 .bru Files für Pre-Cariad MBB Endpoints (community-resource). Mit gitignored `mbb.local.bru` Pattern für Live-Credentials.
 - **20 Diagnostic Scripts in `scripts/`**: get_idk_token, get_mbb_token, decode_id_token, verify_mbb_endpoints, verify_cariad_for_gte, verify_cariad_full, full_mbb_matrix, try_vw_*, try_carnet_password_grant, hunt_raw_fields, investigate_tank_data, test_active_actions, test_enginetype, extract_all_sensors, show_operations, wake_and_refresh, try_country_codes, try_vw_appids, try_enrollment.
@@ -3282,7 +3282,7 @@ Keine User-Issues — Bruno-Coverage Abschluss.
 
 ### 🎯 Strategische Bedeutung / Strategic Context
 
-Bruno-CI Stufe 2 ist die **Foundation für Stufe 3** (Custom Claude Code Skill für HAR→.bru → Python-client generation). Ab v1.18.0+ kann jede neue Endpoint-Addition über die `.bru → Python` Workflow-Direction laufen statt umgekehrt. Das senkt die Contribution-Schwelle für Brand-Captains drastisch und macht uns zur **canonical reference** für die VAG-FOSS-Community.
+Bruno-CI Stufe 2 ist die **Foundation für Stufe 3** (Custom Bruno-API tooling für HAR→.bru → Python-client generation). Ab v1.18.0+ kann jede neue Endpoint-Addition über die `.bru → Python` Workflow-Direction laufen statt umgekehrt. Das senkt die Contribution-Schwelle für Brand-Captains drastisch und macht uns zur **canonical reference** für die VAG-FOSS-Community.
 
 ## [1.17.3] - 2026-05-03 🤖🛡️📚 Bruno-CI Stufe 2 + Lovelace Cards + 3 Research Docs
 
@@ -3388,9 +3388,9 @@ Foundation für den Bruno-as-Living-Documentation Workflow (siehe `docs/BRUNO-WO
 
 ### 🎯 Strategische Bedeutung / Strategic Context
 
-Bruno-CI ist Stufe 1 der "Bruno-MVP-Position" Strategie (siehe `docs/research/upstream-pycupra-notes.md` historical reference + `docs/research/vag-ha-integration-research.md` aktive). Folgestufen:
+Bruno-CI ist Stufe 1 der "Bruno-MVP-Position" Strategie (siehe `docs/research/upstream-pycupra-notes.md` historical reference + `_private/research-archive/vag-ha-integration-research.md` aktive). Folgestufen:
 - **Stufe 2** (v1.17.x oder v1.18.x): Source-of-Truth Workflow — neue Endpoints erst `.bru` schreiben, dann Python generieren. Brand Captains contribute via `.bru` ohne Python skills.
-- **Stufe 3** (v2.0.0 prep): Custom Claude Code Skill `pb-vag-bruno` — HAR→.bru converter, .bru→Python generator, .bru→OpenAPI exporter, drift-detection helper. Generative-AI-augmented API maintenance.
+- **Stufe 3** (v2.0.0 prep): Custom Bruno-API skill `pb-vag-bruno` — HAR→.bru converter, .bru→Python generator, .bru→OpenAPI exporter, drift-detection helper.
 
 ### 📦 Issue-Closures / Issue-Closures
 
@@ -3451,7 +3451,7 @@ Keine Issue-Closures (Cleanup + CI foundation, keine User-facing features).
 
 ### 🔬 Pre-Research / Pre-Research
 
-- `docs/research/cariad-charging-host-2026-05-02.md` (NEW) — research für 2nd Cariad host `prod.emea.mobile.charging.cariad.digital` der für Charging Statistics verwendet wird. Auth-Flow verifiziert (same OLA bearer token), endpoint catalog (`POST /charging_statistics` + `GET /charging_statistics/{sessionId}/power-curve`), cross-brand-status (vag-connect-ha wäre **first** FOSS-Integration die diesen Host nutzt). Implementation-Plan für v1.18.0 als neuer `cariad/api/charging_stats.py` Client.
+- `_private/research-archive/cariad-charging-host-2026-05-02.md` (NEW) — research für 2nd Cariad host `prod.emea.mobile.charging.cariad.digital` der für Charging Statistics verwendet wird. Auth-Flow verifiziert (same OLA bearer token), endpoint catalog (`POST /charging_statistics` + `GET /charging_statistics/{sessionId}/power-curve`), cross-brand-status (vag-connect-ha wäre **first** FOSS-Integration die diesen Host nutzt). Implementation-Plan für v1.18.0 als neuer `cariad/api/charging_stats.py` Client.
 
 ### 📦 Schließt Issues / Closes
 
@@ -4742,8 +4742,8 @@ Klassifizierung, dann Verhalten.
 
 ### Changed (carried over from previous Unreleased)
 
-- `docs/research/ARCHITECTURE_DECISION.md` and
-  `docs/research/DEPENDENCY_AUDIT.md` marked as historical
+- `_private/research-archive/ARCHITECTURE_DECISION.md` and
+  `_private/research-archive/DEPENDENCY_AUDIT.md` marked as historical
   (implemented in v0.12.0, still the architecture in v1.8.x).
 
 ## [1.8.0] - 2026-04-26

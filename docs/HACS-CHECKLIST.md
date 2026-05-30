@@ -1,7 +1,7 @@
 # HACS-Safe Integration Checklist — Audit Status
 
 > **Source:** Compiled from research notes
-> (`docs/research/vag-ha-integration-research.md` §6).
+> (`_private/research-archive/vag-ha-integration-research.md` §6).
 > **Audit date:** 2026-05-02 (post v1.16.1, during v1.17.0 prep).
 > **Purpose:** Pre-condition for HACS Default Repository inclusion
 > (planned for v2.0.0 release).

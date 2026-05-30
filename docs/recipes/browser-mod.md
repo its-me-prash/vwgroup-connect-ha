@@ -262,4 +262,4 @@ Siehe [browser_mod README §Targeting](https://github.com/thomasloven/hass-brows
 - VAG Connect Services: [`services.yaml`](../../custom_components/vag_connect/services.yaml)
 - VAG Connect Entities: [README §What you get](../../README.md#-was-du-bekommst)
 - browser_mod Repo: [thomasloven/hass-browser_mod](https://github.com/thomasloven/hass-browser_mod)
-- Architektur-Audit: [docs/research/browser-mod-integration-2026-05-03.md](../research/browser-mod-integration-2026-05-03.md)
+- Architektur-Audit: [_private/research-archive/browser-mod-integration-2026-05-03.md](../research/browser-mod-integration-2026-05-03.md)

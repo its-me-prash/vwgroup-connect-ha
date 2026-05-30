@@ -132,7 +132,7 @@ async def main() -> int:
                 print(f"      → HTTP {resp.status}")
                 print(f"      → Body: {body[:500]}")
                 if resp.status == 200:
-                    print("\n🎉 UNERWARTET: MBB akzeptiert VW WeConnect-ID id_token!")
+                    print("\n UNERWARTET: MBB akzeptiert VW WeConnect-ID id_token!")
                     print("   → Bruno hatte recht uns zu misstrauen")
                     return 0
                 else:

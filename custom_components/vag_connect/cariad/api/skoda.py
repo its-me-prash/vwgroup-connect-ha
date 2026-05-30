@@ -233,7 +233,7 @@ class SkodaClient(CariadBaseClient):
 
         Endpoint: ``GET /api/v1/vehicle-information/{vin}/renders``
         Source: skodaconnect/myskoda PR #571 — endpoint marked verified
-        (✅) in upstream ``docs/api_endpoints.md`` after the merge on
+        () in upstream ``docs/api_endpoints.md`` after the merge on
         2026-05-02T21:12:05Z.
 
         Response shape (verified from PR #571 example payload, Enyaq

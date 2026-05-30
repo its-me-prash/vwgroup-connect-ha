@@ -428,12 +428,12 @@ def _register_services(hass: HomeAssistant) -> None:
             "Currently connected vehicles:\n"
             f"{vehicles_block}\n"
             "\n"
-            "Keep the wheels turning. 🏁"
+            "Keep the wheels turning. "
         )
         persistent_notification.async_create(
             hass,
             message,
-            title="🥚 Easter Egg unlocked: show_vag()",
+            title=" Easter Egg unlocked: show_vag()",
             notification_id=f"{DOMAIN}_show_vag",
         )
 

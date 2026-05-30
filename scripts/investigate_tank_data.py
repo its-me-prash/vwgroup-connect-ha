@@ -110,7 +110,7 @@ async def _try(session, name: str, url: str, headers: dict):
                 fuel_indicators = ["gasoline", "fuel", "tank", "primaryengine", "carbontype"]
                 hits = [w for w in fuel_indicators if w in lower]
                 if hits:
-                    print(f"        🎯 FUEL KEYWORDS FOUND: {', '.join(hits)}")
+                    print(f"         FUEL KEYWORDS FOUND: {', '.join(hits)}")
                     pretty = json.dumps(json.loads(text), indent=2, ensure_ascii=False)[:1000]
                     for line in pretty.split("\n"):
                         print(f"        {line}")
