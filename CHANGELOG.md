@@ -143,6 +143,69 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ### Fixed
 - **App Atlas Builder workflow PR creation** — repo setting `Allow GitHub Actions to create and approve pull requests` was disabled. The daily atlas builder runs detected version changes correctly (creating `auto/atlas-*` branches) but failed at the final `gh pr create` step with `GitHub Actions is not permitted to create or approve pull requests`. Setting now enabled via API. Next daily run (08:00 UTC) will properly open the auto-PR.
 
+## [2.5.13] — 2026-05-30 — "Play Integrity Wall Decoded"
+
+Documentation-only release. No code changes to runtime behaviour. Captures the **architectural decoding** of VW's 2026-05-27 `client_assertion` enforcement after local APK forensics on three freshly-released app versions.
+
+### Investigated
+
+- Downloaded Audi 5.5.0 + MyVW US 2026.5.27-9076 APKs locally via APKMirror direct CDN (manual workaround for the broken atlas pipeline tracked in #345)
+- apktool-decoded the Audi base.apk into 82,797 smali files across 16 DEX classes
+- Smali-grep'd for VAG-related hosts → **151 unique URLs** extracted, atlas profile updated
+- Located the smoking-gun smali class for VW's `client_assertion` wall
+
+### Discovered: Play Integrity attestation
+
+The endpoint `/auth/v1/android/challenge` exists in exactly ONE smali file:
+
+```
+audi_550_decoded/smali_classes5/technology/cariad/cat/playintegrity/NonceGenerator.smali
+```
+
+Sibling files reveal the complete flow:
+
+| Smali class | Purpose |
+|---|---|
+| `Nonce` | Data class `{ challenge: String }` returned by the challenge endpoint |
+| `NonceGenerator` | Issues POST to `/auth/v1/android/challenge` to obtain a nonce |
+| `PlayIntegrityTokenProvider` | Wraps Google `StandardIntegrityManager` — produces signed JWT bound to nonce + request hash |
+| `AssertionTokenProvider$Error$Integrity` | "JWT signature invalid (server rejected)" |
+| `AssertionTokenProvider$Error$QueryNonce` | "Challenge endpoint failed" |
+| `AssertionTokenProvider$Error$RequestHash` | "Request-body hash mismatch" |
+
+Full architectural breakdown in [issue #347](https://github.com/its-me-prash/vwgroup-connect-ha/issues/347).
+
+### Why this is the END for OSS integrations
+
+Python-based HA integration cannot produce a valid Google Play Integrity JWT. Requires (a) Google-signed APK, (b) Play Store install, (c) real device with Play Services, (d) app package fingerprint matching VW's registered Audi/VW app. **No static APK extraction path bypasses this.**
+
+### Why we still work today
+
+Enforcement is soft. iobroker observed `x-assertion: "0"` dummy works for 12-24h before backend rejects. Our v2.5.7+ users see 502 = endpoint REACHES backend = `x-assertion` not yet strictly verified for all paths. Audi APK has `anna_attestation_enabled` remote-config flag — VW is dialling strictness up gradually.
+
+### What's NEW in atlas profile
+
+- Added top-level `play_integrity_attestation` section with all 14 Play Integrity classes + 8 assertion-interface error types
+- Annotated `assertion_headers` section with the v2.5.13 update
+- Confirmed `/auth/v1/android/challenge` as the Play Integrity nonce endpoint
+- Documented Google dependency `com.google.android.play.core.integrity.StandardIntegrityManager`
+
+### Strategic posture (no change from v2.5.12 strategy doc on #336)
+
+- **Plan A (BFF integration)**: on a countdown — works today, will fail when VW flips `anna_attestation_enabled` to strict
+- **Plan B (EU Data Act portal scraper)**: survives Play Integrity (uses `identity.vwgroup.io` + portal session, no `/auth/v1/android/challenge` involved). Coordinate with [mikrohard/hass-vw-eu-data-act](https://github.com/mikrohard/hass-vw-eu-data-act) — Option B (side-by-side recommendation) per the v2.5.12 research agent
+- **Plan C (Cariad GIS B2B partner)**: paid, contract, VAT-ID required — not FOSS-viable
+- **Plan D (OBD-II hardware)**: WICAN, OVMS — community recommendation in iobroker thread
+
+### Local-only forensic artifacts (gitignored)
+
+- `.app-atlas-apk-cache/_manual/audi_5.5.0.apkm` (123 MB original .apkm bundle)
+- `.app-atlas-apk-cache/_manual/audi_550_decoded/` (full smali decode)
+- `.app-atlas-apk-cache/_manual/myvw_2026527.apkm` (111 MB)
+- `.app-atlas-apk-cache/_manual/myvw_decoded/` (30,670 smali files)
+
+Cross-references: #336 (strategic tracker), #345 (atlas pipeline broken), #347 (Play Integrity decoded), [audi_connect_ha PR #736](https://github.com/audiconnect/audi_connect_ha/pull/736), [iobroker thread page 3349](https://forum.iobroker.net/topic/26438/test-adapter-vw-connect-f%C3%BCr-vw-id-audi-seat-skoda/3349)
+
 ## [2.5.12] — 2026-05-30 — "Market-Config Activation + Atlas Pipeline Audit"
 
 Follow-up to v2.5.11 — wires the Audi market-config helper that was added (but inert) in v2.5.11, plus opens tracking issues for the atlas-builder pipeline gaps surfaced during today's deep audit. Also a major strategic update on #336 (VW GIS migration) capturing 3-agent industry-wide intel.
