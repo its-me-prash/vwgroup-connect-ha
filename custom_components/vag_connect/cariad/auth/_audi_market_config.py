@@ -250,12 +250,15 @@ def derive_token_url_from_market_config(market_cfg: dict[str, str]) -> str | Non
     discovery_url = market_cfg.get("idkLoginServiceConfigurationURLProduction")
     if not isinstance(discovery_url, str):
         return None
-    # Two known shapes:
+    # Two known shapes — MUST check longest-suffix first so the
+    # `.well-known/` case isn't shadowed by the bare `openid-configuration`
+    # suffix (which is a substring of the longer one).
     #   {host}/auth/v1/idk/oidc/openid-configuration → {host}/auth/v1/idk/oidc/token
     #   {host}/login/v1/idk/openid-configuration → {host}/login/v1/idk/token  (legacy)
+    #   {host}/.well-known/openid-configuration → {host}/token  (rare)
     for suffix, replacement in (
-        ("/openid-configuration", "/token"),
         ("/.well-known/openid-configuration", "/token"),
+        ("/openid-configuration", "/token"),
     ):
         if discovery_url.endswith(suffix):
             return discovery_url[: -len(suffix)] + replacement
