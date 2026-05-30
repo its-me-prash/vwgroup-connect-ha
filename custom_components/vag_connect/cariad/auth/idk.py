@@ -114,6 +114,7 @@ def _cariad_token_headers(
     *,
     qmauth_secret: str | None = None,
     qmauth_client_id: str | None = None,
+    android_package_name: str = "de.myaudi.mobile.assistant",
 ) -> dict[str, str]:
     """Return the assertion-header set required by the new CARIAD IDK
     token endpoint (Audi + VW EU).
@@ -127,6 +128,25 @@ def _cariad_token_headers(
     the resolver can swap in APK-mined values. Caller omits = defaults
     apply (v2.5.4 hardcoded constants, cross-verified against
     audi_connect_ha + evcc + volkswagencarnet + ioBroker.vw-connect).
+
+    v2.5.11 — brand-impersonation bugfix. Pre-v2.5.11 the
+    ``x-android-package-name`` was hardcoded to
+    ``de.myaudi.mobile.assistant`` for ALL brands including VW EU,
+    silently impersonating the Audi app on VW token requests. Our own
+    atlas profile (vw_group_auth_profile.json) documented this as
+    wrong since 2026-05-29 but the code didn't match. Caller now
+    passes per-brand value via ``android_package_name`` kwarg
+    (resolved from ``BrandConfig.android_package_name``). Default
+    remains the Audi value for backward-compat with any unparameterised
+    callers, but the production paths in IDKAuth always pass through
+    the brand-specific value as of v2.5.11.
+
+    Note: audi_connect_ha v1.19.2 (PR #736 / 2026-05-28) reportedly
+    works with only 5 headers (no x-platform / x-android-package-name /
+    x-assertion). Our 8-header set is a superset that mimics the
+    official app more closely — still functional, more
+    anomaly-score-resilient if VW tightens WAF rules. Documented for
+    future minimisation if WAF stays permissive.
     """
     return {
         "Content-Type":            "application/x-www-form-urlencoded",
@@ -135,7 +155,7 @@ def _cariad_token_headers(
         "User-Agent":              user_agent,
         "x-qmauth":                _calculate_x_qmauth(qmauth_secret, qmauth_client_id),
         "x-platform":              "android",
-        "x-android-package-name":  "de.myaudi.mobile.assistant",
+        "x-android-package-name":  android_package_name,
         "x-assertion":             "0",
     }
 
@@ -905,8 +925,16 @@ class IDKAuth:
         # otherwise the access_token works for ~1h and then refresh
         # quietly starts returning 403 (the failure mode evcc PR #30292
         # documented). Other brands keep using the legacy form headers.
+        # v2.5.11 — pass per-brand android_package_name (was hardcoded
+        # to Audi pre-v2.5.11; latent VW-impersonates-Audi bug fixed).
         if self._brand.name in ("audi", "volkswagen"):
-            headers = _cariad_token_headers(self._brand.user_agent)
+            headers = _cariad_token_headers(
+                self._brand.user_agent,
+                android_package_name=(
+                    self._brand.android_package_name
+                    or "de.myaudi.mobile.assistant"
+                ),
+            )
         else:
             headers = self._form_headers()
 
@@ -1251,11 +1279,17 @@ class IDKAuth:
                 data["client_secret"] = self._brand.client_secret
 
             # v2.5.7 R2 — assertion headers signed with this attempt's qmauth.
+            # v2.5.11 — per-brand x-android-package-name (was hardcoded to
+            # Audi value pre-v2.5.11; latent VW-impersonation bug fixed).
             if self._brand.name in ("audi", "volkswagen"):
                 headers = _cariad_token_headers(
                     self._brand.user_agent,
                     qmauth_secret=qm_secret,
                     qmauth_client_id=qm_client_id,
+                    android_package_name=(
+                        self._brand.android_package_name
+                        or "de.myaudi.mobile.assistant"
+                    ),
                 )
             else:
                 headers = self._form_headers()
