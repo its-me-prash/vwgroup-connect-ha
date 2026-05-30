@@ -140,7 +140,7 @@ async def _try(session, name, url, headers):
             has_hex = "0x" in text and any(
                 f"0x{p}" in text for p in ["030103", "020404", "020401", "0203"]
             )
-            highlight = " 🎯 HEX FIELDS!" if has_hex else ""
+            highlight = "  HEX FIELDS!" if has_hex else ""
             print(f"  {marker} {resp.status:<4} {name}{highlight}")
             # Show body for any 2xx response (not just hex-flagged) — we want
             # to see what 207 partial responses actually contain
@@ -212,13 +212,13 @@ async def main():
                     for field, url_val in urls_found[:20]:
                         print(f"    {field}: {url_val}")
                 else:
-                    print(f"  ⚠ No invocationUrl/serviceUri fields in operationList")
+                    print(f"   No invocationUrl/serviceUri fields in operationList")
                     print(f"  (operationList only describes operations, not URLs — need to construct from id)")
 
                 # Also look for hex field IDs
                 hex_ids = _re.findall(r'0x[0-9A-Fa-f]{10,12}', text)
                 if hex_ids:
-                    print(f"\n  🎯 Found hex field IDs: {set(hex_ids)}")
+                    print(f"\n   Found hex field IDs: {set(hex_ids)}")
             else:
                 print(f"  ✗ {resp.status}")
 
@@ -275,7 +275,7 @@ async def main():
             await _try(session, name, url, headers_mbb)
 
         print("\n" + "=" * 100)
-        print("Look for 🎯 HEX FIELDS markers above — those endpoints expose raw field IDs.")
+        print("Look for  HEX FIELDS markers above — those endpoints expose raw field IDs.")
         print("Field IDs we want: 0x030103000A (fuel %), 0x0301030005 (total range), 0x0301030006 (gasoline range)")
 
 

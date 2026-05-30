@@ -10,8 +10,8 @@ Porsche / VW NA), it logs into the manufacturer API exactly the same way
 the VAG Connect HA integration would, then prints — for each VIN on
 your account — a privacy-anonymised report of:
 
-- Which sensors WILL populate (✅)
-- Which sensors WILL stay "Unknown" today (⚠️)
+- Which sensors WILL populate ()
+- Which sensors WILL stay "Unknown" today (️)
 - Which sensors WILL spawn but are unreliable for your firmware (⚡)
 
 This lets you decide BEFORE installing the integration:
@@ -133,19 +133,19 @@ def _round_gps(value: object) -> object:
 def _classify_field(name: str, value: object) -> tuple[str, str]:
     """Return (status_emoji, label) for a VehicleData field.
 
-    ✅ populated cleanly
-    ⚠️ None / empty (entity will be "Unknown" or won't spawn)
+     populated cleanly
+    ️ None / empty (entity will be "Unknown" or won't spawn)
     ⚡ surfaced but value looks suspicious (zero/empty for safety field)
     """
     if value is None:
-        return ("⚠️", "Unknown / not published by your firmware")
+        return ("️", "Unknown / not published by your firmware")
     if isinstance(value, (str, int, float, bool)):
-        return ("✅", repr(value))
+        return ("", repr(value))
     if isinstance(value, dict):
-        return ("✅", f"{{{len(value)} keys}}")
+        return ("", f"{{{len(value)} keys}}")
     if isinstance(value, list):
-        return ("✅", f"[{len(value)} items]")
-    return ("✅", str(value)[:60])
+        return ("", f"[{len(value)} items]")
+    return ("", str(value)[:60])
 
 
 async def _run() -> int:
@@ -261,10 +261,10 @@ async def _run() -> int:
             unknown: list[str] = []
             for key, value in sorted(d.items()):
                 status, label = _classify_field(key, value)
-                if status == "✅":
-                    populated.append(f"  ✅ {key:40s} = {label}")
+                if status == "":
+                    populated.append(f"   {key:40s} = {label}")
                 else:
-                    unknown.append(f"  ⚠️  {key:40s} = {label}")
+                    unknown.append(f"  ️  {key:40s} = {label}")
 
             print(f"\n  Populated fields ({len(populated)}):")
             for line in populated:

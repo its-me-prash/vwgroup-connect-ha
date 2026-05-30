@@ -24,8 +24,8 @@ Design rules:
 - Keep the table CONSERVATIVE — when in doubt, do NOT add a
   capability mapping. Phase 3 falls through to Phase 2 (which
   catches at runtime) if no cap-id is registered.
-- Annotate confidence with comments per row: ✅ verified in production
-  vs ⚠️ [Inference] vs ❌ unknown.
+- Annotate confidence with comments per row:  verified in production
+  vs ️ [Inference] vs  unknown.
 - New brands (vw_na, porsche) start empty — capabilities discovered
   via Vehicle Data Scout reports get added here once verified.
 """
@@ -51,18 +51,18 @@ CAPABILITY_MAP: Final[dict[str, dict[str, str]]] = {
     # status=[] → fully usable; non-empty → limitation present
     # ─────────────────────────────────────────────────────────────────
     "volkswagen": {
-        "command_lock": "access",                # ✅ verified — used by lock platform
-        "command_unlock": "access",              # ✅ same capability gates both
-        "command_flash": "honkAndFlash",         # ✅ verified — vw_eu.py:120 reference
-        "command_start_climate": "climatisation",   # ✅ standard CARIAD vocabulary
+        "command_lock": "access",                #  verified — used by lock platform
+        "command_unlock": "access",              #  same capability gates both
+        "command_flash": "honkAndFlash",         #  verified — vw_eu.py:120 reference
+        "command_start_climate": "climatisation",   #  standard CARIAD vocabulary
         "command_stop_climate": "climatisation",
-        "command_start_charging": "charging",       # ✅
+        "command_start_charging": "charging",       # 
         "command_stop_charging": "charging",
-        "command_set_target_soc": "charging",       # ✅ same parent capability
+        "command_set_target_soc": "charging",       #  same parent capability
         "command_set_charge_mode": "charging",
         "command_set_min_soc": "charging",
         "command_set_max_charge_current": "charging",
-        # ⚠️ [Inference] — pattern from CARIAD vocabulary, not yet seen
+        # ️ [Inference] — pattern from CARIAD vocabulary, not yet seen
         # in a Scout-Whitelist-confirmed capabilities response.
         "command_wake": "vehicleWakeUpTrigger",
         "command_start_window_heating": "windowHeating",
@@ -70,7 +70,7 @@ CAPABILITY_MAP: Final[dict[str, dict[str, str]]] = {
         "command_set_climate_temperature": "climatisation",
         "command_set_departure_timer": "departureTimers",
         # v1.14.0 (#24) — Trip Statistics (subscription-required: Audi
-        # connect Plus / WeConnect Plus). ⚠️ [Inference] cap-id matches
+        # connect Plus / WeConnect Plus). ️ [Inference] cap-id matches
         # CARIAD camelCase pattern; not yet seen in a Scout-confirmed
         # capabilities response. Phase 3 returns ``None`` → don't filter
         # if the cap row is absent, so vehicles without a published
@@ -94,7 +94,7 @@ CAPABILITY_MAP: Final[dict[str, dict[str, str]]] = {
     # Schema same dict-shape but cap-ids are kebab-case.
     # ─────────────────────────────────────────────────────────────────
     "cupra": {
-        "command_lock": "access",                # ✅ verified
+        "command_lock": "access",                #  verified
         "command_unlock": "access",
         # v1.17.1 (Bruno-Collection seq 31/32) — cabin ventilation
         "command_start_ventilation": "ventilation",
@@ -106,8 +106,8 @@ CAPABILITY_MAP: Final[dict[str, dict[str, str]]] = {
         "command_send_destination": "destination",
         # v1.17.1 (Bruno seq 10/11) — battery-care read endpoints
         "command_battery_care_read": "charging",
-        "command_flash": "honk-and-flash",       # ✅ verified — seat_cupra.py:87 reference
-        # ⚠️ [Inference] — kebab-case pattern from OLA, plus missing-capability
+        "command_flash": "honk-and-flash",       #  verified — seat_cupra.py:87 reference
+        # ️ [Inference] — kebab-case pattern from OLA, plus missing-capability
         # responses observed for these on Gerhard's Born (#53 — CUPRA Born
         # 2023 Active subscription, capabilities did NOT include these).
         "command_wake": "vehicle-wakeup",
@@ -138,7 +138,7 @@ CAPABILITY_MAP: Final[dict[str, dict[str, str]]] = {
     "skoda": {
         "command_lock": "access",
         "command_unlock": "access",
-        # ⚠️ [Inference] — kebab-case Skoda pattern matches OLA convention.
+        # ️ [Inference] — kebab-case Skoda pattern matches OLA convention.
         # Real Skoda capabilities response not yet captured in a Scout
         # report; treat as inferred and let Phase 2 catch failures.
         "command_flash": "honk-and-flash",
@@ -175,8 +175,8 @@ CAPABILITY_MAP: Final[dict[str, dict[str, str]]] = {
     # reverse-engineered. Empty table = Phase 3 falls through to Phase 2
     # (runtime-detect after failure). Safe fallback.
     # ─────────────────────────────────────────────────────────────────
-    "volkswagen_na": {},  # ❌ unknown — VW NA Auth/API distinct from CARIAD
-    "porsche": {},        # ❌ unknown — Auth0 + PPA backend, separate vocabulary
+    "volkswagen_na": {},  #  unknown — VW NA Auth/API distinct from CARIAD
+    "porsche": {},        #  unknown — Auth0 + PPA backend, separate vocabulary
 }
 
 # Audi inherits the VW EU mapping at module load time. SEAT inherits CUPRA's.
@@ -187,7 +187,7 @@ CAPABILITY_MAP["seat"] = CAPABILITY_MAP["cupra"]
 # v1.14.0 (#28) — Audi-only ICE Engine Start. Replace the alias with a
 # COPY so we can add Audi-specific entries without polluting VW EU's
 # table (the alias trick above shares the same dict by reference).
-# ⚠️ [Inference] cap-id ``engineRemoteStart`` is the camelCase guess
+# ️ [Inference] cap-id ``engineRemoteStart`` is the camelCase guess
 # that matches CARIAD vocabulary patterns (``honkAndFlash``,
 # ``vehicleWakeUpTrigger``). NOT confirmed in a live capabilities
 # response yet — when a Scout report surfaces the real id we update.

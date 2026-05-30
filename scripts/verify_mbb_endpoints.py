@@ -177,12 +177,12 @@ async def main() -> int:
         return 1
 
     if success < len(results):
-        print(f"\n⚠ Partial success — {success}/{len(results)}.")
+        print(f"\n Partial success — {success}/{len(results)}.")
         print("  Some endpoints work for this account; others may need different")
         print("  brand/country combo or aren't enabled for this car.")
 
     if success == len(results):
-        print("\n🎉 ALL endpoints work — MBB integration confirmed for Golf 7 GTE!")
+        print("\n ALL endpoints work — MBB integration confirmed for Golf 7 GTE!")
         print("\nNext: I'll start v1.26.3 implementation in vag-connect-ha.")
 
     return 0 if success > 0 else 1

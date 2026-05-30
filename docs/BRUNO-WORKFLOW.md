@@ -195,5 +195,5 @@ That's the v2.0.0 + EU Data Act (Sept 2026) play — see
 - [Bruno project](https://www.usebruno.com/)
 - [@usebruno/cli on npm](https://www.npmjs.com/package/@usebruno/cli)
 - [Timwun/Cupra-WeConnect-Bruno-Collection](https://github.com/Timwun/Cupra-WeConnect-Bruno-Collection) — the upstream reference our `seat_cupra` collection extends
-- [docs/research/cupra-bruno-endpoints-2026-05-02.md](research/cupra-bruno-endpoints-2026-05-02.md) — extracted catalog from Timwun's collection
-- [docs/research/cariad-charging-host-2026-05-02.md](research/cariad-charging-host-2026-05-02.md) — research for the 2nd Cariad host (charging stats)
+- [_private/research-archive/cupra-bruno-endpoints-2026-05-02.md](research/cupra-bruno-endpoints-2026-05-02.md) — extracted catalog from Timwun's collection
+- [_private/research-archive/cariad-charging-host-2026-05-02.md](research/cariad-charging-host-2026-05-02.md) — research for the 2nd Cariad host (charging stats)

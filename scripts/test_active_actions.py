@@ -109,14 +109,14 @@ async def main():
     vin = _read_vin()
     print(f"\nActive Action Capability Test for VIN ...{vin[-4:]}")
     print("=" * 100)
-    print("⚠  Most tests are READ-ONLY. Wake POST will be executed (safe).")
-    print("⚠  Lock/Unlock/Charge/Climate POST will be SKIPPED unless --execute is passed.")
+    print("  Most tests are READ-ONLY. Wake POST will be executed (safe).")
+    print("  Lock/Unlock/Charge/Climate POST will be SKIPPED unless --execute is passed.")
     print()
 
     execute_mutating = "--execute" in sys.argv
     if execute_mutating:
-        print("⚠  --execute flag set: WILL execute mutating POST calls!")
-        print("⚠  This will trigger LOCK on your car. Press Ctrl+C in 5s to abort...")
+        print("  --execute flag set: WILL execute mutating POST calls!")
+        print("  This will trigger LOCK on your car. Press Ctrl+C in 5s to abort...")
         await asyncio.sleep(5)
     else:
         print("ℹ  Run with --execute to also test lock/unlock/charging/climate POSTs.")
@@ -202,7 +202,7 @@ async def main():
         # === D. EXECUTE actual mutating actions (only if --execute) ===
         if execute_mutating:
             print("\n--- D. EXECUTING mutating POST actions (--execute given) ---\n")
-            print("⚠  Sending actual control commands to your car!")
+            print("  Sending actual control commands to your car!")
 
             # Lock first (assume car is unlocked? safer to start with charging stop)
             await _probe_post(

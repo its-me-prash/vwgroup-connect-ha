@@ -168,9 +168,9 @@ async def main() -> int:
 
             has_mbb_aud = "VWGMBB01" in info
             if has_mbb_aud:
-                print("        🎯 aud contains VWGMBB01* — MBB might accept!")
+                print("         aud contains VWGMBB01* — MBB might accept!")
             else:
-                print("        ⚠ aud does NOT contain VWGMBB01* — IDK silently dropped mbb scope")
+                print("         aud does NOT contain VWGMBB01* — IDK silently dropped mbb scope")
 
             status, body = await _mbb_exchange(session, id_token, x_vw)
             marker = "✓" if status == 200 else "✗"
@@ -178,7 +178,7 @@ async def main() -> int:
             print(f"        Body: {body}")
 
             if status == 200:
-                print("\n🎉 BREAKTHROUGH — WeConnect-ID + this scope WORKS!")
+                print("\n BREAKTHROUGH — WeConnect-ID + this scope WORKS!")
                 print(f"   Save this scope for vag-connect-ha v1.26.3:")
                 print(f"   scope = \"{scope}\"")
                 return 0

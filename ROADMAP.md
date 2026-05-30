@@ -6,8 +6,8 @@
 
 **v1.27.0** ships Pre-Cariad PHEV first-class support, MBB metadata entities,
 long-term trip aggregates, and departure timer detail entities. Based on the
-[Pre-Cariad MBB audit](docs/research/2026-05_pre-cariad-mbb-and-golf-7-gte-audit.md)
-and [strategic roadmap](docs/research/2026-05_strategic-roadmap-v1.27-to-v2.0.md).
+[Pre-Cariad MBB audit](_private/research-archive/2026-05_pre-cariad-mbb-and-golf-7-gte-audit.md)
+and [strategic roadmap](_private/research-archive/2026-05_strategic-roadmap-v1.27-to-v2.0.md).
 
 ## Five strategic pillars
 
@@ -40,6 +40,6 @@ and [strategic roadmap](docs/research/2026-05_strategic-roadmap-v1.27-to-v2.0.md
 
 - 🐛 Bug? → [Issues](https://github.com/its-me-prash/vwgroup-connect-ha/issues)
 - 🧪 Tester for Skoda/SEAT/CUPRA hardware? → comment on [#13](https://github.com/its-me-prash/vwgroup-connect-ha/issues/13)
-- 💬 Pre-Cariad PHEV owner? → check the [audit doc](docs/research/2026-05_pre-cariad-mbb-and-golf-7-gte-audit.md)
+- 💬 Pre-Cariad PHEV owner? → check the [audit doc](_private/research-archive/2026-05_pre-cariad-mbb-and-golf-7-gte-audit.md)
   and run `scripts/verify_cariad_full.py` to inventory your VIN's data
-- 📋 Want detailed competitor analysis + ecosystem trends? → [strategic roadmap](docs/research/2026-05_strategic-roadmap-v1.27-to-v2.0.md)
+- 📋 Want detailed competitor analysis + ecosystem trends? → [strategic roadmap](_private/research-archive/2026-05_strategic-roadmap-v1.27-to-v2.0.md)

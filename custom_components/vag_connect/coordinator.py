@@ -2303,7 +2303,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # SEAT/CUPRA require the user position in the honk-and-flash payload
         # (HTTP 400 otherwise). Other brands accept and ignore it.
         #
-        # ⚠️ [Inference] We pass the **vehicle's** last-known position
+        # ️ [Inference] We pass the **vehicle's** last-known position
         # (cached from the most recent status poll) into the OLA
         # ``userPosition`` field. This is verified to work on the OLA
         # endpoint and matches the pycupra/myskoda implementations.

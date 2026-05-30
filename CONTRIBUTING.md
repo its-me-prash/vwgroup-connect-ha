@@ -229,7 +229,7 @@ Use everyday driver vocabulary, not API jargon: e.g. *Lichthupe*, not
 5. `config_flow.py` — `_BRAND_OPTIONS`
 6. `tests/test_cariad.py` — at minimum: factory routing, status parser
 7. README feature table (mirror in all 8 languages)
-8. `docs/research/VAG_GROUP_ECOSYSTEM.md` — add the brand to the map
+8. `_private/research-archive/VAG_GROUP_ECOSYSTEM.md` — add the brand to the map
 
 **Capability-first:** the new client must implement a capability check
 so commands the vehicle does not support are not exposed as entities.

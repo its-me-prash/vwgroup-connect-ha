@@ -1252,7 +1252,7 @@ class SeatCupraClient(CariadBaseClient):
         returns HTTP 400 "internal-error". Mode must be lowercase "flash"
         (not "FLASH_ONLY"). Coordinates are truncated to 4 decimals (~11 m).
 
-        ⚠️ **[Inference] — semantic interpretation NOT verified against
+        ️ **[Inference] — semantic interpretation NOT verified against
         official My SEAT / My CUPRA app traffic.**
 
         We send the **vehicle's** last-known position rather than the
@@ -1488,7 +1488,7 @@ class SeatCupraClient(CariadBaseClient):
         We send a single destination per call; the API supports a list
         but most automations send one address at a time.
 
-        ⚠️ [Inference] — only Bruno cites this URL; pycupra source
+        ️ [Inference] — only Bruno cites this URL; pycupra source
         doesn't have a destination endpoint we could cross-validate
         against. Ship behind a capability gate (``command_send_destination``
         cap-id) plus per-call exception handling so a single 404 doesn't

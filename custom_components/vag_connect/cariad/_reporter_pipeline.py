@@ -19,8 +19,8 @@ UX contract (from v1.9.0 README announcement, all 8 languages):
 1. HA Repair Notification appears under Settings → System → Repairs
    ("Bell" icon turns red).
 2. User clicks "Learn more" → modal with summary + 2 buttons:
-     📤 "Report on GitHub" — opens browser at a pre-filled issue URL
-     📋 "Copy for Forum/Facebook" — copies a Markdown blurb to clipboard
+      "Report on GitHub" — opens browser at a pre-filled issue URL
+      "Copy for Forum/Facebook" — copies a Markdown blurb to clipboard
         (handled in HA frontend via ``learn_more_url`` deep link;
         Markdown is also embedded in the description so users can
         copy-paste manually)

@@ -416,7 +416,7 @@ class VWEUClient(CariadBaseClient):
         PHEV — all of which return ``400 Bad Request`` for the legacy
         body shape. Coordinator gates this via ``CONF_FORCE_PPE_CLIMATE``
         option (Audi-only, user-overridable since auto-detection is
-        unreliable). ⚠️ [Inference] — body shape verified from upstream
+        unreliable). ️ [Inference] — body shape verified from upstream
         PRs but Audi never published a definitive PPE compatibility list.
         """
         if ppe_mode:
@@ -817,7 +817,7 @@ class VWEUClient(CariadBaseClient):
         clamp invalid values server-side reliably — entity layer
         (``number.py``) enforces 6-32 A range.
 
-        ⚠️ [Inference] — verified on Golf 7 GTE READ side (#90 live
+        ️ [Inference] — verified on Golf 7 GTE READ side (#90 live
         scout dump = 16 A); WRITE side semantics not yet captured
         from official VW EU app traffic. If the backend rejects the
         write, the response goes through the standard
