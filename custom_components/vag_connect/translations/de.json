@@ -690,6 +690,22 @@
       "description": "Du hast den Headless-Browser-Fallback für das EU Data Act Portal aktiviert, aber das Python-Paket `playwright` ist im Home Assistant Container nicht installiert.\n\n**Installation:** öffne die HA-Container-Shell (Add-ons → Terminal & SSH, oder `docker exec` für eine manuelle Installation) und führe aus:\n\n```\npip install playwright\nplaywright install chromium\n```\n\nDer Chromium-Download ist groß (ca. 100 MB), deswegen ist diese Abhängigkeit Opt-In statt mit der Integration gebündelt. Nach der Installation Home Assistant neu starten.\n\nAlternative: den Schalter unter Einstellungen → Geräte & Dienste → VW Group Connect → Konfigurieren → 'EU Data Act Portal: Headless-Browser-Fallback' deaktivieren."
     }
   },
+  "services": {
+    "open_app": {
+      "name": "Marken-App öffnen (Deeplink)",
+      "description": "Sendet das Event `vag_connect_open_app` auf dem HA-Eventbus mit Payload `{vin, brand, deeplink_url, action}`. Eine Lovelace-Karte lauscht auf das Event und öffnet die native Marken-App (myAudi, WeConnect, MyŠkoda, MySEAT, MyCUPRA, My Porsche oder VW US) auf dem aufrufenden Gerät. Die Integration selbst kann keine URLs auf einem Telefon öffnen — die Dashboard-Karte ist für den Aufruf `window.location.href = deeplink_url` auf iOS / Android zuständig.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN des Fahrzeugs dessen Marken-App geöffnet werden soll."
+        },
+        "action": {
+          "name": "App-Aktion",
+          "description": "Optionaler Pfad-Anteil hinter dem Deeplink, damit die Marken-App direkt in den passenden Bereich springt. Standard `open` öffnet die App auf dem Startbildschirm."
+        }
+      }
+    }
+  },
   "exceptions": {
     "vehicle_not_found": {
       "message": "Fahrzeug mit VIN {vin} nicht gefunden. Prüfe ob die Integration gestartet ist."

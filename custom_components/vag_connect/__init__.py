@@ -544,6 +544,12 @@ def _register_services(hass: HomeAssistant) -> None:
         supports_response=SupportsResponse.OPTIONAL,
     )
 
+    # v2.8.0 quick-win B — vag_connect.open_app event-emitter service.
+    # Lives in services.py to keep the deeplink-scheme + payload logic
+    # isolated from the action-dispatch services above.
+    from .services import async_register_open_app_service  # noqa: PLC0415
+    async_register_open_app_service(hass)
+
 
 async def async_remove_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) -> None:
     """Clean up persisted IDK tokens when the user removes the integration.
@@ -591,6 +597,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) 
             "find_charging_stations",
             # v2.2.3 — Community easter-egg
             "show_vag",
+            # v2.8.0 quick-win B — native-app deeplink emitter
+            "open_app",
         ]:
             if hass.services.has_service(DOMAIN, svc):
                 hass.services.async_remove(DOMAIN, svc)
