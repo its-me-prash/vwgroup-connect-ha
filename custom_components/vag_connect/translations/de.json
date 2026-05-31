@@ -189,6 +189,12 @@
       "climatisation_state": {
         "name": "Klimaanlage"
       },
+      "auxiliary_heating_status": {
+        "name": "Standheizungs-Status"
+      },
+      "auxiliary_heating_remaining_min": {
+        "name": "Standheizung Restlaufzeit"
+      },
       "target_temperature": {
         "name": "Zieltemperatur"
       },
@@ -542,7 +548,7 @@
         "name": "Kabinen-Lüftung"
       },
       "aux_heating_switch": {
-        "name": "Standheizung (Webasto)"
+        "name": "Standheizung"
       },
       "departure_timer_1_switch": {
         "name": "Abfahrtstimer 1"
@@ -572,6 +578,12 @@
       },
       "max_charge_current": {
         "name": "Maximaler Ladestrom"
+      },
+      "auxheat_duration": {
+        "name": "Standheizung-Dauer"
+      },
+      "auxheat_target_temp": {
+        "name": "Standheizung-Zieltemperatur"
       }
     },
     "button": {

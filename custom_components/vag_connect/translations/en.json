@@ -187,6 +187,12 @@
       "climatisation_state": {
         "name": "Climate Control"
       },
+      "auxiliary_heating_status": {
+        "name": "Auxiliary Heating Status"
+      },
+      "auxiliary_heating_remaining_min": {
+        "name": "Auxiliary Heating ETA"
+      },
       "target_temperature": {
         "name": "Target Temperature"
       },
@@ -540,7 +546,7 @@
         "name": "Cabin Ventilation"
       },
       "aux_heating_switch": {
-        "name": "Auxiliary Heating (Webasto)"
+        "name": "Auxiliary Heating"
       },
       "departure_timer_1_switch": {
         "name": "Departure Timer 1"
@@ -570,6 +576,12 @@
       },
       "max_charge_current": {
         "name": "Max Charge Current"
+      },
+      "auxheat_duration": {
+        "name": "Auxiliary Heating Duration"
+      },
+      "auxheat_target_temp": {
+        "name": "Auxiliary Heating Target Temperature"
       }
     },
     "button": {

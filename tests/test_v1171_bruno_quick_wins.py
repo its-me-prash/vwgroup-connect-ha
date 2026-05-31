@@ -380,11 +380,18 @@ class TestCapabilityMapV1171:
         assert cap_id_for(brand, command_id) == expected
 
     def test_skoda_does_not_have_aux_heating(self):
-        """Aux heating is SEAT/CUPRA only — not in skoda or volkswagen."""
+        """Aux heating is not in skoda's capability table.
+
+        v2.8.0 extended the integration to Audi + VW EU (Standheizung)
+        so those brands now carry the ``auxiliaryHeating`` cap-id. Skoda
+        still has no aux heating endpoint on mysmob, so the assertion
+        for that brand stays None.
+        """
         from custom_components.vag_connect.cariad._capabilities import cap_id_for
         assert cap_id_for("skoda", "command_start_aux_heating") is None
-        assert cap_id_for("volkswagen", "command_start_aux_heating") is None
-        assert cap_id_for("audi", "command_start_aux_heating") is None
+        # v2.8.0 - volkswagen + audi now carry the cap-id.
+        assert cap_id_for("volkswagen", "command_start_aux_heating") == "auxiliaryHeating"
+        assert cap_id_for("audi", "command_start_aux_heating") == "auxiliaryHeating"
 
 
 # ─────────────────────────────────────────────────────────────────────────────

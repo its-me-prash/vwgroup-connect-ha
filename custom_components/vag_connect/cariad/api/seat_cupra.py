@@ -1379,7 +1379,12 @@ class SeatCupraClient(CariadBaseClient):
             f"{_BASE}/v1/vehicles/{vin}/ventilation/stop", json={}
         )
 
-    async def command_start_aux_heating(self, vin: str, spin: str = "") -> None:
+    async def command_start_aux_heating(
+        self,
+        vin: str,
+        spin: str = "",
+        **_ignored: Any,
+    ) -> None:
         """v1.17.1 (Bruno seq 29 + pycupra) — Webasto auxiliary heating.
 
         SEAT/CUPRA PHEV/ICE Standheizung remote-start. Requires SecToken
@@ -1395,6 +1400,11 @@ class SeatCupraClient(CariadBaseClient):
         We try Bruno's path first (Bruno specs are typically newer), fall
         back to pycupra's on 404. Both verified to require SecToken on
         START (stop does not — see ``command_stop_aux_heating``).
+
+        v2.8.0: ``**_ignored`` accepts ``duration_min`` / ``target_c``
+        kwargs that the v2.8.0 Audi + VW EU client uses. OLA's
+        ``auxiliary-heating/start`` endpoint takes no body, so we
+        silently drop those kwargs on this brand path.
         """
         if not (spin or self._spin):
             raise SpinError(
