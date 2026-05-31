@@ -1865,6 +1865,68 @@ class VWEUClient(CariadBaseClient):
         d.service_due_in_days = safe_int(d.service_due_at)
         d.oil_service_due_in_days = safe_int(d.oil_service_at)
 
+        # v2.8.0 — brake service due-dates + preferred workshop (Quick Win C).
+        # Same parent block as the legacy ``inspectionDue_days``/
+        # ``oilServiceDue_days`` pair. Field-name probes follow the
+        # observed CARIAD-BFF + competitor-integration shapes:
+        #   - ``brakeFluidChange_days`` (CARIAD-BFF VW EU MEB)
+        #   - ``brakeFluidChangeDue_days`` (Audi MLB Evo variant)
+        #   - ``brakePadWearFrontInspection_days`` (CARIAD-BFF)
+        #   - ``frontBrakePadWearInspection_days`` (Audi variant)
+        # First non-None wins. Values are int "days from now"; the
+        # ``days_or_date_to_iso`` helper anchors them to midnight UTC
+        # so the TIMESTAMP-class sensor renders relative ("in 142 days").
+        from .._util import (  # noqa: PLC0415
+            compose_workshop_address,
+            days_or_date_to_iso,
+            normalize_workshop_string,
+            workshop_phone_from_contact,
+        )
+        ms_value = v(raw, "vehicleHealthInspection", "maintenanceStatus", "value")
+        if isinstance(ms_value, dict):
+            brake_fluid_raw = (
+                ms_value.get("brakeFluidChange_days")
+                or ms_value.get("brakeFluidChangeDue_days")
+                or ms_value.get("brakeFluidChangeDue_at")
+                or ms_value.get("brakeFluidChange_at")
+            )
+            d.brake_fluid_change_due_at = days_or_date_to_iso(brake_fluid_raw)
+            front_pads_raw = (
+                ms_value.get("brakePadWearFrontInspection_days")
+                or ms_value.get("frontBrakePadWearInspection_days")
+                or ms_value.get("brakePadFrontInspectionDue_days")
+                or ms_value.get("brakePadWearFrontInspection_at")
+            )
+            d.brake_pads_front_inspection_due_at = days_or_date_to_iso(front_pads_raw)
+            rear_pads_raw = (
+                ms_value.get("brakePadWearRearInspection_days")
+                or ms_value.get("rearBrakePadWearInspection_days")
+                or ms_value.get("brakePadRearInspectionDue_days")
+                or ms_value.get("brakePadWearRearInspection_at")
+            )
+            d.brake_pads_rear_inspection_due_at = days_or_date_to_iso(rear_pads_raw)
+
+            # Preferred workshop — CARIAD-BFF surfaces it alongside the
+            # maintenance numbers on the same ``maintenanceStatus.value``
+            # block. Defensive: shape varies (sometimes flat keys, often
+            # a nested ``preferredServicePartner`` / ``servicePartner``
+            # dict — same convention as Skoda's mysmob endpoint).
+            workshop = (
+                ms_value.get("preferredServicePartner")
+                or ms_value.get("servicePartner")
+                or ms_value.get("preferredWorkshop")
+            )
+            if isinstance(workshop, dict) and workshop:
+                d.preferred_workshop_name = normalize_workshop_string(
+                    workshop.get("name") or workshop.get("displayName"),
+                )
+                d.preferred_workshop_address = compose_workshop_address(
+                    workshop.get("address") or workshop,
+                )
+                d.preferred_workshop_phone = workshop_phone_from_contact(
+                    workshop.get("contact") or workshop,
+                )
+
         # v1.11.0 (#91 closure) — vehicle lights aggregate.
         # Backend shape (from #90 + #91 Scout reports — ``[2 items]``,
         # exact element shape varies):

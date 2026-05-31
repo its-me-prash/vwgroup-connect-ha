@@ -563,6 +563,25 @@ class VehicleData:
     # Currently populated by SkodaClient; other brands leave it None.
     preferred_workshop: dict[str, Any] | None = None
 
+    # v2.8.0 — Brake service due-dates + preferred workshop normalised
+    # singletons. The composite ``preferred_workshop`` dict above stays
+    # as the attribute payload for the existing service-due sensor; the
+    # three normalised string fields below back dedicated sensors so a
+    # user can build a "call my workshop" automation against
+    # ``sensor.preferred_workshop_phone`` without templating into a dict.
+    #
+    # Brake fields are TIMESTAMP-class (parser converts an int day-
+    # offset or EU dd.mm.yyyy date into an ISO 8601 UTC string at
+    # midnight). Stays None when the backend either omits the field or
+    # ships an empty error envelope. Phantom-protected in sensor.py via
+    # ``_DATA_PRESENT_REQUIRED``.
+    brake_fluid_change_due_at: str | None = None
+    brake_pads_front_inspection_due_at: str | None = None
+    brake_pads_rear_inspection_due_at: str | None = None
+    preferred_workshop_name: str | None = None
+    preferred_workshop_address: str | None = None
+    preferred_workshop_phone: str | None = None
+
     # v1.19.1 — Pycupra-style API quota visibility. Populated from
     # X-RateLimit-Remaining response header captured by base.py
     # ``_capture_rate_limit_headers``. Brand-shared (the same auth
