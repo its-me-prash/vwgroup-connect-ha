@@ -960,6 +960,18 @@ class VehicleData:
     tire_pressure_rear_right_bar: float | None = None
     tire_pressure_warning: bool | None = None
 
+    # v2.7.0b10 — Engine oil level. Cariad BFF ``oilLevel`` job ships
+    # a discrete value (e.g. "normal", "minimumWarning", "service") and
+    # often a numeric percentage. We surface three fields:
+    #   - oil_level_status: raw string for diagnostic surface
+    #   - oil_level_warning: True when the backend reports anything
+    #     other than "normal"/"ok"/"sufficient". PROBLEM device class
+    #     friendly (True = red icon, False = green icon).
+    #   - oil_level_pct: numeric gauge when the backend provides one.
+    oil_level_status: str | None = None
+    oil_level_warning: bool | None = None
+    oil_level_pct: int | None = None
+
     # v2.0.0 (Big-Bang) — Vehicle alarm (issue #33).
     # Cariad-BFF ``access.accessStatus.value`` may carry vehicleAlarm /
     # siren fields when the car's anti-theft system has triggered. Surfaced

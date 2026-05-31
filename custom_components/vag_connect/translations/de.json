@@ -459,6 +459,9 @@
       "warning_brakes": {
         "name": "Bremswarnung"
       },
+      "oil_level_warning": {
+        "name": "Ölstand"
+      },
       "ota_update_available": {
         "name": "Software-Update verfügbar"
       },
