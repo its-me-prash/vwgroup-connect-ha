@@ -31,7 +31,19 @@
 ---
 
 > ### 📛 Note on the rename
-> Previously published as **`vag-connect-ha`**. Domain-Internals bleiben unverändert (`vag_connect`, `sensor.audi_q4_*`, `vag_connect.lock`), HACS-Update funktioniert nahtlos. Details in [`MIGRATION.md`](MIGRATION.md).
+> Früher veröffentlicht als **`vag-connect-ha`** (VAG = Volkswagen AG, gängige DACH-Abkürzung).
+> Stellte sich heraus, dass diese Abkürzung für Englisch-Sprecher *deutlich anders* klingt 😅
+>
+> **Was unverändert weiterläuft**: alle Entities (z. B. `sensor.audi_q4_battery_soc`),
+> alle Service-Calls (`vag_connect.lock`, `vag_connect.show_vag` etc.), alle Automatisierungen,
+> die HACS-Installation - **nichts bricht**. Marketing/Anzeigename ändert sich,
+> Code-Internals bleiben gleich. Details in [`MIGRATION.md`](MIGRATION.md).
+>
+> Riesigen Dank an die **Home Assistant UK** und **HA Ideas, Projects and Solutions**
+> Communities für den Hinweis - besonders an **Si Gregory**, **Ben Johnson**, und **Evets David**.
+>
+> Und einen speziellen Gruß an **Jordan Waeles**, dessen `show_vag()` Kommentar jetzt ein offiziell
+> unterstütztes Easter Egg in dieser Integration ist (`vag_connect.show_vag` service, siehe CHANGELOG v2.2.3).
 
 ---
 
