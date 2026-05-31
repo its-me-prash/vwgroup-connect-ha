@@ -76,6 +76,10 @@
         }
       },
       "browser_login_pending": {
+        "title": "Requesting login code…",
+        "description": "Asking the IDP for a one-time device code."
+      },
+      "browser_login_approve": {
         "title": "Waiting for your browser approval",
         "description": "1. Open **{verification_uri}** on any device.\n2. Sign in to your Brand ID account if asked.\n3. Confirm the code **{user_code}**.\n\nHome Assistant is polling — this page will advance automatically once you approve."
       }

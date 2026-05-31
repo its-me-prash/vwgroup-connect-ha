@@ -70,6 +70,10 @@
         }
       },
       "browser_login_pending": {
+        "title": "Hole Login-Code…",
+        "description": "Fordere einen Einmal-Code vom IDP an."
+      },
+      "browser_login_approve": {
         "title": "Warte auf deine Browser-Bestätigung",
         "description": "1. Öffne **{verification_uri}** auf einem beliebigen Gerät.\n2. Melde dich mit deinem Brand-ID-Konto an (falls noch nicht eingeloggt).\n3. Bestätige den Code **{user_code}**.\n\nHome Assistant pollt im Hintergrund — die Seite wechselt automatisch sobald du bestätigt hast."
       }

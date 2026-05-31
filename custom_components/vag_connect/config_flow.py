@@ -424,20 +424,28 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
     async def async_step_browser_login_pending(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
-        """v2.7.0 — Browser-login pending step. Two-phase show_progress.
+        """v2.7.0b6 — Browser-login Phase 1: request the device_code.
 
-        Phase 1 — request the device_code (fast HTTP call). HA shows a
-        generic 'preparing login' progress while the request is in
-        flight. When it returns, HA re-renders this step and we
-        advance to Phase 2 with the placeholders fully populated.
+        This step ONLY drives the fast /device_authorization HTTP call.
+        It shows a 'requesting login code…' progress dialog while in
+        flight, then hands off to ``browser_login_approve`` (a separate
+        step_id) for the slow polling phase.
 
-        Phase 2 — poll the token endpoint while the user opens the
-        browser, signs in, and approves. HA shows the URL + user_code
-        in the progress text the whole time. When the task completes
-        the flow advances to the finish step (success) or back to
-        the brand picker (failure).
+        Why split into two step_ids instead of re-using one step with two
+        progress_action values:
+
+        HA's frontend caches the progress description by step_id, not by
+        progress_action. When you change progress_action within the same
+        step the dialog often keeps showing the FIRST description (with
+        empty placeholders). The b4 attempt at single-step two-phase
+        flow hit exactly this — the URL + user_code never appeared and
+        the spinner spun forever on the user's HA install.
+
+        Two distinct step_ids = HA tears down the first progress dialog
+        and renders a fresh one for the second, picking up the new
+        placeholders cleanly.
         """
-        # Phase 1 — kick off request_device_code()
+        # Kick off request_device_code() on first entry
         if self._dag_request_task is None:
             self._dag_request_task = self.hass.async_create_task(
                 self._do_request_device_code()
@@ -453,10 +461,35 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         if self._dag_error or not self._dag_device_code:
             # Phase 1 failed — drop back to the brand picker so user
             # can retry. The error message lives in self._dag_error
-            # (TODO: surface via repair issue or notification).
+            # (surfaced via debug log; future: repair-issue / notification).
             return self.async_show_progress_done(next_step_id="browser_login")
 
-        # Phase 2 — kick off poll_for_tokens()
+        # Phase 1 done — hand off to Phase 2 (separate step_id so HA
+        # re-renders the progress dialog with the populated placeholders).
+        return self.async_show_progress_done(
+            next_step_id="browser_login_approve"
+        )
+
+    async def async_step_browser_login_approve(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """v2.7.0b6 — Browser-login Phase 2: wait for user approval.
+
+        Polls /token while the user opens the verification URL in their
+        own browser, signs in to their Brand ID account, and approves
+        the device. HA shows the URL + user_code in the progress dialog
+        the whole time. When polling completes:
+          - success → advance to ``browser_login_finish``
+          - failure → drop back to brand picker so user can retry
+
+        Reached only after Phase 1 (``browser_login_pending``) populated
+        ``_dag_verification_uri`` and ``_dag_user_code``.
+        """
+        # Defensive — should only be reached with Phase 1 state populated.
+        if not self._dag_device_code:
+            return self.async_show_progress_done(next_step_id="browser_login")
+
+        # Kick off poll_for_tokens() on first entry
         if self._dag_poll_task is None:
             self._dag_poll_task = self.hass.async_create_task(
                 self._do_poll_tokens()
@@ -464,7 +497,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
 
         if not self._dag_poll_task.done():
             return self.async_show_progress(
-                step_id="browser_login_pending",
+                step_id="browser_login_approve",
                 progress_action="awaiting_browser_login",
                 progress_task=self._dag_poll_task,
                 description_placeholders={
@@ -473,7 +506,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 },
             )
 
-        # Phase 2 done — advance to finish (success) or restart (failure)
+        # Poll done — advance to finish (success) or restart (failure)
         next_step = (
             "browser_login_finish" if self._dag_tokens else "browser_login"
         )
