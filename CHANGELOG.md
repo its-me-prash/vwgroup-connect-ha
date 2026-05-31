@@ -50,6 +50,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - OLA watcher gains upstream as 3rd consensus source
 - App Atlas covers all 7 brands
 
+## [2.7.1] - 2026-05-31
+
+### Fixed
+- Vehicle Data Scout no longer auto-fires on `oilLevel` / `tyrePressure` / `auxiliaryHeating` branches we just promoted in v2.7.0. Closes scout-report issues #366 and #367.
+
 ## [2.7.0] - 2026-05-31
 
 ### Added
