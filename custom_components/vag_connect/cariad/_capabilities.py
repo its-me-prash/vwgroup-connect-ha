@@ -206,3 +206,91 @@ def cap_id_for(brand: str, command_id: str) -> str | None:
     Pure function — safe to call from any thread, no I/O.
     """
     return CAPABILITY_MAP.get(brand, {}).get(command_id)
+
+
+# v2.8.0 quick win E — declared per-brand capability table.
+# Used by diagnostics + Repairs flow to know what the integration
+# expects each brand to support. The actual support is determined
+# at runtime by whether the brand's get_status() populates the
+# corresponding VehicleData fields. This table is the "expected"
+# baseline; the runtime check sits in coordinator.capabilities_snapshot.
+#
+# When a user reports "my Audi doesn't have a charging sensor" we now
+# get a three-way signal from the diagnostics dump:
+#   - declared=True, observed=True  → working as designed
+#   - declared=True, observed=False → drift (parser broke / backend changed)
+#   - declared=False, observed=*    → brand never supported it
+#
+# Capability keys are integration-level concepts (not brand-specific
+# cap-ids); the mapping from "expected to parse" to the actual
+# VehicleData field lives in coordinator.capabilities_snapshot so this
+# module stays a pure data table.
+DECLARED_CAPABILITIES: dict[str, dict[str, bool]] = {
+    "audi": {
+        "auxiliary_heating": True,
+        "charging": True,
+        "climatisation": True,
+        "trip_statistics": True,
+        "brake_service": True,
+        "ola_push": False,
+        "fcm_push": True,
+        "dag_login": True,
+    },
+    "volkswagen": {
+        "auxiliary_heating": True,
+        "charging": True,
+        "climatisation": True,
+        "trip_statistics": True,
+        "brake_service": True,
+        "ola_push": False,
+        "fcm_push": True,
+        "dag_login": False,
+    },
+    "skoda": {
+        "auxiliary_heating": False,
+        "charging": True,
+        "climatisation": True,
+        "trip_statistics": True,
+        "brake_service": True,
+        "ola_push": False,
+        "fcm_push": False,
+        "dag_login": True,
+        "mqtt_push": True,
+    },
+    "seat": {
+        "charging": True,
+        "climatisation": True,
+        "trip_statistics": True,
+        "brake_service": False,
+        "ola_push": True,
+        "fcm_push": True,
+        "dag_login": True,
+    },
+    "cupra": {
+        "charging": True,
+        "climatisation": True,
+        "trip_statistics": True,
+        "brake_service": False,
+        "ola_push": True,
+        "fcm_push": True,
+        "dag_login": True,
+    },
+    "porsche": {
+        "charging": True,
+        "climatisation": True,
+        "trip_statistics": False,
+        "brake_service": False,
+        "ola_push": False,
+        "fcm_push": False,
+        "dag_login": False,
+    },
+    "volkswagen_na": {
+        "charging": True,
+        "climatisation": True,
+        "trip_statistics": False,
+        "brake_service": False,
+        "ola_push": False,
+        "fcm_push": False,
+        "dag_login": False,
+    },
+}

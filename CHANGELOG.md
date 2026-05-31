@@ -42,6 +42,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 - Data Act portal: automated zip download and parse (Action #3).
 - New service `vag_connect.open_app` (quick-win B): fires `vag_connect_open_app` on the HA event bus with payload `{vin, brand, deeplink_url, action}` so a Lovelace card can open the brand's native mobile app (myAudi, WeConnect, MyŠkoda, MySEAT, MyCUPRA, My Porsche, VW US) on the calling device via `window.location.href`. Deeplink schemes are defined in `const.DEEPLINK_SCHEMES`; the per-brand scheme strings are marked `TODO(2.8.1)` for device-side re-verification.
+- Diagnostics: per-job parser-health counters (quick win D). Each brand client's `parser_stats` dict records `{success, fail, last_error[:200]}` per named job and is exported in the diagnostics dump, so a silent parser regression on one job (oilLevel, charging, etc.) is visible while the rest of the poll succeeds.
+- Diagnostics: per-brand declared vs observed capability snapshot with drift detection so a missing entity can be triaged as "brand never supported it" vs "parser dropped a field" (quick win E).
 
 ## [2.2.0-rc1] — 2026-05-16 — "Legen — wait for it — dary" (Release Candidate)
 

@@ -1585,6 +1585,148 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             return None
         return self.vehicle_supports_capability(vin, cap_id)
 
+    # v2.8.0 quick win E — declared vs observed capability snapshot.
+    #
+    # When a user reports "my Audi doesn't have a charging sensor" the
+    # diagnostics dump previously told us what the vehicle reported but
+    # not what the integration *expected* the brand to support. Without
+    # the expected-baseline we couldn't distinguish:
+    #   (a) brand never supported it (declared=False)
+    #   (b) vehicle does not have it on this trim (declared=True,
+    #       observed=False, but no parser hit on ANY VIN)
+    #   (c) parser broke (declared=True, observed=False, ran fine before)
+    #
+    # The snapshot returns the declared baseline (from
+    # _capabilities.DECLARED_CAPABILITIES) alongside the observed signal
+    # for each capability (whichever VehicleData field is the canonical
+    # surface for that capability is non-None on at least one VIN). The
+    # ``drift`` list is the diagnostics shortcut: any capability where
+    # declared=True but observed=False on every known VIN.
+    #
+    # Mapping capability key -> VehicleData field name to check. The
+    # field-name is the canonical "this capability has parsed at least
+    # once" signal — when the parser populates it on a real poll, we
+    # know the integration's pipeline understood the response. Push and
+    # auth capabilities don't have a VehicleData field; they're checked
+    # against the coordinator's push-manager slots / token strategy.
+    _CAPABILITY_FIELD_MAP: dict[str, tuple[str, ...]] = {
+        "auxiliary_heating": ("aux_heating_active",),
+        "charging": ("battery_soc", "charging_state", "is_charging"),
+        "climatisation": ("climatisation_state", "climatisation_active"),
+        "trip_statistics": (
+            "last_trip_avg_speed_kmh",
+            "last_trip_distance_km",
+            "lifetime_distance_km",
+        ),
+        "brake_service": ("service_due_in_days", "service_due_at"),
+    }
+
+    def _observe_capability(self, capability: str) -> bool:
+        """Return True if the integration has observed this capability.
+
+        For vehicle-data capabilities, scan every VIN's most-recent dict
+        and return True if any mapped field is non-None.
+
+        For push/auth capabilities, inspect coordinator-level state
+        (push-manager slots, persisted token strategy).
+        """
+        # Push channels live on the coordinator instance directly.
+        if capability == "ola_push":
+            # OLA push is wired through the SEAT/CUPRA FCM manager today
+            # — there's no separate slot. Treat the cupra_seat_push
+            # manager being live as the observed signal.
+            return getattr(self, "_cupra_seat_push", None) is not None
+        if capability == "fcm_push":
+            return (
+                getattr(self, "_audi_vw_push", None) is not None
+                or getattr(self, "_cupra_seat_push", None) is not None
+            )
+        if capability == "mqtt_push":
+            return getattr(self, "_skoda_push", None) is not None
+        if capability == "dag_login":
+            client = getattr(self, "_cariad_client", None)
+            if client is None:
+                return False
+            tokens = getattr(client, "_tokens", None)
+            strategy = getattr(tokens, "strategy", "") if tokens else ""
+            # Hybrid_full / data_act_portal / device_grant all flow
+            # through the browser-based DAG/IDP path (v2.6.0+).
+            return strategy in ("hybrid_full", "data_act_portal", "device_grant")
+
+        # Vehicle-data capabilities: scan VINs for a non-None field.
+        fields = self._CAPABILITY_FIELD_MAP.get(capability)
+        if not fields:
+            # Unknown capability key — no observation possible. Returning
+            # False is the safe default; drift detection will then flag
+            # it only if declared=True (which is the caller's intent).
+            return False
+        vehicles_map = getattr(self, "vehicles", None) or {}
+        for vdata in vehicles_map.values():
+            if not isinstance(vdata, dict):
+                continue
+            for field_name in fields:
+                if vdata.get(field_name) is not None:
+                    return True
+        return False
+
+    def capabilities_snapshot(self) -> dict[str, dict[str, dict[str, Any] | list[str]]]:
+        """Return declared + observed capabilities for this coordinator's brand.
+
+        Shape (compatible with multi-entry diagnostics aggregation):
+
+            {
+                "<brand>": {
+                    "declared": {"auxiliary_heating": True, ...},
+                    "observed": {"auxiliary_heating": True, ...},
+                    "drift": ["climatisation"],
+                },
+            }
+
+        A brand without an entry in ``DECLARED_CAPABILITIES`` (e.g. a
+        future brand that ships before the table is updated) still
+        produces a well-formed snapshot: ``declared`` is an empty dict,
+        ``observed`` runs as normal against whatever capability keys
+        the runtime knows about, ``drift`` is always an empty list.
+
+        ``drift`` lists capabilities the integration *expected* (declared=True)
+        but did NOT observe on any known VIN this coordinator owns.
+        Useful as a Repairs-flow trigger and a debug shortcut in the
+        diagnostics dump.
+        """
+        from .cariad._capabilities import DECLARED_CAPABILITIES  # noqa: PLC0415
+
+        try:
+            brand = str(self.entry.data.get(CONF_BRAND, "")).lower()
+        except Exception:  # noqa: BLE001
+            brand = ""
+
+        declared = DECLARED_CAPABILITIES.get(brand, {})
+
+        # Observed runs over the union of declared keys plus everything
+        # the field-map knows about — that way a parser populating a
+        # field for a brand that hasn't declared it yet still surfaces.
+        observed_keys = set(declared.keys()) | set(self._CAPABILITY_FIELD_MAP.keys())
+        # Also include push/auth keys explicitly so an unknown-brand
+        # snapshot still surfaces them when active.
+        observed_keys |= {"ola_push", "fcm_push", "mqtt_push", "dag_login"}
+        observed = {
+            key: self._observe_capability(key) for key in sorted(observed_keys)
+        }
+
+        drift = sorted(
+            key
+            for key, declared_value in declared.items()
+            if declared_value is True and observed.get(key) is False
+        )
+
+        return {
+            brand: {
+                "declared": dict(declared),
+                "observed": observed,
+                "drift": drift,
+            },
+        }
+
     async def refresh_capabilities(self, vin: str, force: bool = False) -> None:
         """Best-effort fetch of the per-VIN capabilities document.
 
