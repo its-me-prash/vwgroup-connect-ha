@@ -1,0 +1,111 @@
+name: VW EU Attestation Watcher
+
+# Polls the VW EU BFF token endpoint once a week with a known-bad
+# auth_code (to provoke a 4xx response). The current production state
+# returns "invalid assertion headers" / "invalid assertion" because
+# the server enforces Play Integrity attestation. If that error string
+# changes to something auth_code-related (`invalid_grant`,
+# `invalid_code`, `invalid_request`), the attestation gate has been
+# loosened and our existing 5-header `hybrid_full` path may start
+# yielding refresh_tokens without code change on our side.
+#
+# Opens an issue when the state changes. Closes the loop by linking
+# to the research record at _private/research-archive/vw_eu_play_integrity_audit_2026-05-31.md.
+
+on:
+  schedule:
+    - cron: "0 6 * * MON"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/vw-eu-attestation-watcher.yml
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  noop-on-non-scheduled:
+    if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Validation run only. Real check on cron or workflow_dispatch."
+
+  probe-token-endpoint:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Probe BFF token endpoint with garbage auth_code
+        id: probe
+        run: |
+          set +e
+          RESP=$(curl -sS -X POST \
+            "https://emea.bff.cariad.digital/auth/v1/idk/oidc/token" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -H "Accept: application/json" \
+            -H "Accept-Charset: utf-8" \
+            -H "User-Agent: vag-connect-ha attestation-watcher/1.0" \
+            --data-urlencode "client_id=a24fba63-34b3-4d43-b181-942111e6bda8@apps_vw-dilab_com" \
+            --data-urlencode "grant_type=authorization_code" \
+            --data-urlencode "code=GARBAGE_PROBE_CODE_NOT_VALID" \
+            --data-urlencode "redirect_uri=weconnect://authenticated" \
+            -w '\nHTTP_STATUS:%{http_code}')
+          STATUS=$(echo "$RESP" | grep -oE 'HTTP_STATUS:[0-9]+' | cut -d: -f2)
+          BODY=$(echo "$RESP" | sed '$d')
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          {
+            echo "body<<EOF"
+            echo "$BODY"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          echo "Probe complete. HTTP $STATUS"
+          echo "Body: $BODY"
+
+      - name: Classify response
+        id: classify
+        run: |
+          STATUS='${{ steps.probe.outputs.status }}'
+          BODY='${{ steps.probe.outputs.body }}'
+          STATE=unknown
+          REASON=""
+          if [ "$STATUS" = "400" ] && echo "$BODY" | grep -q "invalid assertion headers"; then
+            STATE=baseline
+            REASON="attestation gate active (5-header rejected)"
+          elif [ "$STATUS" = "403" ] && echo "$BODY" | grep -q "invalid assertion"; then
+            STATE=baseline-403
+            REASON="attestation gate active (8-header rejected)"
+          elif echo "$BODY" | grep -qE 'invalid_grant|invalid_code|invalid_request'; then
+            STATE=opened
+            REASON="response shifted to auth_code-related error — attestation gate may be off"
+          fi
+          echo "state=$STATE" >> "$GITHUB_OUTPUT"
+          echo "reason=$REASON" >> "$GITHUB_OUTPUT"
+          echo "Classification: $STATE — $REASON"
+
+      - name: Open issue if state shifted
+        if: steps.classify.outputs.state == 'opened'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Skip if an open issue with the auth-status-change label already exists.
+          EXISTING=$(gh issue list --label auth-status-change --state open --json number --jq 'length')
+          if [ "$EXISTING" -gt "0" ]; then
+            echo "Open issue exists, skipping."
+            exit 0
+          fi
+          gh issue create \
+            --title "VW EU attestation gate state change detected" \
+            --label auth-status-change \
+            --body "Watcher detected a response shift on /auth/v1/idk/oidc/token.
+
+          HTTP status: ${{ steps.probe.outputs.status }}
+          Body: \`${{ steps.probe.outputs.body }}\`
+
+          Baseline behavior was 400 \`invalid assertion headers\` or 403 \`invalid assertion\`. The response is now auth_code-related, which suggests the server-side attestation check has been disabled or relaxed.
+
+          Action: re-run the v2.6.0 hybrid_full probe with the current 5-header set against this endpoint. If a real refresh_token returns, ship a VW EU strategy that prefers auth_code over hybrid_full so users escape the 2-hour re-login cycle.
+
+          Auto-opened by .github/workflows/vw-eu-attestation-watcher.yml"
