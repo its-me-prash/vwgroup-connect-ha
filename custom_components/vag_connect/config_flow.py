@@ -512,12 +512,29 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             self._dag_poll_task = self.hass.async_create_task(
                 self._do_poll_tokens()
             )
+            # v2.7.0b8 — Belt and suspenders: also fire a persistent
+            # notification with URL + code so the user can copy it from
+            # the HA sidebar even if the form description renders empty
+            # (HA frontend cache / translation-loader edge cases have
+            # bitten us multiple times). Notification dismisses itself
+            # automatically when this step finishes.
+            self._fire_dag_persistent_notification()
+            # And log at WARNING so the URL surfaces in Settings → Logs
+            # too. Third independent path to the same info.
+            _LOGGER.warning(
+                "VW Group Connect browser login: open %s on any device "
+                "and confirm code %s. (Also shown in the dialog and in "
+                "the HA notifications sidebar.)",
+                self._dag_verification_uri,
+                self._dag_user_code,
+            )
 
         errors: dict[str, str] = {}
 
         if user_input is not None:
             # User clicked "I've approved" — check poll state
             if self._dag_poll_task.done():
+                self._dismiss_dag_persistent_notification()
                 if self._dag_tokens:
                     return await self.async_step_browser_login_finish()
                 # Poll completed with error — reset state and route
@@ -528,9 +545,19 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             # Clicked submit before poll completed — re-render with hint
             errors["base"] = "still_waiting_browser"
 
+        # v2.7.0b8 — Non-empty schema. An empty vol.Schema({}) caused
+        # HA's frontend to render a form with no description on at
+        # least one user's install. A single optional boolean field
+        # gives the renderer something concrete to lay out and forces
+        # the description to render. The field's value is ignored;
+        # clicking Submit is what advances the flow.
+        confirm_schema = vol.Schema({
+            vol.Optional("approved", default=True): bool,
+        })
+
         return self.async_show_form(
             step_id="browser_login_approve",
-            data_schema=vol.Schema({}),
+            data_schema=confirm_schema,
             description_placeholders={
                 "verification_uri": self._dag_verification_uri,
                 "user_code": self._dag_user_code,
@@ -538,6 +565,47 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             errors=errors,
             last_step=False,
         )
+
+    def _fire_dag_persistent_notification(self) -> None:
+        """v2.7.0b8 — Side-channel display of the DAG URL + user_code.
+
+        Fires a HA persistent_notification with the same content the
+        form description shows. Independent rendering pipeline, so a
+        translation-loader miss in the form does not also hide the
+        notification. Notification id is fixed so it overwrites any
+        prior one and gets dismissed cleanly when the flow advances.
+        """
+        from homeassistant.components.persistent_notification import (  # noqa: PLC0415
+            async_create as pn_create,
+        )
+
+        message = (
+            f"**1. Open this URL** on any device:\n\n"
+            f"{self._dag_verification_uri}\n\n"
+            f"**2. Sign in** to your Brand ID account.\n\n"
+            f"**3. Confirm the code:** `{self._dag_user_code}`\n\n"
+            f"**4. Go back to Settings > Devices & Services** and "
+            f"click Submit / Weiter in the VW Group Connect dialog."
+        )
+        pn_create(
+            self.hass,
+            message,
+            title="VW Group Connect - Browser Login",
+            notification_id="vag_connect_browser_login",
+        )
+
+    def _dismiss_dag_persistent_notification(self) -> None:
+        """Dismiss the URL + user_code notification.
+
+        Called once the user clicks Submit (regardless of whether
+        polling actually completed) so the notification does not
+        linger after the flow advances.
+        """
+        from homeassistant.components.persistent_notification import (  # noqa: PLC0415
+            async_dismiss as pn_dismiss,
+        )
+
+        pn_dismiss(self.hass, notification_id="vag_connect_browser_login")
 
     async def _do_request_device_code(self) -> None:
         """v2.7.0b4 — Phase 1 of the DAG flow: get device_code.
