@@ -1,7 +1,7 @@
 # App Atlas — Volkswagen EU (We Connect ID)
 
 > **Auto-generated** by `.github/workflows/app-atlas-builder.yml` ·
-> Last refreshed: 2026-05-30
+> Last refreshed: 2026-05-31
 
 ## Identity
 
@@ -24,7 +24,7 @@
 |---|---|
 | Latest version-name | `(fetch failed)` |
 | Source that responded | `(no source succeeded)` |
-| Previously cached version | `3.61.0` |
+| Previously cached version | `(first run)` |
 | Changed since last run? | No |
 
 ## Discovered via APK extraction (Phase A.2)

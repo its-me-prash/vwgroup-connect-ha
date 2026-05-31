@@ -1,6 +1,6 @@
 # App Atlas — Cross-Brand Summary
 
-> Auto-generated · Last refreshed: 2026-05-30 16:14 UTC
+> Auto-generated · Last refreshed: 2026-05-31 07:36 UTC
 
 | Brand | Android package | Latest version | Source | Expected backend | OLA enforced? |
 |---|---|---|---|---|---|
