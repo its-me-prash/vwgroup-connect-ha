@@ -402,6 +402,60 @@ class CariadBaseClient:
         """Return current vehicle data for the given VIN."""
         raise NotImplementedError
 
+    # ── v2.8.0 EU Data Act scraper bridge (Action #3) ──────────────────────────
+
+    async def get_status_via_data_act_portal(
+        self,
+        vin: str,
+        *,
+        enable_browser_fallback: bool = False,
+    ) -> VehicleData | None:
+        """Tier 3.5: fetch + parse the customised-data zip from the portal.
+
+        Called by the coordinator (or by a brand client subclass) when
+        ``self._tokens.strategy == "data_act_portal"``. In that mode the
+        normal BFF read paths are not available because the integration
+        only holds a portal session, not a BFF token. The customised-data
+        zip the portal exposes is the only data path under the EU Data
+        Act fallback.
+
+        Cadence: the coordinator throttles polling to 15 minutes when
+        the active strategy is ``data_act_portal``. See ``DataActScraper``
+        for the wake-state requirement and the empty-streak Repair hint.
+
+        Returns ``None`` on any failure so the coordinator can keep the
+        previous poll's data visible (stale-cache behaviour).
+        """
+        from ..auth._data_act_scraper import (  # noqa: PLC0415
+            DataActScraper,
+            DataActScraperError,
+        )
+
+        if self._tokens is None or self._tokens.strategy != "data_act_portal":
+            return None
+        scraper = DataActScraper(
+            self._session,
+            brand_name=self._brand.name,
+            enable_browser_fallback=enable_browser_fallback,
+        )
+        try:
+            zip_bytes = await scraper.fetch_vehicle_zip(vin)
+        except DataActScraperError as err:
+            # Structural failure (e.g. browser toggle enabled but
+            # playwright missing). Surface to the caller so the
+            # coordinator can raise a Repair issue with the message.
+            _LOGGER.warning(
+                "Data Act scraper structural error for brand %s: %s",
+                self._brand.name, err,
+            )
+            return None
+        if zip_bytes is None:
+            return None
+        parsed = scraper.parse_zip(zip_bytes)
+        if not parsed:
+            return None
+        return scraper.to_vehicle_data(vin, parsed)
+
     async def fetch_images(self) -> None:
         """Fetch render image URLs via GraphQL — Audi only.
 

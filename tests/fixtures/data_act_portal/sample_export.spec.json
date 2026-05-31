@@ -1,0 +1,24 @@
+{
+  "_comment": "v2.8.0 Action #3 fixture spec - declarative description of the zip we build at test time. Committing the zip bytes directly is avoided so reviewers can see the test data in plain text. The companion fixture-builder helper in tests/test_v280_data_act_scraper.py constructs the zip in memory from this spec on every run.",
+  "members": {
+    "charging.json": {
+      "currentSOC_pct": 73,
+      "targetSOC_pct": 90,
+      "chargingState": "charging"
+    },
+    "measurements.json": {
+      "odometerStatus": {"odometer": 42195},
+      "rangeStatus": {"totalRange_km": 318},
+      "fuelLevelStatus": {"currentFuelLevel_pct": 12}
+    },
+    "status.json": {
+      "carCapturedTimestamp": "2026-05-31T18:42:00Z",
+      "access": {"doorsLocked": true}
+    },
+    "top.json": {
+      "licensePlate": "AG 12345",
+      "model": "ID.4 Pro"
+    },
+    "README.txt": "non-json member that parse_zip must ignore"
+  }
+}
