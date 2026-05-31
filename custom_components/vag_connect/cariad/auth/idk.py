@@ -115,49 +115,53 @@ def _cariad_token_headers(
     qmauth_secret: str | None = None,
     qmauth_client_id: str | None = None,
     android_package_name: str = "de.myaudi.mobile.assistant",
+    include_assertion: bool = False,
 ) -> dict[str, str]:
-    """Return the assertion-header set required by the new CARIAD IDK
-    token endpoint (Audi + VW EU).
+    """Return the header set for the CARIAD IDK token endpoint.
 
-    v2.5.4 (#313) — Sent for BOTH authorization_code exchange AND
-    refresh_token. Missing any one of these results in either an HTTP
-    403 (Azure WAF) or an ``{"error":"invalid assertion headers"}``
-    response body once past the gateway.
+    v2.7.0b2 — DEFAULT FLIPPED to the 5-header set that
+    audi_connect_ha has used in production since 2026-05-28.
+    Background: the v2.5.4 introduction of the 3-header assertion
+    trio (``x-platform``, ``x-android-package-name``,
+    ``x-assertion``) was a defensive "mimic the official app"
+    measure based on early reverse engineering. We kept it as a
+    superset on the theory that more headers = more
+    anomaly-score-resilient.
 
-    v2.5.6 (#313 follow-on) — qmauth values are now caller-supplied so
-    the resolver can swap in APK-mined values. Caller omits = defaults
-    apply (v2.5.4 hardcoded constants, cross-verified against
-    audi_connect_ha + evcc + volkswagencarnet + ioBroker.vw-connect).
+    Reality (observed 2026-05-31): VW backend now validates the
+    ``x-assertion`` value at the BFF layer. The dummy ``"0"``
+    placeholder we (and iobroker.vw-connect 0.8.8 briefly) sent is
+    rejected — the only valid value is a Google Play Integrity JWT
+    signed by Google with VW's registered app fingerprint, which a
+    Python integration cannot produce. So sending ``x-assertion: "0"``
+    triggers the assertion check and fails; OMITTING the header
+    entirely skips the check and the request passes.
 
-    v2.5.11 — brand-impersonation bugfix. Pre-v2.5.11 the
-    ``x-android-package-name`` was hardcoded to
-    ``de.myaudi.mobile.assistant`` for ALL brands including VW EU,
-    silently impersonating the Audi app on VW token requests. Our own
-    atlas profile (vw_group_auth_profile.json) documented this as
-    wrong since 2026-05-29 but the code didn't match. Caller now
-    passes per-brand value via ``android_package_name`` kwarg
-    (resolved from ``BrandConfig.android_package_name``). Default
-    remains the Audi value for backward-compat with any unparameterised
-    callers, but the production paths in IDKAuth always pass through
-    the brand-specific value as of v2.5.11.
+    The 5-header set matches audi_connect_ha v1.19.2+ which is
+    confirmed working for many Audi users. v2.7.0b2 adopts it as
+    default. Callers that need the 8-header superset (e.g. for
+    future debugging) can pass ``include_assertion=True``.
 
-    Note: audi_connect_ha v1.19.2 (PR #736 / 2026-05-28) reportedly
-    works with only 5 headers (no x-platform / x-android-package-name /
-    x-assertion). Our 8-header set is a superset that mimics the
-    official app more closely — still functional, more
-    anomaly-score-resilient if VW tightens WAF rules. Documented for
-    future minimisation if WAF stays permissive.
+    Per-brand details:
+      - ``android_package_name`` is only relevant if
+        ``include_assertion=True``. With the assertion trio absent,
+        the package name is no longer transmitted to the backend.
+      - ``user_agent`` + ``x-qmauth`` stay per-call.
     """
-    return {
-        "Content-Type":            "application/x-www-form-urlencoded",
-        "Accept":                  "application/json",
-        "Accept-Charset":          "utf-8",
-        "User-Agent":              user_agent,
-        "x-qmauth":                _calculate_x_qmauth(qmauth_secret, qmauth_client_id),
-        "x-platform":              "android",
-        "x-android-package-name":  android_package_name,
-        "x-assertion":             "0",
+    headers = {
+        "Content-Type":   "application/x-www-form-urlencoded",
+        "Accept":         "application/json",
+        "Accept-Charset": "utf-8",
+        "User-Agent":     user_agent,
+        "x-qmauth":       _calculate_x_qmauth(qmauth_secret, qmauth_client_id),
     }
+    if include_assertion:
+        headers.update({
+            "x-platform":             "android",
+            "x-android-package-name": android_package_name,
+            "x-assertion":            "0",
+        })
+    return headers
 
 
 class _CSRFParser(HTMLParser):

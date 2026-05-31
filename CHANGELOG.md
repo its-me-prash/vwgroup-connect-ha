@@ -50,6 +50,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - OLA watcher gains daernsinstantfortress as 3rd consensus source
 - App Atlas covers all 7 brands
 
+## [2.7.0b2] — 2026-05-31 — "Audi token-headers fix (beta)"
+
+- Audi email+password login: dropped the dummy x-assertion / x-platform / x-android-package-name trio from token requests — VW backend now rejects the dummy value and lets through requests that omit the headers entirely. Matches audi_connect_ha v1.19.2+ behaviour.
+
 ## [2.7.0b1] — 2026-05-31 — "Browser-Login UI (beta)"
 
 - New config_flow menu: choose between Browser-Login (recommended) and Email + Password (legacy).
