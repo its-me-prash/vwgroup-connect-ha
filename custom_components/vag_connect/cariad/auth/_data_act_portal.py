@@ -262,7 +262,6 @@ class DataActPortalAuth:
                 allow_redirects=True,
             ) as resp:
                 password_html = await resp.text(errors="replace")
-                password_url = str(resp.url)
                 if resp.status != 200:
                     raise AuthenticationError(
                         f"Data Act portal: identifier POST HTTP {resp.status}"
