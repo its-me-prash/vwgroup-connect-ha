@@ -230,6 +230,20 @@ async def async_get_config_entry_diagnostics(
         serialise_for_diagnostics(error_buffer) if error_buffer is not None else []
     )
 
+    # v2.8.0 quick win E — per-brand declared vs observed capability
+    # snapshot. Tells us at-a-glance whether a missing entity is
+    # because the brand never supported it, the vehicle does not have
+    # it, or the parser dropped a payload key. Defensive ``getattr``
+    # so older coordinator instances in tests / partial setups do not
+    # break the diagnostics export.
+    capabilities_fn = getattr(coordinator, "capabilities_snapshot", None)
+    capabilities: dict[str, Any] = {}
+    if callable(capabilities_fn):
+        try:
+            capabilities = capabilities_fn()
+        except Exception as err:  # noqa: BLE001
+            capabilities = {"error": f"{type(err).__name__}: {err}"}
+
     return {
         "config": config_diag,
         "options": options_diag,
@@ -239,4 +253,5 @@ async def async_get_config_entry_diagnostics(
         "cloud_push_active": coordinator.is_active,
         "unexpected_findings": unexpected,
         "error_buffer": error_records,
+        "capabilities": capabilities,
     }

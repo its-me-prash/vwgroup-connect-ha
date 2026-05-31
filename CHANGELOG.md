@@ -41,6 +41,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ## [Unreleased]
 
 - Data Act portal: automated zip download and parse (Action #3).
+- Diagnostics: per-brand declared vs observed capability snapshot with drift detection so a missing entity can be triaged as "brand never supported it" vs "parser dropped a field" (quick win E).
 
 ## [2.2.0-rc1] — 2026-05-16 — "Legen — wait for it — dary" (Release Candidate)
 
