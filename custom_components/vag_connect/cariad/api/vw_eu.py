@@ -294,12 +294,20 @@ class VWEUClient(CariadBaseClient):
         # v2.1.0 — per-VIN base URL via HomeRegion lookup.
         base = self._base_for_vin(vin)
         url = f"{base}/vehicle/v1/vehicles/{vin}/selectivestatus"
-        raw: dict[str, Any] = await self._get(url, params={"jobs": _SELECTIVE_STATUS_JOBS})
+        # v2.8.0 quick win D — vehicle_status job covers the full
+        # selectivestatus fetch (parser-health telemetry).
+        with self._parser_job("vehicle_status"):
+            raw: dict[str, Any] = await self._get(
+                url, params={"jobs": _SELECTIVE_STATUS_JOBS},
+            )
 
         # Parking position (separate endpoint)
         parking: dict[str, Any] = {}
         try:
-            parking = await self._get(f"{base}/vehicle/v1/vehicles/{vin}/parkingposition")
+            with self._parser_job("parking_position"):
+                parking = await self._get(
+                    f"{base}/vehicle/v1/vehicles/{vin}/parkingposition"
+                )
         except Exception:  # noqa: BLE001
             pass
 
@@ -311,17 +319,15 @@ class VWEUClient(CariadBaseClient):
         trip_short: dict[str, Any] = {}
         trip_long: dict[str, Any] = {}
         try:
-            trip_short = await self._get(
-                f"{base}/vehicle/v1/vehicles/{vin}/tripstatistics",
-                params={"type": "shortTerm"},
-            )
-        except Exception:  # noqa: BLE001
-            pass
-        try:
-            trip_long = await self._get(
-                f"{base}/vehicle/v1/vehicles/{vin}/tripstatistics",
-                params={"type": "longTerm"},
-            )
+            with self._parser_job("trip_statistics"):
+                trip_short = await self._get(
+                    f"{base}/vehicle/v1/vehicles/{vin}/tripstatistics",
+                    params={"type": "shortTerm"},
+                )
+                trip_long = await self._get(
+                    f"{base}/vehicle/v1/vehicles/{vin}/tripstatistics",
+                    params={"type": "longTerm"},
+                )
         except Exception:  # noqa: BLE001
             pass
 
@@ -1019,6 +1025,42 @@ class VWEUClient(CariadBaseClient):
         """
         v = self._val
         d = VehicleData(vin=vin)
+
+        # v2.8.0 quick win D — per-sub-job presence telemetry. The
+        # selectivestatus response packs many logical jobs into one call;
+        # this records which sub-blocks shipped so diagnostics can show
+        # "tyre_pressure stopped flowing on 2026-06-01" without us having
+        # to wrap every parser branch in a context manager.
+        if isinstance(raw, dict):
+            self._note_parser_job(
+                "charging", present=isinstance(raw.get("charging"), dict),
+            )
+            self._note_parser_job(
+                "climatisation",
+                present=isinstance(raw.get("climatisation"), dict),
+            )
+            self._note_parser_job(
+                "oil_level", present=isinstance(raw.get("oilLevel"), dict),
+            )
+            self._note_parser_job(
+                "tyre_pressure",
+                present=isinstance(raw.get("tyrePressure"), dict),
+            )
+            self._note_parser_job(
+                "auxiliary_heating",
+                present=isinstance(raw.get("auxiliaryHeating"), dict),
+            )
+            self._note_parser_job(
+                "service_care",
+                present=isinstance(raw.get("vehicleHealthInspection"), dict),
+            )
+            self._note_parser_job(
+                "door_lock",
+                present=isinstance(
+                    self._val(raw, "access", "accessStatus", "value"),
+                    dict,
+                ),
+            )
 
         # ── Model name from vehicles list (nickname set in app) ────────────────
         meta = getattr(self, "_vehicle_metadata", {}).get(vin, {})

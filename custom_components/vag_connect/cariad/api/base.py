@@ -6,7 +6,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Any, Callable
+from contextlib import contextmanager
+from typing import Any, Callable, Iterator
 
 from aiohttp import (
     ClientConnectorError,
@@ -139,6 +140,12 @@ class CariadBaseClient:
         self._probe_last_pass_at: dict[str, float] = {}  # vin -> monotonic
         self._probe_consecutive_fails: int = 0
         self._probe_disabled: bool = False
+
+        # v2.8.0 quick win D — per-job parser-health counters. Each brand
+        # client's get_status() wraps each job-extraction block in a
+        # self._parser_job("job_name") context manager that increments
+        # successes/failures. Coordinator exposes the snapshot in diagnostics.
+        self.parser_stats: dict[str, dict[str, int | str]] = {}
 
     @property
     def brand(self) -> BrandConfig:
@@ -873,6 +880,56 @@ class CariadBaseClient:
         reset = headers.get("X-RateLimit-Reset")
         if reset is not None:
             self.last_rate_limit_reset_at = str(reset)
+
+    @contextmanager
+    def _parser_job(self, job_name: str) -> Iterator[None]:
+        """v2.8.0 quick win D — wrap a parser block; count success/failure.
+
+        Each brand client's ``get_status()`` wraps each named parser job
+        (vehicle_status, charging, climatisation, oil_level, etc.) with
+        ``with self._parser_job("name"):``. Successful exit increments
+        the ``success`` counter; any exception inside the block increments
+        ``fail``, stores the truncated error text in ``last_error``, then
+        re-raises so the existing except clauses in ``get_status()`` decide
+        whether to swallow or propagate (we do not change behavior here).
+
+        Counters are exposed via ``self.parser_stats`` and surfaced in
+        diagnostics export for users debugging silent "Unbekannt" sensors.
+        """
+        stats = self.parser_stats.setdefault(
+            job_name, {"success": 0, "fail": 0, "last_error": ""}
+        )
+        try:
+            yield
+            stats["success"] = int(stats.get("success", 0)) + 1
+        except Exception as err:  # noqa: BLE001
+            stats["fail"] = int(stats.get("fail", 0)) + 1
+            stats["last_error"] = str(err)[:200]
+            raise
+
+    def _note_parser_job(self, job_name: str, *, present: bool) -> None:
+        """v2.8.0 quick win D — record sub-job presence in ``parser_stats``.
+
+        Companion to ``_parser_job``. Used for the selectivestatus family
+        of jobs where one HTTP call returns many sub-blocks (charging,
+        climatisation, oilLevel, tyrePressure, auxiliaryHeating,
+        door_lock, service_care). Each brand parser calls this once
+        per logical sub-job after probing the expected top-level key:
+        ``present=True`` when the backend shipped the block,
+        ``present=False`` when the block is missing or the wrong shape.
+        Lets the diagnostics export show "which sub-job stopped flowing"
+        without forcing huge with-block indentation diffs in the existing
+        defensively-parsed ``_parse_status`` methods.
+        """
+        stats = self.parser_stats.setdefault(
+            job_name, {"success": 0, "fail": 0, "last_error": ""}
+        )
+        if present:
+            stats["success"] = int(stats.get("success", 0)) + 1
+        else:
+            stats["fail"] = int(stats.get("fail", 0)) + 1
+            if not stats.get("last_error"):
+                stats["last_error"] = "sub-job absent in selectivestatus response"
 
     def _val(self, data: dict[str, Any], *path: str, default: Any = None) -> Any:
         """Safe nested dict access. _val(d, 'a', 'b', 'c') → d['a']['b']['c']."""
