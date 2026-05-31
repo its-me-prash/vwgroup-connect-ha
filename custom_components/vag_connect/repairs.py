@@ -23,6 +23,8 @@ from typing import Any
 
 import logging
 
+import voluptuous as vol
+
 from homeassistant import data_entry_flow
 from homeassistant.components.repairs import RepairsFlow
 from homeassistant.core import HomeAssistant
@@ -287,6 +289,85 @@ def clear_ola_headers_issue(hass: HomeAssistant, entry_id: str) -> None:
     ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_ola_headers_outdated")
 
 
+# v2.8.0 (Action #5) — DAG -> hybrid_full degradation Repair issue.
+# Brands listed in DAG_ENABLED_BRANDS (Audi/Skoda/SEAT/CUPRA) prefer the
+# browser-login Device Authorization Grant flow because it yields a real
+# refresh_token from the IDP and avoids the 2-hour re-login cycle that
+# hybrid_full forces. When DAG fails (network outage, missing cookies,
+# IDP downtime, etc.) the multi-strategy resolver in cariad/api/base.py
+# silently falls back to hybrid_full and the integration keeps working
+# in a degraded mode. The user notices "the integration logs me out a
+# lot" without understanding why. This Repair issue surfaces the
+# degradation in the HA UI and offers two guided remediations: re-run
+# the browser-login setup, or pin the read-only Data Act portal mode.
+DAG_DEGRADED_BRANDS: frozenset[str] = frozenset({"audi", "skoda", "seat", "cupra"})
+
+
+def raise_issue_auth_strategy_degraded(
+    hass: HomeAssistant,
+    entry_id: str,
+    brand: str,
+    current_strategy: str,
+) -> None:
+    """v2.8.0 — Surface the DAG → hybrid_full degradation in HA Repairs.
+
+    Called by the coordinator's poll loop after it has seen the same
+    degraded strategy for at least 3 consecutive successful polls.
+    Idempotent — repeated calls with the same issue_id refresh in place.
+
+    Args:
+        hass: Home Assistant runtime instance.
+        entry_id: ConfigEntry ID — included in the issue_id so each
+            account gets its own Repair entry when the user has set up
+            more than one brand.
+        brand: lowercase brand key from CONF_BRAND. Included in the
+            translation placeholders so the title/description can name
+            the brand (uppercased for display).
+        current_strategy: actual TokenSet.strategy we observed. Carried
+            into the translation placeholders so the user sees the
+            same string we logged at DEBUG level.
+    """
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        f"{entry_id}_auth_strategy_degraded",
+        is_fixable=True,
+        is_persistent=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="auth_strategy_degraded",
+        translation_placeholders={
+            "brand": brand.upper(),
+            "strategy": current_strategy,
+        },
+        data={
+            "entry_id": entry_id,
+            "reason": "auth_strategy_degraded",
+            "brand": brand,
+        },
+        learn_more_url=(
+            "https://github.com/its-me-prash/vwgroup-connect-ha/blob/main/"
+            "docs/auth-strategies.md"
+        ),
+    )
+    _LOGGER.warning(
+        "VW Group Connect auth-strategy degraded Repair-Issue created: "
+        "brand=%s current_strategy=%s (DAG unavailable — falling back to "
+        "hybrid_full 2-hour re-login cycle)",
+        brand, current_strategy,
+    )
+
+
+def clear_auth_strategy_degraded_issue(
+    hass: HomeAssistant, entry_id: str
+) -> None:
+    """v2.8.0 — Clear the degradation issue once DAG is healthy again.
+
+    Called by the coordinator when ``TokenSet.strategy`` flips back to
+    ``"device_grant"``. Same delete-by-id pattern as the OLA helper.
+    """
+    ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_auth_strategy_degraded")
+
+
 # ─── v2.0.0 Repair-Flow Handler ──────────────────────────────────────────
 class _AuthRepairFlow(RepairsFlow):
     """v2.0.0 — Generic repair flow for auth-related issues.
@@ -321,6 +402,87 @@ class _AuthRepairFlow(RepairsFlow):
         return self.async_create_entry(title="", data={})
 
 
+# v2.8.0 (Action #5) — auth-strategy degradation guided flow.
+# Two options for the user to choose from on the Repair form:
+#   - ``rerun_browser_login`` → kicks the reauth config-flow which routes
+#     DAG-eligible brands through the browser-login (Device Grant) path
+#     again. Best fix when the original DAG failure was a transient
+#     network or IDP glitch.
+#   - ``switch_to_data_act_portal`` → pins
+#     ``CONF_PREFERRED_AUTH_STRATEGY`` = ``"data_act_portal"`` in
+#     ``entry.options``. Stays in read-only Data Act mode without
+#     retrying the DAG QR-code dance. Best fix when the user does not
+#     have access to the browser-login flow right now and is OK with
+#     the read-only entitlement until they can re-run setup.
+_DAG_FLOW_OPTION_RERUN_DAG  = "rerun_browser_login"
+_DAG_FLOW_OPTION_DATA_ACT   = "switch_to_data_act_portal"
+_DAG_FLOW_VALID_CHOICES = (
+    _DAG_FLOW_OPTION_RERUN_DAG,
+    _DAG_FLOW_OPTION_DATA_ACT,
+)
+
+
+class _AuthStrategyDegradedFlow(RepairsFlow):
+    """v2.8.0 — Guided remediation for DAG → hybrid_full degradation.
+
+    Two-button form. Each button persists a clear user intent before
+    delegating to either the reauth config flow (re-run browser login)
+    or an in-place entry.options update (pin Data Act portal).
+    """
+
+    def __init__(self, entry_id: str, brand: str) -> None:
+        self._entry_id = entry_id
+        self._brand = brand
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> data_entry_flow.FlowResult:
+        return await self.async_step_choose_remediation()
+
+    async def async_step_choose_remediation(
+        self, user_input: dict[str, Any] | None = None
+    ) -> data_entry_flow.FlowResult:
+        if user_input is None:
+            return self.async_show_form(
+                step_id="choose_remediation",
+                data_schema=vol.Schema({
+                    vol.Required("remediation"): vol.In(_DAG_FLOW_VALID_CHOICES),
+                }),
+                description_placeholders={"brand": self._brand.upper()},
+            )
+
+        choice = user_input.get("remediation", _DAG_FLOW_OPTION_RERUN_DAG)
+        if choice == _DAG_FLOW_OPTION_DATA_ACT:
+            from .const import CONF_PREFERRED_AUTH_STRATEGY  # noqa: PLC0415
+            entry = self.hass.config_entries.async_get_entry(self._entry_id)
+            if entry is not None:
+                self.hass.config_entries.async_update_entry(
+                    entry,
+                    options={
+                        **entry.options,
+                        CONF_PREFERRED_AUTH_STRATEGY: "data_act_portal",
+                    },
+                )
+                _LOGGER.info(
+                    "VW Group Connect auth-strategy degraded: user pinned "
+                    "read-only Data Act portal for brand=%s entry=%s",
+                    self._brand, self._entry_id,
+                )
+            # Clear the Repair issue now that the user has chosen the
+            # explicit-degraded posture — no further nag.
+            clear_auth_strategy_degraded_issue(self.hass, self._entry_id)
+            return self.async_create_entry(title="", data={})
+
+        # Default: re-run browser-login. The reauth config-flow already
+        # routes DAG-eligible brands through the device-grant path, so
+        # we don't need a separate browser-login source here.
+        await self.hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": "reauth", "entry_id": self._entry_id},
+        )
+        return self.async_create_entry(title="", data={})
+
+
 async def async_create_fix_flow(
     hass: HomeAssistant,
     issue_id: str,
@@ -329,4 +491,10 @@ async def async_create_fix_flow(
     """v2.0.0 — HA RepairsFlow factory. Called when user clicks 'Repair'."""
     entry_id = (data or {}).get("entry_id", "")
     reason = (data or {}).get("reason", "auth_failed")
+    # v2.8.0 (Action #5) — DAG-degradation Repair has its own guided
+    # two-option flow. Other reasons keep the generic
+    # ``_AuthRepairFlow`` that simply delegates to reauth.
+    if reason == "auth_strategy_degraded":
+        brand = (data or {}).get("brand", "")
+        return _AuthStrategyDegradedFlow(entry_id, brand)
     return _AuthRepairFlow(entry_id, reason)
