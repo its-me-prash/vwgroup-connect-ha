@@ -50,6 +50,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - OLA watcher gains daernsinstantfortress as 3rd consensus source
 - App Atlas covers all 7 brands
 
+## [2.7.0b6] — 2026-05-31 — "DAG spinner-forever fix #2 — split phases into distinct step_ids (beta)"
+
+- Browser-login progress dialog now reliably shows the verification URL + user_code after the device_code is acquired. The b4 attempt at a single-step two-phase flow ran into HA's frontend caching the progress description per step_id — when the same step_id returned a second `show_progress` with a different `progress_action` and new `description_placeholders`, the dialog often kept showing the first (empty) description and the spinner appeared to spin forever.
+- Refactored into two distinct step_ids:
+  - `browser_login_pending` — Phase 1 only (request /device_authorization). Shows "Requesting login code…".
+  - `browser_login_approve` — Phase 2 only (poll /token). Shows "Open {url}, enter {code}, sign in".
+- HA tears down the first dialog cleanly between phases and renders a fresh one for Phase 2, so the placeholders apply correctly the first time.
+
 ## [2.7.0b5] — 2026-05-31 — "TIMESTAMP sensors fix (beta)"
 
 - subscription_expiry_at (and any other ISO-string sensors with TIMESTAMP device class) now parse to timezone-aware datetime in native_value. Pre-fix HA rejected the entity at add-time with 'str has no attribute tzinfo'.
