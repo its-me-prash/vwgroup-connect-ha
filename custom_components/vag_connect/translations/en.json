@@ -75,7 +75,19 @@
       },
       "browser_login_approve": {
         "title": "Approve in your browser",
-        "description": "**1. Open this URL on any device** (phone, laptop, anywhere with a browser):\n\n{verification_uri}\n\n**2. Sign in** to your Brand ID account if asked.\n\n**3. Confirm the code:** `{user_code}`\n\n**4. Once you've approved, click Submit below.**\n\nHome Assistant is polling in the background — clicking Submit confirms you're done. If you click before approval is complete you'll get a 'still waiting' hint and can click again."
+        "description": "Scan the QR code with your phone, or open the URL on any device. Sign in to your Brand ID account if asked, confirm the code, then check the box below and click Submit.",
+        "data": {
+          "qr_code": "Scan with phone camera to open login page",
+          "verification_url": "Or open this URL in any browser",
+          "user_code": "Code to confirm in the browser",
+          "approved_in_browser": "I have approved in the browser"
+        },
+        "data_description": {
+          "qr_code": "Point your phone camera at the QR code. The login page opens in your phone browser pre-filled with the code below.",
+          "verification_url": "If you can't scan: copy this link, open it on any device, sign in to your Brand ID account.",
+          "user_code": "After signing in, confirm this code in the browser to approve Home Assistant.",
+          "approved_in_browser": "Leave checked. Click Submit only after you have signed in and confirmed the code in the browser."
+        }
       }
     },
     "error": {
