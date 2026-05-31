@@ -432,11 +432,11 @@ find_charging_stations:
 open_app:
   name: Open native brand app (deeplink)
   description: >-
-    Fires the ``vag_connect_open_app`` event with payload
-    ``{vin, brand, deeplink_url, action}`` so a dashboard card can
-    open the brand's native mobile app (myAudi, WeConnect, MyŠkoda,
-    MySEAT, MyCUPRA, My Porsche or VW US) on the calling device.
-    The integration itself cannot open URLs on a phone — the
+    Fires the ``vag_connect_open_app`` event with the fields
+    ``vin``, ``brand``, ``deeplink_url`` and ``action`` so a dashboard
+    card can open the brand's native mobile app (myAudi, WeConnect,
+    MyŠkoda, MySEAT, MyCUPRA, My Porsche or VW US) on the calling
+    device. The integration itself cannot open URLs on a phone; the
     dashboard card is responsible for ``window.location.href`` on
     iOS / Android.
   fields:

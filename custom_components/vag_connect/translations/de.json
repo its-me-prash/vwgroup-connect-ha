@@ -723,7 +723,7 @@
   "services": {
     "open_app": {
       "name": "Marken-App öffnen (Deeplink)",
-      "description": "Sendet das Event `vag_connect_open_app` auf dem HA-Eventbus mit Payload `{vin, brand, deeplink_url, action}`. Eine Lovelace-Karte lauscht auf das Event und öffnet die native Marken-App (myAudi, WeConnect, MyŠkoda, MySEAT, MyCUPRA, My Porsche oder VW US) auf dem aufrufenden Gerät. Die Integration selbst kann keine URLs auf einem Telefon öffnen — die Dashboard-Karte ist für den Aufruf `window.location.href = deeplink_url` auf iOS / Android zuständig.",
+      "description": "Sendet das Event `vag_connect_open_app` auf dem HA-Eventbus mit den Payload-Feldern `vin`, `brand`, `deeplink_url` und `action`. Eine Lovelace-Karte lauscht auf das Event und öffnet die native Marken-App (myAudi, WeConnect, MyŠkoda, MySEAT, MyCUPRA, My Porsche oder VW US) auf dem aufrufenden Gerät. Die Integration selbst kann keine URLs auf einem Telefon öffnen; die Dashboard-Karte ist für den Aufruf `window.location.href = deeplink_url` auf iOS / Android zuständig.",
       "fields": {
         "vin": {
           "name": "VIN",
