@@ -197,7 +197,7 @@ custom_components/vag_connect/
 | ~~Hotfix~~ | ~~v1.8.10~~ | ✅ Done — legacy doors inversion | — |
 | ~~3S — Škoda connection-state~~ | ~~v1.8.11~~ | ✅ Done — closes #54 | ✅ #54 |
 | ~~MVP-Move — Multi-Brand connection-state~~ | ~~v1.8.12~~ | ✅ Done — VW EU + Audi + CUPRA + SEAT | — |
-| **Vehicle Data Scout + Error Reporter** | **v1.9.0** | Two new diagnostic sensors sharing one **Reporter Pipeline** for crowd-sourced bug discovery. (1) **Vehicle Data Scout** — logs JSON fields the parser doesn't read (mirrors tillsteinbach `CarConnectivity-*` "Unexpected Keys found" pattern, our richest source of API findings — CC-seatcupra #109, CC-skoda #50). User-facing name brand-localised (DE: "API-Beobachter", FR: "Détecteur de nouvelles données", etc.). (2) **Error Reporter** — captures last N Exceptions / API errors / stack traces from the integration with brand + model + firmware context. **Common Reporter Pipeline (1-click workflow, both sources):** detection → HA repair notification → user clicks "Mehr Info" → modal shows anonymised content + 2 buttons: `📤 Bug auf GitHub melden` (opens pre-filled GitHub issue) AND `📋 Copy für Forum/Facebook` (copies formatted Markdown to clipboard for non-GitHub users). Especially valuable for the Facebook community — non-technical users get a one-click way to share usable bug reports without learning Markdown or GitHub. ~30 sec end-to-end. NO auto-push to external servers (GDPR + HACS-Default + GitHub ToS); opt-in telemetry is a separate v1.10.x scope. Privacy: every value passes through `mask_vin`-style anonymisation. Implementation: `cariad/_unexpected_keys.py` + `cariad/_error_reporter.py` + shared `_reporter_pipeline.py` for HA-side modal/notifications + 8-language strings for buttons + brand-localised sensor names. **Semver: MINOR (new sensors), not patch.** | new |
+| **Vehicle Data Scout + Error Reporter** | **v1.9.0** | Two new diagnostic sensors sharing one **Reporter Pipeline** for crowd-sourced bug discovery. (1) **Vehicle Data Scout** — logs JSON fields the parser doesn't read (mirrors upstream `CarConnectivity-*` "Unexpected Keys found" pattern, our richest source of API findings — CC-seatcupra #109, CC-skoda #50). User-facing name brand-localised (DE: "API-Beobachter", FR: "Détecteur de nouvelles données", etc.). (2) **Error Reporter** — captures last N Exceptions / API errors / stack traces from the integration with brand + model + firmware context. **Common Reporter Pipeline (1-click workflow, both sources):** detection → HA repair notification → user clicks "Mehr Info" → modal shows anonymised content + 2 buttons: `📤 Bug auf GitHub melden` (opens pre-filled GitHub issue) AND `📋 Copy für Forum/Facebook` (copies formatted Markdown to clipboard for non-GitHub users). Especially valuable for the Facebook community — non-technical users get a one-click way to share usable bug reports without learning Markdown or GitHub. ~30 sec end-to-end. NO auto-push to external servers (GDPR + HACS-Default + GitHub ToS); opt-in telemetry is a separate v1.10.x scope. Privacy: every value passes through `mask_vin`-style anonymisation. Implementation: `cariad/_unexpected_keys.py` + `cariad/_error_reporter.py` + shared `_reporter_pipeline.py` for HA-side modal/notifications + 8-language strings for buttons + brand-localised sensor names. **Semver: MINOR (new sensors), not patch.** | new |
 | **Capability-Filter Phase 2** | v1.9.1 | `capability.active && capability.user-enabled` before entity creation. CC-seatcupra #64 pattern. PATCH (refines existing capability cache). | #56 |
 | **Defensive Coding Phase 2** | v1.9.2 | Generic `except Exception` audit across all API clients. Enum tolerance for `CHARGING_INTERRUPTED`, `NOT_ACTIVATED`, `NO_UPDATE_AVAILABLE` etc. PATCH. | #58 |
 | **3B-Part-3 — Optimistic Lock/Climate** | v1.9.3 | myskoda #832 pattern — optimistic update + state restoration. PATCH (better UX of existing entities). | — |
@@ -211,7 +211,7 @@ custom_components/vag_connect/
 
 - **PPC/PPE Plattform Support** for Audi 2025+ (Q5, A5/S5, A6 e-tron,
   Q6 e-tron, RS e-tron GT Facelift) — depends on public reverse-engineering
-  by audi_connect_ha or CC-audi. Currently graceful degradation only.
+  by upstream or CC-audi. Currently graceful degradation only.
   See [`docs/AUDIT_2026-04-29.md`](AUDIT_2026-04-29.md) for status.
 - **LEGACY_MBB Routing** for VW T6 Multivan 2016 (#76) — blocked on
   Tobias' diagnostic logs. No speculative implementation.
@@ -244,14 +244,14 @@ custom_components/vag_connect/
 5. **VINs anonymised** — masked or example placeholders in code, docs, tests, fixtures. Same for userID and precise GPS.
 6. **Car-friendly translations** — "Lichthupe", "Klimaanlage", "Zentralverriegelung" — drivers' language, not API jargon.
 7. **Semver before bump** — patch = bug fix only, minor = new features, major = breaking change.
-8. **Do not guess API behaviour** — verify against `pycupra` / `myskoda` / `audi_connect_ha` / `volkswagencarnet` references and add the URL to the commit body.
+8. **Do not guess API behaviour** — verify against `pycupra` / `myskoda` / `upstream` / `volkswagencarnet` references and add the URL to the commit body.
 9. **Never expose tokens, S-PIN, account IDs, precise GPS** — in logs, diagnostics, fixtures, issue bodies.
 10. **Capability-first** — new entities check `capabilities` before being created.
 11. **404 ≠ auth-fail** — capability missing for newer models is the most common cause. Strict status-code discrimination.
 12. **Wake the car only on explicit user request** — never auto-trigger from coordinator. Persistent counter, max 3/day.
 13. **Aggregate in state, JSON in attributes** — HA state limit is 255 chars. JSON-blob states will be truncated and break dashboards.
 14. **Stale-but-visible > unavailable** on transient backend errors. 6h cache window.
-15. **Do not endpoint-guess for PPC/PPE** — wait for upstream (audi_connect_ha, acfischer42/CC-audi, tillsteinbach SeatCupra #49) before any blind requests against E³ 1.2 backends. Risks Audi account suspension.
+15. **Do not endpoint-guess for PPC/PPE** — wait for upstream (upstream, acfischer42/CC-audi, upstream SeatCupra #49) before any blind requests against E³ 1.2 backends. Risks Audi account suspension.
 16. **CI explicit-check before merge** — `gh pr checks <num>` must show 0 non-SUCCESS conclusions. Don't trust `--watch` exit codes alone (lesson from v1.8.9 ship-with-failing-test).
 17. **Doc-only PRs without code change** — no manifest bump, but CHANGELOG.md change still triggers `changelog_check.yml` (since v1.8.12 workflow extension).
 18. **User-data privacy by default** — see "User-Data Handling" section below. Even when a tester pastes their VIN/GPS/tokens publicly in an issue, do NOT pull them into the repo, fixtures, or maintainer comments unredacted. Anonymise first, ask for explicit fixture consent, document the source.
@@ -365,9 +365,9 @@ OLA_MYCAR        = f"{OLA_BASE}/v5/users/{{user_id}}/vehicles/{{vin}}/mycar"
 OLA_MILEAGE      = f"{OLA_BASE}/v1/vehicles/{{vin}}/mileage"
 OLA_PARKING      = f"{OLA_BASE}/v1/vehicles/{{vin}}/parkingposition"
 
-# Session 9 — Audi Trip Statistics (verified in audi_connect_ha/audi_services.py:337)
+# Session 9 — Audi Trip Statistics (verified in upstream/audi_services.py:337)
 AUDI_TRIPSTATS = "{home_region}/api/bs/tripstatistics/v1/vehicles/{vin}/tripdata/{kind}"
-# kind ∈ {"longTerm", "shortTerm"}  — "cyclic" in API spec but not used by audi_connect_ha
+# kind ∈ {"longTerm", "shortTerm"}  — "cyclic" in API spec but not used by upstream
 
 # Session 10 (#59 EU Data Act) — pycupra already has reference implementation
 EUDA_BASE = "https://eu-data-act.drivesomethinggreater.com"
@@ -389,18 +389,18 @@ section 4. Quick summary:
 
 | Project | Status | Used for |
 |---|---|---|
-| `arjenvrh/audi_connect_ha` | active fork | AZS token exchange |
-| `audiconnect/audi_connect_ha` | active | Trip statistics + audi_models.py reference |
-| `robinostlund/homeassistant-volkswagencarnet` | active | VW EU patterns; EULA repair pattern; Service Discovery |
+| `arjenvrh/upstream` | active fork | AZS token exchange |
+| `upstream/upstream` | active | Trip statistics + audi_models.py reference |
+| `upstream/homeassistant-volkswagencarnet` | active | VW EU patterns; EULA repair pattern; Service Discovery |
 | `skodaconnect/myskoda` | active | mysmob endpoints; `carCapturedTimestamp` |
 | `skodaconnect/homeassistant-myskoda` | active | Stale-cache UX, wake limits |
 | `skodaconnect/homeassistant-skodaconnect` | **deprecated 2025-03** | Historical reference only |
-| `WulfgarW/pycupra` | active | OLA endpoints, `EUDAConnection` (EU Data Act ready) |
-| `WulfgarW/homeassistant-pycupra` | active | Live-test issue tracker |
+| `upstream/pycupra` | active | OLA endpoints, `EUDAConnection` (EU Data Act ready) |
+| `upstream/homeassistant-pycupra` | active | Live-test issue tracker |
 | `CJNE/pyporscheconnectapi` | active | Porsche Auth0 + PPA |
 | `matpoulin/CarConnectivity-connector-volkswagen-na` | active | VW US/CA |
 | `mitch-dc/volkswagen_we_connect_id` | **archived 2025-10-29** | Historical issue forensics — we are the active successor |
-| `tillsteinbach/CarConnectivity-*` | active | Multi-brand connector ecosystem direction |
+| `upstream/cc-*` | active | Multi-brand connector ecosystem direction |
 
 ---
 

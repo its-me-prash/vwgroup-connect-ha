@@ -21,7 +21,6 @@ import threading
 from datetime import datetime, time, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
 
 
 # ─────────────────────────────────────────────────────────────────────────────

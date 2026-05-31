@@ -1,6 +1,6 @@
 # Privacy / Datenschutz
 
-> **TL;DR:** VW Group Connect runs entirely inside your Home Assistant instance.
+> **Summary:** VW Group Connect runs entirely inside your Home Assistant instance.
 > Your credentials and vehicle data never leave Home Assistant unless they
 > go directly to the manufacturer's official API. We do not collect
 > telemetry, we do not have a server, we do not have your data.

@@ -2,7 +2,7 @@
 """v2.2.0 PR #4 — async_migrate_entry stub tests.
 
 Pre-empts the HA Core deprecation cliff that hit competitors:
-- audi_connect_ha #728 (Invalid Credentials after every Core update)
+- upstream #728 (Invalid Credentials after every Core update)
 - mitch-dc/volkswagen_we_connect_id #303 (Cannot login after HAOS 16.1)
 
 Both projects silently broke when HA Core changed ConfigEntry data

@@ -261,4 +261,4 @@ Live testers wanted for the external-blocked tracks — comment on the relevant 
 
 ## 📜 License
 
-[Apache License 2.0](LICENSE) — see also [`NOTICE.md`](NOTICE.md) for attributions to upstream projects ([myskoda](https://github.com/skodaconnect/myskoda), [pycupra](https://github.com/WulfgarW/homeassistant-pycupra), [audi_connect_ha](https://github.com/audiconnect/audi_connect_ha), [volkswagencarnet](https://github.com/Trekky12/volkswagencarnet), [evcc](https://github.com/evcc-io/evcc)).
+[Apache License 2.0](LICENSE) — see also [`NOTICE.md`](NOTICE.md) for attributions to upstream projects ([myskoda](https://github.com/skodaconnect/myskoda), [pycupra](https://github.com/upstream/homeassistant-pycupra), [upstream](https://github.com/upstream/upstream), [volkswagencarnet](https://github.com/Trekky12/volkswagencarnet), [evcc](https://github.com/evcc-io/evcc)).

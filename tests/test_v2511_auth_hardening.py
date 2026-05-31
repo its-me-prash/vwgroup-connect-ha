@@ -20,7 +20,6 @@ runtime. Run via standard pytest.
 
 from __future__ import annotations
 
-import pytest
 
 
 # ── PATCH 1 — Per-brand x-android-package-name ─────────────────────────────
@@ -81,7 +80,7 @@ class TestCariadTokenHeaders:
         assert headers["x-android-package-name"] == "com.example.testbrand"
 
     def test_default_remains_audi_for_back_compat(self) -> None:
-        """v2.7.0b2 — default flipped to 5-header set (audi_connect_ha
+        """v2.7.0b2 — default flipped to 5-header set (upstream
         parity). x-android-package-name is no longer in the default
         output. Opt-in via include_assertion=True."""
         from custom_components.vag_connect.cariad.auth.idk import (

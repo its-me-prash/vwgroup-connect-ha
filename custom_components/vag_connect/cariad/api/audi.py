@@ -11,7 +11,7 @@ AZS token exchange (clean-room reimplementation):
          "stage": "live", "config": "myaudi"}
   → access_token valid for app-api.live-my.audi.com/vgql/v1/graphql
 
-Source: arjenvrh/audi_connect_ha (MIT) — token exchange pattern
+Source: arjenvrh/upstream (MIT) — token exchange pattern
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ _APP_VERSION    = "4.31.0"
 _USER_AGENT     = "Android/4.31.0 (Build 800341641.root project 'myaudi_android'.ext.buildTime) Android/13"
 
 # v1.14.0 (#28) — Audi ICE Remote Engine Start (CARIAD BFF, two-step S-PIN flow).
-# Source: arjenvrh/audi_connect_ha PR #717 (`audi_services.py`). The path is
+# Source: arjenvrh/upstream PR #717 (`audi_services.py`). The path is
 # ``/vehicle/v1/engine/{VIN}/...`` — note: NOT under ``/vehicles/{VIN}/engine``.
 # VIN must be uppercased in the URL — confirmed in upstream PR.
 _ENGINE_BASE = "https://emea.bff.cariad.digital/vehicle/v1/engine"
@@ -112,7 +112,7 @@ class AudiClient(VWEUClient):
         Audi-only — VW EU does not expose this endpoint. Capability gating
         is recommended (see ``_capabilities.py:command_engine_start``).
 
-        Source: arjenvrh/audi_connect_ha PR #717 (audi_services.py).
+        Source: arjenvrh/upstream PR #717 (audi_services.py).
         """
         pin = spin or self._spin
         if not pin:

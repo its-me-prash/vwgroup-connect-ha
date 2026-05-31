@@ -43,8 +43,8 @@ CUPRA/SEAT push triggers the same dependency check.
 
 ### References
 
-- WulfgarW/homeassistant-pycupra ``firebase.py`` (FCM register flow)
-- WulfgarW/homeassistant-pycupra ``connection.py`` (OLA subscribe POST)
+- upstream/homeassistant-pycupra ``firebase.py`` (FCM register flow)
+- upstream/homeassistant-pycupra ``connection.py`` (OLA subscribe POST)
 
 ### Privacy
 
@@ -70,7 +70,7 @@ _LOGGER = logging.getLogger(__name__)
 _FCM_PROJECT_ID = "ola-apps-prod"
 _FCM_SENDER_ID = "<sender-id-pending-live-confirmation>"
 
-# OLA subscription endpoint — verified via WulfgarW/homeassistant-pycupra
+# OLA subscription endpoint — verified via upstream/homeassistant-pycupra
 # ``connection.py``. POST {token, deviceId, services} to register a
 # given FCM token for push delivery.
 _OLA_BASE = "https://ola.prod.code.seat.cloud.vwgroup.com"

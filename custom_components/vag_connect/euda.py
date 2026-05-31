@@ -19,7 +19,7 @@ the existing ``VehicleData`` parser.
 2. **Refactor cost is in the call sites, not the surface**: by adding
    the shim now, no future PR has to plumb a new dependency through
    the brand clients.
-3. **Cross-integration alignment**: audi_connect_ha + volkswagencarnet
+3. **Cross-integration alignment**: upstream + volkswagencarnet
    are tracking the same deadline; landing the same ABC name + signature
    makes a future consolidation possible.
 

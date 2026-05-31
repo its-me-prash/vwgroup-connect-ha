@@ -7,7 +7,7 @@ specific firmware/MY combination silently fails the actual call.
 
 Seed-rows under test:
 - CUPRA Born MY24-MY25 → suppress ``command_unlock`` (pycupra #79)
-- Audi e-tron MY24+    → suppress engine_start/stop  (audi_connect_ha #711)
+- Audi e-tron MY24+    → suppress engine_start/stop  (upstream #711)
 
 "Have you met... your car's actual capabilities?"
 — Ted Mosby, on quirk-suppression

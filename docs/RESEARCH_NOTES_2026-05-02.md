@@ -160,7 +160,7 @@
       ?type=list&from=1970-01-01T00:00:00Z&to=<ISO_NOW>
   kind ∈ {"longTerm", "shortTerm"}
   ```
-  Source: `audi_connect_ha/audi_services.py:337` + `audi_connect_account.py:1007/1010`.
+  Source: `upstream/audi_services.py:337` + `audi_connect_account.py:1007/1010`.
 - ✅ Datamodel-Vorschlag: `TripStatistics(kind, start_mileage, end_mileage, distance_km, avg_consumption, recent_trips: list[Trip])`.
 - ⚠️ **Skoda Trip-Stats Endpoint nicht verifiziert** in unseren notes. myskoda lib hat möglicherweise was, aber wir haben es nicht gegrepped. Issue #35 zitiert nur die Skoda-HA Issues #898 + #733 als Feature-Request (also user-side, nicht API-side).
 - ⚠️ **VW EU + SEAT/CUPRA + Porsche Trip-Stats**: keine Endpoints in unseren Notes. CARIAD-BFF könnte gleichen `tripstatistics`-Endpoint haben (Audi nutzt CARIAD-BFF auch), aber unverifiziert.
@@ -191,7 +191,7 @@
 - `devicePlatform` Field fehlt im Audi vehicle-response (verified in audi_models.py grep).
 
 **Verified sources:**
-- ✅ PPE Climate Body Pattern aus audi_connect_ha PR #644 + Issue #677:
+- ✅ PPE Climate Body Pattern aus upstream PR #644 + Issue #677:
   ```json
   {
     "climatisationWithoutExternalPower": true,
@@ -205,8 +205,8 @@
   ```
   Source: RESEARCH_NOTES_2026-04-29 §3 "Audi CARIAD-BFF — extras beyond VW EU".
 - ✅ v1/v2-Fallback `_post_command` läuft seit v1.8.5 (cariad/api/base.py + vw_eu.py).
-- ⚠️ **Detection für PPE/PPC**: audi_connect_ha hat User-Side `api_level` (0/1) Toggle — fragile (Issue #677, #706 zeigen Cross-Vehicle-Probleme). Wir haben KEIN besseres Signal.
-- ❌ Vollständige PPE-Endpoint-Map (z.B. lock/unlock body shape für PPE) ist NICHT public reverse-engineered — weder in audi_connect_ha noch CarConnectivity noch evcc (RESEARCH_NOTES_2026-04-29 §1 "Strategic context").
+- ⚠️ **Detection für PPE/PPC**: upstream hat User-Side `api_level` (0/1) Toggle — fragile (Issue #677, #706 zeigen Cross-Vehicle-Probleme). Wir haben KEIN besseres Signal.
+- ❌ Vollständige PPE-Endpoint-Map (z.B. lock/unlock body shape für PPE) ist NICHT public reverse-engineered — weder in upstream noch CarConnectivity noch evcc (RESEARCH_NOTES_2026-04-29 §1 "Strategic context").
 - Hard Rule #15: "Do not endpoint-guess for PPC/PPE — wait for upstream — risks Audi account suspension."
 
 **Implementation plan:**
@@ -228,13 +228,13 @@
 
 ---
 
-### #28 — Remote Start ICE (audi_connect_ha #717 zwei-Schritt-Pattern)
+### #28 — Remote Start ICE (upstream #717 zwei-Schritt-Pattern)
 
 **Ist-Stand:**
-- KEIN engine-start command in `cariad/api/*`. Issue #28 Comments verlinken klar auf audi_connect_ha PR #717.
+- KEIN engine-start command in `cariad/api/*`. Issue #28 Comments verlinken klar auf upstream PR #717.
 
 **Verified sources:**
-- ✅ Two-Step Pattern aus audi_connect_ha PR #717 (in RESEARCH_NOTES_2026-04-29 §3 + Issue #28 Comments):
+- ✅ Two-Step Pattern aus upstream PR #717 (in RESEARCH_NOTES_2026-04-29 §3 + Issue #28 Comments):
   1. `PUT /engine/{VIN}/userpromptproof` mit S-PIN-Body → Response enthält `securedActivationData`.
   2. `POST /engine/{VIN}/start` mit `securedActivationData` aus Step 1.
 - ✅ Pattern ist analogous zu unserem SecToken-Flow (v1.8.4) für SEAT/CUPRA Lock — zwei-Schritt mit Token-Exchange. Wir haben also Architektur-Erfahrung.
@@ -250,7 +250,7 @@
 
 **Risiken / Surprises:**
 - S-PIN im Service-Call-Log: Privacy-Issue. Vorschlag: S-PIN aus saved entry-config (analog zu `unlock`), nicht im service-call.
-- Endpoint-Pfad `/engine/...` vs. `/vehicle/v1/.../engine/...` ist nicht 100% klar aus den Notes — vor Implementation muss audi_connect_ha PR #717 Source genau gelesen werden.
+- Endpoint-Pfad `/engine/...` vs. `/vehicle/v1/.../engine/...` ist nicht 100% klar aus den Notes — vor Implementation muss upstream PR #717 Source genau gelesen werden.
 - ❌ **Live-Tester benötigt** für ICE-Audi 2024+ mit Engine-Start-Capability. Issue #28 Comment: "eigene Session sobald ICE-User-Tester verfügbar." Heute wahrscheinlich keiner verfügbar.
 
 **Confidence:** ⚠️ [Inference] für Pattern (von einer Quelle bekannt, nicht live verifiziert in unserem Code). **Empfehlung: implementieren mit `[Inference]`-Markern + behind capability-gate. Live-Test kann nach Release passieren.**
@@ -268,7 +268,7 @@
 
 **Verified sources:**
 - ✅ Eigener Code: alles oben.
-- ✅ API-Pattern verifiziert: audi_connect_ha #653 + volkswagencarnet #891 (Issue-Body #26).
+- ✅ API-Pattern verifiziert: upstream #653 + volkswagencarnet #891 (Issue-Body #26).
 - ⚠️ SEAT/CUPRA + Skoda departure-timer Endpoints — wahrscheinlich gleiches Pattern (CARIAD-BFF), aber nicht in unserem Parser für OLA/mysmob.
 
 **Implementation plan:**
@@ -323,7 +323,7 @@
 **Verified sources:**
 - ❌ NICHT in RESEARCH_NOTES_2026-04-29 dokumentiert.
 - ❌ NICHT in unserem `cariad/api/*` parser code.
-- Issue #33 Reference: WulfgarW/homeassistant-pycupra #44 — pycupra-Specific.
+- Issue #33 Reference: upstream/homeassistant-pycupra #44 — pycupra-Specific.
 - ✅ ROADMAP.md hat schon Hinweis: "API-Endpoint research nötig — alarmStatus job in CARIAD selectivestatus? Feature-Discovery dann implementation."
 
 **Implementation plan:**
@@ -405,7 +405,7 @@
 | # | Reason | Next Step |
 |---|---|---|
 | #35 Ladehistorie LTS | `chargedEnergy_kWh` Feld nicht in Quellen | Audi/Skoda live-dump grep, evtl. derived sensor (battery-cap × delta-SoC) als [Inference] |
-| #51 RS e-tron GT Facelift | PPE Endpoints nicht reverse-engineered (Hard Rule #15) | Wait on audi_connect_ha / CC-audi upstream |
+| #51 RS e-tron GT Facelift | PPE Endpoints nicht reverse-engineered (Hard Rule #15) | Wait on upstream / CC-audi upstream |
 | #25 + #31 write-side | Body-Shape `POST /charging/settings` + `chargingProfiles` Schema unverifiziert | Live-Dump Scout-Report nötig (Audi/VW Brand-Captain) |
 | #33 Alarm Binary | `access.accessStatus.value.vehicleAlarm` nicht verifiziert | Add zu Scout-Whitelist, abwarten |
 | #36 Navigation | Endpoint-Pfad nicht verifiziert | myskoda lib grep + Brand-Captain Live-Test |

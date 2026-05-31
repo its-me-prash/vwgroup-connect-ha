@@ -10,7 +10,6 @@ table alias).
 
 from __future__ import annotations
 
-import pytest
 
 
 class TestAudiScout111:

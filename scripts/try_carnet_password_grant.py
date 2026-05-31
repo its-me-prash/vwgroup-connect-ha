@@ -12,7 +12,7 @@ permission.
 References:
 - wez3/volkswagen-carnet-client
 - camueller/SmartApplianceEnabler/doc/soc/VW_DE.md
-- TA2k/ioBroker.vw-connect/main.js
+- upstream/ioBroker.vw-connect/main.js
 """
 
 from __future__ import annotations

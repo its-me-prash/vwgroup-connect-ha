@@ -389,7 +389,7 @@ class SkodaClient(CariadBaseClient):
             d.windows_open = v(access, "windowsOpenedCount", default=0) > 0
 
             # v1.8.11 (Session 3S) — `vehicle-status` real shape verified
-            # against tillsteinbach/CarConnectivity-connector-skoda issue #50
+            # against upstream/cc-skoda issue #50
             # (Kodiaq iV 2026 Live-Response, posted 2026-03-25):
             #
             #   {"overall":  {"doorsLocked": "YES", "locked": "YES",
@@ -858,7 +858,7 @@ class SkodaClient(CariadBaseClient):
         # Connection-State). The recursive timestamp walk in the helper
         # also handles VW EU CARIAD-BFF's deeper-nested structure
         # (``service.statusName.value.carCapturedTimestamp`` — verified
-        # via robinostlund/volkswagencarnet issue #921 ID.4 2025
+        # via upstream/volkswagencarnet issue #921 ID.4 2025
         # Live-Response).
         d.connection_state, d.last_seen_at = compute_connection_state(
             status, charging, ac, parking, driving_range, maintenance, readiness,
@@ -1035,7 +1035,7 @@ class SkodaClient(CariadBaseClient):
 
     # ── v2.0.0 Big-Bang: Aux Heating cross-brand parity (Issue from audit P2) ──
     # Skoda Webasto/Standheizung. Endpoint pattern from mysmob app traffic
-    # (TA2k iobroker.vw-connect Skoda + skodaconnect/myskoda v1.x reference).
+    # (upstream iobroker.vw-connect Skoda + skodaconnect/myskoda v1.x reference).
     async def command_start_aux_heating(self, vin: str, spin: str = "") -> None:
         """Start Webasto auxiliary heater. Some MY require SPIN; others don't.
 

@@ -9,7 +9,7 @@ panel under "System Health". Visible at-a-glance:
 - API quota remaining (if backend exposed)
 - Push channel status (Skoda MQTT / FCM)
 
-v2.0.0 (Big-Bang) — parity with audi_connect_ha v2.0.1-beta.8.
+v2.0.0 (Big-Bang) — parity with upstream v2.0.1-beta.8.
 Drop-in handler registered automatically by HA when this module exists.
 """
 from __future__ import annotations

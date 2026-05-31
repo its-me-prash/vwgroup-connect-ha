@@ -57,7 +57,7 @@ References:
 
 - Skoda MQTT: skodaconnect/myskoda PR #566 (TOTP auth) + const.py
   (broker URL, topic pattern)
-- CUPRA/SEAT FCM: WulfgarW/homeassistant-pycupra firebase.py +
+- CUPRA/SEAT FCM: upstream/homeassistant-pycupra firebase.py +
   connection.py
 - evcc cross-reference: vehicle/vw/api.go (no push, polling-only —
   validates that push is a real differentiator vs evcc)

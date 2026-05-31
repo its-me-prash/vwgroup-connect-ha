@@ -97,7 +97,7 @@ def classify_command_failure(exc: BaseException) -> CommandFailureReason:
       ``{"error":{"message":"spin_error", "spinState":"DEFINED",
       "remainingTries":3}}`` when S-PIN is required but absent.
     - ``subscription`` / ``expired`` / ``license_required`` — the
-      vocabulary used by audi_connect_ha #47 and migendi's #42 reports
+      vocabulary used by upstream #47 and migendi's #42 reports
       for paid online-services lapses.
     - ``not_entitled`` / ``entitlement`` — the OLA vocabulary used by
       gleeballs's free-tier We Connect Go report (#51).

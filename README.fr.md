@@ -165,14 +165,14 @@ Body-sniffing `classify_command_failure` pour les marqueurs `missing-capability`
 - **v1.14.0 MINOR** — Statistiques de trajets depuis Audi `tripstatistics/v1` (#24, #35).
 - **v1.15.0+ MINOR** — PPC Climate Body conditional shape (#29, #51), Theft/Alarm Binary (#33), UI minuteur Climate (#26).
 - **v1.16.0 MINOR** — SoC cible de charge spécifique au lieu + profils de charge (#25, #31).
-- **v1.17.0 MINOR** — Remote Start ICE (#28, pattern audi_connect_ha #717).
+- **v1.17.0 MINOR** — Remote Start ICE (#28, pattern upstream #717).
 - **v1.18.0 MINOR** — Push CUPRA/SEAT (Firebase FCM) + Push Skoda (mysmob MQTT) pour des mises à jour en temps réel sans polling (#57, #27).
 - **v2.0.0 MAJOR** — HACS Default + Live-Tests toutes marques + EU Data Act ready (pycupra `EUDAConnection` comme référence, deadline septembre 2026) (#13, #59).
 
 ### 🚫 Limites conscientes / Conscious limits
 
 - **Plateforme image :** aucune API CARIAD render-image officielle n'existe. L'entité image basculera vers des URL fournies par l'utilisateur dans une future release.
-- **PPC/PPE Audi 2025+** (Q5, A5/S5, A6 e-tron, Q6 e-tron, RS e-tron GT Facelift) — nouvelle architecture E³ 1.2, pas encore reverse-engineerée publiquement (même pas dans audi_connect_ha ou CarConnectivity). VW Group Connect détecte ces véhicules et fait du **graceful degradation** au lieu d'erreurs 404.
+- **PPC/PPE Audi 2025+** (Q5, A5/S5, A6 e-tron, Q6 e-tron, RS e-tron GT Facelift) — nouvelle architecture E³ 1.2, pas encore reverse-engineerée publiquement (même pas dans upstream ou CarConnectivity). VW Group Connect détecte ces véhicules et fait du **graceful degradation** au lieu d'erreurs 404.
 - **Ford / marques non-VAG :** hors périmètre — voir [`marq24/ha-fordpass`](https://github.com/marq24/ha-fordpass) pour Ford.
 
 ### 🔧 Prérequis confidentialité

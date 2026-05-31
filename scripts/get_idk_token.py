@@ -93,12 +93,12 @@ BRAND_CUPRA = _models.BRAND_CUPRA
 #   - Legacy VW Car-Net client (9496332b-...) was deprecated from IDK Auth0
 #     in 2025/early 2026; HTTP 400 on /authorize.
 #   - Audi's IDK client (09b6cbec-...) IS configured for `mbb` scope and
-#     remains active — confirmed via audi_connect_ha v1.19.1 (2026-03-01).
+#     remains active — confirmed via upstream v1.19.1 (2026-03-01).
 #   - Same VW Group account works in both apps; the resulting id_token has
 #     Audi audience but the user.subject is the same. MBB should accept.
 #   - We register MBB client with `client_brand: "VW"` and `appName: "Volkswagen"`
 #     so the X-Client-Id is bound to VW-side authorization at MBB, regardless
-#     of which IDK app issued the id_token. (audi_connect_ha proves audience-
+#     of which IDK app issued the id_token. (upstream proves audience-
 #     vs-X-Client-Id mismatch is fine: their id_token is Audi-audience but
 #     they register with brand=Audi → all good. Untested for VW-via-Audi but
 #     this is the only known working combination given available clients.)

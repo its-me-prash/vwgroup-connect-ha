@@ -17,13 +17,12 @@ The resolver moves the auth-config priority chain from "hardcoded only" to
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pytest
 
 
 # Hardcoded values that are the v2.5.4 baseline (cross-verified against
-# audi_connect_ha + evcc + volkswagencarnet + ioBroker.vw-connect).
+# upstream + evcc + volkswagencarnet + ioBroker.vw-connect).
 HARDCODED = {
     "client_id":   "09b6cbec-cd19-4589-82fd-363dfa8c24da@apps_vw-dilab_com",
     "qm_secret":   "1ab69925ac179aaa4e83abe671a9476d176418b85bd706f1436ca15be647989c",
@@ -203,12 +202,12 @@ class TestProvenance:
 
 
 class TestForensicCrossSource:
-    """v2.5.4 secret cross-verification across audi_connect_ha (byte array)
+    """v2.5.4 secret cross-verification across upstream (byte array)
     + evcc PR #30292 (hex string) + our hardcoded. All three must agree
     byte-for-byte — guards against accidental hardcoded-secret rotation."""
 
-    def test_audi_connect_ha_byte_array_matches_v254_hex(self) -> None:
-        """The audi_connect_ha MIT-licensed byte array literal, when
+    def test_upstream_byte_array_matches_v254_hex(self) -> None:
+        """The upstream MIT-licensed byte array literal, when
         reconstructed, equals our v2.5.4 hardcoded hex secret. This is
         the strongest forensic cross-check we can do without binary
         smali parsing (which is blocked by R8 obfuscation)."""

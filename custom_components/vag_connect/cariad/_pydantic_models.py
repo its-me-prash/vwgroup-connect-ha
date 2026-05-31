@@ -14,7 +14,7 @@ a validation error — it's preserved on the model so the existing
 scout-warner can still flag truly novel fields, but the validation
 SUCCEEDS for the known-good subset.
 
-This is the cross-platform consensus from pycupra + audi_connect_ha
+This is the cross-platform consensus from pycupra + upstream
 + myskoda: strict validation against a rolling backend = constant
 false-alarm fatigue. Permissive base with explicit known fields =
 real signal.

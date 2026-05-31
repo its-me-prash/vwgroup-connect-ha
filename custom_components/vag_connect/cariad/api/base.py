@@ -30,7 +30,7 @@ _REQUEST_TIMEOUT = 60
 # CARIAD identity backend hands out short-lived tokens or returns transient
 # 401s, this prevents us from looping login → 401 → login until the IP gets
 # rate-limited or the account temporarily locked. Patterns from
-# `skodaconnect/myskoda` #976 and `robinostlund/homeassistant-volkswagencarnet`
+# `skodaconnect/myskoda` #976 and `upstream/homeassistant-volkswagencarnet`
 # #683 — both repos shipped fixes after users reported account suspensions
 # triggered by integrations refreshing tokens every poll cycle.
 _REFRESH_MAX_PER_HOUR = 3

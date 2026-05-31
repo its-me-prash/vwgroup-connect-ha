@@ -15,12 +15,12 @@ Initial research (`docs/RESEARCH_NOTES_2026-05-02.md` Cross-Brand OTA Probe)
 confirmed:
 
 - **CARIAD-BFF (Audi + VW EU)** — no equivalent endpoint found in
-  `arjenvrh/audi_connect_ha`, `robinostlund/volkswagencarnet`,
-  `tillsteinbach/CarConnectivity-connector-volkswagen`. No open PRs / issues
+  `arjenvrh/upstream`, `upstream/volkswagencarnet`,
+  `upstream/cc-vw`. No open PRs / issues
   asking for it. **Best guess:** not yet shipped on the EU BFF, or gated to
   apps the FOSS community hasn't reverse-engineered yet.
 
-- **OLA (SEAT/CUPRA)** — `WulfgarW/pycupra` clean. The OLA path style mirrors
+- **OLA (SEAT/CUPRA)** — `upstream/pycupra` clean. The OLA path style mirrors
   CARIAD-BFF (`{baseurl}/v1/vehicles/{vin}/{capability}/...`) so the endpoint
   *might* exist server-side, but nobody has confirmed it.
 

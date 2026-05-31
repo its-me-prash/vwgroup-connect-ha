@@ -30,7 +30,7 @@ docs {
   gegen einen MBB-spezifischen vwToken (Bearer + Refresh).
   
   REFERENZ:
-    arjenvrh/audi_connect_ha:
+    arjenvrh/upstream:
       audi_services.py:1404-1428 (_get_mbb_oauth_token)
     evcc-io/evcc:
       vehicle/vag/mbb/endpoint.go:31-50
@@ -56,7 +56,7 @@ docs {
       → MBB-Backend down. PROJEKT-STOP, nicht weitermachen.
   
   X-Client-Id woher?
-    Option A: aus audi_connect_ha hardcoded copy. Sie nutzen einen
+    Option A: aus upstream hardcoded copy. Sie nutzen einen
       registrierten X-Client-Id pro Brand (siehe ihre Konstanten).
     Option B: lass leer und schau ob's geht (evcc tut das so).
     Option C: registriere selbst (kommt als nächster .bru-File).

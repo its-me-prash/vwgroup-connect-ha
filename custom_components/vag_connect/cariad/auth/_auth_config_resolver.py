@@ -2,7 +2,7 @@
 """v2.5.6 — APK-primary, competitor-fallback auth config resolver.
 
 v2.5.11 — added Audi market-config layer (between OIDC discovery and
-APK cache) replicating audi_connect_ha's PR #736 dynamic-URL pattern.
+APK cache) replicating upstream's PR #736 dynamic-URL pattern.
 See ``_audi_market_config.py`` for full rationale.
 
 The 2026-05-28 VW Azure WAF migration ([#313](https://github.com/its-me-prash/vwgroup-connect-ha/issues/313))
@@ -12,7 +12,7 @@ rotation broke 100% of Audi + VW EU users for ~6 h.
 
 This module flips the priority: **values mined from the official APK take
 precedence**; the hardcoded values from cross-source-verified competitor
-ports (evcc, audi_connect_ha, volkswagencarnet, ioBroker.vw-connect)
+ports (evcc, upstream, volkswagencarnet, ioBroker.vw-connect)
 become the resilience fallback.
 
 Why APK-primary?
@@ -65,7 +65,7 @@ _ALTERNATE_CLIENT_IDS: dict[str, tuple[str, ...]] = {
         "16dd7960-431d-4b88-b3a5-35724b2fce01@apps_vw-dilab_com",
         # v2.5.11 — evcc-derived alternate. Spotted in evcc's
         # ``vehicle/audi/`` and ``vehicle/vag/`` packages post-2026-05-28
-        # (PR #30292 / commit history). NOT in audi_connect_ha's tree —
+        # (PR #30292 / commit history). NOT in upstream's tree —
         # so this is a separately-discovered candidate from a different
         # competitor's reverse-engineering. Worth trying as fallback if
         # the canonical Audi UUID starts 401/403'ing.
@@ -220,7 +220,7 @@ class AuthConfigResolver:
             2. Audi market-config CDN (v2.5.11 — content.app.my.audi.com,
                24h TTL). For Audi brand, derives token URL from the
                ``idkLoginServiceConfigurationURLProduction`` field that
-               the official Audi app reads at startup. audi_connect_ha
+               the official Audi app reads at startup. upstream
                PR #736 noticed the 2026-05-28 migration via this layer.
             3. APK extraction (`token_path_markers_seen`) — daily atlas
                picks up app-bundled URL changes.
@@ -367,7 +367,7 @@ class AuthConfigResolver:
 
         v2.5.7 R2 — when VW rotates the qmauth pair, we don't immediately
         know the new value (extraction from APK is blocked by runtime
-        obfuscation; we wait for evcc/audi_connect_ha live captures).
+        obfuscation; we wait for evcc/upstream live captures).
         The fallback chain lets the integration try previously-working
         pairs before giving up — buys ~hours of "still works for most
         users" until the new pair lands.
@@ -379,7 +379,7 @@ class AuthConfigResolver:
 
         v2.5.11 — the prior pair (``c95f4fd2`` / ``e47866378e...``) is
         CONFIRMED DEPRECATED. Cross-source verification 2026-05-29:
-        evcc PR #30292 removed it; audi_connect_ha never had it. We
+        evcc PR #30292 removed it; upstream never had it. We
         keep it as last-resort only for the unlikely case VW rolls
         back the rotation. A warning is logged the first time this
         deprecated pair is reached in any process (via

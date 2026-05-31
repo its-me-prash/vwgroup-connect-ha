@@ -36,7 +36,7 @@ MBB_VSR_FIELD_TANK_PCT = _mbb.MBB_VSR_FIELD_TANK_PCT
 MBB_VSR_FIELD_TOTAL_RANGE_KM = _mbb.MBB_VSR_FIELD_TOTAL_RANGE_KM
 
 
-# Fixture from audi_connect_ha audi_models.py legacy IDS table
+# Fixture from upstream audi_models.py legacy IDS table
 _GOLF_GTE_VSR_RESPONSE = {
     "StoredVehicleDataResponse": {
         "vehicleData": {

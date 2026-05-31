@@ -34,12 +34,12 @@ docs {
   "Id token is invalid." — die hardcoded x_client_id
   77869e21-... wurde NICHT von MBB akzeptiert.
 
-  audi_connect_ha registriert vor jedem Session-Start einen
+  upstream registriert vor jedem Session-Start einen
   frischen Client. MBB validiert den X-Client-Id Header gegen
   die Registration-DB. Ohne vorherige Registrierung → invalid.
 
   REFERENZ:
-    audi_connect_ha:audi_services.py:1375-1399 (register_client)
+    upstream:audi_services.py:1375-1399 (register_client)
 
   ERWARTETE ANTWORT (200 OK):
     {

@@ -1,6 +1,6 @@
 # Migration Guide — `vag-connect-ha` → `vwgroup-connect-ha`
 
-> **TL;DR**: Nothing breaks. The repo URL + display name changed; the
+> **Summary**: Nothing breaks. The repo URL + display name changed; the
 > code internals (DOMAIN, entity-IDs, service-calls, automations) all
 > stayed the same. You don't need to do anything for existing setups —
 > HACS auto-updates over the GitHub repo-rename redirect, your entities

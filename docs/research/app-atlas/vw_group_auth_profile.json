@@ -8,8 +8,8 @@
     "sources": [
       "Phase A.7 smali analysis of cached Audi 5.4.1 + VW 3.61.0 APKs (androguard-based, see _private/smali-cryptopattern-*.json)",
       "Path 2.5 direct qmauth-id string trace (DEFINITIVE NEGATIVE — all 8 qmauth markers ABSENT from DEX strings in both APKs)",
-      "Deep research agent across 6 competitor projects: evcc / audi_connect_ha / volkswagencarnet / pycupra / myskoda / ioBroker.vw-connect",
-      "production models.py BrandConfig hardcoded values (cross-verified against audi_connect_ha byte-array reconstruction)"
+      "Deep research agent across 6 competitor projects: evcc / upstream / volkswagencarnet / pycupra / myskoda / ioBroker.vw-connect",
+      "production models.py BrandConfig hardcoded values (cross-verified against upstream byte-array reconstruction)"
     ],
     "static_analysis_verdict": "DEAD-END for qmauth secret extraction. qmauth secrets + client_ids are runtime-constructed from R8-obfuscated byte arrays + likely BuildConfig injection. Static APK analysis cannot recover these without Frida/emulator setup."
   },
@@ -37,7 +37,7 @@
       "current_pair": {
         "qm_client_id": "01da27b0",
         "qm_secret": "1ab69925ac179aaa4e83abe671a9476d176418b85bd706f1436ca15be647989c",
-        "_source": "evcc PR #30292 (merged 2026-05-28T12:13Z, MIT) — values cross-verified against audi_connect_ha byte-array reconstruction (MIT) + TA2k/ioBroker.vw-connect commit 884269b1.",
+        "_source": "evcc PR #30292 (merged 2026-05-28T12:13Z, MIT) — values cross-verified against upstream byte-array reconstruction (MIT) + upstream/ioBroker.vw-connect commit 884269b1.",
         "_verification": "Audi byte-array literal bytes([26, 256-74, 256-103, 37, ..., 256-104, 256-100]) reconstructs byte-for-byte to '1ab69925ac179aaa4e83abe671a9476d176418b85bd706f1436ca15be647989c'. 3 unaffiliated MIT-licensed sources agree on the value.",
         "_rotated_at": "2026-05-28"
       },
@@ -49,7 +49,7 @@
         "_status": "DEPRECATED_CONFIRMED_2026_05_28",
         "_status_sources": [
           "evcc PR #30292 (2026-05-28T12:13Z): explicitly removed this pair, replaced with 01da27b0 / 1ab69925...",
-          "audi_connect_ha master branch tree audit (2026-05-30): this pair NEVER existed in their lineage — they have only ever had 01da27b0 post-2022-12-20 per the inline comment 'TR/2022-12-20: New secret for X_QMAuth'",
+          "upstream master branch tree audit (2026-05-30): this pair NEVER existed in their lineage — they have only ever had 01da27b0 post-2022-12-20 per the inline comment 'TR/2022-12-20: New secret for X_QMAuth'",
           "CarConnectivity, myskoda: neither project computes x-qmauth at all"
         ],
         "_v2511_handling": "Kept in chain as last-resort for the unlikely VW rollback scenario. _auth_config_resolver.qmauth_chain() now logs a one-shot _LOGGER.info() the first time the deprecated pair is included so users see that this dead branch was reached."
@@ -111,12 +111,12 @@
       "_alternates_source": "Phase A.7 smali — found in VW 3.61.0 classes3.dex alongside canonical. Purpose unknown (possibly region-specific or feature-specific). Used in v2.5.6 OAuth fallback chain as candidate #2.",
       "redirect_uri": "weconnect://authenticated",
       "scopes": "openid profile badge cars dealers vin",
-      "_scopes_source": "Production models.py BrandConfig.scope — derived from volkswagencarnet (robinostlund/volkswagencarnet, MIT)",
+      "_scopes_source": "Production models.py BrandConfig.scope — derived from volkswagencarnet (upstream/volkswagencarnet, MIT)",
       "package_name": "de.volkswagen.weconnect",
       "_package_source": "VW 3.61.0 APK xapk archive name + ioBroker commit 884269b1 (confirms used in x-android-package-name)",
       "_package_code_status": "WIRED 2026-05-30 (v2.5.11). Pre-v2.5.11 the idk.py hardcoded x-android-package-name=de.myaudi.mobile.assistant for ALL brands including VW — latent brand-impersonation bug. v2.5.11 reads BrandConfig.android_package_name per brand. See PATCH 1 in v2.5.11 release notes.",
       "user_agent": "Volkswagen/3.61.0-android/14",
-      "_user_agent_source": "PR #331 (volkswagencarnet, robinostlund) baseline — VW APK 3.61.0 corresponds to this UA",
+      "_user_agent_source": "PR #331 (volkswagencarnet, upstream) baseline — VW APK 3.61.0 corresponds to this UA",
       "headers_auth": {
         "_comment": "Full header set sent on token exchange + refresh. v2.5.7 R2 sends qmauth-signed values per chain attempt. v2.5.11 fixes brand-correct x-android-package-name.",
         "Content-Type": "application/x-www-form-urlencoded",
@@ -144,9 +144,9 @@
         "16dd7960-431d-4b88-b3a5-35724b2fce01@apps_vw-dilab_com",
         "f4d0934f-32bf-4ce4-b3c4-699a7049ad26@apps_vw-dilab_com"
       ],
-      "_alternates_source": "Phase A.7 smali — Audi 5.4.1 DEX. Purpose unknown (possibly internal-test or per-region fallback). Used in v2.5.6 OAuth fallback chain. v2.5.11 added f4d0934f-... from evcc post-2026-05-28 (separately-discovered candidate not in audi_connect_ha tree).",
+      "_alternates_source": "Phase A.7 smali — Audi 5.4.1 DEX. Purpose unknown (possibly internal-test or per-region fallback). Used in v2.5.6 OAuth fallback chain. v2.5.11 added f4d0934f-... from evcc post-2026-05-28 (separately-discovered candidate not in upstream tree).",
       "market_config_dynamic_discovery": {
-        "_v2511_addition": "v2.5.11 adds Audi-specific market-config layer replicating audi_connect_ha PR #736 (2026-05-28). Audi app fetches https://content.app.my.audi.com/service/mobileapp/configurations/market/{country}/{language}?v=4.23.1 at startup; three keys survive backend rotations:",
+        "_v2511_addition": "v2.5.11 adds Audi-specific market-config layer replicating upstream PR #736 (2026-05-28). Audi app fetches https://content.app.my.audi.com/service/mobileapp/configurations/market/{country}/{language}?v=4.23.1 at startup; three keys survive backend rotations:",
         "key_idkLoginServiceConfigurationURLProduction": "OIDC discovery URL. Currently https://emea.bff.cariad.digital/auth/v1/idk/oidc/openid-configuration. When VW flips paths again, market config flips first.",
         "key_idkClientIDAndroidLive": "OAuth client_id. Currently 09b6cbec-cd19-... When VW rotates, this is the new id.",
         "key_mbbOAuthBaseURLLive": "Legacy MBB token base (https://mbboauth-1d.prd.ece.vwg-connect.com). Used by fs-car data path.",
@@ -155,11 +155,11 @@
       },
       "redirect_uri": "myaudi:///",
       "scopes": "address profile badge birthdate birthplace nationalIdentifier nationality profession email vin phone nickname name picture mbb gallery openid",
-      "_scopes_source": "Production models.py — derived from arjenvrh/audi_connect_ha (MIT)",
+      "_scopes_source": "Production models.py — derived from arjenvrh/upstream (MIT)",
       "package_name": "de.myaudi.mobile.assistant",
-      "_package_source": "Audi APK 5.4.1 archive name + audi_connect_ha source",
+      "_package_source": "Audi APK 5.4.1 archive name + upstream source",
       "user_agent": "Android/4.31.0 (Build 800341641.root project 'myaudi_android'.ext.buildTime) Android/13",
-      "_user_agent_source": "audi_connect_ha (arjenvrh, MIT) + evcc PR #30292 (verified live)",
+      "_user_agent_source": "upstream (arjenvrh, MIT) + evcc PR #30292 (verified live)",
       "headers_auth": {
         "Content-Type": "application/x-www-form-urlencoded",
         "Accept": "application/json",
@@ -172,7 +172,7 @@
       },
       "extra_token_steps": [
         "1. authorize: identity.vwgroup.io/oidc/v1/authorize → PKCE flow → app:// redirect with code",
-        "2. (option A) discover token_endpoint from /auth/v1/idk/oidc/openid-configuration (v2.5.7 R3 — preferred, matches audi_connect_ha PR #736 pattern)",
+        "2. (option A) discover token_endpoint from /auth/v1/idk/oidc/openid-configuration (v2.5.7 R3 — preferred, matches upstream PR #736 pattern)",
         "3. (option B) hardcoded https://emea.bff.cariad.digital/auth/v1/idk/oidc/token (fallback)",
         "4. token exchange: POST <token_url> with full assertion-headers + x-qmauth",
         "5. (legacy) optional MBB-token exchange via mbboauth-1d.prd.ece.vwg-connect.com for fs-car data (not affected by 2026-05-28 WAF migration)"
@@ -265,7 +265,7 @@
     {
       "id": "v2511-shipped-2026-05-30",
       "priority": "info",
-      "description": "v2.5.11 'Field-tested Auth Hardening' shipped 3 patches: (1) per-brand x-android-package-name fix (was hardcoded as Audi value for VW), (2) Audi market-config dynamic discovery (audi_connect_ha PR #736 pattern), (3) evcc Audi client_id alternate + c95f4fd2 deprecation warning. All additive, backward-compatible.",
+      "description": "v2.5.11 'Field-tested Auth Hardening' shipped 3 patches: (1) per-brand x-android-package-name fix (was hardcoded as Audi value for VW), (2) Audi market-config dynamic discovery (upstream PR #736 pattern), (3) evcc Audi client_id alternate + c95f4fd2 deprecation warning. All additive, backward-compatible.",
       "verification_window": "24-48h observation for any user-visible auth regression"
     },
     {

@@ -9,7 +9,7 @@ gave users zero clue what was actually wrong.
 
 Cross-references:
 - pycupra #83 (Cupra/SEAT marketing consent rolled May 2026)
-- audi_connect_ha PR #731 (Audi T&C nag clearer-error patch)
+- upstream PR #731 (Audi T&C nag clearer-error patch)
 - evcc #29760 (MEB marketing-consent reboot loop)
 - myskoda #976 (Skoda consent wall Dec 2025)
 

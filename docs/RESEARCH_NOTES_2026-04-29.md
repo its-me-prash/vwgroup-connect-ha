@@ -22,12 +22,12 @@
 
 | Brand | Auth flow | Base URL | Source of truth |
 |---|---|---|---|
-| Volkswagen EU | IDK PKCE | `https://emea.bff.cariad.digital` | `robinostlund/volkswagencarnet` |
-| Audi (EU) | IDK PKCE + AZS token | `https://emea.bff.cariad.digital` | `audiconnect/audi_connect_ha` audi_services.py |
-| Audi (legacy AZS) | AZS endpoint | `https://emea.bff.cariad.digital/login/v1/audi/token` | audi_connect_ha #94 |
-| Audi (myAudi app discovery) | — | `https://app-api.live-my.audi.com` (vgql GraphQL) | audi_connect_ha L51-282 |
+| Volkswagen EU | IDK PKCE | `https://emea.bff.cariad.digital` | `upstream/volkswagencarnet` |
+| Audi (EU) | IDK PKCE + AZS token | `https://emea.bff.cariad.digital` | `upstream/upstream` audi_services.py |
+| Audi (legacy AZS) | AZS endpoint | `https://emea.bff.cariad.digital/login/v1/audi/token` | upstream #94 |
+| Audi (myAudi app discovery) | — | `https://app-api.live-my.audi.com` (vgql GraphQL) | upstream L51-282 |
 | Škoda | IDK PKCE (proprietary) | `https://mysmob.api.connect.skoda-auto.cz` | `skodaconnect/myskoda` |
-| SEAT / CUPRA | IDK PKCE (CUPRA also has client_secret) | `https://ola.prod.code.seat.cloud.vwgroup.com` | `WulfgarW/pycupra` |
+| SEAT / CUPRA | IDK PKCE (CUPRA also has client_secret) | `https://ola.prod.code.seat.cloud.vwgroup.com` | `upstream/pycupra` |
 | Porsche | Auth0 PKCE | `https://api.ppa.porsche.com` | `CJNE/pyporscheconnectapi` |
 | VW US/CA | UUID-based VW NA Auth | `https://b-h-s.spr.{cc}00.p.con-veh.net` | `matpoulin/CarConnectivity-connector-volkswagen-na` |
 | EU Data Act (Sep 2026+) | TBD | `https://eu-data-act.drivesomethinggreater.com` | `pycupra/eudaconnection.py` |
@@ -36,7 +36,7 @@
 
 ## 2. `carCapturedTimestamp` Pattern (the Multi-Brand Connection-State foundation)
 
-**TL;DR:** Every modern VAG backend (mysmob, OLA, CARIAD-BFF) stamps a
+**Summary:** Every modern VAG backend (mysmob, OLA, CARIAD-BFF) stamps a
 `carCapturedTimestamp` field on every status sub-object. It records when
 the *vehicle* sent the data, not when the *backend* responded. The freshest
 timestamp across all sub-objects determines the vehicle's connection state:
@@ -72,7 +72,7 @@ Endpoints that carry it: `/api/v2/vehicle-status/{vin}`,
 
 #### SEAT / CUPRA OLA — top-level on most endpoints
 
-✅ Source: `tillsteinbach/CarConnectivity-connector-seatcupra` issue #109
+✅ Source: `upstream/cc-seatcupra` issue #109
 (Rainer's CUPRA Born live dump 2026-03-27).
 
 ```json
@@ -90,7 +90,7 @@ Endpoints that carry it: `/api/v2/vehicle-status/{vin}`,
 
 #### VW EU CARIAD-BFF — TIEFER geschachtelt: `service.statusName.value.carCapturedTimestamp`
 
-✅ Source: `robinostlund/volkswagencarnet` issue #921 (ID.4 2025 live dump
+✅ Source: `upstream/volkswagencarnet` issue #921 (ID.4 2025 live dump
 2026-02-16, Belgium user).
 
 ```json
@@ -148,7 +148,7 @@ Endpoints that carry it: `/api/v2/vehicle-status/{vin}`,
 
 #### Audi CARIAD-BFF — identical to VW EU (same backend, same shape)
 
-✅ Source: `audiconnect/audi_connect_ha` audi_models.py L51-282. Endpoint
+✅ Source: `upstream/upstream` audi_models.py L51-282. Endpoint
 URL identical: `https://emea.bff.cariad.digital/vehicle/v1/vehicles/{vin}/selectivestatus`.
 Inheritance pattern in our code: `AudiClient(VWEUClient)` doesn't override
 `get_status` — automatically benefits from VW EU code.
@@ -204,7 +204,7 @@ field name should be sourced from a verified live response, not assumed.
 
 ### VW EU CARIAD-BFF — observed shapes
 
-✅ Source: volkswagencarnet PR #650, issue #921, audi_connect_ha audi_models.py.
+✅ Source: volkswagencarnet PR #650, issue #921, upstream audi_models.py.
 
 - `chargingState` (no extra "d", unlike OLA `chargedPowerInKw`)
 - `chargePower_kW` (with `_kW` suffix)
@@ -248,7 +248,7 @@ field name should be sourced from a verified live response, not assumed.
 
 ### Audi CARIAD-BFF — extras beyond VW EU
 
-✅ Source: audi_connect_ha audi_services.py / audi_models.py.
+✅ Source: upstream audi_services.py / audi_models.py.
 
 Extra `selectivestatus` jobs Audi requests beyond what VW EU does:
 `activeVentilation`, `auxiliaryHeating`, `batteryChargingCare`,
@@ -257,7 +257,7 @@ Extra `selectivestatus` jobs Audi requests beyond what VW EU does:
 `oilLevel`, `vehicleHealthInspection`, `vehicleHealthWarnings`,
 `vehicleLights`.
 
-PPE/PPC climate body requirement (audi_connect_ha PR #644 + issue #677):
+PPE/PPC climate body requirement (upstream PR #644 + issue #677):
 - **`climatisationMode: "comfort"` is mandatory** (NOT `null`) on
   Q6 e-tron, A6 e-tron, A3 2024+ PHEV
 - `targetTemperature` and `targetTemperatureUnit` must be **omitted**
@@ -275,13 +275,13 @@ PPE/PPC climate body requirement (audi_connect_ha PR #644 + issue #677):
   }
   ```
 
-ICE Engine Start (audi_connect_ha PR #717, two-step S-PIN flow):
+ICE Engine Start (upstream PR #717, two-step S-PIN flow):
 1. `PUT /engine/{VIN}/userpromptproof` with S-PIN body → response includes
    `securedActivationData`
 2. `POST /engine/{VIN}/start` with `securedActivationData` from step 1
 
 `devicePlatform` field does **NOT** exist in Audi vehicle response —
-checked audi_models.py thoroughly. Plattform detection in audi_connect_ha
+checked audi_models.py thoroughly. Plattform detection in upstream
 is a User-side `api_level` (0/1) toggle, which is fragile (issues #677, #706
 show one car works at level 1, sibling car doesn't).
 
@@ -293,14 +293,14 @@ show one car works at level 1, sibling car doesn't).
 |---|---|---|
 | `skodaconnect/myskoda` | MIT | mysmob endpoint shapes, `carCapturedTimestamp` field decoration, model classes |
 | `skodaconnect/homeassistant-myskoda` | MIT | HA-side patterns (UX for stale/standby/offline), wakeup limits, smart-polling |
-| `tillsteinbach/CarConnectivity-connector-skoda` | Apache-2.0 | Live API issue tracker — esp. issue #50 (Kodiaq iV 2026 complete dump) |
-| `tillsteinbach/CarConnectivity-connector-seatcupra` | Apache-2.0 | Live OLA dumps (issue #109 Rainer CUPRA Born), unexpected key reports |
-| `tillsteinbach/CarConnectivity-connector-volkswagen` | Apache-2.0 | VW EU OAuth flow, login-form-drift fixes |
-| `WulfgarW/pycupra` | Apache-2.0 | Verified OLA endpoint paths (`pycupra/const.py`), `EUDAConnection` (EU Data Act precursor) |
-| `WulfgarW/homeassistant-pycupra` | Apache-2.0 | SEAT/CUPRA HA-side patterns |
-| `audiconnect/audi_connect_ha` | MIT | Audi-specific endpoints, Trip Statistics URL pattern, ICE engine start S-PIN flow, PPE climate body shape |
-| `arjenvrh/audi_connect_ha` | MIT | Audi AZS token flow (legacy form, pre-myAudi-app-update) |
-| `robinostlund/volkswagencarnet` | Apache-2.0 | **Years of VW EU experience.** Live ID.4 dumps, capability/status discovery, recent merged PRs (#301 Readiness, #307 T&C, #314 Service Discovery) |
+| `upstream/cc-skoda` | Apache-2.0 | Live API issue tracker — esp. issue #50 (Kodiaq iV 2026 complete dump) |
+| `upstream/cc-seatcupra` | Apache-2.0 | Live OLA dumps (issue #109 Rainer CUPRA Born), unexpected key reports |
+| `upstream/cc-vw` | Apache-2.0 | VW EU OAuth flow, login-form-drift fixes |
+| `upstream/pycupra` | Apache-2.0 | Verified OLA endpoint paths (`pycupra/const.py`), `EUDAConnection` (EU Data Act precursor) |
+| `upstream/homeassistant-pycupra` | Apache-2.0 | SEAT/CUPRA HA-side patterns |
+| `upstream/upstream` | MIT | Audi-specific endpoints, Trip Statistics URL pattern, ICE engine start S-PIN flow, PPE climate body shape |
+| `arjenvrh/upstream` | MIT | Audi AZS token flow (legacy form, pre-myAudi-app-update) |
+| `upstream/volkswagencarnet` | Apache-2.0 | **Years of VW EU experience.** Live ID.4 dumps, capability/status discovery, recent merged PRs (#301 Readiness, #307 T&C, #314 Service Discovery) |
 | `mitch-dc/volkswagen_we_connect_id` | Apache-2.0 | **ARCHIVED 2025-10-29.** Historical issue forensics only. Lessons: 502/503 retry (#165), transient-error misclassification (#166), 3-failure tolerance (#215) |
 | `CJNE/pyporscheconnectapi` | MIT | Porsche Auth0 + PPA endpoints |
 | `matpoulin/CarConnectivity-connector-volkswagen-na` | Apache-2.0 | VW US/CA UUID-based endpoint pattern |
@@ -312,13 +312,13 @@ show one car works at level 1, sibling car doesn't).
   marketplace gap, this repo is the active multi-brand successor
 - `skodaconnect/homeassistant-skodaconnect` **deprecated 2025-03-14** —
   successor is `homeassistant-myskoda`
-- `tillsteinbach/WeConnect-python` / `WeConnect-cli` / `WeConnect-MQTT` —
+- `upstream/weconnect-python` / `WeConnect-cli` / `WeConnect-MQTT` —
   EOL announced for 2026; ecosystem migrating to multi-brand
   `CarConnectivity-*` connector framework
 - VW Group publicly announced PPC/PPE = E³ 1.2 architecture for Audi 2025+
   (Q5, A5/S5, A6 e-tron, Q6 e-tron, RS e-tron GT Facelift). **Public**
   reverse-engineering of this backend has not happened yet — neither
-  audi_connect_ha nor CarConnectivity nor evcc has a working solution
+  upstream nor CarConnectivity nor evcc has a working solution
 
 ---
 
@@ -351,7 +351,7 @@ out to be wrong. Documented here so they don't get re-investigated.
 | CUPRA missing 19 entities solved by `/v1/vehicles/{vin}/access/status` endpoint | Wrong. Endpoint is `/v5/users/{userID}/vehicles/{vin}/mycar`. Field paths in `/v2/vehicles/{vin}/status` were wrong (CARIAD-BFF style applied to OLA). | `pycupra/const.py:141` `API_MYCAR = '{baseurl}/v5/users/{userId}/vehicles/{vin}/mycar'` |
 | VW EU Vehicle Image API exists somewhere we haven't found | Wrong. There is no official render-image API. App images come from un-authenticated marketing CDN URLs (`digitalrenderingservice.apps.emea.vwapps.io/...`) | Grep on we_connect_id, WeConnect-python, WeConnect-MQTT — zero matches |
 | Škoda `/v3/garage` exists as fallback for Kodiaq Mk2 #75 (`/v2/garage` 403) | Wrong. `/v3/garage` does not exist in mysmob. myskoda source (`auth/authorization.py`) only references `/v1/authentication/...` and `/v2/garage` | grep on cloned `skodaconnect/myskoda` repo: zero hits for `v3/garage` |
-| Audi `devicePlatform` field exists in vehicle response for plattform detection | Wrong. Not in audi_models.py. Plattform detection in audi_connect_ha is User-side `api_level` toggle, fragile (issues #677, #706) | audi_models.py line-by-line review |
+| Audi `devicePlatform` field exists in vehicle response for plattform detection | Wrong. Not in audi_models.py. Plattform detection in upstream is User-side `api_level` toggle, fragile (issues #677, #706) | audi_models.py line-by-line review |
 
 ---
 
@@ -386,7 +386,7 @@ When you need to understand a corner of the VAG API ecosystem:
 4. **Cross-reference at least 2 repos** for any pattern before treating
    it as fact. v1.8.7 patterns were validated across 6/6 repos before we
    shipped.
-5. **Live-test issue dumps are gold** — `tillsteinbach/CarConnectivity-*`
+5. **Live-test issue dumps are gold** — `upstream/cc-*`
    issues with title "Unexpected Keys" are particularly valuable because
    users post complete API responses.
 

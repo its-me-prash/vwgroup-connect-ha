@@ -17,9 +17,9 @@ The following MIT/Apache-2.0 licensed projects were used as **reference only**
 
 | Project | License | Used for |
 |---|---|---|
-| [audiconnect](https://github.com/audiconnect/audi_connect_ha) | MIT | Audi API endpoint reference |
+| [upstream](https://github.com/upstream/upstream) | MIT | Audi API endpoint reference |
 | [myskoda](https://github.com/skodaconnect/myskoda) | MIT | Škoda API endpoint reference |
-| [pycupra](https://github.com/WulfgarW/pycupra) | Apache-2.0 | SEAT/CUPRA API reference |
+| [pycupra](https://github.com/upstream/pycupra) | Apache-2.0 | SEAT/CUPRA API reference |
 | [pyporscheconnectapi](https://github.com/CJNE/pyporscheconnectapi) | MIT | Porsche API reference (v0.15.0) |
 | [CarConnectivity-connector-audi](https://github.com/acfischer42/CarConnectivity-connector-audi) | MIT | Audi client_id reference |
 | [CarConnectivity-connector-volkswagen-na](https://github.com/zackcornelius/CarConnectivity-connector-volkswagen-na) | MIT | VW NA auth reference (v0.16.0) |

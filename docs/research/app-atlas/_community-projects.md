@@ -12,7 +12,7 @@
 practice**:
 
 - **3 of 3 OLA-aware projects converged on the same 2026-05-20 fix**
-  within 4 days (tillsteinbach v0.6.3 / daernsinstantfortress v0.50.17 /
+  within 4 days (upstream v0.6.3 / upstream v0.50.17 /
   pycupra login bugfix) — all 4 app-fingerprint headers
   (`app-market`, `app-brand`, `app-version=2.15.0`, `origin=app`).
   We shipped the same fix as v2.4.1 with a 4-layer defense-in-depth on
@@ -48,9 +48,9 @@ header injection.
 
 | Project | Maintainer | Brand coverage | Architecture |
 |---|---|---|---|
-| [CarConnectivity-connector-seatcupra](https://github.com/tillsteinbach/CarConnectivity-connector-seatcupra) | tillsteinbach | SEAT + CUPRA | Direct OLA, Android-app client_id, full OAuth + token refresh |
-| [PyCupra](https://github.com/WulfgarW/pycupra) ([pip](https://pypi.org/project/pycupra/)) | WulfgarW | SEAT + CUPRA | Direct OLA, similar architecture, separate auth-session manager |
-| [WeConnect-Cupra-python](https://github.com/daernsinstantfortress/WeConnect-Cupra-python) ([pip](https://pypi.org/project/weconnect-cupra-daern/)) + [HA integration](https://github.com/daernsinstantfortress/cupra_we_connect) | daernsinstantfortress | CUPRA only | **Cariad-BFF + OLA hybrid** — uses browser-IDP client_id (`3c756d46-...@apps_vw-dilab_com`), different signin-service path |
+| [CarConnectivity-connector-seatcupra](https://github.com/upstream/cc-seatcupra) | upstream | SEAT + CUPRA | Direct OLA, Android-app client_id, full OAuth + token refresh |
+| [PyCupra](https://github.com/upstream/pycupra) ([pip](https://pypi.org/project/pycupra/)) | upstream | SEAT + CUPRA | Direct OLA, similar architecture, separate auth-session manager |
+| [WeConnect-Cupra-python](https://github.com/upstream/WeConnect-Cupra-python) ([pip](https://pypi.org/project/weconnect-cupra-daern/)) + [HA integration](https://github.com/upstream/cupra_we_connect) | upstream | CUPRA only | **Cariad-BFF + OLA hybrid** — uses browser-IDP client_id (`3c756d46-...@apps_vw-dilab_com`), different signin-service path |
 
 **Why we monitor all three**:
 - Three independent maintainers confirming a header value = high confidence
@@ -58,7 +58,7 @@ header injection.
 - Catches per-brand divergence (e.g. CarConnectivity ships SEAT `2.17.0`
   while PyCupra ships `2.13.3` — both work in the wild, real-world example of why multi-source matters)
 
-**Why daernsinstantfortress is architecturally interesting for us long-term**:
+**Why upstream is architecturally interesting for us long-term**:
 - Their CUPRA-via-Cariad-BFF route is a backup architecture we don't have today
 - If OLA enforcement ever escalates beyond what the 4-layer defense-in-depth can handle, this path is a viable Plan B
 - Phase B follow-up: investigate if we can add Cariad-BFF as a CUPRA fallback parallel to OLA
@@ -70,12 +70,12 @@ header injection.
 | Project | Maintainer | Brand coverage | Status |
 |---|---|---|---|
 | [mitch-dc/volkswagen_we_connect_id](https://github.com/mitch-dc/volkswagen_we_connect_id) | mitch-dc | VW EU | **⚠️ ARCHIVED 2025-10-29** — 254 ⭐, was THE reference; no longer maintained |
-| [audi_connect_ha](https://github.com/arjenvrh/audi_connect_ha) | arjenvrh | Audi | Maintenance only (dependency bumps since 2026-04) |
-| [volkswagencarnet](https://github.com/robinostlund/volkswagencarnet) | robinostlund | VW + Audi (legacy MBB) | Maintenance mode |
-| [tillsteinbach/CarConnectivity-connector-volkswagen](https://github.com/tillsteinbach/CarConnectivity-connector-volkswagen) | tillsteinbach | VW EU | Active, sibling of seatcupra connector |
-| [tillsteinbach/CarConnectivity-connector-audi](https://github.com/tillsteinbach/CarConnectivity-connector-audi) | tillsteinbach | Audi | Active |
+| [upstream](https://github.com/arjenvrh/upstream) | arjenvrh | Audi | Maintenance only (dependency bumps since 2026-04) |
+| [volkswagencarnet](https://github.com/upstream/volkswagencarnet) | upstream | VW + Audi (legacy MBB) | Maintenance mode |
+| [upstream/cc-vw](https://github.com/upstream/cc-vw) | upstream | VW EU | Active, sibling of seatcupra connector |
+| [upstream/cc-connector-audi](https://github.com/upstream/cc-connector-audi) | upstream | Audi | Active |
 
-With mitch-dc now archived, **we (vwgroup-connect-ha) + tillsteinbach's family** are the de-facto active VW EU + Audi references. See [`_private/research-archive/community-audits/`](../community-audits/) for the 2026-05 cross-project scan.
+With mitch-dc now archived, **we (vwgroup-connect-ha) and the upstream community** carry the active VW EU + Audi references. See [`_private/research-archive/community-audits/`](../community-audits/) for the 2026-05 community scan.
 
 These are not currently monitored by automation (no Cariad-BFF
 header-enforcement detected yet), but we cross-check during major
