@@ -259,10 +259,27 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         refresh_token, password-less. VW EU and Porsche stay on the
         email + password path because VW has not whitelisted those
         client_ids for the device grant flow.
+
+        v2.7.0b4 — menu_options pass as ``dict`` with raw labels embedded
+        rather than a ``list`` that relies on translation lookup. The
+        translation-lookup path turned out brittle in practice: when a
+        user upgrades from a pre-menu version (e.g. v2.6.0) without a
+        full HA restart, HA caches the old strings and renders the new
+        menu with empty chevrons because the menu_options keys don't
+        exist in the cached strings. Embedding the labels makes the
+        menu render correctly regardless of cache state.
         """
         return self.async_show_menu(
             step_id="user",
-            menu_options=["browser_login", "email_password"],
+            menu_options={
+                "browser_login": (
+                    "Browser-Login — Audi / Škoda / SEAT / CUPRA "
+                    "(empfohlen, kein Passwort in HA)"
+                ),
+                "email_password": (
+                    "E-Mail + Passwort — Volkswagen EU / Porsche (Legacy)"
+                ),
+            },
         )
 
     async def async_step_email_password(
