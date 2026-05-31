@@ -146,10 +146,67 @@ class CariadBaseClient:
         return self._brand
 
     async def authenticate(self, mfa_code: str | None = None) -> None:
-        """Perform full login and store tokens."""
-        self._tokens = await self._auth.authenticate(self._email, self._password)
-        _LOGGER.debug("Authenticated for brand %s", self._brand.name)
-        await self._notify_tokens_changed()
+        """Perform full login and store tokens.
+
+        v2.6.0 multi-strategy resolver. The 2026-05-27 Cariad WAF migration
+        gated the BFF token endpoint behind Google Play Integrity, which
+        Python clients cannot satisfy. The OIDC hybrid_full flow
+        (response_type=code id_token token) bypasses that wall entirely by
+        having Auth0 deliver tokens directly in the callback URL fragment.
+
+        Per-brand strategy (in priority order, fallback on AuthenticationError):
+          - volkswagen  : hybrid_full → classic auth-code
+          - audi        : classic auth-code → hybrid_full
+                          (Audi still issues usable refresh_tokens through
+                          the qmauth assertion path; prefer that to avoid
+                          the ~2h re-login penalty of hybrid_full)
+          - other brands: classic auth-code only (unchanged)
+
+        Trade-off for hybrid_full success: no usable refresh_token is
+        returned, so re-login fires every ~2 h. ``_refresh_tokens()``
+        detects the empty refresh_token and calls ``authenticate()`` again
+        transparently. The 5-strategy storm-guard in _refresh_tokens
+        prevents runaway loops.
+        """
+        strategies: list[dict[str, bool]] = []
+        if self._brand.name == "volkswagen":
+            strategies = [{"hybrid_full": True}, {"hybrid_full": False}]
+        elif self._brand.name == "audi":
+            strategies = [{"hybrid_full": False}, {"hybrid_full": True}]
+        else:
+            strategies = [{"hybrid_full": False}]
+
+        last_err: Exception | None = None
+        for idx, opts in enumerate(strategies):
+            try:
+                self._tokens = await self._auth.authenticate(
+                    self._email, self._password,
+                    mfa_code=mfa_code,
+                    **opts,
+                )
+                if idx > 0:
+                    _LOGGER.info(
+                        "Authenticated for brand %s via fallback strategy "
+                        "#%d (opts=%s) after primary strategy failed: %s",
+                        self._brand.name, idx, opts,
+                        type(last_err).__name__ if last_err else "?",
+                    )
+                else:
+                    _LOGGER.debug(
+                        "Authenticated for brand %s (opts=%s)",
+                        self._brand.name, opts,
+                    )
+                await self._notify_tokens_changed()
+                return
+            except AuthenticationError as err:
+                last_err = err
+                if idx == len(strategies) - 1:
+                    raise
+                _LOGGER.info(
+                    "Auth strategy #%d (opts=%s) failed for %s: %s — "
+                    "trying next strategy",
+                    idx, opts, self._brand.name, err,
+                )
 
     def set_persisted_tokens(self, tokens: TokenSet | None) -> None:
         """v1.19.2 (#118) — inject tokens loaded from HA storage at

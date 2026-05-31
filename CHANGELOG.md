@@ -50,6 +50,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - OLA watcher gains daernsinstantfortress as 3rd consensus source
 - App Atlas covers all 7 brands
 
+## [2.6.0] — 2026-05-31 — "OIDC Hybrid Flow (BFF-Bypass)"
+
+- VW EU now logs in via OIDC hybrid flow (response_type=code id_token token) — bypasses Play Integrity wall.
+- Per-brand strategy resolver with automatic fallback (VW: hybrid → classic, Audi: classic → hybrid).
+- README pointer to mikrohard/hass-vw-eu-data-act as read-only backup integration.
+
 ## [2.5.13] — 2026-05-30 — "Play Integrity Wall Decoded"
 
 - Discovered: Play Integrity attestation
