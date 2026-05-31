@@ -877,6 +877,23 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             "auxiliaryHeating.*",
             "auxiliaryHeating.*.value",
             "auxiliaryHeating.*.value.*",
+            # v2.7.4 — when these jobs return 5xx the Cariad BFF wraps
+            # the response in a ``.error`` envelope with 6 sub-keys
+            # (message, errorTimeStamp, info, code, group, retry).
+            # The single-level ``.*`` wildcard above does not match
+            # the 4-component child paths, so Scout auto-opened issues
+            # #371 + #373 with the same six error sub-keys on a Bad
+            # Gateway response. Add 4-component wildcards explicitly.
+            "oilLevel.oilLevelStatus.error",
+            "oilLevel.oilLevelStatus.error.*",
+            "tyrePressure.tyrePressureStatus.error",
+            "tyrePressure.tyrePressureStatus.error.*",
+            "auxiliaryHeating.auxiliaryHeatingStatus",
+            "auxiliaryHeating.auxiliaryHeatingStatus.*",
+            "auxiliaryHeating.auxiliaryHeatingStatus.error",
+            "auxiliaryHeating.auxiliaryHeatingStatus.error.*",
+            "auxiliaryHeating.auxiliaryHeatingStatus.value",
+            "auxiliaryHeating.auxiliaryHeatingStatus.value.*",
             # batteryChargingCare + climatisationTimers .value children
             # (proactive — these top-level wrappers may have own .value
             # blocks on newer firmwares per #103/#104 pattern).
