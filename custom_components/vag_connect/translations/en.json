@@ -399,6 +399,9 @@
       },
       "climate_ready_at": {
         "name": "Climate Ready At"
+      },
+      "warning_messages": {
+        "name": "Vehicle Warning Messages"
       }
     },
     "binary_sensor": {

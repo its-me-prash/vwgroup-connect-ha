@@ -355,6 +355,9 @@
       },
       "climate_ready_at": {
         "name": "Klima Připravená Do"
+      },
+      "warning_messages": {
+        "name": "Varování vozidla"
       }
     },
     "binary_sensor": {

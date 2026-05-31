@@ -324,6 +324,12 @@ class VehicleData:
     warning_engine: bool | None = None
     warning_tyre: bool | None = None
     warning_brakes: bool | None = None
+    # v2.7.0b11 — comma-joined string of every warning the backend
+    # reports (type plus text when present). Surfaces brand-specific
+    # warning types (Audi STO/towing-bracket, etc) that the hardcoded
+    # warning_oil/engine/brake/tyre family above misses. Empty string
+    # when no warnings active, None when the warning endpoint failed.
+    warning_messages: str | None = None
 
     media_short_name: str | None = None  # e.g. "Q4 e-tron"
     media_long_name: str | None = None   # e.g. "Audi Q4 50 e-tron quattro"
@@ -556,6 +562,14 @@ class VehicleData:
     requests_remaining_today: int | None = None
     requests_limit_today: int | None = None
     requests_reset_at: Any | None = None
+
+    # v2.7.0b11 — wake_count_today on the dataclass so it always
+    # serialises as 0 instead of being absent. The coordinator's
+    # wake-counter logic writes the real count into the vehicle dict
+    # when a wake is triggered (overrides this 0). Without the field
+    # here, a user who never uses the wake button sees "Unbekannt"
+    # for the wake_count_today sensor because the key is missing.
+    wake_count_today: int = 0
 
     # v1.20.0 (Bundle 2 Phase A — Skoda widget + vehicle-info + equipment).
     # Three new static-ish enrichment fields populated from myskoda PR

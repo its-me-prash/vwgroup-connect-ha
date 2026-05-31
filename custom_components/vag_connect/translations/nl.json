@@ -355,6 +355,9 @@
       },
       "climate_ready_at": {
         "name": "Klimaat Klaar Om"
+      },
+      "warning_messages": {
+        "name": "Voertuig waarschuwingen"
       }
     },
     "binary_sensor": {

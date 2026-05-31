@@ -355,6 +355,9 @@
       },
       "climate_ready_at": {
         "name": "Klimat Klart kl."
+      },
+      "warning_messages": {
+        "name": "Fordonsvarningar"
       }
     },
     "binary_sensor": {

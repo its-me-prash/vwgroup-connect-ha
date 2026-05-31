@@ -399,6 +399,9 @@
       },
       "climate_ready_at": {
         "name": "Klima fertig um"
+      },
+      "warning_messages": {
+        "name": "Fahrzeug-Warnungen"
       }
     },
     "binary_sensor": {
