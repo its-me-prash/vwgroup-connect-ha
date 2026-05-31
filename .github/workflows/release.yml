@@ -158,6 +158,12 @@ jobs:
           body_path: /tmp/release_notes.md
           name: "VAG Connect v${{ steps.version.outputs.version }}"
           draft: false
-          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') || contains(github.ref, 'pre') }}
+          # Mark as prerelease for long names (alpha/beta/rc/pre) AND
+          # for PEP 440 short markers (vX.Y.ZbN / vX.Y.ZaN / vX.Y.ZrcN).
+          # The .{digit}{a|b|rc} substrings catch our canonical pattern
+          # of a digit followed by a/b/rc — e.g. '.0b3' or '.0rc1'.
+          # Without this, tags like v2.7.0b3 published as non-prerelease
+          # and needed a manual gh release edit --prerelease afterwards.
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') || contains(github.ref, 'pre') || contains(github.ref, '.0a') || contains(github.ref, '.0b') || contains(github.ref, '.0rc') || contains(github.ref, '.1a') || contains(github.ref, '.1b') || contains(github.ref, '.1rc') || contains(github.ref, '.2a') || contains(github.ref, '.2b') || contains(github.ref, '.2rc') || contains(github.ref, '.3a') || contains(github.ref, '.3b') || contains(github.ref, '.3rc') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
