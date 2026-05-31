@@ -472,3 +472,180 @@ def derive_car_type_if_missing(d: Any) -> None:
         # else: don't guess (could be CNG/LPG/H2 etc — wait for
         # explicit backend field or scout report)
     # neither flag set: insufficient signal, leave None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# v2.8.0 — Brake service + preferred workshop helpers (Quick Win C).
+#
+# Two pure conversion helpers shared across brand parsers:
+#
+# 1. ``days_or_date_to_iso`` accepts the THREE shapes the CARIAD BFF + Skoda
+#    mysmob + OLA backends ship for service due-dates:
+#      - int / float "N" — N days from now (CARIAD BFF + Skoda)
+#      - "2026-06-15" / "2026-06-15T08:30:00Z" — ISO 8601 (OLA + some Skoda)
+#      - "15.06.2026" — EU dd.mm.yyyy (legacy SEAT/CUPRA OLA on some
+#        firmwares + dealer-portal exports)
+#    Returns a tz-aware ISO 8601 UTC string anchored at midnight when the
+#    source was a day-offset, otherwise the source datetime passed through
+#    normalised to UTC. None for any malformed input.
+#
+# 2. ``normalize_workshop_string`` trims + collapses whitespace + drops empty.
+#    Backends ship workshop strings with stray double-spaces (city-zip
+#    template glue) and trailing newlines (HTML scraper provenance). Pure
+#    str.strip() leaves the internal mess; explicit collapsing keeps the
+#    sensor state predictable.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def days_or_date_to_iso(value: Any) -> str | None:
+    """Convert backend service-due value to ISO 8601 UTC string.
+
+    Accepts:
+      - int / float / numeric str  → today + N days at 00:00 UTC
+      - ISO 8601 date / datetime str → normalised to UTC ISO 8601
+      - EU dd.mm.yyyy str → midnight UTC ISO 8601
+
+    Returns None for None / empty / malformed inputs. Never raises.
+
+    Used by the brake-service parsers (v2.8.0) so a HA TIMESTAMP sensor
+    can render the value as a relative date regardless of which shape
+    the brand backend happens to ship.
+    """
+    if value is None:
+        return None
+    # Numeric (int / float / bool) — treat as day offset from today.
+    if isinstance(value, bool):
+        # Booleans are int subclass — guard against True/False being
+        # interpreted as 1/0 day offsets, which is meaningless here.
+        return None
+    if isinstance(value, (int, float)):
+        try:
+            days = int(value)
+        except (OverflowError, ValueError):
+            return None
+        if days < -36500 or days > 36500:
+            # ~100y sanity bound — backend ships nonsense ints during
+            # error-envelope conditions (-2147483648 etc).
+            return None
+        anchor = datetime.now(tz=timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0,
+        )
+        from datetime import timedelta  # noqa: PLC0415
+        return (anchor + timedelta(days=days)).isoformat()
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return None
+        # Numeric string — recurse into the int branch.
+        try:
+            as_int = int(stripped)
+        except ValueError:
+            pass
+        else:
+            return days_or_date_to_iso(as_int)
+        # EU dd.mm.yyyy (legacy OLA + dealer-portal exports).
+        if "." in stripped and "/" not in stripped and len(stripped) <= 10:
+            parts = stripped.split(".")
+            if len(parts) == 3 and all(p.isdigit() for p in parts):
+                day_s, month_s, year_s = parts
+                try:
+                    dt = datetime(
+                        int(year_s), int(month_s), int(day_s),
+                        tzinfo=timezone.utc,
+                    )
+                except ValueError:
+                    return None
+                return dt.isoformat()
+        # ISO 8601 — accept "YYYY-MM-DD" or full datetime, with
+        # optional trailing Z. fromisoformat in Python 3.10 cannot
+        # parse "Z" directly, so swap to "+00:00" defensively.
+        candidate = stripped.replace("Z", "+00:00")
+        try:
+            dt = datetime.fromisoformat(candidate)
+        except ValueError:
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.isoformat()
+    return None
+
+
+def normalize_workshop_string(value: Any) -> str | None:
+    """Trim + collapse whitespace + drop empty strings.
+
+    Backends ship workshop strings with stray double-spaces and
+    trailing newlines depending on whether the upstream is a phone-
+    number field (Skoda mysmob), a multi-line concatenated address
+    (OLA dealer-card), or an HTML-scraped portal label. The HA state
+    machine renders the value verbatim, so collapse here before the
+    user ever sees it.
+
+    Returns None when the input is None / not a string / empty after
+    normalisation.
+    """
+    if not isinstance(value, str):
+        return None
+    cleaned = " ".join(value.split())
+    return cleaned or None
+
+
+def compose_workshop_address(parts: Any) -> str | None:
+    """Compose a single-line address from a dict of address parts.
+
+    Accepts the typical Skoda / CARIAD-BFF / OLA shapes:
+      {"street": "...", "houseNumber": "...", "postalCode": "...",
+       "city": "...", "country": "..."}
+
+    Returns a comma-joined string with whitespace normalised, or None
+    when no string parts are present. Defensive: any non-dict input
+    (incl. None) returns None.
+    """
+    if not isinstance(parts, dict):
+        return None
+    # Preferred field: a backend-provided full string overrides
+    # composition (Skoda v3 ships ``formattedAddress`` on some
+    # variants since 2026-Q2).
+    full = parts.get("formattedAddress") or parts.get("formatted")
+    if isinstance(full, str) and full.strip():
+        return normalize_workshop_string(full)
+    street = parts.get("street") or parts.get("streetName") or ""
+    house = parts.get("houseNumber") or parts.get("number") or ""
+    line1 = f"{street} {house}".strip() if street or house else ""
+    zip_code = parts.get("postalCode") or parts.get("zip") or ""
+    city = parts.get("city") or parts.get("town") or ""
+    line2 = f"{zip_code} {city}".strip() if zip_code or city else ""
+    country = parts.get("country") or parts.get("countryCode") or ""
+    components = [c for c in (line1, line2, country) if isinstance(c, str) and c.strip()]
+    if not components:
+        return None
+    return normalize_workshop_string(", ".join(components))
+
+
+def workshop_phone_from_contact(contact: Any) -> str | None:
+    """Extract a phone number from a contact dict.
+
+    Accepts the typical shapes:
+      {"phone": "..."}
+      {"phoneNumber": "..."}
+      {"telephone": "..."}
+      {"phones": ["..."]}
+
+    Returns the first non-empty string found, with whitespace
+    normalised. None on miss.
+    """
+    if not isinstance(contact, dict):
+        return None
+    for key in ("phone", "phoneNumber", "telephone", "tel"):
+        candidate = contact.get(key)
+        if isinstance(candidate, str) and candidate.strip():
+            return normalize_workshop_string(candidate)
+    phones = contact.get("phones")
+    if isinstance(phones, list):
+        for entry in phones:
+            if isinstance(entry, str) and entry.strip():
+                return normalize_workshop_string(entry)
+            if isinstance(entry, dict):
+                num = entry.get("number") or entry.get("value")
+                if isinstance(num, str) and num.strip():
+                    return normalize_workshop_string(num)
+    return None
