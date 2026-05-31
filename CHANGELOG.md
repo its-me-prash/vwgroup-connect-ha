@@ -50,6 +50,21 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - OLA watcher gains daernsinstantfortress as 3rd consensus source
 - App Atlas covers all 7 brands
 
+## [2.7.0b7] — 2026-05-31 — "DAG spinner-forever fix #3 — form-based URL display (beta)"
+
+- After b4 and b6 both failed to reliably surface the verification URL + user_code in the show_progress dialog (HA frontend cached the progress description per flow id and didn't always pick up `description_placeholders` even when the show_progress task and step_id changed), Phase 2 is now rendered as a normal config_flow form. Forms substitute placeholders via the standard text-rendering pipeline which works reliably.
+- New UX:
+  - URL + 6-digit code shown as plain markdown text — fully visible and copyable
+  - Submit button visible from the start
+  - User opens URL in their browser (any device), signs in, approves
+  - When done, clicks Submit
+  - Background poll task validates with VW backend
+  - If poll done + tokens → advance to entry creation
+  - If poll done + error → drop back to brand picker (retry)
+  - If user clicked Submit before approval was complete → re-renders form with a "still waiting for browser approval" hint
+- Trade-off vs show_progress: lost auto-advance (user has to click Submit once they've approved), but gained guaranteed visibility of the URL + code. Worth it.
+- Translation key added: `still_waiting_browser` (DE + EN).
+
 ## [2.7.0b6] — 2026-05-31 — "DAG spinner-forever fix #2 — split phases into distinct step_ids (beta)"
 
 - Browser-login progress dialog now reliably shows the verification URL + user_code after the device_code is acquired. The b4 attempt at a single-step two-phase flow ran into HA's frontend caching the progress description per step_id — when the same step_id returned a second `show_progress` with a different `progress_action` and new `description_placeholders`, the dialog often kept showing the first (empty) description and the spinner appeared to spin forever.

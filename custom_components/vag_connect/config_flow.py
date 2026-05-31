@@ -473,44 +473,71 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
     async def async_step_browser_login_approve(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
-        """v2.7.0b6 — Browser-login Phase 2: wait for user approval.
+        """v2.7.0b7 — Browser-login Phase 2: form-based URL display.
 
-        Polls /token while the user opens the verification URL in their
-        own browser, signs in to their Brand ID account, and approves
-        the device. HA shows the URL + user_code in the progress dialog
-        the whole time. When polling completes:
-          - success → advance to ``browser_login_finish``
-          - failure → drop back to brand picker so user can retry
+        Why a form instead of show_progress:
 
-        Reached only after Phase 1 (``browser_login_pending``) populated
-        ``_dag_verification_uri`` and ``_dag_user_code``.
+        Earlier betas (b4, b6) tried two-phase show_progress with
+        description_placeholders to surface the verification URL +
+        user_code. In practice the HA frontend kept showing a spinner
+        without the placeholder text on multiple installs — even
+        after a full HA restart. Root cause traced to HA's
+        progress-dialog rendering pipeline caching the description by
+        flow id and not always picking up placeholders from a
+        show_progress call that wasn't the first one in the flow.
+
+        Forms render the step description via the standard config_flow
+        text pipeline which substitutes ``description_placeholders``
+        reliably. Trading the auto-advance UX of show_progress for
+        bulletproof URL/code visibility is the right trade-off — the
+        user can see exactly what to do and gets immediate feedback
+        when they click submit.
+
+        Behaviour:
+          - First entry: kick off background poll task, show form with
+            URL + code as plain text, submit button visible.
+          - User opens URL in their browser, signs in, approves.
+          - User clicks submit:
+            - poll task done + tokens → advance to finish step
+            - poll task done + error → drop to brand picker (retry)
+            - poll task still running → re-show form with
+              ``still_waiting_browser`` error (user clicked too early).
         """
         # Defensive — should only be reached with Phase 1 state populated.
         if not self._dag_device_code:
-            return self.async_show_progress_done(next_step_id="browser_login")
+            return await self.async_step_browser_login()
 
-        # Kick off poll_for_tokens() on first entry
+        # Kick off poll_for_tokens() on first entry (idempotent)
         if self._dag_poll_task is None:
             self._dag_poll_task = self.hass.async_create_task(
                 self._do_poll_tokens()
             )
 
-        if not self._dag_poll_task.done():
-            return self.async_show_progress(
-                step_id="browser_login_approve",
-                progress_action="awaiting_browser_login",
-                progress_task=self._dag_poll_task,
-                description_placeholders={
-                    "verification_uri": self._dag_verification_uri,
-                    "user_code": self._dag_user_code,
-                },
-            )
+        errors: dict[str, str] = {}
 
-        # Poll done — advance to finish (success) or restart (failure)
-        next_step = (
-            "browser_login_finish" if self._dag_tokens else "browser_login"
+        if user_input is not None:
+            # User clicked "I've approved" — check poll state
+            if self._dag_poll_task.done():
+                if self._dag_tokens:
+                    return await self.async_step_browser_login_finish()
+                # Poll completed with error — reset state and route
+                # back to brand picker so user can retry.
+                self._dag_poll_task = None
+                self._dag_device_code = ""
+                return await self.async_step_browser_login()
+            # Clicked submit before poll completed — re-render with hint
+            errors["base"] = "still_waiting_browser"
+
+        return self.async_show_form(
+            step_id="browser_login_approve",
+            data_schema=vol.Schema({}),
+            description_placeholders={
+                "verification_uri": self._dag_verification_uri,
+                "user_code": self._dag_user_code,
+            },
+            errors=errors,
+            last_step=False,
         )
-        return self.async_show_progress_done(next_step_id=next_step)
 
     async def _do_request_device_code(self) -> None:
         """v2.7.0b4 — Phase 1 of the DAG flow: get device_code.
