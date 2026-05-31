@@ -766,6 +766,22 @@
       "description": "You enabled the headless-browser fallback for the EU Data Act portal but the `playwright` Python package is not installed in your Home Assistant container.\n\n**To install:** open the HA container shell (Add-ons → Terminal & SSH, or `docker exec` for a manual install) and run:\n\n```\npip install playwright\nplaywright install chromium\n```\n\nThe chromium download is large (around 100 MB), which is why this dependency is opt-in instead of bundled with the integration. After installing, restart Home Assistant.\n\nAlternatively, disable the toggle under Settings → Devices & Services → VW Group Connect → Configure → 'EU Data Act portal: headless-browser fallback'."
     }
   },
+  "services": {
+    "open_app": {
+      "name": "Open native brand app (deeplink)",
+      "description": "Fires the `vag_connect_open_app` event on the HA event bus with payload `{vin, brand, deeplink_url, action}` so a Lovelace card can open the brand's native mobile app (myAudi, WeConnect, MyŠkoda, MySEAT, MyCUPRA, My Porsche or VW US) on the calling device. The integration cannot open URLs on a phone by itself — the dashboard card is responsible for navigating `window.location.href = deeplink_url` on iOS / Android.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN of the vehicle whose brand-app should open."
+        },
+        "action": {
+          "name": "App action",
+          "description": "Optional path segment appended to the deeplink so the brand app routes directly to a section. Default `open` opens the app to its home screen."
+        }
+      }
+    }
+  },
   "exceptions": {
     "vehicle_not_found": {
       "message": "Vehicle with VIN {vin} not found. Check that the integration is started."

@@ -41,6 +41,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ## [Unreleased]
 
 - Data Act portal: automated zip download and parse (Action #3).
+- New service `vag_connect.open_app` (quick-win B): fires `vag_connect_open_app` on the HA event bus with payload `{vin, brand, deeplink_url, action}` so a Lovelace card can open the brand's native mobile app (myAudi, WeConnect, MyŠkoda, MySEAT, MyCUPRA, My Porsche, VW US) on the calling device via `window.location.href`. Deeplink schemes are defined in `const.DEEPLINK_SCHEMES`; the per-brand scheme strings are marked `TODO(2.8.1)` for device-side re-verification.
 
 ## [2.2.0-rc1] — 2026-05-16 — "Legen — wait for it — dary" (Release Candidate)
 
