@@ -110,7 +110,7 @@ class TestCariadCommands:
     def test_start_default_payload(self):
         client = _vw_client()
         client._post_command = AsyncMock(return_value=None)
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.new_event_loop().run_until_complete(
             client.command_start_aux_heating("VINX")
         )
         client._post_command.assert_awaited_once()
@@ -126,7 +126,7 @@ class TestCariadCommands:
     def test_start_custom_duration_and_temp(self):
         client = _vw_client()
         client._post_command = AsyncMock(return_value=None)
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.new_event_loop().run_until_complete(
             client.command_start_aux_heating(
                 "VINX", duration_min=45, target_c=22.5,
             )
@@ -139,7 +139,7 @@ class TestCariadCommands:
     def test_stop_payload(self):
         client = _vw_client()
         client._post_command = AsyncMock(return_value=None)
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.new_event_loop().run_until_complete(
             client.command_stop_aux_heating("VINX")
         )
         call = client._post_command.await_args
@@ -176,7 +176,7 @@ def _coord(brand: str = "volkswagen", options: dict | None = None):
 class TestCoordinatorAuxHeatingStart:
     def test_volkswagen_default_options(self):
         coord = _coord("volkswagen")
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.new_event_loop().run_until_complete(
             coord.async_start_aux_heating("VINX")
         )
         coord._cariad_cmd.assert_awaited_once_with(
@@ -191,7 +191,7 @@ class TestCoordinatorAuxHeatingStart:
             "audi",
             options={"auxheat_duration": 45, "auxheat_target_temp": 22.5},
         )
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.new_event_loop().run_until_complete(
             coord.async_start_aux_heating("VINX")
         )
         coord._cariad_cmd.assert_awaited_once_with(
@@ -206,7 +206,7 @@ class TestCoordinatorAuxHeatingStart:
             "volkswagen",
             options={"auxheat_duration": 5, "auxheat_target_temp": 17.0},
         )
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.new_event_loop().run_until_complete(
             coord.async_start_aux_heating(
                 "VINX", duration_min=20, target_c=24.0,
             )
@@ -227,14 +227,14 @@ class TestCoordinatorAuxHeatingStart:
         coord = _coord("volkswagen")
         coord._spin_from_entry = MagicMock(return_value="")
         # Must not raise.
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.new_event_loop().run_until_complete(
             coord.async_start_aux_heating("VINX")
         )
         coord._cariad_cmd.assert_awaited_once()
         # Sanity: switching the brand back to seat with no S-PIN raises.
         coord.entry.data = {"brand": "seat"}
         with pytest.raises(ServiceValidationError):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.new_event_loop().run_until_complete(
                 coord.async_start_aux_heating("VINX")
             )
 
@@ -242,7 +242,7 @@ class TestCoordinatorAuxHeatingStart:
         from homeassistant.exceptions import ServiceValidationError  # noqa: PLC0415
         coord = _coord("cupra")
         with pytest.raises(ServiceValidationError):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.new_event_loop().run_until_complete(
                 coord.async_start_aux_heating("VINX")
             )
 
@@ -342,7 +342,7 @@ class TestSeatCupraIgnoresKwargs:
         client._post_with_ab_fallback = AsyncMock(return_value=None)
         # Should not raise even with kwargs the coordinator might send
         # in a mixed-brand multi-account install.
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.new_event_loop().run_until_complete(
             client.command_start_aux_heating(
                 "VINX", duration_min=45, target_c=22.5,
             )

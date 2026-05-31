@@ -137,12 +137,16 @@ class TestSwitchHasattrGate:
         from custom_components.vag_connect.cariad.api.vw_eu import VWEUClient
         from custom_components.vag_connect.cariad.api.audi import AudiClient
 
-        # Methods exclusive to SEAT/CUPRA OLA backend (not in VW/Audi):
+        # Methods exclusive to SEAT/CUPRA OLA backend (not in VW/Audi).
+        # NOTE: aux_heating commands were SEAT/CUPRA-only through v2.7.x.
+        # v2.8.0 (quick win A) added them to VW EU + Audi via the
+        # Cariad BFF /vehicle/v1/vehicles/{vin}/auxiliary-heating route.
+        # Ventilation stays SEAT/CUPRA-only because the Cariad BFF
+        # routes ventilation through climatisation-start with a special
+        # payload variant, not a dedicated endpoint.
         seat_cupra_only = [
             "command_start_ventilation",
             "command_stop_ventilation",
-            "command_start_aux_heating",
-            "command_stop_aux_heating",
         ]
         for method in seat_cupra_only:
             assert hasattr(SeatCupraClient, method), f"SEAT/CUPRA missing {method}"

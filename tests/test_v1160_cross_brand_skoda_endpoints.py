@@ -261,27 +261,20 @@ class TestRefreshChargingProfilesBrandRestriction:
 
 
 class TestOtaProbeDocsExist:
-    """Sanity: the OTA Probe planning doc was committed in v1.16.0."""
+    """v1.16.0 OTA Probe planning doc.
+
+    The doc was retired in v2.8.0 task #44 (dead-weight cleanup). It
+    had served its purpose as the scoping doc for the v1.16.x probe
+    runs; the actual OTA / software-update parsing landed in v1.16.0
+    and is exercised by the rest of this test module. The doc is
+    preserved locally in _private/research-archive/ for history but is
+    no longer tracked in the public tree.
+    """
 
     def test_research_notes_file_present(self):
-        import os
-        path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "docs",
-            "RESEARCH_NOTES_2026-05-02_OTA_PROBE.md",
-        )
-        assert os.path.exists(path), f"Missing OTA probe docs at {path}"
+        import pytest
+        pytest.skip("OTA probe doc retired in v2.8.0 dead-weight cleanup")
 
     def test_research_notes_lists_both_backend_probes(self):
-        import os
-        path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "docs",
-            "RESEARCH_NOTES_2026-05-02_OTA_PROBE.md",
-        )
-        content = open(path, encoding="utf-8").read()
-        assert "CARIAD-BFF" in content
-        assert "OLA" in content
-        # Probe URLs documented
-        assert "emea.bff.cariad.digital" in content
-        assert "ola.prod.code.seat.cloud.vwgroup.com" in content
+        import pytest
+        pytest.skip("OTA probe doc retired in v2.8.0 dead-weight cleanup")

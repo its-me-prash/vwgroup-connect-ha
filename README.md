@@ -30,7 +30,8 @@
 
 ---
 
-> **Hinweis zum Rename:** Vorher als `vag-connect-ha` veröffentlicht. Domain-Internals bleiben unverändert (`vag_connect`, `sensor.audi_q4_*`, `vag_connect.lock`), HACS-Update funktioniert nahtlos. Details in [`MIGRATION.md`](MIGRATION.md).
+> ### 📛 Note on the rename
+> Previously published as **`vag-connect-ha`**. Domain-Internals bleiben unverändert (`vag_connect`, `sensor.audi_q4_*`, `vag_connect.lock`), HACS-Update funktioniert nahtlos. Details in [`MIGRATION.md`](MIGRATION.md).
 
 ---
 

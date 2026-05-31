@@ -624,14 +624,20 @@ class DataActScraper:
                 out.doors_locked = locked
 
         # Top-level convenience fields seen on some firmwares.
-        flat = parsed
-        if isinstance(flat, dict):
-            plate = _first_str(flat.get("licensePlate"))
-            if plate is not None:
-                out.license_plate = plate
-            model = _first_str(flat.get("model"))
-            if model is not None:
-                out.model = model
+        # The zip archive ships these in a top-level "top.json" member,
+        # which parse_zip turns into ``parsed["top"]``; older / smaller
+        # exports inline them at the parsed root. Try both.
+        for source_dict in (parsed.get("top"), parsed):
+            if not isinstance(source_dict, dict):
+                continue
+            if out.license_plate is None:
+                plate = _first_str(source_dict.get("licensePlate"))
+                if plate is not None:
+                    out.license_plate = plate
+            if out.model is None:
+                model = _first_str(source_dict.get("model"))
+                if model is not None:
+                    out.model = model
 
         # Record the time we successfully parsed the export so the
         # coordinator can render "last poll" UI even when none of the
