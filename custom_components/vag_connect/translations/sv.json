@@ -471,6 +471,9 @@
       },
       "camping_mode": {
         "name": "Campingläge"
+      },
+      "oil_level_warning": {
+        "name": "Oljenivå"
       }
     },
     "switch": {

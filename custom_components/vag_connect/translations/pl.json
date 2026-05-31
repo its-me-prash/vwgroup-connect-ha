@@ -471,6 +471,9 @@
       },
       "camping_mode": {
         "name": "Tryb kempingowy"
+      },
+      "oil_level_warning": {
+        "name": "Poziom oleju"
       }
     },
     "switch": {

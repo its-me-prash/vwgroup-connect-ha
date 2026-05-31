@@ -1375,6 +1375,7 @@ class VWEUClient(CariadBaseClient):
         windows: list[dict[str, Any]] = (
             v(raw, "access", "accessStatus", "value", "windows") or []
         )
+        overall = v(raw, "access", "accessStatus", "value", "overallStatus")
         if doors:
             d.doors_open = any(
                 safe_get(door, "status[0].value") == "open" for door in doors
@@ -1402,6 +1403,12 @@ class VWEUClient(CariadBaseClient):
                     d.trunk_locked = trunk_locked_raw
                 elif isinstance(trunk_locked_raw, str):
                     d.trunk_locked = trunk_locked_raw.lower() == "locked"
+        elif overall == "SAFE":
+            # Backend reported SAFE but didn't enumerate the doors
+            # array. Honour the aggregate signal so the entity shows
+            # False (closed) instead of Unknown.
+            d.doors_open = False
+
         if windows:
             d.windows_open = any(
                 safe_get(w, "status[0].value") == "open" for w in windows
@@ -1411,6 +1418,8 @@ class VWEUClient(CariadBaseClient):
                 for w in windows
                 if (name := w.get("name")) is not None
             }
+        elif overall == "SAFE":
+            d.windows_open = False
 
         # ── Climatisation ─────────────────────────────────────────────────────
         d.climatisation_state = v(raw, "climatisation", "climatisationStatus", "value", "climatisationState")

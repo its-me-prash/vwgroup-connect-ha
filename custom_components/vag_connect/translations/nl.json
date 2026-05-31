@@ -471,6 +471,9 @@
       },
       "camping_mode": {
         "name": "Kampeermodus"
+      },
+      "oil_level_warning": {
+        "name": "Oliepeil"
       }
     },
     "switch": {
