@@ -75,7 +75,7 @@ header injection.
 | [upstream/cc-vw](https://github.com/upstream/cc-vw) | upstream | VW EU | Active, sibling of seatcupra connector |
 | [upstream/cc-connector-audi](https://github.com/upstream/cc-connector-audi) | upstream | Audi | Active |
 
-With mitch-dc now archived, **we (vwgroup-connect-ha) + upstream's family** are the de-facto active VW EU + Audi references. See [`_private/research-archive/community-audits/`](../community-audits/) for the 2026-05 cross-project scan.
+With mitch-dc now archived, **we (vwgroup-connect-ha) and the upstream community** carry the active VW EU + Audi references. See [`_private/research-archive/community-audits/`](../community-audits/) for the 2026-05 community scan.
 
 These are not currently monitored by automation (no Cariad-BFF
 header-enforcement detected yet), but we cross-check during major
