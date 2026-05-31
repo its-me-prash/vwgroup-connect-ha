@@ -228,7 +228,11 @@ class DataActPortalAuth:
                 self.fields: dict[str, str] = {}
                 self.form_action: str = ""
 
-            def handle_starttag(self, tag, attrs):  # type: ignore[override]
+            def handle_starttag(
+                self,
+                tag: str,
+                attrs: list[tuple[str, str | None]],
+            ) -> None:
                 attr = dict(attrs)
                 if tag == "input" and attr.get("type") == "hidden":
                     name = attr.get("name") or ""
