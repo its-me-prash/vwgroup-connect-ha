@@ -77,7 +77,7 @@ class UnexpectedField:
 #   - Don't list scalar leaf values (we report parent paths)
 #
 # ─── Scout Policy (v2.4.1+) ────────────────────────────────────────────
-# See ``docs/SCOUT_POLICY.md`` for the full rules. TL;DR: every leaf-
+# See ``docs/SCOUT_POLICY.md`` for the full rules. Summary: every leaf-
 # value silenced here MUST also be parsed (parser → dataclass field →
 # entity). Silencer-only is no longer acceptable.
 #
@@ -433,7 +433,7 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # EXPECTED_KEYS just never got the silencer-side entry —
             # silencer-lag-behind-parser gap. T1 (parsed + entity exists).
             "rateInKmph",
-            # v2.4.3 (pre-emptive, 2026-05-27 cross-project sweep) — pycupra
+            # v2.4.3 (pre-emptive, 2026-05-27 upstream sweep) — pycupra
             # v0.2.31 (upstream, 2026-05-26) added Compressed Natural Gas
             # (CNG) instruments for CUPRA Leon TGI / Ibiza TGI variants.
             # We don't have a CUPRA TGI tester live yet but ship the

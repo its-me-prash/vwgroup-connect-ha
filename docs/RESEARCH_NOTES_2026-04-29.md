@@ -36,7 +36,7 @@
 
 ## 2. `carCapturedTimestamp` Pattern (the Multi-Brand Connection-State foundation)
 
-**TL;DR:** Every modern VAG backend (mysmob, OLA, CARIAD-BFF) stamps a
+**Summary:** Every modern VAG backend (mysmob, OLA, CARIAD-BFF) stamps a
 `carCapturedTimestamp` field on every status sub-object. It records when
 the *vehicle* sent the data, not when the *backend* responded. The freshest
 timestamp across all sub-objects determines the vehicle's connection state:

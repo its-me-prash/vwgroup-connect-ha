@@ -7,7 +7,7 @@
 
 ---
 
-## TL;DR
+## Summary
 
 When the Vehicle Data Scout reports a new field, the response is:
 
