@@ -92,7 +92,8 @@
       "reconfigure_successful": "Configuration updated successfully."
     },
     "progress": {
-      "awaiting_browser_login": "Waiting for browser approval…"
+      "awaiting_browser_login": "Open {verification_uri} in any browser, sign in with your Brand ID account, and confirm the code {user_code}.",
+      "requesting_device_code": "Requesting a one-time login code from the IDP…"
     }
   },
   "options": {

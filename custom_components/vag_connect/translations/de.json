@@ -92,7 +92,8 @@
       "reconfigure_successful": "Konfiguration erfolgreich aktualisiert."
     },
     "progress": {
-      "awaiting_browser_login": "Warte auf Browser-Bestätigung…"
+      "awaiting_browser_login": "Öffne {verification_uri} in einem Browser, melde dich mit deinem Brand-ID-Konto an und bestätige den Code {user_code}.",
+      "requesting_device_code": "Hole einen Einmal-Login-Code vom IDP…"
     }
   },
   "options": {
