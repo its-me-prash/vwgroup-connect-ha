@@ -31,12 +31,30 @@ class TestConfigFlowUser:
         from custom_components.vag_connect.config_flow import VagConnectConfigFlow
         return VagConnectConfigFlow
 
-    def test_flow_shows_form_when_no_input(self):
-        """Step user without input returns a form."""
+    def test_flow_user_step_shows_menu(self):
+        """v2.7.0b1 — async_step_user is now a menu (Browser-Login vs Email + Password)."""
         import asyncio
 
         hass = MagicMock()
-        hass.async_add_executor_job = AsyncMock()
+        flow = self._get_flow_class()()
+        flow.hass = hass
+        flow.context = {}
+        flow.handler = DOMAIN
+        flow.flow_id = "test"
+
+        result = asyncio.get_event_loop().run_until_complete(
+            flow.async_step_user(None)
+        )
+        assert result["type"] == "menu"
+        assert result["step_id"] == "user"
+        assert "browser_login" in result["menu_options"]
+        assert "email_password" in result["menu_options"]
+
+    def test_email_password_step_shows_form_when_no_input(self):
+        """The legacy credentials flow lives under async_step_email_password."""
+        import asyncio
+
+        hass = MagicMock()
         flow = self._get_flow_class()()
         flow.hass = hass
         flow.context = {}
@@ -46,31 +64,29 @@ class TestConfigFlowUser:
         flow._abort_if_unique_id_configured = MagicMock()
 
         result = asyncio.get_event_loop().run_until_complete(
-            flow.async_step_user(None)
+            flow.async_step_email_password(None)
         )
         assert result["type"] == "form"
-        assert result["step_id"] == "user"
+        assert result["step_id"] == "email_password"
 
     def test_duplicate_entry_aborts(self):
         """Entering same brand+username twice aborts with already_configured."""
         import asyncio
 
         hass = MagicMock()
-        hass.async_add_executor_job = AsyncMock()
         flow = self._get_flow_class()()
         flow.hass = hass
         flow.context = {}
         flow.handler = DOMAIN
         flow.flow_id = "test"
         flow.async_set_unique_id = AsyncMock()
-        # Simulate abort
         flow._abort_if_unique_id_configured = MagicMock(
             side_effect=Exception("already_configured")
         )
 
         with pytest.raises(Exception, match="already_configured"):
             asyncio.get_event_loop().run_until_complete(
-                flow.async_step_user({
+                flow.async_step_email_password({
                     CONF_BRAND: "audi",
                     "username": "test@test.de",
                     "password": "pw",
@@ -78,11 +94,10 @@ class TestConfigFlowUser:
             )
 
     def test_invalid_credentials_shows_error(self):
-        """Wrong credentials → form with error base:invalid_credentials."""
+        """Wrong credentials → email_password form with error base:invalid_credentials."""
         import asyncio
 
         hass = MagicMock()
-        hass.async_add_executor_job = AsyncMock(side_effect=ValueError("invalid_credentials"))
         flow = self._get_flow_class()()
         flow.hass = hass
         flow.context = {}
@@ -96,7 +111,7 @@ class TestConfigFlowUser:
             side_effect=ValueError("invalid_credentials"),
         ):
             result = asyncio.get_event_loop().run_until_complete(
-                flow.async_step_user({
+                flow.async_step_email_password({
                     CONF_BRAND: "audi",
                     "username": "test@test.de",
                     "password": "wrong",
@@ -106,10 +121,11 @@ class TestConfigFlowUser:
                 })
             )
         assert result["type"] == "form"
+        assert result["step_id"] == "email_password"
         assert result["errors"]["base"] == "invalid_credentials"
 
     def test_cannot_connect_shows_error(self):
-        """Connection failure → cannot_connect error."""
+        """Connection failure → cannot_connect error in email_password step."""
         import asyncio
 
         hass = MagicMock()
@@ -126,7 +142,7 @@ class TestConfigFlowUser:
             side_effect=ValueError("cannot_connect"),
         ):
             result = asyncio.get_event_loop().run_until_complete(
-                flow.async_step_user({
+                flow.async_step_email_password({
                     CONF_BRAND: "volkswagen",
                     "username": "t@t.de",
                     "password": "pw",
@@ -139,7 +155,7 @@ class TestConfigFlowUser:
         assert result["errors"]["base"] == "cannot_connect"
 
     def test_successful_setup_creates_entry(self):
-        """Valid credentials → creates config entry with correct data."""
+        """Valid credentials → creates config entry with correct data via email_password step."""
         import asyncio
 
         hass = MagicMock()
@@ -157,7 +173,7 @@ class TestConfigFlowUser:
         ):
             with patch.object(flow, "async_create_entry", return_value={"type": "create_entry", "data": {}}) as mock_create:
                 asyncio.get_event_loop().run_until_complete(
-                    flow.async_step_user({
+                    flow.async_step_email_password({
                         CONF_BRAND: "audi",
                         "username": "user@audi.de",
                         "password": "secret",

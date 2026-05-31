@@ -71,10 +71,7 @@
       },
       "browser_login_pending": {
         "title": "Warte auf deine Browser-Bestätigung",
-        "description": "1. Öffne **{verification_uri}** auf einem beliebigen Gerät.\n2. Melde dich mit deinem Brand-ID-Konto an (falls noch nicht eingeloggt).\n3. Bestätige den Code **{user_code}**.\n\nHome Assistant pollt im Hintergrund — die Seite wechselt automatisch sobald du bestätigt hast.",
-        "progress": {
-          "awaiting_browser_login": "Warte auf Browser-Bestätigung…"
-        }
+        "description": "1. Öffne **{verification_uri}** auf einem beliebigen Gerät.\n2. Melde dich mit deinem Brand-ID-Konto an (falls noch nicht eingeloggt).\n3. Bestätige den Code **{user_code}**.\n\nHome Assistant pollt im Hintergrund — die Seite wechselt automatisch sobald du bestätigt hast."
       }
     },
     "error": {
@@ -93,6 +90,9 @@
       "already_configured": "Dieses Konto ist bereits eingerichtet.",
       "reauth_successful": "Erneute Anmeldung erfolgreich.",
       "reconfigure_successful": "Konfiguration erfolgreich aktualisiert."
+    },
+    "progress": {
+      "awaiting_browser_login": "Warte auf Browser-Bestätigung…"
     }
   },
   "options": {

@@ -77,10 +77,7 @@
       },
       "browser_login_pending": {
         "title": "Waiting for your browser approval",
-        "description": "1. Open **{verification_uri}** on any device.\n2. Sign in to your Brand ID account if asked.\n3. Confirm the code **{user_code}**.\n\nHome Assistant is polling — this page will advance automatically once you approve.",
-        "progress": {
-          "awaiting_browser_login": "Waiting for browser approval…"
-        }
+        "description": "1. Open **{verification_uri}** on any device.\n2. Sign in to your Brand ID account if asked.\n3. Confirm the code **{user_code}**.\n\nHome Assistant is polling — this page will advance automatically once you approve."
       }
     },
     "error": {
@@ -99,6 +96,9 @@
       "already_configured": "This account is already configured.",
       "reauth_successful": "Re-authentication successful.",
       "reconfigure_successful": "Configuration updated successfully."
+    },
+    "progress": {
+      "awaiting_browser_login": "Waiting for browser approval…"
     }
   },
   "options": {
