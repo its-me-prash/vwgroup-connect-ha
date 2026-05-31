@@ -374,11 +374,20 @@ class DeviceAuthorizationGrant:
 
 # ── Brand → DAG eligibility map ───────────────────────────────────────────
 #
-# Source: live HTTP probe on 2026-05-30 of
+# Source: live HTTP probe on 2026-05-30 + re-probe 2026-05-31 of
 # ``identity.vwgroup.io/oidc/v1/device_authorization`` with each known
 # brand client_id. The brands listed here received a 200 + valid
-# device_code response. VW EU received HTTP 403 ``unauthorized_client``
-# and is intentionally excluded. Update when VW expands the whitelist.
+# device_code response.
+#
+# VW EU client_ids tested 2026-05-31 (none DAG-eligible):
+#   - a24fba63-…@apps_vw-dilab_com  (canonical) → HTTP 400 empty body
+#   - 4edc53db-…@apps_vw-dilab_com  (VW 3.61.0 alt) → HTTP 400 empty body
+#   - 16dd7960-…@apps_vw-dilab_com  (cross-found in Audi APK) → HTTP 400
+# (rejection mode shifted from "403 unauthorized_client" on 2026-05-30
+# to "400 empty body" on 2026-05-31 — VW tightened error surface; the
+# client is still not whitelisted either way.)
+#
+# Update when VW expands the whitelist.
 DAG_ENABLED_BRANDS = frozenset({"audi", "skoda", "seat", "cupra"})
 
 
