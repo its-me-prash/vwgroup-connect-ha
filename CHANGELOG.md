@@ -38,6 +38,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [Unreleased]
+
+- Data Act portal: automated zip download and parse (Action #3).
+
 ## [2.2.0-rc1] — 2026-05-16 — "Legen — wait for it — dary" (Release Candidate)
 
 

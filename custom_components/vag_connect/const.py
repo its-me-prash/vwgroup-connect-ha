@@ -74,6 +74,17 @@ CONF_ENABLE_PUSH_AUDI_VW      = "enable_push_audi_vw"
 # string ("2.17.0") or full User-Agent string per RFC 7231.
 CONF_OLA_APP_VERSION_OVERRIDE = "ola_app_version_override"
 CONF_OLA_USER_AGENT_OVERRIDE  = "ola_user_agent_override"
+# v2.8.0 Action #3 - EU Data Act portal scraper headless-browser
+# fallback. Off by default because the playwright dependency is heavy
+# (around 100 MB Chromium download) and most users will get usable
+# data from the JSON probe in Route A once a credentialed tester
+# completes v2.8.1 endpoint discovery. When True AND the active auth
+# strategy is data_act_portal AND playwright is installed, the
+# coordinator drives a headless browser to click the portal's "Get
+# customised data" button. If True but playwright is missing, the
+# coordinator surfaces a Repair issue telling the user how to
+# install the package inside their HA container.
+CONF_ENABLE_DATA_ACT_BROWSER  = "enable_data_act_browser"
 
 # Supported brands — must match CariadClientFactory.create() keys
 BRANDS = {
