@@ -4,7 +4,7 @@ How we write commits, PRs, CHANGELOG entries, and issue comments in this repo.
 
 ## Why a style guide
 
-After a few iterations our output started reading as AI-generated: multi-paragraph commit bodies, "Summary / Test plan" headings on every PR, em-dashes everywhere, bilingual EN/DE blocks in the same artifact. Maintainers we want to work alongside (`@tillsteinbach`, `@andig` and others in the same niche) write much shorter and don't use any of that. This file codifies the patterns we match.
+After a few iterations our output started reading as AI-generated: multi-paragraph commit bodies, "Summary / Test plan" headings on every PR, em-dashes everywhere, bilingual EN/DE blocks in the same artifact. Top-tier maintainers in the same niche write much shorter and don't use any of that. This file codifies the patterns we match.
 
 ## Commits
 
