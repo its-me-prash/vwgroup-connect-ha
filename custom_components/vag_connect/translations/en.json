@@ -74,8 +74,8 @@
         "description": "Asking the IDP for a one-time device code."
       },
       "browser_login_approve": {
-        "title": "Waiting for your browser approval",
-        "description": "1. Open **{verification_uri}** on any device.\n2. Sign in to your Brand ID account if asked.\n3. Confirm the code **{user_code}**.\n\nHome Assistant is polling — this page will advance automatically once you approve."
+        "title": "Approve in your browser",
+        "description": "**1. Open this URL on any device** (phone, laptop, anywhere with a browser):\n\n{verification_uri}\n\n**2. Sign in** to your Brand ID account if asked.\n\n**3. Confirm the code:** `{user_code}`\n\n**4. Once you've approved, click Submit below.**\n\nHome Assistant is polling in the background — clicking Submit confirms you're done. If you click before approval is complete you'll get a 'still waiting' hint and can click again."
       }
     },
     "error": {
@@ -88,7 +88,8 @@
       "too_many_requests": "Account temporarily suspended (too many login attempts). Please wait 15 minutes.",
       "invalid_credentials": "Email address or password incorrect.",
       "upstream_unavailable": "VW backend temporarily unavailable. This is a server-side issue at VW, NOT a credentials problem. Please wait 5–15 minutes and try again. Do NOT reconfigure the integration.",
-      "brand_not_dag_eligible": "Selected brand does not support browser login. Use the email + password flow instead."
+      "brand_not_dag_eligible": "Selected brand does not support browser login. Use the email + password flow instead.",
+      "still_waiting_browser": "Still waiting for browser approval. Open the URL above, sign in, confirm the code, then click Submit again."
     },
     "abort": {
       "already_configured": "This account is already configured.",

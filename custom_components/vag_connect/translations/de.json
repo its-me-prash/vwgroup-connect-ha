@@ -74,8 +74,8 @@
         "description": "Fordere einen Einmal-Code vom IDP an."
       },
       "browser_login_approve": {
-        "title": "Warte auf deine Browser-Bestätigung",
-        "description": "1. Öffne **{verification_uri}** auf einem beliebigen Gerät.\n2. Melde dich mit deinem Brand-ID-Konto an (falls noch nicht eingeloggt).\n3. Bestätige den Code **{user_code}**.\n\nHome Assistant pollt im Hintergrund — die Seite wechselt automatisch sobald du bestätigt hast."
+        "title": "Im Browser bestätigen",
+        "description": "**1. Öffne diese URL auf einem beliebigen Gerät** (Handy, Laptop, irgendwas mit Browser):\n\n{verification_uri}\n\n**2. Melde dich** mit deinem Brand-ID-Konto an (falls noch nicht eingeloggt).\n\n**3. Bestätige den Code:** `{user_code}`\n\n**4. Wenn du bestätigt hast, klick unten auf Senden / Submit.**\n\nHome Assistant pollt im Hintergrund — der Klick auf Senden bestätigt dass du fertig bist. Wenn du zu früh klickst kommt ein 'noch warten' Hinweis und du kannst nochmal klicken."
       }
     },
     "error": {
@@ -88,7 +88,8 @@
       "too_many_requests": "Account vorübergehend gesperrt (zu viele Anmeldeversuche). Bitte 15 Minuten warten.",
       "invalid_credentials": "E-Mail-Adresse oder Passwort falsch.",
       "upstream_unavailable": "VW-Backend vorübergehend nicht erreichbar. Das ist ein Server-Problem bei VW, KEIN Anmeldefehler. Bitte 5–15 Minuten warten und nochmal versuchen. Die Integration NICHT neu konfigurieren.",
-      "brand_not_dag_eligible": "Diese Marke unterstützt kein Browser-Login. Nutze stattdessen E-Mail + Passwort."
+      "brand_not_dag_eligible": "Diese Marke unterstützt kein Browser-Login. Nutze stattdessen E-Mail + Passwort.",
+      "still_waiting_browser": "Warte noch auf die Browser-Bestätigung. Öffne die URL oben, melde dich an, bestätige den Code und klick dann nochmal auf Senden."
     },
     "abort": {
       "already_configured": "Dieses Konto ist bereits eingerichtet.",
