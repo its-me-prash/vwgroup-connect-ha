@@ -1455,6 +1455,31 @@ class VagConnectSensor(VagConnectEntity, SensorEntity):
                 except ValueError:
                     return None
 
+        # v2.7.0b5 — TIMESTAMP sensors: API ships ISO-8601 strings (e.g.
+        # subscription_expiry_at returns "2026-06-16T22:34:00Z"). HA's
+        # SensorDeviceClass.TIMESTAMP requires a timezone-aware datetime
+        # object — feeding a str raises 'str has no attribute tzinfo'
+        # and rejects the entity at add-time. Convert here so brand
+        # parsers can stay loose (just hand through whatever the backend
+        # gives us). Trailing 'Z' is handled by replacing it with +00:00
+        # since datetime.fromisoformat predates RFC 3339 'Z' support on
+        # older Python (3.10 and below).
+        if (
+            self.entity_description.device_class == SensorDeviceClass.TIMESTAMP
+            and val is not None
+        ):
+            if isinstance(val, str):
+                from datetime import datetime, timezone  # noqa: PLC0415
+                try:
+                    parsed = datetime.fromisoformat(val.replace("Z", "+00:00"))
+                except ValueError:
+                    return None
+                # Defensive: ensure tz-aware. ISO strings without
+                # timezone are assumed UTC (the backend convention).
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=timezone.utc)
+                return parsed
+
         return val
 
 

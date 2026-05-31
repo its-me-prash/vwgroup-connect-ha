@@ -50,6 +50,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - OLA watcher gains daernsinstantfortress as 3rd consensus source
 - App Atlas covers all 7 brands
 
+## [2.7.0b5] — 2026-05-31 — "TIMESTAMP sensors fix (beta)"
+
+- subscription_expiry_at (and any other ISO-string sensors with TIMESTAMP device class) now parse to timezone-aware datetime in native_value. Pre-fix HA rejected the entity at add-time with 'str has no attribute tzinfo'.
+
 ## [2.7.0b4] — 2026-05-31 — "Menu + DAG progress UX fix (beta)"
 
 - Browser-Login / Email+Password menu now passes labels in the code instead of relying on the HA translation lookup — cures empty-chevron rendering when the integration is updated without an HA restart.
