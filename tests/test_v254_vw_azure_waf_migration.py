@@ -102,15 +102,31 @@ class TestQMAuthSigning:
 
 
 class TestCariadTokenHeaders:
-    """v2.5.4 (#313) — The CARIAD BFF token endpoint validates the
-    8-header set on every request. All 8 must be present, otherwise
-    the Azure WAF returns 403 or the gateway returns invalid-assertion."""
+    """v2.5.4 introduced the 8-header set as defensive 'mimic the
+    official app' superset. v2.7.0b2 flipped the default to the
+    5-header set (audi_connect_ha parity) after VW backend started
+    validating the dummy x-assertion='0' value. The assertion trio
+    is still accessible via include_assertion=True for debugging."""
 
-    def test_all_eight_headers_present(self) -> None:
+    def test_default_is_five_header_set(self) -> None:
+        """v2.7.0b2 — default omits assertion trio."""
         from custom_components.vag_connect.cariad.auth.idk import (
             _cariad_token_headers,
         )
         h = _cariad_token_headers(user_agent="ua/test")
+        expected = {
+            "Content-Type", "Accept", "Accept-Charset", "User-Agent", "x-qmauth",
+        }
+        assert set(h.keys()) == expected
+
+    def test_all_eight_headers_present_when_opted_in(self) -> None:
+        """When the caller passes include_assertion=True the full
+        v2.5.4 8-header superset is still produced — useful for
+        debugging if VW ever flips the assertion validation back off."""
+        from custom_components.vag_connect.cariad.auth.idk import (
+            _cariad_token_headers,
+        )
+        h = _cariad_token_headers(user_agent="ua/test", include_assertion=True)
         expected = {
             "Content-Type", "Accept", "Accept-Charset", "User-Agent",
             "x-qmauth", "x-platform", "x-android-package-name", "x-assertion",
@@ -121,13 +137,16 @@ class TestCariadTokenHeaders:
         from custom_components.vag_connect.cariad.auth.idk import (
             _cariad_token_headers,
         )
+        # Default 5-header set
         h = _cariad_token_headers(user_agent="ua/test")
         assert h["Content-Type"] == "application/x-www-form-urlencoded"
         assert h["Accept"] == "application/json"
         assert h["Accept-Charset"] == "utf-8"
-        assert h["x-platform"] == "android"
-        assert h["x-android-package-name"] == "de.myaudi.mobile.assistant"
-        assert h["x-assertion"] == "0"
+        # Opted-in 8-header superset
+        h_opt = _cariad_token_headers(user_agent="ua/test", include_assertion=True)
+        assert h_opt["x-platform"] == "android"
+        assert h_opt["x-android-package-name"] == "de.myaudi.mobile.assistant"
+        assert h_opt["x-assertion"] == "0"
 
     def test_user_agent_threaded_from_brand(self) -> None:
         from custom_components.vag_connect.cariad.auth.idk import (

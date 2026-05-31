@@ -50,6 +50,21 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - OLA watcher gains daernsinstantfortress as 3rd consensus source
 - App Atlas covers all 7 brands
 
+## [2.7.0b3] — 2026-05-31 — "Hassfest + test contract fixes (beta)"
+
+- Translations: moved progress key from inside step to top-level config.progress per HA schema.
+- Tests aligned with v2.7.0b1 menu split and v2.7.0b2 5-header default.
+
+## [2.7.0b2] — 2026-05-31 — "Audi token-headers fix (beta)"
+
+- Audi email+password login: dropped the dummy x-assertion / x-platform / x-android-package-name trio from token requests — VW backend now rejects the dummy value and lets through requests that omit the headers entirely. Matches audi_connect_ha v1.19.2+ behaviour.
+
+## [2.7.0b1] — 2026-05-31 — "Browser-Login UI (beta)"
+
+- New config_flow menu: choose between Browser-Login (recommended) and Email + Password (legacy).
+- Browser-Login wires the v2.6.0 OAuth Device Authorization Grant module into HA's show_progress flow — open a URL, enter a short code, no password stored in HA.
+- Available for Audi, Škoda, SEAT, CUPRA. VW EU + Porsche stay on the email + password path.
+
 ## [2.6.0] — 2026-05-31 — "Multi-Strategy Auth (Hybrid + DAG + Data Act)"
 
 - VW EU now logs in via OIDC hybrid flow (response_type=code id_token token) — bypasses Play Integrity wall.

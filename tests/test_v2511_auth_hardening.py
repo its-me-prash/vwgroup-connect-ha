@@ -67,22 +67,31 @@ class TestCariadTokenHeaders:
     """``_cariad_token_headers()`` accepts ``android_package_name``."""
 
     def test_header_uses_param(self) -> None:
+        """v2.7.0b2: android_package_name only transmitted when
+        include_assertion=True. Default 5-header set omits the assertion
+        trio entirely."""
         from custom_components.vag_connect.cariad.auth.idk import (
             _cariad_token_headers,
         )
         headers = _cariad_token_headers(
             "test-ua",
             android_package_name="com.example.testbrand",
+            include_assertion=True,
         )
         assert headers["x-android-package-name"] == "com.example.testbrand"
 
     def test_default_remains_audi_for_back_compat(self) -> None:
-        """Unparameterised callers (none in prod after v2.5.11) keep working."""
+        """v2.7.0b2 — default flipped to 5-header set (audi_connect_ha
+        parity). x-android-package-name is no longer in the default
+        output. Opt-in via include_assertion=True."""
         from custom_components.vag_connect.cariad.auth.idk import (
             _cariad_token_headers,
         )
         headers = _cariad_token_headers("test-ua")
-        assert headers["x-android-package-name"] == "de.myaudi.mobile.assistant"
+        assert "x-android-package-name" not in headers
+        # When opted-in, the Audi-default value still applies
+        headers_opt = _cariad_token_headers("test-ua", include_assertion=True)
+        assert headers_opt["x-android-package-name"] == "de.myaudi.mobile.assistant"
 
 
 # ── PATCH 2 — Audi market-config dynamic discovery ─────────────────────────

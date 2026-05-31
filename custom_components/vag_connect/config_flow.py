@@ -167,7 +167,41 @@ def _map_error(err_code: str) -> str:
         "terms_and_conditions", "marketing_consent", "two_factor_required",
         "too_many_requests", "invalid_credentials", "missing_library",
         "upstream_unavailable",  # v2.5.7 — 5xx from VW backend
+        "brand_not_dag_eligible",  # v2.7.0 — user picked non-DAG brand for browser login
     } else "cannot_connect"
+
+
+def _extract_user_id_from_id_token(id_token: str, fallback: str) -> str:
+    """v2.7.0 — Decode the ``sub`` claim from an OIDC id_token.
+
+    Used by the browser-login (DAG) flow to derive a stable per-user
+    identifier without ever asking the user for their email. The
+    id_token is signed by VW's IDP — we do NOT verify the signature
+    here (the IDP verified it when minting it; tampering doesn't
+    affect us because we only consume our own freshly-acquired token).
+
+    Returns the ``sub`` claim if extractable, else ``fallback``.
+    Never raises — id_token formats vary across brands and we never
+    want a parse failure to block setup.
+    """
+    import base64  # noqa: PLC0415
+    import json  # noqa: PLC0415
+
+    try:
+        parts = id_token.split(".")
+        if len(parts) < 2:
+            return fallback
+        payload_b64 = parts[1]
+        # Base64-url padding: JWT strips '=', so add it back.
+        padding = (-len(payload_b64)) % 4
+        payload_bytes = base64.urlsafe_b64decode(payload_b64 + ("=" * padding))
+        payload = json.loads(payload_bytes.decode("utf-8"))
+        sub = payload.get("sub")
+        if isinstance(sub, str) and sub:
+            return sub
+    except Exception:  # noqa: BLE001 — defensive, never block setup
+        pass
+    return fallback
 
 
 # ── Schema builders ───────────────────────────────────────────────────────────
@@ -203,11 +237,43 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         self._pending_username: str = ""
         self._pending_password: str = ""
         self._pending_entry_data: dict[str, Any] = {}
+        # v2.7.0 — Device Authorization Grant (browser-login) state.
+        # Populated in async_step_browser_login + read by the polling
+        # background task. Reset at the start of every new browser flow.
+        self._dag_brand: str = ""
+        self._dag_user_input: dict[str, Any] = {}
+        self._dag_task: Any = None
+        self._dag_user_code: str = ""
+        self._dag_verification_uri: str = ""
+        self._dag_tokens: Any = None
+        self._dag_user_id: str = ""
+        self._dag_error: str = ""
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
-        """Step 1: brand + credentials."""
+        """Step 1 (v2.7.0): menu — browser login vs email + password.
+
+        Browser login (Device Authorization Grant) is recommended for
+        Audi/Skoda/SEAT/CUPRA — no password storage in HA, real
+        refresh_token, password-less. VW EU and Porsche stay on the
+        email + password path because VW has not whitelisted those
+        client_ids for the device grant flow.
+        """
+        return self.async_show_menu(
+            step_id="user",
+            menu_options=["browser_login", "email_password"],
+        )
+
+    async def async_step_email_password(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """v2.7.0 — original credentials flow (was async_step_user).
+
+        Browser-login users skip this step entirely. Legacy email +
+        password path stays for backwards compatibility and for brands
+        without device-grant whitelisting (VW EU, Porsche).
+        """
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -247,7 +313,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         # client even via schema-default).
         suggested = user_input or {}
         return self.async_show_form(
-            step_id="user",
+            step_id="email_password",
             data_schema=_credentials_schema(
                 brand=suggested.get(CONF_BRAND, ""),
                 username=suggested.get(CONF_USERNAME, ""),
@@ -258,6 +324,199 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 force_access=bool(suggested.get(CONF_FORCE_ACCESS, False)),
             ),
             errors=errors,
+        )
+
+    async def async_step_browser_login(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """v2.7.0 — Browser-login (Device Authorization Grant) step 1.
+
+        User picks a DAG-eligible brand and optional advanced settings.
+        Submits → we start the background DAG task and transition to the
+        pending step (which shows progress + verification URL).
+        """
+        from .cariad.auth._device_grant import DAG_ENABLED_BRANDS  # noqa: PLC0415
+
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            brand = user_input[CONF_BRAND]
+            if brand not in DAG_ENABLED_BRANDS:
+                # Defence in depth — the form should have filtered these
+                # out already, but the user could send a crafted payload.
+                errors["base"] = "brand_not_dag_eligible"
+            else:
+                # Reset state for this attempt.
+                self._dag_brand = brand
+                self._dag_user_input = dict(user_input)
+                self._dag_task = None
+                self._dag_user_code = ""
+                self._dag_verification_uri = ""
+                self._dag_tokens = None
+                self._dag_user_id = ""
+                self._dag_error = ""
+                return await self.async_step_browser_login_pending()
+
+        # DAG-eligible brand options only (subset of the standard list).
+        dag_brand_options: list[SelectOptionDict] = [
+            opt for opt in _BRAND_OPTIONS
+            if opt["value"] in DAG_ENABLED_BRANDS
+        ]
+        dag_brand_selector = SelectSelector(
+            SelectSelectorConfig(
+                options=dag_brand_options,
+                mode=SelectSelectorMode.LIST,
+                translation_key="brand",
+            )
+        )
+
+        suggested = user_input or {}
+        return self.async_show_form(
+            step_id="browser_login",
+            data_schema=vol.Schema({
+                vol.Required(
+                    CONF_BRAND, default=suggested.get(CONF_BRAND, vol.UNDEFINED),
+                ): dag_brand_selector,
+                vol.Optional(
+                    CONF_SPIN, default=suggested.get(CONF_SPIN, ""),
+                ): _SPIN_SELECTOR,
+                vol.Optional(
+                    CONF_SCAN_INTERVAL,
+                    default=int(suggested.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)),
+                ): _INTERVAL_SELECTOR,
+                vol.Optional(
+                    CONF_FORCE_ACCESS,
+                    default=bool(suggested.get(CONF_FORCE_ACCESS, False)),
+                ): _BOOL_SELECTOR,
+            }),
+            errors=errors,
+        )
+
+    async def async_step_browser_login_pending(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """v2.7.0 — Browser-login step 2: poll while the user approves.
+
+        HA's show_progress pattern: the first call starts a background
+        task; subsequent calls (HA polls this step every ~2s) check if
+        the task is done. When done, we advance to the finish step.
+        """
+        if self._dag_task is None:
+            self._dag_task = self.hass.async_create_task(self._run_dag_flow())
+
+        if not self._dag_task.done():
+            return self.async_show_progress(
+                step_id="browser_login_pending",
+                progress_action="awaiting_browser_login",
+                progress_task=self._dag_task,
+                description_placeholders={
+                    "verification_uri": (
+                        self._dag_verification_uri or "(requesting...)"
+                    ),
+                    "user_code": self._dag_user_code or "(requesting...)",
+                },
+            )
+
+        # Task finished — advance to either finish (success) or
+        # back to the brand-pick form with an error (failure).
+        next_step = (
+            "browser_login_finish" if self._dag_tokens else "browser_login"
+        )
+        return self.async_show_progress_done(next_step_id=next_step)
+
+    async def _run_dag_flow(self) -> None:
+        """v2.7.0 — Background task that drives the DAG flow.
+
+        Sequence:
+          1. Request device_code (populates _dag_user_code/_uri for the
+             show_progress description_placeholders).
+          2. Poll /token until the user approves in the browser.
+          3. Decode id_token's `sub` claim → use as user identifier for
+             the config_entry unique_id and title.
+
+        Errors are stashed on ``self._dag_error`` so the pending step
+        can surface them; raising here would crash the HA flow handler.
+        """
+        import aiohttp  # noqa: PLC0415
+        from .cariad.auth._device_grant import DeviceAuthorizationGrant  # noqa: PLC0415
+        from .const import BRANDS as _CONST_BRANDS  # noqa: PLC0415
+
+        # Reuse the existing CariadClientFactory's session pattern.
+        connector = aiohttp.TCPConnector(ssl=True)
+        try:
+            async with aiohttp.ClientSession(
+                connector=connector,
+                cookie_jar=aiohttp.CookieJar(unsafe=True),
+            ) as session:
+                # Brand → client_id mapping via the BRANDS registry.
+                from .cariad.models import BRANDS as BRAND_CONFIGS  # noqa: PLC0415
+
+                brand_cfg = BRAND_CONFIGS[self._dag_brand]
+                dag = DeviceAuthorizationGrant(
+                    session,
+                    brand_cfg.client_id,
+                    scope=brand_cfg.scope,
+                )
+                code = await dag.request_device_code()
+                self._dag_user_code = code.user_code
+                self._dag_verification_uri = code.verification_uri_complete
+                self._dag_tokens = await dag.poll_for_tokens(
+                    code.device_code,
+                    interval=code.interval,
+                    expires_in=code.expires_in,
+                )
+                self._dag_user_id = _extract_user_id_from_id_token(
+                    self._dag_tokens.id_token, fallback=f"{self._dag_brand}_dag",
+                )
+                _LOGGER.info(
+                    "Browser login succeeded for %s — sub=%s",
+                    _CONST_BRANDS.get(self._dag_brand, self._dag_brand),
+                    self._dag_user_id[:8] if self._dag_user_id else "(none)",
+                )
+        except Exception as err:  # noqa: BLE001 — flow-level catch
+            self._dag_error = str(err)
+            _LOGGER.warning(
+                "Browser login failed for %s: %s", self._dag_brand, err,
+            )
+
+    async def async_step_browser_login_finish(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """v2.7.0 — Browser-login step 3: create the config entry.
+
+        Reached only after _run_dag_flow set _dag_tokens. Stores the
+        tokens in the entry's data dict; the coordinator's existing
+        token-persistence machinery picks them up on first run.
+        """
+        if self._dag_tokens is None:
+            # Shouldn't happen if step routing is correct, but defensive.
+            return self.async_abort(reason="dag_no_tokens")
+
+        unique = f"{self._dag_brand}_{self._dag_user_id}"
+        await self.async_set_unique_id(unique)
+        self._abort_if_unique_id_configured()
+
+        # Reuse _build_entry_data but with synthetic email-substitute
+        # (BrandID `sub`). Password is empty — the refresh-token path
+        # handles renewal without it.
+        entry_data = self._build_entry_data(
+            self._dag_brand,
+            self._dag_user_id,
+            "",  # no password stored
+            self._dag_user_input,
+        )
+        # Stash the DAG-acquired tokens so the coordinator's token
+        # persistence loader picks them up before the first poll cycle.
+        entry_data["dag_initial_tokens"] = {
+            "access_token": self._dag_tokens.access_token,
+            "refresh_token": self._dag_tokens.refresh_token,
+            "id_token": self._dag_tokens.id_token,
+            "expires_at": self._dag_tokens.expires_at,
+            "strategy": "device_grant",
+        }
+        return self.async_create_entry(
+            title=f"{BRANDS[self._dag_brand]} — {self._dag_user_id[:8]}…",
+            data=entry_data,
         )
 
     async def async_step_mfa(

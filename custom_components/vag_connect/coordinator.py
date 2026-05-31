@@ -553,6 +553,31 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         )
         self._token_storage = TokenStorage(store)
         persisted = await self._token_storage.load()
+
+        # v2.7.0 — config_flow's browser-login (DAG) flow stashes the
+        # initial tokens in entry.data["dag_initial_tokens"] because
+        # the persistent storage hadn't been set up yet at that point.
+        # Promote those into the persistent store on the first run, then
+        # behave like a normal restart from cached tokens.
+        if persisted is None:
+            dag_initial = self.entry.data.get("dag_initial_tokens")
+            if dag_initial:
+                from .cariad.models import TokenSet  # noqa: PLC0415
+                persisted = TokenSet(
+                    access_token=str(dag_initial.get("access_token", "")),
+                    refresh_token=str(dag_initial.get("refresh_token", "")),
+                    id_token=str(dag_initial.get("id_token", "")),
+                    expires_at=float(dag_initial.get("expires_at", 0.0)),
+                    strategy=str(dag_initial.get("strategy", "")),
+                )
+                _LOGGER.debug(
+                    "VAG Connect: bootstrapping with DAG initial tokens "
+                    "for %s (strategy=%s)", brand, persisted.strategy,
+                )
+                # Save immediately so the entry.data copy can be cleaned
+                # up on a subsequent config_flow update.
+                await self._token_storage.save(persisted)
+
         if persisted is not None:
             self._cariad_client.set_persisted_tokens(persisted)
         # Fire-and-forget save callback — never blocks API path.

@@ -1,26 +1,6 @@
 {
   "config": {
     "step": {
-      "user": {
-        "title": "Set up VW Group Connect",
-        "description": "Connect your vehicle to Home Assistant.\n\nChoose your brand and enter the credentials from your manufacturer's app.",
-        "data": {
-          "brand": "Vehicle Brand",
-          "username": "Email Address",
-          "password": "Password",
-          "spin": "S-PIN",
-          "scan_interval": "Update Interval",
-          "force_enable_access": "Force Door Status"
-        },
-        "data_description": {
-          "brand": "Choose your brand — myAudi, WeConnect ID, MyŠkoda, SEAT, CUPRA, VW US/CA or Porsche.",
-          "username": "Email address from the manufacturer app.",
-          "password": "Password from the app.",
-          "spin": "Only needed for locking. App → Security → S-PIN.",
-          "scan_interval": "How often data is fetched. Default: 5 min. Minimum: 3 min.",
-          "force_enable_access": "For older vehicles that fail the capability check."
-        }
-      },
       "reauth_confirm": {
         "title": "Re-authenticate — {brand}",
         "description": "The session for **{username}** has expired.\n\nPlease re-enter your password.",
@@ -50,6 +30,54 @@
         "data_description": {
           "mfa_code": "6-digit code — valid for a few minutes."
         }
+      },
+      "email_password": {
+        "title": "Sign in with email + password (legacy)",
+        "description": "Connect your vehicle to Home Assistant.\n\nChoose your brand and enter the credentials from your manufacturer's app.",
+        "data": {
+          "brand": "Vehicle Brand",
+          "username": "Email Address",
+          "password": "Password",
+          "spin": "S-PIN",
+          "scan_interval": "Update Interval",
+          "force_enable_access": "Force Door Status"
+        },
+        "data_description": {
+          "brand": "Choose your brand — myAudi, WeConnect ID, MyŠkoda, SEAT, CUPRA, VW US/CA or Porsche.",
+          "username": "Email address from the manufacturer app.",
+          "password": "Password from the app.",
+          "spin": "Only needed for locking. App → Security → S-PIN.",
+          "scan_interval": "How often data is fetched. Default: 5 min. Minimum: 3 min.",
+          "force_enable_access": "For older vehicles that fail the capability check."
+        }
+      },
+      "user": {
+        "title": "Set up VW Group Connect",
+        "description": "How would you like to sign in?\n\n**Browser-Login (recommended)** — open a URL on your phone or laptop, sign in to your Brand ID account, approve the device. No password is ever stored in Home Assistant. Available for Audi, Škoda, SEAT and CUPRA.\n\n**Email + Password (legacy)** — enter your Brand ID credentials directly. Required for Volkswagen EU and Porsche.",
+        "menu_options": {
+          "browser_login": "Browser-Login (recommended)",
+          "email_password": "Email + Password (legacy)"
+        }
+      },
+      "browser_login": {
+        "title": "Browser-Login — choose your brand",
+        "description": "Pick the brand of the vehicle you want to connect. On the next screen you will see a short code and a URL to visit on any device with a browser.",
+        "data": {
+          "brand": "Vehicle Brand",
+          "spin": "S-PIN",
+          "scan_interval": "Update Interval",
+          "force_enable_access": "Force Door Status"
+        },
+        "data_description": {
+          "brand": "Only brands with browser-login support are listed. Use 'Email + Password' for Volkswagen EU and Porsche.",
+          "spin": "Optional 4-digit Security-PIN for remote actions (lock, unlock, climate).",
+          "scan_interval": "Minutes between vehicle data polls.",
+          "force_enable_access": "Force door-status entities even when the vehicle reports the data missing."
+        }
+      },
+      "browser_login_pending": {
+        "title": "Waiting for your browser approval",
+        "description": "1. Open **{verification_uri}** on any device.\n2. Sign in to your Brand ID account if asked.\n3. Confirm the code **{user_code}**.\n\nHome Assistant is polling — this page will advance automatically once you approve."
       }
     },
     "error": {
@@ -61,12 +89,16 @@
       "email_two_factor_required": "Email 2FA required. Check your inbox (and spam) for a 6-digit code from VAG IDP, then sign in manually in the brand app once.",
       "too_many_requests": "Account temporarily suspended (too many login attempts). Please wait 15 minutes.",
       "invalid_credentials": "Email address or password incorrect.",
-      "upstream_unavailable": "VW backend temporarily unavailable. This is a server-side issue at VW, not a credentials problem. Please wait 5–15 minutes and try again. Do NOT reconfigure the integration."
+      "upstream_unavailable": "VW backend temporarily unavailable. This is a server-side issue at VW, not a credentials problem. Please wait 5–15 minutes and try again. Do NOT reconfigure the integration.",
+      "brand_not_dag_eligible": "Selected brand does not support browser login. Use the email + password flow instead."
     },
     "abort": {
       "already_configured": "This account is already configured.",
       "reauth_successful": "Re-authentication successful.",
       "reconfigure_successful": "Configuration updated successfully."
+    },
+    "progress": {
+      "awaiting_browser_login": "Waiting for browser approval…"
     }
   },
   "options": {
@@ -256,9 +288,6 @@
       },
       "requests_remaining_today": {
         "name": "API Requests Remaining"
-      },
-      "license_plate": {
-        "name": "License Plate"
       },
       "equipment_count": {
         "name": "Equipment Count"

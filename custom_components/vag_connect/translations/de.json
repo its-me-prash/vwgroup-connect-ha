@@ -1,26 +1,6 @@
 {
   "config": {
     "step": {
-      "user": {
-        "title": "VW Group Connect einrichten",
-        "description": "Verbinde dein Fahrzeug mit Home Assistant. Wähle deine Marke und gib die Zugangsdaten aus der jeweiligen App ein.",
-        "data": {
-          "brand": "Fahrzeugmarke",
-          "username": "E-Mail-Adresse",
-          "password": "Passwort",
-          "spin": "S-PIN (optional, für Türverriegelung)",
-          "scan_interval": "Aktualisierungsintervall (Minuten)",
-          "force_enable_access": "Türzustand erzwingen (für ältere Modelle)"
-        },
-        "data_description": {
-          "spin": "Wird für Türverriegelung und einige andere Aktionen benötigt. Kann leer gelassen werden.",
-          "scan_interval": "Wie oft die API abgefragt wird (Minuten). Standard: 5. Minimum: 3.",
-          "force_enable_access": "Aktivieren, wenn Tür- und Fensterstatus nicht angezeigt werden, obwohl sie in der App sichtbar sind.",
-          "brand": "Wähle deine Marke — myAudi, WeConnect ID, MyŠkoda, SEAT, CUPRA, VW US/CA oder Porsche.",
-          "username": "Deine VAG-Konto E-Mail (myAudi, myŠkoda, We Connect, MyCupra, MySEAT, etc.)",
-          "password": "Dein VAG-Konto Passwort"
-        }
-      },
       "reauth_confirm": {
         "title": "Erneut anmelden — {brand}",
         "description": "Die Anmeldung für **{username}** ist abgelaufen.\n\nBitte Passwort erneut eingeben.",
@@ -50,6 +30,48 @@
         "data_description": {
           "mfa_code": "6-stelliger Code aus E-Mail oder Authenticator-App"
         }
+      },
+      "email_password": {
+        "title": "Mit E-Mail + Passwort anmelden (Legacy)",
+        "description": "Verbinde dein Fahrzeug mit Home Assistant. Wähle deine Marke und gib die Zugangsdaten aus der jeweiligen App ein.",
+        "data": {
+          "brand": "Fahrzeugmarke",
+          "username": "E-Mail-Adresse",
+          "password": "Passwort",
+          "spin": "S-PIN (optional, für Türverriegelung)",
+          "scan_interval": "Aktualisierungsintervall (Minuten)",
+          "force_enable_access": "Türzustand erzwingen (für ältere Modelle)"
+        },
+        "data_description": {
+          "spin": "Wird für Türverriegelung und einige andere Aktionen benötigt. Kann leer gelassen werden.",
+          "scan_interval": "Wie oft die API abgefragt wird (Minuten). Standard: 5. Minimum: 3.",
+          "force_enable_access": "Aktivieren, wenn Tür- und Fensterstatus nicht angezeigt werden, obwohl sie in der App sichtbar sind.",
+          "brand": "Wähle deine Marke — myAudi, WeConnect ID, MyŠkoda, SEAT, CUPRA, VW US/CA oder Porsche.",
+          "username": "Deine VAG-Konto E-Mail (myAudi, myŠkoda, We Connect, MyCupra, MySEAT, etc.)",
+          "password": "Dein VAG-Konto Passwort"
+        }
+      },
+      "user": {
+        "title": "VW Group Connect einrichten",
+        "description": "Wie möchtest du dich anmelden?\n\n**Browser-Login (empfohlen)** — öffne eine URL auf Handy oder Laptop, melde dich mit deinem Brand-ID-Konto an, bestätige das Gerät. Kein Passwort wird in Home Assistant gespeichert. Verfügbar für Audi, Škoda, SEAT und CUPRA.\n\n**E-Mail + Passwort (Legacy)** — gib deine Brand-ID-Zugangsdaten direkt ein. Erforderlich für Volkswagen EU und Porsche.",
+        "menu_options": {
+          "browser_login": "Browser-Login (empfohlen)",
+          "email_password": "E-Mail + Passwort (Legacy)"
+        }
+      },
+      "browser_login": {
+        "title": "Browser-Login — Marke wählen",
+        "description": "Wähle die Marke deines Fahrzeugs. Auf dem nächsten Bildschirm bekommst du einen Kurz-Code und eine URL die du auf jedem Gerät mit Browser aufrufen kannst.",
+        "data": {
+          "brand": "Marke",
+          "spin": "S-PIN",
+          "scan_interval": "Aktualisierungsintervall",
+          "force_enable_access": "Tür-Status erzwingen"
+        }
+      },
+      "browser_login_pending": {
+        "title": "Warte auf deine Browser-Bestätigung",
+        "description": "1. Öffne **{verification_uri}** auf einem beliebigen Gerät.\n2. Melde dich mit deinem Brand-ID-Konto an (falls noch nicht eingeloggt).\n3. Bestätige den Code **{user_code}**.\n\nHome Assistant pollt im Hintergrund — die Seite wechselt automatisch sobald du bestätigt hast."
       }
     },
     "error": {
@@ -61,12 +83,16 @@
       "email_two_factor_required": "E-Mail-2FA nötig. Postfach (und Spam) auf 6-stelligen Code von VAG IDP prüfen, dann einmal manuell in der Marken-App anmelden.",
       "too_many_requests": "Account vorübergehend gesperrt (zu viele Anmeldeversuche). Bitte 15 Minuten warten.",
       "invalid_credentials": "E-Mail-Adresse oder Passwort falsch.",
-      "upstream_unavailable": "VW-Backend vorübergehend nicht erreichbar. Das ist ein Server-Problem bei VW, KEIN Anmeldefehler. Bitte 5–15 Minuten warten und nochmal versuchen. Die Integration NICHT neu konfigurieren."
+      "upstream_unavailable": "VW-Backend vorübergehend nicht erreichbar. Das ist ein Server-Problem bei VW, KEIN Anmeldefehler. Bitte 5–15 Minuten warten und nochmal versuchen. Die Integration NICHT neu konfigurieren.",
+      "brand_not_dag_eligible": "Diese Marke unterstützt kein Browser-Login. Nutze stattdessen E-Mail + Passwort."
     },
     "abort": {
       "already_configured": "Dieses Konto ist bereits eingerichtet.",
       "reauth_successful": "Erneute Anmeldung erfolgreich.",
       "reconfigure_successful": "Konfiguration erfolgreich aktualisiert."
+    },
+    "progress": {
+      "awaiting_browser_login": "Warte auf Browser-Bestätigung…"
     }
   },
   "options": {
