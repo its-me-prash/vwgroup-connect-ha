@@ -296,6 +296,33 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # v2.8.0 - Auxiliary heating (Standheizung) status. CARIAD-BFF ships
+    # the raw enum string under
+    # ``auxiliaryHeating.auxiliaryHeatingStatus.value.{operationMode,
+    # climatisationState}``. Common values: "off", "heating", "ventilation",
+    # "stopped". Brand-restricted via _DATA_PRESENT_REQUIRED below so
+    # non-supporting brands never see a phantom "unknown" entity.
+    VagSensorDescription(
+        key="auxiliary_heating_status",
+        translation_key="auxiliary_heating_status",
+        data_key="auxiliary_heating_status",
+        icon="mdi:fire",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # v2.8.0 - Auxiliary heating remaining-time. Populated while the
+    # pre-heater is running; clears on stop. Same diagnostic semantics
+    # as ``climate_remaining_time_min`` next door.
+    VagSensorDescription(
+        key="auxiliary_heating_remaining_min",
+        translation_key="auxiliary_heating_remaining_min",
+        data_key="auxiliary_heating_remaining_min",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:timer-sand",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     # Readiness deep-diagnostics: connection sub-status string.
     VagSensorDescription(
         key="connection_battery_power_level",
@@ -1100,6 +1127,55 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:calendar-refresh",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # v2.8.0 quick win C — brake-service due timestamps + preferred-
+    # workshop. The parser populates these only when the brand backend
+    # actually ships them. Listed in _DATA_PRESENT_REQUIRED below so
+    # non-applicable vehicles do not get phantom "Unbekannt" sensors.
+    VagSensorDescription(
+        key="brake_fluid_change_due_at",
+        translation_key="brake_fluid_change_due_at",
+        data_key="brake_fluid_change_due_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:car-brake-fluid-level",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="brake_pads_front_inspection_due_at",
+        translation_key="brake_pads_front_inspection_due_at",
+        data_key="brake_pads_front_inspection_due_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:car-brake-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="brake_pads_rear_inspection_due_at",
+        translation_key="brake_pads_rear_inspection_due_at",
+        data_key="brake_pads_rear_inspection_due_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:car-brake-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="preferred_workshop_name",
+        translation_key="preferred_workshop_name",
+        data_key="preferred_workshop_name",
+        icon="mdi:store",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="preferred_workshop_address",
+        translation_key="preferred_workshop_address",
+        data_key="preferred_workshop_address",
+        icon="mdi:map-marker",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="preferred_workshop_phone",
+        translation_key="preferred_workshop_phone",
+        data_key="preferred_workshop_phone",
+        icon="mdi:phone",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
     # v2.2.0 Phase 2 PR #11/20 — derived integer days until expiry.
     # Closes the subscription-feature triangle (timestamp + active +
     # days). Negative when expired. Automation-friendly: threshold
@@ -1264,6 +1340,17 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "car_type",
     "primary_engine_fuel_level_pct",
     "maintenance_report_captured_at",
+    # v2.8.0 quick win C — brake-service + preferred-workshop singletons.
+    # Brand-restricted at the parser level (VW EU, Audi via subclass,
+    # Skoda mysmob and SEAT/CUPRA OLA when the dealer wired up the
+    # service plan). Stay None for brands or vehicles where the upstream
+    # endpoint never ships the keys → no phantom "Unbekannt" entity.
+    "brake_fluid_change_due_at",
+    "brake_pads_front_inspection_due_at",
+    "brake_pads_rear_inspection_due_at",
+    "preferred_workshop_name",
+    "preferred_workshop_address",
+    "preferred_workshop_phone",
     "next_charging_timer_id",
     "next_charging_timer_target_soc_reachable",
     "capabilities_count",
@@ -1285,6 +1372,12 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # only populated during active climate run; gating prevents a
     # phantom "unknown" entity for non-Skoda + idle climates.
     "climate_ready_at",
+    # v2.8.0 - aux heating (Standheizung) status + remaining minutes.
+    # Audi + VW EU only via the CARIAD-BFF auxiliaryHeating job;
+    # other brands leave the fields None so no phantom diagnostic
+    # entity appears for SEAT/CUPRA/Skoda/Porsche/VW NA.
+    "auxiliary_heating_status",
+    "auxiliary_heating_remaining_min",
 })
 
 # v1.14.0 (#24) — Trip Statistics is brand-restricted at the API level

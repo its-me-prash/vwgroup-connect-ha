@@ -320,6 +320,91 @@ class IDKAuth:
         )
         self._signin_client_id = signin_client_id_override or self._brand.client_id
 
+    def hydrate_session_cookies(self, cookies: list[dict[str, Any]]) -> None:
+        """v2.8.0 — pre-load persisted IDP cookies into the session jar.
+
+        The IDP (Auth0 at identity.vwgroup.io) issues a "remember-me /
+        device-bound" cookie after a successful email-OTP challenge.
+        On the same device fingerprint the cookie suppresses the OTP
+        prompt for ~30 days. Persisting it across HA restarts means
+        the user does not re-enter the OTP code every time the
+        coordinator triggers a fresh authenticate() (which on the
+        VW EU hybrid_full path is every ~2 hours).
+
+        Filters to vwgroup.io-domain cookies so we never overwrite or
+        leak cookies belonging to other integrations sharing HA's
+        aiohttp client session.
+        """
+        if not cookies:
+            return
+        try:
+            from http.cookies import Morsel  # noqa: PLC0415
+            from yarl import URL  # noqa: PLC0415
+        except ImportError:
+            return
+        for ck in cookies:
+            if not isinstance(ck, dict):
+                continue
+            name = ck.get("name")
+            value = ck.get("value")
+            if not name or value is None:
+                continue
+            domain = str(ck.get("domain") or "")
+            if "vwgroup.io" not in domain:
+                # Defensive: never restore cookies for other domains.
+                continue
+            morsel: Morsel[str] = Morsel()
+            morsel.set(str(name), str(value), str(value))
+            for attr in ("domain", "path", "expires", "secure", "httponly"):
+                if attr in ck and ck[attr] not in (None, ""):
+                    try:
+                        morsel[attr] = ck[attr]
+                    except (KeyError, ValueError):
+                        pass
+            url = URL(f"https://{domain.lstrip('.')}/")
+            try:
+                self._session.cookie_jar.update_cookies(
+                    {str(name): morsel},
+                    response_url=url,
+                )
+            except Exception:  # noqa: BLE001
+                # If the cookie-jar rejects the morsel for any reason,
+                # skip silently and let the auth flow handle the OTP.
+                continue
+
+    def capture_session_cookies(self) -> list[dict[str, Any]]:
+        """v2.8.0 — serialise vwgroup.io-domain cookies for persistence.
+
+        Returns a list of small dicts that round-trip through HA's
+        Store helper. Domain-filtered so we never persist cookies that
+        belong to other integrations sharing the aiohttp session.
+        """
+        out: list[dict[str, Any]] = []
+        try:
+            jar_iter = iter(self._session.cookie_jar)
+        except Exception:  # noqa: BLE001
+            return out
+        for cookie in jar_iter:
+            try:
+                domain = cookie.get("domain") or cookie["domain"] or ""
+            except (KeyError, AttributeError):
+                continue
+            if "vwgroup.io" not in str(domain):
+                continue
+            try:
+                out.append({
+                    "name": cookie.key,
+                    "value": cookie.value,
+                    "domain": str(domain),
+                    "path": str(cookie.get("path") or "/"),
+                    "expires": str(cookie.get("expires") or ""),
+                    "secure": bool(cookie.get("secure") or False),
+                    "httponly": bool(cookie.get("httponly") or False),
+                })
+            except Exception:  # noqa: BLE001
+                continue
+        return out
+
     async def authenticate(
         self,
         email: str,

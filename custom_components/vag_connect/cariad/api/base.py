@@ -6,7 +6,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Any, Callable
+from contextlib import contextmanager
+from typing import Any, Callable, Iterator
 
 from aiohttp import (
     ClientConnectorError,
@@ -139,6 +140,12 @@ class CariadBaseClient:
         self._probe_last_pass_at: dict[str, float] = {}  # vin -> monotonic
         self._probe_consecutive_fails: int = 0
         self._probe_disabled: bool = False
+
+        # v2.8.0 quick win D — per-job parser-health counters. Each brand
+        # client's get_status() wraps each job-extraction block in a
+        # self._parser_job("job_name") context manager that increments
+        # successes/failures. Coordinator exposes the snapshot in diagnostics.
+        self.parser_stats: dict[str, dict[str, int | str]] = {}
 
     @property
     def brand(self) -> BrandConfig:
@@ -289,6 +296,24 @@ class CariadBaseClient:
                         "Authenticated for brand %s (kind=%s opts=%s)",
                         self._brand.name, kind, opts,
                     )
+                # v2.8.0 — capture session cookies into the token set
+                # so the next session can hydrate the IDP device-bound
+                # cookie and skip the OTP prompt. Only the idk path
+                # owns vwgroup.io cookies; the data_act_portal path
+                # leaves its session jar alone.
+                if (
+                    self._tokens is not None
+                    and kind == "idk"
+                    and hasattr(self._auth, "capture_session_cookies")
+                ):
+                    captured = self._auth.capture_session_cookies()
+                    if captured:
+                        self._tokens.auth_cookies = captured
+                        _LOGGER.debug(
+                            "Captured %d IDP cookies for brand %s on "
+                            "successful auth",
+                            len(captured), self._brand.name,
+                        )
                 await self._notify_tokens_changed()
                 return
             except AuthenticationError as err:
@@ -329,15 +354,32 @@ class CariadBaseClient:
 
         No-op for None / invalid tokens — coordinator falls through to
         a normal authenticate() flow.
+
+        v2.8.0 — also hydrates any persisted IDP cookies (e.g. the
+        ~30-day device-bound cookie issued after a successful email
+        OTP challenge) into the auth session. Without this, every
+        fresh authenticate() ran the OTP challenge from scratch on
+        VW EU even though the IDP would have remembered the device.
         """
         if tokens is not None and tokens.is_valid():
             self._tokens = tokens
             _LOGGER.debug(
                 "Loaded persisted tokens for brand %s "
-                "(expires_at=%.0f)",
+                "(expires_at=%.0f, strategy=%s)",
                 self._brand.name,
                 tokens.expires_at,
+                tokens.strategy or "(legacy)",
             )
+            if tokens.auth_cookies and hasattr(
+                self._auth, "hydrate_session_cookies"
+            ):
+                self._auth.hydrate_session_cookies(tokens.auth_cookies)
+                _LOGGER.debug(
+                    "Hydrated %d persisted IDP cookies into auth "
+                    "session for brand %s",
+                    len(tokens.auth_cookies),
+                    self._brand.name,
+                )
 
     async def _notify_tokens_changed(self) -> None:
         """v1.19.2 — fire the persistence hook if registered.
@@ -366,6 +408,60 @@ class CariadBaseClient:
     async def get_status(self, vin: str) -> VehicleData:
         """Return current vehicle data for the given VIN."""
         raise NotImplementedError
+
+    # ── v2.8.0 EU Data Act scraper bridge (Action #3) ──────────────────────────
+
+    async def get_status_via_data_act_portal(
+        self,
+        vin: str,
+        *,
+        enable_browser_fallback: bool = False,
+    ) -> VehicleData | None:
+        """Tier 3.5: fetch + parse the customised-data zip from the portal.
+
+        Called by the coordinator (or by a brand client subclass) when
+        ``self._tokens.strategy == "data_act_portal"``. In that mode the
+        normal BFF read paths are not available because the integration
+        only holds a portal session, not a BFF token. The customised-data
+        zip the portal exposes is the only data path under the EU Data
+        Act fallback.
+
+        Cadence: the coordinator throttles polling to 15 minutes when
+        the active strategy is ``data_act_portal``. See ``DataActScraper``
+        for the wake-state requirement and the empty-streak Repair hint.
+
+        Returns ``None`` on any failure so the coordinator can keep the
+        previous poll's data visible (stale-cache behaviour).
+        """
+        from ..auth._data_act_scraper import (  # noqa: PLC0415
+            DataActScraper,
+            DataActScraperError,
+        )
+
+        if self._tokens is None or self._tokens.strategy != "data_act_portal":
+            return None
+        scraper = DataActScraper(
+            self._session,
+            brand_name=self._brand.name,
+            enable_browser_fallback=enable_browser_fallback,
+        )
+        try:
+            zip_bytes = await scraper.fetch_vehicle_zip(vin)
+        except DataActScraperError as err:
+            # Structural failure (e.g. browser toggle enabled but
+            # playwright missing). Surface to the caller so the
+            # coordinator can raise a Repair issue with the message.
+            _LOGGER.warning(
+                "Data Act scraper structural error for brand %s: %s",
+                self._brand.name, err,
+            )
+            return None
+        if zip_bytes is None:
+            return None
+        parsed = scraper.parse_zip(zip_bytes)
+        if not parsed:
+            return None
+        return scraper.to_vehicle_data(vin, parsed)
 
     async def fetch_images(self) -> None:
         """Fetch render image URLs via GraphQL — Audi only.
@@ -784,6 +880,73 @@ class CariadBaseClient:
         reset = headers.get("X-RateLimit-Reset")
         if reset is not None:
             self.last_rate_limit_reset_at = str(reset)
+
+    @contextmanager
+    def _parser_job(self, job_name: str) -> Iterator[None]:
+        """v2.8.0 quick win D — wrap a parser block; count success/failure.
+
+        Each brand client's ``get_status()`` wraps each named parser job
+        (vehicle_status, charging, climatisation, oil_level, etc.) with
+        ``with self._parser_job("name"):``. Successful exit increments
+        the ``success`` counter; any exception inside the block increments
+        ``fail``, stores the truncated error text in ``last_error``, then
+        re-raises so the existing except clauses in ``get_status()`` decide
+        whether to swallow or propagate (we do not change behavior here).
+
+        Counters are exposed via ``self.parser_stats`` and surfaced in
+        diagnostics export for users debugging silent "Unbekannt" sensors.
+
+        Defensive: when the client was instantiated via ``__new__``
+        (the existing parser-unit tests do this to skip the HA setup
+        chain), ``parser_stats`` is not initialised. Fall back to a
+        local stats dict so the counters become no-ops instead of
+        raising AttributeError mid-parse.
+        """
+        stats_store = getattr(self, "parser_stats", None)
+        if stats_store is None:
+            stats_store = {}
+            self.parser_stats = stats_store  # type: ignore[attr-defined]
+        stats = stats_store.setdefault(
+            job_name, {"success": 0, "fail": 0, "last_error": ""}
+        )
+        try:
+            yield
+            stats["success"] = int(stats.get("success", 0)) + 1
+        except Exception as err:  # noqa: BLE001
+            stats["fail"] = int(stats.get("fail", 0)) + 1
+            stats["last_error"] = str(err)[:200]
+            raise
+
+    def _note_parser_job(self, job_name: str, *, present: bool) -> None:
+        """v2.8.0 quick win D — record sub-job presence in ``parser_stats``.
+
+        Companion to ``_parser_job``. Used for the selectivestatus family
+        of jobs where one HTTP call returns many sub-blocks (charging,
+        climatisation, oilLevel, tyrePressure, auxiliaryHeating,
+        door_lock, service_care). Each brand parser calls this once
+        per logical sub-job after probing the expected top-level key:
+        ``present=True`` when the backend shipped the block,
+        ``present=False`` when the block is missing or the wrong shape.
+        Lets the diagnostics export show "which sub-job stopped flowing"
+        without forcing huge with-block indentation diffs in the existing
+        defensively-parsed ``_parse_status`` methods.
+
+        Same defensive-getattr as ``_parser_job``: tolerate clients
+        instantiated via ``__new__`` in unit tests.
+        """
+        stats_store = getattr(self, "parser_stats", None)
+        if stats_store is None:
+            stats_store = {}
+            self.parser_stats = stats_store  # type: ignore[attr-defined]
+        stats = stats_store.setdefault(
+            job_name, {"success": 0, "fail": 0, "last_error": ""}
+        )
+        if present:
+            stats["success"] = int(stats.get("success", 0)) + 1
+        else:
+            stats["fail"] = int(stats.get("fail", 0)) + 1
+            if not stats.get("last_error"):
+                stats["last_error"] = "sub-job absent in selectivestatus response"
 
     def _val(self, data: dict[str, Any], *path: str, default: Any = None) -> Any:
         """Safe nested dict access. _val(d, 'a', 'b', 'c') → d['a']['b']['c']."""

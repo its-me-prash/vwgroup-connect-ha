@@ -125,6 +125,7 @@
           "enable_push_mqtt": "Skoda Push-Updates (MQTT, EXPERIMENTELL)",
           "enable_push_fcm": "CUPRA/SEAT Push-Updates (FCM, EXPERIMENTELL)",
           "enable_push_audi_vw": "Audi/VW Push-Updates (Cariad FCM, EXPERIMENTELL)",
+          "enable_data_act_browser": "EU Data Act Portal: Headless-Browser-Fallback (EXPERIMENTELL)",
           "read_only_mode": "Nur-Lesen-Modus"
         },
         "data_description": {
@@ -135,7 +136,8 @@
           "enable_push_audi_vw": "EXPERIMENTELL: Nur für Audi/VW. Aktiviert Echtzeit-Push vom Cariad FCM-Channel (gleicher den auch die myAudi/WeConnect Apps nutzen — covers Lock-Result, Charging-State, Climate, Alarm). Benötigt firebase-messaging (gleicher Lazy-Import wie v1.18.0 Skoda + v1.19.0 CUPRA/SEAT). Foundation-Phase in v1.23.0; Live-Aktivierung wartet auf Community-Tester. Wenn Push nicht verfügbar ist, fällt die Integration still auf Polling zurück. Integration nach Aktivierung neu laden.",
           "scan_interval": "Polling-Intervall in Minuten (5–60). Niedrige Werte bringen die Daten schneller, fressen aber das tägliche API-Quota schneller (~1.500 Calls/Tag bei MyCupra/MySEAT).",
           "spin": "Optionale 4-stellige Sicherheits-PIN für privilegierte Kommandos (Lock/Unlock bei manchen Marken). Leer lassen wenn nicht benötigt.",
-          "read_only_mode": "Wenn aktiv: nur Status-Sensoren werden erstellt, keine Schalter/Buttons/Schlösser/Climate die Befehle senden würden. Schützt vor versehentlicher Auslösung und Subscription-zählenden Kommandos."
+          "read_only_mode": "Wenn aktiv: nur Status-Sensoren werden erstellt, keine Schalter/Buttons/Schlösser/Climate die Befehle senden würden. Schützt vor versehentlicher Auslösung und Subscription-zählenden Kommandos.",
+          "enable_data_act_browser": "EXPERIMENTELL: Nur relevant wenn die Integration auf das EU Data Act Portal (read-only) zurückgefallen ist. Steuert einen Headless-Chromium über das optionale 'playwright' Python-Paket, um den Daten-Export-Button automatisch zu klicken. Das Paket ist NICHT vorinstalliert (zieht ca. 100 MB Chromium nach). Wenn aktiv aber nicht installiert: ein Repair-Issue zeigt dir wie du es im HA-Container nachinstallierst. Integration nach Aktivierung neu laden."
         }
       }
     }
@@ -186,6 +188,12 @@
       },
       "climatisation_state": {
         "name": "Klimaanlage"
+      },
+      "auxiliary_heating_status": {
+        "name": "Standheizungs-Status"
+      },
+      "auxiliary_heating_remaining_min": {
+        "name": "Standheizung Restlaufzeit"
       },
       "target_temperature": {
         "name": "Zieltemperatur"
@@ -342,6 +350,24 @@
       },
       "maintenance_report_captured_at": {
         "name": "Wartungs-Report aktualisiert"
+      },
+      "brake_fluid_change_due_at": {
+        "name": "Bremsflüssigkeitswechsel fällig"
+      },
+      "brake_pads_front_inspection_due_at": {
+        "name": "Bremsbeläge vorne prüfen"
+      },
+      "brake_pads_rear_inspection_due_at": {
+        "name": "Bremsbeläge hinten prüfen"
+      },
+      "preferred_workshop_name": {
+        "name": "Bevorzugte Werkstatt"
+      },
+      "preferred_workshop_address": {
+        "name": "Werkstatt-Adresse"
+      },
+      "preferred_workshop_phone": {
+        "name": "Werkstatt-Telefon"
       },
       "primary_engine_fuel_level_pct": {
         "name": "Tankfüllstand (primär)"
@@ -540,7 +566,7 @@
         "name": "Kabinen-Lüftung"
       },
       "aux_heating_switch": {
-        "name": "Standheizung (Webasto)"
+        "name": "Standheizung"
       },
       "departure_timer_1_switch": {
         "name": "Abfahrtstimer 1"
@@ -570,6 +596,12 @@
       },
       "max_charge_current": {
         "name": "Maximaler Ladestrom"
+      },
+      "auxheat_duration": {
+        "name": "Standheizung-Dauer"
+      },
+      "auxheat_target_temp": {
+        "name": "Standheizung-Zieltemperatur"
       }
     },
     "button": {
@@ -678,6 +710,30 @@
     "quota_critical": {
       "title": "API-Quota KRITISCH — {remaining} Anfragen heute übrig",
       "description": "Dein VAG-Account hat weniger als 25 API-Anfragen heute übrig ({remaining} von {limit}, {pct}%). Das Hersteller-Backend kann den Account temporär sperren wenn das Limit erschöpft wird.\n\n**Sofort-Maßnahmen:**\n1. **Polling pausieren** — Einstellungen → Geräte & Dienste → VW Group Connect → Konfigurieren → Update-Intervall → auf 30 min oder höher setzen\n2. Manuelle Refreshes / Fahrzeug-Wakeups vermeiden bis das Kontingent zurückgesetzt ist\n\nDiese Warnung verschwindet automatisch, sobald sich das Kontingent erholt hat."
+    },
+    "data_act_wake_needed": {
+      "title": "EU Data Act Portal: Fahrzeug wecken um Daten zu aktualisieren ({brand})",
+      "description": "Die Integration läuft für {brand} ({username}) im EU Data Act Portal Nur-Lesen-Modus und das Portal hat **{streak}** Polls in Folge keine neuen Daten für VIN-Ende {vin_suffix} geliefert.\n\nDas Portal veröffentlicht erst dann einen frischen Datensatz, wenn das Fahrzeug seit dem letzten Drop ein Wake-Event hatte. Wake-Events sind:\n\n- Zündung an (Fahrt)\n- Ladekabel anstecken oder abziehen (Charge-Session startet oder endet)\n- Ent- oder Verriegeln (ein vollständiger Zyklus)\n\n**Was zu tun ist:** löse eine der oben genannten Aktionen am Fahrzeug aus. Innerhalb des nächsten 15-Minuten-Portal-Zyklus übernimmt die Integration den frischen Export automatisch und diese Warnung verschwindet.\n\nWenn du das Fahrzeug seit Tagen wirklich nicht bewegt hast, ist das Fehlen frischer Daten erwartet und kein Bug der Integration."
+    },
+    "data_act_browser_missing": {
+      "title": "EU Data Act Portal: optionales 'playwright'-Paket fehlt",
+      "description": "Du hast den Headless-Browser-Fallback für das EU Data Act Portal aktiviert, aber das Python-Paket `playwright` ist im Home Assistant Container nicht installiert.\n\n**Installation:** öffne die HA-Container-Shell (Add-ons → Terminal & SSH, oder `docker exec` für eine manuelle Installation) und führe aus:\n\n```\npip install playwright\nplaywright install chromium\n```\n\nDer Chromium-Download ist groß (ca. 100 MB), deswegen ist diese Abhängigkeit Opt-In statt mit der Integration gebündelt. Nach der Installation Home Assistant neu starten.\n\nAlternative: den Schalter unter Einstellungen → Geräte & Dienste → VW Group Connect → Konfigurieren → 'EU Data Act Portal: Headless-Browser-Fallback' deaktivieren."
+    }
+  },
+  "services": {
+    "open_app": {
+      "name": "Marken-App öffnen (Deeplink)",
+      "description": "Sendet das Event `vag_connect_open_app` auf dem HA-Eventbus mit den Payload-Feldern `vin`, `brand`, `deeplink_url` und `action`. Eine Lovelace-Karte lauscht auf das Event und öffnet die native Marken-App (myAudi, WeConnect, MyŠkoda, MySEAT, MyCUPRA, My Porsche oder VW US) auf dem aufrufenden Gerät. Die Integration selbst kann keine URLs auf einem Telefon öffnen; die Dashboard-Karte ist für den Aufruf `window.location.href = deeplink_url` auf iOS / Android zuständig.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN des Fahrzeugs dessen Marken-App geöffnet werden soll."
+        },
+        "action": {
+          "name": "App-Aktion",
+          "description": "Optionaler Pfad-Anteil hinter dem Deeplink, damit die Marken-App direkt in den passenden Bereich springt. Standard `open` öffnet die App auf dem Startbildschirm."
+        }
+      }
     }
   },
   "exceptions": {

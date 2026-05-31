@@ -26,8 +26,14 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .cariad._error_reporter import serialise_for_diagnostics
+# v2.8.0 quick win D — reuse the Scout module's PII regexes (VIN / JWT
+# / UUID) for the new parser-health ``last_error`` redactor. Email is
+# handled by the partial-mask helper already defined below so we don't
+# import that pattern here.
+from .cariad._unexpected_keys import _JWT_RE, _UUID_RE, _VIN_RE
 from .cariad._util import mask_vin
 from .const import (
+    CONF_BRAND,
     CONF_ENABLE_REVERSE_GEOCODING,
     CONF_PASSWORD,
     CONF_SPIN,
@@ -109,6 +115,29 @@ def _mask_location_qs(value: str, *, gps_round: bool = False) -> str:
         return f"{m.group(1)}REDACTED{m.group(3)}REDACTED"
 
     return _LOCATION_QS_RE.sub(_replace, value)
+
+
+def _redact_parser_error(value: Any) -> str:
+    """v2.8.0 quick win D — scrub PII from a parser-stats ``last_error``.
+
+    Parser errors can include arbitrary backend text or exception
+    messages that the integration never auditioned for sensitivity.
+    Strip VINs, JWT-shaped tokens, UUIDs (used for userIDs), embedded
+    emails and query-string GPS pairs before the string lands in a
+    user-shareable diagnostics file.
+
+    Non-string inputs are coerced to ``""`` so callers don't need a
+    pre-flight ``isinstance`` check.
+    """
+    if not isinstance(value, str) or not value:
+        return ""
+    out = _VIN_RE.sub("***VIN***", value)
+    out = _JWT_RE.sub("***JWT***", out)
+    out = _UUID_RE.sub("***UUID***", out)
+    out = _mask_email(out)
+    out = _mask_location_qs(out, gps_round=False)
+    # Cap length defensively (same 200-char cap as the source counter)
+    return out[:200]
 
 
 # v1.15.0 — stable-hash helper from ``skodaconnect/myskoda/anonymize.py``.
@@ -230,6 +259,42 @@ async def async_get_config_entry_diagnostics(
         serialise_for_diagnostics(error_buffer) if error_buffer is not None else []
     )
 
+    # v2.8.0 quick win D — parser-health telemetry. Each brand client
+    # accumulates per-job success/fail counters in ``parser_stats``.
+    # The coordinator owns a single brand client per config entry; we
+    # surface its snapshot keyed by brand so multi-entry installations
+    # show the same shape as a future multi-brand single-entry would.
+    brand = entry.data.get(CONF_BRAND, "")
+    client = getattr(coordinator, "_cariad_client", None)
+    raw_parser_stats = (
+        getattr(client, "parser_stats", {}) if client is not None else {}
+    )
+    parser_stats_diag: dict[str, dict[str, Any]] = {}
+    if brand and isinstance(raw_parser_stats, dict):
+        parser_stats_diag[brand] = {
+            job: {
+                "success": stats.get("success", 0),
+                "fail": stats.get("fail", 0),
+                "last_error": _redact_parser_error(stats.get("last_error", "")),
+            }
+            for job, stats in raw_parser_stats.items()
+            if isinstance(stats, dict)
+        }
+
+    # v2.8.0 quick win E — per-brand declared vs observed capability
+    # snapshot. Tells us at-a-glance whether a missing entity is
+    # because the brand never supported it, the vehicle does not have
+    # it, or the parser dropped a payload key. Defensive ``getattr``
+    # so older coordinator instances in tests / partial setups do not
+    # break the diagnostics export.
+    capabilities_fn = getattr(coordinator, "capabilities_snapshot", None)
+    capabilities: dict[str, Any] = {}
+    if callable(capabilities_fn):
+        try:
+            capabilities = capabilities_fn()
+        except Exception as err:  # noqa: BLE001
+            capabilities = {"error": f"{type(err).__name__}: {err}"}
+
     return {
         "config": config_diag,
         "options": options_diag,
@@ -239,4 +304,6 @@ async def async_get_config_entry_diagnostics(
         "cloud_push_active": coordinator.is_active,
         "unexpected_findings": unexpected,
         "error_buffer": error_records,
+        "parser_stats": parser_stats_diag,
+        "capabilities": capabilities,
     }

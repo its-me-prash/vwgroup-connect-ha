@@ -74,6 +74,24 @@ CONF_ENABLE_PUSH_AUDI_VW      = "enable_push_audi_vw"
 # string ("2.17.0") or full User-Agent string per RFC 7231.
 CONF_OLA_APP_VERSION_OVERRIDE = "ola_app_version_override"
 CONF_OLA_USER_AGENT_OVERRIDE  = "ola_user_agent_override"
+# v2.8.0 (Action #5) — preferred auth strategy pin. Set via the
+# Repair-flow guided action when a DAG-eligible brand (Audi/Skoda/SEAT/
+# CUPRA) silently degrades to hybrid_full. Recording the preference in
+# entry.options lets future polls honour the user's choice instead of
+# repeatedly retrying DAG. Values: "data_act_portal" (forces read-only
+# Data Act portal mode), "" / absent (default — resolver picks).
+CONF_PREFERRED_AUTH_STRATEGY  = "preferred_auth_strategy"
+# v2.8.0 Action #3 - EU Data Act portal scraper headless-browser
+# fallback. Off by default because the playwright dependency is heavy
+# (around 100 MB Chromium download) and most users will get usable
+# data from the JSON probe in Route A once a credentialed tester
+# completes v2.8.1 endpoint discovery. When True AND the active auth
+# strategy is data_act_portal AND playwright is installed, the
+# coordinator drives a headless browser to click the portal's "Get
+# customised data" button. If True but playwright is missing, the
+# coordinator surfaces a Repair issue telling the user how to
+# install the package inside their HA container.
+CONF_ENABLE_DATA_ACT_BROWSER  = "enable_data_act_browser"
 
 # Supported brands — must match CariadClientFactory.create() keys
 BRANDS = {
@@ -84,6 +102,30 @@ BRANDS = {
     "cupra":          "CUPRA",
     "volkswagen_na":  "Volkswagen US/CA",
     "porsche":        "Porsche (My Porsche)",
+}
+
+# v2.8.0 quick-win B — native-app deeplink schemes per brand. Used by
+# the vag_connect.open_app service to emit an event that dashboards can
+# subscribe to in order to open the brand's mobile app on iOS/Android.
+# Values sourced from each brand's published intent-filter scheme
+# (Android AndroidManifest.xml + iOS Info.plist CFBundleURLSchemes).
+# Map of brand -> base URL; the action is appended as a path segment
+# if the app supports it (the dashboard card decides whether to keep
+# or strip the action based on platform behaviour).
+#
+# TODO(2.8.1): re-verify every entry below from a fresh smali/IPA
+# extraction once the v2.8.1 device-side validation pass lands. The
+# values are best-effort from public documentation and community
+# reports; the schemes below open the apps but the action-path syntax
+# is not guaranteed to match each app's internal router.
+DEEPLINK_SCHEMES: dict[str, str] = {
+    "audi":          "myaudi://",          # TODO(2.8.1): verify path syntax
+    "volkswagen":    "wecharge://",        # TODO(2.8.1): verify (WeConnect ID may use weconnect:// instead)
+    "skoda":         "myskoda://",         # TODO(2.8.1): verify path syntax
+    "seat":          "myseat://",          # TODO(2.8.1): verify (MySEAT vs SEAT Connect)
+    "cupra":         "mycupra://",         # TODO(2.8.1): verify path syntax
+    "porsche":       "myporsche://",       # TODO(2.8.1): verify (My Porsche app)
+    "volkswagen_na": "vwapp://",           # TODO(2.8.1): verify (VW US Car-Net)
 }
 
 # Polling interval limits

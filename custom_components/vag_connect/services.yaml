@@ -420,3 +420,47 @@ find_charging_stations:
           min: 1
           max: 100
           step: 1
+
+# v2.8.0 quick-win B — open the brand's native mobile app via deeplink.
+# This service does NOT open anything itself; it fires the event
+# ``vag_connect_open_app`` on the HA bus with payload
+# ``{vin, brand, deeplink_url, action}``. A Lovelace card subscribes
+# to that event and navigates ``window.location.href = deeplink_url``
+# on the calling device (iOS or Android). The brand and full deeplink
+# URL are resolved by the integration from ``DEEPLINK_SCHEMES`` in
+# ``const.py``.
+open_app:
+  name: Open native brand app (deeplink)
+  description: >-
+    Fires the ``vag_connect_open_app`` event with the fields
+    ``vin``, ``brand``, ``deeplink_url`` and ``action`` so a dashboard
+    card can open the brand's native mobile app (myAudi, WeConnect,
+    MyŠkoda, MySEAT, MyCUPRA, My Porsche or VW US) on the calling
+    device. The integration itself cannot open URLs on a phone; the
+    dashboard card is responsible for ``window.location.href`` on
+    iOS / Android.
+  fields:
+    vin:
+      name: VIN
+      description: VIN of the vehicle whose brand-app should open.
+      required: true
+      example: "WVWZZZ00000000000"
+      selector:
+        text:
+    action:
+      name: App action
+      description: >-
+        Optional. Path segment appended to the deeplink so the brand
+        app can route directly to a section. Default ``open`` opens
+        the app to its home screen.
+      required: false
+      default: open
+      selector:
+        select:
+          options:
+            - open
+            - lock
+            - unlock
+            - climate_on
+            - climate_off
+            - charging

@@ -138,11 +138,24 @@ class TokenStorage:
         if not isinstance(tok, dict):
             return None
         try:
+            # v2.8.0 — also restore strategy + auth_cookies. Latent
+            # bug fix: the strategy field had been on TokenSet since
+            # v2.6.0 but the storage layer never round-tripped it,
+            # so the coordinator's watchdog (task #46) never saw
+            # the active strategy after a restart.
+            raw_cookies = tok.get("auth_cookies")
+            auth_cookies: list[dict[str, Any]] = (
+                [c for c in raw_cookies if isinstance(c, dict)]
+                if isinstance(raw_cookies, list)
+                else []
+            )
             tokens = TokenSet(
                 access_token=str(tok.get("access_token") or ""),
                 refresh_token=str(tok.get("refresh_token") or ""),
                 id_token=str(tok.get("id_token") or ""),
                 expires_at=float(tok.get("expires_at") or 0),
+                strategy=str(tok.get("strategy") or ""),
+                auth_cookies=auth_cookies,
             )
         except (TypeError, ValueError) as err:
             _LOGGER.info(
@@ -172,6 +185,11 @@ class TokenStorage:
                 "refresh_token": tokens.refresh_token,
                 "id_token": tokens.id_token,
                 "expires_at": tokens.expires_at,
+                # v2.8.0 — persist strategy + auth_cookies. See model
+                # docstrings for rationale (watchdog needs strategy,
+                # OTP needs device-bound cookies surviving restart).
+                "strategy": tokens.strategy,
+                "auth_cookies": tokens.auth_cookies,
             },
         }
         try:

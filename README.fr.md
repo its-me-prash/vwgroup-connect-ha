@@ -48,45 +48,75 @@
 ---
 
 
-## Nouveautés v2.7.0
+## Nouveautés en v2.7.x
 
-**Connexion par navigateur (aucun mot de passe stocké dans HA)**: Pour Audi, Škoda, SEAT et CUPRA, OAuth Device Authorization Grant disponible. Scannez le QR avec le téléphone, connectez-vous à votre compte Brand ID, confirmez un code court. refresh_token réel, plus de re-connexion toutes les deux heures.
+**Connexion par navigateur (aucun mot de passe stocké dans HA) pour Audi, Škoda, SEAT, CUPRA.** OAuth Device Authorization Grant RFC 8628. Scanner un QR code avec le téléphone ou ouvrir l URL sur n importe quel appareil, confirmer un code court, fini. refresh_token réel, plus de re-login toutes les deux heures.
 
-**Plus de données par voiture**: Statistiques de trajet, niveau d huile, pression par pneu, portes/vitres/toit/coffre par position, température extérieure MY24+, chauffage auxiliaire.
+**Résolveur multi-stratégie d auth.** Jusqu à trois stratégies de repli par marque (Browser-Login, OIDC Hybrid Flow, EU Data Act Portal en lecture seule). Une stratégie meurt, l intégration tourne sur la suivante.
 
-**Toutes les alertes constructeur**: Nouveau capteur "Vehicle Warning Messages" qui remonte chaque alerte du backend.
+**Data Act Portal en repli lecture seule.** Implémentation maison du login portail EU Data Act, intégrée comme stratégie de 3e niveau. Lecture seule mais sans attestation, donc incassable si VW resserre la voie OAuth.
 
-[CHANGELOG complet](CHANGELOG.md#270---2026-05-31).
+**Plus de points de données.** Statistiques de trajet (distance à vie, dernier trajet), niveau d huile, pression par pneu, portes / fenêtres / toit / coffre par position, température extérieure sur MY24+, chauffage auxiliaire Webasto, toutes les alertes constructeur dont les alertes marque-spécifiques comme Audi STO.
+
+Voir [CHANGELOG](CHANGELOG.md#270---2026-05-31).
 
 ---
+
+## Où nous menons
+
+État au 2026-05-31, après le changement backend VW du 2026-05-27 qui a touché toute la communauté d intégrations HA-VAG simultanément :
+
+| Fonctionnalité | Statut ici | Statut chez les autres |
+|---|---|---|
+| OAuth Device Authorization Grant (QR-Login) pour Audi/Škoda/SEAT/CUPRA | ✅ depuis v2.7.0 | Personne |
+| Chaîne d auth multi-stratégie (3 niveaux par marque) | ✅ depuis v2.6.0 | Personne |
+| Portail EU Data Act en 3e niveau lecture seule | ✅ depuis v2.6.0 | Uniquement en intégration séparée |
+| Filet de sécurité InvalidURL anti fuite de token dans les logs | ✅ depuis v2.7.2 | Personne |
+| Watcher du gate d attestation server-side | ✅ depuis v2.7.0 | Personne |
+| Vehicle Data Scout, détection auto de la dérive API | ✅ depuis v1.9.0 | Rien d équivalent |
+| Les 7 marques VAG dans une intégration | ✅ | Les autres projets ont un dépôt par marque |
+
+---
+
+## Où sont les limites (en toute honnêteté)
+
+**VW EU est durement verrouillé par Play Integrity depuis le 2026-05-27.** Ce mur touche toute intégration VAG basée sur Python (la nôtre incluse). Ce n est pas un retard de notre côté, c est la politique backend de VW :
+
+- L endpoint token valide un header `X-Assertion` qui doit être un JWS signé par Google Play Integrity
+- Python ne peut pas générer ce token, la clé de signature vit uniquement dans le service d attestation Google
+- Conséquence : les utilisateurs VW EU n obtiennent pas de vrai refresh_token et sont forcés à se reconnecter toutes les ~2h
+
+Ce que nous offrons quand même pour VW EU : OIDC Hybrid Flow en stratégie primaire (lecture + écriture, 2h de re-login), portail EU Data Act en repli lecture seule (cadence 15 min, sans attestation), watcher hebdomadaire qui ouvre automatiquement un issue dès que VW lève la barrière.
+
+**Échéance EU Data Act 2026-09-12.** D ici cette date, VW doit légalement fournir l accès direct aux données du véhicule aux propriétaires sans attestation. Notre `_data_act_portal.py` est prêt pour ce jour.
 
 ## ✨ v2.0.0 Big-Bang Highlights — also available in English
 
 > The detailed v2.0.0 highlights table + "What makes us unique" USP section
 > are maintained in English on the German + English READMEs. They are
 > provided here as the canonical source so non-DE/EN readers can still
-> see all v2.0 features with `**[NEW v2.0]**` markers without waiting on
+> see all v2.0 features with `` markers without waiting on
 > 6 parallel translations.
 
 ### Latest highlights — v2.0.0 Big-Bang
 
 | Feature | Status |
 |---|---|
-| **Skoda Driving-Score Sensor** | **[NEW v2.0]** Efficiency score 0-100 + class bucket for Skoda MY24+ |
-| **Cross-brand Aux-Heating parity (Skoda)** | **[NEW v2.0]** SkodaClient now inherits the Webasto switch from SEAT/CUPRA |
-| **Porsche TPMS sensors** | **[NEW v2.0]** 4 tire-pressure sensors + warning binary_sensor (PPA TIRE_PRESSURE) |
-| **Long-Term Trip Aggregates** | **[NEW v2.0]** Lifetime distance / avg fuel / avg electric (Audi + VW EU) |
-| **Departure-Timer Read-Only Binary-Sensors** | **[NEW v2.0]** 3 pure-read enabled-sensors |
-| **Weekly Preheat (`recurring_on`)** | **[NEW v2.0]** Service param for weekday lists (Audi + VW EU + VW NA) |
-| **Charging-Station POI Lookup** | **[NEW v2.0]** `vag_connect.find_charging_stations` service |
-| **Vehicle Alarm sensors** | **[NEW v2.0]** closes issue #33 |
-| **heaterSource sensor** | **[NEW v2.0]** closes issue #163 |
-| **Push Manager Lifecycle Wiring** | **[NEW v2.0]** Skoda MQTT + CUPRA/SEAT FCM + Audi/VW Cariad FCM (opt-in) |
-| **EU Data Act Abstraction Shim** | **[NEW v2.0]** Architectural seam for the 2026-09-12 EUDA Art. 3 deadline |
-| **Auth Resilience One-Click Repair** | **[NEW v2.0]** Repair button for 4 auth reasons triggers reauth flow |
-| **System Health Panel** | **[NEW v2.0]** Drop-in `system_health.py` |
-| **Quality Scale Platinum** | **[NEW v2.0]** Re-introduced after v1.26.x revert |
-| **DeviceInfo `configuration_url` + `suggested_area`** | **[NEW v2.0]** Brand-aware "Open in App" button |
+| **Skoda Driving-Score Sensor** | Efficiency score 0-100 + class bucket for Skoda MY24+ |
+| **Cross-brand Aux-Heating parity (Skoda)** | SkodaClient now inherits the Webasto switch from SEAT/CUPRA |
+| **Porsche TPMS sensors** | 4 tire-pressure sensors + warning binary_sensor (PPA TIRE_PRESSURE) |
+| **Long-Term Trip Aggregates** | Lifetime distance / avg fuel / avg electric (Audi + VW EU) |
+| **Departure-Timer Read-Only Binary-Sensors** | 3 pure-read enabled-sensors |
+| **Weekly Preheat (`recurring_on`)** | Service param for weekday lists (Audi + VW EU + VW NA) |
+| **Charging-Station POI Lookup** | `vag_connect.find_charging_stations` service |
+| **Vehicle Alarm sensors** | closes issue #33 |
+| **heaterSource sensor** | closes issue #163 |
+| **Push Manager Lifecycle Wiring** | Skoda MQTT + CUPRA/SEAT FCM + Audi/VW Cariad FCM (opt-in) |
+| **EU Data Act Abstraction Shim** | Architectural seam for the 2026-09-12 EUDA Art. 3 deadline |
+| **Auth Resilience One-Click Repair** | Repair button for 4 auth reasons triggers reauth flow |
+| **System Health Panel** | Drop-in `system_health.py` |
+| **Quality Scale Platinum** | Re-introduced after v1.26.x revert |
+| **DeviceInfo `configuration_url` + `suggested_area`** | Brand-aware "Open in App" button |
 
 ### What makes us unique
 

@@ -294,12 +294,20 @@ class VWEUClient(CariadBaseClient):
         # v2.1.0 — per-VIN base URL via HomeRegion lookup.
         base = self._base_for_vin(vin)
         url = f"{base}/vehicle/v1/vehicles/{vin}/selectivestatus"
-        raw: dict[str, Any] = await self._get(url, params={"jobs": _SELECTIVE_STATUS_JOBS})
+        # v2.8.0 quick win D — vehicle_status job covers the full
+        # selectivestatus fetch (parser-health telemetry).
+        with self._parser_job("vehicle_status"):
+            raw: dict[str, Any] = await self._get(
+                url, params={"jobs": _SELECTIVE_STATUS_JOBS},
+            )
 
         # Parking position (separate endpoint)
         parking: dict[str, Any] = {}
         try:
-            parking = await self._get(f"{base}/vehicle/v1/vehicles/{vin}/parkingposition")
+            with self._parser_job("parking_position"):
+                parking = await self._get(
+                    f"{base}/vehicle/v1/vehicles/{vin}/parkingposition"
+                )
         except Exception:  # noqa: BLE001
             pass
 
@@ -311,17 +319,15 @@ class VWEUClient(CariadBaseClient):
         trip_short: dict[str, Any] = {}
         trip_long: dict[str, Any] = {}
         try:
-            trip_short = await self._get(
-                f"{base}/vehicle/v1/vehicles/{vin}/tripstatistics",
-                params={"type": "shortTerm"},
-            )
-        except Exception:  # noqa: BLE001
-            pass
-        try:
-            trip_long = await self._get(
-                f"{base}/vehicle/v1/vehicles/{vin}/tripstatistics",
-                params={"type": "longTerm"},
-            )
+            with self._parser_job("trip_statistics"):
+                trip_short = await self._get(
+                    f"{base}/vehicle/v1/vehicles/{vin}/tripstatistics",
+                    params={"type": "shortTerm"},
+                )
+                trip_long = await self._get(
+                    f"{base}/vehicle/v1/vehicles/{vin}/tripstatistics",
+                    params={"type": "longTerm"},
+                )
         except Exception:  # noqa: BLE001
             pass
 
@@ -872,6 +878,58 @@ class VWEUClient(CariadBaseClient):
             json={"action": "stop"},
         )
 
+    # v2.8.0 - Auxiliary heating (Standheizung).
+    async def command_start_aux_heating(
+        self,
+        vin: str,
+        spin: str = "",  # noqa: ARG002 - kept for signature parity with SEAT/CUPRA
+        duration_min: int = 30,
+        target_c: float = 21.0,
+    ) -> None:
+        """Start engine pre-heater (Audi + VW EU CARIAD-BFF).
+
+        Endpoint: ``POST /vehicle/v1/vehicles/{vin}/auxiliary-heating/start``
+        with v2 fallback via ``_post_command`` on 404.
+
+        Payload shape (from upstream APK research, CARIAD vocabulary):
+            {
+                "command": "start",
+                "duration_in_min": <int>,
+                "target_temperature_in_kelvin": <float>,
+            }
+        Target temperature is sent in Kelvin (Celsius + 273.15) to match
+        every other CARIAD climate endpoint that takes Kelvin on the wire.
+
+        ``spin`` parameter is accepted for signature parity with the
+        SEAT/CUPRA OLA path but ignored here: VW EU + Audi do not gate
+        the engine pre-heater behind SecToken on this surface (in
+        contrast to engine remote start which uses the separate
+        ``/vehicle/v1/engine/{VIN}/...`` two-step S-PIN flow).
+        """
+        kelvin = round(float(target_c) + 273.15, 2)
+        await self._post_command(
+            vin,
+            "auxiliary-heating/start",
+            json={
+                "command": "start",
+                "duration_in_min": int(duration_min),
+                "target_temperature_in_kelvin": kelvin,
+            },
+        )
+
+    async def command_stop_aux_heating(self, vin: str) -> None:
+        """Stop engine pre-heater (Audi + VW EU CARIAD-BFF).
+
+        ``POST /vehicle/v1/vehicles/{vin}/auxiliary-heating/stop`` with the
+        minimal ``{"command": "stop"}`` payload. No S-PIN, no SecToken,
+        v2 fallback on 404 via ``_post_command``.
+        """
+        await self._post_command(
+            vin,
+            "auxiliary-heating/stop",
+            json={"command": "stop"},
+        )
+
     async def command_set_departure_timer(
         self,
         vin: str,
@@ -1020,6 +1078,42 @@ class VWEUClient(CariadBaseClient):
         v = self._val
         d = VehicleData(vin=vin)
 
+        # v2.8.0 quick win D — per-sub-job presence telemetry. The
+        # selectivestatus response packs many logical jobs into one call;
+        # this records which sub-blocks shipped so diagnostics can show
+        # "tyre_pressure stopped flowing on 2026-06-01" without us having
+        # to wrap every parser branch in a context manager.
+        if isinstance(raw, dict):
+            self._note_parser_job(
+                "charging", present=isinstance(raw.get("charging"), dict),
+            )
+            self._note_parser_job(
+                "climatisation",
+                present=isinstance(raw.get("climatisation"), dict),
+            )
+            self._note_parser_job(
+                "oil_level", present=isinstance(raw.get("oilLevel"), dict),
+            )
+            self._note_parser_job(
+                "tyre_pressure",
+                present=isinstance(raw.get("tyrePressure"), dict),
+            )
+            self._note_parser_job(
+                "auxiliary_heating",
+                present=isinstance(raw.get("auxiliaryHeating"), dict),
+            )
+            self._note_parser_job(
+                "service_care",
+                present=isinstance(raw.get("vehicleHealthInspection"), dict),
+            )
+            self._note_parser_job(
+                "door_lock",
+                present=isinstance(
+                    self._val(raw, "access", "accessStatus", "value"),
+                    dict,
+                ),
+            )
+
         # ── Model name from vehicles list (nickname set in app) ────────────────
         meta = getattr(self, "_vehicle_metadata", {}).get(vin, {})
         if meta.get("model"):
@@ -1134,24 +1228,13 @@ class VWEUClient(CariadBaseClient):
         # range here would clobber the per-engine logic for hybrids where
         # the battery range and the engine block disagree.
 
-        # v2.2.0 Phase 5b PR #19/20 — Pydantic dual-write validation
-        # foundation. Read-only — the canonical ``d.battery_soc`` value
-        # above is unaffected. This call validates the raw block against
-        # the first Pydantic v2 model in the codebase. On mismatch:
-        # logs at DEBUG (NOT WARNING — non-spammy while we tune the
-        # models), returns None. Caller (us) ignores the return value.
-        #
-        # Purpose: build dual-write telemetry so v3.0.0 can cut over to
-        # Pydantic as the canonical source with confidence. NEVER raises.
-        from .._pydantic_models import BatteryStatusValue  # noqa: PLC0415
-        from .._pydantic_validate import validate_response  # noqa: PLC0415
-
-        battery_raw = v(raw, "charging", "batteryStatus", "value")
-        validate_response(
-            battery_raw,
-            BatteryStatusValue,
-            context="vw_eu/charging.batteryStatus.value",
-        )
+        # v2.8.0 — Pydantic dual-write scaffold removed (task #44 dead-
+        # weight cleanup). The v2.2.0 Phase 5b foundation had a single
+        # call site here whose return value was discarded, and its
+        # import-time site-packages walk triggered "Detected blocking
+        # call to listdir" warnings on every fresh HA startup. The
+        # scaffold never grew past one model so it was removed rather
+        # than expanded.
 
         plug_state = v(raw, "charging", "plugStatus", "value", "plugConnectionState")
         d.plug_state = plug_state
@@ -1729,6 +1812,34 @@ class VWEUClient(CariadBaseClient):
                 elif "rear" in loc_low or "back" in loc_low:
                     d.window_heating_back = state
 
+        # Auxiliary heating (Standheizung, v2.8.0).
+        # Cariad-BFF emits the ``auxiliaryHeating`` job since v2.7.0b10 (it
+        # was the SELECTIVE_STATUS_JOBS promote that closed scout #366/#367).
+        # Until now we only requested the job but never parsed the leaves.
+        # Shape per Cariad vocabulary mirrors the climatisation block:
+        #   auxiliaryHeating.auxiliaryHeatingStatus.value.{
+        #       operationMode | climatisationState,
+        #       remainingTime_min,
+        #   }
+        # Different firmwares ship one key or the other (some both); take
+        # whichever is a non-empty string so older Audi MIB3 and newer
+        # PPE/PPC both light up.
+        aux_state = (
+            v(raw, "auxiliaryHeating", "auxiliaryHeatingStatus", "value", "operationMode")
+            or v(raw, "auxiliaryHeating", "auxiliaryHeatingStatus", "value", "climatisationState")
+        )
+        if isinstance(aux_state, str) and aux_state:
+            d.auxiliary_heating_status = aux_state
+            d.aux_heating_active = aux_state.lower() in {
+                "heating", "on", "heatingon", "active",
+            }
+        aux_rem = v(
+            raw, "auxiliaryHeating", "auxiliaryHeatingStatus", "value",
+            "remainingTime_min",
+        )
+        if isinstance(aux_rem, (int, float)):
+            d.auxiliary_heating_remaining_min = int(aux_rem)
+
         # ── Readiness / online ─────────────────────────────────────────────────
         d.is_online = v(raw, "readiness", "readinessStatus", "value", "connectionState", "isOnline") is True
         # v2.2.0 Phase 7 PR #2 — telematics modem daily power budget.
@@ -1864,6 +1975,68 @@ class VWEUClient(CariadBaseClient):
         # for users who want "5 days remaining" instead of "May 5, 2026".
         d.service_due_in_days = safe_int(d.service_due_at)
         d.oil_service_due_in_days = safe_int(d.oil_service_at)
+
+        # v2.8.0 — brake service due-dates + preferred workshop (Quick Win C).
+        # Same parent block as the legacy ``inspectionDue_days``/
+        # ``oilServiceDue_days`` pair. Field-name probes follow the
+        # observed CARIAD-BFF + competitor-integration shapes:
+        #   - ``brakeFluidChange_days`` (CARIAD-BFF VW EU MEB)
+        #   - ``brakeFluidChangeDue_days`` (Audi MLB Evo variant)
+        #   - ``brakePadWearFrontInspection_days`` (CARIAD-BFF)
+        #   - ``frontBrakePadWearInspection_days`` (Audi variant)
+        # First non-None wins. Values are int "days from now"; the
+        # ``days_or_date_to_iso`` helper anchors them to midnight UTC
+        # so the TIMESTAMP-class sensor renders relative ("in 142 days").
+        from .._util import (  # noqa: PLC0415
+            compose_workshop_address,
+            days_or_date_to_iso,
+            normalize_workshop_string,
+            workshop_phone_from_contact,
+        )
+        ms_value = v(raw, "vehicleHealthInspection", "maintenanceStatus", "value")
+        if isinstance(ms_value, dict):
+            brake_fluid_raw = (
+                ms_value.get("brakeFluidChange_days")
+                or ms_value.get("brakeFluidChangeDue_days")
+                or ms_value.get("brakeFluidChangeDue_at")
+                or ms_value.get("brakeFluidChange_at")
+            )
+            d.brake_fluid_change_due_at = days_or_date_to_iso(brake_fluid_raw)
+            front_pads_raw = (
+                ms_value.get("brakePadWearFrontInspection_days")
+                or ms_value.get("frontBrakePadWearInspection_days")
+                or ms_value.get("brakePadFrontInspectionDue_days")
+                or ms_value.get("brakePadWearFrontInspection_at")
+            )
+            d.brake_pads_front_inspection_due_at = days_or_date_to_iso(front_pads_raw)
+            rear_pads_raw = (
+                ms_value.get("brakePadWearRearInspection_days")
+                or ms_value.get("rearBrakePadWearInspection_days")
+                or ms_value.get("brakePadRearInspectionDue_days")
+                or ms_value.get("brakePadWearRearInspection_at")
+            )
+            d.brake_pads_rear_inspection_due_at = days_or_date_to_iso(rear_pads_raw)
+
+            # Preferred workshop — CARIAD-BFF surfaces it alongside the
+            # maintenance numbers on the same ``maintenanceStatus.value``
+            # block. Defensive: shape varies (sometimes flat keys, often
+            # a nested ``preferredServicePartner`` / ``servicePartner``
+            # dict — same convention as Skoda's mysmob endpoint).
+            workshop = (
+                ms_value.get("preferredServicePartner")
+                or ms_value.get("servicePartner")
+                or ms_value.get("preferredWorkshop")
+            )
+            if isinstance(workshop, dict) and workshop:
+                d.preferred_workshop_name = normalize_workshop_string(
+                    workshop.get("name") or workshop.get("displayName"),
+                )
+                d.preferred_workshop_address = compose_workshop_address(
+                    workshop.get("address") or workshop,
+                )
+                d.preferred_workshop_phone = workshop_phone_from_contact(
+                    workshop.get("contact") or workshop,
+                )
 
         # v1.11.0 (#91 closure) — vehicle lights aggregate.
         # Backend shape (from #90 + #91 Scout reports — ``[2 items]``,

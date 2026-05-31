@@ -125,7 +125,7 @@
           "force_ppe_climate": "Audi PPE/PPC Climate body (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
           "enable_push_mqtt": "Skoda push updates (MQTT, EXPERIMENTAL)",
           "enable_push_fcm": "CUPRA/SEAT push updates (FCM, EXPERIMENTAL)",
-          "enable_push_audi_vw": "Audi/VW push updates (Cariad FCM, EXPERIMENTAL)"
+          "enable_push_audi_vw": "Audi/VW push updates (Cariad FCM, Live (beta))"
         },
         "data_description": {
           "scan_interval": "How often data is fetched (minutes). Minimum: 3.",
@@ -135,7 +135,7 @@
           "force_ppe_climate": "Audi-only. Forces the new PPE/PPC body shape (climatisationMode mandatory, targetTemperature omitted) on climate start. Enable only if you own a Q6 e-tron, A6 e-tron, RS e-tron GT Facelift or A3 2024+ PHEV — climate-start otherwise returns 400. Reload the integration after toggling.",
           "enable_push_mqtt": "EXPERIMENTAL: Skoda-only. Enables real-time MQTT push from Skoda mysmob backend (requires aiomqtt + firebase-messaging Python packages — currently lazy-imported, not pre-installed). Foundation phase in v1.18.0; live activation pending community-tester validation. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling.",
           "enable_push_fcm": "EXPERIMENTAL: CUPRA/SEAT only. Enables real-time Firebase Cloud Messaging push from OLA backend (requires firebase-messaging Python package — same lazy-import as v1.18.0 Skoda MQTT toggle). Foundation phase in v1.19.0; live activation pending community-tester validation. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling.",
-          "enable_push_audi_vw": "EXPERIMENTAL: Audi/VW only. Enables real-time push notifications from Cariad FCM channel (same one myAudi/WeConnect mobile apps use — covers lock/unlock results, charging-state, climate, alarm). Requires firebase-messaging Python package (same as Skoda MQTT + CUPRA/SEAT FCM). Foundation phase in v1.23.0; live activation pending community-tester validation. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling."
+          "enable_push_audi_vw": "Live (beta): Audi/VW only. Enables real-time push notifications from the Cariad FCM channel (same one myAudi/WeConnect mobile apps use, covers lock/unlock results, charging-state, climate, alarm). Decoded events are fired onto the Home Assistant event bus as ``vag_connect_push_event`` and trigger a coordinator refresh. Requires firebase-messaging Python package (same lazy-import as Skoda MQTT + CUPRA/SEAT FCM). Live activation since v2.8.0 (Action #4); the credential resolver is still tester-gated until task #40 follow-up lands the Cariad Firebase sender_id. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling."
         }
       }
     }
@@ -186,6 +186,12 @@
       },
       "climatisation_state": {
         "name": "Climate Control"
+      },
+      "auxiliary_heating_status": {
+        "name": "Auxiliary Heating Status"
+      },
+      "auxiliary_heating_remaining_min": {
+        "name": "Auxiliary Heating ETA"
       },
       "target_temperature": {
         "name": "Target Temperature"
@@ -342,6 +348,24 @@
       },
       "maintenance_report_captured_at": {
         "name": "Maintenance Report Updated"
+      },
+      "brake_fluid_change_due_at": {
+        "name": "Brake Fluid Change Due"
+      },
+      "brake_pads_front_inspection_due_at": {
+        "name": "Brake Pads Front Inspection Due"
+      },
+      "brake_pads_rear_inspection_due_at": {
+        "name": "Brake Pads Rear Inspection Due"
+      },
+      "preferred_workshop_name": {
+        "name": "Preferred Workshop"
+      },
+      "preferred_workshop_address": {
+        "name": "Preferred Workshop Address"
+      },
+      "preferred_workshop_phone": {
+        "name": "Preferred Workshop Phone"
       },
       "primary_engine_fuel_level_pct": {
         "name": "Primary Engine Fuel Level"
@@ -540,7 +564,7 @@
         "name": "Cabin Ventilation"
       },
       "aux_heating_switch": {
-        "name": "Auxiliary Heating (Webasto)"
+        "name": "Auxiliary Heating"
       },
       "departure_timer_1_switch": {
         "name": "Departure Timer 1"
@@ -570,6 +594,12 @@
       },
       "max_charge_current": {
         "name": "Max Charge Current"
+      },
+      "auxheat_duration": {
+        "name": "Auxiliary Heating Duration"
+      },
+      "auxheat_target_temp": {
+        "name": "Auxiliary Heating Target Temperature"
       }
     },
     "button": {

@@ -418,6 +418,30 @@
       },
       "warning_messages": {
         "name": "Ostrzeżenia pojazdu"
+      },
+      "auxiliary_heating_remaining_min": {
+        "name": "Auxiliary Heating ETA"
+      },
+      "auxiliary_heating_status": {
+        "name": "Auxiliary Heating Status"
+      },
+      "brake_fluid_change_due_at": {
+        "name": "Brake Fluid Change Due"
+      },
+      "brake_pads_front_inspection_due_at": {
+        "name": "Brake Pads Front Inspection Due"
+      },
+      "brake_pads_rear_inspection_due_at": {
+        "name": "Brake Pads Rear Inspection Due"
+      },
+      "preferred_workshop_address": {
+        "name": "Preferred Workshop Address"
+      },
+      "preferred_workshop_name": {
+        "name": "Preferred Workshop"
+      },
+      "preferred_workshop_phone": {
+        "name": "Preferred Workshop Phone"
       }
     },
     "binary_sensor": {
@@ -586,6 +610,12 @@
       },
       "max_charge_current": {
         "name": "Maks. prąd ładowania"
+      },
+      "auxheat_duration": {
+        "name": "Auxiliary Heating Duration"
+      },
+      "auxheat_target_temp": {
+        "name": "Auxiliary Heating Target Temperature"
       }
     },
     "button": {

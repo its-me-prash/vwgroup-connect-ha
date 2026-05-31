@@ -694,6 +694,93 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             pass
         _LOGGER.error("VAG Connect: stopping poll loop, reauth required (%s)", reason)
 
+    async def _maybe_run_stale_watchdog(self) -> None:
+        """v2.8.0 — silent re-authenticate when hybrid_full goes stale.
+
+        VW EU users on the `hybrid_full` strategy have no real
+        refresh_token (Play Integrity walls the BFF token endpoint).
+        The access_token expires after ~2 hours and the integration
+        starts returning failed polls. Before this watchdog, the
+        symptom was a silently dead integration that users had to
+        reload by hand (a common pattern in the upstream VW HA
+        community ran on template-trigger automations).
+
+        Gating logic:
+          - Active strategy must be `hybrid_full`. Other strategies
+            (`device_grant`, `classic`, `data_act_portal`) handle
+            their own refresh paths via refresh_token / re-fetch.
+          - All VINs must have failure_count >= 2 (single transient
+            hiccups do not trigger).
+          - All VINs must have last_good_at older than
+            2x scan_interval (ensures we are not racing a temporary
+            network blip).
+
+        On match, fires `self._cariad_client.authenticate()` again
+        using the same Brand-ID credentials stored in entry.data. On
+        success, the access_token is refreshed in place and the next
+        poll cycle succeeds without user interaction. On failure,
+        we fall through to standard behaviour, the existing outer
+        exception handler then triggers the HA reauth dialog.
+        """
+        if not self._started or self._cariad_client is None:
+            return
+        tokens = getattr(self._cariad_client, "_tokens", None)
+        if tokens is None or getattr(tokens, "strategy", "") != "hybrid_full":
+            return
+        if not getattr(self, "vehicle_last_good_at", None):
+            return
+        if not self.vehicle_last_good_at:
+            return
+
+        interval_s = max(
+            int(
+                self.entry.options.get(CONF_SCAN_INTERVAL)
+                or self.entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+            ) * 60,
+            _CC_MIN_INTERVAL_S,
+        )
+        stale_threshold_s = 2 * interval_s
+        now = datetime.now(tz=timezone.utc)
+
+        all_stale = True
+        for vin, last_good in self.vehicle_last_good_at.items():
+            elapsed = (now - last_good).total_seconds()
+            if elapsed < stale_threshold_s:
+                all_stale = False
+                break
+            if self.vehicle_failure_count.get(vin, 0) < 2:
+                all_stale = False
+                break
+        if not all_stale:
+            return
+
+        _LOGGER.info(
+            "VAG Connect: hybrid_full watchdog — every VIN stale for "
+            ">%ds with >=2 consecutive failures. Triggering silent "
+            "re-authenticate before next poll attempt.",
+            stale_threshold_s,
+        )
+        try:
+            await self._cariad_client.authenticate()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning(
+                "VAG Connect: watchdog silent re-auth raised %s. "
+                "Falling through to standard poll behaviour; if the "
+                "next poll also fails, the existing reauth handler "
+                "will surface to the user.",
+                type(err).__name__,
+            )
+            return
+        # Reset failure counts so the next poll iteration has a
+        # clean slate; otherwise we would re-trigger the watchdog
+        # immediately even after a successful re-auth.
+        for vin in list(self.vehicle_failure_count.keys()):
+            self.vehicle_failure_count[vin] = 0
+        _LOGGER.info(
+            "VAG Connect: watchdog silent re-auth succeeded, "
+            "failure counts cleared. Next poll should recover."
+        )
+
     async def _poll_loop(self) -> None:
         """Background polling loop — runs independently of HA scheduler.
 
@@ -702,6 +789,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
         Nightly reduction (22:00–05:00): doubles the polling interval to reduce
         API calls and avoid rate limits during low-activity hours.
+
+        v2.8.0 — pre-flight `_maybe_run_stale_watchdog()` runs before
+        each poll attempt. See that method's docstring.
         """
         while self._started:
             # Re-read interval every iteration — picks up Options-Flow changes live
@@ -720,6 +810,20 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             await asyncio.sleep(interval_s)
             if not self._started:
                 break
+            # v2.8.0 — pre-flight watchdog. If we are on the
+            # hybrid_full strategy and every VIN has been stale +
+            # failing for >2x scan_interval, silently re-authenticate
+            # before attempting the next poll. No-op for every other
+            # strategy and for healthy hybrid_full sessions.
+            try:
+                await self._maybe_run_stale_watchdog()
+            except Exception as wd_err:  # noqa: BLE001
+                # Watchdog must NEVER break the poll loop.
+                _LOGGER.debug(
+                    "VAG Connect: stale watchdog itself raised %s, "
+                    "ignored.",
+                    type(wd_err).__name__,
+                )
             try:
                 # Lazy-initialise per-VIN tracking so tests bypassing __init__ work.
                 if not hasattr(self, "vehicle_success"):
@@ -996,12 +1100,36 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             return
 
         async def _on_push_event(event: Any) -> None:
-            """Coordinator-side push callback — refresh the affected VIN."""
+            """Coordinator-side push callback.
+
+            v2.8.0 Action #4: fires the event onto the HA bus as
+            ``vag_connect_push_event`` so users can wire automations
+            keyed on ``event_type`` + ``vin`` filters. Then requests
+            a coordinator refresh so live entities update without
+            waiting for the next poll cycle.
+            """
             _LOGGER.debug(
-                "VAG push: event vin=***%s type=%s — requesting refresh",
+                "VAG push: event vin=***%s type=%s; firing on bus + "
+                "requesting refresh",
                 (event.vin or "??????")[-6:],
                 event.event_type,
             )
+            # v2.8.0 Action #4: HA bus emission. Wrapped so a bus
+            # failure cannot break the refresh path.
+            try:
+                self.hass.bus.async_fire(
+                    "vag_connect_push_event",
+                    {
+                        "vin": event.vin,
+                        "event_type": event.event_type,
+                        "topic": event.topic,
+                        "timestamp": event.timestamp,
+                        "brand": brand,
+                        "raw_payload": event.raw_payload,
+                    },
+                )
+            except Exception:  # noqa: BLE001
+                _LOGGER.exception("VAG push: bus emission failed")
             try:
                 await self.async_request_refresh()
             except Exception:  # noqa: BLE001
@@ -1456,6 +1584,148 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # No mapping registered → don't filter (Phase 2 fallback)
             return None
         return self.vehicle_supports_capability(vin, cap_id)
+
+    # v2.8.0 quick win E — declared vs observed capability snapshot.
+    #
+    # When a user reports "my Audi doesn't have a charging sensor" the
+    # diagnostics dump previously told us what the vehicle reported but
+    # not what the integration *expected* the brand to support. Without
+    # the expected-baseline we couldn't distinguish:
+    #   (a) brand never supported it (declared=False)
+    #   (b) vehicle does not have it on this trim (declared=True,
+    #       observed=False, but no parser hit on ANY VIN)
+    #   (c) parser broke (declared=True, observed=False, ran fine before)
+    #
+    # The snapshot returns the declared baseline (from
+    # _capabilities.DECLARED_CAPABILITIES) alongside the observed signal
+    # for each capability (whichever VehicleData field is the canonical
+    # surface for that capability is non-None on at least one VIN). The
+    # ``drift`` list is the diagnostics shortcut: any capability where
+    # declared=True but observed=False on every known VIN.
+    #
+    # Mapping capability key -> VehicleData field name to check. The
+    # field-name is the canonical "this capability has parsed at least
+    # once" signal — when the parser populates it on a real poll, we
+    # know the integration's pipeline understood the response. Push and
+    # auth capabilities don't have a VehicleData field; they're checked
+    # against the coordinator's push-manager slots / token strategy.
+    _CAPABILITY_FIELD_MAP: dict[str, tuple[str, ...]] = {
+        "auxiliary_heating": ("aux_heating_active",),
+        "charging": ("battery_soc", "charging_state", "is_charging"),
+        "climatisation": ("climatisation_state", "climatisation_active"),
+        "trip_statistics": (
+            "last_trip_avg_speed_kmh",
+            "last_trip_distance_km",
+            "lifetime_distance_km",
+        ),
+        "brake_service": ("service_due_in_days", "service_due_at"),
+    }
+
+    def _observe_capability(self, capability: str) -> bool:
+        """Return True if the integration has observed this capability.
+
+        For vehicle-data capabilities, scan every VIN's most-recent dict
+        and return True if any mapped field is non-None.
+
+        For push/auth capabilities, inspect coordinator-level state
+        (push-manager slots, persisted token strategy).
+        """
+        # Push channels live on the coordinator instance directly.
+        if capability == "ola_push":
+            # OLA push is wired through the SEAT/CUPRA FCM manager today
+            # — there's no separate slot. Treat the cupra_seat_push
+            # manager being live as the observed signal.
+            return getattr(self, "_cupra_seat_push", None) is not None
+        if capability == "fcm_push":
+            return (
+                getattr(self, "_audi_vw_push", None) is not None
+                or getattr(self, "_cupra_seat_push", None) is not None
+            )
+        if capability == "mqtt_push":
+            return getattr(self, "_skoda_push", None) is not None
+        if capability == "dag_login":
+            client = getattr(self, "_cariad_client", None)
+            if client is None:
+                return False
+            tokens = getattr(client, "_tokens", None)
+            strategy = getattr(tokens, "strategy", "") if tokens else ""
+            # Hybrid_full / data_act_portal / device_grant all flow
+            # through the browser-based DAG/IDP path (v2.6.0+).
+            return strategy in ("hybrid_full", "data_act_portal", "device_grant")
+
+        # Vehicle-data capabilities: scan VINs for a non-None field.
+        fields = self._CAPABILITY_FIELD_MAP.get(capability)
+        if not fields:
+            # Unknown capability key — no observation possible. Returning
+            # False is the safe default; drift detection will then flag
+            # it only if declared=True (which is the caller's intent).
+            return False
+        vehicles_map = getattr(self, "vehicles", None) or {}
+        for vdata in vehicles_map.values():
+            if not isinstance(vdata, dict):
+                continue
+            for field_name in fields:
+                if vdata.get(field_name) is not None:
+                    return True
+        return False
+
+    def capabilities_snapshot(self) -> dict[str, dict[str, dict[str, Any] | list[str]]]:
+        """Return declared + observed capabilities for this coordinator's brand.
+
+        Shape (compatible with multi-entry diagnostics aggregation):
+
+            {
+                "<brand>": {
+                    "declared": {"auxiliary_heating": True, ...},
+                    "observed": {"auxiliary_heating": True, ...},
+                    "drift": ["climatisation"],
+                },
+            }
+
+        A brand without an entry in ``DECLARED_CAPABILITIES`` (e.g. a
+        future brand that ships before the table is updated) still
+        produces a well-formed snapshot: ``declared`` is an empty dict,
+        ``observed`` runs as normal against whatever capability keys
+        the runtime knows about, ``drift`` is always an empty list.
+
+        ``drift`` lists capabilities the integration *expected* (declared=True)
+        but did NOT observe on any known VIN this coordinator owns.
+        Useful as a Repairs-flow trigger and a debug shortcut in the
+        diagnostics dump.
+        """
+        from .cariad._capabilities import DECLARED_CAPABILITIES  # noqa: PLC0415
+
+        try:
+            brand = str(self.entry.data.get(CONF_BRAND, "")).lower()
+        except Exception:  # noqa: BLE001
+            brand = ""
+
+        declared = DECLARED_CAPABILITIES.get(brand, {})
+
+        # Observed runs over the union of declared keys plus everything
+        # the field-map knows about — that way a parser populating a
+        # field for a brand that hasn't declared it yet still surfaces.
+        observed_keys = set(declared.keys()) | set(self._CAPABILITY_FIELD_MAP.keys())
+        # Also include push/auth keys explicitly so an unknown-brand
+        # snapshot still surfaces them when active.
+        observed_keys |= {"ola_push", "fcm_push", "mqtt_push", "dag_login"}
+        observed = {
+            key: self._observe_capability(key) for key in sorted(observed_keys)
+        }
+
+        drift = sorted(
+            key
+            for key, declared_value in declared.items()
+            if declared_value is True and observed.get(key) is False
+        )
+
+        return {
+            brand: {
+                "declared": dict(declared),
+                "observed": observed,
+                "drift": drift,
+            },
+        }
 
     async def refresh_capabilities(self, vin: str, force: bool = False) -> None:
         """Best-effort fetch of the per-VIN capabilities document.
@@ -2447,19 +2717,66 @@ class VagConnectCoordinator(DataUpdateCoordinator):
     async def async_stop_ventilation(self, vin: str) -> None:
         await self._cariad_cmd(vin, "command_stop_ventilation")
 
-    async def async_start_aux_heating(self, vin: str) -> None:
-        """v1.17.1 — SEAT/CUPRA Webasto auxiliary heating start.
+    async def async_start_aux_heating(
+        self,
+        vin: str,
+        duration_min: int | None = None,
+        target_c: float | None = None,
+    ) -> None:
+        """Start engine pre-heater (Standheizung).
 
-        Pre-flight S-PIN check (analog to ``async_unlock``) so HA shows
-        a clean translation key rather than a low-level SpinError trace.
+        v1.17.1: SEAT/CUPRA Webasto auxiliary heating start. Pre-flight
+        S-PIN check (analog to ``async_unlock``) so HA shows a clean
+        translation key rather than a low-level SpinError trace.
+
+        v2.8.0: extended for Audi + VW EU. CARIAD-BFF accepts
+        ``duration_in_min`` + ``target_temperature_in_kelvin`` in the
+        body, no S-PIN required on this surface. SEAT/CUPRA's OLA
+        endpoint silently drops these kwargs (see
+        ``seat_cupra.command_start_aux_heating``).
+
+        When the caller does not pass ``duration_min`` / ``target_c``
+        the integration reads the per-config ``auxheat_duration`` /
+        ``auxheat_target_temp`` numbers stored under ``entry.options``
+        (written by the new v2.8.0 ``VagConnectNumber`` sliders). If
+        those are absent we fall back to the spec defaults (30 min,
+        21 C), matching the numbers the Audi + VW phone apps preselect.
         """
-        spin = self._spin_from_entry()
-        if not spin:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="spin_required",
-            )
-        await self._cariad_cmd(vin, "command_start_aux_heating", spin=spin)
+        brand = str(self.entry.data.get(CONF_BRAND, "")).lower()
+        cariad_brand = brand in {"volkswagen", "audi"}
+
+        # SEAT/CUPRA needs S-PIN, Audi + VW EU don't. Only enforce on
+        # the SEAT/CUPRA path so VW/Audi users without S-PIN configured
+        # can still use the engine pre-heater.
+        if not cariad_brand:
+            spin = self._spin_from_entry()
+            if not spin:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="spin_required",
+                )
+            await self._cariad_cmd(vin, "command_start_aux_heating", spin=spin)
+            return
+
+        options = getattr(self.entry, "options", None) or {}
+        if duration_min is None:
+            opt_dur = options.get("auxheat_duration") if isinstance(options, dict) else None
+            try:
+                duration_min = int(opt_dur) if opt_dur is not None else 30
+            except (TypeError, ValueError):
+                duration_min = 30
+        if target_c is None:
+            opt_temp = options.get("auxheat_target_temp") if isinstance(options, dict) else None
+            try:
+                target_c = float(opt_temp) if opt_temp is not None else 21.0
+            except (TypeError, ValueError):
+                target_c = 21.0
+        await self._cariad_cmd(
+            vin,
+            "command_start_aux_heating",
+            duration_min=int(duration_min),
+            target_c=float(target_c),
+        )
 
     async def async_stop_aux_heating(self, vin: str) -> None:
         """v1.17.1 — Aux heating stop (no S-PIN per Bruno seq 30)."""

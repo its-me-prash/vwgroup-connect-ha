@@ -13,7 +13,15 @@ from typing import Any
 
 from aiohttp import ClientSession
 
-from .._util import compute_connection_state, safe_float, safe_int
+from .._util import (
+    compose_workshop_address,
+    compute_connection_state,
+    days_or_date_to_iso,
+    normalize_workshop_string,
+    safe_float,
+    safe_int,
+    workshop_phone_from_contact,
+)
 from .._ola_headers import get_fallback_count, get_ola_headers
 from ..exceptions import APIError, SpinError
 from ..models import BRAND_CUPRA, BRAND_SEAT, BrandConfig, VehicleData
@@ -326,6 +334,42 @@ class SeatCupraClient(CariadBaseClient):
         ):
             if isinstance(payload, dict):
                 self.last_raw_responses[name] = payload
+
+        # v2.8.0 quick win D — parser-health telemetry. Each OLA
+        # endpoint maps to one logical job. Records per-call success
+        # (got a dict) or failure (Exception in gather). Tracks the
+        # same canonical job names as the other brands so cross-brand
+        # diagnostics aggregation reads consistently.
+        def _note(job: str, payload: Any) -> None:
+            if isinstance(payload, BaseException):
+                stats = self.parser_stats.setdefault(
+                    job, {"success": 0, "fail": 0, "last_error": ""},
+                )
+                stats["fail"] = int(stats.get("fail", 0)) + 1
+                stats["last_error"] = (
+                    f"{type(payload).__name__}: {str(payload)[:160]}"
+                )
+            else:
+                self._note_parser_job(job, present=isinstance(payload, dict))
+
+        _note("vehicle_status", mycar)
+        _note("charging", charge_status)
+        _note("climatisation", climate)
+        _note("parking_position", parking)
+        _note("service_care", maintenance)
+        # OLA flattens oil_level / tyre_pressure / auxiliary_heating
+        # into the mycar payload; door_lock lives under
+        # ``access.accessStatus.value``. Mirror the door_lock counter
+        # from there so cross-brand diagnostics line up.
+        if isinstance(mycar, BaseException):
+            _note("door_lock", mycar)
+        elif isinstance(mycar, dict):
+            self._note_parser_job(
+                "door_lock",
+                present=isinstance(
+                    self._val(mycar, "access", "accessStatus", "value"), dict,
+                ),
+            )
 
         # ── Main vehicle data (mycar) ────────────────────────────────────────
         if isinstance(mycar, dict):
@@ -983,6 +1027,46 @@ class SeatCupraClient(CariadBaseClient):
                 or v(maintenance, "oilServiceDueInDays")            # v2.5.3
                 or v(maintenance, "timeRemainingForOilService")     # v2.5.3
             )
+            # v2.8.0 quick win C — brake-service + preferred-workshop.
+            # OLA exposes both on the same /maintenance response when
+            # the dealer has wired up the vehicle's service plan.
+            # Field names mirror the Skoda mysmob shape so we accept
+            # either variant; OLA-specific keys take precedence when
+            # both are present.
+            brake_fluid_raw = (
+                v(maintenance, "brakeFluidChangeDueInDays")
+                or v(maintenance, "brakeFluidServiceDueInDays")
+                or v(maintenance, "brakeFluidChange_days")
+            )
+            d.brake_fluid_change_due_at = days_or_date_to_iso(brake_fluid_raw)
+            front_pads_raw = (
+                v(maintenance, "brakePadsFrontInspectionDueInDays")
+                or v(maintenance, "brakePadFrontInspectionDueInDays")
+            )
+            d.brake_pads_front_inspection_due_at = days_or_date_to_iso(
+                front_pads_raw
+            )
+            rear_pads_raw = (
+                v(maintenance, "brakePadsRearInspectionDueInDays")
+                or v(maintenance, "brakePadRearInspectionDueInDays")
+            )
+            d.brake_pads_rear_inspection_due_at = days_or_date_to_iso(
+                rear_pads_raw
+            )
+            workshop = (
+                v(maintenance, "preferredServicePartner")
+                or v(maintenance, "preferredDealer")
+            )
+            if isinstance(workshop, dict) and workshop:
+                d.preferred_workshop_name = normalize_workshop_string(
+                    workshop.get("name") or workshop.get("displayName")
+                )
+                d.preferred_workshop_address = compose_workshop_address(
+                    workshop.get("address") or workshop.get("location")
+                )
+                d.preferred_workshop_phone = workshop_phone_from_contact(
+                    workshop.get("contact") or workshop
+                )
 
         # ── v2.5.3 — /v1/mileage fallback (#306 Mii/Tavascan/Leon FR-KL) ────
         # PyCupra dedicates an entire endpoint to the cached odometer
@@ -1379,7 +1463,12 @@ class SeatCupraClient(CariadBaseClient):
             f"{_BASE}/v1/vehicles/{vin}/ventilation/stop", json={}
         )
 
-    async def command_start_aux_heating(self, vin: str, spin: str = "") -> None:
+    async def command_start_aux_heating(
+        self,
+        vin: str,
+        spin: str = "",
+        **_ignored: Any,
+    ) -> None:
         """v1.17.1 (Bruno seq 29 + pycupra) — Webasto auxiliary heating.
 
         SEAT/CUPRA PHEV/ICE Standheizung remote-start. Requires SecToken
@@ -1395,6 +1484,11 @@ class SeatCupraClient(CariadBaseClient):
         We try Bruno's path first (Bruno specs are typically newer), fall
         back to pycupra's on 404. Both verified to require SecToken on
         START (stop does not — see ``command_stop_aux_heating``).
+
+        v2.8.0: ``**_ignored`` accepts ``duration_min`` / ``target_c``
+        kwargs that the v2.8.0 Audi + VW EU client uses. OLA's
+        ``auxiliary-heating/start`` endpoint takes no body, so we
+        silently drop those kwargs on this brand path.
         """
         if not (spin or self._spin):
             raise SpinError(

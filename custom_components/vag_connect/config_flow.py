@@ -31,6 +31,7 @@ from homeassistant.helpers.selector import (
 from .const import (
     BRANDS,
     CONF_BRAND,
+    CONF_ENABLE_DATA_ACT_BROWSER,
     CONF_ENABLE_PUSH_AUDI_VW,
     CONF_ENABLE_PUSH_FCM,
     CONF_ENABLE_PUSH_MQTT,
@@ -1024,6 +1025,22 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                     default=current_options.get(
                         CONF_ENABLE_PUSH_AUDI_VW,
                         current_data.get(CONF_ENABLE_PUSH_AUDI_VW, False),
+                    ),
+                ): _BOOL_SELECTOR,
+                # v2.8.0 Action #3 - opt-in toggle for the EU Data Act
+                # portal headless-browser fallback. Off by default
+                # because the playwright dependency is heavy (around
+                # 100 MB Chromium). Only meaningful when the active
+                # auth strategy is data_act_portal (i.e. the BFF + IDK
+                # chain have both failed and the integration has fallen
+                # back to the read-only portal). If True but playwright
+                # is not installed, the coordinator surfaces a Repair
+                # issue with installation instructions.
+                vol.Optional(
+                    CONF_ENABLE_DATA_ACT_BROWSER,
+                    default=current_options.get(
+                        CONF_ENABLE_DATA_ACT_BROWSER,
+                        current_data.get(CONF_ENABLE_DATA_ACT_BROWSER, False),
                     ),
                 ): _BOOL_SELECTOR,
             }),

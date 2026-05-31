@@ -271,8 +271,20 @@ class TokenSet:
     # uses this to decide refresh behaviour: hybrid_full / data_act_portal
     # have no refresh_token, so refresh = full re-login. classic flows
     # can use refresh_token. Strategy values: "classic" | "hybrid_full"
-    # | "data_act_portal" | "" (legacy/unknown — treated as classic).
+    # | "data_act_portal" | "device_grant" | "" (legacy/unknown).
     strategy: str = ""
+
+    # v2.8.0 — persisted Auth0 / IDP session cookies (vwgroup.io domain
+    # only). The IDP issues a "device-bound" cookie after a successful
+    # email-OTP challenge that suppresses the OTP prompt for ~30 days
+    # on the same device fingerprint. Without persistence, every fresh
+    # session (HA restart, integration reload) re-prompts the user for
+    # the OTP, which combined with the hybrid_full 2h-relogin cycle
+    # turns into a hostile UX. Each entry is a small dict with the
+    # subset of fields aiohttp needs to round-trip a Morsel:
+    #   {"name": ..., "value": ..., "domain": ..., "path": ...,
+    #    "expires": ..., "secure": ..., "httponly": ...}
+    auth_cookies: list[dict[str, Any]] = field(default_factory=list)
 
     def is_valid(self) -> bool:
         """Return True if the access_token + id_token are populated.
@@ -551,6 +563,25 @@ class VehicleData:
     # Currently populated by SkodaClient; other brands leave it None.
     preferred_workshop: dict[str, Any] | None = None
 
+    # v2.8.0 — Brake service due-dates + preferred workshop normalised
+    # singletons. The composite ``preferred_workshop`` dict above stays
+    # as the attribute payload for the existing service-due sensor; the
+    # three normalised string fields below back dedicated sensors so a
+    # user can build a "call my workshop" automation against
+    # ``sensor.preferred_workshop_phone`` without templating into a dict.
+    #
+    # Brake fields are TIMESTAMP-class (parser converts an int day-
+    # offset or EU dd.mm.yyyy date into an ISO 8601 UTC string at
+    # midnight). Stays None when the backend either omits the field or
+    # ships an empty error envelope. Phantom-protected in sensor.py via
+    # ``_DATA_PRESENT_REQUIRED``.
+    brake_fluid_change_due_at: str | None = None
+    brake_pads_front_inspection_due_at: str | None = None
+    brake_pads_rear_inspection_due_at: str | None = None
+    preferred_workshop_name: str | None = None
+    preferred_workshop_address: str | None = None
+    preferred_workshop_phone: str | None = None
+
     # v1.19.1 — Pycupra-style API quota visibility. Populated from
     # X-RateLimit-Remaining response header captured by base.py
     # ``_capture_rate_limit_headers``. Brand-shared (the same auth
@@ -626,6 +657,20 @@ class VehicleData:
     # (those are STATES "on/off"); this is the SETTING ("auto-activate during
     # climate?"). Boolean.
     window_heating_enabled: bool | None = None
+
+    # v2.8.0 - Auxiliary heating (engine pre-heater / Standheizung) for
+    # Audi + VW EU. Cariad-BFF parses from
+    # ``auxiliaryHeating.auxiliaryHeatingStatus.value.{operationMode,
+    # climatisationState, remainingTime_min}``. SEAT/CUPRA OLA aux-heating
+    # support stays unchanged (v1.17.1 Bruno seq 29/30), but its parser
+    # does not populate these fields yet, so non-supporting brands leave
+    # them as None (no phantom entities).
+    # ``aux_heating_active`` is a derived bool used by the switch
+    # entity's ``is_on`` property; populated from operationMode /
+    # climatisationState being one of {heating, on, heatingOn, active}.
+    auxiliary_heating_status: str | None = None
+    aux_heating_active: bool | None = None
+    auxiliary_heating_remaining_min: int | None = None
 
     # Next-Charging-Timer info (read-side complement to v1.16.0
     # write-side service ``set_departure_timer``): VW EU/Audi from
