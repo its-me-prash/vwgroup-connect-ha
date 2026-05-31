@@ -16,6 +16,9 @@ from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
+    QrCodeSelector,
+    QrCodeSelectorConfig,
+    QrErrorCorrectionLevel,
     SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
@@ -545,14 +548,52 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             # Clicked submit before poll completed — re-render with hint
             errors["base"] = "still_waiting_browser"
 
-        # v2.7.0b8 — Non-empty schema. An empty vol.Schema({}) caused
-        # HA's frontend to render a form with no description on at
-        # least one user's install. A single optional boolean field
-        # gives the renderer something concrete to lay out and forces
-        # the description to render. The field's value is ignored;
-        # clicking Submit is what advances the flow.
+        # v2.7.0b9 — URL and user_code live INSIDE the form schema as
+        # pre-filled selector fields, not just in the description
+        # placeholders. Reason: on at least one real install the form
+        # description rendered empty (translation-loader miss or HA
+        # frontend quirk we still don't fully understand), but the
+        # schema fields rendered fine. Pushing the critical content
+        # into fields makes the URL and code visible no matter what
+        # happens to the description.
+        #
+        # Field shape:
+        #   - qr_code: QrCodeSelector renders the verification URL as
+        #     a scannable QR code. User points their phone camera at
+        #     the screen and gets to the login page in one tap.
+        #   - verification_url: TextSelector pre-filled with the URL.
+        #     User can copy-paste if they don't want to scan.
+        #   - user_code: TextSelector pre-filled with the 8-char code.
+        #     Copy-paste friendly.
+        #   - approved_in_browser: BooleanSelector. The actual submit
+        #     trigger. Defaults to True so the user just clicks Submit.
+        #
+        # Field NAMES are deliberately self-descriptive so the raw-key
+        # fallback ("verification_url", "user_code") is still readable
+        # if the translation lookup misses for any reason.
         confirm_schema = vol.Schema({
-            vol.Optional("approved", default=True): bool,
+            vol.Required(
+                "qr_code",
+                default=self._dag_verification_uri,
+            ): QrCodeSelector(
+                QrCodeSelectorConfig(
+                    data=self._dag_verification_uri,
+                    scale=6,
+                    error_correction_level=QrErrorCorrectionLevel.QUARTILE,
+                )
+            ),
+            vol.Optional(
+                "verification_url",
+                default=self._dag_verification_uri,
+            ): TextSelector(TextSelectorConfig(type=TextSelectorType.URL)),
+            vol.Optional(
+                "user_code",
+                default=self._dag_user_code,
+            ): TextSelector(TextSelectorConfig()),
+            vol.Required(
+                "approved_in_browser",
+                default=True,
+            ): BooleanSelector(),
         })
 
         return self.async_show_form(

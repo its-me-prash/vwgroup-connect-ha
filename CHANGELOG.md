@@ -50,6 +50,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - OLA watcher gains daernsinstantfortress as 3rd consensus source
 - App Atlas covers all 7 brands
 
+## [2.7.0b9] - 2026-05-31
+
+### Changed
+- DAG browser-login Phase 2: URL and user_code now live inside the form schema as pre-filled fields, not just in the description. Description rendering kept failing on real installs (translation-loader miss or HA frontend quirk). Schema fields render reliably.
+- Added a QR code selector showing the verification URL. Scan with phone camera to open the login page in one tap.
+- Field labels chosen so the raw-key fallback ("verification_url", "user_code", "approved_in_browser") stays readable when translations miss.
+- Persistent notification and WARNING log line from b8 kept as belt-and-suspenders.
+
 ## [2.7.0b8] - 2026-05-31
 
 ### Fixed

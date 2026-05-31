@@ -75,7 +75,19 @@
       },
       "browser_login_approve": {
         "title": "Im Browser bestätigen",
-        "description": "**1. Öffne diese URL auf einem beliebigen Gerät** (Handy, Laptop, irgendwas mit Browser):\n\n{verification_uri}\n\n**2. Melde dich** mit deinem Brand-ID-Konto an (falls noch nicht eingeloggt).\n\n**3. Bestätige den Code:** `{user_code}`\n\n**4. Wenn du bestätigt hast, klick unten auf Senden / Submit.**\n\nHome Assistant pollt im Hintergrund — der Klick auf Senden bestätigt dass du fertig bist. Wenn du zu früh klickst kommt ein 'noch warten' Hinweis und du kannst nochmal klicken."
+        "description": "Scanne den QR-Code mit dem Handy, oder öffne die URL auf einem beliebigen Gerät. Mit deinem Brand-ID-Konto anmelden (falls nötig), Code bestätigen, dann unten den Haken setzen und auf Senden klicken.",
+        "data": {
+          "qr_code": "Mit Handy-Kamera scannen um Login-Seite zu öffnen",
+          "verification_url": "Oder diese URL in einem beliebigen Browser öffnen",
+          "user_code": "Code zum Bestätigen im Browser",
+          "approved_in_browser": "Ich habe im Browser bestätigt"
+        },
+        "data_description": {
+          "qr_code": "Handy-Kamera auf den QR-Code halten. Die Login-Seite öffnet sich im Handy-Browser mit dem Code unten vorausgefüllt.",
+          "verification_url": "Falls Scannen nicht klappt: Link kopieren, auf irgendeinem Gerät öffnen, mit Brand-ID-Konto anmelden.",
+          "user_code": "Nach dem Anmelden diesen Code im Browser bestätigen um Home Assistant freizugeben.",
+          "approved_in_browser": "Haken gesetzt lassen. Erst auf Senden klicken nachdem du im Browser angemeldet und den Code bestätigt hast."
+        }
       }
     },
     "error": {
