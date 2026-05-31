@@ -471,6 +471,9 @@
       },
       "camping_mode": {
         "name": "Mode Camping"
+      },
+      "oil_level_warning": {
+        "name": "Niveau d huile"
       }
     },
     "switch": {

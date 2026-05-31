@@ -19,6 +19,7 @@ _BASE = "https://emea.bff.cariad.digital"
 _SELECTIVE_STATUS_JOBS = ",".join([
     "access",
     "automation",
+    "auxiliaryHeating",
     "batteryChargingCare",
     "charging",
     "climatisation",
@@ -32,6 +33,12 @@ _SELECTIVE_STATUS_JOBS = ",".join([
     # publishes voltage + warning state here.
     "lvBattery",
     "measurements",
+    # v2.7.0b10 — Audi parity fix. Promoted from _v3_probes.py after
+    # gap audit vs audi_connect_ha confirmed both endpoints ship real
+    # data on the standard /selectivestatus surface, we just never
+    # asked for the job.
+    "oilLevel",
+    "tyrePressure",
     "readiness",
     "userCapabilities",
     "vehicleLights",
@@ -1349,42 +1356,69 @@ class VWEUClient(CariadBaseClient):
         lock_raw = v(raw, "access", "accessStatus", "value", "doorLockStatus")
         if isinstance(lock_raw, str):
             d.doors_locked = lock_raw.upper() == "LOCKED"
+
+        # v2.7.0b10 — Audi parity fix. The old code only built the
+        # per-door / per-window breakdown when overallStatus was
+        # "UNSAFE". On a locked car (overallStatus == "SAFE", which is
+        # the common case) the parser bailed out without populating
+        # ``doors_individual`` / ``windows_individual`` / trunk lock,
+        # so all the per-position entities (left front door, sun roof,
+        # trunk lock, etc) stayed at None and rendered as "Unbekannt"
+        # in HA. Audi-connect-ha iterates the arrays unconditionally;
+        # that's the right shape. Always walk the doors + windows
+        # arrays when they are present; rely on each entry's own
+        # status field for the open/closed answer.
+        from .._util import safe_get  # noqa: PLC0415
+        doors: list[dict[str, Any]] = (
+            v(raw, "access", "accessStatus", "value", "doors") or []
+        )
+        windows: list[dict[str, Any]] = (
+            v(raw, "access", "accessStatus", "value", "windows") or []
+        )
         overall = v(raw, "access", "accessStatus", "value", "overallStatus")
-        if overall == "UNSAFE":
-            # v2.2.0 PR #2 — defensive parsing via ``safe_get``.
-            # Pre-v2.2.0 used ``door.get("status", [{}])[0].get("value")``
-            # which assumes ``status`` is ALWAYS a non-empty list of dicts.
-            # MY26 firmware variants sometimes return ``status: {}`` (dict
-            # instead of list) which crashed with TypeError, or
-            # ``status: []`` which silently returned None.value AttributeError.
-            # ``safe_get(door, "status[0].value")`` returns None on any
-            # of those cases so ``== "open"`` yields False (safe default).
-            from .._util import safe_get  # noqa: PLC0415
-            doors: list[dict[str, Any]] = v(raw, "access", "accessStatus", "value", "doors") or []
+        if doors:
             d.doors_open = any(
-                safe_get(door, "status[0].value") == "open"
-                for door in doors
+                safe_get(door, "status[0].value") == "open" for door in doors
             )
-            windows: list[dict[str, Any]] = v(raw, "access", "accessStatus", "value", "windows") or []
-            d.windows_open = any(
-                safe_get(w, "status[0].value") == "open"
-                for w in windows
-            )
-            # Per-door breakdown — was using ``door["name"]`` (raw subscript,
-            # crashes if MY26 drops the name field). Now defensive.
             d.doors_individual = {
                 str(name): safe_get(door, "status[0].value") == "open"
                 for door in doors
                 if (name := door.get("name")) is not None
             }
+            # Trunk lock state lives in the doors array under the
+            # entry whose name is "trunk". Backends ship either a
+            # top-level ``locked`` boolean or a status entry with
+            # value=="locked" — accept both.
+            trunk = next(
+                (door for door in doors if door.get("name") == "trunk"),
+                None,
+            )
+            if trunk is not None:
+                trunk_locked_raw = (
+                    trunk.get("locked")
+                    if "locked" in trunk
+                    else safe_get(trunk, "lockState[0].value")
+                )
+                if isinstance(trunk_locked_raw, bool):
+                    d.trunk_locked = trunk_locked_raw
+                elif isinstance(trunk_locked_raw, str):
+                    d.trunk_locked = trunk_locked_raw.lower() == "locked"
         elif overall == "SAFE":
-            # v2.0.1 (#131 follow-up) — explicit SAFE detection. Backend
-            # publishes "SAFE" when the car is locked + all openings shut.
-            # Pre-v2.0.1 the parser only handled "UNSAFE" and left both
-            # fields at the (now removed) ``False`` dataclass default.
-            # Now we explicitly set False when SAFE, leave None otherwise
-            # (truly unknown state — backend hiccup, error envelope).
+            # Backend reported SAFE but didn't enumerate the doors
+            # array. Honour the aggregate signal so the entity shows
+            # False (closed) instead of Unknown.
             d.doors_open = False
+
+        if windows:
+            d.windows_open = any(
+                safe_get(w, "status[0].value") == "open" for w in windows
+            )
+            d.windows_individual = {
+                str(name): safe_get(w, "status[0].value") == "open"
+                for w in windows
+                if (name := w.get("name")) is not None
+            }
+        elif overall == "SAFE":
             d.windows_open = False
 
         # ── Climatisation ─────────────────────────────────────────────────────
@@ -1564,16 +1598,91 @@ class VWEUClient(CariadBaseClient):
 
         # ── Vehicle health / service ──────────────────────────────────────────
         # ── Warning lights ────────────────────────────────────────────────────
-        warnings = v(raw, "vehicleHealthWarnings", "warningLights", "value") or []
-        if isinstance(warnings, list):
+        # v2.7.0b10 — distinguish "field missing" from "field present and
+        # empty". Backend ships an empty list [] for a healthy car (no
+        # active warnings) and a populated list when warnings fire. The
+        # old code used ``or []`` which collapsed both into the same
+        # branch but only ASSIGNED warning_* when the list was non-empty.
+        # Result: a healthy car's warning sensors stayed at the dataclass
+        # default None and rendered as "Unbekannt" in HA forever. Now
+        # explicitly set False on empty list (true negative) and only
+        # leave None when the field itself is genuinely absent from the
+        # response (backend hiccup / capability-gated).
+        warnings_raw = v(raw, "vehicleHealthWarnings", "warningLights", "value")
+        if isinstance(warnings_raw, list):
             # Each warning: {warningType, iconId, text}
-            warning_types = {w.get("warningType", "").upper() for w in warnings if w.get("warningType")}
+            warning_types = {
+                w.get("warningType", "").upper()
+                for w in warnings_raw
+                if w.get("warningType")
+            }
             d.warning_oil     = "OIL" in warning_types or "OIL_LEVEL" in warning_types
             d.warning_engine  = "ENGINE" in warning_types or "CHECK_ENGINE" in warning_types
             d.warning_tyre    = any("TYR" in t or "TIRE" in t for t in warning_types)
             d.warning_brakes  = "BRAKE" in warning_types
-            d.warning_count   = len(warnings)
-            d.warning_active  = len(warnings) > 0
+            d.warning_count   = len(warnings_raw)
+            d.warning_active  = len(warnings_raw) > 0
+
+        # v2.7.0b10 — oilLevel job, parity with audi_connect_ha.
+        # CARIAD-BFF ships either a discrete status string (most
+        # common) or a numeric percentage, depending on the model.
+        # Surface both fields; the entity layer renders whichever
+        # the user's car actually provides.
+        oil_value = v(raw, "oilLevel", "oilLevelStatus", "value")
+        if isinstance(oil_value, dict):
+            oil_status = oil_value.get("value")
+            if isinstance(oil_status, str):
+                d.oil_level_status = oil_status
+                # PROBLEM device class convention: True = warning,
+                # False = OK. Unknown strings leave the bool None so
+                # we don't render a fake OK on a car with a backend
+                # path we haven't catalogued yet.
+                lowered = oil_status.lower()
+                if lowered in ("normal", "ok", "sufficient"):
+                    d.oil_level_warning = False
+                elif "warning" in lowered or "service" in lowered or "low" in lowered:
+                    d.oil_level_warning = True
+            oil_pct = oil_value.get("oilLevelPercentage")
+            if isinstance(oil_pct, (int, float)):
+                d.oil_level_pct = int(oil_pct)
+
+        # v2.7.0b10 — tyrePressure job, parity with audi_connect_ha.
+        # Backend ships per-corner status + numeric pressure (kPa or bar
+        # depending on firmware). Convert kPa->bar when needed (divide by
+        # 100) so the sensor unit stays consistent. The warning bool is
+        # already extracted from vehicleHealthWarnings above but the
+        # tyrePressure job carries it explicitly too, so prefer this.
+        tyre_value = v(raw, "tyrePressure", "tyrePressureStatus", "value")
+        if isinstance(tyre_value, dict):
+            # Backend keys observed: currentTirePressure_FrontLeft_bar,
+            # currentTirePressure_FrontLeft_kPa, currentValue_FL, etc.
+            # Walk every key and route by suffix-pattern match.
+            for key, value in tyre_value.items():
+                if not isinstance(value, (int, float)):
+                    continue
+                klow = key.lower()
+                bar_value: float | None = None
+                if "_kpa" in klow or klow.endswith("kpa"):
+                    bar_value = float(value) / 100.0
+                elif "_bar" in klow or klow.endswith("bar"):
+                    bar_value = float(value)
+                if bar_value is None:
+                    continue
+                if "frontleft" in klow or "_fl" in klow:
+                    d.tire_pressure_front_left_bar = round(bar_value, 2)
+                elif "frontright" in klow or "_fr" in klow:
+                    d.tire_pressure_front_right_bar = round(bar_value, 2)
+                elif "rearleft" in klow or "_rl" in klow:
+                    d.tire_pressure_rear_left_bar = round(bar_value, 2)
+                elif "rearright" in klow or "_rr" in klow:
+                    d.tire_pressure_rear_right_bar = round(bar_value, 2)
+            warning_raw = tyre_value.get("overallStatus") or tyre_value.get("warningLight")
+            if isinstance(warning_raw, str):
+                d.tire_pressure_warning = warning_raw.lower() not in (
+                    "ok", "normal", "off", "false",
+                )
+            elif isinstance(warning_raw, bool):
+                d.tire_pressure_warning = warning_raw
 
         d.service_km = v(raw, "vehicleHealthInspection", "maintenanceStatus", "value", "inspectionDue_km")
         d.service_due_at = v(raw, "vehicleHealthInspection", "maintenanceStatus", "value", "inspectionDue_days")

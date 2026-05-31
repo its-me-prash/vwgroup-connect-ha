@@ -459,6 +459,9 @@
       "warning_brakes": {
         "name": "Brake Warning"
       },
+      "oil_level_warning": {
+        "name": "Oil Level"
+      },
       "warning_12v_low": {
         "name": "12V Battery Low"
       },

@@ -177,6 +177,19 @@ BINARY_DESCRIPTIONS: tuple[VagBinarySensorDescription, ...] = (
         icon="mdi:car-brake-alert",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # v2.7.0b10 — oilLevel job, parity with audi_connect_ha.
+    # State is inverted vs. the warning_* family above: oil_level_ok
+    # True means everything's fine, False means oil needs attention.
+    # Use device_class PROBLEM with the value flipped so HA renders it
+    # consistently (red = problem) without a separate template.
+    VagBinarySensorDescription(
+        key="oil_level_warning",
+        translation_key="oil_level_warning",
+        data_key="oil_level_warning",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        icon="mdi:oil-level",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
 )
 
 _NEW_BINARY: tuple[VagBinarySensorDescription, ...] = (
