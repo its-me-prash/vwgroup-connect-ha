@@ -238,15 +238,25 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         self._pending_password: str = ""
         self._pending_entry_data: dict[str, Any] = {}
         # v2.7.0 — Device Authorization Grant (browser-login) state.
-        # Populated in async_step_browser_login + read by the polling
-        # background task. Reset at the start of every new browser flow.
+        # Two-phase flow so HA's show_progress can re-render with the
+        # populated URL + user_code BEFORE the long polling wait begins.
         self._dag_brand: str = ""
         self._dag_user_input: dict[str, Any] = {}
-        self._dag_task: Any = None
+        # Phase 1: request_device_code() — fast (~1 s HTTP round-trip).
+        self._dag_request_task: Any = None
+        # Phase 2: poll_for_tokens() — slow (waits up to 5 min for the
+        # user to approve in their browser).
+        self._dag_poll_task: Any = None
+        # Populated by Phase 1, displayed during Phase 2.
         self._dag_user_code: str = ""
         self._dag_verification_uri: str = ""
+        self._dag_device_code: str = ""
+        self._dag_poll_interval: int = 5
+        self._dag_expires_in: int = 300
+        # Populated by Phase 2, consumed by the finish step.
         self._dag_tokens: Any = None
         self._dag_user_id: str = ""
+        # Captured if either phase fails.
         self._dag_error: str = ""
 
     async def async_step_user(
@@ -259,10 +269,27 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         refresh_token, password-less. VW EU and Porsche stay on the
         email + password path because VW has not whitelisted those
         client_ids for the device grant flow.
+
+        v2.7.0b4 — menu_options pass as ``dict`` with raw labels embedded
+        rather than a ``list`` that relies on translation lookup. The
+        translation-lookup path turned out brittle in practice: when a
+        user upgrades from a pre-menu version (e.g. v2.6.0) without a
+        full HA restart, HA caches the old strings and renders the new
+        menu with empty chevrons because the menu_options keys don't
+        exist in the cached strings. Embedding the labels makes the
+        menu render correctly regardless of cache state.
         """
         return self.async_show_menu(
             step_id="user",
-            menu_options=["browser_login", "email_password"],
+            menu_options={
+                "browser_login": (
+                    "Browser-Login — Audi / Škoda / SEAT / CUPRA "
+                    "(empfohlen, kein Passwort in HA)"
+                ),
+                "email_password": (
+                    "E-Mail + Passwort — Volkswagen EU / Porsche (Legacy)"
+                ),
+            },
         )
 
     async def async_step_email_password(
@@ -349,9 +376,11 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 # Reset state for this attempt.
                 self._dag_brand = brand
                 self._dag_user_input = dict(user_input)
-                self._dag_task = None
+                self._dag_request_task = None
+                self._dag_poll_task = None
                 self._dag_user_code = ""
                 self._dag_verification_uri = ""
+                self._dag_device_code = ""
                 self._dag_tokens = None
                 self._dag_user_id = ""
                 self._dag_error = ""
@@ -395,89 +424,145 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
     async def async_step_browser_login_pending(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
-        """v2.7.0 — Browser-login step 2: poll while the user approves.
+        """v2.7.0 — Browser-login pending step. Two-phase show_progress.
 
-        HA's show_progress pattern: the first call starts a background
-        task; subsequent calls (HA polls this step every ~2s) check if
-        the task is done. When done, we advance to the finish step.
+        Phase 1 — request the device_code (fast HTTP call). HA shows a
+        generic 'preparing login' progress while the request is in
+        flight. When it returns, HA re-renders this step and we
+        advance to Phase 2 with the placeholders fully populated.
+
+        Phase 2 — poll the token endpoint while the user opens the
+        browser, signs in, and approves. HA shows the URL + user_code
+        in the progress text the whole time. When the task completes
+        the flow advances to the finish step (success) or back to
+        the brand picker (failure).
         """
-        if self._dag_task is None:
-            self._dag_task = self.hass.async_create_task(self._run_dag_flow())
+        # Phase 1 — kick off request_device_code()
+        if self._dag_request_task is None:
+            self._dag_request_task = self.hass.async_create_task(
+                self._do_request_device_code()
+            )
 
-        if not self._dag_task.done():
+        if not self._dag_request_task.done():
+            return self.async_show_progress(
+                step_id="browser_login_pending",
+                progress_action="requesting_device_code",
+                progress_task=self._dag_request_task,
+            )
+
+        if self._dag_error or not self._dag_device_code:
+            # Phase 1 failed — drop back to the brand picker so user
+            # can retry. The error message lives in self._dag_error
+            # (TODO: surface via repair issue or notification).
+            return self.async_show_progress_done(next_step_id="browser_login")
+
+        # Phase 2 — kick off poll_for_tokens()
+        if self._dag_poll_task is None:
+            self._dag_poll_task = self.hass.async_create_task(
+                self._do_poll_tokens()
+            )
+
+        if not self._dag_poll_task.done():
             return self.async_show_progress(
                 step_id="browser_login_pending",
                 progress_action="awaiting_browser_login",
-                progress_task=self._dag_task,
+                progress_task=self._dag_poll_task,
                 description_placeholders={
-                    "verification_uri": (
-                        self._dag_verification_uri or "(requesting...)"
-                    ),
-                    "user_code": self._dag_user_code or "(requesting...)",
+                    "verification_uri": self._dag_verification_uri,
+                    "user_code": self._dag_user_code,
                 },
             )
 
-        # Task finished — advance to either finish (success) or
-        # back to the brand-pick form with an error (failure).
+        # Phase 2 done — advance to finish (success) or restart (failure)
         next_step = (
             "browser_login_finish" if self._dag_tokens else "browser_login"
         )
         return self.async_show_progress_done(next_step_id=next_step)
 
-    async def _run_dag_flow(self) -> None:
-        """v2.7.0 — Background task that drives the DAG flow.
+    async def _do_request_device_code(self) -> None:
+        """v2.7.0b4 — Phase 1 of the DAG flow: get device_code.
 
-        Sequence:
-          1. Request device_code (populates _dag_user_code/_uri for the
-             show_progress description_placeholders).
-          2. Poll /token until the user approves in the browser.
-          3. Decode id_token's `sub` claim → use as user identifier for
-             the config_entry unique_id and title.
+        Fast HTTP call to /oidc/v1/device_authorization. Populates
+        self._dag_device_code / _user_code / _verification_uri /
+        _poll_interval / _expires_in. Errors stash on _dag_error.
 
-        Errors are stashed on ``self._dag_error`` so the pending step
-        can surface them; raising here would crash the HA flow handler.
+        Critically runs to completion FAST so the show_progress can
+        re-render Phase 2 with the URL + code fully populated in the
+        description placeholders.
         """
         import aiohttp  # noqa: PLC0415
         from .cariad.auth._device_grant import DeviceAuthorizationGrant  # noqa: PLC0415
-        from .const import BRANDS as _CONST_BRANDS  # noqa: PLC0415
 
-        # Reuse the existing CariadClientFactory's session pattern.
-        connector = aiohttp.TCPConnector(ssl=True)
         try:
-            async with aiohttp.ClientSession(
+            connector = aiohttp.TCPConnector(ssl=True)
+            self._dag_session = aiohttp.ClientSession(
                 connector=connector,
                 cookie_jar=aiohttp.CookieJar(unsafe=True),
-            ) as session:
-                # Brand → client_id mapping via the BRANDS registry.
-                from .cariad.models import BRANDS as BRAND_CONFIGS  # noqa: PLC0415
+            )
+            from .cariad.models import BRANDS as BRAND_CONFIGS  # noqa: PLC0415
 
-                brand_cfg = BRAND_CONFIGS[self._dag_brand]
-                dag = DeviceAuthorizationGrant(
-                    session,
-                    brand_cfg.client_id,
-                    scope=brand_cfg.scope,
-                )
-                code = await dag.request_device_code()
-                self._dag_user_code = code.user_code
-                self._dag_verification_uri = code.verification_uri_complete
-                self._dag_tokens = await dag.poll_for_tokens(
-                    code.device_code,
-                    interval=code.interval,
-                    expires_in=code.expires_in,
-                )
-                self._dag_user_id = _extract_user_id_from_id_token(
-                    self._dag_tokens.id_token, fallback=f"{self._dag_brand}_dag",
-                )
-                _LOGGER.info(
-                    "Browser login succeeded for %s — sub=%s",
-                    _CONST_BRANDS.get(self._dag_brand, self._dag_brand),
-                    self._dag_user_id[:8] if self._dag_user_id else "(none)",
-                )
+            brand_cfg = BRAND_CONFIGS[self._dag_brand]
+            self._dag_client = DeviceAuthorizationGrant(
+                self._dag_session,
+                brand_cfg.client_id,
+                scope=brand_cfg.scope,
+            )
+            code = await self._dag_client.request_device_code()
+            self._dag_device_code = code.device_code
+            self._dag_user_code = code.user_code
+            self._dag_verification_uri = code.verification_uri_complete
+            self._dag_poll_interval = code.interval
+            self._dag_expires_in = code.expires_in
+            _LOGGER.debug(
+                "Browser login Phase 1 OK — user_code=%s, expires_in=%ds",
+                self._dag_user_code, self._dag_expires_in,
+            )
         except Exception as err:  # noqa: BLE001 — flow-level catch
             self._dag_error = str(err)
             _LOGGER.warning(
-                "Browser login failed for %s: %s", self._dag_brand, err,
+                "Browser login Phase 1 failed for %s: %s",
+                self._dag_brand, err,
             )
+            if hasattr(self, "_dag_session") and self._dag_session is not None:
+                await self._dag_session.close()
+
+    async def _do_poll_tokens(self) -> None:
+        """v2.7.0b4 — Phase 2 of the DAG flow: poll for token approval.
+
+        Reuses the DeviceAuthorizationGrant + aiohttp session created
+        during Phase 1 so the poll respects the same cookie jar.
+        Closes the session in either success or failure path.
+        """
+        from .const import BRANDS as _CONST_BRANDS  # noqa: PLC0415
+
+        try:
+            self._dag_tokens = await self._dag_client.poll_for_tokens(
+                self._dag_device_code,
+                interval=self._dag_poll_interval,
+                expires_in=self._dag_expires_in,
+            )
+            self._dag_user_id = _extract_user_id_from_id_token(
+                self._dag_tokens.id_token,
+                fallback=f"{self._dag_brand}_dag",
+            )
+            _LOGGER.info(
+                "Browser login succeeded for %s — sub=%s",
+                _CONST_BRANDS.get(self._dag_brand, self._dag_brand),
+                self._dag_user_id[:8] if self._dag_user_id else "(none)",
+            )
+        except Exception as err:  # noqa: BLE001 — flow-level catch
+            self._dag_error = str(err)
+            _LOGGER.warning(
+                "Browser login Phase 2 failed for %s: %s",
+                self._dag_brand, err,
+            )
+        finally:
+            sess = getattr(self, "_dag_session", None)
+            if sess is not None:
+                await sess.close()
+                # Use setattr so mypy doesn't complain about None being
+                # assigned to a ClientSession-typed attribute.
+                setattr(self, "_dag_session", None)
 
     async def async_step_browser_login_finish(
         self, user_input: dict[str, Any] | None = None

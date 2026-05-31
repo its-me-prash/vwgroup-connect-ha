@@ -50,6 +50,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - OLA watcher gains daernsinstantfortress as 3rd consensus source
 - App Atlas covers all 7 brands
 
+## [2.7.0b4] — 2026-05-31 — "Menu + DAG progress UX fix (beta)"
+
+- Browser-Login / Email+Password menu now passes labels in the code instead of relying on the HA translation lookup — cures empty-chevron rendering when the integration is updated without an HA restart.
+- Browser-Login progress: split into two phases so the URL + user_code populate in the progress text BEFORE the long poll begins. Previously the progress UI showed only "Waiting for browser approval…" with the URL/code never appearing.
+
 ## [2.7.0b3] — 2026-05-31 — "Hassfest + test contract fixes (beta)"
 
 - Translations: moved progress key from inside step to top-level config.progress per HA schema.
