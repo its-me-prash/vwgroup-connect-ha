@@ -237,17 +237,6 @@ Vollständige FAQ in [`docs/FAQ.md`](docs/FAQ.md). Dashboard-Troubleshooting + d
 
 ---
 
-## 🩹 Fallback wenn die offizielle App-API ausfällt
-
-VW Group hat ab dem 2026-05-27 die unoffizielle App-API hinter Google Play Integrity verriegelt. Wir umgehen das mit OIDC Hybrid Flow (v2.6.0+). Sollte VW diesen Pfad ebenfalls schließen, bleibt der **EU-Data-Act-Portal-Pfad** als Read-Only-Backup verfügbar:
-
-- [`mikrohard/hass-vw-eu-data-act`](https://github.com/mikrohard/hass-vw-eu-data-act) — eigenständige HA-Integration die `eu-data-act.drivesomethinggreater.com` scrappt. Read-only, 15-Minuten-Cadence, aktuell VW PCs only mit angekündigter Erweiterung auf Audi/Skoda/SEAT/CUPRA. Survival-Strategie für den Tag an dem keine inoffizielle API mehr funktioniert.
-- Du kannst beide Integrationen parallel installieren — sie kollidieren nicht.
-
-Hardware-Bypass: WiCAN / OVMS sind cloud-unabhängig und überleben jeden API-Cutoff (read-only, OBD-II Hardware-Installation erforderlich).
-
----
-
 ## 🛡️ Privacy & Sicherheit
 
 - **Keine externen Dienste** — alles geht direkt zwischen HA und Manufacturer-API

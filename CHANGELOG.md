@@ -53,8 +53,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ## [2.6.0] — 2026-05-31 — "OIDC Hybrid Flow (BFF-Bypass)"
 
 - VW EU now logs in via OIDC hybrid flow (response_type=code id_token token) — bypasses Play Integrity wall.
-- Per-brand strategy resolver with automatic fallback (VW: hybrid → classic, Audi: classic → hybrid).
-- README pointer to mikrohard/hass-vw-eu-data-act as read-only backup integration.
+- Per-brand strategy resolver with automatic fallback (3 tiers per brand where applicable).
+- In-house EU Data Act portal auth as last-resort read-only fallback strategy.
 
 ## [2.5.13] — 2026-05-30 — "Play Integrity Wall Decoded"
 

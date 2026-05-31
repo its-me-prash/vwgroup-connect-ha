@@ -155,12 +155,19 @@ class CariadBaseClient:
         having Auth0 deliver tokens directly in the callback URL fragment.
 
         Per-brand strategy (in priority order, fallback on AuthenticationError):
-          - volkswagen  : hybrid_full → classic auth-code
-          - audi        : classic auth-code → hybrid_full
+          - volkswagen  : hybrid_full → classic auth-code → data_act_portal
+          - audi        : classic auth-code → hybrid_full → data_act_portal
                           (Audi still issues usable refresh_tokens through
                           the qmauth assertion path; prefer that to avoid
                           the ~2h re-login penalty of hybrid_full)
-          - other brands: classic auth-code only (unchanged)
+          - skoda/seat  : classic auth-code → data_act_portal
+            /cupra
+          - others      : classic auth-code only (unchanged)
+
+        The data_act_portal strategy is a last-resort read-only fallback.
+        When it succeeds the TokenSet carries strategy="data_act_portal"
+        and the coordinator switches into read-only mode (command entities
+        disabled, polling throttled to 15 min).
 
         Trade-off for hybrid_full success: no usable refresh_token is
         returned, so re-login fires every ~2 h. ``_refresh_tokens()``
@@ -168,33 +175,59 @@ class CariadBaseClient:
         transparently. The 5-strategy storm-guard in _refresh_tokens
         prevents runaway loops.
         """
-        strategies: list[dict[str, bool]] = []
+        # Strategy descriptor: (kind, kwargs) where kind is "idk" for the
+        # standard IDKAuth.authenticate path and "data_act_portal" for the
+        # last-resort read-only fallback.
+        strategies: list[tuple[str, dict[str, bool]]] = []
         if self._brand.name == "volkswagen":
-            strategies = [{"hybrid_full": True}, {"hybrid_full": False}]
+            strategies = [
+                ("idk", {"hybrid_full": True}),
+                ("idk", {"hybrid_full": False}),
+                ("data_act_portal", {}),
+            ]
         elif self._brand.name == "audi":
-            strategies = [{"hybrid_full": False}, {"hybrid_full": True}]
+            strategies = [
+                ("idk", {"hybrid_full": False}),
+                ("idk", {"hybrid_full": True}),
+                ("data_act_portal", {}),
+            ]
+        elif self._brand.name in ("skoda", "seat", "cupra", "bentley"):
+            strategies = [
+                ("idk", {"hybrid_full": False}),
+                ("data_act_portal", {}),
+            ]
         else:
-            strategies = [{"hybrid_full": False}]
+            strategies = [("idk", {"hybrid_full": False})]
 
         last_err: Exception | None = None
-        for idx, opts in enumerate(strategies):
+        for idx, (kind, opts) in enumerate(strategies):
             try:
-                self._tokens = await self._auth.authenticate(
-                    self._email, self._password,
-                    mfa_code=mfa_code,
-                    **opts,
-                )
+                if kind == "idk":
+                    self._tokens = await self._auth.authenticate(
+                        self._email, self._password,
+                        mfa_code=mfa_code,
+                        **opts,
+                    )
+                elif kind == "data_act_portal":
+                    from ..auth._data_act_portal import (  # noqa: PLC0415
+                        DataActPortalAuth,
+                    )
+                    portal = DataActPortalAuth(self._session, self._brand.name)
+                    self._tokens = await portal.login(self._email, self._password)
+                else:
+                    raise AuthenticationError(f"Unknown strategy kind: {kind}")
+
                 if idx > 0:
                     _LOGGER.info(
                         "Authenticated for brand %s via fallback strategy "
-                        "#%d (opts=%s) after primary strategy failed: %s",
-                        self._brand.name, idx, opts,
+                        "#%d (kind=%s opts=%s) after primary strategy failed: %s",
+                        self._brand.name, idx, kind, opts,
                         type(last_err).__name__ if last_err else "?",
                     )
                 else:
                     _LOGGER.debug(
-                        "Authenticated for brand %s (opts=%s)",
-                        self._brand.name, opts,
+                        "Authenticated for brand %s (kind=%s opts=%s)",
+                        self._brand.name, kind, opts,
                     )
                 await self._notify_tokens_changed()
                 return
@@ -203,9 +236,9 @@ class CariadBaseClient:
                 if idx == len(strategies) - 1:
                     raise
                 _LOGGER.info(
-                    "Auth strategy #%d (opts=%s) failed for %s: %s — "
+                    "Auth strategy #%d (kind=%s opts=%s) failed for %s: %s — "
                     "trying next strategy",
-                    idx, opts, self._brand.name, err,
+                    idx, kind, opts, self._brand.name, err,
                 )
 
     def set_persisted_tokens(self, tokens: TokenSet | None) -> None:
