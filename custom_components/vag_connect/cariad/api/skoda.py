@@ -367,6 +367,41 @@ class SkodaClient(CariadBaseClient):
             if isinstance(payload, dict):
                 self.last_raw_responses[name] = payload
 
+        # v2.8.0 quick win D — parser-health telemetry. Each Skoda
+        # endpoint maps to one logical job. Records per-call success
+        # (got a dict) or failure (got an Exception in gather). The
+        # ``last_error`` field for failed jobs carries the exception
+        # type so diagnostics shows which endpoint silently broke.
+        def _note(job: str, payload: Any) -> None:
+            if isinstance(payload, BaseException):
+                stats = self.parser_stats.setdefault(
+                    job, {"success": 0, "fail": 0, "last_error": ""},
+                )
+                stats["fail"] = int(stats.get("fail", 0)) + 1
+                stats["last_error"] = (
+                    f"{type(payload).__name__}: {str(payload)[:160]}"
+                )
+            else:
+                self._note_parser_job(job, present=isinstance(payload, dict))
+
+        _note("vehicle_status", status)
+        _note("charging", charging)
+        _note("climatisation", ac)
+        _note("parking_position", parking)
+        _note("service_care", maintenance)
+        # Skoda flattens door_lock, oil_level, tyre_pressure and
+        # auxiliary_heating into the vehicle-status payload. Mirror the
+        # door_lock counter from the ``overall`` sub-block so the
+        # cross-brand diagnostics shape stays comparable; the other
+        # three are Skoda-not-applicable and intentionally left out.
+        if isinstance(status, BaseException):
+            _note("door_lock", status)
+        elif isinstance(status, dict):
+            self._note_parser_job(
+                "door_lock",
+                present=isinstance(self._val(status, "overall"), dict),
+            )
+
         # ── Access / doors / windows / detail ────────────────────────────────
         if isinstance(status, dict):
             access = v(status, "access") or {}

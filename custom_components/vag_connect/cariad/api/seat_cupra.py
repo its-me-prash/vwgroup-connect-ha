@@ -327,6 +327,42 @@ class SeatCupraClient(CariadBaseClient):
             if isinstance(payload, dict):
                 self.last_raw_responses[name] = payload
 
+        # v2.8.0 quick win D — parser-health telemetry. Each OLA
+        # endpoint maps to one logical job. Records per-call success
+        # (got a dict) or failure (Exception in gather). Tracks the
+        # same canonical job names as the other brands so cross-brand
+        # diagnostics aggregation reads consistently.
+        def _note(job: str, payload: Any) -> None:
+            if isinstance(payload, BaseException):
+                stats = self.parser_stats.setdefault(
+                    job, {"success": 0, "fail": 0, "last_error": ""},
+                )
+                stats["fail"] = int(stats.get("fail", 0)) + 1
+                stats["last_error"] = (
+                    f"{type(payload).__name__}: {str(payload)[:160]}"
+                )
+            else:
+                self._note_parser_job(job, present=isinstance(payload, dict))
+
+        _note("vehicle_status", mycar)
+        _note("charging", charge_status)
+        _note("climatisation", climate)
+        _note("parking_position", parking)
+        _note("service_care", maintenance)
+        # OLA flattens oil_level / tyre_pressure / auxiliary_heating
+        # into the mycar payload; door_lock lives under
+        # ``access.accessStatus.value``. Mirror the door_lock counter
+        # from there so cross-brand diagnostics line up.
+        if isinstance(mycar, BaseException):
+            _note("door_lock", mycar)
+        elif isinstance(mycar, dict):
+            self._note_parser_job(
+                "door_lock",
+                present=isinstance(
+                    self._val(mycar, "access", "accessStatus", "value"), dict,
+                ),
+            )
+
         # ── Main vehicle data (mycar) ────────────────────────────────────────
         if isinstance(mycar, dict):
             measurements = v(mycar, "measurements") or {}
