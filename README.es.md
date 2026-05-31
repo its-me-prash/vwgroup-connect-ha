@@ -47,6 +47,19 @@
 
 ---
 
+
+## Novedades en v2.7.0
+
+**Inicio de sesión por navegador (sin contraseña en HA)**: Para Audi, Škoda, SEAT y CUPRA, OAuth Device Authorization Grant disponible. Escanea el QR con el móvil, inicia sesión con tu cuenta Brand ID, confirma un código corto. refresh_token real, sin re-login cada dos horas.
+
+**Más datos por coche**: Estadísticas de viaje, nivel de aceite, presión por neumático, puertas/ventanas/techo/maletero por posición, temperatura exterior MY24+, calefacción auxiliar.
+
+**Todas las alertas del fabricante**: Nuevo sensor "Vehicle Warning Messages" muestra cada alerta del backend.
+
+[CHANGELOG completo](CHANGELOG.md#270---2026-05-31).
+
+---
+
 ## ✨ v2.0.0 Big-Bang Highlights — also available in English
 
 > The detailed v2.0.0 highlights table + "What makes us unique" USP section
