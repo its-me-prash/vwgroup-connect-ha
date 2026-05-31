@@ -289,6 +289,24 @@ class CariadBaseClient:
                         "Authenticated for brand %s (kind=%s opts=%s)",
                         self._brand.name, kind, opts,
                     )
+                # v2.8.0 — capture session cookies into the token set
+                # so the next session can hydrate the IDP device-bound
+                # cookie and skip the OTP prompt. Only the idk path
+                # owns vwgroup.io cookies; the data_act_portal path
+                # leaves its session jar alone.
+                if (
+                    self._tokens is not None
+                    and kind == "idk"
+                    and hasattr(self._auth, "capture_session_cookies")
+                ):
+                    captured = self._auth.capture_session_cookies()
+                    if captured:
+                        self._tokens.auth_cookies = captured
+                        _LOGGER.debug(
+                            "Captured %d IDP cookies for brand %s on "
+                            "successful auth",
+                            len(captured), self._brand.name,
+                        )
                 await self._notify_tokens_changed()
                 return
             except AuthenticationError as err:
@@ -329,15 +347,32 @@ class CariadBaseClient:
 
         No-op for None / invalid tokens — coordinator falls through to
         a normal authenticate() flow.
+
+        v2.8.0 — also hydrates any persisted IDP cookies (e.g. the
+        ~30-day device-bound cookie issued after a successful email
+        OTP challenge) into the auth session. Without this, every
+        fresh authenticate() ran the OTP challenge from scratch on
+        VW EU even though the IDP would have remembered the device.
         """
         if tokens is not None and tokens.is_valid():
             self._tokens = tokens
             _LOGGER.debug(
                 "Loaded persisted tokens for brand %s "
-                "(expires_at=%.0f)",
+                "(expires_at=%.0f, strategy=%s)",
                 self._brand.name,
                 tokens.expires_at,
+                tokens.strategy or "(legacy)",
             )
+            if tokens.auth_cookies and hasattr(
+                self._auth, "hydrate_session_cookies"
+            ):
+                self._auth.hydrate_session_cookies(tokens.auth_cookies)
+                _LOGGER.debug(
+                    "Hydrated %d persisted IDP cookies into auth "
+                    "session for brand %s",
+                    len(tokens.auth_cookies),
+                    self._brand.name,
+                )
 
     async def _notify_tokens_changed(self) -> None:
         """v1.19.2 — fire the persistence hook if registered.

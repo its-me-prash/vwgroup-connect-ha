@@ -271,8 +271,20 @@ class TokenSet:
     # uses this to decide refresh behaviour: hybrid_full / data_act_portal
     # have no refresh_token, so refresh = full re-login. classic flows
     # can use refresh_token. Strategy values: "classic" | "hybrid_full"
-    # | "data_act_portal" | "" (legacy/unknown — treated as classic).
+    # | "data_act_portal" | "device_grant" | "" (legacy/unknown).
     strategy: str = ""
+
+    # v2.8.0 — persisted Auth0 / IDP session cookies (vwgroup.io domain
+    # only). The IDP issues a "device-bound" cookie after a successful
+    # email-OTP challenge that suppresses the OTP prompt for ~30 days
+    # on the same device fingerprint. Without persistence, every fresh
+    # session (HA restart, integration reload) re-prompts the user for
+    # the OTP, which combined with the hybrid_full 2h-relogin cycle
+    # turns into a hostile UX. Each entry is a small dict with the
+    # subset of fields aiohttp needs to round-trip a Morsel:
+    #   {"name": ..., "value": ..., "domain": ..., "path": ...,
+    #    "expires": ..., "secure": ..., "httponly": ...}
+    auth_cookies: list[dict[str, Any]] = field(default_factory=list)
 
     def is_valid(self) -> bool:
         """Return True if the access_token + id_token are populated.
