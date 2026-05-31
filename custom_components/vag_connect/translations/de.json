@@ -351,6 +351,24 @@
       "maintenance_report_captured_at": {
         "name": "Wartungs-Report aktualisiert"
       },
+      "brake_fluid_change_due_at": {
+        "name": "Bremsflüssigkeitswechsel fällig"
+      },
+      "brake_pads_front_inspection_due_at": {
+        "name": "Bremsbeläge vorne prüfen"
+      },
+      "brake_pads_rear_inspection_due_at": {
+        "name": "Bremsbeläge hinten prüfen"
+      },
+      "preferred_workshop_name": {
+        "name": "Bevorzugte Werkstatt"
+      },
+      "preferred_workshop_address": {
+        "name": "Werkstatt-Adresse"
+      },
+      "preferred_workshop_phone": {
+        "name": "Werkstatt-Telefon"
+      },
       "primary_engine_fuel_level_pct": {
         "name": "Tankfüllstand (primär)"
       },

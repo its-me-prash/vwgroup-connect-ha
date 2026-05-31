@@ -13,7 +13,15 @@ from typing import Any
 
 from aiohttp import ClientSession
 
-from .._util import compute_connection_state, safe_float, safe_int
+from .._util import (
+    compose_workshop_address,
+    compute_connection_state,
+    days_or_date_to_iso,
+    normalize_workshop_string,
+    safe_float,
+    safe_int,
+    workshop_phone_from_contact,
+)
 from ..models import BRAND_SKODA, VehicleData
 from .base import CariadBaseClient
 
@@ -864,6 +872,44 @@ class SkodaClient(CariadBaseClient):
                     if k != "openingHours"
                 }
                 d.preferred_workshop = trimmed
+                # v2.8.0 quick win C — also populate the normalised
+                # singleton fields so the new sensors can read flat
+                # values without templating into the composite dict.
+                d.preferred_workshop_name = normalize_workshop_string(
+                    workshop.get("name") or workshop.get("displayName")
+                )
+                d.preferred_workshop_address = compose_workshop_address(
+                    workshop.get("address") or workshop.get("location")
+                )
+                d.preferred_workshop_phone = workshop_phone_from_contact(
+                    workshop.get("contact") or workshop
+                )
+
+            # v2.8.0 quick win C — brake service due-dates. Skoda's
+            # ``maintenanceReport`` exposes the brake fluid + pad
+            # inspection due-counters when the dealer has scheduled
+            # them. Field names differ between MOD3 (older) and MOD4+
+            # (newer) so we accept either.
+            brake_fluid_raw = (
+                v(report, "brakeFluidServiceDueInDays")
+                or v(report, "brakeFluidChangeDueInDays")
+                or v(report, "brakeFluidChange_days")
+            )
+            d.brake_fluid_change_due_at = days_or_date_to_iso(brake_fluid_raw)
+            front_pads_raw = (
+                v(report, "brakePadsFrontInspectionDueInDays")
+                or v(report, "brakePadFrontInspectionDueInDays")
+            )
+            d.brake_pads_front_inspection_due_at = days_or_date_to_iso(
+                front_pads_raw
+            )
+            rear_pads_raw = (
+                v(report, "brakePadsRearInspectionDueInDays")
+                or v(report, "brakePadRearInspectionDueInDays")
+            )
+            d.brake_pads_rear_inspection_due_at = days_or_date_to_iso(
+                rear_pads_raw
+            )
 
         # ── Connection status ────────────────────────────────────────────────
         if isinstance(readiness, dict):

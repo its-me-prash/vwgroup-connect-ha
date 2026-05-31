@@ -1127,6 +1127,55 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:calendar-refresh",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # v2.8.0 quick win C — brake-service due timestamps + preferred-
+    # workshop. The parser populates these only when the brand backend
+    # actually ships them. Listed in _DATA_PRESENT_REQUIRED below so
+    # non-applicable vehicles do not get phantom "Unbekannt" sensors.
+    VagSensorDescription(
+        key="brake_fluid_change_due_at",
+        translation_key="brake_fluid_change_due_at",
+        data_key="brake_fluid_change_due_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:car-brake-fluid-level",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="brake_pads_front_inspection_due_at",
+        translation_key="brake_pads_front_inspection_due_at",
+        data_key="brake_pads_front_inspection_due_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:car-brake-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="brake_pads_rear_inspection_due_at",
+        translation_key="brake_pads_rear_inspection_due_at",
+        data_key="brake_pads_rear_inspection_due_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:car-brake-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="preferred_workshop_name",
+        translation_key="preferred_workshop_name",
+        data_key="preferred_workshop_name",
+        icon="mdi:store",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="preferred_workshop_address",
+        translation_key="preferred_workshop_address",
+        data_key="preferred_workshop_address",
+        icon="mdi:map-marker",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="preferred_workshop_phone",
+        translation_key="preferred_workshop_phone",
+        data_key="preferred_workshop_phone",
+        icon="mdi:phone",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
     # v2.2.0 Phase 2 PR #11/20 — derived integer days until expiry.
     # Closes the subscription-feature triangle (timestamp + active +
     # days). Negative when expired. Automation-friendly: threshold
@@ -1291,6 +1340,17 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "car_type",
     "primary_engine_fuel_level_pct",
     "maintenance_report_captured_at",
+    # v2.8.0 quick win C — brake-service + preferred-workshop singletons.
+    # Brand-restricted at the parser level (VW EU, Audi via subclass,
+    # Skoda mysmob and SEAT/CUPRA OLA when the dealer wired up the
+    # service plan). Stay None for brands or vehicles where the upstream
+    # endpoint never ships the keys → no phantom "Unbekannt" entity.
+    "brake_fluid_change_due_at",
+    "brake_pads_front_inspection_due_at",
+    "brake_pads_rear_inspection_due_at",
+    "preferred_workshop_name",
+    "preferred_workshop_address",
+    "preferred_workshop_phone",
     "next_charging_timer_id",
     "next_charging_timer_target_soc_reachable",
     "capabilities_count",

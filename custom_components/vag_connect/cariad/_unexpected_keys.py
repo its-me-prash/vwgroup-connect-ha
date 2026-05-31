@@ -306,6 +306,18 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             "preferredServicePartner.*.*",
             "customerService.*",
             "customerService.*.*",
+            # v2.8.0 quick win C — brake-service due-date fields on the
+            # Skoda mysmob maintenanceReport. Different MOD generations
+            # ship different field names; we accept both spellings in
+            # the parser and silence both here so the Scout does not
+            # flag the unread variant as an unexpected key.
+            "maintenanceReport.brakeFluidServiceDueInDays",
+            "maintenanceReport.brakeFluidChangeDueInDays",
+            "maintenanceReport.brakeFluidChange_days",
+            "maintenanceReport.brakePadsFrontInspectionDueInDays",
+            "maintenanceReport.brakePadFrontInspectionDueInDays",
+            "maintenanceReport.brakePadsRearInspectionDueInDays",
+            "maintenanceReport.brakePadRearInspectionDueInDays",
         },
         "readiness": {
             "unreachable", "inMotion", "carCapturedTimestamp",

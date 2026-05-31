@@ -13,7 +13,15 @@ from typing import Any
 
 from aiohttp import ClientSession
 
-from .._util import compute_connection_state, safe_float, safe_int
+from .._util import (
+    compose_workshop_address,
+    compute_connection_state,
+    days_or_date_to_iso,
+    normalize_workshop_string,
+    safe_float,
+    safe_int,
+    workshop_phone_from_contact,
+)
 from .._ola_headers import get_fallback_count, get_ola_headers
 from ..exceptions import APIError, SpinError
 from ..models import BRAND_CUPRA, BRAND_SEAT, BrandConfig, VehicleData
@@ -1019,6 +1027,46 @@ class SeatCupraClient(CariadBaseClient):
                 or v(maintenance, "oilServiceDueInDays")            # v2.5.3
                 or v(maintenance, "timeRemainingForOilService")     # v2.5.3
             )
+            # v2.8.0 quick win C — brake-service + preferred-workshop.
+            # OLA exposes both on the same /maintenance response when
+            # the dealer has wired up the vehicle's service plan.
+            # Field names mirror the Skoda mysmob shape so we accept
+            # either variant; OLA-specific keys take precedence when
+            # both are present.
+            brake_fluid_raw = (
+                v(maintenance, "brakeFluidChangeDueInDays")
+                or v(maintenance, "brakeFluidServiceDueInDays")
+                or v(maintenance, "brakeFluidChange_days")
+            )
+            d.brake_fluid_change_due_at = days_or_date_to_iso(brake_fluid_raw)
+            front_pads_raw = (
+                v(maintenance, "brakePadsFrontInspectionDueInDays")
+                or v(maintenance, "brakePadFrontInspectionDueInDays")
+            )
+            d.brake_pads_front_inspection_due_at = days_or_date_to_iso(
+                front_pads_raw
+            )
+            rear_pads_raw = (
+                v(maintenance, "brakePadsRearInspectionDueInDays")
+                or v(maintenance, "brakePadRearInspectionDueInDays")
+            )
+            d.brake_pads_rear_inspection_due_at = days_or_date_to_iso(
+                rear_pads_raw
+            )
+            workshop = (
+                v(maintenance, "preferredServicePartner")
+                or v(maintenance, "preferredDealer")
+            )
+            if isinstance(workshop, dict) and workshop:
+                d.preferred_workshop_name = normalize_workshop_string(
+                    workshop.get("name") or workshop.get("displayName")
+                )
+                d.preferred_workshop_address = compose_workshop_address(
+                    workshop.get("address") or workshop.get("location")
+                )
+                d.preferred_workshop_phone = workshop_phone_from_contact(
+                    workshop.get("contact") or workshop
+                )
 
         # ── v2.5.3 — /v1/mileage fallback (#306 Mii/Tavascan/Leon FR-KL) ────
         # PyCupra dedicates an entire endpoint to the cached odometer

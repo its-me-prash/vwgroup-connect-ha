@@ -426,6 +426,24 @@
       "maintenance_report_captured_at": {
         "name": "Maintenance Report Updated"
       },
+      "brake_fluid_change_due_at": {
+        "name": "Brake Fluid Change Due"
+      },
+      "brake_pads_front_inspection_due_at": {
+        "name": "Brake Pads Front Inspection Due"
+      },
+      "brake_pads_rear_inspection_due_at": {
+        "name": "Brake Pads Rear Inspection Due"
+      },
+      "preferred_workshop_name": {
+        "name": "Preferred Workshop"
+      },
+      "preferred_workshop_address": {
+        "name": "Preferred Workshop Address"
+      },
+      "preferred_workshop_phone": {
+        "name": "Preferred Workshop Phone"
+      },
       "primary_engine_fuel_level_pct": {
         "name": "Primary Engine Fuel Level"
       },
