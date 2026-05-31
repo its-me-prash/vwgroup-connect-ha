@@ -639,6 +639,20 @@ class VehicleData:
     # climate?"). Boolean.
     window_heating_enabled: bool | None = None
 
+    # v2.8.0 - Auxiliary heating (engine pre-heater / Standheizung) for
+    # Audi + VW EU. Cariad-BFF parses from
+    # ``auxiliaryHeating.auxiliaryHeatingStatus.value.{operationMode,
+    # climatisationState, remainingTime_min}``. SEAT/CUPRA OLA aux-heating
+    # support stays unchanged (v1.17.1 Bruno seq 29/30), but its parser
+    # does not populate these fields yet, so non-supporting brands leave
+    # them as None (no phantom entities).
+    # ``aux_heating_active`` is a derived bool used by the switch
+    # entity's ``is_on`` property; populated from operationMode /
+    # climatisationState being one of {heating, on, heatingOn, active}.
+    auxiliary_heating_status: str | None = None
+    aux_heating_active: bool | None = None
+    auxiliary_heating_remaining_min: int | None = None
+
     # Next-Charging-Timer info (read-side complement to v1.16.0
     # write-side service ``set_departure_timer``): VW EU/Audi from
     # ``automation.chargingProfiles.value.nextChargingTimer.{id, targetSOCreachable}``.

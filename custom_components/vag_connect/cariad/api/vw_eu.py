@@ -878,6 +878,58 @@ class VWEUClient(CariadBaseClient):
             json={"action": "stop"},
         )
 
+    # v2.8.0 - Auxiliary heating (Standheizung).
+    async def command_start_aux_heating(
+        self,
+        vin: str,
+        spin: str = "",  # noqa: ARG002 - kept for signature parity with SEAT/CUPRA
+        duration_min: int = 30,
+        target_c: float = 21.0,
+    ) -> None:
+        """Start engine pre-heater (Audi + VW EU CARIAD-BFF).
+
+        Endpoint: ``POST /vehicle/v1/vehicles/{vin}/auxiliary-heating/start``
+        with v2 fallback via ``_post_command`` on 404.
+
+        Payload shape (from upstream APK research, CARIAD vocabulary):
+            {
+                "command": "start",
+                "duration_in_min": <int>,
+                "target_temperature_in_kelvin": <float>,
+            }
+        Target temperature is sent in Kelvin (Celsius + 273.15) to match
+        every other CARIAD climate endpoint that takes Kelvin on the wire.
+
+        ``spin`` parameter is accepted for signature parity with the
+        SEAT/CUPRA OLA path but ignored here: VW EU + Audi do not gate
+        the engine pre-heater behind SecToken on this surface (in
+        contrast to engine remote start which uses the separate
+        ``/vehicle/v1/engine/{VIN}/...`` two-step S-PIN flow).
+        """
+        kelvin = round(float(target_c) + 273.15, 2)
+        await self._post_command(
+            vin,
+            "auxiliary-heating/start",
+            json={
+                "command": "start",
+                "duration_in_min": int(duration_min),
+                "target_temperature_in_kelvin": kelvin,
+            },
+        )
+
+    async def command_stop_aux_heating(self, vin: str) -> None:
+        """Stop engine pre-heater (Audi + VW EU CARIAD-BFF).
+
+        ``POST /vehicle/v1/vehicles/{vin}/auxiliary-heating/stop`` with the
+        minimal ``{"command": "stop"}`` payload. No S-PIN, no SecToken,
+        v2 fallback on 404 via ``_post_command``.
+        """
+        await self._post_command(
+            vin,
+            "auxiliary-heating/stop",
+            json={"command": "stop"},
+        )
+
     async def command_set_departure_timer(
         self,
         vin: str,
@@ -1770,6 +1822,34 @@ class VWEUClient(CariadBaseClient):
                     d.window_heating_front = state
                 elif "rear" in loc_low or "back" in loc_low:
                     d.window_heating_back = state
+
+        # Auxiliary heating (Standheizung, v2.8.0).
+        # Cariad-BFF emits the ``auxiliaryHeating`` job since v2.7.0b10 (it
+        # was the SELECTIVE_STATUS_JOBS promote that closed scout #366/#367).
+        # Until now we only requested the job but never parsed the leaves.
+        # Shape per Cariad vocabulary mirrors the climatisation block:
+        #   auxiliaryHeating.auxiliaryHeatingStatus.value.{
+        #       operationMode | climatisationState,
+        #       remainingTime_min,
+        #   }
+        # Different firmwares ship one key or the other (some both); take
+        # whichever is a non-empty string so older Audi MIB3 and newer
+        # PPE/PPC both light up.
+        aux_state = (
+            v(raw, "auxiliaryHeating", "auxiliaryHeatingStatus", "value", "operationMode")
+            or v(raw, "auxiliaryHeating", "auxiliaryHeatingStatus", "value", "climatisationState")
+        )
+        if isinstance(aux_state, str) and aux_state:
+            d.auxiliary_heating_status = aux_state
+            d.aux_heating_active = aux_state.lower() in {
+                "heating", "on", "heatingon", "active",
+            }
+        aux_rem = v(
+            raw, "auxiliaryHeating", "auxiliaryHeatingStatus", "value",
+            "remainingTime_min",
+        )
+        if isinstance(aux_rem, (int, float)):
+            d.auxiliary_heating_remaining_min = int(aux_rem)
 
         # ── Readiness / online ─────────────────────────────────────────────────
         d.is_online = v(raw, "readiness", "readinessStatus", "value", "connectionState", "isOnline") is True

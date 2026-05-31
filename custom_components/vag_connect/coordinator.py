@@ -2717,19 +2717,66 @@ class VagConnectCoordinator(DataUpdateCoordinator):
     async def async_stop_ventilation(self, vin: str) -> None:
         await self._cariad_cmd(vin, "command_stop_ventilation")
 
-    async def async_start_aux_heating(self, vin: str) -> None:
-        """v1.17.1 — SEAT/CUPRA Webasto auxiliary heating start.
+    async def async_start_aux_heating(
+        self,
+        vin: str,
+        duration_min: int | None = None,
+        target_c: float | None = None,
+    ) -> None:
+        """Start engine pre-heater (Standheizung).
 
-        Pre-flight S-PIN check (analog to ``async_unlock``) so HA shows
-        a clean translation key rather than a low-level SpinError trace.
+        v1.17.1: SEAT/CUPRA Webasto auxiliary heating start. Pre-flight
+        S-PIN check (analog to ``async_unlock``) so HA shows a clean
+        translation key rather than a low-level SpinError trace.
+
+        v2.8.0: extended for Audi + VW EU. CARIAD-BFF accepts
+        ``duration_in_min`` + ``target_temperature_in_kelvin`` in the
+        body, no S-PIN required on this surface. SEAT/CUPRA's OLA
+        endpoint silently drops these kwargs (see
+        ``seat_cupra.command_start_aux_heating``).
+
+        When the caller does not pass ``duration_min`` / ``target_c``
+        the integration reads the per-config ``auxheat_duration`` /
+        ``auxheat_target_temp`` numbers stored under ``entry.options``
+        (written by the new v2.8.0 ``VagConnectNumber`` sliders). If
+        those are absent we fall back to the spec defaults (30 min,
+        21 C), matching the numbers the Audi + VW phone apps preselect.
         """
-        spin = self._spin_from_entry()
-        if not spin:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="spin_required",
-            )
-        await self._cariad_cmd(vin, "command_start_aux_heating", spin=spin)
+        brand = str(self.entry.data.get(CONF_BRAND, "")).lower()
+        cariad_brand = brand in {"volkswagen", "audi"}
+
+        # SEAT/CUPRA needs S-PIN, Audi + VW EU don't. Only enforce on
+        # the SEAT/CUPRA path so VW/Audi users without S-PIN configured
+        # can still use the engine pre-heater.
+        if not cariad_brand:
+            spin = self._spin_from_entry()
+            if not spin:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="spin_required",
+                )
+            await self._cariad_cmd(vin, "command_start_aux_heating", spin=spin)
+            return
+
+        options = getattr(self.entry, "options", None) or {}
+        if duration_min is None:
+            opt_dur = options.get("auxheat_duration") if isinstance(options, dict) else None
+            try:
+                duration_min = int(opt_dur) if opt_dur is not None else 30
+            except (TypeError, ValueError):
+                duration_min = 30
+        if target_c is None:
+            opt_temp = options.get("auxheat_target_temp") if isinstance(options, dict) else None
+            try:
+                target_c = float(opt_temp) if opt_temp is not None else 21.0
+            except (TypeError, ValueError):
+                target_c = 21.0
+        await self._cariad_cmd(
+            vin,
+            "command_start_aux_heating",
+            duration_min=int(duration_min),
+            target_c=float(target_c),
+        )
 
     async def async_stop_aux_heating(self, vin: str) -> None:
         """v1.17.1 — Aux heating stop (no S-PIN per Bruno seq 30)."""

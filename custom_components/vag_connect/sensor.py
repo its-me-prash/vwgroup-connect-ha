@@ -296,6 +296,33 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # v2.8.0 - Auxiliary heating (Standheizung) status. CARIAD-BFF ships
+    # the raw enum string under
+    # ``auxiliaryHeating.auxiliaryHeatingStatus.value.{operationMode,
+    # climatisationState}``. Common values: "off", "heating", "ventilation",
+    # "stopped". Brand-restricted via _DATA_PRESENT_REQUIRED below so
+    # non-supporting brands never see a phantom "unknown" entity.
+    VagSensorDescription(
+        key="auxiliary_heating_status",
+        translation_key="auxiliary_heating_status",
+        data_key="auxiliary_heating_status",
+        icon="mdi:fire",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # v2.8.0 - Auxiliary heating remaining-time. Populated while the
+    # pre-heater is running; clears on stop. Same diagnostic semantics
+    # as ``climate_remaining_time_min`` next door.
+    VagSensorDescription(
+        key="auxiliary_heating_remaining_min",
+        translation_key="auxiliary_heating_remaining_min",
+        data_key="auxiliary_heating_remaining_min",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:timer-sand",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     # Readiness deep-diagnostics: connection sub-status string.
     VagSensorDescription(
         key="connection_battery_power_level",
@@ -1285,6 +1312,12 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # only populated during active climate run; gating prevents a
     # phantom "unknown" entity for non-Skoda + idle climates.
     "climate_ready_at",
+    # v2.8.0 - aux heating (Standheizung) status + remaining minutes.
+    # Audi + VW EU only via the CARIAD-BFF auxiliaryHeating job;
+    # other brands leave the fields None so no phantom diagnostic
+    # entity appears for SEAT/CUPRA/Skoda/Porsche/VW NA.
+    "auxiliary_heating_status",
+    "auxiliary_heating_remaining_min",
 })
 
 # v1.14.0 (#24) — Trip Statistics is brand-restricted at the API level

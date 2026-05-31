@@ -69,6 +69,15 @@ CAPABILITY_MAP: Final[dict[str, dict[str, str]]] = {
         "command_stop_window_heating": "windowHeating",
         "command_set_climate_temperature": "climatisation",
         "command_set_departure_timer": "departureTimers",
+        # v2.8.0 - Audi + VW EU engine pre-heater (Standheizung). Cap-id
+        # ``auxiliaryHeating`` matches the SELECTIVE_STATUS_JOBS naming
+        # in vw_eu.py and the CARIAD camelCase pattern. [Inference]:
+        # the cap-id has not been observed in a Scout-confirmed
+        # capabilities response, so Phase 3 falls through to Phase 2
+        # runtime detection on vehicles whose capabilities response
+        # uses a different label.
+        "command_start_aux_heating": "auxiliaryHeating",
+        "command_stop_aux_heating": "auxiliaryHeating",
         # v1.14.0 (#24) — Trip Statistics (subscription-required: Audi
         # connect Plus / WeConnect Plus). ️ [Inference] cap-id matches
         # CARIAD camelCase pattern; not yet seen in a Scout-confirmed

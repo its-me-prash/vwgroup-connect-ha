@@ -199,11 +199,19 @@ class VagVentilationSwitch(VagConnectEntity, SwitchEntity):
 
 
 class VagAuxHeatingSwitch(VagConnectEntity, SwitchEntity):
-    """v1.17.1 (Bruno seq 29/30) — SEAT/CUPRA Webasto aux heating toggle.
+    """Engine pre-heater toggle (Standheizung).
 
+    v1.17.1 (Bruno seq 29/30): SEAT/CUPRA Webasto aux heating toggle.
     Start requires SecToken (S-PIN-derived); stop does not. The
     coordinator helper raises ServiceValidationError("spin_required")
-    at command time if S-PIN is missing — same UX as VagDoorLock.
+    at command time if S-PIN is missing on the SEAT/CUPRA path, same
+    UX as VagDoorLock.
+
+    v2.8.0: extended to Audi + VW EU. CARIAD-BFF endpoint takes a
+    duration + target temperature payload, read at start time from the
+    new ``auxheat_duration`` / ``auxheat_target_temp`` number sliders
+    (stored under entry.options). No S-PIN required on the
+    Audi + VW EU path.
     """
 
     _attr_translation_key = "aux_heating_switch"
@@ -215,7 +223,17 @@ class VagAuxHeatingSwitch(VagConnectEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool | None:
-        return self._vehicle.get("aux_heating_active")
+        # v2.8.0 - prefer the derived ``aux_heating_active`` flag set by
+        # the vw_eu parser. Fall back to ``auxiliary_heating_status``
+        # so SEAT/CUPRA paths that haven't been wired yet still surface
+        # a sensible state when their parser grows the field later.
+        active = self._vehicle.get("aux_heating_active")
+        if isinstance(active, bool):
+            return active
+        status = self._vehicle.get("auxiliary_heating_status")
+        if isinstance(status, str) and status:
+            return status.lower() in {"heating", "on", "heatingon", "active"}
+        return None
 
     async def async_turn_on(self, **kwargs: object) -> None:
         await self.coordinator.async_start_aux_heating(self._vin)
