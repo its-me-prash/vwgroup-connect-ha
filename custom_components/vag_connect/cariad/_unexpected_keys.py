@@ -855,6 +855,28 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             "vehicleHealthInspection.maintenanceStatus.value.*",
             "departureProfiles.departureProfilesStatus.value.*",
             "userCapabilities.capabilitiesStatus.value.*",
+            # v2.7.0 — oilLevel + tyrePressure + auxiliaryHeating jobs
+            # promoted to production in v2.7.0b10. Scout was firing on
+            # these freshly-arrived top-level branches (issues #366,
+            # #367) the moment the new job ran for the first time even
+            # though our parser already reads them. Silence the entire
+            # branch family.
+            "oilLevel",
+            "oilLevel.*",
+            "oilLevel.oilLevelStatus",
+            "oilLevel.oilLevelStatus.*",
+            "oilLevel.oilLevelStatus.value",
+            "oilLevel.oilLevelStatus.value.*",
+            "tyrePressure",
+            "tyrePressure.*",
+            "tyrePressure.tyrePressureStatus",
+            "tyrePressure.tyrePressureStatus.*",
+            "tyrePressure.tyrePressureStatus.value",
+            "tyrePressure.tyrePressureStatus.value.*",
+            "auxiliaryHeating",
+            "auxiliaryHeating.*",
+            "auxiliaryHeating.*.value",
+            "auxiliaryHeating.*.value.*",
             # batteryChargingCare + climatisationTimers .value children
             # (proactive — these top-level wrappers may have own .value
             # blocks on newer firmwares per #103/#104 pattern).
