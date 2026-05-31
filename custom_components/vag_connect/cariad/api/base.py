@@ -6,7 +6,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Any
+from typing import Any, Callable
 
 from aiohttp import (
     ClientConnectorError,
@@ -145,11 +145,161 @@ class CariadBaseClient:
         """Brand configuration."""
         return self._brand
 
-    async def authenticate(self, mfa_code: str | None = None) -> None:
-        """Perform full login and store tokens."""
-        self._tokens = await self._auth.authenticate(self._email, self._password)
-        _LOGGER.debug("Authenticated for brand %s", self._brand.name)
+    async def authenticate_via_device_grant(
+        self,
+        on_user_code: Callable[[Any], None] | None = None,
+    ) -> None:
+        """v2.6.0 — OAuth Device Authorization Grant (RFC 8628) login.
+
+        Browser-based, password-less, refresh-token-friendly login flow.
+        The IDP returns a real refresh_token so no ~2 h re-login penalty
+        (unlike hybrid_full). The end user opens a URL in any browser,
+        signs in with their VW Brand ID credentials, and approves the
+        device — Home Assistant never sees the password.
+
+        Brand support (per ``cariad.auth._device_grant.DAG_ENABLED_BRANDS``):
+          ✅ audi, skoda, seat, cupra
+          ❌ volkswagen — VW EU's consumer client_id is not whitelisted
+            for device grant by the IDP; use the standard
+            ``authenticate()`` chain (hybrid_full → classic) instead.
+
+        Args:
+            on_user_code: optional callback invoked with the
+                ``DeviceCodeResponse`` as soon as the IDP issues a
+                device_code. UI layers (config_flow, service calls)
+                use it to display ``user_code`` + ``verification_uri_complete``
+                to the end user. If ``None``, the flow runs but the user
+                will not be told where to authorize, so the polling
+                deadline will simply expire.
+
+        Raises:
+            AuthenticationError: if the brand is not DAG-eligible, the
+                IDP rejects the client_id, the grant expires before
+                user approval, or the user declines in the browser.
+        """
+        from ..auth._device_grant import (  # noqa: PLC0415
+            DeviceAuthorizationGrant,
+            is_dag_eligible,
+        )
+
+        if not is_dag_eligible(self._brand.name):
+            raise AuthenticationError(
+                f"Device grant not enabled for brand {self._brand.name} "
+                f"by the VW IDP. Use authenticate() with email + password."
+            )
+
+        # Match scope to what the standard authenticate() flow asks for
+        # — the IDP enforces scopes at token level rather than at
+        # device-authorization level, so we want parity with the rest
+        # of the integration.
+        dag = DeviceAuthorizationGrant(
+            self._session,
+            self._brand.client_id,
+            scope=self._brand.scope,
+        )
+        self._tokens = await dag.run(on_user_code=on_user_code)
+        _LOGGER.info(
+            "Authenticated for brand %s via device grant (refresh_token: %s)",
+            self._brand.name,
+            "yes" if self._tokens and self._tokens.refresh_token else "no",
+        )
         await self._notify_tokens_changed()
+
+    async def authenticate(self, mfa_code: str | None = None) -> None:
+        """Perform full login and store tokens.
+
+        v2.6.0 multi-strategy resolver. The 2026-05-27 Cariad WAF migration
+        gated the BFF token endpoint behind Google Play Integrity, which
+        Python clients cannot satisfy. The OIDC hybrid_full flow
+        (response_type=code id_token token) bypasses that wall entirely by
+        having Auth0 deliver tokens directly in the callback URL fragment.
+
+        Per-brand strategy (in priority order, fallback on AuthenticationError):
+          - volkswagen  : hybrid_full → classic auth-code → data_act_portal
+          - audi        : classic auth-code → hybrid_full → data_act_portal
+                          (Audi still issues usable refresh_tokens through
+                          the qmauth assertion path; prefer that to avoid
+                          the ~2h re-login penalty of hybrid_full)
+          - skoda/seat  : classic auth-code → data_act_portal
+            /cupra
+          - others      : classic auth-code only (unchanged)
+
+        The data_act_portal strategy is a last-resort read-only fallback.
+        When it succeeds the TokenSet carries strategy="data_act_portal"
+        and the coordinator switches into read-only mode (command entities
+        disabled, polling throttled to 15 min).
+
+        Trade-off for hybrid_full success: no usable refresh_token is
+        returned, so re-login fires every ~2 h. ``_refresh_tokens()``
+        detects the empty refresh_token and calls ``authenticate()`` again
+        transparently. The 5-strategy storm-guard in _refresh_tokens
+        prevents runaway loops.
+        """
+        # Strategy descriptor: (kind, kwargs) where kind is "idk" for the
+        # standard IDKAuth.authenticate path and "data_act_portal" for the
+        # last-resort read-only fallback.
+        strategies: list[tuple[str, dict[str, bool]]] = []
+        if self._brand.name == "volkswagen":
+            strategies = [
+                ("idk", {"hybrid_full": True}),
+                ("idk", {"hybrid_full": False}),
+                ("data_act_portal", {}),
+            ]
+        elif self._brand.name == "audi":
+            strategies = [
+                ("idk", {"hybrid_full": False}),
+                ("idk", {"hybrid_full": True}),
+                ("data_act_portal", {}),
+            ]
+        elif self._brand.name in ("skoda", "seat", "cupra", "bentley"):
+            strategies = [
+                ("idk", {"hybrid_full": False}),
+                ("data_act_portal", {}),
+            ]
+        else:
+            strategies = [("idk", {"hybrid_full": False})]
+
+        last_err: Exception | None = None
+        for idx, (kind, opts) in enumerate(strategies):
+            try:
+                if kind == "idk":
+                    self._tokens = await self._auth.authenticate(
+                        self._email, self._password,
+                        mfa_code=mfa_code,
+                        **opts,
+                    )
+                elif kind == "data_act_portal":
+                    from ..auth._data_act_portal import (  # noqa: PLC0415
+                        DataActPortalAuth,
+                    )
+                    portal = DataActPortalAuth(self._session, self._brand.name)
+                    self._tokens = await portal.login(self._email, self._password)
+                else:
+                    raise AuthenticationError(f"Unknown strategy kind: {kind}")
+
+                if idx > 0:
+                    _LOGGER.info(
+                        "Authenticated for brand %s via fallback strategy "
+                        "#%d (kind=%s opts=%s) after primary strategy failed: %s",
+                        self._brand.name, idx, kind, opts,
+                        type(last_err).__name__ if last_err else "?",
+                    )
+                else:
+                    _LOGGER.debug(
+                        "Authenticated for brand %s (kind=%s opts=%s)",
+                        self._brand.name, kind, opts,
+                    )
+                await self._notify_tokens_changed()
+                return
+            except AuthenticationError as err:
+                last_err = err
+                if idx == len(strategies) - 1:
+                    raise
+                _LOGGER.info(
+                    "Auth strategy #%d (kind=%s opts=%s) failed for %s: %s — "
+                    "trying next strategy",
+                    idx, kind, opts, self._brand.name, err,
+                )
 
     def set_persisted_tokens(self, tokens: TokenSet | None) -> None:
         """v1.19.2 (#118) — inject tokens loaded from HA storage at

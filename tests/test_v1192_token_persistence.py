@@ -96,8 +96,42 @@ class TestTokenStorageLoad:
 
     @pytest.mark.asyncio
     async def test_incomplete_tokens_returns_none(self):
-        """If any token field is empty, the TokenSet is_valid() check
-        rejects the load — better re-login than half-broken state."""
+        """If access_token or id_token is empty, the TokenSet is_valid()
+        check rejects the load — better re-login than half-broken state.
+
+        v2.6.0 — empty refresh_token is INTENTIONALLY allowed (hybrid
+        flow and Data Act portal both produce token sets without one).
+        Only access_token + id_token are required.
+        """
+        from custom_components.vag_connect.cariad.auth._token_storage import (
+            TokenStorage, _STORAGE_VERSION,
+        )
+        # Empty access_token — definitively invalid
+        store = _DictStore(initial={
+            "version": _STORAGE_VERSION,
+            "tokens": {
+                "access_token": "", "refresh_token": "r", "id_token": "i",
+                "expires_at": 1000.0,
+            },
+        })
+        assert await TokenStorage(store).load() is None
+
+        # Empty id_token — definitively invalid
+        store2 = _DictStore(initial={
+            "version": _STORAGE_VERSION,
+            "tokens": {
+                "access_token": "a", "refresh_token": "r", "id_token": "",
+                "expires_at": 1000.0,
+            },
+        })
+        assert await TokenStorage(store2).load() is None
+
+    @pytest.mark.asyncio
+    async def test_v260_empty_refresh_token_is_valid(self):
+        """v2.6.0 contract: hybrid flow + Data Act portal both return
+        TokenSets with empty refresh_token. Those must load successfully
+        — the coordinator handles re-login when the access_token expires.
+        """
         from custom_components.vag_connect.cariad.auth._token_storage import (
             TokenStorage, _STORAGE_VERSION,
         )
@@ -108,8 +142,11 @@ class TestTokenStorageLoad:
                 "expires_at": 1000.0,
             },
         })
-        ts = TokenStorage(store)
-        assert await ts.load() is None
+        loaded = await TokenStorage(store).load()
+        assert loaded is not None
+        assert loaded.access_token == "a"
+        assert loaded.refresh_token == ""
+        assert loaded.id_token == "i"
 
     @pytest.mark.asyncio
     async def test_valid_tokens_load_correctly(self):

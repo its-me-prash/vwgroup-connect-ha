@@ -322,6 +322,7 @@ class IDKAuth:
         password: str,
         mfa_code: str | None = None,
         mbb_mode: bool = False,
+        hybrid_full: bool = False,
     ) -> TokenSet:
         """Full login flow → returns access/refresh/id tokens.
 
@@ -344,26 +345,49 @@ class IDKAuth:
           self.last_redirect_url (the original token_set.id_token from the
           token-endpoint exchange is for app-only audience and MBB rejects it
           with HTTP 400 'Id token is invalid').
+
+        hybrid_full (NEW v2.6.0 — BFF-bypass post 2026-05-27 WAF migration):
+          When True, requests the FULL hybrid flow
+          (response_type=code id_token token). Auth0 delivers access_token,
+          id_token AND auth_code directly in the callback URL fragment. We
+          parse all three and skip the BFF token exchange entirely — bypassing
+          the Play Integrity wall that gates emea.bff.cariad.digital's token
+          endpoint. Adds offline_access scope and action=default form field
+          (Auth0 Universal Login requirements). Trade-off: no usable
+          refresh_token in this flow — re-login every ~2 h is the accepted
+          cost. Used by VW EU as default since v2.6.0.
         """
         verifier, challenge = _pkce_pair()
         pkce_state = base64.urlsafe_b64encode(os.urandom(16)).rstrip(b"=").decode()
         nonce = base64.urlsafe_b64encode(os.urandom(16)).rstrip(b"=").decode()
 
         # Step 1 — GET authorize, follow to Auth0 /u/login page
+        # Response-type precedence: hybrid_full > mbb_mode > plain code.
+        if hybrid_full:
+            response_type = "code id_token token"
+        elif mbb_mode:
+            response_type = "code id_token"
+        else:
+            response_type = "code"
+        scope = (
+            f"{self._brand.scope} offline_access"
+            if hybrid_full and "offline_access" not in self._brand.scope
+            else self._brand.scope
+        )
         params: dict[str, str] = {
             "client_id": self._brand.client_id,
             "redirect_uri": self._brand.redirect_uri,
-            "response_type": "code id_token" if mbb_mode else "code",
-            "scope": self._brand.scope,
+            "response_type": response_type,
+            "scope": scope,
             "state": pkce_state,
             "nonce": nonce,
             "code_challenge": challenge,
             "code_challenge_method": "S256",
         }
         # Cariad-flow: force re-auth (helpful when user has multiple sessions).
-        # MBB hybrid-flow: drop prompt=login because some IDK templates reject
-        # it in combination with response_type=code+id_token.
-        if not mbb_mode:
+        # MBB / hybrid_full: drop prompt=login because some IDK templates
+        # reject it in combination with response_type containing id_token.
+        if not (mbb_mode or hybrid_full):
             params["prompt"] = "login"
         # NOTE: deliberately do NOT set response_mode for MBB hybrid flow.
         # OIDC default for response_type=code+id_token is fragment, and our
@@ -390,12 +414,12 @@ class IDKAuth:
             # Auth0 Universal Login (new IDK, 2025+)
             return await self._authenticate_auth0(
                 login_url, html, email, password, verifier, mfa_code,
-                mbb_mode=mbb_mode,
+                mbb_mode=mbb_mode, hybrid_full=hybrid_full,
             )
 
         # Legacy signin-service flow (kept as fallback)
         return await self._authenticate_legacy(
-            html, email, password, verifier, mbb_mode=mbb_mode
+            html, email, password, verifier, mbb_mode=mbb_mode,
         )
 
     async def _authenticate_auth0(
@@ -407,6 +431,7 @@ class IDKAuth:
         verifier: str,
         mfa_code: str | None = None,
         mbb_mode: bool = False,
+        hybrid_full: bool = False,
     ) -> TokenSet:
         """Auth0 Universal Login — combined username+password POST.
 
@@ -417,7 +442,9 @@ class IDKAuth:
           2. POST {username, password, state} to /u/login?state=STATE
              with allow_redirects=False
           3. Follow redirects manually until app:// URI
-          4. Exchange auth code (PKCE)
+          4. Exchange auth code (PKCE) — UNLESS hybrid_full=True, in which
+             case access_token + id_token are extracted directly from the
+             callback URL fragment (v2.6.0 BFF-bypass).
         """
         # Step 1 — extract state from hidden HTML input
         # Auth0 embeds state as <input type="hidden" name="state" value="...">
@@ -442,6 +469,14 @@ class IDKAuth:
             "password": password,
             "state":    auth0_state,
         }
+        # v2.6.0 — Auth0 Universal Login since 2026-05 requires the
+        # `action=default` form field on the credential POST. Without it
+        # the POST silently routes to identifier-first re-prompt rather
+        # than performing the password check. Matches upstream
+        # volkswagencarnet#333 + tillsteinbach/CarConnectivity-connector-
+        # volkswagen#109 behaviour.
+        if hybrid_full:
+            login_form["action"] = "default"
         # URL-encode state for URL construction (form body is encoded by aiohttp automatically)
         from urllib.parse import quote as _quote  # noqa: PLC0415
         post_url = f"{self._idk_base}/u/login?state={_quote(auth0_state, safe='')}"
@@ -624,6 +659,42 @@ class IDKAuth:
         # Save final redirect URL so MBB-mode callers can extract the
         # cross-service-signed id_token from the query/fragment (v1.26.3).
         self.last_redirect_url = ref
+
+        # v2.6.0 — hybrid_full short-circuit: Auth0 delivers access_token,
+        # id_token AND auth_code directly in the callback URL fragment. We
+        # parse all three and return WITHOUT calling _exchange_code — this
+        # bypasses the Play Integrity wall on emea.bff.cariad.digital's
+        # token endpoint that broke us on 2026-05-27. Trade-off: no usable
+        # refresh_token is returned, so callers must re-login every ~2 h
+        # (matches upstream pattern in volkswagencarnet#333 +
+        # CarConnectivity-connector-volkswagen#109).
+        if hybrid_full:
+            id_tok = _extract_param_from_url(
+                ref, self._brand.redirect_uri, "id_token"
+            )
+            access_tok = _extract_param_from_url(
+                ref, self._brand.redirect_uri, "access_token"
+            )
+            if not id_tok or not access_tok:
+                raise AuthenticationError(
+                    f"Hybrid-full flow: missing id_token "
+                    f"({bool(id_tok)}) or access_token ({bool(access_tok)}) "
+                    f"in callback URL. Auth0 may have stripped the hybrid "
+                    f"response_type for this client. URL: {ref[:200]}"
+                )
+            _LOGGER.debug(
+                "IDK Auth0 hybrid_full: access_token (%d chars) + id_token "
+                "(%d chars) captured from callback fragment",
+                len(access_tok), len(id_tok),
+            )
+            # refresh_token is intentionally empty — hybrid flow returns
+            # none. Coordinator.refresh() detects empty refresh_token and
+            # triggers full re-login via the cached strategy.
+            return TokenSet(
+                access_token=access_tok,
+                refresh_token="",
+                id_token=id_tok,
+            )
 
         # MBB-mode short-circuit: in hybrid flow the id_token is already in
         # the redirect URL (typically fragment). It's the cross-service-signed

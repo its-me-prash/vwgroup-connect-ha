@@ -267,10 +267,22 @@ class TokenSet:
     refresh_token: str
     id_token: str
     expires_at: float = 0.0  # Unix timestamp — 0 = unknown, refresh proactively 60s before
+    # v2.6.0 — auth strategy that produced this token set. Coordinator
+    # uses this to decide refresh behaviour: hybrid_full / data_act_portal
+    # have no refresh_token, so refresh = full re-login. classic flows
+    # can use refresh_token. Strategy values: "classic" | "hybrid_full"
+    # | "data_act_portal" | "" (legacy/unknown — treated as classic).
+    strategy: str = ""
 
     def is_valid(self) -> bool:
-        """Return True if all required tokens are present."""
-        return bool(self.access_token and self.refresh_token and self.id_token)
+        """Return True if the access_token + id_token are populated.
+
+        v2.6.0 — refresh_token is intentionally optional. Hybrid flow
+        and Data Act portal both produce token sets WITHOUT a refresh
+        token; the coordinator handles those via full re-login when
+        the access_token expires.
+        """
+        return bool(self.access_token and self.id_token)
 
     def needs_refresh(self) -> bool:
         """True if token expires within 60 seconds or expiry is unknown."""
