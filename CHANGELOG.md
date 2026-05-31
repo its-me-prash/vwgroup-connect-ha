@@ -54,6 +54,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - OLA watcher gains upstream as 3rd consensus source
 - App Atlas covers all 7 brands
 
+## [Unreleased]
+
+### Added
+- FCM push channel for Audi and VW now ships live activation (Action #4). Decoded payloads (lockState, chargingState, climateState, alarm) are fired onto the Home Assistant event bus as `vag_connect_push_event` and trigger a coordinator refresh. The Cariad Firebase sender_id / api_key / app_id are still tester-gated behind a `NotImplementedError` in `_resolve_fcm_credentials` until the live APK extraction lands (task #40 follow-up); the OptionsFlow toggle label moves from "EXPERIMENTAL" to "Live (beta)".
+
 ## [2.7.4] - 2026-05-31
 
 ### Fixed
