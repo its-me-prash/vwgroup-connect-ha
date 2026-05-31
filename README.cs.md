@@ -47,6 +47,19 @@
 
 ---
 
+
+## Co je nového v2.7.0
+
+**Browser-Login (heslo se neukládá do HA)**: Pro Audi, Škoda, SEAT a CUPRA je nyní k dispozici OAuth Device Authorization Grant. Naskenujte QR kód telefonem, přihlaste se ke svému Brand ID účtu, potvrďte krátký kód. Skutečný refresh_token, žádné dvouhodinové opětovné přihlašování.
+
+**Více dat na vůz**: Trip statistiky, hladina oleje, tlak v každé pneumatice, dveře/okna/střešní okno/kufr po pozicích, venkovní teplota MY24+, Webasto.
+
+**Všechna varování výrobce**: Nový senzor "Vehicle Warning Messages" zobrazuje každé varování z backendu.
+
+Kompletní [CHANGELOG](CHANGELOG.md#270---2026-05-31).
+
+---
+
 ## ✨ v2.0.0 Big-Bang Highlights — also available in English
 
 > The detailed v2.0.0 highlights table + "What makes us unique" USP section

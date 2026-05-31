@@ -47,6 +47,19 @@
 
 ---
 
+
+## Was ist neu in v2.7.0
+
+**Browser-Login (kein Passwort in HA)**: Für Audi, Škoda, SEAT und CUPRA jetzt OAuth Device Authorization Grant. QR-Code mit dem Handy scannen, mit Brand-ID anmelden, Code bestätigen , fertig. Echtes refresh_token, keine zwei-Stunden-Re-Logins mehr.
+
+**Mehr Daten pro Auto**: Trip-Statistiken (Lebensdauer-Distanz, letzte Fahrt), Ölstand, Reifendruck pro Rad, Türen / Fenster / Sonnendach / Kofferraum pro Position, Außentemperatur auf MY24+, Webasto Standheizung.
+
+**Alle Hersteller-Warnungen**: Neuer "Fahrzeug-Warnungen" Sensor zeigt jedes Backend-Warning, auch markenspezifische wie Audi STO oder Anhängerkupplung-Alarm.
+
+Voll [CHANGELOG](CHANGELOG.md#270---2026-05-31).
+
+---
+
 ## 🚗 Was es kann
 
 Verbindet Home Assistant **direkt** mit deinem Fahrzeug-Cloud-Account (myAudi, We Connect ID, MyŠkoda, MyCupra, MySeat, My Porsche, MyVW). **Keine Middleware, kein Docker, kein extra Dienst** — Anmeldung mit deinen App-Zugangsdaten, fertig.

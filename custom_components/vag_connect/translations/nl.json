@@ -19,6 +19,10 @@
           "spin": "Alleen nodig voor vergrendeling. App → Beveiliging → S-PIN.",
           "scan_interval": "Hoe vaak gegevens worden opgehaald. Standaard: 5 min. Minimum: 3 min.",
           "force_enable_access": "Voor oudere voertuigen die de capabiliteitscheck niet doorstaan."
+        },
+        "menu_options": {
+          "browser_login": "Browser-Login (recommended)",
+          "email_password": "Email + Password (legacy)"
         }
       },
       "reauth_confirm": {
@@ -50,6 +54,56 @@
         "data_description": {
           "mfa_code": "6-cijferige code — geldig een paar minuten."
         }
+      },
+      "email_password": {
+        "title": "Sign in with email + password (legacy)",
+        "description": "Connect your vehicle to Home Assistant.\n\nChoose your brand and enter the credentials from your manufacturer's app.",
+        "data": {
+          "brand": "Vehicle Brand",
+          "username": "Email Address",
+          "password": "Password",
+          "spin": "S-PIN",
+          "scan_interval": "Update Interval",
+          "force_enable_access": "Force Door Status"
+        },
+        "data_description": {
+          "brand": "Choose your brand — myAudi, WeConnect ID, MyŠkoda, SEAT, CUPRA, VW US/CA or Porsche.",
+          "username": "Email address from the manufacturer app.",
+          "password": "Password from the app.",
+          "spin": "Only needed for locking. App → Security → S-PIN.",
+          "scan_interval": "How often data is fetched. Default: 5 min. Minimum: 3 min.",
+          "force_enable_access": "For older vehicles that fail the capability check."
+        }
+      },
+      "browser_login": {
+        "title": "Browser-Login — choose your brand",
+        "description": "Pick the brand of the vehicle you want to connect. On the next screen you will see a short code and a URL to visit on any device with a browser.",
+        "data": {
+          "brand": "Vehicle Brand",
+          "spin": "S-PIN",
+          "scan_interval": "Update Interval",
+          "force_enable_access": "Force Door Status"
+        }
+      },
+      "browser_login_pending": {
+        "title": "Requesting login code…",
+        "description": "Asking the IDP for a one-time device code."
+      },
+      "browser_login_approve": {
+        "title": "Approve in your browser",
+        "description": "Scan the QR code with your phone, or open the URL on any device. Sign in to your Brand ID account if asked, confirm the code, then check the box below and click Submit.",
+        "data": {
+          "qr_code": "Scan with phone camera to open login page",
+          "verification_url": "Or open this URL in any browser",
+          "user_code": "Code to confirm in the browser",
+          "approved_in_browser": "I have approved in the browser"
+        },
+        "data_description": {
+          "qr_code": "Point your phone camera at the QR code. The login page opens in your phone browser pre-filled with the code below.",
+          "verification_url": "If you can't scan: copy this link, open it on any device, sign in to your Brand ID account.",
+          "user_code": "After signing in, confirm this code in the browser to approve Home Assistant.",
+          "approved_in_browser": "Leave checked. Click Submit only after you have signed in and confirmed the code in the browser."
+        }
       }
     },
     "error": {
@@ -61,12 +115,18 @@
       "email_two_factor_required": "E-mail 2FA vereist. Controleer je inbox (en spam) op een 6-cijferige code, log dan handmatig in via de app.",
       "too_many_requests": "Account tijdelijk geblokkeerd. Wacht 15 minuten.",
       "invalid_credentials": "E-mailadres of wachtwoord onjuist.",
-      "upstream_unavailable": "VW backend tijdelijk onbereikbaar. Dit is een serverprobleem bij VW, GEEN inlogfout. Wacht 5–15 minuten en probeer opnieuw. Configureer de integratie NIET opnieuw."
+      "upstream_unavailable": "VW backend tijdelijk onbereikbaar. Dit is een serverprobleem bij VW, GEEN inlogfout. Wacht 5–15 minuten en probeer opnieuw. Configureer de integratie NIET opnieuw.",
+      "brand_not_dag_eligible": "Selected brand does not support browser login. Use the email + password flow instead.",
+      "still_waiting_browser": "Still waiting for browser approval. Open the URL above, sign in, confirm the code, then click Submit again."
     },
     "abort": {
       "already_configured": "Dit account is al geconfigureerd.",
       "reauth_successful": "Herauthenticatie geslaagd.",
       "reconfigure_successful": "Configuratie succesvol bijgewerkt."
+    },
+    "progress": {
+      "awaiting_browser_login": "Open {verification_uri} in any browser, sign in with your Brand ID account, and confirm the code {user_code}.",
+      "requesting_device_code": "Requesting a one-time login code from the IDP…"
     }
   },
   "options": {
