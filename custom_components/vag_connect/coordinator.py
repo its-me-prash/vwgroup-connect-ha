@@ -996,12 +996,36 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             return
 
         async def _on_push_event(event: Any) -> None:
-            """Coordinator-side push callback — refresh the affected VIN."""
+            """Coordinator-side push callback.
+
+            v2.8.0 Action #4: fires the event onto the HA bus as
+            ``vag_connect_push_event`` so users can wire automations
+            keyed on ``event_type`` + ``vin`` filters. Then requests
+            a coordinator refresh so live entities update without
+            waiting for the next poll cycle.
+            """
             _LOGGER.debug(
-                "VAG push: event vin=***%s type=%s — requesting refresh",
+                "VAG push: event vin=***%s type=%s; firing on bus + "
+                "requesting refresh",
                 (event.vin or "??????")[-6:],
                 event.event_type,
             )
+            # v2.8.0 Action #4: HA bus emission. Wrapped so a bus
+            # failure cannot break the refresh path.
+            try:
+                self.hass.bus.async_fire(
+                    "vag_connect_push_event",
+                    {
+                        "vin": event.vin,
+                        "event_type": event.event_type,
+                        "topic": event.topic,
+                        "timestamp": event.timestamp,
+                        "brand": brand,
+                        "raw_payload": event.raw_payload,
+                    },
+                )
+            except Exception:  # noqa: BLE001
+                _LOGGER.exception("VAG push: bus emission failed")
             try:
                 await self.async_request_refresh()
             except Exception:  # noqa: BLE001

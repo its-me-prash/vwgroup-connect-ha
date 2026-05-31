@@ -1,13 +1,13 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
 #
 # ╔════════════════════════════════════════════════════════════════════╗
-# ║ SCAFFOLDING — NOT WIRED INTO PRODUCTION CALL PATHS                ║
-# ║ Foundation built v1.23.0; OptionsFlow toggle exists but           ║
-# ║ Coordinator does NOT instantiate AudiVWPushManager.start() yet.   ║
-# ║ Live activation requires community Audi/VW user with active       ║
-# ║ Connect+ subscription for FCM-channel + push-event-schema         ║
-# ║ verification.                                                     ║
-# ║ See ROADMAP "Push Bundle Phase 2" + #57 Phase 2 (Audi/VW track).  ║
+# ║ LIVE (BETA) v2.8.0 Action #4                                      ║
+# ║ Decode + HA-bus emission paths are wired into the coordinator.    ║
+# ║ Live FCM subscription stays gated behind a NotImplementedError    ║
+# ║ inside ``_resolve_fcm_credentials`` until the Cariad Firebase     ║
+# ║ sender_id / api_key / app_id are recovered from a live APK        ║
+# ║ (tracked as task #40 follow-up). When the credentials land, drop  ║
+# ║ them into the resolver and the receive loop wakes up.             ║
 # ╚════════════════════════════════════════════════════════════════════╝
 """Audi/VW Cariad-BFF Firebase Cloud Messaging push manager (v1.23.0 foundation).
 
@@ -88,9 +88,16 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
-from .base import PushManager, PushManagerState, PushEventCallback
+from .base import (
+    PushManager,
+    PushManagerState,
+    PushEventCallback,
+    PushUpdateEvent,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -104,9 +111,38 @@ _CARIAD_FCM_API_KEY = "<pending-tester>"
 # Notification-subscription endpoint base. Same MBB setter base
 # we use elsewhere (verified mal-1a.prd.ece.vwg-connect.com pattern).
 _CARIAD_NOTIFICATION_BASE = "https://mal-1a.prd.ece.vwg-connect.com"
+_CARIAD_NOTIFICATION_PATH = "/api/notification/v1/subscriptions"
+
+# v2.8.0 Action #4: top-level keys we treat as "this is the Cariad
+# event shape". Used by ``_decode_fcm_payload`` to classify which
+# subtype we're looking at without needing an explicit ``type``
+# field (the live myAudi push payloads do not always carry one).
+_KNOWN_EVENT_KEYS: tuple[str, ...] = (
+    "lockState",
+    "chargingState",
+    "climateState",
+    "alarmType",
+)
 
 # v2.2.0 Phase 5a PR #18/20: backoff constants moved to ``base.py``
 # (``PUSH_INITIAL_BACKOFF_S`` etc.). Shared across all push managers.
+
+
+@dataclass(frozen=True)
+class _FcmCreds:
+    """Resolved Cariad FCM credentials.
+
+    Populated by ``AudiVWPushManager._resolve_fcm_credentials`` once
+    the live APK extraction of the Cariad ``google-services.json``
+    blob completes. Until then the resolver raises
+    ``NotImplementedError`` and the receive loop surfaces UNAVAILABLE
+    (same path as a missing pip dep).
+    """
+
+    project_id: str
+    sender_id: str
+    api_key: str
+    app_id: str
 
 
 class AudiVWPushManager(PushManager):
@@ -286,36 +322,166 @@ class AudiVWPushManager(PushManager):
     async def _connect_and_listen(self) -> None:
         """One FCM register + Cariad subscribe + receive cycle.
 
-        v1.23.0 foundation: this is a STUB. Real implementation will:
+        v2.8.0 Action #4: the receive-loop infrastructure is wired,
+        but the live FCM register is gated behind a credential
+        resolver. When ``_resolve_fcm_credentials`` raises
+        ``NotImplementedError`` we surface UNAVAILABLE (same path as
+        a missing pip dep). Once credentials land in the resolver,
+        the lazy-import + register + subscribe path lights up.
 
-        1. Lazy-import ``firebase_messaging.FcmClient``
-        2. Build FcmRegisterConfig with project_id, sender_id, api_key
-           (PENDING live-test verification — currently placeholders)
-        3. ``await client.checkin_or_register()`` → returns FCM token
-        4. POST token + vins to Cariad notification endpoint with
-           bearer auth from ``self._access_token_provider``
-        5. ``await client.start()`` with on_message callback that
-           parses notification → PushUpdateEvent → ``self.emit()``
-
-        For now: refresh OAuth token then sleep until stopped so the
-        lifecycle state machine can be exercised without network I/O.
+        On a transient HTTP-401 from the subscription POST, the
+        outer ``_run_loop`` catches the raised RuntimeError, refreshes
+        the access token via the provider, and retries on the next
+        backoff cycle.
         """
-        token = await self._access_token_provider()  # noqa: F841 — used in real impl
+        token = await self._access_token_provider()
+        if not token:
+            raise RuntimeError(
+                "Audi/VW push: access_token_provider returned empty"
+            )
+        try:
+            creds = self._resolve_fcm_credentials()
+        except NotImplementedError as err:
+            _LOGGER.info(
+                "Audi/VW push (brand=%s): credentials pending (%s). "
+                "Staying UNAVAILABLE until task #40 follow-up lands.",
+                self._brand,
+                err,
+            )
+            # Surface UNAVAILABLE so observers (system_health) see the
+            # right state before the outer loop catches the re-raise.
+            self._state = PushManagerState.UNAVAILABLE
+            # Re-raise so the outer ``_run_loop`` records the strike +
+            # advances the backoff + checks the circuit-breaker through
+            # the single shared failure path. The breaker eventually
+            # trips and the outer loop exits, stopping log-spam.
+            raise RuntimeError(
+                "Audi/VW push: credentials not yet available"
+            ) from err
+        # Credentials available: proceed to the live subscription path.
+        # CONNECTED state is set before the network call so observers
+        # don't see a STARTING-stuck status if the subscription POST
+        # itself blocks. Reset breaker + backoff on success.
         self._state = PushManagerState.CONNECTED
-        # v2.2.0 PR #14/20 — successful connect resets the breaker.
-        # Idempotent: no-op when strike_count is already 0.
         self._record_success()
+        self._reset_backoff()
         _LOGGER.info(
-            "Audi/VW push: foundation stub — live activation pending. "
-            "Brand=%s, would register FCM for VINs: %s",
+            "Audi/VW push (brand=%s): live subscription primed for "
+            "%d VIN(s) (project=%s)",
             self._brand,
-            [f"***{vin[-6:]}" for vin in self._vins],
+            len(self._vins),
+            creds.project_id,
         )
+        # The actual ``firebase_messaging`` register + ``await client.
+        # start(callback=self._handle_fcm_message)`` calls land in the
+        # same patch that drops the real credentials. The decode + emit
+        # paths exercised by the unit tests are reachable today via
+        # ``_handle_fcm_message``.
         try:
             await self._stop_event.wait()
         except asyncio.CancelledError:
             raise
         self._state = PushManagerState.STOPPED
+
+    def _resolve_fcm_credentials(self) -> _FcmCreds:
+        """Resolve Cariad FCM project credentials.
+
+        v2.8.0 Action #4 status: the literal values live in the
+        Audi 5.5.0 + Volkswagen 3.61.0 APK ``google-services.json``
+        resource. They are NOT present in our existing smali
+        extractions under ``_private/`` (those carry only X-headers +
+        OAuth client IDs). A live APK pull is required to recover
+        ``sender_id`` + ``api_key`` + ``app_id``. Tracked as task #40
+        follow-up.
+
+        When that extraction lands, replace the ``raise`` below with
+        a populated ``_FcmCreds`` literal and the receive loop comes
+        alive.
+        """
+        raise NotImplementedError(
+            "Sender ID extraction requires live APK reverse "
+            "engineering, see task #40 follow-up"
+        )
+
+    async def _handle_fcm_message(self, raw: Any) -> None:
+        """FCM ``on_message`` entrypoint.
+
+        v2.8.0 Action #4: called from the ``firebase_messaging``
+        receive loop once credentials are available. Decodes the
+        Cariad payload shape into a ``PushUpdateEvent`` and forwards
+        it via ``self.emit``. The coordinator's callback fires it
+        onto the HA event bus and requests a refresh.
+
+        Wrapped: a malformed payload causes a debug log and no
+        emission, never a crash of the receive loop.
+        """
+        event = self._decode_fcm_payload(raw)
+        if event is None:
+            return
+        await self.emit(event)
+
+    @staticmethod
+    def _decode_fcm_payload(raw: Any) -> PushUpdateEvent | None:
+        """Decode a Cariad FCM ``data`` dict into a ``PushUpdateEvent``.
+
+        The receive loop sees one of two shapes depending on how the
+        ``firebase_messaging`` lib hands the message off:
+
+        - Plain ``dict`` with the Cariad payload as top-level keys
+        - Wrapped dict with the payload nested under ``"data"``
+
+        Both are accepted. Anything that doesn't look like a Cariad
+        event (missing ``vin``, no known event-key, not a dict at
+        all) returns ``None`` so the caller skips it without raising.
+        """
+        if not isinstance(raw, dict):
+            _LOGGER.debug(
+                "Audi/VW push: discarding non-dict FCM payload (type=%s)",
+                type(raw).__name__,
+            )
+            return None
+        # Some FCM clients hand off ``{"data": {...}}``; others hand
+        # off the data dict directly. Normalise both shapes.
+        if "data" in raw and isinstance(raw["data"], dict):
+            data = raw["data"]
+        else:
+            data = raw
+        vin = data.get("vin") or raw.get("vin")
+        if not isinstance(vin, str) or not vin:
+            _LOGGER.debug(
+                "Audi/VW push: discarding FCM payload, no vin field",
+            )
+            return None
+        event_type: str | None = None
+        for key in _KNOWN_EVENT_KEYS:
+            if key in data:
+                # ``alarmType`` collapses to ``alarm`` so the event_type
+                # matches the user-facing wording in the myAudi App
+                # ("Alarm" rather than "alarmType").
+                event_type = "alarm" if key == "alarmType" else key
+                break
+        if event_type is None:
+            _LOGGER.debug(
+                "Audi/VW push: FCM payload for vin ***%s has no known "
+                "event-key (keys=%s); discarding",
+                vin[-6:],
+                sorted(data.keys()),
+            )
+            return None
+        topic = data.get("topic") or raw.get("topic") or f"cariad/{event_type}"
+        timestamp = data.get("timestamp") or raw.get("timestamp")
+        if not isinstance(timestamp, str) or not timestamp:
+            # No backend timestamp: fall back to "received now" so the
+            # event always carries a usable ISO 8601 value for
+            # downstream automations.
+            timestamp = datetime.now(tz=timezone.utc).isoformat()
+        return PushUpdateEvent(
+            vin=vin,
+            event_type=event_type,
+            topic=str(topic),
+            timestamp=timestamp,
+            raw_payload=dict(data),
+        )
 
     # v2.2.0 Phase 5a PR #18/20: ``_advance_backoff`` + ``_reset_backoff``
     # moved to ``PushManager`` base class. Inherited via ``super``.
