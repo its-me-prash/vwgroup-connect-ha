@@ -6,7 +6,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Any
+from typing import Any, Callable
 
 from aiohttp import (
     ClientConnectorError,
@@ -144,6 +144,66 @@ class CariadBaseClient:
     def brand(self) -> BrandConfig:
         """Brand configuration."""
         return self._brand
+
+    async def authenticate_via_device_grant(
+        self,
+        on_user_code: Callable[[Any], None] | None = None,
+    ) -> None:
+        """v2.6.0 — OAuth Device Authorization Grant (RFC 8628) login.
+
+        Browser-based, password-less, refresh-token-friendly login flow.
+        The IDP returns a real refresh_token so no ~2 h re-login penalty
+        (unlike hybrid_full). The end user opens a URL in any browser,
+        signs in with their VW Brand ID credentials, and approves the
+        device — Home Assistant never sees the password.
+
+        Brand support (per ``cariad.auth._device_grant.DAG_ENABLED_BRANDS``):
+          ✅ audi, skoda, seat, cupra
+          ❌ volkswagen — VW EU's consumer client_id is not whitelisted
+            for device grant by the IDP; use the standard
+            ``authenticate()`` chain (hybrid_full → classic) instead.
+
+        Args:
+            on_user_code: optional callback invoked with the
+                ``DeviceCodeResponse`` as soon as the IDP issues a
+                device_code. UI layers (config_flow, service calls)
+                use it to display ``user_code`` + ``verification_uri_complete``
+                to the end user. If ``None``, the flow runs but the user
+                will not be told where to authorize, so the polling
+                deadline will simply expire.
+
+        Raises:
+            AuthenticationError: if the brand is not DAG-eligible, the
+                IDP rejects the client_id, the grant expires before
+                user approval, or the user declines in the browser.
+        """
+        from ..auth._device_grant import (  # noqa: PLC0415
+            DeviceAuthorizationGrant,
+            is_dag_eligible,
+        )
+
+        if not is_dag_eligible(self._brand.name):
+            raise AuthenticationError(
+                f"Device grant not enabled for brand {self._brand.name} "
+                f"by the VW IDP. Use authenticate() with email + password."
+            )
+
+        # Match scope to what the standard authenticate() flow asks for
+        # — the IDP enforces scopes at token level rather than at
+        # device-authorization level, so we want parity with the rest
+        # of the integration.
+        dag = DeviceAuthorizationGrant(
+            self._session,
+            self._brand.client_id,
+            scope=self._brand.scope,
+        )
+        self._tokens = await dag.run(on_user_code=on_user_code)
+        _LOGGER.info(
+            "Authenticated for brand %s via device grant (refresh_token: %s)",
+            self._brand.name,
+            "yes" if self._tokens and self._tokens.refresh_token else "no",
+        )
+        await self._notify_tokens_changed()
 
     async def authenticate(self, mfa_code: str | None = None) -> None:
         """Perform full login and store tokens.
