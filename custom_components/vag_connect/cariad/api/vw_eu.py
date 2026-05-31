@@ -303,7 +303,30 @@ class VWEUClient(CariadBaseClient):
         except Exception:  # noqa: BLE001
             pass
 
+        # v2.7.0b11 — Trip statistics (separate endpoint, two query
+        # types). Lifetime and last-trip stats live here, NOT in
+        # selectivestatus. Best-effort: any failure leaves the trip
+        # fields at their dataclass defaults so older firmwares /
+        # capability-gated vehicles don't crash the whole poll.
+        trip_short: dict[str, Any] = {}
+        trip_long: dict[str, Any] = {}
+        try:
+            trip_short = await self._get(
+                f"{base}/vehicle/v1/vehicles/{vin}/tripstatistics",
+                params={"type": "shortTerm"},
+            )
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            trip_long = await self._get(
+                f"{base}/vehicle/v1/vehicles/{vin}/tripstatistics",
+                params={"type": "longTerm"},
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
         d = self._parse_status(vin, raw, parking)
+        self._parse_trip_statistics(d, trip_short, trip_long)
 
         # v1.25.0 PR-G — MBB VSR Phase 2 read-side fallback (Golf 7 GTE
         # Tank-Level use case). Triggers when:
@@ -891,6 +914,99 @@ class VWEUClient(CariadBaseClient):
 
     # ── data parsing ───────────────────────────────────────────────────────────
 
+    def _parse_trip_statistics(
+        self,
+        d: VehicleData,
+        short_term: dict[str, Any],
+        long_term: dict[str, Any],
+    ) -> None:
+        """v2.7.0b11 — populate trip + lifetime fields from tripstatistics.
+
+        Cariad-BFF response shape (both shortTerm and longTerm):
+            {"tripData": [
+                {"tripEndTimestamp": "...", "mileage_km": 142,
+                 "travelTime": 113, "averageSpeed_kmph": 75,
+                 "averageFuelConsumption": 68,  # int x10 (=> 6.8 l/100km)
+                 "averageElectricEngineConsumption": 0,  # int x10 (kWh/100km)
+                 "averageRecuperation": 12,
+                 "overallMileage_km": 143229,
+                 ...},
+                ...
+            ]}
+
+        shortTerm trips: last ~15 individual drives, ordered most-recent first.
+        longTerm trips: cumulative aggregate per cycle (since last reset).
+
+        We populate:
+          - last_trip_* fields from shortTerm[0]
+          - recent_trips list (5 entries) from shortTerm[:5] for the
+            extra_state_attributes on the last_trip_distance_km sensor
+          - lifetime_* fields from longTerm[0] (the active aggregate)
+        """
+        # ---- shortTerm: most recent trip + recent trips list ----
+        short = short_term.get("tripData") if isinstance(short_term, dict) else None
+        if isinstance(short, list) and short:
+            last = short[0]
+            if isinstance(last, dict):
+                # mileage_km may be int or float
+                mileage = last.get("mileage_km")
+                if isinstance(mileage, (int, float)):
+                    d.last_trip_distance_km = float(mileage)
+                travel = last.get("travelTime")
+                if isinstance(travel, (int, float)):
+                    d.last_trip_duration_min = int(travel)
+                avg_speed = last.get("averageSpeed_kmph")
+                if isinstance(avg_speed, (int, float)):
+                    d.last_trip_avg_speed_kmh = float(avg_speed)
+                avg_fuel = last.get("averageFuelConsumption")
+                if isinstance(avg_fuel, (int, float)):
+                    # Stored as int x10
+                    d.last_trip_avg_fuel_consumption_l_100km = (
+                        float(avg_fuel) / 10.0
+                    )
+                avg_elec = last.get("averageElectricEngineConsumption")
+                if isinstance(avg_elec, (int, float)):
+                    d.last_trip_avg_electric_consumption_kwh_100km = (
+                        float(avg_elec) / 10.0
+                    )
+                ts = last.get("tripEndTimestamp")
+                if isinstance(ts, str):
+                    d.last_trip_timestamp = ts
+            # Recent trips for extra_state_attributes: keep small.
+            recent: list[dict[str, Any]] = []
+            for trip in short[:5]:
+                if not isinstance(trip, dict):
+                    continue
+                recent.append({
+                    "timestamp": trip.get("tripEndTimestamp"),
+                    "distance_km": trip.get("mileage_km"),
+                    "duration_min": trip.get("travelTime"),
+                    "avg_speed_kmh": trip.get("averageSpeed_kmph"),
+                })
+            d.recent_trips = recent
+
+        # ---- longTerm: lifetime cumulative ----
+        long_trips = long_term.get("tripData") if isinstance(long_term, dict) else None
+        if isinstance(long_trips, list) and long_trips:
+            first = long_trips[0]
+            if isinstance(first, dict):
+                lifetime_km = (
+                    first.get("overallMileage_km")
+                    or first.get("mileage_km")
+                )
+                if isinstance(lifetime_km, (int, float)):
+                    d.lifetime_distance_km = float(lifetime_km)
+                lt_fuel = first.get("averageFuelConsumption")
+                if isinstance(lt_fuel, (int, float)):
+                    d.lifetime_avg_fuel_consumption_l_100km = (
+                        float(lt_fuel) / 10.0
+                    )
+                lt_elec = first.get("averageElectricEngineConsumption")
+                if isinstance(lt_elec, (int, float)):
+                    d.lifetime_avg_electric_consumption_kwh_100km = (
+                        float(lt_elec) / 10.0
+                    )
+
     def _parse_status(
         self,
         vin: str,
@@ -1291,11 +1407,17 @@ class VWEUClient(CariadBaseClient):
 
         # ── Measurements ──────────────────────────────────────────────────────
         d.odometer_km = v(raw, "measurements", "odometerStatus", "value", "odometer")
-        d.outside_temp = v(raw, "measurements", "outsideTemperatureStatus", "value", "outsideTemperature_K")
-        # v1.24.2 (audit): safe_float for Kelvin → Celsius. Backend has
-        # historically shipped string Kelvin temps + null on some PHEV
-        # firmwares — bare float() crashed the whole vehicle's poll.
-        outside_k = safe_float(d.outside_temp)
+        # v2.7.0b11 — outside temp ships under different key variants
+        # depending on model year and brand. Try the canonical Cariad
+        # name first, then Audi MY24+ variants observed in user logs.
+        # All values are Kelvin; convert to Celsius after we find one.
+        outside_raw = (
+            v(raw, "measurements", "outsideTemperatureStatus", "value", "outsideTemperature_K")
+            or v(raw, "measurements", "outsideTemperatureStatus", "value", "temperatureOutside_K")
+            or v(raw, "measurements", "temperatureOutsideStatus", "value", "outsideTemperature_K")
+            or v(raw, "measurements", "temperatureOutsideStatus", "value", "temperatureOutside_K")
+        )
+        outside_k = safe_float(outside_raw)
         d.outside_temp = round(outside_k - 273.15, 1) if outside_k is not None else None
 
         bat_min = v(raw, "measurements", "temperatureBatteryStatus", "value", "temperatureHvBatteryMin_K")
@@ -1572,14 +1694,40 @@ class VWEUClient(CariadBaseClient):
                     # alarm perpetual users on a parse blip.
                     pass
 
-        wh_status = v(raw, "climatisation", "windowHeatingStatus", "value", "windowHeatingStatus") or []
-        for wh in wh_status:
-            location = wh.get("windowLocation", "")
-            state = wh.get("windowHeatingState") == "ON"
-            if "front" in location.lower():
-                d.window_heating_front = state
-            elif "rear" in location.lower() or "back" in location.lower():
-                d.window_heating_back = state
+        # v2.7.0b11 — windowHeatingStatus ships under different shapes
+        # depending on brand / firmware. Try canonical nested name,
+        # plus statusList variant, plus direct-array variant. First
+        # non-empty list wins.
+        wh_status = (
+            v(raw, "climatisation", "windowHeatingStatus", "value", "windowHeatingStatus")
+            or v(raw, "climatisation", "windowHeatingStatus", "value", "statusList")
+            or v(raw, "climatisation", "windowHeatingStatus", "value", "windowHeatingStatusList")
+            or v(raw, "climatisation", "windowHeatingStatus", "value")
+            or []
+        )
+        if isinstance(wh_status, list):
+            for wh in wh_status:
+                if not isinstance(wh, dict):
+                    continue
+                location = (
+                    wh.get("windowLocation")
+                    or wh.get("location")
+                    or wh.get("window")
+                    or ""
+                )
+                state_raw = (
+                    wh.get("windowHeatingState")
+                    or wh.get("state")
+                    or wh.get("status")
+                )
+                if not isinstance(state_raw, str) or not isinstance(location, str):
+                    continue
+                state = state_raw.upper() == "ON"
+                loc_low = location.lower()
+                if "front" in loc_low:
+                    d.window_heating_front = state
+                elif "rear" in loc_low or "back" in loc_low:
+                    d.window_heating_back = state
 
         # ── Readiness / online ─────────────────────────────────────────────────
         d.is_online = v(raw, "readiness", "readinessStatus", "value", "connectionState", "isOnline") is True
@@ -1622,6 +1770,27 @@ class VWEUClient(CariadBaseClient):
             d.warning_brakes  = "BRAKE" in warning_types
             d.warning_count   = len(warnings_raw)
             d.warning_active  = len(warnings_raw) > 0
+            # v2.7.0b11 — generic warning surfacer. The hardcoded set
+            # above misses real warnings users care about (the myAudi
+            # email body shows things like "STO-Warning, Please check
+            # towing bracket" which doesn't match any of OIL/ENGINE/
+            # BRAKE/TYR). Pack everything backend reports into a
+            # comma-joined string sensor so the user always sees what
+            # the manufacturer app would show. Each item is
+            # "type: text" when text is present, else "type".
+            messages = []
+            for w in warnings_raw:
+                if not isinstance(w, dict):
+                    continue
+                wtype = (w.get("warningType") or "").strip()
+                wtext = (w.get("text") or w.get("message") or "").strip()
+                if wtype and wtext:
+                    messages.append(f"{wtype}: {wtext}")
+                elif wtype:
+                    messages.append(wtype)
+                elif wtext:
+                    messages.append(wtext)
+            d.warning_messages = ", ".join(messages) if messages else ""
 
         # v2.7.0b10 — oilLevel job, parity with upstream.
         # CARIAD-BFF ships either a discrete status string (most

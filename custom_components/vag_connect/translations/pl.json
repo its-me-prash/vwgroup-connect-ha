@@ -355,6 +355,9 @@
       },
       "climate_ready_at": {
         "name": "Klimat Gotowy O"
+      },
+      "warning_messages": {
+        "name": "Ostrzeżenia pojazdu"
       }
     },
     "binary_sensor": {

@@ -926,6 +926,17 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         state_class=SensorStateClass.MEASUREMENT,
     ),
+    # v2.7.0b11 — comma-joined string of every backend warning.
+    # Surfaces brand-specific warning types (Audi STO/towing-bracket,
+    # etc) that the warning_oil/engine/brake/tyre family of binary
+    # sensors misses. Text-only diagnostic sensor.
+    VagSensorDescription(
+        key="warning_messages",
+        translation_key="warning_messages",
+        data_key="warning_messages",
+        icon="mdi:alert-decagram-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
     # v1.26.0 Welle-6 Feature Backlog (#173) — new sensors from scout reports.
     VagSensorDescription(
         key="secondary_engine_range_km",
