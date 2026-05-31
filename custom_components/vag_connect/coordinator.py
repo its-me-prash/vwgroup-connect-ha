@@ -662,7 +662,19 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         except AuthenticationError as err:
             raise ValueError("invalid_credentials") from err
         except Exception as err:  # noqa: BLE001
-            _LOGGER.error("VAG Connect setup failed: %s", err)
+            # v2.7.2 — never log the raw exception message at ERROR
+            # level. aiohttp.InvalidURL and similar carry the full
+            # request URL in __str__, which on the OAuth callback path
+            # is `weconnect://authenticated#access_token=<JWT>&id_token=
+            # <JWT>&code=<JWT>...`. Those JWTs base64-decode to the
+            # user's email and a working access token. Log type only at
+            # ERROR; route the message to DEBUG for triage.
+            _LOGGER.error(
+                "VAG Connect setup failed: %s "
+                "(message redacted, see DEBUG for details)",
+                type(err).__name__,
+            )
+            _LOGGER.debug("VAG Connect setup failed details: %s", err)
             return False
 
     def _trigger_reauth(self, reason: str) -> None:

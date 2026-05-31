@@ -300,6 +300,26 @@ class CariadBaseClient:
                     "trying next strategy",
                     idx, kind, opts, self._brand.name, err,
                 )
+            except Exception as err:  # noqa: BLE001
+                # v2.7.2 — aiohttp.InvalidURL and similar low-level
+                # errors can carry tokens or full OAuth callback URLs
+                # in their __str__. Catch any non-AuthenticationError
+                # here, log the exception TYPE only (no PII), and
+                # convert to an AuthenticationError so downstream
+                # handlers see a clean error without the raw URL.
+                # Re-raise on the last strategy; otherwise fall through
+                # to the next one like AuthenticationError above.
+                last_err = err
+                _LOGGER.warning(
+                    "Auth strategy #%d (kind=%s opts=%s) raised %s for %s "
+                    "(message redacted to protect tokens)",
+                    idx, kind, opts, type(err).__name__, self._brand.name,
+                )
+                if idx == len(strategies) - 1:
+                    raise AuthenticationError(
+                        f"Auth failed with {type(err).__name__} "
+                        f"(no usable strategy left)"
+                    ) from err
 
     def set_persisted_tokens(self, tokens: TokenSet | None) -> None:
         """v1.19.2 (#118) — inject tokens loaded from HA storage at
