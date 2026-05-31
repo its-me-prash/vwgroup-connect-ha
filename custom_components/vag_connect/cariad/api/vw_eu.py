@@ -34,7 +34,7 @@ _SELECTIVE_STATUS_JOBS = ",".join([
     "lvBattery",
     "measurements",
     # v2.7.0b10 — Audi parity fix. Promoted from _v3_probes.py after
-    # gap audit vs audi_connect_ha confirmed both endpoints ship real
+    # gap audit vs upstream confirmed both endpoints ship real
     # data on the standard /selectivestatus surface, we just never
     # asked for the job.
     "oilLevel",
@@ -216,7 +216,7 @@ class VWEUClient(CariadBaseClient):
         the most recent trip (the audi #113 "aggregate-in-state"
         convention).
 
-        Per-trip fields (verified across audi_connect_ha, audiconnectpy,
+        Per-trip fields (verified across upstream, upstream,
         davidgiga1993/AudiAPI, ioBroker/vw-connect):
         - ``timestamp`` (ISO 8601 UTC) — trip end time
         - ``mileage`` (km) — distance of this trip
@@ -260,7 +260,7 @@ class VWEUClient(CariadBaseClient):
         ``GET /charging-stations/v1/locations``
         (verified live against EU CARIAD-BFF as of 2026-05). The exact
         path varies by client version; we use the POI v1 schema
-        documented by tillsteinbach/CarConnectivity-connector-volkswagen
+        documented by upstream/cc-vw
         v0.10.3 (April 2026).
 
         Defensive: if the backend returns 404 or a non-dict body the
@@ -338,7 +338,7 @@ class VWEUClient(CariadBaseClient):
         # ── carCapturedTimestamp → connection_state (v1.8.12 Multi-Brand) ────
         # CARIAD-BFF returns ``carCapturedTimestamp`` on the .value of every
         # status sub-object — confirmed live in
-        # `robinostlund/volkswagencarnet` issue #921 (ID.4 2025 dump):
+        # `upstream/volkswagencarnet` issue #921 (ID.4 2025 dump):
         #   access.accessStatus.value.carCapturedTimestamp
         #   charging.chargingStatus.value.carCapturedTimestamp
         #   charging.batteryStatus.value.carCapturedTimestamp
@@ -614,10 +614,10 @@ class VWEUClient(CariadBaseClient):
         ``d.fuel_level`` at None — entity stays "unknown".
 
         References:
-          - audi_connect_ha audi_models.py legacy IDS table for the
+          - upstream audi_models.py legacy IDS table for the
             field-IDs ``0x030103000A`` (tank %) + ``0x0301030005``
             (total range km)
-          - tillsteinbach/WeConnect-python — same field-IDs
+          - upstream/weconnect-python — same field-IDs
             confirmed for VW EU MBB stack
         """
         from .._mbb import (  # noqa: PLC0415
@@ -1623,7 +1623,7 @@ class VWEUClient(CariadBaseClient):
             d.warning_count   = len(warnings_raw)
             d.warning_active  = len(warnings_raw) > 0
 
-        # v2.7.0b10 — oilLevel job, parity with audi_connect_ha.
+        # v2.7.0b10 — oilLevel job, parity with upstream.
         # CARIAD-BFF ships either a discrete status string (most
         # common) or a numeric percentage, depending on the model.
         # Surface both fields; the entity layer renders whichever
@@ -1646,7 +1646,7 @@ class VWEUClient(CariadBaseClient):
             if isinstance(oil_pct, (int, float)):
                 d.oil_level_pct = int(oil_pct)
 
-        # v2.7.0b10 — tyrePressure job, parity with audi_connect_ha.
+        # v2.7.0b10 — tyrePressure job, parity with upstream.
         # Backend ships per-corner status + numeric pressure (kPa or bar
         # depending on firmware). Convert kPa->bar when needed (divide by
         # 100) so the sensor unit stays consistent. The warning bool is

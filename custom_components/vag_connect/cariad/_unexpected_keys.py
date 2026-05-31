@@ -1,7 +1,7 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
 """Vehicle Data Scout — detects JSON fields the parser doesn't read.
 
-Mirrors the `tillsteinbach/CarConnectivity-*` "Unexpected Keys found"
+Mirrors the `upstream/cc-*` "Unexpected Keys found"
 pattern that has been our richest source of API findings (CC-seatcupra
 issue #109 with Rainer's CUPRA Born live dump, CC-skoda issue #50 with
 the Kodiaq iV 2026 complete response).
@@ -434,7 +434,7 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # silencer-lag-behind-parser gap. T1 (parsed + entity exists).
             "rateInKmph",
             # v2.4.3 (pre-emptive, 2026-05-27 cross-project sweep) — pycupra
-            # v0.2.31 (WulfgarW, 2026-05-26) added Compressed Natural Gas
+            # v0.2.31 (upstream, 2026-05-26) added Compressed Natural Gas
             # (CNG) instruments for CUPRA Leon TGI / Ibiza TGI variants.
             # We don't have a CUPRA TGI tester live yet but ship the
             # silencer pre-emptively to avoid scout spam when one shows up.

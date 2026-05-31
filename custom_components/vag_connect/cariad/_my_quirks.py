@@ -17,7 +17,7 @@ Examples reported by competitor projects in 2026:
 
 - **Audi Q6 e-tron / A6 e-tron (PPE platform, MY24+)** — backend
   advertises ``parameters`` but the actual response uses a different
-  schema shape entirely. Confirmed by audi_connect_ha #686.
+  schema shape entirely. Confirmed by upstream #686.
 
 ### How this differs from `_capabilities.py`
 
@@ -120,7 +120,7 @@ QUIRKS: list[MYQuirk] = [
         year_min=2024,
         year_max=None,
         suppress_commands=frozenset({"command_engine_start", "command_engine_stop"}),
-        source="audi_connect_ha #711 (2026-03-18) + PPE-platform inference",
+        source="upstream #711 (2026-03-18) + PPE-platform inference",
     ),
 ]
 

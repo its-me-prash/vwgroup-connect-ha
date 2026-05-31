@@ -19,8 +19,6 @@ Phase 2+ (future): lock/unlock SPIN flow, climate, charger, etc.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -147,7 +145,7 @@ class TestMBBURLBuilders:
         assert mbb_brand_segment("unknown") == "VW"
 
     def test_build_mbb_wake_url_audi_de(self):
-        """Verbatim URL pattern from audi_connect_ha audi_services.py:478"""
+        """Verbatim URL pattern from upstream audi_services.py:478"""
         from custom_components.vag_connect.cariad._mbb import build_mbb_wake_url
         url = build_mbb_wake_url(
             read_base="https://msg.volkswagen.de",

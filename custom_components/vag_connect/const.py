@@ -20,7 +20,7 @@ CONF_READ_ONLY                = "read_only_mode"
 # v1.14.0 (#29 + #51 Facelift) — PPE/PPC Climate body conditional.
 # Audi-only option (default False). When True, ``command_start_climate``
 # uses the PPE body shape — ``climatisationMode: "comfort"`` mandatory,
-# ``targetTemperature*`` MUST BE OMITTED (audi_connect_ha PR #644 + #677).
+# ``targetTemperature*`` MUST BE OMITTED (upstream PR #644 + #677).
 # Auto-detection from VIN/model/year is unreliable (no public PPE list);
 # user-overridable until we have a proper detection mechanism.
 CONF_FORCE_PPE_CLIMATE        = "force_ppe_climate"
@@ -88,7 +88,7 @@ BRANDS = {
 
 # Polling interval limits
 # v1.17.0 — defaults raised after community research (pycupra
-# README + WulfgarW/homeassistant-pycupra release notes): the
+# README + upstream/homeassistant-pycupra release notes): the
 # MyCupra/MySeat portal has a per-day API call limit of ~1,500 across
 # the official mobile app + integrations. Default 5 min = 288 polls/day
 # already eats ~20% of the daily budget BEFORE the official app even

@@ -53,7 +53,7 @@ BRAND_VW_EU = BrandConfig(
     redirect_uri="weconnect://authenticated",
     user_agent="Volkswagen/3.51.1-android/14",
     api_base="https://emea.bff.cariad.digital",
-    # scope from volkswagencarnet (robinostlund/volkswagencarnet, MIT) — confirmed working
+    # scope from volkswagencarnet (upstream/volkswagencarnet, MIT) — confirmed working
     scope="openid profile badge cars dealers vin",
     # v2.5.11 — matches atlas profile vw_group_auth_profile.json#brands.vw.package_name.
     # Source: VW WeConnect 3.61.0 APK xapk archive name + ioBroker commit 884269b1.
@@ -64,18 +64,18 @@ BRAND_VW_EU = BrandConfig(
 
 BRAND_AUDI = BrandConfig(
     name="audi",
-    # client_id from audiconnect (arjenvrh/audi_connect_ha, MIT) — confirmed working
+    # client_id from upstream (arjenvrh/upstream, MIT) — confirmed working
     client_id="09b6cbec-cd19-4589-82fd-363dfa8c24da@apps_vw-dilab_com",
     redirect_uri="myaudi:///",
     user_agent="Android/4.31.0 (Build 800341641.root project 'myaudi_android'.ext.buildTime) Android/13",
     api_base="https://emea.bff.cariad.digital",
-    # scope exactly matching audiconnect — no extra "cars"/"dealers" scopes
+    # scope exactly matching upstream — no extra "cars"/"dealers" scopes
     scope=(
         "address profile badge birthdate birthplace nationalIdentifier nationality "
         "profession email vin phone nickname name picture mbb gallery openid"
     ),
     # v2.5.11 — matches atlas profile vw_group_auth_profile.json#brands.audi.package_name.
-    # Source: myAudi 5.4.1 APK archive name + audi_connect_ha source.
+    # Source: myAudi 5.4.1 APK archive name + upstream source.
     android_package_name="de.myaudi.mobile.assistant",
 )
 

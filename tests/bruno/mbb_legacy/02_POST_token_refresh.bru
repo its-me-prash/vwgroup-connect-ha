@@ -29,7 +29,7 @@ docs {
   Erneuert den vwToken ohne neuen IDK-Login. Selbe Endpoint, anderer
   grant_type. Wichtige Subtilität:
 
-  - audi_connect_ha sendet das Field als "token" (nicht "refresh_token")
+  - upstream sendet das Field als "token" (nicht "refresh_token")
     siehe audi_services.py:1043-1066
   - evcc sendet "refresh_token" (Standard OIDC)
   - Beide funktionieren laut Field-Reports

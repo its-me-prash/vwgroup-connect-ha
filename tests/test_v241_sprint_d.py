@@ -232,7 +232,7 @@ class TestOLAUpstreamWatcher:
 
     def test_workflow_fetches_upstream(self) -> None:
         src = _OLA_WATCHER_YML.read_text(encoding="utf-8")
-        assert "tillsteinbach/CarConnectivity-connector-seatcupra" in src
+        assert "upstream/<project>" in src
         assert "my_cupra_session.py" in src
 
     def test_workflow_is_multi_source(self) -> None:
@@ -241,11 +241,11 @@ class TestOLAUpstreamWatcher:
         src = _OLA_WATCHER_YML.read_text(encoding="utf-8")
         # PyCupra is the second source — also affected by the
         # 2026-05-20 OLA enforcement, independent maintainer.
-        assert "WulfgarW/pycupra" in src
-        # daernsinstantfortress is the third source — CUPRA-only,
+        assert "upstream/pycupra" in src
+        # upstream is the third source — CUPRA-only,
         # Cariad-BFF + OLA hybrid architecture, provides extra
         # CUPRA-side vote for stronger consensus.
-        assert "daernsinstantfortress/WeConnect-Cupra-python" in src
+        assert "upstream/WeConnect-Cupra-python" in src
         # Sources dict / per-source mapping must be present.
         assert "SOURCES" in src or "carconnectivity" in src and "pycupra" in src
 

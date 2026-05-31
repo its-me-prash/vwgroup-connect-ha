@@ -99,7 +99,7 @@ python scripts/get_idk_token.py --brand vw --mfa 123456 --bruno
 
 ### 6. X-Client-Id (zwei Wege)
 
-**Easy:** Aus audi_connect_ha hardcoded copy (battle-tested):
+**Easy:** Aus upstream hardcoded copy (battle-tested):
 
 ```
 VW Apps:   77869e21-e30a-4a92-b016-48ab7d3db1d8

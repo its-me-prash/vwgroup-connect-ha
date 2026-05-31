@@ -39,7 +39,7 @@ The MyCupra/MySeat portal limits API calls to ~1,500/day across the official mob
 
 #### Vehicle-deactivated persistent_notification
 
-**Pattern source:** `WulfgarW/homeassistant-pycupra` v0.2.14.
+**Pattern source:** `upstream/homeassistant-pycupra` v0.2.14.
 
 **File modified:** `coordinator.py::_async_remove_stale_devices`.
 
@@ -108,7 +108,7 @@ Outstanding items list:
 
 > *(Note: zwei zusätzliche pycupra research docs — `upstream-pycupra-notes.md` und `pycupra-deep-dive-2026-05-02.md` — wurden post-v1.17.0 vom Maintainer entfernt. Inhalt teilweise konsolidiert in `vag-ha-integration-research.md` und `cupra-bruno-endpoints-2026-05-02.md`.)*
 
-Plus **`docs/upstream-contributions/wulfgar-pycupra-issues.md`** — 8 ready-to-post upstream issue drafts (no AI signature) for `WulfgarW/homeassistant-pycupra`:
+Plus **`docs/upstream-contributions/upstream-pycupra-issues.md`** — 8 ready-to-post upstream issue drafts (no AI signature) for `upstream/homeassistant-pycupra`:
 
 1. async_step_reauth
 2. requests_remaining_today sensor + repair issue
@@ -145,7 +145,7 @@ docs/
     #  Content largely consolidated in vag-ha-integration-research.md
     #  and cupra-bruno-endpoints-2026-05-02.md.)
   upstream-contributions/
-    wulfgar-pycupra-issues.md       (NEW — 8 ready-to-post issue drafts)
+    upstream-pycupra-issues.md       (NEW — 8 ready-to-post issue drafts)
 
 tests/
   test_v1170_datetime_boundaries.py (NEW — 12 year-rollover/DST/leap tests)
@@ -168,7 +168,7 @@ PATCH-Release. Hotfix nach Gerhard's v1.16.0 Test (#53) — climatisation 404 + 
  "error":"Not Found","message":"No static resource v2/vehicles/.../climati..."}
 ```
 
-**Root cause:** OLA backend rejects `POST /v2/vehicles/{vin}/climatisation` — the URL pattern doesn't have a Spring controller mapped. The action ("start"/"stop") must be in the URL path, not the body. Verified against `WulfgarW/pycupra/connection.py` — uses `API_CLIMATER + '/start'` template producing `/v2/vehicles/{vin}/climatisation/start`.
+**Root cause:** OLA backend rejects `POST /v2/vehicles/{vin}/climatisation` — the URL pattern doesn't have a Spring controller mapped. The action ("start"/"stop") must be in the URL path, not the body. Verified against `upstream/pycupra/connection.py` — uses `API_CLIMATER + '/start'` template producing `/v2/vehicles/{vin}/climatisation/start`.
 
 **Fix** (`cariad/api/seat_cupra.py`):
 
@@ -525,7 +525,7 @@ MINOR-Release. Bundle 2 aus `docs/RESEARCH_NOTES_2026-05-02.md`. Drei Audi-spezi
 
 #### #24 Trip Statistics für VW EU + Audi
 
-**Endpoint:** `GET https://emea.bff.cariad.digital/vehicle/v1/vehicles/{vin}/tripstatistics?type={shortTerm|longTerm}` (verified in audi_connect_ha + audiconnectpy + ioBroker/vw-connect, see RESEARCH_NOTES_2026-05-02 §Bundle 2 #24).
+**Endpoint:** `GET https://emea.bff.cariad.digital/vehicle/v1/vehicles/{vin}/tripstatistics?type={shortTerm|longTerm}` (verified in upstream + upstream + ioBroker/vw-connect, see RESEARCH_NOTES_2026-05-02 §Bundle 2 #24).
 
 **Response shape:**
 ```json
@@ -560,7 +560,7 @@ MINOR-Release. Bundle 2 aus `docs/RESEARCH_NOTES_2026-05-02.md`. Drei Audi-spezi
 
 #### #28 Audi ICE Remote Engine Start/Stop
 
-**Source:** arjenvrh/audi_connect_ha PR #717 — confirmed via `gh pr diff 717` (Research Notes §Bundle 2 #28).
+**Source:** arjenvrh/upstream PR #717 — confirmed via `gh pr diff 717` (Research Notes §Bundle 2 #28).
 
 **Endpoints:**
 - `PUT /vehicle/v1/engine/{VIN}/userpromptproof` (S-PIN) → `{"userPromptProof": "..."}` at top-level
@@ -589,7 +589,7 @@ Note: path is `/vehicle/v1/engine/{vin}/...` — NOT `/vehicle/v1/vehicles/{vin}
 
 #### #29 PPE/PPC Climate Body conditional
 
-**Body shape difference (verified from audi_connect_ha PR #644 + #677):**
+**Body shape difference (verified from upstream PR #644 + #677):**
 
 Legacy MQB:
 ```json
@@ -614,7 +614,7 @@ PPE/PPC (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV):
 - `strings.json` + 8 translations — option label + helper text describing PPE eligibility.
 
 **Why user-overridable instead of auto-detected:**
-- audi_connect_ha has `api_level` user-toggle (issues #677, #706 show even that is fragile across vehicles)
+- upstream has `api_level` user-toggle (issues #677, #706 show even that is fragile across vehicles)
 - No public PPE compatibility list — guessing from VIN/model/year would mis-fire
 - Hard Rule #15: "do not endpoint-guess for PPC/PPE — risks Audi account suspension"
 - Body-shape-changes on a known endpoint are safer than endpoint-guessing — server-validated
@@ -1843,7 +1843,7 @@ Wichtig: das Set ist **additiv zur** `condition`-Filterung (`electric`/`combusti
 
 #### Hard Rules eingehalten
 
-- ✅ Nichts spekuliert — alle Pfade sind verifiziert (gegen #90 #91 Live-Daten + bestehende Skoda-Fixtures + audi_connect_ha source).
+- ✅ Nichts spekuliert — alle Pfade sind verifiziert (gegen #90 #91 Live-Daten + bestehende Skoda-Fixtures + upstream source).
 - ✅ Keine bestehenden Tests gebrochen — Backwards-Compat via `range_km`.
 - ✅ Brand-localized Translations in 8 Sprachen.
 - ✅ Strict-Semver — MINOR weil neue Sensoren (3 neue Entitäten).
@@ -2014,7 +2014,7 @@ nicht PATCH. Folgereihen entsprechend verschoben (v1.9.1 Capability-Filter,
 v1.9.2 Defensive Coding Phase 2, v1.9.3 Optimistic Lock/Climate, v1.10.0
 Diagnostics + Smart-Wake + 12V).
 
-**Pattern-Quelle:** `tillsteinbach/CarConnectivity-*` "Unexpected Keys found"
+**Pattern-Quelle:** `upstream/cc-*` "Unexpected Keys found"
 War unsere ergiebigste API-Erkenntnisquelle (CC-seatcupra #109 Rainer's CUPRA Born,
 CC-skoda #50 Kodiaq iV 2026 Live-Dump). Wir bauen das gleiche Pattern in unsere
 Integration ein — plus Error-Sammlung — und senken die Hürde von „Issue selbst
@@ -2225,7 +2225,7 @@ Multi-Brand Connection-State**.
 
 **Methodik:** vor Implementation **3 parallele Recherche-Agents** losgeschickt
 (CC-skoda Issues, myskoda Issues + recent merged PRs, volkswagencarnet
-Issues + PRs). Plus laufender Agent für audi_connect_ha. Erkenntnisse alle
+Issues + PRs). Plus laufender Agent für upstream. Erkenntnisse alle
 verifiziert gegen echte Live-API-Responses (Hard Rule #8 — keine Spekulation).
 
 **Bestätigung aus volkswagencarnet Issue #921 (ID.4 2025 Live-Dump):**
@@ -2295,9 +2295,9 @@ implementiert exakt dieselbe Logik intern (ältere Events ignorieren).
 Wir machen das gleiche, exposen aber als User-facing Sensor.
 
 **Quellen** (verifiziert):
-- robinostlund/volkswagencarnet Issue #921 (ID.4 2025), #940 (12V),
+- upstream/volkswagencarnet Issue #921 (ID.4 2025), #940 (12V),
   PRs #301 (Readiness), #307, #310, #314, #316/#317
-- tillsteinbach/CC-skoda Issue #50, CC-seatcupra #109
+- upstream/<project> Issue #50, CC-seatcupra #109
 - skodaconnect/myskoda PR #536, #565
 
 ## [1.8.11] - 2026-04-29
@@ -2306,7 +2306,7 @@ Wir machen das gleiche, exposen aber als User-facing Sensor.
 
 Schließt **#54 (GitHobi)** "Standby vs Offline" und integriert die wichtigsten
 Live-API-Erkenntnisse aus dem Kodiaq iV 2026 Komplettdump in
-`tillsteinbach/CarConnectivity-connector-skoda` Issue **#50**. Plus: PRs aus
+`upstream/cc-skoda` Issue **#50**. Plus: PRs aus
 `skodaconnect/myskoda` (#503, #536, #565) wurden ausgewertet — **myskoda PR #536
 fährt GENAU dieselbe `carCapturedTimestamp`-Strategie wie unsere v1.8.11**, was
 unseren Ansatz unabhängig bestätigt.
@@ -2379,12 +2379,12 @@ Plus neuer helper `_url_routing_client(by_path)` für saubere Multi-Endpoint-Moc
 - Token-Hardening / 429-Backoff → bereits in v1.8.7 Defensive Pass abgedeckt
 
 **Quellen** (verifiziert während Recherche):
-- `tillsteinbach/CarConnectivity-connector-skoda` Issue #50 (Kodiaq iV 2026
+- `upstream/cc-skoda` Issue #50 (Kodiaq iV 2026
   Live-Dump), #44, #23, #24, #8, #41
 - `skodaconnect/myskoda` Issue #503, #461, #495, #458, #416, #237, #207
 - `skodaconnect/myskoda` PRs #536 (Pattern-Bestätigung), #565
   (Optional fields), #537 (MY26 Capabilities)
-- `tillsteinbach/CarConnectivity-connector-skoda` PR #36 (Maintenance fields)
+- `upstream/cc-skoda` PR #36 (Maintenance fields)
 
 ## [1.8.10] - 2026-04-29
 
@@ -2484,7 +2484,7 @@ Fenster-, Kofferraum-, Motorhauben- und Schiebedach-Entities blieben
 permanent leer.
 
 **Methodik (wichtig):** Wo möglich nehmen wir Field-Namen aus echten
-Live-API-Responses (verifiziert via `tillsteinbach/CarConnectivity-connector-seatcupra`
+Live-API-Responses (verifiziert via `upstream/cc-seatcupra`
 Issues #5, #8, #18, #21, #50, #51, #109) und stellen sie an die Spitze der
 `v(...) or v(...) or ...` Pfad-Listen. Die alten geratenen Pfade bleiben als
 defensiver Fallback.
@@ -2492,7 +2492,7 @@ defensiver Fallback.
 #### `cariad/api/seat_cupra.py` — `_parse_status` Status-Block neu geschrieben
 
 **Doors / Windows / Trunk / Hood / Sunroof** (verifiziert gegen
-`WulfgarW/pycupra/vehicle.py` ~Z. 3100-3325):
+`upstream/pycupra/vehicle.py` ~Z. 3100-3325):
 
 - **Per-Door:** `status.doors.{frontLeft,frontRight,rearLeft,rearRight}.{locked,open}`
   → `doors_individual` dict + abgeleitete `doors_open` und `doors_locked` aggregates
@@ -2603,7 +2603,7 @@ Bug-fix bundle for Gerhard's 19 missing entities (CUPRA Born) and all
 SEAT/CUPRA models. Pre-v1.8.9 read `/v2/vehicles/{vin}/status` using
 CARIAD-BFF-style flat field names that don't exist on the OLA backend.
 
-**Methodology:** real-world API field names (verified via tillsteinbach
+**Methodology:** real-world API field names (verified via upstream
 `CarConnectivity-connector-seatcupra` issues #5, #8, #18, #21, #50, #51,
 #109) are placed at the head of `v(...) or v(...) or ...` chains. Old
 inferred paths kept as defensive fallback.
@@ -2751,7 +2751,7 @@ fallback and masked a backend hiccup as an endpoint mismatch).
 
 Auswertung der unabhängigen Multi-Source-Audit (`docs/AUDIT_2026-04-29.md`):
 **Sechs von sechs untersuchten Reference-Repos** (we_connect_id, myskoda,
-audi_connect_ha, pycupra, volkswagencarnet, CarConnectivity-Connectors)
+upstream, pycupra, volkswagencarnet, CarConnectivity-Connectors)
 haben dieselben Stabilitätsprobleme dokumentiert. v1.8.7 schließt vier
 davon zentral statt punktuell pro API-Client.
 
@@ -2779,7 +2779,7 @@ davon zentral statt punktuell pro API-Client.
   reauthenticate")` raised; der Coordinator triggert daraufhin den
   HA-Reauth-Flow statt weiter zu loopen. Verhindert das Spirale-Pattern
   aus `skodaconnect/myskoda` #976 und
-  `robinostlund/homeassistant-volkswagencarnet` #683, bei dem das
+  `upstream/homeassistant-volkswagencarnet` #683, bei dem das
   Backend nach wiederholten Login-Versuchen die IP / das Konto temporär
   sperrt.
 
@@ -2827,7 +2827,7 @@ davon zentral statt punktuell pro API-Client.
 
 Synthesis of the independent multi-source audit
 (`docs/AUDIT_2026-04-29.md`): **six out of six reference repos**
-investigated (we_connect_id, myskoda, audi_connect_ha, pycupra,
+investigated (we_connect_id, myskoda, upstream, pycupra,
 volkswagencarnet, CarConnectivity connectors) have documented the same
 stability issues. v1.8.7 closes four of them centrally instead of
 per-API-client.
@@ -2856,7 +2856,7 @@ per-API-client.
   reauthenticate")`; the coordinator then triggers the HA reauth flow
   instead of looping. Prevents the spiral pattern from
   `skodaconnect/myskoda` #976 and
-  `robinostlund/homeassistant-volkswagencarnet` #683, where the backend
+  `upstream/homeassistant-volkswagencarnet` #683, where the backend
   temporarily bans the IP / locks the account after repeated login
   attempts.
 

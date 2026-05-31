@@ -11,7 +11,6 @@ Closes the bug-class that hit:
 
 from __future__ import annotations
 
-import pytest
 
 from custom_components.vag_connect.cariad._util import safe_get
 

@@ -61,12 +61,12 @@ _CARIAD_TOKEN_URL = "https://emea.bff.cariad.digital/auth/v1/idk/oidc/token"
 # ``x-qmauth`` HMAC-SHA256 header on both ``authorization_code`` and
 # ``refresh_token`` grants. Values rotated upstream 2026-05-28 and
 # captured by evcc PR #30292 (MIT) — cross-verified against
-# arjenvrh/audi_connect_ha (MIT) and TA2k/ioBroker.vw-connect.
+# arjenvrh/upstream (MIT) and upstream/ioBroker.vw-connect.
 # Format: ``v1:<qmClientId>:<hmac_sha256(qmSecret, ts_hundred_seconds)>``
 #
 # v2.5.7 R2 — keep the PRIOR rotation pair as a fallback. ioBroker's
 # pattern: try current first, then try prior on 4xx. Reduces blast
-# radius when VW re-rotates while we wait for evcc/audi_connect_ha to
+# radius when VW re-rotates while we wait for evcc/upstream to
 # extract the new values via live testing. Phase 0 / Path 2.5 confirmed
 # we cannot extract these from APK static analysis.
 _QM_CLIENT_ID = "01da27b0"
@@ -120,7 +120,7 @@ def _cariad_token_headers(
     """Return the header set for the CARIAD IDK token endpoint.
 
     v2.7.0b2 — DEFAULT FLIPPED to the 5-header set that
-    audi_connect_ha has used in production since 2026-05-28.
+    upstream has used in production since 2026-05-28.
     Background: the v2.5.4 introduction of the 3-header assertion
     trio (``x-platform``, ``x-android-package-name``,
     ``x-assertion``) was a defensive "mimic the official app"
@@ -137,7 +137,7 @@ def _cariad_token_headers(
     triggers the assertion check and fails; OMITTING the header
     entirely skips the check and the request passes.
 
-    The 5-header set matches audi_connect_ha v1.19.2+ which is
+    The 5-header set matches upstream v1.19.2+ which is
     confirmed working for many Audi users. v2.7.0b2 adopts it as
     default. Callers that need the 8-header superset (e.g. for
     future debugging) can pass ``include_assertion=True``.
@@ -477,7 +477,7 @@ class IDKAuth:
         # `action=default` form field on the credential POST. Without it
         # the POST silently routes to identifier-first re-prompt rather
         # than performing the password check. Matches upstream
-        # volkswagencarnet#333 + tillsteinbach/CarConnectivity-connector-
+        # volkswagencarnet#333 + upstream/cc-connector-
         # volkswagen#109 behaviour.
         if hybrid_full:
             login_form["action"] = "default"
@@ -797,9 +797,9 @@ class IDKAuth:
         verifier: str,
         mbb_mode: bool = False,
     ) -> TokenSet:
-        """Legacy signin-service flow — ported 1:1 from audiconnect (arjenvrh, MIT).
+        """Legacy signin-service flow — ported 1:1 from upstream (arjenvrh, MIT).
 
-        audiconnect approach (confirmed working):
+        upstream approach (confirmed working):
           1. Parse hidden form fields + form action from authorize page
           2. POST email with ALL step1 fields + cookies from step1 GET
           3. Extract hmac from JavaScript in response (JS-rendered, not in form)
@@ -826,10 +826,10 @@ class IDKAuth:
             csrf1.form_action or f"{self._signin_base}/{self._signin_client_id}/login/identifier",
         )
 
-        # audiconnect: submit_data starts with ALL step1 hidden fields + email
+        # upstream: submit_data starts with ALL step1 hidden fields + email
         submit_data: dict[str, str] = {**csrf1.fields, "email": email}
 
-        # Step 2 — POST email (audiconnect: cookies=step1_cookies, allow_redirects=True)
+        # Step 2 — POST email (upstream: cookies=step1_cookies, allow_redirects=True)
         _LOGGER.debug("IDK legacy: posting email to %s", email_url[:100])
         async with self._session.post(
             email_url,
@@ -842,11 +842,11 @@ class IDKAuth:
                 )
             html2 = await resp.text()
 
-        # Step 3 — extract hmac from JavaScript (audiconnect pattern)
+        # Step 3 — extract hmac from JavaScript (upstream pattern)
         # "new HTML response uses JS to build form — extract hmac from embedded JS"
         hmac_matches = re.findall(r'"hmac"\s*:\s*"([0-9a-fA-F]+)"', html2)
         if hmac_matches:
-            # audiconnect: UPDATE submit_data with new hmac, keep _csrf+relayState from step1
+            # upstream: UPDATE submit_data with new hmac, keep _csrf+relayState from step1
             submit_data["hmac"] = hmac_matches[0]
             # Password URL: replace "identifier" with "authenticate" in email_url
             pw_url = email_url.replace("identifier", "authenticate")
@@ -873,7 +873,7 @@ class IDKAuth:
 
         submit_data["password"] = password
 
-        # Step 4 — POST password (audiconnect: allow_redirects=False, manual redirects)
+        # Step 4 — POST password (upstream: allow_redirects=False, manual redirects)
         _LOGGER.debug(
             "IDK legacy: posting password to %s fields=%s",
             pw_url[:100], list(submit_data.keys()),
@@ -928,7 +928,7 @@ class IDKAuth:
                 "website, accept any pending agreements, then retry."
             )
 
-        # Step 5 — follow redirect chain (audiconnect: 3 explicit GETs)
+        # Step 5 — follow redirect chain (upstream: 3 explicit GETs)
         prefix = self._brand.redirect_uri.split("://")[0] + "://"
         ref = pw_loc
         for hop in range(10):
@@ -1559,7 +1559,7 @@ class IDKAuth:
         BFF endpoint at the Azure WAF layer on 2026-05-28. Audi + VW EU
         now use the OIDC-style ``/auth/v1/idk/oidc/token`` replacement.
         Cross-references: evcc PR #30277 + #30292 (MIT),
-        volkswagencarnet PR #331, TA2k/ioBroker.vw-connect.
+        volkswagencarnet PR #331, upstream/ioBroker.vw-connect.
         """
         if self._token_url_override:
             return self._token_url_override

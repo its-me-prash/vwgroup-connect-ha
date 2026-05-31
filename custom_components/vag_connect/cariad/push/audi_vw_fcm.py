@@ -33,7 +33,7 @@ Three pieces (analog to v1.18.0 Skoda MQTT + v1.19.0 CUPRA/SEAT FCM):
 2. **Cariad notification subscription** — POST FCM token to Cariad's
    notification-registration endpoint (TBD live-test, expected at
    ``mal-1a.prd.ece.vwg-connect.com/api/notification/...``). Reference:
-   audi_connect_ha for the endpoint pattern.
+   upstream for the endpoint pattern.
 
 3. **Coordinator callback** — each push event decoded into
    ``PushUpdateEvent`` and forwarded via ``on_event`` callback. The
@@ -59,7 +59,7 @@ connection code is **lazy-imported** + stubbed.
 Live activation requires:
 - Audi/VW owner with active Connect+ subscription (live tester)
 - Verified Cariad Firebase project ID + sender_id
-- Confirmed notification-subscription endpoint URL (audi_connect_ha
+- Confirmed notification-subscription endpoint URL (upstream
   reference, may have changed)
 - Verified push-event payload schema
 
@@ -69,8 +69,8 @@ confirms.
 
 ### References
 
-- audiconnect/audi_connect_ha: notification subscription patterns
-- WulfgarW/homeassistant-pycupra: FCM register flow (similar lib)
+- upstream/upstream: notification subscription patterns
+- upstream/homeassistant-pycupra: FCM register flow (similar lib)
 - skodaconnect/myskoda PR #566: TOTP auth pattern (for MBB-side FCM)
 - User-report 2026-05-07: myAudi App push screenshots showing
   "Ver-/Entriegeln: Audi S6 Avant wurde verriegelt" — the kind of

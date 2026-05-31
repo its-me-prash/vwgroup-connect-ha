@@ -99,8 +99,8 @@ HTTP 403 dump" to "morning CI PR shows the rotation".
 - [evcc PR #30277](https://github.com/evcc-io/evcc/pull/30277) — URL migration (Go, MIT, 2026-05-28T06:28Z)
 - [evcc PR #30292](https://github.com/evcc-io/evcc/pull/30292) — qmauth rotation + assertion headers (Go, MIT, 2026-05-28T12:13Z)
 - volkswagencarnet PR #331 (Python, MIT) — same URL migration
-- TA2k/ioBroker.vw-connect commit 61496dc00 (Node, MIT)
-- audi_connect_ha — uses OpenID-Discovery (`/login/v1/idk/openid-configuration`) instead of hardcoded URLs, which would have auto-followed the migration if the discovery endpoint itself hadn't also been WAF-walled
+- upstream/ioBroker.vw-connect commit 61496dc00 (Node, MIT)
+- upstream — uses OpenID-Discovery (`/login/v1/idk/openid-configuration`) instead of hardcoded URLs, which would have auto-followed the migration if the discovery endpoint itself hadn't also been WAF-walled
 - `_v3.0-artifact-mining-plan.md` — predecessor doc that scoped Phases A.1–A.4
 
 ---

@@ -377,7 +377,7 @@ def compute_connection_state(
         VW EU CARIAD-BFF nests deeper than Škoda mysmob:
         ``selectivestatus`` returns
         ``{access: {accessStatus: {value: {carCapturedTimestamp: ...}}}}``
-        verified live in `robinostlund/volkswagencarnet` issue #921.
+        verified live in `upstream/volkswagencarnet` issue #921.
         Škoda mysmob returns the timestamp at top-level
         ``{carCapturedTimestamp: ..., ...}``. SEAT/CUPRA OLA mostly
         top-level too. The recursive walk handles all three without

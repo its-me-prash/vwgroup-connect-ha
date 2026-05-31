@@ -8,7 +8,7 @@ PHEV1. The gasoline tank info MUST be exposed somewhere; we just need to
 find which endpoint/job/parameter returns it.
 
 Tests:
-  1. Extra job types audi_connect_ha uses (lvBattery, oilLevel, etc.)
+  1. Extra job types upstream uses (lvBattery, oilLevel, etc.)
   2. selectivestatus v2 with various actionIds
   3. Alternative fuel-related endpoints
   4. MBB charger endpoint with Cariad token (worth retrying)
@@ -69,7 +69,7 @@ def _read_vin() -> str:
 _BASE = "https://emea.bff.cariad.digital"
 
 
-# Extra jobs from audi_connect_ha (not yet tested)
+# Extra jobs from upstream (not yet tested)
 _NEW_JOBS = [
     "activeVentilation",
     "batteryChargingCare",
@@ -150,8 +150,8 @@ async def main():
             "Accept-Language": "de-de",
         }
 
-        # === A. Extra audi_connect_ha jobs ===
-        print("\n--- A. Extra job types from audi_connect_ha ---\n")
+        # === A. Extra upstream jobs ===
+        print("\n--- A. Extra job types from upstream ---\n")
         for job in _NEW_JOBS:
             await _try(
                 session,

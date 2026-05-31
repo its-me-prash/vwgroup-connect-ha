@@ -232,7 +232,7 @@ class VehicleImageFetcher:
     def _parse_response(data: dict[str, Any]) -> dict[str, VehicleImageData]:
         """Extract VehicleImageData per VIN from GraphQL response.
 
-        v1.25.0 PR-B (Audit Agent C, audi_connect_ha #709 lesson):
+        v1.25.0 PR-B (Audit Agent C, upstream #709 lesson):
         PPC / PPE platform vehicles (Audi Q5 PPC 2025+, Q6/A6 PPE) can
         return ``"errors": [{"path": ["userVehicles", N, "vehicle",
         "core"], "extensions": {"code": "INTERNAL_SERVER_ERROR"}}]``

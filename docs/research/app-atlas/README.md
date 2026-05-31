@@ -12,7 +12,7 @@ Every reverse-engineering project today is **brand-siloed**:
 - PyCupra only knows CUPRA
 - mitch-dc only knows VW EU
 - volkswagencarnet covers VW + Audi but is legacy
-- audi_connect_ha only knows Audi
+- upstream only knows Audi
 
 Nobody systematically asks **"does the Audi app talk to OLA?"** or
 **"is VW silently consolidating backends?"** This atlas fills that

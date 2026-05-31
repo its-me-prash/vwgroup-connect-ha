@@ -18,11 +18,8 @@ Three groups:
 
 from __future__ import annotations
 
-import asyncio
 import logging
-from unittest.mock import AsyncMock, MagicMock
 
-import pytest
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -192,7 +189,6 @@ class TestParserHardening:
         """myskoda #503 — backend shipped ``"12.5"`` for the remaining-
         minutes field once. Pre-1.10.1 raised ValueError."""
         from custom_components.vag_connect.cariad.api.skoda import SkodaClient
-        from custom_components.vag_connect.cariad.models import VehicleData
 
         client = SkodaClient.__new__(SkodaClient)
 

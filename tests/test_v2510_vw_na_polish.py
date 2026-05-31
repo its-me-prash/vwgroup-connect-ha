@@ -19,7 +19,6 @@ Three patches:
 
 from __future__ import annotations
 
-import pytest
 
 
 # ── VW NA last_seen_at parser ──────────────────────────────────────────────

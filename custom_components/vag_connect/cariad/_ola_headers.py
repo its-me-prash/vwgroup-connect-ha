@@ -54,7 +54,7 @@ from __future__ import annotations
 
 # v2.4.1 (2026-05-25) — latest known-good values mirroring CarConnectivity
 # v0.6.3's ``my_cupra_session.py``. Source of truth for upstream-watcher
-# CI diff: https://github.com/tillsteinbach/CarConnectivity-connector-
+# CI diff: https://github.com/upstream/cc-connector-
 # seatcupra/blob/main/src/carconnectivity_connectors/seatcupra/auth/
 # my_cupra_session.py
 _OLA_HEADERS_BY_BRAND: dict[str, dict[str, str]] = {

@@ -1,11 +1,11 @@
-# Upstream Contribution Drafts — WulfgarW/homeassistant-pycupra
+# Upstream Contribution Drafts — upstream/homeassistant-pycupra
 
 > **Purpose:** 8 ready-to-post issues / feature requests for the
 > upstream pycupra HA integration, distilled from anonymized
 > community observations + public release notes.
 >
 > **Usage:** Copy-paste each section as a new GitHub issue at
-> `https://github.com/WulfgarW/homeassistant-pycupra/issues/new`.
+> `https://github.com/upstream/homeassistant-pycupra/issues/new`.
 > No AI/automation attribution included — these are framed as your
 > own constructive feedback to the maintainer.
 >
@@ -444,7 +444,7 @@ privacy setting:
 
 ## How to use these drafts
 
-1. Open https://github.com/WulfgarW/homeassistant-pycupra/issues/new
+1. Open https://github.com/upstream/homeassistant-pycupra/issues/new
 2. Copy a section (Issue 1 through 8) — title to the GitHub title
    field, body to the body field
 3. Adjust wording if you'd like a different tone

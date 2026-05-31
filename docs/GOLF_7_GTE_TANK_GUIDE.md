@@ -96,7 +96,7 @@ Wenn HTTP success aber field absent → das Auto publisht `0x030103000A` einfach
 
 **Alternative-Wege wenn MBB tot ist:**
 1. **OBD-II Dongle** (OBDLink MX+ ~80€): HA `obd` Integration → PID `0x2F` (fuel level). 100% zuverlässig weil bypasst die OCU komplett.
-2. **CarConnectivity-connector-volkswagen** ([tillsteinbach](https://github.com/tillsteinbach/CarConnectivity-connector-volkswagen)): debug-log dump dort posten — Till maintains die kanonische "what does this VIN actually publish" reverse-engineering ledger.
+2. **CarConnectivity-connector-volkswagen** ([upstream](https://github.com/upstream/cc-vw)): debug-log dump dort posten — Till maintains die kanonische "what does this VIN actually publish" reverse-engineering ledger.
 3. **EU Data Act portal** (live seit Sep 2025): Cariad muss dir auf Anfrage CSV-Export deiner raw vehicle data geben. Manuell alle paar Wochen, kein real-time API.
 
 ## Dem Maintainer melden (so wird's noch besser)
@@ -121,5 +121,5 @@ Result: ✅ tank_pct gefüllt mit 60% nach 12min wait
 
 - v1.21.0 Phase 1 (wake-side MBB fallback): commit `f247d2d`
 - v1.25.0 PR-G (read-side MBB VSR Phase 2): PR [#172](https://github.com/its-me-prash/vag-connect-ha/pull/172), commit `9fd79f2`
-- MBB endpoint-catalog reference: `cariad/_mbb.py` module docstring + `audiconnect/audi_connect_ha audi_models.py` legacy IDS table
+- MBB endpoint-catalog reference: `cariad/_mbb.py` module docstring + `upstream/upstream audi_models.py` legacy IDS table
 - Golf 7 GTE Range fix (PHEV detection) v1.11.1: closed [#96](https://github.com/its-me-prash/vag-connect-ha/issues/96)

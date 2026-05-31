@@ -20,7 +20,7 @@ B8 2015+, etc.) still answer on the **legacy MBB stack**:
 - Per-VIN setter base: always `https://mal-1a.prd.ece.vwg-connect.com`
 - Path pattern: `{readBase}/fs-car/bs/{service}/v1/{Brand}/{country}/vehicles/{vin}/...`
 
-Reference: ``audiconnect/audi_connect_ha`` `audi_services.py` (lines
+Reference: ``upstream/upstream`` `audi_services.py` (lines
 130–910) and `_fill_home_region` (line 372). MIT-licensed; endpoint
 catalog adopted with attribution in `NOTICE.md`.
 
@@ -65,7 +65,7 @@ _LOGGER = logging.getLogger(__name__)
 MBB_SETTER_BASE = "https://mal-1a.prd.ece.vwg-connect.com"
 
 # Default reader base — used as fallback when discovery fails.
-# audi_connect_ha + volkswagencarnet historical default.
+# upstream + volkswagencarnet historical default.
 MBB_DEFAULT_READ_BASE = "https://msg.volkswagen.de"
 
 # Brand prefix in URL path. Maps our brand-id to the segment that
@@ -183,7 +183,7 @@ def build_mbb_wake_url(read_base: str, brand: str, country: str, vin: str) -> st
     """Build the MBB VSR (Vehicle Status Refresh / Wake) URL.
 
     Pattern: ``{readBase}/fs-car/bs/vsr/v1/{Brand}/{country}/vehicles/{vin}/requests``
-    Verified against audi_connect_ha audi_services.py (lines 478-510).
+    Verified against upstream audi_services.py (lines 478-510).
 
     A POST to this URL queues a wake/refresh request; backend returns
     a request-id that can be polled via the same URL + ``/requests/{id}/jobstatus``.
@@ -197,7 +197,7 @@ def build_mbb_wake_url(read_base: str, brand: str, country: str, vin: str) -> st
 # v1.25.0 PR-G: MBB VSR Phase 2 read-side — Golf 7 GTE Tank-Level
 # ─────────────────────────────────────────────────────────────────────────────
 
-# MBB VSR (Vehicle Status Report) field IDs from audi_connect_ha
+# MBB VSR (Vehicle Status Report) field IDs from upstream
 # audi_models.py legacy IDS table. These IDs are guaranteed-stable
 # across all Car-Net-era VAG vehicles (2010–2020 MIB1/MIB2/MIB3 OCUs):
 #
@@ -206,8 +206,8 @@ def build_mbb_wake_url(read_base: str, brand: str, country: str, vin: str) -> st
 #   0x02040C0001 — ADBLUE_RANGE (km)
 #
 # Verified against:
-# - audiconnect/audi_connect_ha audi_models.py
-# - tillsteinbach/WeConnect-python (uses same field-ID table)
+# - upstream/upstream audi_models.py
+# - upstream/weconnect-python (uses same field-ID table)
 #
 # Used by Golf 7 GTE PHEV + similar pre-PPE/MEB vehicles where the
 # Cariad-BFF gateway returns ``fuelStatus.rangeStatus = {error: ...}``
@@ -224,7 +224,7 @@ def build_mbb_vsr_status_url(
     """Build the MBB VSR status-read URL (Phase 2 read-side).
 
     Pattern: ``{readBase}/fs-car/bs/vsr/v1/{Brand}/{country}/vehicles/{vin}/status``
-    Verified against audi_connect_ha + WeConnect-python references.
+    Verified against upstream + WeConnect-python references.
 
     Returns JSON shape::
 

@@ -3,7 +3,7 @@
 
 Backstory: when VW migrated the CARIAD token endpoint on 2026-05-28
 (``/login/v1/idk/token`` → ``/auth/v1/idk/oidc/token``), the
-``audi_connect_ha`` integration noticed the change WITHIN HOURS — not
+``upstream`` integration noticed the change WITHIN HOURS — not
 because their devs found it on GitHub, but because the official myAudi
 Android app already advertised the new URL in its **market-config CDN**.
 The integration just had to read what the app was already telling it.
@@ -236,7 +236,7 @@ def derive_token_url_from_market_config(market_cfg: dict[str, str]) -> str | Non
 
     The market-config exposes the ``openid-configuration`` URL — we
     derive the token-endpoint URL by string-replacing the discovery
-    suffix. This pattern matches what audiconnect's audi_services.py
+    suffix. This pattern matches what upstream's audi_services.py
     does (fall back to known URL shape if OIDC fetch itself isn't
     available).
 

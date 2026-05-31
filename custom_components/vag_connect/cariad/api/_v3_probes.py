@@ -15,11 +15,11 @@ behaviour change for end users; pure information-harvest for prioritising
 v3.0 entity exposure.
 
 **Endpoint sources** (all public open-source, MIT/Apache):
-- ``WulfgarW/pycupra`` (MIT) — OLA v1/v2 paths for SEAT + CUPRA
+- ``upstream/pycupra`` (MIT) — OLA v1/v2 paths for SEAT + CUPRA
 - ``skodaconnect/myskoda`` (Apache-2.0) — mysmob extended endpoints
-- ``tillsteinbach/CarConnectivity-connector-volkswagen`` (Apache-2.0) — CARIAD-BFF capability probes
-- ``robinostlund/volkswagencarnet`` (MIT) — `oilLevel`, `tyrePressure`, `parkingTime` field paths
-- ``arjenvrh/audi_connect_ha`` (MIT) — Audi-specific MBB measurements
+- ``upstream/cc-vw`` (Apache-2.0) — CARIAD-BFF capability probes
+- ``upstream/volkswagencarnet`` (MIT) — `oilLevel`, `tyrePressure`, `parkingTime` field paths
+- ``arjenvrh/upstream`` (MIT) — Audi-specific MBB measurements
 - ``evcc-io/evcc`` (MIT) — multi-brand auth + discovery hints
 - audit cross-reference: ``docs/research/audit/v3.0-competitor-field-audit``
 
@@ -174,7 +174,7 @@ _MYSMOB_PROBES: tuple[V3Probe, ...] = (
 
 # ── CARIAD-BFF (VW EU + Audi) ───────────────────────────────────────────────
 # `emea.bff.cariad.digital`. These are documented in CarConnectivity-vw
-# (Apache-2.0) and audi_connect_ha (MIT) but not currently in our
+# (Apache-2.0) and upstream (MIT) but not currently in our
 # production call-set. Most expand the v3.0 capability matrix:
 # oil-level, tyre-pressure, parking-time, auxiliary-heating, charge
 # contracts/subscriptions.

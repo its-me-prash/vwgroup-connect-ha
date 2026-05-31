@@ -47,13 +47,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ## [2.2.1] — 2026-05-17 — Phase 8 "alles parsen statt silencen" + Cross-Brand Expansion
 
 - Cross-Brand App Atlas
-- OLA watcher gains daernsinstantfortress as 3rd consensus source
+- OLA watcher gains upstream as 3rd consensus source
 - App Atlas covers all 7 brands
 
 ## [2.7.0b10] - 2026-05-31
 
 ### Added
-- `oilLevel` job in the CARIAD-BFF selectivestatus request. New binary_sensor `oil_level_warning` (Oil Level / Ölstand). Closes "Oil Level" Unbekannt gap vs audi_connect_ha.
+- `oilLevel` job in the CARIAD-BFF selectivestatus request. New binary_sensor `oil_level_warning` (Oil Level / Ölstand). Closes "Oil Level" Unbekannt gap vs upstream.
 - `tyrePressure` job in the same request. Populates the existing `tire_pressure_*_bar` sensors and `tire_pressure_warning` binary_sensor. Closes per-wheel pressure Unbekannt gap.
 - `auxiliaryHeating` job for future Webasto / standheizung parity.
 
@@ -114,7 +114,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [2.7.0b2] — 2026-05-31 — "Audi token-headers fix (beta)"
 
-- Audi email+password login: dropped the dummy x-assertion / x-platform / x-android-package-name trio from token requests — VW backend now rejects the dummy value and lets through requests that omit the headers entirely. Matches audi_connect_ha v1.19.2+ behaviour.
+- Audi email+password login: dropped the dummy x-assertion / x-platform / x-android-package-name trio from token requests — VW backend now rejects the dummy value and lets through requests that omit the headers entirely. Matches upstream v1.19.2+ behaviour.
 
 ## [2.7.0b1] — 2026-05-31 — "Browser-Login UI (beta)"
 
@@ -443,7 +443,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ## [1.17.1] - 2026-05-02 🚙🌬️🔥 Bruno Quick-Wins Bundle / Bruno Quick-Wins (Window heating fix + Ventilation + Aux Heating + Battery Care + Navigation #36 + 2× A/B-fallback)
 
 - `Timwun/Cupra-WeConnect-Bruno-Collection`
-- `WulfgarW/pycupra`
+- `upstream/pycupra`
 - 🐛 Bug-Fixes / Bug-Fixes
 
 ## [1.17.0] - 2026-05-02 🛡️📚 Operational Hardening Bundle / Operational Hardening (Quota-protective polling + FAQ + HACS Checklist + Year-rollover Tests + Deactivated Notification)

@@ -79,7 +79,7 @@ _STALE_CACHE_WINDOW = timedelta(hours=6)
 # per day (typically 3-5 depending on backend) to protect the 12V
 # battery. After the limit, the car silently ignores wake requests until
 # midnight (UTC). Soft-cap at 3 to leave headroom for emergencies + match
-# what tillsteinbach CC-* maintainers documented as safe for their
+# what upstream CC-* maintainers documented as safe for their
 # backends. Reset is per-VIN at UTC midnight.
 _WAKE_BUDGET_PER_DAY = 3
 
@@ -107,7 +107,7 @@ def _parse_trip_statistics(
     Both endpoints share the same ``{tripDataList: {tripData: [...]}}``
     shape — sorted by ``overallMileage`` desc, ``[0]`` is the most
     recent. Consumption fields come back as integers ×10 (sources:
-    audi_connect_ha audi_services.py + audiconnectpy + ioBroker/vw-connect)
+    upstream audi_services.py + upstream + ioBroker/vw-connect)
     so we divide by 10 to get human numbers (l/100km, kWh/100km).
 
     Pure function — safe to test in isolation, no I/O, no logging.
@@ -1861,7 +1861,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         ownership transferred, deactivated by manufacturer), raise a
         persistent_notification BEFORE removing the device so the user
         knows why their entities just vanished. Pattern adapted from
-        ``WulfgarW/homeassistant-pycupra`` v0.2.14 ("if a previously-
+        ``upstream/homeassistant-pycupra`` v0.2.14 ("if a previously-
         configured vehicle is not found or is deactivated at startup,
         log a warning and raise a HA notification") — applied here on
         every poll, not just startup, so account changes mid-session
@@ -2777,7 +2777,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         #
         # Hard cap is conservative — users who want 5 can override via
         # service call directly (this method only protects automations
-        # from runaway loops). The "max 3/day" mirrors what tillsteinbach
+        # from runaway loops). The "max 3/day" mirrors what upstream
         # CC-* maintainers documented for the underlying backend limits.
         from datetime import datetime, timezone  # noqa: PLC0415
 

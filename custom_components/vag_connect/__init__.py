@@ -164,7 +164,7 @@ async def async_migrate_entry(
 
     Why this exists even though ``VERSION = 1`` has never bumped:
 
-    Multiple competitor projects (audi_connect_ha #728 + mitch-dc #303)
+    Multiple competitor projects (upstream #728 + mitch-dc #303)
     silently broke when a future HA Core release changed how
     ``ConfigEntry.data`` is serialised on disk. Without
     ``async_migrate_entry``, HA falls back to "invalid credentials" or
@@ -195,7 +195,7 @@ async def async_migrate_entry(
         getattr(entry, "version", 1),
     )
     # Future: when VERSION bumps to 2, add the data-shape conversion
-    # here. Pattern reference: audi_connect_ha PR #703 (v1.x → v2.0
+    # here. Pattern reference: upstream PR #703 (v1.x → v2.0
     # runtime_data migration), Skoda PR #1078 (same).
     return True
 

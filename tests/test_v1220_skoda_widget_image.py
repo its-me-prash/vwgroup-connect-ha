@@ -84,9 +84,6 @@ class TestVagSkodaWidgetImageEntity:
     def test_setup_creates_skoda_image_when_render_url_present(self):
         """Verify image.async_setup_entry's _add_entities_for_vin
         function creates a Skoda widget image when render_url is set."""
-        from custom_components.vag_connect.image import (
-            VagSkodaWidgetImageEntity, VagRenderImageEntity,
-        )
         # Mock vehicle with only Skoda render_url (no Audi/VW image_urls)
         vehicle_skoda = {"render_url": "https://x/y.png", "image_urls": None}
         # Simulate the _add_entities_for_vin logic:

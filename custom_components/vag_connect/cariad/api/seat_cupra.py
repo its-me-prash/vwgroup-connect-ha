@@ -1,7 +1,7 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
 """SEAT/CUPRA API client — ola.prod.code.seat.cloud.vwgroup.com.
 
-API endpoints based on WulfgarW/pycupra (Apache-2.0) — clean-room reimplementation.
+API endpoints based on upstream/pycupra (Apache-2.0) — clean-room reimplementation.
 """
 
 from __future__ import annotations
@@ -523,7 +523,7 @@ class SeatCupraClient(CariadBaseClient):
         # ── Detailed vehicle status (doors, windows, trunk) ──────────────────
         # OLA `/v2/vehicles/{vin}/status` for SEAT/CUPRA returns a structured
         # tree, NOT the flat ``doorsOpenedCount`` shape that CARIAD BFF uses.
-        # The real shape (verified against `WulfgarW/pycupra/vehicle.py` lines
+        # The real shape (verified against `upstream/pycupra/vehicle.py` lines
         # ~3100–3325, the pycupra dashboard reads identical paths):
         #
         #   status:
@@ -713,7 +713,7 @@ class SeatCupraClient(CariadBaseClient):
         # methodology fix): the older paths in this file were inferred
         # from CARIAD-BFF / pycupra back when we had no live OLA dump.
         # Now that we have a verified live CUPRA Born response from
-        # `tillsteinbach/CarConnectivity-connector-seatcupra` issue #109
+        # `upstream/cc-seatcupra` issue #109
         # (user "Rainer", 2026-03-27 — same OLA host, same brand),
         # those field names are known good and must be tried first so a
         # vehicle that returns BOTH shapes doesn't accidentally pick a
@@ -1058,7 +1058,7 @@ class SeatCupraClient(CariadBaseClient):
         # ── carCapturedTimestamp → connection_state (v1.8.12 Multi-Brand) ────
         # OLA backend returns ``carCapturedTimestamp`` on multiple
         # sub-responses (verified live in
-        # `tillsteinbach/CarConnectivity-connector-seatcupra` issue #109,
+        # `upstream/cc-seatcupra` issue #109,
         # Rainer's CUPRA Born 2026-03-27 dump shows it on
         # ``climatisationStatus`` and ``chargingSettings``).
         # Same Pattern as Škoda + VW EU; helper handles nested paths and
@@ -1134,7 +1134,7 @@ class SeatCupraClient(CariadBaseClient):
         OLA returns ``404 No static resource v2/vehicles/{vin}/climati``
         when posting ``{"action": "start"}`` to the bare endpoint. The
         action lives in the URL path, not the body — verified against
-        ``WulfgarW/pycupra/connection.py`` (``API_CLIMATER + '/start'``).
+        ``upstream/pycupra/connection.py`` (``API_CLIMATER + '/start'``).
 
         Defensive: try the verified ``/start`` path first; on 404 fall
         back to the legacy bare endpoint with body action so any account

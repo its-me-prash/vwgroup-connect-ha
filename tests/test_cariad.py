@@ -128,7 +128,7 @@ class TestComputeConnectionState:
     def test_nested_timestamp_vw_eu_pattern(self):
         """VW EU CARIAD-BFF: timestamp is at .value.carCapturedTimestamp,
         nested 2-3 levels deep in service.statusName.value structure.
-        Verified via robinostlund/volkswagencarnet issue #921 ID.4 dump."""
+        Verified via upstream/volkswagencarnet issue #921 ID.4 dump."""
         from datetime import datetime, timezone, timedelta
         from custom_components.vag_connect.cariad._util import compute_connection_state
         recent = (datetime.now(tz=timezone.utc) - timedelta(minutes=10)).isoformat()
@@ -789,7 +789,8 @@ class TestSeatCupraClient:
         import asyncio
         from custom_components.vag_connect.cariad.api.seat_cupra import SeatCupraClient
         from custom_components.vag_connect.cariad.models import TokenSet
-        import base64, json as _json
+        import base64
+        import json as _json
         client = SeatCupraClient(MagicMock(), "cupra", "u@t.de", "pw")
         # Build a fake JWT with 'sub' claim
         header = base64.urlsafe_b64encode(b'{"alg":"RS256"}').rstrip(b"=").decode()
@@ -1188,7 +1189,6 @@ class TestVWEUFallbackPaths:
         """When falling back from combined to separate endpoint after a
         404, the S-PIN must be present in *both* payloads — the legacy
         separate /access/unlock endpoint accepts the PIN in the body."""
-        import json as _json
         responses = [self._resp(404),  # v1 combined
                      self._resp(404),  # v2 combined
                      self._resp(204)]  # v1 separate succeeds
@@ -1614,7 +1614,7 @@ class TestSkodaGetStatus:
         ISO timestamp — prefer it over remainingTimeToFullyChargedInMinutes
         (which drifts because it's car-side computed and we receive it
         with poll latency)."""
-        from datetime import datetime, timezone
+        from datetime import datetime
         eta = "2026-12-31T23:59:00Z"
         client = self._url_routing_client({
             "/api/v1/charging/": {
@@ -1855,7 +1855,7 @@ class TestSeatCupraGetStatus:
         assert result.sunroof_open is True
 
     def test_v189_charging_shape_b_chargedPowerInKw_remaining_minutes(self):
-        """v1.8.9 / Issue tillsteinbach/CarConnectivity-connector-seatcupra#109:
+        """v1.8.9 / Issue upstream/<project>#109:
         OLA `/v1/vehicles/{vin}/charging` returns `chargedPowerInKw` (with
         the extra "d") and `remainingTimeInMinutes` on current CUPRA Born
         firmware. Pre-v1.8.9 only knew variants without the "d", so power
@@ -3896,7 +3896,6 @@ class TestFeatureStateTracking:
     """Coordinator records FeatureState lazily on command success/failure."""
 
     def _coord(self):
-        from unittest.mock import MagicMock
         from custom_components.vag_connect.coordinator import VagConnectCoordinator
         coord = VagConnectCoordinator.__new__(VagConnectCoordinator)
         coord.feature_states = {}
@@ -3959,7 +3958,6 @@ class TestCapabilitiesCacheTTL:
     """Cache must be runtime-only (NOT config_entry.options) and TTL-aware."""
 
     def _coord(self):
-        from unittest.mock import MagicMock
         from custom_components.vag_connect.coordinator import VagConnectCoordinator
         coord = VagConnectCoordinator.__new__(VagConnectCoordinator)
         coord.vehicle_capabilities = {}
@@ -4049,7 +4047,6 @@ class TestVehicleSupportsCapability:
     """Three-valued capability lookup: True / False / None."""
 
     def _coord(self, caps_for_vin=None):
-        from unittest.mock import MagicMock
         from custom_components.vag_connect.coordinator import VagConnectCoordinator
         coord = VagConnectCoordinator.__new__(VagConnectCoordinator)
         coord.vehicle_capabilities = {"VIN1": caps_for_vin} if caps_for_vin else {}
@@ -4215,7 +4212,7 @@ class TestSeatCupraSecTokenFlow:
     """
 
     def _client(self, spin="1234", user_id="u-123"):
-        from unittest.mock import AsyncMock, MagicMock
+        from unittest.mock import AsyncMock
         from custom_components.vag_connect.cariad.api.seat_cupra import SeatCupraClient
         client = SeatCupraClient.__new__(SeatCupraClient)
         client._spin = spin
@@ -4236,7 +4233,8 @@ class TestSeatCupraSecTokenFlow:
         assert client._post.call_args.kwargs["json"] == {"spin": "1234"}
 
     def test_get_sec_token_raises_spin_error_on_empty_pin(self):
-        import asyncio, pytest
+        import asyncio
+        import pytest
         from custom_components.vag_connect.cariad.exceptions import SpinError
         client = self._client(spin="")
         with pytest.raises(SpinError):
@@ -4246,7 +4244,8 @@ class TestSeatCupraSecTokenFlow:
 
     def test_get_sec_token_wraps_apierror_as_spin_error(self):
         """Wrong PIN → 400 from /spin/verify → user-facing SpinError."""
-        import asyncio, pytest
+        import asyncio
+        import pytest
         from unittest.mock import AsyncMock
         from custom_components.vag_connect.cariad.exceptions import APIError, SpinError
         client = self._client()
@@ -4257,7 +4256,8 @@ class TestSeatCupraSecTokenFlow:
             )
 
     def test_get_sec_token_raises_when_no_token_in_response(self):
-        import asyncio, pytest
+        import asyncio
+        import pytest
         from unittest.mock import AsyncMock
         from custom_components.vag_connect.cariad.exceptions import SpinError
         client = self._client()
@@ -4333,7 +4333,6 @@ class TestCariadBffGetCapabilities:
     def test_porsche_returns_empty_dict_no_endpoint(self):
         """Porsche PPA has no capabilities endpoint — must not raise."""
         import asyncio
-        from unittest.mock import MagicMock
         from custom_components.vag_connect.cariad.api.porsche import PorscheClient
         client = PorscheClient.__new__(PorscheClient)
         result = asyncio.get_event_loop().run_until_complete(
@@ -4383,7 +4382,6 @@ class TestCoordinatorCommandProfile:
     """Coordinator stores per-VIN command profile in runtime cache."""
 
     def _coord(self):
-        from unittest.mock import MagicMock
         from custom_components.vag_connect.coordinator import VagConnectCoordinator
         coord = VagConnectCoordinator.__new__(VagConnectCoordinator)
         coord.vehicle_command_profile = {}
@@ -4471,7 +4469,8 @@ class TestVWEUv1v2Fallback:
 
     def test_non_404_propagates(self):
         """Other 4xx/5xx must NOT trigger v2 retry — bug class would mask real errors."""
-        import asyncio, pytest
+        import asyncio
+        import pytest
         from unittest.mock import AsyncMock
         from custom_components.vag_connect.cariad.exceptions import APIError
         client = self._client()

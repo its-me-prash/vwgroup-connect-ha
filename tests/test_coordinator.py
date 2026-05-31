@@ -316,7 +316,6 @@ class TestOptionsLiveUpdate:
         """_poll_loop should pick up entry.options.scan_interval dynamically."""
         from unittest.mock import MagicMock
         from custom_components.vag_connect.coordinator import VagConnectCoordinator
-        import threading
 
         coord = VagConnectCoordinator.__new__(VagConnectCoordinator)
         coord.entry = MagicMock()

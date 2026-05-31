@@ -8,7 +8,6 @@ registers them in EXPECTED_KEYS["skoda"] so the Scout stops firing.
 
 from __future__ import annotations
 
-import pytest
 
 
 class TestSkodaScout107:

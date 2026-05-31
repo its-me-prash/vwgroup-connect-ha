@@ -104,7 +104,7 @@ class TestQMAuthSigning:
 class TestCariadTokenHeaders:
     """v2.5.4 introduced the 8-header set as defensive 'mimic the
     official app' superset. v2.7.0b2 flipped the default to the
-    5-header set (audi_connect_ha parity) after VW backend started
+    5-header set (upstream parity) after VW backend started
     validating the dummy x-assertion='0' value. The assertion trio
     is still accessible via include_assertion=True for debugging."""
 
