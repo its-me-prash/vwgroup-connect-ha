@@ -50,6 +50,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - OLA watcher gains upstream as 3rd consensus source
 - App Atlas covers all 7 brands
 
+## [2.7.4] - 2026-05-31
+
+### Fixed
+- Scout no longer auto-fires on the 6-key `.error.*` envelope the Cariad BFF returns when `oilLevel` / `tyrePressure` / `auxiliaryHeating` jobs hit a 5xx upstream. v2.7.1 silenced the parent path but the single-level `.*` wildcard did not cover the 4-component child paths. Closes #371 and #373.
+
 ## [2.7.3] - 2026-05-31
 
 ### Changed
