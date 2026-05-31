@@ -895,8 +895,18 @@ class CariadBaseClient:
 
         Counters are exposed via ``self.parser_stats`` and surfaced in
         diagnostics export for users debugging silent "Unbekannt" sensors.
+
+        Defensive: when the client was instantiated via ``__new__``
+        (the existing parser-unit tests do this to skip the HA setup
+        chain), ``parser_stats`` is not initialised. Fall back to a
+        local stats dict so the counters become no-ops instead of
+        raising AttributeError mid-parse.
         """
-        stats = self.parser_stats.setdefault(
+        stats_store = getattr(self, "parser_stats", None)
+        if stats_store is None:
+            stats_store = {}
+            self.parser_stats = stats_store  # type: ignore[attr-defined]
+        stats = stats_store.setdefault(
             job_name, {"success": 0, "fail": 0, "last_error": ""}
         )
         try:
@@ -920,8 +930,15 @@ class CariadBaseClient:
         Lets the diagnostics export show "which sub-job stopped flowing"
         without forcing huge with-block indentation diffs in the existing
         defensively-parsed ``_parse_status`` methods.
+
+        Same defensive-getattr as ``_parser_job``: tolerate clients
+        instantiated via ``__new__`` in unit tests.
         """
-        stats = self.parser_stats.setdefault(
+        stats_store = getattr(self, "parser_stats", None)
+        if stats_store is None:
+            stats_store = {}
+            self.parser_stats = stats_store  # type: ignore[attr-defined]
+        stats = stats_store.setdefault(
             job_name, {"success": 0, "fail": 0, "last_error": ""}
         )
         if present:
