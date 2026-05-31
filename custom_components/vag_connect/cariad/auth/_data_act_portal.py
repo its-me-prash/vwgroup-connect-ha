@@ -280,9 +280,39 @@ class DataActPortalAuth:
         pw_parser = _IdentifierFormParser()
         pw_parser.feed(password_html)
         if not pw_parser.form_action:
+            # v2.7.3 — when the password form is missing, the most common
+            # real-world cause (as reported by VW EU users on issue #372)
+            # is that VW interjected the EU Data Act consent screen
+            # between the identifier step and the password step. The
+            # user has to grant the "your vehicle data can help shape
+            # the future" consent on myvolkswagen.* once before the
+            # password page becomes reachable again. Detect this case
+            # via a light HTML signature scan and raise with a clearer
+            # message so config_flow can route to the data_act_consent
+            # error key instead of the generic invalid_credentials.
+            html_lower = password_html.lower()
+            consent_signals = (
+                "data act",
+                "datenverarbeitung",
+                "consent",
+                "einwilligung",
+                "zustimmung",
+                "shape the future",
+            )
+            if any(sig in html_lower for sig in consent_signals):
+                raise AuthenticationError(
+                    "Data Act portal: EU Data Act consent required. "
+                    "Sign in once on myvolkswagen.<your-country-tld> "
+                    "in a browser, accept the data-processing consent "
+                    "banner, then retry the integration setup."
+                )
             raise AuthenticationError(
-                "Data Act portal: password form missing — credentials "
-                "may have been rejected at identifier step"
+                "Data Act portal: password form missing. Most common "
+                "cause: VW asked you to grant EU Data Act consent on "
+                "the brand website and the integration cannot bypass "
+                "that step. Sign in on myvolkswagen.* and accept the "
+                "consent banner, then retry. Other possible cause: "
+                "the email address was rejected at the identifier step."
             )
         password_action_url = (
             pw_parser.form_action

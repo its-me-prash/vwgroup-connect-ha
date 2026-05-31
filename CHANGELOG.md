@@ -50,6 +50,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - OLA watcher gains upstream as 3rd consensus source
 - App Atlas covers all 7 brands
 
+## [2.7.3] - 2026-05-31
+
+### Changed
+- Data Act portal auth: when the password form is missing in the response, scan the returned HTML for EU Data Act consent signals (`data act`, `consent`, `einwilligung`, `zustimmung`, `shape the future`, `datenverarbeitung`) before falling back to the generic credentials-rejected message. Surfaces a clearer instruction for users who hit the consent wall on `myvolkswagen.*` (issue #372).
+
 ## [2.7.2] - 2026-05-31
 
 ### Security
