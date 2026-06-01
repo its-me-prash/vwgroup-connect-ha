@@ -582,6 +582,80 @@ class VehicleData:
     preferred_workshop_address: str | None = None
     preferred_workshop_phone: str | None = None
 
+    # v2.8.1 — 13 P1 sensor gaps observed during the goncal + DanielBie
+    # bug-report cycle on issue #306. The OLA backend ships these fields
+    # on /v5/mycar, /climater, /charging, /airConditioning, /maintenance
+    # and /status, but the seat_cupra parser never pulled them. The
+    # CARIAD-BFF equivalents exist for some (target temp, battery care,
+    # external power, primary range) so the audi.py / vw_eu.py parsers
+    # opt in where the field maps cleanly. Every field is None-default
+    # and phantom-protected in sensor.py via _DATA_PRESENT_REQUIRED.
+
+    # 1. Diesel AdBlue tank level (separate from adblue_range_km which
+    # estimates how far the existing AdBlue lasts). Some vehicles report
+    # level but not range and vice versa.
+    adblue_level_pct: int | None = None
+
+    # 2. CNG tank level (Polo TGI, Skoda Scala G-Tec, Seat Mii Ecofuel).
+    cng_level_pct: int | None = None
+
+    # 3. CNG remaining range in km — derived from the CNG-engine block
+    # on OLA mycar.engines.{primary,secondary} when type == "cng".
+    cng_range_km: int | None = None
+
+    # (4 + 5: dropped from this group during the v2.8.1 audit — the
+    # climate target temperature is already exposed via the existing
+    # ``target_temperature`` field; the rear-window heating element is
+    # already exposed via ``window_heating_back`` and surfaced as a
+    # binary sensor since v1.7.0. Numbering kept to match the pycupra
+    # gap-analysis dump on issue #306.)
+
+    # 6. Seat heating overall on/off — aggregate over all seats that
+    # report a seatHeatingSupport entry. Per-seat granular state stays
+    # in the diagnostics dump only.
+    seat_heating: bool | None = None
+
+    # 7. Parking lights status. Top-level ``status.lights`` flag on OLA;
+    # ``vehicleLights.parkingLightStatus.value.parkingLightState`` on
+    # CARIAD-BFF where the value carries more granularity than we
+    # currently expose.
+    parking_light: bool | None = None
+
+    # 8. EV: external power available (plugged into a station vs
+    # plugged but station not providing power). Distinct from
+    # ``plug_connected`` which is the physical cable presence.
+    external_power: bool | None = None
+
+    # 9. Battery-care mode on/off. When True the brand backend limits
+    # the battery to a preservation window (typically 80% top-end).
+    battery_care: bool | None = None
+
+    # 10. Energy-flow direction. True when current is actively flowing
+    # to or from the HV battery; useful as a fast "is the car drawing
+    # power right now" signal that survives across the charging /
+    # climatisation / V2L cases without needing three different
+    # underlying sensors.
+    energy_flow: bool | None = None
+
+    # 11. Primary-engine residual range in km. We had
+    # ``secondary_engine_range_km`` since v1.26.0 but no primary.
+    # Mirror so PHEV / dual-fuel vehicles have both halves of the
+    # range pair.
+    primary_engine_range_km: int | None = None
+
+    # 12. User-selected preferred charging mode ("manual",
+    # "preferredChargingTimes", "automaticUnlocked", ...). Read-only
+    # surface of the brand-app setting; useful as a context attribute
+    # for charge-target automations.
+    charging_preferred_mode: str | None = None
+
+    # 13. Area alarm event flag. The OLA backend ships a top-level
+    # ``areaAlarm`` block when the vehicle leaves a configured
+    # geofence. Coordinator decays the flag after 15 minutes so a
+    # one-shot alarm does not stick forever. Useful as an event
+    # trigger for "where is my car" automations.
+    area_alarm: bool | None = None
+
     # v1.19.1 — Pycupra-style API quota visibility. Populated from
     # X-RateLimit-Remaining response header captured by base.py
     # ``_capture_rate_limit_headers``. Brand-shared (the same auth

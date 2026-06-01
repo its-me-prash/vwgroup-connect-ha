@@ -233,6 +233,54 @@ _NEW_BINARY: tuple[VagBinarySensorDescription, ...] = (
         icon="mdi:car-windshield",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # v2.8.1 #306 — 6 P1 boolean OLA-field gaps surfaced via pycupra
+    # side-by-side. All brand-restricted at parser level (mostly OLA
+    # SEAT/CUPRA today); brands without the underlying field leave
+    # the entry None so the _DATA_PRESENT_REQUIRED gate hides it.
+    VagBinarySensorDescription(
+        key="seat_heating",
+        translation_key="seat_heating",
+        data_key="seat_heating",
+        device_class=BinarySensorDeviceClass.RUNNING,
+        icon="mdi:car-seat-heater",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="parking_light",
+        translation_key="parking_light",
+        data_key="parking_light",
+        device_class=BinarySensorDeviceClass.LIGHT,
+        icon="mdi:car-parking-lights",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="external_power",
+        translation_key="external_power",
+        data_key="external_power",
+        device_class=BinarySensorDeviceClass.POWER,
+        icon="mdi:power-plug",
+    ),
+    VagBinarySensorDescription(
+        key="battery_care",
+        translation_key="battery_care",
+        data_key="battery_care",
+        icon="mdi:battery-heart-variant",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="energy_flow",
+        translation_key="energy_flow",
+        data_key="energy_flow",
+        device_class=BinarySensorDeviceClass.POWER,
+        icon="mdi:flash",
+    ),
+    VagBinarySensorDescription(
+        key="area_alarm",
+        translation_key="area_alarm",
+        data_key="area_alarm",
+        device_class=BinarySensorDeviceClass.SAFETY,
+        icon="mdi:map-marker-alert",
+    ),
     # v1.11.0 (#91 closure) — vehicle lights aggregate "any light on?".
     VagBinarySensorDescription(
         key="lights_on",
@@ -479,6 +527,15 @@ BINARY_DESCRIPTIONS = BINARY_DESCRIPTIONS + _NEW_BINARY
 
 # v1.11.0 — same phantom-entity-prevention pattern as sensor.py.
 _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
+    # v2.8.1 #306 — 6 P1 boolean OLA-field gap entries. SEAT/CUPRA OLA
+    # primarily; vehicles without the underlying field stay None so
+    # no phantom binary sensor surfaces.
+    "seat_heating",
+    "parking_light",
+    "external_power",
+    "battery_care",
+    "energy_flow",
+    "area_alarm",
     "lights_on",
     # v2.5.0 (#306 goncal Mii) — sunroof is option-dependent. Many cars
     # don't have a sunroof; parser leaves field None → no phantom entity.

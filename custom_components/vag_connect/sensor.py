@@ -1176,6 +1176,56 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:phone",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # v2.8.1 #306 — 5 P1 numeric/string OLA-field gaps surfaced via
+    # pycupra side-by-side. The 6 boolean fields in this set
+    # (parking_light, seat_heating, external_power, battery_care,
+    # energy_flow, area_alarm) are wired in binary_sensor.py.
+    VagSensorDescription(
+        key="adblue_level_pct",
+        translation_key="adblue_level_pct",
+        data_key="adblue_level_pct",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:fuel",
+        suggested_display_precision=0,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="cng_level_pct",
+        translation_key="cng_level_pct",
+        data_key="cng_level_pct",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:gas-cylinder",
+        suggested_display_precision=0,
+    ),
+    VagSensorDescription(
+        key="cng_range_km",
+        translation_key="cng_range_km",
+        data_key="cng_range_km",
+        native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:gas-cylinder",
+        suggested_display_precision=0,
+    ),
+    VagSensorDescription(
+        key="primary_engine_range_km",
+        translation_key="primary_engine_range_km",
+        data_key="primary_engine_range_km",
+        native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:road-variant",
+        suggested_display_precision=0,
+    ),
+    VagSensorDescription(
+        key="charging_preferred_mode",
+        translation_key="charging_preferred_mode",
+        data_key="charging_preferred_mode",
+        icon="mdi:cog-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
     # v2.2.0 Phase 2 PR #11/20 — derived integer days until expiry.
     # Closes the subscription-feature triangle (timestamp + active +
     # days). Negative when expired. Automation-friendly: threshold
@@ -1351,6 +1401,17 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "preferred_workshop_name",
     "preferred_workshop_address",
     "preferred_workshop_phone",
+    # v2.8.1 #306 — 5 P1 numeric/string OLA-field gap sensors.
+    # Brand-restricted at parser level (SEAT/CUPRA OLA primarily; some
+    # also populated for VW EU/Audi/Skoda where the equivalent shape
+    # exists on the brand backend). Vehicles without the underlying
+    # field leave the entry None so no phantom "Unbekannt" entity
+    # surfaces.
+    "adblue_level_pct",
+    "cng_level_pct",
+    "cng_range_km",
+    "primary_engine_range_km",
+    "charging_preferred_mode",
     "next_charging_timer_id",
     "next_charging_timer_target_soc_reachable",
     "capabilities_count",

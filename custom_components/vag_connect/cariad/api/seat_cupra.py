@@ -379,6 +379,27 @@ class SeatCupraClient(CariadBaseClient):
             d.battery_soc = v(measurements, "batteryStatus", "value", "currentSOC_pct")
             d.has_battery = d.battery_soc is not None
 
+            # v2.8.1 #306 — user-selected preferred charging mode. The
+            # OLA backend mirrors the brand-app setting under
+            # ``mycar.services.charging.preferredChargeMode``. Known
+            # enum values: "manual", "preferredChargingTimes",
+            # "automaticUnlocked". Empty string means unset.
+            pref_mode = v(mycar, "services", "charging", "preferredChargeMode")
+            if isinstance(pref_mode, str) and pref_mode.strip():
+                d.charging_preferred_mode = pref_mode
+
+            # v2.8.1 #306 — area alarm event flag. Top-level
+            # ``mycar.areaAlarm`` carries an event payload when the
+            # vehicle has left a configured geofence. We expose the
+            # boolean presence here; coordinator-side timestamp decay
+            # to clear stale alarms after 15 minutes is in scope for
+            # v2.8.2 (the harness for event-decay is not yet wired).
+            area_alarm_block = v(mycar, "areaAlarm")
+            if isinstance(area_alarm_block, dict) and area_alarm_block:
+                d.area_alarm = True
+            elif area_alarm_block is not None:
+                d.area_alarm = False
+
             access = v(mycar, "access") or {}
             # v2.0.1 (#131 follow-up) — defensive parsing, see vw_eu.py
             # for the full rationale. Per-door + top-level fallbacks
@@ -533,6 +554,52 @@ class SeatCupraClient(CariadBaseClient):
                     )
                     if isinstance(tank_cap, (int, float)) and tank_cap > 0:
                         d.fuel_tank_capacity_liters = int(tank_cap)
+                    # v2.8.1 #306 — primary engine residual range. Mirror
+                    # of the secondary_engine_range_km field that has
+                    # existed since v1.26.0 / Scout #232. Same field-name
+                    # variants tried defensively.
+                    prim_range = (
+                        primary.get("range")
+                        or primary.get("rangeInKm")
+                        or primary.get("distanceInKm")
+                    )
+                    if isinstance(prim_range, (int, float)):
+                        d.primary_engine_range_km = int(prim_range)
+                    # v2.8.1 #306 — CNG tank level. Primary engine entry
+                    # carries levelPct for CNG vehicles (Mii Ecofuel,
+                    # Leon TGI). For PHEV-CNG dual-fuel the secondary
+                    # block carries it instead; the secondary branch
+                    # above already populated fuel_level_pct from the
+                    # same field if applicable.
+                    if (primary_type or "").lower() == "cng":
+                        level = primary.get("levelPct") or primary.get("level_pct")
+                        if isinstance(level, (int, float)):
+                            d.cng_level_pct = int(level)
+                        if isinstance(prim_range, (int, float)):
+                            d.cng_range_km = int(prim_range)
+                # v2.8.1 #306 — same CNG check on secondary block (some
+                # PHEV-CNG dual-fuel SEAT vehicles ship CNG on secondary).
+                secondary_check = v(engines, "secondary")
+                if isinstance(secondary_check, dict):
+                    sec_type_check = (
+                        secondary_check.get("fuelType")
+                        or secondary_check.get("engineType") or ""
+                    )
+                    if sec_type_check.lower() == "cng":
+                        sec_level = (
+                            secondary_check.get("levelPct")
+                            or secondary_check.get("level_pct")
+                            or secondary_check.get("fuelLevel_pct")
+                        )
+                        if isinstance(sec_level, (int, float)):
+                            d.cng_level_pct = int(sec_level)
+                        sec_range_check = (
+                            secondary_check.get("range")
+                            or secondary_check.get("rangeInKm")
+                            or secondary_check.get("distanceInKm")
+                        )
+                        if isinstance(sec_range_check, (int, float)):
+                            d.cng_range_km = int(sec_range_check)
 
         # ── Ranges ───────────────────────────────────────────────────────────
         # v2.5.3 (#306) — widened field-name coverage. PyCupra-style
@@ -598,6 +665,18 @@ class SeatCupraClient(CariadBaseClient):
             windows_obj = v(status, "windows") or {}
             trunk_obj = v(status, "trunk") or {}
             hood_obj = v(status, "hood") or {}
+
+            # v2.8.1 #306 — parking light flag. OLA exposes the top-level
+            # ``status.lights`` enum ("on" / "off") on Born + Mii firmware.
+            # Some newer firmware ships it under
+            # ``status.lights.parkingLightState`` instead.
+            lights_raw = v(status, "lights")
+            if isinstance(lights_raw, str):
+                d.parking_light = lights_raw.lower() == "on"
+            elif isinstance(lights_raw, dict):
+                pl_state = lights_raw.get("parkingLightState")
+                if isinstance(pl_state, str):
+                    d.parking_light = pl_state.lower() == "on"
 
             # Per-door (locked + open). Aggregate ``doors_open`` and
             # ``doors_locked`` are derived once we have the dict.
@@ -898,6 +977,41 @@ class SeatCupraClient(CariadBaseClient):
                     isinstance(ext_power, str) and ext_power.upper() == "READY"
                 )
 
+            # v2.8.1 #306 — external power availability bool. Distinct
+            # from ``plug_connected`` (cable present): this signals
+            # whether the wallbox / charger is actually feeding power
+            # through the cable. "available" = station is energising.
+            if isinstance(ext_power, str):
+                d.external_power = ext_power.lower() in (
+                    "available", "ready", "stationokay",
+                )
+
+            # v2.8.1 #306 — energy-flow direction. OLA exposes a
+            # composite ``charging.status.state`` enum (idle / charging /
+            # discharging / V2L_active / ...). Aggregate to a bool that
+            # answers "is the battery currently exchanging energy".
+            flow_state = v(chg, "state") or v(charge_status, "state")
+            if isinstance(flow_state, str):
+                d.energy_flow = flow_state.lower() in (
+                    "charging", "discharging", "v2l_active",
+                    "preconditioning",
+                )
+
+        # v2.8.1 #306 — battery-care mode flag. OLA ships this under
+        # /v1/charging/info under chargingCareSettings on Born MY24+
+        # firmware. Absent on older firmware where the value is always
+        # False, so default to None when the key is missing so the
+        # sensor's phantom gate hides it.
+        if isinstance(charge_info, dict):
+            care_block = (
+                v(charge_info, "chargingCareSettings")
+                or v(charge_info, "settings", "chargingCareSettings")
+            )
+            if isinstance(care_block, dict):
+                care_mode = care_block.get("batteryCareMode")
+                if isinstance(care_mode, bool):
+                    d.battery_care = care_mode
+
         # ── Charging info (settings) ─────────────────────────────────────────
         # OLA `/v2/vehicles/{vin}/charging/settings` field variance.
         # Real-world (Rainer #109): {"targetSoc_pct": 80, "maxChargeCurrentAC":
@@ -956,6 +1070,26 @@ class SeatCupraClient(CariadBaseClient):
                 d.outside_temp = round(outside - 273.15, 1)
             d.window_heating_front = v(cs, "windowHeatingStateFront") == "ON"
             d.window_heating_back = v(cs, "windowHeatingStateRear") == "ON"
+            # v2.8.1 #306 — seat heating overall aggregate. OLA ships
+            # ``airConditioning.seatHeatingSupport`` as a dict keyed by
+            # seat position (frontLeft, frontRight, ...). Any seat in
+            # ``"on"`` state flips the aggregate True.
+            seat_block = v(climate, "seatHeatingSupport") or v(cs, "seatHeatingStatus")
+            if isinstance(seat_block, dict):
+                for entry in seat_block.values():
+                    state = entry if isinstance(entry, str) else (
+                        entry.get("state") if isinstance(entry, dict) else None
+                    )
+                    if isinstance(state, str) and state.lower() == "on":
+                        d.seat_heating = True
+                        break
+                else:
+                    d.seat_heating = False
+            elif isinstance(seat_block, list):
+                d.seat_heating = any(
+                    isinstance(e, dict) and str(e.get("state", "")).lower() == "on"
+                    for e in seat_block
+                )
 
         # ── Parking ──────────────────────────────────────────────────────────
         # v2.0.0 (#53 follow-up to v1.27.1): defensive `data` envelope unwrap.
@@ -1027,6 +1161,18 @@ class SeatCupraClient(CariadBaseClient):
                 or v(maintenance, "oilServiceDueInDays")            # v2.5.3
                 or v(maintenance, "timeRemainingForOilService")     # v2.5.3
             )
+            # v2.8.1 #306 — AdBlue tank level (%). OLA ships this under
+            # an opaque code key on diesel vehicles with SCR. Field-name
+            # variants tried defensively since OLA has shipped both the
+            # human-readable ``adblueLevel`` and the legacy CARIAD-style
+            # ``0x02040C0001`` code key (per pycupra reference).
+            adblue_lvl = (
+                v(maintenance, "adblueLevel")
+                or v(maintenance, "adBlueLevel")
+                or v(maintenance, "0x02040C0001", "value")
+            )
+            if isinstance(adblue_lvl, (int, float)):
+                d.adblue_level_pct = int(adblue_lvl)
             # v2.8.0 quick win C — brake-service + preferred-workshop.
             # OLA exposes both on the same /maintenance response when
             # the dealer has wired up the vehicle's service plan.
