@@ -220,6 +220,14 @@ class DataActPortalAuth:
         # existing IDK reverse-engineering applies to extracting the
         # form fields. We do a minimal parse here rather than reusing
         # IDKAuth so this module stays standalone and easy to disable.
+        #
+        # v2.8.0rc2 (#378 jwaeles) — the legacy HTMLParser-only path
+        # missed hmac/_csrf when the IDP migrated those fields out of
+        # plain ``<input type="hidden">`` markup into a JSON block
+        # rendered by the SPA. Mirrors the multi-fallback strategy
+        # already in idk.py:_parse_csrf_robust so a future markup
+        # migration on either side does not need two patches.
+        import re  # noqa: PLC0415
         from html.parser import HTMLParser  # noqa: PLC0415
 
         class _IdentifierFormParser(HTMLParser):
@@ -243,6 +251,53 @@ class DataActPortalAuth:
 
         parser = _IdentifierFormParser()
         parser.feed(landing_html)
+
+        # Fallback 1 — regex over all hidden inputs (HTMLParser misses
+        # inputs that are JS-rendered after page load but still ship
+        # in the initial HTML inside <noscript> or template blocks).
+        for tag_match in re.finditer(r"<input[^>]+>", landing_html, re.IGNORECASE):
+            tag_text = tag_match.group(0)
+            if 'type="hidden"' not in tag_text.lower() and "type='hidden'" not in tag_text.lower():
+                continue
+            name_match = re.search(r'name=["\']([^"\']+)["\']', tag_text)
+            value_match = re.search(r'value=["\']([^"\']*)["\']', tag_text)
+            if name_match:
+                parser.fields.setdefault(
+                    name_match.group(1),
+                    value_match.group(1) if value_match else "",
+                )
+
+        # Fallback 2 — form action via regex (handles forms whose
+        # ``action`` lives on a <form> attribute that HTMLParser walked
+        # past without capturing).
+        if not parser.form_action:
+            form_match = re.search(
+                r'action=["\']([^"\']+/login/[^"\']+)["\']', landing_html,
+            )
+            if form_match:
+                parser.form_action = form_match.group(1)
+
+        # Fallback 3 — CSRF + hmac in JSON / script blocks (the modern
+        # IDK SPA shape that broke the original parser). Patterns
+        # observed on the live IDP: ``{"_csrf":"...","hmac":"hex..."}``
+        # and ``window.__STORE__ = {...,"csrf":"...",...}``.
+        if not parser.fields.get("_csrf"):
+            for pattern in (
+                r'"_csrf"\s*:\s*"([^"]{8,})"',
+                r'"csrf"\s*:\s*"([^"]{8,})"',
+                r'"csrfToken"\s*:\s*"([^"]{8,})"',
+            ):
+                csrf_match = re.search(pattern, landing_html)
+                if csrf_match:
+                    parser.fields["_csrf"] = csrf_match.group(1)
+                    break
+        if not parser.fields.get("hmac"):
+            hmac_match = re.search(
+                r'"hmac"\s*:\s*"([0-9a-fA-F]{20,})"', landing_html,
+            )
+            if hmac_match:
+                parser.fields["hmac"] = hmac_match.group(1)
+
         if not parser.form_action or "hmac" not in parser.fields:
             raise AuthenticationError(
                 "Data Act portal: signin form missing expected fields "
