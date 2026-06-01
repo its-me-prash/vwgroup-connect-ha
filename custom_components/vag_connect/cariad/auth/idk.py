@@ -753,10 +753,25 @@ class IDKAuth:
         # id_token AND auth_code directly in the callback URL fragment. We
         # parse all three and return WITHOUT calling _exchange_code — this
         # bypasses the Play Integrity wall on emea.bff.cariad.digital's
-        # token endpoint that broke us on 2026-05-27. Trade-off: no usable
-        # refresh_token is returned, so callers must re-login every ~2 h
-        # (matches upstream pattern in volkswagencarnet#333 +
-        # CarConnectivity-connector-volkswagen#109).
+        # token endpoint that broke us on 2026-05-27.
+        #
+        # v2.8.0rc2 (task #59 — two-way recovery) — after the hybrid tokens
+        # are safely captured, ALSO try to exchange the auth_code via the
+        # standard token endpoint to opportunistically pick up a real
+        # refresh_token. Two cases:
+        #
+        #   1. Play Integrity wall still enforced → exchange fails with
+        #      403 / 400 / network error → swallow, return hybrid-only
+        #      TokenSet (the v2.6.0 behaviour, no regression).
+        #   2. IDP loosened the wall (as observed across the ecosystem
+        #      around 2026-05-31) → exchange returns a token set with a
+        #      usable refresh_token → use those tokens instead, so the
+        #      next 2h boundary triggers refresh_tokens() rather than
+        #      a full relogin.
+        #
+        # The hybrid-only tokens are kept as the fallback so this code
+        # path is strictly additive: best case we gain a refresh_token,
+        # worst case we behave identically to v2.6.0.
         if hybrid_full:
             id_tok = _extract_param_from_url(
                 ref, self._brand.redirect_uri, "id_token"
@@ -776,14 +791,38 @@ class IDKAuth:
                 "(%d chars) captured from callback fragment",
                 len(access_tok), len(id_tok),
             )
-            # refresh_token is intentionally empty — hybrid flow returns
-            # none. Coordinator.refresh() detects empty refresh_token and
-            # triggers full re-login via the cached strategy.
-            return TokenSet(
+            hybrid_tokens = TokenSet(
                 access_token=access_tok,
                 refresh_token="",
                 id_token=id_tok,
             )
+            # Opportunistic refresh_token upgrade — see comment above.
+            auth_code = _extract_param_from_url(
+                ref, self._brand.redirect_uri, "code"
+            )
+            if auth_code:
+                try:
+                    exchanged = await self._exchange_code(auth_code, verifier)
+                except Exception as exc:  # noqa: BLE001 — best-effort upgrade
+                    _LOGGER.debug(
+                        "IDK Auth0 hybrid_full: opportunistic code-exchange "
+                        "for refresh_token failed (%s) — keeping hybrid-only "
+                        "TokenSet (no regression vs v2.6.0)",
+                        type(exc).__name__,
+                    )
+                else:
+                    if exchanged.refresh_token:
+                        _LOGGER.info(
+                            "IDK Auth0 hybrid_full: opportunistic exchange "
+                            "succeeded — refresh_token captured (next 2h "
+                            "boundary will refresh instead of relogin)"
+                        )
+                        return exchanged
+                    _LOGGER.debug(
+                        "IDK Auth0 hybrid_full: opportunistic exchange "
+                        "returned no refresh_token — keeping hybrid tokens"
+                    )
+            return hybrid_tokens
 
         # MBB-mode short-circuit: in hybrid flow the id_token is already in
         # the redirect URL (typically fragment). It's the cross-service-signed
