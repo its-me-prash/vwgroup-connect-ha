@@ -428,6 +428,21 @@
       },
       "warning_messages": {
         "name": "Fahrzeug-Warnungen"
+      },
+      "adblue_level_pct": {
+        "name": "AdBlue-Füllstand"
+      },
+      "cng_level_pct": {
+        "name": "CNG-Tankfüllstand"
+      },
+      "cng_range_km": {
+        "name": "CNG-Reichweite"
+      },
+      "primary_engine_range_km": {
+        "name": "Primärantrieb Reichweite"
+      },
+      "charging_preferred_mode": {
+        "name": "Bevorzugter Lademodus"
       }
     },
     "binary_sensor": {
@@ -547,6 +562,24 @@
       },
       "camping_mode": {
         "name": "Camping-Modus"
+      },
+      "seat_heating": {
+        "name": "Sitzheizung"
+      },
+      "parking_light": {
+        "name": "Parklicht"
+      },
+      "external_power": {
+        "name": "Externe Stromzufuhr"
+      },
+      "battery_care": {
+        "name": "Batterie-Schonmodus"
+      },
+      "energy_flow": {
+        "name": "Energiefluss aktiv"
+      },
+      "area_alarm": {
+        "name": "Geofence-Alarm"
       }
     },
     "switch": {
