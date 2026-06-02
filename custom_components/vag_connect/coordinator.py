@@ -2665,6 +2665,57 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             },
         )
 
+    async def async_start_climate_control(
+        self,
+        vin: str,
+        *,
+        temp_c: float | None = None,
+        glass_heating: bool | None = None,
+        seat_fl: bool | None = None,
+        seat_fr: bool | None = None,
+        seat_rl: bool | None = None,
+        seat_rr: bool | None = None,
+        climatisation_at_unlock: bool | None = None,
+        climatisation_mode: str | None = None,
+    ) -> None:
+        """v2.10.0 - rich climate-start with per-seat + mode payload.
+
+        Only applicable for Audi + VW EU (CARIAD BFF accepts the full
+        payload). Other brands fall through to the basic
+        ``async_start_climatisation`` method - the extra payload fields are
+        silently dropped because the OLA / mysmob / PPA backends reject
+        them. Coordinator-level optimistic state matches the basic start
+        path so the climate sensors flip immediately.
+        """
+        if self._cariad_client is None:
+            _LOGGER.error(
+                "VAG Connect: no CARIAD client - cannot execute "
+                "command_start_climate_control"
+            )
+            return
+        brand = str(self.entry.data.get(CONF_BRAND, "")).lower()
+        if brand in ("audi", "volkswagen"):
+            await self._cariad_cmd_optimistic(
+                vin, "command_start_climate_control",
+                optimistic={
+                    "climatisation_state": "VENTILATION",
+                    "climatisation_active": True,
+                },
+                temp_c=temp_c,
+                glass_heating=glass_heating,
+                seat_fl=seat_fl,
+                seat_fr=seat_fr,
+                seat_rl=seat_rl,
+                seat_rr=seat_rr,
+                climatisation_at_unlock=climatisation_at_unlock,
+                climatisation_mode=climatisation_mode,
+            )
+        else:
+            # Fall through to the basic climatisation start for other
+            # brands. Extra payload fields are silently dropped because
+            # the non-CARIAD backends reject them on the wire.
+            await self.async_start_climatisation(vin)
+
     async def async_start_charging(self, vin: str) -> None:
         # v1.11.1 (3B-Part-3) — optimistic UI. Backend usually
         # transitions through READY_FOR_CHARGING → CHARGING within
@@ -3023,6 +3074,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         "command_start_climate": "climate",
         "command_stop_climate": "climate",
         "command_set_climate_temperature": "climate",
+        # v2.10.0 - rich climate-start (Audi + VW EU). Same class as the
+        # basic start so the per-VIN lock serializes start <-> rich-start
+        # and prevents the user double-firing both in quick succession.
+        "command_start_climate_control": "climate",
         "command_start_charging": "charging",
         "command_stop_charging": "charging",
         "command_set_target_soc": "charging",

@@ -510,3 +510,57 @@ open_app:
             - climate_on
             - climate_off
             - charging
+
+# v2.10.0. Rich climate-start. Per-seat heating, glass heating,
+# climatisation mode, at-unlock behaviour. Applies to Audi + VW EU
+# (CARIAD BFF); other brands fall through to the basic
+# ``start_climatisation`` service because the OLA / mysmob / PPA
+# backends reject the extra payload fields.
+start_climate_control:
+  name: Start Climate Control (Rich)
+  description: >-
+    Start pre-conditioning with individual seat heaters, glass heating,
+    climate mode and at-unlock behaviour. Only applies to Audi and VW
+    EU (CARIAD BFF) - other brands fall through to the basic
+    start_climatisation service. All payload fields except device_id
+    are optional - omitted fields keep the brand default.
+  fields:
+    device_id:
+      name: Vehicle
+      required: true
+      selector:
+        device:
+          integration: vag_connect
+    temp_c:
+      name: Target temperature (C)
+      selector:
+        number:
+          min: 15
+          max: 30
+          step: 0.5
+          unit_of_measurement: "C"
+    glass_heating:
+      name: Glass heating
+      selector: {boolean: {}}
+    seat_fl:
+      name: Front-left seat heating
+      selector: {boolean: {}}
+    seat_fr:
+      name: Front-right seat heating
+      selector: {boolean: {}}
+    seat_rl:
+      name: Rear-left seat heating
+      selector: {boolean: {}}
+    seat_rr:
+      name: Rear-right seat heating
+      selector: {boolean: {}}
+    climatisation_at_unlock:
+      name: Continue climate when unlocked
+      selector: {boolean: {}}
+    climatisation_mode:
+      name: Climatisation mode
+      selector:
+        select:
+          options:
+            - comfort
+            - economy

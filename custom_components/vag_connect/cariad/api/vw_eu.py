@@ -500,6 +500,62 @@ class VWEUClient(CariadBaseClient):
             fallback_payload=fallback_payload,
         )
 
+    async def command_start_climate_control(
+        self,
+        vin: str,
+        *,
+        temp_c: float | None = None,
+        glass_heating: bool | None = None,
+        seat_fl: bool | None = None,
+        seat_fr: bool | None = None,
+        seat_rl: bool | None = None,
+        seat_rr: bool | None = None,
+        climatisation_at_unlock: bool | None = None,
+        climatisation_mode: str | None = None,
+    ) -> None:
+        """v2.10.0 - rich climate-start payload for CARIAD BFF.
+
+        Body keys + types match the cariad-bff /climatisation/start
+        endpoint contract: each is optional, the backend keeps the
+        existing setting for any omitted field. Posts directly to the
+        separate-endpoint path (not the combined start-stop endpoint)
+        because the combined endpoint only accepts ``{"action": "start"}``
+        without per-seat / mode extensions.
+
+        For seat heating: if any of the four seat flags is supplied,
+        all four zone flags are emitted (defaulting unspecified seats
+        to ``False``). Mixed per-seat + None inputs are treated as
+        ``False`` for the unspecified seats so the user always sends
+        a coherent zone configuration to the backend.
+        """
+        body: dict[str, Any] = {}
+        if temp_c is not None:
+            body["targetTemperatureInCelsius"] = float(temp_c)
+        if glass_heating is not None:
+            body["windowHeatingEnabled"] = bool(glass_heating)
+        if any(s is not None for s in (seat_fl, seat_fr, seat_rl, seat_rr)):
+            body["zoneFrontLeftEnabled"] = (
+                bool(seat_fl) if seat_fl is not None else False
+            )
+            body["zoneFrontRightEnabled"] = (
+                bool(seat_fr) if seat_fr is not None else False
+            )
+            body["zoneRearLeftEnabled"] = (
+                bool(seat_rl) if seat_rl is not None else False
+            )
+            body["zoneRearRightEnabled"] = (
+                bool(seat_rr) if seat_rr is not None else False
+            )
+        if climatisation_at_unlock is not None:
+            body["climatisationAtUnlock"] = bool(climatisation_at_unlock)
+        if climatisation_mode is not None:
+            body["climatisationMode"] = str(climatisation_mode)
+        url = (
+            f"{self._base_for_vin(vin)}/vehicle/v1/vehicles/{vin}"
+            "/climatisation/start"
+        )
+        await self._post(url, json=body)
+
     async def command_stop_climate(self, vin: str) -> None:
         """Stop pre-conditioning — combined endpoint with separate fallback."""
         await self._post_command_with_fallback_paths(

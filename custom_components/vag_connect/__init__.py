@@ -266,6 +266,59 @@ def _register_services(hass: HomeAssistant) -> None:
     async def _handle_start_clim(call: ServiceCall) -> None:
         await _coord_writeable(call.data["vin"]).async_start_climatisation(call.data["vin"])
 
+    def _resolve_device_to_vin(device_id: str) -> str:
+        """v2.10.0 - map an HA device_id to the VIN it represents.
+
+        The integration registers each vehicle with identifier
+        ``(DOMAIN, vin)`` (see ``entity_base.VagBaseEntity.device_info``).
+        Service handlers that use the ``device`` selector take a
+        device_id and must resolve back to the VIN before dispatching
+        to the coordinator.
+
+        Raises ``ServiceValidationError`` with the standard
+        ``vehicle_not_found`` translation key when the device is
+        unknown or does not carry a VAG identifier.
+        """
+        registry = dr.async_get(hass)
+        device = registry.async_get(device_id)
+        if device is None:
+            raise ServiceValidationError(
+                f"Device '{device_id}' not found.",
+                translation_domain=DOMAIN,
+                translation_key="vehicle_not_found",
+            )
+        for ident_domain, ident_value in device.identifiers:
+            if ident_domain == DOMAIN:
+                return str(ident_value)
+        raise ServiceValidationError(
+            f"Device '{device_id}' is not a VAG Connect vehicle.",
+            translation_domain=DOMAIN,
+            translation_key="vehicle_not_found",
+        )
+
+    async def _handle_start_climate_control(call: ServiceCall) -> None:
+        """v2.10.0 - rich climate-start with per-seat + mode payload.
+
+        Resolves the device_id to a VIN and forwards every optional
+        payload field to the coordinator. Coordinator routes the call
+        to Audi / VW EU CARIAD-BFF clients; other brands fall through
+        to the basic climatisation start.
+        """
+        vin = _resolve_device_to_vin(str(call.data["device_id"]))
+        coord = _coord_writeable(vin)
+        temp_c = call.data.get("temp_c")
+        await coord.async_start_climate_control(
+            vin,
+            temp_c=float(temp_c) if temp_c is not None else None,
+            glass_heating=call.data.get("glass_heating"),
+            seat_fl=call.data.get("seat_fl"),
+            seat_fr=call.data.get("seat_fr"),
+            seat_rl=call.data.get("seat_rl"),
+            seat_rr=call.data.get("seat_rr"),
+            climatisation_at_unlock=call.data.get("climatisation_at_unlock"),
+            climatisation_mode=call.data.get("climatisation_mode"),
+        )
+
     async def _handle_stop_clim(call: ServiceCall) -> None:
         await _coord_writeable(call.data["vin"]).async_stop_climatisation(call.data["vin"])
 
@@ -526,6 +579,24 @@ def _register_services(hass: HomeAssistant) -> None:
                 vol.Optional("house_number"): cv.string,
                 vol.Optional("zip_code"):     cv.string,
             })),
+        # v2.10.0 - Rich climate-start (Audi + VW EU CARIAD-BFF).
+        # Uses device_id selector instead of VIN; other brands fall
+        # through to the basic ``start_climatisation`` service in
+        # the coordinator dispatch.
+        ("start_climate_control",          _handle_start_climate_control,
+            vol.Schema({
+                vol.Required("device_id"):                cv.string,
+                vol.Optional("temp_c"):
+                    vol.All(vol.Coerce(float), vol.Range(15, 30)),
+                vol.Optional("glass_heating"):            cv.boolean,
+                vol.Optional("seat_fl"):                  cv.boolean,
+                vol.Optional("seat_fr"):                  cv.boolean,
+                vol.Optional("seat_rl"):                  cv.boolean,
+                vol.Optional("seat_rr"):                  cv.boolean,
+                vol.Optional("climatisation_at_unlock"):  cv.boolean,
+                vol.Optional("climatisation_mode"):
+                    vol.In(["comfort", "economy"]),
+            })),
     ]:
         hass.services.async_register(DOMAIN, name, handler, schema)
 
@@ -689,6 +760,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) 
             "open_app",
             # v2.10.0 unified action dispatcher
             "execute_vehicle_action",
+            # v2.10.0 rich climate-start (Audi + VW EU CARIAD-BFF)
+            "start_climate_control",
         ]:
             if hass.services.has_service(DOMAIN, svc):
                 hass.services.async_remove(DOMAIN, svc)

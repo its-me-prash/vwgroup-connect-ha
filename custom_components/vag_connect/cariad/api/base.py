@@ -541,6 +541,32 @@ class CariadBaseClient:
         """Start pre-conditioning."""
         raise NotImplementedError
 
+    async def command_start_climate_control(
+        self,
+        vin: str,
+        *,
+        temp_c: float | None = None,
+        glass_heating: bool | None = None,
+        seat_fl: bool | None = None,
+        seat_fr: bool | None = None,
+        seat_rl: bool | None = None,
+        seat_rr: bool | None = None,
+        climatisation_at_unlock: bool | None = None,
+        climatisation_mode: str | None = None,
+    ) -> None:
+        """v2.10.0 - rich climate-start. Override in CARIAD-BFF brand clients.
+
+        Accepts per-seat heating toggles (seat_fl/fr/rl/rr), glass_heating,
+        climatisation_at_unlock, climatisation_mode and temp_c. Each field
+        is optional, with omitted fields keeping the brand backend default.
+
+        Default implementation raises NotImplementedError so the coordinator
+        can fall back to the basic ``command_start_climate`` flow for brands
+        that do not accept the rich payload (SEAT/CUPRA OLA, Skoda mysmob,
+        Porsche PPA, VW NA).
+        """
+        raise NotImplementedError
+
     async def command_stop_climate(self, vin: str) -> None:
         """Stop pre-conditioning."""
         raise NotImplementedError
