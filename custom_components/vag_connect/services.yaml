@@ -1,3 +1,49 @@
+# v2.10.0 unified action dispatcher. One service with a dropdown
+# instead of N separate services. Pattern observed in
+# arjenvrh/audi_connect_ha v2.1.0 (single ``execute_vehicle_action``
+# with an ``action`` select). All per-action services below
+# (lock, unlock, start_climatisation, ...) keep working unchanged so
+# existing automations are NOT broken; this service is purely an
+# easier-to-find UX surface in the Lovelace service picker.
+execute_vehicle_action:
+  name: Execute Vehicle Action
+  description: >-
+    Unified service that dispatches a vehicle action selected from a
+    dropdown. Equivalent to calling the per-action service of the
+    same name but easier to find in the Home Assistant Lovelace
+    "service" picker. All existing per-action services (vag_connect.lock,
+    vag_connect.start_climatisation, etc) keep working unchanged.
+  fields:
+    device_id:
+      name: Vehicle
+      description: The vehicle device to act on.
+      required: true
+      selector:
+        device:
+          integration: vag_connect
+    action:
+      name: Action
+      description: Which action to dispatch.
+      required: true
+      selector:
+        select:
+          translation_key: execute_vehicle_action_options
+          options:
+            - lock
+            - unlock
+            - start_climatisation
+            - stop_climatisation
+            - start_charging
+            - stop_charging
+            - flash_lights
+            - start_window_heating
+            - stop_window_heating
+            - wake_vehicle
+            - start_aux_heating
+            - stop_aux_heating
+            - start_ventilation
+            - stop_ventilation
+
 # v2.2.3 — Community easter-egg. Spawned by humorous FB-thread
 # pointing out "VAG" reads differently in English (Si Gregory + Ben
 # Johnson + Evets David + Stuart McBride + Jordan Waeles' Pandas-style
