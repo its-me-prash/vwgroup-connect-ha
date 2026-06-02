@@ -181,18 +181,19 @@ def _register_services_with_patched_dr(hass: MagicMock) -> None:
     return our synthesised registry.
 
     The internal helper imports ``device_registry as dr`` at module
-    top level, so the test monkey-patches ``dr.async_get`` for the
-    duration of the call.
+    top level. We monkey-patch ``dr.async_get`` and intentionally do
+    NOT restore it within this helper, because the registered service
+    handlers capture the patched ``dr`` reference and are invoked
+    LATER (after this function returns) by the test body. Restoring
+    too early would make the handler see the real HA dr.async_get and
+    crash on the MagicMock'd hass. Pytest's test isolation cleans up
+    any module-level side effects between tests anyway.
     """
     from custom_components.vag_connect import _register_services
     from custom_components.vag_connect import dr as _dr_mod  # type: ignore[attr-defined]
 
-    original = _dr_mod.async_get
     _dr_mod.async_get = MagicMock(return_value=hass._device_registry)  # type: ignore[attr-defined]
-    try:
-        _register_services(hass)
-    finally:
-        _dr_mod.async_get = original
+    _register_services(hass)
 
 
 def test_execute_vehicle_action_is_registered() -> None:

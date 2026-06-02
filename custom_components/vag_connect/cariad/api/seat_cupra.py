@@ -220,15 +220,16 @@ class SeatCupraClient(CariadBaseClient):
             data = await CariadBaseClient._request(self, "GET", url)
             return data if isinstance(data, dict) else {}
         except APIError as err:
-            if err.status in (401, 403, 404):
-                _LOGGER.debug(
-                    "charging_statistics soft-fail (%d) on %s - older "
-                    "firmware or no subscription",
-                    err.status,
-                    path,
-                )
-                return {}
-            raise
+            # Best-effort host: all APIError statuses soft-fail to {}
+            # so a 5xx transient does not poison the get_status poll.
+            # The diagnostics dump still surfaces the failure via the
+            # parser_stats counter, this branch just keeps the rest of
+            # the poll running.
+            _LOGGER.debug(
+                "charging_statistics soft-fail (%d) on %s",
+                err.status, path,
+            )
+            return {}
         except Exception:  # noqa: BLE001 - best-effort host
             _LOGGER.debug(
                 "charging_statistics unexpected error on %s - returning {}",

@@ -550,10 +550,7 @@ class VWEUClient(CariadBaseClient):
             body["climatisationAtUnlock"] = bool(climatisation_at_unlock)
         if climatisation_mode is not None:
             body["climatisationMode"] = str(climatisation_mode)
-        url = (
-            f"{self._base_for_vin(vin)}/vehicle/v1/vehicles/{vin}"
-            "/climatisation/start"
-        )
+        url = f"{self._base_for_vin(vin)}/vehicle/v1/vehicles/{vin}/climatisation/start"
         await self._post(url, json=body)
 
     async def command_stop_climate(self, vin: str) -> None:
