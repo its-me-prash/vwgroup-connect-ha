@@ -1349,6 +1349,18 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         suggested_display_precision=0,
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # v2.10.0 - real-time charge rate, distinct from averaged
+    # charging_rate_kmh. Only some CARIAD BFF firmware exposes this.
+    VagSensorDescription(
+        key="actual_charge_rate_kw",
+        translation_key="actual_charge_rate_kw",
+        data_key="actual_charge_rate_kw",
+        native_unit_of_measurement="kW",
+        device_class=SensorDeviceClass.POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:lightning-bolt",
+        suggested_display_precision=2,
+    ),
     # v2.2.0 Phase 2 PR #11/20 — derived integer days until expiry.
     # Closes the subscription-feature triangle (timestamp + active +
     # days). Negative when expired. Automation-friendly: threshold
@@ -1560,6 +1572,8 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # leave warning_count/warning_messages at None.
     "warning_count",
     "warning_messages",
+    # v2.10.0 - real-time charge rate, Audi-only firmware exposes it.
+    "actual_charge_rate_kw",
     "next_charging_timer_id",
     "next_charging_timer_target_soc_reachable",
     "capabilities_count",

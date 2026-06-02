@@ -483,6 +483,9 @@
       },
       "refuel_trip_timestamp": {
         "name": "Tank-Zyklus Start"
+      },
+      "actual_charge_rate_kw": {
+        "name": "Aktuelle Ladeleistung"
       }
     },
     "binary_sensor": {

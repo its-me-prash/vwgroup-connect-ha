@@ -474,6 +474,10 @@ class VehicleData:
     # From ``charging.chargingStatus.value.remainingChargingTimeNavigation_min``.
     remaining_charge_time_nav_min: int | None = None
     plug_led_color: str | None = None  # none / red / green / blue
+    # v2.10.0 - real-time charge rate in kW (instant), distinct from
+    # the averaged charging_rate_kmh. Only populated by CARIAD BFF on
+    # firmware that exposes a separate instant rate.
+    actual_charge_rate_kw: float | None = None
     external_power_available: bool | None = None  # plugStatus.externalPower
 
     # Climate

@@ -1243,6 +1243,34 @@ class VWEUClient(CariadBaseClient):
         d.charging_power_kw = v(raw, "charging", "chargingStatus", "value", "chargePower_kW")
         d.charging_rate_kmh = v(raw, "charging", "chargingStatus", "value", "chargeRate_kmph")
 
+        # v2.10.0 - real-time (instant) charge rate, distinct from the
+        # averaged chargeRate_kmph above. The CARIAD BFF ships this
+        # under different keys across firmware generations; field-name
+        # variants tried defensively. None when the firmware does not
+        # expose a separate instant rate, in which case the existing
+        # charging_rate_kmh remains the only signal.
+        actual_rate = (
+            v(raw, "charging", "actualChargeRate", "value")
+            or v(raw, "charging", "chargingStatus", "value", "actualChargeRate")
+            or v(raw, "charging", "chargingStatus", "value", "instantChargeRate_kW")
+        )
+        if isinstance(actual_rate, (int, float)):
+            d.actual_charge_rate_kw = float(actual_rate)
+
+        # v2.10.0 - Audi-only charging port LED color. Audi vehicles
+        # ship a coloured LED ring around the charge port that signals
+        # charging state to bystanders. The CARIAD BFF surfaces the
+        # current colour string under several paths; defensive lookup
+        # since not all Audi models report it (PPE Q6/A6 e-tron yes,
+        # older B9 A4 no).
+        led_color = (
+            v(raw, "access", "accessStatus", "value", "plugLedColor")
+            or v(raw, "charging", "plugStatus", "value", "plugLedColor")
+            or v(raw, "charging", "chargingStatus", "value", "plugLedColor")
+        )
+        if isinstance(led_color, str) and led_color:
+            d.plug_led_color = led_color
+
         # v1.27.2 — scout #181 (Audi): pending charging-settings change requests.
         # Surfaced as a count diagnostic so users can verify their
         # putChargingSettings POSTs actually queued. Empty list = idle.
