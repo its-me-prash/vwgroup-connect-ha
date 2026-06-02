@@ -750,6 +750,19 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # upstream (6-key envelope, mirror of the v2.7.4
             # oilLevel.error pattern in #371/#373).
             "vehicleHealthWarnings.warningLights.error",
+            # v2.10.0 (#389 scout 2026-06-02) — Scout descends INTO the
+            # .error envelope and sees the 3 inner keys as new. Add the
+            # wildcard form so Scout stops at the wrapper. Same fix
+            # pattern as access.accessStatus.error.* further down.
+            "vehicleHealthWarnings.warningLights.error.*",
+            # v2.10.0 (#389) — pending-action request list. Audi BFF
+            # ships this on the access endpoint when a lock/unlock
+            # command was recently dispatched and the action is still
+            # acknowledged-pending. List of dicts; we silence the
+            # whole subtree for now and revisit as a parser when the
+            # shape stabilises (see roadmap "Anti-theft event suite").
+            "access.accessStatus.requests",
+            "access.accessStatus.requests.*",
             # v1.12.1 (#105 + #106, 2026-04-30) — Scout descended one
             # more level past the v1.12.0 wrapper registrations and
             # found the ``.value`` containers below them. Same
