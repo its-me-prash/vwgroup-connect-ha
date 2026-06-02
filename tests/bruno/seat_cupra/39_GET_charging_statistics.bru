@@ -1,0 +1,55 @@
+meta {
+  name: GET charging_statistics (v2.10.0)
+  type: http
+  seq: 39
+}
+
+get {
+  url: {{charging_host_url}}/charging_statistics
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  v2.10.0 - Historical charging-session aggregator on the CARIAD
+  charging-stats host.
+
+  Different vhost than the other SEAT/CUPRA endpoints in this
+  collection: this one lives on
+  ``prod.emea.mobile.charging.cariad.digital`` rather than on
+  ``ola.prod.code.seat.cloud.vwgroup.com``. Accepts the same Bearer
+  access token from the SEAT/CUPRA IDK client.
+
+  Endpoint reference: Timwun/Cupra-WeConnect-Bruno-Collection
+  (Charging Statistics sequence), independently parsed in
+  seat_cupra._get_from_charging_host + ``get_status`` v2.10.0.
+
+  Response shape (observed across CUPRA Born + Leon e-Hybrid):
+    {
+      "totalEnergyChargedInKwh": 1234.5,
+      "sessions": [
+        {
+          "startedAt": "2026-05-30T18:42:11Z",
+          "energyChargedInKwh": 38.2,
+          "durationInMinutes": 27,
+          "currentType": "DC"
+        },
+        ...
+      ]
+    }
+
+  Newer firmware wraps the list under data.sessions; both paths
+  handled by the parser.
+
+  Soft-fails to {} on 401 / 403 (older firmware that doesn't expose
+  this host, accounts without the Connect subscription) and 404
+  (vehicle has never recorded a session).
+}

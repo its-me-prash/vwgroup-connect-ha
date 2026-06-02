@@ -724,6 +724,43 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         suggested_display_precision=0,
         condition="electric",
     ),
+    # v2.10.0 (charging_statistics) - SEAT/CUPRA per-session detail from
+    # the charging.cariad.digital host. Skoda already populates the same
+    # last_charging_session_* fields from mysmob (v1.15.0 #35); SEAT/CUPRA
+    # gained these in v2.10.0 via the new charging-stats host. Both fields
+    # below are gated by _DATA_PRESENT_REQUIRED so non-EV cars and brands
+    # without the host stay clean.
+    VagSensorDescription(
+        key="last_charging_session_start",
+        translation_key="last_charging_session_start",
+        data_key="last_charging_session_start",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:clock-outline",
+        condition="electric",
+    ),
+    VagSensorDescription(
+        key="last_charging_session_current_type",
+        translation_key="last_charging_session_current_type",
+        data_key="last_charging_session_current_type",
+        icon="mdi:ev-plug-type2",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # v2.10.0 (charging_statistics) - per-session power-curve samples.
+    # State is the COUNT of points to keep HA recorder usage low; the
+    # full sample list lives in extra_state_attributes (see
+    # VagConnectSensor.extra_state_attributes below). Useful for
+    # Lovelace cards that graph kW over time for the last DC fast-charge.
+    VagSensorDescription(
+        key="last_charging_power_curve_points",
+        translation_key="last_charging_power_curve_points",
+        data_key="last_charging_power_curve_points",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:chart-line",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=0,
+        condition="electric",
+    ),
     # v1.16.0 (#25, #31) — Skoda Charging Profiles read-only sensors.
     # The killer field: ``active_charging_profile_name`` from the
     # backend's ``currentVehiclePositionProfile`` (the backend already
@@ -1450,6 +1487,12 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "total_charged_energy_kwh",
     "last_charging_session_kwh",
     "last_charging_session_duration_min",
+    # v2.10.0 (charging_statistics) - SEAT/CUPRA host-specific. Other
+    # brands and SEAT/CUPRA vehicles without subscription leave these
+    # at None so no phantom entity appears.
+    "last_charging_session_start",
+    "last_charging_session_current_type",
+    "last_charging_power_curve_points",
     # v1.16.0 (#25, #31) — Skoda-only charging profiles. Same cross-
     # brand deferral. Even on Skoda these stay None for accounts
     # without configured profiles → don't create phantom entities.
@@ -1634,11 +1677,16 @@ async def async_setup_entry(
                 continue
             if desc.condition == "combustion" and not has_combustion:
                 continue
-            if (
-                desc.key in _DATA_PRESENT_REQUIRED
-                and vehicle.get(desc.data_key) is None
-            ):
-                continue
+            if desc.key in _DATA_PRESENT_REQUIRED:
+                _present = vehicle.get(desc.data_key)
+                # v2.10.0 (charging_statistics) - some gated fields are list-
+                # shaped with a ``default_factory=list`` default that yields
+                # ``[]`` on absent data rather than ``None``. Treat both as
+                # "not present" so the entity is skipped at spawn time.
+                if _present is None or (
+                    isinstance(_present, list) and not _present
+                ):
+                    continue
             if desc.key in _TRIP_STATS_KEYS:
                 if not trip_stats_supported:
                     continue
@@ -1740,11 +1788,29 @@ class VagConnectSensor(VagConnectEntity, SensorEntity):
             equip = self._vehicle.get("equipment")
             if isinstance(equip, list) and equip:
                 return json_safe_dict({"equipment": equip})
+        # v2.10.0 (charging_statistics) - full power-curve sample list on
+        # the per-sample sensor. Same audi #113 pattern as recent_trips
+        # and recent_charging_sessions: list-shaped data lives in attrs
+        # to dodge the 255-char HA state limit; native_value stays the
+        # int sample count.
+        if self.entity_description.key == "last_charging_power_curve_points":
+            points = self._vehicle.get("last_charging_power_curve_points")
+            if isinstance(points, list) and points:
+                return json_safe_dict({"points": points})
         return None
 
     @property
     def native_value(self) -> Any:
         val = self._vehicle.get(self.entity_description.data_key)
+        # v2.10.0 (charging_statistics) - power-curve sample list. Native
+        # value is the COUNT to keep state HA-recorder friendly; the full
+        # list lives in extra_state_attributes (see above). Returns None
+        # when the list is missing or empty so the entity reports
+        # "unknown" rather than "0" before the first poll has data.
+        if self.entity_description.key == "last_charging_power_curve_points":
+            if isinstance(val, list) and val:
+                return len(val)
+            return None
         # charging_power_kw + charging_rate_kmh: API omits these when not charging.
         # Return 0 so the entity shows "0 kW / 0 km/h" instead of "unavailable".
         if val is None and self.entity_description.key in _ZERO_WHEN_IDLE:

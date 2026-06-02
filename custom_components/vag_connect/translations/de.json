@@ -283,6 +283,15 @@
       "last_charging_session_duration_min": {
         "name": "Letzte Ladesitzung — Dauer"
       },
+      "last_charging_session_start": {
+        "name": "Letzte Ladesitzung, Start"
+      },
+      "last_charging_session_current_type": {
+        "name": "Letzte Ladesitzung, Stromart"
+      },
+      "last_charging_power_curve_points": {
+        "name": "Letzte Ladesitzung, Leistungskurve"
+      },
       "active_charging_profile_name": {
         "name": "Aktives Ladeprofil"
       },
