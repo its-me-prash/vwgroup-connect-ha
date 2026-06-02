@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Push-update infrastructure for VAG Connect.
 
 Today VAG Connect polls each backend every N minutes (default 10 min).

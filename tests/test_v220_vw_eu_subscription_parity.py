@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.2.0 Phase 2 PR #10/20 — VW EU/Audi subscription parity.
 
 Mirrors the SEAT/CUPRA aggregation from PR #8/#9 but reads from the

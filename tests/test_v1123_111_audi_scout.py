@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Tests for v1.12.3 — #111 Audi Scout coverage (DnnsJp74's report).
 
 Second community Scout report from a non-maintainer (DnnsJp74 on

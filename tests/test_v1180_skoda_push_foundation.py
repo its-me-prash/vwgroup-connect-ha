@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Tests for v1.18.0 — Skoda mysmob MQTT push foundation.
 
 Foundation phase: class structure, state machine, lifecycle, and

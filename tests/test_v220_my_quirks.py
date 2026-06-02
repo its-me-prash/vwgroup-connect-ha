@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.2.0 PR #5 — MY/Platform quirk-suppression layer.
 
 Catches the bug-class that the existing ``_capabilities.py`` Phase 3

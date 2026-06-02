@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Command dispatcher — per-VIN per-command-class lock + cooldown state.
 
 v1.25.0 PR-D Foundation: extracts the lock-map + wake-cooldown state

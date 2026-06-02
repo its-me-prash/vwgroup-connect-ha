@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.5.2 — Silent Scout-Channel Expansion: probe endpoint inventory.
 
 The scout pipeline (``detect_unexpected``) emits per-field reports for any

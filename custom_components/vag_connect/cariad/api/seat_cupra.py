@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """SEAT/CUPRA API client — ola.prod.code.seat.cloud.vwgroup.com.
 
 API endpoints based on upstream/pycupra (Apache-2.0) — clean-room reimplementation.

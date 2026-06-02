@@ -1,3 +1,5 @@
+# Copyright 2026 Prash Balan (@its-me-prash) - Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Tests for the VAG Connect CARIAD API client package."""
 
 from __future__ import annotations

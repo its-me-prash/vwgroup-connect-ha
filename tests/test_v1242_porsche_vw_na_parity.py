@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Porsche + VW NA parser parity tests (v1.24.2 — Audit 2026-05-08).
 
 Pre-v1.24.2 these two clients had ZERO behavioural test coverage —

@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Reporter Pipeline — shared 1-click bug-discovery workflow.
 
 Companion to ``_unexpected_keys.py`` (Vehicle Data Scout) and

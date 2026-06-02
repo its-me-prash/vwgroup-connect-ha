@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.2.0 Phase 5a PR #18/20 — Push-Bus internal abstraction refactor.
 
 Extracts the duplicated ``_advance_backoff`` + ``_reset_backoff``

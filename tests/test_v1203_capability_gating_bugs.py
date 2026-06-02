@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Tests for v1.20.3 — capability-gating bug-fix bundle.
 
 Closes 8+ bugs reported by a user actively testing on Audi A4 B9

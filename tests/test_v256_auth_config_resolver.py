@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.5.6 — Auth config resolver tests.
 
 The resolver moves the auth-config priority chain from "hardcoded only" to

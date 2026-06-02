@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Tests for v1.19.3 — Scout-Welle 6 silencing.
 
 Five new community Scout reports landed 2026-05-04/06:

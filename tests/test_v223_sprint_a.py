@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.2.3 — Sprint A: easter-egg + scout closures + config-flow UX fix.
 
 This single test-file pins the four user-facing changes that ship

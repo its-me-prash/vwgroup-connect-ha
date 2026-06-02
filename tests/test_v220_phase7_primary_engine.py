@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.2.0 Phase 7 PR #3 — SEAT/CUPRA `engines.primary` wiring.
 
 Companion to PR #6/#18 `secondary_engine_*` fields. Silenced via

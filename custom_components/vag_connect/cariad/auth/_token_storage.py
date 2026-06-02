@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Token persistence via HA's Store helper.
 
 Closes #118 (eismarkt) — "After every update of VAG Connect, the

@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) - Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Regression tests for the EU Data Act portal form parser.
 
 Issue #378: after the VW IDP moved hmac/_csrf out of plain

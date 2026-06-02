@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Volkswagen North America API client — b-h-s.spr.{country}00.p.con-veh.net.
 
 Endpoints from matpoulin/CarConnectivity-connector-volkswagen-na (Apache-2.0).

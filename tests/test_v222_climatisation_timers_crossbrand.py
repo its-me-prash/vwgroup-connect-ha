@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.2.2 — VW EU/Audi climatisationTimers cross-brand expansion.
 
 Triggered by Scout #248 (arvcer, 2026-05-17). The 4 reported paths

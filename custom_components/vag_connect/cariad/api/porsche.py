@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Porsche Connect API client — api.ppa.porsche.com.
 
 Endpoints from CJNE/pyporscheconnectapi (Apache-2.0).

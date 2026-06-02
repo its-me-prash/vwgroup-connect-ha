@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.2.2 — Scout #260 silencer-fix + cross-language translation cleanup.
 
 Scout #260 (j4x5mgq94b-commits, Audi 2026-05-17) reported

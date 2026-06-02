@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Lamborghini Unica API client — Cariad-BFF backend (scaffold).
 
 **BETA — TESTER VALIDATION PENDING.** This module ships as scaffolding

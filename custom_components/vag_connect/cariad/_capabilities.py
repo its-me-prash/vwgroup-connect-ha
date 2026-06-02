@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Capability-ID Mapping per Brand — Single Source of Truth.
 
 v1.13.0 (#56 Phase 3) — when an HA platform's ``async_setup_entry``

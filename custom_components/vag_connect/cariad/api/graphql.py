@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """VAG Group GraphQL client for vehicle render images.
 
 Fetches render image URLs via the VW Group vgql proxy.

@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Vehicle Data Scout — detects JSON fields the parser doesn't read.
 
 Mirrors the `upstream/cc-*` "Unexpected Keys found"

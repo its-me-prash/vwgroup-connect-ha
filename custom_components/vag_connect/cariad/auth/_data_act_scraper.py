@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) - Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.8.0 - EU Data Act portal vehicle-data scraper (Action #3).
 
 This module is the in-house automated download layer that sits on top

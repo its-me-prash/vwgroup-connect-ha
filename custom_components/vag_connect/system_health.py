@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """System Health for VAG Connect.
 
 Surfaces integration-wide diagnostics in HA's Settings → System → Repairs

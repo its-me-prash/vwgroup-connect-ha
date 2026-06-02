@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Tests for v1.12.1 — Scout findings #105/#106 + Gerhard's Born fixture.
 
 Three scopes:

@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Time platform for VAG Connect — Departure-Timer editing UI.
 
 v1.16.0 (#26) — closes the long-standing UX gap that users had to call

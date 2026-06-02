@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.2.0 PR #7/20 — Email-OTP vs TOTP discrimination in IDK auth.
 
 Follow-on to PR #1 (consent-screen detection) and #183 (Auth Resilience

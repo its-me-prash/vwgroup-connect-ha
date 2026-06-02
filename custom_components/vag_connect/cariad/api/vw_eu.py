@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Volkswagen EU API client — emea.bff.cariad.digital."""
 
 from __future__ import annotations

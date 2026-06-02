@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) - Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.8.1 #306 — 11 OLA-field gap closures vs pycupra.
 
 These tests pin that the seat_cupra parser populates each of the new

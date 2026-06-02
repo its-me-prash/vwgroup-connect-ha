@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.5.7 — UpstreamUnavailableError (502-storm UX fix).
 
 When CARIAD-BFF returns 5xx on token exchange, that's NOT a credentials

@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Tests for v1.16.1 PATCH — SEAT/CUPRA climate endpoint fix (#53)
 + #122 SEAT scout-paths registration.
 

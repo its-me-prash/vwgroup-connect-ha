@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Cross-brand normalization helpers.
 
 v1.25.0 Sprint C PR-A: extracts logic that was duplicated across 4-5

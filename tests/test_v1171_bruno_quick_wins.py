@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Tests for v1.17.1 — Bruno Quick-Wins Bundle.
 
 Six feature groups (all SEAT/CUPRA OLA additions from

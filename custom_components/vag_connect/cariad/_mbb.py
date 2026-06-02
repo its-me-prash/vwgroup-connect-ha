@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Legacy MBB endpoint paths for older Audi/VW models (pre-PPE/MEB).
 
 v1.21.0 — implements per-VIN backend-detection + MBB-fallback for
