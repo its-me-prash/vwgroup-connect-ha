@@ -493,6 +493,36 @@
       },
       "actual_charge_rate_kw": {
         "name": "Actual charge rate"
+      },
+      "hv_battery_min_temperature_c": {
+        "name": "HV Battery Temperature (Min)"
+      },
+      "hv_battery_max_temperature_c": {
+        "name": "HV Battery Temperature (Max)"
+      },
+      "charge_max_ac_setting": {
+        "name": "Max AC Current (Setting)"
+      },
+      "charge_max_ac_ampere": {
+        "name": "Max AC Current (Deliverable)"
+      },
+      "auto_release_ac_connector_state": {
+        "name": "Auto Release Connector State"
+      },
+      "active_ventilation_state": {
+        "name": "Active Ventilation"
+      },
+      "active_ventilation_remaining_time_min": {
+        "name": "Active Ventilation Remaining"
+      },
+      "connection_state_battery_power_level": {
+        "name": "12V Battery Power Level"
+      },
+      "last_trip_total_fuel_consumption_l": {
+        "name": "Last Trip Total Fuel"
+      },
+      "last_trip_total_electric_consumption_kwh": {
+        "name": "Last Trip Total Energy"
       }
     },
     "binary_sensor": {
@@ -630,6 +660,18 @@
       },
       "area_alarm": {
         "name": "Geofence Alarm"
+      },
+      "auto_release_ac_connector": {
+        "name": "Auto Release AC Connector"
+      },
+      "optimised_battery_use": {
+        "name": "Optimised Battery Use"
+      },
+      "sunroof_rear_closed": {
+        "name": "Rear Sunroof"
+      },
+      "roof_cover_closed": {
+        "name": "Roof Cover"
       }
     },
     "switch": {

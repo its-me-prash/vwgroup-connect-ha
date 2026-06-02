@@ -495,6 +495,36 @@
       },
       "actual_charge_rate_kw": {
         "name": "Aktuelle Ladeleistung"
+      },
+      "hv_battery_min_temperature_c": {
+        "name": "HV-Batterietemperatur (Min)"
+      },
+      "hv_battery_max_temperature_c": {
+        "name": "HV-Batterietemperatur (Max)"
+      },
+      "charge_max_ac_setting": {
+        "name": "Max AC-Strom (Einstellung)"
+      },
+      "charge_max_ac_ampere": {
+        "name": "Max AC-Strom (Lieferbar)"
+      },
+      "auto_release_ac_connector_state": {
+        "name": "Auto-Entriegelung Steckerstatus"
+      },
+      "active_ventilation_state": {
+        "name": "Aktive Belüftung"
+      },
+      "active_ventilation_remaining_time_min": {
+        "name": "Aktive Belüftung Restzeit"
+      },
+      "connection_state_battery_power_level": {
+        "name": "12V-Batterie Ladezustand"
+      },
+      "last_trip_total_fuel_consumption_l": {
+        "name": "Letzte Fahrt Kraftstoff gesamt"
+      },
+      "last_trip_total_electric_consumption_kwh": {
+        "name": "Letzte Fahrt Energie gesamt"
       }
     },
     "binary_sensor": {
@@ -632,6 +662,18 @@
       },
       "area_alarm": {
         "name": "Geofence-Alarm"
+      },
+      "auto_release_ac_connector": {
+        "name": "AC-Stecker Auto-Entriegelung"
+      },
+      "optimised_battery_use": {
+        "name": "Optimierte Batterienutzung"
+      },
+      "sunroof_rear_closed": {
+        "name": "Schiebedach hinten"
+      },
+      "roof_cover_closed": {
+        "name": "Verdeck"
       }
     },
     "switch": {

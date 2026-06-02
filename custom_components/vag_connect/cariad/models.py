@@ -480,6 +480,79 @@ class VehicleData:
     actual_charge_rate_kw: float | None = None
     external_power_available: bool | None = None  # plugStatus.externalPower
 
+    # v2.10.0 Group A - VW EU field parity. Each field below was
+    # identified as a competitor-library gap during the 2026-06-02
+    # scan. All defensively parsed, phantom-protected via
+    # _DATA_PRESENT_REQUIRED in sensor.py / binary_sensor.py so
+    # brands without the underlying field stay clean.
+
+    # HV battery temperature min / max in Celsius. CARIAD BFF ships
+    # ``charging.batteryStatus.value.{minTemperature_K,maxTemperature_K}``
+    # as Kelvin scalars on Born / ID.4 / Q4 e-tron PPE firmware. The
+    # existing ``battery_temp`` collapses these into a single value;
+    # power-users monitoring thermal balance want both extremes.
+    hv_battery_min_temperature_c: float | None = None
+    hv_battery_max_temperature_c: float | None = None
+
+    # Max AC charging current SETTING (user-requested) vs ACTUAL
+    # deliverable amperage. ``maxChargeCurrentAC_setting`` is the
+    # value the user picked in the brand app; ``maxChargeCurrentAC``
+    # is the live deliverable the wallbox + cable can support.
+    # Distinct so dashboards show both. Existing ``max_charge_current``
+    # stays untouched as legacy alias for setting.
+    charge_max_ac_setting: int | None = None
+    charge_max_ac_ampere: int | None = None
+
+    # Born MY24+ AC connector auto-release. Bool flag plus enum
+    # state string. Sourced from ``charging.chargingSettings.value.
+    # autoReleaseAcConnector`` or ``charging.plugStatus.value.
+    # autoUnlockPlugWhenCharged``; state from ``charging.plugStatus.
+    # value.autoReleaseState`` (enum: e.g. ``IDLE``, ``RELEASING``).
+    auto_release_ac_connector: bool | None = None
+    auto_release_ac_connector_state: str | None = None
+
+    # Battery-preservation flag distinct from ``battery_care``.
+    # ``optimisedBatteryUse`` is a Born / ID.x setting that limits
+    # charging dynamics (current ramp + thermal pre-conditioning)
+    # to preserve cell longevity. Different feature from the
+    # ``battery_care`` cap-target (which is a SoC limit).
+    optimised_battery_use: bool | None = None
+
+    # Active ventilation (cabin air-circulation without heating /
+    # cooling). Separate from the climatisation block because the
+    # CARIAD BFF surfaces it under a sibling status enum + remaining
+    # time. ``ventilationState`` is one of ``off`` / ``running`` /
+    # ``finished``.
+    active_ventilation_state: str | None = None
+    active_ventilation_remaining_time_min: int | None = None
+
+    # Rear sunroof + Cabrio roof cover state. Both are window-array
+    # entries; ``sunRoofRear`` covers panoramic rear glass roofs
+    # (Touareg, Tiguan Allspace), ``roofCover`` covers convertible
+    # tops (T-Roc Cabrio, Beetle Cabriolet). Booleans for the
+    # window-class binary sensor. None when the car doesn't have
+    # the option, so the phantom gate hides the entity.
+    sunroof_rear_closed: bool | None = None
+    roof_cover_closed: bool | None = None
+
+    # 12V health bucket. ``connectionStatus.batteryPowerLevel`` or
+    # ``vehicleHealthInspection.value.battery12VLevel``. Enum
+    # values observed: ``low`` / ``normal`` / ``high``. Companion
+    # to the existing ``connection_battery_power_level`` v2.4.1 T1
+    # field; this surface comes from a different parent block on
+    # some firmware shapes.
+    connection_state_battery_power_level: str | None = None
+
+    # Trip aggregator totals. Existing ``last_trip_avg_*`` fields
+    # cover the per-100km averages; these fields are the absolute
+    # totals per trip. The CARIAD BFF ships them directly under
+    # ``tripstatistics.shortTerm[0].{totalFuelConsumption_l,
+    # totalElectricConsumption_kwh}``; older firmware only ships
+    # avg + distance, in which case we derive totals from
+    # ``avg * distance / 100`` (NEVER overwrite a backend total).
+    last_trip_total_fuel_consumption_l: float | None = None
+    last_trip_total_electric_consumption_kwh: float | None = None
+
     # Climate
     climatisation_state: str | None = None
     # v2.0.1 (#131 follow-up) — same false-negative reasoning as the

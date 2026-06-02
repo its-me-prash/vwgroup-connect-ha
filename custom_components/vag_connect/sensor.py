@@ -1463,6 +1463,104 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         suggested_display_precision=1,
         condition="electric",
     ),
+    # v2.10.0 Group A - VW EU field parity additions. Phantom-protected
+    # via ``_DATA_PRESENT_REQUIRED`` below: cars without the underlying
+    # field stay clean.
+    VagSensorDescription(
+        key="hv_battery_min_temperature_c",
+        translation_key="hv_battery_min_temperature_c",
+        data_key="hv_battery_min_temperature_c",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:thermometer-low",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+    ),
+    VagSensorDescription(
+        key="hv_battery_max_temperature_c",
+        translation_key="hv_battery_max_temperature_c",
+        data_key="hv_battery_max_temperature_c",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:thermometer-high",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+    ),
+    VagSensorDescription(
+        key="charge_max_ac_setting",
+        translation_key="charge_max_ac_setting",
+        data_key="charge_max_ac_setting",
+        native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:current-ac",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charge_max_ac_ampere",
+        translation_key="charge_max_ac_ampere",
+        data_key="charge_max_ac_ampere",
+        native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:current-ac",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="auto_release_ac_connector_state",
+        translation_key="auto_release_ac_connector_state",
+        data_key="auto_release_ac_connector_state",
+        icon="mdi:ev-plug-ccs2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="active_ventilation_state",
+        translation_key="active_ventilation_state",
+        data_key="active_ventilation_state",
+        icon="mdi:fan",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="active_ventilation_remaining_time_min",
+        translation_key="active_ventilation_remaining_time_min",
+        data_key="active_ventilation_remaining_time_min",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:fan-clock",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="connection_state_battery_power_level",
+        translation_key="connection_state_battery_power_level",
+        data_key="connection_state_battery_power_level",
+        icon="mdi:car-battery",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="last_trip_total_fuel_consumption_l",
+        translation_key="last_trip_total_fuel_consumption_l",
+        data_key="last_trip_total_fuel_consumption_l",
+        native_unit_of_measurement="L",
+        device_class=SensorDeviceClass.VOLUME,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:gas-station",
+        suggested_display_precision=2,
+        condition="combustion",
+    ),
+    VagSensorDescription(
+        key="last_trip_total_electric_consumption_kwh",
+        translation_key="last_trip_total_electric_consumption_kwh",
+        data_key="last_trip_total_electric_consumption_kwh",
+        native_unit_of_measurement="kWh",
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:lightning-bolt",
+        suggested_display_precision=2,
+        condition="electric",
+    ),
 )
 
 # Sensor keys that read from coordinator helpers instead of the per-vehicle
@@ -1644,6 +1742,20 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # entity appears for SEAT/CUPRA/Skoda/Porsche/VW NA.
     "auxiliary_heating_status",
     "auxiliary_heating_remaining_min",
+    # v2.10.0 Group A — VW EU field parity additions. All brand-
+    # restricted at the parser level (CARIAD-BFF VW EU + Audi via
+    # subclass). Vehicles without the underlying field stay None
+    # so no phantom diagnostic entity appears.
+    "hv_battery_min_temperature_c",
+    "hv_battery_max_temperature_c",
+    "charge_max_ac_setting",
+    "charge_max_ac_ampere",
+    "auto_release_ac_connector_state",
+    "active_ventilation_state",
+    "active_ventilation_remaining_time_min",
+    "connection_state_battery_power_level",
+    "last_trip_total_fuel_consumption_l",
+    "last_trip_total_electric_consumption_kwh",
 })
 
 # v1.14.0 (#24) — Trip Statistics is brand-restricted at the API level

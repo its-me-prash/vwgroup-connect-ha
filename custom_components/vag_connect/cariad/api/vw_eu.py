@@ -1102,6 +1102,43 @@ class VWEUClient(CariadBaseClient):
                     d.last_trip_avg_electric_consumption_kwh_100km = (
                         float(avg_elec) / 10.0
                     )
+                # v2.10.0 Group A - per-trip totals. CARIAD BFF firmware
+                # ships these directly under several key names; we try
+                # the canonical name first and derive from
+                # avg * distance / 100 ONLY when no direct field is
+                # present, so a backend-supplied total is never
+                # overwritten by a derived one. field-name variants
+                # tried defensively.
+                total_fuel = (
+                    last.get("totalFuelConsumption_l")
+                    or last.get("totalFuelConsumption")
+                    or last.get("fuelConsumption_l")
+                )
+                if isinstance(total_fuel, (int, float)):
+                    d.last_trip_total_fuel_consumption_l = float(total_fuel)
+                elif (
+                    d.last_trip_avg_fuel_consumption_l_100km is not None
+                    and d.last_trip_distance_km is not None
+                ):
+                    d.last_trip_total_fuel_consumption_l = round(
+                        d.last_trip_avg_fuel_consumption_l_100km
+                        * d.last_trip_distance_km / 100.0, 2,
+                    )
+                total_elec = (
+                    last.get("totalElectricConsumption_kwh")
+                    or last.get("totalElectricEngineConsumption_kwh")
+                    or last.get("totalElectricConsumption")
+                )
+                if isinstance(total_elec, (int, float)):
+                    d.last_trip_total_electric_consumption_kwh = float(total_elec)
+                elif (
+                    d.last_trip_avg_electric_consumption_kwh_100km is not None
+                    and d.last_trip_distance_km is not None
+                ):
+                    d.last_trip_total_electric_consumption_kwh = round(
+                        d.last_trip_avg_electric_consumption_kwh_100km
+                        * d.last_trip_distance_km / 100.0, 2,
+                    )
                 ts = last.get("tripEndTimestamp")
                 if isinstance(ts, str):
                     d.last_trip_timestamp = ts
@@ -1707,6 +1744,180 @@ class VWEUClient(CariadBaseClient):
         bat_max = v(raw, "measurements", "temperatureBatteryStatus", "value", "temperatureHvBatteryMax_K")
         bat_max_k = safe_float(bat_max)
         d.battery_temp_max = round(bat_max_k - 273.15, 1) if bat_max_k is not None else None
+
+        # v2.10.0 Group A - HV battery min/max temperature from the
+        # ``charging.batteryStatus.value`` block. Newer Born / Q4 e-tron
+        # firmware ships ``minTemperature_K`` and ``maxTemperature_K``
+        # under the charging block in addition to (or instead of) the
+        # ``measurements.temperatureBatteryStatus`` block used above.
+        # field-name variants tried defensively. Kelvin-to-Celsius
+        # only when the raw value is > 200 (heuristic to distinguish
+        # Kelvin from already-Celsius readings).
+        hv_min_raw = (
+            v(raw, "charging", "batteryStatus", "value", "minTemperature_K")
+            or v(raw, "charging", "batteryStatus", "value", "minimumTemperature_K")
+            or v(raw, "charging", "batteryStatus", "value", "temperatureMin_K")
+        )
+        hv_min_k = safe_float(hv_min_raw)
+        if hv_min_k is not None:
+            d.hv_battery_min_temperature_c = round(
+                hv_min_k - 273.15 if hv_min_k > 200 else hv_min_k, 1,
+            )
+        hv_max_raw = (
+            v(raw, "charging", "batteryStatus", "value", "maxTemperature_K")
+            or v(raw, "charging", "batteryStatus", "value", "maximumTemperature_K")
+            or v(raw, "charging", "batteryStatus", "value", "temperatureMax_K")
+        )
+        hv_max_k = safe_float(hv_max_raw)
+        if hv_max_k is not None:
+            d.hv_battery_max_temperature_c = round(
+                hv_max_k - 273.15 if hv_max_k > 200 else hv_max_k, 1,
+            )
+
+        # v2.10.0 Group A - distinguish user-requested AC charge current
+        # setting from the actual deliverable amperage the wallbox +
+        # cable can support. Existing ``max_charge_current`` stays
+        # populated from ``maxChargeCurrentAC_A`` for backward compat;
+        # the two new fields below sit alongside as explicit setting /
+        # actual pair. field-name variants tried defensively.
+        ac_setting = (
+            v(raw, "charging", "chargingSettings", "value", "maxChargeCurrentAC_setting")
+            or v(raw, "charging", "chargingSettings", "value", "maxChargeCurrentACSetting")
+            or v(raw, "charging", "chargingSettings", "value", "maxChargeCurrentAC_set")
+        )
+        ac_setting_int = safe_int(ac_setting)
+        if ac_setting_int is not None:
+            d.charge_max_ac_setting = ac_setting_int
+        ac_ampere = (
+            v(raw, "charging", "chargingSettings", "value", "maxChargeCurrentAC")
+            or v(raw, "charging", "chargingStatus", "value", "maxChargeCurrentAC")
+            or v(raw, "charging", "chargingSettings", "value", "maxChargeCurrentAC_actual")
+        )
+        ac_ampere_int = safe_int(ac_ampere)
+        if ac_ampere_int is not None:
+            d.charge_max_ac_ampere = ac_ampere_int
+
+        # v2.10.0 Group A - Born MY24+ AC connector auto-release.
+        # Field-name variants tried defensively. The boolean flag
+        # surfaces under several names across firmware generations;
+        # the enum ``autoReleaseState`` lives only on plugStatus.
+        auto_release_raw = (
+            v(raw, "charging", "chargingSettings", "value", "autoReleaseAcConnector")
+            or v(raw, "charging", "plugStatus", "value", "autoUnlockPlugWhenCharged")
+            or v(raw, "charging", "chargingSettings", "value", "autoReleaseAcConnectorEnabled")
+        )
+        if isinstance(auto_release_raw, bool):
+            d.auto_release_ac_connector = auto_release_raw
+        elif isinstance(auto_release_raw, str):
+            up = auto_release_raw.upper()
+            if up in ("PERMANENT", "ON", "ACTIVATED", "TRUE", "YES", "ENABLED"):
+                d.auto_release_ac_connector = True
+            elif up in ("OFF", "DEACTIVATED", "FALSE", "NO", "DISABLED"):
+                d.auto_release_ac_connector = False
+        auto_release_state = (
+            v(raw, "charging", "plugStatus", "value", "autoReleaseState")
+            or v(raw, "charging", "chargingStatus", "value", "autoReleaseState")
+        )
+        if isinstance(auto_release_state, str) and auto_release_state:
+            d.auto_release_ac_connector_state = auto_release_state
+
+        # v2.10.0 Group A - battery-preservation flag distinct from
+        # battery_care. Born / ID.x setting that limits charging
+        # dynamics (current ramp + thermal pre-conditioning) to
+        # preserve cell longevity. field-name variants tried
+        # defensively.
+        opt_bat_raw = (
+            v(raw, "charging", "chargingSettings", "value", "optimisedBatteryUse")
+            or v(raw, "charging", "chargingSettings", "value", "optimizedBatteryUse")
+            or v(raw, "charging", "chargingCareSettings", "value", "optimisedBatteryUse")
+        )
+        if isinstance(opt_bat_raw, bool):
+            d.optimised_battery_use = opt_bat_raw
+        elif isinstance(opt_bat_raw, str):
+            up = opt_bat_raw.upper()
+            if up in ("ACTIVATED", "ACTIVE", "ON", "TRUE", "ENABLED"):
+                d.optimised_battery_use = True
+            elif up in ("DEACTIVATED", "INACTIVE", "OFF", "FALSE", "DISABLED"):
+                d.optimised_battery_use = False
+
+        # v2.10.0 Group A - active ventilation (cabin air-circulation
+        # without heating / cooling). Surfaces under the climatisation
+        # block as a sibling status enum + remaining time. field-name
+        # variants tried defensively. State is one of ``off`` /
+        # ``running`` / ``finished``.
+        vent_state = (
+            v(raw, "climatisation", "climatisationStatus", "value", "ventilationState")
+            or v(raw, "climatisation", "ventilationStatus", "value", "ventilationState")
+            or v(raw, "climatisation", "climatisationStatus", "value", "activeVentilationState")
+        )
+        if isinstance(vent_state, str) and vent_state:
+            d.active_ventilation_state = vent_state
+        vent_remaining = (
+            v(raw, "climatisation", "climatisationStatus", "value", "ventilationRemainingTimeInMinutes")
+            or v(raw, "climatisation", "climatisationStatus", "value", "ventilationRemainingTime_min")
+            or v(raw, "climatisation", "ventilationStatus", "value", "remainingTime_min")
+        )
+        vent_remaining_int = safe_int(vent_remaining)
+        if vent_remaining_int is not None:
+            d.active_ventilation_remaining_time_min = vent_remaining_int
+
+        # v2.10.0 Group A - rear sunroof + Cabrio roof cover. Both are
+        # window-array entries on the access.accessStatus.value.windows
+        # block. ``sunRoofRear`` covers panoramic rear glass roofs;
+        # ``roofCover`` covers convertible tops. Two paths checked:
+        # (1) the existing ``windows_individual`` dict populated by the
+        # access block walker above, (2) direct lookup against the
+        # raw windows list as a fallback for firmware shapes the
+        # walker did not capture.
+        windows_dict = d.windows_individual or {}
+        for key, target in (
+            ("sunRoofRear", "sunroof_rear_closed"),
+            ("sun_roof_rear", "sunroof_rear_closed"),
+            ("roofCover", "roof_cover_closed"),
+            ("roof_cover", "roof_cover_closed"),
+        ):
+            if key in windows_dict:
+                # windows_individual maps id -> "open" boolean (True = open).
+                # Closed = NOT open.
+                setattr(d, target, not windows_dict[key])
+        # Direct fallback: read the raw windows list, look for the
+        # named entries, normalise status string against "closed".
+        raw_windows = v(raw, "access", "accessStatus", "value", "windows") or []
+        if isinstance(raw_windows, list):
+            for w in raw_windows:
+                if not isinstance(w, dict):
+                    continue
+                name = w.get("name") or w.get("location") or ""
+                if not isinstance(name, str):
+                    continue
+                name_l = name.lower()
+                status_raw = w.get("status")
+                if isinstance(status_raw, list) and status_raw:
+                    status_raw = status_raw[0]
+                if isinstance(status_raw, dict):
+                    status_raw = status_raw.get("value") or status_raw.get("status")
+                if not isinstance(status_raw, str):
+                    continue
+                is_closed = status_raw.lower() == "closed"
+                if "sunroofrear" in name_l.replace("_", "") or name_l == "sun_roof_rear":
+                    if d.sunroof_rear_closed is None:
+                        d.sunroof_rear_closed = is_closed
+                elif "roofcover" in name_l.replace("_", "") or name_l == "roof_cover":
+                    if d.roof_cover_closed is None:
+                        d.roof_cover_closed = is_closed
+
+        # v2.10.0 Group A - 12V health bucket from connectionStatus or
+        # the vehicleHealthInspection block. Companion to the v2.4.1
+        # T1 ``connection_battery_power_level`` field that reads the
+        # same logical signal from a different parent block on
+        # other firmware shapes. field-name variants tried defensively.
+        bpl = (
+            v(raw, "connectionStatus", "batteryPowerLevel")
+            or v(raw, "vehicleHealthInspection", "value", "battery12VLevel")
+            or v(raw, "vehicleHealthInspection", "maintenanceStatus", "value", "battery12VLevel")
+        )
+        if isinstance(bpl, str) and bpl:
+            d.connection_state_battery_power_level = bpl
 
         # v1.12.0 (#23) — 12V starter battery voltage. The CARIAD BFF
         # ``lvBattery`` job publishes voltage in volts (decimal, e.g.
