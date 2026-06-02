@@ -608,10 +608,83 @@ class IDKAuth:
             err_safe = (err or "")[:120]
             if email:
                 err_safe = err_safe.replace(email, "***@***")
-            _LOGGER.warning("IDK Auth0 400: %s", err_safe)
-            raise AuthenticationError(
-                f"Auth0 login rejected (400): {err_safe or 'check email/password'}"
+
+            # v2.10.0 (#388 BalooDK + swebachus) — VW EU SPA-rendered
+            # password page fallback. Around 2026-05-31 VW migrated Auth0
+            # universal-login to the full-SPA template. The form-encoded
+            # POST above returns 400 "wrong-email-credentials" even when
+            # credentials are correct because the SPA's React code calls
+            # the JSON variant of /u/login under the hood. Retry the SAME
+            # URL with Content-Type: application/json + JSON body. Most
+            # modern Auth0 deployments accept both; older form-encoded
+            # path stays as primary to avoid regressing the legacy IDP.
+            err_norm = (err or "").lower()
+            is_spa_signal = (
+                "wrong-email-credentials" in err_norm
+                or "wrong-credentials" in err_norm
+                or not err  # 400 with no error message at all
             )
+            if is_spa_signal:
+                _LOGGER.debug(
+                    "IDK Auth0 400 (%s): retrying JSON SPA fallback",
+                    err_safe or "no-message",
+                )
+                json_status = 0
+                json_location = ""
+                json_html = ""
+                try:
+                    async with self._session.post(
+                        post_url,
+                        timeout=_AUTH_TIMEOUT,
+                        json=login_form,
+                        headers={
+                            **self._form_headers(),
+                            "Content-Type": "application/json",
+                            "Accept": "application/json, text/html",
+                        },
+                        allow_redirects=False,
+                    ) as json_resp:
+                        json_status = json_resp.status
+                        json_raw_loc = json_resp.headers.get("Location", "")
+                        json_location = (
+                            _make_absolute(self._idk_base, json_raw_loc)
+                            if json_raw_loc else ""
+                        )
+                        json_html = await json_resp.text(errors="replace")
+                except Exception as exc:  # noqa: BLE001
+                    _LOGGER.debug(
+                        "IDK Auth0 JSON fallback POST failed: %s: %s",
+                        type(exc).__name__, exc,
+                    )
+
+                if json_status in (200, 302, 303) and json_location:
+                    _LOGGER.info(
+                        "IDK Auth0 SPA-JSON fallback succeeded: status=%d",
+                        json_status,
+                    )
+                    # Replace the local state so the redirect-follow
+                    # loop below picks up the JSON path's redirect.
+                    status = json_status
+                    location = json_location
+                    resp_html = json_html
+                else:
+                    _LOGGER.warning(
+                        "IDK Auth0 400 + JSON-SPA fallback HTTP %d: %s",
+                        json_status, err_safe,
+                    )
+                    raise AuthenticationError(
+                        "Auth0 SPA login: both form-encoded and JSON "
+                        "variants rejected. Credentials are probably "
+                        "correct; the IDP likely expects an additional "
+                        "SPA-computed parameter (CAPTCHA token, "
+                        "fingerprint, etc) we are not sending. See "
+                        "issue #388."
+                    )
+            else:
+                _LOGGER.warning("IDK Auth0 400: %s", err_safe)
+                raise AuthenticationError(
+                    f"Auth0 login rejected (400): {err_safe or 'check email/password'}"
+                )
         if status == 401:
             raise AuthenticationError("Invalid email or password.")
         if status == 429:

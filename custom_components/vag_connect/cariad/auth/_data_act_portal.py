@@ -336,26 +336,49 @@ class DataActPortalAuth:
         pw_parser = _IdentifierFormParser()
         pw_parser.feed(password_html)
         if not pw_parser.form_action:
+            html_lower = password_html.lower()
+
+            # v2.10.0 (#388 BalooDK + swebachus) — distinguish SPA-rendered
+            # password page from a real consent wall. The pre-v2.10.0 logic
+            # treated the plain string "consent" as proof of a consent wall,
+            # but VW migrated the password page to SPA-rendered (~2026-05-31)
+            # where the bundle includes `consent.js` as a generic JS asset
+            # that loads on every IDP page. The result was every SPA login
+            # falsely reporting "EU Data Act consent required" even when the
+            # user had already granted it. Check for the SPA marker first.
+            is_spa_password_page = (
+                "log in" in html_lower
+                and (
+                    "enter password" in html_lower
+                    or "enter your password" in html_lower
+                    or "loginauthenticate" in html_lower
+                )
+                and "<form" not in html_lower
+            )
+            if is_spa_password_page:
+                raise AuthenticationError(
+                    "Data Act portal: password page is SPA-rendered (no "
+                    "static form). The static-form-scraping path cannot "
+                    "complete; the JSON SPA fallback in idk.py is the "
+                    "supported route. See issue #388."
+                )
+
             # v2.7.3 — when the password form is missing, the most common
             # real-world cause (as reported by VW EU users on issue #372)
             # is that VW interjected the EU Data Act consent screen
-            # between the identifier step and the password step. The
-            # user has to grant the "your vehicle data can help shape
-            # the future" consent on myvolkswagen.* once before the
-            # password page becomes reachable again. Detect this case
-            # via a light HTML signature scan and raise with a clearer
-            # message so config_flow can route to the data_act_consent
-            # error key instead of the generic invalid_credentials.
-            html_lower = password_html.lower()
-            consent_signals = (
+            # between the identifier step and the password step. Now scanned
+            # for SPECIFIC consent signals rather than the bare word
+            # "consent" which matched the SPA bundle's consent.js asset.
+            real_consent_signals = (
                 "data act",
                 "datenverarbeitung",
-                "consent",
                 "einwilligung",
                 "zustimmung",
                 "shape the future",
+                "/u/consent",
+                "/consent/marketing",
             )
-            if any(sig in html_lower for sig in consent_signals):
+            if any(sig in html_lower for sig in real_consent_signals):
                 raise AuthenticationError(
                     "Data Act portal: EU Data Act consent required. "
                     "Sign in once on myvolkswagen.<your-country-tld> "
