@@ -456,6 +456,33 @@
       },
       "pending_action_status": {
         "name": "Ausstehende Aktion Status"
+      },
+      "refuel_trip_distance_km": {
+        "name": "Strecke seit Tanken"
+      },
+      "refuel_trip_duration_min": {
+        "name": "Fahrzeit seit Tanken"
+      },
+      "refuel_trip_avg_speed_kmh": {
+        "name": "Schnitt seit Tanken"
+      },
+      "refuel_trip_avg_fuel_consumption_l_100km": {
+        "name": "Schnittverbrauch Sprit"
+      },
+      "refuel_trip_avg_electric_consumption_kwh_100km": {
+        "name": "Schnittverbrauch Strom"
+      },
+      "refuel_trip_total_fuel_consumption_l": {
+        "name": "Gesamtverbrauch Sprit"
+      },
+      "refuel_trip_total_electric_consumption_kwh": {
+        "name": "Gesamtverbrauch Strom"
+      },
+      "refuel_trip_recuperation_kwh": {
+        "name": "Rekuperation seit Laden"
+      },
+      "refuel_trip_timestamp": {
+        "name": "Tank-Zyklus Start"
       }
     },
     "binary_sensor": {

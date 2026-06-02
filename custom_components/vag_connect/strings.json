@@ -519,6 +519,33 @@
       },
       "pending_action_status": {
         "name": "Pending action status"
+      },
+      "refuel_trip_distance_km": {
+        "name": "Distance since refuel"
+      },
+      "refuel_trip_duration_min": {
+        "name": "Drive time since refuel"
+      },
+      "refuel_trip_avg_speed_kmh": {
+        "name": "Avg speed since refuel"
+      },
+      "refuel_trip_avg_fuel_consumption_l_100km": {
+        "name": "Avg fuel since refuel"
+      },
+      "refuel_trip_avg_electric_consumption_kwh_100km": {
+        "name": "Avg energy since refuel"
+      },
+      "refuel_trip_total_fuel_consumption_l": {
+        "name": "Total fuel since refuel"
+      },
+      "refuel_trip_total_electric_consumption_kwh": {
+        "name": "Total energy since charge"
+      },
+      "refuel_trip_recuperation_kwh": {
+        "name": "Recuperation since charge"
+      },
+      "refuel_trip_timestamp": {
+        "name": "Refuel cycle started"
       }
     },
     "binary_sensor": {

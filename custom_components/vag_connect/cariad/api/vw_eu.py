@@ -319,6 +319,7 @@ class VWEUClient(CariadBaseClient):
         # capability-gated vehicles don't crash the whole poll.
         trip_short: dict[str, Any] = {}
         trip_long: dict[str, Any] = {}
+        trip_refuel: dict[str, Any] = {}
         try:
             with self._parser_job("trip_statistics"):
                 trip_short = await self._get(
@@ -329,11 +330,31 @@ class VWEUClient(CariadBaseClient):
                     f"{base}/vehicle/v1/vehicles/{vin}/tripstatistics",
                     params={"type": "longTerm"},
                 )
+                # v2.10.0 - "cyclic" category = since-refuel / since-recharge
+                # aggregator. CARIAD BFF exposes this alongside shortTerm
+                # and longTerm at the same endpoint. Pattern observed in
+                # volkswagencarnet's TRIP_REFUEL service constant and
+                # mirrored here with our own parser. Energy-Dashboard-
+                # friendly: total-consumption-per-tank/charge is a missing
+                # building block in the HA VAG ecosystem today.
+                try:
+                    trip_refuel = await self._get(
+                        f"{base}/vehicle/v1/vehicles/{vin}/tripstatistics",
+                        params={"type": "cyclic"},
+                    )
+                except Exception:  # noqa: BLE001
+                    # cyclic is a newer firmware capability; some pre-2024
+                    # vehicles 404 it. Treat as soft-fail to keep the rest
+                    # of the parse working unchanged.
+                    pass
         except Exception:  # noqa: BLE001
             pass
 
         d = self._parse_status(vin, raw, parking)
         self._parse_trip_statistics(d, trip_short, trip_long)
+        # v2.10.0 - refuel-trip parse. Separate method to keep the
+        # shortTerm + longTerm parser untouched and ship a focused diff.
+        self._parse_refuel_trip(d, trip_refuel)
 
         # v1.25.0 PR-G — MBB VSR Phase 2 read-side fallback (Golf 7 GTE
         # Tank-Level use case). Triggers when:
@@ -1065,6 +1086,95 @@ class VWEUClient(CariadBaseClient):
                     d.lifetime_avg_electric_consumption_kwh_100km = (
                         float(lt_elec) / 10.0
                     )
+
+    def _parse_refuel_trip(
+        self,
+        d: VehicleData,
+        cyclic: dict[str, Any],
+    ) -> None:
+        """v2.10.0 - parse the cyclic / refuel trip aggregator.
+
+        CARIAD BFF tripstatistics?type=cyclic ships the same field
+        shape as shortTerm / longTerm but the data window is reset by
+        the vehicle on every tank-fill or charge-completion event.
+        Useful as the "kWh per charge" / "L per tank" Energy-Dashboard
+        building block that today is missing in the HA-VAG ecosystem.
+
+        Shape (per CARIAD BFF, mirrored from the shortTerm parser):
+            {"tripData": [
+                {"tripEndTimestamp": "...", "mileage_km": 412,
+                 "travelTime": 387, "averageSpeed_kmph": 64,
+                 "averageFuelConsumption": 58,  # int x10
+                 "averageElectricEngineConsumption": 0,
+                 "averageRecuperation": 18,
+                 "totalElectricConsumption_kwh": 0,
+                 "totalFuelConsumption_l": 23.4,
+                 ...}
+            ]}
+
+        ``tripData[0]`` is the current cycle. Older cycles (one per
+        previous refuel) tail behind in tripData[1:] but we expose
+        only the current cycle as sensors; older cycles stay in the
+        raw diagnostics dump for users that want history.
+        """
+        if not isinstance(cyclic, dict):
+            return
+        trips = cyclic.get("tripData")
+        if not isinstance(trips, list) or not trips:
+            return
+        first = trips[0]
+        if not isinstance(first, dict):
+            return
+
+        mileage = first.get("mileage_km")
+        if isinstance(mileage, (int, float)):
+            d.refuel_trip_distance_km = float(mileage)
+        travel = first.get("travelTime")
+        if isinstance(travel, (int, float)):
+            d.refuel_trip_duration_min = int(travel)
+        avg_speed = first.get("averageSpeed_kmph")
+        if isinstance(avg_speed, (int, float)):
+            d.refuel_trip_avg_speed_kmh = float(avg_speed)
+        avg_fuel = first.get("averageFuelConsumption")
+        if isinstance(avg_fuel, (int, float)):
+            d.refuel_trip_avg_fuel_consumption_l_100km = float(avg_fuel) / 10.0
+        avg_elec = first.get("averageElectricEngineConsumption")
+        if isinstance(avg_elec, (int, float)):
+            d.refuel_trip_avg_electric_consumption_kwh_100km = (
+                float(avg_elec) / 10.0
+            )
+        # Totals - some firmware ships these directly; others require
+        # derivation from avg * distance. Try direct first, fall through
+        # to the derived form when avg + distance are both present.
+        total_fuel = first.get("totalFuelConsumption_l")
+        if isinstance(total_fuel, (int, float)):
+            d.refuel_trip_total_fuel_consumption_l = float(total_fuel)
+        elif (
+            d.refuel_trip_avg_fuel_consumption_l_100km is not None
+            and d.refuel_trip_distance_km is not None
+        ):
+            d.refuel_trip_total_fuel_consumption_l = round(
+                d.refuel_trip_avg_fuel_consumption_l_100km
+                * d.refuel_trip_distance_km / 100.0, 2,
+            )
+        total_elec = first.get("totalElectricConsumption_kwh")
+        if isinstance(total_elec, (int, float)):
+            d.refuel_trip_total_electric_consumption_kwh = float(total_elec)
+        elif (
+            d.refuel_trip_avg_electric_consumption_kwh_100km is not None
+            and d.refuel_trip_distance_km is not None
+        ):
+            d.refuel_trip_total_electric_consumption_kwh = round(
+                d.refuel_trip_avg_electric_consumption_kwh_100km
+                * d.refuel_trip_distance_km / 100.0, 2,
+            )
+        recup = first.get("averageRecuperation")
+        if isinstance(recup, (int, float)):
+            # Stored as int x10 in the same encoding as fuel/elec
+            d.refuel_trip_recuperation_kwh = float(recup) / 10.0
+        ts = first.get("tripEndTimestamp")
+        if isinstance(ts, str):
+            d.refuel_trip_timestamp = ts
 
     def _parse_status(
         self,

@@ -668,6 +668,24 @@ class VehicleData:
     pending_action_type: str | None = None
     pending_action_status: str | None = None
 
+    # v2.10.0 - "since refuel" / "since recharge" trip aggregator.
+    # Third trip category alongside last_trip_* (per individual trip)
+    # and lifetime_* (vehicle total). Tracks consumption since the
+    # last tank fill or charge session. Pattern observed in
+    # volkswagencarnet's TRIP_REFUEL constant; CARIAD BFF exposes it
+    # under tripstatistics?type=cyclic. Energy-Dashboard-friendly
+    # since the total-consumption-per-tank/charge value lets users
+    # build "miles per tank" / "kWh per charge" automations directly.
+    refuel_trip_distance_km: float | None = None
+    refuel_trip_duration_min: int | None = None
+    refuel_trip_avg_speed_kmh: float | None = None
+    refuel_trip_avg_fuel_consumption_l_100km: float | None = None
+    refuel_trip_avg_electric_consumption_kwh_100km: float | None = None
+    refuel_trip_total_fuel_consumption_l: float | None = None
+    refuel_trip_total_electric_consumption_kwh: float | None = None
+    refuel_trip_recuperation_kwh: float | None = None
+    refuel_trip_timestamp: str | None = None
+
     # v1.19.1 — Pycupra-style API quota visibility. Populated from
     # X-RateLimit-Remaining response header captured by base.py
     # ``_capture_rate_limit_headers``. Brand-shared (the same auth
