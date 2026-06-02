@@ -570,6 +570,20 @@ class CariadBaseClient:
         """Set charge target SoC (20–100%)."""
         raise NotImplementedError
 
+    async def command_set_battery_care(self, vin: str, enabled: bool) -> None:
+        """v2.10.0 - toggle battery preservation mode (SEAT/CUPRA primary).
+
+        When enabled, the brand backend caps the high end of the
+        charge at the battery-care target SOC (default 80%, configurable
+        via command_set_battery_care_target). Reduces calendar-aging
+        damage to the HV battery for users that mostly do short trips.
+        """
+        raise NotImplementedError
+
+    async def command_set_battery_care_target(self, vin: str, target_pct: int) -> None:
+        """v2.10.0 - set the battery-care top-charge target (50-100%)."""
+        raise NotImplementedError
+
     async def command_set_climate_temperature(self, vin: str, temp_c: float) -> None:
         """Set pre-conditioning target temperature."""
         raise NotImplementedError

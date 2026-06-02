@@ -686,6 +686,10 @@ class VehicleData:
     refuel_trip_recuperation_kwh: float | None = None
     refuel_trip_timestamp: str | None = None
 
+    # (battery_care_target_soc_pct is defined further down with the
+    # original battery-care fields from the v2.0 EV cluster; the
+    # v2.10.0 settable surface re-uses that field name.)
+
     # v1.19.1 — Pycupra-style API quota visibility. Populated from
     # X-RateLimit-Remaining response header captured by base.py
     # ``_capture_rate_limit_headers``. Brand-shared (the same auth

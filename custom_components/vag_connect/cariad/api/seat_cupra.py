@@ -312,12 +312,26 @@ class SeatCupraClient(CariadBaseClient):
             self._get(f"{_BASE}/v1/vehicles/{vin}/maintenance"),
             self._get(f"{_BASE}/v1/vehicles/{vin}/remote-availability"),
             self._get(f"{_BASE}/v1/vehicles/{vin}/mileage"),  # v2.5.3 (#306)
+            # v2.10.0 - dedicated warning-lights endpoint. OLA v3 ships
+            # structured warning data here instead of nesting it inside
+            # the mycar.vehicleHealthWarnings.warningLights envelope
+            # that previously triggered repeated Scout reports (#384,
+            # #389). Polling the dedicated endpoint gives us per-light
+            # data we can expose as discrete entities.
+            self._get(f"{_BASE}/v3/vehicles/{vin}/warninglights"),
+            # v2.10.0 - settable battery-care config. GET for current
+            # state + target SOC; the PUT companion lives in
+            # command_set_battery_care(). Capability doc:
+            # Timwun/Cupra-WeConnect-Bruno-Collection.
+            self._get(f"{_BASE}/v1/vehicles/{vin}/charging/battery-care"),
             return_exceptions=True,
         )
         (
             mycar, parking, ranges, status, charge_status, charge_info,
             climate, maintenance, availability,
             mileage_v1,  # v2.5.3 (#306)
+            warninglights_v3,  # v2.10.0
+            battery_care_settings,  # v2.10.0
         ) = results
 
         # v1.9.0 — Vehicle Data Scout opt-in. Endpoint names match
@@ -1215,6 +1229,65 @@ class SeatCupraClient(CariadBaseClient):
                     workshop.get("contact") or workshop
                 )
 
+        # v2.10.0 - dedicated warning-lights endpoint parser. OLA v3
+        # returns a structured list of active warning lights instead
+        # of the v5/mycar nested envelope that triggered repeated
+        # Scout reports (#384, #389). Each light entry typically has:
+        #   {"category": "ENGINE"|"BRAKES"|"TYRE"|"FLUID"|"OTHER",
+        #    "name": "ENGINE_OIL_PRESSURE_LOW", "severity": "RED"|...,
+        #    "icon": "...", "message": "..."}
+        # We aggregate to per-category booleans + an overall count.
+        if isinstance(warninglights_v3, dict):
+            lights = (
+                warninglights_v3.get("warningLights")
+                or warninglights_v3.get("data", {}).get("warningLights")
+                or []
+            )
+            if isinstance(lights, list):
+                d.warning_count = len(lights)
+                d.warning_active = bool(lights)
+                # Per-category aggregation. Defensive cat-name comparison.
+                cats = {
+                    str(item.get("category") or "").upper()
+                    for item in lights if isinstance(item, dict)
+                }
+                d.warning_engine = "ENGINE" in cats
+                d.warning_brakes = "BRAKE" in cats or "BRAKES" in cats
+                d.warning_tyre = "TYRE" in cats or "TIRE" in cats
+                d.warning_oil = "OIL" in cats or "FLUID" in cats
+                # Surface the human-readable messages so users can see
+                # WHAT is wrong from a HA template.
+                messages = [
+                    str(item.get("message") or item.get("name") or "")
+                    for item in lights if isinstance(item, dict)
+                ]
+                msgs_clean = [m for m in messages if m]
+                if msgs_clean:
+                    d.warning_messages = " | ".join(msgs_clean)
+
+        # v2.10.0 - settable battery-care config (GET side). Read the
+        # current preservation mode + target SOC so we can surface
+        # them as switch + number entities. The PUT-side action lives
+        # in command_set_battery_care() further down.
+        if isinstance(battery_care_settings, dict):
+            care_enabled = (
+                battery_care_settings.get("batteryCareMode")
+                or battery_care_settings.get("enabled")
+            )
+            if isinstance(care_enabled, bool):
+                # If GET reports a definitive bool we trust it over the
+                # value derived from /v1/charging/info above in
+                # _DATA_PRESENT_REQUIRED protected sensor.
+                d.battery_care = care_enabled
+            care_target = (
+                battery_care_settings.get("targetSOC_pct")
+                or battery_care_settings.get("targetSocPct")
+                or battery_care_settings.get("targetStateOfChargeInPercent")
+            )
+            if isinstance(care_target, (int, float)):
+                # New field on the model captured below in v2.10.0.
+                d.battery_care_target_soc_pct = int(care_target)
+
         # ── v2.5.3 — /v1/mileage fallback (#306 Mii/Tavascan/Leon FR-KL) ────
         # PyCupra dedicates an entire endpoint to the cached odometer
         # because the OLA backend serves this value even when ``/v5/mycar``
@@ -1550,6 +1623,31 @@ class SeatCupraClient(CariadBaseClient):
         await self._post(
             f"{_BASE}/v1/vehicles/{vin}/charging/actions",
             json={"action": "settings", "targetSOC_pct": target},
+        )
+
+    async def command_set_battery_care(self, vin: str, enabled: bool) -> None:
+        """v2.10.0 - toggle the battery-care preservation mode on or off.
+
+        OLA endpoint POST /v1/vehicles/{vin}/charging/battery-care.
+        Defaults to a 50% target if the user has not set one yet
+        (backend rejects the toggle without a target on first call).
+        """
+        await self._post(
+            f"{_BASE}/v1/vehicles/{vin}/charging/battery-care",
+            json={"batteryCareMode": enabled},
+        )
+
+    async def command_set_battery_care_target(self, vin: str, target_pct: int) -> None:
+        """v2.10.0 - set the battery-care top-charge target in percent.
+
+        OLA endpoint POST /v1/vehicles/{vin}/charging/battery-care/target.
+        Range 50 to 100 per backend rules; values outside that get
+        rejected upstream. The integration does NOT clamp; bad values
+        surface as a 400 error so the user sees the constraint.
+        """
+        await self._post(
+            f"{_BASE}/v1/vehicles/{vin}/charging/battery-care/target",
+            json={"targetSOC_pct": target_pct},
         )
 
     async def command_set_climate_temperature(self, vin: str, temp_c: float) -> None:

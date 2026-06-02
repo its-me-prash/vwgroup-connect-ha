@@ -1337,6 +1337,18 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:calendar-clock",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # v2.10.0 - battery-care target SOC (read-only diag mirror; the
+    # number entity for setting it is wired separately in number.py).
+    VagSensorDescription(
+        key="battery_care_target_soc_pct",
+        translation_key="battery_care_target_soc_pct",
+        data_key="battery_care_target_soc_pct",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-heart-variant",
+        suggested_display_precision=0,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
     # v2.2.0 Phase 2 PR #11/20 — derived integer days until expiry.
     # Closes the subscription-feature triangle (timestamp + active +
     # days). Negative when expired. Automation-friendly: threshold
@@ -1541,6 +1553,13 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "refuel_trip_total_electric_consumption_kwh",
     "refuel_trip_recuperation_kwh",
     "refuel_trip_timestamp",
+    # v2.10.0 - battery-care target (OLA /charging/battery-care GET).
+    "battery_care_target_soc_pct",
+    # v2.10.0 - structured warning lights from /v3/warninglights. Phantom-
+    # protected because non-CUPRA brands won't poll the v3 endpoint and
+    # leave warning_count/warning_messages at None.
+    "warning_count",
+    "warning_messages",
     "next_charging_timer_id",
     "next_charging_timer_target_soc_reachable",
     "capabilities_count",
