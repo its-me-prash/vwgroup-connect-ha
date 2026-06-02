@@ -126,7 +126,9 @@
           "enable_push_fcm": "CUPRA/SEAT Push-Updates (FCM, EXPERIMENTELL)",
           "enable_push_audi_vw": "Audi/VW Push-Updates (Cariad FCM, EXPERIMENTELL)",
           "enable_data_act_browser": "EU Data Act Portal: Headless-Browser-Fallback (EXPERIMENTELL)",
-          "read_only_mode": "Nur-Lesen-Modus"
+          "read_only_mode": "Nur-Lesen-Modus",
+          "wake_before_poll": "Fahrzeug aktiv aufwecken vor Status-Abfrage",
+          "wake_delay_seconds": "Wartezeit nach Wake-up (Sekunden)"
         },
         "data_description": {
           "enable_reverse_geocoding": "Sendet GPS der Parkposition an OpenStreetMap Nominatim, um Straße/Stadt zu ermitteln. Standard: aus (Datenschutz).",
@@ -137,7 +139,9 @@
           "scan_interval": "Polling-Intervall in Minuten (5–60). Niedrige Werte bringen die Daten schneller, fressen aber das tägliche API-Quota schneller (~1.500 Calls/Tag bei MyCupra/MySEAT).",
           "spin": "Optionale 4-stellige Sicherheits-PIN für privilegierte Kommandos (Lock/Unlock bei manchen Marken). Leer lassen wenn nicht benötigt.",
           "read_only_mode": "Wenn aktiv: nur Status-Sensoren werden erstellt, keine Schalter/Buttons/Schlösser/Climate die Befehle senden würden. Schützt vor versehentlicher Auslösung und Subscription-zählenden Kommandos.",
-          "enable_data_act_browser": "EXPERIMENTELL: Nur relevant wenn die Integration auf das EU Data Act Portal (read-only) zurückgefallen ist. Steuert einen Headless-Chromium über das optionale 'playwright' Python-Paket, um den Daten-Export-Button automatisch zu klicken. Das Paket ist NICHT vorinstalliert (zieht ca. 100 MB Chromium nach). Wenn aktiv aber nicht installiert: ein Repair-Issue zeigt dir wie du es im HA-Container nachinstallierst. Integration nach Aktivierung neu laden."
+          "enable_data_act_browser": "EXPERIMENTELL: Nur relevant wenn die Integration auf das EU Data Act Portal (read-only) zurückgefallen ist. Steuert einen Headless-Chromium über das optionale 'playwright' Python-Paket, um den Daten-Export-Button automatisch zu klicken. Das Paket ist NICHT vorinstalliert (zieht ca. 100 MB Chromium nach). Wenn aktiv aber nicht installiert: ein Repair-Issue zeigt dir wie du es im HA-Container nachinstallierst. Integration nach Aktivierung neu laden.",
+          "wake_before_poll": "Wenn aktiviert, sendet die Integration einen Wake-POST an Fahrzeuge die beim letzten Poll OFFLINE waren, bevor sie den Status abruft. Das Auto bekommt einen serverseitigen Wake-up und pusht frische Daten, dann wartet die Integration die Wake-Verzögerung ab und liest erst dann. Schließt die 'alle Sensoren unbekannt bei geparktem Auto'-Lücke, kostet aber pro Offline-VIN pro Poll-Zyklus einen zusätzlichen API-Call. Standard: aus. Integration nach dem Umschalten neu laden.",
+          "wake_delay_seconds": "Sekunden Wartezeit zwischen dem Wake-up-POST und dem Status-Abruf. Die Standardeinstellung von 15 Sekunden ist das, was die meisten Brand-Backends brauchen um den Wake-induzierten Daten-Push zu verarbeiten. Niedrigere Werte riskieren veraltete Daten; höhere strecken den Poll-Zyklus ohne weiteren Nutzen."
         }
       }
     }

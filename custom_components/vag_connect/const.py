@@ -94,6 +94,24 @@ CONF_PREFERRED_AUTH_STRATEGY  = "preferred_auth_strategy"
 # install the package inside their HA container.
 CONF_ENABLE_DATA_ACT_BROWSER  = "enable_data_act_browser"
 
+# v2.10.0 - Active vehicle wake-up before status poll. Pattern ported
+# from the audi_connect_ha v2.1.0 modernization round, observed on
+# their commit history but implemented independently here. When True,
+# the coordinator POSTs to the brand's wake-vehicle endpoint for any
+# VIN that was OFFLINE on the previous poll cycle, sleeps
+# CONF_WAKE_DELAY_SECONDS, then runs the regular status fetch. Closes
+# the offline-car null-cascade reports (#306 DanielBie SEAT/CUPRA,
+# #322 roberttco VW NA) for users who accept the extra API call per
+# poll. Off by default because every wake costs one budget unit and
+# users with already-online cars get no benefit.
+CONF_WAKE_BEFORE_POLL         = "wake_before_poll"
+# Seconds to wait between the wake POST and the status fetch. 15 s is
+# the empirical default observed across the ecosystem; too low and the
+# backend serves stale data because the wake-induced push has not
+# arrived yet, too high and the user's poll cycle stretches unhelpfully.
+CONF_WAKE_DELAY_SECONDS       = "wake_delay_seconds"
+DEFAULT_WAKE_DELAY_SECONDS    = 15
+
 # Supported brands — must match CariadClientFactory.create() keys
 BRANDS = {
     "audi":           "Audi (myAudi)",
