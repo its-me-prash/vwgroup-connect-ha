@@ -742,6 +742,13 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # Older firmwares wrap fields in error objects when the
             # backend can't compute them. Defensive registration.
             "charging.chargeMode.error",
+            # v2.8.2 (#384 moltke69 2026-06-02) — same .error envelope
+            # one level deeper for vehicleHealthWarnings.warningLights.
+            # Cariad BFF wraps the warningLights value in an error
+            # object when the warning-lights subsystem times out
+            # upstream (6-key envelope, mirror of the v2.7.4
+            # oilLevel.error pattern in #371/#373).
+            "vehicleHealthWarnings.warningLights.error",
             # v1.12.1 (#105 + #106, 2026-04-30) — Scout descended one
             # more level past the v1.12.0 wrapper registrations and
             # found the ``.value`` containers below them. Same

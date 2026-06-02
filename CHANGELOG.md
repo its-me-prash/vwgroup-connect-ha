@@ -40,6 +40,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [2.8.2] - 2026-06-02
+
+### Fixed
+
+- Scout no longer auto-fires on the 6-key `.error.*` envelope the Cariad BFF returns when the `vehicleHealthWarnings.warningLights` job hits a 5xx upstream. Same shape as the v2.7.4 fix for `oilLevel.error` / `tyrePressure.error` / `auxiliaryHeating.error`, one branch deeper. Closes #384 (moltke69 Audi scout).
+
 ## [2.8.1] - 2026-06-01
 
 Closes 11 SEAT/CUPRA OLA-field parser gaps surfaced via side-by-side comparison with the pycupra reference, after the v2.5.3 OLA v1/v5 fallback chain did not fix DanielBie's offline-Leon entity coverage (issue #306).
