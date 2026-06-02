@@ -47,19 +47,28 @@
 
 ---
 
-## What is new in v2.7.x
+## What is new in v2.10.0
 
-**Browser-Login (no password stored in HA) for Audi, Škoda, SEAT, CUPRA.** OAuth Device Authorization Grant per RFC 8628. Scan a QR code with your phone or open the URL on any device, confirm a short code, done. Real refresh_token from the IDP, no two-hour re-login cycle.
+The biggest release of this integration so far. ~6 weeks of intensive work folded into a single cut.
 
-**Multi-strategy auth resolver.** Up to three fallback strategies per brand (Browser-Login, OIDC Hybrid Flow, EU Data Act Portal read-only). One strategy dies, the integration keeps running on the next.
+**VW EU Auth0 SPA login fixed (#388 BalooDK + swebachus).** Around 2026-05-31 VW migrated the universal-login password page to a full-SPA template. Our form-encoded POST started returning 400 even with correct credentials, and the Data Act portal fallback misidentified the SPA's `consent.js` asset as a consent wall. Both legs fixed: JSON Content-Type retry against the same `/u/login` URL when the form path 400s, and consent detection now requires specific markers (`data act`, `datenverarbeitung`, `shape the future`, `/u/consent`) instead of the bare word `consent`. VW EU users on classic-auth strategy are unblocked again.
 
-**Data Act Portal as read-only fallback.** In-house implementation of the EU Data Act portal login, wired as a 3rd-tier strategy. Read-only but attestation-free, so unbreakable when VW tightens the OAuth path.
+**Across-brand parser parity.** Three coordinated parser-gap closures so every brand surfaces what its backend already returns:
+- **VW EU (Group A) - 10 new fields**: 12V starter battery health, optimised battery use, active ventilation state + remaining time, rear sunroof, convertible roof cover, per-trip totals (fuel + electric kWh), tire pressure fallback via `measurements.tirePressureStatus` for newer PPC firmware.
+- **SEAT / CUPRA (Group B) - 6 new OLA endpoints**: dedicated warning-lights v3 endpoint, settable battery-care preservation mode + target SoC, charging-statistics history aggregator, preferred-workshop, charging-modes catalog, charging-actions PUT for runtime settings.
+- **VW NA (Group C) - 4 new endpoints**: doors + windows + lights migrated to the modern `data.exteriorStatus.*` shape (closes #322 roberttco's 2023 ID.4 US "everything-null" symptom), climate via `climateStatusReport`, odometer fallback `data.currentMileage`, GPS fallback `lastParkedLocation` for OFFLINE cars.
 
-**Significantly more data points.** Trip statistics (lifetime distance, last trip), oil level, per-wheel tire pressure, per-position doors / windows / sunroof / trunk lock, outside temperature on MY24+ vehicles, Webasto auxiliary heating, all backend warnings including brand-specific ones like Audi STO / towing-bracket.
+**VW account-lock detection.** Three throttled-or-locked token responses inside a 30-minute window now surface a guided Repairs issue (`account_locked`) explaining the lock + next steps (wait, raise `scan_interval`, optionally switch to read-only Data Act portal mode). Auto-clears on next successful auth.
 
-**Security hardening.** Token URLs are no longer printed raw in the log (they contained JWTs that base64-decode to email and access_token). Exception type only at ERROR level, full message at DEBUG.
+**Scout-policy enforcement.** Every silenced JSON path now MUST also be parsed into an entity, or carry an explicit T2-T5 exemption comment. The pre-existing "silence first, parse later" pattern is gone; existing silencer-only entries from v2.4.x are documented as exempt or promoted to parsed sensors (active ventilation alone closed an IOU from 2026-05-27). Wildcard rules for `.error.*` envelopes now stop Scout descending into the bff-error wrappers (closes #389, #384).
 
-Full [CHANGELOG](CHANGELOG.md#270---2026-05-31).
+**Provenance canaries + weekly watcher.** Five uniquely-spelled identifier strings watermark the strategic modules (auth resolver, Data Act scraper, DAG flow, Scout, watchdog). A weekly cron queries GitHub Code Search for the canaries outside the `its-me-prash` namespace and opens a triage issue if a foreign hit appears. Apache 2.0 permits the port; the canaries make stripping the LICENSE + NOTICE observable.
+
+**Hardening.** SPDX license headers on every Python file. Pre-commit hook enforces `ruff check`, `mypy --strict`, CHANGELOG version-match, and Bruno-collection URL drift gate. Python ↔ Bruno strict-mode CI prevents URLs from diverging from their reference recordings.
+
+**Carried over from v2.7-v2.9** (still all live): Browser-Login (DAG) for Audi/Škoda/SEAT/CUPRA, multi-strategy auth resolver, EU Data Act portal read-only tier, MFA / email-OTP config flow, coordinator auto-reload watchdog, FCM push-channel for Audi/VW, Standheizung Auxheat entities, `vag_connect.open_app` service, brake-service sensors + preferred workshop, parser-health telemetry, per-brand capability advertisement, InvalidURL safety net, attestation gate watcher.
+
+Full [CHANGELOG](CHANGELOG.md#2100---2026-06-02).
 
 ---
 

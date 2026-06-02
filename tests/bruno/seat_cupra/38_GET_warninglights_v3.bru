@@ -1,0 +1,50 @@
+meta {
+  name: GET warninglights v3 (v2.10.0)
+  type: http
+  seq: 38
+}
+
+get {
+  url: {{base_url}}/v3/vehicles/{{vin}}/warninglights
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  v2.10.0 - Dedicated structured warning-lights endpoint.
+
+  Replaces the silenced vehicleHealthWarnings.warningLights.error
+  envelope path inside /v5/mycar that triggered repeated Scout
+  reports (#384, #389). Polling the dedicated endpoint gives
+  per-light structured data we can aggregate to per-category
+  booleans (warning_engine, warning_brakes, warning_tyre,
+  warning_oil) plus a human-readable warning_messages summary.
+
+  Endpoint reference: Timwun/Cupra-WeConnect-Bruno-Collection
+  (V3 Vehicles Warninglights), independently parsed in
+  seat_cupra._parse_status v2.10.0.
+
+  Response shape (observed across CUPRA Born + Leon):
+    {
+      "warningLights": [
+        {
+          "category": "ENGINE" | "BRAKES" | "TYRE" | "FLUID" | "OTHER",
+          "name": "ENGINE_OIL_PRESSURE_LOW",
+          "severity": "RED" | "YELLOW" | "INFO",
+          "icon": "...",
+          "message": "Human-readable description"
+        }
+      ]
+    }
+
+  Newer firmware wraps the list under data.warningLights instead;
+  both paths handled.
+}

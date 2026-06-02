@@ -132,7 +132,9 @@
           "enable_push_mqtt": "Skoda push updates (MQTT, EXPERIMENTAL)",
           "enable_push_fcm": "CUPRA/SEAT push updates (FCM, EXPERIMENTAL)",
           "enable_push_audi_vw": "Audi/VW push updates (Cariad FCM, Live (beta))",
-          "enable_data_act_browser": "EU Data Act portal: headless-browser fallback (EXPERIMENTAL)"
+          "enable_data_act_browser": "EU Data Act portal: headless-browser fallback (EXPERIMENTAL)",
+          "wake_before_poll": "Active vehicle wake-up before status poll",
+          "wake_delay_seconds": "Wake delay (seconds)"
         },
         "data_description": {
           "scan_interval": "How often data is fetched (minutes). Minimum: 3.",
@@ -143,7 +145,9 @@
           "enable_push_mqtt": "EXPERIMENTAL: Skoda-only. Enables real-time MQTT push from Skoda mysmob backend (requires aiomqtt + firebase-messaging Python packages — currently lazy-imported, not pre-installed). Foundation phase in v1.18.0; live activation pending community-tester validation. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling.",
           "enable_push_fcm": "EXPERIMENTAL: CUPRA/SEAT only. Enables real-time Firebase Cloud Messaging push from OLA backend (requires firebase-messaging Python package — same lazy-import as v1.18.0 Skoda MQTT toggle). Foundation phase in v1.19.0; live activation pending community-tester validation. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling.",
           "enable_push_audi_vw": "Live (beta): Audi/VW only. Enables real-time push notifications from the Cariad FCM channel (same one myAudi/WeConnect mobile apps use, covers lock/unlock results, charging-state, climate, alarm). Decoded events are fired onto the Home Assistant event bus as ``vag_connect_push_event`` and trigger a coordinator refresh. Requires firebase-messaging Python package (same lazy-import as Skoda MQTT + CUPRA/SEAT FCM). Live activation since v2.8.0 (Action #4); the credential resolver is still tester-gated until task #40 follow-up lands the Cariad Firebase sender_id. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling.",
-          "enable_data_act_browser": "EXPERIMENTAL: only meaningful when the integration has fallen back to the EU Data Act portal (read-only). Drives a headless Chromium via the optional 'playwright' Python package to click the portal's data-export button automatically. The package is NOT preinstalled (it pulls roughly 100 MB of Chromium). When enabled but missing, a Repair issue tells you how to install it from inside the Home Assistant container. Reload the integration after toggling."
+          "enable_data_act_browser": "EXPERIMENTAL: only meaningful when the integration has fallen back to the EU Data Act portal (read-only). Drives a headless Chromium via the optional 'playwright' Python package to click the portal's data-export button automatically. The package is NOT preinstalled (it pulls roughly 100 MB of Chromium). When enabled but missing, a Repair issue tells you how to install it from inside the Home Assistant container. Reload the integration after toggling.",
+          "wake_before_poll": "When enabled, the integration sends a wake POST to the vehicle before fetching status for any VIN that was OFFLINE on the previous poll. The car receives a server-side wake-up and pushes fresh data, then the integration waits the wake delay before the status read. Closes the 'all sensors unknown for parked cars' gap but costs one extra API call per offline VIN per poll cycle. Off by default. Reload the integration after toggling.",
+          "wake_delay_seconds": "Seconds to wait between the wake-up POST and the status fetch. The default of 15 seconds is what most brand backends need to ingest the wake-induced data push. Lower values risk reading stale data; higher values stretch the poll cycle without further benefit."
         }
       }
     }
@@ -342,6 +346,15 @@
       "last_charging_session_duration_min": {
         "name": "Last Charging Session Duration"
       },
+      "last_charging_session_start": {
+        "name": "Last Charging Session Start"
+      },
+      "last_charging_session_current_type": {
+        "name": "Last Charging Session Current Type"
+      },
+      "last_charging_power_curve_points": {
+        "name": "Last Charging Power Curve Points"
+      },
       "active_charging_profile_name": {
         "name": "Active Charging Profile"
       },
@@ -506,6 +519,93 @@
       },
       "charging_preferred_mode": {
         "name": "Preferred Charging Mode"
+      },
+      "pending_action_id": {
+        "name": "Pending action ID"
+      },
+      "pending_action_type": {
+        "name": "Pending action type"
+      },
+      "pending_action_status": {
+        "name": "Pending action status"
+      },
+      "refuel_trip_distance_km": {
+        "name": "Distance since refuel"
+      },
+      "refuel_trip_duration_min": {
+        "name": "Drive time since refuel"
+      },
+      "refuel_trip_avg_speed_kmh": {
+        "name": "Avg speed since refuel"
+      },
+      "refuel_trip_avg_fuel_consumption_l_100km": {
+        "name": "Avg fuel since refuel"
+      },
+      "refuel_trip_avg_electric_consumption_kwh_100km": {
+        "name": "Avg energy since refuel"
+      },
+      "refuel_trip_total_fuel_consumption_l": {
+        "name": "Total fuel since refuel"
+      },
+      "refuel_trip_total_electric_consumption_kwh": {
+        "name": "Total energy since charge"
+      },
+      "refuel_trip_recuperation_kwh": {
+        "name": "Recuperation since charge"
+      },
+      "refuel_trip_timestamp": {
+        "name": "Refuel cycle started"
+      },
+      "actual_charge_rate_kw": {
+        "name": "Actual charge rate"
+      },
+      "hv_battery_min_temperature_c": {
+        "name": "HV Battery Temperature (Min)"
+      },
+      "hv_battery_max_temperature_c": {
+        "name": "HV Battery Temperature (Max)"
+      },
+      "charge_max_ac_setting": {
+        "name": "Max AC Current (Setting)"
+      },
+      "charge_max_ac_ampere": {
+        "name": "Max AC Current (Deliverable)"
+      },
+      "auto_release_ac_connector_state": {
+        "name": "Auto Release Connector State"
+      },
+      "active_ventilation_state": {
+        "name": "Active Ventilation"
+      },
+      "active_ventilation_remaining_time_min": {
+        "name": "Active Ventilation Remaining"
+      },
+      "connection_state_battery_power_level": {
+        "name": "12V Battery Power Level"
+      },
+      "last_trip_total_fuel_consumption_l": {
+        "name": "Last Trip Total Fuel"
+      },
+      "last_trip_total_electric_consumption_kwh": {
+        "name": "Last Trip Total Energy"
+      },
+      "notifications_count": {
+        "name": "Notifications count"
+      },
+      "last_notification_subject": {
+        "name": "Last notification subject"
+      },
+      "last_notification_severity": {
+        "name": "Last notification severity"
+      },
+      "engine_oil_temperature_c": {
+        "name": "Engine oil temperature"
+      },
+      "engine_coolant_temperature_c": {
+        "name": "Engine coolant temperature"
+      },
+      "last_trip_reset_at": {
+        "name": "Last Trip Reset"
       }
     },
     "binary_sensor": {
@@ -652,6 +752,24 @@
       },
       "area_alarm": {
         "name": "Geofence Alarm"
+      },
+      "auto_release_ac_connector": {
+        "name": "Auto Release AC Connector"
+      },
+      "optimised_battery_use": {
+        "name": "Optimised Battery Use"
+      },
+      "sunroof_rear_closed": {
+        "name": "Rear Sunroof"
+      },
+      "roof_cover_closed": {
+        "name": "Roof Cover"
+      },
+      "permission_is_owner": {
+        "name": "Account is primary owner"
+      },
+      "permission_can_command": {
+        "name": "Account can send commands"
       }
     },
     "switch": {
@@ -833,7 +951,41 @@
       "description": "You enabled the headless-browser fallback for the EU Data Act portal but the `playwright` Python package is not installed in your Home Assistant container.\n\n**To install:** open the HA container shell (Add-ons → Terminal & SSH, or `docker exec` for a manual install) and run:\n\n```\npip install playwright\nplaywright install chromium\n```\n\nThe chromium download is large (around 100 MB), which is why this dependency is opt-in instead of bundled with the integration. After installing, restart Home Assistant.\n\nAlternatively, disable the toggle under Settings → Devices & Services → VW Group Connect → Configure → 'EU Data Act portal: headless-browser fallback'."
     }
   },
+  "selector": {
+    "execute_vehicle_action_options": {
+      "options": {
+        "lock": "Lock",
+        "unlock": "Unlock",
+        "start_climatisation": "Start climatisation",
+        "stop_climatisation": "Stop climatisation",
+        "start_charging": "Start charging",
+        "stop_charging": "Stop charging",
+        "flash_lights": "Flash lights",
+        "start_window_heating": "Start window heating",
+        "stop_window_heating": "Stop window heating",
+        "wake_vehicle": "Wake vehicle",
+        "start_aux_heating": "Start auxiliary heating",
+        "stop_aux_heating": "Stop auxiliary heating",
+        "start_ventilation": "Start ventilation",
+        "stop_ventilation": "Stop ventilation"
+      }
+    }
+  },
   "services": {
+    "execute_vehicle_action": {
+      "name": "Execute Vehicle Action",
+      "description": "Unified service that dispatches a vehicle action selected from a dropdown. Equivalent to calling the per-action service of the same name but easier to find in the Home Assistant Lovelace service picker. All existing per-action services (vag_connect.lock, vag_connect.start_climatisation, etc) keep working unchanged.",
+      "fields": {
+        "device_id": {
+          "name": "Vehicle",
+          "description": "The vehicle device to act on."
+        },
+        "action": {
+          "name": "Action",
+          "description": "Which action to dispatch."
+        }
+      }
+    },
     "open_app": {
       "name": "Open native brand app (deeplink)",
       "description": "Fires the `vag_connect_open_app` event on the HA event bus with payload fields `vin`, `brand`, `deeplink_url` and `action` so a Lovelace card can open the brand's native mobile app (myAudi, WeConnect, MyŠkoda, MySEAT, MyCUPRA, My Porsche or VW US) on the calling device. The integration cannot open URLs on a phone by itself; the dashboard card is responsible for navigating `window.location.href = deeplink_url` on iOS / Android.",
@@ -845,6 +997,70 @@
         "action": {
           "name": "App action",
           "description": "Optional path segment appended to the deeplink so the brand app routes directly to a section. Default `open` opens the app to its home screen."
+        }
+      }
+    },
+    "start_climate_control": {
+      "name": "Start Climate Control (Rich)",
+      "description": "Start pre-conditioning with individual seat heaters, glass heating, climate mode and at-unlock behaviour. Only applies to Audi and VW EU (CARIAD BFF). Other brands fall through to the basic `start_climatisation` service. All payload fields except `device_id` are optional - omitted fields keep the brand default.",
+      "fields": {
+        "device_id": {
+          "name": "Vehicle",
+          "description": "Vehicle that receives the pre-conditioning command."
+        },
+        "temp_c": {
+          "name": "Target temperature (C)",
+          "description": "Cabin target temperature in degrees Celsius (15 to 30, step 0.5)."
+        },
+        "glass_heating": {
+          "name": "Glass heating",
+          "description": "Enable windscreen and rear-window heating alongside the cabin pre-conditioning."
+        },
+        "seat_fl": {
+          "name": "Front-left seat heating",
+          "description": "Enable seat heating on the front-left seat."
+        },
+        "seat_fr": {
+          "name": "Front-right seat heating",
+          "description": "Enable seat heating on the front-right seat."
+        },
+        "seat_rl": {
+          "name": "Rear-left seat heating",
+          "description": "Enable seat heating on the rear-left seat."
+        },
+        "seat_rr": {
+          "name": "Rear-right seat heating",
+          "description": "Enable seat heating on the rear-right seat."
+        },
+        "climatisation_at_unlock": {
+          "name": "Continue climate when unlocked",
+          "description": "Keep pre-conditioning running after the vehicle is unlocked."
+        },
+        "climatisation_mode": {
+          "name": "Climatisation mode",
+          "description": "Comfort (full power) or economy (reduced power, longer runtime)."
+        }
+      }
+    },
+    "update_charging_settings": {
+      "name": "Update Charging Settings (SEAT/CUPRA)",
+      "description": "Update the SEAT/CUPRA charge plan in one call. Sets any combination of target state of charge, maximum AC charge current and the auto-unlock-when-charged flag. Other brands are rejected at the coordinator dispatch level.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN of the vehicle to update."
+        },
+        "target_soc": {
+          "name": "Target state of charge (%)",
+          "description": "Target state of charge between 20 and 100 percent."
+        },
+        "max_charge_current": {
+          "name": "Maximum AC charge current",
+          "description": "Backend enum, maximum or reduced."
+        },
+        "auto_unlock_charge": {
+          "name": "Auto-unlock plug when fully charged",
+          "description": "When true the connector unlocks itself once charging is complete."
         }
       }
     }

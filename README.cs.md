@@ -48,6 +48,20 @@
 ---
 
 
+## Co je nového ve v2.10.0
+
+Největší release této integrace doposud. Cca 6 týdnů intenzivní práce v jednom cut.
+
+- **Oprava loginu VW EU Auth0 SPA (#388)**: VW kolem 2026-05-31 migroval stránku hesla na full-SPA template. Retry JSON Content-Type na `/u/login` plus zpřísněná detekce consent odblokuje uživatele na classic-auth.
+- **Cross-brand parser parita**: VW EU Group A (10 nových polí - 12V, aktivní ventilace, zadní střešní okno, kabriolet střecha, součty per-jízda), SEAT/CUPRA Group B (6 OLA endpointů - warning-lights v3, nastavitelný battery-care, charging-statistics, preferovaný servis), VW NA Group C (4 endpointy - migrace na `data.exteriorStatus.*`, opravuje symptom "všechno null" na ID.4 US 2023 #322).
+- **Detekce uzamčení účtu VW** s vedeným Repairs issue + auto-clear.
+- **Vynucování Scout Policy**: každá silenced JSON cesta musí být také parsována do entity, nebo nést explicitní T2-T5 exemption komentář. Uzavírá #384, #389.
+- **Provenance canaries + weekly watcher** + hardening (SPDX, Bruno drift-gate, mypy strict).
+
+Zbytek z v2.7-v2.9 stále běží: Browser-Login DAG, multi-strategy auth, Data Act Portal, MFA, FCM push, Standheizung, brake-service, parser telemetry.
+
+Plný [CHANGELOG](CHANGELOG.md#2100---2026-06-02).
+
 ## Co je nového v v2.7.x
 
 **Přihlášení přes prohlížeč (žádné heslo v HA) pro Audi, Škoda, SEAT, CUPRA.** OAuth Device Authorization Grant podle RFC 8628. Naskenuj QR kód telefonem nebo otevři URL na libovolném zařízení, potvrď krátký kód, hotovo. Skutečný refresh_token, žádné opakované přihlašování každé dvě hodiny.

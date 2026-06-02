@@ -636,13 +636,17 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # but needs real-payload confirmation before shipping entities
             # with possibly-wrong field names.
             #
-            # FOLLOW-UP PR: parser → ``d.active_ventilation_state``,
-            # ``d.active_ventilation_remaining_min``,
-            # ``d.active_ventilation_duration_min``,
-            # ``d.active_ventilation_timer_count`` + 4 default-disabled
-            # entities (1 binary_sensor + 3 sensors). Tracked as the
-            # "make scouts useful, not just silenced" follow-up per
-            # 2026-05-27 maintainer-correction. Audi inherits via line 851.
+            # v2.10.0 — IOU CLEARED. Parser shipped at vw_eu.py:1858-1873 in
+            # Group A; ``d.active_ventilation_state`` + ``d.active_ventilation_remaining_time_min``
+            # are populated from three observed field-name variants
+            # (ventilationState / activeVentilationState, ventilationRemainingTimeInMinutes /
+            # ventilationRemainingTime_min / remainingTime_min). Entities live at
+            # sensor.py:1528-1545 (active_ventilation_state +
+            # active_ventilation_remaining_time_min). The previously planned
+            # ``duration_min`` and ``timer_count`` fields turned out to be
+            # absent from the live CARIAD-BFF payload across all 4 collected
+            # community dumps; if they appear later the parser walker will
+            # surface them via Scout. Audi inherits via line 851.
             "climatisation.activeVentilationStatus",
             "climatisation.activeVentilationStatus.*",
             "climatisation.climatisationSettings.value.activeVentilationSettings",
@@ -693,6 +697,14 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             "measurements.fuelLevelStatus.value.currentFuelLevel_pct",
             "measurements.fuelLevelStatus.value.primaryEngineType",
             "measurements.fuelLevelStatus.value.carType",
+            # v2.10.0 — measurements.tirePressureStatus parser fallback wired
+            # in vw_eu.py:_parse_status. EU firmware tends to publish on
+            # ``tyrePressure.*``, newer US/PPC firmware publishes here.
+            "measurements.tirePressureStatus",
+            "measurements.tirePressureStatus.value",
+            "measurements.tirePressureStatus.value.*",
+            "measurements.tirePressureStatus.error",
+            "measurements.tirePressureStatus.error.*",
             "measurements.fuelLevelStatus.value.carCapturedTimestamp",
             "measurements.temperatureBatteryStatus",
             "measurements.temperatureBatteryStatus.value",
@@ -750,6 +762,19 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # upstream (6-key envelope, mirror of the v2.7.4
             # oilLevel.error pattern in #371/#373).
             "vehicleHealthWarnings.warningLights.error",
+            # v2.10.0 (#389 scout 2026-06-02) — Scout descends INTO the
+            # .error envelope and sees the 3 inner keys as new. Add the
+            # wildcard form so Scout stops at the wrapper. Same fix
+            # pattern as access.accessStatus.error.* further down.
+            "vehicleHealthWarnings.warningLights.error.*",
+            # v2.10.0 (#389) — pending-action request list. Audi BFF
+            # ships this on the access endpoint when a lock/unlock
+            # command was recently dispatched and the action is still
+            # acknowledged-pending. List of dicts; we silence the
+            # whole subtree for now and revisit as a parser when the
+            # shape stabilises (see roadmap "Anti-theft event suite").
+            "access.accessStatus.requests",
+            "access.accessStatus.requests.*",
             # v1.12.1 (#105 + #106, 2026-04-30) — Scout descended one
             # more level past the v1.12.0 wrapper registrations and
             # found the ``.value`` containers below them. Same

@@ -48,6 +48,20 @@
 ---
 
 
+## Wat is nieuw in v2.10.0
+
+De grootste release van deze integratie tot nu toe. Ongeveer 6 weken intensief werk in één cut.
+
+- **VW EU Auth0 SPA login fix (#388)**: VW migreerde de password-pagina rond 2026-05-31 naar een full-SPA template. JSON Content-Type retry op `/u/login` plus aangescherpte consent-detectie deblokkeert gebruikers op classic-auth.
+- **Cross-brand parser pariteit**: VW EU Group A (10 nieuwe velden - 12V, actieve ventilatie, achterste schuifdak, cabrio-kap, per-rit totalen), SEAT/CUPRA Group B (6 OLA endpoints - warning-lights v3, instelbare battery-care, charging-statistics, voorkeurs-werkplaats), VW NA Group C (4 endpoints - migratie naar `data.exteriorStatus.*`, lost het "alles-null" symptoom op de ID.4 US 2023 #322 op).
+- **VW account-lock detectie** met geleide Repairs issue + auto-clear.
+- **Scout Policy enforcement**: elk silenced JSON pad moet ook geparsed worden tot een entity, of een expliciete T2-T5 exemption-comment dragen. Sluit #384, #389.
+- **Provenance canaries + weekly watcher** + hardening (SPDX, Bruno drift-gate, mypy strict).
+
+Rest van v2.7-v2.9 nog steeds live: Browser-Login DAG, multi-strategy auth, Data Act Portal, MFA, FCM push, Standheizung, brake-service, parser telemetry.
+
+Volledige [CHANGELOG](CHANGELOG.md#2100---2026-06-02).
+
 ## Wat is nieuw in v2.7.x
 
 **Browser-Login (geen wachtwoord opgeslagen in HA) voor Audi, Škoda, SEAT, CUPRA.** OAuth Device Authorization Grant per RFC 8628. Scan een QR-code met je telefoon of open de URL op een willekeurig apparaat, bevestig een korte code, klaar. Echt refresh_token, geen re-login elke twee uur.

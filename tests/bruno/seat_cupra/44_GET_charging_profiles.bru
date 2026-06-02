@@ -1,0 +1,69 @@
+meta {
+  name: GET charging profiles (v2.10.0 Group B)
+  type: http
+  seq: 44
+}
+
+get {
+  url: {{base_url}}/v1/vehicles/{{vin}}/charging/profiles
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  v2.10.0 Group B - SEAT/CUPRA charging profile list.
+
+  Returns the user-configured charging profiles plus the
+  ``currentVehiclePositionProfile`` block telling us which profile
+  is active right now based on the car's GPS position. SEAT/CUPRA
+  flavour of the Skoda profiles endpoint we already parse since
+  v1.16.0; we reuse the same coordinator helper
+  ``_parse_charging_profiles`` so the resulting field surface is
+  identical:
+
+  - ``active_charging_profile_name`` (string)
+  - ``active_charging_profile_target_soc_pct`` (int)
+  - ``next_charging_time`` (string)
+  - ``charging_profiles_count`` (int)
+  - ``charging_profiles`` (list - lives in extra_state_attributes)
+
+  Endpoint reference: Timwun/Cupra-WeConnect-Bruno-Collection
+  (Charging Profiles sequence), independently parsed in
+  ``seat_cupra.get_status`` v2.10.0.
+
+  Response shape (verified against myskoda + pycupra references,
+  cross-brand identical):
+    {
+      "chargingProfiles": [
+        {
+          "id": 1,
+          "name": "Home",
+          "settings": {
+            "maxChargingCurrent": "MAXIMUM" | "REDUCED",
+            "targetStateOfChargeInPercent": 80,
+            "autoUnlockPlugWhenCharged": "PERMANENT" | "ON" | "OFF"
+          },
+          "preferredChargingTimes": [...],
+          "timers": [...],
+          "location": {"latitude": 47.39, "longitude": 8.21} | null
+        },
+        ...
+      ],
+      "currentVehiclePositionProfile": {
+        "id": 1,
+        "name": "Home",
+        "targetStateOfChargeInPercent": 80,
+        "nextChargingTime": "22:00"
+      } | null
+    }
+
+  Soft-fails to ``{}`` on 401 / 403 / 404.
+}

@@ -48,6 +48,20 @@
 ---
 
 
+## Nouveautés en v2.10.0
+
+Le plus gros release de cette intégration à ce jour. Environ 6 semaines de travail intensif en un seul cut.
+
+- **Correctif login VW EU Auth0 SPA (#388)**: VW a migré la page de mot de passe vers un template full-SPA vers le 2026-05-31. Le retry JSON Content-Type sur `/u/login` plus la détection consent durcie débloque les utilisateurs sur classic-auth.
+- **Parité parser cross-brand**: VW EU Group A (10 nouveaux champs - 12V, ventilation active, sunroof arrière, capote, totaux par trajet), SEAT/CUPRA Group B (6 endpoints OLA - warning-lights v3, battery-care réglable, statistiques de charge, atelier préféré), VW NA Group C (4 endpoints - migration `data.exteriorStatus.*`, fix du symptôme "tout à null" sur ID.4 US 2023 #322).
+- **Détection de verrouillage de compte VW** avec issue Repairs guidée + auto-clear.
+- **Application de la Scout Policy**: chaque chemin JSON silenced doit aussi être parsé en entité, ou avoir une exemption T2-T5 explicite. Ferme #384, #389.
+- **Canaries de provenance + watcher hebdomadaire** + hardening (SPDX, drift-gate Bruno, mypy strict).
+
+Reste de v2.7-v2.9 toujours actif: Browser-Login DAG, multi-strategy auth, Data Act Portal, MFA, push FCM, Standheizung, brake-service, parser telemetry.
+
+Voir [CHANGELOG](CHANGELOG.md#2100---2026-06-02) complet.
+
 ## Nouveautés en v2.7.x
 
 **Connexion par navigateur (aucun mot de passe stocké dans HA) pour Audi, Škoda, SEAT, CUPRA.** OAuth Device Authorization Grant RFC 8628. Scanner un QR code avec le téléphone ou ouvrir l URL sur n importe quel appareil, confirmer un code court, fini. refresh_token réel, plus de re-login toutes les deux heures.

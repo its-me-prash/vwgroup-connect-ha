@@ -523,8 +523,72 @@ _NEW_BINARY: tuple[VagBinarySensorDescription, ...] = (
         device_class=BinarySensorDeviceClass.WINDOW,
         icon="mdi:car-select",
     ),
+    # v2.10.0 Group A - VW EU field parity boolean additions.
+    # Phantom-protected below. The connector / preservation entries
+    # use no device class because they are state flags, not sensors
+    # in the traditional sense. The two roof/sunroof entries use
+    # WINDOW device class with invert semantics: the underlying
+    # field is ``*_closed`` (True = closed), the HA WINDOW class
+    # convention is ``on = open``, so VagConnectBinarySensor inverts
+    # via _CLOSED_INVERT_KEYS below.
+    VagBinarySensorDescription(
+        key="auto_release_ac_connector",
+        translation_key="auto_release_ac_connector",
+        data_key="auto_release_ac_connector",
+        icon="mdi:ev-plug-ccs2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="optimised_battery_use",
+        translation_key="optimised_battery_use",
+        data_key="optimised_battery_use",
+        icon="mdi:battery-heart",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="sunroof_rear_closed",
+        translation_key="sunroof_rear_closed",
+        data_key="sunroof_rear_closed",
+        device_class=BinarySensorDeviceClass.WINDOW,
+        icon="mdi:car-select",
+    ),
+    VagBinarySensorDescription(
+        key="roof_cover_closed",
+        translation_key="roof_cover_closed",
+        data_key="roof_cover_closed",
+        device_class=BinarySensorDeviceClass.WINDOW,
+        icon="mdi:car-convertible",
+    ),
+    # v2.10.0 Group B — SEAT/CUPRA OLA permissions endpoint. Two
+    # diagnostic binary sensors expose whether the bound account is
+    # the primary owner and whether it is allowed to send remote
+    # commands. Phantom-protected below so other brands stay clean.
+    VagBinarySensorDescription(
+        key="permission_is_owner",
+        translation_key="permission_is_owner",
+        data_key="permission_is_owner",
+        icon="mdi:account-key",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="permission_can_command",
+        translation_key="permission_can_command",
+        data_key="permission_can_command",
+        icon="mdi:remote",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
 )
 BINARY_DESCRIPTIONS = BINARY_DESCRIPTIONS + _NEW_BINARY
+
+# v2.10.0 Group A — keys whose underlying VehicleData field stores
+# ``True = closed`` semantics but whose HA device class (WINDOW)
+# expects ``on = open``. Listed here so ``VagConnectBinarySensor.is_on``
+# inverts the value at render time. Same pattern as the LOCK-class
+# invert in ``is_on`` for ``doors_locked``.
+_CLOSED_INVERT_KEYS: frozenset[str] = frozenset({
+    "sunroof_rear_closed",
+    "roof_cover_closed",
+})
 
 # v1.11.0 — same phantom-entity-prevention pattern as sensor.py.
 _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
@@ -591,6 +655,18 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # configured. Cars without it leave both fields None → no phantom.
     "alarm_active",
     "siren_active",
+    # v2.10.0 Group A — VW EU field parity additions. Brand-restricted
+    # at the parser level (CARIAD-BFF VW EU + Audi via subclass).
+    # Vehicles without the underlying field stay None → no phantom.
+    "auto_release_ac_connector",
+    "optimised_battery_use",
+    "sunroof_rear_closed",
+    "roof_cover_closed",
+    # v2.10.0 Group B - SEAT/CUPRA OLA permissions endpoint. Brand-
+    # restricted at parser level; other brands leave the fields None
+    # so no phantom binary sensor surfaces.
+    "permission_is_owner",
+    "permission_can_command",
 })
 
 
@@ -662,6 +738,10 @@ class VagConnectBinarySensor(VagConnectEntity, BinarySensorEntity):
             self.entity_description.device_class
             == BinarySensorDeviceClass.LOCK
         ):
+            return not bool(val)
+        # v2.10.0 Group A — keys stored as ``True = closed`` need the
+        # same invert for the HA WINDOW device class (``on = open``).
+        if self.entity_description.key in _CLOSED_INVERT_KEYS:
             return not bool(val)
         return bool(val)
 

@@ -474,7 +474,84 @@ class VehicleData:
     # From ``charging.chargingStatus.value.remainingChargingTimeNavigation_min``.
     remaining_charge_time_nav_min: int | None = None
     plug_led_color: str | None = None  # none / red / green / blue
+    # v2.10.0 - real-time charge rate in kW (instant), distinct from
+    # the averaged charging_rate_kmh. Only populated by CARIAD BFF on
+    # firmware that exposes a separate instant rate.
+    actual_charge_rate_kw: float | None = None
     external_power_available: bool | None = None  # plugStatus.externalPower
+
+    # v2.10.0 Group A - VW EU field parity. Each field below was
+    # identified as a competitor-library gap during the 2026-06-02
+    # scan. All defensively parsed, phantom-protected via
+    # _DATA_PRESENT_REQUIRED in sensor.py / binary_sensor.py so
+    # brands without the underlying field stay clean.
+
+    # HV battery temperature min / max in Celsius. CARIAD BFF ships
+    # ``charging.batteryStatus.value.{minTemperature_K,maxTemperature_K}``
+    # as Kelvin scalars on Born / ID.4 / Q4 e-tron PPE firmware. The
+    # existing ``battery_temp`` collapses these into a single value;
+    # power-users monitoring thermal balance want both extremes.
+    hv_battery_min_temperature_c: float | None = None
+    hv_battery_max_temperature_c: float | None = None
+
+    # Max AC charging current SETTING (user-requested) vs ACTUAL
+    # deliverable amperage. ``maxChargeCurrentAC_setting`` is the
+    # value the user picked in the brand app; ``maxChargeCurrentAC``
+    # is the live deliverable the wallbox + cable can support.
+    # Distinct so dashboards show both. Existing ``max_charge_current``
+    # stays untouched as legacy alias for setting.
+    charge_max_ac_setting: int | None = None
+    charge_max_ac_ampere: int | None = None
+
+    # Born MY24+ AC connector auto-release. Bool flag plus enum
+    # state string. Sourced from ``charging.chargingSettings.value.
+    # autoReleaseAcConnector`` or ``charging.plugStatus.value.
+    # autoUnlockPlugWhenCharged``; state from ``charging.plugStatus.
+    # value.autoReleaseState`` (enum: e.g. ``IDLE``, ``RELEASING``).
+    auto_release_ac_connector: bool | None = None
+    auto_release_ac_connector_state: str | None = None
+
+    # Battery-preservation flag distinct from ``battery_care``.
+    # ``optimisedBatteryUse`` is a Born / ID.x setting that limits
+    # charging dynamics (current ramp + thermal pre-conditioning)
+    # to preserve cell longevity. Different feature from the
+    # ``battery_care`` cap-target (which is a SoC limit).
+    optimised_battery_use: bool | None = None
+
+    # Active ventilation (cabin air-circulation without heating /
+    # cooling). Separate from the climatisation block because the
+    # CARIAD BFF surfaces it under a sibling status enum + remaining
+    # time. ``ventilationState`` is one of ``off`` / ``running`` /
+    # ``finished``.
+    active_ventilation_state: str | None = None
+    active_ventilation_remaining_time_min: int | None = None
+
+    # Rear sunroof + Cabrio roof cover state. Both are window-array
+    # entries; ``sunRoofRear`` covers panoramic rear glass roofs
+    # (Touareg, Tiguan Allspace), ``roofCover`` covers convertible
+    # tops (T-Roc Cabrio, Beetle Cabriolet). Booleans for the
+    # window-class binary sensor. None when the car doesn't have
+    # the option, so the phantom gate hides the entity.
+    sunroof_rear_closed: bool | None = None
+    roof_cover_closed: bool | None = None
+
+    # 12V health bucket. ``connectionStatus.batteryPowerLevel`` or
+    # ``vehicleHealthInspection.value.battery12VLevel``. Enum
+    # values observed: ``low`` / ``normal`` / ``high``. Companion
+    # to the existing ``connection_battery_power_level`` v2.4.1 T1
+    # field; this surface comes from a different parent block on
+    # some firmware shapes.
+    connection_state_battery_power_level: str | None = None
+
+    # Trip aggregator totals. Existing ``last_trip_avg_*`` fields
+    # cover the per-100km averages; these fields are the absolute
+    # totals per trip. The CARIAD BFF ships them directly under
+    # ``tripstatistics.shortTerm[0].{totalFuelConsumption_l,
+    # totalElectricConsumption_kwh}``; older firmware only ships
+    # avg + distance, in which case we derive totals from
+    # ``avg * distance / 100`` (NEVER overwrite a backend total).
+    last_trip_total_fuel_consumption_l: float | None = None
+    last_trip_total_electric_consumption_kwh: float | None = None
 
     # Climate
     climatisation_state: str | None = None
@@ -656,6 +733,39 @@ class VehicleData:
     # one-shot alarm does not stick forever. Useful as an event
     # trigger for "where is my car" automations.
     area_alarm: bool | None = None
+
+    # v2.10.0 (#389 scout 2026-06-02) — Audi pending-action surface.
+    # The CARIAD BFF ships ``access.accessStatus.requests`` as a list
+    # of dicts when a lock/unlock/climate command was recently dispatched
+    # but the vehicle has not yet confirmed completion. We expose the
+    # most-recent pending request as 3 sensors so HA automations can
+    # wait for action acknowledgement instead of guessing with a
+    # fixed sleep. Phantom-protected via _DATA_PRESENT_REQUIRED.
+    pending_action_id: str | None = None
+    pending_action_type: str | None = None
+    pending_action_status: str | None = None
+
+    # v2.10.0 - "since refuel" / "since recharge" trip aggregator.
+    # Third trip category alongside last_trip_* (per individual trip)
+    # and lifetime_* (vehicle total). Tracks consumption since the
+    # last tank fill or charge session. Pattern observed in
+    # volkswagencarnet's TRIP_REFUEL constant; CARIAD BFF exposes it
+    # under tripstatistics?type=cyclic. Energy-Dashboard-friendly
+    # since the total-consumption-per-tank/charge value lets users
+    # build "miles per tank" / "kWh per charge" automations directly.
+    refuel_trip_distance_km: float | None = None
+    refuel_trip_duration_min: int | None = None
+    refuel_trip_avg_speed_kmh: float | None = None
+    refuel_trip_avg_fuel_consumption_l_100km: float | None = None
+    refuel_trip_avg_electric_consumption_kwh_100km: float | None = None
+    refuel_trip_total_fuel_consumption_l: float | None = None
+    refuel_trip_total_electric_consumption_kwh: float | None = None
+    refuel_trip_recuperation_kwh: float | None = None
+    refuel_trip_timestamp: str | None = None
+
+    # (battery_care_target_soc_pct is defined further down with the
+    # original battery-care fields from the v2.0 EV cluster; the
+    # v2.10.0 settable surface re-uses that field name.)
 
     # v1.19.1 — Pycupra-style API quota visibility. Populated from
     # X-RateLimit-Remaining response header captured by base.py
@@ -1058,6 +1168,17 @@ class VehicleData:
     last_charging_session_start: str | None = None
     recent_charging_sessions: list[dict[str, Any]] = field(default_factory=list)
 
+    # v2.10.0 (charging_statistics endpoint) - per-session power-curve
+    # sample points from CARIAD's charging.cariad.digital host. SEAT/CUPRA
+    # only at first; other brands' hosts don't expose an equivalent.
+    # Lives under the integrated last-session umbrella so an HA card can
+    # graph the most recent DC fast-charge as kW over time / SoC.
+    # The list itself goes into attributes (not state) because each
+    # sample is a {timestamp, soc_pct, power_kw} dict and a typical
+    # 30-min DC charge dumps ~30-60 samples. State is the COUNT of
+    # samples so the entity stays HA-recorder friendly.
+    last_charging_power_curve_points: list[dict[str, Any]] = field(default_factory=list)
+
     # v1.15.0 — Software-version + OTA update status (Skoda mysmob).
     # Endpoint ``GET /v1/vehicle-information/{vin}/software-version/update-status``
     # shipped in Skoda app v8.10.0+ (myskoda PR #541). Cross-brand support
@@ -1145,10 +1266,50 @@ class VehicleData:
     last_trip_avg_fuel_consumption_l_100km: float | None = None
     last_trip_avg_electric_consumption_kwh_100km: float | None = None
     last_trip_timestamp: str | None = None
+    # v2.10.0 - last-trip reset timestamp. audi_connect_ha v2.1.0 surfaces
+    # this as `shortterm_reset`. Read-only: records WHEN the user last
+    # reset the short-term trip data from the vehicle's head unit. Useful
+    # for HA automations that want to know "trip data is fresh since X".
+    last_trip_reset_at: str | None = None
     lifetime_distance_km: float | None = None
     lifetime_avg_fuel_consumption_l_100km: float | None = None
     lifetime_avg_electric_consumption_kwh_100km: float | None = None
     recent_trips: list[dict[str, Any]] = field(default_factory=list)
+
+    # v2.10.0 Group B - SEAT/CUPRA OLA endpoint parity.
+    # New fields populated by 6 OLA endpoints added in v2.10.0:
+    # /v1/vehicles/{vin}/notifications, /permissions,
+    # /measurements/engines, /charging/profiles (reuses Skoda fields
+    # above), /charging/modes. Public /v1/charging/points is wired as
+    # a fallback inside find_charging_stations and does not need its
+    # own VehicleData field.
+
+    # Notifications endpoint. ``notifications_count`` is the total
+    # number of unread in-vehicle notifications; the last_* fields
+    # expose the most recent entry so a Lovelace card can render a
+    # quick preview without iterating the list.
+    notifications_count: int | None = None
+    last_notification_subject: str | None = None
+    last_notification_severity: str | None = None
+
+    # Permissions endpoint. ``permission_is_owner`` is True when the
+    # account holds the primary owner role; ``permission_can_command``
+    # is True when the role allows remote commands (owner or
+    # privileged co-driver).
+    permission_is_owner: bool | None = None
+    permission_can_command: bool | None = None
+
+    # Engine measurements endpoint. Both temperatures are stored in
+    # Celsius after the parser converts from Kelvin if needed
+    # (values above 200 are treated as Kelvin and shifted).
+    engine_oil_temperature_c: float | None = None
+    engine_coolant_temperature_c: float | None = None
+
+    # Charging modes endpoint. List of allowed mode strings exposed
+    # on the existing ``charging_preferred_mode`` sensor via
+    # ``extra_state_attributes``. Stored as a plain list so the
+    # JSON-safe attribute helper passes it through unchanged.
+    available_charge_modes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to plain dict for coordinator.vehicles storage."""

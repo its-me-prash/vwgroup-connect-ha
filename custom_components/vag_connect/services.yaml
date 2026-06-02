@@ -1,3 +1,49 @@
+# v2.10.0 unified action dispatcher. One service with a dropdown
+# instead of N separate services. Pattern observed in
+# arjenvrh/audi_connect_ha v2.1.0 (single ``execute_vehicle_action``
+# with an ``action`` select). All per-action services below
+# (lock, unlock, start_climatisation, ...) keep working unchanged so
+# existing automations are NOT broken; this service is purely an
+# easier-to-find UX surface in the Lovelace service picker.
+execute_vehicle_action:
+  name: Execute Vehicle Action
+  description: >-
+    Unified service that dispatches a vehicle action selected from a
+    dropdown. Equivalent to calling the per-action service of the
+    same name but easier to find in the Home Assistant Lovelace
+    "service" picker. All existing per-action services (vag_connect.lock,
+    vag_connect.start_climatisation, etc) keep working unchanged.
+  fields:
+    device_id:
+      name: Vehicle
+      description: The vehicle device to act on.
+      required: true
+      selector:
+        device:
+          integration: vag_connect
+    action:
+      name: Action
+      description: Which action to dispatch.
+      required: true
+      selector:
+        select:
+          translation_key: execute_vehicle_action_options
+          options:
+            - lock
+            - unlock
+            - start_climatisation
+            - stop_climatisation
+            - start_charging
+            - stop_charging
+            - flash_lights
+            - start_window_heating
+            - stop_window_heating
+            - wake_vehicle
+            - start_aux_heating
+            - stop_aux_heating
+            - start_ventilation
+            - stop_ventilation
+
 # v2.2.3 — Community easter-egg. Spawned by humorous FB-thread
 # pointing out "VAG" reads differently in English (Si Gregory + Ben
 # Johnson + Evets David + Stuart McBride + Jordan Waeles' Pandas-style
@@ -464,3 +510,102 @@ open_app:
             - climate_on
             - climate_off
             - charging
+
+# v2.10.0. Rich climate-start. Per-seat heating, glass heating,
+# climatisation mode, at-unlock behaviour. Applies to Audi + VW EU
+# (CARIAD BFF); other brands fall through to the basic
+# ``start_climatisation`` service because the OLA / mysmob / PPA
+# backends reject the extra payload fields.
+start_climate_control:
+  name: Start Climate Control (Rich)
+  description: >-
+    Start pre-conditioning with individual seat heaters, glass heating,
+    climate mode and at-unlock behaviour. Only applies to Audi and VW
+    EU (CARIAD BFF) - other brands fall through to the basic
+    start_climatisation service. All payload fields except device_id
+    are optional - omitted fields keep the brand default.
+  fields:
+    device_id:
+      name: Vehicle
+      required: true
+      selector:
+        device:
+          integration: vag_connect
+    temp_c:
+      name: Target temperature (C)
+      selector:
+        number:
+          min: 15
+          max: 30
+          step: 0.5
+          unit_of_measurement: "C"
+    glass_heating:
+      name: Glass heating
+      selector: {boolean: {}}
+    seat_fl:
+      name: Front-left seat heating
+      selector: {boolean: {}}
+    seat_fr:
+      name: Front-right seat heating
+      selector: {boolean: {}}
+    seat_rl:
+      name: Rear-left seat heating
+      selector: {boolean: {}}
+    seat_rr:
+      name: Rear-right seat heating
+      selector: {boolean: {}}
+    climatisation_at_unlock:
+      name: Continue climate when unlocked
+      selector: {boolean: {}}
+    climatisation_mode:
+      name: Climatisation mode
+      selector:
+        select:
+          options:
+            - comfort
+            - economy
+
+# v2.10.0 Group B - SEAT/CUPRA settable charge plan.
+# Maps to POST /v1/vehicles/{vin}/charging/actions/update-settings.
+# At least one of the optional fields must be provided; an empty body
+# is rejected with a ServiceValidationError. Other brands ignore the
+# service (MISSING_CAPABILITY classification at the coordinator level).
+update_charging_settings:
+  name: Update Charging Settings (SEAT/CUPRA)
+  description: >-
+    Update the SEAT/CUPRA charge plan in one call. Sets any combination
+    of target state of charge, maximum AC charge current and the
+    auto-unlock-when-charged flag. Backed by the OLA endpoint
+    POST /v1/vehicles/{vin}/charging/actions/update-settings. Other
+    brands are rejected at the coordinator dispatch level.
+  fields:
+    vin:
+      name: VIN
+      required: true
+      selector:
+        text:
+    target_soc:
+      name: Target state of charge (%)
+      description: Target state of charge between 20 and 100 percent.
+      required: false
+      selector:
+        number:
+          min: 20
+          max: 100
+          step: 5
+          unit_of_measurement: "%"
+    max_charge_current:
+      name: Maximum AC charge current
+      description: Backend enum, ``maximum`` or ``reduced``.
+      required: false
+      selector:
+        select:
+          options:
+            - maximum
+            - reduced
+    auto_unlock_charge:
+      name: Auto-unlock plug when fully charged
+      description: When true the connector unlocks itself once charging is complete.
+      required: false
+      selector:
+        boolean: {}

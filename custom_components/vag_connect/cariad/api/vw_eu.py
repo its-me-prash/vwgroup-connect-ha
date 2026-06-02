@@ -319,6 +319,7 @@ class VWEUClient(CariadBaseClient):
         # capability-gated vehicles don't crash the whole poll.
         trip_short: dict[str, Any] = {}
         trip_long: dict[str, Any] = {}
+        trip_refuel: dict[str, Any] = {}
         try:
             with self._parser_job("trip_statistics"):
                 trip_short = await self._get(
@@ -329,11 +330,31 @@ class VWEUClient(CariadBaseClient):
                     f"{base}/vehicle/v1/vehicles/{vin}/tripstatistics",
                     params={"type": "longTerm"},
                 )
+                # v2.10.0 - "cyclic" category = since-refuel / since-recharge
+                # aggregator. CARIAD BFF exposes this alongside shortTerm
+                # and longTerm at the same endpoint. Pattern observed in
+                # volkswagencarnet's TRIP_REFUEL service constant and
+                # mirrored here with our own parser. Energy-Dashboard-
+                # friendly: total-consumption-per-tank/charge is a missing
+                # building block in the HA VAG ecosystem today.
+                try:
+                    trip_refuel = await self._get(
+                        f"{base}/vehicle/v1/vehicles/{vin}/tripstatistics",
+                        params={"type": "cyclic"},
+                    )
+                except Exception:  # noqa: BLE001
+                    # cyclic is a newer firmware capability; some pre-2024
+                    # vehicles 404 it. Treat as soft-fail to keep the rest
+                    # of the parse working unchanged.
+                    pass
         except Exception:  # noqa: BLE001
             pass
 
         d = self._parse_status(vin, raw, parking)
         self._parse_trip_statistics(d, trip_short, trip_long)
+        # v2.10.0 - refuel-trip parse. Separate method to keep the
+        # shortTerm + longTerm parser untouched and ship a focused diff.
+        self._parse_refuel_trip(d, trip_refuel)
 
         # v1.25.0 PR-G — MBB VSR Phase 2 read-side fallback (Golf 7 GTE
         # Tank-Level use case). Triggers when:
@@ -478,6 +499,59 @@ class VWEUClient(CariadBaseClient):
             fallback_suffix="climatisation/start",
             fallback_payload=fallback_payload,
         )
+
+    async def command_start_climate_control(
+        self,
+        vin: str,
+        *,
+        temp_c: float | None = None,
+        glass_heating: bool | None = None,
+        seat_fl: bool | None = None,
+        seat_fr: bool | None = None,
+        seat_rl: bool | None = None,
+        seat_rr: bool | None = None,
+        climatisation_at_unlock: bool | None = None,
+        climatisation_mode: str | None = None,
+    ) -> None:
+        """v2.10.0 - rich climate-start payload for CARIAD BFF.
+
+        Body keys + types match the cariad-bff /climatisation/start
+        endpoint contract: each is optional, the backend keeps the
+        existing setting for any omitted field. Posts directly to the
+        separate-endpoint path (not the combined start-stop endpoint)
+        because the combined endpoint only accepts ``{"action": "start"}``
+        without per-seat / mode extensions.
+
+        For seat heating: if any of the four seat flags is supplied,
+        all four zone flags are emitted (defaulting unspecified seats
+        to ``False``). Mixed per-seat + None inputs are treated as
+        ``False`` for the unspecified seats so the user always sends
+        a coherent zone configuration to the backend.
+        """
+        body: dict[str, Any] = {}
+        if temp_c is not None:
+            body["targetTemperatureInCelsius"] = float(temp_c)
+        if glass_heating is not None:
+            body["windowHeatingEnabled"] = bool(glass_heating)
+        if any(s is not None for s in (seat_fl, seat_fr, seat_rl, seat_rr)):
+            body["zoneFrontLeftEnabled"] = (
+                bool(seat_fl) if seat_fl is not None else False
+            )
+            body["zoneFrontRightEnabled"] = (
+                bool(seat_fr) if seat_fr is not None else False
+            )
+            body["zoneRearLeftEnabled"] = (
+                bool(seat_rl) if seat_rl is not None else False
+            )
+            body["zoneRearRightEnabled"] = (
+                bool(seat_rr) if seat_rr is not None else False
+            )
+        if climatisation_at_unlock is not None:
+            body["climatisationAtUnlock"] = bool(climatisation_at_unlock)
+        if climatisation_mode is not None:
+            body["climatisationMode"] = str(climatisation_mode)
+        url = f"{self._base_for_vin(vin)}/vehicle/v1/vehicles/{vin}/climatisation/start"
+        await self._post(url, json=body)
 
     async def command_stop_climate(self, vin: str) -> None:
         """Stop pre-conditioning — combined endpoint with separate fallback."""
@@ -1028,9 +1102,57 @@ class VWEUClient(CariadBaseClient):
                     d.last_trip_avg_electric_consumption_kwh_100km = (
                         float(avg_elec) / 10.0
                     )
+                # v2.10.0 Group A - per-trip totals. CARIAD BFF firmware
+                # ships these directly under several key names; we try
+                # the canonical name first and derive from
+                # avg * distance / 100 ONLY when no direct field is
+                # present, so a backend-supplied total is never
+                # overwritten by a derived one. field-name variants
+                # tried defensively.
+                total_fuel = (
+                    last.get("totalFuelConsumption_l")
+                    or last.get("totalFuelConsumption")
+                    or last.get("fuelConsumption_l")
+                )
+                if isinstance(total_fuel, (int, float)):
+                    d.last_trip_total_fuel_consumption_l = float(total_fuel)
+                elif (
+                    d.last_trip_avg_fuel_consumption_l_100km is not None
+                    and d.last_trip_distance_km is not None
+                ):
+                    d.last_trip_total_fuel_consumption_l = round(
+                        d.last_trip_avg_fuel_consumption_l_100km
+                        * d.last_trip_distance_km / 100.0, 2,
+                    )
+                total_elec = (
+                    last.get("totalElectricConsumption_kwh")
+                    or last.get("totalElectricEngineConsumption_kwh")
+                    or last.get("totalElectricConsumption")
+                )
+                if isinstance(total_elec, (int, float)):
+                    d.last_trip_total_electric_consumption_kwh = float(total_elec)
+                elif (
+                    d.last_trip_avg_electric_consumption_kwh_100km is not None
+                    and d.last_trip_distance_km is not None
+                ):
+                    d.last_trip_total_electric_consumption_kwh = round(
+                        d.last_trip_avg_electric_consumption_kwh_100km
+                        * d.last_trip_distance_km / 100.0, 2,
+                    )
                 ts = last.get("tripEndTimestamp")
                 if isinstance(ts, str):
                     d.last_trip_timestamp = ts
+                # v2.10.0 - trip-reset timestamp (audi_connect_ha
+                # `shortterm_reset` parity). Field-name variants
+                # observed across firmware: tripStartTimestamp,
+                # resetTimestamp, dataResetAt.
+                reset_ts = (
+                    last.get("tripStartTimestamp")
+                    or last.get("resetTimestamp")
+                    or last.get("dataResetAt")
+                )
+                if isinstance(reset_ts, str):
+                    d.last_trip_reset_at = reset_ts
             # Recent trips for extra_state_attributes: keep small.
             recent: list[dict[str, Any]] = []
             for trip in short[:5]:
@@ -1065,6 +1187,95 @@ class VWEUClient(CariadBaseClient):
                     d.lifetime_avg_electric_consumption_kwh_100km = (
                         float(lt_elec) / 10.0
                     )
+
+    def _parse_refuel_trip(
+        self,
+        d: VehicleData,
+        cyclic: dict[str, Any],
+    ) -> None:
+        """v2.10.0 - parse the cyclic / refuel trip aggregator.
+
+        CARIAD BFF tripstatistics?type=cyclic ships the same field
+        shape as shortTerm / longTerm but the data window is reset by
+        the vehicle on every tank-fill or charge-completion event.
+        Useful as the "kWh per charge" / "L per tank" Energy-Dashboard
+        building block that today is missing in the HA-VAG ecosystem.
+
+        Shape (per CARIAD BFF, mirrored from the shortTerm parser):
+            {"tripData": [
+                {"tripEndTimestamp": "...", "mileage_km": 412,
+                 "travelTime": 387, "averageSpeed_kmph": 64,
+                 "averageFuelConsumption": 58,  # int x10
+                 "averageElectricEngineConsumption": 0,
+                 "averageRecuperation": 18,
+                 "totalElectricConsumption_kwh": 0,
+                 "totalFuelConsumption_l": 23.4,
+                 ...}
+            ]}
+
+        ``tripData[0]`` is the current cycle. Older cycles (one per
+        previous refuel) tail behind in tripData[1:] but we expose
+        only the current cycle as sensors; older cycles stay in the
+        raw diagnostics dump for users that want history.
+        """
+        if not isinstance(cyclic, dict):
+            return
+        trips = cyclic.get("tripData")
+        if not isinstance(trips, list) or not trips:
+            return
+        first = trips[0]
+        if not isinstance(first, dict):
+            return
+
+        mileage = first.get("mileage_km")
+        if isinstance(mileage, (int, float)):
+            d.refuel_trip_distance_km = float(mileage)
+        travel = first.get("travelTime")
+        if isinstance(travel, (int, float)):
+            d.refuel_trip_duration_min = int(travel)
+        avg_speed = first.get("averageSpeed_kmph")
+        if isinstance(avg_speed, (int, float)):
+            d.refuel_trip_avg_speed_kmh = float(avg_speed)
+        avg_fuel = first.get("averageFuelConsumption")
+        if isinstance(avg_fuel, (int, float)):
+            d.refuel_trip_avg_fuel_consumption_l_100km = float(avg_fuel) / 10.0
+        avg_elec = first.get("averageElectricEngineConsumption")
+        if isinstance(avg_elec, (int, float)):
+            d.refuel_trip_avg_electric_consumption_kwh_100km = (
+                float(avg_elec) / 10.0
+            )
+        # Totals - some firmware ships these directly; others require
+        # derivation from avg * distance. Try direct first, fall through
+        # to the derived form when avg + distance are both present.
+        total_fuel = first.get("totalFuelConsumption_l")
+        if isinstance(total_fuel, (int, float)):
+            d.refuel_trip_total_fuel_consumption_l = float(total_fuel)
+        elif (
+            d.refuel_trip_avg_fuel_consumption_l_100km is not None
+            and d.refuel_trip_distance_km is not None
+        ):
+            d.refuel_trip_total_fuel_consumption_l = round(
+                d.refuel_trip_avg_fuel_consumption_l_100km
+                * d.refuel_trip_distance_km / 100.0, 2,
+            )
+        total_elec = first.get("totalElectricConsumption_kwh")
+        if isinstance(total_elec, (int, float)):
+            d.refuel_trip_total_electric_consumption_kwh = float(total_elec)
+        elif (
+            d.refuel_trip_avg_electric_consumption_kwh_100km is not None
+            and d.refuel_trip_distance_km is not None
+        ):
+            d.refuel_trip_total_electric_consumption_kwh = round(
+                d.refuel_trip_avg_electric_consumption_kwh_100km
+                * d.refuel_trip_distance_km / 100.0, 2,
+            )
+        recup = first.get("averageRecuperation")
+        if isinstance(recup, (int, float)):
+            # Stored as int x10 in the same encoding as fuel/elec
+            d.refuel_trip_recuperation_kwh = float(recup) / 10.0
+        ts = first.get("tripEndTimestamp")
+        if isinstance(ts, str):
+            d.refuel_trip_timestamp = ts
 
     def _parse_status(
         self,
@@ -1132,6 +1343,34 @@ class VWEUClient(CariadBaseClient):
             d.is_charging = d.charging_state.upper() == "CHARGING"
         d.charging_power_kw = v(raw, "charging", "chargingStatus", "value", "chargePower_kW")
         d.charging_rate_kmh = v(raw, "charging", "chargingStatus", "value", "chargeRate_kmph")
+
+        # v2.10.0 - real-time (instant) charge rate, distinct from the
+        # averaged chargeRate_kmph above. The CARIAD BFF ships this
+        # under different keys across firmware generations; field-name
+        # variants tried defensively. None when the firmware does not
+        # expose a separate instant rate, in which case the existing
+        # charging_rate_kmh remains the only signal.
+        actual_rate = (
+            v(raw, "charging", "actualChargeRate", "value")
+            or v(raw, "charging", "chargingStatus", "value", "actualChargeRate")
+            or v(raw, "charging", "chargingStatus", "value", "instantChargeRate_kW")
+        )
+        if isinstance(actual_rate, (int, float)):
+            d.actual_charge_rate_kw = float(actual_rate)
+
+        # v2.10.0 - Audi-only charging port LED color. Audi vehicles
+        # ship a coloured LED ring around the charge port that signals
+        # charging state to bystanders. The CARIAD BFF surfaces the
+        # current colour string under several paths; defensive lookup
+        # since not all Audi models report it (PPE Q6/A6 e-tron yes,
+        # older B9 A4 no).
+        led_color = (
+            v(raw, "access", "accessStatus", "value", "plugLedColor")
+            or v(raw, "charging", "plugStatus", "value", "plugLedColor")
+            or v(raw, "charging", "chargingStatus", "value", "plugLedColor")
+        )
+        if isinstance(led_color, str) and led_color:
+            d.plug_led_color = led_color
 
         # v1.27.2 — scout #181 (Audi): pending charging-settings change requests.
         # Surfaced as a count diagnostic so users can verify their
@@ -1517,6 +1756,180 @@ class VWEUClient(CariadBaseClient):
         bat_max_k = safe_float(bat_max)
         d.battery_temp_max = round(bat_max_k - 273.15, 1) if bat_max_k is not None else None
 
+        # v2.10.0 Group A - HV battery min/max temperature from the
+        # ``charging.batteryStatus.value`` block. Newer Born / Q4 e-tron
+        # firmware ships ``minTemperature_K`` and ``maxTemperature_K``
+        # under the charging block in addition to (or instead of) the
+        # ``measurements.temperatureBatteryStatus`` block used above.
+        # field-name variants tried defensively. Kelvin-to-Celsius
+        # only when the raw value is > 200 (heuristic to distinguish
+        # Kelvin from already-Celsius readings).
+        hv_min_raw = (
+            v(raw, "charging", "batteryStatus", "value", "minTemperature_K")
+            or v(raw, "charging", "batteryStatus", "value", "minimumTemperature_K")
+            or v(raw, "charging", "batteryStatus", "value", "temperatureMin_K")
+        )
+        hv_min_k = safe_float(hv_min_raw)
+        if hv_min_k is not None:
+            d.hv_battery_min_temperature_c = round(
+                hv_min_k - 273.15 if hv_min_k > 200 else hv_min_k, 1,
+            )
+        hv_max_raw = (
+            v(raw, "charging", "batteryStatus", "value", "maxTemperature_K")
+            or v(raw, "charging", "batteryStatus", "value", "maximumTemperature_K")
+            or v(raw, "charging", "batteryStatus", "value", "temperatureMax_K")
+        )
+        hv_max_k = safe_float(hv_max_raw)
+        if hv_max_k is not None:
+            d.hv_battery_max_temperature_c = round(
+                hv_max_k - 273.15 if hv_max_k > 200 else hv_max_k, 1,
+            )
+
+        # v2.10.0 Group A - distinguish user-requested AC charge current
+        # setting from the actual deliverable amperage the wallbox +
+        # cable can support. Existing ``max_charge_current`` stays
+        # populated from ``maxChargeCurrentAC_A`` for backward compat;
+        # the two new fields below sit alongside as explicit setting /
+        # actual pair. field-name variants tried defensively.
+        ac_setting = (
+            v(raw, "charging", "chargingSettings", "value", "maxChargeCurrentAC_setting")
+            or v(raw, "charging", "chargingSettings", "value", "maxChargeCurrentACSetting")
+            or v(raw, "charging", "chargingSettings", "value", "maxChargeCurrentAC_set")
+        )
+        ac_setting_int = safe_int(ac_setting)
+        if ac_setting_int is not None:
+            d.charge_max_ac_setting = ac_setting_int
+        ac_ampere = (
+            v(raw, "charging", "chargingSettings", "value", "maxChargeCurrentAC")
+            or v(raw, "charging", "chargingStatus", "value", "maxChargeCurrentAC")
+            or v(raw, "charging", "chargingSettings", "value", "maxChargeCurrentAC_actual")
+        )
+        ac_ampere_int = safe_int(ac_ampere)
+        if ac_ampere_int is not None:
+            d.charge_max_ac_ampere = ac_ampere_int
+
+        # v2.10.0 Group A - Born MY24+ AC connector auto-release.
+        # Field-name variants tried defensively. The boolean flag
+        # surfaces under several names across firmware generations;
+        # the enum ``autoReleaseState`` lives only on plugStatus.
+        auto_release_raw = (
+            v(raw, "charging", "chargingSettings", "value", "autoReleaseAcConnector")
+            or v(raw, "charging", "plugStatus", "value", "autoUnlockPlugWhenCharged")
+            or v(raw, "charging", "chargingSettings", "value", "autoReleaseAcConnectorEnabled")
+        )
+        if isinstance(auto_release_raw, bool):
+            d.auto_release_ac_connector = auto_release_raw
+        elif isinstance(auto_release_raw, str):
+            up = auto_release_raw.upper()
+            if up in ("PERMANENT", "ON", "ACTIVATED", "TRUE", "YES", "ENABLED"):
+                d.auto_release_ac_connector = True
+            elif up in ("OFF", "DEACTIVATED", "FALSE", "NO", "DISABLED"):
+                d.auto_release_ac_connector = False
+        auto_release_state = (
+            v(raw, "charging", "plugStatus", "value", "autoReleaseState")
+            or v(raw, "charging", "chargingStatus", "value", "autoReleaseState")
+        )
+        if isinstance(auto_release_state, str) and auto_release_state:
+            d.auto_release_ac_connector_state = auto_release_state
+
+        # v2.10.0 Group A - battery-preservation flag distinct from
+        # battery_care. Born / ID.x setting that limits charging
+        # dynamics (current ramp + thermal pre-conditioning) to
+        # preserve cell longevity. field-name variants tried
+        # defensively.
+        opt_bat_raw = (
+            v(raw, "charging", "chargingSettings", "value", "optimisedBatteryUse")
+            or v(raw, "charging", "chargingSettings", "value", "optimizedBatteryUse")
+            or v(raw, "charging", "chargingCareSettings", "value", "optimisedBatteryUse")
+        )
+        if isinstance(opt_bat_raw, bool):
+            d.optimised_battery_use = opt_bat_raw
+        elif isinstance(opt_bat_raw, str):
+            up = opt_bat_raw.upper()
+            if up in ("ACTIVATED", "ACTIVE", "ON", "TRUE", "ENABLED"):
+                d.optimised_battery_use = True
+            elif up in ("DEACTIVATED", "INACTIVE", "OFF", "FALSE", "DISABLED"):
+                d.optimised_battery_use = False
+
+        # v2.10.0 Group A - active ventilation (cabin air-circulation
+        # without heating / cooling). Surfaces under the climatisation
+        # block as a sibling status enum + remaining time. field-name
+        # variants tried defensively. State is one of ``off`` /
+        # ``running`` / ``finished``.
+        vent_state = (
+            v(raw, "climatisation", "climatisationStatus", "value", "ventilationState")
+            or v(raw, "climatisation", "ventilationStatus", "value", "ventilationState")
+            or v(raw, "climatisation", "climatisationStatus", "value", "activeVentilationState")
+        )
+        if isinstance(vent_state, str) and vent_state:
+            d.active_ventilation_state = vent_state
+        vent_remaining = (
+            v(raw, "climatisation", "climatisationStatus", "value", "ventilationRemainingTimeInMinutes")
+            or v(raw, "climatisation", "climatisationStatus", "value", "ventilationRemainingTime_min")
+            or v(raw, "climatisation", "ventilationStatus", "value", "remainingTime_min")
+        )
+        vent_remaining_int = safe_int(vent_remaining)
+        if vent_remaining_int is not None:
+            d.active_ventilation_remaining_time_min = vent_remaining_int
+
+        # v2.10.0 Group A - rear sunroof + Cabrio roof cover. Both are
+        # window-array entries on the access.accessStatus.value.windows
+        # block. ``sunRoofRear`` covers panoramic rear glass roofs;
+        # ``roofCover`` covers convertible tops. Two paths checked:
+        # (1) the existing ``windows_individual`` dict populated by the
+        # access block walker above, (2) direct lookup against the
+        # raw windows list as a fallback for firmware shapes the
+        # walker did not capture.
+        windows_dict = d.windows_individual or {}
+        for key, target in (
+            ("sunRoofRear", "sunroof_rear_closed"),
+            ("sun_roof_rear", "sunroof_rear_closed"),
+            ("roofCover", "roof_cover_closed"),
+            ("roof_cover", "roof_cover_closed"),
+        ):
+            if key in windows_dict:
+                # windows_individual maps id -> "open" boolean (True = open).
+                # Closed = NOT open.
+                setattr(d, target, not windows_dict[key])
+        # Direct fallback: read the raw windows list, look for the
+        # named entries, normalise status string against "closed".
+        raw_windows = v(raw, "access", "accessStatus", "value", "windows") or []
+        if isinstance(raw_windows, list):
+            for w in raw_windows:
+                if not isinstance(w, dict):
+                    continue
+                name = w.get("name") or w.get("location") or ""
+                if not isinstance(name, str):
+                    continue
+                name_l = name.lower()
+                status_raw = w.get("status")
+                if isinstance(status_raw, list) and status_raw:
+                    status_raw = status_raw[0]
+                if isinstance(status_raw, dict):
+                    status_raw = status_raw.get("value") or status_raw.get("status")
+                if not isinstance(status_raw, str):
+                    continue
+                is_closed = status_raw.lower() == "closed"
+                if "sunroofrear" in name_l.replace("_", "") or name_l == "sun_roof_rear":
+                    if d.sunroof_rear_closed is None:
+                        d.sunroof_rear_closed = is_closed
+                elif "roofcover" in name_l.replace("_", "") or name_l == "roof_cover":
+                    if d.roof_cover_closed is None:
+                        d.roof_cover_closed = is_closed
+
+        # v2.10.0 Group A - 12V health bucket from connectionStatus or
+        # the vehicleHealthInspection block. Companion to the v2.4.1
+        # T1 ``connection_battery_power_level`` field that reads the
+        # same logical signal from a different parent block on
+        # other firmware shapes. field-name variants tried defensively.
+        bpl = (
+            v(raw, "connectionStatus", "batteryPowerLevel")
+            or v(raw, "vehicleHealthInspection", "value", "battery12VLevel")
+            or v(raw, "vehicleHealthInspection", "maintenanceStatus", "value", "battery12VLevel")
+        )
+        if isinstance(bpl, str) and bpl:
+            d.connection_state_battery_power_level = bpl
+
         # v1.12.0 (#23) — 12V starter battery voltage. The CARIAD BFF
         # ``lvBattery`` job publishes voltage in volts (decimal, e.g.
         # 12.6 = healthy). Threshold for warning is 11.5 V (matches
@@ -1546,6 +1959,43 @@ class VWEUClient(CariadBaseClient):
         )
         if last_alarm:
             d.last_alarm_at = last_alarm
+
+        # v2.10.0 (#389 scout 2026-06-02) — pending-action request list.
+        # CARIAD BFF ships ``access.accessStatus.requests`` (and
+        # sometimes ``access.accessStatus.value.requests``) when a
+        # lock/unlock/climate command was dispatched and the vehicle
+        # has not yet confirmed completion. Expose the most-recent
+        # entry as 3 sensors so HA automations can wait for action
+        # acknowledgement instead of guessing with a fixed sleep.
+        requests_list = (
+            v(raw, "access", "accessStatus", "requests")
+            or v(raw, "access", "accessStatus", "value", "requests")
+        )
+        if isinstance(requests_list, list) and requests_list:
+            # Field names observed: ``requestId``/``id``, ``operation``/
+            # ``operationCode``/``type``, ``status``/``state``. Defensive
+            # multi-key lookup mirrors the rest of vw_eu.py.
+            latest = requests_list[-1] if isinstance(requests_list[-1], dict) else {}
+            rid = (
+                latest.get("requestId")
+                or latest.get("id")
+                or latest.get("requestID")
+            )
+            rop = (
+                latest.get("operation")
+                or latest.get("operationCode")
+                or latest.get("type")
+            )
+            rst = (
+                latest.get("status")
+                or latest.get("state")
+            )
+            if isinstance(rid, str):
+                d.pending_action_id = rid
+            if isinstance(rop, str):
+                d.pending_action_type = rop
+            if isinstance(rst, str):
+                d.pending_action_status = rst
 
         # ── Access / doors / windows ──────────────────────────────────────────
         # v2.0.1 (#131 user-reported follow-up) — defensive parsing.
@@ -1933,7 +2383,17 @@ class VWEUClient(CariadBaseClient):
         # 100) so the sensor unit stays consistent. The warning bool is
         # already extracted from vehicleHealthWarnings above but the
         # tyrePressure job carries it explicitly too, so prefer this.
+        # v2.10.0 (Scout audit 2026-06-02) — newer CARIAD-BFF firmware also
+        # surfaces tire pressure on the ``measurements.tirePressureStatus.value``
+        # branch (US naming) alongside the long-standing ``tyrePressure.*``
+        # branch (EU naming). Read both, the second branch wins so the more
+        # specific dedicated tyrePressure job stays authoritative.
+        measurements_tyre = v(
+            raw, "measurements", "tirePressureStatus", "value"
+        )
         tyre_value = v(raw, "tyrePressure", "tyrePressureStatus", "value")
+        if isinstance(measurements_tyre, dict) and not isinstance(tyre_value, dict):
+            tyre_value = measurements_tyre
         if isinstance(tyre_value, dict):
             # Backend keys observed: currentTirePressure_FrontLeft_bar,
             # currentTirePressure_FrontLeft_kPa, currentValue_FL, etc.

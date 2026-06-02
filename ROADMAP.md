@@ -34,6 +34,26 @@ Action items #1 to #5 from the 2026-05-30 competitive scan, plus the dead-weight
 
 Target ship. Tag v2.8.0 once #1 to #5 are reviewed and the staging branch is merged.
 
+## v2.11.0 (planned, post-v2.10.0)
+
+The 2026-06-02 competitor-scan backlog from the v2.10.0 cycle landed in full as Groups A, B, C plus the inline Audi additions. This section now lists only what genuinely remains.
+
+### Remaining items
+
+- **Per-attribute `_last_updated` timestamps.** Pattern from the VW-specific competitor library: every property has a sibling `{field}_last_updated` that records when the value last came from the backend. Useful for users to debug stale entities directly in Dev Tools without downloading a diagnostics dump. Scope is a refactor (one sibling per VehicleData field), so this is a v3.0+ item even though the concept is simple.
+
+### Done in v2.10.0 (originally listed here as v2.11.0 backlog)
+
+For provenance:
+
+- SEAT/CUPRA OLA endpoints: notifications, permissions, measurements/engines, charging/profiles, charging/modes, charging/actions/update-settings, charging/points. All wired in commits `5dec674` (Group B merge) + `e52dc20`.
+- VW EU field parity from the VW-specific competitor library: hv_battery min/max, charge_max_ac_setting vs ampere, auto_release_ac_connector + state, optimised_battery_use, active_ventilation, sunroof_rear, roof_cover, connection_state_battery_power_level, last_trip totals. All wired in commit `b7572d9` (Group A merge).
+- VW NA endpoint parity: privileges, two-step SHA1 SPIN flow, lockunlock, pretripclimate. All wired in commit `1df014b` (Group C merge).
+- `plug_led_color` + `actual_charge_rate_kw`. Wired in commit `dc62298`.
+- `available_charge_modes` list attribute. Wired alongside the SEAT/CUPRA charging/modes endpoint in Group B.
+
+The `shortterm_reset` / `longterm_reset` items previously listed under audi_connect_ha turned out to be read-only timestamp sensors that record when the user last reset the trip data on the head unit, not HA-side action endpoints. Parsed as `last_trip_reset_at` in v2.10.0 (no separate roadmap item needed).
+
 ## v3.0 (planned)
 
 Genuinely pending. Nothing here is committed to a date. This is the post-2.8 backlog.

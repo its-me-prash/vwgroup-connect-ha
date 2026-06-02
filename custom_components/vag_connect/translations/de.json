@@ -126,7 +126,9 @@
           "enable_push_fcm": "CUPRA/SEAT Push-Updates (FCM, EXPERIMENTELL)",
           "enable_push_audi_vw": "Audi/VW Push-Updates (Cariad FCM, EXPERIMENTELL)",
           "enable_data_act_browser": "EU Data Act Portal: Headless-Browser-Fallback (EXPERIMENTELL)",
-          "read_only_mode": "Nur-Lesen-Modus"
+          "read_only_mode": "Nur-Lesen-Modus",
+          "wake_before_poll": "Fahrzeug aktiv aufwecken vor Status-Abfrage",
+          "wake_delay_seconds": "Wartezeit nach Wake-up (Sekunden)"
         },
         "data_description": {
           "enable_reverse_geocoding": "Sendet GPS der Parkposition an OpenStreetMap Nominatim, um Straße/Stadt zu ermitteln. Standard: aus (Datenschutz).",
@@ -137,7 +139,9 @@
           "scan_interval": "Polling-Intervall in Minuten (5–60). Niedrige Werte bringen die Daten schneller, fressen aber das tägliche API-Quota schneller (~1.500 Calls/Tag bei MyCupra/MySEAT).",
           "spin": "Optionale 4-stellige Sicherheits-PIN für privilegierte Kommandos (Lock/Unlock bei manchen Marken). Leer lassen wenn nicht benötigt.",
           "read_only_mode": "Wenn aktiv: nur Status-Sensoren werden erstellt, keine Schalter/Buttons/Schlösser/Climate die Befehle senden würden. Schützt vor versehentlicher Auslösung und Subscription-zählenden Kommandos.",
-          "enable_data_act_browser": "EXPERIMENTELL: Nur relevant wenn die Integration auf das EU Data Act Portal (read-only) zurückgefallen ist. Steuert einen Headless-Chromium über das optionale 'playwright' Python-Paket, um den Daten-Export-Button automatisch zu klicken. Das Paket ist NICHT vorinstalliert (zieht ca. 100 MB Chromium nach). Wenn aktiv aber nicht installiert: ein Repair-Issue zeigt dir wie du es im HA-Container nachinstallierst. Integration nach Aktivierung neu laden."
+          "enable_data_act_browser": "EXPERIMENTELL: Nur relevant wenn die Integration auf das EU Data Act Portal (read-only) zurückgefallen ist. Steuert einen Headless-Chromium über das optionale 'playwright' Python-Paket, um den Daten-Export-Button automatisch zu klicken. Das Paket ist NICHT vorinstalliert (zieht ca. 100 MB Chromium nach). Wenn aktiv aber nicht installiert: ein Repair-Issue zeigt dir wie du es im HA-Container nachinstallierst. Integration nach Aktivierung neu laden.",
+          "wake_before_poll": "Wenn aktiviert, sendet die Integration einen Wake-POST an Fahrzeuge die beim letzten Poll OFFLINE waren, bevor sie den Status abruft. Das Auto bekommt einen serverseitigen Wake-up und pusht frische Daten, dann wartet die Integration die Wake-Verzögerung ab und liest erst dann. Schließt die 'alle Sensoren unbekannt bei geparktem Auto'-Lücke, kostet aber pro Offline-VIN pro Poll-Zyklus einen zusätzlichen API-Call. Standard: aus. Integration nach dem Umschalten neu laden.",
+          "wake_delay_seconds": "Sekunden Wartezeit zwischen dem Wake-up-POST und dem Status-Abruf. Die Standardeinstellung von 15 Sekunden ist das, was die meisten Brand-Backends brauchen um den Wake-induzierten Daten-Push zu verarbeiten. Niedrigere Werte riskieren veraltete Daten; höhere strecken den Poll-Zyklus ohne weiteren Nutzen."
         }
       }
     }
@@ -278,6 +282,15 @@
       },
       "last_charging_session_duration_min": {
         "name": "Letzte Ladesitzung — Dauer"
+      },
+      "last_charging_session_start": {
+        "name": "Letzte Ladesitzung, Start"
+      },
+      "last_charging_session_current_type": {
+        "name": "Letzte Ladesitzung, Stromart"
+      },
+      "last_charging_power_curve_points": {
+        "name": "Letzte Ladesitzung, Leistungskurve"
       },
       "active_charging_profile_name": {
         "name": "Aktives Ladeprofil"
@@ -443,6 +456,93 @@
       },
       "charging_preferred_mode": {
         "name": "Bevorzugter Lademodus"
+      },
+      "pending_action_id": {
+        "name": "Ausstehende Aktion ID"
+      },
+      "pending_action_type": {
+        "name": "Ausstehende Aktion Typ"
+      },
+      "pending_action_status": {
+        "name": "Ausstehende Aktion Status"
+      },
+      "refuel_trip_distance_km": {
+        "name": "Strecke seit Tanken"
+      },
+      "refuel_trip_duration_min": {
+        "name": "Fahrzeit seit Tanken"
+      },
+      "refuel_trip_avg_speed_kmh": {
+        "name": "Schnitt seit Tanken"
+      },
+      "refuel_trip_avg_fuel_consumption_l_100km": {
+        "name": "Schnittverbrauch Sprit"
+      },
+      "refuel_trip_avg_electric_consumption_kwh_100km": {
+        "name": "Schnittverbrauch Strom"
+      },
+      "refuel_trip_total_fuel_consumption_l": {
+        "name": "Gesamtverbrauch Sprit"
+      },
+      "refuel_trip_total_electric_consumption_kwh": {
+        "name": "Gesamtverbrauch Strom"
+      },
+      "refuel_trip_recuperation_kwh": {
+        "name": "Rekuperation seit Laden"
+      },
+      "refuel_trip_timestamp": {
+        "name": "Tank-Zyklus Start"
+      },
+      "actual_charge_rate_kw": {
+        "name": "Aktuelle Ladeleistung"
+      },
+      "hv_battery_min_temperature_c": {
+        "name": "Antriebsbatterie Temperatur (Min)"
+      },
+      "hv_battery_max_temperature_c": {
+        "name": "Antriebsbatterie Temperatur (Max)"
+      },
+      "charge_max_ac_setting": {
+        "name": "Max AC-Strom (Einstellung)"
+      },
+      "charge_max_ac_ampere": {
+        "name": "Max AC-Strom (Lieferbar)"
+      },
+      "auto_release_ac_connector_state": {
+        "name": "Auto-Entriegelung Steckerstatus"
+      },
+      "active_ventilation_state": {
+        "name": "Aktive Belüftung"
+      },
+      "active_ventilation_remaining_time_min": {
+        "name": "Aktive Belüftung Restzeit"
+      },
+      "connection_state_battery_power_level": {
+        "name": "12V-Batterie Ladezustand"
+      },
+      "last_trip_total_fuel_consumption_l": {
+        "name": "Letzte Fahrt Kraftstoff gesamt"
+      },
+      "last_trip_total_electric_consumption_kwh": {
+        "name": "Letzte Fahrt Energie gesamt"
+      },
+      "notifications_count": {
+        "name": "Anzahl Benachrichtigungen"
+      },
+      "last_notification_subject": {
+        "name": "Letzte Benachrichtigung Betreff"
+      },
+      "last_notification_severity": {
+        "name": "Letzte Benachrichtigung Stufe"
+      },
+      "engine_oil_temperature_c": {
+        "name": "Motoröltemperatur"
+      },
+      "engine_coolant_temperature_c": {
+        "name": "Kühlmitteltemperatur"
+      },
+      "last_trip_reset_at": {
+        "name": "Letzter Trip-Reset"
       }
     },
     "binary_sensor": {
@@ -580,6 +680,24 @@
       },
       "area_alarm": {
         "name": "Geofence-Alarm"
+      },
+      "auto_release_ac_connector": {
+        "name": "AC-Stecker Auto-Entriegelung"
+      },
+      "optimised_battery_use": {
+        "name": "Optimierte Batterienutzung"
+      },
+      "sunroof_rear_closed": {
+        "name": "Schiebedach hinten"
+      },
+      "roof_cover_closed": {
+        "name": "Verdeck"
+      },
+      "permission_is_owner": {
+        "name": "Konto ist Haupteigentümer"
+      },
+      "permission_can_command": {
+        "name": "Konto darf Befehle senden"
       }
     },
     "switch": {
@@ -757,7 +875,41 @@
       "description": "Das Marken-Backend hat in den letzten 30 Minuten **3 Lock-Antworten** zurückgegeben (zuletzt HTTP {last_status}). Das bedeutet typischerweise, dass VW dein Marken-Konto nach zu vielen fehlgeschlagenen Token-Refreshes vorübergehend gesperrt hat.\n\nDie Sperre wird normalerweise innerhalb von **wenigen Stunden bis 24 Stunden** aufgehoben. Die Integration hat die Versuche eingestellt, damit das Sperrfenster sich nicht verlängert.\n\n**Während du wartest**:\n\n1. **Nicht** wiederholt in der offiziellen App ein- und ausloggen, das verlängert die Sperre.\n2. Mindestens 1-2 Stunden warten, dann die offizielle Hersteller-App auf dem Handy öffnen. Wenn sich die App sauber einloggt, ist dein Konto wieder entsperrt.\n3. Nach dem Entsperren `scan_interval` in Einstellungen → Geräte & Dienste → VW Group Connect → Konfigurieren auf 15-30 Minuten erhöhen, um zukünftigen Druck zu reduzieren.\n4. Optional: Den read-only EU Data Act Portal-Modus via OptionsFlow aktivieren, um bei zukünftigen Vorfällen weiter Daten zu bekommen.\n\nDiese Warnung verschwindet automatisch beim nächsten erfolgreichen Token-Refresh."
     }
   },
+  "selector": {
+    "execute_vehicle_action_options": {
+      "options": {
+        "lock": "Verriegeln",
+        "unlock": "Entriegeln",
+        "start_climatisation": "Klimatisierung starten",
+        "stop_climatisation": "Klimatisierung stoppen",
+        "start_charging": "Laden starten",
+        "stop_charging": "Laden stoppen",
+        "flash_lights": "Lichthupe",
+        "start_window_heating": "Scheibenheizung starten",
+        "stop_window_heating": "Scheibenheizung stoppen",
+        "wake_vehicle": "Fahrzeug wecken",
+        "start_aux_heating": "Standheizung starten",
+        "stop_aux_heating": "Standheizung stoppen",
+        "start_ventilation": "Lüftung starten",
+        "stop_ventilation": "Lüftung stoppen"
+      }
+    }
+  },
   "services": {
+    "execute_vehicle_action": {
+      "name": "Fahrzeug-Aktion ausführen",
+      "description": "Vereinheitlichter Service der eine Fahrzeug-Aktion über ein Dropdown-Menü ausführt. Verhält sich identisch zum Aufruf des gleichnamigen Einzel-Services, ist aber in der Home Assistant Lovelace Service-Auswahl viel einfacher zu finden. Alle bestehenden Einzel-Services (vag_connect.lock, vag_connect.start_climatisation usw.) funktionieren unverändert weiter.",
+      "fields": {
+        "device_id": {
+          "name": "Fahrzeug",
+          "description": "Das Fahrzeug-Gerät auf dem die Aktion ausgeführt werden soll."
+        },
+        "action": {
+          "name": "Aktion",
+          "description": "Welche Aktion ausgeführt werden soll."
+        }
+      }
+    },
     "open_app": {
       "name": "Marken-App öffnen (Deeplink)",
       "description": "Sendet das Event `vag_connect_open_app` auf dem HA-Eventbus mit den Payload-Feldern `vin`, `brand`, `deeplink_url` und `action`. Eine Lovelace-Karte lauscht auf das Event und öffnet die native Marken-App (myAudi, WeConnect, MyŠkoda, MySEAT, MyCUPRA, My Porsche oder VW US) auf dem aufrufenden Gerät. Die Integration selbst kann keine URLs auf einem Telefon öffnen; die Dashboard-Karte ist für den Aufruf `window.location.href = deeplink_url` auf iOS / Android zuständig.",
@@ -769,6 +921,70 @@
         "action": {
           "name": "App-Aktion",
           "description": "Optionaler Pfad-Anteil hinter dem Deeplink, damit die Marken-App direkt in den passenden Bereich springt. Standard `open` öffnet die App auf dem Startbildschirm."
+        }
+      }
+    },
+    "start_climate_control": {
+      "name": "Klimatisierung starten (Rich)",
+      "description": "Startet die Vorklimatisierung mit individuellen Sitzheizungen, Scheibenheizung, Klima-Modus und Verhalten beim Entriegeln. Nur für Audi und VW EU (CARIAD BFF). Andere Marken fallen auf den einfachen Dienst `start_climatisation` zurück. Alle Felder außer `device_id` sind optional - weggelassene Felder behalten die Marken-Voreinstellung.",
+      "fields": {
+        "device_id": {
+          "name": "Fahrzeug",
+          "description": "Fahrzeug, das den Vorklimatisierungs-Befehl erhält."
+        },
+        "temp_c": {
+          "name": "Zieltemperatur (°C)",
+          "description": "Innenraum-Zieltemperatur in Grad Celsius (15 bis 30, Schritt 0.5)."
+        },
+        "glass_heating": {
+          "name": "Scheibenheizung",
+          "description": "Windschutzscheiben- und Heckscheibenheizung zusätzlich zur Innenraum-Vorklimatisierung aktivieren."
+        },
+        "seat_fl": {
+          "name": "Sitzheizung vorne links",
+          "description": "Sitzheizung auf dem Fahrersitz aktivieren."
+        },
+        "seat_fr": {
+          "name": "Sitzheizung vorne rechts",
+          "description": "Sitzheizung auf dem Beifahrersitz aktivieren."
+        },
+        "seat_rl": {
+          "name": "Sitzheizung hinten links",
+          "description": "Sitzheizung auf dem hinteren linken Sitz aktivieren."
+        },
+        "seat_rr": {
+          "name": "Sitzheizung hinten rechts",
+          "description": "Sitzheizung auf dem hinteren rechten Sitz aktivieren."
+        },
+        "climatisation_at_unlock": {
+          "name": "Klima nach Entriegeln weiterführen",
+          "description": "Vorklimatisierung nach dem Entriegeln des Fahrzeugs weiterlaufen lassen."
+        },
+        "climatisation_mode": {
+          "name": "Klima-Modus",
+          "description": "Comfort (volle Leistung) oder economy (reduzierte Leistung, längere Laufzeit)."
+        }
+      }
+    },
+    "update_charging_settings": {
+      "name": "Ladeplan aktualisieren (SEAT/CUPRA)",
+      "description": "Aktualisiert den Ladeplan in einem Aufruf. Setzt eine beliebige Kombination aus Ziel-Ladestand, maximalem AC-Ladestrom und der Auto-Entriegeln-bei-vollgeladen-Flag. Andere Marken werden auf Koordinator-Ebene abgelehnt.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN des Fahrzeugs, das aktualisiert werden soll."
+        },
+        "target_soc": {
+          "name": "Ziel-Ladestand (%)",
+          "description": "Ziel-Ladestand zwischen 20 und 100 Prozent."
+        },
+        "max_charge_current": {
+          "name": "Maximaler AC-Ladestrom",
+          "description": "Backend-Enum, maximum oder reduced."
+        },
+        "auto_unlock_charge": {
+          "name": "Stecker bei vollem Akku entriegeln",
+          "description": "Wenn aktiv, entriegelt sich der Stecker selbst nach abgeschlossenem Ladevorgang."
         }
       }
     }

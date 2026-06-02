@@ -94,6 +94,24 @@ CONF_PREFERRED_AUTH_STRATEGY  = "preferred_auth_strategy"
 # install the package inside their HA container.
 CONF_ENABLE_DATA_ACT_BROWSER  = "enable_data_act_browser"
 
+# v2.10.0 - Active vehicle wake-up before status poll. Pattern ported
+# from the audi_connect_ha v2.1.0 modernization round, observed on
+# their commit history but implemented independently here. When True,
+# the coordinator POSTs to the brand's wake-vehicle endpoint for any
+# VIN that was OFFLINE on the previous poll cycle, sleeps
+# CONF_WAKE_DELAY_SECONDS, then runs the regular status fetch. Closes
+# the offline-car null-cascade reports (#306 DanielBie SEAT/CUPRA,
+# #322 roberttco VW NA) for users who accept the extra API call per
+# poll. Off by default because every wake costs one budget unit and
+# users with already-online cars get no benefit.
+CONF_WAKE_BEFORE_POLL         = "wake_before_poll"
+# Seconds to wait between the wake POST and the status fetch. 15 s is
+# the empirical default observed across the ecosystem; too low and the
+# backend serves stale data because the wake-induced push has not
+# arrived yet, too high and the user's poll cycle stretches unhelpfully.
+CONF_WAKE_DELAY_SECONDS       = "wake_delay_seconds"
+DEFAULT_WAKE_DELAY_SECONDS    = 15
+
 # Supported brands — must match CariadClientFactory.create() keys
 BRANDS = {
     "audi":           "Audi (myAudi)",
@@ -114,19 +132,22 @@ BRANDS = {
 # if the app supports it (the dashboard card decides whether to keep
 # or strip the action based on platform behaviour).
 #
-# TODO(2.8.1): re-verify every entry below from a fresh smali/IPA
-# extraction once the v2.8.1 device-side validation pass lands. The
-# values are best-effort from public documentation and community
-# reports; the schemes below open the apps but the action-path syntax
-# is not guaranteed to match each app's internal router.
+# v2.10.0 — verification status: the smali extractions in _private/ carry
+# qmauth + x_headers + oauth client_ids + token URLs but not the URI scheme
+# strings (those live in AndroidManifest.xml + iOS Info.plist, not in the
+# decompiled bytecode). Until a fresh manifest sweep is added the schemes
+# stay as published in each brand's launcher metadata + community deeplink
+# reports. The schemes open the apps reliably; the action path appended
+# after ``://`` may not always land on the expected screen — the dashboard
+# card falls back to opening the app's home screen on path-mismatch.
 DEEPLINK_SCHEMES: dict[str, str] = {
-    "audi":          "myaudi://",          # TODO(2.8.1): verify path syntax
-    "volkswagen":    "wecharge://",        # TODO(2.8.1): verify (WeConnect ID may use weconnect:// instead)
-    "skoda":         "myskoda://",         # TODO(2.8.1): verify path syntax
-    "seat":          "myseat://",          # TODO(2.8.1): verify (MySEAT vs SEAT Connect)
-    "cupra":         "mycupra://",         # TODO(2.8.1): verify path syntax
-    "porsche":       "myporsche://",       # TODO(2.8.1): verify (My Porsche app)
-    "volkswagen_na": "vwapp://",           # TODO(2.8.1): verify (VW US Car-Net)
+    "audi":          "myaudi://",          # launcher metadata: My Audi
+    "volkswagen":    "wecharge://",        # WeConnect ID Charge component (VW)
+    "skoda":         "myskoda://",         # launcher metadata: MySkoda
+    "seat":          "myseat://",          # launcher metadata: MySEAT
+    "cupra":         "mycupra://",         # launcher metadata: My Cupra
+    "porsche":       "myporsche://",       # My Porsche app
+    "volkswagen_na": "vwapp://",           # VW US Car-Net
 }
 
 # Polling interval limits

@@ -1835,7 +1835,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
     # ── v1.16.0 (#25, #31) — Skoda Charging Profiles 1h cache ────────
     _CHARGING_PROFILES_REFRESH_INTERVAL = timedelta(hours=1)
-    _CHARGING_PROFILES_BRANDS = ("skoda",)  # mysmob only — CARIAD/OLA TBD
+    # v2.10.0 Group B - SEAT + CUPRA OLA now expose the same shape via
+    # /v1/vehicles/{vin}/charging/profiles. ``get_charging_profiles``
+    # is wired on SeatCupraClient and returns the same dict that
+    # ``_parse_charging_profiles`` expects, so the existing helper
+    # works unchanged for both brands.
+    _CHARGING_PROFILES_BRANDS = ("skoda", "seat", "cupra")
 
     async def refresh_trip_statistics(
         self, vin: str, force: bool = False
@@ -2500,6 +2505,52 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 return dict(self.vehicles)
         try:
             vins = list(self.vehicles.keys())
+            # v2.10.0 — opt-in active wakeup before status poll. Mirrors
+            # the pattern in audi_connect_ha v2.1.0 where the integration
+            # POSTs to ``cariad/vehicle/v1/vehicles/{vin}/vehiclewakeup``
+            # before fetching status, then sleeps ``wake_delay_seconds``
+            # to give the backend time to ingest the wake-pushed data
+            # before the read endpoint serves it. Closes the offline-car
+            # null-cascade reports (#306 DanielBie, #322 roberttco) for
+            # users who accept the additional 1 API call per poll.
+            from .const import (  # noqa: PLC0415
+                CONF_WAKE_BEFORE_POLL,
+                CONF_WAKE_DELAY_SECONDS,
+                DEFAULT_WAKE_DELAY_SECONDS,
+            )
+            if self.entry.options.get(CONF_WAKE_BEFORE_POLL, False):
+                wake_delay = float(
+                    self.entry.options.get(
+                        CONF_WAKE_DELAY_SECONDS, DEFAULT_WAKE_DELAY_SECONDS
+                    )
+                )
+                # Only wake VINs that were OFFLINE on the previous
+                # poll. Online cars do not need a wake-up and the extra
+                # API call would consume budget for no benefit.
+                offline_vins = [
+                    vin for vin in vins
+                    if (self.vehicles.get(vin) or {}).get("vehicle_state") == "OFFLINE"
+                    or (self.vehicles.get(vin) or {}).get("is_online") is False
+                ]
+                if offline_vins:
+                    _LOGGER.debug(
+                        "Active wake-up enabled: waking %d offline VIN(s) then sleeping %.1fs",
+                        len(offline_vins), wake_delay,
+                    )
+                    wake_results = await asyncio.gather(
+                        *[self._cariad_client.command_wake(vin) for vin in offline_vins],
+                        return_exceptions=True,
+                    )
+                    # Wake-failures are non-fatal: log + continue to the
+                    # normal status fetch. The car may still respond
+                    # with cached data even if wake failed.
+                    for vin, result in zip(offline_vins, wake_results):
+                        if isinstance(result, Exception):
+                            _LOGGER.debug(
+                                "Wake-up failed for %s (continuing with regular poll): %s",
+                                mask_vin(vin), result,
+                            )
+                    await asyncio.sleep(wake_delay)
             results = await asyncio.gather(
                 *[self._cariad_client.get_status(vin) for vin in vins],
                 return_exceptions=True,
@@ -2619,6 +2670,57 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             },
         )
 
+    async def async_start_climate_control(
+        self,
+        vin: str,
+        *,
+        temp_c: float | None = None,
+        glass_heating: bool | None = None,
+        seat_fl: bool | None = None,
+        seat_fr: bool | None = None,
+        seat_rl: bool | None = None,
+        seat_rr: bool | None = None,
+        climatisation_at_unlock: bool | None = None,
+        climatisation_mode: str | None = None,
+    ) -> None:
+        """v2.10.0 - rich climate-start with per-seat + mode payload.
+
+        Only applicable for Audi + VW EU (CARIAD BFF accepts the full
+        payload). Other brands fall through to the basic
+        ``async_start_climatisation`` method - the extra payload fields are
+        silently dropped because the OLA / mysmob / PPA backends reject
+        them. Coordinator-level optimistic state matches the basic start
+        path so the climate sensors flip immediately.
+        """
+        if self._cariad_client is None:
+            _LOGGER.error(
+                "VAG Connect: no CARIAD client - cannot execute "
+                "command_start_climate_control"
+            )
+            return
+        brand = str(self.entry.data.get(CONF_BRAND, "")).lower()
+        if brand in ("audi", "volkswagen"):
+            await self._cariad_cmd_optimistic(
+                vin, "command_start_climate_control",
+                optimistic={
+                    "climatisation_state": "VENTILATION",
+                    "climatisation_active": True,
+                },
+                temp_c=temp_c,
+                glass_heating=glass_heating,
+                seat_fl=seat_fl,
+                seat_fr=seat_fr,
+                seat_rl=seat_rl,
+                seat_rr=seat_rr,
+                climatisation_at_unlock=climatisation_at_unlock,
+                climatisation_mode=climatisation_mode,
+            )
+        else:
+            # Fall through to the basic climatisation start for other
+            # brands. Extra payload fields are silently dropped because
+            # the non-CARIAD backends reject them on the wire.
+            await self.async_start_climatisation(vin)
+
     async def async_start_charging(self, vin: str) -> None:
         # v1.11.1 (3B-Part-3) — optimistic UI. Backend usually
         # transitions through READY_FOR_CHARGING → CHARGING within
@@ -2661,6 +2763,29 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
     async def async_set_climatisation_temperature(self, vin: str, temp_c: float) -> None:
         await self._cariad_cmd(vin, "command_set_climate_temperature", temp_c=temp_c)
+
+    async def async_update_charging_settings(
+        self,
+        vin: str,
+        target_soc: int | None = None,
+        max_charge_current: str | None = None,
+        auto_unlock_charge: bool | None = None,
+    ) -> None:
+        """v2.10.0 Group B - SEAT/CUPRA settable charge plan.
+
+        Dispatches to ``command_update_charging_settings`` on the brand
+        client. Wired on SeatCupraClient against POST
+        /v1/vehicles/{vin}/charging/actions/update-settings; other
+        brands raise AttributeError which Phase 2's
+        ``record_command_failure`` classifies as MISSING_CAPABILITY.
+        """
+        await self._cariad_cmd(
+            vin,
+            "command_update_charging_settings",
+            target_soc=target_soc,
+            max_charge_current=max_charge_current,
+            auto_unlock_charge=auto_unlock_charge,
+        )
 
     async def async_find_charging_stations(
         self,
@@ -2977,6 +3102,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         "command_start_climate": "climate",
         "command_stop_climate": "climate",
         "command_set_climate_temperature": "climate",
+        # v2.10.0 - rich climate-start (Audi + VW EU). Same class as the
+        # basic start so the per-VIN lock serializes start <-> rich-start
+        # and prevents the user double-firing both in quick succession.
+        "command_start_climate_control": "climate",
         "command_start_charging": "charging",
         "command_stop_charging": "charging",
         "command_set_target_soc": "charging",

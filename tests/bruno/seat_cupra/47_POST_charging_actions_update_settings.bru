@@ -1,0 +1,45 @@
+meta {
+  name: POST charging actions update-settings (v2.10.0)
+  type: http
+  seq: 47
+}
+
+post {
+  url: {{base_url}}/v1/vehicles/{{vin}}/charging/actions/update-settings
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "targetSoc_pct": 80,
+    "maxChargeCurrentAC": "MAXIMUM",
+    "autoUnlockPlugWhenCharged": "PERMANENT"
+  }
+}
+
+docs {
+  v2.10.0 - update charge plan settings via the dedicated action
+  endpoint instead of the legacy /charging/settings PUT route. Exposed
+  in HA as the `vag_connect.update_charging_settings` service.
+
+  Endpoint reference: Timwun/Cupra-WeConnect-Bruno-Collection.
+
+  All body fields are optional. Backend keeps existing values for
+  fields the caller omits. Known shape variants observed across
+  firmware: targetSoc_pct vs targetSocPct vs
+  targetStateOfChargeInPercent; maxChargeCurrentAC vs maxAcAmpere.
+
+  Response: 204 No Content on success, or 400 with a per-field error
+  list when validation fails (e.g. targetSoc below the brand's
+  minimum, currently 50%).
+}

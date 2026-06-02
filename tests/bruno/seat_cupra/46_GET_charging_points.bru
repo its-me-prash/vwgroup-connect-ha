@@ -1,0 +1,42 @@
+meta {
+  name: GET public charging points (v2.10.0)
+  type: http
+  seq: 46
+}
+
+get {
+  url: {{base_url}}/v1/charging/points
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  v2.10.0 - public POI catalog for charging stations. Returns a list
+  of available stations within the user's region; SeatCupraClient.
+  find_charging_stations now probes this endpoint as a fallback after
+  the existing CARIAD BFF POI endpoint.
+
+  Endpoint reference: Timwun/Cupra-WeConnect-Bruno-Collection.
+
+  Response shape (observed across CUPRA Born + Leon):
+    {
+      "chargingPoints": [
+        {
+          "id": "...",
+          "name": "...",
+          "address": {...},
+          "location": {"lat": ..., "lon": ...},
+          "maxPowerInKW": ...,
+          "connectorTypes": [...]
+        }
+      ]
+    }
+}

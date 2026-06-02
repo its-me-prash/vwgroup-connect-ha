@@ -22,9 +22,11 @@ from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, Supp
 from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
     ConfigEntryNotReady,
+    HomeAssistantError,
     ServiceValidationError,
 )
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
 
 from .const import DOMAIN, CONF_BRAND, CONF_USERNAME, CONF_PASSWORD
 from .coordinator import VagConnectCoordinator
@@ -50,6 +52,30 @@ PLATFORMS: list[Platform] = [
 ]
 
 SERVICE_VIN_SCHEMA = vol.Schema({vol.Required("vin"): cv.string})
+
+# v2.10.0 unified action dispatcher (``execute_vehicle_action``).
+# Maps the user-facing action key (from the services.yaml select
+# dropdown) to the coordinator method name. Exposed at module level so
+# the v2.10.0 test suite can iterate the keys and confirm every action
+# has a matching ``async_*`` method on ``VagConnectCoordinator``.
+# Pattern observed in arjenvrh/audi_connect_ha v2.1.0. All existing
+# per-action services keep working unchanged for backwards-compat.
+EXECUTE_VEHICLE_ACTION_MAP: dict[str, str] = {
+    "lock":                 "async_lock",
+    "unlock":               "async_unlock",
+    "start_climatisation":  "async_start_climatisation",
+    "stop_climatisation":   "async_stop_climatisation",
+    "start_charging":       "async_start_charging",
+    "stop_charging":        "async_stop_charging",
+    "flash_lights":         "async_flash_lights",
+    "start_window_heating": "async_start_window_heating",
+    "stop_window_heating":  "async_stop_window_heating",
+    "wake_vehicle":         "async_wake_vehicle",
+    "start_aux_heating":    "async_start_aux_heating",
+    "stop_aux_heating":     "async_stop_aux_heating",
+    "start_ventilation":    "async_start_ventilation",
+    "stop_ventilation":     "async_stop_ventilation",
+}
 
 VagConnectConfigEntry: TypeAlias = ConfigEntry[VagConnectCoordinator]
 
@@ -240,6 +266,59 @@ def _register_services(hass: HomeAssistant) -> None:
     async def _handle_start_clim(call: ServiceCall) -> None:
         await _coord_writeable(call.data["vin"]).async_start_climatisation(call.data["vin"])
 
+    def _resolve_device_to_vin(device_id: str) -> str:
+        """v2.10.0 - map an HA device_id to the VIN it represents.
+
+        The integration registers each vehicle with identifier
+        ``(DOMAIN, vin)`` (see ``entity_base.VagBaseEntity.device_info``).
+        Service handlers that use the ``device`` selector take a
+        device_id and must resolve back to the VIN before dispatching
+        to the coordinator.
+
+        Raises ``ServiceValidationError`` with the standard
+        ``vehicle_not_found`` translation key when the device is
+        unknown or does not carry a VAG identifier.
+        """
+        registry = dr.async_get(hass)
+        device = registry.async_get(device_id)
+        if device is None:
+            raise ServiceValidationError(
+                f"Device '{device_id}' not found.",
+                translation_domain=DOMAIN,
+                translation_key="vehicle_not_found",
+            )
+        for ident_domain, ident_value in device.identifiers:
+            if ident_domain == DOMAIN:
+                return str(ident_value)
+        raise ServiceValidationError(
+            f"Device '{device_id}' is not a VAG Connect vehicle.",
+            translation_domain=DOMAIN,
+            translation_key="vehicle_not_found",
+        )
+
+    async def _handle_start_climate_control(call: ServiceCall) -> None:
+        """v2.10.0 - rich climate-start with per-seat + mode payload.
+
+        Resolves the device_id to a VIN and forwards every optional
+        payload field to the coordinator. Coordinator routes the call
+        to Audi / VW EU CARIAD-BFF clients; other brands fall through
+        to the basic climatisation start.
+        """
+        vin = _resolve_device_to_vin(str(call.data["device_id"]))
+        coord = _coord_writeable(vin)
+        temp_c = call.data.get("temp_c")
+        await coord.async_start_climate_control(
+            vin,
+            temp_c=float(temp_c) if temp_c is not None else None,
+            glass_heating=call.data.get("glass_heating"),
+            seat_fl=call.data.get("seat_fl"),
+            seat_fr=call.data.get("seat_fr"),
+            seat_rl=call.data.get("seat_rl"),
+            seat_rr=call.data.get("seat_rr"),
+            climatisation_at_unlock=call.data.get("climatisation_at_unlock"),
+            climatisation_mode=call.data.get("climatisation_mode"),
+        )
+
     async def _handle_stop_clim(call: ServiceCall) -> None:
         await _coord_writeable(call.data["vin"]).async_stop_climatisation(call.data["vin"])
 
@@ -341,6 +420,25 @@ def _register_services(hass: HomeAssistant) -> None:
             house_number=str(call.data.get("house_number", "")),
             zip_code=str(call.data.get("zip_code", "")),
         )
+
+    async def _handle_update_charging_settings(call: ServiceCall) -> None:
+        """v2.10.0 Group B - SEAT/CUPRA settable charge plan.
+
+        At least one of ``target_soc`` / ``max_charge_current`` /
+        ``auto_unlock_charge`` must be present. The brand client raises
+        ValueError when every payload field is None, which surfaces as
+        a ServiceValidationError after we re-cast it.
+        """
+        vin = str(call.data["vin"])
+        try:
+            await _coord_writeable(vin).async_update_charging_settings(
+                vin,
+                target_soc=call.data.get("target_soc"),
+                max_charge_current=call.data.get("max_charge_current"),
+                auto_unlock_charge=call.data.get("auto_unlock_charge"),
+            )
+        except ValueError as exc:
+            raise ServiceValidationError(str(exc)) from exc
 
     async def _handle_refresh(_call: ServiceCall) -> None:
         """Pull latest cloud-cached state — does NOT wake the vehicle.
@@ -465,6 +563,21 @@ def _register_services(hass: HomeAssistant) -> None:
                 vol.Required("vin"):         str,
                 vol.Required("temperature"): vol.All(vol.Coerce(float), vol.Range(16, 30)),
             })),
+        # v2.10.0 Group B - SEAT/CUPRA settable charge plan
+        # (POST /v1/vehicles/{vin}/charging/actions/update-settings).
+        # At least one of the three optional payload fields must be
+        # provided; the coordinator rejects an empty body with a clear
+        # ServiceValidationError.
+        ("update_charging_settings",       _handle_update_charging_settings,
+            vol.Schema({
+                vol.Required("vin"):       cv.string,
+                vol.Optional("target_soc"):
+                    vol.All(vol.Coerce(int), vol.Range(20, 100)),
+                vol.Optional("max_charge_current"): vol.In(
+                    ["maximum", "reduced"]
+                ),
+                vol.Optional("auto_unlock_charge"): cv.boolean,
+            })),
         ("set_departure_timer",            _handle_set_departure_timer,
             vol.Schema({
                 vol.Required("vin"):            cv.string,
@@ -499,6 +612,24 @@ def _register_services(hass: HomeAssistant) -> None:
                 vol.Optional("street"):       cv.string,
                 vol.Optional("house_number"): cv.string,
                 vol.Optional("zip_code"):     cv.string,
+            })),
+        # v2.10.0 - Rich climate-start (Audi + VW EU CARIAD-BFF).
+        # Uses device_id selector instead of VIN; other brands fall
+        # through to the basic ``start_climatisation`` service in
+        # the coordinator dispatch.
+        ("start_climate_control",          _handle_start_climate_control,
+            vol.Schema({
+                vol.Required("device_id"):                cv.string,
+                vol.Optional("temp_c"):
+                    vol.All(vol.Coerce(float), vol.Range(15, 30)),
+                vol.Optional("glass_heating"):            cv.boolean,
+                vol.Optional("seat_fl"):                  cv.boolean,
+                vol.Optional("seat_fr"):                  cv.boolean,
+                vol.Optional("seat_rl"):                  cv.boolean,
+                vol.Optional("seat_rr"):                  cv.boolean,
+                vol.Optional("climatisation_at_unlock"):  cv.boolean,
+                vol.Optional("climatisation_mode"):
+                    vol.In(["comfort", "economy"]),
             })),
     ]:
         hass.services.async_register(DOMAIN, name, handler, schema)
@@ -543,6 +674,67 @@ def _register_services(hass: HomeAssistant) -> None:
         # OPTIONAL the response variable still works for callers but
         # Hassfest is happy.
         supports_response=SupportsResponse.OPTIONAL,
+    )
+
+    # v2.10.0 unified execute_vehicle_action dispatcher.
+    # Pattern observed in arjenvrh/audi_connect_ha v2.1.0: instead of
+    # the user scrolling through 10+ separate per-action services in
+    # the Lovelace service picker, expose ONE service with an action
+    # dropdown. The per-action services above stay registered for
+    # backwards-compat, so existing automations that already call
+    # ``vag_connect.lock``, etc. keep working unchanged.
+    #
+    # The service is device-targeted (uses ``device_id``, not ``vin``)
+    # to fit the HA Lovelace UX. We resolve device_id to VIN via the
+    # device registry. Every VAG Connect device is keyed by
+    # ``identifiers={(DOMAIN, vin)}`` (see ``entity_base.device_info``)
+    # so the resolution is a single registry lookup.
+    async def _handle_execute_vehicle_action(call: ServiceCall) -> None:
+        device_id: str = call.data["device_id"]
+        action: str = call.data["action"]
+
+        method_name = EXECUTE_VEHICLE_ACTION_MAP.get(action)
+        if method_name is None:
+            # vol.In(...) on the schema would already reject this, but
+            # guard defensively in case the schema is loosened later.
+            raise HomeAssistantError(f"Unknown action: {action}")
+
+        device_reg = dr.async_get(hass)
+        device = device_reg.async_get(device_id)
+        if device is None:
+            raise ServiceValidationError(
+                f"Device '{device_id}' not found.",
+                translation_domain=DOMAIN,
+                translation_key="vehicle_not_found",
+            )
+
+        vin: str | None = None
+        for domain, ident in device.identifiers:
+            if domain == DOMAIN:
+                vin = ident
+                break
+        if vin is None:
+            raise ServiceValidationError(
+                f"Device '{device_id}' is not a VAG Connect vehicle.",
+                translation_domain=DOMAIN,
+                translation_key="vehicle_not_found",
+            )
+
+        # _coord_writeable enforces both vehicle-known + read-only-mode
+        # gates, identical to the per-action services so behaviour is
+        # bit-for-bit equivalent.
+        coordinator = _coord_writeable(vin)
+        method = getattr(coordinator, method_name)
+        await method(vin)
+
+    hass.services.async_register(
+        DOMAIN,
+        "execute_vehicle_action",
+        _handle_execute_vehicle_action,
+        schema=vol.Schema({
+            vol.Required("device_id"): cv.string,
+            vol.Required("action"):    vol.In(list(EXECUTE_VEHICLE_ACTION_MAP.keys())),
+        }),
     )
 
     # v2.8.0 quick-win B — vag_connect.open_app event-emitter service.
@@ -600,6 +792,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) 
             "show_vag",
             # v2.8.0 quick-win B — native-app deeplink emitter
             "open_app",
+            # v2.10.0 unified action dispatcher
+            "execute_vehicle_action",
+            # v2.10.0 rich climate-start (Audi + VW EU CARIAD-BFF)
+            "start_climate_control",
+            # v2.10.0 Group B - SEAT/CUPRA settable charge plan
+            "update_charging_settings",
         ]:
             if hass.services.has_service(DOMAIN, svc):
                 hass.services.async_remove(DOMAIN, svc)

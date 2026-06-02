@@ -1,0 +1,58 @@
+meta {
+  name: POST SPIN challenge (step 1 of NA two-step SPIN handshake)
+  type: http
+  seq: 5
+}
+
+post {
+  url: https://b-h-s.spr.{{country}}00.p.con-veh.net/ss/v1/user/{{user_id}}/challenge
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+body:json {
+  {}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+  User-Agent: MyVW/1.0 Android
+}
+
+docs {
+  v2.10.0 (Group C). VW North America SPIN challenge endpoint.
+
+  Step 1 of the two-step SPIN verification flow that NA uses for any
+  privileged remote action (unlock, doors, alarm clear, etc).
+
+  Response shape:
+
+    {
+      "data": {
+        "challenge": "abcd1234..."
+      }
+    }
+
+  Defensive key-name variants observed across firmware generations:
+  ``challenge`` / ``nonce`` / ``challengeData``. The Python parser
+  walks all three in priority order.
+
+  NA-specific shape vs EU:
+
+  - EU CARIAD-BFF accepts the raw SPIN in the action payload directly
+    (e.g. ``POST /vehicle/v1/.../lock body: {action: unlock, spin: 1234}``).
+  - NA refuses that pattern on post-2024 Cox firmware. Instead, the
+    client must fetch a per-user single-use challenge nonce, hash
+    ``SHA1(SPIN + nonce)`` (uppercase hex), and POST the response back
+    to the companion ``/spin`` endpoint to receive a short-lived
+    ``sessionToken``. That token is then presented as the
+    ``X-Spin-Session`` header on the action request itself.
+
+  Pattern verified against the matpoulin reference + a smali excerpt
+  from the MyVW APK.
+}

@@ -1,0 +1,56 @@
+meta {
+  name: POST climatisation start (rich, v2.10.0)
+  type: http
+  seq: 24
+}
+
+post {
+  url: {{base_url}}/vehicle/v1/vehicles/{{vin}}/climatisation/start
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Content-Type: application/json
+  Accept: application/json
+}
+
+body:json {
+  {
+    "targetTemperatureInCelsius": 21.5,
+    "windowHeatingEnabled": true,
+    "zoneFrontLeftEnabled": true,
+    "zoneFrontRightEnabled": true,
+    "zoneRearLeftEnabled": false,
+    "zoneRearRightEnabled": false,
+    "climatisationAtUnlock": true,
+    "climatisationMode": "comfort"
+  }
+}
+
+docs {
+  v2.10.0. Rich climate-start payload for the CARIAD BFF. Same
+  /climatisation/start endpoint as the separate-endpoint fallback in
+  06_POST_climatisation_start.bru, but with the full optional body:
+  per-seat heating zones, glass / window heating, at-unlock continuation
+  and climatisation mode (comfort or economy).
+
+  Each body key is optional. Omitting a key keeps the brand-backend
+  default; partial submissions are accepted, but seat heating is
+  treated as a group: once any zone is present, all four zone keys
+  must be sent so the backend has a coherent zone configuration.
+
+  Exposed in HA via the new ``vag_connect.start_climate_control``
+  service (device-selector based, falls back to basic start for
+  non-CARIAD brands at the coordinator level).
+
+  Implementation:
+    - VWEUClient.command_start_climate_control() in
+      cariad/api/vw_eu.py (Audi inherits via AudiClient(VWEUClient)).
+    - Coordinator.async_start_climate_control() routes Audi + VW
+      brands to the rich payload, other brands to async_start_climatisation.
+}

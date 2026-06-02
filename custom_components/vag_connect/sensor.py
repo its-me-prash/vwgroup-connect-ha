@@ -724,6 +724,43 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         suggested_display_precision=0,
         condition="electric",
     ),
+    # v2.10.0 (charging_statistics) - SEAT/CUPRA per-session detail from
+    # the charging.cariad.digital host. Skoda already populates the same
+    # last_charging_session_* fields from mysmob (v1.15.0 #35); SEAT/CUPRA
+    # gained these in v2.10.0 via the new charging-stats host. Both fields
+    # below are gated by _DATA_PRESENT_REQUIRED so non-EV cars and brands
+    # without the host stay clean.
+    VagSensorDescription(
+        key="last_charging_session_start",
+        translation_key="last_charging_session_start",
+        data_key="last_charging_session_start",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:clock-outline",
+        condition="electric",
+    ),
+    VagSensorDescription(
+        key="last_charging_session_current_type",
+        translation_key="last_charging_session_current_type",
+        data_key="last_charging_session_current_type",
+        icon="mdi:ev-plug-type2",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # v2.10.0 (charging_statistics) - per-session power-curve samples.
+    # State is the COUNT of points to keep HA recorder usage low; the
+    # full sample list lives in extra_state_attributes (see
+    # VagConnectSensor.extra_state_attributes below). Useful for
+    # Lovelace cards that graph kW over time for the last DC fast-charge.
+    VagSensorDescription(
+        key="last_charging_power_curve_points",
+        translation_key="last_charging_power_curve_points",
+        data_key="last_charging_power_curve_points",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:chart-line",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=0,
+        condition="electric",
+    ),
     # v1.16.0 (#25, #31) — Skoda Charging Profiles read-only sensors.
     # The killer field: ``active_charging_profile_name`` from the
     # backend's ``currentVehiclePositionProfile`` (the backend already
@@ -906,6 +943,15 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:road-variant",
         suggested_display_precision=1,
+    ),
+    # v2.10.0 - last-trip reset timestamp (audi_connect_ha parity).
+    VagSensorDescription(
+        key="last_trip_reset_at",
+        translation_key="last_trip_reset_at",
+        data_key="last_trip_reset_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:calendar-refresh",
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     VagSensorDescription(
         key="last_trip_avg_speed_kmh",
@@ -1227,6 +1273,140 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:cog-outline",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # v2.10.0 (#389 scout) — pending-action surface. CARIAD BFF ships
+    # access.accessStatus.requests when a lock/unlock/climate command
+    # was dispatched and the vehicle has not yet confirmed. Three
+    # sensors expose the most-recent entry so HA scripts can wait for
+    # action acknowledgement instead of fixed sleeps.
+    VagSensorDescription(
+        key="pending_action_id",
+        translation_key="pending_action_id",
+        data_key="pending_action_id",
+        icon="mdi:identifier",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="pending_action_type",
+        translation_key="pending_action_type",
+        data_key="pending_action_type",
+        icon="mdi:gesture-tap",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="pending_action_status",
+        translation_key="pending_action_status",
+        data_key="pending_action_status",
+        icon="mdi:progress-clock",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # v2.10.0 - refuel-trip aggregator (since last tank fill / charge).
+    # CARIAD BFF tripstatistics?type=cyclic. Energy-Dashboard friendly.
+    VagSensorDescription(
+        key="refuel_trip_distance_km",
+        translation_key="refuel_trip_distance_km",
+        data_key="refuel_trip_distance_km",
+        native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:map-marker-path",
+        suggested_display_precision=1,
+    ),
+    VagSensorDescription(
+        key="refuel_trip_duration_min",
+        translation_key="refuel_trip_duration_min",
+        data_key="refuel_trip_duration_min",
+        native_unit_of_measurement="min",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:timer-outline",
+    ),
+    VagSensorDescription(
+        key="refuel_trip_avg_speed_kmh",
+        translation_key="refuel_trip_avg_speed_kmh",
+        data_key="refuel_trip_avg_speed_kmh",
+        native_unit_of_measurement="km/h",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:speedometer-medium",
+        suggested_display_precision=1,
+    ),
+    VagSensorDescription(
+        key="refuel_trip_avg_fuel_consumption_l_100km",
+        translation_key="refuel_trip_avg_fuel_consumption_l_100km",
+        data_key="refuel_trip_avg_fuel_consumption_l_100km",
+        native_unit_of_measurement="L/100km",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:fuel",
+        suggested_display_precision=1,
+    ),
+    VagSensorDescription(
+        key="refuel_trip_avg_electric_consumption_kwh_100km",
+        translation_key="refuel_trip_avg_electric_consumption_kwh_100km",
+        data_key="refuel_trip_avg_electric_consumption_kwh_100km",
+        native_unit_of_measurement="kWh/100km",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:lightning-bolt",
+        suggested_display_precision=1,
+    ),
+    VagSensorDescription(
+        key="refuel_trip_total_fuel_consumption_l",
+        translation_key="refuel_trip_total_fuel_consumption_l",
+        data_key="refuel_trip_total_fuel_consumption_l",
+        native_unit_of_measurement="L",
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon="mdi:fuel",
+        suggested_display_precision=2,
+    ),
+    VagSensorDescription(
+        key="refuel_trip_total_electric_consumption_kwh",
+        translation_key="refuel_trip_total_electric_consumption_kwh",
+        data_key="refuel_trip_total_electric_consumption_kwh",
+        native_unit_of_measurement="kWh",
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon="mdi:lightning-bolt",
+        suggested_display_precision=2,
+    ),
+    VagSensorDescription(
+        key="refuel_trip_recuperation_kwh",
+        translation_key="refuel_trip_recuperation_kwh",
+        data_key="refuel_trip_recuperation_kwh",
+        native_unit_of_measurement="kWh",
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-arrow-up-outline",
+        suggested_display_precision=2,
+    ),
+    VagSensorDescription(
+        key="refuel_trip_timestamp",
+        translation_key="refuel_trip_timestamp",
+        data_key="refuel_trip_timestamp",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:calendar-clock",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # v2.10.0 - battery-care target SOC (read-only diag mirror; the
+    # number entity for setting it is wired separately in number.py).
+    VagSensorDescription(
+        key="battery_care_target_soc_pct",
+        translation_key="battery_care_target_soc_pct",
+        data_key="battery_care_target_soc_pct",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-heart-variant",
+        suggested_display_precision=0,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # v2.10.0 - real-time charge rate, distinct from averaged
+    # charging_rate_kmh. Only some CARIAD BFF firmware exposes this.
+    VagSensorDescription(
+        key="actual_charge_rate_kw",
+        translation_key="actual_charge_rate_kw",
+        data_key="actual_charge_rate_kw",
+        native_unit_of_measurement="kW",
+        device_class=SensorDeviceClass.POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:lightning-bolt",
+        suggested_display_precision=2,
+    ),
     # v2.2.0 Phase 2 PR #11/20 — derived integer days until expiry.
     # Closes the subscription-feature triangle (timestamp + active +
     # days). Negative when expired. Automation-friendly: threshold
@@ -1292,6 +1472,152 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         suggested_display_precision=1,
         condition="electric",
     ),
+    # v2.10.0 Group A - VW EU field parity additions. Phantom-protected
+    # via ``_DATA_PRESENT_REQUIRED`` below: cars without the underlying
+    # field stay clean.
+    VagSensorDescription(
+        key="hv_battery_min_temperature_c",
+        translation_key="hv_battery_min_temperature_c",
+        data_key="hv_battery_min_temperature_c",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:thermometer-low",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+    ),
+    VagSensorDescription(
+        key="hv_battery_max_temperature_c",
+        translation_key="hv_battery_max_temperature_c",
+        data_key="hv_battery_max_temperature_c",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:thermometer-high",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+    ),
+    VagSensorDescription(
+        key="charge_max_ac_setting",
+        translation_key="charge_max_ac_setting",
+        data_key="charge_max_ac_setting",
+        native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:current-ac",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charge_max_ac_ampere",
+        translation_key="charge_max_ac_ampere",
+        data_key="charge_max_ac_ampere",
+        native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+        device_class=SensorDeviceClass.CURRENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:current-ac",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="auto_release_ac_connector_state",
+        translation_key="auto_release_ac_connector_state",
+        data_key="auto_release_ac_connector_state",
+        icon="mdi:ev-plug-ccs2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="active_ventilation_state",
+        translation_key="active_ventilation_state",
+        data_key="active_ventilation_state",
+        icon="mdi:fan",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="active_ventilation_remaining_time_min",
+        translation_key="active_ventilation_remaining_time_min",
+        data_key="active_ventilation_remaining_time_min",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:fan-clock",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="connection_state_battery_power_level",
+        translation_key="connection_state_battery_power_level",
+        data_key="connection_state_battery_power_level",
+        icon="mdi:car-battery",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="last_trip_total_fuel_consumption_l",
+        translation_key="last_trip_total_fuel_consumption_l",
+        data_key="last_trip_total_fuel_consumption_l",
+        native_unit_of_measurement="L",
+        device_class=SensorDeviceClass.VOLUME,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:gas-station",
+        suggested_display_precision=2,
+        condition="combustion",
+    ),
+    VagSensorDescription(
+        key="last_trip_total_electric_consumption_kwh",
+        translation_key="last_trip_total_electric_consumption_kwh",
+        data_key="last_trip_total_electric_consumption_kwh",
+        native_unit_of_measurement="kWh",
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:lightning-bolt",
+        suggested_display_precision=2,
+        condition="electric",
+    ),
+    # v2.10.0 Group B — SEAT/CUPRA OLA endpoint parity.
+    # Notifications endpoint surface (3 entries) plus 2 engine
+    # measurement temperatures. ``charging_profiles_*`` reuses the
+    # Skoda surface so no new descriptions are needed; the charging
+    # modes list lives as an attribute on ``charging_preferred_mode``.
+    # All phantom-protected via _DATA_PRESENT_REQUIRED below.
+    VagSensorDescription(
+        key="notifications_count",
+        translation_key="notifications_count",
+        data_key="notifications_count",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:bell-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="last_notification_subject",
+        translation_key="last_notification_subject",
+        data_key="last_notification_subject",
+        icon="mdi:bell-ring-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="last_notification_severity",
+        translation_key="last_notification_severity",
+        data_key="last_notification_severity",
+        icon="mdi:alert-circle-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="engine_oil_temperature_c",
+        translation_key="engine_oil_temperature_c",
+        data_key="engine_oil_temperature_c",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:oil-temperature",
+        suggested_display_precision=1,
+    ),
+    VagSensorDescription(
+        key="engine_coolant_temperature_c",
+        translation_key="engine_coolant_temperature_c",
+        data_key="engine_coolant_temperature_c",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:thermometer-water",
+        suggested_display_precision=1,
+    ),
 )
 
 # Sensor keys that read from coordinator helpers instead of the per-vehicle
@@ -1328,6 +1654,12 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "total_charged_energy_kwh",
     "last_charging_session_kwh",
     "last_charging_session_duration_min",
+    # v2.10.0 (charging_statistics) - SEAT/CUPRA host-specific. Other
+    # brands and SEAT/CUPRA vehicles without subscription leave these
+    # at None so no phantom entity appears.
+    "last_charging_session_start",
+    "last_charging_session_current_type",
+    "last_charging_power_curve_points",
     # v1.16.0 (#25, #31) — Skoda-only charging profiles. Same cross-
     # brand deferral. Even on Skoda these stay None for accounts
     # without configured profiles → don't create phantom entities.
@@ -1413,6 +1745,33 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "cng_range_km",
     "primary_engine_range_km",
     "charging_preferred_mode",
+    # v2.10.0 (#389) — pending-action surface, only populated when the
+    # CARIAD BFF reports an in-flight request. Most polls these will
+    # be None and the sensors stay hidden.
+    "pending_action_id",
+    "pending_action_type",
+    "pending_action_status",
+    # v2.10.0 — refuel-trip aggregator. Cars without ?type=cyclic
+    # capability or that have never had a refuel/charge tracked yet
+    # leave the fields None.
+    "refuel_trip_distance_km",
+    "refuel_trip_duration_min",
+    "refuel_trip_avg_speed_kmh",
+    "refuel_trip_avg_fuel_consumption_l_100km",
+    "refuel_trip_avg_electric_consumption_kwh_100km",
+    "refuel_trip_total_fuel_consumption_l",
+    "refuel_trip_total_electric_consumption_kwh",
+    "refuel_trip_recuperation_kwh",
+    "refuel_trip_timestamp",
+    # v2.10.0 - battery-care target (OLA /charging/battery-care GET).
+    "battery_care_target_soc_pct",
+    # v2.10.0 - structured warning lights from /v3/warninglights. Phantom-
+    # protected because non-CUPRA brands won't poll the v3 endpoint and
+    # leave warning_count/warning_messages at None.
+    "warning_count",
+    "warning_messages",
+    # v2.10.0 - real-time charge rate, Audi-only firmware exposes it.
+    "actual_charge_rate_kw",
     "next_charging_timer_id",
     "next_charging_timer_target_soc_reachable",
     "capabilities_count",
@@ -1440,6 +1799,28 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # entity appears for SEAT/CUPRA/Skoda/Porsche/VW NA.
     "auxiliary_heating_status",
     "auxiliary_heating_remaining_min",
+    # v2.10.0 Group A — VW EU field parity additions. All brand-
+    # restricted at the parser level (CARIAD-BFF VW EU + Audi via
+    # subclass). Vehicles without the underlying field stay None
+    # so no phantom diagnostic entity appears.
+    "hv_battery_min_temperature_c",
+    "hv_battery_max_temperature_c",
+    "charge_max_ac_setting",
+    "charge_max_ac_ampere",
+    "auto_release_ac_connector_state",
+    "active_ventilation_state",
+    "active_ventilation_remaining_time_min",
+    "connection_state_battery_power_level",
+    "last_trip_total_fuel_consumption_l",
+    "last_trip_total_electric_consumption_kwh",
+    # v2.10.0 Group B - SEAT/CUPRA OLA endpoint parity. Brand-restricted
+    # at parser level (OLA-only); other brands leave the fields None
+    # so no phantom diagnostic entity surfaces.
+    "notifications_count",
+    "last_notification_subject",
+    "last_notification_severity",
+    "engine_oil_temperature_c",
+    "engine_coolant_temperature_c",
 })
 
 # v1.14.0 (#24) — Trip Statistics is brand-restricted at the API level
@@ -1487,11 +1868,16 @@ async def async_setup_entry(
                 continue
             if desc.condition == "combustion" and not has_combustion:
                 continue
-            if (
-                desc.key in _DATA_PRESENT_REQUIRED
-                and vehicle.get(desc.data_key) is None
-            ):
-                continue
+            if desc.key in _DATA_PRESENT_REQUIRED:
+                _present = vehicle.get(desc.data_key)
+                # v2.10.0 (charging_statistics) - some gated fields are list-
+                # shaped with a ``default_factory=list`` default that yields
+                # ``[]`` on absent data rather than ``None``. Treat both as
+                # "not present" so the entity is skipped at spawn time.
+                if _present is None or (
+                    isinstance(_present, list) and not _present
+                ):
+                    continue
             if desc.key in _TRIP_STATS_KEYS:
                 if not trip_stats_supported:
                     continue
@@ -1593,11 +1979,38 @@ class VagConnectSensor(VagConnectEntity, SensorEntity):
             equip = self._vehicle.get("equipment")
             if isinstance(equip, list) and equip:
                 return json_safe_dict({"equipment": equip})
+        # v2.10.0 (charging_statistics) - full power-curve sample list on
+        # the per-sample sensor. Same audi #113 pattern as recent_trips
+        # and recent_charging_sessions: list-shaped data lives in attrs
+        # to dodge the 255-char HA state limit; native_value stays the
+        # int sample count.
+        if self.entity_description.key == "last_charging_power_curve_points":
+            points = self._vehicle.get("last_charging_power_curve_points")
+            if isinstance(points, list) and points:
+                return json_safe_dict({"points": points})
+        # v2.10.0 Group B - surface the SEAT/CUPRA OLA allowed-charge-
+        # modes list as an attribute on the existing
+        # ``charging_preferred_mode`` sensor instead of growing a new
+        # entity. Picks up automatically when the brand client populates
+        # ``available_charge_modes`` from the /charging/modes endpoint.
+        if self.entity_description.key == "charging_preferred_mode":
+            modes = self._vehicle.get("available_charge_modes")
+            if isinstance(modes, list) and modes:
+                return json_safe_dict({"available_modes": modes})
         return None
 
     @property
     def native_value(self) -> Any:
         val = self._vehicle.get(self.entity_description.data_key)
+        # v2.10.0 (charging_statistics) - power-curve sample list. Native
+        # value is the COUNT to keep state HA-recorder friendly; the full
+        # list lives in extra_state_attributes (see above). Returns None
+        # when the list is missing or empty so the entity reports
+        # "unknown" rather than "0" before the first poll has data.
+        if self.entity_description.key == "last_charging_power_curve_points":
+            if isinstance(val, list) and val:
+                return len(val)
+            return None
         # charging_power_kw + charging_rate_kmh: API omits these when not charging.
         # Return 0 so the entity shows "0 kW / 0 km/h" instead of "unavailable".
         if val is None and self.entity_description.key in _ZERO_WHEN_IDLE:

@@ -10,6 +10,7 @@ Source: https://github.com/matpoulin/CarConnectivity-connector-volkswagen-na
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from datetime import datetime, timedelta, timezone
 import logging
 from typing import Any
@@ -125,11 +126,57 @@ class VWNAClient:
         # Used by get_status() / device-info to enrich the entity model.
         self._vin_to_nickname: dict[str, str] = {}
         self._vin_to_model: dict[str, str] = {}
+        # v2.10.0 (Group C). user_id for the NA-specific endpoints that
+        # are addressed by user-id rather than VIN/UUID. Populated from
+        # the IDK auth redirect or by decoding the id_token ``sub``
+        # claim. Refer to the privileges + SPIN flow comments below for
+        # the endpoints that consume it.
+        self._user_id: str | None = None
 
     async def authenticate(self, mfa_code: str | None = None) -> None:
         """IDK PKCE login against VW NA endpoint."""
         self._tokens = await self._auth.authenticate(self._email, self._password)
+        # v2.10.0 (Group C). Capture the user_id once auth completes.
+        # The NA stack exposes a per-user privileges endpoint and a
+        # per-user SPIN-challenge endpoint that both need it; pulling
+        # it from the IDK redirect or id_token now avoids re-decoding
+        # on every command.
+        await self._capture_user_id()
         _LOGGER.debug("VW NA auth complete (%s)", self._country.upper())
+
+    async def _capture_user_id(self) -> None:
+        """v2.10.0 (Group C). Populate ``self._user_id``.
+
+        Three-step fallback chain mirrors the SEAT/CUPRA pattern in
+        ``seat_cupra._fetch_user_id``:
+
+        1. The IDK redirect-URI scan inside ``IDKAuth`` already records
+           a ``user_id`` query-string parameter when the NA IDP includes
+           it. Reuse that.
+        2. If that didn't fire (NA IDP does not always echo the
+           ``user_id`` param), decode the id_token's ``sub`` claim
+           locally.
+        3. If neither yielded a value, leave ``self._user_id`` as None.
+           The privileges + SPIN endpoints simply won't be reachable
+           in that case and ``get_subscription_privileges`` returns an
+           empty dict so the cross-brand subscription sensors stay at
+           ``None`` (phantom-protected).
+        """
+        if self._auth.user_id:
+            self._user_id = self._auth.user_id
+            return
+        if self._tokens and self._tokens.id_token:
+            try:
+                import base64  # noqa: PLC0415
+                import json as _json  # noqa: PLC0415
+                payload_b64 = self._tokens.id_token.split(".")[1]
+                payload_b64 += "=" * (4 - len(payload_b64) % 4)
+                payload = _json.loads(base64.urlsafe_b64decode(payload_b64))
+                sub = payload.get("sub")
+                if isinstance(sub, str) and sub:
+                    self._user_id = sub
+            except Exception:  # noqa: BLE001
+                _LOGGER.debug("VW NA: could not decode id_token sub claim")
 
     async def get_vehicles(self) -> list[str]:
         """Return VINs from VW NA garage.
@@ -194,6 +241,109 @@ class VWNAClient:
             )
         return vins
 
+    async def get_subscription_privileges(self, vin: str) -> dict[str, Any]:
+        """v2.10.0 (Group C). VW NA Cox-backend privileges endpoint.
+
+        ``GET /rrs/v1/privileges/user/{user_id}/vehicle/{uuid}`` returns
+        the per-vehicle subscription + capability map for the signed-in
+        user. Reference: zackcornelius/CarConnectivity-connector-
+        volkswagen-na scan 2026-06-02.
+
+        Response shape (sanitised from the NA app traffic):
+
+            {
+              "subscription": {
+                "active": true,
+                "expiresAt": "2027-08-14T00:00:00Z",
+                ...
+              },
+              "capabilities": {
+                "remoteLockUnlock": "ENABLED",
+                ...
+              }
+            }
+
+        Returned dict carries normalised fields the parser drains in
+        ``get_status``. Empty dict on any HTTP error so callers stay
+        defensive: the cross-brand ``subscription_*`` fields default
+        to ``None`` so the gated sensors stay hidden when the call
+        fails or the user_id is unavailable.
+        """
+        if not self._user_id:
+            _LOGGER.debug(
+                "VW NA: get_subscription_privileges skipped (no user_id captured)"
+            )
+            return {}
+        uuid = self._vin_to_uuid.get(vin, vin)
+        url = (
+            f"{self._base}/rrs/v1/privileges/user/{self._user_id}"
+            f"/vehicle/{uuid}"
+        )
+        try:
+            data = await self._get(url)
+        except APIError as err:
+            # 401 / 403 / 404 are expected on accounts without an active
+            # Car-Net subscription or on legacy firmware that does not
+            # expose this endpoint. 5xx is also benign here, the rest
+            # of the polling cycle still completes.
+            _LOGGER.debug(
+                "VW NA privileges fetch returned %s for vin ***%s, "
+                "leaving subscription fields at None",
+                err.status, vin[-6:],
+            )
+            return {}
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.debug(
+                "VW NA privileges fetch errored for vin ***%s: %s",
+                vin[-6:], exc,
+            )
+            return {}
+        if not isinstance(data, dict):
+            return {}
+        # Walk the optional ``data`` envelope (Cox convention) so the
+        # caller sees a flat dict either way.
+        nested = data.get("data")
+        body: dict[str, Any] = nested if isinstance(nested, dict) else data
+
+        out: dict[str, Any] = {}
+        raw_sub = body.get("subscription")
+        sub_block: dict[str, Any] = raw_sub if isinstance(raw_sub, dict) else {}
+        if not sub_block:
+            # Some firmware nests under ``privileges``
+            raw_priv = body.get("privileges")
+            if isinstance(raw_priv, dict):
+                sub_block = raw_priv
+        if sub_block:
+            # Active flag (multiple key variants observed)
+            active: bool | None = None
+            raw_active = sub_block.get("active")
+            if isinstance(raw_active, bool):
+                active = raw_active
+            else:
+                state = sub_block.get("status") or sub_block.get("state")
+                if isinstance(state, str):
+                    active = state.upper() in ("ACTIVE", "VALID", "ENABLED")
+            if active is not None:
+                out["subscription_active"] = active
+            # Expiry timestamp (multiple key variants observed)
+            expiry = (
+                sub_block.get("expiresAt")
+                or sub_block.get("expirationDate")
+                or sub_block.get("validUntil")
+                or sub_block.get("endDate")
+            )
+            if isinstance(expiry, str) and len(expiry) >= 10 and "T" in expiry:
+                out["subscription_expiry_at"] = expiry
+
+        capabilities = body.get("capabilities")
+        if isinstance(capabilities, dict) and capabilities:
+            # Counted as a diagnostic value, the number of capability
+            # flags the backend advertises for this vehicle/user combo.
+            # Mirrors the EU CARIAD-BFF ``capabilities_count`` sensor.
+            out["capabilities_count"] = len(capabilities)
+
+        return out
+
     async def get_status(self, vin: str) -> VehicleData:
         """Fetch vehicle status using UUID."""
         v = self._val
@@ -204,14 +354,23 @@ class VWNAClient:
             self._get(f"{self._base}/rvs/v1/vehicle/{uuid}"),
             self._get(f"{self._base}/ev/v1/vehicle/{uuid}/charge/summary"),
             self._get(f"{self._base}/ev/v1/vehicle/{uuid}/climate/summary"),
+            self.get_subscription_privileges(vin),
             return_exceptions=True,
         )
-        vehicle_raw, charge, climate = results
+        vehicle_raw, charge, climate, privileges = results
 
         # ── Vehicle status ────────────────────────────────────────────────────
         if isinstance(vehicle_raw, dict):
             power = v(vehicle_raw, "powerStatus") or {}
-            d.odometer_km = v(power, "odometer")
+            # v2.10.0 (#322) — modern VW NA backend ships odometer as a
+            # root-level ``currentMileage`` field in addition to (or
+            # instead of) the legacy ``powerStatus.odometer`` nested
+            # path. Try both, root-level first since that is what
+            # current firmware sends.
+            d.odometer_km = (
+                v(vehicle_raw, "currentMileage")
+                or v(power, "odometer")
+            )
             d.fuel_level  = v(power, "fuelPercentRemaining")
             d.range_km    = v(power, "cruiseRange")
 
@@ -220,17 +379,36 @@ class VWNAClient:
             d.battery_soc = v(bat, "stateOfChargePercent")
             d.has_battery = d.battery_soc is not None
 
-            # Doors — v2.0.1 (#131 follow-up): defensive parsing.
-            # Only assign safety-critical booleans when the source is
-            # an actual string; otherwise leave the dataclass default
-            # ``None`` so the entity stays "unknown" instead of falsely
-            # reporting "Unlocked"/"Closed" for an actually-locked car.
-            door_status = v(vehicle_raw, "doorStatus") or {}
-            overall_lock = v(door_status, "overallStatus")
+            # v2.10.0 (#322 roberttco — 2023 ID.4 US) — VW NA RVS
+            # response shape migration. Pre-v2.10.0 we read doors and
+            # windows from ``data.doorStatus`` / ``data.windowStatus``
+            # at root, which worked on the 2023-era myVW backend. Newer
+            # firmware (and the parallel zackcornelius VW NA work)
+            # confirms the modern shape is ``data.exteriorStatus.*``.
+            # Try both: root for the legacy install base, exteriorStatus
+            # for current firmware. First non-empty wins.
+            door_status = (
+                v(vehicle_raw, "exteriorStatus", "doorStatus")
+                or v(vehicle_raw, "doorStatus")
+                or {}
+            )
+            overall_lock = (
+                v(vehicle_raw, "exteriorStatus", "doorLockStatus")
+                or v(door_status, "overallStatus")
+            )
             if isinstance(overall_lock, str):
                 d.doors_locked = overall_lock.upper() == "LOCKED"
+            # zackcornelius iterates the doorStatus dict items so
+            # firmware-specific door-id sets work without an enum list.
+            # We keep both: explicit ID list first for the legacy
+            # shape, dict-iteration fallback for the modern one.
             door_keys = ("frontLeftDoor", "frontRightDoor", "rearLeftDoor", "rearRightDoor")
             door_states = [v(door_status, k) for k in door_keys]
+            if not any(isinstance(s, str) for s in door_states) and isinstance(door_status, dict):
+                door_states = [
+                    val for key, val in door_status.items()
+                    if key != "doorStatusTimestamp" and val != "NOTAVAILABLE"
+                ]
             if any(isinstance(s, str) for s in door_states):
                 d.doors_open = any(
                     isinstance(s, str) and s.upper() == "OPEN" for s in door_states
@@ -238,24 +416,55 @@ class VWNAClient:
             trunk = v(door_status, "trunk")
             if isinstance(trunk, str):
                 d.trunk_open = trunk.upper() == "OPEN"
-            hood = v(door_status, "hood")
+            hood = v(door_status, "hood") or v(vehicle_raw, "exteriorStatus", "hood")
             if isinstance(hood, str):
                 d.hood_open = hood.upper() == "OPEN"
 
-            # Windows — v2.0.1 (#131 follow-up): same defensive shape.
-            win = v(vehicle_raw, "windowStatus") or {}
+            # v2.10.0 (#322) — Windows, same root + exteriorStatus
+            # fallback chain.
+            win = (
+                v(vehicle_raw, "exteriorStatus", "windowStatus")
+                or v(vehicle_raw, "windowStatus")
+                or {}
+            )
             window_keys = (
                 "frontLeftWindow", "frontRightWindow",
                 "rearLeftWindow", "rearRightWindow",
             )
             window_states = [v(win, k) for k in window_keys]
+            if not any(isinstance(s, str) for s in window_states) and isinstance(win, dict):
+                window_states = [
+                    val for key, val in win.items()
+                    if not key.endswith("Timestamp") and val != "NOTAVAILABLE"
+                ]
             if any(isinstance(s, str) for s in window_states):
                 d.windows_open = any(
                     isinstance(s, str) and s.upper() == "OPEN" for s in window_states
                 )
 
-            # GPS
-            pos = v(vehicle_raw, "vehicleLocation") or {}
+            # v2.10.0 (#322) — Parking light from exteriorStatus.lightStatus.
+            light_status = v(vehicle_raw, "exteriorStatus", "lightStatus")
+            if isinstance(light_status, dict):
+                # Older firmware reports per-light keys (parkingLight,
+                # leftFrontTurnSignal, ...); roll up to a single "any
+                # external light on" boolean for the parking_light
+                # entity. We pick the parkingLight specifically when
+                # present, otherwise fall through to any non-OFF state.
+                parking_l = light_status.get("parkingLight")
+                if isinstance(parking_l, str):
+                    d.parking_light = parking_l.upper() == "ON"
+            elif isinstance(light_status, str):
+                d.parking_light = light_status.upper() == "ON"
+
+            # GPS — v2.10.0 (#322) — lastParkedLocation fallback for
+            # offline cars. Modern VW NA backend caches the last known
+            # parking GPS under ``data.lastParkedLocation`` even when
+            # the car is OFFLINE and ``vehicleLocation`` is null.
+            pos = (
+                v(vehicle_raw, "vehicleLocation")
+                or v(vehicle_raw, "lastParkedLocation")
+                or {}
+            )
             d.latitude  = v(pos, "latitude")
             d.longitude = v(pos, "longitude")
 
@@ -314,14 +523,82 @@ class VWNAClient:
                 d.charge_complete_eta = datetime.now(tz=timezone.utc) + timedelta(minutes=remaining_min)
 
         # ── Climate ────────────────────────────────────────────────────────────
+        # v2.10.0 (#322 roberttco) — VW NA climate response uses the
+        # ``climateStatusReport`` / ``climateSettings`` naming instead of
+        # the EU-style ``climatisationStatus`` / ``climatisationSettings``
+        # that the pre-v2.10.0 parser looked for. Try the NA naming
+        # first (current backend), fall back to the EU naming for any
+        # legacy install that still ships the older shape.
         if isinstance(climate, dict):
-            d.climatisation_state  = v(climate, "climatisationStatus", "climatisationState")
-            d.climatisation_active = d.climatisation_state not in (None, "OFF")
-            temp_k = safe_float(v(climate, "climatisationSettings", "targetTemperature_K"))
-            d.target_temperature = round(temp_k - 273.15, 1) if temp_k is not None else None
+            d.climatisation_state = (
+                v(climate, "climateStatusReport", "climateState")
+                or v(climate, "climateStatusReport", "state")
+                or v(climate, "climatisationStatus", "climatisationState")
+            )
+            d.climatisation_active = d.climatisation_state not in (None, "OFF", "off")
+            # Settings block: target temperature. NA backend reports
+            # this in either Celsius (modern firmware on ID.4) or
+            # Fahrenheit + Kelvin depending on the user's app preference.
+            settings = (
+                v(climate, "climateSettings")
+                or v(climate, "climatisationSettings")
+                or {}
+            )
+            if isinstance(settings, dict):
+                # Try Celsius first (already converted), then Kelvin (EU
+                # historical), then Fahrenheit (NA user-pref case).
+                temp_c = settings.get("targetTemperatureInCelsius")
+                if isinstance(temp_c, (int, float)):
+                    d.target_temperature = float(temp_c)
+                else:
+                    temp_k_val = settings.get("targetTemperature_K") or settings.get(
+                        "targetTemperatureInKelvin"
+                    )
+                    temp_k = safe_float(temp_k_val) if temp_k_val is not None else None
+                    if temp_k is not None and temp_k > 200:
+                        d.target_temperature = round(temp_k - 273.15, 1)
+                    else:
+                        temp_f = settings.get("targetTemperatureInFahrenheit")
+                        if isinstance(temp_f, (int, float)):
+                            d.target_temperature = round((temp_f - 32) * 5 / 9, 1)
 
         d.is_electric    = d.has_battery and not d.has_combustion
         d.is_hybrid      = d.has_battery and d.has_combustion
+
+        # v2.10.0 (Group C). Privileges + subscription block.
+        # Soft-fail by design (see get_subscription_privileges docstring):
+        # any HTTP error returned an empty dict so we just skip the
+        # parser block here. The cross-brand sensors (subscription_*,
+        # capabilities_count) stay None / hidden when this dict is empty
+        # because of the existing phantom-protection gate.
+        if isinstance(privileges, dict) and privileges:
+            if privileges.get("subscription_active") is not None:
+                d.subscription_active = privileges["subscription_active"]
+            if privileges.get("subscription_expiry_at"):
+                d.subscription_expiry_at = privileges["subscription_expiry_at"]
+                # Derive days-remaining from the timestamp so HA can render
+                # a "Connect renews in N days" sensor. Same calculation as
+                # the SEAT/CUPRA + VW EU branches.
+                try:
+                    exp_dt = datetime.fromisoformat(
+                        privileges["subscription_expiry_at"].replace("Z", "+00:00")
+                    )
+                    if exp_dt.tzinfo is None:
+                        exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+                    now_utc = datetime.now(tz=timezone.utc)
+                    d.subscription_days_remaining = (exp_dt - now_utc).days
+                    # If the privileges payload omitted the active flag,
+                    # derive it from the expiry: past = False, future = True.
+                    if d.subscription_active is None:
+                        d.subscription_active = exp_dt > now_utc
+                except (ValueError, TypeError) as exc:
+                    _LOGGER.debug(
+                        "VW NA: could not parse subscription expiry %s (%s)",
+                        privileges["subscription_expiry_at"], exc,
+                    )
+            cap_count = privileges.get("capabilities_count")
+            if isinstance(cap_count, int) and cap_count >= 0:
+                d.capabilities_count = cap_count
 
         # v2.2.1 Phase 8 PR #5 — cross-brand car_type derivation.
         # VW NA Kombi doesn't ship a direct `carType` enum — derive
@@ -342,24 +619,215 @@ class VWNAClient:
         """
         return {}
 
+    async def _get_na_spin_session_token(
+        self, vin: str, spin: str  # noqa: ARG002
+    ) -> str | None:
+        """v2.10.0 (Group C). VW NA two-step SPIN verification.
+
+        NA uses a DIFFERENT SPIN protocol from EU. The EU flow puts the
+        raw SPIN into the action payload; NA requires a challenge /
+        response handshake against a per-user endpoint:
+
+            1. ``POST /ss/v1/user/{user_id}/challenge`` returns a
+               single-use ``nonce``/``challenge`` string.
+            2. Compute ``SHA1(spin + nonce).upper()`` as the response.
+            3. ``POST /ss/v1/user/{user_id}/spin`` with the response.
+               On success the backend returns a short-lived
+               ``sessionToken`` that subsequent lock/unlock POSTs must
+               present as the ``X-Spin-Session`` header.
+
+        Pattern verified against the matpoulin reference + a smali
+        excerpt from the MyVW APK. Both ``challenge`` and ``response``
+        key names have shipped, defensive walk tries the known variants.
+
+        Returns ``None`` on any error. Caller falls back to attempting
+        the action without a session token (some firmware will still
+        accept a privileged token unprompted).
+        """
+        if not self._user_id or not spin:
+            _LOGGER.debug(
+                "VW NA SPIN flow skipped (user_id=%s, spin_set=%s)",
+                bool(self._user_id), bool(spin),
+            )
+            return None
+        try:
+            challenge_resp = await self._post(
+                f"{self._base}/ss/v1/user/{self._user_id}/challenge", json={}
+            )
+        except APIError as err:
+            _LOGGER.debug(
+                "VW NA SPIN challenge failed (%s) for vin ***%s",
+                err.status, vin[-6:],
+            )
+            return None
+        if not isinstance(challenge_resp, dict):
+            return None
+        # Defensive walk: backend has shipped at least 3 key names for
+        # the same field over the past 18 months.
+        nonce = (
+            challenge_resp.get("challenge")
+            or challenge_resp.get("nonce")
+            or challenge_resp.get("challengeData")
+        )
+        if not isinstance(nonce, str) or not nonce:
+            return None
+        # SHA1(SPIN + nonce), uppercase hex per the NA app smali. The
+        # ``hashlib.sha1`` use is NOT a security primitive (this is a
+        # protocol-mandated digest for backend handshake), so the
+        # nosec-style suppression is intentional.
+        response = hashlib.sha1(  # noqa: S324
+            (spin + nonce).encode("utf-8")
+        ).hexdigest().upper()
+        try:
+            spin_resp = await self._post(
+                f"{self._base}/ss/v1/user/{self._user_id}/spin",
+                json={"challenge": nonce, "response": response},
+            )
+        except APIError as err:
+            _LOGGER.debug(
+                "VW NA SPIN response POST failed (%s) for vin ***%s",
+                err.status, vin[-6:],
+            )
+            return None
+        if not isinstance(spin_resp, dict):
+            return None
+        token = (
+            spin_resp.get("sessionToken")
+            or spin_resp.get("spinSessionToken")
+            or spin_resp.get("token")
+        )
+        if isinstance(token, str) and token:
+            return token
+        return None
+
+    async def _post_with_ab_fallback(
+        self,
+        *,
+        primary_url: str,
+        primary_json: dict[str, Any] | None,
+        fallback_url: str,
+        fallback_json: dict[str, Any] | None,
+        label: str,
+        vin: str,
+        primary_headers: dict[str, str] | None = None,
+        fallback_headers: dict[str, str] | None = None,
+    ) -> None:
+        """v2.10.0 (Group C). Generic A/B fallback POST.
+
+        Mirrors the v1.17.1 SEAT/CUPRA pattern. Try ``primary_url`` first.
+        On 404 only, fall back to ``fallback_url``. Non-404 errors
+        propagate so the caller can surface auth / SPIN / privilege
+        problems instead of masking them as endpoint drift.
+        """
+        primary_kwargs: dict[str, Any] = {"json": primary_json}
+        if primary_headers:
+            primary_kwargs["headers"] = primary_headers
+        try:
+            await self._post(primary_url, **primary_kwargs)
+            return
+        except APIError as err:
+            if err.status != 404:
+                raise
+            _LOGGER.debug(
+                "VW NA %s: 404 on primary %s, falling back to legacy %s "
+                "(vin ***%s)",
+                label, primary_url, fallback_url, vin[-6:],
+            )
+        fallback_kwargs: dict[str, Any] = {"json": fallback_json}
+        if fallback_headers:
+            fallback_kwargs["headers"] = fallback_headers
+        await self._post(fallback_url, **fallback_kwargs)
+
     async def command_lock(self, vin: str) -> None:
+        """v2.10.0 (Group C). NA lockunlock endpoint with EU fallback.
+
+        Modern Cox firmware exposes ``/lockunlock/v1/vehicle/{uuid}``
+        as the lock/unlock action endpoint. Older firmware (legacy
+        Cox) only knows ``/ev/v1/vehicle/{uuid}/lock``. Try the
+        modern path first, fall back to the legacy one on 404 so
+        existing installs keep working through the firmware
+        transition window.
+        """
         uuid = self._vin_to_uuid.get(vin, vin)
-        await self._post(f"{self._base}/ev/v1/vehicle/{uuid}/lock", json={"action": "lock"})
+        await self._post_with_ab_fallback(
+            primary_url=f"{self._base}/lockunlock/v1/vehicle/{uuid}",
+            primary_json={"action": "lock"},
+            fallback_url=f"{self._base}/ev/v1/vehicle/{uuid}/lock",
+            fallback_json={"action": "lock"},
+            label="lock",
+            vin=vin,
+        )
 
     async def command_unlock(self, vin: str, spin: str = "") -> None:
+        """v2.10.0 (Group C). NA unlock with two-step SPIN handshake.
+
+        Pre-v2.10.0 we put the SPIN directly into the unlock body which
+        worked for some firmware but failed on Cox post-2024 builds. NA
+        actually requires the two-step ``/challenge`` + ``/spin``
+        handshake to obtain a session token, then the unlock POST
+        carries that token as an ``X-Spin-Session`` header. The body
+        no longer needs to contain the SPIN itself.
+
+        If the SPIN session token cannot be fetched (no user_id, no
+        SPIN configured, backend down), we fall back to the legacy
+        in-body SPIN behaviour so existing accounts that worked on
+        older firmware keep working.
+        """
         uuid = self._vin_to_uuid.get(vin, vin)
-        payload: dict[str, Any] = {"action": "unlock"}
-        if spin or self._spin:
-            payload["spin"] = spin or self._spin
-        await self._post(f"{self._base}/ev/v1/vehicle/{uuid}/lock", json=payload)
+        spin_to_use = spin or self._spin
+        session_token = await self._get_na_spin_session_token(vin, spin_to_use)
+
+        primary_headers: dict[str, str] | None = None
+        if session_token:
+            primary_headers = {"X-Spin-Session": session_token}
+
+        primary_payload: dict[str, Any] = {"action": "unlock"}
+        legacy_payload: dict[str, Any] = {"action": "unlock"}
+        # Legacy path keeps the in-body SPIN for older Cox firmware
+        # that doesn't honour the X-Spin-Session header.
+        if spin_to_use:
+            legacy_payload["spin"] = spin_to_use
+
+        await self._post_with_ab_fallback(
+            primary_url=f"{self._base}/lockunlock/v1/vehicle/{uuid}",
+            primary_json=primary_payload,
+            fallback_url=f"{self._base}/ev/v1/vehicle/{uuid}/lock",
+            fallback_json=legacy_payload,
+            label="unlock",
+            vin=vin,
+            primary_headers=primary_headers,
+        )
 
     async def command_start_climate(self, vin: str) -> None:
+        """v2.10.0 (Group C). NA pretripclimate naming, EU fallback.
+
+        NA's Cox backend uses the explicit ``/pretripclimate/start``
+        path. We already used this path pre-v2.10.0, but some users
+        with older firmware reported it returning 404. In that case
+        we fall back to the EU-style ``/climatisation/start`` which
+        the legacy Cox build accepts as an alias.
+        """
         uuid = self._vin_to_uuid.get(vin, vin)
-        await self._post(f"{self._base}/ev/v1/vehicle/{uuid}/pretripclimate/start", json={})
+        await self._post_with_ab_fallback(
+            primary_url=f"{self._base}/ev/v1/vehicle/{uuid}/pretripclimate/start",
+            primary_json={},
+            fallback_url=f"{self._base}/ev/v1/vehicle/{uuid}/climatisation/start",
+            fallback_json={},
+            label="start_climate",
+            vin=vin,
+        )
 
     async def command_stop_climate(self, vin: str) -> None:
+        """v2.10.0 (Group C). See command_start_climate for the A/B rationale."""
         uuid = self._vin_to_uuid.get(vin, vin)
-        await self._post(f"{self._base}/ev/v1/vehicle/{uuid}/pretripclimate/stop", json={})
+        await self._post_with_ab_fallback(
+            primary_url=f"{self._base}/ev/v1/vehicle/{uuid}/pretripclimate/stop",
+            primary_json={},
+            fallback_url=f"{self._base}/ev/v1/vehicle/{uuid}/climatisation/stop",
+            fallback_json={},
+            label="stop_climate",
+            vin=vin,
+        )
 
     async def command_start_charging(self, vin: str) -> None:
         uuid = self._vin_to_uuid.get(vin, vin)
@@ -397,15 +865,41 @@ class VWNAClient:
         )
 
     async def command_start_window_heating(self, vin: str) -> None:
+        """v2.10.0 (Group C). Dedicated NA windowheating endpoint.
+
+        ``/pretripclimate/windowheating/start`` is the NA-specific path
+        (verified against the zackcornelius reference). Older firmware
+        only exposed ``/climatisation/windowheating/start``; try the
+        NA path first, fall back on 404.
+        """
         uuid = self._vin_to_uuid.get(vin, vin)
-        await self._post(
-            f"{self._base}/ev/v1/vehicle/{uuid}/pretripclimate/windowheating/start", json={}
+        await self._post_with_ab_fallback(
+            primary_url=(
+                f"{self._base}/ev/v1/vehicle/{uuid}/pretripclimate/windowheating/start"
+            ),
+            primary_json={},
+            fallback_url=(
+                f"{self._base}/ev/v1/vehicle/{uuid}/climatisation/windowheating/start"
+            ),
+            fallback_json={},
+            label="start_window_heating",
+            vin=vin,
         )
 
     async def command_stop_window_heating(self, vin: str) -> None:
+        """v2.10.0 (Group C). See command_start_window_heating doc."""
         uuid = self._vin_to_uuid.get(vin, vin)
-        await self._post(
-            f"{self._base}/ev/v1/vehicle/{uuid}/pretripclimate/windowheating/stop", json={}
+        await self._post_with_ab_fallback(
+            primary_url=(
+                f"{self._base}/ev/v1/vehicle/{uuid}/pretripclimate/windowheating/stop"
+            ),
+            primary_json={},
+            fallback_url=(
+                f"{self._base}/ev/v1/vehicle/{uuid}/climatisation/windowheating/stop"
+            ),
+            fallback_json={},
+            label="stop_window_heating",
+            vin=vin,
         )
 
     async def command_set_departure_timer(
