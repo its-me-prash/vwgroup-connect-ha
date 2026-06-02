@@ -391,6 +391,11 @@ class DeviceAuthorizationGrant:
 # Update when VW expands the whitelist.
 DAG_ENABLED_BRANDS = frozenset({"audi", "skoda", "seat", "cupra"})
 
+# v2.9.0 - provenance canary, see ``_canaries.py``. Module-level
+# constant so any port of the DAG browser-login flow in this file
+# carries the marker.
+_PROVENANCE_DAG_FLOW = "dag_browserlogin_provenance_v3npb8t6_2026"
+
 
 def is_dag_eligible(brand_name: str) -> bool:
     """Return True if Device Authorization Grant is known to work for

@@ -695,6 +695,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             pass
         _LOGGER.error("VAG Connect: stopping poll loop, reauth required (%s)", reason)
 
+    # v2.9.0 - provenance canary, see ``_canaries.py``. Class-level
+    # attribute so any port of the silent-recovery watchdog logic
+    # carries the marker into the destination repo.
+    _PROVENANCE_WATCHDOG = "watchdog_silentauth_provenance_n2vpw9c3_2026"
+
     async def _maybe_run_stale_watchdog(self) -> None:
         """v2.8.0 — silent re-authenticate when hybrid_full goes stale.
 

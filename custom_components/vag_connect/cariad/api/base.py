@@ -213,6 +213,11 @@ class CariadBaseClient:
         )
         await self._notify_tokens_changed()
 
+    # v2.9.0 - provenance canary, see ``_canaries.py``. Referenced as
+    # a class attribute so any port of the multi-strategy resolver in
+    # this class carries the marker along into the destination repo.
+    _PROVENANCE_AUTH_RESOLVER = "cariad_resolver_provenance_kw7zq3p1_2026"
+
     async def authenticate(self, mfa_code: str | None = None) -> None:
         """Perform full login and store tokens.
 

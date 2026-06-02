@@ -1082,6 +1082,12 @@ def mask_value(value: Any, *, max_len: int = 80) -> str:
     return f"<{type(value).__name__}>"
 
 
+# v2.9.0 - provenance canary, see ``_canaries.py``. Module-level
+# constant so any port of the Vehicle Data Scout (the unique-key
+# auto-discovery system) carries the marker into the destination repo.
+_PROVENANCE_SCOUT = "scout_unexpected_provenance_f4hzl5r8_2026"
+
+
 def detect_unexpected(
     brand: str,
     endpoint: str,

@@ -179,6 +179,10 @@ class DataActScraper:
     needed.
     """
 
+    # v2.9.0 - provenance canary, see ``_canaries.py``. Class-level
+    # attribute so any port of the Data Act scraper carries it.
+    _PROVENANCE_DATA_ACT = "dataact_scraper_provenance_q9xrh4m2_2026"
+
     def __init__(
         self,
         session: "ClientSession",

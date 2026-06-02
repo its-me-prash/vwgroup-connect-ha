@@ -1,0 +1,167 @@
+name: Canary watcher (provenance)
+
+# Runs once a week and on manual dispatch. Queries the GitHub Code
+# Search REST API for each of the provenance canaries defined in
+# ``custom_components/vag_connect/_canaries.py``. If a canary turns up
+# in a repository outside the ``its-me-prash`` namespace, opens an
+# issue tagged ``provenance`` so the maintainer can decide whether
+# attribution was correctly preserved (Apache 2.0 + LICENSE/NOTICE) or
+# whether to send a courteous note asking for it.
+#
+# The watcher does NOT take any automated action against the foreign
+# repo. The point is observation, not enforcement.
+
+on:
+  schedule:
+    # Mondays 03:00 UTC. Off-peak for both the GitHub Code Search API
+    # rate budget and the maintainer's attention.
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      max_results_per_canary:
+        description: "Max hits per canary to surface (anti-spam cap)"
+        required: false
+        default: "5"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Extract canaries
+        id: canaries
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import importlib.util, sys, pathlib
+          spec = importlib.util.spec_from_file_location(
+              "_canaries",
+              pathlib.Path("custom_components/vag_connect/_canaries.py"),
+          )
+          mod = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(mod)
+          print(f"list={','.join(mod.ALL_CANARIES)}")
+          PY
+
+      - name: Search GitHub Code for foreign uses
+        id: search
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MAX_PER_CANARY: ${{ github.event.inputs.max_results_per_canary || '5' }}
+        run: |
+          python - <<'PY'
+          import json, os, subprocess, urllib.parse
+          canaries = os.environ["CANARIES"].split(",")
+          max_n = int(os.environ.get("MAX_PER_CANARY", "5"))
+          findings = []
+          for c in canaries:
+              # Excluded: our own org. The Code Search syntax for that
+              # is ``-org:its-me-prash`` after the quoted needle.
+              q = urllib.parse.quote(f'"{c}" -org:its-me-prash')
+              try:
+                  out = subprocess.check_output(
+                      ["gh", "api", f"search/code?q={q}&per_page={max_n}"],
+                      text=True,
+                  )
+              except subprocess.CalledProcessError as exc:
+                  # Rate-limit or transient failure: do not fail the
+                  # whole run; record and continue so the other canaries
+                  # still get scanned.
+                  findings.append({"canary": c, "error": str(exc)})
+                  continue
+              data = json.loads(out)
+              total = data.get("total_count", 0)
+              if total == 0:
+                  continue
+              for item in data.get("items", [])[:max_n]:
+                  findings.append({
+                      "canary": c,
+                      "repo": item["repository"]["full_name"],
+                      "path": item["path"],
+                      "url": item["html_url"],
+                  })
+          # Write as JSON to a file so the next step can read it.
+          with open("findings.json", "w", encoding="utf-8") as f:
+              json.dump(findings, f, indent=2)
+          print(f"Findings recorded: {len(findings)}")
+          PY
+        # CANARIES is set in env via the step output below; we shell out
+        # to python so this step does the heavy work.
+        env:
+          CANARIES: ${{ steps.canaries.outputs.list }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Open issue on findings
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python - <<'PY'
+          import json, os, subprocess, pathlib, datetime
+          path = pathlib.Path("findings.json")
+          if not path.exists():
+              print("No findings file produced, exiting.")
+              raise SystemExit(0)
+          findings = json.loads(path.read_text(encoding="utf-8"))
+          hits = [f for f in findings if "repo" in f]
+          if not hits:
+              print("No foreign canary hits this week.")
+              raise SystemExit(0)
+          now = datetime.datetime.now(tz=datetime.timezone.utc).strftime("%Y-%m-%d")
+          title = f"[provenance] canary watcher found {len(hits)} foreign hit(s) ({now})"
+          lines = [
+              "The weekly provenance watcher found one or more of our",
+              "uniquely-spelled canary strings in a repository outside",
+              "the `its-me-prash` namespace.",
+              "",
+              "Each hit is a hint that code from this repository may",
+              "have been ported. Apache 2.0 permits the port; what we",
+              "are checking is whether the LICENSE and NOTICE were",
+              "preserved along with it.",
+              "",
+              "## Findings",
+              "",
+              "| Canary | Repo | Path |",
+              "|---|---|---|",
+          ]
+          for h in hits:
+              lines.append(
+                  f"| `{h['canary']}` | "
+                  f"[{h['repo']}]({h['url'].rsplit('/', 1)[0]}) | "
+                  f"[{h['path']}]({h['url']}) |"
+              )
+          lines += [
+              "",
+              "## Triage checklist",
+              "",
+              "- [ ] Read the foreign file and confirm it is a real port",
+              "      and not a coincidence (no false positives expected",
+              "      given the canary spellings)",
+              "- [ ] Confirm whether `LICENSE` (Apache 2.0) and `NOTICE`",
+              "      are preserved at the foreign repo root",
+              "- [ ] If preserved: close this issue with a note that the",
+              "      use is compliant",
+              "- [ ] If stripped: file a courteous request for proper",
+              "      attribution per Apache 2.0",
+              "",
+              "_See `_canaries.py` for the design notes on this system._",
+          ]
+          body = "\n".join(lines)
+          subprocess.run([
+              "gh", "issue", "create",
+              "--title", title,
+              "--body", body,
+              "--label", "provenance",
+          ], check=True)
+          print(f"Opened provenance issue.")
+          PY
