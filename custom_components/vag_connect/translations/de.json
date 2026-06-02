@@ -800,7 +800,41 @@
       "description": "Das Marken-Backend hat in den letzten 30 Minuten **3 Lock-Antworten** zurückgegeben (zuletzt HTTP {last_status}). Das bedeutet typischerweise, dass VW dein Marken-Konto nach zu vielen fehlgeschlagenen Token-Refreshes vorübergehend gesperrt hat.\n\nDie Sperre wird normalerweise innerhalb von **wenigen Stunden bis 24 Stunden** aufgehoben. Die Integration hat die Versuche eingestellt, damit das Sperrfenster sich nicht verlängert.\n\n**Während du wartest**:\n\n1. **Nicht** wiederholt in der offiziellen App ein- und ausloggen, das verlängert die Sperre.\n2. Mindestens 1-2 Stunden warten, dann die offizielle Hersteller-App auf dem Handy öffnen. Wenn sich die App sauber einloggt, ist dein Konto wieder entsperrt.\n3. Nach dem Entsperren `scan_interval` in Einstellungen → Geräte & Dienste → VW Group Connect → Konfigurieren auf 15-30 Minuten erhöhen, um zukünftigen Druck zu reduzieren.\n4. Optional: Den read-only EU Data Act Portal-Modus via OptionsFlow aktivieren, um bei zukünftigen Vorfällen weiter Daten zu bekommen.\n\nDiese Warnung verschwindet automatisch beim nächsten erfolgreichen Token-Refresh."
     }
   },
+  "selector": {
+    "execute_vehicle_action_options": {
+      "options": {
+        "lock": "Verriegeln",
+        "unlock": "Entriegeln",
+        "start_climatisation": "Klimatisierung starten",
+        "stop_climatisation": "Klimatisierung stoppen",
+        "start_charging": "Laden starten",
+        "stop_charging": "Laden stoppen",
+        "flash_lights": "Lichthupe",
+        "start_window_heating": "Scheibenheizung starten",
+        "stop_window_heating": "Scheibenheizung stoppen",
+        "wake_vehicle": "Fahrzeug wecken",
+        "start_aux_heating": "Standheizung starten",
+        "stop_aux_heating": "Standheizung stoppen",
+        "start_ventilation": "Lüftung starten",
+        "stop_ventilation": "Lüftung stoppen"
+      }
+    }
+  },
   "services": {
+    "execute_vehicle_action": {
+      "name": "Fahrzeug-Aktion ausführen",
+      "description": "Vereinheitlichter Service der eine Fahrzeug-Aktion über ein Dropdown-Menü ausführt. Verhält sich identisch zum Aufruf des gleichnamigen Einzel-Services, ist aber in der Home Assistant Lovelace Service-Auswahl viel einfacher zu finden. Alle bestehenden Einzel-Services (vag_connect.lock, vag_connect.start_climatisation usw.) funktionieren unverändert weiter.",
+      "fields": {
+        "device_id": {
+          "name": "Fahrzeug",
+          "description": "Das Fahrzeug-Gerät auf dem die Aktion ausgeführt werden soll."
+        },
+        "action": {
+          "name": "Aktion",
+          "description": "Welche Aktion ausgeführt werden soll."
+        }
+      }
+    },
     "open_app": {
       "name": "Marken-App öffnen (Deeplink)",
       "description": "Sendet das Event `vag_connect_open_app` auf dem HA-Eventbus mit den Payload-Feldern `vin`, `brand`, `deeplink_url` und `action`. Eine Lovelace-Karte lauscht auf das Event und öffnet die native Marken-App (myAudi, WeConnect, MyŠkoda, MySEAT, MyCUPRA, My Porsche oder VW US) auf dem aufrufenden Gerät. Die Integration selbst kann keine URLs auf einem Telefon öffnen; die Dashboard-Karte ist für den Aufruf `window.location.href = deeplink_url` auf iOS / Android zuständig.",

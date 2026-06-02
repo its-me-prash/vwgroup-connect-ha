@@ -22,9 +22,11 @@ from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, Supp
 from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
     ConfigEntryNotReady,
+    HomeAssistantError,
     ServiceValidationError,
 )
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
 
 from .const import DOMAIN, CONF_BRAND, CONF_USERNAME, CONF_PASSWORD
 from .coordinator import VagConnectCoordinator
@@ -50,6 +52,30 @@ PLATFORMS: list[Platform] = [
 ]
 
 SERVICE_VIN_SCHEMA = vol.Schema({vol.Required("vin"): cv.string})
+
+# v2.10.0 unified action dispatcher (``execute_vehicle_action``).
+# Maps the user-facing action key (from the services.yaml select
+# dropdown) to the coordinator method name. Exposed at module level so
+# the v2.10.0 test suite can iterate the keys and confirm every action
+# has a matching ``async_*`` method on ``VagConnectCoordinator``.
+# Pattern observed in arjenvrh/audi_connect_ha v2.1.0. All existing
+# per-action services keep working unchanged for backwards-compat.
+EXECUTE_VEHICLE_ACTION_MAP: dict[str, str] = {
+    "lock":                 "async_lock",
+    "unlock":               "async_unlock",
+    "start_climatisation":  "async_start_climatisation",
+    "stop_climatisation":   "async_stop_climatisation",
+    "start_charging":       "async_start_charging",
+    "stop_charging":        "async_stop_charging",
+    "flash_lights":         "async_flash_lights",
+    "start_window_heating": "async_start_window_heating",
+    "stop_window_heating":  "async_stop_window_heating",
+    "wake_vehicle":         "async_wake_vehicle",
+    "start_aux_heating":    "async_start_aux_heating",
+    "stop_aux_heating":     "async_stop_aux_heating",
+    "start_ventilation":    "async_start_ventilation",
+    "stop_ventilation":     "async_stop_ventilation",
+}
 
 VagConnectConfigEntry: TypeAlias = ConfigEntry[VagConnectCoordinator]
 
@@ -545,6 +571,67 @@ def _register_services(hass: HomeAssistant) -> None:
         supports_response=SupportsResponse.OPTIONAL,
     )
 
+    # v2.10.0 unified execute_vehicle_action dispatcher.
+    # Pattern observed in arjenvrh/audi_connect_ha v2.1.0: instead of
+    # the user scrolling through 10+ separate per-action services in
+    # the Lovelace service picker, expose ONE service with an action
+    # dropdown. The per-action services above stay registered for
+    # backwards-compat, so existing automations that already call
+    # ``vag_connect.lock``, etc. keep working unchanged.
+    #
+    # The service is device-targeted (uses ``device_id``, not ``vin``)
+    # to fit the HA Lovelace UX. We resolve device_id to VIN via the
+    # device registry. Every VAG Connect device is keyed by
+    # ``identifiers={(DOMAIN, vin)}`` (see ``entity_base.device_info``)
+    # so the resolution is a single registry lookup.
+    async def _handle_execute_vehicle_action(call: ServiceCall) -> None:
+        device_id: str = call.data["device_id"]
+        action: str = call.data["action"]
+
+        method_name = EXECUTE_VEHICLE_ACTION_MAP.get(action)
+        if method_name is None:
+            # vol.In(...) on the schema would already reject this, but
+            # guard defensively in case the schema is loosened later.
+            raise HomeAssistantError(f"Unknown action: {action}")
+
+        device_reg = dr.async_get(hass)
+        device = device_reg.async_get(device_id)
+        if device is None:
+            raise ServiceValidationError(
+                f"Device '{device_id}' not found.",
+                translation_domain=DOMAIN,
+                translation_key="vehicle_not_found",
+            )
+
+        vin: str | None = None
+        for domain, ident in device.identifiers:
+            if domain == DOMAIN:
+                vin = ident
+                break
+        if vin is None:
+            raise ServiceValidationError(
+                f"Device '{device_id}' is not a VAG Connect vehicle.",
+                translation_domain=DOMAIN,
+                translation_key="vehicle_not_found",
+            )
+
+        # _coord_writeable enforces both vehicle-known + read-only-mode
+        # gates, identical to the per-action services so behaviour is
+        # bit-for-bit equivalent.
+        coordinator = _coord_writeable(vin)
+        method = getattr(coordinator, method_name)
+        await method(vin)
+
+    hass.services.async_register(
+        DOMAIN,
+        "execute_vehicle_action",
+        _handle_execute_vehicle_action,
+        schema=vol.Schema({
+            vol.Required("device_id"): cv.string,
+            vol.Required("action"):    vol.In(list(EXECUTE_VEHICLE_ACTION_MAP.keys())),
+        }),
+    )
+
     # v2.8.0 quick-win B — vag_connect.open_app event-emitter service.
     # Lives in services.py to keep the deeplink-scheme + payload logic
     # isolated from the action-dispatch services above.
@@ -600,6 +687,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) 
             "show_vag",
             # v2.8.0 quick-win B — native-app deeplink emitter
             "open_app",
+            # v2.10.0 unified action dispatcher
+            "execute_vehicle_action",
         ]:
             if hass.services.has_service(DOMAIN, svc):
                 hass.services.async_remove(DOMAIN, svc)

@@ -825,5 +825,41 @@
     "read_only_mode_active": {
       "message": "Režim jen pro čtení je povolen v možnostech integrace. Vypněte jej v Nastavení → Zařízení a služby → VW Group Connect → Konfigurovat, abyste mohli odesílat příkazy do vozidla."
     }
+  },
+  "selector": {
+    "execute_vehicle_action_options": {
+      "options": {
+        "lock": "Lock",
+        "unlock": "Unlock",
+        "start_climatisation": "Start climatisation",
+        "stop_climatisation": "Stop climatisation",
+        "start_charging": "Start charging",
+        "stop_charging": "Stop charging",
+        "flash_lights": "Flash lights",
+        "start_window_heating": "Start window heating",
+        "stop_window_heating": "Stop window heating",
+        "wake_vehicle": "Wake vehicle",
+        "start_aux_heating": "Start auxiliary heating",
+        "stop_aux_heating": "Stop auxiliary heating",
+        "start_ventilation": "Start ventilation",
+        "stop_ventilation": "Stop ventilation"
+      }
+    }
+  },
+  "services": {
+    "execute_vehicle_action": {
+      "name": "Execute Vehicle Action",
+      "description": "Unified service that dispatches a vehicle action selected from a dropdown. Equivalent to calling the per-action service of the same name but easier to find in the Home Assistant Lovelace service picker. All existing per-action services (vag_connect.lock, vag_connect.start_climatisation, etc) keep working unchanged.",
+      "fields": {
+        "device_id": {
+          "name": "Vehicle",
+          "description": "The vehicle device to act on."
+        },
+        "action": {
+          "name": "Action",
+          "description": "Which action to dispatch."
+        }
+      }
+    }
   }
 }
