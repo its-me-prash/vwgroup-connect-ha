@@ -497,10 +497,10 @@
         "name": "Aktuelle Ladeleistung"
       },
       "hv_battery_min_temperature_c": {
-        "name": "HV-Batterietemperatur (Min)"
+        "name": "Antriebsbatterie Temperatur (Min)"
       },
       "hv_battery_max_temperature_c": {
-        "name": "HV-Batterietemperatur (Max)"
+        "name": "Antriebsbatterie Temperatur (Max)"
       },
       "charge_max_ac_setting": {
         "name": "Max AC-Strom (Einstellung)"

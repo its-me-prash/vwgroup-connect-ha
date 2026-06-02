@@ -1541,7 +1541,6 @@ class SeatCupraClient(CariadBaseClient):
             items = (
                 notifications_resp.get("notifications")
                 or v(notifications_resp, "data", "notifications")
-                or []
             )
         elif isinstance(notifications_resp, list):
             items = notifications_resp
