@@ -1266,6 +1266,11 @@ class VehicleData:
     last_trip_avg_fuel_consumption_l_100km: float | None = None
     last_trip_avg_electric_consumption_kwh_100km: float | None = None
     last_trip_timestamp: str | None = None
+    # v2.10.0 - last-trip reset timestamp. audi_connect_ha v2.1.0 surfaces
+    # this as `shortterm_reset`. Read-only: records WHEN the user last
+    # reset the short-term trip data from the vehicle's head unit. Useful
+    # for HA automations that want to know "trip data is fresh since X".
+    last_trip_reset_at: str | None = None
     lifetime_distance_km: float | None = None
     lifetime_avg_fuel_consumption_l_100km: float | None = None
     lifetime_avg_electric_consumption_kwh_100km: float | None = None

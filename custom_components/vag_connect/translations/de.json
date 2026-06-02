@@ -540,6 +540,9 @@
       },
       "engine_coolant_temperature_c": {
         "name": "Kühlmitteltemperatur"
+      },
+      "last_trip_reset_at": {
+        "name": "Letzter Trip-Reset"
       }
     },
     "binary_sensor": {

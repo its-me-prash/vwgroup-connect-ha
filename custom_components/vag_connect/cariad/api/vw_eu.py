@@ -1142,6 +1142,17 @@ class VWEUClient(CariadBaseClient):
                 ts = last.get("tripEndTimestamp")
                 if isinstance(ts, str):
                     d.last_trip_timestamp = ts
+                # v2.10.0 - trip-reset timestamp (audi_connect_ha
+                # `shortterm_reset` parity). Field-name variants
+                # observed across firmware: tripStartTimestamp,
+                # resetTimestamp, dataResetAt.
+                reset_ts = (
+                    last.get("tripStartTimestamp")
+                    or last.get("resetTimestamp")
+                    or last.get("dataResetAt")
+                )
+                if isinstance(reset_ts, str):
+                    d.last_trip_reset_at = reset_ts
             # Recent trips for extra_state_attributes: keep small.
             recent: list[dict[str, Any]] = []
             for trip in short[:5]:

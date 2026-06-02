@@ -554,6 +554,9 @@
       },
       "engine_coolant_temperature_c": {
         "name": "Engine coolant temperature"
+      },
+      "last_trip_reset_at": {
+        "name": "Last Trip Reset"
       }
     },
     "binary_sensor": {

@@ -944,6 +944,15 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:road-variant",
         suggested_display_precision=1,
     ),
+    # v2.10.0 - last-trip reset timestamp (audi_connect_ha parity).
+    VagSensorDescription(
+        key="last_trip_reset_at",
+        translation_key="last_trip_reset_at",
+        data_key="last_trip_reset_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:calendar-refresh",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
     VagSensorDescription(
         key="last_trip_avg_speed_kmh",
         translation_key="last_trip_avg_speed_kmh",
