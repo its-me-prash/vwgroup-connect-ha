@@ -1095,6 +1095,17 @@ class VehicleData:
     last_charging_session_start: str | None = None
     recent_charging_sessions: list[dict[str, Any]] = field(default_factory=list)
 
+    # v2.10.0 (charging_statistics endpoint) - per-session power-curve
+    # sample points from CARIAD's charging.cariad.digital host. SEAT/CUPRA
+    # only at first; other brands' hosts don't expose an equivalent.
+    # Lives under the integrated last-session umbrella so an HA card can
+    # graph the most recent DC fast-charge as kW over time / SoC.
+    # The list itself goes into attributes (not state) because each
+    # sample is a {timestamp, soc_pct, power_kw} dict and a typical
+    # 30-min DC charge dumps ~30-60 samples. State is the COUNT of
+    # samples so the entity stays HA-recorder friendly.
+    last_charging_power_curve_points: list[dict[str, Any]] = field(default_factory=list)
+
     # v1.15.0 — Software-version + OTA update status (Skoda mysmob).
     # Endpoint ``GET /v1/vehicle-information/{vin}/software-version/update-status``
     # shipped in Skoda app v8.10.0+ (myskoda PR #541). Cross-brand support

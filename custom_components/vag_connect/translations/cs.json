@@ -282,6 +282,15 @@
       "last_charging_session_duration_min": {
         "name": "Poslední Relace — Doba"
       },
+      "last_charging_session_start": {
+        "name": "Last Charging Session Start"
+      },
+      "last_charging_session_current_type": {
+        "name": "Last Charging Session Current Type"
+      },
+      "last_charging_power_curve_points": {
+        "name": "Last Charging Power Curve Points"
+      },
       "active_charging_profile_name": {
         "name": "Aktivní Profil Nabíjení"
       },

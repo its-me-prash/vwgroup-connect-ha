@@ -30,6 +30,12 @@ from .base import CariadBaseClient
 
 _LOGGER = logging.getLogger(__name__)
 _BASE = "https://ola.prod.code.seat.cloud.vwgroup.com"
+# v2.10.0 (charging_statistics) - CARIAD charging-stats host. Lives on
+# a separate vhost than the OLA mycar/charging endpoints but accepts
+# the same Bearer access token from the SEAT/CUPRA IDK client. Reference:
+# Timwun/Cupra-WeConnect-Bruno-Collection (charging_statistics +
+# /charging_statistics/{vin}/power-curve sequences).
+_CHARGING_HOST = "https://prod.emea.mobile.charging.cariad.digital"
 
 # v2.4.1 (#281+#282) — number of consecutive 403s on OLA endpoints
 # before we raise an HA Repair issue prompting the user to check for
@@ -186,6 +192,50 @@ class SeatCupraClient(CariadBaseClient):
         except Exception:  # noqa: BLE001
             _LOGGER.warning("Could not fetch SEAT/CUPRA user ID")
 
+    async def _get_from_charging_host(self, path: str) -> dict[str, Any]:
+        """v2.10.0 (charging_statistics) - GET on the CARIAD charging-stats host.
+
+        Lives on a separate vhost (``prod.emea.mobile.charging.cariad.digital``)
+        from the OLA mycar/charging endpoints, but accepts the same Bearer
+        access token from the SEAT/CUPRA IDK client. The OLA defense-in-depth
+        ``_request`` override only triggers its 403 fallback chain on
+        ``ola.prod`` URLs, so this host bypasses it cleanly via ``self._session``
+        + the standard CARIAD base ``_request`` retry loop.
+
+        Soft-fails to ``{}`` on 401 / 403 (older firmware that does not expose
+        the charging-stats host, accounts without an active charging
+        subscription) and 404 (vehicle never recorded a session). Non-2xx
+        beyond those propagate so transient backend issues still surface in
+        diagnostics.
+        """
+        url = f"{_CHARGING_HOST}{path}"
+        try:
+            # Bypass the OLA-only _request override by calling the parent
+            # CariadBaseClient._request directly. The OLA override gates on
+            # ``ola.prod in url`` so calling self._request would route here
+            # safely, but explicitly using super() makes it obvious that the
+            # OLA app-identifying headers are NOT injected for this host
+            # (it has its own header expectations - same Bearer auth, no
+            # ``app-market`` / ``app-brand`` enforcement observed).
+            data = await CariadBaseClient._request(self, "GET", url)
+            return data if isinstance(data, dict) else {}
+        except APIError as err:
+            if err.status in (401, 403, 404):
+                _LOGGER.debug(
+                    "charging_statistics soft-fail (%d) on %s - older "
+                    "firmware or no subscription",
+                    err.status,
+                    path,
+                )
+                return {}
+            raise
+        except Exception:  # noqa: BLE001 - best-effort host
+            _LOGGER.debug(
+                "charging_statistics unexpected error on %s - returning {}",
+                path,
+            )
+            return {}
+
     async def get_vehicles(self) -> list[str]:
         """Return VINs from garage.
 
@@ -324,6 +374,17 @@ class SeatCupraClient(CariadBaseClient):
             # command_set_battery_care(). Capability doc:
             # Timwun/Cupra-WeConnect-Bruno-Collection.
             self._get(f"{_BASE}/v1/vehicles/{vin}/charging/battery-care"),
+            # v2.10.0 (charging_statistics) - historical charge session
+            # data from the separate charging.cariad.digital host.
+            # ``/charging_statistics`` returns aggregate + recent sessions;
+            # ``/charging_statistics/{vin}/power-curve`` returns the most
+            # recent session's per-sample power curve. Both soft-fail
+            # to ``{}`` on 401/403/404 so older firmware and accounts
+            # without an active subscription stay silent.
+            self._get_from_charging_host("/charging_statistics"),
+            self._get_from_charging_host(
+                f"/charging_statistics/{vin}/power-curve"
+            ),
             return_exceptions=True,
         )
         (
@@ -332,6 +393,8 @@ class SeatCupraClient(CariadBaseClient):
             mileage_v1,  # v2.5.3 (#306)
             warninglights_v3,  # v2.10.0
             battery_care_settings,  # v2.10.0
+            charging_stats,  # v2.10.0 (charging_statistics)
+            charging_power_curve,  # v2.10.0 (charging_statistics)
         ) = results
 
         # v1.9.0 — Vehicle Data Scout opt-in. Endpoint names match
@@ -1287,6 +1350,163 @@ class SeatCupraClient(CariadBaseClient):
             if isinstance(care_target, (int, float)):
                 # New field on the model captured below in v2.10.0.
                 d.battery_care_target_soc_pct = int(care_target)
+
+        # v2.10.0 (charging_statistics) - historical session aggregator
+        # from the charging.cariad.digital host. Shape observed across the
+        # Bruno-Collection reference response + community dumps:
+        #   {
+        #     "totalEnergyChargedInKwh": 1234.5,    # lifetime cumulative
+        #     "totalEnergyCharged_kWh": 1234.5,     # alt camelCase variant
+        #     "sessions": [
+        #       {
+        #         "startedAt": "2026-05-30T18:42:11Z",
+        #         "energyChargedInKwh": 38.2,
+        #         "durationInMinutes": 27,
+        #         "currentType": "DC" | "AC",
+        #         ...
+        #       },
+        #       ...
+        #     ]
+        #   }
+        # Some firmwares nest the list under ``data.sessions``; both paths
+        # accepted. Per-field naming variants tried defensively because
+        # CARIAD has historically shipped multiple spellings (kWh vs _kWh,
+        # durationInMinutes vs duration_min).
+        if isinstance(charging_stats, dict) and charging_stats:
+            # Lifetime cumulative kWh. Only overwrite if the OLA mycar
+            # branch above did NOT already set it (``battery.chargeEnergyInKwh``
+            # from v2.5.9 #331). When both sources are present we prefer
+            # the OLA value because it ships on every poll, while the
+            # charging-stats host updates only after a completed session.
+            if d.total_charged_energy_kwh is None:
+                lifetime = (
+                    charging_stats.get("totalEnergyChargedInKwh")
+                    or charging_stats.get("totalEnergyCharged_kWh")
+                    or charging_stats.get("lifetimeEnergyChargedInKwh")
+                )
+                if isinstance(lifetime, (int, float)) and lifetime >= 0:
+                    d.total_charged_energy_kwh = float(lifetime)
+
+            sessions_raw = (
+                charging_stats.get("sessions")
+                or v(charging_stats, "data", "sessions")
+                or []
+            )
+            if isinstance(sessions_raw, list) and sessions_raw:
+                # Normalise each entry into the cross-brand session shape
+                # used by Skoda's recent_charging_sessions (v1.15.0 #35).
+                # Sessions whose required fields are missing are dropped
+                # so the resulting list stays well-formed.
+                normalised: list[dict[str, Any]] = []
+                for s in sessions_raw:
+                    if not isinstance(s, dict):
+                        continue
+                    ts = (
+                        s.get("startedAt")
+                        or s.get("startTimestamp")
+                        or s.get("timestamp")
+                    )
+                    kwh = (
+                        s.get("energyChargedInKwh")
+                        or s.get("energyCharged_kWh")
+                        or s.get("kwh")
+                    )
+                    dur = (
+                        s.get("durationInMinutes")
+                        or s.get("duration_min")
+                        or s.get("durationMinutes")
+                    )
+                    ct = (
+                        s.get("currentType")
+                        or s.get("chargingType")
+                        or s.get("type")
+                    )
+                    session_entry: dict[str, Any] = {}
+                    if isinstance(ts, str) and ts:
+                        session_entry["timestamp"] = ts
+                    if isinstance(kwh, (int, float)):
+                        session_entry["kwh"] = float(kwh)
+                    if isinstance(dur, (int, float)):
+                        session_entry["duration_min"] = int(dur)
+                    if isinstance(ct, str) and ct:
+                        session_entry["current_type"] = ct.upper()
+                    if session_entry:
+                        normalised.append(session_entry)
+
+                if normalised:
+                    # Cap at 5 to match the Skoda surface + avoid HA-
+                    # recorder bloat. The full list is rarely useful in
+                    # a state, and a power-user can query the charging-
+                    # stats host directly for deeper history.
+                    d.recent_charging_sessions = normalised[:5]
+                    most_recent = normalised[0]
+                    if "kwh" in most_recent and d.last_charging_session_kwh is None:
+                        d.last_charging_session_kwh = most_recent["kwh"]
+                    if (
+                        "duration_min" in most_recent
+                        and d.last_charging_session_duration_min is None
+                    ):
+                        d.last_charging_session_duration_min = (
+                            most_recent["duration_min"]
+                        )
+                    if (
+                        "timestamp" in most_recent
+                        and d.last_charging_session_start is None
+                    ):
+                        d.last_charging_session_start = most_recent["timestamp"]
+                    if (
+                        "current_type" in most_recent
+                        and d.last_charging_session_current_type is None
+                    ):
+                        d.last_charging_session_current_type = (
+                            most_recent["current_type"]
+                        )
+
+        # v2.10.0 (charging_statistics) - per-session power-curve samples.
+        # Shape observed:
+        #   {"powerCurve": [{"timestamp": ..., "soc_pct": 42,
+        #                    "power_kw": 124.5}, ...]}
+        # Some firmwares ship the list under ``data.powerCurve`` or
+        # ``samples`` / ``points``. Field-name variants tried defensively.
+        if isinstance(charging_power_curve, dict) and charging_power_curve:
+            curve_raw = (
+                charging_power_curve.get("powerCurve")
+                or charging_power_curve.get("samples")
+                or charging_power_curve.get("points")
+                or v(charging_power_curve, "data", "powerCurve")
+                or []
+            )
+            if isinstance(curve_raw, list) and curve_raw:
+                points: list[dict[str, Any]] = []
+                for p in curve_raw:
+                    if not isinstance(p, dict):
+                        continue
+                    ts = (
+                        p.get("timestamp")
+                        or p.get("at")
+                        or p.get("sampledAt")
+                    )
+                    soc = (
+                        p.get("soc_pct")
+                        or p.get("socPct")
+                        or p.get("stateOfChargeInPercent")
+                    )
+                    power = (
+                        p.get("power_kw")
+                        or p.get("powerKw")
+                        or p.get("powerInKw")
+                    )
+                    point_entry: dict[str, Any] = {}
+                    if isinstance(ts, str) and ts:
+                        point_entry["timestamp"] = ts
+                    if isinstance(soc, (int, float)):
+                        point_entry["soc_pct"] = int(soc)
+                    if isinstance(power, (int, float)):
+                        point_entry["power_kw"] = float(power)
+                    if point_entry:
+                        points.append(point_entry)
+                if points:
+                    d.last_charging_power_curve_points = points
 
         # ── v2.5.3 — /v1/mileage fallback (#306 Mii/Tavascan/Leon FR-KL) ────
         # PyCupra dedicates an entire endpoint to the cached odometer

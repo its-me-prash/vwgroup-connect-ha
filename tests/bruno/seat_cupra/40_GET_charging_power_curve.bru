@@ -1,0 +1,52 @@
+meta {
+  name: GET charging power-curve (v2.10.0)
+  type: http
+  seq: 40
+}
+
+get {
+  url: {{charging_host_url}}/charging_statistics/{{vin}}/power-curve
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  v2.10.0 - Per-session power-curve samples on the CARIAD charging-
+  stats host (same vhost as seq 39).
+
+  Returns the most recent completed charging session's per-sample
+  power curve, suitable for graphing kW over time / SoC. Drives the
+  ``last_charging_power_curve_points`` sensor whose state is the
+  COUNT of samples; the full sample list lives in the entity's
+  attributes (HA recorder friendly).
+
+  Endpoint reference: Timwun/Cupra-WeConnect-Bruno-Collection
+  (Charging Statistics power-curve sequence), independently parsed
+  in seat_cupra._get_from_charging_host + ``get_status`` v2.10.0.
+
+  Response shape:
+    {
+      "powerCurve": [
+        {
+          "timestamp": "2026-05-30T18:42:11Z",
+          "soc_pct": 42,
+          "power_kw": 124.5
+        },
+        ...
+      ]
+    }
+
+  Newer firmware ships the list under data.powerCurve or under
+  "samples" / "points"; the parser tries all variants defensively.
+
+  Soft-fails to {} on 401 / 403 / 404 with the same semantics as
+  /charging_statistics (seq 39).
+}
