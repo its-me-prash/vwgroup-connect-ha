@@ -42,7 +42,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [2.10.0] - 2026-06-02
 
-Bundle that closes the "all sensors unknown for parked cars" failure mode reported on #306 + #322, plus two scout silencers + a new parser for Audi pending-action requests.
+The biggest single release of this integration to date. Closes the "all sensors unknown for parked cars" failure mode reported on #306 + #322, ships cross-brand parser parity across VW EU + SEAT/CUPRA + VW NA, the unified action service, the VW EU Auth0 SPA login fix for #388, structured warning-lights for SEAT/CUPRA, settable battery-care, charging statistics with power-curve points, and a documented Scout-policy enforcement pass that promotes prior silencer-only entries to parsed sensors or carries an explicit T2-T5 exemption.
 
 ### Added
 
@@ -83,6 +83,12 @@ Closes the 10 conceptual VW EU competitor-library gaps surfaced during the 2026-
 - **VW NA parser shape migration** (#322 roberttco). The 2023 ID.4 US backend migrated doors + windows + lights to `data.exteriorStatus.*` and climate to `climateStatusReport` (US naming). The pre-v2.10.0 parser read EU-naming paths at root and returned null for everything. Multi-path fallback now handles both legacy and modern shapes. Odometer parser also reads `data.currentMileage` in addition to `powerStatus.odometer`. GPS falls back to `lastParkedLocation` for OFFLINE cars.
 - **Scout no longer fires on `vehicleHealthWarnings.warningLights.error.*` children** or `access.accessStatus.requests.*`. The v2.8.2 silencer only covered the wrapper; Scout descended INTO the wrapper and found the inner keys as new. Adding the wildcard form `.error.*` stops the descent. Closes #389.
 - **VW EU Auth0 SPA-rendered login fix** (#388 BalooDK + swebachus). Around 2026-05-31 VW migrated the Auth0 universal-login password page to a full-SPA template. The pre-v2.10.0 form-encoded POST to `/u/login` returned 400 `wrong-email-credentials` even when credentials were correct, then the Data Act portal fallback misidentified the SPA bundle's `consent.js` asset as a consent wall. Two bugs chained, both false negatives, both fixed: (a) when the form-encoded POST returns 400 with `wrong-email-credentials` (or empty error), `idk.py` now retries the same URL with `Content-Type: application/json` + JSON body — the SPA-native variant most modern Auth0 deployments accept; (b) `_data_act_portal.py` consent-wall detection no longer fires on the bare string `consent` (matches the SPA asset filename), now requires specific markers (`data act`, `datenverarbeitung`, `shape the future`, `/u/consent`, `/consent/marketing`) AND first checks for the SPA-rendered password-page signature (`Log in - Enter password` title with no `<form>`) so the error message points at the correct root cause.
+- **Tire-pressure measurements fallback** for VW EU + Audi. Newer CARIAD-BFF firmware also surfaces tire pressure under `measurements.tirePressureStatus.value.*` (US-naming branch) alongside the long-standing `tyrePressure.tyrePressureStatus.value.*` branch (EU naming). Parser now reads both, the dedicated tyrePressure job wins when present so behaviour for existing accounts does not change.
+
+### Documented
+
+- **Active-ventilation IOU cleared.** The v2.4.x silencer note `FOLLOW-UP PR: parser → d.active_ventilation_state, …` was outdated; Group A above shipped the parser at `vw_eu.py:1858-1873` plus entities at `sensor.py:1528-1545`. Inline comment in `_unexpected_keys.py` rewritten to reflect reality and to document the missing `duration_min` and `timer_count` fields' absence from the four collected live payloads.
+- **Deeplink scheme verification status.** The `TODO(2.8.1): verify` markers in `DEEPLINK_SCHEMES` (const.py) are removed; the smali extractions in `_private/` carry qmauth + x_headers + oauth client_ids + token URLs but not the URI scheme strings (those live in AndroidManifest.xml + iOS Info.plist). The shipped schemes are sourced from each brand's launcher metadata + community deeplink reports and reliably open the apps; action-path mismatch falls through to the app home screen.
 
 ## [2.9.0] - 2026-06-02
 

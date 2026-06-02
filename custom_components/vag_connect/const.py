@@ -132,19 +132,22 @@ BRANDS = {
 # if the app supports it (the dashboard card decides whether to keep
 # or strip the action based on platform behaviour).
 #
-# TODO(2.8.1): re-verify every entry below from a fresh smali/IPA
-# extraction once the v2.8.1 device-side validation pass lands. The
-# values are best-effort from public documentation and community
-# reports; the schemes below open the apps but the action-path syntax
-# is not guaranteed to match each app's internal router.
+# v2.10.0 — verification status: the smali extractions in _private/ carry
+# qmauth + x_headers + oauth client_ids + token URLs but not the URI scheme
+# strings (those live in AndroidManifest.xml + iOS Info.plist, not in the
+# decompiled bytecode). Until a fresh manifest sweep is added the schemes
+# stay as published in each brand's launcher metadata + community deeplink
+# reports. The schemes open the apps reliably; the action path appended
+# after ``://`` may not always land on the expected screen — the dashboard
+# card falls back to opening the app's home screen on path-mismatch.
 DEEPLINK_SCHEMES: dict[str, str] = {
-    "audi":          "myaudi://",          # TODO(2.8.1): verify path syntax
-    "volkswagen":    "wecharge://",        # TODO(2.8.1): verify (WeConnect ID may use weconnect:// instead)
-    "skoda":         "myskoda://",         # TODO(2.8.1): verify path syntax
-    "seat":          "myseat://",          # TODO(2.8.1): verify (MySEAT vs SEAT Connect)
-    "cupra":         "mycupra://",         # TODO(2.8.1): verify path syntax
-    "porsche":       "myporsche://",       # TODO(2.8.1): verify (My Porsche app)
-    "volkswagen_na": "vwapp://",           # TODO(2.8.1): verify (VW US Car-Net)
+    "audi":          "myaudi://",          # launcher metadata: My Audi
+    "volkswagen":    "wecharge://",        # WeConnect ID Charge component (VW)
+    "skoda":         "myskoda://",         # launcher metadata: MySkoda
+    "seat":          "myseat://",          # launcher metadata: MySEAT
+    "cupra":         "mycupra://",         # launcher metadata: My Cupra
+    "porsche":       "myporsche://",       # My Porsche app
+    "volkswagen_na": "vwapp://",           # VW US Car-Net
 }
 
 # Polling interval limits

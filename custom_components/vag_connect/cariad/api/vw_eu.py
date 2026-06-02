@@ -2383,7 +2383,17 @@ class VWEUClient(CariadBaseClient):
         # 100) so the sensor unit stays consistent. The warning bool is
         # already extracted from vehicleHealthWarnings above but the
         # tyrePressure job carries it explicitly too, so prefer this.
+        # v2.10.0 (Scout audit 2026-06-02) — newer CARIAD-BFF firmware also
+        # surfaces tire pressure on the ``measurements.tirePressureStatus.value``
+        # branch (US naming) alongside the long-standing ``tyrePressure.*``
+        # branch (EU naming). Read both, the second branch wins so the more
+        # specific dedicated tyrePressure job stays authoritative.
+        measurements_tyre = v(
+            raw, "measurements", "tirePressureStatus", "value"
+        )
         tyre_value = v(raw, "tyrePressure", "tyrePressureStatus", "value")
+        if isinstance(measurements_tyre, dict) and not isinstance(tyre_value, dict):
+            tyre_value = measurements_tyre
         if isinstance(tyre_value, dict):
             # Backend keys observed: currentTirePressure_FrontLeft_bar,
             # currentTirePressure_FrontLeft_kPa, currentValue_FL, etc.
