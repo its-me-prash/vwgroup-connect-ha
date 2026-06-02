@@ -1,0 +1,59 @@
+meta {
+  name: POST SPIN response (step 2 of NA two-step SPIN handshake)
+  type: http
+  seq: 6
+}
+
+post {
+  url: https://b-h-s.spr.{{country}}00.p.con-veh.net/ss/v1/user/{{user_id}}/spin
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+body:json {
+  {
+    "challenge": "{{spin_challenge_nonce}}",
+    "response": "{{sha1_spin_plus_nonce_uppercase}}"
+  }
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+  User-Agent: MyVW/1.0 Android
+}
+
+docs {
+  v2.10.0 (Group C). VW North America SPIN response endpoint.
+
+  Step 2 of the two-step SPIN flow. The client supplies the challenge
+  nonce it received from ``/challenge`` plus the
+  ``SHA1(SPIN + nonce).hexdigest().upper()`` digest. On success the
+  backend returns a short-lived session token that must be sent as the
+  ``X-Spin-Session`` header on the subsequent action POST.
+
+  Response shape:
+
+    {
+      "data": {
+        "sessionToken": "eyJ..."
+      }
+    }
+
+  Defensive key-name variants observed: ``sessionToken`` /
+  ``spinSessionToken`` / ``token``.
+
+  NA-specific shape vs EU: EU does not have an analogue. The EU CARIAD-
+  BFF either trusts the in-body SPIN field or relies on the OLA
+  ``SecToken`` header issued during login. NA uses a per-action nonce
+  to prevent SPIN replay across requests.
+
+  Security note: ``SHA1`` is the protocol-mandated digest function for
+  the backend handshake. It is NOT used as a cryptographic primitive
+  in our own code path (a ``noqa: S324`` in the Python implementation
+  documents this).
+}

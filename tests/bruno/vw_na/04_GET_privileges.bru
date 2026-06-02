@@ -1,0 +1,60 @@
+meta {
+  name: GET privileges (per-user subscription + capabilities for a vehicle)
+  type: http
+  seq: 4
+}
+
+get {
+  url: https://b-h-s.spr.{{country}}00.p.con-veh.net/rrs/v1/privileges/user/{{user_id}}/vehicle/{{vehicle_uuid}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+  User-Agent: MyVW/1.0 Android
+}
+
+docs {
+  v2.10.0 (Group C). VW North America Cox-backend privileges endpoint.
+
+  Returns the per-vehicle subscription + capability map for the signed-in
+  user. Reference: zackcornelius/CarConnectivity-connector-volkswagen-na
+  scan 2026-06-02.
+
+  Response shape (sanitised from the NA app traffic):
+
+    {
+      "data": {
+        "subscription": {
+          "active": true,
+          "expiresAt": "2027-08-14T00:00:00Z"
+        },
+        "capabilities": {
+          "remoteLockUnlock": "ENABLED",
+          "preTripClimate": "ENABLED"
+        }
+      }
+    }
+
+  NA-specific shape vs EU:
+
+  - EU CARIAD-BFF exposes the same information via
+    ``/vehicle/v1/vehicles/{vin}/userCapabilities`` with a fundamentally
+    different envelope (capabilitiesStatus.value[*].expirationDate per
+    capability).
+  - NA aggregates into a single subscription block per vehicle plus a
+    flat capabilities map. The earliest-expiry aggregation that the EU
+    parser does is not needed here.
+  - Endpoint is addressed by user_id + vehicle_uuid rather than VIN.
+
+  Soft-fail contract: 401 / 403 / 404 / 5xx leave the cross-brand
+  ``subscription_active`` + ``subscription_expiry_at`` + ``capabilities_count``
+  fields at None so phantom-protection hides the sensors for accounts
+  without the entitlement.
+}

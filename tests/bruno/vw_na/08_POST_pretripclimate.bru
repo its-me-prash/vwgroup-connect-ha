@@ -1,0 +1,52 @@
+meta {
+  name: POST pretripclimate start (NA-specific climatisation start)
+  type: http
+  seq: 8
+}
+
+post {
+  url: https://b-h-s.spr.{{country}}00.p.con-veh.net/ev/v1/vehicle/{{vehicle_uuid}}/pretripclimate/start
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+body:json {
+  {}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+  User-Agent: MyVW/1.0 Android
+}
+
+docs {
+  v2.10.0 (Group C). VW North America climatisation start endpoint.
+
+  NA uses the explicit ``/pretripclimate/start`` path name, distinct
+  from the EU CARIAD-BFF naming ``/climatisation/start``. Same Cox
+  ``/ev/v1/vehicle/{uuid}/...`` prefix as the rest of the NA stack.
+
+  Companion endpoints (same shape, different suffix):
+
+  - ``POST /ev/v1/vehicle/{uuid}/pretripclimate/stop``
+  - ``POST /ev/v1/vehicle/{uuid}/pretripclimate/windowheating/start``
+  - ``POST /ev/v1/vehicle/{uuid}/pretripclimate/windowheating/stop``
+
+  NA-specific shape vs EU:
+
+  - EU CARIAD-BFF: ``POST /vehicle/v1/vehicles/{vin}/climatisation/start``
+  - EU also accepts a rich payload (climate mode, per-seat heating,
+    window heating flags). NA expects an empty body for the
+    pretripclimate start; settings are configured separately via
+    ``POST /ev/v1/vehicle/{uuid}/pretripclimate/settings``.
+
+  A/B fallback contract: the Python implementation tries the NA path
+  first and falls back to ``/ev/v1/vehicle/{uuid}/climatisation/start``
+  on a 404, so older Cox firmware that only knew the EU-style alias
+  keeps working without user intervention.
+}

@@ -1,0 +1,55 @@
+meta {
+  name: POST lockunlock (NA-specific lock/unlock action endpoint)
+  type: http
+  seq: 7
+}
+
+post {
+  url: https://b-h-s.spr.{{country}}00.p.con-veh.net/lockunlock/v1/vehicle/{{vehicle_uuid}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+body:json {
+  {
+    "action": "lock"
+  }
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+  User-Agent: MyVW/1.0 Android
+  X-Spin-Session: {{spin_session_token}}
+}
+
+docs {
+  v2.10.0 (Group C). VW North America lock/unlock endpoint.
+
+  Modern Cox firmware exposes ``/lockunlock/v1/vehicle/{uuid}`` as the
+  lock/unlock action endpoint. The ``action`` body field accepts
+  ``lock`` or ``unlock``. For ``unlock`` the request must carry an
+  ``X-Spin-Session`` header containing the short-lived session token
+  obtained via the ``/challenge`` + ``/spin`` two-step flow.
+
+  NA-specific shape vs EU:
+
+  - EU uses ``POST /vehicle/v1/vehicles/{vin}/access/{action}`` with
+    the SPIN embedded directly in the body.
+  - NA splits lock + unlock into a single dedicated endpoint and moves
+    SPIN verification out-of-band via the X-Spin-Session header. This
+    keeps the SPIN itself off-the-wire on the action request.
+
+  A/B fallback contract: legacy Cox firmware (pre-2024 builds) only
+  knows ``/ev/v1/vehicle/{uuid}/lock``. The Python implementation tries
+  the modern endpoint first and falls back to the legacy one on a 404
+  response, so existing installs keep working through the firmware
+  transition window.
+
+  ``lock`` does not require a SPIN session token; the X-Spin-Session
+  header is only set on the ``unlock`` action.
+}
