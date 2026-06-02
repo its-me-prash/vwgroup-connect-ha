@@ -69,7 +69,6 @@ class TestNotificationsParser:
             items = (
                 notifications_resp.get("notifications")
                 or _val(notifications_resp, "data", "notifications")
-                or []
             )
         elif isinstance(notifications_resp, list):
             items = notifications_resp
