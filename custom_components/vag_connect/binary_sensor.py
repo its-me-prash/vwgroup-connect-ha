@@ -523,6 +523,24 @@ _NEW_BINARY: tuple[VagBinarySensorDescription, ...] = (
         device_class=BinarySensorDeviceClass.WINDOW,
         icon="mdi:car-select",
     ),
+    # v2.10.0 Group B — SEAT/CUPRA OLA permissions endpoint. Two
+    # diagnostic binary sensors expose whether the bound account is
+    # the primary owner and whether it is allowed to send remote
+    # commands. Phantom-protected below so other brands stay clean.
+    VagBinarySensorDescription(
+        key="permission_is_owner",
+        translation_key="permission_is_owner",
+        data_key="permission_is_owner",
+        icon="mdi:account-key",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="permission_can_command",
+        translation_key="permission_can_command",
+        data_key="permission_can_command",
+        icon="mdi:remote",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
 )
 BINARY_DESCRIPTIONS = BINARY_DESCRIPTIONS + _NEW_BINARY
 
@@ -591,6 +609,11 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # configured. Cars without it leave both fields None → no phantom.
     "alarm_active",
     "siren_active",
+    # v2.10.0 Group B - SEAT/CUPRA OLA permissions endpoint. Brand-
+    # restricted at parser level; other brands leave the fields None
+    # so no phantom binary sensor surfaces.
+    "permission_is_owner",
+    "permission_can_command",
 })
 
 

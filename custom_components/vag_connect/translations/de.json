@@ -495,6 +495,21 @@
       },
       "actual_charge_rate_kw": {
         "name": "Aktuelle Ladeleistung"
+      },
+      "notifications_count": {
+        "name": "Anzahl Benachrichtigungen"
+      },
+      "last_notification_subject": {
+        "name": "Letzte Benachrichtigung Betreff"
+      },
+      "last_notification_severity": {
+        "name": "Letzte Benachrichtigung Stufe"
+      },
+      "engine_oil_temperature_c": {
+        "name": "Motoröltemperatur"
+      },
+      "engine_coolant_temperature_c": {
+        "name": "Kühlmitteltemperatur"
       }
     },
     "binary_sensor": {
@@ -632,6 +647,12 @@
       },
       "area_alarm": {
         "name": "Geofence-Alarm"
+      },
+      "permission_is_owner": {
+        "name": "Konto ist Haupteigentümer"
+      },
+      "permission_can_command": {
+        "name": "Konto darf Befehle senden"
       }
     },
     "switch": {
@@ -897,6 +918,28 @@
         "climatisation_mode": {
           "name": "Klima-Modus",
           "description": "Comfort (volle Leistung) oder economy (reduzierte Leistung, längere Laufzeit)."
+        }
+      }
+    },
+    "update_charging_settings": {
+      "name": "Ladeplan aktualisieren (SEAT/CUPRA)",
+      "description": "Aktualisiert den Ladeplan in einem Aufruf. Setzt eine beliebige Kombination aus Ziel-Ladestand, maximalem AC-Ladestrom und der Auto-Entriegeln-bei-vollgeladen-Flag. Andere Marken werden auf Koordinator-Ebene abgelehnt.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN des Fahrzeugs, das aktualisiert werden soll."
+        },
+        "target_soc": {
+          "name": "Ziel-Ladestand (%)",
+          "description": "Ziel-Ladestand zwischen 20 und 100 Prozent."
+        },
+        "max_charge_current": {
+          "name": "Maximaler AC-Ladestrom",
+          "description": "Backend-Enum, maximum oder reduced."
+        },
+        "auto_unlock_charge": {
+          "name": "Stecker bei vollem Akku entriegeln",
+          "description": "Wenn aktiv, entriegelt sich der Stecker selbst nach abgeschlossenem Ladevorgang."
         }
       }
     }

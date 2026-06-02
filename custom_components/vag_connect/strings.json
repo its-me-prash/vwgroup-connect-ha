@@ -558,6 +558,21 @@
       },
       "actual_charge_rate_kw": {
         "name": "Actual charge rate"
+      },
+      "notifications_count": {
+        "name": "Notifications count"
+      },
+      "last_notification_subject": {
+        "name": "Last notification subject"
+      },
+      "last_notification_severity": {
+        "name": "Last notification severity"
+      },
+      "engine_oil_temperature_c": {
+        "name": "Engine oil temperature"
+      },
+      "engine_coolant_temperature_c": {
+        "name": "Engine coolant temperature"
       }
     },
     "binary_sensor": {
@@ -704,6 +719,12 @@
       },
       "area_alarm": {
         "name": "Geofence Alarm"
+      },
+      "permission_is_owner": {
+        "name": "Account is primary owner"
+      },
+      "permission_can_command": {
+        "name": "Account can send commands"
       }
     },
     "switch": {
@@ -973,6 +994,28 @@
         "climatisation_mode": {
           "name": "Climatisation mode",
           "description": "Comfort (full power) or economy (reduced power, longer runtime)."
+        }
+      }
+    },
+    "update_charging_settings": {
+      "name": "Update Charging Settings (SEAT/CUPRA)",
+      "description": "Update the SEAT/CUPRA charge plan in one call. Sets any combination of target state of charge, maximum AC charge current and the auto-unlock-when-charged flag. Other brands are rejected at the coordinator dispatch level.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN of the vehicle to update."
+        },
+        "target_soc": {
+          "name": "Target state of charge (%)",
+          "description": "Target state of charge between 20 and 100 percent."
+        },
+        "max_charge_current": {
+          "name": "Maximum AC charge current",
+          "description": "Backend enum, maximum or reduced."
+        },
+        "auto_unlock_charge": {
+          "name": "Auto-unlock plug when fully charged",
+          "description": "When true the connector unlocks itself once charging is complete."
         }
       }
     }

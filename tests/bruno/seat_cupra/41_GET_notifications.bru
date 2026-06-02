@@ -1,0 +1,54 @@
+meta {
+  name: GET notifications (v2.10.0 Group B)
+  type: http
+  seq: 41
+}
+
+get {
+  url: {{base_url}}/v1/vehicles/{{vin}}/notifications
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  v2.10.0 Group B - In-vehicle notification list.
+
+  Returns the list of recent in-vehicle notifications. Surfaced as
+  three diagnostic entities: ``notifications_count`` (int total),
+  ``last_notification_subject`` (string) and
+  ``last_notification_severity`` (string). All phantom-protected via
+  ``_DATA_PRESENT_REQUIRED`` so other brands and vehicles without
+  the endpoint stay clean.
+
+  Endpoint reference: Timwun/Cupra-WeConnect-Bruno-Collection
+  (Notifications sequence), independently parsed in
+  ``seat_cupra.get_status`` v2.10.0.
+
+  Response shape (observed across CUPRA Born + Leon):
+    {
+      "notifications": [
+        {
+          "subject": "Service due in 30 days",
+          "severity": "INFO" | "WARNING" | "ALERT",
+          "timestamp": "2026-05-30T18:42:11Z",
+          "type": "MAINTENANCE"
+        },
+        ...
+      ]
+    }
+
+  Some firmwares wrap the list under ``data.notifications`` or ship
+  it as a bare top-level list - the parser accepts all three shapes.
+
+  Soft-fails to ``{}`` on 401 / 403 (older firmware that does not
+  expose the endpoint) and 404 (no notifications recorded for this
+  VIN).
+}

@@ -564,3 +564,48 @@ start_climate_control:
           options:
             - comfort
             - economy
+
+# v2.10.0 Group B - SEAT/CUPRA settable charge plan.
+# Maps to POST /v1/vehicles/{vin}/charging/actions/update-settings.
+# At least one of the optional fields must be provided; an empty body
+# is rejected with a ServiceValidationError. Other brands ignore the
+# service (MISSING_CAPABILITY classification at the coordinator level).
+update_charging_settings:
+  name: Update Charging Settings (SEAT/CUPRA)
+  description: >-
+    Update the SEAT/CUPRA charge plan in one call. Sets any combination
+    of target state of charge, maximum AC charge current and the
+    auto-unlock-when-charged flag. Backed by the OLA endpoint
+    POST /v1/vehicles/{vin}/charging/actions/update-settings. Other
+    brands are rejected at the coordinator dispatch level.
+  fields:
+    vin:
+      name: VIN
+      required: true
+      selector:
+        text:
+    target_soc:
+      name: Target state of charge (%)
+      description: Target state of charge between 20 and 100 percent.
+      required: false
+      selector:
+        number:
+          min: 20
+          max: 100
+          step: 5
+          unit_of_measurement: "%"
+    max_charge_current:
+      name: Maximum AC charge current
+      description: Backend enum, ``maximum`` or ``reduced``.
+      required: false
+      selector:
+        select:
+          options:
+            - maximum
+            - reduced
+    auto_unlock_charge:
+      name: Auto-unlock plug when fully charged
+      description: When true the connector unlocks itself once charging is complete.
+      required: false
+      selector:
+        boolean: {}

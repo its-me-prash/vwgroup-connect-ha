@@ -421,6 +421,25 @@ def _register_services(hass: HomeAssistant) -> None:
             zip_code=str(call.data.get("zip_code", "")),
         )
 
+    async def _handle_update_charging_settings(call: ServiceCall) -> None:
+        """v2.10.0 Group B - SEAT/CUPRA settable charge plan.
+
+        At least one of ``target_soc`` / ``max_charge_current`` /
+        ``auto_unlock_charge`` must be present. The brand client raises
+        ValueError when every payload field is None, which surfaces as
+        a ServiceValidationError after we re-cast it.
+        """
+        vin = str(call.data["vin"])
+        try:
+            await _coord_writeable(vin).async_update_charging_settings(
+                vin,
+                target_soc=call.data.get("target_soc"),
+                max_charge_current=call.data.get("max_charge_current"),
+                auto_unlock_charge=call.data.get("auto_unlock_charge"),
+            )
+        except ValueError as exc:
+            raise ServiceValidationError(str(exc)) from exc
+
     async def _handle_refresh(_call: ServiceCall) -> None:
         """Pull latest cloud-cached state — does NOT wake the vehicle.
 
@@ -543,6 +562,21 @@ def _register_services(hass: HomeAssistant) -> None:
             vol.Schema({
                 vol.Required("vin"):         str,
                 vol.Required("temperature"): vol.All(vol.Coerce(float), vol.Range(16, 30)),
+            })),
+        # v2.10.0 Group B - SEAT/CUPRA settable charge plan
+        # (POST /v1/vehicles/{vin}/charging/actions/update-settings).
+        # At least one of the three optional payload fields must be
+        # provided; the coordinator rejects an empty body with a clear
+        # ServiceValidationError.
+        ("update_charging_settings",       _handle_update_charging_settings,
+            vol.Schema({
+                vol.Required("vin"):       cv.string,
+                vol.Optional("target_soc"):
+                    vol.All(vol.Coerce(int), vol.Range(20, 100)),
+                vol.Optional("max_charge_current"): vol.In(
+                    ["maximum", "reduced"]
+                ),
+                vol.Optional("auto_unlock_charge"): cv.boolean,
             })),
         ("set_departure_timer",            _handle_set_departure_timer,
             vol.Schema({
@@ -762,6 +796,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) 
             "execute_vehicle_action",
             # v2.10.0 rich climate-start (Audi + VW EU CARIAD-BFF)
             "start_climate_control",
+            # v2.10.0 Group B - SEAT/CUPRA settable charge plan
+            "update_charging_settings",
         ]:
             if hass.services.has_service(DOMAIN, svc):
                 hass.services.async_remove(DOMAIN, svc)

@@ -386,6 +386,17 @@ class SeatCupraClient(CariadBaseClient):
             self._get_from_charging_host(
                 f"/charging_statistics/{vin}/power-curve"
             ),
+            # v2.10.0 Group B - 5 new OLA endpoints. Each soft-fails to
+            # ``{}`` via return_exceptions=True so older firmware that
+            # does not expose them stays clean (401, 404 typical). The
+            # parsers further down accept missing dicts gracefully.
+            self._get(f"{_BASE}/v1/vehicles/{vin}/notifications"),
+            self._get(f"{_BASE}/v1/vehicles/{vin}/permissions"),
+            self._get(
+                f"{_BASE}/v1/vehicles/{vin}/measurements/engines"
+            ),
+            self._get(f"{_BASE}/v1/vehicles/{vin}/charging/profiles"),
+            self._get(f"{_BASE}/v1/vehicles/{vin}/charging/modes"),
             return_exceptions=True,
         )
         (
@@ -396,6 +407,11 @@ class SeatCupraClient(CariadBaseClient):
             battery_care_settings,  # v2.10.0
             charging_stats,  # v2.10.0 (charging_statistics)
             charging_power_curve,  # v2.10.0 (charging_statistics)
+            notifications_resp,  # v2.10.0 Group B
+            permissions_resp,  # v2.10.0 Group B
+            engine_measurements,  # v2.10.0 Group B
+            charging_profiles_resp,  # v2.10.0 Group B
+            charging_modes_resp,  # v2.10.0 Group B
         ) = results
 
         # v1.9.0 — Vehicle Data Scout opt-in. Endpoint names match
@@ -1509,6 +1525,252 @@ class SeatCupraClient(CariadBaseClient):
                 if points:
                     d.last_charging_power_curve_points = points
 
+        # ── v2.10.0 Group B — Notifications endpoint ─────────────────────────
+        # GET /v1/vehicles/{vin}/notifications returns the in-vehicle
+        # notification list. Shape observed in the
+        # Timwun/Cupra-WeConnect-Bruno-Collection reference:
+        #   {"notifications": [
+        #       {"subject": "...", "severity": "INFO"|"WARNING"|...,
+        #        "timestamp": "...", "type": "...", ...},
+        #       ...
+        #   ]}
+        # Some firmwares ship the list under ``data.notifications`` or
+        # straight as a top-level list. All three paths handled
+        # defensively.
+        if isinstance(notifications_resp, dict):
+            items = (
+                notifications_resp.get("notifications")
+                or v(notifications_resp, "data", "notifications")
+                or []
+            )
+        elif isinstance(notifications_resp, list):
+            items = notifications_resp
+        else:
+            items = None
+        if isinstance(items, list):
+            d.notifications_count = len(items)
+            if items:
+                first = items[0]
+                if isinstance(first, dict):
+                    subj = (
+                        first.get("subject")
+                        or first.get("title")
+                        or first.get("name")
+                        or first.get("message")
+                    )
+                    if isinstance(subj, str) and subj:
+                        d.last_notification_subject = subj
+                    sev = (
+                        first.get("severity")
+                        or first.get("priority")
+                        or first.get("level")
+                    )
+                    if isinstance(sev, str) and sev:
+                        d.last_notification_severity = sev
+
+        # ── v2.10.0 Group B — Permissions endpoint ───────────────────────────
+        # GET /v1/vehicles/{vin}/permissions returns the role + the
+        # individual permission flags. Two shapes observed:
+        #   A) {"role": "PRIMARY_USER"|"SECONDARY_USER"|"GUEST",
+        #       "permissions": [{"name": "CAN_LOCK", ...}, ...]}
+        #   B) {"isOwner": true, "canCommand": true, ...}
+        # The parser prefers explicit booleans (shape B) when present;
+        # otherwise it derives both flags from ``role`` + the
+        # ``permissions[].name`` membership.
+        if isinstance(permissions_resp, dict):
+            is_owner_raw = (
+                permissions_resp.get("isOwner")
+                if isinstance(permissions_resp.get("isOwner"), bool)
+                else None
+            )
+            can_cmd_raw = (
+                permissions_resp.get("canCommand")
+                if isinstance(permissions_resp.get("canCommand"), bool)
+                else None
+            )
+            role = permissions_resp.get("role")
+            perms_list = permissions_resp.get("permissions")
+            perm_names: set[str] = set()
+            if isinstance(perms_list, list):
+                for p in perms_list:
+                    if isinstance(p, dict):
+                        n = p.get("name") or p.get("id")
+                        if isinstance(n, str) and n:
+                            perm_names.add(n.upper())
+                    elif isinstance(p, str):
+                        perm_names.add(p.upper())
+            if is_owner_raw is not None:
+                d.permission_is_owner = is_owner_raw
+            elif isinstance(role, str) and role:
+                role_u = role.upper()
+                d.permission_is_owner = role_u in (
+                    "PRIMARY_USER", "OWNER", "PRIMARY", "MAIN_USER",
+                )
+            if can_cmd_raw is not None:
+                d.permission_can_command = can_cmd_raw
+            elif d.permission_is_owner is True:
+                d.permission_can_command = True
+            elif perm_names:
+                # Derive from per-permission entries. Any command-class
+                # entry flags the account as able to send commands.
+                d.permission_can_command = any(
+                    cmd in perm_names
+                    for cmd in (
+                        "CAN_COMMAND",
+                        "REMOTE_COMMANDS",
+                        "REMOTE_CONTROL",
+                        "CAN_LOCK",
+                        "CAN_UNLOCK",
+                        "CAN_START_CLIMATISATION",
+                    )
+                )
+
+        # ── v2.10.0 Group B — Engine measurements endpoint ───────────────────
+        # GET /v1/vehicles/{vin}/measurements/engines returns nested
+        # temperature blocks. Shape observed:
+        #   {"engines": [
+        #       {"type": "primary",
+        #        "oilTemperature": {"valueInKelvin": 363.15},
+        #        "coolantTemperature": {"valueInCelsius": 87.4}},
+        #       ...
+        #   ]}
+        # Firmware variance: some ship a flat dict instead of a list,
+        # some ship Celsius directly, some ship Kelvin. The parser
+        # accepts any of those + falls back to a top-level
+        # ``oilTemperature`` / ``coolantTemperature`` block.
+        def _read_temp_c(block: Any) -> float | None:
+            """Read a temperature block. Accepts dict with one of
+            ``valueInCelsius`` / ``valueInKelvin`` / ``value`` /
+            ``temperature``; or a bare number which is treated as
+            Kelvin when > 200 (sensible Celsius rarely exceeds 200)."""
+            if isinstance(block, (int, float)):
+                temp = float(block)
+                return round(temp - 273.15, 1) if temp > 200 else round(temp, 1)
+            if not isinstance(block, dict):
+                return None
+            celsius = block.get("valueInCelsius") or block.get("celsius")
+            if isinstance(celsius, (int, float)):
+                return round(float(celsius), 1)
+            kelvin = block.get("valueInKelvin") or block.get("kelvin")
+            if isinstance(kelvin, (int, float)):
+                return round(float(kelvin) - 273.15, 1)
+            raw = block.get("value") or block.get("temperature")
+            if isinstance(raw, (int, float)):
+                val = float(raw)
+                return round(val - 273.15, 1) if val > 200 else round(val, 1)
+            return None
+
+        if isinstance(engine_measurements, dict):
+            engines_block = engine_measurements.get("engines")
+            target_engine: dict[str, Any] | None = None
+            if isinstance(engines_block, list):
+                # Prefer the primary engine; fall back to the first
+                # entry that carries a temperature dict.
+                for entry in engines_block:
+                    if not isinstance(entry, dict):
+                        continue
+                    if str(entry.get("type", "")).lower() in (
+                        "primary", "combustion", "ice",
+                    ):
+                        target_engine = entry
+                        break
+                if target_engine is None:
+                    for entry in engines_block:
+                        if isinstance(entry, dict):
+                            target_engine = entry
+                            break
+            elif isinstance(engines_block, dict):
+                target_engine = engines_block
+            else:
+                # Top-level fallback - some firmwares skip the
+                # ``engines`` envelope entirely.
+                target_engine = engine_measurements
+            if isinstance(target_engine, dict):
+                oil_temp = _read_temp_c(
+                    target_engine.get("oilTemperature")
+                    or target_engine.get("engineOilTemperature")
+                )
+                if oil_temp is not None:
+                    d.engine_oil_temperature_c = oil_temp
+                coolant_temp = _read_temp_c(
+                    target_engine.get("coolantTemperature")
+                    or target_engine.get("engineCoolantTemperature")
+                )
+                if coolant_temp is not None:
+                    d.engine_coolant_temperature_c = coolant_temp
+
+        # ── v2.10.0 Group B — Charging profiles endpoint ─────────────────────
+        # GET /v1/vehicles/{vin}/charging/profiles returns the SEAT/CUPRA
+        # flavour of the Skoda profiles surface. We reuse the existing
+        # ``_parse_charging_profiles`` helper (defined in coordinator.py
+        # for the Skoda flow) so the resulting dict shape is identical
+        # and the same sensors light up across both brands. Lazy import
+        # to avoid a circular dependency at module-load time
+        # (coordinator imports the brand clients during setup).
+        if isinstance(charging_profiles_resp, dict) and charging_profiles_resp:
+            try:
+                from ...coordinator import (  # noqa: PLC0415
+                    _parse_charging_profiles,
+                )
+                parsed_profiles = _parse_charging_profiles(
+                    charging_profiles_resp
+                )
+            except Exception:  # noqa: BLE001
+                parsed_profiles = {}
+            if isinstance(parsed_profiles, dict) and parsed_profiles:
+                if "charging_profiles" in parsed_profiles:
+                    d.charging_profiles = parsed_profiles["charging_profiles"]
+                if "charging_profiles_count" in parsed_profiles:
+                    d.charging_profiles_count = parsed_profiles[
+                        "charging_profiles_count"
+                    ]
+                if "active_charging_profile_name" in parsed_profiles:
+                    d.active_charging_profile_name = parsed_profiles[
+                        "active_charging_profile_name"
+                    ]
+                if "active_charging_profile_target_soc_pct" in parsed_profiles:
+                    d.active_charging_profile_target_soc_pct = parsed_profiles[
+                        "active_charging_profile_target_soc_pct"
+                    ]
+                if "next_charging_time" in parsed_profiles:
+                    d.next_charging_time = parsed_profiles[
+                        "next_charging_time"
+                    ]
+
+        # ── v2.10.0 Group B — Charging modes endpoint ────────────────────────
+        # GET /v1/vehicles/{vin}/charging/modes returns the list of
+        # backend-allowed charge mode strings. Shape observed:
+        #   {"availableChargeModes": ["manual",
+        #                             "preferredChargingTimes",
+        #                             "automaticUnlocked"]}
+        # Variants tried defensively: top-level list, nested under
+        # ``modes``, nested under ``data.modes``.
+        modes_list: list[str] = []
+        if isinstance(charging_modes_resp, dict):
+            raw_modes = (
+                charging_modes_resp.get("availableChargeModes")
+                or charging_modes_resp.get("modes")
+                or charging_modes_resp.get("chargeModes")
+                or v(charging_modes_resp, "data", "modes")
+                or v(charging_modes_resp, "data", "availableChargeModes")
+            )
+        elif isinstance(charging_modes_resp, list):
+            raw_modes = charging_modes_resp
+        else:
+            raw_modes = None
+        if isinstance(raw_modes, list):
+            for m in raw_modes:
+                if isinstance(m, str) and m:
+                    modes_list.append(m)
+                elif isinstance(m, dict):
+                    mode_name = (
+                        m.get("name") or m.get("id") or m.get("mode")
+                    )
+                    if isinstance(mode_name, str) and mode_name:
+                        modes_list.append(mode_name)
+        if modes_list:
+            d.available_charge_modes = modes_list
+
         # ── v2.5.3 — /v1/mileage fallback (#306 Mii/Tavascan/Leon FR-KL) ────
         # PyCupra dedicates an entire endpoint to the cached odometer
         # because the OLA backend serves this value even when ``/v5/mycar``
@@ -1597,6 +1859,13 @@ class SeatCupraClient(CariadBaseClient):
             mycar, parking, ranges, status, charge_status, charge_info,
             climate, maintenance, availability, mileage_v1,
         )
+
+        # v2.10.0 Group B - persist the available charge modes list so
+        # the sensor.charging_preferred_mode ``extra_state_attributes``
+        # hook can surface it without needing a dedicated entity. The
+        # parser populates ``available_charge_modes`` above; coordinator
+        # writes the VehicleData dict into ``vehicles[vin]`` during the
+        # poll merge.
 
         return d
 
@@ -2023,6 +2292,135 @@ class SeatCupraClient(CariadBaseClient):
             if err.status == 404:
                 return {}
             raise
+
+    async def get_charging_profiles(self, vin: str) -> dict[str, Any]:
+        """v2.10.0 Group B - SEAT/CUPRA charging profiles (read-only).
+
+        GET /v1/vehicles/{vin}/charging/profiles. Mirrors the Skoda
+        ``SkodaClient.get_charging_profiles`` surface so the coordinator
+        helper ``refresh_charging_profiles`` works against both brands
+        without a brand switch. The response shape parsed by
+        ``coordinator._parse_charging_profiles`` is the same for both.
+
+        Best-effort: 404 / 403 returns ``{}`` so the coordinator keeps
+        the previously cached profile state when the endpoint flaps.
+        """
+        try:
+            data = await self._get(
+                f"{_BASE}/v1/vehicles/{vin}/charging/profiles"
+            )
+        except APIError as err:
+            if err.status in (401, 403, 404):
+                return {}
+            raise
+        return data if isinstance(data, dict) else {}
+
+    async def get_charging_modes(self, vin: str) -> dict[str, Any]:
+        """v2.10.0 Group B - SEAT/CUPRA allowed charge modes list.
+
+        GET /v1/vehicles/{vin}/charging/modes returns the backend-allowed
+        charging mode strings. Used by the parser to populate
+        ``available_charge_modes`` which then surfaces as an attribute
+        on the ``charging_preferred_mode`` sensor.
+
+        Best-effort: 404 / 403 returns ``{}``.
+        """
+        try:
+            data = await self._get(
+                f"{_BASE}/v1/vehicles/{vin}/charging/modes"
+            )
+        except APIError as err:
+            if err.status in (401, 403, 404):
+                return {}
+            raise
+        return data if isinstance(data, dict) else {}
+
+    async def command_update_charging_settings(
+        self,
+        vin: str,
+        target_soc: int | None = None,
+        max_charge_current: str | None = None,
+        auto_unlock_charge: bool | None = None,
+    ) -> None:
+        """v2.10.0 Group B - settable charge plan PUT.
+
+        POST /v1/vehicles/{vin}/charging/actions/update-settings with a
+        body containing any subset of {targetSOC_pct, maxChargeCurrentAC,
+        autoUnlockPlugWhenCharged}. Fields are omitted from the payload
+        when the caller passes ``None`` so users can update only one
+        setting at a time.
+
+        Backend rejects empty bodies with a 400, so we raise a clear
+        ValueError here when every field is None.
+        """
+        body: dict[str, Any] = {}
+        if target_soc is not None:
+            body["targetSOC_pct"] = int(target_soc)
+        if max_charge_current is not None:
+            body["maxChargeCurrentAC"] = str(max_charge_current)
+        if auto_unlock_charge is not None:
+            # OLA accepts the explicit "on" / "off" enum on this endpoint.
+            body["autoUnlockPlugWhenCharged"] = (
+                "on" if auto_unlock_charge else "off"
+            )
+        if not body:
+            raise ValueError(
+                "update_charging_settings: at least one of target_soc, "
+                "max_charge_current or auto_unlock_charge must be set"
+            )
+        await self._post(
+            f"{_BASE}/v1/vehicles/{vin}/charging/actions/update-settings",
+            json=body,
+        )
+
+    async def find_charging_stations(
+        self,
+        latitude: float,
+        longitude: float,
+        radius_m: int = 5000,
+        max_results: int = 25,
+    ) -> list[dict[str, Any]]:
+        """v2.10.0 Group B - OLA public charging-point catalog.
+
+        GET /v1/charging/points (no VIN) is the SEAT/CUPRA equivalent of
+        the Cariad-BFF ``/charging-stations/v1/locations`` endpoint that
+        powers ``find_charging_stations`` on the VW EU / Audi side.
+
+        Returns up to ``max_results`` station dicts within ``radius_m``
+        metres of the supplied coordinates. Field shapes vary across
+        firmware so the list contents are passed through verbatim - the
+        coordinator service consumer reads them as opaque dicts.
+
+        Best-effort: any non-2xx returns an empty list so the calling
+        service never raises into the polling loop. Compatible with the
+        existing service contract (list of station dicts).
+        """
+        url = f"{_BASE}/v1/charging/points"
+        params: dict[str, Any] = {
+            "latitude": str(latitude),
+            "longitude": str(longitude),
+            "radiusInMeters": str(int(radius_m)),
+            "maxResults": str(int(max_results)),
+        }
+        try:
+            data = await self._get(url, params=params)
+        except APIError as exc:
+            _LOGGER.debug(
+                "find_charging_stations (OLA): backend returned %s", exc
+            )
+            return []
+        if isinstance(data, list):
+            return data[: int(max_results)]
+        if not isinstance(data, dict):
+            return []
+        # Try the known list keys defensively - OLA has shipped
+        # ``points``, ``stations``, ``locations`` across firmware
+        # revisions.
+        for key in ("points", "stations", "locations", "data"):
+            entries = data.get(key)
+            if isinstance(entries, list):
+                return entries[: int(max_results)]
+        return []
 
     async def command_send_destination(
         self,

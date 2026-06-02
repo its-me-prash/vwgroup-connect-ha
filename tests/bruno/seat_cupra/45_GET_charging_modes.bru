@@ -1,0 +1,54 @@
+meta {
+  name: GET charging modes (v2.10.0 Group B)
+  type: http
+  seq: 45
+}
+
+get {
+  url: {{base_url}}/v1/vehicles/{{vin}}/charging/modes
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  v2.10.0 Group B - Backend-allowed charging modes list.
+
+  Returns the list of charging mode enum strings the backend
+  currently allows for the vehicle. Surfaced as an attribute on
+  the existing ``charging_preferred_mode`` sensor under
+  ``available_modes`` instead of a dedicated entity, so the surface
+  stays clean while still being template-addressable.
+
+  Endpoint reference: Timwun/Cupra-WeConnect-Bruno-Collection
+  (Charging Modes sequence), independently parsed in
+  ``seat_cupra.get_status`` v2.10.0.
+
+  Response shape (observed):
+    {
+      "availableChargeModes": [
+        "manual",
+        "preferredChargingTimes",
+        "automaticUnlocked"
+      ]
+    }
+
+  Variants tried defensively: top-level list, nested under
+  ``modes``, nested under ``chargeModes``, nested under
+  ``data.modes``. The parser accepts entries as plain strings or
+  as dicts with a ``name`` / ``id`` / ``mode`` field.
+
+  Companion PUT lives in the ``update_charging_settings`` HA service
+  which targets POST
+  ``/v1/vehicles/{vin}/charging/actions/update-settings`` (Bruno seq
+  46 in a future expansion).
+
+  Soft-fails to ``{}`` on 401 / 403 / 404.
+}

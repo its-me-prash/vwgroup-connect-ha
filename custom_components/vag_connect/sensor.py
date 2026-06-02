@@ -1463,6 +1463,54 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         suggested_display_precision=1,
         condition="electric",
     ),
+    # v2.10.0 Group B — SEAT/CUPRA OLA endpoint parity.
+    # Notifications endpoint surface (3 entries) plus 2 engine
+    # measurement temperatures. ``charging_profiles_*`` reuses the
+    # Skoda surface so no new descriptions are needed; the charging
+    # modes list lives as an attribute on ``charging_preferred_mode``.
+    # All phantom-protected via _DATA_PRESENT_REQUIRED below.
+    VagSensorDescription(
+        key="notifications_count",
+        translation_key="notifications_count",
+        data_key="notifications_count",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:bell-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="last_notification_subject",
+        translation_key="last_notification_subject",
+        data_key="last_notification_subject",
+        icon="mdi:bell-ring-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="last_notification_severity",
+        translation_key="last_notification_severity",
+        data_key="last_notification_severity",
+        icon="mdi:alert-circle-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="engine_oil_temperature_c",
+        translation_key="engine_oil_temperature_c",
+        data_key="engine_oil_temperature_c",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:oil-temperature",
+        suggested_display_precision=1,
+    ),
+    VagSensorDescription(
+        key="engine_coolant_temperature_c",
+        translation_key="engine_coolant_temperature_c",
+        data_key="engine_coolant_temperature_c",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:thermometer-water",
+        suggested_display_precision=1,
+    ),
 )
 
 # Sensor keys that read from coordinator helpers instead of the per-vehicle
@@ -1644,6 +1692,14 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # entity appears for SEAT/CUPRA/Skoda/Porsche/VW NA.
     "auxiliary_heating_status",
     "auxiliary_heating_remaining_min",
+    # v2.10.0 Group B - SEAT/CUPRA OLA endpoint parity. Brand-restricted
+    # at parser level (OLA-only); other brands leave the fields None
+    # so no phantom diagnostic entity surfaces.
+    "notifications_count",
+    "last_notification_subject",
+    "last_notification_severity",
+    "engine_oil_temperature_c",
+    "engine_coolant_temperature_c",
 })
 
 # v1.14.0 (#24) — Trip Statistics is brand-restricted at the API level
@@ -1811,6 +1867,15 @@ class VagConnectSensor(VagConnectEntity, SensorEntity):
             points = self._vehicle.get("last_charging_power_curve_points")
             if isinstance(points, list) and points:
                 return json_safe_dict({"points": points})
+        # v2.10.0 Group B - surface the SEAT/CUPRA OLA allowed-charge-
+        # modes list as an attribute on the existing
+        # ``charging_preferred_mode`` sensor instead of growing a new
+        # entity. Picks up automatically when the brand client populates
+        # ``available_charge_modes`` from the /charging/modes endpoint.
+        if self.entity_description.key == "charging_preferred_mode":
+            modes = self._vehicle.get("available_charge_modes")
+            if isinstance(modes, list) and modes:
+                return json_safe_dict({"available_modes": modes})
         return None
 
     @property
