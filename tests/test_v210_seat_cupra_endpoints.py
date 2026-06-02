@@ -66,10 +66,9 @@ class TestNotificationsParser:
 
         # Replay the relevant parser block from seat_cupra.get_status
         if isinstance(notifications_resp, dict):
-            items = (
-                notifications_resp.get("notifications")
-                or _val(notifications_resp, "data", "notifications")
-            )
+            items = notifications_resp.get("notifications")
+            if items is None:
+                items = _val(notifications_resp, "data", "notifications")
         elif isinstance(notifications_resp, list):
             items = notifications_resp
         else:

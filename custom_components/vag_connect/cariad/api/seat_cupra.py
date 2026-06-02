@@ -1538,10 +1538,14 @@ class SeatCupraClient(CariadBaseClient):
         # straight as a top-level list. All three paths handled
         # defensively.
         if isinstance(notifications_resp, dict):
-            items = (
-                notifications_resp.get("notifications")
-                or v(notifications_resp, "data", "notifications")
-            )
+            # Use explicit None check so that the present-but-empty
+            # case (`{"notifications": []}`) yields count=0 instead of
+            # falling through `or` short-circuit into the data-wrapped
+            # variant lookup. Missing-key stays None so the sensor
+            # stays unknown rather than showing 0.
+            items = notifications_resp.get("notifications")
+            if items is None:
+                items = v(notifications_resp, "data", "notifications")
         elif isinstance(notifications_resp, list):
             items = notifications_resp
         else:
