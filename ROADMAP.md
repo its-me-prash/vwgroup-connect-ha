@@ -34,6 +34,42 @@ Action items #1 to #5 from the 2026-05-30 competitive scan, plus the dead-weight
 
 Target ship. Tag v2.8.0 once #1 to #5 are reviewed and the staging branch is merged.
 
+## v2.11.0 (planned, post-v2.10.0)
+
+Medium- and low-priority items surfaced during the 2026-06-02 competitor scan against the major HA-VAG integrations in the ecosystem. None of these are urgent, but all are within the existing parser surface so they cost little to add.
+
+### SEAT/CUPRA OLA endpoints we do not yet poll
+
+- `/v1/vehicles/{vin}/notifications`. Surface in-vehicle notification count + last subject as a sensor so HA users can trigger automations on "you have unread messages in the car".
+- `/v1/vehicles/{vin}/permissions`. Owner vs co-driver detection. Useful for HA automations that should only fire for the primary user.
+- `/v1/vehicles/{vin}/measurements/engines`. Engine-specific measurements (separate from the existing per-VIN charge/climate endpoints). Likely overlap with mycar.engines but worth a direct probe.
+- `/v1/vehicles/{vin}/charging/profiles`. Charge-time profile list, SEAT/CUPRA flavour of the Skoda profiles we already parse since v1.16.0.
+- `/v1/vehicles/{vin}/charging/modes` + `/v2/` variant. Settable enumeration of allowed charge modes. Read-only equivalent already lands via `charging_preferred_mode` (v2.8.1); the settable surface is the gap.
+- `/v1/vehicles/{vin}/charging/actions/update-settings`. PUT for charge plan changes. Wire as a HA service.
+- `/v1/charging/points` (no VIN). Public POI catalog. Similar to our existing `find_charging_stations` but SEAT-naming.
+
+### Field additions surfaced by the VW-specific competitor (vw_vehicle.py)
+
+- `hv_battery_min_temperature` + `hv_battery_max_temperature`. We collapse to a single `battery_temp`; the min/max pair is more useful for thermal-management diagnostics.
+- `charge_max_ac_setting` vs `charge_max_ac_ampere`. Distinguish the user-requested setting from the actual deliverable amperage.
+- `available_charge_modes`. List attribute on the `charge_mode` sensor showing what the user is allowed to pick.
+- `auto_release_ac_connector_state` + `auto_release_ac_connector`. Born MY24+ feature where the connector auto-releases at full charge.
+- `optimised_battery_use`. Battery-preservation flag distinct from the existing `battery_care` field (v2.8.1).
+- `active_ventilation_state` + `active_ventilation_remaining_time`. Ventilation as a separate mode from climatisation, VW EU specific.
+- `sunroof_rear_closed` + `roof_cover_closed`. Rear sunroof + Cabrio top status; we expose only the front sunroof today.
+- `connection_state_battery_power_level`. 12V battery health (low/normal/high) for long-park diagnostics, distinct from the existing voltage_12v + warning_12v_low fields.
+- `last_trip_total_fuel_consumption_l` + `last_trip_total_electric_consumption_kwh`. Total per-trip (we have averages, not totals).
+
+### Field additions surfaced by audi_connect_ha (v2.1.0)
+
+- `plug_led_color`. Audi-specific HW: the charging port LED reports its current color. Useful as a glance-sensor in HA dashboards.
+- `actual_charge_rate`. Real-time charge rate sensor; we expose only the averaged `charging_rate_kmh`.
+- shortterm / longterm trip aggregator reset endpoints. Buttons on the entity card to reset trip counters from HA.
+
+### Per-attribute `_last_updated` timestamps
+
+Pattern from the VW-specific competitor: every property has a sibling `{field}_last_updated` that records when the value last came from the backend. Useful for users to debug stale entities directly in Dev Tools without downloading a diagnostics dump. Scope is a refactor (one sibling per VehicleData field), so this is genuinely a v3.0+ item even though the concept is simple.
+
 ## v3.0 (planned)
 
 Genuinely pending. Nothing here is committed to a date. This is the post-2.8 backlog.
