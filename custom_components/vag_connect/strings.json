@@ -510,6 +510,15 @@
       },
       "charging_preferred_mode": {
         "name": "Preferred Charging Mode"
+      },
+      "pending_action_id": {
+        "name": "Pending action ID"
+      },
+      "pending_action_type": {
+        "name": "Pending action type"
+      },
+      "pending_action_status": {
+        "name": "Pending action status"
       }
     },
     "binary_sensor": {

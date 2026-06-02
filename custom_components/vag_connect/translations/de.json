@@ -447,6 +447,15 @@
       },
       "charging_preferred_mode": {
         "name": "Bevorzugter Lademodus"
+      },
+      "pending_action_id": {
+        "name": "Ausstehende Aktion ID"
+      },
+      "pending_action_type": {
+        "name": "Ausstehende Aktion Typ"
+      },
+      "pending_action_status": {
+        "name": "Ausstehende Aktion Status"
       }
     },
     "binary_sensor": {

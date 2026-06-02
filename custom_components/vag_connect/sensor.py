@@ -1227,6 +1227,32 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:cog-outline",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # v2.10.0 (#389 scout) — pending-action surface. CARIAD BFF ships
+    # access.accessStatus.requests when a lock/unlock/climate command
+    # was dispatched and the vehicle has not yet confirmed. Three
+    # sensors expose the most-recent entry so HA scripts can wait for
+    # action acknowledgement instead of fixed sleeps.
+    VagSensorDescription(
+        key="pending_action_id",
+        translation_key="pending_action_id",
+        data_key="pending_action_id",
+        icon="mdi:identifier",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="pending_action_type",
+        translation_key="pending_action_type",
+        data_key="pending_action_type",
+        icon="mdi:gesture-tap",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="pending_action_status",
+        translation_key="pending_action_status",
+        data_key="pending_action_status",
+        icon="mdi:progress-clock",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
     # v2.2.0 Phase 2 PR #11/20 — derived integer days until expiry.
     # Closes the subscription-feature triangle (timestamp + active +
     # days). Negative when expired. Automation-friendly: threshold
@@ -1413,6 +1439,12 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "cng_range_km",
     "primary_engine_range_km",
     "charging_preferred_mode",
+    # v2.10.0 (#389) — pending-action surface, only populated when the
+    # CARIAD BFF reports an in-flight request. Most polls these will
+    # be None and the sensors stay hidden.
+    "pending_action_id",
+    "pending_action_type",
+    "pending_action_status",
     "next_charging_timer_id",
     "next_charging_timer_target_soc_reachable",
     "capabilities_count",

@@ -40,6 +40,20 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [2.10.0] - 2026-06-02
+
+Bundle that closes the "all sensors unknown for parked cars" failure mode reported on #306 + #322, plus two scout silencers + a new parser for Audi pending-action requests.
+
+### Added
+
+- **Active vehicle wake-up before status poll** (opt-in). When enabled in OptionsFlow, the coordinator sends a wake POST for any VIN that was OFFLINE on the previous poll, sleeps `wake_delay_seconds` (default 15s), then runs the regular status fetch. Closes the offline-car null cascade for users who accept the extra API call per offline VIN. Off by default; pattern inspired by audi_connect_ha v2.1.0 but implemented independently.
+- **Pending-action sensors** (`pending_action_id`, `pending_action_type`, `pending_action_status`) for Audi + VW EU. Populated from `access.accessStatus.requests` when the CARIAD BFF surfaces an in-flight lock/unlock/climate command. Lets HA automations wait for action acknowledgement instead of guessing with fixed sleeps. Phantom-protected so cars with no pending action stay clean. Closes #389.
+
+### Fixed
+
+- **VW NA parser shape migration** (#322 roberttco). The 2023 ID.4 US backend migrated doors + windows + lights to `data.exteriorStatus.*` and climate to `climateStatusReport` (US naming). The pre-v2.10.0 parser read EU-naming paths at root and returned null for everything. Multi-path fallback now handles both legacy and modern shapes. Odometer parser also reads `data.currentMileage` in addition to `powerStatus.odometer`. GPS falls back to `lastParkedLocation` for OFFLINE cars.
+- **Scout no longer fires on `vehicleHealthWarnings.warningLights.error.*` children** or `access.accessStatus.requests.*`. The v2.8.2 silencer only covered the wrapper; Scout descended INTO the wrapper and found the inner keys as new. Adding the wildcard form `.error.*` stops the descent. Closes #389.
+
 ## [2.9.0] - 2026-06-02
 
 Hardening bundle: provenance canaries + weekly watcher, SPDX license headers across all Python files, and VW account-lock detection with a guided Repair issue.

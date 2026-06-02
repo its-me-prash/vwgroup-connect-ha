@@ -1547,6 +1547,43 @@ class VWEUClient(CariadBaseClient):
         if last_alarm:
             d.last_alarm_at = last_alarm
 
+        # v2.10.0 (#389 scout 2026-06-02) — pending-action request list.
+        # CARIAD BFF ships ``access.accessStatus.requests`` (and
+        # sometimes ``access.accessStatus.value.requests``) when a
+        # lock/unlock/climate command was dispatched and the vehicle
+        # has not yet confirmed completion. Expose the most-recent
+        # entry as 3 sensors so HA automations can wait for action
+        # acknowledgement instead of guessing with a fixed sleep.
+        requests_list = (
+            v(raw, "access", "accessStatus", "requests")
+            or v(raw, "access", "accessStatus", "value", "requests")
+        )
+        if isinstance(requests_list, list) and requests_list:
+            # Field names observed: ``requestId``/``id``, ``operation``/
+            # ``operationCode``/``type``, ``status``/``state``. Defensive
+            # multi-key lookup mirrors the rest of vw_eu.py.
+            latest = requests_list[-1] if isinstance(requests_list[-1], dict) else {}
+            rid = (
+                latest.get("requestId")
+                or latest.get("id")
+                or latest.get("requestID")
+            )
+            rop = (
+                latest.get("operation")
+                or latest.get("operationCode")
+                or latest.get("type")
+            )
+            rst = (
+                latest.get("status")
+                or latest.get("state")
+            )
+            if isinstance(rid, str):
+                d.pending_action_id = rid
+            if isinstance(rop, str):
+                d.pending_action_type = rop
+            if isinstance(rst, str):
+                d.pending_action_status = rst
+
         # ── Access / doors / windows ──────────────────────────────────────────
         # v2.0.1 (#131 user-reported follow-up) — defensive parsing.
         # Previously: ``d.doors_locked = X == "LOCKED"`` always assigned

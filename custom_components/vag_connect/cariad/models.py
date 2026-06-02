@@ -657,6 +657,17 @@ class VehicleData:
     # trigger for "where is my car" automations.
     area_alarm: bool | None = None
 
+    # v2.10.0 (#389 scout 2026-06-02) — Audi pending-action surface.
+    # The CARIAD BFF ships ``access.accessStatus.requests`` as a list
+    # of dicts when a lock/unlock/climate command was recently dispatched
+    # but the vehicle has not yet confirmed completion. We expose the
+    # most-recent pending request as 3 sensors so HA automations can
+    # wait for action acknowledgement instead of guessing with a
+    # fixed sleep. Phantom-protected via _DATA_PRESENT_REQUIRED.
+    pending_action_id: str | None = None
+    pending_action_type: str | None = None
+    pending_action_status: str | None = None
+
     # v1.19.1 — Pycupra-style API quota visibility. Populated from
     # X-RateLimit-Remaining response header captured by base.py
     # ``_capture_rate_limit_headers``. Brand-shared (the same auth
