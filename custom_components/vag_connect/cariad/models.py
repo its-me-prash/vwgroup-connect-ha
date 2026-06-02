@@ -1271,6 +1271,41 @@ class VehicleData:
     lifetime_avg_electric_consumption_kwh_100km: float | None = None
     recent_trips: list[dict[str, Any]] = field(default_factory=list)
 
+    # v2.10.0 Group B - SEAT/CUPRA OLA endpoint parity.
+    # New fields populated by 6 OLA endpoints added in v2.10.0:
+    # /v1/vehicles/{vin}/notifications, /permissions,
+    # /measurements/engines, /charging/profiles (reuses Skoda fields
+    # above), /charging/modes. Public /v1/charging/points is wired as
+    # a fallback inside find_charging_stations and does not need its
+    # own VehicleData field.
+
+    # Notifications endpoint. ``notifications_count`` is the total
+    # number of unread in-vehicle notifications; the last_* fields
+    # expose the most recent entry so a Lovelace card can render a
+    # quick preview without iterating the list.
+    notifications_count: int | None = None
+    last_notification_subject: str | None = None
+    last_notification_severity: str | None = None
+
+    # Permissions endpoint. ``permission_is_owner`` is True when the
+    # account holds the primary owner role; ``permission_can_command``
+    # is True when the role allows remote commands (owner or
+    # privileged co-driver).
+    permission_is_owner: bool | None = None
+    permission_can_command: bool | None = None
+
+    # Engine measurements endpoint. Both temperatures are stored in
+    # Celsius after the parser converts from Kelvin if needed
+    # (values above 200 are treated as Kelvin and shifted).
+    engine_oil_temperature_c: float | None = None
+    engine_coolant_temperature_c: float | None = None
+
+    # Charging modes endpoint. List of allowed mode strings exposed
+    # on the existing ``charging_preferred_mode`` sensor via
+    # ``extra_state_attributes``. Stored as a plain list so the
+    # JSON-safe attribute helper passes it through unchanged.
+    available_charge_modes: list[str] = field(default_factory=list)
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to plain dict for coordinator.vehicles storage."""
         from dataclasses import asdict  # noqa: PLC0415

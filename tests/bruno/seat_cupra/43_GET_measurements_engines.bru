@@ -1,0 +1,57 @@
+meta {
+  name: GET measurements engines (v2.10.0 Group B)
+  type: http
+  seq: 43
+}
+
+get {
+  url: {{base_url}}/v1/vehicles/{{vin}}/measurements/engines
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  v2.10.0 Group B - Engine oil + coolant temperature.
+
+  Returns nested temperature blocks per engine. Surfaced as two
+  numeric sensors: ``engine_oil_temperature_c`` and
+  ``engine_coolant_temperature_c``. Both phantom-protected via
+  ``_DATA_PRESENT_REQUIRED`` so EV-only vehicles and other brands
+  stay clean.
+
+  Endpoint reference: Timwun/Cupra-WeConnect-Bruno-Collection
+  (Engine Measurements sequence), independently parsed in
+  ``seat_cupra.get_status`` v2.10.0.
+
+  Response shape (observed across PHEV Formentor + ICE Leon):
+    {
+      "engines": [
+        {
+          "type": "primary",
+          "oilTemperature": {"valueInKelvin": 363.15},
+          "coolantTemperature": {"valueInCelsius": 87.4}
+        },
+        ...
+      ]
+    }
+
+  Firmware variance:
+  - Some ship a flat dict instead of a list.
+  - Some ship temperatures directly as bare floats (treated as
+    Kelvin when above 200, Celsius otherwise).
+  - Some skip the ``engines`` envelope entirely.
+
+  The parser accepts all three shapes plus the nested
+  ``valueInCelsius`` / ``valueInKelvin`` / ``value`` / ``temperature``
+  variants on the temperature block itself.
+
+  Soft-fails to ``{}`` on 401 / 403 / 404.
+}

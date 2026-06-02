@@ -1835,7 +1835,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
     # ── v1.16.0 (#25, #31) — Skoda Charging Profiles 1h cache ────────
     _CHARGING_PROFILES_REFRESH_INTERVAL = timedelta(hours=1)
-    _CHARGING_PROFILES_BRANDS = ("skoda",)  # mysmob only — CARIAD/OLA TBD
+    # v2.10.0 Group B - SEAT + CUPRA OLA now expose the same shape via
+    # /v1/vehicles/{vin}/charging/profiles. ``get_charging_profiles``
+    # is wired on SeatCupraClient and returns the same dict that
+    # ``_parse_charging_profiles`` expects, so the existing helper
+    # works unchanged for both brands.
+    _CHARGING_PROFILES_BRANDS = ("skoda", "seat", "cupra")
 
     async def refresh_trip_statistics(
         self, vin: str, force: bool = False
@@ -2758,6 +2763,29 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
     async def async_set_climatisation_temperature(self, vin: str, temp_c: float) -> None:
         await self._cariad_cmd(vin, "command_set_climate_temperature", temp_c=temp_c)
+
+    async def async_update_charging_settings(
+        self,
+        vin: str,
+        target_soc: int | None = None,
+        max_charge_current: str | None = None,
+        auto_unlock_charge: bool | None = None,
+    ) -> None:
+        """v2.10.0 Group B - SEAT/CUPRA settable charge plan.
+
+        Dispatches to ``command_update_charging_settings`` on the brand
+        client. Wired on SeatCupraClient against POST
+        /v1/vehicles/{vin}/charging/actions/update-settings; other
+        brands raise AttributeError which Phase 2's
+        ``record_command_failure`` classifies as MISSING_CAPABILITY.
+        """
+        await self._cariad_cmd(
+            vin,
+            "command_update_charging_settings",
+            target_soc=target_soc,
+            max_charge_current=max_charge_current,
+            auto_unlock_charge=auto_unlock_charge,
+        )
 
     async def async_find_charging_stations(
         self,

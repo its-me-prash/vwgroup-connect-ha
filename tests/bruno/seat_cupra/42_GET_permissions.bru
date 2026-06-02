@@ -1,0 +1,55 @@
+meta {
+  name: GET permissions (v2.10.0 Group B)
+  type: http
+  seq: 42
+}
+
+get {
+  url: {{base_url}}/v1/vehicles/{{vin}}/permissions
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  v2.10.0 Group B - Account role + per-permission flags.
+
+  Returns the owner / co-driver role and the individual permission
+  list. Surfaced as two diagnostic binary sensors:
+  ``permission_is_owner`` (True when the account holds the primary
+  owner role) and ``permission_can_command`` (True when the role
+  allows remote commands - owner or privileged co-driver).
+
+  Endpoint reference: Timwun/Cupra-WeConnect-Bruno-Collection
+  (Permissions sequence), independently parsed in
+  ``seat_cupra.get_status`` v2.10.0.
+
+  Response shape - two variants observed across firmware:
+    A) {
+         "role": "PRIMARY_USER" | "SECONDARY_USER" | "GUEST",
+         "permissions": [
+           {"name": "CAN_LOCK", "granted": true},
+           {"name": "CAN_UNLOCK", "granted": true},
+           ...
+         ]
+       }
+    B) {
+         "isOwner": true,
+         "canCommand": true,
+         ...
+       }
+
+  The parser prefers explicit booleans when present and derives both
+  flags from ``role`` plus the ``permissions[].name`` membership
+  otherwise. Both shapes handled defensively.
+
+  Soft-fails to ``{}`` on 401 / 403 / 404 so older firmware stays
+  clean.
+}
