@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.6.0 — OAuth 2.0 Device Authorization Grant (RFC 8628).
 
 This module implements the standard headless-device OAuth flow:
@@ -389,6 +390,11 @@ class DeviceAuthorizationGrant:
 #
 # Update when VW expands the whitelist.
 DAG_ENABLED_BRANDS = frozenset({"audi", "skoda", "seat", "cupra"})
+
+# v2.9.0 - provenance canary, see ``_canaries.py``. Module-level
+# constant so any port of the DAG browser-login flow in this file
+# carries the marker.
+_PROVENANCE_DAG_FLOW = "dag_browserlogin_provenance_v3npb8t6_2026"
 
 
 def is_dag_eligible(brand_name: str) -> bool:

@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.4.0 — Marketing-only rename: ``VAG Connect`` → ``VW Group Connect``.
 
 Context: humorous community feedback on the Home Assistant UK + HA

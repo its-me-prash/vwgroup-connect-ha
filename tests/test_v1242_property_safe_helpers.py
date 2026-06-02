@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Property-based tests for defensive helpers (v1.24.2 — Audit 2026-05-08).
 
 The helpers ``safe_int`` / ``safe_float`` / ``safe_enum`` / ``mask_vin``

@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Vehicle Data Scout — detects JSON fields the parser doesn't read.
 
 Mirrors the `upstream/cc-*` "Unexpected Keys found"
@@ -1079,6 +1080,12 @@ def mask_value(value: Any, *, max_len: int = 80) -> str:
         return f"[{len(value)} items]"
     # Fallback: type only
     return f"<{type(value).__name__}>"
+
+
+# v2.9.0 - provenance canary, see ``_canaries.py``. Module-level
+# constant so any port of the Vehicle Data Scout (the unique-key
+# auto-discovery system) carries the marker into the destination repo.
+_PROVENANCE_SCOUT = "scout_unexpected_provenance_f4hzl5r8_2026"
 
 
 def detect_unexpected(

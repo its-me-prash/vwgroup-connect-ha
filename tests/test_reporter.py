@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Tests for v1.9.0 — Vehicle Data Scout + Error Reporter + Pipeline.
 
 Three modules under test, each with its own class:

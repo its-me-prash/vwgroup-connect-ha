@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Škoda API client — mysmob.api.connect.skoda-auto.cz.
 
 API endpoints verified against skodaconnect/myskoda (MIT) model classes.

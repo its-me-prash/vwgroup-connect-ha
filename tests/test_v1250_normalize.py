@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Property tests for `cariad/_normalize.py` helpers (v1.25.0 PR-A).
 
 Same pattern as v1.24.2's `test_v1242_property_safe_helpers.py` —

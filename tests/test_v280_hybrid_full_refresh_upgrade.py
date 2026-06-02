@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) - Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Tests for the v2.8.0rc2 hybrid_full opportunistic refresh_token upgrade.
 
 Task #59: after hybrid_full succeeds, opportunistically exchange the

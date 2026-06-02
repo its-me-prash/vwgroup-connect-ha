@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.2.1 Phase 8 PR #5 — cross-brand car_type derivation helper.
 
 **Different pattern from PR #1-#4.** Instead of expanding parser

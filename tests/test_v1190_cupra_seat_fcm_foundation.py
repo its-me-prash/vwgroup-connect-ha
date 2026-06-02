@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Tests for v1.19.0 — CUPRA/SEAT OLA FCM push foundation.
 
 Mirrors the v1.18.0 Skoda MQTT test layout (test_v1180_skoda_push_foundation.py)

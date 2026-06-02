@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.4.1 — Sprint D: bundle test-suite.
 
 This single file pins ALL the v2.4.1 changes that ship together. The

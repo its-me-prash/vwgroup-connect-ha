@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.5.11 — Audi Market-Config dynamic discovery.
 
 Backstory: when VW migrated the CARIAD token endpoint on 2026-05-28

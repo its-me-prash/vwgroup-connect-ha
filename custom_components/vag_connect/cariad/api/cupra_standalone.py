@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """CUPRA-standalone API client — brand-isolated backend (scaffold).
 
 **BETA — TESTER VALIDATION PENDING.** Third luxury/standalone scaffold

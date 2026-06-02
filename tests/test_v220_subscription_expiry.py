@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.2.0 Phase 2 PR #8/20 — SEAT/CUPRA Connect-subscription expiry sensor.
 
 Long-standing user request: surface when the Connect subscription

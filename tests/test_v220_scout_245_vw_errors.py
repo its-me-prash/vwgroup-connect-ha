@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.2.0 Phase 7 PR #5 — VW EU Scout #245 silencing.
 
 Pre-release patch BEFORE v2.2.0 final. Issue #245 reported 18 new

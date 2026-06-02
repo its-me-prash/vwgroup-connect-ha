@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Image entities for VAG Connect — 7 vehicle render images per vehicle.
 
 Creates one ImageEntity per MediaType per vehicle:

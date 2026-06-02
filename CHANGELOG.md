@@ -40,6 +40,19 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [2.9.0] - 2026-06-02
+
+Hardening bundle: provenance canaries + weekly watcher, SPDX license headers across all Python files, and VW account-lock detection with a guided Repair issue.
+
+### Added
+
+- **VW account-lock detection**. After the 2026-05-31 ecosystem-wide VW Auth chaos surfaced a new failure mode (oliverrahner on volkswagencarnet#332 reporting his brand account getting locked for ~24h after too many failed token-refresh attempts), the coordinator now tracks HTTP 423 (Locked) and HTTP 403 with throttling-marker bodies on the token endpoint. Three such responses inside a 30-minute sliding window surface a Repair issue (`account_locked`) explaining the lock + next steps (wait, raise scan_interval, optionally switch to read-only Data Act portal mode). Auto-clears on the next successful auth. Native DE translation, EN parity for the other 7 supported languages.
+- **Provenance canaries + weekly watcher**. New `custom_components/vag_connect/_canaries.py` declares 5 uniquely-spelled identifier strings, one per strategic module (auth resolver, Data Act scraper, DAG flow, Scout, watchdog). Each canary is also referenced from the module it watermarks so it travels with any port. Weekly cron in `.github/workflows/canary-watch.yml` queries GitHub Code Search for the canaries outside the `its-me-prash` namespace and opens a triage issue tagged `provenance` when a foreign hit appears. Apache 2.0 permits the port; the canaries make stripping the LICENSE + NOTICE observable.
+
+### Changed
+
+- **SPDX-License-Identifier headers** added to all 158 Python files. Files already carried the copyright + Apache 2.0 line; this adds the machine-readable SPDX identifier on the line below so REUSE / FOSSA / SCANCODE-class license scanners pick them up without parsing free-text. Mechanical change, no behaviour impact.
+
 ## [2.8.2] - 2026-06-02
 
 ### Fixed

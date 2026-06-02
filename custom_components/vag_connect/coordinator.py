@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Coordinator for VAG Connect — async polling via own CARIAD API client.
 
 Data flow:
@@ -693,6 +694,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # entry may not support reauth in tests; the loop stop is enough.
             pass
         _LOGGER.error("VAG Connect: stopping poll loop, reauth required (%s)", reason)
+
+    # v2.9.0 - provenance canary, see ``_canaries.py``. Class-level
+    # attribute so any port of the silent-recovery watchdog logic
+    # carries the marker into the destination repo.
+    _PROVENANCE_WATCHDOG = "watchdog_silentauth_provenance_n2vpw9c3_2026"
 
     async def _maybe_run_stale_watchdog(self) -> None:
         """v2.8.0 — silent re-authenticate when hybrid_full goes stale.
@@ -2348,6 +2354,29 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 else:
                     # Quota recovered — clear any stale warning
                     clear_quota_issue(self.hass, self.entry.entry_id)
+
+        # v2.9.0 - VW account-lock detector. The brand client flips
+        # ``account_lock_detected`` from inside _refresh_tokens once we
+        # see 3 HTTP 423 or 403-with-throttle-marker responses in
+        # 30 minutes. Surface as a Repair issue so the user knows why
+        # their integration went silent and gets actionable next steps.
+        client = getattr(self, "_cariad_client", None)
+        if client is not None:
+            from .repairs import (  # noqa: PLC0415
+                raise_issue_account_locked,
+                clear_account_locked_issue,
+            )
+            if getattr(client, "account_lock_detected", False):
+                # Pull the last status from the lock_history if any
+                history = getattr(client, "_lock_history", [])
+                last_status = history[-1][1] if history else 423
+                raise_issue_account_locked(
+                    self.hass, self.entry.entry_id,
+                    brand=self.entry.data.get("brand", "unknown"),
+                    last_status=last_status,
+                )
+            else:
+                clear_account_locked_issue(self.hass, self.entry.entry_id)
 
         # Fix #32: Defensive is_charging reset.
         # When plug is disconnected, charging MUST be False regardless of API state.

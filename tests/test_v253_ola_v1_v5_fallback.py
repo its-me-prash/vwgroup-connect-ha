@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.5.3 — OLA v1↔v5 fallback chain tests (#306).
 
 Covers the three patches:

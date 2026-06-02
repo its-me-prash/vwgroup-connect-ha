@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.2.0 Phase 3 PR #14/20 — Audi/VW FCM circuit-breaker wiring.
 
 **Phase 3 closer.** Completes the cross-brand circuit-breaker

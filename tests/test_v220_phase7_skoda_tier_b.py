@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.2.0 Phase 7 PR #4 — Skoda tier-B trio from scout-audit.
 
 Three Skoda mysmob fields silenced since v1.12.2 (#107 tritanium73

@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Tests for v1.16.0 — Cross-Brand UX + Skoda Charging Profiles.
 
 Three feature groups:

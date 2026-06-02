@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.5.6 — APK-primary, competitor-fallback auth config resolver.
 
 v2.5.11 — added Audi market-config layer (between OIDC discovery and

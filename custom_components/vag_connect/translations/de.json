@@ -751,6 +751,10 @@
     "data_act_browser_missing": {
       "title": "EU Data Act Portal: optionales 'playwright'-Paket fehlt",
       "description": "Du hast den Headless-Browser-Fallback für das EU Data Act Portal aktiviert, aber das Python-Paket `playwright` ist im Home Assistant Container nicht installiert.\n\n**Installation:** öffne die HA-Container-Shell (Add-ons → Terminal & SSH, oder `docker exec` für eine manuelle Installation) und führe aus:\n\n```\npip install playwright\nplaywright install chromium\n```\n\nDer Chromium-Download ist groß (ca. 100 MB), deswegen ist diese Abhängigkeit Opt-In statt mit der Integration gebündelt. Nach der Installation Home Assistant neu starten.\n\nAlternative: den Schalter unter Einstellungen → Geräte & Dienste → VW Group Connect → Konfigurieren → 'EU Data Act Portal: Headless-Browser-Fallback' deaktivieren."
+    },
+    "account_locked": {
+      "title": "{brand}-Konto scheint vorübergehend gesperrt zu sein",
+      "description": "Das Marken-Backend hat in den letzten 30 Minuten **3 Lock-Antworten** zurückgegeben (zuletzt HTTP {last_status}). Das bedeutet typischerweise, dass VW dein Marken-Konto nach zu vielen fehlgeschlagenen Token-Refreshes vorübergehend gesperrt hat.\n\nDie Sperre wird normalerweise innerhalb von **wenigen Stunden bis 24 Stunden** aufgehoben. Die Integration hat die Versuche eingestellt, damit das Sperrfenster sich nicht verlängert.\n\n**Während du wartest**:\n\n1. **Nicht** wiederholt in der offiziellen App ein- und ausloggen, das verlängert die Sperre.\n2. Mindestens 1-2 Stunden warten, dann die offizielle Hersteller-App auf dem Handy öffnen. Wenn sich die App sauber einloggt, ist dein Konto wieder entsperrt.\n3. Nach dem Entsperren `scan_interval` in Einstellungen → Geräte & Dienste → VW Group Connect → Konfigurieren auf 15-30 Minuten erhöhen, um zukünftigen Druck zu reduzieren.\n4. Optional: Den read-only EU Data Act Portal-Modus via OptionsFlow aktivieren, um bei zukünftigen Vorfällen weiter Daten zu bekommen.\n\nDiese Warnung verschwindet automatisch beim nächsten erfolgreichen Token-Refresh."
     }
   },
   "services": {

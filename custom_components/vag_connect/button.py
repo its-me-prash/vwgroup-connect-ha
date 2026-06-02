@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Button entities for VAG Connect (flash lights, force refresh, wake)."""
 
 from homeassistant.components.button import ButtonEntity

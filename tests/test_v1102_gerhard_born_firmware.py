@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Tests for v1.10.2 — Gerhard's CUPRA Born Live-Dump (#53, 2026-04-30).
 
 Background: v1.8.9 wired the SEAT/CUPRA OLA parser using Rainer's #109

@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.2.0 Phase 4 PR #15/20 — Lamborghini brand-adapter scaffold.
 
 **BETA — TESTER VALIDATION PENDING.** This PR ships the LamboClient

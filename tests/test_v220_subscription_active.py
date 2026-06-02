@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.2.0 Phase 2 PR #9/20 — subscription_active binary_sensor.
 
 Companion to PR #8/20 ``subscription_expiry_at``. Computes a simple

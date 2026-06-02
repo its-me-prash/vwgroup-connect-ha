@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Tests for v1.17.6 — HomeRegion helper (evcc port).
 
 Scaffolding-only release. The helper is built + tested + documented

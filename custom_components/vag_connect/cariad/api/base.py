@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Base async API client — injected aiohttp session, token management."""
 
 from __future__ import annotations
@@ -36,6 +37,24 @@ _REQUEST_TIMEOUT = 60
 # triggered by integrations refreshing tokens every poll cycle.
 _REFRESH_MAX_PER_HOUR = 3
 _REFRESH_WINDOW_S = 3600
+
+# v2.9.0 - VW account-lock detection. After the 2026-05-31 ecosystem-
+# wide VW Auth chaos, oliverrahner (volkswagencarnet#332) and others
+# reported their underlying brand account getting locked for ~24h
+# after too many failed token-refresh attempts. The lock manifests as
+# HTTP 423 (Locked) or HTTP 403 with a throttling body marker on
+# ``/auth/v1/idk/oidc/token``. Coordinator surfaces a Repair issue
+# once we see ``_LOCK_THRESHOLD`` such responses inside
+# ``_LOCK_WINDOW_S`` so the user understands why polling went silent.
+_LOCK_THRESHOLD = 3
+_LOCK_WINDOW_S = 1800
+_LOCK_BODY_MARKERS: tuple[str, ...] = (
+    "throttle",
+    "rate limit",
+    "too many",
+    "account locked",
+    "temporarily locked",
+)
 
 # v2.5.2 — Silent scout-channel expansion guardrails.
 #   _PROBE_INTERVAL_S    — minimum seconds between probe passes per VIN
@@ -101,6 +120,15 @@ class CariadBaseClient:
         # Pruned to the last `_REFRESH_WINDOW_S` on every refresh attempt.
         # Prevents the spiral documented in myskoda #976 / volkswagencarnet #683.
         self._refresh_history: list[float] = []
+        # v2.9.0 - VW account-lock detection sliding window. Tuples of
+        # (monotonic_seconds, http_status). Coordinator drains via
+        # ``self.account_lock_signal`` to decide whether to raise the
+        # Repair issue. Pruned to ``_LOCK_WINDOW_S`` on every append.
+        self._lock_history: list[tuple[float, int]] = []
+        # Bool the coordinator polls each cycle: True once the lock
+        # threshold has been crossed inside the window. Cleared after
+        # the first successful auth lands.
+        self.account_lock_detected: bool = False
         self._auth = IDKAuth(session, brand)
         # v1.9.0 — Vehicle Data Scout opt-in stash. Brand clients populate
         # this in ``get_status`` so the coordinator can run
@@ -211,6 +239,11 @@ class CariadBaseClient:
             "yes" if self._tokens and self._tokens.refresh_token else "no",
         )
         await self._notify_tokens_changed()
+
+    # v2.9.0 - provenance canary, see ``_canaries.py``. Referenced as
+    # a class attribute so any port of the multi-strategy resolver in
+    # this class carries the marker along into the destination repo.
+    _PROVENANCE_AUTH_RESOLVER = "cariad_resolver_provenance_kw7zq3p1_2026"
 
     async def authenticate(self, mfa_code: str | None = None) -> None:
         """Perform full login and store tokens.
@@ -823,11 +856,63 @@ class CariadBaseClient:
                     # full OAuth login (which counts against quota +
                     # can trigger reauth-storm on transient failures).
                     await self._notify_tokens_changed()
+                    # v2.9.0 - successful refresh clears any prior
+                    # lock signal so the coordinator's Repair issue
+                    # gets dismissed on the next cycle.
+                    self.account_lock_detected = False
+                    self._lock_history.clear()
                     return
                 except TokenExpiredError:
                     pass
+                except APIError as err:
+                    # v2.9.0 - account-lock detection. Record HTTP 423
+                    # or HTTP 403 with throttle-marker bodies; if 3 such
+                    # responses arrive inside the 30-min sliding window,
+                    # flip ``account_lock_detected`` so the coordinator
+                    # surfaces a Repair issue on the next poll.
+                    self._record_lock_signal(err.status, err.body)
+                    raise
             _LOGGER.info("Token refresh failed — re-authenticating for %s", self._brand.name)
             await self.authenticate()
+            # v2.9.0 - a successful full re-auth also clears the lock.
+            self.account_lock_detected = False
+            self._lock_history.clear()
+
+    def _record_lock_signal(self, status: int, body: str) -> None:
+        """v2.9.0 - feed the VW account-lock sliding-window detector.
+
+        Called from ``_refresh_tokens`` whenever an ``APIError`` lands
+        with a status that matches the lock signature (423 unambiguously,
+        or 403 with one of ``_LOCK_BODY_MARKERS`` in the body). After
+        ``_LOCK_THRESHOLD`` such signals inside ``_LOCK_WINDOW_S``,
+        flips ``self.account_lock_detected`` so the coordinator can
+        raise the Repair issue on its next iteration.
+        """
+        is_lock = False
+        if status == 423:
+            is_lock = True
+        elif status == 403 and body:
+            body_l = body.lower()
+            if any(marker in body_l for marker in _LOCK_BODY_MARKERS):
+                is_lock = True
+        if not is_lock:
+            return
+        now = time.monotonic()
+        cutoff = now - _LOCK_WINDOW_S
+        self._lock_history = [(t, s) for (t, s) in self._lock_history if t > cutoff]
+        self._lock_history.append((now, status))
+        if len(self._lock_history) >= _LOCK_THRESHOLD:
+            if not self.account_lock_detected:
+                _LOGGER.warning(
+                    "Brand account appears to be temporarily locked for %s "
+                    "(%d lock-class auth responses in last %ds, last status=%d). "
+                    "Surfacing Repair issue.",
+                    self._brand.name,
+                    len(self._lock_history),
+                    _LOCK_WINDOW_S,
+                    status,
+                )
+            self.account_lock_detected = True
 
     @property
     def _access_token(self) -> str:

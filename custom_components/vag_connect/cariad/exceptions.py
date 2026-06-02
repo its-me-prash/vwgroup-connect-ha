@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Exceptions for the VAG Connect CARIAD API client."""
 
 from __future__ import annotations
@@ -311,3 +312,10 @@ class APIError(CariadError):
         super().__init__(f"API error {status} for {url}: {body[:200]}")
         self.status = status
         self.url = url
+        # v2.9.0 - keep the raw body around so callers can inspect for
+        # backend-specific markers (e.g. account-lock detection in
+        # base.py reads 403 bodies for throttling-marker substrings).
+        # Truncated to 4 KB so a hostile redirect to an HTML error page
+        # cannot blow up memory when we keep the exception in a
+        # sliding-window history.
+        self.body = body[:4096] if isinstance(body, str) else ""

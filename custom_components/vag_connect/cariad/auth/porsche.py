@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Porsche Connect Auth0 authentication.
 
 Auth flow based on CJNE/pyporscheconnectapi (Apache-2.0).

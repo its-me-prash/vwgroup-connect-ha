@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """
 VAG Connect Repair-Flows für Auth-Probleme + Quota-Warnings.
 
@@ -287,6 +288,73 @@ def raise_issue_ola_headers_outdated(
 def clear_ola_headers_issue(hass: HomeAssistant, entry_id: str) -> None:
     """v2.4.1 — Clear the OLA headers repair issue when 403s stop."""
     ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_ola_headers_outdated")
+
+
+# v2.9.0 — VW account-lock detection.
+# The 2026-05-31 ecosystem-wide VW Auth chaos surfaced a new failure
+# mode: when an integration retries auth too aggressively after a
+# failed token exchange, VW (and Audi via the same IDP) temporarily
+# lock the underlying brand account for ~24h. The lock manifests as
+# repeated HTTP 423 (Locked) responses on /auth/v1/idk/oidc/token,
+# sometimes 403 with a body indicating throttling. Multiple competitor
+# integrations had users hit this between 2026-05-31 and 2026-06-02
+# (oliverrahner on volkswagencarnet#332 explicitly reported the lock-
+# and-unlock cycle).
+#
+# Our v1.8.7 token-refresh-storm protection caps refreshes at 3/hour
+# but cannot prevent the lock once VW's threshold is crossed. The
+# detection here closes the loop: when we see 3 lock-class responses
+# in 30 minutes, surface a Repair issue telling the user to (a) wait
+# for the lock to expire, (b) raise scan_interval to reduce future
+# pressure, (c) optionally switch to read-only Data Act portal mode
+# while the lock is active.
+_ACCOUNT_LOCK_THRESHOLD = 3
+_ACCOUNT_LOCK_WINDOW_S = 1800
+
+
+def raise_issue_account_locked(
+    hass: HomeAssistant,
+    entry_id: str,
+    brand: str,
+    last_status: int,
+) -> None:
+    """Surface a VW account-lock detection in HA Repairs.
+
+    Called by the coordinator after ``_ACCOUNT_LOCK_THRESHOLD`` token-
+    refresh attempts inside ``_ACCOUNT_LOCK_WINDOW_S`` have returned
+    HTTP 423 or 403-with-throttle-marker. Idempotent: repeated calls
+    with the same ``issue_id`` refresh in place.
+
+    Args:
+        hass: Home Assistant instance.
+        entry_id: Config entry id (per-entry isolation, two accounts
+            on different entries get two issues).
+        brand: Brand name for the placeholder text. Lower-case.
+        last_status: HTTP status of the most recent locked response,
+            included in the placeholder so the user sees the exact
+            backend signal.
+    """
+    issue_id = f"{entry_id}_account_locked"
+    # is_fixable=False on purpose: there is no integration-side action
+    # that unlocks the account. The user just reads the description,
+    # waits, and the issue auto-clears on the next successful auth.
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        issue_id,
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="account_locked",
+        translation_placeholders={
+            "brand": brand,
+            "last_status": str(last_status),
+        },
+    )
+
+
+def clear_account_locked_issue(hass: HomeAssistant, entry_id: str) -> None:
+    """Clear the account-lock repair issue once a successful auth lands."""
+    ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_account_locked")
 
 
 # v2.8.0 (Action #5) — DAG -> hybrid_full degradation Repair issue.

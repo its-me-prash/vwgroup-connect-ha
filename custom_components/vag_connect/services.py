@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.8.0 quick-win B — `vag_connect.open_app` service.
 
 Opens the brand's native mobile app via a deeplink scheme on the

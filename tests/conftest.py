@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Test-suite root config.
 
 v1.24.1 (2026-05-08 audit): adds the repo root to ``sys.path`` so that

@@ -1,4 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """v2.2.0 — CUPRA Scout-Report #232 (matthias0304, 2026-05-16) wiring.
 
 CUPRA PHEV companion to Skoda Scout #220 (PR #6). OLA ``mycar.engines.

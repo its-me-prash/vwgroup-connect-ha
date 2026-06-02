@@ -1,3 +1,5 @@
+# Copyright 2026 Prash Balan (@its-me-prash) - Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
 """Tests for VagConnectCoordinator — uses full mocks, no real API calls."""
 from __future__ import annotations
 
