@@ -335,18 +335,20 @@ def raise_issue_account_locked(
             backend signal.
     """
     issue_id = f"{entry_id}_account_locked"
+    # is_fixable=False on purpose: there is no integration-side action
+    # that unlocks the account. The user just reads the description,
+    # waits, and the issue auto-clears on the next successful auth.
     ir.async_create_issue(
         hass,
         DOMAIN,
         issue_id,
-        is_fixable=True,
+        is_fixable=False,
         severity=ir.IssueSeverity.WARNING,
         translation_key="account_locked",
         translation_placeholders={
             "brand": brand,
             "last_status": str(last_status),
         },
-        data={"entry_id": entry_id, "brand": brand, "reason": "account_locked"},
     )
 
 

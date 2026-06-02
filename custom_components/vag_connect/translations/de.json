@@ -754,22 +754,7 @@
     },
     "account_locked": {
       "title": "{brand}-Konto scheint vorübergehend gesperrt zu sein",
-      "description": "Das Marken-Backend hat in den letzten 30 Minuten **3 Lock-Antworten** zurückgegeben (zuletzt HTTP {last_status}). Das bedeutet typischerweise, dass VW dein Marken-Konto nach zu vielen fehlgeschlagenen Token-Refreshes vorübergehend gesperrt hat.\n\nDie Sperre wird normalerweise innerhalb von **wenigen Stunden bis 24 Stunden** aufgehoben. Die Integration hat die Versuche eingestellt, damit das Sperrfenster sich nicht verlängert.\n\n**Während du wartest**:\n\n1. **Nicht** wiederholt in der offiziellen App ein- und ausloggen, das verlängert die Sperre.\n2. Mindestens 1-2 Stunden warten, dann die offizielle Hersteller-App auf dem Handy öffnen. Wenn sich die App sauber einloggt, ist dein Konto wieder entsperrt.\n3. Nach dem Entsperren `scan_interval` in Einstellungen → Geräte & Dienste → VW Group Connect → Konfigurieren auf 15-30 Minuten erhöhen, um zukünftigen Druck zu reduzieren.\n4. Optional: Den read-only EU Data Act Portal-Modus via OptionsFlow aktivieren, um bei zukünftigen Vorfällen weiter Daten zu bekommen.\n\nDiese Warnung verschwindet automatisch beim nächsten erfolgreichen Token-Refresh.",
-      "fix_flow": {
-        "step": {
-          "init": {
-            "title": "Account locked - wait for VW to unlock",
-            "description": "There is no integration-side fix. The lock is enforced by VW's backend.\n\nWait for the lock to expire (a few hours up to 24h), then dismiss this issue. The integration will resume polling automatically on the next successful auth.",
-            "menu_options": {
-              "wait": "Acknowledge and wait"
-            }
-          },
-          "wait": {
-            "title": "Acknowledged",
-            "description": "The integration will keep checking. This issue will clear on the next successful auth."
-          }
-        }
-      }
+      "description": "Das Marken-Backend hat in den letzten 30 Minuten **3 Lock-Antworten** zurückgegeben (zuletzt HTTP {last_status}). Das bedeutet typischerweise, dass VW dein Marken-Konto nach zu vielen fehlgeschlagenen Token-Refreshes vorübergehend gesperrt hat.\n\nDie Sperre wird normalerweise innerhalb von **wenigen Stunden bis 24 Stunden** aufgehoben. Die Integration hat die Versuche eingestellt, damit das Sperrfenster sich nicht verlängert.\n\n**Während du wartest**:\n\n1. **Nicht** wiederholt in der offiziellen App ein- und ausloggen, das verlängert die Sperre.\n2. Mindestens 1-2 Stunden warten, dann die offizielle Hersteller-App auf dem Handy öffnen. Wenn sich die App sauber einloggt, ist dein Konto wieder entsperrt.\n3. Nach dem Entsperren `scan_interval` in Einstellungen → Geräte & Dienste → VW Group Connect → Konfigurieren auf 15-30 Minuten erhöhen, um zukünftigen Druck zu reduzieren.\n4. Optional: Den read-only EU Data Act Portal-Modus via OptionsFlow aktivieren, um bei zukünftigen Vorfällen weiter Daten zu bekommen.\n\nDiese Warnung verschwindet automatisch beim nächsten erfolgreichen Token-Refresh."
     }
   },
   "services": {
