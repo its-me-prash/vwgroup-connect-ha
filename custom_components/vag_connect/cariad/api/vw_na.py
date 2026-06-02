@@ -211,7 +211,15 @@ class VWNAClient:
         # ── Vehicle status ────────────────────────────────────────────────────
         if isinstance(vehicle_raw, dict):
             power = v(vehicle_raw, "powerStatus") or {}
-            d.odometer_km = v(power, "odometer")
+            # v2.10.0 (#322) — modern VW NA backend ships odometer as a
+            # root-level ``currentMileage`` field in addition to (or
+            # instead of) the legacy ``powerStatus.odometer`` nested
+            # path. Try both, root-level first since that is what
+            # current firmware sends.
+            d.odometer_km = (
+                v(vehicle_raw, "currentMileage")
+                or v(power, "odometer")
+            )
             d.fuel_level  = v(power, "fuelPercentRemaining")
             d.range_km    = v(power, "cruiseRange")
 
@@ -220,17 +228,36 @@ class VWNAClient:
             d.battery_soc = v(bat, "stateOfChargePercent")
             d.has_battery = d.battery_soc is not None
 
-            # Doors — v2.0.1 (#131 follow-up): defensive parsing.
-            # Only assign safety-critical booleans when the source is
-            # an actual string; otherwise leave the dataclass default
-            # ``None`` so the entity stays "unknown" instead of falsely
-            # reporting "Unlocked"/"Closed" for an actually-locked car.
-            door_status = v(vehicle_raw, "doorStatus") or {}
-            overall_lock = v(door_status, "overallStatus")
+            # v2.10.0 (#322 roberttco — 2023 ID.4 US) — VW NA RVS
+            # response shape migration. Pre-v2.10.0 we read doors and
+            # windows from ``data.doorStatus`` / ``data.windowStatus``
+            # at root, which worked on the 2023-era myVW backend. Newer
+            # firmware (and the parallel zackcornelius VW NA work)
+            # confirms the modern shape is ``data.exteriorStatus.*``.
+            # Try both: root for the legacy install base, exteriorStatus
+            # for current firmware. First non-empty wins.
+            door_status = (
+                v(vehicle_raw, "exteriorStatus", "doorStatus")
+                or v(vehicle_raw, "doorStatus")
+                or {}
+            )
+            overall_lock = (
+                v(vehicle_raw, "exteriorStatus", "doorLockStatus")
+                or v(door_status, "overallStatus")
+            )
             if isinstance(overall_lock, str):
                 d.doors_locked = overall_lock.upper() == "LOCKED"
+            # zackcornelius iterates the doorStatus dict items so
+            # firmware-specific door-id sets work without an enum list.
+            # We keep both: explicit ID list first for the legacy
+            # shape, dict-iteration fallback for the modern one.
             door_keys = ("frontLeftDoor", "frontRightDoor", "rearLeftDoor", "rearRightDoor")
             door_states = [v(door_status, k) for k in door_keys]
+            if not any(isinstance(s, str) for s in door_states) and isinstance(door_status, dict):
+                door_states = [
+                    val for key, val in door_status.items()
+                    if key != "doorStatusTimestamp" and val != "NOTAVAILABLE"
+                ]
             if any(isinstance(s, str) for s in door_states):
                 d.doors_open = any(
                     isinstance(s, str) and s.upper() == "OPEN" for s in door_states
@@ -238,24 +265,55 @@ class VWNAClient:
             trunk = v(door_status, "trunk")
             if isinstance(trunk, str):
                 d.trunk_open = trunk.upper() == "OPEN"
-            hood = v(door_status, "hood")
+            hood = v(door_status, "hood") or v(vehicle_raw, "exteriorStatus", "hood")
             if isinstance(hood, str):
                 d.hood_open = hood.upper() == "OPEN"
 
-            # Windows — v2.0.1 (#131 follow-up): same defensive shape.
-            win = v(vehicle_raw, "windowStatus") or {}
+            # v2.10.0 (#322) — Windows, same root + exteriorStatus
+            # fallback chain.
+            win = (
+                v(vehicle_raw, "exteriorStatus", "windowStatus")
+                or v(vehicle_raw, "windowStatus")
+                or {}
+            )
             window_keys = (
                 "frontLeftWindow", "frontRightWindow",
                 "rearLeftWindow", "rearRightWindow",
             )
             window_states = [v(win, k) for k in window_keys]
+            if not any(isinstance(s, str) for s in window_states) and isinstance(win, dict):
+                window_states = [
+                    val for key, val in win.items()
+                    if not key.endswith("Timestamp") and val != "NOTAVAILABLE"
+                ]
             if any(isinstance(s, str) for s in window_states):
                 d.windows_open = any(
                     isinstance(s, str) and s.upper() == "OPEN" for s in window_states
                 )
 
-            # GPS
-            pos = v(vehicle_raw, "vehicleLocation") or {}
+            # v2.10.0 (#322) — Parking light from exteriorStatus.lightStatus.
+            light_status = v(vehicle_raw, "exteriorStatus", "lightStatus")
+            if isinstance(light_status, dict):
+                # Older firmware reports per-light keys (parkingLight,
+                # leftFrontTurnSignal, ...); roll up to a single "any
+                # external light on" boolean for the parking_light
+                # entity. We pick the parkingLight specifically when
+                # present, otherwise fall through to any non-OFF state.
+                parking_l = light_status.get("parkingLight")
+                if isinstance(parking_l, str):
+                    d.parking_light = parking_l.upper() == "ON"
+            elif isinstance(light_status, str):
+                d.parking_light = light_status.upper() == "ON"
+
+            # GPS — v2.10.0 (#322) — lastParkedLocation fallback for
+            # offline cars. Modern VW NA backend caches the last known
+            # parking GPS under ``data.lastParkedLocation`` even when
+            # the car is OFFLINE and ``vehicleLocation`` is null.
+            pos = (
+                v(vehicle_raw, "vehicleLocation")
+                or v(vehicle_raw, "lastParkedLocation")
+                or {}
+            )
             d.latitude  = v(pos, "latitude")
             d.longitude = v(pos, "longitude")
 
@@ -314,11 +372,44 @@ class VWNAClient:
                 d.charge_complete_eta = datetime.now(tz=timezone.utc) + timedelta(minutes=remaining_min)
 
         # ── Climate ────────────────────────────────────────────────────────────
+        # v2.10.0 (#322 roberttco) — VW NA climate response uses the
+        # ``climateStatusReport`` / ``climateSettings`` naming instead of
+        # the EU-style ``climatisationStatus`` / ``climatisationSettings``
+        # that the pre-v2.10.0 parser looked for. Try the NA naming
+        # first (current backend), fall back to the EU naming for any
+        # legacy install that still ships the older shape.
         if isinstance(climate, dict):
-            d.climatisation_state  = v(climate, "climatisationStatus", "climatisationState")
-            d.climatisation_active = d.climatisation_state not in (None, "OFF")
-            temp_k = safe_float(v(climate, "climatisationSettings", "targetTemperature_K"))
-            d.target_temperature = round(temp_k - 273.15, 1) if temp_k is not None else None
+            d.climatisation_state = (
+                v(climate, "climateStatusReport", "climateState")
+                or v(climate, "climateStatusReport", "state")
+                or v(climate, "climatisationStatus", "climatisationState")
+            )
+            d.climatisation_active = d.climatisation_state not in (None, "OFF", "off")
+            # Settings block: target temperature. NA backend reports
+            # this in either Celsius (modern firmware on ID.4) or
+            # Fahrenheit + Kelvin depending on the user's app preference.
+            settings = (
+                v(climate, "climateSettings")
+                or v(climate, "climatisationSettings")
+                or {}
+            )
+            if isinstance(settings, dict):
+                # Try Celsius first (already converted), then Kelvin (EU
+                # historical), then Fahrenheit (NA user-pref case).
+                temp_c = settings.get("targetTemperatureInCelsius")
+                if isinstance(temp_c, (int, float)):
+                    d.target_temperature = float(temp_c)
+                else:
+                    temp_k_val = settings.get("targetTemperature_K") or settings.get(
+                        "targetTemperatureInKelvin"
+                    )
+                    temp_k = safe_float(temp_k_val) if temp_k_val is not None else None
+                    if temp_k is not None and temp_k > 200:
+                        d.target_temperature = round(temp_k - 273.15, 1)
+                    else:
+                        temp_f = settings.get("targetTemperatureInFahrenheit")
+                        if isinstance(temp_f, (int, float)):
+                            d.target_temperature = round((temp_f - 32) * 5 / 9, 1)
 
         d.is_electric    = d.has_battery and not d.has_combustion
         d.is_hybrid      = d.has_battery and d.has_combustion
