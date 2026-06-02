@@ -811,6 +811,48 @@
           "description": "Optionaler Pfad-Anteil hinter dem Deeplink, damit die Marken-App direkt in den passenden Bereich springt. Standard `open` öffnet die App auf dem Startbildschirm."
         }
       }
+    },
+    "start_climate_control": {
+      "name": "Klimatisierung starten (Rich)",
+      "description": "Startet die Vorklimatisierung mit individuellen Sitzheizungen, Scheibenheizung, Klima-Modus und Verhalten beim Entriegeln. Nur für Audi und VW EU (CARIAD BFF). Andere Marken fallen auf den einfachen Dienst `start_climatisation` zurück. Alle Felder außer `device_id` sind optional - weggelassene Felder behalten die Marken-Voreinstellung.",
+      "fields": {
+        "device_id": {
+          "name": "Fahrzeug",
+          "description": "Fahrzeug, das den Vorklimatisierungs-Befehl erhält."
+        },
+        "temp_c": {
+          "name": "Zieltemperatur (°C)",
+          "description": "Innenraum-Zieltemperatur in Grad Celsius (15 bis 30, Schritt 0.5)."
+        },
+        "glass_heating": {
+          "name": "Scheibenheizung",
+          "description": "Windschutzscheiben- und Heckscheibenheizung zusätzlich zur Innenraum-Vorklimatisierung aktivieren."
+        },
+        "seat_fl": {
+          "name": "Sitzheizung vorne links",
+          "description": "Sitzheizung auf dem Fahrersitz aktivieren."
+        },
+        "seat_fr": {
+          "name": "Sitzheizung vorne rechts",
+          "description": "Sitzheizung auf dem Beifahrersitz aktivieren."
+        },
+        "seat_rl": {
+          "name": "Sitzheizung hinten links",
+          "description": "Sitzheizung auf dem hinteren linken Sitz aktivieren."
+        },
+        "seat_rr": {
+          "name": "Sitzheizung hinten rechts",
+          "description": "Sitzheizung auf dem hinteren rechten Sitz aktivieren."
+        },
+        "climatisation_at_unlock": {
+          "name": "Klima nach Entriegeln weiterführen",
+          "description": "Vorklimatisierung nach dem Entriegeln des Fahrzeugs weiterlaufen lassen."
+        },
+        "climatisation_mode": {
+          "name": "Klima-Modus",
+          "description": "Comfort (volle Leistung) oder economy (reduzierte Leistung, längere Laufzeit)."
+        }
+      }
     }
   },
   "exceptions": {

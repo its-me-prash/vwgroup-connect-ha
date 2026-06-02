@@ -887,6 +887,48 @@
           "description": "Optional path segment appended to the deeplink so the brand app routes directly to a section. Default `open` opens the app to its home screen."
         }
       }
+    },
+    "start_climate_control": {
+      "name": "Start Climate Control (Rich)",
+      "description": "Start pre-conditioning with individual seat heaters, glass heating, climate mode and at-unlock behaviour. Only applies to Audi and VW EU (CARIAD BFF). Other brands fall through to the basic `start_climatisation` service. All payload fields except `device_id` are optional - omitted fields keep the brand default.",
+      "fields": {
+        "device_id": {
+          "name": "Vehicle",
+          "description": "Vehicle that receives the pre-conditioning command."
+        },
+        "temp_c": {
+          "name": "Target temperature (C)",
+          "description": "Cabin target temperature in degrees Celsius (15 to 30, step 0.5)."
+        },
+        "glass_heating": {
+          "name": "Glass heating",
+          "description": "Enable windscreen and rear-window heating alongside the cabin pre-conditioning."
+        },
+        "seat_fl": {
+          "name": "Front-left seat heating",
+          "description": "Enable seat heating on the front-left seat."
+        },
+        "seat_fr": {
+          "name": "Front-right seat heating",
+          "description": "Enable seat heating on the front-right seat."
+        },
+        "seat_rl": {
+          "name": "Rear-left seat heating",
+          "description": "Enable seat heating on the rear-left seat."
+        },
+        "seat_rr": {
+          "name": "Rear-right seat heating",
+          "description": "Enable seat heating on the rear-right seat."
+        },
+        "climatisation_at_unlock": {
+          "name": "Continue climate when unlocked",
+          "description": "Keep pre-conditioning running after the vehicle is unlocked."
+        },
+        "climatisation_mode": {
+          "name": "Climatisation mode",
+          "description": "Comfort (full power) or economy (reduced power, longer runtime)."
+        }
+      }
     }
   },
   "exceptions": {
