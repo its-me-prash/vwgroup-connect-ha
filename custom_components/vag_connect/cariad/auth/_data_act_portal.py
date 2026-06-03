@@ -400,19 +400,54 @@ class DataActPortalAuth:
                 # on 4xx, follow the resulting redirect chain.
                 from urllib.parse import urlparse as _urlparse  # noqa: PLC0415
 
-                # Pull the Auth0 state from the password-page URL first
-                # (most reliable post-identifier), then fall back to the
-                # original landing URL we captured earlier.
+                # v2.10.7 (Arno-MA-73 trace) - state extraction order
+                # mirrors idk.py: HTML hidden input first (most reliable
+                # on SPA pages where aiohttp's redirect-following strips
+                # the state from the final response URL), then the URL
+                # query string of the password-page / landing-page as
+                # fallback. Auth0 SPA always embeds the state as
+                # ``<input type="hidden" name="state" value="...">`` in
+                # the page HTML even when the SPA itself owns rendering.
                 state_from_url = ""
-                for src in (identifier_url, landing_url):
-                    qs = parse_qs(_urlparse(src).query)
-                    if qs.get("state"):
-                        state_from_url = qs["state"][0]
+                # Try HTML extraction on both the password page (most
+                # recent) AND the original landing page.
+                for src_html in (password_html, landing_html):
+                    if not src_html:
+                        continue
+                    p = _IdentifierFormParser()
+                    p.feed(src_html)
+                    if p.fields.get("state"):
+                        state_from_url = p.fields["state"]
                         break
+                    # Regex fallback for hidden input with state
+                    state_m = re.search(
+                        r'<input[^>]+name=["\']state["\'][^>]+'
+                        r'value=["\']([^"\']+)["\']',
+                        src_html, re.IGNORECASE,
+                    )
+                    if state_m:
+                        state_from_url = state_m.group(1)
+                        break
+                    # JS / JSON embed fallback
+                    state_m = re.search(
+                        r'"state"\s*:\s*"([A-Za-z0-9_\-]{8,})"', src_html
+                    )
+                    if state_m:
+                        state_from_url = state_m.group(1)
+                        break
+                if not state_from_url:
+                    # Last resort: URL query strings.
+                    for src in (identifier_url, landing_url):
+                        qs = parse_qs(_urlparse(src).query)
+                        if qs.get("state"):
+                            state_from_url = qs["state"][0]
+                            break
                 if not state_from_url:
                     raise AuthenticationError(
                         "Data Act portal: SPA password page reached but "
-                        "no Auth0 state parameter in URL - cannot continue"
+                        "no Auth0 state token found (checked HTML hidden "
+                        "input, JS JSON embed, password-page URL and "
+                        "landing URL). IDP markup may have changed."
                     )
                 from urllib.parse import quote as _quote  # noqa: PLC0415
                 spa_post_url = (
