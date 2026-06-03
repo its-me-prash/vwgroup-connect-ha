@@ -390,58 +390,111 @@ class DataActPortalAuth:
                 and "<form" not in html_lower
             )
             if is_spa_password_page:
-                # v2.10.3 (#388 caraar12345) — actually complete the SPA-
-                # rendered password page on the portal flow. The portal
-                # client_id passes the Azure WAF where the standard VW
-                # Android client_id is blocked, so this is the one path
-                # we can actually walk for read-only fallback. Mirror
-                # the SPA POST shape from idk.py: form-encoded body to
-                # the same /u/login?state=... URL with action=default,
-                # follow the redirect chain to the portal callback.
+                # v2.10.6 (#388 xeonixo + Arno-MA-73) — v2.10.3 SPA POST
+                # to the parsed email form's action URL returned HTTP 405
+                # for VW EU users. Auth0 Universal Login routes the SPA
+                # password submission through the SAME /u/login?state=<x>
+                # URL as the identifier step; differentiation happens via
+                # the body's `action` field. Mirror idk.py's SPA fallback
+                # exactly: form-encoded first, JSON content-type fallback
+                # on 4xx, follow the resulting redirect chain.
                 from urllib.parse import urlparse as _urlparse  # noqa: PLC0415
+
+                # Pull the Auth0 state from the password-page URL first
+                # (most reliable post-identifier), then fall back to the
+                # original landing URL we captured earlier.
                 state_from_url = ""
-                identifier_qs = parse_qs(_urlparse(identifier_url).query)
-                if identifier_qs.get("state"):
-                    state_from_url = identifier_qs["state"][0]
+                for src in (identifier_url, landing_url):
+                    qs = parse_qs(_urlparse(src).query)
+                    if qs.get("state"):
+                        state_from_url = qs["state"][0]
+                        break
+                if not state_from_url:
+                    raise AuthenticationError(
+                        "Data Act portal: SPA password page reached but "
+                        "no Auth0 state parameter in URL - cannot continue"
+                    )
+                from urllib.parse import quote as _quote  # noqa: PLC0415
+                spa_post_url = (
+                    f"https://identity.vwgroup.io/u/login?state="
+                    f"{_quote(state_from_url, safe='')}"
+                )
                 spa_form = {
                     "username": email,
                     "password": password,
                     "action": "default",
+                    "state": state_from_url,
                 }
-                if state_from_url:
-                    spa_form["state"] = state_from_url
+                spa_headers_form = {
+                    "Accept": (
+                        "text/html,application/xhtml+xml,"
+                        "application/xml;q=0.9,*/*;q=0.8"
+                    ),
+                    "Content-Type": "application/x-www-form-urlencoded",
+                }
+                spa_headers_json = {
+                    "Accept": "application/json, text/html",
+                    "Content-Type": "application/json",
+                }
+                callback_url = ""
+                spa_attempt_status = 0
+                # Try form-encoded first (legacy variant that idk.py
+                # found still works for some VW Auth0 deployments).
                 try:
                     async with self._session.post(
-                        identifier_url,
+                        spa_post_url,
                         data=spa_form,
                         timeout=ClientTimeout(
                             total=_PORTAL_REQUEST_TIMEOUT_S
                         ),
                         allow_redirects=True,
-                        headers={
-                            "Accept": (
-                                "text/html,application/xhtml+xml,"
-                                "application/xml;q=0.9,*/*;q=0.8"
-                            ),
-                        },
+                        headers=spa_headers_form,
                     ) as resp:
-                        callback_url = str(resp.url)
-                        if resp.status not in (200, 302):
-                            raise AuthenticationError(
-                                "Data Act portal: SPA password POST "
-                                f"HTTP {resp.status}"
-                            )
-                except AuthenticationError:
-                    raise
+                        spa_attempt_status = resp.status
+                        if resp.status in (200, 302, 303):
+                            callback_url = str(resp.url)
                 except Exception as exc:  # noqa: BLE001
+                    _LOGGER.debug(
+                        "Data Act portal SPA POST (form) failed: %s", exc
+                    )
+                # JSON fallback for SPA-only Auth0 deployments
+                # (matches the idk.py order). Triggered when the form
+                # attempt produced 4xx OR landed back on the identity
+                # host instead of the portal callback.
+                needs_json = (
+                    not callback_url
+                    or "drivesomethinggreater.com" not in callback_url
+                )
+                if needs_json:
+                    try:
+                        async with self._session.post(
+                            spa_post_url,
+                            json=spa_form,
+                            timeout=ClientTimeout(
+                                total=_PORTAL_REQUEST_TIMEOUT_S
+                            ),
+                            allow_redirects=True,
+                            headers=spa_headers_json,
+                        ) as resp:
+                            spa_attempt_status = resp.status
+                            if resp.status in (200, 302, 303):
+                                callback_url = str(resp.url)
+                    except Exception as exc:  # noqa: BLE001
+                        _LOGGER.debug(
+                            "Data Act portal SPA POST (json) failed: %s",
+                            exc,
+                        )
+                if not callback_url or (
+                    "drivesomethinggreater.com" not in callback_url
+                ):
                     raise AuthenticationError(
-                        f"Data Act portal: SPA password POST failed ({exc})"
-                    ) from exc
-                # Jump ahead to step 4 (callback validation + token
-                # exchange). Reuse the existing logic by returning a
-                # synthetic password-action URL; the caller below
-                # already runs the callback parsing + token POST chain.
-                # Skip the static-form password POST by branching here.
+                        "Data Act portal: SPA password POST did not "
+                        "complete (last status="
+                        f"{spa_attempt_status}). Both form-encoded and "
+                        "JSON variants were tried; the portal IDP may "
+                        "need an SPA-computed parameter (CAPTCHA, "
+                        "bot-detection token) we cannot replicate."
+                    )
                 return await self._complete_after_callback(
                     callback_url=callback_url,
                     pkce_verifier=pkce_verifier,
