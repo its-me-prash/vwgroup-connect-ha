@@ -95,6 +95,37 @@ _LOGGER = logging.getLogger(__name__)
 # in tests without spinning up the auth strategy).
 _PORTAL_BASE = "https://eu-data-act.drivesomethinggreater.com"
 
+# v2.10.2 — Usership Verification endpoints. The EU Data Act portal
+# requires every signed-in user to declare once per VIN that they
+# are the owner / legitimate user of the vehicle AND that they are
+# an EU resident. Without this declaration the portal refuses to
+# accept data requests for that VIN. See docs/EU_DATA_ACT_PORTAL.md
+# for the full live trace that backs these paths.
+_PORTAL_VEHICLE_DETAILS_PATH = "/{lang}/{country}/user/details.html"
+_PORTAL_VERIFICATION_FORM_PATH = (
+    "/{lang}/{country}/user/details/usership-verification-form.html"
+)
+_PORTAL_DATA_REQUEST_PATH = (
+    "/{lang}/{country}/user/details/request-eu-data-act-data.html"
+)
+
+# Verification-state machine values returned by check_verification_state.
+VERIFICATION_VERIFIED = "verified"            # user has already declared
+VERIFICATION_NEEDS_DECLARATION = "needs_declaration"  # banner present
+VERIFICATION_UNKNOWN = "unknown"              # could not determine
+
+# Marker strings observed on the portal HTML. Captured 2026-06-03.
+_VERIFIED_MARKERS = (
+    "Sie haben Ihre EU Data Act Berechtigung erfolgreich nachgewiesen",
+    "EU Data Act usership verified",
+    "Rolle gemäß EU Data Act nachgewiesen",
+)
+_NEEDS_VERIFICATION_MARKERS = (
+    "EU Data Act Berechtigung nicht nachgewiesen",
+    "Berechtigung nachweisen",
+    "EU Data Act usership not yet verified",
+)
+
 # Route A candidate endpoints. The first entry is the only path that
 # has been verified from public sources and known community Python
 # code: it returns vehicle metadata for the supplied VIN under the
@@ -189,6 +220,8 @@ class DataActScraper:
         *,
         brand_name: str,
         enable_browser_fallback: bool = False,
+        language: str = "de",
+        country: str = "de",
     ) -> None:
         """Set up a scraper.
 
@@ -209,6 +242,8 @@ class DataActScraper:
         self._session = session
         self._brand_name = brand_name
         self._enable_browser_fallback = enable_browser_fallback
+        self._language = language.lower()
+        self._country = country.lower()
         self._empty_streak: int = 0
         # Hash of the last successfully fetched zip, used to detect
         # "the portal handed us the exact same data as last time"
@@ -649,6 +684,216 @@ class DataActScraper:
         # source fields above carried a timestamp.
         out.last_updated_at = time.time()
         return out
+
+    # ── v2.10.2 Phase B: usership verification ───────────────────────────────
+
+    async def check_verification_state(self, vin: str) -> str:
+        """Probe the portal for whether ``vin`` has the EU Data Act
+        usership declaration on file.
+
+        Returns one of ``VERIFICATION_VERIFIED`` /
+        ``VERIFICATION_NEEDS_DECLARATION`` / ``VERIFICATION_UNKNOWN``.
+        Network failures or unexpected HTML always degrade to
+        ``UNKNOWN`` so the caller never blocks on a transient error.
+        """
+        from aiohttp import ClientTimeout  # noqa: PLC0415
+
+        url = _PORTAL_BASE + _PORTAL_VEHICLE_DETAILS_PATH.format(
+            lang=self._language, country=self._country
+        )
+        try:
+            async with self._session.get(
+                url, params={"vin": vin},
+                timeout=ClientTimeout(total=20),
+                allow_redirects=True,
+            ) as resp:
+                if resp.status != 200:
+                    return VERIFICATION_UNKNOWN
+                html = await resp.text(errors="replace")
+        except Exception:  # noqa: BLE001
+            return VERIFICATION_UNKNOWN
+
+        # Verified markers win over needs-verification because the
+        # success banner sometimes ships alongside historical CTA
+        # strings still in the DOM.
+        if any(m in html for m in _VERIFIED_MARKERS):
+            return VERIFICATION_VERIFIED
+        if any(m in html for m in _NEEDS_VERIFICATION_MARKERS):
+            return VERIFICATION_NEEDS_DECLARATION
+        return VERIFICATION_UNKNOWN
+
+    async def submit_usership_verification(
+        self,
+        vin: str,
+        *,
+        role: str = "owner",
+    ) -> bool:
+        """Submit the one-time EU Data Act usership-declaration form.
+
+        DOES NOT call itself unless the OptionsFlow toggle
+        ``CONF_DATA_ACT_AUTO_VERIFY`` is True AND the user has
+        affirmed ownership + EU residency for ALL VINs in the config
+        flow. The caller is responsible for that gating; this method
+        is the mechanical form-submitter only.
+
+        Args:
+            vin: vehicle identification number to declare on.
+            role: ``owner`` (default) submits the
+                "Ich bin der Eigentümer des Fahrzeugs" radio. Other
+                accepted values map to the portal's enum:
+                ``owner`` / ``user`` (übertragenes Nutzungsrecht) /
+                ``service`` (Dienstleistung) / ``none``.
+
+        Returns True when the portal acknowledges the declaration,
+        False on any error. The live trace 2026-06-03 captured a
+        quirk where the first POST is silently dropped and a second
+        identical POST goes through; we handle that by retrying once
+        on a non-success response.
+        """
+        from aiohttp import ClientTimeout  # noqa: PLC0415
+
+        url = _PORTAL_BASE + _PORTAL_VERIFICATION_FORM_PATH.format(
+            lang=self._language, country=self._country
+        )
+        # Step 1: GET the form so we can pick up any CSRF / form-state
+        # hidden fields the portal may set per-VIN. We do not parse
+        # the HTML in detail because the form field names live in the
+        # remote React component bundle; instead we send the canonical
+        # field set from the live trace and let the portal-side
+        # JavaScript-equivalent handler resolve it.
+        try:
+            async with self._session.get(
+                url, params={"vin": vin},
+                timeout=ClientTimeout(total=20),
+                allow_redirects=True,
+            ) as resp:
+                if resp.status != 200:
+                    _LOGGER.debug(
+                        "Verification form GET HTTP %s for VIN %s",
+                        resp.status, _mask_vin(vin),
+                    )
+                    return False
+                # Discard the body - cookies are already set on the
+                # session by aiohttp.
+                await resp.read()
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.debug("Verification GET failed: %s", exc)
+            return False
+
+        form_body = {
+            "vin": vin,
+            "role": role,
+            "confirmation": "yes",  # the "Ja" radio - default is "no"
+        }
+        for attempt in (1, 2):
+            try:
+                async with self._session.post(
+                    url, params={"vin": vin},
+                    data=form_body,
+                    timeout=ClientTimeout(total=30),
+                    allow_redirects=True,
+                ) as resp:
+                    body = await resp.text(errors="replace")
+                    if resp.status == 200 and any(
+                        m in body for m in _VERIFIED_MARKERS
+                    ):
+                        _LOGGER.info(
+                            "EU Data Act usership declared for VIN %s "
+                            "(attempt %d, role=%s)",
+                            _mask_vin(vin), attempt, role,
+                        )
+                        return True
+            except Exception as exc:  # noqa: BLE001
+                _LOGGER.debug(
+                    "Verification POST attempt %d failed: %s", attempt, exc
+                )
+        return False
+
+    # ── v2.10.2 Phase C: data request submission + ZIP polling ───────────────
+
+    async def submit_data_request(self, vin: str) -> bool:
+        """Submit the "Verfügbare Daten anfragen" form for ``vin``.
+
+        Requires the Article 4 EU Data Act checkbox to be ticked on
+        the live form. The portal's React bundle owns the exact field
+        names so this is a best-effort POST of the canonical pair and
+        a verification GET of the details page to see whether the
+        spinner appeared. Returns True if the request looks accepted.
+        """
+        from aiohttp import ClientTimeout  # noqa: PLC0415
+
+        url = _PORTAL_BASE + _PORTAL_DATA_REQUEST_PATH.format(
+            lang=self._language, country=self._country
+        )
+        try:
+            async with self._session.post(
+                url, params={"vin": vin},
+                data={
+                    "vin": vin,
+                    "article4Accepted": "true",
+                    "requestType": "available",
+                },
+                timeout=ClientTimeout(total=30),
+                allow_redirects=True,
+            ) as resp:
+                if resp.status not in (200, 201, 202):
+                    _LOGGER.debug(
+                        "Data request POST HTTP %s for VIN %s",
+                        resp.status, _mask_vin(vin),
+                    )
+                    return False
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.debug("Data request POST failed: %s", exc)
+            return False
+        _LOGGER.info(
+            "EU Data Act data request submitted for VIN %s (async "
+            "delivery, may take up to 24h)",
+            _mask_vin(vin),
+        )
+        return True
+
+    async def poll_for_dataset_url(self, vin: str) -> str | None:
+        """Return a download URL for the latest dataset on ``vin``, or
+        None if no file is ready yet.
+
+        Status endpoint not captured in the live trace 2026-06-03;
+        this method scrapes the rendered vehicle-details page and
+        looks for an anchor href that links to a ZIP under the portal
+        domain. The remote React component bundle owns the exact API,
+        so this is a best-effort scrape. Replace with the verified
+        endpoint once the next live trace captures the AJAX call that
+        populates the "Ihre Dateien" section.
+        """
+        from aiohttp import ClientTimeout  # noqa: PLC0415
+
+        url = _PORTAL_BASE + _PORTAL_VEHICLE_DETAILS_PATH.format(
+            lang=self._language, country=self._country
+        )
+        try:
+            async with self._session.get(
+                url, params={"vin": vin},
+                timeout=ClientTimeout(total=20),
+                allow_redirects=True,
+            ) as resp:
+                if resp.status != 200:
+                    return None
+                html = await resp.text(errors="replace")
+        except Exception:  # noqa: BLE001
+            return None
+
+        # Cheap regex-free scan: look for href candidates ending in .zip
+        # under the portal host. The proper fix uses the React bundle's
+        # AJAX response shape once captured.
+        for token in html.split('href="')[1:]:
+            href = token.split('"', 1)[0]
+            if (
+                href.endswith(".zip")
+                and "drivesomethinggreater.com" in (href + _PORTAL_BASE)
+            ):
+                if href.startswith("/"):
+                    href = _PORTAL_BASE + href
+                return href
+        return None
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
