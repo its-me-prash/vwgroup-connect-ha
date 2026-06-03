@@ -143,7 +143,8 @@
           "enable_push_fcm": "CUPRA/SEAT push updates (FCM, EXPERIMENTAL)",
           "enable_push_audi_vw": "Audi/VW push updates (Cariad FCM, EXPERIMENTAL)",
           "wake_before_poll": "Active vehicle wake-up before status poll",
-          "wake_delay_seconds": "Wake delay (seconds)"
+          "wake_delay_seconds": "Wake delay (seconds)",
+          "client_id_override": "OAuth client_id override (power users)"
         },
         "data_description": {
           "scan_interval": "Frecuencia de actualización (minutos). Mínimo: 3.",
@@ -155,7 +156,8 @@
           "enable_push_fcm": "EXPERIMENTAL: CUPRA/SEAT only. Enables real-time Firebase Cloud Messaging push from OLA backend (requires firebase-messaging Python package — same lazy-import as v1.18.0 Skoda MQTT toggle). Foundation phase in v1.19.0; live activation pending community-tester validation. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling.",
           "enable_push_audi_vw": "EXPERIMENTAL: Audi/VW only. Enables real-time push notifications from Cariad FCM channel (same one myAudi/WeConnect mobile apps use — covers lock/unlock results, charging-state, climate, alarm). Requires firebase-messaging Python package (same as Skoda MQTT + CUPRA/SEAT FCM). Foundation phase in v1.23.0; live activation pending community-tester validation. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling.",
           "wake_before_poll": "When enabled, the integration sends a wake POST to the vehicle before fetching status for any VIN that was OFFLINE on the previous poll. The car receives a server-side wake-up and pushes fresh data, then the integration waits the wake delay before the status read. Closes the 'all sensors unknown for parked cars' gap but costs one extra API call per offline VIN per poll cycle. Off by default. Reload the integration after toggling.",
-          "wake_delay_seconds": "Seconds to wait between the wake-up POST and the status fetch. The default of 15 seconds is what most brand backends need to ingest the wake-induced data push. Lower values risk reading stale data; higher values stretch the poll cycle without further benefit."
+          "wake_delay_seconds": "Seconds to wait between the wake-up POST and the status fetch. The default of 15 seconds is what most brand backends need to ingest the wake-induced data push. Lower values risk reading stale data; higher values stretch the poll cycle without further benefit.",
+          "client_id_override": "Power-user escape hatch for when the community spots a fresh OAuth client_id in a new VW Group APK before our daily atlas builder catches it. Paste the full UUID@apps_vw-dilab_com string here and the resolver tries it FIRST on every authenticate, with all the existing client_ids still in the chain as fallback. Leave empty for default behaviour. Format: 8-4-4-4-12 hex digits followed by @apps_vw-dilab_com. Malformed values are silently ignored."
         }
       }
     }

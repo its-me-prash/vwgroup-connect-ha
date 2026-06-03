@@ -40,6 +40,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [2.10.4] - 2026-06-03
+
+Two power-user tools for keeping the auth chain alive when VW rotates client_ids.
+
+### Added
+
+- **APK watcher: auto-issue on new OAuth client_id**. The daily atlas builder already polled VW Group APKs and extracted client_ids; now there is a diff step that compares the latest extraction against everything wired into source. When a brand-new id appears, a labeled issue gets opened so the maintainer (or anyone) can promote it into the alternates list without waiting for someone to notice manually.
+- **OAuth client_id override in OptionsFlow** (power-user). When the community spots a fresh client_id in a new APK before the daily watcher catches it, paste the full `UUID@apps_vw-dilab_com` into the new field and the resolver tries it first. All existing fallbacks stay in the chain. Empty / malformed values are silently ignored.
+
 ## [2.10.3] - 2026-06-03
 
 VW EU users finally get a working read-only path again.

@@ -112,6 +112,18 @@ CONF_WAKE_BEFORE_POLL         = "wake_before_poll"
 CONF_WAKE_DELAY_SECONDS       = "wake_delay_seconds"
 DEFAULT_WAKE_DELAY_SECONDS    = 15
 
+# v2.10.4 - User-supplied OAuth client_id override. Lets a user paste
+# a freshly extracted client_id (e.g. from a new APK the community
+# captured before our daily atlas builder picked it up, or a beta
+# build) without waiting for a release. When set, the AuthConfigResolver
+# prepends this value to the top of the oauth_client_id_chain so it
+# is tried FIRST. The existing chain (APK-discovered + hardcoded
+# alternates + hardcoded canonical) stays in place as fallback. Empty
+# string / unset = no override, resolver behaves as before. Format
+# must match the canonical "UUID@apps_vw-dilab_com" shape; resolver
+# validates and silently drops anything malformed.
+CONF_CLIENT_ID_OVERRIDE       = "client_id_override"
+
 # Supported brands — must match CariadClientFactory.create() keys
 BRANDS = {
     "audi":           "Audi (myAudi)",

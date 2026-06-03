@@ -73,6 +73,34 @@ jobs:
           fi
           python scripts/app_atlas/build_atlas.py --with-apk-extraction $FORCE_FLAG
 
+      - name: Diff client_ids vs source (v2.10.4 watcher)
+        id: client_id_diff
+        run: |
+          python scripts/app_atlas/diff_known_client_ids.py
+          if [ -f .app-atlas-apk-cache/new-client-ids-found.md ]; then
+            echo "new_ids=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "new_ids=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open issue for new client_ids
+        if: steps.client_id_diff.outputs.new_ids == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          DATE=$(date -u +%Y-%m-%d)
+          # De-dupe against an already-open issue from a previous run.
+          EXISTING=$(gh issue list --state open --label apk-watcher --search 'in:title "new OAuth client_id"' --json number --jq '.[0].number')
+          if [ -n "$EXISTING" ]; then
+            echo "Issue #$EXISTING already tracks new client_ids - adding comment."
+            gh issue comment "$EXISTING" --body-file .app-atlas-apk-cache/new-client-ids-found.md
+          else
+            gh issue create \
+              --title "apk-watcher: new OAuth client_id detected (${DATE})" \
+              --label apk-watcher \
+              --body-file .app-atlas-apk-cache/new-client-ids-found.md
+          fi
+
       - name: Detect changes
         id: changes
         run: |
