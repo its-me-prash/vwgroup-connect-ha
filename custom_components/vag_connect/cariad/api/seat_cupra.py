@@ -1833,6 +1833,19 @@ class SeatCupraClient(CariadBaseClient):
             d.media_exterior_color = img.exterior_color
 
         # ── Drivetrain ───────────────────────────────────────────────────────
+        # v2.10.8 (#392 heidle78 CUPRA Formentor PHEV diag): some firmware
+        # versions ship the engines.primary block with a combustion fuelType
+        # (gasoline / diesel) but DO NOT populate a combustion range in the
+        # `ranges` block. The pre-v2.10.8 logic derived `has_combustion`
+        # purely from the ranges block, so a Formentor PHEV with primary
+        # gasoline + no combustion range came out classified is_hybrid=False,
+        # has_combustion=False, which then suppressed fuel-tank / combustion
+        # sensors downstream. Treat a non-electric primary_engine_type as
+        # combustion regardless of whether the range field happens to
+        # carry data on this particular response.
+        pet = (d.primary_engine_type or "").lower()
+        if pet and pet not in ("electric", "ev", "bev"):
+            d.has_combustion = True
         d.is_electric = d.has_battery and not d.has_combustion
         d.is_hybrid = d.has_battery and d.has_combustion
 
