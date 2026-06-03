@@ -40,6 +40,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [2.10.3] - 2026-06-03
+
+VW EU users finally get a working read-only path again.
+
+### Fixed
+
+- **Data Act portal SPA password completion** (#388 caraar12345's trace). When the portal's password page is SPA-rendered, v2.10.2 detected it but bailed out telling the user the fallback in idk.py was the route - except that route is for the BFF client, not the portal client, so users on VW EU had nowhere to land. The Data Act portal flow now finishes the SPA-rendered password page itself with a form-encoded POST that includes `action=default` and the state lifted out of the page URL, then runs the standard token exchange. The portal client_id passes the Azure WAF where the main VW Android client_id is blocked, so this is the one path most affected VW EU users can actually use for read-only data.
+
 ## [2.10.2] - 2026-06-03
 
 EU Data Act portal flow rebuilt against a verified live trace.

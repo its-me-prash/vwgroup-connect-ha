@@ -390,11 +390,61 @@ class DataActPortalAuth:
                 and "<form" not in html_lower
             )
             if is_spa_password_page:
-                raise AuthenticationError(
-                    "Data Act portal: password page is SPA-rendered (no "
-                    "static form). The static-form-scraping path cannot "
-                    "complete; the JSON SPA fallback in idk.py is the "
-                    "supported route. See issue #388."
+                # v2.10.3 (#388 caraar12345) — actually complete the SPA-
+                # rendered password page on the portal flow. The portal
+                # client_id passes the Azure WAF where the standard VW
+                # Android client_id is blocked, so this is the one path
+                # we can actually walk for read-only fallback. Mirror
+                # the SPA POST shape from idk.py: form-encoded body to
+                # the same /u/login?state=... URL with action=default,
+                # follow the redirect chain to the portal callback.
+                from urllib.parse import urlparse as _urlparse  # noqa: PLC0415
+                state_from_url = ""
+                identifier_qs = parse_qs(_urlparse(identifier_url).query)
+                if identifier_qs.get("state"):
+                    state_from_url = identifier_qs["state"][0]
+                spa_form = {
+                    "username": email,
+                    "password": password,
+                    "action": "default",
+                }
+                if state_from_url:
+                    spa_form["state"] = state_from_url
+                try:
+                    async with self._session.post(
+                        identifier_url,
+                        data=spa_form,
+                        timeout=ClientTimeout(
+                            total=_PORTAL_REQUEST_TIMEOUT_S
+                        ),
+                        allow_redirects=True,
+                        headers={
+                            "Accept": (
+                                "text/html,application/xhtml+xml,"
+                                "application/xml;q=0.9,*/*;q=0.8"
+                            ),
+                        },
+                    ) as resp:
+                        callback_url = str(resp.url)
+                        if resp.status not in (200, 302):
+                            raise AuthenticationError(
+                                "Data Act portal: SPA password POST "
+                                f"HTTP {resp.status}"
+                            )
+                except AuthenticationError:
+                    raise
+                except Exception as exc:  # noqa: BLE001
+                    raise AuthenticationError(
+                        f"Data Act portal: SPA password POST failed ({exc})"
+                    ) from exc
+                # Jump ahead to step 4 (callback validation + token
+                # exchange). Reuse the existing logic by returning a
+                # synthetic password-action URL; the caller below
+                # already runs the callback parsing + token POST chain.
+                # Skip the static-form password POST by branching here.
+                return await self._complete_after_callback(
+                    callback_url=callback_url,
+                    pkce_verifier=pkce_verifier,
                 )
 
             # v2.7.3 — when the password form is missing, the most common
@@ -456,20 +506,48 @@ class DataActPortalAuth:
                 f"Data Act portal: password POST failed ({exc})"
             ) from exc
 
-        # Step 4 — verify we landed on the portal host and extract the
-        # authorization code from the callback URL. v2.10.2: portal
-        # uses plain code flow, so the callback ends on
-        # ``.../login?code=...&state=...`` instead of returning tokens
-        # in the fragment. The token exchange happens in step 5.
+        # Step 4 + 5 — callback parsing + token exchange. Factored into
+        # a helper so the v2.10.3 SPA-password path can short-circuit
+        # to the same completion logic without duplicating code.
+        return await self._complete_after_callback(
+            callback_url=callback_url,
+            pkce_verifier=pkce_verifier,
+        )
+
+    async def _complete_after_callback(
+        self,
+        *,
+        callback_url: str,
+        pkce_verifier: str,
+    ) -> TokenSet:
+        """Validate callback URL, extract code, exchange for tokens.
+
+        Shared between the static-form password-POST path and the
+        v2.10.3 SPA-password-POST path. Both land on the same
+        ``{portal}/login?code=...&state=...`` callback shape so the
+        downstream work is identical.
+
+        Raises:
+            AuthenticationError on any validation or HTTP failure.
+        """
+        from aiohttp import ClientTimeout  # noqa: PLC0415
+
         parsed = urlparse(callback_url)
         host_ok = parsed.netloc.endswith("drivesomethinggreater.com")
-        if not host_ok or "signin-service" in callback_url or "/error" in callback_url:
+        if (
+            not host_ok
+            or "signin-service" in callback_url
+            or "/error" in callback_url
+        ):
             raise AuthenticationError(
                 f"Data Act portal: login did not land on portal host "
                 f"(final URL: {callback_url[:120]})"
             )
 
-        all_params = {**parse_qs(parsed.query), **parse_qs(parsed.fragment)}
+        all_params = {
+            **parse_qs(parsed.query),
+            **parse_qs(parsed.fragment),
+        }
         auth_code = (all_params.get("code") or [""])[0]
         if not auth_code:
             # Belt-and-braces: some IDP variants still deliver in the
@@ -495,7 +573,6 @@ class DataActPortalAuth:
                 "code — IDP may have changed the redirect parameters"
             )
 
-        # Step 5 — exchange the code for tokens at the IDP token endpoint.
         token_body = {
             "grant_type": "authorization_code",
             "code": auth_code,
@@ -524,8 +601,9 @@ class DataActPortalAuth:
                     err = token_json.get("error", "")
                     err_desc = token_json.get("error_description", "")
                     raise AuthenticationError(
-                        f"Data Act portal: token exchange HTTP {token_status} "
-                        f"(error={err!r} desc={err_desc[:120]!r})"
+                        f"Data Act portal: token exchange HTTP "
+                        f"{token_status} (error={err!r} "
+                        f"desc={err_desc[:120]!r})"
                     )
         except AuthenticationError:
             raise
