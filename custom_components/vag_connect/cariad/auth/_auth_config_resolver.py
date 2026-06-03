@@ -172,6 +172,7 @@ class AuthConfigResolver:
         hardcoded_token_url: str,
         prior_qmauth_secret: str | None = None,
         prior_qmauth_client_id: str | None = None,
+        user_client_id_override: str | None = None,
     ) -> None:
         self._brand = brand_name
         self._apk = _load_apk_auth_secrets(brand_name)
@@ -182,6 +183,27 @@ class AuthConfigResolver:
         # v2.5.7 R2 — optional prior qmauth pair as last-resort fallback.
         self._prior_qmauth_secret = prior_qmauth_secret
         self._prior_qmauth_client_id = prior_qmauth_client_id
+        # v2.10.4 — power-user OAuth client_id override pasted via the
+        # OptionsFlow. Prepended to the top of oauth_client_id_chain
+        # when present. Silently dropped when malformed so a typo in
+        # the config field never breaks the auth chain.
+        self._user_client_id_override: str | None = None
+        if isinstance(user_client_id_override, str):
+            cand = user_client_id_override.strip()
+            if "@apps_vw-dilab_com" in cand and len(cand) > 36:
+                self._user_client_id_override = cand
+                _LOGGER.info(
+                    "AuthConfigResolver(%s): user-supplied client_id "
+                    "override active (prepended to chain).",
+                    brand_name,
+                )
+            elif cand:
+                _LOGGER.warning(
+                    "AuthConfigResolver(%s): client_id override "
+                    "ignored - expected UUID@apps_vw-dilab_com, got "
+                    "%d-char string starting %r.",
+                    brand_name, len(cand), cand[:8],
+                )
         if self._apk:
             _LOGGER.debug(
                 "AuthConfigResolver(%s): loaded auth_secrets from APK cache: keys=%s",
@@ -457,6 +479,12 @@ class AuthConfigResolver:
             if cid and cid not in seen:
                 ordered.append(cid)
                 seen.add(cid)
+
+        # v2.10.4 — 0. User-supplied override from the OptionsFlow.
+        # Tried first when present so power users can paste a freshly
+        # extracted client_id and unblock themselves immediately.
+        if self._user_client_id_override:
+            _add(self._user_client_id_override)
 
         # v2.5.11 — 1. Audi market-config (only for Audi brand).
         if self._brand == "audi":

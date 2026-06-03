@@ -32,6 +32,7 @@ from homeassistant.helpers.selector import (
 from .const import (
     BRANDS,
     CONF_BRAND,
+    CONF_CLIENT_ID_OVERRIDE,
     CONF_ENABLE_DATA_ACT_BROWSER,
     CONF_WAKE_BEFORE_POLL,
     CONF_WAKE_DELAY_SECONDS,
@@ -1075,5 +1076,20 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                         mode=NumberSelectorMode.SLIDER,
                     )
                 ),
+                # v2.10.4 - OAuth client_id override. Power-user escape
+                # hatch for when the community spots a fresh client_id
+                # in a new APK before our daily atlas builder catches
+                # it. Pasted value is prepended to the resolver chain
+                # so it gets tried first; the existing fallbacks stay
+                # in place. Empty string = no override. Format must
+                # match "UUID@apps_vw-dilab_com" or the resolver
+                # silently drops it.
+                vol.Optional(
+                    CONF_CLIENT_ID_OVERRIDE,
+                    default=current_options.get(
+                        CONF_CLIENT_ID_OVERRIDE,
+                        current_data.get(CONF_CLIENT_ID_OVERRIDE, ""),
+                    ),
+                ): str,
             }),
         )

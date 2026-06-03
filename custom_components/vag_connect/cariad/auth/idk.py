@@ -320,6 +320,21 @@ class IDKAuth:
             else _SIGNIN_BASE
         )
         self._signin_client_id = signin_client_id_override or self._brand.client_id
+        # v2.10.4 — user-supplied OAuth client_id override from the
+        # OptionsFlow. Set via ``set_user_client_id_override`` after
+        # construction (we do not add a constructor param here to
+        # avoid touching every IDKAuth call-site). Passed into the
+        # AuthConfigResolver so the resolver prepends it to the chain.
+        self._user_client_id_override: str | None = None
+
+    def set_user_client_id_override(self, value: str | None) -> None:
+        """v2.10.4 — set the OAuth client_id paste-in from OptionsFlow.
+
+        Called by the brand client after reading the config-entry
+        options. Empty / whitespace-only / malformed values are
+        silently ignored by the resolver downstream.
+        """
+        self._user_client_id_override = value if value else None
 
     def hydrate_session_cookies(self, cookies: list[dict[str, Any]]) -> None:
         """v2.8.0 — pre-load persisted IDP cookies into the session jar.
@@ -1548,6 +1563,7 @@ class IDKAuth:
             hardcoded_token_url=_CARIAD_TOKEN_URL,
             prior_qmauth_secret=_QM_PRIOR_SECRET,
             prior_qmauth_client_id=_QM_PRIOR_CLIENT_ID,
+            user_client_id_override=self._user_client_id_override,
         )
         # v2.5.7 R3 — try OIDC discovery for the token URL before
         # falling back to APK / hardcoded values. Best-effort: a
