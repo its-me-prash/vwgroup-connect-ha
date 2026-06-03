@@ -34,6 +34,7 @@ from .const import (
     CONF_BRAND,
     CONF_CLIENT_ID_OVERRIDE,
     CONF_ENABLE_DATA_ACT_BROWSER,
+    CONF_EU_DATA_ACT_AUTO_KICKOFF,
     CONF_WAKE_BEFORE_POLL,
     CONF_WAKE_DELAY_SECONDS,
     DEFAULT_WAKE_DELAY_SECONDS,
@@ -1091,5 +1092,23 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                         current_data.get(CONF_CLIENT_ID_OVERRIDE, ""),
                     ),
                 ): str,
+                # v2.10.5 - EU Data Act portal Custom Data Request
+                # auto-kickoff. Only meaningful when the integration
+                # is operating in read-only data_act_portal mode (live
+                # BFF strategies exhausted). When True, the coordinator
+                # checks at startup whether an active 15-min Custom
+                # Request exists for each VIN and creates one when
+                # none does. The portal kickoff implies a 1-month
+                # subscription on the user's account, so this is
+                # opt-in - the user has to flip it explicitly.
+                vol.Optional(
+                    CONF_EU_DATA_ACT_AUTO_KICKOFF,
+                    default=current_options.get(
+                        CONF_EU_DATA_ACT_AUTO_KICKOFF,
+                        current_data.get(
+                            CONF_EU_DATA_ACT_AUTO_KICKOFF, False,
+                        ),
+                    ),
+                ): _BOOL_SELECTOR,
             }),
         )

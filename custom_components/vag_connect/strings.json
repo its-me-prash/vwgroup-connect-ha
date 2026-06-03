@@ -135,7 +135,8 @@
           "enable_data_act_browser": "EU Data Act portal: headless-browser fallback (EXPERIMENTAL)",
           "wake_before_poll": "Active vehicle wake-up before status poll",
           "wake_delay_seconds": "Wake delay (seconds)",
-          "client_id_override": "OAuth client_id override (power users)"
+          "client_id_override": "OAuth client_id override (power users)",
+          "eu_data_act_auto_kickoff": "EU Data Act: auto-kickoff Custom Data Request"
         },
         "data_description": {
           "scan_interval": "How often data is fetched (minutes). Minimum: 3.",
@@ -149,7 +150,8 @@
           "enable_data_act_browser": "EXPERIMENTAL: only meaningful when the integration has fallen back to the EU Data Act portal (read-only). Drives a headless Chromium via the optional 'playwright' Python package to click the portal's data-export button automatically. The package is NOT preinstalled (it pulls roughly 100 MB of Chromium). When enabled but missing, a Repair issue tells you how to install it from inside the Home Assistant container. Reload the integration after toggling.",
           "wake_before_poll": "When enabled, the integration sends a wake POST to the vehicle before fetching status for any VIN that was OFFLINE on the previous poll. The car receives a server-side wake-up and pushes fresh data, then the integration waits the wake delay before the status read. Closes the 'all sensors unknown for parked cars' gap but costs one extra API call per offline VIN per poll cycle. Off by default. Reload the integration after toggling.",
           "wake_delay_seconds": "Seconds to wait between the wake-up POST and the status fetch. The default of 15 seconds is what most brand backends need to ingest the wake-induced data push. Lower values risk reading stale data; higher values stretch the poll cycle without further benefit.",
-          "client_id_override": "Power-user escape hatch for when the community spots a fresh OAuth client_id in a new VW Group APK before our daily atlas builder catches it. Paste the full UUID@apps_vw-dilab_com string here and the resolver tries it FIRST on every authenticate, with all the existing client_ids still in the chain as fallback. Leave empty for default behaviour. Format: 8-4-4-4-12 hex digits followed by @apps_vw-dilab_com. Malformed values are silently ignored."
+          "client_id_override": "Power-user escape hatch for when the community spots a fresh OAuth client_id in a new VW Group APK before our daily atlas builder catches it. Paste the full UUID@apps_vw-dilab_com string here and the resolver tries it FIRST on every authenticate, with all the existing client_ids still in the chain as fallback. Leave empty for default behaviour. Format: 8-4-4-4-12 hex digits followed by @apps_vw-dilab_com. Malformed values are silently ignored.",
+          "eu_data_act_auto_kickoff": "Only meaningful when the integration is operating in read-only EU Data Act portal mode (live BFF strategies have failed). When ON, the coordinator checks for an active 15-min Custom Data Request per VIN at startup and creates one when none exists. The kickoff implies a 1-month data subscription on your account at the portal, so this is opt-in. The portal accepts AT MOST ONE active custom request per VIN at a time. Off by default."
         }
       }
     }
@@ -951,6 +953,10 @@
     "data_act_browser_missing": {
       "title": "EU Data Act portal: optional 'playwright' package missing",
       "description": "You enabled the headless-browser fallback for the EU Data Act portal but the `playwright` Python package is not installed in your Home Assistant container.\n\n**To install:** open the HA container shell (Add-ons → Terminal & SSH, or `docker exec` for a manual install) and run:\n\n```\npip install playwright\nplaywright install chromium\n```\n\nThe chromium download is large (around 100 MB), which is why this dependency is opt-in instead of bundled with the integration. After installing, restart Home Assistant.\n\nAlternatively, disable the toggle under Settings → Devices & Services → VW Group Connect → Configure → 'EU Data Act portal: headless-browser fallback'."
+    },
+    "data_act_session_expired": {
+      "title": "EU Data Act portal session expired - reauthenticate",
+      "description": "The {brand} portal at `eu-data-act.drivesomethinggreater.com` returned HTTP 401 to a Custom Data Request API call, which means the session cookies have expired. The portal does not support background token refresh, so Home Assistant cannot recover this automatically.\n\n**What to do:** Settings → Devices & Services → VW Group Connect → 3-dot menu → Reconfigure → re-enter your credentials. The next setup cycle will reopen the portal session and the integration will resume polling the active Custom Data Request.\n\nThis warning auto-clears as soon as the next portal API call succeeds."
     }
   },
   "selector": {
