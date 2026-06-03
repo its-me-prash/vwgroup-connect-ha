@@ -40,6 +40,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [2.10.1] - 2026-06-03
+
+VW EU login hotfix. The v2.10.0 SPA fix unblocked one path, but several users still hit HTTP 403 on the authorize endpoint itself - the Azure WAF in front of `identity.vwgroup.io` started rejecting the Android user-agent some time on 2026-05-31. Same finding the wider HA-VAG community converged on this week.
+
+### Fixed
+
+- **VW EU 403 on authorize endpoint** (#388, #393). When the initial GET to `/oidc/v1/authorize` comes back 401 or 403, retry once with a plain mobile-browser user-agent. Picks up users blocked at the WAF without affecting accounts that already work on the Android UA.
+- **VW user-agent bumped** to `Volkswagen/3.61.0-android/14` to match the current shipping APK. The old `3.51.1` string is what the WAF presumably flagged.
+
 ## [2.10.0] - 2026-06-02
 
 The biggest single release so far. VW EU login is unblocked again after the 2026-05-31 backend change, parked cars no longer show all-Unknown, and SEAT/CUPRA gets its Energy-Dashboard story plus settable battery-care.

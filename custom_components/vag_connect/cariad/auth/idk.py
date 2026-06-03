@@ -494,10 +494,50 @@ class IDKAuth:
                 "IDK step1: status=%s url=%s html_len=%d",
                 resp.status, login_url[:80], len(html),
             )
-            if resp.status != 200:
-                raise AuthenticationError(
-                    f"Authorization page HTTP {resp.status} at {login_url}"
+            initial_status = resp.status
+        # v2.10.1 (#388 / #393) — when the Auth0 Universal Login front-end
+        # rejects an Android UA at the WAF layer (observed 2026-05-31+),
+        # retry once with a plain mobile-browser UA. Multiple users have
+        # reported a 403 at this step even though the credentials are
+        # correct. The retry leaves all other path semantics unchanged.
+        if initial_status in (401, 403):
+            browser_headers = {
+                "Accept": (
+                    "text/html,application/xhtml+xml,application/xml;q=0.9,"
+                    "image/avif,image/webp,*/*;q=0.8"
+                ),
+                "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
+                "User-Agent": (
+                    "Mozilla/5.0 (Linux; Android 14; SM-S908B) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/126.0.0.0 Mobile Safari/537.36"
+                ),
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "none",
+                "Upgrade-Insecure-Requests": "1",
+            }
+            async with self._session.get(
+                self._authorize_url,
+                timeout=_AUTH_TIMEOUT, params=params, headers=browser_headers,
+                allow_redirects=True,
+            ) as retry_resp:
+                login_url = str(retry_resp.url)
+                html = await retry_resp.text(errors="replace")
+                _LOGGER.debug(
+                    "IDK step1 browser-UA retry: status=%s url=%s html_len=%d",
+                    retry_resp.status, login_url[:80], len(html),
                 )
+                if retry_resp.status != 200:
+                    raise AuthenticationError(
+                        f"Authorization page HTTP {retry_resp.status} at "
+                        f"{login_url} (after browser-UA retry; first "
+                        f"attempt was HTTP {initial_status})"
+                    )
+        elif initial_status != 200:
+            raise AuthenticationError(
+                f"Authorization page HTTP {initial_status} at {login_url}"
+            )
 
         # Determine which login variant we landed on
         if "/u/login" in login_url:
