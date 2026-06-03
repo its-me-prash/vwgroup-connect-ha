@@ -60,6 +60,8 @@ When this strategy returns a TokenSet, the strategy field is set to
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import logging
 import secrets
 import time
@@ -84,6 +86,7 @@ _PORTAL_OIDC_CLIENT_ID = "9b58543e-1c15-4193-91d5-8a14145bebb0@apps_vw-dilab_com
 _PORTAL_OIDC_SCOPE = "openid cars profile"
 _PORTAL_OIDC_REDIRECT_URI = f"{_PORTAL_BASE}/login"
 _IDP_AUTHORIZE_URL = "https://identity.vwgroup.io/oidc/v1/authorize"
+_IDP_TOKEN_URL = "https://identity.vwgroup.io/oidc/v1/token"
 _PORTAL_LOGIN_CALLBACK_PATH = "/services/callbacklogin"
 
 # Per-brand state-string suffix expected by the portal so it routes
@@ -107,15 +110,35 @@ _PORTAL_REQUEST_TIMEOUT_S = 30
 def _build_state(brand_name: str, country: str, language: str) -> str:
     """Return the state-string expected by the portal router.
 
-    Format: ``{country}__{language}__{brand_suffix}`` where the
-    brand_suffix matches the portal's internal brand-routing enum.
-    Falls back to VOLKSWAGEN_PASSENGER_CARS for unknown brand names
-    so the login at least lands somewhere instead of erroring out.
+    Format: ``{language}__{country}__{brand_suffix}`` (e.g.
+    ``de__de__VOLKSWAGEN_PASSENGER_CARS``). The portal's state-string
+    routing decodes the language first, then the country, then the
+    brand-suffix that matches its internal brand-routing enum.
+
+    Pre-v2.10.2 we shipped the wrong order ``{country}__{language}``
+    which works for de_DE users (both halves identical) but routes the
+    wrong locale for any non-matching country/language pair. Verified
+    against a live portal trace 2026-06-03.
+
+    Falls back to VOLKSWAGEN_PASSENGER_CARS for unknown brand names so
+    the login at least lands somewhere instead of erroring out.
     """
     brand_suffix = _BRAND_STATE_FRAGMENTS.get(
         brand_name.lower(), _BRAND_STATE_FRAGMENTS["volkswagen"],
     )
-    return f"{country.lower()}__{language.lower()}__{brand_suffix}"
+    return f"{language.lower()}__{country.lower()}__{brand_suffix}"
+
+
+def _make_pkce() -> tuple[str, str]:
+    """Return a (verifier, challenge) pair for PKCE-S256.
+
+    verifier: 43-128 byte URL-safe random string
+    challenge: BASE64URL(SHA256(verifier)) with padding stripped
+    """
+    verifier = secrets.token_urlsafe(64)[:96]
+    digest = hashlib.sha256(verifier.encode("ascii")).digest()
+    challenge = base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+    return verifier, challenge
 
 
 class DataActPortalAuth:
@@ -157,8 +180,12 @@ class DataActPortalAuth:
         """
         from aiohttp import ClientTimeout  # noqa: PLC0415
 
-        nonce = secrets.token_urlsafe(16)
         state = _build_state(self._brand_name, self._country, self._language)
+        # v2.10.2 — Portal uses plain authorization-code flow (not
+        # hybrid). Add PKCE-S256 defensively even though we don't yet
+        # know the IDP enforces it; modern OIDC public-clients usually
+        # require it and the verifier is cheap to carry.
+        pkce_verifier, pkce_challenge = _make_pkce()
 
         # Step 1 — prime the AEM load-balancer cookies. The portal
         # router rejects /services/callbacklogin requests that lack a
@@ -182,13 +209,20 @@ class DataActPortalAuth:
         # portal's OAuth client. Auth0 returns a 302 to the brand-id
         # signin form; we follow the redirect chain and parse the
         # login HTML.
+        # v2.10.2 — verified against live portal trace 2026-06-03.
+        # The portal client uses plain authorization-code flow with
+        # prompt=login. Hybrid (code id_token token) was rejected by
+        # the IDP for this specific client_id and caused the
+        # "unexpected landing URL" symptom users reported on #388/#393.
         authorize_params = {
             "client_id": _PORTAL_OIDC_CLIENT_ID,
             "redirect_uri": _PORTAL_OIDC_REDIRECT_URI,
-            "response_type": "code id_token token",
+            "response_type": "code",
             "scope": _PORTAL_OIDC_SCOPE,
             "state": state,
-            "nonce": nonce,
+            "prompt": "login",
+            "code_challenge": pkce_challenge,
+            "code_challenge_method": "S256",
         }
         try:
             async with self._session.get(
@@ -422,10 +456,11 @@ class DataActPortalAuth:
                 f"Data Act portal: password POST failed ({exc})"
             ) from exc
 
-        # Step 4 — verify we landed on the portal host and not on an
-        # error page. Extract the access_token + id_token from the
-        # callback URL fragment (hybrid flow delivery), as Auth0 does
-        # for the portal client.
+        # Step 4 — verify we landed on the portal host and extract the
+        # authorization code from the callback URL. v2.10.2: portal
+        # uses plain code flow, so the callback ends on
+        # ``.../login?code=...&state=...`` instead of returning tokens
+        # in the fragment. The token exchange happens in step 5.
         parsed = urlparse(callback_url)
         host_ok = parsed.netloc.endswith("drivesomethinggreater.com")
         if not host_ok or "signin-service" in callback_url or "/error" in callback_url:
@@ -435,13 +470,78 @@ class DataActPortalAuth:
             )
 
         all_params = {**parse_qs(parsed.query), **parse_qs(parsed.fragment)}
-        access_token = (all_params.get("access_token") or [""])[0]
-        id_token = (all_params.get("id_token") or [""])[0]
+        auth_code = (all_params.get("code") or [""])[0]
+        if not auth_code:
+            # Belt-and-braces: some IDP variants still deliver in the
+            # fragment with hybrid; keep the legacy path as a fallback
+            # so we don't regress accounts that happened to work before.
+            legacy_access = (all_params.get("access_token") or [""])[0]
+            legacy_id = (all_params.get("id_token") or [""])[0]
+            if legacy_access and legacy_id:
+                _LOGGER.warning(
+                    "Data Act portal: callback delivered tokens in the "
+                    "fragment (legacy hybrid path) instead of a code. "
+                    "Using them directly. IDP behaviour may have changed."
+                )
+                return TokenSet(
+                    access_token=legacy_access,
+                    refresh_token="",
+                    id_token=legacy_id,
+                    expires_at=time.time() + 3300,
+                    strategy="data_act_portal",
+                )
+            raise AuthenticationError(
+                "Data Act portal: callback URL missing the authorization "
+                "code — IDP may have changed the redirect parameters"
+            )
+
+        # Step 5 — exchange the code for tokens at the IDP token endpoint.
+        token_body = {
+            "grant_type": "authorization_code",
+            "code": auth_code,
+            "redirect_uri": _PORTAL_OIDC_REDIRECT_URI,
+            "client_id": _PORTAL_OIDC_CLIENT_ID,
+            "code_verifier": pkce_verifier,
+        }
+        try:
+            async with self._session.post(
+                _IDP_TOKEN_URL,
+                data=token_body,
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "Accept": "application/json",
+                },
+                timeout=ClientTimeout(total=_PORTAL_REQUEST_TIMEOUT_S),
+                allow_redirects=False,
+            ) as resp:
+                token_status = resp.status
+                token_json: dict[str, str] = {}
+                try:
+                    token_json = await resp.json(content_type=None)
+                except Exception:  # noqa: BLE001
+                    token_json = {}
+                if token_status != 200:
+                    err = token_json.get("error", "")
+                    err_desc = token_json.get("error_description", "")
+                    raise AuthenticationError(
+                        f"Data Act portal: token exchange HTTP {token_status} "
+                        f"(error={err!r} desc={err_desc[:120]!r})"
+                    )
+        except AuthenticationError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise AuthenticationError(
+                f"Data Act portal: token exchange failed ({exc})"
+            ) from exc
+
+        access_token = token_json.get("access_token", "")
+        id_token = token_json.get("id_token", "")
+        refresh_token = token_json.get("refresh_token", "")
+        expires_in = int(token_json.get("expires_in", 3600))
         if not access_token or not id_token:
             raise AuthenticationError(
-                "Data Act portal: callback URL missing access_token or "
-                "id_token — IDP may have stripped hybrid response_type "
-                "for the portal client"
+                "Data Act portal: token endpoint returned an empty "
+                "access_token or id_token"
             )
 
         _LOGGER.info(
@@ -452,11 +552,9 @@ class DataActPortalAuth:
         )
         return TokenSet(
             access_token=access_token,
-            refresh_token="",
+            refresh_token=refresh_token,
             id_token=id_token,
-            # Portal access_tokens are typically valid ~1 h; mark
-            # explicitly so the coordinator schedules re-login before
-            # silent 401s.
-            expires_at=time.time() + 3300,
+            # Subtract 5min safety margin so we re-auth before silent 401s.
+            expires_at=time.time() + max(expires_in - 300, 60),
             strategy="data_act_portal",
         )

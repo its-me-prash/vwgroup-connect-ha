@@ -40,6 +40,20 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [2.10.2] - 2026-06-03
+
+EU Data Act portal flow rebuilt against a verified live trace.
+
+### Fixed
+
+- **Data Act portal OAuth flow** (#388, #393). The portal client uses plain authorization-code flow with `prompt=login`, not the hybrid response_type we were sending. That mismatch was the source of the "unexpected landing URL - IDP may have rejected client_id" error several users hit when the live BFF strategies all failed and the integration tried the read-only fallback. Now switched to standard code flow plus PKCE-S256 plus a token exchange against `identity.vwgroup.io/oidc/v1/token`. Hybrid fragment delivery is kept as a defensive fallback so accounts that happened to work on the old path are not regressed.
+- **Data Act portal state-string order**. Was `{country}__{language}__{BRAND}`, now `{language}__{country}__{BRAND}` per the live trace. DE/DE users worked by coincidence; non-matching country/language combinations were routed to the wrong portal locale.
+
+### Added
+
+- **EU Data Act portal usership-verification scaffolding**. New `check_verification_state()` and `submit_usership_verification()` on the scraper detect whether the one-time EU Data Act declaration is on file per VIN and can submit it on behalf of the user when an opt-in config flag is set. The Repairs / OptionsFlow wire-up lands in v2.10.3; the methods are usable from external code today.
+- **Data request submission scaffolding**. New `submit_data_request()` and `poll_for_dataset_url()` for the async ZIP delivery flow. Endpoint shapes are best-effort against the documented form fields; verified shapes ship in v2.10.3 once a live trace captures the AJAX call that populates "Ihre Dateien".
+
 ## [2.10.1] - 2026-06-03
 
 VW EU login hotfix. The v2.10.0 SPA fix unblocked one path, but several users still hit HTTP 403 on the authorize endpoint itself - the Azure WAF in front of `identity.vwgroup.io` started rejecting the Android user-agent some time on 2026-05-31. Same finding the wider HA-VAG community converged on this week.
