@@ -52,7 +52,7 @@ BRAND_VW_EU = BrandConfig(
     name="volkswagen",
     client_id="a24fba63-34b3-4d43-b181-942111e6bda8@apps_vw-dilab_com",
     redirect_uri="weconnect://authenticated",
-    user_agent="Volkswagen/3.51.1-android/14",
+    user_agent="Volkswagen/3.61.0-android/14",
     api_base="https://emea.bff.cariad.digital",
     # scope from volkswagencarnet (upstream/volkswagencarnet, MIT) — confirmed working
     scope="openid profile badge cars dealers vin",
