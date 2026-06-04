@@ -408,47 +408,116 @@ class DataActPortalAuth:
                 # fallback. Auth0 SPA always embeds the state as
                 # ``<input type="hidden" name="state" value="...">`` in
                 # the page HTML even when the SPA itself owns rendering.
+                # v2.10.9 (#388 Arno) - forensic logging + attribute-order-
+                # agnostic state extraction. Walks every hidden input via
+                # the two-step name+value capture from idk.py's
+                # _parse_csrf_robust so attribute order in the markup
+                # never matters.
+                _LOGGER.debug(
+                    "Data Act portal SPA: entered SPA branch - "
+                    "landing_url=%s identifier_url=%s "
+                    "password_html_len=%d landing_html_len=%d",
+                    landing_url[:120], identifier_url[:120],
+                    len(password_html or ""), len(landing_html or ""),
+                )
                 state_from_url = ""
-                # Try HTML extraction on both the password page (most
-                # recent) AND the original landing page.
-                for src_html in (password_html, landing_html):
+                state_source = ""
+
+                def _extract_state_from_html(src_html: str) -> str:
+                    """Walk every <input ...> tag, extract name+value as
+                    two independent regex matches so attribute order in
+                    the HTML does not matter. Mirrors idk.py:
+                    _parse_csrf_robust line 1860 pattern.
+                    """
+                    for tag in re.finditer(r"<input[^>]+>", src_html, re.IGNORECASE):
+                        t = tag.group(0)
+                        tlow = t.lower()
+                        if 'type="hidden"' not in tlow and "type='hidden'" not in tlow:
+                            continue
+                        nm = re.search(r'name=["\']([^"\']+)["\']', t)
+                        vm = re.search(r'value=["\']([^"\']*)["\']', t)
+                        if nm and nm.group(1) == "state" and vm and vm.group(1):
+                            return vm.group(1)
+                    return ""
+
+                for label, src_html in (
+                    ("password_html", password_html),
+                    ("landing_html", landing_html),
+                ):
                     if not src_html:
                         continue
-                    p = _IdentifierFormParser()
-                    p.feed(src_html)
-                    if p.fields.get("state"):
-                        state_from_url = p.fields["state"]
+                    # 1. Two-step hidden-input walk (attribute-order-agnostic).
+                    cand = _extract_state_from_html(src_html)
+                    if cand:
+                        state_from_url = cand
+                        state_source = f"{label}/hidden-input"
                         break
-                    # Regex fallback for hidden input with state
-                    state_m = re.search(
-                        r'<input[^>]+name=["\']state["\'][^>]+'
-                        r'value=["\']([^"\']+)["\']',
-                        src_html, re.IGNORECASE,
+                    # 2. JS embed: "state":"..." (modern Auth0 SPA bundles
+                    #    serialize the OAuth state into a window.__STORE__
+                    #    object before the React tree hydrates).
+                    m = re.search(
+                        r'"state"\s*:\s*"([A-Za-z0-9_\-\.]{8,})"', src_html
                     )
-                    if state_m:
-                        state_from_url = state_m.group(1)
+                    if m:
+                        state_from_url = m.group(1)
+                        state_source = f"{label}/json-embed"
                         break
-                    # JS / JSON embed fallback
-                    state_m = re.search(
-                        r'"state"\s*:\s*"([A-Za-z0-9_\-]{8,})"', src_html
+                    # 3. data-state attribute on any element (some Auth0
+                    #    builds put it on <body data-state="..."> for
+                    #    the bootstrap script to read).
+                    m = re.search(
+                        r'data-state=["\']([A-Za-z0-9_\-\.]{8,})["\']',
+                        src_html,
                     )
-                    if state_m:
-                        state_from_url = state_m.group(1)
+                    if m:
+                        state_from_url = m.group(1)
+                        state_source = f"{label}/data-attr"
                         break
+                    _LOGGER.debug(
+                        "Data Act portal SPA: no state in %s "
+                        "(first 200 chars: %s)",
+                        label, src_html[:200].replace("\n", " "),
+                    )
                 if not state_from_url:
-                    # Last resort: URL query strings.
-                    for src in (identifier_url, landing_url):
+                    # 4. URL query strings as last resort.
+                    for label, src in (
+                        ("identifier_url", identifier_url),
+                        ("landing_url", landing_url),
+                    ):
                         qs = parse_qs(_urlparse(src).query)
                         if qs.get("state"):
                             state_from_url = qs["state"][0]
+                            state_source = f"{label}/url-query"
                             break
                 if not state_from_url:
+                    # Last forensic dump before raising - tells the
+                    # next trace whether the HTML is even an Auth0
+                    # page or something else.
+                    _LOGGER.warning(
+                        "Data Act portal SPA: no state token. "
+                        "password_html title=%s, contains '<input'=%s, "
+                        "contains 'state'=%s, contains '__STORE__'=%s",
+                        re.search(r"<title>([^<]+)</title>",
+                                  password_html or "", re.IGNORECASE),
+                        "<input" in (password_html or "").lower(),
+                        "state" in (password_html or "").lower(),
+                        "__STORE__" in (password_html or ""),
+                    )
                     raise AuthenticationError(
                         "Data Act portal: SPA password page reached but "
-                        "no Auth0 state token found (checked HTML hidden "
-                        "input, JS JSON embed, password-page URL and "
-                        "landing URL). IDP markup may have changed."
+                        "no Auth0 state token found (checked hidden "
+                        "input via two-step walk, JS JSON embed, data-"
+                        "state attribute, password-page URL and "
+                        "landing URL). IDP markup may have changed. "
+                        "Enable DEBUG logging for "
+                        "'custom_components.vag_connect.cariad.auth."
+                        "_data_act_portal' and re-share the log."
                     )
+                _LOGGER.debug(
+                    "Data Act portal SPA: state token found via %s "
+                    "(first 12 chars: %s...)",
+                    state_source, state_from_url[:12],
+                )
                 from urllib.parse import quote as _quote  # noqa: PLC0415
                 spa_post_url = (
                     f"https://identity.vwgroup.io/u/login?state="
