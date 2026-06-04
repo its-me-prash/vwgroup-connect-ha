@@ -1,0 +1,42 @@
+meta {
+  name: GET auxiliary heating status
+  type: http
+  seq: 48
+}
+
+get {
+  url: {{base_url}}/api/auxiliary-heating/v1/{{vin}}/status
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  v2.11.0 - aux-heating status read (pycupra source-verified). We have
+  used this host for start/stop commands since v1.x; the status read
+  was never wired so auxiliary_heating_status, aux_heating_active,
+  auxiliary_heating_remaining_min and heater_source were null on
+  every car.
+
+  Response shape (pycupra get_pheater_status):
+    {
+      "status": {
+        "climatisationState": "off" | "heating" | "finished",
+        "remainingTime_min": 12,
+        "operationMode": "..."
+      },
+      "settings": {
+        "heaterSource": "automatic" | "fuel" | "electric"
+      }
+    }
+
+  Used by SeatCupraClient.get_status() at
+  custom_components/vag_connect/cariad/api/seat_cupra.py.
+}

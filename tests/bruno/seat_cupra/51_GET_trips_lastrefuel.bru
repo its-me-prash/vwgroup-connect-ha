@@ -1,0 +1,44 @@
+meta {
+  name: GET trips lastrefuel
+  type: http
+  seq: 51
+}
+
+get {
+  url: {{base_url}}/v1/vehicles/{{vin}}/trips/lastrefuel
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  v2.11.0 - cyclic per-tank/per-charge totals (pycupra source-verified).
+  Resets at each fuel-up event or charge session completion.
+
+  Response shape:
+    {
+      "data": {
+        "mileage_km" | "mileage": 142,
+        "travelTime" | "traveltime": 95,
+        "averageSpeed_kmph" | "averageSpeed": 89,
+        "averageFuelConsumption": 5.4,
+        "averageElectricEngineConsumption": 18.4,
+        "totalFuelConsumption_l" | "totalFuelConsumption": 7.4,
+        "totalElectricConsumption_kwh" | "totalElectricConsumption": 12.3,
+        "tripEndTimestamp" | "timestamp": "..."
+      }
+    }
+
+  Used by SeatCupraClient.get_status() to populate
+  refuel_trip_distance_km, refuel_trip_duration_min,
+  refuel_trip_avg_speed_kmh, refuel_trip_avg_*_consumption_*,
+  refuel_trip_total_fuel_consumption_l,
+  refuel_trip_total_electric_consumption_kwh, refuel_trip_timestamp.
+}
