@@ -473,10 +473,50 @@ class DataActPortalAuth:
                         state_from_url = m.group(1)
                         state_source = f"{label}/data-attr"
                         break
+                    # v2.10.11 (#388 swebachus pure-SPA-shell trace) -
+                    # 4. Auth0 native state signature. Tokens always
+                    # start with the msgpack 2-key map marker ``hKFo``
+                    # (base64 of 0x84a1 - 4-element map, first key 1
+                    # byte string). Length is typically 80+ chars.
+                    # Catches the token even when it is embedded in
+                    # minified JS as a bare string literal without any
+                    # surrounding "state:" marker.
+                    m = re.search(
+                        r'\b(hKFo[A-Za-z0-9_\-\.]{40,})\b', src_html
+                    )
+                    if m:
+                        state_from_url = m.group(1)
+                        state_source = f"{label}/auth0-native"
+                        break
+                    # 5. Escaped JSON inside HTML attribute / script
+                    # content: the SPA shell often inlines its initial
+                    # state as ``\"state\":\"...\"`` when the JSON is
+                    # double-encoded.
+                    m = re.search(
+                        r'\\"state\\"\s*:\s*\\"([A-Za-z0-9_\-\.]{16,})\\"',
+                        src_html,
+                    )
+                    if m:
+                        state_from_url = m.group(1)
+                        state_source = f"{label}/escaped-json"
+                        break
+                    # 6. URL-encoded state inside the HTML body (login
+                    # bundles sometimes inline the entire callback URL
+                    # as ``window.location = "...state=X..."``).
+                    m = re.search(
+                        r'[?&]state=([A-Za-z0-9_\-\.%]{16,})', src_html
+                    )
+                    if m:
+                        state_from_url = m.group(1)
+                        # URL-decode if needed.
+                        from urllib.parse import unquote as _unq  # noqa: PLC0415
+                        state_from_url = _unq(state_from_url)
+                        state_source = f"{label}/url-embedded"
+                        break
                     _LOGGER.debug(
                         "Data Act portal SPA: no state in %s "
-                        "(first 200 chars: %s)",
-                        label, src_html[:200].replace("\n", " "),
+                        "(first 300 chars: %s)",
+                        label, src_html[:300].replace("\n", " "),
                     )
                 if not state_from_url:
                     # 4. URL query strings as last resort.
@@ -490,18 +530,55 @@ class DataActPortalAuth:
                             state_source = f"{label}/url-query"
                             break
                 if not state_from_url:
-                    # Last forensic dump before raising - tells the
-                    # next trace whether the HTML is even an Auth0
-                    # page or something else.
+                    # v2.10.11 (#388 swebachus) - expanded forensic dump
+                    # covering BOTH HTMLs and the raw URL strings, plus
+                    # the location around any "state" substring so the
+                    # next trace surfaces the exact context the token
+                    # lives in (or proves it is purely JS-rendered post
+                    # bundle init, in which case we need a different
+                    # entry point altogether).
+                    def _state_context(src: str) -> str:
+                        idx = src.lower().find("state")
+                        if idx < 0:
+                            return "(no 'state' substring)"
+                        start = max(0, idx - 30)
+                        end = min(len(src), idx + 80)
+                        return src[start:end].replace("\n", " ")
+
                     _LOGGER.warning(
                         "Data Act portal SPA: no state token. "
-                        "password_html title=%s, contains '<input'=%s, "
-                        "contains 'state'=%s, contains '__STORE__'=%s",
-                        re.search(r"<title>([^<]+)</title>",
-                                  password_html or "", re.IGNORECASE),
+                        "landing_url=%s identifier_url=%s",
+                        landing_url[:200], identifier_url[:200],
+                    )
+                    title_m = re.search(
+                        r"<title>([^<]+)</title>",
+                        password_html or "", re.IGNORECASE,
+                    )
+                    _LOGGER.warning(
+                        "Data Act portal SPA: password_html title=%s "
+                        "len=%d, contains '<input'=%s, contains 'state'=%s, "
+                        "contains '__STORE__'=%s, state-context=%r",
+                        (title_m.group(1) if title_m else "(none)"),
+                        len(password_html or ""),
                         "<input" in (password_html or "").lower(),
                         "state" in (password_html or "").lower(),
                         "__STORE__" in (password_html or ""),
+                        _state_context(password_html or ""),
+                    )
+                    title_l = re.search(
+                        r"<title>([^<]+)</title>",
+                        landing_html or "", re.IGNORECASE,
+                    )
+                    _LOGGER.warning(
+                        "Data Act portal SPA: landing_html title=%s "
+                        "len=%d, contains '<input'=%s, contains 'state'=%s, "
+                        "contains '__STORE__'=%s, state-context=%r",
+                        (title_l.group(1) if title_l else "(none)"),
+                        len(landing_html or ""),
+                        "<input" in (landing_html or "").lower(),
+                        "state" in (landing_html or "").lower(),
+                        "__STORE__" in (landing_html or ""),
+                        _state_context(landing_html or ""),
                     )
                     raise AuthenticationError(
                         "Data Act portal: SPA password page reached but "
