@@ -1254,14 +1254,36 @@ class SeatCupraClient(CariadBaseClient):
                 or v(charge_info, "targetSOC_pct")
                 or v(charge_info, "targetStateOfChargeInPercent")
             )
-            d.max_charge_current = (
-                (settings.get("maxChargeCurrentAcInAmperes")
-                 if isinstance(settings, dict) else None)
-                or (settings.get("maxChargeCurrentAc")
-                    if isinstance(settings, dict) else None)
-                or v(charge_info, "maxChargeCurrentAC")
-                or v(charge_info, "maxChargeCurrent")
-            )
+            # v2.11.1 hotfix (#392 heidle78 v2.11.0 regression): the OLA
+            # API returns `settings.maxChargeCurrentAc` as an enum string
+            # ("maximum" / "reduced") on Formentor PHEV MJ22-23 firmware,
+            # NOT as an integer amperage. HA sensor.max_charge_current
+            # is device_class=current unit=A numeric so the raw enum
+            # blew up entity rendering with ValueError. Now: prefer the
+            # explicit integer field first, fall through to enum->amp
+            # mapping verified by zackcornelius's VW NA APK decompile
+            # (maximum/max -> 32 A, reduced/min/minimum -> 10 A).
+            max_charge_raw = None
+            if isinstance(settings, dict):
+                max_charge_raw = (
+                    settings.get("maxChargeCurrentAcInAmperes")
+                    or settings.get("maxChargeCurrentAc")
+                )
+            if max_charge_raw is None:
+                max_charge_raw = (
+                    v(charge_info, "maxChargeCurrentAC")
+                    or v(charge_info, "maxChargeCurrent")
+                )
+            if isinstance(max_charge_raw, (int, float)):
+                d.max_charge_current = float(max_charge_raw)
+            elif isinstance(max_charge_raw, str):
+                _ENUM_TO_AMP = {
+                    "maximum": 32.0, "max": 32.0,
+                    "reduced": 10.0, "min": 10.0, "minimum": 10.0,
+                }
+                normalized = _ENUM_TO_AMP.get(max_charge_raw.lower())
+                if normalized is not None:
+                    d.max_charge_current = normalized
             # v2.11.0 (pycupra source-verified): min_soc lives at
             # `settings.minBatteryStateOfChargeInPercent` on /v1/charging/info.
             # Pre-v2.11.0 we never read it - sensor stayed null on every car.
