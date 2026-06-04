@@ -285,13 +285,25 @@ class SeatCupraClient(CariadBaseClient):
             fm = spec.get("factoryModel") or {} if isinstance(spec, dict) else {}
             # model: pycupra concatenates factoryModel.vehicleModel +
             # optional " " + specifications.carBody for the display name.
+            # v2.11.0 follow-up (heidle78 #392 v2.10.12 trace): the
+            # OLA API returns the literal string "default" as carBody
+            # for many MJ22-23 Formentor PHEVs, which then surfaced
+            # as the ugly model name "formentor default" in HA. Skip
+            # the suffix when it is a generic placeholder. Also title-
+            # case so "formentor" -> "Formentor" matches the official
+            # CUPRA app's display style.
             base_model = fm.get("vehicleModel") if isinstance(fm, dict) else None
             if isinstance(base_model, str) and base_model:
                 car_body = spec.get("carBody") if isinstance(spec, dict) else None
-                if isinstance(car_body, str) and car_body and car_body not in base_model:
-                    info["model"] = f"{base_model} {car_body}"
+                _GENERIC_BODIES = {"default", "unknown", "n/a", "none", ""}
+                if (
+                    isinstance(car_body, str)
+                    and car_body.strip().lower() not in _GENERIC_BODIES
+                    and car_body.strip().lower() not in base_model.lower()
+                ):
+                    info["model"] = f"{base_model} {car_body}".title()
                 else:
-                    info["model"] = base_model
+                    info["model"] = base_model.title()
             # Fallback to top-level for older firmware that may flatten.
             if not info.get("model"):
                 top_model = vehicle.get("model") or vehicle.get("modelName")
