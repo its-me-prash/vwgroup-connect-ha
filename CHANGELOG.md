@@ -40,6 +40,18 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [2.11.3] - 2026-06-04
+
+Bundle release. Five fixes spanning SEAT / CUPRA endpoint corrections, VW EU signin-service SPA auth, and Audi token refresh defense. Built from a fresh round of upstream-lib source-walks (pycupra const.py + connection.py, audi_connect_ha audi_services.py, volkswagencarnet vw_connection.py) plus the live diags from #392 (heidle78) and #388 (swebachus).
+
+### Fixed
+
+- **SEAT / CUPRA climatisation read endpoint** (#392 heidle78 v2.11.1 trace). We were hitting `/v2/vehicles/{vin}/climatisation` for the read which 404s — that path is the command prefix only (the start / stop / settings / window-heating POSTs hang off it). The actual read endpoint is `/v1/vehicles/{vin}/climatisation/status`. Restores `climatisation_state`, `target_temperature`, `outside_temp`, `aux_heating_*` etc. on every CUPRA / SEAT that's been silently null for these fields.
+- **SEAT / CUPRA door-lock parser presence check** (same trace). The "sub-job absent" failure in `parser_stats.door_lock` was a stats-misclassification — the parser actually populates `doors_locked` + `doors_individual` correctly from `/v2/vehicles/{vin}/status`, but the presence check only looked at `mycar.access.accessStatus.value` which is empty on newer firmware. Check now accepts either source so cars don't show false-positive parser failures in the diag.
+- **SEAT / CUPRA `permission_*` + `capabilities_count` plumbing**. The `/v1/vehicles/{vin}/permissions` URL we polled for the `permission_is_owner` / `permission_can_command` entities consistently 404'd in production — the canonical endpoint is `/v1/users/{userId}/vehicles/{vin}/relation-status`. Also added a `capabilities_count` diagnostic sensor for SEAT / CUPRA (already exists for VW EU and VW NA), cached for 24h so we don't hammer the capabilities endpoint on every scan_interval tick.
+- **VW EU SPA login on the signin-service flow** (#388 swebachus, Volkswagen ID.7 Sweden). The Auth0 SPA branch we shipped in v2.10.x was Auth0-specific — it hunted for `state=hKFo...` tokens which only exist on the universal-login path, then POSTed to `/u/login`. Users routed through the legacy `signin-service/v1/<client>` flow with a SPA-rendered password page (zero hidden inputs) hit a hard "no Auth0 state token found" error. Now: when the page embeds the `templateModel: { hmac, postAction, relayState, ... }` JSON literal (the SPA shell does), we pull those three fields and POST to the signin-service authenticate URL with the proper body shape. Same approach pycupra and audi_connect_ha use. Also covers a softer fallback (relayState alone via URL / JSON / escaped-JSON) for SPA shells that don't ship a full templateModel.
+- **Audi / VW refresh-token defense** (audi_connect_ha upstream PR #749 pattern). When the IDK token endpoint returns a fresh `access_token` but omits the `refresh_token`, we used to hard-fail with `AuthenticationError` and force a full re-login. Some IDK refresh responses do exactly that — the existing refresh-token stays valid for the rotation lifetime. Now: we keep the previously-known refresh-token when the response omits it, instead of throwing the user back to the config flow.
+
 ## [2.11.2] - 2026-06-04
 
 ### Fixed

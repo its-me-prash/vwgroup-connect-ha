@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -92,6 +93,12 @@ class SeatCupraClient(CariadBaseClient):
         # parkingposition). Surfaced as sensors in get_status().
         self._vin_to_license_plate: dict[str, str] = {}
         self._vin_to_nickname: dict[str, str] = {}
+        # v2.11.3 — capabilities-count cache. The full capabilities list
+        # rotates rarely (per pycupra commentary; OEM ships a static
+        # capability set per vehicle generation). We fetch once per
+        # 24h boundary and store just the count so the diagnostic
+        # sensor stays populated without N polls/day worth of extra GETs.
+        self._capabilities_count_cache: dict[str, tuple[int, float]] = {}
         # v2.10.10 (#392 heidle78) - static vehicle info cached per VIN
         # from the garage response. Pre-v2.10.10 the parser never set
         # model / modelYear / manufacturer / firmware on the dataclass
@@ -383,6 +390,33 @@ class SeatCupraClient(CariadBaseClient):
                 return {}  # Both paths 404 — give up, return empty
             raise
 
+    async def _get_capabilities_count(self, vin: str) -> int | None:
+        """v2.11.3 — cached per-VIN capabilities count.
+
+        The full capability set rotates rarely (OEM ships a static list
+        per vehicle generation), so we fetch once per 24h boundary and
+        keep just the count. Soft-fails to None on error so the diagnostic
+        sensor stays clean.
+        """
+        cached = self._capabilities_count_cache.get(vin)
+        if cached is not None:
+            count, fetched_at = cached
+            if time.monotonic() - fetched_at < 86400:
+                return count
+        try:
+            data = await self.get_capabilities(vin)
+        except Exception:  # noqa: BLE001
+            return cached[0] if cached else None
+        if not isinstance(data, dict):
+            return cached[0] if cached else None
+        caps = data.get("capabilities")
+        if isinstance(caps, list):
+            count = len(caps)
+        else:
+            count = len(data)
+        self._capabilities_count_cache[vin] = (count, time.monotonic())
+        return count
+
     async def _fetch_renders(self, vins: list[str]) -> None:
         """Fetch vehicle render images from OLA renders endpoint."""
         for vin in vins:
@@ -443,7 +477,12 @@ class SeatCupraClient(CariadBaseClient):
             self._get(f"{_BASE}/v2/vehicles/{vin}/status"),
             self._get(f"{_BASE}/v1/vehicles/{vin}/charging/status"),
             self._get(f"{_BASE}/v1/vehicles/{vin}/charging/info"),
-            self._get(f"{_BASE}/v2/vehicles/{vin}/climatisation"),
+            # v2.11.3 (#392 heidle78 v2.11.1 trace) - climatisation read
+            # endpoint is /v1/.../climatisation/status. /v2/.../climatisation
+            # is the COMMAND prefix only (used for /v2/.../climatisation/start
+            # etc.) — hitting bare /v2/.../climatisation returns 404 No static
+            # resource. pycupra source: API_CLIMATER_STATUS const.py line 109.
+            self._get(f"{_BASE}/v1/vehicles/{vin}/climatisation/status"),
             self._get(f"{_BASE}/v1/vehicles/{vin}/maintenance"),
             self._get(f"{_BASE}/v1/vehicles/{vin}/remote-availability"),
             self._get(f"{_BASE}/v1/vehicles/{vin}/mileage"),  # v2.5.3 (#306)
@@ -475,7 +514,16 @@ class SeatCupraClient(CariadBaseClient):
             # does not expose them stays clean (401, 404 typical). The
             # parsers further down accept missing dicts gracefully.
             self._get(f"{_BASE}/v1/vehicles/{vin}/notifications"),
-            self._get(f"{_BASE}/v1/vehicles/{vin}/permissions"),
+            # v2.11.3 — relation-status is the canonical pycupra source
+            # for isOwner / canCommand (const.py API_RELATION_STATUS
+            # line 125). The plain /v1/vehicles/{vin}/permissions path we
+            # used in v2.10.x consistently 404'd; relation-status returns
+            # the role + permission list that the parser already groks.
+            self._get(
+                f"{_BASE}/v1/users/{self._user_id}/vehicles/{vin}/relation-status"
+            ) if self._user_id else self._get(
+                f"{_BASE}/v1/vehicles/{vin}/permissions"
+            ),
             self._get(
                 f"{_BASE}/v1/vehicles/{vin}/measurements/engines"
             ),
@@ -560,17 +608,30 @@ class SeatCupraClient(CariadBaseClient):
         _note("parking_position", parking)
         _note("service_care", maintenance)
         # OLA flattens oil_level / tyre_pressure / auxiliary_heating
-        # into the mycar payload; door_lock lives under
-        # ``access.accessStatus.value``. Mirror the door_lock counter
-        # from there so cross-brand diagnostics line up.
-        if isinstance(mycar, BaseException):
+        # into the mycar payload. door_lock state lives in either:
+        #  - ``mycar.access.accessStatus.value`` (older firmware), OR
+        #  - ``status.doors`` from the /v2/vehicles/{vin}/status payload
+        #    (current firmware — pycupra source-verified, const.py
+        #    API_STATUS line 122).
+        # v2.11.3 (#392 heidle78 v2.11.1 trace) — flip the presence check
+        # to accept EITHER source so cars on the newer firmware no longer
+        # report a false-positive "sub-job absent" failure even when the
+        # parser actually populated door_locked / doors_individual fine.
+        if isinstance(mycar, BaseException) and isinstance(status, BaseException):
             _note("door_lock", mycar)
-        elif isinstance(mycar, dict):
-            self._note_parser_job(
-                "door_lock",
-                present=isinstance(
+        else:
+            mycar_has = (
+                isinstance(mycar, dict)
+                and isinstance(
                     self._val(mycar, "access", "accessStatus", "value"), dict,
-                ),
+                )
+            )
+            status_has = (
+                isinstance(status, dict)
+                and isinstance(self._val(status, "doors"), dict)
+            )
+            self._note_parser_job(
+                "door_lock", present=(mycar_has or status_has),
             )
 
         # ── Main vehicle data (mycar) ────────────────────────────────────────
@@ -2248,6 +2309,11 @@ class SeatCupraClient(CariadBaseClient):
         # parser populates ``available_charge_modes`` above; coordinator
         # writes the VehicleData dict into ``vehicles[vin]`` during the
         # poll merge.
+
+        # v2.11.3 — diagnostic capabilities_count sensor. Uses the 24h
+        # cached helper so we don't hammer the capabilities endpoint
+        # on every scan_interval tick.
+        d.capabilities_count = await self._get_capabilities_count(vin)
 
         return d
 
