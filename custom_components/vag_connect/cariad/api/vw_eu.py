@@ -1513,7 +1513,24 @@ class VWEUClient(CariadBaseClient):
             d.connector_locked = plug_lock.upper() == "LOCKED"
 
         d.target_soc = v(raw, "charging", "chargingSettings", "value", "targetSOC_pct")
-        d.charge_mode = v(raw, "charging", "chargingStatus", "value", "chargeMode")
+        # v2.11.0 (volkswagencarnet PR #328, merged 2026-06-01) - CARIAD-BFF
+        # now exposes a dedicated chargeMode sub-job under selectivestatus
+        # charging block. preferredChargeMode + availableChargeModes are
+        # real backend additions (independent of the auth crisis). Values
+        # observed: "manual", "timer", "preferredChargingTimes",
+        # "timerChargingWithClimatisation".
+        preferred = v(raw, "charging", "chargeMode", "value", "preferredChargeMode")
+        if isinstance(preferred, str) and preferred:
+            d.charging_preferred_mode = preferred
+        available = v(raw, "charging", "chargeMode", "value", "availableChargeModes")
+        if isinstance(available, list):
+            d.available_charge_modes = [
+                m for m in available if isinstance(m, str) and m
+            ]
+        d.charge_mode = (
+            v(raw, "charging", "chargingStatus", "value", "chargeMode")
+            or v(raw, "charging", "chargeMode", "value")
+        )
         d.min_soc = v(raw, "charging", "chargingSettings", "value", "minChargeLimit_pct")
         # v1.10.1 (#58) — safe_float for max charge current too. The
         # ``_A`` field is a clean integer in #90's Live-Dump (16) but the
