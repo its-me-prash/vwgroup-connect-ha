@@ -343,11 +343,26 @@ class SkodaClient(CariadBaseClient):
             # v2.0.0 — driving score (efficiency metric 0-100). Skoda-only,
             # not all MY expose it; 404 → None handled below.
             self._get(f"{_BASE}/api/v2/vehicle-status/{vin}/driving-score"),
+            # v2.11.0 (myskoda source-verified) - canonical warning-lights
+            # endpoint. Previously we relied on the embedded
+            # vehicleHealthWarnings block inside other responses; this
+            # is the dedicated source that ships per-category +
+            # per-defect data with priorities.
+            self._get(
+                f"{_BASE}/api/v1/vehicle-health-report/warning-lights/{vin}"
+            ),
+            # v2.11.0 (myskoda source-verified) - trip statistics
+            # endpoint. Lifetime + avg consumption + travel time per
+            # myskoda TripStatistics model.
+            self._get(
+                f"{_BASE}/api/v1/trip-statistics/{vin}?offsetType=week&offset=0"
+            ),
             return_exceptions=True,
         )
         (
             status, charging, ac, parking, driving_range,
             maintenance, readiness, sw_update, widget, driving_score,
+            health_v1, trip_stats,
         ) = results
 
         # v1.9.0 — Vehicle Data Scout opt-in. Stash raw responses keyed by
@@ -1066,6 +1081,88 @@ class SkodaClient(CariadBaseClient):
         # ── Driving Score (v2.0.0, Skoda-only) ────────────────────────────────
         # /api/v2/vehicle-status/{vin}/driving-score — 0-100 efficiency metric.
         # Newer Skoda Connect MY24+ surface this; older 404. Defensive parse.
+        # v2.11.0 (myskoda TripStatistics model source-verified): the
+        # /v1/trip-statistics/{vin} endpoint returns an OverviewTrip
+        # with overall_average_fuel_consumption / overall_average_mileage /
+        # overall_travel_time_in_min / overall_mileage_in_km + a
+        # detailedStatistics list of per-period TripStatistics entries.
+        if isinstance(trip_stats, dict):
+            overview = trip_stats.get("overview") or trip_stats
+            if isinstance(overview, dict):
+                lifetime_km = (
+                    overview.get("overallMileageInKm")
+                    or overview.get("mileageInKm")
+                )
+                if isinstance(lifetime_km, (int, float)):
+                    d.lifetime_distance_km = int(lifetime_km)
+                avg_fuel = overview.get("overallAverageFuelConsumption")
+                if isinstance(avg_fuel, (int, float)):
+                    d.lifetime_avg_fuel_consumption_l_100km = float(avg_fuel)
+                avg_electric = (
+                    overview.get("overallAverageElectricConsumption")
+                    or overview.get("overallAverageElectricEngineConsumption")
+                )
+                if isinstance(avg_electric, (int, float)):
+                    d.lifetime_avg_electric_consumption_kwh_100km = float(avg_electric)
+            # last-trip from detailedStatistics[0]
+            detailed = trip_stats.get("detailedStatistics")
+            if isinstance(detailed, list) and detailed:
+                last = detailed[0]
+                if isinstance(last, dict):
+                    last_km = last.get("mileageInKm") or last.get("mileage")
+                    if isinstance(last_km, (int, float)):
+                        d.last_trip_distance_km = int(last_km)
+                    last_time = (
+                        last.get("travelTimeInMin")
+                        or last.get("travelTime")
+                    )
+                    if isinstance(last_time, (int, float)):
+                        d.last_trip_duration_min = int(last_time)
+                    last_fuel = last.get("averageFuelConsumption")
+                    if isinstance(last_fuel, (int, float)):
+                        d.last_trip_avg_fuel_consumption_l_100km = float(last_fuel)
+                    last_speed = last.get("averageSpeedInKmph")
+                    if isinstance(last_speed, (int, float)):
+                        d.last_trip_avg_speed_kmh = int(last_speed)
+                    last_ts = (
+                        last.get("tripEndTimestamp")
+                        or last.get("timestamp")
+                    )
+                    if isinstance(last_ts, str) and last_ts:
+                        d.last_trip_timestamp = last_ts
+
+        # v2.11.0 (myskoda Health model source-verified): per-category
+        # warning lights from the dedicated health endpoint. Shape:
+        # {"capturedAt":"...","mileageInKm":12345,
+        #  "warningLights":[{"category":"ENGINE","defects":[{"text":...,
+        #    "priority":"HIGH","icon":"..."}]}, ...]}
+        # Each defect lifts to a per-category boolean; concatenated
+        # defect text feeds the cross-brand warning_messages field.
+        if isinstance(health_v1, dict):
+            lights = health_v1.get("warningLights")
+            if isinstance(lights, list) and lights:
+                warning_messages: list[str] = []
+                categories_seen: set[str] = set()
+                for light in lights:
+                    if not isinstance(light, dict):
+                        continue
+                    cat = str(light.get("category", "")).upper()
+                    if cat:
+                        categories_seen.add(cat)
+                    for defect in (light.get("defects") or []):
+                        if isinstance(defect, dict):
+                            text = defect.get("text") or ""
+                            if isinstance(text, str) and text:
+                                warning_messages.append(text)
+                d.warning_active = bool(lights)
+                d.warning_count = len(lights)
+                d.warning_engine = "ENGINE" in categories_seen
+                d.warning_brakes = "BRAKES" in categories_seen or "BRAKE" in categories_seen
+                d.warning_tyre = "TYRE" in categories_seen or "TIRE" in categories_seen
+                d.warning_oil = "OIL" in categories_seen or "FLUID" in categories_seen
+                if warning_messages:
+                    d.warning_messages = " | ".join(warning_messages[:5])
+
         if isinstance(driving_score, dict):
             # v2.11.0 (myskoda source-verified): the top-level `score`
             # and `drivingScoreClass` keys were a scout-derived guess

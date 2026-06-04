@@ -469,6 +469,20 @@ class SeatCupraClient(CariadBaseClient):
             ),
             self._get(f"{_BASE}/v1/vehicles/{vin}/charging/profiles"),
             self._get(f"{_BASE}/v1/vehicles/{vin}/charging/modes"),
+            # v2.11.0 (pycupra source-verified): aux-heating status
+            # read. We already use this host for start/stop commands;
+            # the status read fills in `auxiliary_heating_status`,
+            # `aux_heating_active`, `auxiliary_heating_remaining_min`,
+            # and `heater_source` which were null before.
+            self._get(f"{_BASE}/api/auxiliary-heating/v1/{vin}/status"),
+            # v2.11.0 (pycupra source-verified): trip statistics. pycupra
+            # has 25+ trip_last_*/trip_last_cycle_* properties reading
+            # these three endpoints; we never polled any of them. shortTerm
+            # is the last trip, longTerm is the lifetime aggregate,
+            # lastrefuel is the cyclic per-tank/per-charge totals.
+            self._get(f"{_BASE}/v1/vehicles/{vin}/trips/shortTerm"),
+            self._get(f"{_BASE}/v1/vehicles/{vin}/trips/longTerm"),
+            self._get(f"{_BASE}/v1/vehicles/{vin}/trips/lastrefuel"),
             return_exceptions=True,
         )
         (
@@ -484,6 +498,10 @@ class SeatCupraClient(CariadBaseClient):
             engine_measurements,  # v2.10.0 Group B
             charging_profiles_resp,  # v2.10.0 Group B
             charging_modes_resp,  # v2.10.0 Group B
+            aux_heating_status_resp,  # v2.11.0
+            trip_short_term,  # v2.11.0
+            trip_long_term,  # v2.11.0
+            trip_lastrefuel,  # v2.11.0
         ) = results
 
         # v1.9.0 — Vehicle Data Scout opt-in. Endpoint names match
@@ -1914,6 +1932,110 @@ class SeatCupraClient(CariadBaseClient):
                         modes_list.append(mode_name)
         if modes_list:
             d.available_charge_modes = modes_list
+
+        # v2.11.0 (pycupra source-verified) - trip statistics. Three
+        # endpoints feeding distinct fields:
+        # - shortTerm -> last_trip_*
+        # - longTerm -> lifetime_*
+        # - lastrefuel -> refuel_trip_*
+        # Field names defensive (camelCase vs snake_case variants
+        # observed across firmwares).
+        def _safe_int(val: Any) -> int | None:
+            return int(val) if isinstance(val, (int, float)) else None
+
+        def _safe_float(val: Any) -> float | None:
+            return float(val) if isinstance(val, (int, float)) else None
+
+        if isinstance(trip_short_term, dict):
+            st = trip_short_term.get("data") or trip_short_term
+            if isinstance(st, dict):
+                d.last_trip_distance_km = _safe_int(
+                    st.get("mileage_km") or st.get("mileage")
+                )
+                d.last_trip_duration_min = _safe_int(
+                    st.get("travelTime") or st.get("traveltime")
+                )
+                d.last_trip_avg_speed_kmh = _safe_int(
+                    st.get("averageSpeed_kmph") or st.get("averageSpeed")
+                )
+                d.last_trip_avg_fuel_consumption_l_100km = _safe_float(
+                    st.get("averageFuelConsumption")
+                )
+                d.last_trip_avg_electric_consumption_kwh_100km = _safe_float(
+                    st.get("averageElectricEngineConsumption")
+                )
+                ts = st.get("tripEndTimestamp") or st.get("timestamp")
+                if isinstance(ts, str) and ts:
+                    d.last_trip_timestamp = ts
+        if isinstance(trip_long_term, dict):
+            lt = trip_long_term.get("data") or trip_long_term
+            if isinstance(lt, dict):
+                d.lifetime_distance_km = _safe_int(
+                    lt.get("overallMileage_km")
+                    or lt.get("overallMileage")
+                    or lt.get("mileage_km")
+                )
+                d.lifetime_avg_fuel_consumption_l_100km = _safe_float(
+                    lt.get("averageFuelConsumption")
+                )
+                d.lifetime_avg_electric_consumption_kwh_100km = _safe_float(
+                    lt.get("averageElectricEngineConsumption")
+                )
+        if isinstance(trip_lastrefuel, dict):
+            rt = trip_lastrefuel.get("data") or trip_lastrefuel
+            if isinstance(rt, dict):
+                d.refuel_trip_distance_km = _safe_int(
+                    rt.get("mileage_km") or rt.get("mileage")
+                )
+                d.refuel_trip_duration_min = _safe_int(
+                    rt.get("travelTime") or rt.get("traveltime")
+                )
+                d.refuel_trip_avg_speed_kmh = _safe_int(
+                    rt.get("averageSpeed_kmph") or rt.get("averageSpeed")
+                )
+                d.refuel_trip_avg_fuel_consumption_l_100km = _safe_float(
+                    rt.get("averageFuelConsumption")
+                )
+                d.refuel_trip_avg_electric_consumption_kwh_100km = _safe_float(
+                    rt.get("averageElectricEngineConsumption")
+                )
+                d.refuel_trip_total_fuel_consumption_l = _safe_float(
+                    rt.get("totalFuelConsumption_l")
+                    or rt.get("totalFuelConsumption")
+                )
+                d.refuel_trip_total_electric_consumption_kwh = _safe_float(
+                    rt.get("totalElectricConsumption_kwh")
+                    or rt.get("totalElectricConsumption")
+                )
+                rts = rt.get("tripEndTimestamp") or rt.get("timestamp")
+                if isinstance(rts, str) and rts:
+                    d.refuel_trip_timestamp = rts
+
+        # v2.11.0 (pycupra source-verified) - aux-heating status.
+        # Shape per pycupra get_pheater_status:
+        # {"status": {"climatisationState": "off"|"heating"|"finished",
+        #             "remainingTime_min": int, "operationMode": "..."},
+        #  "settings": {"heaterSource": "automatic|fuel|electric", ...}}
+        if isinstance(aux_heating_status_resp, dict):
+            aux_status = v(aux_heating_status_resp, "status") or {}
+            if isinstance(aux_status, dict):
+                aux_state = (
+                    aux_status.get("climatisationState")
+                    or aux_status.get("operationMode")
+                )
+                if isinstance(aux_state, str) and aux_state:
+                    d.auxiliary_heating_status = aux_state
+                    d.aux_heating_active = aux_state.lower() in (
+                        "heating", "on", "heatingon", "active",
+                    )
+                aux_rem = aux_status.get("remainingTime_min")
+                if isinstance(aux_rem, (int, float)):
+                    d.auxiliary_heating_remaining_min = int(aux_rem)
+            aux_settings = v(aux_heating_status_resp, "settings") or {}
+            if isinstance(aux_settings, dict):
+                heater_src = aux_settings.get("heaterSource")
+                if isinstance(heater_src, str) and heater_src:
+                    d.heater_source = heater_src
 
         # ── v2.5.3 — /v1/mileage fallback (#306 Mii/Tavascan/Leon FR-KL) ────
         # PyCupra dedicates an entire endpoint to the cached odometer

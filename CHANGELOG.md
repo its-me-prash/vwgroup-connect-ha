@@ -62,12 +62,24 @@ Cross-brand parser audit against upstream lib source code. Five parallel deep di
 - **VW EU `measurements.rangeStatus.value.electricRange`** added as a third fallback in the electric range chain. Some pure-EV ID.x firmware ships only this leaf.
 - **VW EU / Audi aux-heating legacy fallback** at `climatisation.auxiliaryHeatingStatus.value.*`. Older Audi A4 B9 / MIB3 cars ship aux-heating state under the climatisation parent, NOT under top-level auxiliaryHeating. audi_connect_ha references this legacy path; we missed it pre-v2.11.0.
 
-### Known divergences not yet addressed (separate PRs)
+### Added (cont. - new endpoint integrations)
 
-- **VW NA**: substantial divergences from upstream (zackcornelius/CarConnectivity-connector-volkswagen-na). SPIN flow uses wrong hash algorithm (SHA1 vs SHA512) + wrong concat order + wrong endpoint URL + wrong body keys + wrong token transport. Lock / unlock + set-target-SOC + climate-settings + departure-timer commands all use wrong HTTP verbs + body shapes. Subscription parser shape is fictional. Field reads on RVS endpoint use wrong keys for `location`, `secure`, `readiness.readinessStatus.value.connectionState.isOnline`, `battery_soc` is on the wrong endpoint, `cruiseRange` units (KM/MI) are ignored, `vehicleType.engine` does not exist (use `data.platform == "MEB"`). Full rewrite scheduled for v2.11.1 with proper unit-test fixtures.
-- **Trip statistics** for SEAT / CUPRA (`/v1/vehicles/{vin}/trips/{shortTerm,longTerm,lastrefuel}`) and Skoda (`/v1/trip-statistics/{vin}`) are not yet fetched. Cross-brand lifetime / avg-consumption sensors stay null until v2.11.x adds the parsers.
-- **Skoda health endpoint** (`/v1/vehicle-health-report/warning-lights/{vin}`) is the canonical source for dashboard warning lamps but we don't poll it - relies on warning-lights data piggybacking onto other responses.
-- **SEAT / CUPRA aux-heating status** via `/api/auxiliary-heating/v1/{vin}/status` - we use the host for commands but never read the status. Pycupra has it.
+- **Skoda dedicated warning-lights health endpoint** (`/api/v1/vehicle-health-report/warning-lights/{vin}`, myskoda Health model). Canonical source for dashboard warning lamps with per-category breakdown (engine / brakes / tyre / oil / fluid) and human-readable defect text. Previously the warning_* fields relied on data piggybacking inside other responses.
+- **Skoda trip statistics endpoint** (`/api/v1/trip-statistics/{vin}`, myskoda TripStatistics model). Populates `lifetime_distance_km`, `lifetime_avg_fuel_consumption_l_100km`, `lifetime_avg_electric_consumption_kwh_100km` from the overview block plus `last_trip_*` fields from `detailedStatistics[0]`.
+- **SEAT / CUPRA aux-heating status read** (`/api/auxiliary-heating/v1/{vin}/status`). We have used this host for start/stop commands since v1.x; the status read now fills in `auxiliary_heating_status`, `aux_heating_active`, `auxiliary_heating_remaining_min`, and `heater_source` which were null on every car before.
+- **SEAT / CUPRA trip statistics** via three OLA endpoints (`/v1/vehicles/{vin}/trips/{shortTerm,longTerm,lastrefuel}`, pycupra references). Populates `last_trip_*`, `lifetime_*`, and `refuel_trip_*` with defensive field-name variants for both legacy MBB-suffixed and CARIAD-suffixed shapes.
+
+### Fixed (VW NA - in-place corrections, full rewrite still scheduled)
+
+- **VW NA SPIN flow algorithm + token field** (zackcornelius source-verified). The canonical hash is `SHA-512("{challenge}.{spin}")` (challenge first, period, then spin); pre-v2.11.0 used `SHA-1(spin + nonce)` which fails on modern Cox firmware. SHA-512 is now the primary attempt; the legacy SHA-1 stays as fallback on 4xx so users on older firmware are not regressed. The session token field is `carnetVehicleToken` (NOT `sessionToken`); both are tried.
+- **VW NA Canada client_id** at `69eb3c39-d2be-4006-8197-37cc4971e8fe_MYVW_ANDROID`. CA accounts that authenticated with the shared US client_id were rejected on newer firmware.
+- **VW NA OAuth scope** now `openid profile cars vin` (was bare `openid`). The NA IDP returns reduced consent + missing claims when only `openid` is requested.
+- **VW NA field-name corrections**: `data.location` (not `vehicleLocation`), `data.readiness.readinessStatus.value.connectionState.isOnline` (boolean) as primary online signal, `chargingStatus.currentChargeState` (not `chargingState`), `chargingStatus.chargePower` (not `chargePower_kW`), `chargeSettings.targetSOCPercentage` (not `chargingSettings.targetSOC_pct`), `chargingStatus.currentSOCPct` for battery_soc (was on wrong endpoint), `climateStatusReport.climateStatusInd` (not `climateState`), `data.timestamp` (epoch-ms) as canonical last-seen. `cruiseRangeUnits == "MI"` now converts to km (was silently treated as km, miles users had ~38% underreported range).
+
+### Still pending (separate PRs scheduled)
+
+- **VW NA write-side full rewrite** (lock/unlock HTTP verbs, set-target-SOC method + body shape, climate-settings PUT shape, departure-timer shape) - too risky to bundle without live test fixtures; scheduled v2.11.1.
+- **VW NA subscription/privileges** parser shape (zackcornelius reads `data.services[*].operations[*].capabilityStatus`, not a top-level `subscription` block) - scheduled v2.11.1.
 
 ## [2.10.12] - 2026-06-04
 
