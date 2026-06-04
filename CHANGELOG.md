@@ -40,6 +40,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [2.11.2] - 2026-06-04
+
+### Fixed
+
+- **SEAT / CUPRA trip stats + aux-heating status** (#392 heidle78 v2.11.0/v2.11.1 trace). The trip endpoints we'd used since v1.x (`/trips/shortTerm`, `/trips/longTerm`, `/trips/lastrefuel`) and the standalone aux-heating status endpoint (`/api/auxiliary-heating/v1/{vin}/status`) all 404 on Formentor PHEV firmware — they're not the canonical OLA paths. Replaced with the actual ones the app uses: a single `driving-data/SHORT` for last-trip + lifetime totals + `recent_trips` list, `driving-data/CYCLIC` for per-tank / per-charge refuel events, and the aux-heating sub-block that already comes back inside the existing `/v2/vehicles/{vin}/climatisation` payload (no extra request). Should unblock `last_trip_*`, `lifetime_*`, `refuel_trip_*`, `recent_trips`, `aux_heating_*` on Formentor PHEV and likely every other CUPRA / SEAT that's been silently null since v1.0.
+
 ## [2.11.1] - 2026-06-04
 
 ### Fixed
