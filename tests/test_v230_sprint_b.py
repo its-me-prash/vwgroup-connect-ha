@@ -146,28 +146,28 @@ class TestVWNAUsesNAOverrides:
         assert "signin_client_id_override=_NA_SIGNIN_CLIENT_GUID" in src
 
     def test_scope_narrowed_to_openid_only(self) -> None:
-        """BRAND_VW_NA.scope must be just 'openid' per matpoulin.
+        """v2.11.0: BRAND_VW_NA.scope is "openid profile cars vin"
+        per zackcornelius source-verified audit. Pre-v2.11.0 we sent
+        bare "openid" per matpoulin (#269) but the NA IDP returns
+        reduced consent + missing claims with that narrow scope.
 
         The wider EU-style scope chain (``openid profile email
-        offline_access mbb vin cars dealers``) was part of why the NA
-        IDP rejected the request with HTTP 400 in the user's log on
-        #269.
+        offline_access mbb vin cars dealers``) stays rejected.
         """
         src = _VW_NA_PY.read_text(encoding="utf-8")
-        assert 'scope="openid"' in src
-        # Make sure the old wide scope is removed.
+        assert 'scope="openid profile cars vin"' in src
+        # Make sure the EU-wide scope chain stays absent.
         assert 'scope="openid profile email offline_access mbb vin cars dealers"' not in src
 
     def test_models_brand_scope_also_narrowed(self) -> None:
-        """models.BRAND_VW_NA_MODEL.scope must match BRAND_VW_NA.scope."""
+        """v2.11.0: models.BRAND_VW_NA_MODEL.scope must match
+        BRAND_VW_NA.scope after the zackcornelius-verified bump to
+        "openid profile cars vin"."""
         src = _MODELS_PY.read_text(encoding="utf-8")
-        # The models-side scope is for users that bypass the api/vw_na
-        # path; keeping them in sync prevents subtle config drift.
-        # Find the BRAND_VW_NA_MODEL block and assert the scope.
         idx = src.find("BRAND_VW_NA_MODEL = BrandConfig(")
         assert idx > 0
         block = src[idx : idx + 600]
-        assert 'scope="openid"' in block
+        assert 'scope="openid profile cars vin"' in block
 
 
 # ──────────────────────────────────────────────────────────────────────

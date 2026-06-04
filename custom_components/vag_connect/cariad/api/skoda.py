@@ -98,6 +98,14 @@ class SkodaClient(CariadBaseClient):
         """v1.15.0 (#35) — Skoda charging history (myskoda PR shipped 2026).
 
         Endpoint: ``GET /api/v1/charging/{vin}/history?userTimezone=UTC&limit={N}``
+
+        v2.11.0 (myskoda issue #585): the Skoda app update on 2026-05-15
+        broke this endpoint with HTTP 500 for many users. The replacement
+        path is now ``get_charging_statistics`` which lives on a different
+        host (charging.cariad.digital, the same vhost SEAT/CUPRA already
+        use) and is wired via myskoda PR #586. We keep the legacy
+        endpoint as a fallback for accounts where it still works.
+
         Response shape (verified via myskoda/models/charging_history.py):
             {
               "nextCursor": "<ISO datetime>" | null,
@@ -119,6 +127,90 @@ class SkodaClient(CariadBaseClient):
             url, params={"userTimezone": "UTC", "limit": limit}
         )
         return data if isinstance(data, dict) else {}
+
+    async def get_charging_statistics(
+        self, vin: str, days_back: int = 90
+    ) -> dict[str, Any]:
+        """v2.11.0 (myskoda PR #586 source-verified, rsa-wusel
+        reverse-engineered). Skoda charging-statistics replacement for
+        the legacy /v1/charging/{vin}/history endpoint that started
+        returning HTTP 500 after the Skoda app update on 2026-05-15.
+
+        Endpoint: ``POST prod.emea.mobile.charging.cariad.digital/charging_statistics``
+        Same vhost we already use for SEAT/CUPRA charging stats but
+        with Skoda-specific X-Brand header + a structured POST body
+        carrying VIN-filtered date range.
+
+        Body shape:
+            {
+              "started_after": "YYYY-MM-DD",
+              "started_before": "YYYY-MM-DD",
+              "selected_filter_options": [
+                {"filter_type": "VEHICLE", "vin": "<VIN>"}
+              ],
+              "fetch_filter_options": true
+            }
+
+        Response shape (verified via myskoda PR #586):
+            {
+              "applicableFilterOptions": [...],
+              "missingElliConsent": false,
+              "monthSections": [
+                {
+                  "entries": [
+                    {
+                      "id": "...", "title": "...",
+                      "primaryValue": {"value": 12.5, "unit": "kWh"},
+                      "secondaryValue": {"value": 45, "unit": "min"},
+                      "sessionDetails": {
+                        "startedAt": "...", "isCurveAvailable": true,
+                        ...
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+
+        Best-effort: 401/403/404 soft-fail to ``{}`` so older accounts
+        without the cap stay clean. Returns the raw parsed dict for the
+        coordinator to consume.
+        """
+        from aiohttp import ClientTimeout  # noqa: PLC0415
+        from datetime import date, timedelta  # noqa: PLC0415
+
+        today = date.today()
+        started_before = today.isoformat()
+        started_after = (today - timedelta(days=days_back)).isoformat()
+        url = (
+            "https://prod.emea.mobile.charging.cariad.digital/charging_statistics"
+        )
+        headers = {
+            "Accept": "application/json",
+            "Accept-Language": "en-US",
+            "Content-Type": "application/json",
+            "X-Brand": "skoda",
+            "X-Device-Timezone": "Europe/Berlin",
+            "X-Api-Version": "1",
+        }
+        body = {
+            "started_after": started_after,
+            "started_before": started_before,
+            "selected_filter_options": [
+                {"filter_type": "VEHICLE", "vin": vin},
+            ],
+            "fetch_filter_options": True,
+        }
+        try:
+            # We use the parent client's _request with explicit JSON
+            # body. The auth Bearer header is injected by base.
+            resp = await self._request(
+                "POST", url, json=body, headers=headers,
+                timeout=ClientTimeout(total=30),
+            )
+        except Exception:  # noqa: BLE001
+            return {}
+        return resp if isinstance(resp, dict) else {}
 
     async def get_capabilities(self, vin: str) -> dict[str, Any]:
         """Return mysmob capabilities document for *vin*.
@@ -343,11 +435,32 @@ class SkodaClient(CariadBaseClient):
             # v2.0.0 — driving score (efficiency metric 0-100). Skoda-only,
             # not all MY expose it; 404 → None handled below.
             self._get(f"{_BASE}/api/v2/vehicle-status/{vin}/driving-score"),
+            # v2.11.0 (myskoda source-verified) - canonical warning-lights
+            # endpoint. Previously we relied on the embedded
+            # vehicleHealthWarnings block inside other responses; this
+            # is the dedicated source that ships per-category +
+            # per-defect data with priorities.
+            self._get(
+                f"{_BASE}/api/v1/vehicle-health-report/warning-lights/{vin}"
+            ),
+            # v2.11.0 (myskoda source-verified) - trip statistics
+            # endpoint. Lifetime + avg consumption + travel time per
+            # myskoda TripStatistics model.
+            self._get(
+                f"{_BASE}/api/v1/trip-statistics/{vin}?offsetType=week&offset=0"
+            ),
+            # v2.11.0 (myskoda PR #586 source-verified) - charging
+            # statistics replacement after the legacy /v1/charging/
+            # {vin}/history returned HTTP 500 since the 2026-05-15
+            # Skoda app update. POST body w/ VIN-filter on the
+            # charging.cariad.digital host.
+            self.get_charging_statistics(vin),
             return_exceptions=True,
         )
         (
             status, charging, ac, parking, driving_range,
             maintenance, readiness, sw_update, widget, driving_score,
+            health_v1, trip_stats, charging_stats_v2,
         ) = results
 
         # v1.9.0 — Vehicle Data Scout opt-in. Stash raw responses keyed by
@@ -429,8 +542,23 @@ class SkodaClient(CariadBaseClient):
             # the block below reads authoritatively. Leave
             # ``doors_locked`` as ``None`` if neither is present —
             # better "unknown" than "wrong".
-            d.doors_open = v(access, "doorsOpenedCount", default=0) > 0
-            d.windows_open = v(access, "windowsOpenedCount", default=0) > 0
+            # v2.11.0 (myskoda source-verified): there is no `access`
+            # subobject on Skoda mysmob vehicle-status — those
+            # `doorsOpenedCount` / `windowsOpenedCount` reads have
+            # been returning 0 (= False) for every Skoda since v1.0.
+            # The canonical source is `overall.doors` / `overall.windows`
+            # which is a literal "OPEN" / "CLOSED" string.
+            overall_doors_status = v(status, "overall", "doors")
+            overall_windows_status = v(status, "overall", "windows")
+            if isinstance(overall_doors_status, str):
+                d.doors_open = overall_doors_status.upper() == "OPEN"
+            elif "access" in status:
+                # Legacy fallback in case any firmware ever ships it.
+                d.doors_open = v(access, "doorsOpenedCount", default=0) > 0
+            if isinstance(overall_windows_status, str):
+                d.windows_open = overall_windows_status.upper() == "OPEN"
+            elif "access" in status:
+                d.windows_open = v(access, "windowsOpenedCount", default=0) > 0
 
             # v1.8.11 (Session 3S) — `vehicle-status` real shape verified
             # against upstream/cc-skoda issue #50
@@ -747,9 +875,54 @@ class SkodaClient(CariadBaseClient):
             #   totalRangeInKm
             # Each is its own entity now; ``range_km`` keeps its old
             # "headline" semantics (electric for EV/PHEV, total for ICE).
-            electric = v(driving_range, "electricRange", "distanceInKm")
+            # v2.11.0 (#392 myskoda source-verified): the canonical key is
+            # ``primaryEngineRange.remainingRangeInKm`` for the primary
+            # propulsion (electric on BEV, combustion on ICE) and
+            # ``secondaryEngineRange.remainingRangeInKm`` for the
+            # secondary on PHEVs. ``electricRange.distanceInKm`` and
+            # ``combustionRange.distanceInKm`` were our scout-derived
+            # guesses that myskoda's DrivingRange model does NOT
+            # include — for years they have returned None on every
+            # Skoda. Keep the old paths as last-resort fallbacks for
+            # any firmware that genuinely ships them.
+            primary_remaining = v(
+                driving_range, "primaryEngineRange", "remainingRangeInKm"
+            )
+            secondary_remaining = v(
+                driving_range, "secondaryEngineRange", "remainingRangeInKm"
+            )
+            primary_eng_type = (
+                v(driving_range, "primaryEngineRange", "engineType") or ""
+            ).upper()
+            # Derive electric / combustion from primary+secondary +
+            # engineType. EV / PHEV electric: primary if primary is
+            # ELECTRIC, else secondary. Combustion: primary if non-
+            # electric, else secondary.
+            if "ELECTRIC" in primary_eng_type or primary_eng_type in ("BEV",):
+                electric = primary_remaining or v(
+                    driving_range, "electricRange", "distanceInKm"
+                )
+                combustion = secondary_remaining or v(
+                    driving_range, "combustionRange", "distanceInKm"
+                )
+            elif primary_eng_type:
+                combustion = primary_remaining or v(
+                    driving_range, "combustionRange", "distanceInKm"
+                )
+                electric = secondary_remaining or v(
+                    driving_range, "electricRange", "distanceInKm"
+                )
+            else:
+                # No engineType - try both, prefer remainingRangeInKm.
+                electric = (
+                    v(driving_range, "primaryEngineRange", "remainingRangeInKm")
+                    or v(driving_range, "electricRange", "distanceInKm")
+                )
+                combustion = (
+                    v(driving_range, "secondaryEngineRange", "remainingRangeInKm")
+                    or v(driving_range, "combustionRange", "distanceInKm")
+                )
             total = v(driving_range, "totalRangeInKm")
-            combustion = v(driving_range, "combustionRange", "distanceInKm")
             if combustion is None:
                 # Older firmwares published a flat scalar without the
                 # ``distanceInKm`` wrapper — keep that path as a fallback.
@@ -773,13 +946,25 @@ class SkodaClient(CariadBaseClient):
                 d.range_km = d.combustion_range_km
             else:
                 d.range_km = electric or total
-            adblue = v(driving_range, "adBlueRange", "distanceInKm")
-            d.adblue_range_km = safe_int(adblue)
+            # v2.11.0 (myskoda source-verified): adBlueRange is a FLAT
+            # int on the Skoda payload, NOT a dict with distanceInKm.
+            # The pre-v2.11.0 dict lookup returned None on every car.
+            adblue_flat = v(driving_range, "adBlueRange")
+            if isinstance(adblue_flat, (int, float)):
+                d.adblue_range_km = safe_int(adblue_flat)
+            else:
+                # Fallback if some firmware genuinely ships the dict.
+                d.adblue_range_km = safe_int(
+                    v(driving_range, "adBlueRange", "distanceInKm")
+                )
             # v1.26.0 Welle-6 (#173, scout #165 christianmhz) — Skoda PHEV
             # secondary engine range (Kodiaq iV, Octavia iV, Superb iV).
-            # Distinct from combustion_range_km because Skoda PHEVs report
-            # both via separate API blocks since 2024 firmware.
-            sec_eng = v(driving_range, "secondaryEngineRange", "distanceInKm")
+            # v2.11.0: prefer remainingRangeInKm (myskoda canonical)
+            # over the scout-derived distanceInKm.
+            sec_eng = (
+                v(driving_range, "secondaryEngineRange", "remainingRangeInKm")
+                or v(driving_range, "secondaryEngineRange", "distanceInKm")
+            )
             d.secondary_engine_range_km = safe_int(sec_eng)
             # v2.2.0 (Skoda Scout #220 — Daniel Walter 2026-05-16):
             # ``secondaryEngineRange`` expanded from 1-key (distanceInKm)
@@ -994,10 +1179,176 @@ class SkodaClient(CariadBaseClient):
         # ── Driving Score (v2.0.0, Skoda-only) ────────────────────────────────
         # /api/v2/vehicle-status/{vin}/driving-score — 0-100 efficiency metric.
         # Newer Skoda Connect MY24+ surface this; older 404. Defensive parse.
+        # v2.11.0 (myskoda TripStatistics model source-verified): the
+        # /v1/trip-statistics/{vin} endpoint returns an OverviewTrip
+        # with overall_average_fuel_consumption / overall_average_mileage /
+        # overall_travel_time_in_min / overall_mileage_in_km + a
+        # detailedStatistics list of per-period TripStatistics entries.
+        if isinstance(trip_stats, dict):
+            overview = trip_stats.get("overview") or trip_stats
+            if isinstance(overview, dict):
+                lifetime_km = (
+                    overview.get("overallMileageInKm")
+                    or overview.get("mileageInKm")
+                )
+                if isinstance(lifetime_km, (int, float)):
+                    d.lifetime_distance_km = int(lifetime_km)
+                avg_fuel = overview.get("overallAverageFuelConsumption")
+                if isinstance(avg_fuel, (int, float)):
+                    d.lifetime_avg_fuel_consumption_l_100km = float(avg_fuel)
+                avg_electric = (
+                    overview.get("overallAverageElectricConsumption")
+                    or overview.get("overallAverageElectricEngineConsumption")
+                )
+                if isinstance(avg_electric, (int, float)):
+                    d.lifetime_avg_electric_consumption_kwh_100km = float(avg_electric)
+            # last-trip from detailedStatistics[0]
+            detailed = trip_stats.get("detailedStatistics")
+            if isinstance(detailed, list) and detailed:
+                last = detailed[0]
+                if isinstance(last, dict):
+                    last_km = last.get("mileageInKm") or last.get("mileage")
+                    if isinstance(last_km, (int, float)):
+                        d.last_trip_distance_km = int(last_km)
+                    last_time = (
+                        last.get("travelTimeInMin")
+                        or last.get("travelTime")
+                    )
+                    if isinstance(last_time, (int, float)):
+                        d.last_trip_duration_min = int(last_time)
+                    last_fuel = last.get("averageFuelConsumption")
+                    if isinstance(last_fuel, (int, float)):
+                        d.last_trip_avg_fuel_consumption_l_100km = float(last_fuel)
+                    last_speed = last.get("averageSpeedInKmph")
+                    if isinstance(last_speed, (int, float)):
+                        d.last_trip_avg_speed_kmh = int(last_speed)
+                    last_ts = (
+                        last.get("tripEndTimestamp")
+                        or last.get("timestamp")
+                    )
+                    if isinstance(last_ts, str) and last_ts:
+                        d.last_trip_timestamp = last_ts
+
+        # v2.11.0 (myskoda PR #586 source-verified): charging stats
+        # from the replacement endpoint. monthSections[].entries[] each
+        # carry an aggregated charging session with primaryValue (kWh)
+        # + secondaryValue (duration) + sessionDetails.
+        if isinstance(charging_stats_v2, dict):
+            month_sections = charging_stats_v2.get("monthSections") or []
+            all_entries: list[dict[str, Any]] = []
+            for section in month_sections:
+                if isinstance(section, dict):
+                    entries = section.get("entries") or []
+                    for entry in entries:
+                        if isinstance(entry, dict):
+                            all_entries.append(entry)
+            # Lifetime aggregate: sum primaryValue.value (kWh) across
+            # all entries when the value type is kWh.
+            total_kwh = 0.0
+            for entry in all_entries:
+                pv = entry.get("primaryValue") or {}
+                if isinstance(pv, dict):
+                    unit = str(pv.get("unit", "")).lower()
+                    val = pv.get("value")
+                    if unit in ("kwh", "kw_h") and isinstance(val, (int, float)):
+                        total_kwh += float(val)
+            if total_kwh > 0:
+                d.total_charged_energy_kwh = round(total_kwh, 2)
+            # Last session = first entry (newest first per myskoda model).
+            if all_entries:
+                last = all_entries[0]
+                pv_last = last.get("primaryValue") or {}
+                sv_last = last.get("secondaryValue") or {}
+                details = last.get("sessionDetails") or {}
+                if isinstance(pv_last, dict):
+                    last_kwh = pv_last.get("value")
+                    if isinstance(last_kwh, (int, float)):
+                        d.last_charging_session_kwh = float(last_kwh)
+                if isinstance(sv_last, dict):
+                    last_min = sv_last.get("value")
+                    if isinstance(last_min, (int, float)):
+                        d.last_charging_session_duration_min = int(last_min)
+                started_at = details.get("startedAt") if isinstance(details, dict) else None
+                if isinstance(started_at, str) and started_at:
+                    d.last_charging_session_start = started_at
+                current_type = details.get("currentType") if isinstance(details, dict) else None
+                if isinstance(current_type, str) and current_type:
+                    d.last_charging_session_current_type = current_type.upper()
+                # recent_charging_sessions = compact list of last 10
+                recent: list[dict[str, Any]] = []
+                for e in all_entries[:10]:
+                    e_pv = e.get("primaryValue") or {}
+                    e_sv = e.get("secondaryValue") or {}
+                    e_det = e.get("sessionDetails") or {}
+                    recent.append({
+                        "started_at": (
+                            e_det.get("startedAt")
+                            if isinstance(e_det, dict) else None
+                        ),
+                        "kwh": (
+                            e_pv.get("value")
+                            if isinstance(e_pv, dict) else None
+                        ),
+                        "duration_min": (
+                            e_sv.get("value")
+                            if isinstance(e_sv, dict) else None
+                        ),
+                    })
+                d.recent_charging_sessions = recent
+
+        # v2.11.0 (myskoda Health model source-verified): per-category
+        # warning lights from the dedicated health endpoint. Shape:
+        # {"capturedAt":"...","mileageInKm":12345,
+        #  "warningLights":[{"category":"ENGINE","defects":[{"text":...,
+        #    "priority":"HIGH","icon":"..."}]}, ...]}
+        # Each defect lifts to a per-category boolean; concatenated
+        # defect text feeds the cross-brand warning_messages field.
+        if isinstance(health_v1, dict):
+            lights = health_v1.get("warningLights")
+            if isinstance(lights, list) and lights:
+                warning_messages: list[str] = []
+                categories_seen: set[str] = set()
+                for light in lights:
+                    if not isinstance(light, dict):
+                        continue
+                    cat = str(light.get("category", "")).upper()
+                    if cat:
+                        categories_seen.add(cat)
+                    for defect in (light.get("defects") or []):
+                        if isinstance(defect, dict):
+                            text = defect.get("text") or ""
+                            if isinstance(text, str) and text:
+                                warning_messages.append(text)
+                d.warning_active = bool(lights)
+                d.warning_count = len(lights)
+                d.warning_engine = "ENGINE" in categories_seen
+                d.warning_brakes = "BRAKES" in categories_seen or "BRAKE" in categories_seen
+                d.warning_tyre = "TYRE" in categories_seen or "TIRE" in categories_seen
+                d.warning_oil = "OIL" in categories_seen or "FLUID" in categories_seen
+                if warning_messages:
+                    d.warning_messages = " | ".join(warning_messages[:5])
+
         if isinstance(driving_score, dict):
-            score = driving_score.get("score")
-            if isinstance(score, (int, float)):
-                d.driving_score = int(score)
+            # v2.11.0 (myskoda source-verified): the top-level `score`
+            # and `drivingScoreClass` keys were a scout-derived guess
+            # that DrivingScore model does not include. The canonical
+            # shape is per-period objects (daily/weekly/monthly/quarterly)
+            # each with a `main` score and breakdown metrics. Prefer
+            # weeklyScore.main as the "headline" value, then monthlyScore
+            # as fallback. Class field doesn't exist upstream - drop.
+            for period_key in ("weeklyScore", "monthlyScore",
+                               "quarterlyScore", "dailyScore"):
+                period = driving_score.get(period_key)
+                if isinstance(period, dict):
+                    main = period.get("main")
+                    if isinstance(main, (int, float)):
+                        d.driving_score = int(main)
+                        break
+            # Legacy fallback if any firmware actually ships top-level.
+            if d.driving_score is None:
+                score = driving_score.get("score")
+                if isinstance(score, (int, float)):
+                    d.driving_score = int(score)
             cls = driving_score.get("drivingScoreClass")
             if isinstance(cls, str) and cls:
                 d.driving_score_class = cls

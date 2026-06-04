@@ -1,0 +1,45 @@
+meta {
+  name: GET vehicle health warning lights
+  type: http
+  seq: 32
+}
+
+get {
+  url: {{base_url}}/api/v1/vehicle-health-report/warning-lights/{{vin}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  v2.11.0 - canonical warning-lights endpoint (myskoda Health model).
+  Previously we relied on the embedded vehicleHealthWarnings block
+  inside other responses; this is the dedicated source that ships
+  per-category + per-defect data with priorities.
+
+  Response shape (verified myskoda/models/health.py):
+    {
+      "capturedAt": "2026-06-04T10:00:00Z",
+      "mileageInKm": 12345,
+      "warningLights": [
+        {
+          "category": "ENGINE" | "BRAKES" | "TYRE" | "OIL" | "FLUID" | ...,
+          "defects": [
+            { "text": "Check engine oil", "priority": "HIGH", "icon": "..." }
+          ]
+        }
+      ]
+    }
+
+  Used by SkodaClient.get_status() at
+  custom_components/vag_connect/cariad/api/skoda.py to populate
+  warning_active, warning_count, warning_engine/brakes/tyre/oil booleans
+  + concatenated warning_messages.
+}

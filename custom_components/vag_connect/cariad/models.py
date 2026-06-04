@@ -129,9 +129,11 @@ BRAND_VW_NA_MODEL = BrandConfig(
     redirect_uri="kombi:///login",
     user_agent="MyVW/1.0 Android",
     api_base="https://b-h-s.spr.us00.p.con-veh.net",
-    # v2.3.0 (#269) — single ``openid`` scope per matpoulin's working
-    # NA flow. Wider EU-style scope chain was the trigger for HTTP 400.
-    scope="openid",
+    # v2.11.0 (zackcornelius source-verified) — full
+    # "openid profile cars vin" scope. Bare "openid" returns reduced
+    # consent + missing claims on the NA IDP. Kept in sync with
+    # BRAND_VW_NA in api/vw_na.py via test_v230_sprint_b.
+    scope="openid profile cars vin",
 )
 
 BRAND_PORSCHE = BrandConfig(

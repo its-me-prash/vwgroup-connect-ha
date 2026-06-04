@@ -40,6 +40,63 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [2.11.0] - 2026-06-04
+
+Cross-brand parser audit against upstream lib source code. Five parallel deep diffs (pycupra, myskoda, volkswagencarnet, audi_connect_ha + CarConnectivity-VW, CarConnectivity-connector-volkswagen-na) surfaced field-name and parsing bugs that have been silently returning null on every car for some time. Bundled into one PR rather than the per-brand hotfix chain pattern.
+
+### Fixed (cross-brand)
+
+- **Skoda driving range fields** (myskoda source-verified). `electricRange.distanceInKm` / `combustionRange.distanceInKm` / `secondaryEngineRange.distanceInKm` are scout-derived paths that myskoda's DrivingRange model does NOT include. Canonical keys are `primaryEngineRange.remainingRangeInKm` + `secondaryEngineRange.remainingRangeInKm` plus an `engineType` enum to decide which is electric vs combustion. Old paths kept as fallback for any firmware that genuinely ships them. `adBlueRange` is a flat int upstream, not a dict.
+- **Skoda doors_open / windows_open** were reading from `access.doorsOpenedCount` / `windowsOpenedCount` which do not exist on Skoda mysmob vehicle-status (no `access` subobject). For years these sensors silently reported false. Now reads `overall.doors == "OPEN"` / `overall.windows == "OPEN"` per myskoda Status.Overall model.
+- **Skoda driving_score** was reading non-existent top-level `score` / `drivingScoreClass`. Upstream DrivingScore model is per-period (`daily/weekly/monthly/quarterlyScore.main`). Now prefers `weeklyScore.main` then falls back through the other periods.
+- **SEAT / CUPRA charging path-prefix** (pycupra source-verified). The canonical path is `charging.status.charging.*` and `charging.status.battery.chargeEnergyInKwh` on Born MY24+. Pre-v2.11.0 we only tried `charging.charging.*` (direct) so `charging_power_kw`, `charging_rate_kmh`, `charging_type`, `total_charged_energy_kwh` were silently null on newer firmwares. Now adds the `.status.` segment as the canonical primary, keeps direct as fallback.
+- **SEAT / CUPRA `battery_care_target_soc_pct`** field name. pycupra reads `targetSocPercentage` (no underscores); we previously tried `targetSOC_pct` and other variants only.
+- **VW EU / Audi `plug_led_color` double-write bug**. A second unconditional assignment at the end of the charging block overwrote a valid PPE-firmware value (`plugLedColor` on access or chargingStatus) with `None` from `plugStatus.value.ledColor`. Now consolidated into a single defensive chain ordered upstream-canonical-first.
+- **VW EU / Audi `battery_care` parent block order**. Volkswagencarnet's `vw_const` puts the canonical path under `batteryChargingCare.chargingCareSettings.*`; we previously tried `charging.chargingCareSettings.*` FIRST and the dedicated batteryChargingCare block was a fallback. Flipped so the canonical wins.
+
+### Added
+
+- **SEAT / CUPRA min_soc** read at `settings.minBatteryStateOfChargeInPercent` on `/v1/charging/info` (pycupra `get_min_charge_level`). Sensor previously stayed null.
+- **SEAT / CUPRA climate_remaining_time_min + climate_ready_at** wired. The OLA climate payload already shipped `status.remainingClimatisationTime_min`; we just never read it. Derived `climate_ready_at` ISO timestamp lets HA show a "ready by" clock.
+- **VW EU missing selectivestatus jobs**: `activeVentilation`, `batterySupport`, `chargingProfiles`, `chargingTimers`. Without these requested, parsers that read from those blocks (active ventilation state at v2.10.0 Group A, next-charging-timer at #173) returned null on any car whose data didn't happen to ship inside a sibling block.
+- **VW EU `measurements.rangeStatus.value.electricRange`** added as a third fallback in the electric range chain. Some pure-EV ID.x firmware ships only this leaf.
+- **VW EU / Audi aux-heating legacy fallback** at `climatisation.auxiliaryHeatingStatus.value.*`. Older Audi A4 B9 / MIB3 cars ship aux-heating state under the climatisation parent, NOT under top-level auxiliaryHeating. audi_connect_ha references this legacy path; we missed it pre-v2.11.0.
+
+### Added (cont. - new endpoint integrations)
+
+- **Skoda dedicated warning-lights health endpoint** (`/api/v1/vehicle-health-report/warning-lights/{vin}`, myskoda Health model). Canonical source for dashboard warning lamps with per-category breakdown (engine / brakes / tyre / oil / fluid) and human-readable defect text. Previously the warning_* fields relied on data piggybacking inside other responses.
+- **Skoda trip statistics endpoint** (`/api/v1/trip-statistics/{vin}`, myskoda TripStatistics model). Populates `lifetime_distance_km`, `lifetime_avg_fuel_consumption_l_100km`, `lifetime_avg_electric_consumption_kwh_100km` from the overview block plus `last_trip_*` fields from `detailedStatistics[0]`.
+- **SEAT / CUPRA aux-heating status read** (`/api/auxiliary-heating/v1/{vin}/status`). We have used this host for start/stop commands since v1.x; the status read now fills in `auxiliary_heating_status`, `aux_heating_active`, `auxiliary_heating_remaining_min`, and `heater_source` which were null on every car before.
+- **SEAT / CUPRA trip statistics** via three OLA endpoints (`/v1/vehicles/{vin}/trips/{shortTerm,longTerm,lastrefuel}`, pycupra references). Populates `last_trip_*`, `lifetime_*`, and `refuel_trip_*` with defensive field-name variants for both legacy MBB-suffixed and CARIAD-suffixed shapes.
+
+### Fixed (VW NA - in-place corrections, full rewrite still scheduled)
+
+- **VW NA SPIN flow algorithm + token field** (zackcornelius source-verified). The canonical hash is `SHA-512("{challenge}.{spin}")` (challenge first, period, then spin); pre-v2.11.0 used `SHA-1(spin + nonce)` which fails on modern Cox firmware. SHA-512 is now the primary attempt; the legacy SHA-1 stays as fallback on 4xx so users on older firmware are not regressed. The session token field is `carnetVehicleToken` (NOT `sessionToken`); both are tried.
+- **VW NA Canada client_id** at `69eb3c39-d2be-4006-8197-37cc4971e8fe_MYVW_ANDROID`. CA accounts that authenticated with the shared US client_id were rejected on newer firmware.
+- **VW NA OAuth scope** now `openid profile cars vin` (was bare `openid`). The NA IDP returns reduced consent + missing claims when only `openid` is requested.
+- **VW NA field-name corrections**: `data.location` (not `vehicleLocation`), `data.readiness.readinessStatus.value.connectionState.isOnline` (boolean) as primary online signal, `chargingStatus.currentChargeState` (not `chargingState`), `chargingStatus.chargePower` (not `chargePower_kW`), `chargeSettings.targetSOCPercentage` (not `chargingSettings.targetSOC_pct`), `chargingStatus.currentSOCPct` for battery_soc (was on wrong endpoint), `climateStatusReport.climateStatusInd` (not `climateState`), `data.timestamp` (epoch-ms) as canonical last-seen. `cruiseRangeUnits == "MI"` now converts to km (was silently treated as km, miles users had ~38% underreported range).
+
+### Added (cont. - post-audit upstream sync)
+
+- **Skoda charging statistics endpoint** (myskoda PR #586 source-verified). POSTs to `prod.emea.mobile.charging.cariad.digital/charging_statistics` with a VIN-filtered date range and Skoda-brand headers (`X-Brand: skoda`, `X-Device-Timezone: Europe/Berlin`, `X-Api-Version: 1`). The legacy `/v1/charging/{vin}/history` endpoint started returning HTTP 500 for many users after the Skoda app update on 2026-05-15 (upstream issue #585). The replacement uses `monthSections[].entries[].{primaryValue.value, secondaryValue.value, sessionDetails.startedAt, sessionDetails.currentType}` to populate `total_charged_energy_kwh` (sum across all entries), `last_charging_session_kwh`, `last_charging_session_duration_min`, `last_charging_session_start`, `last_charging_session_current_type`, and a compact `recent_charging_sessions` list. Adopted preemptively because PR #586 has not yet landed upstream but the broken state affects every Skoda user on current firmware.
+- **VW EU / Audi `chargeMode` selectivestatus sub-job** (volkswagencarnet PR #328 source-verified, merged 2026-06-01). CARIAD-BFF now exposes a dedicated `charging.chargeMode.value` block carrying `preferredChargeMode` + `availableChargeModes`. Independent of the auth crisis - this is a real additive backend change. Now populates `charging_preferred_mode` and `available_charge_modes` for VW EU / Audi vehicles (CUPRA / SEAT have already shipped these from OLA endpoints since v2.10.0).
+
+### Verified aligned with upstream (no action required)
+
+- **SEAT / CUPRA `app-market: android` header** already set in `_ola_headers.py` for both brands since v2.1.x. Aligned with pycupra v0.2.30 403 fix.
+- **`tokentype: IDK_TECHNICAL` header** is not set anywhere in our codebase. Aligned with volkswagencarnet v5.4.7 removal.
+- **VW NA OAuth scope** confirmed `openid profile cars vin` against zackcornelius HEAD source — both repo source and live API behavior verified.
+- **VW EU auth situation**: refresh tokens dead, Play Integrity X-Assertion required, Python cannot bypass. Confirmed wide community consensus (volkswagencarnet pinned #989, o11e's APK Frida writeup, evcc-io). Our Data Act portal fallback is the realistic ceiling.
+- **Skoda mysmob charging-history /v1/charging/{vin}/history**: upstream broken with HTTP 500 since 2026-05-15 (myskoda issue #585). We adopt the in-progress fix from myskoda PR #586 (rsa-wusel APK reverse-engineered) preemptively because the upstream-broken state hits every Skoda user on 2026-05-15+ firmware.
+
+### Still pending (separate PRs scheduled)
+
+- **VW NA write-side full rewrite** (lock/unlock HTTP verbs, set-target-SOC method + body shape, climate-settings PUT shape, departure-timer shape). zackcornelius HEAD now has the APK-decompiled reference: `GET /ss/v1/user/{userId}/challenge` → `POST /ss/v1/user/{userId}/vehicle/{uuid}/session` body `{idToken, spinHash, tsp:"WCT"}` → carnetVehicleToken as Bearer (not X-Spin-Session). Lock = PUT body `{"lock":bool}`. Verbatim port scheduled v2.11.1.
+- **VW NA subscription/privileges** parser shape (zackcornelius reads `data.services[*].operations[*].capabilityStatus`, not a top-level `subscription` block) - v2.11.1.
+- **Audi refresh_token KeyError defense** (audi_connect_ha PR #749 source-verified) - backend now intermittently omits refresh_token. Our refresh path needs same `if "refresh_token" in resp` guard - v2.11.1.
+- **Audi IDK discovery URL preference** (audi_connect_ha PR #738) - verify `_audi_market_config.py` reads `idkLoginServiceConfigurationURLProduction` with fallback to `/auth/v1/idk/oidc/openid-configuration` - v2.11.1.
+- **Skoda TripStatistics OverallCost/FuelCost fields** (myskoda v2.11.1 additive). Needs new VehicleData attributes + sensor.py registrations + 9-lang translations + currency-aware unit handling - v2.11.1.
+
 ## [2.10.12] - 2026-06-04
 
 ### Fixed
