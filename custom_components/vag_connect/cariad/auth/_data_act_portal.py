@@ -422,6 +422,75 @@ class DataActPortalAuth:
                 )
                 state_from_url = ""
                 state_source = ""
+                # v2.11.3 (#388 swebachus VW EU ID.7 SE) — template-model
+                # extraction for signin-service SPA. When VW renders the
+                # signin-service login as a SPA shell with zero hidden
+                # <input> tags, the form data still lives inside an
+                # embedded ``templateModel: { hmac, postAction, relayState,
+                # ... }`` JSON literal in a <script> block. This is the
+                # exact fallback both pycupra (connection.py 823-897) and
+                # audi_connect_ha (audi_services.py 1449-1481) use. Pull
+                # hmac + postAction directly so the authenticate POST has
+                # the session-bound CSRF token the SPA shell would
+                # otherwise compute in JS. When found, this short-circuits
+                # the Auth0-state hunt — we know we are on signin-service
+                # and have everything we need.
+                template_hmac = ""
+                template_post_action = ""
+                template_relay_state = ""
+
+                def _extract_template_model(
+                    src_html: str,
+                ) -> tuple[str, str, str]:
+                    """Return (hmac, postAction, relayState) from any
+                    ``templateModel: {...},`` literal in *src_html*.
+                    Returns empty strings when not found.
+                    """
+                    # Match ``templateModel: {`` through the matching
+                    # closing brace before the next ``,\n`` separator —
+                    # mirrors the pycupra/audi_connect_ha regex shape.
+                    tm_match = re.search(
+                        r"templateModel\s*:\s*(\{.*?\})\s*,\s*\n",
+                        src_html, re.DOTALL,
+                    )
+                    if not tm_match:
+                        return "", "", ""
+                    tm_json = tm_match.group(1)
+                    h = re.search(
+                        r'"hmac"\s*:\s*"([^"]+)"', tm_json,
+                    )
+                    pa = re.search(
+                        r'"postAction"\s*:\s*"([^"]+)"', tm_json,
+                    )
+                    rs = re.search(
+                        r'"relayState"\s*:\s*"([^"]+)"', tm_json,
+                    )
+                    return (
+                        h.group(1) if h else "",
+                        pa.group(1) if pa else "",
+                        rs.group(1) if rs else "",
+                    )
+
+                for label, src_html in (
+                    ("password_html", password_html),
+                    ("landing_html", landing_html),
+                ):
+                    if not src_html:
+                        continue
+                    h_, pa_, rs_ = _extract_template_model(src_html)
+                    if h_ and pa_:
+                        template_hmac = h_
+                        template_post_action = pa_
+                        template_relay_state = rs_
+                        state_from_url = rs_ or "templateModel"
+                        state_source = f"{label}/templateModel"
+                        _LOGGER.debug(
+                            "Data Act portal SPA: templateModel found in "
+                            "%s — hmac len=%d, postAction=%s",
+                            label, len(template_hmac),
+                            template_post_action[:80],
+                        )
+                        break
 
                 def _extract_state_from_html(src_html: str) -> str:
                     """Walk every <input ...> tag, extract name+value as
@@ -440,9 +509,14 @@ class DataActPortalAuth:
                             return vm.group(1)
                     return ""
 
+                # Skip the Auth0-style state hunt when templateModel
+                # already gave us hmac+postAction — that flow is
+                # signin-service and uses a different POST shape below.
                 for label, src_html in (
-                    ("password_html", password_html),
-                    ("landing_html", landing_html),
+                    () if state_from_url else (
+                        ("password_html", password_html),
+                        ("landing_html", landing_html),
+                    )
                 ):
                     if not src_html:
                         continue
@@ -529,6 +603,54 @@ class DataActPortalAuth:
                             state_from_url = qs["state"][0]
                             state_source = f"{label}/url-query"
                             break
+                # v2.11.3 (#388 swebachus VW EU ID.7 SE) — when the IDP
+                # routes the user through ``signin-service/v1/<client>``
+                # instead of Auth0 Universal Login (``/u/login``), the
+                # session token is ``relayState`` not ``state``. Check
+                # all the same sources but for the signin-service token
+                # name. Tracks which auth chain we are on so the POST
+                # step below targets the correct endpoint.
+                signin_service_flow = (
+                    "signin-service" in landing_url
+                    or "signin-service" in identifier_url
+                )
+                if not state_from_url and signin_service_flow:
+                    for label, src_html in (
+                        ("password_html", password_html),
+                        ("landing_html", landing_html),
+                    ):
+                        if not src_html:
+                            continue
+                        # JSON embed (most common for SPA-rendered
+                        # signin-service shells — observed in
+                        # swebachus #388-comment-2026-06-04).
+                        m = re.search(
+                            r'"relayState"\s*:\s*"([A-Za-z0-9_\-\.%/+=]{8,})"',
+                            src_html,
+                        )
+                        if m:
+                            state_from_url = m.group(1)
+                            state_source = f"{label}/relayState-json"
+                            break
+                        # Escaped variant.
+                        m = re.search(
+                            r'\\"relayState\\"\s*:\s*\\"([A-Za-z0-9_\-\.%/+=]{8,})\\"',
+                            src_html,
+                        )
+                        if m:
+                            state_from_url = m.group(1)
+                            state_source = f"{label}/relayState-escaped"
+                            break
+                if not state_from_url and signin_service_flow:
+                    for label, src in (
+                        ("landing_url", landing_url),
+                        ("identifier_url", identifier_url),
+                    ):
+                        qs = parse_qs(_urlparse(src).query)
+                        if qs.get("relayState"):
+                            state_from_url = qs["relayState"][0]
+                            state_source = f"{label}/relayState-url"
+                            break
                 if not state_from_url:
                     # v2.10.11 (#388 swebachus) - expanded forensic dump
                     # covering BOTH HTMLs and the raw URL strings, plus
@@ -580,14 +702,19 @@ class DataActPortalAuth:
                         "__STORE__" in (landing_html or ""),
                         _state_context(landing_html or ""),
                     )
+                    flow_hint = (
+                        "signin-service v1 (legacy IDK)"
+                        if signin_service_flow
+                        else "Auth0 universal login"
+                    )
                     raise AuthenticationError(
-                        "Data Act portal: SPA password page reached but "
-                        "no Auth0 state token found (checked hidden "
-                        "input via two-step walk, JS JSON embed, data-"
-                        "state attribute, password-page URL and "
-                        "landing URL). IDP markup may have changed. "
-                        "Enable DEBUG logging for "
-                        "'custom_components.vag_connect.cariad.auth."
+                        f"Data Act portal: SPA password page reached but "
+                        f"no session token found ({flow_hint} flow detected; "
+                        "checked Auth0 'state' AND signin-service "
+                        "'relayState' via hidden input, JSON embed, "
+                        "data-attr, native msgpack signature, URL query). "
+                        "IDP markup may have changed. Enable DEBUG logging "
+                        "for 'custom_components.vag_connect.cariad.auth."
                         "_data_act_portal' and re-share the log."
                     )
                 _LOGGER.debug(
@@ -596,16 +723,74 @@ class DataActPortalAuth:
                     state_source, state_from_url[:12],
                 )
                 from urllib.parse import quote as _quote  # noqa: PLC0415
-                spa_post_url = (
-                    f"https://identity.vwgroup.io/u/login?state="
-                    f"{_quote(state_from_url, safe='')}"
-                )
-                spa_form = {
-                    "username": email,
-                    "password": password,
-                    "action": "default",
-                    "state": state_from_url,
-                }
+                # v2.11.3 — POST URL + body shape now diverges by auth
+                # chain. signin-service flow targets the classic IDK
+                # ``/login/authenticate`` endpoint with ``relayState`` in
+                # the body; Auth0 flow targets ``/u/login`` with ``state``.
+                is_signin_service_state = state_source.endswith((
+                    "relayState-json",
+                    "relayState-escaped",
+                    "relayState-url",
+                    "templateModel",
+                ))
+                if template_hmac and template_post_action:
+                    # Best-case signin-service path — templateModel gave
+                    # us everything (pycupra connection.py 823-897 +
+                    # audi_connect_ha audi_services.py 1449-1481 use this
+                    # exact shape). postAction is usually relative; build
+                    # the absolute URL via the identifier_url scheme/host.
+                    from urllib.parse import urlparse as _up  # noqa: PLC0415
+                    parsed = _up(identifier_url)
+                    pa = template_post_action
+                    if pa.startswith("/"):
+                        spa_post_url = (
+                            f"{parsed.scheme}://{parsed.netloc}{pa}"
+                        )
+                    elif pa.startswith("http"):
+                        spa_post_url = pa
+                    else:
+                        # Action relative to the identifier_url's path.
+                        base_path = parsed.path.rsplit("/", 1)[0]
+                        spa_post_url = (
+                            f"{parsed.scheme}://{parsed.netloc}"
+                            f"{base_path}/{pa}"
+                        )
+                    spa_form = {
+                        "email": email,
+                        "password": password,
+                        "hmac": template_hmac,
+                        "relayState": template_relay_state,
+                        "_csrf": template_hmac,  # legacy alias some IDPs accept
+                    }
+                elif is_signin_service_state:
+                    # Reconstruct signin-service authenticate URL from
+                    # the identifier_url shape:
+                    # signin-service/v1/<client>@apps_vw-dilab_com/login/identifier
+                    # → .../login/authenticate
+                    from urllib.parse import urlparse as _up  # noqa: PLC0415
+                    parsed = _up(identifier_url)
+                    auth_path = parsed.path.replace(
+                        "/login/identifier", "/login/authenticate"
+                    )
+                    spa_post_url = (
+                        f"{parsed.scheme}://{parsed.netloc}{auth_path}"
+                    )
+                    spa_form = {
+                        "email": email,
+                        "password": password,
+                        "relayState": state_from_url,
+                    }
+                else:
+                    spa_post_url = (
+                        f"https://identity.vwgroup.io/u/login?state="
+                        f"{_quote(state_from_url, safe='')}"
+                    )
+                    spa_form = {
+                        "username": email,
+                        "password": password,
+                        "action": "default",
+                        "state": state_from_url,
+                    }
                 spa_headers_form = {
                     "Accept": (
                         "text/html,application/xhtml+xml,"

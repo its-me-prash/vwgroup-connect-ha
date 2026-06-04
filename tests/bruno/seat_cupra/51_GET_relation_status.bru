@@ -1,0 +1,41 @@
+meta {
+  name: GET vehicle relation-status (permissions)
+  type: http
+  seq: 51
+}
+
+get {
+  url: {{base_url}}/v1/users/{{user_id}}/vehicles/{{vin}}/relation-status
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  v2.11.3 — canonical user-permission endpoint for SEAT/CUPRA on OLA.
+  Replaces /v1/vehicles/{vin}/permissions which consistently 404'd
+  in production (heidle78 #392 v2.11.1 trace showed permission_*
+  fields null on every poll).
+
+  Returns the user's role for this vehicle + per-permission entries.
+  Used to populate permission_is_owner + permission_can_command.
+
+  Response shape (defensive):
+    {
+      "role": "PRIMARY_USER" | "SECONDARY_USER" | "OWNER" | "GUEST",
+      "isOwner": true,
+      "canCommand": true,
+      "permissions": [
+        {"name": "CAN_LOCK", ...},
+        {"name": "CAN_START_CLIMATISATION", ...},
+        ...
+      ]
+    }
+}

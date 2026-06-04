@@ -1296,7 +1296,7 @@ class IDKAuth:
                 raise AuthenticationError(f"Token refresh returned HTTP {resp.status}")
             payload: dict[str, Any] = await resp.json()
 
-        return self._parse_tokens(payload)
+        return self._parse_tokens(payload, fallback_refresh=refresh_token)
 
     async def _refresh_skoda(self, refresh_token: str) -> TokenSet:
         """Škoda uses a proprietary refresh endpoint."""
@@ -1319,7 +1319,7 @@ class IDKAuth:
                 raise AuthenticationError(f"Škoda token refresh HTTP {resp.status}")
             payload: dict[str, Any] = await resp.json()
 
-        return self._parse_tokens(payload)
+        return self._parse_tokens(payload, fallback_refresh=refresh_token)
 
     # ── Auth0 Universal Login helpers ─────────────────────────────────────────
 
@@ -1824,17 +1824,37 @@ class IDKAuth:
         # VW EU, Audi, and others: CARIAD BFF — v2.5.4 migrated URL.
         return _CARIAD_TOKEN_URL
 
-    def _parse_tokens(self, payload: dict[str, Any]) -> TokenSet:
+    def _parse_tokens(
+        self,
+        payload: dict[str, Any],
+        fallback_refresh: str = "",
+    ) -> TokenSet:
         """Parse token response into a TokenSet.
 
         Handles both snake_case (OAuth standard) and camelCase (Škoda proprietary).
+
+        v2.11.3 — defensive ``fallback_refresh``: some IDK refresh-token
+        responses return a fresh ``access_token`` but NO ``refresh_token``
+        (the existing one stays valid for the rotation lifetime). Without
+        the fallback the integration crashed with a hard ``AuthenticationError``
+        and forced a full re-login. When the caller passes the previous
+        refresh-token as ``fallback_refresh`` we keep using it instead of
+        failing.
         """
         access = payload.get("access_token") or payload.get("accessToken")
-        refresh = payload.get("refresh_token") or payload.get("refreshToken")
+        refresh = (
+            payload.get("refresh_token")
+            or payload.get("refreshToken")
+            or fallback_refresh
+        )
         id_tok = payload.get("id_token") or payload.get("idToken") or ""
-        if not access or not refresh:
+        if not access:
             raise AuthenticationError(
-                f"Token response missing required fields: {list(payload)}"
+                f"Token response missing access_token: {list(payload)}"
+            )
+        if not refresh:
+            raise AuthenticationError(
+                f"Token response missing refresh_token (no fallback): {list(payload)}"
             )
         return TokenSet(access_token=access, refresh_token=refresh, id_token=id_tok)
 
