@@ -40,6 +40,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [2.10.10] - 2026-06-04
+
+### Fixed
+
+- **SEAT / CUPRA static vehicle info from garage** (#392 heidle78 v2.10.8 follow-up diag). Pre-v2.10.10 the parser never read `model`, `model_year`, `manufacturer`, or `firmware_version` from the OLA garage response, so every SEAT / CUPRA vehicle showed "Unbekannt" / `None` for those device-card fields even when the data was clearly present in the API. Now extracts them in `get_vehicles` with defensive multi-variant lookup (`model`/`modelName`, `modelYear`/`year`, `brand`/`manufacturer`/`brandName`, `firmwareVersion`/`softwareVersion`, plus a `specifications` / `vehicleSpecification` sub-block) and caches per-VIN like the existing licensePlate + nickname pattern.
+
 ## [2.10.9] - 2026-06-04
 
 ### Fixed
