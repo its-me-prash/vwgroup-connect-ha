@@ -40,6 +40,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [2.11.1] - 2026-06-04
+
+### Fixed
+
+- **SEAT / CUPRA `max_charge_current` enum → amperage** (#392 heidle78 v2.11.0 trace regression). v2.11.0's pycupra-verified `settings.maxChargeCurrentAc` reader now correctly hits the canonical key on Formentor PHEV MJ22-23 firmware, but that firmware returns the enum string `"maximum"` / `"reduced"` instead of an integer amperage. The HA `sensor.cupra_max_ladestrom` is registered as `device_class=current, unit=A, numeric` and blew up with `ValueError: could not convert string to float: 'maximum'`. Now: prefer the explicit integer field when present, otherwise map the enum to the canonical amperage values verified against zackcornelius's VW NA APK decompile (`maximum`/`max` → 32 A, `reduced`/`min`/`minimum` → 10 A). Leaves the field `None` when neither path produces a usable value.
+
 ## [2.11.0] - 2026-06-04
 
 Cross-brand parser audit against upstream lib source code. Five parallel deep diffs (pycupra, myskoda, volkswagencarnet, audi_connect_ha + CarConnectivity-VW, CarConnectivity-connector-volkswagen-na) surfaced field-name and parsing bugs that have been silently returning null on every car for some time. Bundled into one PR rather than the per-brand hotfix chain pattern.
