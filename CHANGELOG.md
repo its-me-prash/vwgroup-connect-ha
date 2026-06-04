@@ -40,6 +40,18 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [2.10.12] - 2026-06-04
+
+### Fixed
+
+- **SEAT / CUPRA field-name corrections cross-referenced against pycupra source** (#392 heidle78 v2.10.10 follow-up - still-null trace). v2.10.10's static-info fix guessed top-level field names on the garage response that don't exist; the actual data lives in nested sub-blocks. Deep-diff against pycupra (the established Python lib for OLA backend) surfaced four concrete bugs:
+
+  - **model**: now reads `specifications.factoryModel.vehicleModel` (was guessing top-level `model`/`modelName`), optionally concatenated with `specifications.carBody` for the full display name.
+  - **model_year**: now reads `specifications.factoryModel.modYear` (was guessing `modelYear` - note the missing `el`).
+  - **manufacturer**: now reads `specifications.factoryModel.vehicleBrand` (was guessing top-level `brand`).
+  - **odometer_km**: added `mileageKm` as the FIRST field-name variant on `/v1/mileage` (pycupra's canonical key, was missing from our chain so offline-state Formentor PHEVs came out with odometer null).
+  - **target_soc** + **max_charge_current** + **auto_unlock_charge**: now read from the `settings` sub-dict on `/v1/charging/info` (pycupra: `settings.targetSoc` / `settings.maxChargeCurrentAcInAmperes` / `settings.maxChargeCurrentAc` / `settings.autoUnlockPlugWhenCharged`). Pre-v2.10.12 read top-level only and silently missed the nested data on most CUPRA/SEAT firmwares.
+
 ## [2.10.11] - 2026-06-04
 
 ### Fixed
