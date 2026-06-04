@@ -92,6 +92,15 @@ class SeatCupraClient(CariadBaseClient):
         # parkingposition). Surfaced as sensors in get_status().
         self._vin_to_license_plate: dict[str, str] = {}
         self._vin_to_nickname: dict[str, str] = {}
+        # v2.10.10 (#392 heidle78) - static vehicle info cached per VIN
+        # from the garage response. Pre-v2.10.10 the parser never set
+        # model / modelYear / manufacturer / firmware on the dataclass
+        # so every CUPRA / SEAT vehicle showed "Unbekannt" for those
+        # device-card fields. Defensive multi-variant lookup because
+        # the OLA garage payload has shifted spellings across firmware
+        # revisions (pycupra references both ``model`` + ``modelName``,
+        # ``modelYear`` + ``year``, etc.).
+        self._vin_to_static_info: dict[str, dict[str, Any]] = {}
 
     async def authenticate(self, mfa_code: str | None = None) -> None:
         """IDK auth + capture user_id from redirect chain."""
@@ -263,6 +272,47 @@ class SeatCupraClient(CariadBaseClient):
             nick = vehicle.get("name") or vehicle.get("vehicleNickname")
             if isinstance(nick, str) and nick:
                 self._vin_to_nickname[vin] = nick
+            # v2.10.10 (#392) - static vehicle info from the garage list.
+            # Field names mirror pycupra references with defensive variants.
+            info: dict[str, Any] = {}
+            spec = (
+                vehicle.get("specifications")
+                or vehicle.get("vehicleSpecification")
+                or {}
+            )
+            model = (
+                vehicle.get("model")
+                or vehicle.get("modelName")
+                or (spec.get("model") if isinstance(spec, dict) else None)
+            )
+            if isinstance(model, str) and model:
+                info["model"] = model
+            model_year = (
+                vehicle.get("modelYear")
+                or vehicle.get("year")
+                or (spec.get("modelYear") if isinstance(spec, dict) else None)
+            )
+            if model_year:
+                try:
+                    info["model_year"] = int(model_year)
+                except (TypeError, ValueError):
+                    pass
+            mfr = (
+                vehicle.get("brand")
+                or vehicle.get("manufacturer")
+                or vehicle.get("brandName")
+            )
+            if isinstance(mfr, str) and mfr:
+                info["manufacturer"] = mfr.upper()
+            firmware = (
+                vehicle.get("firmwareVersion")
+                or vehicle.get("softwareVersion")
+                or (spec.get("firmware") if isinstance(spec, dict) else None)
+            )
+            if isinstance(firmware, str) and firmware:
+                info["firmware_version"] = firmware
+            if info:
+                self._vin_to_static_info[vin] = info
         await self._fetch_renders(vins)
         await self.fetch_images()
         return vins
@@ -342,6 +392,19 @@ class SeatCupraClient(CariadBaseClient):
         # HTTP call needed — populated during get_vehicles().
         d.license_plate = self._vin_to_license_plate.get(vin)
         d.vehicle_nickname = self._vin_to_nickname.get(vin)
+        # v2.10.10 (#392) - static info from the garage cache. Falls
+        # back to None when the OLA garage list did not include the
+        # field; the per-status loop below has another chance to
+        # populate model/year via the mycar response.
+        static_info = self._vin_to_static_info.get(vin, {})
+        if static_info.get("model"):
+            d.model = static_info["model"]
+        if static_info.get("model_year"):
+            d.model_year = static_info["model_year"]
+        if static_info.get("manufacturer"):
+            d.manufacturer = static_info["manufacturer"]
+        if static_info.get("firmware_version"):
+            d.firmware_version = static_info["firmware_version"]
 
         # v2.5.3 — OLA v1↔v5 fallback chain (#306 Mii/Tavascan/Leon FR-KL
         # null-cascade). PyCupra's pattern: when the modern ``/v5/mycar``
