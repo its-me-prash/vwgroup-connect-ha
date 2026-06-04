@@ -272,42 +272,51 @@ class SeatCupraClient(CariadBaseClient):
             nick = vehicle.get("name") or vehicle.get("vehicleNickname")
             if isinstance(nick, str) and nick:
                 self._vin_to_nickname[vin] = nick
-            # v2.10.10 (#392) - static vehicle info from the garage list.
-            # Field names mirror pycupra references with defensive variants.
+            # v2.10.12 (#392 heidle78 - pycupra source-verified) - the
+            # OLA garage response nests model / year / brand under
+            # ``specifications.factoryModel.{vehicleModel, modYear,
+            # vehicleBrand}``. v2.10.10 guessed top-level keys
+            # ``model`` / ``modelYear`` / ``brand`` and silently missed
+            # the data on every CUPRA/SEAT vehicle. Cross-referenced
+            # against pycupra (vehicle.py 2700-2743) which is the
+            # established Python lib for this backend.
             info: dict[str, Any] = {}
-            spec = (
-                vehicle.get("specifications")
-                or vehicle.get("vehicleSpecification")
-                or {}
-            )
-            model = (
-                vehicle.get("model")
-                or vehicle.get("modelName")
-                or (spec.get("model") if isinstance(spec, dict) else None)
-            )
-            if isinstance(model, str) and model:
-                info["model"] = model
-            model_year = (
-                vehicle.get("modelYear")
-                or vehicle.get("year")
-                or (spec.get("modelYear") if isinstance(spec, dict) else None)
-            )
-            if model_year:
+            spec = vehicle.get("specifications") or {}
+            fm = spec.get("factoryModel") or {} if isinstance(spec, dict) else {}
+            # model: pycupra concatenates factoryModel.vehicleModel +
+            # optional " " + specifications.carBody for the display name.
+            base_model = fm.get("vehicleModel") if isinstance(fm, dict) else None
+            if isinstance(base_model, str) and base_model:
+                car_body = spec.get("carBody") if isinstance(spec, dict) else None
+                if isinstance(car_body, str) and car_body and car_body not in base_model:
+                    info["model"] = f"{base_model} {car_body}"
+                else:
+                    info["model"] = base_model
+            # Fallback to top-level for older firmware that may flatten.
+            if not info.get("model"):
+                top_model = vehicle.get("model") or vehicle.get("modelName")
+                if isinstance(top_model, str) and top_model:
+                    info["model"] = top_model
+            # model_year: factoryModel.modYear (note: pycupra reads `modYear`,
+            # NOT `modelYear`).
+            my = fm.get("modYear") if isinstance(fm, dict) else None
+            if my:
                 try:
-                    info["model_year"] = int(model_year)
+                    info["model_year"] = int(my)
                 except (TypeError, ValueError):
                     pass
-            mfr = (
-                vehicle.get("brand")
-                or vehicle.get("manufacturer")
-                or vehicle.get("brandName")
-            )
+            # manufacturer: factoryModel.vehicleBrand (NOT garage `brand`).
+            mfr = fm.get("vehicleBrand") if isinstance(fm, dict) else None
+            if not (isinstance(mfr, str) and mfr):
+                mfr = vehicle.get("brand") or vehicle.get("manufacturer")
             if isinstance(mfr, str) and mfr:
                 info["manufacturer"] = mfr.upper()
+            # firmware_version: pycupra does NOT expose this from garage.
+            # Keep the guess as a defensive try (works if OLA ever
+            # populates it) but don't expect it.
             firmware = (
                 vehicle.get("firmwareVersion")
                 or vehicle.get("softwareVersion")
-                or (spec.get("firmware") if isinstance(spec, dict) else None)
             )
             if isinstance(firmware, str) and firmware:
                 info["firmware_version"] = firmware
@@ -1178,17 +1187,41 @@ class SeatCupraClient(CariadBaseClient):
         # connector unlocks at any SoC, not just at full charge — so
         # ``auto_unlock_charge`` is True for both "on" and "permanent".
         if isinstance(charge_info, dict):
+            # v2.10.12 (#392 pycupra source-verified) — these values live
+            # nested under ``settings`` on /v1/charging/info. pycupra
+            # (vehicle.py 3052-3072 + 3447-3454) reads:
+            #   settings.targetSoc                    (no _pct suffix)
+            #   settings.maxChargeCurrentAcInAmperes  (integer amps, primary)
+            #   settings.maxChargeCurrentAc           (enum reduced|maximum, fallback)
+            # Our pre-v2.10.12 top-level lookup hit nothing on most
+            # CUPRA/SEAT firmwares. Try the nested path first, fall
+            # back to legacy top-level for older shapes.
+            settings = v(charge_info, "settings") or {}
             d.target_soc = (
-                v(charge_info, "targetSoc_pct")  # Rainer #109 — verified
-                or v(charge_info, "targetSOC_pct")          # Legacy uppercase
-                or v(charge_info, "targetStateOfChargeInPercent")  # Legacy verbose
+                (settings.get("targetSoc") if isinstance(settings, dict) else None)
+                or v(charge_info, "targetSoc_pct")
+                or v(charge_info, "targetSOC_pct")
+                or v(charge_info, "targetStateOfChargeInPercent")
             )
-            d.max_charge_current = v(charge_info, "maxChargeCurrentAC") or v(charge_info, "maxChargeCurrent")
-            auto_raw = v(charge_info, "autoUnlockPlugWhenCharged")
+            d.max_charge_current = (
+                (settings.get("maxChargeCurrentAcInAmperes")
+                 if isinstance(settings, dict) else None)
+                or (settings.get("maxChargeCurrentAc")
+                    if isinstance(settings, dict) else None)
+                or v(charge_info, "maxChargeCurrentAC")
+                or v(charge_info, "maxChargeCurrent")
+            )
+            auto_raw = (
+                (settings.get("autoUnlockPlugWhenCharged")
+                 if isinstance(settings, dict) else None)
+                or v(charge_info, "autoUnlockPlugWhenCharged")
+            )
             auto_str = auto_raw.lower() if isinstance(auto_raw, str) else None
             d.auto_unlock_charge = (
                 # #51: "permanent" is also "yes, unlock". Only "off"/None means no.
                 auto_str in ("on", "permanent")
+                or (settings.get("autoUnlockPlugWhenChargedAC") is True
+                    if isinstance(settings, dict) else False)
                 or v(charge_info, "autoUnlockPlugWhenChargedAC") is True
             )
 
@@ -1847,8 +1880,13 @@ class SeatCupraClient(CariadBaseClient):
         # /v1/mileage response carries the last server-cached value.
         if isinstance(mileage_v1, dict) and d.odometer_km is None:
             # Field-name variants observed across firmware generations.
+            # v2.10.12 (#392 pycupra source-verified) — `mileageKm` is the
+            # canonical key pycupra uses for this endpoint and was missing
+            # from our chain, so offline-state Formentor PHEVs came out
+            # with odometer_km=null.
             odo = (
-                v(mileage_v1, "mileageInKm")
+                v(mileage_v1, "mileageKm")
+                or v(mileage_v1, "mileageInKm")
                 or v(mileage_v1, "mileage")
                 or v(mileage_v1, "odometer")
                 or v(mileage_v1, "currentMileage")
