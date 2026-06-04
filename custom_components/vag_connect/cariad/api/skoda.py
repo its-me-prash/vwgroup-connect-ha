@@ -98,6 +98,14 @@ class SkodaClient(CariadBaseClient):
         """v1.15.0 (#35) — Skoda charging history (myskoda PR shipped 2026).
 
         Endpoint: ``GET /api/v1/charging/{vin}/history?userTimezone=UTC&limit={N}``
+
+        v2.11.0 (myskoda issue #585): the Skoda app update on 2026-05-15
+        broke this endpoint with HTTP 500 for many users. The replacement
+        path is now ``get_charging_statistics`` which lives on a different
+        host (charging.cariad.digital, the same vhost SEAT/CUPRA already
+        use) and is wired via myskoda PR #586. We keep the legacy
+        endpoint as a fallback for accounts where it still works.
+
         Response shape (verified via myskoda/models/charging_history.py):
             {
               "nextCursor": "<ISO datetime>" | null,
@@ -119,6 +127,90 @@ class SkodaClient(CariadBaseClient):
             url, params={"userTimezone": "UTC", "limit": limit}
         )
         return data if isinstance(data, dict) else {}
+
+    async def get_charging_statistics(
+        self, vin: str, days_back: int = 90
+    ) -> dict[str, Any]:
+        """v2.11.0 (myskoda PR #586 source-verified, rsa-wusel
+        reverse-engineered). Skoda charging-statistics replacement for
+        the legacy /v1/charging/{vin}/history endpoint that started
+        returning HTTP 500 after the Skoda app update on 2026-05-15.
+
+        Endpoint: ``POST prod.emea.mobile.charging.cariad.digital/charging_statistics``
+        Same vhost we already use for SEAT/CUPRA charging stats but
+        with Skoda-specific X-Brand header + a structured POST body
+        carrying VIN-filtered date range.
+
+        Body shape:
+            {
+              "started_after": "YYYY-MM-DD",
+              "started_before": "YYYY-MM-DD",
+              "selected_filter_options": [
+                {"filter_type": "VEHICLE", "vin": "<VIN>"}
+              ],
+              "fetch_filter_options": true
+            }
+
+        Response shape (verified via myskoda PR #586):
+            {
+              "applicableFilterOptions": [...],
+              "missingElliConsent": false,
+              "monthSections": [
+                {
+                  "entries": [
+                    {
+                      "id": "...", "title": "...",
+                      "primaryValue": {"value": 12.5, "unit": "kWh"},
+                      "secondaryValue": {"value": 45, "unit": "min"},
+                      "sessionDetails": {
+                        "startedAt": "...", "isCurveAvailable": true,
+                        ...
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+
+        Best-effort: 401/403/404 soft-fail to ``{}`` so older accounts
+        without the cap stay clean. Returns the raw parsed dict for the
+        coordinator to consume.
+        """
+        from aiohttp import ClientTimeout  # noqa: PLC0415
+        from datetime import date, timedelta  # noqa: PLC0415
+
+        today = date.today()
+        started_before = today.isoformat()
+        started_after = (today - timedelta(days=days_back)).isoformat()
+        url = (
+            "https://prod.emea.mobile.charging.cariad.digital/charging_statistics"
+        )
+        headers = {
+            "Accept": "application/json",
+            "Accept-Language": "en-US",
+            "Content-Type": "application/json",
+            "X-Brand": "skoda",
+            "X-Device-Timezone": "Europe/Berlin",
+            "X-Api-Version": "1",
+        }
+        body = {
+            "started_after": started_after,
+            "started_before": started_before,
+            "selected_filter_options": [
+                {"filter_type": "VEHICLE", "vin": vin},
+            ],
+            "fetch_filter_options": True,
+        }
+        try:
+            # We use the parent client's _request with explicit JSON
+            # body. The auth Bearer header is injected by base.
+            resp = await self._request(
+                "POST", url, json=body, headers=headers,
+                timeout=ClientTimeout(total=30),
+            )
+        except Exception:  # noqa: BLE001
+            return {}
+        return resp if isinstance(resp, dict) else {}
 
     async def get_capabilities(self, vin: str) -> dict[str, Any]:
         """Return mysmob capabilities document for *vin*.
@@ -357,12 +449,18 @@ class SkodaClient(CariadBaseClient):
             self._get(
                 f"{_BASE}/api/v1/trip-statistics/{vin}?offsetType=week&offset=0"
             ),
+            # v2.11.0 (myskoda PR #586 source-verified) - charging
+            # statistics replacement after the legacy /v1/charging/
+            # {vin}/history returned HTTP 500 since the 2026-05-15
+            # Skoda app update. POST body w/ VIN-filter on the
+            # charging.cariad.digital host.
+            self.get_charging_statistics(vin),
             return_exceptions=True,
         )
         (
             status, charging, ac, parking, driving_range,
             maintenance, readiness, sw_update, widget, driving_score,
-            health_v1, trip_stats,
+            health_v1, trip_stats, charging_stats_v2,
         ) = results
 
         # v1.9.0 — Vehicle Data Scout opt-in. Stash raw responses keyed by
@@ -1130,6 +1228,73 @@ class SkodaClient(CariadBaseClient):
                     )
                     if isinstance(last_ts, str) and last_ts:
                         d.last_trip_timestamp = last_ts
+
+        # v2.11.0 (myskoda PR #586 source-verified): charging stats
+        # from the replacement endpoint. monthSections[].entries[] each
+        # carry an aggregated charging session with primaryValue (kWh)
+        # + secondaryValue (duration) + sessionDetails.
+        if isinstance(charging_stats_v2, dict):
+            month_sections = charging_stats_v2.get("monthSections") or []
+            all_entries: list[dict[str, Any]] = []
+            for section in month_sections:
+                if isinstance(section, dict):
+                    entries = section.get("entries") or []
+                    for entry in entries:
+                        if isinstance(entry, dict):
+                            all_entries.append(entry)
+            # Lifetime aggregate: sum primaryValue.value (kWh) across
+            # all entries when the value type is kWh.
+            total_kwh = 0.0
+            for entry in all_entries:
+                pv = entry.get("primaryValue") or {}
+                if isinstance(pv, dict):
+                    unit = str(pv.get("unit", "")).lower()
+                    val = pv.get("value")
+                    if unit in ("kwh", "kw_h") and isinstance(val, (int, float)):
+                        total_kwh += float(val)
+            if total_kwh > 0:
+                d.total_charged_energy_kwh = round(total_kwh, 2)
+            # Last session = first entry (newest first per myskoda model).
+            if all_entries:
+                last = all_entries[0]
+                pv_last = last.get("primaryValue") or {}
+                sv_last = last.get("secondaryValue") or {}
+                details = last.get("sessionDetails") or {}
+                if isinstance(pv_last, dict):
+                    last_kwh = pv_last.get("value")
+                    if isinstance(last_kwh, (int, float)):
+                        d.last_charging_session_kwh = float(last_kwh)
+                if isinstance(sv_last, dict):
+                    last_min = sv_last.get("value")
+                    if isinstance(last_min, (int, float)):
+                        d.last_charging_session_duration_min = int(last_min)
+                started_at = details.get("startedAt") if isinstance(details, dict) else None
+                if isinstance(started_at, str) and started_at:
+                    d.last_charging_session_start = started_at
+                current_type = details.get("currentType") if isinstance(details, dict) else None
+                if isinstance(current_type, str) and current_type:
+                    d.last_charging_session_current_type = current_type.upper()
+                # recent_charging_sessions = compact list of last 10
+                recent: list[dict[str, Any]] = []
+                for e in all_entries[:10]:
+                    e_pv = e.get("primaryValue") or {}
+                    e_sv = e.get("secondaryValue") or {}
+                    e_det = e.get("sessionDetails") or {}
+                    recent.append({
+                        "started_at": (
+                            e_det.get("startedAt")
+                            if isinstance(e_det, dict) else None
+                        ),
+                        "kwh": (
+                            e_pv.get("value")
+                            if isinstance(e_pv, dict) else None
+                        ),
+                        "duration_min": (
+                            e_sv.get("value")
+                            if isinstance(e_sv, dict) else None
+                        ),
+                    })
+                d.recent_charging_sessions = recent
 
         # v2.11.0 (myskoda Health model source-verified): per-category
         # warning lights from the dedicated health endpoint. Shape:
