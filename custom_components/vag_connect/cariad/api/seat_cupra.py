@@ -1047,7 +1047,18 @@ class SeatCupraClient(CariadBaseClient):
             # a non-None numeric value, so vehicles without this field
             # show no entity at all (HACS / SoC-pessimist owners stay
             # clean).
-            charge_energy = v(bat, "chargeEnergyInKwh")
+            # v2.11.0 (pycupra source-verified): chargeEnergyInKwh lives
+            # at `charging.status.battery.chargeEnergyInKwh` on Born MY24+
+            # (pycupra reads `charging.status.battery.chargeEnergyInKwh`
+            # canonical). Pre-v2.11.0 we read `charging.battery.*` direct
+            # and missed it on newer firmwares.
+            status_bat = (
+                v(charge_status, "status", "battery") or {}
+            )
+            charge_energy = (
+                v(bat, "chargeEnergyInKwh")
+                or v(status_bat, "chargeEnergyInKwh")
+            )
             if isinstance(charge_energy, (int, float)) and charge_energy >= 0:
                 d.total_charged_energy_kwh = float(charge_energy)
 
@@ -1063,7 +1074,17 @@ class SeatCupraClient(CariadBaseClient):
                     if d.electric_range_km is None:
                         d.electric_range_km = est_int
 
-            chg = v(charge_status, "charging") or charge_status
+            # v2.11.0 (#392 pycupra source-verified): the canonical
+            # path is `charging.status.charging.*` on Born MY24+. Our
+            # pre-v2.11.0 code only tried `charging.charging.*` (direct
+            # nest) or top-level - silently returning None on firmwares
+            # that wrap the block under `.status.` (which pycupra
+            # confirms is current shape).
+            chg = (
+                v(charge_status, "status", "charging")
+                or v(charge_status, "charging")
+                or charge_status
+            )
             d.charging_state = (
                 v(chg, "state")             # Rainer #109 shape B — verified
                 or v(chg, "status")         # Rainer #109 shape A — verified
@@ -1211,6 +1232,13 @@ class SeatCupraClient(CariadBaseClient):
                 or v(charge_info, "maxChargeCurrentAC")
                 or v(charge_info, "maxChargeCurrent")
             )
+            # v2.11.0 (pycupra source-verified): min_soc lives at
+            # `settings.minBatteryStateOfChargeInPercent` on /v1/charging/info.
+            # Pre-v2.11.0 we never read it - sensor stayed null on every car.
+            if isinstance(settings, dict):
+                min_soc_raw = settings.get("minBatteryStateOfChargeInPercent")
+                if isinstance(min_soc_raw, (int, float)):
+                    d.min_soc = int(min_soc_raw)
             auto_raw = (
                 (settings.get("autoUnlockPlugWhenCharged")
                  if isinstance(settings, dict) else None)
@@ -1252,6 +1280,19 @@ class SeatCupraClient(CariadBaseClient):
                     v(climate, "settings", "targetTemperatureInCelsius")
                     or v(cs, "targetTemperatureCelsius")  # Rainer #109
                 )
+            # v2.11.0 (pycupra source-verified): climate_remaining_time_min
+            # is in the climate payload at `.status.remainingClimatisationTime_min`,
+            # we just never read it. Pycupra's `climatisation_time_left`
+            # property reads this same key.
+            rem_climate = v(cs, "remainingClimatisationTime_min")
+            rem_climate_int = safe_int(rem_climate)
+            if rem_climate_int is not None:
+                d.climate_remaining_time_min = rem_climate_int
+                # Derived `climate_ready_at` so HA can show a clock.
+                from datetime import datetime as _dt, timedelta as _td  # noqa: PLC0415
+                d.climate_ready_at = (
+                    _dt.now(tz=timezone.utc) + _td(minutes=rem_climate_int)
+                ).isoformat()
             d.outside_temp = v(cs, "outsideTemperature")
             # v1.24.2 (audit): safe_float defensive coerce for Kelvin → Celsius.
             # > 100 heuristic distinguishes Kelvin (Skoda/CUPRA returns ~280-310 K)
@@ -1455,8 +1496,12 @@ class SeatCupraClient(CariadBaseClient):
                 # value derived from /v1/charging/info above in
                 # _DATA_PRESENT_REQUIRED protected sensor.
                 d.battery_care = care_enabled
+            # v2.11.0 (pycupra source-verified): `targetSocPercentage`
+            # is the canonical key (no _ between Soc and Percentage,
+            # matches pycupra's get_battery_care_target reader).
             care_target = (
-                battery_care_settings.get("targetSOC_pct")
+                battery_care_settings.get("targetSocPercentage")
+                or battery_care_settings.get("targetSOC_pct")
                 or battery_care_settings.get("targetSocPct")
                 or battery_care_settings.get("targetStateOfChargeInPercent")
             )

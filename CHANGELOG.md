@@ -40,6 +40,35 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [2.11.0] - 2026-06-04
+
+Cross-brand parser audit against upstream lib source code. Five parallel deep diffs (pycupra, myskoda, volkswagencarnet, audi_connect_ha + CarConnectivity-VW, CarConnectivity-connector-volkswagen-na) surfaced field-name and parsing bugs that have been silently returning null on every car for some time. Bundled into one PR rather than the per-brand hotfix chain pattern.
+
+### Fixed (cross-brand)
+
+- **Skoda driving range fields** (myskoda source-verified). `electricRange.distanceInKm` / `combustionRange.distanceInKm` / `secondaryEngineRange.distanceInKm` are scout-derived paths that myskoda's DrivingRange model does NOT include. Canonical keys are `primaryEngineRange.remainingRangeInKm` + `secondaryEngineRange.remainingRangeInKm` plus an `engineType` enum to decide which is electric vs combustion. Old paths kept as fallback for any firmware that genuinely ships them. `adBlueRange` is a flat int upstream, not a dict.
+- **Skoda doors_open / windows_open** were reading from `access.doorsOpenedCount` / `windowsOpenedCount` which do not exist on Skoda mysmob vehicle-status (no `access` subobject). For years these sensors silently reported false. Now reads `overall.doors == "OPEN"` / `overall.windows == "OPEN"` per myskoda Status.Overall model.
+- **Skoda driving_score** was reading non-existent top-level `score` / `drivingScoreClass`. Upstream DrivingScore model is per-period (`daily/weekly/monthly/quarterlyScore.main`). Now prefers `weeklyScore.main` then falls back through the other periods.
+- **SEAT / CUPRA charging path-prefix** (pycupra source-verified). The canonical path is `charging.status.charging.*` and `charging.status.battery.chargeEnergyInKwh` on Born MY24+. Pre-v2.11.0 we only tried `charging.charging.*` (direct) so `charging_power_kw`, `charging_rate_kmh`, `charging_type`, `total_charged_energy_kwh` were silently null on newer firmwares. Now adds the `.status.` segment as the canonical primary, keeps direct as fallback.
+- **SEAT / CUPRA `battery_care_target_soc_pct`** field name. pycupra reads `targetSocPercentage` (no underscores); we previously tried `targetSOC_pct` and other variants only.
+- **VW EU / Audi `plug_led_color` double-write bug**. A second unconditional assignment at the end of the charging block overwrote a valid PPE-firmware value (`plugLedColor` on access or chargingStatus) with `None` from `plugStatus.value.ledColor`. Now consolidated into a single defensive chain ordered upstream-canonical-first.
+- **VW EU / Audi `battery_care` parent block order**. Volkswagencarnet's `vw_const` puts the canonical path under `batteryChargingCare.chargingCareSettings.*`; we previously tried `charging.chargingCareSettings.*` FIRST and the dedicated batteryChargingCare block was a fallback. Flipped so the canonical wins.
+
+### Added
+
+- **SEAT / CUPRA min_soc** read at `settings.minBatteryStateOfChargeInPercent` on `/v1/charging/info` (pycupra `get_min_charge_level`). Sensor previously stayed null.
+- **SEAT / CUPRA climate_remaining_time_min + climate_ready_at** wired. The OLA climate payload already shipped `status.remainingClimatisationTime_min`; we just never read it. Derived `climate_ready_at` ISO timestamp lets HA show a "ready by" clock.
+- **VW EU missing selectivestatus jobs**: `activeVentilation`, `batterySupport`, `chargingProfiles`, `chargingTimers`. Without these requested, parsers that read from those blocks (active ventilation state at v2.10.0 Group A, next-charging-timer at #173) returned null on any car whose data didn't happen to ship inside a sibling block.
+- **VW EU `measurements.rangeStatus.value.electricRange`** added as a third fallback in the electric range chain. Some pure-EV ID.x firmware ships only this leaf.
+- **VW EU / Audi aux-heating legacy fallback** at `climatisation.auxiliaryHeatingStatus.value.*`. Older Audi A4 B9 / MIB3 cars ship aux-heating state under the climatisation parent, NOT under top-level auxiliaryHeating. audi_connect_ha references this legacy path; we missed it pre-v2.11.0.
+
+### Known divergences not yet addressed (separate PRs)
+
+- **VW NA**: substantial divergences from upstream (zackcornelius/CarConnectivity-connector-volkswagen-na). SPIN flow uses wrong hash algorithm (SHA1 vs SHA512) + wrong concat order + wrong endpoint URL + wrong body keys + wrong token transport. Lock / unlock + set-target-SOC + climate-settings + departure-timer commands all use wrong HTTP verbs + body shapes. Subscription parser shape is fictional. Field reads on RVS endpoint use wrong keys for `location`, `secure`, `readiness.readinessStatus.value.connectionState.isOnline`, `battery_soc` is on the wrong endpoint, `cruiseRange` units (KM/MI) are ignored, `vehicleType.engine` does not exist (use `data.platform == "MEB"`). Full rewrite scheduled for v2.11.1 with proper unit-test fixtures.
+- **Trip statistics** for SEAT / CUPRA (`/v1/vehicles/{vin}/trips/{shortTerm,longTerm,lastrefuel}`) and Skoda (`/v1/trip-statistics/{vin}`) are not yet fetched. Cross-brand lifetime / avg-consumption sensors stay null until v2.11.x adds the parsers.
+- **Skoda health endpoint** (`/v1/vehicle-health-report/warning-lights/{vin}`) is the canonical source for dashboard warning lamps but we don't poll it - relies on warning-lights data piggybacking onto other responses.
+- **SEAT / CUPRA aux-heating status** via `/api/auxiliary-heating/v1/{vin}/status` - we use the host for commands but never read the status. Pycupra has it.
+
 ## [2.10.12] - 2026-06-04
 
 ### Fixed

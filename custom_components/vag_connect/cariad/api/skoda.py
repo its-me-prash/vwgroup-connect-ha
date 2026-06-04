@@ -429,8 +429,23 @@ class SkodaClient(CariadBaseClient):
             # the block below reads authoritatively. Leave
             # ``doors_locked`` as ``None`` if neither is present —
             # better "unknown" than "wrong".
-            d.doors_open = v(access, "doorsOpenedCount", default=0) > 0
-            d.windows_open = v(access, "windowsOpenedCount", default=0) > 0
+            # v2.11.0 (myskoda source-verified): there is no `access`
+            # subobject on Skoda mysmob vehicle-status — those
+            # `doorsOpenedCount` / `windowsOpenedCount` reads have
+            # been returning 0 (= False) for every Skoda since v1.0.
+            # The canonical source is `overall.doors` / `overall.windows`
+            # which is a literal "OPEN" / "CLOSED" string.
+            overall_doors_status = v(status, "overall", "doors")
+            overall_windows_status = v(status, "overall", "windows")
+            if isinstance(overall_doors_status, str):
+                d.doors_open = overall_doors_status.upper() == "OPEN"
+            elif "access" in status:
+                # Legacy fallback in case any firmware ever ships it.
+                d.doors_open = v(access, "doorsOpenedCount", default=0) > 0
+            if isinstance(overall_windows_status, str):
+                d.windows_open = overall_windows_status.upper() == "OPEN"
+            elif "access" in status:
+                d.windows_open = v(access, "windowsOpenedCount", default=0) > 0
 
             # v1.8.11 (Session 3S) — `vehicle-status` real shape verified
             # against upstream/cc-skoda issue #50
@@ -747,9 +762,54 @@ class SkodaClient(CariadBaseClient):
             #   totalRangeInKm
             # Each is its own entity now; ``range_km`` keeps its old
             # "headline" semantics (electric for EV/PHEV, total for ICE).
-            electric = v(driving_range, "electricRange", "distanceInKm")
+            # v2.11.0 (#392 myskoda source-verified): the canonical key is
+            # ``primaryEngineRange.remainingRangeInKm`` for the primary
+            # propulsion (electric on BEV, combustion on ICE) and
+            # ``secondaryEngineRange.remainingRangeInKm`` for the
+            # secondary on PHEVs. ``electricRange.distanceInKm`` and
+            # ``combustionRange.distanceInKm`` were our scout-derived
+            # guesses that myskoda's DrivingRange model does NOT
+            # include — for years they have returned None on every
+            # Skoda. Keep the old paths as last-resort fallbacks for
+            # any firmware that genuinely ships them.
+            primary_remaining = v(
+                driving_range, "primaryEngineRange", "remainingRangeInKm"
+            )
+            secondary_remaining = v(
+                driving_range, "secondaryEngineRange", "remainingRangeInKm"
+            )
+            primary_eng_type = (
+                v(driving_range, "primaryEngineRange", "engineType") or ""
+            ).upper()
+            # Derive electric / combustion from primary+secondary +
+            # engineType. EV / PHEV electric: primary if primary is
+            # ELECTRIC, else secondary. Combustion: primary if non-
+            # electric, else secondary.
+            if "ELECTRIC" in primary_eng_type or primary_eng_type in ("BEV",):
+                electric = primary_remaining or v(
+                    driving_range, "electricRange", "distanceInKm"
+                )
+                combustion = secondary_remaining or v(
+                    driving_range, "combustionRange", "distanceInKm"
+                )
+            elif primary_eng_type:
+                combustion = primary_remaining or v(
+                    driving_range, "combustionRange", "distanceInKm"
+                )
+                electric = secondary_remaining or v(
+                    driving_range, "electricRange", "distanceInKm"
+                )
+            else:
+                # No engineType - try both, prefer remainingRangeInKm.
+                electric = (
+                    v(driving_range, "primaryEngineRange", "remainingRangeInKm")
+                    or v(driving_range, "electricRange", "distanceInKm")
+                )
+                combustion = (
+                    v(driving_range, "secondaryEngineRange", "remainingRangeInKm")
+                    or v(driving_range, "combustionRange", "distanceInKm")
+                )
             total = v(driving_range, "totalRangeInKm")
-            combustion = v(driving_range, "combustionRange", "distanceInKm")
             if combustion is None:
                 # Older firmwares published a flat scalar without the
                 # ``distanceInKm`` wrapper — keep that path as a fallback.
@@ -773,13 +833,25 @@ class SkodaClient(CariadBaseClient):
                 d.range_km = d.combustion_range_km
             else:
                 d.range_km = electric or total
-            adblue = v(driving_range, "adBlueRange", "distanceInKm")
-            d.adblue_range_km = safe_int(adblue)
+            # v2.11.0 (myskoda source-verified): adBlueRange is a FLAT
+            # int on the Skoda payload, NOT a dict with distanceInKm.
+            # The pre-v2.11.0 dict lookup returned None on every car.
+            adblue_flat = v(driving_range, "adBlueRange")
+            if isinstance(adblue_flat, (int, float)):
+                d.adblue_range_km = safe_int(adblue_flat)
+            else:
+                # Fallback if some firmware genuinely ships the dict.
+                d.adblue_range_km = safe_int(
+                    v(driving_range, "adBlueRange", "distanceInKm")
+                )
             # v1.26.0 Welle-6 (#173, scout #165 christianmhz) — Skoda PHEV
             # secondary engine range (Kodiaq iV, Octavia iV, Superb iV).
-            # Distinct from combustion_range_km because Skoda PHEVs report
-            # both via separate API blocks since 2024 firmware.
-            sec_eng = v(driving_range, "secondaryEngineRange", "distanceInKm")
+            # v2.11.0: prefer remainingRangeInKm (myskoda canonical)
+            # over the scout-derived distanceInKm.
+            sec_eng = (
+                v(driving_range, "secondaryEngineRange", "remainingRangeInKm")
+                or v(driving_range, "secondaryEngineRange", "distanceInKm")
+            )
             d.secondary_engine_range_km = safe_int(sec_eng)
             # v2.2.0 (Skoda Scout #220 — Daniel Walter 2026-05-16):
             # ``secondaryEngineRange`` expanded from 1-key (distanceInKm)
@@ -995,9 +1067,26 @@ class SkodaClient(CariadBaseClient):
         # /api/v2/vehicle-status/{vin}/driving-score — 0-100 efficiency metric.
         # Newer Skoda Connect MY24+ surface this; older 404. Defensive parse.
         if isinstance(driving_score, dict):
-            score = driving_score.get("score")
-            if isinstance(score, (int, float)):
-                d.driving_score = int(score)
+            # v2.11.0 (myskoda source-verified): the top-level `score`
+            # and `drivingScoreClass` keys were a scout-derived guess
+            # that DrivingScore model does not include. The canonical
+            # shape is per-period objects (daily/weekly/monthly/quarterly)
+            # each with a `main` score and breakdown metrics. Prefer
+            # weeklyScore.main as the "headline" value, then monthlyScore
+            # as fallback. Class field doesn't exist upstream - drop.
+            for period_key in ("weeklyScore", "monthlyScore",
+                               "quarterlyScore", "dailyScore"):
+                period = driving_score.get(period_key)
+                if isinstance(period, dict):
+                    main = period.get("main")
+                    if isinstance(main, (int, float)):
+                        d.driving_score = int(main)
+                        break
+            # Legacy fallback if any firmware actually ships top-level.
+            if d.driving_score is None:
+                score = driving_score.get("score")
+                if isinstance(score, (int, float)):
+                    d.driving_score = int(score)
             cls = driving_score.get("drivingScoreClass")
             if isinstance(cls, str) and cls:
                 d.driving_score_class = cls
