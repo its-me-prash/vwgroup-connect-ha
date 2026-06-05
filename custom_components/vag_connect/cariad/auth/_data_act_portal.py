@@ -734,34 +734,145 @@ class DataActPortalAuth:
                     "templateModel",
                 ))
                 if template_hmac and template_post_action:
-                    # Best-case signin-service path — templateModel gave
-                    # us everything (pycupra connection.py 823-897 +
-                    # audi_connect_ha audi_services.py 1449-1481 use this
-                    # exact shape). postAction is usually relative; build
-                    # the absolute URL via the identifier_url scheme/host.
+                    # v2.11.4 — signin-service is a TWO-STEP flow when
+                    # rendered as SPA. v2.11.3 tried to POST password
+                    # straight to the identifier endpoint (the postAction
+                    # we extracted from the email page's templateModel)
+                    # which 405'd on every test (#388 swebachus + #393
+                    # SniperWCW). The actual flow upstream libs use
+                    # (audi_services.py:1313-1378):
+                    #
+                    #   1. POST {email + hmac} to /login/identifier
+                    #      → response HTML is the password page with a
+                    #        FRESH hmac
+                    #   2. Regex-extract the new hmac from that response
+                    #   3. Replace "identifier" with "authenticate" in
+                    #      the URL path
+                    #   4. POST {email + password + new_hmac + relayState}
+                    #      to that authenticate URL
+                    #
+                    # The fresh hmac from step 2 is essential — the
+                    # email-page hmac is bound to the identifier session
+                    # only; the authenticate endpoint rejects it.
                     from urllib.parse import urlparse as _up  # noqa: PLC0415
                     parsed = _up(identifier_url)
                     pa = template_post_action
                     if pa.startswith("/"):
-                        spa_post_url = (
+                        identifier_post_url = (
                             f"{parsed.scheme}://{parsed.netloc}{pa}"
                         )
                     elif pa.startswith("http"):
-                        spa_post_url = pa
+                        identifier_post_url = pa
                     else:
-                        # Action relative to the identifier_url's path.
                         base_path = parsed.path.rsplit("/", 1)[0]
-                        spa_post_url = (
+                        identifier_post_url = (
                             f"{parsed.scheme}://{parsed.netloc}"
                             f"{base_path}/{pa}"
                         )
+
+                    # Step 1 — POST email to identifier endpoint.
+                    identifier_form = {
+                        "email": email,
+                        "hmac": template_hmac,
+                        "relayState": template_relay_state,
+                        "_csrf": template_hmac,
+                    }
+                    identifier_headers = {
+                        "Accept": (
+                            "text/html,application/xhtml+xml,"
+                            "application/xml;q=0.9,*/*;q=0.8"
+                        ),
+                        "Content-Type": (
+                            "application/x-www-form-urlencoded"
+                        ),
+                    }
+                    password_resp_html = ""
+                    try:
+                        async with self._session.post(
+                            identifier_post_url,
+                            data=identifier_form,
+                            timeout=ClientTimeout(
+                                total=_PORTAL_REQUEST_TIMEOUT_S
+                            ),
+                            allow_redirects=True,
+                            headers=identifier_headers,
+                        ) as resp:
+                            if resp.status in (200, 302, 303):
+                                password_resp_html = await resp.text()
+                            else:
+                                _LOGGER.warning(
+                                    "Data Act portal SPA: identifier POST "
+                                    "returned HTTP %d to %s",
+                                    resp.status,
+                                    identifier_post_url[:120],
+                                )
+                    except Exception as exc:  # noqa: BLE001
+                        _LOGGER.warning(
+                            "Data Act portal SPA: identifier POST failed: %s",
+                            exc,
+                        )
+
+                    # Step 2 — extract fresh hmac from password page
+                    # response. Mirrors audi_services.py regex shape.
+                    new_hmac = ""
+                    if password_resp_html:
+                        m_hmac = re.search(
+                            r'"hmac"\s*:\s*"([0-9a-fA-F]+)"',
+                            password_resp_html,
+                        )
+                        if m_hmac:
+                            new_hmac = m_hmac.group(1)
+                        # Also try to capture a new postAction (rare —
+                        # usually the authenticate URL is built by
+                        # path replacement, but some firmwares ship
+                        # an explicit one).
+                        m_pa = re.search(
+                            r'"postAction"\s*:\s*"([^"]+)"',
+                            password_resp_html,
+                        )
+                        new_post_action = m_pa.group(1) if m_pa else ""
+                    else:
+                        new_post_action = ""
+
+                    # Step 3 — build authenticate URL by replacing
+                    # "identifier" → "authenticate" in the path.
+                    if new_post_action:
+                        if new_post_action.startswith("/"):
+                            spa_post_url = (
+                                f"{parsed.scheme}://{parsed.netloc}"
+                                f"{new_post_action}"
+                            )
+                        elif new_post_action.startswith("http"):
+                            spa_post_url = new_post_action
+                        else:
+                            spa_post_url = identifier_post_url.replace(
+                                "/login/identifier", "/login/authenticate"
+                            )
+                    else:
+                        spa_post_url = identifier_post_url.replace(
+                            "/login/identifier", "/login/authenticate"
+                        )
+
+                    # Step 4 — POST password + fresh hmac (or fall back
+                    # to the original hmac when step 1 didn't yield a new
+                    # one — at least the URL is now authenticate not
+                    # identifier, which is half of why v2.11.3 405'd).
+                    effective_hmac = new_hmac or template_hmac
                     spa_form = {
                         "email": email,
                         "password": password,
-                        "hmac": template_hmac,
+                        "hmac": effective_hmac,
                         "relayState": template_relay_state,
-                        "_csrf": template_hmac,  # legacy alias some IDPs accept
+                        "_csrf": effective_hmac,
                     }
+                    _LOGGER.debug(
+                        "Data Act portal SPA: 2-step signin-service "
+                        "complete — identifier_url=%s authenticate_url=%s "
+                        "new_hmac_found=%s",
+                        identifier_post_url[:80],
+                        spa_post_url[:80],
+                        bool(new_hmac),
+                    )
                 elif is_signin_service_state:
                     # Reconstruct signin-service authenticate URL from
                     # the identifier_url shape:

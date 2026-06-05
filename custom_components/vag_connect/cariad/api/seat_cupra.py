@@ -1381,7 +1381,18 @@ class SeatCupraClient(CariadBaseClient):
         # behaviour stable and just ensure ``"off"``, ``"OFF"``,
         # ``"unsupported"``, and any ``None`` all evaluate to False.
         if isinstance(climate, dict):
-            cs = v(climate, "status") or climate
+            # v2.11.4 (#411 heidle78 scout) — new climatisation response
+            # shape from /v1/.../climatisation/status moves the state
+            # sub-block under ``climatisationStatus`` and the window-heating
+            # sub-block under ``windowHeatingStatus``. Fall back to
+            # legacy ``status`` wrapper and to the bare root for older
+            # firmwares.
+            cs = (
+                v(climate, "climatisationStatus")
+                or v(climate, "status")
+                or climate
+            )
+            whs = v(climate, "windowHeatingStatus") or cs
             d.climatisation_state = v(cs, "climatisationState") or v(cs, "state")
             _inactive_states = (None, "OFF", "off", "Off", "unsupported")
             d.climatisation_active = d.climatisation_state not in _inactive_states
@@ -1418,8 +1429,16 @@ class SeatCupraClient(CariadBaseClient):
             outside = safe_float(d.outside_temp)
             if outside is not None and outside > 100:
                 d.outside_temp = round(outside - 273.15, 1)
-            d.window_heating_front = v(cs, "windowHeatingStateFront") == "ON"
-            d.window_heating_back = v(cs, "windowHeatingStateRear") == "ON"
+            # v2.11.4 — prefer windowHeatingStatus sub-block when present
+            # (#411 heidle78 scout). Falls back to legacy in-status path.
+            d.window_heating_front = (
+                v(whs, "windowHeatingStateFront")
+                or v(cs, "windowHeatingStateFront")
+            ) == "ON"
+            d.window_heating_back = (
+                v(whs, "windowHeatingStateRear")
+                or v(cs, "windowHeatingStateRear")
+            ) == "ON"
             # v2.8.1 #306 — seat heating overall aggregate. OLA ships
             # ``airConditioning.seatHeatingSupport`` as a dict keyed by
             # seat position (frontLeft, frontRight, ...). Any seat in

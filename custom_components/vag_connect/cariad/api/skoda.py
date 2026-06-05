@@ -190,7 +190,11 @@ class SkodaClient(CariadBaseClient):
             "Accept-Language": "en-US",
             "Content-Type": "application/json",
             "X-Brand": "skoda",
-            "X-Device-Timezone": "Europe/Berlin",
+            # v2.11.4 — myskoda PR #586 latest revision uses "GMT" (not
+            # a full Olson zone). Upstream switched after a server-side
+            # parser tightening; "Europe/Berlin" still works on most
+            # accounts but "GMT" is the canonical value.
+            "X-Device-Timezone": "GMT",
             "X-Api-Version": "1",
         }
         body = {

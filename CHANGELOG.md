@@ -40,6 +40,17 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [2.11.4] - 2026-06-05
+
+Bundle release covering the v2.11.3 fallout. After v2.11.3 unblocked the Auth0 state-token wall, the next bottleneck surfaced: the VW EU signin-service flow is a TWO-step submit (POST email first to get a fresh hmac for the password page, then POST password to a different URL). Plus a handful of upstream-sync fixes for Skoda + small parser additions from the latest scout reports.
+
+### Fixed
+
+- **VW EU signin-service 2-step SPA login** (#388 swebachus, #393 SniperWCW). v2.11.3 extracted hmac + postAction from the templateModel JSON literal correctly but then POSTed the password straight to the identifier URL — got HTTP 405 every time, because the email-page hmac is bound to the identifier session only. v2.11.4 does the full upstream-canonical flow: POST email + identifier-hmac → identifier URL, regex-extract the FRESH hmac out of the response (the password page), swap "identifier" → "authenticate" in the URL path, POST email + password + fresh-hmac + relayState → authenticate URL. Pattern lifted from the audi_services.py implementation.
+- **Skoda charging-statistics timezone header**. The upstream charging-statistics replacement endpoint (which we adopted preemptively in v2.11.0) tightened its server-side parser to require `X-Device-Timezone: GMT` instead of accepting any Olson zone. Switched from `Europe/Berlin` to `GMT` so the endpoint stops 400'ing on accounts where the server got picky.
+- **SEAT / CUPRA climatisation field-layout for newer firmware** (#411 heidle78 scout). The scout caught two new top-level keys in the climatisation response: `climatisationStatus` (state / remaining-time / outside-temp moved here) and `windowHeatingStatus` (front/rear states moved here). Parser now checks the new sub-blocks first and falls back to the legacy `status`-wrapped layout for older firmwares.
+- **Auto-reporter empty-body issues** (#409, #412 — empty bodies). Some browsers silently drop the `body` query param when the final encoded URL crosses 8KB. URL-encoded markdown inflates ~1.5x, so the 6500-char budget we shipped overflowed in some cases. Dropped to 4000 raw → ~6000 encoded so even chatty error reports survive the round-trip.
+
 ## [2.11.3] - 2026-06-04
 
 Bundle release. Five fixes spanning SEAT / CUPRA endpoint corrections, VW EU signin-service SPA auth, and Audi token refresh defense. Built from a fresh round of upstream-lib source-walks (pycupra const.py + connection.py, audi_connect_ha audi_services.py, volkswagencarnet vw_connection.py) plus the live diags from #392 (heidle78) and #388 (swebachus).
