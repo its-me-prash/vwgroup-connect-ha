@@ -46,10 +46,14 @@ from ..const import DOMAIN
 from ._error_reporter import ErrorRecord
 from ._unexpected_keys import UnexpectedField
 
-# GitHub caps issue-URL query params at ~8KB total. Stay well below to
-# leave room for the title, labels and the encoding overhead. Chrome's
-# practical URL limit is also ~8KB.
-_GITHUB_BODY_MAX = 6500
+# GitHub caps issue-URL query params at ~8KB total. v2.11.4 dropped
+# this from 6500 to 4000 because urllib.parse.quote inflates markdown
+# bodies ~1.5x (most chars stay literal, but newlines, brackets and
+# backticks all expand). Some Chrome / Firefox builds silently drop the
+# body param when the FINAL encoded URL crosses 8KB, producing the
+# empty-body issues we saw in #409 and #412. 4000 raw → ~6000 encoded
+# leaves comfortable headroom.
+_GITHUB_BODY_MAX = 4000
 
 # Repo where users land for crowd-sourced bug reports. Keeping this
 # constant means we can swap to a discussions URL later without touching
