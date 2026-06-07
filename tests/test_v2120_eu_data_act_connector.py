@@ -1,0 +1,148 @@
+# Copyright 2026 Prash Balan (@its-me-prash) - Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
+"""Tests for the v2.12.0 EU Data Act portal connector.
+
+The connector is the only working third-party auth path for VW passenger
+cars after VW closed every token-based WeConnect route (verified live
+2026-06-07: hybrid 403, code-exchange needs client_secret, device-grant
+403). These tests pin the two parts we CAN verify without live portal
+credentials:
+
+  1. The login form-field extraction (``_login_fields``) — merges HTML
+     hidden inputs with the JS ``templateModel`` (hmac / relayState /
+     email) and the ``csrf_token`` regex. This is where v2.11.4's flow
+     broke (it only looked for ``"_csrf":`` and missed ``csrf_token:``).
+  2. The dataset → ``VehicleData`` curated mapping — given a synthetic
+     EU Data Act dataset, the high-value fields (SoC, odometer, range,
+     charging state, doors) must populate correctly.
+
+The live login + ZIP download path is validated post-release against a
+real VW EU account (issue #388/#393) — it cannot be unit-tested here.
+"""
+
+from __future__ import annotations
+
+from custom_components.vag_connect.cariad.auth._eu_data_act import (
+    _extract_template_model,
+    _login_fields,
+    _walk_fields,
+    map_dataset_to_vehicle_data,
+)
+from custom_components.vag_connect.cariad.models import VehicleData
+
+
+# ── login form-field extraction ────────────────────────────────────────────
+
+def test_template_model_extraction_brace_matched() -> None:
+    """templateModel JSON is extracted via brace-matching, nested ok."""
+    html = (
+        '<script>window._IDK = {templateModel: '
+        '{"hmac":"abc123","relayState":"rs789",'
+        '"emailPasswordForm":{"email":"x@y.z"},'
+        '"error":null}, csrf_token: "csrf456"};</script>'
+    )
+    model = _extract_template_model(html)
+    assert model["hmac"] == "abc123"
+    assert model["relayState"] == "rs789"
+    assert model["emailPasswordForm"]["email"] == "x@y.z"
+
+
+def test_login_fields_merges_template_model_and_csrf() -> None:
+    """The v2.11.4-breaking case: SPA page with NO hidden inputs, all
+    state in templateModel + csrf_token JS. Must still yield hmac+_csrf."""
+    html = (
+        '<html><body><div id="app"></div>'
+        '<script>window._IDK = {templateModel: '
+        '{"hmac":"deadbeef","relayState":"rs001",'
+        '"postAction":"/signin-service/v1/CLIENT/login/authenticate"}, '
+        'csrf_token: "csrftok99"};</script></body></html>'
+    )
+    fields, _action = _login_fields(html)
+    assert fields["hmac"] == "deadbeef"
+    assert fields["relayState"] == "rs001"
+    assert fields["_csrf"] == "csrftok99"
+
+
+def test_login_fields_reads_html_hidden_inputs() -> None:
+    """Classic server-rendered form: fields come from hidden inputs."""
+    html = (
+        '<form action="/signin-service/v1/CLIENT/login/identifier">'
+        '<input type="hidden" name="hmac" value="hexhmac">'
+        '<input type="hidden" name="_csrf" value="csrfval">'
+        '<input type="hidden" name="relayState" value="rs">'
+        '<input type="email" name="email">'
+        '</form>'
+    )
+    fields, action = _login_fields(html)
+    assert fields["hmac"] == "hexhmac"
+    assert fields["_csrf"] == "csrfval"
+    assert action == "/signin-service/v1/CLIENT/login/identifier"
+
+
+# ── dataset → VehicleData mapping ───────────────────────────────────────────
+
+def test_walk_fields_flattens_datapoint_shape() -> None:
+    """Data-point shape {dataFieldName, value} is flattened to {name: value}."""
+    payload = {
+        "data": [
+            {"dataFieldName": "battery_state_report.soc", "value": "82"},
+            {"dataFieldName": "mileage.value", "value": "18842"},
+        ]
+    }
+    fields = _walk_fields(payload)
+    assert fields["battery_state_report.soc"] == "82"
+    assert fields["mileage.value"] == "18842"
+
+
+def test_curated_mapping_populates_high_value_fields() -> None:
+    """A synthetic dataset maps onto the curated VehicleData fields."""
+    fields = {
+        "battery_state_report.soc": "82",
+        "mileage.value": "18842",
+        "range": "54",
+        "battery_state_report.charge_power": "7.4",
+        "settings.target_soc": "80",
+        "charging_state_report.current_charge_state": "charging",
+        "charging_state_report.charge_mode": "manual",
+        "min_temperature": "18.5",
+        "max_temperature": "21.0",
+        "locked": "true",
+        "window_heating_state": "on",
+    }
+    d = map_dataset_to_vehicle_data(fields, VehicleData(vin="TESTVIN0000000001"))
+    assert d.battery_soc == 82
+    assert d.has_battery is True
+    assert d.odometer_km == 18842
+    assert d.range_km == 54
+    assert d.electric_range_km == 54
+    assert d.charging_power_kw == 7.4
+    assert d.target_soc == 80
+    assert d.charging_state == "charging"
+    assert d.is_charging is True
+    assert d.charge_mode == "manual"
+    assert d.hv_battery_min_temperature_c == 18.5
+    assert d.hv_battery_max_temperature_c == 21.0
+    assert d.doors_locked is True
+    assert d.window_heating_front is True
+    assert d.window_heating_back is True
+
+
+def test_curated_mapping_flat_egolf_variant() -> None:
+    """Flat eGolf payload (bare field names, no report prefix) also maps."""
+    fields = {
+        "state_of_charge": "60",
+        "mileage": "99000",
+        "cruising_range_primary_engine": "120",
+    }
+    d = map_dataset_to_vehicle_data(fields, VehicleData(vin="TESTVIN0000000002"))
+    assert d.battery_soc == 60
+    assert d.odometer_km == 99000
+    assert d.range_km == 120
+
+
+def test_curated_mapping_tolerates_missing_fields() -> None:
+    """An empty / partial dataset leaves fields at their defaults."""
+    d = map_dataset_to_vehicle_data({}, VehicleData(vin="TESTVIN0000000003"))
+    assert d.battery_soc is None
+    assert d.odometer_km is None
+    assert d.doors_locked is None

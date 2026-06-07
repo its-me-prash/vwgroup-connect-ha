@@ -9,7 +9,7 @@ import logging
 from typing import Any
 
 from .._util import compute_connection_state, safe_float, safe_int
-from ..exceptions import APIError
+from ..exceptions import APIError, AuthenticationError
 from ..models import BRAND_VW_EU, VehicleData
 from .base import CariadBaseClient
 
@@ -303,6 +303,19 @@ class VWEUClient(CariadBaseClient):
 
     async def get_status(self, vin: str) -> VehicleData:
         """Fetch full vehicle status via selectivestatus."""
+        # v2.12.0 — EU Data Act portal mode (read-only fallback). When the
+        # token-based BFF strategies are exhausted, the auth resolver
+        # retains a cookie-based portal connector on ``self._eu_portal``.
+        # Route the whole status fetch through it; on a stale cookie
+        # session (401/403 surfaced as AuthenticationError) re-login once.
+        portal = getattr(self, "_eu_portal", None)
+        if portal is not None:
+            try:
+                data: VehicleData = await portal.get_vehicle_data(vin)
+            except AuthenticationError:
+                await portal.login(self._email, self._password)
+                data = await portal.get_vehicle_data(vin)
+            return data
         # v2.1.0 — per-VIN base URL via HomeRegion lookup.
         base = self._base_for_vin(vin)
         url = f"{base}/vehicle/v1/vehicles/{vin}/selectivestatus"
