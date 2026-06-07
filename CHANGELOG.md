@@ -40,7 +40,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
-## [2.12.1] - 2026-06-07
+## [2.12.2] - 2026-06-08
+
+### Added
+
+- **"No vehicle data" hint when the portal is empty.** When the VW EU Data Act portal logs in but returns no data, the integration now raises a clear Home Assistant repair notice instead of staying silent. It explains the likely causes — most often the VW-side portal outage that's been running since late May 2026 (which hits every tool, not just us), or a data request that isn't set up yet — and tells you the quickest check: open the VW data portal in a browser and see whether *you* can see your car's data there. If it's empty there too, it's on VW's side. The notice clears by itself once data starts flowing. Fully translated across all eight bundled languages (EN, DE, NL, SV, FR, ES, PL, CS).
 
 Quick follow-up to the v2.12.0 VW EU portal beta, from the first round of live testing.
 

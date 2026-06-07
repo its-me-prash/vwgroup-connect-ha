@@ -957,6 +957,10 @@
     "data_act_session_expired": {
       "title": "EU Data Act portal session expired - reauthenticate",
       "description": "The {brand} portal at `eu-data-act.drivesomethinggreater.com` returned HTTP 401 to a Custom Data Request API call, which means the session cookies have expired. The portal does not support background token refresh, so Home Assistant cannot recover this automatically.\n\n**What to do:** Settings → Devices & Services → VW Group Connect → 3-dot menu → Reconfigure → re-enter your credentials. The next setup cycle will reopen the portal session and the integration will resume polling the active Custom Data Request.\n\nThis warning auto-clears as soon as the next portal API call succeeds."
+    },
+    "data_act_no_data": {
+      "title": "EU Data Act portal: no vehicle data yet ({brand})",
+      "description": "The EU Data Act portal signed in for {brand} but isn't returning any vehicle data yet.\n\nUsual causes:\n\n1. **A VW-side outage.** VW reported an all-brands EU Data Act portal outage from late May 2026 (their notice: the data-extraction infrastructure failed under load). While it lasts the portal returns empty data for every tool, not just this integration, and it has been recovering brand by brand.\n2. **No data request set up.** The portal only delivers once you create a *continuous* data request for your car.\n3. **The car hasn't sent anything new.** A fresh dataset is only published after the car has been driven, charged, or locked/unlocked.\n\n**Quickest check:** open `eu-data-act.drivesomethinggreater.com` in a browser and sign in. If you see no data for your car there either, it's the VW side — nothing this integration can do until VW restores it. If there is no data request, create a continuous (15-minute) one, tick all data clusters, then drive or wake the car and wait an hour or two.\n\nThis is the read-only portal beta — the warning clears by itself once data arrives."
     }
   },
   "selector": {
