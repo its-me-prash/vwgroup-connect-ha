@@ -48,9 +48,39 @@ _LOGGER = logging.getLogger(__name__)
 _PORTAL_BASE = "https://eu-data-act.drivesomethinggreater.com"
 _IDENTITY_BASE = "https://identity.vwgroup.io"
 _AUTHORIZE_URL = f"{_IDENTITY_BASE}/oidc/v1/authorize"
-_PORTAL_CLIENT_ID = "9b58543e-1c15-4193-91d5-8a14145bebb0@apps_vw-dilab_com"
-_PORTAL_SCOPE = "openid cars profile"
 _PORTAL_REDIRECT_URI = f"{_PORTAL_BASE}/login"
+
+# v2.12.0 — per-brand EU Data Act portal OAuth config. The portal serves
+# the whole VW Group, but the OAuth client + the brand suffix in the
+# ``state`` (``{country}__{language}__{BRAND}``) select which brand's
+# vehicles the account sees. The portal connector is wired as a fallback
+# in every brand's auth chain (see api/base.py), so it must pick the
+# right config per brand — otherwise a CUPRA falling through to the
+# portal would authenticate with VW's client + state.
+#
+# client_id sources / verification (2026-06-07):
+#   - VW: 9b58543e — community-proven, end-to-end on #388.
+#   - CUPRA/SEAT: f85e5b69 — from the community EUDA constants, scope
+#     "openid profile cars". Both client+state combos handshake-verified
+#     (302 → signin).
+# Brands not listed fall back to the VW entry with a brand-derived state
+# suffix; account-level verification for those follows in a later release.
+_EUDA_VW = {
+    "client_id": "9b58543e-1c15-4193-91d5-8a14145bebb0@apps_vw-dilab_com",
+    "scope": "openid cars profile",
+    "state_brand": "VOLKSWAGEN_PASSENGER_CARS",
+}
+_EUDA_CUPRA_SEAT = {
+    "client_id": "f85e5b69-e3b2-43aa-9c0d-1b7d0e0b576f@apps_vw-dilab_com",
+    "scope": "openid profile cars",
+}
+_EUDA_BRANDS: dict[str, dict[str, str]] = {
+    "volkswagen": _EUDA_VW,
+    "cupra": {**_EUDA_CUPRA_SEAT, "state_brand": "CUPRA"},
+    "seat": {**_EUDA_CUPRA_SEAT, "state_brand": "SEAT"},
+    "skoda": {**_EUDA_VW, "state_brand": "SKODA"},
+    "audi": {**_EUDA_VW, "state_brand": "AUDI"},
+}
 
 _VEHICLES_PATH = "/proxy_api/consent/me/vehicles"
 _RELATION_PATH = "/proxy_api/vum/v2/users/me/relations/{vin}"
@@ -66,11 +96,6 @@ _USER_AGENT = (
 )
 _NO_CONTENT_SUFFIX = "_no_content_found.zip"
 _TIMEOUT_S = 60
-
-# Country/language/brand default for the OIDC ``state`` echoed to the
-# portal callback. Overridable so non-DACH users hit the right portal
-# locale. Format: ``{country}__{language}__{brand}``.
-_DEFAULT_STATE = "de__de__VOLKSWAGEN_PASSENGER_CARS"
 
 
 # ── HTML / templateModel parsing (community-proven mechanics) ──────────────
@@ -340,10 +365,24 @@ class EUDataActConnector:
         self,
         session: ClientSession,
         *,
-        state: str = _DEFAULT_STATE,
+        brand: str = "volkswagen",
+        country: str = "de",
+        language: str = "de",
     ) -> None:
         self._session = session
-        self._state = state
+        cfg = _EUDA_BRANDS.get(brand.lower())
+        if cfg is None:
+            # Unknown brand → VW client with a brand-derived state suffix.
+            # Handshake-valid; account-level coverage lands in a later release.
+            cfg = {**_EUDA_VW, "state_brand": brand.upper()}
+            _LOGGER.debug(
+                "EU Data Act: no verified portal config for brand %r — "
+                "falling back to the VW client with state suffix %s",
+                brand, cfg["state_brand"],
+            )
+        self._client_id = cfg["client_id"]
+        self._scope = cfg["scope"]
+        self._state = f"{country}__{language}__{cfg['state_brand']}"
         self.logged_in = False
 
     async def login(self, email: str, password: str) -> None:
@@ -364,9 +403,9 @@ class EUDataActConnector:
         #    non-browser clients). response_type=code; portal does the
         #    confidential exchange itself.
         authorize_params = {
-            "client_id": _PORTAL_CLIENT_ID,
+            "client_id": self._client_id,
             "response_type": "code",
-            "scope": _PORTAL_SCOPE,
+            "scope": self._scope,
             "state": self._state,
             "redirect_uri": _PORTAL_REDIRECT_URI,
             "prompt": "login",

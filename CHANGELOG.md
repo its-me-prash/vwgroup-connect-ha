@@ -47,6 +47,7 @@ The big one for VW EU. We confirmed live that VW has closed every token-based lo
 ### Added
 
 - **VW EU Data Act portal connector (read-only, BETA).** A brand-new cookie-based login + data path for VW passenger cars, using the EU Data Act portal. It logs in, pulls the vehicle's data export, and surfaces the high-value bits (charge level, odometer, range, charging state, doors, window heating, temperatures). Trade-offs: it's read-only (no remote climate/charge commands), updates on roughly a 15-minute cadence, and you have to switch on a one-time "continuous data request" on the VW portal first. Kicks in automatically once the old token logins fail. Marked beta — the live login is being validated on #388/#393 before we lean on it.
+- **Brand-aware portal config.** The portal connector is wired as a fallback in every brand's login chain, so it now picks the right OAuth client + brand selector per brand (VW, CUPRA, SEAT verified; others fall back gracefully) instead of always using VW's. Foundation for offering the read-only portal path to more brands later.
 - **Skoda trip cost.** Total / fuel / electricity / CNG cost for the trip overview, with the currency, when Skoda ships it.
 
 ### Fixed

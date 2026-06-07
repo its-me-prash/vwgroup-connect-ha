@@ -298,6 +298,37 @@ class _FakeSession:
         raise AssertionError(f"unmatched POST {url}")
 
 
+# ── per-brand portal config ────────────────────────────────────────────────
+
+def test_brand_config_resolution() -> None:
+    """Connector picks the right client_id + state per brand.
+
+    The portal connector is a fallback in every brand's auth chain, so a
+    non-VW brand falling through must use its own client/state — not VW's.
+    """
+    vw = EUDataActConnector(object())  # type: ignore[arg-type]
+    assert vw._client_id.startswith("9b58543e")
+    assert vw._state == "de__de__VOLKSWAGEN_PASSENGER_CARS"
+
+    cupra = EUDataActConnector(object(), brand="cupra")  # type: ignore[arg-type]
+    assert cupra._client_id.startswith("f85e5b69")
+    assert cupra._scope == "openid profile cars"
+    assert cupra._state == "de__de__CUPRA"
+
+    seat = EUDataActConnector(object(), brand="seat")  # type: ignore[arg-type]
+    assert seat._client_id.startswith("f85e5b69")
+    assert seat._state == "de__de__SEAT"
+
+    # Unknown brand → VW client with a derived state suffix (graceful).
+    porsche = EUDataActConnector(object(), brand="porsche")  # type: ignore[arg-type]
+    assert porsche._client_id.startswith("9b58543e")
+    assert porsche._state == "de__de__PORSCHE"
+
+    # Locale override flows into the state.
+    se = EUDataActConnector(object(), country="se", language="sv")  # type: ignore[arg-type]
+    assert se._state == "se__sv__VOLKSWAGEN_PASSENGER_CARS"
+
+
 @pytest.mark.asyncio
 async def test_login_full_flow_mocked() -> None:
     """login() drives prime → authorize → identifier → credential POST."""

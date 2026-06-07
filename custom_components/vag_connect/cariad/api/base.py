@@ -324,7 +324,9 @@ class CariadBaseClient:
                     from ..auth._eu_data_act import (  # noqa: PLC0415
                         EUDataActConnector,
                     )
-                    connector = EUDataActConnector(self._session)
+                    connector = EUDataActConnector(
+                        self._session, brand=self._brand.name,
+                    )
                     await connector.login(self._email, self._password)
                     self._eu_portal = connector
                     # Sentinel TokenSet: no real token (cookie session),
