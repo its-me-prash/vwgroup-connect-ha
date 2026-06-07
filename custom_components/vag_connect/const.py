@@ -124,6 +124,17 @@ DEFAULT_WAKE_DELAY_SECONDS    = 15
 # validates and silently drops anything malformed.
 CONF_CLIENT_ID_OVERRIDE       = "client_id_override"
 
+# v2.10.5 - EU Data Act portal Custom Data Request auto-kickoff.
+# When ON and the integration is operating in read-only data_act_portal
+# mode, the coordinator checks for an active 15-min Custom Data Request
+# at startup and kicks one off when none exists. The portal accepts
+# exactly one custom request per VIN at a time and the kickoff implies
+# a 1-month subscription on the user's account, so this stays OFF by
+# default; the user has to flip it explicitly. Persisted Identifier
+# per VIN lives under CONF_DATA_ACT_IDENTIFIERS in entry.options.
+CONF_EU_DATA_ACT_AUTO_KICKOFF = "eu_data_act_auto_kickoff"
+CONF_DATA_ACT_IDENTIFIERS     = "data_act_identifiers"
+
 # Supported brands — must match CariadClientFactory.create() keys
 BRANDS = {
     "audi":           "Audi (myAudi)",

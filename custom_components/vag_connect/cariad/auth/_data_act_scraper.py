@@ -126,6 +126,37 @@ _NEEDS_VERIFICATION_MARKERS = (
     "EU Data Act usership not yet verified",
 )
 
+# v2.10.5 — verified live-trace endpoints captured 2026-06-03.
+# Custom Data Request lives under /proxy_api/euda-apim/ on the portal
+# host. The "Frequency=15mins" + "Duration=1 month" combo is the only
+# one that yields 15-minute polling drops; other combinations return
+# fewer or sparser dumps. See docs/EU_DATA_ACT_PORTAL.md for the
+# full payload schema.
+_EUDA_APIM = "/proxy_api/euda-apim"
+_CUSTOM_REQUEST_POST_PATH = _EUDA_APIM + "/datarequest/vehicles/{vin}/requests/partial"
+_CUSTOM_REQUEST_META_PATH = _EUDA_APIM + "/datarequest/vehicles/{vin}/metadata/partial"
+_ALL_REQUEST_META_PATH = _EUDA_APIM + "/datarequest/vehicles/{vin}/metadata/all"
+_DATASET_LIST_PATH = (
+    _EUDA_APIM + "/datadelivery/vehicles/{vin}/{identifier}/list"
+)
+_CSRF_TOKEN_PATH = "/libs/granite/csrf/token.json"
+
+# Canonical Data Clusters per portal UI as of 2026-06-03. Ordering and
+# spelling matter; the portal's React validator compares against this
+# exact set when the user picks "All Data".
+_DEFAULT_DATA_CLUSTERS = (
+    "All Data",
+    "Charging",
+    "Driving Behaviour",
+    "Maintenance Related Information",
+    "Parking Data",
+    "Vehicle Warning Lights",
+)
+
+
+# DataActSessionExpiredError is defined right after DataActScraperError
+# below; both subclass Exception.
+
 # Route A candidate endpoints. The first entry is the only path that
 # has been verified from public sources and known community Python
 # code: it returns vehicle metadata for the supplied VIN under the
@@ -188,6 +219,14 @@ class DataActScraperError(Exception):
     ``fetch_vehicle_zip`` so the next poll can retry without entity
     flicker. Only structural failures (auth missing, browser toggle
     enabled but ``playwright`` not installed, etc.) raise.
+    """
+
+
+class DataActSessionExpiredError(DataActScraperError):
+    """v2.10.5 - raised when the portal returns 401 on an endpoint we
+    depend on. The coordinator catches this and opens a Repairs issue
+    prompting the user to reauthenticate; portal sessions are cookie-
+    bound and not refreshable from the integration side.
     """
 
 
@@ -809,91 +848,230 @@ class DataActScraper:
                 )
         return False
 
-    # ── v2.10.2 Phase C: data request submission + ZIP polling ───────────────
+    # ── v2.10.5 Phase C: Custom Data Request (live-trace based) ──────────────
 
-    async def submit_data_request(self, vin: str) -> bool:
-        """Submit the "Verfügbare Daten anfragen" form for ``vin``.
-
-        Requires the Article 4 EU Data Act checkbox to be ticked on
-        the live form. The portal's React bundle owns the exact field
-        names so this is a best-effort POST of the canonical pair and
-        a verification GET of the details page to see whether the
-        spinner appeared. Returns True if the request looks accepted.
+    async def _fetch_csrf_token(self) -> str | None:
+        """Return a fresh CSRF token, or None if the portal did not
+        deliver one. CSRF expires per-session so callers re-fetch
+        before every POST that needs it.
         """
         from aiohttp import ClientTimeout  # noqa: PLC0415
 
-        url = _PORTAL_BASE + _PORTAL_DATA_REQUEST_PATH.format(
-            lang=self._language, country=self._country
-        )
-        try:
-            async with self._session.post(
-                url, params={"vin": vin},
-                data={
-                    "vin": vin,
-                    "article4Accepted": "true",
-                    "requestType": "available",
-                },
-                timeout=ClientTimeout(total=30),
-                allow_redirects=True,
-            ) as resp:
-                if resp.status not in (200, 201, 202):
-                    _LOGGER.debug(
-                        "Data request POST HTTP %s for VIN %s",
-                        resp.status, _mask_vin(vin),
-                    )
-                    return False
-        except Exception as exc:  # noqa: BLE001
-            _LOGGER.debug("Data request POST failed: %s", exc)
-            return False
-        _LOGGER.info(
-            "EU Data Act data request submitted for VIN %s (async "
-            "delivery, may take up to 24h)",
-            _mask_vin(vin),
-        )
-        return True
-
-    async def poll_for_dataset_url(self, vin: str) -> str | None:
-        """Return a download URL for the latest dataset on ``vin``, or
-        None if no file is ready yet.
-
-        Status endpoint not captured in the live trace 2026-06-03;
-        this method scrapes the rendered vehicle-details page and
-        looks for an anchor href that links to a ZIP under the portal
-        domain. The remote React component bundle owns the exact API,
-        so this is a best-effort scrape. Replace with the verified
-        endpoint once the next live trace captures the AJAX call that
-        populates the "Ihre Dateien" section.
-        """
-        from aiohttp import ClientTimeout  # noqa: PLC0415
-
-        url = _PORTAL_BASE + _PORTAL_VEHICLE_DETAILS_PATH.format(
-            lang=self._language, country=self._country
-        )
         try:
             async with self._session.get(
-                url, params={"vin": vin},
-                timeout=ClientTimeout(total=20),
-                allow_redirects=True,
+                _PORTAL_BASE + _CSRF_TOKEN_PATH,
+                timeout=ClientTimeout(total=10),
+                headers={"Accept": "application/json"},
             ) as resp:
                 if resp.status != 200:
                     return None
-                html = await resp.text(errors="replace")
+                data = await resp.json(content_type=None)
         except Exception:  # noqa: BLE001
             return None
-
-        # Cheap regex-free scan: look for href candidates ending in .zip
-        # under the portal host. The proper fix uses the React bundle's
-        # AJAX response shape once captured.
-        for token in html.split('href="')[1:]:
-            href = token.split('"', 1)[0]
-            if (
-                href.endswith(".zip")
-                and "drivesomethinggreater.com" in (href + _PORTAL_BASE)
-            ):
-                if href.startswith("/"):
-                    href = _PORTAL_BASE + href
-                return href
+        if isinstance(data, dict):
+            token = data.get("token") or data.get("csrfToken")
+            if isinstance(token, str) and token:
+                return token
         return None
+
+    async def get_active_custom_request_identifier(
+        self, vin: str
+    ) -> str | None:
+        """Return the Identifier of the active 15-min Custom Request,
+        or None if no active request exists yet.
+
+        GET metadata/partial returns 200 with either an empty list or
+        a list of request descriptors. We pick the first descriptor
+        whose Frequency is "15mins" - that is the one we kick off
+        from the integration. The portal enforces at most one active
+        custom request per VIN, so this is unambiguous.
+
+        Raises ``DataActSessionExpiredError`` on 401 so the coordinator
+        can open a Repairs issue.
+        """
+        from aiohttp import ClientTimeout  # noqa: PLC0415
+
+        url = _PORTAL_BASE + _CUSTOM_REQUEST_META_PATH.format(vin=vin)
+        try:
+            async with self._session.get(
+                url,
+                timeout=ClientTimeout(total=20),
+                headers={"Accept": "application/json"},
+            ) as resp:
+                if resp.status == 401:
+                    raise DataActSessionExpiredError(
+                        "metadata/partial returned 401 - portal session expired"
+                    )
+                if resp.status != 200:
+                    _LOGGER.debug(
+                        "metadata/partial HTTP %s for VIN %s",
+                        resp.status, _mask_vin(vin),
+                    )
+                    return None
+                payload = await resp.json(content_type=None)
+        except DataActSessionExpiredError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.debug("metadata/partial fetch failed: %s", exc)
+            return None
+
+        # Payload shape captured 2026-06-03: either a list of request
+        # descriptors directly OR a dict with a key like "items" /
+        # "requests" wrapping them. Walk both shapes defensively.
+        candidates: list[dict[str, Any]] = []
+        if isinstance(payload, list):
+            candidates = [p for p in payload if isinstance(p, dict)]
+        elif isinstance(payload, dict):
+            for key in ("items", "requests", "data"):
+                inner = payload.get(key)
+                if isinstance(inner, list):
+                    candidates = [p for p in inner if isinstance(p, dict)]
+                    break
+            if not candidates:
+                # Single-dict response variant - treat the top-level
+                # dict itself as a candidate if it carries Identifier.
+                if payload.get("Identifier"):
+                    candidates = [payload]
+        for c in candidates:
+            if str(c.get("Frequency", "")).lower() == "15mins":
+                identifier = c.get("Identifier")
+                if isinstance(identifier, str) and len(identifier) >= 16:
+                    return identifier
+        return None
+
+    async def kickoff_custom_data_request(
+        self,
+        vin: str,
+        *,
+        name: str = "VAG Connect HA Integration",
+        duration_days: int = 31,
+        data_clusters: tuple[str, ...] | None = None,
+    ) -> str | None:
+        """Create the active 15-min Custom Data Request for ``vin``.
+
+        Should ONLY be called when ``get_active_custom_request_identifier``
+        returns None for this VIN (the portal allows AT MOST ONE active
+        custom request and rejects a second concurrent kickoff with 4xx).
+
+        Returns the new Identifier on success, None on failure. Raises
+        ``DataActSessionExpiredError`` on 401.
+        """
+        from aiohttp import ClientTimeout  # noqa: PLC0415
+        import secrets as _secrets  # noqa: PLC0415
+        from datetime import datetime, timedelta, timezone  # noqa: PLC0415
+
+        csrf = await self._fetch_csrf_token()
+        if not csrf:
+            _LOGGER.debug(
+                "kickoff_custom_data_request: no CSRF token - aborting"
+            )
+            return None
+
+        identifier = _secrets.token_hex(16)  # 32 chars
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        end = (now + timedelta(days=duration_days)).replace(
+            hour=23, minute=59, second=59
+        )
+        clusters = list(data_clusters or _DEFAULT_DATA_CLUSTERS)
+        body = {
+            "Name": name,
+            "Identifier": identifier,
+            "Frequency": "15mins",
+            "StartDate": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "EndDate": end.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "DataClusters": clusters,
+            "EmailFrequency": "No notification",
+            "LastNotificationDate": None,
+        }
+        url = _PORTAL_BASE + _CUSTOM_REQUEST_POST_PATH.format(vin=vin)
+        try:
+            async with self._session.post(
+                url,
+                json=body,
+                timeout=ClientTimeout(total=30),
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "CSRF-Token": csrf,
+                    "X-CSRF-Token": csrf,  # belt and braces
+                },
+            ) as resp:
+                if resp.status == 401:
+                    raise DataActSessionExpiredError(
+                        "requests/partial returned 401 - portal session expired"
+                    )
+                if resp.status not in (200, 201, 202):
+                    body_text = await resp.text(errors="replace")
+                    _LOGGER.info(
+                        "kickoff_custom_data_request HTTP %s for VIN %s: %s",
+                        resp.status, _mask_vin(vin), body_text[:200],
+                    )
+                    return None
+        except DataActSessionExpiredError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.debug("kickoff_custom_data_request failed: %s", exc)
+            return None
+
+        _LOGGER.info(
+            "EU Data Act Custom Request kicked off for VIN %s "
+            "(Identifier=%s..., duration=%dd, frequency=15min)",
+            _mask_vin(vin), identifier[:8], duration_days,
+        )
+        return identifier
+
+    async def check_dataset_ready(
+        self,
+        vin: str,
+        identifier: str,
+    ) -> list[str] | None:
+        """Return list of ZIP download URLs for the given Identifier,
+        or None when the dataset is not yet ready.
+
+        Per live trace: 404 or 500 means "still being collected"
+        (can take up to 24h). 200 means ready and the response body
+        carries the file list + download URLs.
+
+        Raises ``DataActSessionExpiredError`` on 401.
+        """
+        from aiohttp import ClientTimeout  # noqa: PLC0415
+
+        url = _PORTAL_BASE + _DATASET_LIST_PATH.format(
+            vin=vin, identifier=identifier
+        )
+        try:
+            async with self._session.get(
+                url,
+                timeout=ClientTimeout(total=30),
+                headers={"Accept": "application/json"},
+            ) as resp:
+                if resp.status == 401:
+                    raise DataActSessionExpiredError(
+                        "datadelivery/list returned 401 - portal session expired"
+                    )
+                if resp.status in (404, 500):
+                    return None  # not ready yet, keep polling
+                if resp.status != 200:
+                    _LOGGER.debug(
+                        "datadelivery/list HTTP %s for VIN %s",
+                        resp.status, _mask_vin(vin),
+                    )
+                    return None
+                payload = await resp.json(content_type=None)
+        except DataActSessionExpiredError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.debug("datadelivery/list fetch failed: %s", exc)
+            return None
+
+        urls = _extract_download_urls(payload)
+        if urls:
+            _LOGGER.info(
+                "EU Data Act dataset READY for VIN %s (Identifier=%s..., "
+                "%d file(s) available for 24h)",
+                _mask_vin(vin), identifier[:8], len(urls),
+            )
+        return urls or None
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -909,6 +1087,38 @@ def _mask_vin(vin: str) -> str:
     if not vin:
         return "?"
     return f"...{vin[-6:]}" if len(vin) > 6 else vin
+
+
+def _extract_download_urls(payload: Any) -> list[str]:
+    """Walk the datadelivery/list response and return all plausible
+    download URLs (ZIP or otherwise) the portal points at.
+
+    The exact shape captured per live trace is a file list with one
+    URL per entry; we accept either a flat list of dicts or a wrapped
+    ``{"files": [...]}`` envelope. URLs must be https:// to count.
+    """
+    out: list[str] = []
+    entries: list[Any] = []
+    if isinstance(payload, list):
+        entries = payload
+    elif isinstance(payload, dict):
+        for key in ("files", "items", "data", "downloads"):
+            inner = payload.get(key)
+            if isinstance(inner, list):
+                entries = inner
+                break
+        if not entries and payload.get("downloadUrl"):
+            entries = [payload]
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        for key in ("downloadUrl", "download_url", "url", "href", "link"):
+            val = entry.get(key)
+            if isinstance(val, str) and val.startswith("https://"):
+                if val not in out:
+                    out.append(val)
+                break
+    return out
 
 
 def _extract_download_url(payload: Any) -> str | None:

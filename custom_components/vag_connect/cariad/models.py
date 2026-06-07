@@ -129,9 +129,11 @@ BRAND_VW_NA_MODEL = BrandConfig(
     redirect_uri="kombi:///login",
     user_agent="MyVW/1.0 Android",
     api_base="https://b-h-s.spr.us00.p.con-veh.net",
-    # v2.3.0 (#269) — single ``openid`` scope per matpoulin's working
-    # NA flow. Wider EU-style scope chain was the trigger for HTTP 400.
-    scope="openid",
+    # v2.11.0 (zackcornelius source-verified) — full
+    # "openid profile cars vin" scope. Bare "openid" returns reduced
+    # consent + missing claims on the NA IDP. Kept in sync with
+    # BRAND_VW_NA in api/vw_na.py via test_v230_sprint_b.
+    scope="openid profile cars vin",
 )
 
 BRAND_PORSCHE = BrandConfig(
@@ -1275,6 +1277,14 @@ class VehicleData:
     lifetime_avg_fuel_consumption_l_100km: float | None = None
     lifetime_avg_electric_consumption_kwh_100km: float | None = None
     recent_trips: list[dict[str, Any]] = field(default_factory=list)
+    # v2.12.0 (myskoda PR #575) — trip overall-cost breakdown. Currency
+    # carried separately so the sensor can set native_unit_of_measurement
+    # to the ISO code. None on accounts/firmwares that don't ship costs.
+    trip_total_cost: float | None = None
+    trip_fuel_cost: float | None = None
+    trip_electricity_cost: float | None = None
+    trip_cng_cost: float | None = None
+    trip_cost_currency: str | None = None
 
     # v2.10.0 Group B - SEAT/CUPRA OLA endpoint parity.
     # New fields populated by 6 OLA endpoints added in v2.10.0:

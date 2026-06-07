@@ -662,6 +662,20 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             found = len(self.vehicles)
             _LOGGER.info("VAG Connect: setup complete — %d vehicle(s)", found)
 
+            # v2.10.5 — EU Data Act portal Custom Data Request first-time
+            # kickoff. Only fires when (a) the user opted in via the
+            # OptionsFlow toggle CONF_EU_DATA_ACT_AUTO_KICKOFF and (b) we
+            # actually authenticated via the data_act_portal strategy.
+            # Best-effort: any failure is debug-logged and never blocks
+            # setup. Session-expiry surfaces a Repairs issue.
+            try:
+                await self._ensure_data_act_custom_request_kickoff()
+            except Exception:  # noqa: BLE001
+                _LOGGER.debug(
+                    "Data Act kickoff helper raised - non-fatal, continuing",
+                    exc_info=True,
+                )
+
             # Start background polling — use background task so HA bootstrap doesn't wait
             self.hass.async_create_background_task(self._poll_loop(), f"{DOMAIN}_poll")
             return found > 0
@@ -804,6 +818,121 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         _LOGGER.info(
             "VAG Connect: watchdog silent re-auth succeeded, "
             "failure counts cleared. Next poll should recover."
+        )
+
+    async def _ensure_data_act_custom_request_kickoff(self) -> None:
+        """v2.10.5 - check + first-time kickoff for the EU Data Act
+        portal's 15-min Custom Data Request per VIN.
+
+        No-op unless ALL three conditions hold:
+
+        1. ``CONF_EU_DATA_ACT_AUTO_KICKOFF`` is True in entry.options
+           (default False - the user has to opt in because the kickoff
+           starts a 1-month data subscription on their account).
+        2. The active auth strategy is ``"data_act_portal"`` (the
+           coordinator only knows how to consume the portal's ZIP
+           dumps in that mode; for the live BFF strategies there is
+           no need to ever go through the portal).
+        3. The DataActScraper is available (always true since
+           v2.10.0; defensive check kept for future refactors).
+
+        For each VIN: try ``get_active_custom_request_identifier``,
+        and if it returns None, call ``kickoff_custom_data_request``.
+        Resulting Identifiers are persisted to
+        ``entry.options[CONF_DATA_ACT_IDENTIFIERS]`` keyed by VIN so
+        subsequent polls can match without another metadata round-trip.
+
+        Session expiry (HTTP 401) opens a Repairs issue
+        ``data_act_session_expired`` and the kickoff is skipped this
+        cycle.
+        """
+        from .const import (  # noqa: PLC0415
+            CONF_DATA_ACT_IDENTIFIERS,
+            CONF_EU_DATA_ACT_AUTO_KICKOFF,
+        )
+
+        if not self.entry.options.get(CONF_EU_DATA_ACT_AUTO_KICKOFF, False):
+            return
+
+        tokens = getattr(self._cariad_client, "_tokens", None)
+        active_strategy = getattr(tokens, "strategy", "") if tokens else ""
+        if active_strategy != "data_act_portal":
+            _LOGGER.debug(
+                "Data Act kickoff: skipped (active strategy is %r, not "
+                "data_act_portal)", active_strategy,
+            )
+            return
+
+        from .cariad.auth._data_act_scraper import (  # noqa: PLC0415
+            DataActScraper,
+            DataActSessionExpiredError,
+        )
+        from homeassistant.helpers.aiohttp_client import (  # noqa: PLC0415
+            async_get_clientsession,
+        )
+
+        session = async_get_clientsession(self.hass)
+        brand = self.entry.data[CONF_BRAND]
+        scraper = DataActScraper(session, brand_name=brand)
+
+        existing_map = dict(
+            self.entry.options.get(CONF_DATA_ACT_IDENTIFIERS) or {}
+        )
+        new_map = dict(existing_map)
+        changed = False
+
+        for vin in list(self.vehicles):
+            try:
+                active = await scraper.get_active_custom_request_identifier(vin)
+                if active:
+                    if new_map.get(vin) != active:
+                        new_map[vin] = active
+                        changed = True
+                        _LOGGER.info(
+                            "Data Act kickoff: VIN %s already has active "
+                            "15min Custom Request (Identifier=%s...), "
+                            "adopting it.",
+                            mask_vin(vin), active[:8],
+                        )
+                    continue
+                # No active request - kick one off.
+                new_id = await scraper.kickoff_custom_data_request(vin)
+                if new_id:
+                    new_map[vin] = new_id
+                    changed = True
+            except DataActSessionExpiredError:
+                self._raise_data_act_session_expired_repair()
+                return  # stop processing further VINs this cycle
+            except Exception as exc:  # noqa: BLE001
+                _LOGGER.debug(
+                    "Data Act kickoff: VIN %s probe failed (%s) - skipping",
+                    mask_vin(vin), exc,
+                )
+
+        if changed:
+            self.hass.config_entries.async_update_entry(
+                self.entry,
+                options={**self.entry.options, CONF_DATA_ACT_IDENTIFIERS: new_map},
+            )
+
+    def _raise_data_act_session_expired_repair(self) -> None:
+        """v2.10.5 - open a Repairs issue when the portal session
+        cookies expired and the integration needs the user to
+        reauthenticate via the OptionsFlow re-login button.
+        """
+        from homeassistant.helpers import issue_registry as ir  # noqa: PLC0415
+
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            f"data_act_session_expired_{self.entry.entry_id}",
+            is_fixable=False,
+            is_persistent=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="data_act_session_expired",
+            translation_placeholders={
+                "brand": self.entry.data[CONF_BRAND],
+            },
         )
 
     async def _poll_loop(self) -> None:

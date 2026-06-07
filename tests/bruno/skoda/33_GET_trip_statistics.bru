@@ -1,0 +1,51 @@
+meta {
+  name: GET trip statistics
+  type: http
+  seq: 33
+}
+
+get {
+  url: {{base_url}}/api/v1/trip-statistics/{{vin}}?offsetType=week&offset=0
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+params:query {
+  offsetType: week
+  offset: 0
+}
+
+docs {
+  v2.11.0 - canonical trip statistics endpoint (myskoda TripStatistics
+  model). Lifetime + average consumption + travel time per myskoda
+  schema. Skoda-only.
+
+  Response shape (verified myskoda/models/trip_statistics.py):
+    {
+      "overview": {
+        "overallAverageFuelConsumption": 5.8,
+        "overallAverageElectricConsumption": 18.4,
+        "overallMileageInKm": 25400,
+        "overallTravelTimeInMin": 12300,
+        "overallCost": { "fuelCost": 1234.56, "electricityCost": 234.56 }
+      },
+      "detailedStatistics": [
+        {
+          "mileageInKm": 142, "travelTimeInMin": 95, "averageSpeedInKmph": 89,
+          "averageFuelConsumption": 5.4, "tripEndTimestamp": "..."
+        }
+      ]
+    }
+
+  Used by SkodaClient.get_status() to populate
+  lifetime_distance_km, lifetime_avg_fuel/electric_consumption,
+  last_trip_distance_km/duration_min/avg_speed_kmh/avg_consumption.
+}

@@ -1,0 +1,49 @@
+meta {
+  name: GET driving-data SHORT
+  type: http
+  seq: 48
+}
+
+get {
+  url: {{base_url}}/v1/vehicles/{{vin}}/driving-data/SHORT?from=1970-01-01T00:00:00Z&to=2099-12-31T09:59:01Z
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  v2.11.2 — short-term trip data for SEAT/CUPRA on the OLA backend.
+  Replaces /v1/vehicles/{vin}/trips/shortTerm (404 on PHEV firmwares
+  as of #392 heidle78 diag).
+
+  Response carries both per-trip entries (`data[]`) AND lifetime
+  aggregate fields at the top level. The integration takes
+  entries[0] as the last trip and the aggregate as lifetime totals.
+
+  Response shape (defensive multi-variant):
+    {
+      "data": [
+        {
+          "mileage_km" | "mileage": 142,
+          "travelTime" | "traveltime": 95,
+          "averageSpeed_kmph" | "averageSpeed": 89,
+          "averageFuelConsumption": 5.4,
+          "averageElectricEngineConsumption": 18.4,
+          "tripEndTimestamp" | "timestamp": "..."
+        },
+        ...
+      ],
+      "overallMileage_km" | "overallMileage" | "totalMileage": 12345,
+      "overallAverageFuelConsumption" | "averageFuelConsumption": 6.1,
+      "overallAverageElectricConsumption" | "averageElectricEngineConsumption": 18.9
+    }
+
+  Populates last_trip_*, lifetime_*, recent_trips (last 10).
+}

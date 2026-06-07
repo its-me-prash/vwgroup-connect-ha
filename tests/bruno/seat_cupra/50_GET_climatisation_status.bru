@@ -1,0 +1,45 @@
+meta {
+  name: GET climatisation status (read)
+  type: http
+  seq: 50
+}
+
+get {
+  url: {{base_url}}/v1/vehicles/{{vin}}/climatisation/status
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  v2.11.3 — canonical climatisation READ endpoint for SEAT/CUPRA on
+  OLA. Replaces /v2/vehicles/{vin}/climatisation which is the COMMAND
+  prefix only (/v2/.../climatisation/start etc.) and returns
+  "404 No static resource v2/vehicles/{vin}/climati" when called
+  bare via GET (heidle78 #392 v2.11.1 trace).
+
+  Response carries climatisation state + settings + the
+  auxiliaryHeatingStatus sub-block (aux-heating runs through the
+  same payload — no separate aux endpoint, as confirmed in v2.11.2).
+
+  Response shape (defensive multi-variant across firmwares):
+    {
+      "status": {
+        "climatisationState": "off" | "heating" | "ventilation" | ...,
+        "remainingTime_min": 0,
+        "auxiliaryHeatingStatus": { ... }
+      },
+      "settings": {
+        "targetTemperatureInCelsius": 21.5,
+        "targetTemperature_K": 294.65,
+        "heaterSource": "automatic" | "fuel" | "electric"
+      }
+    }
+}

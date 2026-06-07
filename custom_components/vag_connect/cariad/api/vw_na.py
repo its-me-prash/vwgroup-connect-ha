@@ -38,13 +38,18 @@ BRAND_VW_NA = BrandConfig(
     redirect_uri="kombi:///login",
     user_agent="MyVW/1.0 Android",
     api_base="https://b-h-s.spr.us00.p.con-veh.net",
-    # v2.3.0 (#269 roberttco, 2026-05-21) — single ``openid`` scope per
-    # matpoulin/CarConnectivity-connector-volkswagen-na (Apache-2.0).
-    # Previously we sent the wider VW EU-style scope chain
-    # (``openid profile email offline_access mbb vin cars dealers``)
-    # which the NA IDP rejected as part of its HTTP 400 response.
-    scope="openid",
+    # v2.11.0 (zackcornelius source-verified) - scope must be
+    # "openid profile cars vin", not bare "openid". The NA IDP
+    # returns reduced consent + missing claims when only "openid"
+    # is requested.
+    scope="openid profile cars vin",
 )
+
+# v2.11.0 (zackcornelius source-verified) - Canada needs its own
+# OAuth client_id. matpoulin's old shared client_id worked for some
+# accounts but the NA IDP rejects CA accounts that authenticate with
+# the US client_id on newer firmware revisions.
+_CA_CLIENT_ID = "69eb3c39-d2be-4006-8197-37cc4971e8fe_MYVW_ANDROID"
 
 # v2.3.0 (#269) — VW NA-specific IDP host: identity.na.vwgroup.io
 # (NOT identity.vwgroup.io). When the authorize-redirect lands on the
@@ -76,10 +81,14 @@ class VWNAClient:
         self._country  = country.lower()
         self._base     = _COUNTRY_BASES.get(self._country, _COUNTRY_BASES["us"])
         self._tokens: TokenSet | None = None
-        # VW NA uses IDK auth but against a country-specific endpoint
+        # VW NA uses IDK auth but against a country-specific endpoint.
+        # v2.11.0 - CA gets the dedicated CA client_id per zackcornelius.
+        client_id = (
+            _CA_CLIENT_ID if self._country == "ca" else BRAND_VW_NA.client_id
+        )
         brand = BrandConfig(
             name=f"volkswagen_{self._country}",
-            client_id=BRAND_VW_NA.client_id,
+            client_id=client_id,
             redirect_uri=BRAND_VW_NA.redirect_uri,
             user_agent=BRAND_VW_NA.user_agent,
             api_base=self._base,
@@ -372,7 +381,17 @@ class VWNAClient:
                 or v(power, "odometer")
             )
             d.fuel_level  = v(power, "fuelPercentRemaining")
-            d.range_km    = v(power, "cruiseRange")
+            # v2.11.0 (zackcornelius source-verified) - cruiseRangeUnits
+            # is "KM" or "MI"; pre-v2.11.0 we unconditionally treated
+            # the value as km, miles users got their range under-
+            # reported by ~38%.
+            range_raw = v(power, "cruiseRange")
+            range_unit = (v(power, "cruiseRangeUnits") or "KM").upper()
+            if isinstance(range_raw, (int, float)):
+                if range_unit == "MI":
+                    d.range_km = int(range_raw * 1.609344)
+                else:
+                    d.range_km = int(range_raw)
 
             # Battery
             bat = v(vehicle_raw, "batteryStatus") or {}
@@ -460,8 +479,12 @@ class VWNAClient:
             # offline cars. Modern VW NA backend caches the last known
             # parking GPS under ``data.lastParkedLocation`` even when
             # the car is OFFLINE and ``vehicleLocation`` is null.
+            # v2.11.0 (zackcornelius source-verified) - canonical key
+            # is ``location`` (without "vehicle" prefix); kept old key
+            # as fallback for any firmware that does ship it.
             pos = (
-                v(vehicle_raw, "vehicleLocation")
+                v(vehicle_raw, "location")
+                or v(vehicle_raw, "vehicleLocation")
                 or v(vehicle_raw, "lastParkedLocation")
                 or {}
             )
@@ -469,9 +492,21 @@ class VWNAClient:
             d.longitude = v(pos, "longitude")
 
             # Connection — v2.0.1 (#131 follow-up): defensive parsing.
-            conn_state = v(vehicle_raw, "connectionStatus", "connectionState")
-            if isinstance(conn_state, str):
-                d.is_online = conn_state.upper() == "CONNECTED"
+            # v2.11.0 (zackcornelius source-verified) - canonical online
+            # signal is `readiness.readinessStatus.value.connectionState.isOnline`
+            # (boolean). Pre-v2.11.0 we read `connectionStatus.connectionState`
+            # as a string ("CONNECTED" check) which is a scout-derived
+            # guess; the legacy path stays as fallback.
+            ready_online = v(
+                vehicle_raw, "readiness", "readinessStatus", "value",
+                "connectionState", "isOnline",
+            )
+            if isinstance(ready_online, bool):
+                d.is_online = ready_online
+            else:
+                conn_state = v(vehicle_raw, "connectionStatus", "connectionState")
+                if isinstance(conn_state, str):
+                    d.is_online = conn_state.upper() == "CONNECTED"
 
             # Drivetrain type
             engine = v(vehicle_raw, "vehicleType", "engine") or ""
@@ -491,32 +526,77 @@ class VWNAClient:
             # least 4 different timestamp field-name conventions across
             # firmware generations — try them in priority order, first
             # ISO-8601-looking string wins.
-            for path in (
-                ("vehicleStatusTime",),                  # myVW 2024+
-                ("connectionStatus", "lastConnectionTime"),  # legacy myVW
-                ("connectionStatus", "timestamp"),
-                ("carCapturedTimestamp",),               # CARIAD-aligned newer firmware
-                ("powerStatus", "carCapturedTimestamp"), # sub-block timestamp
-                ("lastUpdated",),
-                ("dataTimestamp",),
-            ):
-                ts = v(vehicle_raw, *path)
-                if isinstance(ts, str) and len(ts) >= 10 and "T" in ts:
-                    d.last_seen_at = ts
-                    break
+            # v2.11.0 (zackcornelius source-verified) - canonical
+            # last-seen field on RVS is `data.timestamp` as epoch-ms.
+            # Try epoch-ms first then fall back to ISO strings.
+            ts_ms = v(vehicle_raw, "timestamp")
+            if isinstance(ts_ms, (int, float)) and ts_ms > 1e12:
+                from datetime import datetime as _dt2  # noqa: PLC0415
+                try:
+                    d.last_seen_at = _dt2.fromtimestamp(
+                        ts_ms / 1000, tz=timezone.utc
+                    ).isoformat()
+                except (ValueError, OSError):
+                    pass
+            ts_clamp = v(vehicle_raw, "clampStateTimestamp")
+            if not d.last_seen_at and isinstance(ts_clamp, (int, float)) and ts_clamp > 1e12:
+                from datetime import datetime as _dt2  # noqa: PLC0415
+                try:
+                    d.last_seen_at = _dt2.fromtimestamp(
+                        ts_clamp / 1000, tz=timezone.utc
+                    ).isoformat()
+                except (ValueError, OSError):
+                    pass
+            if not d.last_seen_at:
+                # Note: upstream zackcornelius uses the field name
+                # `instrumentCluserTime` (with the typo - missing 't').
+                for path in (
+                    ("instrumentCluserTime",),
+                    ("vehicleStatusTime",),
+                    ("connectionStatus", "lastConnectionTime"),
+                    ("connectionStatus", "timestamp"),
+                    ("carCapturedTimestamp",),
+                    ("powerStatus", "carCapturedTimestamp"),
+                    ("lastUpdated",),
+                    ("dataTimestamp",),
+                ):
+                    ts = v(vehicle_raw, *path)
+                    if isinstance(ts, str) and len(ts) >= 10 and "T" in ts:
+                        d.last_seen_at = ts
+                        break
 
         # ── Charging ──────────────────────────────────────────────────────────
         if isinstance(charge, dict):
-            d.charging_state    = v(charge, "chargingStatus", "chargingState")
+            # v2.11.0 (zackcornelius source-verified):
+            #   currentChargeState (NOT chargingState)
+            #   chargePower (NOT chargePower_kW)
+            #   chargeSettings.targetSOCPercentage (NOT chargingSettings.targetSOC_pct)
+            d.charging_state    = (
+                v(charge, "chargingStatus", "currentChargeState")
+                or v(charge, "chargingStatus", "chargingState")
+            )
             # v2.0.1 (#131 follow-up) — defensive parsing.
             if isinstance(d.charging_state, str):
                 d.is_charging = d.charging_state.upper() == "CHARGING"
-            d.charging_power_kw = v(charge, "chargingStatus", "chargePower_kW")
+            d.charging_power_kw = (
+                v(charge, "chargingStatus", "chargePower")
+                or v(charge, "chargingStatus", "chargePower_kW")
+            )
             plug = v(charge, "plugStatus", "plugConnectionState")
             if isinstance(plug, str):
                 d.plug_connected = plug.upper() == "CONNECTED"
                 d.plug_state = plug
-            d.target_soc        = v(charge, "chargingSettings", "targetSOC_pct")
+            d.target_soc = (
+                v(charge, "chargeSettings", "targetSOCPercentage")
+                or v(charge, "chargingSettings", "targetSOC_pct")
+            )
+            # v2.11.0 (zackcornelius source-verified): battery_soc lives
+            # on the charging endpoint at chargingStatus.currentSOCPct,
+            # NOT on the RVS endpoint (we attempted to read it from the
+            # wrong endpoint before).
+            soc_charge = v(charge, "chargingStatus", "currentSOCPct")
+            if isinstance(soc_charge, (int, float)) and d.battery_soc is None:
+                d.battery_soc = int(soc_charge)
             # v1.24.2 (audit): safe_int + safe_float defensive coerce
             remaining_min = safe_int(v(charge, "chargingStatus", "remainingChargingTimeToComplete_min"))
             if remaining_min is not None and remaining_min > 0:
@@ -531,7 +611,10 @@ class VWNAClient:
         # legacy install that still ships the older shape.
         if isinstance(climate, dict):
             d.climatisation_state = (
-                v(climate, "climateStatusReport", "climateState")
+                # v2.11.0 (zackcornelius source-verified) - canonical
+                # key is `climateStatusInd` (NOT climateState).
+                v(climate, "climateStatusReport", "climateStatusInd")
+                or v(climate, "climateStatusReport", "climateState")
                 or v(climate, "climateStatusReport", "state")
                 or v(climate, "climatisationStatus", "climatisationState")
             )
@@ -671,28 +754,55 @@ class VWNAClient:
         )
         if not isinstance(nonce, str) or not nonce:
             return None
-        # SHA1(SPIN + nonce), uppercase hex per the NA app smali. The
-        # ``hashlib.sha1`` use is NOT a security primitive (this is a
-        # protocol-mandated digest for backend handshake), so the
-        # nosec-style suppression is intentional.
-        response = hashlib.sha1(  # noqa: S324
+        # v2.11.0 (zackcornelius source-verified) - the SPIN hash is
+        # SHA-512 of ``"{challenge}.{spin}"`` (challenge first, then
+        # the dot separator, then the spin), NOT SHA-1 of (spin+nonce).
+        # Try the modern shape first; fall back to legacy SHA-1 if
+        # the modern path returns 4xx (kept so users whose accounts
+        # still respond to the old algorithm don't regress).
+        response = hashlib.sha512(
+            f"{nonce}.{spin}".encode("utf-8")
+        ).hexdigest().upper()
+        response_legacy = hashlib.sha1(  # noqa: S324
             (spin + nonce).encode("utf-8")
         ).hexdigest().upper()
+        # v2.11.0 - try modern (SHA-512) first; on 4xx fall back to
+        # legacy (SHA-1) which the older endpoint still expects on
+        # some firmwares.
+        spin_resp = None
         try:
             spin_resp = await self._post(
                 f"{self._base}/ss/v1/user/{self._user_id}/spin",
                 json={"challenge": nonce, "response": response},
             )
         except APIError as err:
-            _LOGGER.debug(
-                "VW NA SPIN response POST failed (%s) for vin ***%s",
-                err.status, vin[-6:],
-            )
-            return None
+            if 400 <= (err.status or 0) < 500:
+                try:
+                    spin_resp = await self._post(
+                        f"{self._base}/ss/v1/user/{self._user_id}/spin",
+                        json={"challenge": nonce, "response": response_legacy},
+                    )
+                except APIError as legacy_err:
+                    _LOGGER.debug(
+                        "VW NA SPIN both modern + legacy failed (%s/%s) for vin ***%s",
+                        err.status, legacy_err.status, vin[-6:],
+                    )
+                    return None
+            else:
+                _LOGGER.debug(
+                    "VW NA SPIN POST failed (%s) for vin ***%s",
+                    err.status, vin[-6:],
+                )
+                return None
         if not isinstance(spin_resp, dict):
             return None
+        # v2.11.0 (zackcornelius source-verified) - canonical token
+        # field is `carnetVehicleToken` (NOT sessionToken). Kept the
+        # other variants as defensive fallbacks for non-canonical
+        # firmware responses.
         token = (
-            spin_resp.get("sessionToken")
+            spin_resp.get("carnetVehicleToken")
+            or spin_resp.get("sessionToken")
             or spin_resp.get("spinSessionToken")
             or spin_resp.get("token")
         )

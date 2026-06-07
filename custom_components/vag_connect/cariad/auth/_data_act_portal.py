@@ -390,58 +390,588 @@ class DataActPortalAuth:
                 and "<form" not in html_lower
             )
             if is_spa_password_page:
-                # v2.10.3 (#388 caraar12345) — actually complete the SPA-
-                # rendered password page on the portal flow. The portal
-                # client_id passes the Azure WAF where the standard VW
-                # Android client_id is blocked, so this is the one path
-                # we can actually walk for read-only fallback. Mirror
-                # the SPA POST shape from idk.py: form-encoded body to
-                # the same /u/login?state=... URL with action=default,
-                # follow the redirect chain to the portal callback.
+                # v2.10.6 (#388 xeonixo + Arno-MA-73) — v2.10.3 SPA POST
+                # to the parsed email form's action URL returned HTTP 405
+                # for VW EU users. Auth0 Universal Login routes the SPA
+                # password submission through the SAME /u/login?state=<x>
+                # URL as the identifier step; differentiation happens via
+                # the body's `action` field. Mirror idk.py's SPA fallback
+                # exactly: form-encoded first, JSON content-type fallback
+                # on 4xx, follow the resulting redirect chain.
                 from urllib.parse import urlparse as _urlparse  # noqa: PLC0415
+
+                # v2.10.7 (Arno-MA-73 trace) - state extraction order
+                # mirrors idk.py: HTML hidden input first (most reliable
+                # on SPA pages where aiohttp's redirect-following strips
+                # the state from the final response URL), then the URL
+                # query string of the password-page / landing-page as
+                # fallback. Auth0 SPA always embeds the state as
+                # ``<input type="hidden" name="state" value="...">`` in
+                # the page HTML even when the SPA itself owns rendering.
+                # v2.10.9 (#388 Arno) - forensic logging + attribute-order-
+                # agnostic state extraction. Walks every hidden input via
+                # the two-step name+value capture from idk.py's
+                # _parse_csrf_robust so attribute order in the markup
+                # never matters.
+                _LOGGER.debug(
+                    "Data Act portal SPA: entered SPA branch - "
+                    "landing_url=%s identifier_url=%s "
+                    "password_html_len=%d landing_html_len=%d",
+                    landing_url[:120], identifier_url[:120],
+                    len(password_html or ""), len(landing_html or ""),
+                )
                 state_from_url = ""
-                identifier_qs = parse_qs(_urlparse(identifier_url).query)
-                if identifier_qs.get("state"):
-                    state_from_url = identifier_qs["state"][0]
-                spa_form = {
-                    "username": email,
-                    "password": password,
-                    "action": "default",
+                state_source = ""
+                # v2.11.3 (#388 swebachus VW EU ID.7 SE) — template-model
+                # extraction for signin-service SPA. When VW renders the
+                # signin-service login as a SPA shell with zero hidden
+                # <input> tags, the form data still lives inside an
+                # embedded ``templateModel: { hmac, postAction, relayState,
+                # ... }`` JSON literal in a <script> block. This is the
+                # exact fallback both pycupra (connection.py 823-897) and
+                # audi_connect_ha (audi_services.py 1449-1481) use. Pull
+                # hmac + postAction directly so the authenticate POST has
+                # the session-bound CSRF token the SPA shell would
+                # otherwise compute in JS. When found, this short-circuits
+                # the Auth0-state hunt — we know we are on signin-service
+                # and have everything we need.
+                template_hmac = ""
+                template_post_action = ""
+                template_relay_state = ""
+
+                def _extract_template_model(
+                    src_html: str,
+                ) -> tuple[str, str, str]:
+                    """Return (hmac, postAction, relayState) from any
+                    ``templateModel: {...},`` literal in *src_html*.
+                    Returns empty strings when not found.
+                    """
+                    # Match ``templateModel: {`` through the matching
+                    # closing brace before the next ``,\n`` separator —
+                    # mirrors the pycupra/audi_connect_ha regex shape.
+                    tm_match = re.search(
+                        r"templateModel\s*:\s*(\{.*?\})\s*,\s*\n",
+                        src_html, re.DOTALL,
+                    )
+                    if not tm_match:
+                        return "", "", ""
+                    tm_json = tm_match.group(1)
+                    h = re.search(
+                        r'"hmac"\s*:\s*"([^"]+)"', tm_json,
+                    )
+                    pa = re.search(
+                        r'"postAction"\s*:\s*"([^"]+)"', tm_json,
+                    )
+                    rs = re.search(
+                        r'"relayState"\s*:\s*"([^"]+)"', tm_json,
+                    )
+                    return (
+                        h.group(1) if h else "",
+                        pa.group(1) if pa else "",
+                        rs.group(1) if rs else "",
+                    )
+
+                for label, src_html in (
+                    ("password_html", password_html),
+                    ("landing_html", landing_html),
+                ):
+                    if not src_html:
+                        continue
+                    h_, pa_, rs_ = _extract_template_model(src_html)
+                    if h_ and pa_:
+                        template_hmac = h_
+                        template_post_action = pa_
+                        template_relay_state = rs_
+                        state_from_url = rs_ or "templateModel"
+                        state_source = f"{label}/templateModel"
+                        _LOGGER.debug(
+                            "Data Act portal SPA: templateModel found in "
+                            "%s — hmac len=%d, postAction=%s",
+                            label, len(template_hmac),
+                            template_post_action[:80],
+                        )
+                        break
+
+                def _extract_state_from_html(src_html: str) -> str:
+                    """Walk every <input ...> tag, extract name+value as
+                    two independent regex matches so attribute order in
+                    the HTML does not matter. Mirrors idk.py:
+                    _parse_csrf_robust line 1860 pattern.
+                    """
+                    for tag in re.finditer(r"<input[^>]+>", src_html, re.IGNORECASE):
+                        t = tag.group(0)
+                        tlow = t.lower()
+                        if 'type="hidden"' not in tlow and "type='hidden'" not in tlow:
+                            continue
+                        nm = re.search(r'name=["\']([^"\']+)["\']', t)
+                        vm = re.search(r'value=["\']([^"\']*)["\']', t)
+                        if nm and nm.group(1) == "state" and vm and vm.group(1):
+                            return vm.group(1)
+                    return ""
+
+                # Skip the Auth0-style state hunt when templateModel
+                # already gave us hmac+postAction — that flow is
+                # signin-service and uses a different POST shape below.
+                for label, src_html in (
+                    () if state_from_url else (
+                        ("password_html", password_html),
+                        ("landing_html", landing_html),
+                    )
+                ):
+                    if not src_html:
+                        continue
+                    # 1. Two-step hidden-input walk (attribute-order-agnostic).
+                    cand = _extract_state_from_html(src_html)
+                    if cand:
+                        state_from_url = cand
+                        state_source = f"{label}/hidden-input"
+                        break
+                    # 2. JS embed: "state":"..." (modern Auth0 SPA bundles
+                    #    serialize the OAuth state into a window.__STORE__
+                    #    object before the React tree hydrates).
+                    m = re.search(
+                        r'"state"\s*:\s*"([A-Za-z0-9_\-\.]{8,})"', src_html
+                    )
+                    if m:
+                        state_from_url = m.group(1)
+                        state_source = f"{label}/json-embed"
+                        break
+                    # 3. data-state attribute on any element (some Auth0
+                    #    builds put it on <body data-state="..."> for
+                    #    the bootstrap script to read).
+                    m = re.search(
+                        r'data-state=["\']([A-Za-z0-9_\-\.]{8,})["\']',
+                        src_html,
+                    )
+                    if m:
+                        state_from_url = m.group(1)
+                        state_source = f"{label}/data-attr"
+                        break
+                    # v2.10.11 (#388 swebachus pure-SPA-shell trace) -
+                    # 4. Auth0 native state signature. Tokens always
+                    # start with the msgpack 2-key map marker ``hKFo``
+                    # (base64 of 0x84a1 - 4-element map, first key 1
+                    # byte string). Length is typically 80+ chars.
+                    # Catches the token even when it is embedded in
+                    # minified JS as a bare string literal without any
+                    # surrounding "state:" marker.
+                    m = re.search(
+                        r'\b(hKFo[A-Za-z0-9_\-\.]{40,})\b', src_html
+                    )
+                    if m:
+                        state_from_url = m.group(1)
+                        state_source = f"{label}/auth0-native"
+                        break
+                    # 5. Escaped JSON inside HTML attribute / script
+                    # content: the SPA shell often inlines its initial
+                    # state as ``\"state\":\"...\"`` when the JSON is
+                    # double-encoded.
+                    m = re.search(
+                        r'\\"state\\"\s*:\s*\\"([A-Za-z0-9_\-\.]{16,})\\"',
+                        src_html,
+                    )
+                    if m:
+                        state_from_url = m.group(1)
+                        state_source = f"{label}/escaped-json"
+                        break
+                    # 6. URL-encoded state inside the HTML body (login
+                    # bundles sometimes inline the entire callback URL
+                    # as ``window.location = "...state=X..."``).
+                    m = re.search(
+                        r'[?&]state=([A-Za-z0-9_\-\.%]{16,})', src_html
+                    )
+                    if m:
+                        state_from_url = m.group(1)
+                        # URL-decode if needed.
+                        from urllib.parse import unquote as _unq  # noqa: PLC0415
+                        state_from_url = _unq(state_from_url)
+                        state_source = f"{label}/url-embedded"
+                        break
+                    _LOGGER.debug(
+                        "Data Act portal SPA: no state in %s "
+                        "(first 300 chars: %s)",
+                        label, src_html[:300].replace("\n", " "),
+                    )
+                if not state_from_url:
+                    # 4. URL query strings as last resort.
+                    for label, src in (
+                        ("identifier_url", identifier_url),
+                        ("landing_url", landing_url),
+                    ):
+                        qs = parse_qs(_urlparse(src).query)
+                        if qs.get("state"):
+                            state_from_url = qs["state"][0]
+                            state_source = f"{label}/url-query"
+                            break
+                # v2.11.3 (#388 swebachus VW EU ID.7 SE) — when the IDP
+                # routes the user through ``signin-service/v1/<client>``
+                # instead of Auth0 Universal Login (``/u/login``), the
+                # session token is ``relayState`` not ``state``. Check
+                # all the same sources but for the signin-service token
+                # name. Tracks which auth chain we are on so the POST
+                # step below targets the correct endpoint.
+                signin_service_flow = (
+                    "signin-service" in landing_url
+                    or "signin-service" in identifier_url
+                )
+                if not state_from_url and signin_service_flow:
+                    for label, src_html in (
+                        ("password_html", password_html),
+                        ("landing_html", landing_html),
+                    ):
+                        if not src_html:
+                            continue
+                        # JSON embed (most common for SPA-rendered
+                        # signin-service shells — observed in
+                        # swebachus #388-comment-2026-06-04).
+                        m = re.search(
+                            r'"relayState"\s*:\s*"([A-Za-z0-9_\-\.%/+=]{8,})"',
+                            src_html,
+                        )
+                        if m:
+                            state_from_url = m.group(1)
+                            state_source = f"{label}/relayState-json"
+                            break
+                        # Escaped variant.
+                        m = re.search(
+                            r'\\"relayState\\"\s*:\s*\\"([A-Za-z0-9_\-\.%/+=]{8,})\\"',
+                            src_html,
+                        )
+                        if m:
+                            state_from_url = m.group(1)
+                            state_source = f"{label}/relayState-escaped"
+                            break
+                if not state_from_url and signin_service_flow:
+                    for label, src in (
+                        ("landing_url", landing_url),
+                        ("identifier_url", identifier_url),
+                    ):
+                        qs = parse_qs(_urlparse(src).query)
+                        if qs.get("relayState"):
+                            state_from_url = qs["relayState"][0]
+                            state_source = f"{label}/relayState-url"
+                            break
+                if not state_from_url:
+                    # v2.10.11 (#388 swebachus) - expanded forensic dump
+                    # covering BOTH HTMLs and the raw URL strings, plus
+                    # the location around any "state" substring so the
+                    # next trace surfaces the exact context the token
+                    # lives in (or proves it is purely JS-rendered post
+                    # bundle init, in which case we need a different
+                    # entry point altogether).
+                    def _state_context(src: str) -> str:
+                        idx = src.lower().find("state")
+                        if idx < 0:
+                            return "(no 'state' substring)"
+                        start = max(0, idx - 30)
+                        end = min(len(src), idx + 80)
+                        return src[start:end].replace("\n", " ")
+
+                    _LOGGER.warning(
+                        "Data Act portal SPA: no state token. "
+                        "landing_url=%s identifier_url=%s",
+                        landing_url[:200], identifier_url[:200],
+                    )
+                    title_m = re.search(
+                        r"<title>([^<]+)</title>",
+                        password_html or "", re.IGNORECASE,
+                    )
+                    _LOGGER.warning(
+                        "Data Act portal SPA: password_html title=%s "
+                        "len=%d, contains '<input'=%s, contains 'state'=%s, "
+                        "contains '__STORE__'=%s, state-context=%r",
+                        (title_m.group(1) if title_m else "(none)"),
+                        len(password_html or ""),
+                        "<input" in (password_html or "").lower(),
+                        "state" in (password_html or "").lower(),
+                        "__STORE__" in (password_html or ""),
+                        _state_context(password_html or ""),
+                    )
+                    title_l = re.search(
+                        r"<title>([^<]+)</title>",
+                        landing_html or "", re.IGNORECASE,
+                    )
+                    _LOGGER.warning(
+                        "Data Act portal SPA: landing_html title=%s "
+                        "len=%d, contains '<input'=%s, contains 'state'=%s, "
+                        "contains '__STORE__'=%s, state-context=%r",
+                        (title_l.group(1) if title_l else "(none)"),
+                        len(landing_html or ""),
+                        "<input" in (landing_html or "").lower(),
+                        "state" in (landing_html or "").lower(),
+                        "__STORE__" in (landing_html or ""),
+                        _state_context(landing_html or ""),
+                    )
+                    flow_hint = (
+                        "signin-service v1 (legacy IDK)"
+                        if signin_service_flow
+                        else "Auth0 universal login"
+                    )
+                    raise AuthenticationError(
+                        f"Data Act portal: SPA password page reached but "
+                        f"no session token found ({flow_hint} flow detected; "
+                        "checked Auth0 'state' AND signin-service "
+                        "'relayState' via hidden input, JSON embed, "
+                        "data-attr, native msgpack signature, URL query). "
+                        "IDP markup may have changed. Enable DEBUG logging "
+                        "for 'custom_components.vag_connect.cariad.auth."
+                        "_data_act_portal' and re-share the log."
+                    )
+                _LOGGER.debug(
+                    "Data Act portal SPA: state token found via %s "
+                    "(first 12 chars: %s...)",
+                    state_source, state_from_url[:12],
+                )
+                from urllib.parse import quote as _quote  # noqa: PLC0415
+                # v2.11.3 — POST URL + body shape now diverges by auth
+                # chain. signin-service flow targets the classic IDK
+                # ``/login/authenticate`` endpoint with ``relayState`` in
+                # the body; Auth0 flow targets ``/u/login`` with ``state``.
+                is_signin_service_state = state_source.endswith((
+                    "relayState-json",
+                    "relayState-escaped",
+                    "relayState-url",
+                    "templateModel",
+                ))
+                if template_hmac and template_post_action:
+                    # v2.11.4 — signin-service is a TWO-STEP flow when
+                    # rendered as SPA. v2.11.3 tried to POST password
+                    # straight to the identifier endpoint (the postAction
+                    # we extracted from the email page's templateModel)
+                    # which 405'd on every test (#388 swebachus + #393
+                    # SniperWCW). The actual flow upstream libs use
+                    # (audi_services.py:1313-1378):
+                    #
+                    #   1. POST {email + hmac} to /login/identifier
+                    #      → response HTML is the password page with a
+                    #        FRESH hmac
+                    #   2. Regex-extract the new hmac from that response
+                    #   3. Replace "identifier" with "authenticate" in
+                    #      the URL path
+                    #   4. POST {email + password + new_hmac + relayState}
+                    #      to that authenticate URL
+                    #
+                    # The fresh hmac from step 2 is essential — the
+                    # email-page hmac is bound to the identifier session
+                    # only; the authenticate endpoint rejects it.
+                    from urllib.parse import urlparse as _up  # noqa: PLC0415
+                    parsed = _up(identifier_url)
+                    pa = template_post_action
+                    if pa.startswith("/"):
+                        identifier_post_url = (
+                            f"{parsed.scheme}://{parsed.netloc}{pa}"
+                        )
+                    elif pa.startswith("http"):
+                        identifier_post_url = pa
+                    else:
+                        base_path = parsed.path.rsplit("/", 1)[0]
+                        identifier_post_url = (
+                            f"{parsed.scheme}://{parsed.netloc}"
+                            f"{base_path}/{pa}"
+                        )
+
+                    # Step 1 — POST email to identifier endpoint.
+                    identifier_form = {
+                        "email": email,
+                        "hmac": template_hmac,
+                        "relayState": template_relay_state,
+                        "_csrf": template_hmac,
+                    }
+                    identifier_headers = {
+                        "Accept": (
+                            "text/html,application/xhtml+xml,"
+                            "application/xml;q=0.9,*/*;q=0.8"
+                        ),
+                        "Content-Type": (
+                            "application/x-www-form-urlencoded"
+                        ),
+                    }
+                    password_resp_html = ""
+                    try:
+                        async with self._session.post(
+                            identifier_post_url,
+                            data=identifier_form,
+                            timeout=ClientTimeout(
+                                total=_PORTAL_REQUEST_TIMEOUT_S
+                            ),
+                            allow_redirects=True,
+                            headers=identifier_headers,
+                        ) as resp:
+                            if resp.status in (200, 302, 303):
+                                password_resp_html = await resp.text()
+                            else:
+                                _LOGGER.warning(
+                                    "Data Act portal SPA: identifier POST "
+                                    "returned HTTP %d to %s",
+                                    resp.status,
+                                    identifier_post_url[:120],
+                                )
+                    except Exception as exc:  # noqa: BLE001
+                        _LOGGER.warning(
+                            "Data Act portal SPA: identifier POST failed: %s",
+                            exc,
+                        )
+
+                    # Step 2 — extract fresh hmac from password page
+                    # response. Mirrors audi_services.py regex shape.
+                    new_hmac = ""
+                    if password_resp_html:
+                        m_hmac = re.search(
+                            r'"hmac"\s*:\s*"([0-9a-fA-F]+)"',
+                            password_resp_html,
+                        )
+                        if m_hmac:
+                            new_hmac = m_hmac.group(1)
+                        # Also try to capture a new postAction (rare —
+                        # usually the authenticate URL is built by
+                        # path replacement, but some firmwares ship
+                        # an explicit one).
+                        m_pa = re.search(
+                            r'"postAction"\s*:\s*"([^"]+)"',
+                            password_resp_html,
+                        )
+                        new_post_action = m_pa.group(1) if m_pa else ""
+                    else:
+                        new_post_action = ""
+
+                    # Step 3 — build authenticate URL by replacing
+                    # "identifier" → "authenticate" in the path.
+                    if new_post_action:
+                        if new_post_action.startswith("/"):
+                            spa_post_url = (
+                                f"{parsed.scheme}://{parsed.netloc}"
+                                f"{new_post_action}"
+                            )
+                        elif new_post_action.startswith("http"):
+                            spa_post_url = new_post_action
+                        else:
+                            spa_post_url = identifier_post_url.replace(
+                                "/login/identifier", "/login/authenticate"
+                            )
+                    else:
+                        spa_post_url = identifier_post_url.replace(
+                            "/login/identifier", "/login/authenticate"
+                        )
+
+                    # Step 4 — POST password + fresh hmac (or fall back
+                    # to the original hmac when step 1 didn't yield a new
+                    # one — at least the URL is now authenticate not
+                    # identifier, which is half of why v2.11.3 405'd).
+                    effective_hmac = new_hmac or template_hmac
+                    spa_form = {
+                        "email": email,
+                        "password": password,
+                        "hmac": effective_hmac,
+                        "relayState": template_relay_state,
+                        "_csrf": effective_hmac,
+                    }
+                    _LOGGER.debug(
+                        "Data Act portal SPA: 2-step signin-service "
+                        "complete — identifier_url=%s authenticate_url=%s "
+                        "new_hmac_found=%s",
+                        identifier_post_url[:80],
+                        spa_post_url[:80],
+                        bool(new_hmac),
+                    )
+                elif is_signin_service_state:
+                    # Reconstruct signin-service authenticate URL from
+                    # the identifier_url shape:
+                    # signin-service/v1/<client>@apps_vw-dilab_com/login/identifier
+                    # → .../login/authenticate
+                    from urllib.parse import urlparse as _up  # noqa: PLC0415
+                    parsed = _up(identifier_url)
+                    auth_path = parsed.path.replace(
+                        "/login/identifier", "/login/authenticate"
+                    )
+                    spa_post_url = (
+                        f"{parsed.scheme}://{parsed.netloc}{auth_path}"
+                    )
+                    spa_form = {
+                        "email": email,
+                        "password": password,
+                        "relayState": state_from_url,
+                    }
+                else:
+                    spa_post_url = (
+                        f"https://identity.vwgroup.io/u/login?state="
+                        f"{_quote(state_from_url, safe='')}"
+                    )
+                    spa_form = {
+                        "username": email,
+                        "password": password,
+                        "action": "default",
+                        "state": state_from_url,
+                    }
+                spa_headers_form = {
+                    "Accept": (
+                        "text/html,application/xhtml+xml,"
+                        "application/xml;q=0.9,*/*;q=0.8"
+                    ),
+                    "Content-Type": "application/x-www-form-urlencoded",
                 }
-                if state_from_url:
-                    spa_form["state"] = state_from_url
+                spa_headers_json = {
+                    "Accept": "application/json, text/html",
+                    "Content-Type": "application/json",
+                }
+                callback_url = ""
+                spa_attempt_status = 0
+                # Try form-encoded first (legacy variant that idk.py
+                # found still works for some VW Auth0 deployments).
                 try:
                     async with self._session.post(
-                        identifier_url,
+                        spa_post_url,
                         data=spa_form,
                         timeout=ClientTimeout(
                             total=_PORTAL_REQUEST_TIMEOUT_S
                         ),
                         allow_redirects=True,
-                        headers={
-                            "Accept": (
-                                "text/html,application/xhtml+xml,"
-                                "application/xml;q=0.9,*/*;q=0.8"
-                            ),
-                        },
+                        headers=spa_headers_form,
                     ) as resp:
-                        callback_url = str(resp.url)
-                        if resp.status not in (200, 302):
-                            raise AuthenticationError(
-                                "Data Act portal: SPA password POST "
-                                f"HTTP {resp.status}"
-                            )
-                except AuthenticationError:
-                    raise
+                        spa_attempt_status = resp.status
+                        if resp.status in (200, 302, 303):
+                            callback_url = str(resp.url)
                 except Exception as exc:  # noqa: BLE001
+                    _LOGGER.debug(
+                        "Data Act portal SPA POST (form) failed: %s", exc
+                    )
+                # JSON fallback for SPA-only Auth0 deployments
+                # (matches the idk.py order). Triggered when the form
+                # attempt produced 4xx OR landed back on the identity
+                # host instead of the portal callback.
+                needs_json = (
+                    not callback_url
+                    or "drivesomethinggreater.com" not in callback_url
+                )
+                if needs_json:
+                    try:
+                        async with self._session.post(
+                            spa_post_url,
+                            json=spa_form,
+                            timeout=ClientTimeout(
+                                total=_PORTAL_REQUEST_TIMEOUT_S
+                            ),
+                            allow_redirects=True,
+                            headers=spa_headers_json,
+                        ) as resp:
+                            spa_attempt_status = resp.status
+                            if resp.status in (200, 302, 303):
+                                callback_url = str(resp.url)
+                    except Exception as exc:  # noqa: BLE001
+                        _LOGGER.debug(
+                            "Data Act portal SPA POST (json) failed: %s",
+                            exc,
+                        )
+                if not callback_url or (
+                    "drivesomethinggreater.com" not in callback_url
+                ):
                     raise AuthenticationError(
-                        f"Data Act portal: SPA password POST failed ({exc})"
-                    ) from exc
-                # Jump ahead to step 4 (callback validation + token
-                # exchange). Reuse the existing logic by returning a
-                # synthetic password-action URL; the caller below
-                # already runs the callback parsing + token POST chain.
-                # Skip the static-form password POST by branching here.
+                        "Data Act portal: SPA password POST did not "
+                        "complete (last status="
+                        f"{spa_attempt_status}). Both form-encoded and "
+                        "JSON variants were tried; the portal IDP may "
+                        "need an SPA-computed parameter (CAPTCHA, "
+                        "bot-detection token) we cannot replicate."
+                    )
                 return await self._complete_after_callback(
                     callback_url=callback_url,
                     pkce_verifier=pkce_verifier,

@@ -9,7 +9,7 @@ import logging
 from typing import Any
 
 from .._util import compute_connection_state, safe_float, safe_int
-from ..exceptions import APIError
+from ..exceptions import APIError, AuthenticationError
 from ..models import BRAND_VW_EU, VehicleData
 from .base import CariadBaseClient
 
@@ -19,10 +19,21 @@ _BASE = "https://emea.bff.cariad.digital"
 
 _SELECTIVE_STATUS_JOBS = ",".join([
     "access",
+    # v2.11.0 (cross-brand upstream audit): activeVentilation job was
+    # not requested but the parser at _parse_status reads from this
+    # block - pre-v2.11.0 the field would have been None for any car
+    # whose firmware doesn't ship ventilation data inside another sibling
+    # block. audi_services.JOBS2QUERY lists it explicitly.
+    "activeVentilation",
     "automation",
     "auxiliaryHeating",
     "batteryChargingCare",
+    # v2.11.0: also missing - batterySupport, chargingProfiles,
+    # chargingTimers per audi_services.JOBS2QUERY + CC-VW connector jobs.
+    "batterySupport",
     "charging",
+    "chargingProfiles",
+    "chargingTimers",
     "climatisation",
     "climatisationTimers",
     "departureProfiles",
@@ -91,12 +102,43 @@ class VWEUClient(CariadBaseClient):
 
     async def get_vehicles(self) -> list[str]:
         """Return list of VINs from the CARIAD garage."""
+        # v2.12.0 — EU Data Act portal mode: the token-based CARIAD garage
+        # is dead for VW EU, so VIN enumeration also has to come from the
+        # portal (not just get_status). Without this the coordinator's
+        # get_vehicles hits the dead BFF, gets nothing, and the entry ends
+        # in setup_retry with "No vehicles found" even though the portal
+        # login succeeded (surfaced by swebachus on #388).
+        portal = getattr(self, "_eu_portal", None)
+        if portal is not None:
+            vins: list[str]
+            try:
+                vins = await portal.list_vehicle_vins()
+            except AuthenticationError:
+                await portal.login(self._email, self._password)
+                vins = await portal.list_vehicle_vins()
+            # Best-effort nickname enrichment from the relation endpoint.
+            self._vehicle_metadata: dict[str, dict[str, Any]] = {}
+            for pvin in vins:
+                nick = await portal.get_relation_nickname(pvin)
+                if nick:
+                    self._vehicle_metadata[pvin] = {
+                        "model": nick, "model_year": None,
+                    }
+            if not vins:
+                _LOGGER.warning(
+                    "EU Data Act portal: login OK but the portal returned "
+                    "no vehicle. Enable the data-sharing / continuous data "
+                    "request for this car on the VW data portal — it can "
+                    "take a while to propagate before the car appears."
+                )
+            return vins
+
         data = await self._get(f"{_BASE}/vehicle/v1/vehicles")
         vehicles: list[dict[str, Any]] = data.get("data", [])
 
         # Cache nickname/model per VIN — used in _parse_status to set device name
         # CARIAD returns: nickname (user-set in app), model, modelYear
-        self._vehicle_metadata: dict[str, dict[str, Any]] = {
+        self._vehicle_metadata = {
             v["vin"]: {
                 "model": (
                     v.get("nickname")       # user-set name (e.g. "Golf GTE")
@@ -292,6 +334,19 @@ class VWEUClient(CariadBaseClient):
 
     async def get_status(self, vin: str) -> VehicleData:
         """Fetch full vehicle status via selectivestatus."""
+        # v2.12.0 — EU Data Act portal mode (read-only fallback). When the
+        # token-based BFF strategies are exhausted, the auth resolver
+        # retains a cookie-based portal connector on ``self._eu_portal``.
+        # Route the whole status fetch through it; on a stale cookie
+        # session (401/403 surfaced as AuthenticationError) re-login once.
+        portal = getattr(self, "_eu_portal", None)
+        if portal is not None:
+            try:
+                data: VehicleData = await portal.get_vehicle_data(vin)
+            except AuthenticationError:
+                await portal.login(self._email, self._password)
+                data = await portal.get_vehicle_data(vin)
+            return data
         # v2.1.0 — per-VIN base URL via HomeRegion lookup.
         base = self._base_for_vin(vin)
         url = f"{base}/vehicle/v1/vehicles/{vin}/selectivestatus"
@@ -1364,8 +1419,15 @@ class VWEUClient(CariadBaseClient):
         # current colour string under several paths; defensive lookup
         # since not all Audi models report it (PPE Q6/A6 e-tron yes,
         # older B9 A4 no).
+        # v2.11.0 (audi audit): consolidated with the post-block
+        # ``ledColor`` write below into a single defensive chain so
+        # the second assignment doesn't clobber a valid value with
+        # None on PPE firmware. ``ledColor`` is the canonical upstream
+        # key (audi_connect_ha); the three plugLedColor variants are
+        # our scout-derived fallbacks for older / PPE shape variance.
         led_color = (
-            v(raw, "access", "accessStatus", "value", "plugLedColor")
+            v(raw, "charging", "plugStatus", "value", "ledColor")
+            or v(raw, "access", "accessStatus", "value", "plugLedColor")
             or v(raw, "charging", "plugStatus", "value", "plugLedColor")
             or v(raw, "charging", "chargingStatus", "value", "plugLedColor")
         )
@@ -1409,11 +1471,9 @@ class VWEUClient(CariadBaseClient):
         if isinstance(nav_eta, (int, float)):
             d.remaining_charge_time_nav_min = int(nav_eta)
 
-        # v1.27.2 — Plug visual feedback (LED color on the charge port) +
-        # external-power availability. Both come straight from plugStatus.
-        # Helpful for "is the wallbox actually delivering power right now?"
-        # diagnostics, especially for users with intermittent EVSE issues.
-        d.plug_led_color = v(raw, "charging", "plugStatus", "value", "ledColor")
+        # v2.11.0: ``ledColor`` extraction consolidated into the
+        # defensive chain at the top of this section so a second
+        # unconditional write doesn't clobber a valid PPE plugLedColor.
         ext_power = v(raw, "charging", "plugStatus", "value", "externalPower")
         if isinstance(ext_power, str):
             d.external_power_available = ext_power.lower() == "available"
@@ -1422,16 +1482,26 @@ class VWEUClient(CariadBaseClient):
         # Skoda + CUPRA/SEAT have these via own paths since v1.17.5; VW EU/Audi
         # finally exposed via Cariad-BFF (paths from scout reports
         # #144/#145/#146/#147 — were silenced in v1.19.3, now wired as features).
-        care_mode = v(raw, "charging", "chargingCareSettings", "value", "batteryCareMode")
+        # v2.11.0 (volkswagencarnet vw_const source-verified): the
+        # canonical parent block is `batteryChargingCare`, not
+        # `charging`. Pre-v2.11.0 we read `charging.chargingCareSettings`
+        # FIRST and the dedicated batteryChargingCare job (already in
+        # _SELECTIVE_STATUS_JOBS) was a fallback - flipped the order
+        # so the canonical source wins.
+        care_mode = (
+            v(raw, "batteryChargingCare", "chargingCareSettings", "value", "batteryCareMode")
+            or v(raw, "charging", "chargingCareSettings", "value", "batteryCareMode")
+        )
         if isinstance(care_mode, str):
             up = care_mode.upper()
             if up in ("ACTIVATED", "ACTIVE", "ON", "TRUE"):
                 d.battery_care_enabled = True
             elif up in ("DEACTIVATED", "INACTIVE", "OFF", "FALSE"):
                 d.battery_care_enabled = False
-        care_target = v(raw, "batteryChargingCare", "chargingCareSettings", "value", "batteryCareTargetSoc")
-        if care_target is None:
-            care_target = v(raw, "charging", "chargingCareSettings", "value", "batteryCareTargetSoc")
+        care_target = (
+            v(raw, "batteryChargingCare", "chargingCareSettings", "value", "batteryCareTargetSoc")
+            or v(raw, "charging", "chargingCareSettings", "value", "batteryCareTargetSoc")
+        )
         d.battery_care_target_soc_pct = safe_int(care_target)
 
         # v1.26.0 — Auto-Unlock plug when charged. From scout #144 VW ID.4 Pro.
@@ -1487,7 +1557,24 @@ class VWEUClient(CariadBaseClient):
             d.connector_locked = plug_lock.upper() == "LOCKED"
 
         d.target_soc = v(raw, "charging", "chargingSettings", "value", "targetSOC_pct")
-        d.charge_mode = v(raw, "charging", "chargingStatus", "value", "chargeMode")
+        # v2.11.0 (volkswagencarnet PR #328, merged 2026-06-01) - CARIAD-BFF
+        # now exposes a dedicated chargeMode sub-job under selectivestatus
+        # charging block. preferredChargeMode + availableChargeModes are
+        # real backend additions (independent of the auth crisis). Values
+        # observed: "manual", "timer", "preferredChargingTimes",
+        # "timerChargingWithClimatisation".
+        preferred = v(raw, "charging", "chargeMode", "value", "preferredChargeMode")
+        if isinstance(preferred, str) and preferred:
+            d.charging_preferred_mode = preferred
+        available = v(raw, "charging", "chargeMode", "value", "availableChargeModes")
+        if isinstance(available, list):
+            d.available_charge_modes = [
+                m for m in available if isinstance(m, str) and m
+            ]
+        d.charge_mode = (
+            v(raw, "charging", "chargingStatus", "value", "chargeMode")
+            or v(raw, "charging", "chargeMode", "value")
+        )
         d.min_soc = v(raw, "charging", "chargingSettings", "value", "minChargeLimit_pct")
         # v1.10.1 (#58) — safe_float for max charge current too. The
         # ``_A`` field is a clean integer in #90's Live-Dump (16) but the
@@ -1714,7 +1801,14 @@ class VWEUClient(CariadBaseClient):
         # Back-compat ``range_km`` headline. Preference order matches
         # users' intuitive expectation — EVs/PHEVs see battery range as
         # primary, ICE see combustion or total.
-        battery_range = v(raw, "charging", "batteryStatus", "value", "cruisingRangeElectric_km")
+        # v2.11.0 (volkswagencarnet source-verified): also try
+        # `measurements.rangeStatus.value.electricRange` - some pure-EV
+        # ID.x firmware ships only this leaf and our pre-v2.11.0 code
+        # missed it.
+        battery_range = (
+            v(raw, "charging", "batteryStatus", "value", "cruisingRangeElectric_km")
+            or v(raw, "measurements", "rangeStatus", "value", "electricRange")
+        )
         if d.electric_range_km is None and battery_range is not None:
             # v1.24.2 (audit): safe_int — handles None/string/float defensively
             d.electric_range_km = safe_int(battery_range)
@@ -2275,18 +2369,27 @@ class VWEUClient(CariadBaseClient):
         # Different firmwares ship one key or the other (some both); take
         # whichever is a non-empty string so older Audi MIB3 and newer
         # PPE/PPC both light up.
+        # v2.11.0 (audi_connect_ha source-verified): older Audi A4 B9 /
+        # MIB3 cars ship aux heating under `climatisation.auxiliary
+        # HeatingStatus.value.climatisationState` (parent = climatisation,
+        # NOT auxiliaryHeating). audi_connect_ha references this legacy
+        # path; we missed it pre-v2.11.0.
         aux_state = (
             v(raw, "auxiliaryHeating", "auxiliaryHeatingStatus", "value", "operationMode")
             or v(raw, "auxiliaryHeating", "auxiliaryHeatingStatus", "value", "climatisationState")
+            or v(raw, "climatisation", "auxiliaryHeatingStatus", "value", "climatisationState")
+            or v(raw, "climatisation", "auxiliaryHeatingStatus", "value", "operationMode")
         )
         if isinstance(aux_state, str) and aux_state:
             d.auxiliary_heating_status = aux_state
             d.aux_heating_active = aux_state.lower() in {
                 "heating", "on", "heatingon", "active",
             }
-        aux_rem = v(
-            raw, "auxiliaryHeating", "auxiliaryHeatingStatus", "value",
-            "remainingTime_min",
+        aux_rem = (
+            v(raw, "auxiliaryHeating", "auxiliaryHeatingStatus", "value",
+              "remainingTime_min")
+            or v(raw, "climatisation", "auxiliaryHeatingStatus", "value",
+                 "remainingTime_min")
         )
         if isinstance(aux_rem, (int, float)):
             d.auxiliary_heating_remaining_min = int(aux_rem)

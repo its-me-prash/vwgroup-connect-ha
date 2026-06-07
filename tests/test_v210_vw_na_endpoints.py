@@ -171,12 +171,14 @@ class TestSpinFlow:
 
     @pytest.mark.asyncio
     async def test_sha1_response_correctness(self):
-        """The protocol response must be SHA1(spin + nonce) uppercase hex."""
+        """v2.11.0: protocol response is SHA-512('{challenge}.{spin}')
+        as the primary attempt (zackcornelius source-verified).
+        Legacy SHA-1(spin+nonce) stays as fallback on 4xx."""
         client = _client()
         nonce = "deadbeef12345678"
         spin = "1234"
-        expected_digest = hashlib.sha1(  # noqa: S324
-            (spin + nonce).encode("utf-8")
+        expected_digest = hashlib.sha512(
+            f"{nonce}.{spin}".encode("utf-8")
         ).hexdigest().upper()
 
         # Capture the response body the helper sends to /spin
@@ -187,7 +189,7 @@ class TestSpinFlow:
             if url.endswith("/challenge"):
                 return {"challenge": nonce}
             if url.endswith("/spin"):
-                return {"sessionToken": "session-token-xyz"}
+                return {"carnetVehicleToken": "session-token-xyz"}
             raise AssertionError(f"unexpected url {url}")
 
         client._post = fake_post  # type: ignore[method-assign]
@@ -204,7 +206,7 @@ class TestSpinFlow:
         assert sent_payloads[1][0].endswith(
             "/ss/v1/user/user-abc/spin"
         )
-        # The /spin body carries the protocol digest
+        # The /spin body carries the protocol digest (SHA-512)
         assert sent_payloads[1][1]["response"] == expected_digest
         assert sent_payloads[1][1]["challenge"] == nonce
 

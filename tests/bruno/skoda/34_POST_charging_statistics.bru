@@ -1,0 +1,77 @@
+meta {
+  name: POST charging statistics
+  type: http
+  seq: 34
+}
+
+post {
+  url: https://prod.emea.mobile.charging.cariad.digital/charging_statistics
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+  Accept-Language: en-US
+  Content-Type: application/json
+  X-Brand: skoda
+  X-Device-Timezone: Europe/Berlin
+  X-Api-Version: 1
+}
+
+body:json {
+  {
+    "started_after": "2026-03-04",
+    "started_before": "2026-06-04",
+    "selected_filter_options": [
+      {"filter_type": "VEHICLE", "vin": "{{vin}}"}
+    ],
+    "fetch_filter_options": true
+  }
+}
+
+docs {
+  v2.11.0 - myskoda PR #586 source-verified replacement for the legacy
+  /v1/charging/{vin}/history endpoint that started returning HTTP 500
+  after the Skoda app update on 2026-05-15 (myskoda issue #585).
+
+  Lives on the same charging.cariad.digital vhost SEAT/CUPRA already
+  use but with Skoda-specific X-Brand header + a structured POST body
+  carrying a VIN filter for a date range.
+
+  Response shape (per PR #586):
+    {
+      "applicableFilterOptions": [...],
+      "missingElliConsent": false,
+      "monthSections": [
+        {
+          "entries": [
+            {
+              "id": "...", "title": "...",
+              "primaryValue": {"value": 12.5, "unit": "kWh"},
+              "secondaryValue": {"value": 45, "unit": "min"},
+              "sessionDetails": {
+                "startedAt": "...",
+                "currentType": "AC" | "DC",
+                "isCurveAvailable": true
+              }
+            }
+          ]
+        }
+      ]
+    }
+
+  Used by SkodaClient.get_charging_statistics() at
+  custom_components/vag_connect/cariad/api/skoda.py to populate
+  total_charged_energy_kwh, last_charging_session_kwh,
+  last_charging_session_duration_min, last_charging_session_start,
+  last_charging_session_current_type, recent_charging_sessions.
+
+  PR #586 is still open in myskoda (14 review comments, not yet merged).
+  Adopted preemptively because the upstream-broken state of the legacy
+  endpoint affects all Skoda users on 2026-05-15+ firmware.
+}

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -92,6 +93,21 @@ class SeatCupraClient(CariadBaseClient):
         # parkingposition). Surfaced as sensors in get_status().
         self._vin_to_license_plate: dict[str, str] = {}
         self._vin_to_nickname: dict[str, str] = {}
+        # v2.11.3 — capabilities-count cache. The full capabilities list
+        # rotates rarely (per pycupra commentary; OEM ships a static
+        # capability set per vehicle generation). We fetch once per
+        # 24h boundary and store just the count so the diagnostic
+        # sensor stays populated without N polls/day worth of extra GETs.
+        self._capabilities_count_cache: dict[str, tuple[int, float]] = {}
+        # v2.10.10 (#392 heidle78) - static vehicle info cached per VIN
+        # from the garage response. Pre-v2.10.10 the parser never set
+        # model / modelYear / manufacturer / firmware on the dataclass
+        # so every CUPRA / SEAT vehicle showed "Unbekannt" for those
+        # device-card fields. Defensive multi-variant lookup because
+        # the OLA garage payload has shifted spellings across firmware
+        # revisions (pycupra references both ``model`` + ``modelName``,
+        # ``modelYear`` + ``year``, etc.).
+        self._vin_to_static_info: dict[str, dict[str, Any]] = {}
 
     async def authenticate(self, mfa_code: str | None = None) -> None:
         """IDK auth + capture user_id from redirect chain."""
@@ -263,6 +279,68 @@ class SeatCupraClient(CariadBaseClient):
             nick = vehicle.get("name") or vehicle.get("vehicleNickname")
             if isinstance(nick, str) and nick:
                 self._vin_to_nickname[vin] = nick
+            # v2.10.12 (#392 heidle78 - pycupra source-verified) - the
+            # OLA garage response nests model / year / brand under
+            # ``specifications.factoryModel.{vehicleModel, modYear,
+            # vehicleBrand}``. v2.10.10 guessed top-level keys
+            # ``model`` / ``modelYear`` / ``brand`` and silently missed
+            # the data on every CUPRA/SEAT vehicle. Cross-referenced
+            # against pycupra (vehicle.py 2700-2743) which is the
+            # established Python lib for this backend.
+            info: dict[str, Any] = {}
+            spec = vehicle.get("specifications") or {}
+            fm = spec.get("factoryModel") or {} if isinstance(spec, dict) else {}
+            # model: pycupra concatenates factoryModel.vehicleModel +
+            # optional " " + specifications.carBody for the display name.
+            # v2.11.0 follow-up (heidle78 #392 v2.10.12 trace): the
+            # OLA API returns the literal string "default" as carBody
+            # for many MJ22-23 Formentor PHEVs, which then surfaced
+            # as the ugly model name "formentor default" in HA. Skip
+            # the suffix when it is a generic placeholder. Also title-
+            # case so "formentor" -> "Formentor" matches the official
+            # CUPRA app's display style.
+            base_model = fm.get("vehicleModel") if isinstance(fm, dict) else None
+            if isinstance(base_model, str) and base_model:
+                car_body = spec.get("carBody") if isinstance(spec, dict) else None
+                _GENERIC_BODIES = {"default", "unknown", "n/a", "none", ""}
+                if (
+                    isinstance(car_body, str)
+                    and car_body.strip().lower() not in _GENERIC_BODIES
+                    and car_body.strip().lower() not in base_model.lower()
+                ):
+                    info["model"] = f"{base_model} {car_body}".title()
+                else:
+                    info["model"] = base_model.title()
+            # Fallback to top-level for older firmware that may flatten.
+            if not info.get("model"):
+                top_model = vehicle.get("model") or vehicle.get("modelName")
+                if isinstance(top_model, str) and top_model:
+                    info["model"] = top_model
+            # model_year: factoryModel.modYear (note: pycupra reads `modYear`,
+            # NOT `modelYear`).
+            my = fm.get("modYear") if isinstance(fm, dict) else None
+            if my:
+                try:
+                    info["model_year"] = int(my)
+                except (TypeError, ValueError):
+                    pass
+            # manufacturer: factoryModel.vehicleBrand (NOT garage `brand`).
+            mfr = fm.get("vehicleBrand") if isinstance(fm, dict) else None
+            if not (isinstance(mfr, str) and mfr):
+                mfr = vehicle.get("brand") or vehicle.get("manufacturer")
+            if isinstance(mfr, str) and mfr:
+                info["manufacturer"] = mfr.upper()
+            # firmware_version: pycupra does NOT expose this from garage.
+            # Keep the guess as a defensive try (works if OLA ever
+            # populates it) but don't expect it.
+            firmware = (
+                vehicle.get("firmwareVersion")
+                or vehicle.get("softwareVersion")
+            )
+            if isinstance(firmware, str) and firmware:
+                info["firmware_version"] = firmware
+            if info:
+                self._vin_to_static_info[vin] = info
         await self._fetch_renders(vins)
         await self.fetch_images()
         return vins
@@ -312,6 +390,33 @@ class SeatCupraClient(CariadBaseClient):
                 return {}  # Both paths 404 — give up, return empty
             raise
 
+    async def _get_capabilities_count(self, vin: str) -> int | None:
+        """v2.11.3 — cached per-VIN capabilities count.
+
+        The full capability set rotates rarely (OEM ships a static list
+        per vehicle generation), so we fetch once per 24h boundary and
+        keep just the count. Soft-fails to None on error so the diagnostic
+        sensor stays clean.
+        """
+        cached = self._capabilities_count_cache.get(vin)
+        if cached is not None:
+            count, fetched_at = cached
+            if time.monotonic() - fetched_at < 86400:
+                return count
+        try:
+            data = await self.get_capabilities(vin)
+        except Exception:  # noqa: BLE001
+            return cached[0] if cached else None
+        if not isinstance(data, dict):
+            return cached[0] if cached else None
+        caps = data.get("capabilities")
+        if isinstance(caps, list):
+            count = len(caps)
+        else:
+            count = len(data)
+        self._capabilities_count_cache[vin] = (count, time.monotonic())
+        return count
+
     async def _fetch_renders(self, vins: list[str]) -> None:
         """Fetch vehicle render images from OLA renders endpoint."""
         for vin in vins:
@@ -342,6 +447,19 @@ class SeatCupraClient(CariadBaseClient):
         # HTTP call needed — populated during get_vehicles().
         d.license_plate = self._vin_to_license_plate.get(vin)
         d.vehicle_nickname = self._vin_to_nickname.get(vin)
+        # v2.10.10 (#392) - static info from the garage cache. Falls
+        # back to None when the OLA garage list did not include the
+        # field; the per-status loop below has another chance to
+        # populate model/year via the mycar response.
+        static_info = self._vin_to_static_info.get(vin, {})
+        if static_info.get("model"):
+            d.model = static_info["model"]
+        if static_info.get("model_year"):
+            d.model_year = static_info["model_year"]
+        if static_info.get("manufacturer"):
+            d.manufacturer = static_info["manufacturer"]
+        if static_info.get("firmware_version"):
+            d.firmware_version = static_info["firmware_version"]
 
         # v2.5.3 — OLA v1↔v5 fallback chain (#306 Mii/Tavascan/Leon FR-KL
         # null-cascade). PyCupra's pattern: when the modern ``/v5/mycar``
@@ -359,7 +477,12 @@ class SeatCupraClient(CariadBaseClient):
             self._get(f"{_BASE}/v2/vehicles/{vin}/status"),
             self._get(f"{_BASE}/v1/vehicles/{vin}/charging/status"),
             self._get(f"{_BASE}/v1/vehicles/{vin}/charging/info"),
-            self._get(f"{_BASE}/v2/vehicles/{vin}/climatisation"),
+            # v2.11.3 (#392 heidle78 v2.11.1 trace) - climatisation read
+            # endpoint is /v1/.../climatisation/status. /v2/.../climatisation
+            # is the COMMAND prefix only (used for /v2/.../climatisation/start
+            # etc.) — hitting bare /v2/.../climatisation returns 404 No static
+            # resource. pycupra source: API_CLIMATER_STATUS const.py line 109.
+            self._get(f"{_BASE}/v1/vehicles/{vin}/climatisation/status"),
             self._get(f"{_BASE}/v1/vehicles/{vin}/maintenance"),
             self._get(f"{_BASE}/v1/vehicles/{vin}/remote-availability"),
             self._get(f"{_BASE}/v1/vehicles/{vin}/mileage"),  # v2.5.3 (#306)
@@ -391,12 +514,39 @@ class SeatCupraClient(CariadBaseClient):
             # does not expose them stays clean (401, 404 typical). The
             # parsers further down accept missing dicts gracefully.
             self._get(f"{_BASE}/v1/vehicles/{vin}/notifications"),
-            self._get(f"{_BASE}/v1/vehicles/{vin}/permissions"),
+            # v2.11.3 — relation-status is the canonical pycupra source
+            # for isOwner / canCommand (const.py API_RELATION_STATUS
+            # line 125). The plain /v1/vehicles/{vin}/permissions path we
+            # used in v2.10.x consistently 404'd; relation-status returns
+            # the role + permission list that the parser already groks.
+            self._get(
+                f"{_BASE}/v1/users/{self._user_id}/vehicles/{vin}/relation-status"
+            ) if self._user_id else self._get(
+                f"{_BASE}/v1/vehicles/{vin}/permissions"
+            ),
             self._get(
                 f"{_BASE}/v1/vehicles/{vin}/measurements/engines"
             ),
             self._get(f"{_BASE}/v1/vehicles/{vin}/charging/profiles"),
             self._get(f"{_BASE}/v1/vehicles/{vin}/charging/modes"),
+            # v2.11.2 (#392 heidle78 v2.11.0 trace) - canonical trip-data
+            # endpoints. The `/v1/vehicles/{vin}/trips/{shortTerm,longTerm,
+            # lastrefuel}` URLs we used in v2.11.0 do not exist on OLA;
+            # they 404'd silently which is why every trip / lifetime field
+            # stayed null after the v2.11.0 wire-up. The real endpoints
+            # use the `driving-data/{type}` shape with from/to ISO date
+            # range params. SHORT = per-trip + lifetime aggregate.
+            # CYCLIC = per-tank / per-charge totals (refuel events).
+            # The wide from/to range matches what the official app sends
+            # when it first opens the trip-history view.
+            self._get(
+                f"{_BASE}/v1/vehicles/{vin}/driving-data/SHORT"
+                "?from=1970-01-01T00:00:00Z&to=2099-12-31T09:59:01Z"
+            ),
+            self._get(
+                f"{_BASE}/v1/vehicles/{vin}/driving-data/CYCLIC"
+                "?from=1970-01-01T00:00:00Z&to=2099-12-31T09:59:01Z"
+            ),
             return_exceptions=True,
         )
         (
@@ -412,6 +562,11 @@ class SeatCupraClient(CariadBaseClient):
             engine_measurements,  # v2.10.0 Group B
             charging_profiles_resp,  # v2.10.0 Group B
             charging_modes_resp,  # v2.10.0 Group B
+            # v2.11.2: aux-heating dropped from gather (status lives inside
+            # the climatisation/status payload, no separate endpoint exists).
+            # trip endpoints corrected to driving-data/SHORT + CYCLIC.
+            trip_short_data,  # v2.11.2
+            trip_cyclic_data,  # v2.11.2
         ) = results
 
         # v1.9.0 — Vehicle Data Scout opt-in. Endpoint names match
@@ -453,17 +608,30 @@ class SeatCupraClient(CariadBaseClient):
         _note("parking_position", parking)
         _note("service_care", maintenance)
         # OLA flattens oil_level / tyre_pressure / auxiliary_heating
-        # into the mycar payload; door_lock lives under
-        # ``access.accessStatus.value``. Mirror the door_lock counter
-        # from there so cross-brand diagnostics line up.
-        if isinstance(mycar, BaseException):
+        # into the mycar payload. door_lock state lives in either:
+        #  - ``mycar.access.accessStatus.value`` (older firmware), OR
+        #  - ``status.doors`` from the /v2/vehicles/{vin}/status payload
+        #    (current firmware — pycupra source-verified, const.py
+        #    API_STATUS line 122).
+        # v2.11.3 (#392 heidle78 v2.11.1 trace) — flip the presence check
+        # to accept EITHER source so cars on the newer firmware no longer
+        # report a false-positive "sub-job absent" failure even when the
+        # parser actually populated door_locked / doors_individual fine.
+        if isinstance(mycar, BaseException) and isinstance(status, BaseException):
             _note("door_lock", mycar)
-        elif isinstance(mycar, dict):
-            self._note_parser_job(
-                "door_lock",
-                present=isinstance(
+        else:
+            mycar_has = (
+                isinstance(mycar, dict)
+                and isinstance(
                     self._val(mycar, "access", "accessStatus", "value"), dict,
-                ),
+                )
+            )
+            status_has = (
+                isinstance(status, dict)
+                and isinstance(self._val(status, "doors"), dict)
+            )
+            self._note_parser_job(
+                "door_lock", present=(mycar_has or status_has),
             )
 
         # ── Main vehicle data (mycar) ────────────────────────────────────────
@@ -975,7 +1143,18 @@ class SeatCupraClient(CariadBaseClient):
             # a non-None numeric value, so vehicles without this field
             # show no entity at all (HACS / SoC-pessimist owners stay
             # clean).
-            charge_energy = v(bat, "chargeEnergyInKwh")
+            # v2.11.0 (pycupra source-verified): chargeEnergyInKwh lives
+            # at `charging.status.battery.chargeEnergyInKwh` on Born MY24+
+            # (pycupra reads `charging.status.battery.chargeEnergyInKwh`
+            # canonical). Pre-v2.11.0 we read `charging.battery.*` direct
+            # and missed it on newer firmwares.
+            status_bat = (
+                v(charge_status, "status", "battery") or {}
+            )
+            charge_energy = (
+                v(bat, "chargeEnergyInKwh")
+                or v(status_bat, "chargeEnergyInKwh")
+            )
             if isinstance(charge_energy, (int, float)) and charge_energy >= 0:
                 d.total_charged_energy_kwh = float(charge_energy)
 
@@ -991,7 +1170,17 @@ class SeatCupraClient(CariadBaseClient):
                     if d.electric_range_km is None:
                         d.electric_range_km = est_int
 
-            chg = v(charge_status, "charging") or charge_status
+            # v2.11.0 (#392 pycupra source-verified): the canonical
+            # path is `charging.status.charging.*` on Born MY24+. Our
+            # pre-v2.11.0 code only tried `charging.charging.*` (direct
+            # nest) or top-level - silently returning None on firmwares
+            # that wrap the block under `.status.` (which pycupra
+            # confirms is current shape).
+            chg = (
+                v(charge_status, "status", "charging")
+                or v(charge_status, "charging")
+                or charge_status
+            )
             d.charging_state = (
                 v(chg, "state")             # Rainer #109 shape B — verified
                 or v(chg, "status")         # Rainer #109 shape A — verified
@@ -1115,17 +1304,70 @@ class SeatCupraClient(CariadBaseClient):
         # connector unlocks at any SoC, not just at full charge — so
         # ``auto_unlock_charge`` is True for both "on" and "permanent".
         if isinstance(charge_info, dict):
+            # v2.10.12 (#392 pycupra source-verified) — these values live
+            # nested under ``settings`` on /v1/charging/info. pycupra
+            # (vehicle.py 3052-3072 + 3447-3454) reads:
+            #   settings.targetSoc                    (no _pct suffix)
+            #   settings.maxChargeCurrentAcInAmperes  (integer amps, primary)
+            #   settings.maxChargeCurrentAc           (enum reduced|maximum, fallback)
+            # Our pre-v2.10.12 top-level lookup hit nothing on most
+            # CUPRA/SEAT firmwares. Try the nested path first, fall
+            # back to legacy top-level for older shapes.
+            settings = v(charge_info, "settings") or {}
             d.target_soc = (
-                v(charge_info, "targetSoc_pct")  # Rainer #109 — verified
-                or v(charge_info, "targetSOC_pct")          # Legacy uppercase
-                or v(charge_info, "targetStateOfChargeInPercent")  # Legacy verbose
+                (settings.get("targetSoc") if isinstance(settings, dict) else None)
+                or v(charge_info, "targetSoc_pct")
+                or v(charge_info, "targetSOC_pct")
+                or v(charge_info, "targetStateOfChargeInPercent")
             )
-            d.max_charge_current = v(charge_info, "maxChargeCurrentAC") or v(charge_info, "maxChargeCurrent")
-            auto_raw = v(charge_info, "autoUnlockPlugWhenCharged")
+            # v2.11.1 hotfix (#392 heidle78 v2.11.0 regression): the OLA
+            # API returns `settings.maxChargeCurrentAc` as an enum string
+            # ("maximum" / "reduced") on Formentor PHEV MJ22-23 firmware,
+            # NOT as an integer amperage. HA sensor.max_charge_current
+            # is device_class=current unit=A numeric so the raw enum
+            # blew up entity rendering with ValueError. Now: prefer the
+            # explicit integer field first, fall through to enum->amp
+            # mapping verified by zackcornelius's VW NA APK decompile
+            # (maximum/max -> 32 A, reduced/min/minimum -> 10 A).
+            max_charge_raw = None
+            if isinstance(settings, dict):
+                max_charge_raw = (
+                    settings.get("maxChargeCurrentAcInAmperes")
+                    or settings.get("maxChargeCurrentAc")
+                )
+            if max_charge_raw is None:
+                max_charge_raw = (
+                    v(charge_info, "maxChargeCurrentAC")
+                    or v(charge_info, "maxChargeCurrent")
+                )
+            if isinstance(max_charge_raw, (int, float)):
+                d.max_charge_current = float(max_charge_raw)
+            elif isinstance(max_charge_raw, str):
+                _ENUM_TO_AMP = {
+                    "maximum": 32.0, "max": 32.0,
+                    "reduced": 10.0, "min": 10.0, "minimum": 10.0,
+                }
+                normalized = _ENUM_TO_AMP.get(max_charge_raw.lower())
+                if normalized is not None:
+                    d.max_charge_current = normalized
+            # v2.11.0 (pycupra source-verified): min_soc lives at
+            # `settings.minBatteryStateOfChargeInPercent` on /v1/charging/info.
+            # Pre-v2.11.0 we never read it - sensor stayed null on every car.
+            if isinstance(settings, dict):
+                min_soc_raw = settings.get("minBatteryStateOfChargeInPercent")
+                if isinstance(min_soc_raw, (int, float)):
+                    d.min_soc = int(min_soc_raw)
+            auto_raw = (
+                (settings.get("autoUnlockPlugWhenCharged")
+                 if isinstance(settings, dict) else None)
+                or v(charge_info, "autoUnlockPlugWhenCharged")
+            )
             auto_str = auto_raw.lower() if isinstance(auto_raw, str) else None
             d.auto_unlock_charge = (
                 # #51: "permanent" is also "yes, unlock". Only "off"/None means no.
                 auto_str in ("on", "permanent")
+                or (settings.get("autoUnlockPlugWhenChargedAC") is True
+                    if isinstance(settings, dict) else False)
                 or v(charge_info, "autoUnlockPlugWhenChargedAC") is True
             )
 
@@ -1139,7 +1381,18 @@ class SeatCupraClient(CariadBaseClient):
         # behaviour stable and just ensure ``"off"``, ``"OFF"``,
         # ``"unsupported"``, and any ``None`` all evaluate to False.
         if isinstance(climate, dict):
-            cs = v(climate, "status") or climate
+            # v2.11.4 (#411 heidle78 scout) — new climatisation response
+            # shape from /v1/.../climatisation/status moves the state
+            # sub-block under ``climatisationStatus`` and the window-heating
+            # sub-block under ``windowHeatingStatus``. Fall back to
+            # legacy ``status`` wrapper and to the bare root for older
+            # firmwares.
+            cs = (
+                v(climate, "climatisationStatus")
+                or v(climate, "status")
+                or climate
+            )
+            whs = v(climate, "windowHeatingStatus") or cs
             d.climatisation_state = v(cs, "climatisationState") or v(cs, "state")
             _inactive_states = (None, "OFF", "off", "Off", "unsupported")
             d.climatisation_active = d.climatisation_state not in _inactive_states
@@ -1156,6 +1409,19 @@ class SeatCupraClient(CariadBaseClient):
                     v(climate, "settings", "targetTemperatureInCelsius")
                     or v(cs, "targetTemperatureCelsius")  # Rainer #109
                 )
+            # v2.11.0 (pycupra source-verified): climate_remaining_time_min
+            # is in the climate payload at `.status.remainingClimatisationTime_min`,
+            # we just never read it. Pycupra's `climatisation_time_left`
+            # property reads this same key.
+            rem_climate = v(cs, "remainingClimatisationTime_min")
+            rem_climate_int = safe_int(rem_climate)
+            if rem_climate_int is not None:
+                d.climate_remaining_time_min = rem_climate_int
+                # Derived `climate_ready_at` so HA can show a clock.
+                from datetime import datetime as _dt, timedelta as _td  # noqa: PLC0415
+                d.climate_ready_at = (
+                    _dt.now(tz=timezone.utc) + _td(minutes=rem_climate_int)
+                ).isoformat()
             d.outside_temp = v(cs, "outsideTemperature")
             # v1.24.2 (audit): safe_float defensive coerce for Kelvin → Celsius.
             # > 100 heuristic distinguishes Kelvin (Skoda/CUPRA returns ~280-310 K)
@@ -1163,8 +1429,16 @@ class SeatCupraClient(CariadBaseClient):
             outside = safe_float(d.outside_temp)
             if outside is not None and outside > 100:
                 d.outside_temp = round(outside - 273.15, 1)
-            d.window_heating_front = v(cs, "windowHeatingStateFront") == "ON"
-            d.window_heating_back = v(cs, "windowHeatingStateRear") == "ON"
+            # v2.11.4 — prefer windowHeatingStatus sub-block when present
+            # (#411 heidle78 scout). Falls back to legacy in-status path.
+            d.window_heating_front = (
+                v(whs, "windowHeatingStateFront")
+                or v(cs, "windowHeatingStateFront")
+            ) == "ON"
+            d.window_heating_back = (
+                v(whs, "windowHeatingStateRear")
+                or v(cs, "windowHeatingStateRear")
+            ) == "ON"
             # v2.8.1 #306 — seat heating overall aggregate. OLA ships
             # ``airConditioning.seatHeatingSupport`` as a dict keyed by
             # seat position (frontLeft, frontRight, ...). Any seat in
@@ -1359,8 +1633,12 @@ class SeatCupraClient(CariadBaseClient):
                 # value derived from /v1/charging/info above in
                 # _DATA_PRESENT_REQUIRED protected sensor.
                 d.battery_care = care_enabled
+            # v2.11.0 (pycupra source-verified): `targetSocPercentage`
+            # is the canonical key (no _ between Soc and Percentage,
+            # matches pycupra's get_battery_care_target reader).
             care_target = (
-                battery_care_settings.get("targetSOC_pct")
+                battery_care_settings.get("targetSocPercentage")
+                or battery_care_settings.get("targetSOC_pct")
                 or battery_care_settings.get("targetSocPct")
                 or battery_care_settings.get("targetStateOfChargeInPercent")
             )
@@ -1774,6 +2052,169 @@ class SeatCupraClient(CariadBaseClient):
         if modes_list:
             d.available_charge_modes = modes_list
 
+        # v2.11.0 (pycupra source-verified) - trip statistics. Three
+        # endpoints feeding distinct fields:
+        # - shortTerm -> last_trip_*
+        # - longTerm -> lifetime_*
+        # - lastrefuel -> refuel_trip_*
+        # Field names defensive (camelCase vs snake_case variants
+        # observed across firmwares).
+        def _safe_int(val: Any) -> int | None:
+            return int(val) if isinstance(val, (int, float)) else None
+
+        def _safe_float(val: Any) -> float | None:
+            return float(val) if isinstance(val, (int, float)) else None
+
+        # v2.11.2 (#392 heidle78 v2.11.0 trace): SHORT response carries
+        # both per-trip entries AND lifetime aggregates on the same
+        # payload. Top-level fields = lifetime; `data` / `tripDataList` /
+        # entries[] = per-trip. CYCLIC response = per-tank / per-charge
+        # totals (refuel events). The OLA shape returns
+        # ``{"data": [...]}`` with entries OR a top-level object with
+        # lifetime aggregates depending on dataType.
+        def _trip_entries(resp: Any) -> list[dict[str, Any]]:
+            if not isinstance(resp, dict):
+                return []
+            for key in ("data", "tripDataList", "entries", "trips"):
+                inner = resp.get(key)
+                if isinstance(inner, list):
+                    return [e for e in inner if isinstance(e, dict)]
+            return []
+
+        def _trip_aggregate(resp: Any) -> dict[str, Any] | None:
+            if not isinstance(resp, dict):
+                return None
+            # Lifetime aggregate sometimes lives at top level, sometimes
+            # under `summary` / `overall` / `data` (when data is a dict
+            # not a list).
+            for key in ("summary", "overall", "aggregate"):
+                inner = resp.get(key)
+                if isinstance(inner, dict):
+                    return inner
+            data_node = resp.get("data")
+            if isinstance(data_node, dict):
+                return data_node
+            # Fallback to the response root.
+            return resp
+
+        # ── SHORT: last trip + lifetime aggregate ──
+        short_entries = _trip_entries(trip_short_data)
+        if short_entries:
+            last = short_entries[0]
+            d.last_trip_distance_km = _safe_int(
+                last.get("mileage_km") or last.get("mileage")
+            )
+            d.last_trip_duration_min = _safe_int(
+                last.get("travelTime") or last.get("traveltime")
+            )
+            d.last_trip_avg_speed_kmh = _safe_int(
+                last.get("averageSpeed_kmph") or last.get("averageSpeed")
+            )
+            d.last_trip_avg_fuel_consumption_l_100km = _safe_float(
+                last.get("averageFuelConsumption")
+            )
+            d.last_trip_avg_electric_consumption_kwh_100km = _safe_float(
+                last.get("averageElectricEngineConsumption")
+            )
+            ts = last.get("tripEndTimestamp") or last.get("timestamp")
+            if isinstance(ts, str) and ts:
+                d.last_trip_timestamp = ts
+            # recent_trips compact list (last 10).
+            recent: list[dict[str, Any]] = []
+            for e in short_entries[:10]:
+                recent.append({
+                    "timestamp": e.get("tripEndTimestamp") or e.get("timestamp"),
+                    "distance_km": e.get("mileage_km") or e.get("mileage"),
+                    "duration_min": e.get("travelTime") or e.get("traveltime"),
+                })
+            d.recent_trips = recent
+        short_agg = _trip_aggregate(trip_short_data)
+        if isinstance(short_agg, dict):
+            d.lifetime_distance_km = _safe_int(
+                short_agg.get("overallMileage_km")
+                or short_agg.get("overallMileage")
+                or short_agg.get("totalMileage")
+            )
+            d.lifetime_avg_fuel_consumption_l_100km = _safe_float(
+                short_agg.get("overallAverageFuelConsumption")
+                or short_agg.get("averageFuelConsumption")
+            )
+            d.lifetime_avg_electric_consumption_kwh_100km = _safe_float(
+                short_agg.get("overallAverageElectricConsumption")
+                or short_agg.get("averageElectricEngineConsumption")
+            )
+
+        # ── CYCLIC: per-tank / per-charge refuel events ──
+        cyclic_entries = _trip_entries(trip_cyclic_data)
+        if cyclic_entries:
+            rt = cyclic_entries[0]
+            d.refuel_trip_distance_km = _safe_int(
+                rt.get("mileage_km") or rt.get("mileage")
+            )
+            d.refuel_trip_duration_min = _safe_int(
+                rt.get("travelTime") or rt.get("traveltime")
+            )
+            d.refuel_trip_avg_speed_kmh = _safe_int(
+                rt.get("averageSpeed_kmph") or rt.get("averageSpeed")
+            )
+            d.refuel_trip_avg_fuel_consumption_l_100km = _safe_float(
+                rt.get("averageFuelConsumption")
+            )
+            d.refuel_trip_avg_electric_consumption_kwh_100km = _safe_float(
+                rt.get("averageElectricEngineConsumption")
+            )
+            d.refuel_trip_total_fuel_consumption_l = _safe_float(
+                rt.get("totalFuelConsumption_l")
+                or rt.get("totalFuelConsumption")
+            )
+            d.refuel_trip_total_electric_consumption_kwh = _safe_float(
+                rt.get("totalElectricConsumption_kwh")
+                or rt.get("totalElectricConsumption")
+            )
+            rts = rt.get("tripEndTimestamp") or rt.get("timestamp")
+            if isinstance(rts, str) and rts:
+                d.refuel_trip_timestamp = rts
+
+        # v2.11.2 (#392 heidle78 v2.11.0 trace): aux-heating status lives
+        # INSIDE the existing /v2/vehicles/{vin}/climatisation response
+        # under `auxiliaryHeatingStatus.*`. The previous separate
+        # /api/auxiliary-heating/v1/{vin}/status endpoint we added in
+        # v2.11.0 does not exist on OLA - it 404'd silently, leaving the
+        # fields null on every car. Read from the climate payload instead.
+        # On Formentor PHEV (no fuel heater) the auxiliaryHeatingStatus
+        # subblock is absent, which leaves the fields None as expected.
+        if isinstance(climate, dict):
+            aux_status = v(climate, "auxiliaryHeatingStatus") or {}
+            if isinstance(aux_status, dict):
+                aux_state = (
+                    aux_status.get("climatisationState")
+                    or aux_status.get("operationMode")
+                )
+                if isinstance(aux_state, str) and aux_state:
+                    d.auxiliary_heating_status = aux_state
+                    d.aux_heating_active = aux_state.lower() in (
+                        "heating", "on", "heatingon", "active",
+                    )
+                aux_rem = (
+                    aux_status.get("remainingTime_min")
+                    or aux_status.get("remainingClimatisationTime_min")
+                )
+                if isinstance(aux_rem, (int, float)):
+                    d.auxiliary_heating_remaining_min = int(aux_rem)
+                # heater_source can ship on the status sub-block or the
+                # climate-settings sub-block depending on firmware.
+                heater_src = aux_status.get("heaterSource")
+                if not heater_src:
+                    aux_settings = v(climate, "auxiliaryHeatingSettings") or {}
+                    if isinstance(aux_settings, dict):
+                        heater_src = aux_settings.get("heaterSource")
+                if not heater_src:
+                    climate_settings = v(climate, "settings") or {}
+                    if isinstance(climate_settings, dict):
+                        heater_src = climate_settings.get("heaterSource")
+                if isinstance(heater_src, str) and heater_src:
+                    d.heater_source = heater_src
+
         # ── v2.5.3 — /v1/mileage fallback (#306 Mii/Tavascan/Leon FR-KL) ────
         # PyCupra dedicates an entire endpoint to the cached odometer
         # because the OLA backend serves this value even when ``/v5/mycar``
@@ -1784,8 +2225,13 @@ class SeatCupraClient(CariadBaseClient):
         # /v1/mileage response carries the last server-cached value.
         if isinstance(mileage_v1, dict) and d.odometer_km is None:
             # Field-name variants observed across firmware generations.
+            # v2.10.12 (#392 pycupra source-verified) — `mileageKm` is the
+            # canonical key pycupra uses for this endpoint and was missing
+            # from our chain, so offline-state Formentor PHEVs came out
+            # with odometer_km=null.
             odo = (
-                v(mileage_v1, "mileageInKm")
+                v(mileage_v1, "mileageKm")
+                or v(mileage_v1, "mileageInKm")
                 or v(mileage_v1, "mileage")
                 or v(mileage_v1, "odometer")
                 or v(mileage_v1, "currentMileage")
@@ -1833,6 +2279,19 @@ class SeatCupraClient(CariadBaseClient):
             d.media_exterior_color = img.exterior_color
 
         # ── Drivetrain ───────────────────────────────────────────────────────
+        # v2.10.8 (#392 heidle78 CUPRA Formentor PHEV diag): some firmware
+        # versions ship the engines.primary block with a combustion fuelType
+        # (gasoline / diesel) but DO NOT populate a combustion range in the
+        # `ranges` block. The pre-v2.10.8 logic derived `has_combustion`
+        # purely from the ranges block, so a Formentor PHEV with primary
+        # gasoline + no combustion range came out classified is_hybrid=False,
+        # has_combustion=False, which then suppressed fuel-tank / combustion
+        # sensors downstream. Treat a non-electric primary_engine_type as
+        # combustion regardless of whether the range field happens to
+        # carry data on this particular response.
+        pet = (d.primary_engine_type or "").lower()
+        if pet and pet not in ("electric", "ev", "bev"):
+            d.has_combustion = True
         d.is_electric = d.has_battery and not d.has_combustion
         d.is_hybrid = d.has_battery and d.has_combustion
 
@@ -1869,6 +2328,11 @@ class SeatCupraClient(CariadBaseClient):
         # parser populates ``available_charge_modes`` above; coordinator
         # writes the VehicleData dict into ``vehicles[vin]`` during the
         # poll merge.
+
+        # v2.11.3 — diagnostic capabilities_count sensor. Uses the 24h
+        # cached helper so we don't hammer the capabilities endpoint
+        # on every scan_interval tick.
+        d.capabilities_count = await self._get_capabilities_count(vin)
 
         return d
 
