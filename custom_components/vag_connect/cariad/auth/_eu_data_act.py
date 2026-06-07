@@ -162,6 +162,28 @@ def _login_fields(html: str) -> tuple[dict[str, str], str | None]:
     return fields, form.action
 
 
+def _resolve_action(base_url: str, action: str | None) -> str:
+    """Resolve a form ``action`` against *base_url*, guarding the
+    doubled-``/login/login/`` trap.
+
+    The signin-service login pages sometimes ship a RELATIVE action that
+    already starts with ``login/`` (e.g. ``login/authenticate``). Joining
+    that to a base whose path is ``.../login/identifier`` yields
+    ``.../login/login/authenticate`` — the IDP rejects the duplicated
+    segment with HTTP 400 (verified via swebachus's v2.11.4 source review
+    on #388). When there's no action at all, fall back to the base URL
+    with its query stripped (the page we already landed on is the right
+    POST target). Finally, collapse any ``/login/login/`` the join may
+    still produce — that segment pair is never legitimate in the
+    signin-service path structure.
+    """
+    if action:
+        resolved = urljoin(base_url, action)
+    else:
+        resolved = base_url.split("?", 1)[0]
+    return resolved.replace("/login/login/", "/login/")
+
+
 def _login_error(html: str) -> str | None:
     """Return a human-readable login error from the page, if present."""
     model = _extract_template_model(html)
@@ -364,7 +386,7 @@ class EUDataActConnector:
                 f"(fields: {sorted(fields)})"
             )
         fields["email"] = email
-        identifier_action = urljoin(signin_url, action or "")
+        identifier_action = _resolve_action(signin_url, action)
         async with self._session.post(
             identifier_action, data=fields, headers={**headers, "Referer": signin_url},
             allow_redirects=True, timeout=ClientTimeout(total=_TIMEOUT_S),
@@ -385,11 +407,9 @@ class EUDataActConnector:
         fields2["password"] = password
         # CRITICAL: post to the clean /login/authenticate URL. Posting to
         # authenticate_url (which carries ?relayState=) duplicates the
-        # param and the IDP rejects it with HTTP 400. Strip the query.
-        if action2:
-            authenticate_action = urljoin(authenticate_url, action2)
-        else:
-            authenticate_action = authenticate_url.split("?", 1)[0]
+        # param and the IDP rejects it with HTTP 400. _resolve_action
+        # strips the query AND guards the doubled-/login/login/ trap.
+        authenticate_action = _resolve_action(authenticate_url, action2)
         async with self._session.post(
             authenticate_action, data=fields2,
             headers={**headers, "Referer": authenticate_url},

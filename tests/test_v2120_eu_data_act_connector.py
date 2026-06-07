@@ -32,6 +32,7 @@ from custom_components.vag_connect.cariad.auth._eu_data_act import (
     EUDataActConnector,
     _extract_template_model,
     _login_fields,
+    _resolve_action,
     _walk_fields,
     map_dataset_to_vehicle_data,
 )
@@ -84,6 +85,50 @@ def test_login_fields_reads_html_hidden_inputs() -> None:
     assert fields["hmac"] == "hexhmac"
     assert fields["_csrf"] == "csrfval"
     assert action == "/signin-service/v1/CLIENT/login/identifier"
+
+
+# ── action-URL resolution (the /login/login/ doubling guard) ───────────────
+
+def test_resolve_action_collapses_doubled_login() -> None:
+    """Relative 'login/authenticate' must not produce /login/login/.
+
+    swebachus's v2.11.4 source review (#388): a relative postAction that
+    already starts with 'login/' joined to a '.../login/identifier' base
+    yielded '.../login/login/authenticate' → HTTP 400. The resolver must
+    collapse it.
+    """
+    base = (
+        "https://identity.vwgroup.io/signin-service/v1/"
+        "CLIENT@apps_vw-dilab_com/login/identifier"
+    )
+    assert _resolve_action(base, "login/authenticate") == (
+        "https://identity.vwgroup.io/signin-service/v1/"
+        "CLIENT@apps_vw-dilab_com/login/authenticate"
+    )
+
+
+def test_resolve_action_strips_query_when_no_action() -> None:
+    """No action → post to the landed URL with its query stripped."""
+    url = (
+        "https://identity.vwgroup.io/signin-service/v1/CLIENT/login/"
+        "authenticate?relayState=abc123"
+    )
+    assert _resolve_action(url, None) == (
+        "https://identity.vwgroup.io/signin-service/v1/CLIENT/login/authenticate"
+    )
+
+
+def test_resolve_action_absolute_and_plain_relative() -> None:
+    """Absolute action replaces the path; plain relative joins cleanly."""
+    base = "https://identity.vwgroup.io/signin-service/v1/CLIENT/login/identifier"
+    # absolute (leading slash) — used as-is
+    assert _resolve_action(base, "/signin-service/v1/CLIENT/login/authenticate") == (
+        "https://identity.vwgroup.io/signin-service/v1/CLIENT/login/authenticate"
+    )
+    # plain relative without the login/ prefix — joins to .../login/authenticate
+    assert _resolve_action(base, "authenticate") == (
+        "https://identity.vwgroup.io/signin-service/v1/CLIENT/login/authenticate"
+    )
 
 
 # ── dataset → VehicleData mapping ───────────────────────────────────────────
