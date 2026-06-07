@@ -40,6 +40,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [2.12.1] - 2026-06-07
+
+Quick follow-up to the v2.12.0 VW EU portal beta, from the first round of live testing.
+
+### Fixed
+
+- **VW EU portal broke after a Home Assistant restart** (#393). The portal saves a cookie-session placeholder token, and on restart the integration reused it and skipped the login — so the portal session was never rebuilt and the next call hit the old (dead) endpoint with a useless token, ending in "No vehicles found". Now a fresh portal login runs on every restart, so the session is always re-established.
+- **"No data request" no longer spams errors** (#393, #424). Until you manually create a continuous data request for your car in the VW data portal, the data endpoint returns 404/500 — that's expected, not a failure. The integration now treats it as "no data yet" (the car still appears, data fills in once the request goes live) instead of logging an error every poll.
+- **Scout noise on Audi charging timers/profiles** (#423). Registered the deeper `chargingTimers` / `chargingProfiles` sub-paths and the DC auto-unlock setting the Scout kept flagging.
+
 ## [2.12.0] - 2026-06-07
 
 The big one for VW EU. We confirmed live that VW has closed every token-based login route for passenger cars — the hybrid trick another project used now gets a hard 403 from Auth0, the code-flow needs a client secret we can't have, and device-login isn't enabled for the VW client. The only door VW has to keep open under the EU Data Act is the read-only data portal, so that's the path we built.

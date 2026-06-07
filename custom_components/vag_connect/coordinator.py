@@ -609,7 +609,19 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # _refresh_tokens which writes back. We still call
             # authenticate() if NO persisted tokens exist (first setup,
             # storage cleared, or version mismatch).
-            if persisted is None:
+            # v2.12.1 (#393) — the EU Data Act portal strategy persists a
+            # cookie-session SENTINEL token (no usable bearer, and the
+            # cookie jar isn't restored across restarts). Reusing it skips
+            # the portal login, so the connector is never rebuilt and
+            # get_vehicles falls through to the dead CARIAD BFF with the
+            # sentinel → HTTP 400 "missing or invalid auth header". Force a
+            # fresh login for that strategy so the cookie session + the
+            # portal connector are re-established on every restart.
+            persisted_is_portal = (
+                persisted is not None
+                and persisted.strategy == "data_act_portal"
+            )
+            if persisted is None or persisted_is_portal:
                 await self._cariad_client.authenticate()
             else:
                 _LOGGER.debug(
