@@ -22,7 +22,14 @@ real VW EU account (issue #388/#393) — it cannot be unit-tested here.
 
 from __future__ import annotations
 
+import io
+import zipfile
+from typing import Any
+
+import pytest
+
 from custom_components.vag_connect.cariad.auth._eu_data_act import (
+    EUDataActConnector,
     _extract_template_model,
     _login_fields,
     _walk_fields,
@@ -146,3 +153,129 @@ def test_curated_mapping_tolerates_missing_fields() -> None:
     assert d.battery_soc is None
     assert d.odometer_km is None
     assert d.doors_locked is None
+
+
+# ── async orchestration (mocked aiohttp session) ───────────────────────────
+
+_SIGNIN_HTML = (
+    '<form action="/signin-service/v1/CLIENT/login/identifier">'
+    '<input type="hidden" name="hmac" value="email_hmac">'
+    '<input type="hidden" name="_csrf" value="csrf1">'
+    '<input type="hidden" name="relayState" value="rs1">'
+    '</form>'
+)
+# Password page: SPA-rendered, fields in templateModel + a FRESH hmac.
+_PASSWORD_HTML = (
+    '<script>window._IDK = {templateModel: '
+    '{"hmac":"fresh_pw_hmac","relayState":"rs1",'
+    '"postAction":"/signin-service/v1/CLIENT/login/authenticate"}, '
+    'csrf_token: "csrf2"};</script>'
+)
+
+
+def _build_dataset_zip() -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr(
+            "export.json",
+            '{"data":['
+            '{"dataFieldName":"battery_state_report.soc","value":"77"},'
+            '{"dataFieldName":"mileage.value","value":"12345"},'
+            '{"dataFieldName":"range","value":"48"}]}',
+        )
+    return buf.getvalue()
+
+
+class _FakeResp:
+    def __init__(
+        self, url: str, *, status: int = 200, text: str = "",
+        json_data: Any = None, body: bytes = b"",
+    ) -> None:
+        self.url = url
+        self.status = status
+        self._text = text
+        self._json = json_data
+        self._body = body
+
+    async def __aenter__(self) -> "_FakeResp":
+        return self
+
+    async def __aexit__(self, *_a: Any) -> bool:
+        return False
+
+    async def text(self, errors: str | None = None) -> str:
+        return self._text
+
+    async def json(self, content_type: Any = None) -> Any:
+        return self._json
+
+    async def read(self) -> bytes:
+        return self._body
+
+
+class _FakeSession:
+    """Routes login + data-fetch URLs to canned responses."""
+
+    def __init__(self) -> None:
+        self.posts: list[dict[str, Any]] = []
+
+    def get(self, url: str, **kw: Any) -> _FakeResp:
+        if url.endswith("/") and "drivesomethinggreater" in url:
+            return _FakeResp(url, text="<html>portal</html>")
+        if "authorize" in url:
+            return _FakeResp(
+                "https://identity.vwgroup.io/signin-service/v1/CLIENT/login/identifier",
+                text=_SIGNIN_HTML,
+            )
+        if "metadata" in url:
+            return _FakeResp(url, json_data={"identifier": "ID123"})
+        if url.endswith("/list"):
+            return _FakeResp(url, json_data=[{"name": "data_2026.zip"}])
+        if url.endswith("/download"):
+            return _FakeResp(url, body=_build_dataset_zip())
+        raise AssertionError(f"unmatched GET {url}")
+
+    def post(self, url: str, **kw: Any) -> _FakeResp:
+        self.posts.append({"url": url, "data": kw.get("data")})
+        if url.endswith("/login/identifier"):
+            # Lands on the password page; URL carries ?relayState=.
+            return _FakeResp(
+                "https://identity.vwgroup.io/signin-service/v1/CLIENT/login/"
+                "authenticate?relayState=rs1",
+                text=_PASSWORD_HTML,
+            )
+        if "/login/authenticate" in url:
+            # Successful credential POST lands back on the portal host.
+            return _FakeResp(
+                "https://eu-data-act.drivesomethinggreater.com/dashboard",
+                status=200, text="<html>welcome</html>",
+            )
+        raise AssertionError(f"unmatched POST {url}")
+
+
+@pytest.mark.asyncio
+async def test_login_full_flow_mocked() -> None:
+    """login() drives prime → authorize → identifier → credential POST."""
+    session = _FakeSession()
+    conn = EUDataActConnector(session)  # type: ignore[arg-type]
+    await conn.login("user@example.com", "secret")
+    assert conn.logged_in is True
+    # The credential POST must use the FRESH password-page hmac, carry the
+    # password, and target the clean /authenticate URL (no ?relayState=).
+    cred_post = session.posts[-1]
+    assert cred_post["url"].endswith("/login/authenticate")
+    assert "?" not in cred_post["url"]
+    assert cred_post["data"]["hmac"] == "fresh_pw_hmac"
+    assert cred_post["data"]["password"] == "secret"
+
+
+@pytest.mark.asyncio
+async def test_get_vehicle_data_mocked() -> None:
+    """get_vehicle_data() walks metadata → list → ZIP → curated mapping."""
+    session = _FakeSession()
+    conn = EUDataActConnector(session)  # type: ignore[arg-type]
+    d = await conn.get_vehicle_data("WVWZZZTESTVIN0001")
+    assert d.battery_soc == 77
+    assert d.odometer_km == 12345
+    assert d.range_km == 48
+    assert d.connection_state == "online"
