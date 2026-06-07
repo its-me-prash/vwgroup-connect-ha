@@ -480,11 +480,27 @@ class EUDataActConnector:
             "EU Data Act portal: login succeeded (read-only, ~15min cadence)"
         )
 
-    async def _get_json(self, url: str, *, headers: dict[str, str] | None = None) -> Any:
+    async def _get_json(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str] | None = None,
+        soft: bool = False,
+    ) -> Any:
+        """GET + parse JSON. Raises AuthenticationError on HTTP >= 400.
+
+        v2.12.1 — ``soft=True`` returns None instead of raising for the
+        "not provisioned yet" statuses (404/410/500/502/503). Used for the
+        data-request metadata endpoint, which 404s/500s on accounts where
+        the continuous data request hasn't been enabled / hasn't propagated
+        yet (#393, #424) — that's an expected transient, not a hard error.
+        """
         async with self._session.get(
             url, headers=headers, timeout=ClientTimeout(total=_TIMEOUT_S),
         ) as resp:
             if resp.status >= 400:
+                if soft and resp.status in (404, 410, 500, 502, 503):
+                    return None
                 raise AuthenticationError(f"EU Data Act GET {url} → HTTP {resp.status}")
             return await resp.json(content_type=None)
 
@@ -512,9 +528,14 @@ class EUDataActConnector:
     async def get_vehicle_data(self, vin: str) -> VehicleData:
         """Fetch the latest dataset for *vin* and map it to VehicleData."""
         d = VehicleData(vin=vin)
-        # 1. metadata → identifier
+        # 1. metadata → identifier. Soft on 404/500: when the continuous
+        # data request isn't set up / hasn't propagated yet, the endpoint
+        # 404s or 500s. Treat that as "no data yet" — return the bare
+        # VehicleData so the vehicle still appears and the data fills in
+        # once the portal request goes active, instead of erroring every
+        # poll (#393, #424).
         meta = await self._get_json(
-            f"{_PORTAL_BASE}{_METADATA_PATH.format(vin=vin)}"
+            f"{_PORTAL_BASE}{_METADATA_PATH.format(vin=vin)}", soft=True,
         )
         identifier = ""
         if isinstance(meta, dict):
@@ -525,10 +546,14 @@ class EUDataActConnector:
                 or ""
             )
         if not identifier:
-            raise AuthenticationError(
-                "EU Data Act portal: no data-request identifier — the user "
-                "likely hasn't enabled a continuous data request on the portal yet"
+            _LOGGER.info(
+                "EU Data Act portal: no data-request yet for %s — enable the "
+                "continuous data request for this car on the VW data portal "
+                "(it can take a while to propagate). Vehicle will show with no "
+                "data until then.",
+                vin[-6:],
             )
+            return d
         # 2. list datasets → newest non-empty zip
         listing = await self._get_json(
             f"{_PORTAL_BASE}{_LIST_PATH.format(vin=vin, identifier=identifier)}",

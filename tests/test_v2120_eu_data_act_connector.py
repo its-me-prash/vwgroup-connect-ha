@@ -378,3 +378,40 @@ async def test_get_vehicle_data_mocked() -> None:
     assert d.odometer_km == 12345
     assert d.range_km == 48
     assert d.connection_state == "online"
+
+
+@pytest.mark.asyncio
+async def test_get_vehicle_data_metadata_404_is_graceful() -> None:
+    """metadata 404 (no data-request created yet) → bare VehicleData, no raise.
+
+    The portal 404s the metadata endpoint until the user manually creates
+    a continuous data request. v2.12.1 treats that as "no data yet" so the
+    vehicle still appears and the entry sets up, instead of erroring every
+    poll (#393, #424).
+    """
+    class _Meta404Session:
+        def get(self, url: str, **kw: Any) -> _FakeResp:
+            if "metadata" in url:
+                return _FakeResp(url, status=404, json_data={})
+            raise AssertionError(f"should not reach {url} when metadata 404s")
+
+    conn = EUDataActConnector(_Meta404Session())  # type: ignore[arg-type]
+    d = await conn.get_vehicle_data("WVWZZZTESTVIN0001")
+    # No exception; bare data; no false connection_state.
+    assert d.vin == "WVWZZZTESTVIN0001"
+    assert d.battery_soc is None
+    assert d.connection_state is None
+
+
+@pytest.mark.asyncio
+async def test_get_vehicle_data_metadata_500_is_graceful() -> None:
+    """metadata 500 is treated the same as 404 (soft, no raise)."""
+    class _Meta500Session:
+        def get(self, url: str, **kw: Any) -> _FakeResp:
+            if "metadata" in url:
+                return _FakeResp(url, status=500, json_data={})
+            raise AssertionError("should not reach further on 500")
+
+    conn = EUDataActConnector(_Meta500Session())  # type: ignore[arg-type]
+    d = await conn.get_vehicle_data("WVWZZZTESTVIN0009")
+    assert d.battery_soc is None

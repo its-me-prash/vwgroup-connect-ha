@@ -627,12 +627,24 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # follow-up PR builds the full parser + entities once we have a
             # real payload to confirm field names. Audi inherits via the
             # module-load copy below.
+            # v2.12.1 (#423 nekas123 audi) — the backend nests these one
+            # level deeper than v2.12.0 assumed: e.g.
+            # ``chargingTimers.chargingTimersStatus.value`` (3 segments).
+            # The matcher requires an equal-depth wildcard, so 2-segment
+            # ``chargingTimers.*`` does NOT cover the 3-segment path. Add
+            # 2- and 3-deep wildcards for each container.
             "charging.batterySupport", "charging.batterySupport.*",
-            "batterySupport", "batterySupport.*",
-            "chargingProfiles", "chargingProfiles.*",
+            "charging.batterySupport.*.*",
+            "batterySupport", "batterySupport.*", "batterySupport.*.*",
+            "chargingProfiles", "chargingProfiles.*", "chargingProfiles.*.*",
             "charging.chargingProfiles", "charging.chargingProfiles.*",
-            "chargingTimers", "chargingTimers.*",
+            "charging.chargingProfiles.*.*",
+            "chargingTimers", "chargingTimers.*", "chargingTimers.*.*",
             "charging.chargingTimers", "charging.chargingTimers.*",
+            "charging.chargingTimers.*.*",
+            # v2.12.1 (#423) — DC counterpart of the long-parsed
+            # autoUnlockPlugWhenChargedAC setting.
+            "charging.chargingSettings.value.autoUnlockPlugWhenChargedDC",
             "climatisation", "climatisation.climatisationStatus",
             "climatisation.climatisationStatus.value",
             "climatisation.climatisationStatus.value.climatisationState",
