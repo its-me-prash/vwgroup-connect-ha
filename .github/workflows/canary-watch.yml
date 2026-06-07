@@ -58,6 +58,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MAX_PER_CANARY: ${{ github.event.inputs.max_results_per_canary || '5' }}
+          # CANARIES comes from the extract step's output; we shell out to
+          # python so this step does the heavy lifting.
+          CANARIES: ${{ steps.canaries.outputs.list }}
         run: |
           python - <<'PY'
           import json, os, subprocess, urllib.parse
@@ -95,11 +98,6 @@ jobs:
               json.dump(findings, f, indent=2)
           print(f"Findings recorded: {len(findings)}")
           PY
-        # CANARIES is set in env via the step output below; we shell out
-        # to python so this step does the heavy work.
-        env:
-          CANARIES: ${{ steps.canaries.outputs.list }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Open issue on findings
         if: success()
