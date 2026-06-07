@@ -947,6 +947,38 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             },
         )
 
+    def _update_data_act_no_data_repair(self) -> None:
+        """v2.12.2 (#393/#424) — raise/clear the "portal returned no data"
+        repair issue for EU Data Act portal mode.
+
+        The portal connector records ``last_no_data_reason`` each poll. When
+        it's non-empty the portal logged in but delivered nothing — usually
+        the VW-side all-brands outage that started late May 2026, or the
+        user hasn't created a continuous data request yet. We surface a
+        single actionable repair issue pointing them to check the portal
+        website themselves; it auto-clears the moment data arrives.
+        """
+        from homeassistant.helpers import issue_registry as ir  # noqa: PLC0415
+
+        portal = getattr(self._cariad_client, "_eu_portal", None)
+        issue_id = f"data_act_no_data_{self.entry.entry_id}"
+        reason = getattr(portal, "last_no_data_reason", "") if portal else ""
+        if portal is None or not reason:
+            ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+            return
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            is_persistent=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="data_act_no_data",
+            translation_placeholders={
+                "brand": self.entry.data[CONF_BRAND],
+            },
+        )
+
     async def _poll_loop(self) -> None:
         """Background polling loop — runs independently of HA scheduler.
 
@@ -1109,6 +1141,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 # call: ``ensure_*_issue`` deletes when empty and updates
                 # in-place when the IDs already exist.
                 self._refresh_reporter_issues()
+                # v2.12.2 — raise/clear the "EU Data Act portal: no data"
+                # repair issue based on the portal connector's last outcome.
+                try:
+                    self._update_data_act_no_data_repair()
+                except Exception:  # noqa: BLE001
+                    pass  # a repair-issue update must never break the poll
                 # v1.14.0 (#24) — Trip Stats refresh, best-effort + cached
                 # 1h. Brand-restricted to audi/volkswagen inside helper.
                 # Runs after vehicle update so newest VINs are present

@@ -378,6 +378,8 @@ async def test_get_vehicle_data_mocked() -> None:
     assert d.odometer_km == 12345
     assert d.range_km == 48
     assert d.connection_state == "online"
+    # v2.12.2 — successful data clears the no-data reason flag.
+    assert conn.last_no_data_reason == ""
 
 
 @pytest.mark.asyncio
@@ -401,6 +403,9 @@ async def test_get_vehicle_data_metadata_404_is_graceful() -> None:
     assert d.vin == "WVWZZZTESTVIN0001"
     assert d.battery_soc is None
     assert d.connection_state is None
+    # v2.12.2 — flags the no-data reason so the coordinator can raise the
+    # "no vehicle data" repair issue.
+    assert conn.last_no_data_reason == "no_request"
 
 
 @pytest.mark.asyncio

@@ -384,6 +384,13 @@ class EUDataActConnector:
         self._scope = cfg["scope"]
         self._state = f"{country}__{language}__{cfg['state_brand']}"
         self.logged_in = False
+        # v2.12.2 — last per-poll data outcome, read by the coordinator to
+        # raise/clear the "no vehicle data" repair issue:
+        #   ""          → data mapped successfully
+        #   "no_request" → metadata 404/500 / no data-request set up (or a
+        #                  VW-side portal outage at the metadata layer)
+        #   "empty"      → request exists but the portal delivered no dataset
+        self.last_no_data_reason: str = ""
 
     async def login(self, email: str, password: str) -> None:
         """Run the OIDC code-flow login; portal backend sets cookies."""
@@ -546,6 +553,7 @@ class EUDataActConnector:
                 or ""
             )
         if not identifier:
+            self.last_no_data_reason = "no_request"
             _LOGGER.info(
                 "EU Data Act portal: no data-request yet for %s — enable the "
                 "continuous data request for this car on the VW data portal "
@@ -568,6 +576,7 @@ class EUDataActConnector:
             if isinstance(name, str) and not name.endswith(_NO_CONTENT_SUFFIX):
                 names.append(name)
         if not names:
+            self.last_no_data_reason = "empty"
             _LOGGER.debug("EU Data Act portal: no dataset files for %s yet", vin[-6:])
             return d
         newest = names[-1]
@@ -587,6 +596,7 @@ class EUDataActConnector:
         _LOGGER.debug(
             "EU Data Act portal: %s dataset carried %d fields", vin[-6:], len(fields)
         )
+        self.last_no_data_reason = ""
         d.connection_state = "online"
         return map_dataset_to_vehicle_data(fields, d)
 
