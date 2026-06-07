@@ -523,6 +523,19 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             "outsideTemperature",
             "windowHeatingStateFront", "windowHeatingStateRear",
             "carCapturedTimestamp",
+            # v2.12.0 (#411 heidle78 / #414 matthias0304 / #416 goncal) —
+            # newer firmware on /v1/.../climatisation/status moves the
+            # state + window-heating blocks under dedicated top-level
+            # sub-objects. Parsed since v2.11.4; registering here so the
+            # Scout stops flagging them as unexpected.
+            "climatisationStatus",
+            "climatisationStatus.climatisationState",
+            "climatisationStatus.remainingClimatisationTime_min",
+            "climatisationStatus.carCapturedTimestamp",
+            "windowHeatingStatus",
+            "windowHeatingStatus.windowHeatingStateFront",
+            "windowHeatingStatus.windowHeatingStateRear",
+            "windowHeatingStatus.windowHeatingStatus",
         },
         # v2.5.3 (#306) — OLA /v1/vehicles/{vin}/mileage. Endpoint shipped
         # by the OLA backend with server-side cached odometer values that
@@ -604,6 +617,22 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             "charging.plugStatus.value.externalPower",
             "charging.plugStatus.value.ledColor",
             "charging.plugStatus.value.carCapturedTimestamp",
+            # v2.12.0 (#415 gudden VW / #417 moltke69 + #419 audi) — three
+            # selectivestatus jobs the backend started shipping on newer
+            # MEB/PPE firmware: batterySupport (12V-battery support state),
+            # chargingProfiles (saved charge-location profiles) and
+            # chargingTimers (departure/charge schedules). INTERIM
+            # wildcard silencer — same pattern as activeVentilation above:
+            # absorb the unknown sub-shape so Scouts stop spamming while a
+            # follow-up PR builds the full parser + entities once we have a
+            # real payload to confirm field names. Audi inherits via the
+            # module-load copy below.
+            "charging.batterySupport", "charging.batterySupport.*",
+            "batterySupport", "batterySupport.*",
+            "chargingProfiles", "chargingProfiles.*",
+            "charging.chargingProfiles", "charging.chargingProfiles.*",
+            "chargingTimers", "chargingTimers.*",
+            "charging.chargingTimers", "charging.chargingTimers.*",
             "climatisation", "climatisation.climatisationStatus",
             "climatisation.climatisationStatus.value",
             "climatisation.climatisationStatus.value.climatisationState",
