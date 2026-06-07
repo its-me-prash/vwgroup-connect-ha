@@ -102,12 +102,43 @@ class VWEUClient(CariadBaseClient):
 
     async def get_vehicles(self) -> list[str]:
         """Return list of VINs from the CARIAD garage."""
+        # v2.12.0 — EU Data Act portal mode: the token-based CARIAD garage
+        # is dead for VW EU, so VIN enumeration also has to come from the
+        # portal (not just get_status). Without this the coordinator's
+        # get_vehicles hits the dead BFF, gets nothing, and the entry ends
+        # in setup_retry with "No vehicles found" even though the portal
+        # login succeeded (surfaced by swebachus on #388).
+        portal = getattr(self, "_eu_portal", None)
+        if portal is not None:
+            vins: list[str]
+            try:
+                vins = await portal.list_vehicle_vins()
+            except AuthenticationError:
+                await portal.login(self._email, self._password)
+                vins = await portal.list_vehicle_vins()
+            # Best-effort nickname enrichment from the relation endpoint.
+            self._vehicle_metadata: dict[str, dict[str, Any]] = {}
+            for pvin in vins:
+                nick = await portal.get_relation_nickname(pvin)
+                if nick:
+                    self._vehicle_metadata[pvin] = {
+                        "model": nick, "model_year": None,
+                    }
+            if not vins:
+                _LOGGER.warning(
+                    "EU Data Act portal: login OK but the portal returned "
+                    "no vehicle. Enable the data-sharing / continuous data "
+                    "request for this car on the VW data portal — it can "
+                    "take a while to propagate before the car appears."
+                )
+            return vins
+
         data = await self._get(f"{_BASE}/vehicle/v1/vehicles")
         vehicles: list[dict[str, Any]] = data.get("data", [])
 
         # Cache nickname/model per VIN — used in _parse_status to set device name
         # CARIAD returns: nickname (user-set in app), model, modelYear
-        self._vehicle_metadata: dict[str, dict[str, Any]] = {
+        self._vehicle_metadata = {
             v["vin"]: {
                 "model": (
                     v.get("nickname")       # user-set name (e.g. "Golf GTE")

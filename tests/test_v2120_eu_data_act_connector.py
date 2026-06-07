@@ -315,6 +315,29 @@ async def test_login_full_flow_mocked() -> None:
 
 
 @pytest.mark.asyncio
+async def test_list_vehicle_vins_mocked() -> None:
+    """list_vehicle_vins() walks the consent payload for 17-char VINs.
+
+    Covers the get_vehicles wiring gap surfaced on #388: VW EU portal
+    mode must enumerate VINs through the portal, not the dead BFF.
+    """
+    class _VehSession:
+        def get(self, url: str, **kw: Any) -> _FakeResp:
+            assert "consent/me/vehicles" in url
+            return _FakeResp(url, json_data={
+                "vehicles": [
+                    {"vin": "WVWZZZTESTVIN0001", "vehicleNickname": "ID.7"},
+                    {"vehicleIdentificationNumber": "WVWZZZTESTVIN0002"},
+                    {"vin": "TOOSHORT"},  # ignored — not 17 chars
+                ]
+            })
+
+    conn = EUDataActConnector(_VehSession())  # type: ignore[arg-type]
+    vins = await conn.list_vehicle_vins()
+    assert vins == ["WVWZZZTESTVIN0001", "WVWZZZTESTVIN0002"]
+
+
+@pytest.mark.asyncio
 async def test_get_vehicle_data_mocked() -> None:
     """get_vehicle_data() walks metadata → list → ZIP → curated mapping."""
     session = _FakeSession()
