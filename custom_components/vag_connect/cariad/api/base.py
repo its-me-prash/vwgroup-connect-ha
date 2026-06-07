@@ -114,6 +114,11 @@ class CariadBaseClient:
         self._password = password
         self._spin = spin
         self._tokens: TokenSet | None = None
+        # v2.12.0 — when the VW EU strategy chain falls through to the EU
+        # Data Act portal (cookie-based, read-only), the connector is
+        # retained here so the brand client's get_status routes through
+        # it instead of the (dead) token-based BFF. None = token mode.
+        self._eu_portal: Any = None
         self._image_data: dict[str, VehicleImageData] = {}
         self._refresh_lock: asyncio.Lock | None = None
         # Sliding window of token refresh attempt timestamps (monotonic seconds).
@@ -309,11 +314,33 @@ class CariadBaseClient:
                         **opts,
                     )
                 elif kind == "data_act_portal":
-                    from ..auth._data_act_portal import (  # noqa: PLC0415
-                        DataActPortalAuth,
+                    # v2.12.0 — cookie-based EU Data Act portal connector.
+                    # Replaces the old PKCE-token DataActPortalAuth, which
+                    # was architecturally wrong (the portal is a confidential
+                    # Auth0 client; we can't exchange the code). The connector
+                    # logs in via cookies and serves data from /proxy_api.
+                    import time as _time  # noqa: PLC0415
+
+                    from ..auth._eu_data_act import (  # noqa: PLC0415
+                        EUDataActConnector,
                     )
-                    portal = DataActPortalAuth(self._session, self._brand.name)
-                    self._tokens = await portal.login(self._email, self._password)
+                    connector = EUDataActConnector(
+                        self._session, brand=self._brand.name,
+                    )
+                    await connector.login(self._email, self._password)
+                    self._eu_portal = connector
+                    # Sentinel TokenSet: no real token (cookie session),
+                    # but valid() needs access_token + id_token non-empty
+                    # so downstream treats us as authenticated. Long expiry
+                    # so the coordinator doesn't churn re-logins; the
+                    # connector re-logins on 401/403 via get_status.
+                    self._tokens = TokenSet(
+                        access_token="eu-data-act-portal-cookie-session",
+                        refresh_token="",
+                        id_token="eu-data-act-portal-cookie-session",
+                        expires_at=_time.time() + 3300,
+                        strategy="data_act_portal",
+                    )
                 else:
                     raise AuthenticationError(f"Unknown strategy kind: {kind}")
 

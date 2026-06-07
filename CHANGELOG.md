@@ -40,6 +40,25 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [2.12.0] - 2026-06-07
+
+The big one for VW EU. We confirmed live that VW has closed every token-based login route for passenger cars — the hybrid trick another project used now gets a hard 403 from Auth0, the code-flow needs a client secret we can't have, and device-login isn't enabled for the VW client. The only door VW has to keep open under the EU Data Act is the read-only data portal, so that's the path we built.
+
+### Added
+
+- **VW EU Data Act portal connector (read-only, BETA).** A brand-new cookie-based login + data path for VW passenger cars, using the EU Data Act portal. It logs in, pulls the vehicle's data export, and surfaces the high-value bits (charge level, odometer, range, charging state, doors, window heating, temperatures). Trade-offs: it's read-only (no remote climate/charge commands), updates on roughly a 15-minute cadence, and you have to switch on a one-time "continuous data request" on the VW portal first. Kicks in automatically once the old token logins fail. Marked beta — the live login is being validated on #388/#393 before we lean on it.
+- **Brand-aware portal config.** The portal connector is wired as a fallback in every brand's login chain, so it now picks the right OAuth client + brand selector per brand (VW, CUPRA, SEAT verified; others fall back gracefully) instead of always using VW's. Foundation for offering the read-only portal path to more brands later.
+- **Skoda trip cost.** Total / fuel / electricity / CNG cost for the trip overview, with the currency, when Skoda ships it.
+
+### Fixed
+
+- **Cars stuck showing "online" forever.** Some vehicles report a capture timestamp years in the future (a known broken-clock quirk on certain control units), which pinned the connection state to "online" with a nonsense last-seen time. We now ignore timestamps beyond a 5-minute window. Applies to every brand.
+- **Scout noise.** Registered the climatisation sub-blocks (CUPRA/SEAT) and the battery-support / charging-profiles / charging-timers blocks (VW/Audi) the Data Scout kept flagging, so it stops re-reporting fields we already read. Closes the scout reports behind #411, #414, #415, #416, #417, #419.
+
+### Legal
+
+- Added `LEGAL.md` documenting the statutory basis (EU Software Directive Art. 6, §69e UrhG, Art. 21 URG, DMCA §1201(f), EU Data Act Arts. 4–6) and attribution for the open-source projects the portal connector's mechanics were adapted from.
+
 ## [2.11.4] - 2026-06-05
 
 Bundle release covering the v2.11.3 fallout. After v2.11.3 unblocked the Auth0 state-token wall, the next bottleneck surfaced: the VW EU signin-service flow is a TWO-step submit (POST email first to get a fresh hmac for the password page, then POST password to a different URL). Plus a handful of upstream-sync fixes for Skoda + small parser additions from the latest scout reports.
