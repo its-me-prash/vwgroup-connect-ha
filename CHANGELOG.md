@@ -40,6 +40,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [2.12.4] - 2026-06-08
+
+### Fixed
+
+- **VW portal outage no longer spams errors or triggers needless re-logins** (#428, #429, #430, #431). While VW's EU Data Act portal is in its ongoing outage, the data endpoints keep returning HTTP 500. We were treating that 500 as an authentication failure — so it logged an error every poll and kicked off pointless re-login attempts. A 500 is the portal having a bad moment, not a dead session, so it's now handled as "no data this poll" (the existing "no vehicle data" notice already explains the outage). A genuine 401/403 still re-authenticates exactly as before.
+
 ## [2.12.3] - 2026-06-08
 
 ### Changed
