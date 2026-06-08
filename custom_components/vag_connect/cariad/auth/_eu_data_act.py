@@ -96,6 +96,14 @@ _USER_AGENT = (
 )
 _NO_CONTENT_SUFFIX = "_no_content_found.zip"
 _TIMEOUT_S = 60
+# v2.12.4 (#428/#429/#430/#431) — statuses that mean "the portal is having a
+# bad moment", not "your session is dead". During the VW-side all-brands
+# outage (since late May 2026) the data endpoints 500 constantly; that's a
+# transient server fault, not an auth failure, so we treat it as "no data
+# this poll" (the data_act_no_data notice already explains the outage) instead
+# of raising AuthenticationError and triggering pointless re-login churn + a
+# stream of error reports. 401/403 still mean a genuinely expired session.
+_TRANSIENT_STATUSES = (404, 410, 500, 502, 503, 504)
 
 
 # ── HTML / templateModel parsing (community-proven mechanics) ──────────────
@@ -497,16 +505,17 @@ class EUDataActConnector:
         """GET + parse JSON. Raises AuthenticationError on HTTP >= 400.
 
         v2.12.1 — ``soft=True`` returns None instead of raising for the
-        "not provisioned yet" statuses (404/410/500/502/503). Used for the
-        data-request metadata endpoint, which 404s/500s on accounts where
-        the continuous data request hasn't been enabled / hasn't propagated
-        yet (#393, #424) — that's an expected transient, not a hard error.
+        transient "not provisioned yet" / portal-outage statuses
+        (``_TRANSIENT_STATUSES``). Used for the data-request metadata
+        endpoint, which 404s/500s on accounts where the continuous data
+        request hasn't been enabled / hasn't propagated yet (#393, #424) —
+        that's an expected transient, not a hard error.
         """
         async with self._session.get(
             url, headers=headers, timeout=ClientTimeout(total=_TIMEOUT_S),
         ) as resp:
             if resp.status >= 400:
-                if soft and resp.status in (404, 410, 500, 502, 503):
+                if soft and resp.status in _TRANSIENT_STATUSES:
                     return None
                 raise AuthenticationError(f"EU Data Act GET {url} → HTTP {resp.status}")
             return await resp.json(content_type=None)
@@ -562,11 +571,26 @@ class EUDataActConnector:
                 vin[-6:],
             )
             return d
-        # 2. list datasets → newest non-empty zip
+        # 2. list datasets → newest non-empty zip. Soft on transient 5xx:
+        # during the VW outage this endpoint 500s constantly (#428-#431).
+        # A 500 here is the portal misbehaving, not a dead session, so we
+        # surface it as "no data this poll" (data_act_no_data notice) rather
+        # than raising AuthenticationError and re-logging in pointlessly.
+        # A genuine 401/403 still raises (→ session-expired path).
         listing = await self._get_json(
             f"{_PORTAL_BASE}{_LIST_PATH.format(vin=vin, identifier=identifier)}",
             headers={"type": "partial"},
+            soft=True,
         )
+        if listing is None:
+            self.last_no_data_reason = "empty"
+            _LOGGER.info(
+                "EU Data Act portal: data endpoint returned a transient error "
+                "for %s (most likely the ongoing VW-side portal outage). "
+                "Treating as no data this poll; will retry next cycle.",
+                vin[-6:],
+            )
+            return d
         files = listing if isinstance(listing, list) else listing.get("files", [])
         names: list[str] = []
         for f in files:
@@ -586,6 +610,16 @@ class EUDataActConnector:
             headers={"filename": newest, "type": "partial"},
             timeout=ClientTimeout(total=_TIMEOUT_S),
         ) as resp:
+            if resp.status in _TRANSIENT_STATUSES:
+                # Same outage story as the listing call — the ZIP download
+                # 500s mid-outage. Don't burn the session; just skip this poll.
+                self.last_no_data_reason = "empty"
+                _LOGGER.info(
+                    "EU Data Act portal: dataset download returned a transient "
+                    "error (HTTP %s) for %s; treating as no data this poll.",
+                    resp.status, vin[-6:],
+                )
+                return d
             if resp.status >= 400:
                 raise AuthenticationError(
                     f"EU Data Act portal: download → HTTP {resp.status}"

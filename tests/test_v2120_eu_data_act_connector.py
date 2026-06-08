@@ -36,6 +36,7 @@ from custom_components.vag_connect.cariad.auth._eu_data_act import (
     _walk_fields,
     map_dataset_to_vehicle_data,
 )
+from custom_components.vag_connect.cariad.exceptions import AuthenticationError
 from custom_components.vag_connect.cariad.models import VehicleData
 
 
@@ -420,3 +421,73 @@ async def test_get_vehicle_data_metadata_500_is_graceful() -> None:
     conn = EUDataActConnector(_Meta500Session())  # type: ignore[arg-type]
     d = await conn.get_vehicle_data("WVWZZZTESTVIN0009")
     assert d.battery_soc is None
+
+
+@pytest.mark.asyncio
+async def test_get_vehicle_data_listing_500_is_graceful() -> None:
+    """list endpoint 500 (VW outage) → bare VehicleData, no AuthenticationError.
+
+    #428-#431: during the VW-side portal outage the datadelivery ``list``
+    endpoint 500s on a valid session. v2.12.4 treats that as a transient
+    ("no data this poll") instead of misclassifying it as an
+    AuthenticationError and triggering re-login churn + error reports.
+    """
+    class _List500Session:
+        def get(self, url: str, **kw: Any) -> _FakeResp:
+            if "metadata" in url:
+                return _FakeResp(url, json_data={"identifier": "ID123"})
+            if url.endswith("/list"):
+                return _FakeResp(url, status=500, json_data={})
+            raise AssertionError(f"should not reach {url} after list 500s")
+
+    conn = EUDataActConnector(_List500Session())  # type: ignore[arg-type]
+    d = await conn.get_vehicle_data("WVWZZZTESTVIN0001")
+    assert d.battery_soc is None
+    assert d.connection_state is None
+    assert conn.last_no_data_reason == "empty"
+
+
+@pytest.mark.asyncio
+async def test_get_vehicle_data_download_503_is_graceful() -> None:
+    """download endpoint 5xx (VW outage) → bare VehicleData, no raise.
+
+    The same transient story as the listing call, one step later: the
+    listing succeeds with a real file but the ZIP download 5xxs mid-outage.
+    Must not burn the session — skip the poll and surface "no data".
+    """
+    class _Download503Session:
+        def get(self, url: str, **kw: Any) -> _FakeResp:
+            if "metadata" in url:
+                return _FakeResp(url, json_data={"identifier": "ID123"})
+            if url.endswith("/list"):
+                return _FakeResp(url, json_data=[{"name": "data_2026.zip"}])
+            if url.endswith("/download"):
+                return _FakeResp(url, status=503)
+            raise AssertionError(f"unmatched GET {url}")
+
+    conn = EUDataActConnector(_Download503Session())  # type: ignore[arg-type]
+    d = await conn.get_vehicle_data("WVWZZZTESTVIN0001")
+    assert d.battery_soc is None
+    assert d.connection_state is None
+    assert conn.last_no_data_reason == "empty"
+
+
+@pytest.mark.asyncio
+async def test_get_vehicle_data_listing_401_still_raises() -> None:
+    """A genuine 401 on the data endpoint must STILL raise (session expired).
+
+    The v2.12.4 transient-softening must not swallow real auth failures:
+    401/403 propagate so the re-login / session-expired path runs, while
+    only the transient 5xx/404 family is treated as "no data this poll".
+    """
+    class _List401Session:
+        def get(self, url: str, **kw: Any) -> _FakeResp:
+            if "metadata" in url:
+                return _FakeResp(url, json_data={"identifier": "ID123"})
+            if url.endswith("/list"):
+                return _FakeResp(url, status=401, json_data={})
+            raise AssertionError(f"should not reach {url} on a 401")
+
+    conn = EUDataActConnector(_List401Session())  # type: ignore[arg-type]
+    with pytest.raises(AuthenticationError):
+        await conn.get_vehicle_data("WVWZZZTESTVIN0001")
