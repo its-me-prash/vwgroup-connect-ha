@@ -83,6 +83,12 @@
           "spin": "S-PIN",
           "scan_interval": "Update Interval",
           "force_enable_access": "Force Door Status"
+        },
+        "data_description": {
+          "brand": "Zobrazují se pouze značky s podporou přihlášení přes prohlížeč. Pro Volkswagen EU a Porsche použijte „E-mail + heslo“.",
+          "force_enable_access": "Vynutit entity stavu dveří, i když vozidlo hlásí chybějící data.",
+          "scan_interval": "Minuty mezi dotazy na data vozidla.",
+          "spin": "Volitelný 4místný bezpečnostní PIN pro vzdálené akce (zamknout, odemknout, klimatizace)."
         }
       },
       "browser_login_pending": {
@@ -145,7 +151,8 @@
           "wake_before_poll": "Active vehicle wake-up before status poll",
           "wake_delay_seconds": "Wake delay (seconds)",
           "client_id_override": "OAuth client_id override (power users)",
-          "eu_data_act_auto_kickoff": "EU Data Act: auto-kickoff Custom Data Request"
+          "eu_data_act_auto_kickoff": "EU Data Act: auto-kickoff Custom Data Request",
+          "enable_data_act_browser": "Portál EU Data Act: záloha přes headless prohlížeč (EXPERIMENTÁLNÍ)"
         },
         "data_description": {
           "scan_interval": "Jak často se stahují data (minuty). Minimum: 3.",
@@ -159,7 +166,8 @@
           "wake_before_poll": "When enabled, the integration sends a wake POST to the vehicle before fetching status for any VIN that was OFFLINE on the previous poll. The car receives a server-side wake-up and pushes fresh data, then the integration waits the wake delay before the status read. Closes the 'all sensors unknown for parked cars' gap but costs one extra API call per offline VIN per poll cycle. Off by default. Reload the integration after toggling.",
           "wake_delay_seconds": "Seconds to wait between the wake-up POST and the status fetch. The default of 15 seconds is what most brand backends need to ingest the wake-induced data push. Lower values risk reading stale data; higher values stretch the poll cycle without further benefit.",
           "client_id_override": "Power-user escape hatch for when the community spots a fresh OAuth client_id in a new VW Group APK before our daily atlas builder catches it. Paste the full UUID@apps_vw-dilab_com string here and the resolver tries it FIRST on every authenticate, with all the existing client_ids still in the chain as fallback. Leave empty for default behaviour. Format: 8-4-4-4-12 hex digits followed by @apps_vw-dilab_com. Malformed values are silently ignored.",
-          "eu_data_act_auto_kickoff": "Only meaningful when the integration is operating in read-only EU Data Act portal mode (live BFF strategies have failed). When ON, the coordinator checks for an active 15-min Custom Data Request per VIN at startup and creates one when none exists. The kickoff implies a 1-month data subscription on your account at the portal, so this is opt-in. The portal accepts AT MOST ONE active custom request per VIN at a time. Off by default."
+          "eu_data_act_auto_kickoff": "Only meaningful when the integration is operating in read-only EU Data Act portal mode (live BFF strategies have failed). When ON, the coordinator checks for an active 15-min Custom Data Request per VIN at startup and creates one when none exists. The kickoff implies a 1-month data subscription on your account at the portal, so this is opt-in. The portal accepts AT MOST ONE active custom request per VIN at a time. Off by default.",
+          "enable_data_act_browser": "EXPERIMENTÁLNÍ: má smysl jen tehdy, když se integrace přepnula na portál EU Data Act (pouze pro čtení). Ovládá headless Chromium pomocí volitelného balíčku Pythonu 'playwright', aby automaticky kliknul na tlačítko exportu dat na portálu. Balíček NENÍ předinstalovaný (stáhne zhruba 100 MB Chromia). Když je zapnutý, ale chybí, oznámení Oprava vám vysvětlí, jak ho nainstalovat uvnitř kontejneru Home Assistant. Po přepnutí integraci znovu načtěte."
         }
       }
     }
@@ -561,6 +569,63 @@
       },
       "last_trip_reset_at": {
         "name": "Last Trip Reset"
+      },
+      "battery_temp_c": {
+        "name": "Teplota baterie"
+      },
+      "charging_settings_pending": {
+        "name": "Nastavení nabíjení čeká"
+      },
+      "charging_status_pending": {
+        "name": "Příkazy nabíjení čekají"
+      },
+      "climate_remaining_time_min": {
+        "name": "Klimatizace – zbývající čas"
+      },
+      "climate_without_external_power": {
+        "name": "Klimatizace bez externího napájení"
+      },
+      "climate_zone_front_left": {
+        "name": "Klimatická zóna vpředu vlevo"
+      },
+      "climate_zone_front_right": {
+        "name": "Klimatická zóna vpředu vpravo"
+      },
+      "climatisation_settings_pending": {
+        "name": "Nastavení klimatizace čeká"
+      },
+      "climatisation_status_pending": {
+        "name": "Příkazy klimatizace čekají"
+      },
+      "connection_active": {
+        "name": "Připojení aktivní"
+      },
+      "connection_battery_power_level": {
+        "name": "Úroveň baterie (připojení)"
+      },
+      "daily_power_budget_warning": {
+        "name": "Varování denního energetického limitu"
+      },
+      "insufficient_battery_level_warning": {
+        "name": "Varování nedostatečné úrovně baterie"
+      },
+      "nav_target_soc_pct": {
+        "name": "Cílová úroveň nabití (navigace)"
+      },
+      "parking_map_url_dark": {
+        "name": "URL mapy parkování (tmavá)"
+      },
+      "parking_map_url_light": {
+        "name": "URL mapy parkování (světlá)"
+      },
+      "plug_led_color": {
+        "name": "Barva LED konektoru"
+      },
+      "remaining_charge_time_nav_min": {
+        "name": "Zbývající čas nabíjení (navigace)"
+      },
+      "vehicle_nickname": {
+        "name": "Přezdívka vozidla"
       }
     },
     "binary_sensor": {
@@ -716,6 +781,15 @@
       },
       "permission_can_command": {
         "name": "Account can send commands"
+      },
+      "external_power_available": {
+        "name": "Externí napájení k dispozici"
+      },
+      "hood_open": {
+        "name": "Kapota otevřená"
+      },
+      "trunk_open": {
+        "name": "Kufr otevřený"
       }
     },
     "switch": {
@@ -887,6 +961,22 @@
     "data_act_no_data": {
       "title": "Portál EU Data Act: zatím žádná data vozidla ({brand})",
       "description": "Portál EU Data Act se přihlásil pro {brand}, ale zatím nevrací žádná data vozidla.\n\nObvyklé příčiny:\n\n1. **Výpadek na straně VW.** VW od konce května 2026 hlásí výpadek portálu EU Data Act napříč všemi značkami (podle jejich oznámení selhala infrastruktura pro extrakci dat pod zátěží). Dokud trvá, portál vrací prázdná data pro každý nástroj – nejen pro tuto integraci – a postupně se obnovuje značku po značce.\n2. **Není nastaven žádný požadavek na data.** Portál začne dodávat data až poté, co pro své auto vytvoříte *průběžný* požadavek na data.\n3. **Auto neodeslalo nic nového.** Nová sada dat se zveřejní až poté, co auto jelo, nabíjelo se nebo bylo zamčeno/odemčeno.\n\n**Nejrychlejší kontrola:** otevřete `eu-data-act.drivesomethinggreater.com` v prohlížeči a přihlaste se. Pokud ani tam nevidíte data svého auta, je problém na straně VW – integrace nic nezmůže, dokud to VW neobnoví. Pokud žádný požadavek na data není, vytvořte průběžný (15minutový), zaškrtněte všechny datové clustery, pak s autem jeďte nebo ho probuďte a počkejte hodinu či dvě.\n\nToto je beta portálu pouze pro čtení – upozornění zmizí samo, jakmile dorazí data."
+    },
+    "data_act_browser_missing": {
+      "description": "Zapnul jsi zálohu přes headless prohlížeč pro portál EU Data Act, ale balíček Pythonu `playwright` není v tvém kontejneru Home Assistant nainstalovaný.\n\n**Instalace:** otevři shell kontejneru HA (Doplňky → Terminal & SSH, nebo `docker exec` pro ruční instalaci) a spusť:\n\n```\npip install playwright\nplaywright install chromium\n```\n\nStahování chromia je velké (kolem 100 MB), proto je tato závislost volitelná a není součástí integrace. Po instalaci restartuj Home Assistant.\n\nPřípadně vypni přepínač v Nastavení → Zařízení a služby → VW Group Connect → Konfigurovat → 'Portál EU Data Act: záloha přes headless prohlížeč'.",
+      "title": "Portál EU Data Act: chybí volitelný balíček 'playwright'"
+    },
+    "data_act_session_expired": {
+      "description": "Portál {brand} na adrese `eu-data-act.drivesomethinggreater.com` vrátil na volání API Custom Data Request chybu HTTP 401, což znamená, že vypršela platnost relačních cookies. Portál nepodporuje obnovu tokenu na pozadí, takže Home Assistant to nedokáže opravit automaticky.\n\n**Co dělat:** Nastavení → Zařízení a služby → VW Group Connect → nabídka se 3 tečkami → Překonfigurovat → znovu zadej přihlašovací údaje. Další konfigurační cyklus znovu otevře relaci portálu a integrace obnoví dotazování na aktivní Custom Data Request.\n\nToto upozornění zmizí samo, jakmile další volání API portálu uspěje.",
+      "title": "Relace portálu EU Data Act vypršela – přihlas se znovu"
+    },
+    "data_act_wake_needed": {
+      "description": "Integrace běží v režimu zálohy portálu EU Data Act pouze pro čtení pro {brand} ({username}) a portál vrátil **{streak}** dotazů za sebou bez nových dat pro VIN končící na {vin_suffix}.\n\nPortál zveřejní novou sadu dat až poté, co vozidlo od minula prošlo probouzecí událostí. Mezi probouzecí události patří:\n\n- Zapnutí zapalování (jízda)\n- Připojení auta k nabíječce (začne nebo skončí nabíjecí relace)\n- Zamknutí nebo odemknutí auta (jeden celý cyklus)\n\n**Co dělat:** vyvolej na vozidle kteroukoli z výše uvedených akcí. Během následujícího 15minutového cyklu portálu integrace nový export automaticky převezme a toto upozornění zmizí.\n\nPokud jsi auto opravdu několik dní nepoužil, chybějící nová data jsou očekávaná a nejde o chybu integrace.",
+      "title": "Portál EU Data Act: probuď vozidlo pro obnovení dat ({brand})"
+    },
+    "ola_headers_outdated": {
+      "description": "OLA backend skupiny VW (server SEAT/CUPRA) odmítl **{count}** požadavků za sebou s chybou HTTP 403 Forbidden – i poté, co jsme vyzkoušeli všechny vestavěné záložní sady hlaviček.\n\n**Nejpravděpodobnější příčina**: VW znovu změnil požadavky na hlavičky identifikující aplikaci. Stalo se to 2026-05-20 a může se to opakovat, jak oficiální aplikace {brand} vydává nové verze.\n\n**Co dělat:**\n\n1. **Zkontroluj aktualizaci integrace** – HACS → VW Group Connect → Aktualizovat. Správci obvykle vydají úpravu hlaviček do ~1 týdne od změn v upstreamu (sledujeme to týdenním CI workflow).\n2. **Vyzkoušej přepsání přes OptionsFlow** (pokročilé) – Nastavení → Zařízení a služby → VW Group Connect → Konfigurovat → nastav `ola_app_version_override` na novější verzi aplikace (např. verzi oficiální aplikace {brand} v tvém telefonu, viditelnou v nastavení aplikace).\n3. **Pokud nepomůže ani jedno**: otevři issue na GitHubu s logem na úrovni DEBUG, abychom to mohli prošetřit.\n\nToto upozornění zmizí samo, jakmile další požadavek uspěje.",
+      "title": "Hlavičky OLA {brand} možná potřebují aktualizaci – {count} po sobě jdoucích chyb 403"
     }
   },
   "services": {
@@ -967,6 +1057,20 @@
           "description": "Which action to dispatch."
         }
       }
+    },
+    "open_app": {
+      "description": "Spustí událost `vag_connect_open_app` na sběrnici událostí HA s poli payloadu `vin`, `brand`, `deeplink_url` a `action`, aby karta Lovelace mohla otevřít nativní mobilní aplikaci značky (myAudi, WeConnect, MyŠkoda, MySEAT, MyCUPRA, My Porsche nebo VW US) na zařízení, které ji volá. Integrace sama o sobě nedokáže otevřít URL na telefonu; za navigaci `window.location.href = deeplink_url` v iOS / Android odpovídá karta dashboardu.",
+      "fields": {
+        "action": {
+          "description": "Volitelný segment cesty připojený k deeplinku, aby aplikace značky přešla přímo do sekce. Výchozí `open` otevře aplikaci na domovské obrazovce.",
+          "name": "Akce aplikace"
+        },
+        "vin": {
+          "description": "VIN vozidla, jehož aplikace značky se má otevřít.",
+          "name": "VIN"
+        }
+      },
+      "name": "Otevřít nativní aplikaci značky (deeplink)"
     }
   },
   "exceptions": {

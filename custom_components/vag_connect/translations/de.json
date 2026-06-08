@@ -67,6 +67,12 @@
           "spin": "S-PIN",
           "scan_interval": "Aktualisierungsintervall",
           "force_enable_access": "Tür-Status erzwingen"
+        },
+        "data_description": {
+          "brand": "Es werden nur Marken mit Browser-Login-Unterstützung angezeigt. Für Volkswagen EU und Porsche 'E-Mail + Passwort' verwenden.",
+          "force_enable_access": "Tür-Status-Entitäten erzwingen, auch wenn das Fahrzeug die Daten als fehlend meldet.",
+          "scan_interval": "Minuten zwischen den Datenabfragen des Fahrzeugs.",
+          "spin": "Optionale 4-stellige Sicherheits-PIN für Fernaktionen (Verriegeln, Entriegeln, Klima)."
         }
       },
       "browser_login_pending": {
@@ -547,6 +553,63 @@
       },
       "last_trip_reset_at": {
         "name": "Letzter Trip-Reset"
+      },
+      "battery_temp_c": {
+        "name": "Batterietemperatur"
+      },
+      "charging_settings_pending": {
+        "name": "Ladeeinstellungen ausstehend"
+      },
+      "charging_status_pending": {
+        "name": "Ladebefehle ausstehend"
+      },
+      "climate_remaining_time_min": {
+        "name": "Klima-Restzeit"
+      },
+      "climate_without_external_power": {
+        "name": "Klima ohne externe Stromversorgung"
+      },
+      "climate_zone_front_left": {
+        "name": "Klimazone vorne links"
+      },
+      "climate_zone_front_right": {
+        "name": "Klimazone vorne rechts"
+      },
+      "climatisation_settings_pending": {
+        "name": "Klima-Einstellungen ausstehend"
+      },
+      "climatisation_status_pending": {
+        "name": "Klima-Befehle ausstehend"
+      },
+      "connection_active": {
+        "name": "Verbindung aktiv"
+      },
+      "connection_battery_power_level": {
+        "name": "Batterieladestand (Verbindung)"
+      },
+      "daily_power_budget_warning": {
+        "name": "Warnung: tägliches Strombudget"
+      },
+      "insufficient_battery_level_warning": {
+        "name": "Warnung: Batteriestand zu niedrig"
+      },
+      "nav_target_soc_pct": {
+        "name": "Ziel-Ladestand (Navigation)"
+      },
+      "parking_map_url_dark": {
+        "name": "Parkkarten-URL (dunkel)"
+      },
+      "parking_map_url_light": {
+        "name": "Parkkarten-URL (hell)"
+      },
+      "plug_led_color": {
+        "name": "Ladestecker-LED-Farbe"
+      },
+      "remaining_charge_time_nav_min": {
+        "name": "Lade-Restzeit (Navigation)"
+      },
+      "vehicle_nickname": {
+        "name": "Fahrzeug-Spitzname"
       }
     },
     "binary_sensor": {
@@ -702,6 +765,15 @@
       },
       "permission_can_command": {
         "name": "Konto darf Befehle senden"
+      },
+      "external_power_available": {
+        "name": "Externe Stromversorgung vorhanden"
+      },
+      "hood_open": {
+        "name": "Motorhaube offen"
+      },
+      "trunk_open": {
+        "name": "Kofferraum offen"
       }
     },
     "switch": {
@@ -881,6 +953,14 @@
     "data_act_no_data": {
       "title": "EU-Data-Act-Portal: noch keine Fahrzeugdaten ({brand})",
       "description": "Das EU-Data-Act-Portal hat sich für {brand} angemeldet, liefert aber noch keine Fahrzeugdaten.\n\nTypische Ursachen:\n\n1. **Eine Störung auf VW-Seite.** VW meldet seit Ende Mai 2026 eine markenübergreifende Störung des EU-Data-Act-Portals (laut deren Mitteilung ist die Infrastruktur für die Datenextraktion unter Last ausgefallen). Solange sie andauert, liefert das Portal für jedes Tool leere Daten – nicht nur für diese Integration – und erholt sich nach und nach pro Marke.\n2. **Keine Datenanfrage eingerichtet.** Das Portal liefert erst, wenn du für dein Auto eine *fortlaufende* Datenanfrage anlegst.\n3. **Das Auto hat nichts Neues gesendet.** Ein neuer Datensatz wird erst veröffentlicht, nachdem das Auto gefahren, geladen oder ab-/aufgeschlossen wurde.\n\n**Schnellster Check:** öffne `eu-data-act.drivesomethinggreater.com` im Browser und melde dich an. Siehst du auch dort keine Daten für dein Auto, liegt es an VW – die Integration kann nichts tun, bis VW es wiederherstellt. Gibt es keine Datenanfrage, lege eine fortlaufende (15-Minuten-)Anfrage an, hake alle Datencluster an, fahre oder wecke dann das Auto und warte ein bis zwei Stunden.\n\nDies ist die schreibgeschützte Portal-Beta – die Warnung verschwindet von selbst, sobald Daten ankommen."
+    },
+    "data_act_session_expired": {
+      "description": "Das {brand}-Portal unter `eu-data-act.drivesomethinggreater.com` hat einen API-Aufruf für eine Custom Data Request mit HTTP 401 beantwortet – das bedeutet, die Sitzungs-Cookies sind abgelaufen. Das Portal unterstützt keine Token-Aktualisierung im Hintergrund, daher kann Home Assistant das nicht automatisch beheben.\n\n**Was zu tun ist:** Einstellungen → Geräte & Dienste → VW Group Connect → 3-Punkte-Menü → Neu konfigurieren → Zugangsdaten erneut eingeben. Beim nächsten Einrichtungsdurchlauf wird die Portal-Sitzung neu geöffnet und die Integration nimmt das Abfragen der aktiven Custom Data Request wieder auf.\n\nDiese Warnung verschwindet von selbst, sobald der nächste API-Aufruf des Portals erfolgreich ist.",
+      "title": "EU-Data-Act-Portal-Sitzung abgelaufen – neu anmelden"
+    },
+    "ola_headers_outdated": {
+      "description": "Das OLA-Backend der VW Group (der SEAT/CUPRA-Server) hat **{count}** Anfragen in Folge mit HTTP 403 Forbidden abgelehnt – sogar nachdem wir alle eingebauten Fallback-Header-Sätze ausprobiert haben.\n\n**Wahrscheinlichste Ursache**: VW hat seine Anforderungen an die App-Identifikations-Header erneut geändert. Das ist am 2026-05-20 passiert und kann erneut passieren, wenn die offizielle {brand}-App neue Versionen veröffentlicht.\n\n**Was zu tun ist:**\n\n1. **Auf ein Integrations-Update prüfen** – HACS → VW Group Connect → Update. Maintainer liefern eine Header-Anpassung meist innerhalb von ~1 Woche nach Upstream-Änderungen (wir überwachen das per wöchentlichem CI-Workflow).\n2. **Den OptionsFlow-Override versuchen** (fortgeschritten) – Einstellungen → Geräte & Dienste → VW Group Connect → Konfigurieren → `ola_app_version_override` auf eine neuere App-Version setzen (z. B. die Version der offiziellen {brand}-App auf deinem Telefon, sichtbar in den App-Einstellungen).\n3. **Wenn beides nicht hilft**: öffne ein GitHub-Issue mit deinem Log auf DEBUG-Ebene, damit wir es untersuchen können.\n\nDiese Warnung verschwindet von selbst, sobald die nächste Anfrage erfolgreich ist.",
+      "title": "{brand}-OLA-Header müssen eventuell aktualisiert werden – {count} aufeinanderfolgende 403-Fehler"
     }
   },
   "selector": {
