@@ -40,6 +40,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [2.12.3] - 2026-06-08
+
+### Changed
+
+- **Everything's translated now — all eight languages, end to end.** We went through every string the integration shows and filled in the gaps: the newer entity names (battery temperature, climate zones, navigation charge target, parking-map links, plug LED colour, the "command pending" sensors and friends), the little help texts under the login and options fields, the "open the brand app" service, and the repair notices (wake the car, portal session expired, optional browser package missing, OLA headers outdated). Until now anything we hadn't translated quietly fell back to English, so non-English users saw a mix. EN, DE, NL, SV, FR, ES, PL and CS are now complete — with everyday wording for the car terms instead of literal tech-speak.
+
 ## [2.12.2] - 2026-06-08
 
 ### Added

@@ -83,6 +83,12 @@
           "spin": "S-PIN",
           "scan_interval": "Update Interval",
           "force_enable_access": "Force Door Status"
+        },
+        "data_description": {
+          "brand": "Endast märken med stöd för webbläsarinloggning visas. Använd 'E-post + lösenord' för Volkswagen EU och Porsche.",
+          "force_enable_access": "Tvinga fram dörrstatus-entiteter även när fordonet rapporterar att data saknas.",
+          "scan_interval": "Minuter mellan fordonets datahämtningar.",
+          "spin": "Valfri 4-siffrig säkerhets-PIN för fjärråtgärder (lås, lås upp, klimat)."
         }
       },
       "browser_login_pending": {
@@ -145,7 +151,8 @@
           "wake_before_poll": "Active vehicle wake-up before status poll",
           "wake_delay_seconds": "Wake delay (seconds)",
           "client_id_override": "OAuth client_id override (power users)",
-          "eu_data_act_auto_kickoff": "EU Data Act: auto-kickoff Custom Data Request"
+          "eu_data_act_auto_kickoff": "EU Data Act: auto-kickoff Custom Data Request",
+          "enable_data_act_browser": "EU Data Act-portalen: headless-webbläsar-fallback (EXPERIMENTELL)"
         },
         "data_description": {
           "scan_interval": "Hur ofta data hämtas (minuter). Minimum: 3.",
@@ -159,7 +166,8 @@
           "wake_before_poll": "When enabled, the integration sends a wake POST to the vehicle before fetching status for any VIN that was OFFLINE on the previous poll. The car receives a server-side wake-up and pushes fresh data, then the integration waits the wake delay before the status read. Closes the 'all sensors unknown for parked cars' gap but costs one extra API call per offline VIN per poll cycle. Off by default. Reload the integration after toggling.",
           "wake_delay_seconds": "Seconds to wait between the wake-up POST and the status fetch. The default of 15 seconds is what most brand backends need to ingest the wake-induced data push. Lower values risk reading stale data; higher values stretch the poll cycle without further benefit.",
           "client_id_override": "Power-user escape hatch for when the community spots a fresh OAuth client_id in a new VW Group APK before our daily atlas builder catches it. Paste the full UUID@apps_vw-dilab_com string here and the resolver tries it FIRST on every authenticate, with all the existing client_ids still in the chain as fallback. Leave empty for default behaviour. Format: 8-4-4-4-12 hex digits followed by @apps_vw-dilab_com. Malformed values are silently ignored.",
-          "eu_data_act_auto_kickoff": "Only meaningful when the integration is operating in read-only EU Data Act portal mode (live BFF strategies have failed). When ON, the coordinator checks for an active 15-min Custom Data Request per VIN at startup and creates one when none exists. The kickoff implies a 1-month data subscription on your account at the portal, so this is opt-in. The portal accepts AT MOST ONE active custom request per VIN at a time. Off by default."
+          "eu_data_act_auto_kickoff": "Only meaningful when the integration is operating in read-only EU Data Act portal mode (live BFF strategies have failed). When ON, the coordinator checks for an active 15-min Custom Data Request per VIN at startup and creates one when none exists. The kickoff implies a 1-month data subscription on your account at the portal, so this is opt-in. The portal accepts AT MOST ONE active custom request per VIN at a time. Off by default.",
+          "enable_data_act_browser": "EXPERIMENTELL: bara meningsfullt när integrationen har fallit tillbaka på EU Data Act-portalen (skrivskyddad). Styr en headless Chromium via det valfria Python-paketet 'playwright' för att automatiskt klicka på portalens dataexport-knapp. Paketet är INTE förinstallerat (det hämtar runt 100 MB Chromium). När det är aktiverat men saknas förklarar en Reparation-avisering hur du installerar det inifrån Home Assistant-containern. Ladda om integrationen efter att du växlat."
         }
       }
     }
@@ -561,6 +569,63 @@
       },
       "last_trip_reset_at": {
         "name": "Last Trip Reset"
+      },
+      "battery_temp_c": {
+        "name": "Batteritemperatur"
+      },
+      "charging_settings_pending": {
+        "name": "Laddinställningar väntar"
+      },
+      "charging_status_pending": {
+        "name": "Laddkommandon väntar"
+      },
+      "climate_remaining_time_min": {
+        "name": "Klimat – återstående tid"
+      },
+      "climate_without_external_power": {
+        "name": "Klimat utan extern ström"
+      },
+      "climate_zone_front_left": {
+        "name": "Klimatzon fram vänster"
+      },
+      "climate_zone_front_right": {
+        "name": "Klimatzon fram höger"
+      },
+      "climatisation_settings_pending": {
+        "name": "Klimatinställningar väntar"
+      },
+      "climatisation_status_pending": {
+        "name": "Klimatkommandon väntar"
+      },
+      "connection_active": {
+        "name": "Anslutning aktiv"
+      },
+      "connection_battery_power_level": {
+        "name": "Batterinivå (anslutning)"
+      },
+      "daily_power_budget_warning": {
+        "name": "Varning för daglig energibudget"
+      },
+      "insufficient_battery_level_warning": {
+        "name": "Varning för låg batterinivå"
+      },
+      "nav_target_soc_pct": {
+        "name": "Mål-laddnivå (navigation)"
+      },
+      "parking_map_url_dark": {
+        "name": "Parkeringskarta-URL (mörk)"
+      },
+      "parking_map_url_light": {
+        "name": "Parkeringskarta-URL (ljus)"
+      },
+      "plug_led_color": {
+        "name": "Laddkontaktens LED-färg"
+      },
+      "remaining_charge_time_nav_min": {
+        "name": "Återstående laddtid (navigation)"
+      },
+      "vehicle_nickname": {
+        "name": "Fordonets smeknamn"
       }
     },
     "binary_sensor": {
@@ -716,6 +781,15 @@
       },
       "permission_can_command": {
         "name": "Account can send commands"
+      },
+      "external_power_available": {
+        "name": "Extern strömförsörjning tillgänglig"
+      },
+      "hood_open": {
+        "name": "Motorhuv öppen"
+      },
+      "trunk_open": {
+        "name": "Bagagelucka öppen"
       }
     },
     "switch": {
@@ -887,6 +961,22 @@
     "data_act_no_data": {
       "title": "EU Data Act-portalen: ingen fordonsdata ännu ({brand})",
       "description": "EU Data Act-portalen loggade in för {brand} men returnerar ännu ingen fordonsdata.\n\nVanliga orsaker:\n\n1. **Ett avbrott på VW:s sida.** VW rapporterar ett varumärkesövergripande avbrott i EU Data Act-portalen sedan slutet av maj 2026 (enligt deras meddelande slutade infrastrukturen för dataextraktion fungera under belastning). Så länge det pågår returnerar portalen tom data för alla verktyg – inte bara den här integrationen – och återhämtar sig märke för märke.\n2. **Ingen databegäran inställd.** Portalen levererar först när du skapar en *kontinuerlig* databegäran för din bil.\n3. **Bilen har inte skickat något nytt.** En ny datamängd publiceras först efter att bilen har körts, laddats eller låsts/låsts upp.\n\n**Snabbaste kollen:** öppna `eu-data-act.drivesomethinggreater.com` i en webbläsare och logga in. Om du inte ser någon data för din bil där heller ligger felet hos VW – integrationen kan inte göra något förrän VW återställer det. Finns ingen databegäran, skapa en kontinuerlig (15-minuters), kryssa i alla datakluster, kör eller väck sedan bilen och vänta en timme eller två.\n\nDet här är den skrivskyddade portal-betan – varningen försvinner av sig själv när data kommer in."
+    },
+    "data_act_browser_missing": {
+      "description": "Du aktiverade headless-webbläsar-fallbacken för EU Data Act-portalen, men Python-paketet `playwright` är inte installerat i din Home Assistant-container.\n\n**För att installera:** öppna HA-containerns skal (Tillägg → Terminal & SSH, eller `docker exec` för en manuell installation) och kör:\n\n```\npip install playwright\nplaywright install chromium\n```\n\nChromium-nedladdningen är stor (runt 100 MB), därför är detta beroende valfritt i stället för inbyggt i integrationen. Starta om Home Assistant efter installationen.\n\nAlternativt kan du stänga av reglaget under Inställningar → Enheter & tjänster → VW Group Connect → Konfigurera → 'EU Data Act-portalen: headless-webbläsar-fallback'.",
+      "title": "EU Data Act-portalen: valfritt paket 'playwright' saknas"
+    },
+    "data_act_session_expired": {
+      "description": "{brand}-portalen på `eu-data-act.drivesomethinggreater.com` svarade med HTTP 401 på ett API-anrop för en Custom Data Request, vilket betyder att sessionscookies har gått ut. Portalen stöder inte tokenförnyelse i bakgrunden, så Home Assistant kan inte återställa detta automatiskt.\n\n**Vad du ska göra:** Inställningar → Enheter & tjänster → VW Group Connect → 3-punktsmeny → Konfigurera om → ange dina uppgifter igen. Nästa konfigurationscykel öppnar portalsessionen på nytt och integrationen återupptar hämtningen av den aktiva Custom Data Request.\n\nDen här varningen försvinner av sig själv så snart nästa API-anrop till portalen lyckas.",
+      "title": "EU Data Act-portalsessionen har gått ut – autentisera på nytt"
+    },
+    "data_act_wake_needed": {
+      "description": "Integrationen körs i EU Data Act-portalens skrivskyddade fallback-läge för {brand} ({username}), och portalen har returnerat **{streak}** hämtningar i rad utan nya data för VIN som slutar på {vin_suffix}.\n\nPortalen publicerar en ny datamängd först efter att fordonet har haft en väckhändelse sedan förra gången. Väckhändelser inkluderar:\n\n- Att slå på tändningen (köra)\n- Att ansluta bilen till en laddare (en laddsession börjar eller slutar)\n- Att låsa eller låsa upp bilen (en hel cykel)\n\n**Vad du ska göra:** utlös någon av ovanstående på fordonet. Inom nästa 15-minuters portalcykel hämtar integrationen den nya exporten automatiskt och den här varningen försvinner.\n\nOm du verkligen inte har använt bilen på flera dagar är avsaknaden av nya data förväntad och inte ett fel i integrationen.",
+      "title": "EU Data Act-portalen: väck fordonet för att uppdatera data ({brand})"
+    },
+    "ola_headers_outdated": {
+      "description": "VW Groups OLA-backend (SEAT/CUPRA-servern) har avvisat **{count}** förfrågningar i rad med HTTP 403 Forbidden – även efter att vi provat alla inbyggda fallback-headeruppsättningar.\n\n**Mest sannolik orsak**: VW har ändrat kraven på de app-identifierande headerna igen. Det hände 2026-05-20 och kan hända igen när den officiella {brand}-appen släpper nya versioner.\n\n**Vad du ska göra:**\n\n1. **Sök efter en integrationsuppdatering** – HACS → VW Group Connect → Uppdatera. Underhållarna brukar leverera en header-justering inom ~1 vecka efter uppströmsändringar (vi övervakar via ett veckovis CI-arbetsflöde).\n2. **Prova OptionsFlow-överstyrningen** (avancerat) – Inställningar → Enheter & tjänster → VW Group Connect → Konfigurera → ställ in `ola_app_version_override` på en nyare appversion (t.ex. versionen av den officiella {brand}-appen på din telefon, synlig i appens inställningar).\n3. **Om inget hjälper**: öppna ett GitHub-ärende med din logg på DEBUG-nivå så att vi kan undersöka det.\n\nDen här varningen försvinner av sig själv när nästa förfrågan lyckas.",
+      "title": "{brand}-OLA-headers kan behöva uppdateras – {count} 403-fel i rad"
     }
   },
   "services": {
@@ -967,6 +1057,20 @@
           "description": "Which action to dispatch."
         }
       }
+    },
+    "open_app": {
+      "description": "Utlöser händelsen `vag_connect_open_app` på HA:s händelsebuss med nyttolastfälten `vin`, `brand`, `deeplink_url` och `action` så att ett Lovelace-kort kan öppna märkets nativa mobilapp (myAudi, WeConnect, MyŠkoda, MySEAT, MyCUPRA, My Porsche eller VW US) på den anropande enheten. Integrationen kan inte själv öppna URL:er på en telefon; dashboardkortet ansvarar för att navigera `window.location.href = deeplink_url` på iOS / Android.",
+      "fields": {
+        "action": {
+          "description": "Valfritt sökvägssegment som läggs till djuplänken så att märkets app går direkt till en sektion. Standardvärdet `open` öppnar appen på startskärmen.",
+          "name": "App-åtgärd"
+        },
+        "vin": {
+          "description": "VIN för fordonet vars märkesapp ska öppnas.",
+          "name": "VIN"
+        }
+      },
+      "name": "Öppna märkets app (djuplänk)"
     }
   },
   "exceptions": {

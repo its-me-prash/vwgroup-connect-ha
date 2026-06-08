@@ -83,6 +83,12 @@
           "spin": "S-PIN",
           "scan_interval": "Update Interval",
           "force_enable_access": "Force Door Status"
+        },
+        "data_description": {
+          "brand": "Alleen merken met browser-login-ondersteuning worden getoond. Gebruik 'E-mail + wachtwoord' voor Volkswagen EU en Porsche.",
+          "force_enable_access": "Forceer deurstatus-entiteiten, ook als het voertuig de gegevens als ontbrekend meldt.",
+          "scan_interval": "Minuten tussen de gegevensopvragingen van het voertuig.",
+          "spin": "Optionele 4-cijferige beveiligings-PIN voor acties op afstand (vergrendelen, ontgrendelen, klimaat)."
         }
       },
       "browser_login_pending": {
@@ -145,7 +151,8 @@
           "wake_before_poll": "Active vehicle wake-up before status poll",
           "wake_delay_seconds": "Wake delay (seconds)",
           "client_id_override": "OAuth client_id override (power users)",
-          "eu_data_act_auto_kickoff": "EU Data Act: auto-kickoff Custom Data Request"
+          "eu_data_act_auto_kickoff": "EU Data Act: auto-kickoff Custom Data Request",
+          "enable_data_act_browser": "EU Data Act-portaal: headless-browser-fallback (EXPERIMENTEEL)"
         },
         "data_description": {
           "scan_interval": "Hoe vaak gegevens worden opgehaald (minuten). Minimum: 3.",
@@ -159,7 +166,8 @@
           "wake_before_poll": "When enabled, the integration sends a wake POST to the vehicle before fetching status for any VIN that was OFFLINE on the previous poll. The car receives a server-side wake-up and pushes fresh data, then the integration waits the wake delay before the status read. Closes the 'all sensors unknown for parked cars' gap but costs one extra API call per offline VIN per poll cycle. Off by default. Reload the integration after toggling.",
           "wake_delay_seconds": "Seconds to wait between the wake-up POST and the status fetch. The default of 15 seconds is what most brand backends need to ingest the wake-induced data push. Lower values risk reading stale data; higher values stretch the poll cycle without further benefit.",
           "client_id_override": "Power-user escape hatch for when the community spots a fresh OAuth client_id in a new VW Group APK before our daily atlas builder catches it. Paste the full UUID@apps_vw-dilab_com string here and the resolver tries it FIRST on every authenticate, with all the existing client_ids still in the chain as fallback. Leave empty for default behaviour. Format: 8-4-4-4-12 hex digits followed by @apps_vw-dilab_com. Malformed values are silently ignored.",
-          "eu_data_act_auto_kickoff": "Only meaningful when the integration is operating in read-only EU Data Act portal mode (live BFF strategies have failed). When ON, the coordinator checks for an active 15-min Custom Data Request per VIN at startup and creates one when none exists. The kickoff implies a 1-month data subscription on your account at the portal, so this is opt-in. The portal accepts AT MOST ONE active custom request per VIN at a time. Off by default."
+          "eu_data_act_auto_kickoff": "Only meaningful when the integration is operating in read-only EU Data Act portal mode (live BFF strategies have failed). When ON, the coordinator checks for an active 15-min Custom Data Request per VIN at startup and creates one when none exists. The kickoff implies a 1-month data subscription on your account at the portal, so this is opt-in. The portal accepts AT MOST ONE active custom request per VIN at a time. Off by default.",
+          "enable_data_act_browser": "EXPERIMENTEEL: alleen zinvol wanneer de integratie is teruggevallen op het EU Data Act-portaal (alleen-lezen). Stuurt een headless Chromium aan via het optionele Python-pakket 'playwright' om de data-exportknop van het portaal automatisch te klikken. Het pakket is NIET voorgeïnstalleerd (het haalt ongeveer 100 MB Chromium op). Wanneer ingeschakeld maar ontbrekend, legt een Reparatie-melding uit hoe je het installeert in de Home Assistant-container. Herlaad de integratie na het omschakelen."
         }
       }
     }
@@ -561,6 +569,63 @@
       },
       "last_trip_reset_at": {
         "name": "Last Trip Reset"
+      },
+      "battery_temp_c": {
+        "name": "Batterijtemperatuur"
+      },
+      "charging_settings_pending": {
+        "name": "Laadinstellingen in behandeling"
+      },
+      "charging_status_pending": {
+        "name": "Laadopdrachten in behandeling"
+      },
+      "climate_remaining_time_min": {
+        "name": "Klimaat resterende tijd"
+      },
+      "climate_without_external_power": {
+        "name": "Klimaat zonder externe voeding"
+      },
+      "climate_zone_front_left": {
+        "name": "Klimaatzone linksvoor"
+      },
+      "climate_zone_front_right": {
+        "name": "Klimaatzone rechtsvoor"
+      },
+      "climatisation_settings_pending": {
+        "name": "Klimaatinstellingen in behandeling"
+      },
+      "climatisation_status_pending": {
+        "name": "Klimaatopdrachten in behandeling"
+      },
+      "connection_active": {
+        "name": "Verbinding actief"
+      },
+      "connection_battery_power_level": {
+        "name": "Batterijniveau (verbinding)"
+      },
+      "daily_power_budget_warning": {
+        "name": "Waarschuwing dagelijks energiebudget"
+      },
+      "insufficient_battery_level_warning": {
+        "name": "Waarschuwing batterijniveau te laag"
+      },
+      "nav_target_soc_pct": {
+        "name": "Doellaadniveau (navigatie)"
+      },
+      "parking_map_url_dark": {
+        "name": "Parkeerkaart-URL (donker)"
+      },
+      "parking_map_url_light": {
+        "name": "Parkeerkaart-URL (licht)"
+      },
+      "plug_led_color": {
+        "name": "Kleur laadstekker-LED"
+      },
+      "remaining_charge_time_nav_min": {
+        "name": "Resterende laadtijd (navigatie)"
+      },
+      "vehicle_nickname": {
+        "name": "Voertuigbijnaam"
       }
     },
     "binary_sensor": {
@@ -716,6 +781,15 @@
       },
       "permission_can_command": {
         "name": "Account can send commands"
+      },
+      "external_power_available": {
+        "name": "Externe voeding beschikbaar"
+      },
+      "hood_open": {
+        "name": "Motorkap open"
+      },
+      "trunk_open": {
+        "name": "Kofferbak open"
       }
     },
     "switch": {
@@ -887,6 +961,22 @@
     "data_act_no_data": {
       "title": "EU Data Act-portaal: nog geen voertuiggegevens ({brand})",
       "description": "Het EU Data Act-portaal is ingelogd voor {brand}, maar levert nog geen voertuiggegevens.\n\nGebruikelijke oorzaken:\n\n1. **Een storing aan VW-kant.** VW meldt sinds eind mei 2026 een merkbrede storing van het EU Data Act-portaal (volgens hun bericht is de infrastructuur voor data-extractie onder belasting uitgevallen). Zolang die duurt levert het portaal voor elk hulpmiddel lege gegevens – niet alleen voor deze integratie – en herstelt het zich merk voor merk.\n2. **Geen gegevensverzoek ingesteld.** Het portaal levert pas zodra je voor je auto een *doorlopend* gegevensverzoek aanmaakt.\n3. **De auto heeft niets nieuws gestuurd.** Een nieuwe dataset verschijnt pas nadat de auto is gereden, geladen of vergrendeld/ontgrendeld.\n\n**Snelste controle:** open `eu-data-act.drivesomethinggreater.com` in een browser en log in. Zie je daar ook geen gegevens voor je auto, dan ligt het aan VW – de integratie kan niets doen tot VW het herstelt. Is er geen gegevensverzoek, maak dan een doorlopend (15-minuten) verzoek aan, vink alle dataclusters aan, rijd of wek daarna de auto en wacht een uur of twee.\n\nDit is de alleen-lezen portaal-beta – de waarschuwing verdwijnt vanzelf zodra er gegevens binnenkomen."
+    },
+    "data_act_browser_missing": {
+      "description": "Je hebt de headless-browser-fallback voor het EU Data Act-portaal ingeschakeld, maar het Python-pakket `playwright` is niet geïnstalleerd in je Home Assistant-container.\n\n**Installeren:** open de shell van de HA-container (Add-ons → Terminal & SSH, of `docker exec` voor een handmatige installatie) en voer uit:\n\n```\npip install playwright\nplaywright install chromium\n```\n\nDe chromium-download is groot (ongeveer 100 MB), daarom is deze afhankelijkheid optioneel in plaats van meegeleverd met de integratie. Herstart Home Assistant na de installatie.\n\nJe kunt de schakelaar ook uitzetten via Instellingen → Apparaten & diensten → VW Group Connect → Configureren → 'EU Data Act-portaal: headless-browser-fallback'.",
+      "title": "EU Data Act-portaal: optioneel pakket 'playwright' ontbreekt"
+    },
+    "data_act_session_expired": {
+      "description": "Het {brand}-portaal op `eu-data-act.drivesomethinggreater.com` gaf HTTP 401 terug op een API-aanroep voor een Custom Data Request, wat betekent dat de sessiecookies zijn verlopen. Het portaal ondersteunt geen tokenvernieuwing op de achtergrond, dus Home Assistant kan dit niet automatisch herstellen.\n\n**Wat te doen:** Instellingen → Apparaten & diensten → VW Group Connect → menu met 3 puntjes → Herconfigureren → voer je inloggegevens opnieuw in. De volgende setupronde opent de portaalsessie opnieuw en de integratie hervat het opvragen van de actieve Custom Data Request.\n\nDeze waarschuwing verdwijnt vanzelf zodra de volgende API-aanroep van het portaal slaagt.",
+      "title": "EU Data Act-portaalsessie verlopen – opnieuw aanmelden"
+    },
+    "data_act_wake_needed": {
+      "description": "De integratie draait voor {brand} ({username}) in de alleen-lezen fallback-modus van het EU Data Act-portaal, en het portaal heeft **{streak}** opvragingen op rij zonder nieuwe gegevens geleverd voor de VIN die eindigt op {vin_suffix}.\n\nHet portaal publiceert pas een nieuwe dataset nadat het voertuig sinds de laatste keer een wek-gebeurtenis heeft gehad. Wek-gebeurtenissen zijn onder andere:\n\n- Het contact aanzetten (rijden)\n- De auto op een lader aansluiten (een laadsessie begint of eindigt)\n- De auto vergrendelen of ontgrendelen (één volledige cyclus)\n\n**Wat te doen:** doe een van bovenstaande met het voertuig. Binnen de volgende 15-minuten-portaalcyclus pikt de integratie de nieuwe export automatisch op en verdwijnt deze waarschuwing.\n\nAls je de auto echt al dagen niet hebt gebruikt, is het ontbreken van nieuwe gegevens te verwachten en geen fout van de integratie.",
+      "title": "EU Data Act-portaal: wek het voertuig om gegevens te verversen ({brand})"
+    },
+    "ola_headers_outdated": {
+      "description": "De OLA-backend van VW Group (de SEAT/CUPRA-server) heeft **{count}** verzoeken op rij geweigerd met HTTP 403 Forbidden – zelfs nadat we alle ingebouwde fallback-headersets hadden geprobeerd.\n\n**Meest waarschijnlijke oorzaak**: VW heeft de eisen voor de app-identificerende headers opnieuw gewijzigd. Dit gebeurde op 2026-05-20 en kan opnieuw gebeuren wanneer de officiële {brand}-app nieuwe versies uitbrengt.\n\n**Wat te doen:**\n\n1. **Controleer op een integratie-update** – HACS → VW Group Connect → Update. Beheerders leveren meestal binnen ~1 week na upstream-wijzigingen een header-aanpassing (we monitoren dit via een wekelijkse CI-workflow).\n2. **Probeer de OptionsFlow-override** (geavanceerd) – Instellingen → Apparaten & diensten → VW Group Connect → Configureren → stel `ola_app_version_override` in op een nieuwere app-versie (bijv. de versie van de officiële {brand}-app op je telefoon, zichtbaar in de app-instellingen).\n3. **Als geen van beide helpt**: open een GitHub-issue met je log op DEBUG-niveau zodat we het kunnen onderzoeken.\n\nDeze waarschuwing verdwijnt vanzelf zodra het volgende verzoek slaagt.",
+      "title": "{brand}-OLA-headers moeten mogelijk worden bijgewerkt – {count} opeenvolgende 403-fouten"
     }
   },
   "services": {
@@ -967,6 +1057,20 @@
           "description": "Which action to dispatch."
         }
       }
+    },
+    "open_app": {
+      "description": "Activeert het event `vag_connect_open_app` op de HA-eventbus met de payloadvelden `vin`, `brand`, `deeplink_url` en `action`, zodat een Lovelace-kaart de native mobiele app van het merk (myAudi, WeConnect, MyŠkoda, MySEAT, MyCUPRA, My Porsche of VW US) op het aanroepende apparaat kan openen. De integratie kan zelf geen URL's op een telefoon openen; de dashboardkaart is verantwoordelijk voor het navigeren naar `window.location.href = deeplink_url` op iOS / Android.",
+      "fields": {
+        "action": {
+          "description": "Optioneel padsegment dat aan de deeplink wordt toegevoegd zodat de merk-app direct naar een sectie navigeert. Standaard `open` opent de app op het startscherm.",
+          "name": "App-actie"
+        },
+        "vin": {
+          "description": "VIN van het voertuig waarvan de merk-app moet worden geopend.",
+          "name": "VIN"
+        }
+      },
+      "name": "Native merk-app openen (deeplink)"
     }
   },
   "exceptions": {
