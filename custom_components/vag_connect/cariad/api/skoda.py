@@ -1233,6 +1233,34 @@ class SkodaClient(CariadBaseClient):
                     if isinstance(last_ts, str) and last_ts:
                         d.last_trip_timestamp = last_ts
 
+            # v2.12.0 (myskoda PR #575 source-verified): overall_cost
+            # breakdown on the OverviewTrip. Each sub-cost is an object
+            # {cost, costCurrency, pricePerUnit}; we surface the cost
+            # amounts + a single currency code (they share one currency).
+            overall_cost = trip_stats.get("overallCost") or (
+                overview.get("overallCost") if isinstance(overview, dict) else None
+            )
+            if isinstance(overall_cost, dict):
+                def _cost(node: Any) -> float | None:
+                    if isinstance(node, dict):
+                        c = node.get("cost")
+                        return float(c) if isinstance(c, (int, float)) else None
+                    return float(node) if isinstance(node, (int, float)) else None
+
+                d.trip_total_cost = _cost(overall_cost.get("totalCost"))
+                d.trip_fuel_cost = _cost(overall_cost.get("fuelCost"))
+                d.trip_electricity_cost = _cost(overall_cost.get("electricityCost"))
+                d.trip_cng_cost = _cost(overall_cost.get("cngCost"))
+                # Currency lives on whichever sub-cost is present.
+                for sub in (
+                    overall_cost.get("totalCost"),
+                    overall_cost.get("fuelCost"),
+                    overall_cost.get("electricityCost"),
+                ):
+                    if isinstance(sub, dict) and sub.get("costCurrency"):
+                        d.trip_cost_currency = str(sub["costCurrency"])
+                        break
+
         # v2.11.0 (myskoda PR #586 source-verified): charging stats
         # from the replacement endpoint. monthSections[].entries[] each
         # carry an aggregated charging session with primaryValue (kWh)

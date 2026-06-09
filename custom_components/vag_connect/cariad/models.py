@@ -1277,6 +1277,14 @@ class VehicleData:
     lifetime_avg_fuel_consumption_l_100km: float | None = None
     lifetime_avg_electric_consumption_kwh_100km: float | None = None
     recent_trips: list[dict[str, Any]] = field(default_factory=list)
+    # v2.12.0 (myskoda PR #575) — trip overall-cost breakdown. Currency
+    # carried separately so the sensor can set native_unit_of_measurement
+    # to the ISO code. None on accounts/firmwares that don't ship costs.
+    trip_total_cost: float | None = None
+    trip_fuel_cost: float | None = None
+    trip_electricity_cost: float | None = None
+    trip_cng_cost: float | None = None
+    trip_cost_currency: str | None = None
 
     # v2.10.0 Group B - SEAT/CUPRA OLA endpoint parity.
     # New fields populated by 6 OLA endpoints added in v2.10.0:

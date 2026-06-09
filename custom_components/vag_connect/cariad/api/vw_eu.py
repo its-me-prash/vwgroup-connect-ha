@@ -9,7 +9,7 @@ import logging
 from typing import Any
 
 from .._util import compute_connection_state, safe_float, safe_int
-from ..exceptions import APIError
+from ..exceptions import APIError, AuthenticationError
 from ..models import BRAND_VW_EU, VehicleData
 from .base import CariadBaseClient
 
@@ -102,12 +102,43 @@ class VWEUClient(CariadBaseClient):
 
     async def get_vehicles(self) -> list[str]:
         """Return list of VINs from the CARIAD garage."""
+        # v2.12.0 — EU Data Act portal mode: the token-based CARIAD garage
+        # is dead for VW EU, so VIN enumeration also has to come from the
+        # portal (not just get_status). Without this the coordinator's
+        # get_vehicles hits the dead BFF, gets nothing, and the entry ends
+        # in setup_retry with "No vehicles found" even though the portal
+        # login succeeded (surfaced by swebachus on #388).
+        portal = getattr(self, "_eu_portal", None)
+        if portal is not None:
+            vins: list[str]
+            try:
+                vins = await portal.list_vehicle_vins()
+            except AuthenticationError:
+                await portal.login(self._email, self._password)
+                vins = await portal.list_vehicle_vins()
+            # Best-effort nickname enrichment from the relation endpoint.
+            self._vehicle_metadata: dict[str, dict[str, Any]] = {}
+            for pvin in vins:
+                nick = await portal.get_relation_nickname(pvin)
+                if nick:
+                    self._vehicle_metadata[pvin] = {
+                        "model": nick, "model_year": None,
+                    }
+            if not vins:
+                _LOGGER.warning(
+                    "EU Data Act portal: login OK but the portal returned "
+                    "no vehicle. Enable the data-sharing / continuous data "
+                    "request for this car on the VW data portal — it can "
+                    "take a while to propagate before the car appears."
+                )
+            return vins
+
         data = await self._get(f"{_BASE}/vehicle/v1/vehicles")
         vehicles: list[dict[str, Any]] = data.get("data", [])
 
         # Cache nickname/model per VIN — used in _parse_status to set device name
         # CARIAD returns: nickname (user-set in app), model, modelYear
-        self._vehicle_metadata: dict[str, dict[str, Any]] = {
+        self._vehicle_metadata = {
             v["vin"]: {
                 "model": (
                     v.get("nickname")       # user-set name (e.g. "Golf GTE")
@@ -303,6 +334,19 @@ class VWEUClient(CariadBaseClient):
 
     async def get_status(self, vin: str) -> VehicleData:
         """Fetch full vehicle status via selectivestatus."""
+        # v2.12.0 — EU Data Act portal mode (read-only fallback). When the
+        # token-based BFF strategies are exhausted, the auth resolver
+        # retains a cookie-based portal connector on ``self._eu_portal``.
+        # Route the whole status fetch through it; on a stale cookie
+        # session (401/403 surfaced as AuthenticationError) re-login once.
+        portal = getattr(self, "_eu_portal", None)
+        if portal is not None:
+            try:
+                data: VehicleData = await portal.get_vehicle_data(vin)
+            except AuthenticationError:
+                await portal.login(self._email, self._password)
+                data = await portal.get_vehicle_data(vin)
+            return data
         # v2.1.0 — per-VIN base URL via HomeRegion lookup.
         base = self._base_for_vin(vin)
         url = f"{base}/vehicle/v1/vehicles/{vin}/selectivestatus"

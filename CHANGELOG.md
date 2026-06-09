@@ -40,6 +40,59 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Changed
+
+- Housekeeping: removed an orphaned repair-notice translation key (`data_act_wake_needed`) that was superseded by the "no vehicle data" notice and is never shown. No user-facing change.
+
+## [2.12.4] - 2026-06-09
+
+A resilience release for the ongoing VW-side backend outage: the integration now rides out transient server errors quietly instead of treating them like a broken login.
+
+### Fixed
+
+- **VW portal outage no longer spams errors or triggers needless re-logins** (#428, #429, #430, #431). While VW's EU Data Act portal is in its ongoing outage, the data endpoints keep returning HTTP 500. We were treating that 500 as an authentication failure — so it logged an error every poll and kicked off pointless re-login attempts. A 500 is the portal having a bad moment, not a dead session, so it's now handled as "no data this poll" (the existing "no vehicle data" notice already explains the outage). A genuine 401/403 still re-authenticates exactly as before.
+- **Token-refresh hiccups no longer look like a wrong password** (#438). When the VW token server returns a transient gateway error (HTTP 502/503/504) on an otherwise-valid login — common while their backend is flaky — the integration was treating it as an authentication failure: it popped up a "please reconfigure" reauth prompt and filed error reports for what is purely a VW-side blip. Now a 5xx on the token endpoint is treated as "VW backend temporarily unavailable": your entities keep their last value, the integration retries on the next poll, and nothing prompts you to re-enter credentials. A genuinely rejected refresh token (HTTP 400) still triggers a real re-login. Applies to every brand (Audi, VW, Škoda, SEAT, CUPRA).
+- **Quieter during outages** (#435, #436, #437, #438, #439). Transient VW-backend 5xx errors — the kind above — no longer get escalated to the in-app Error Reporter. They're a server-side outage symptom, not an actionable bug, and were generating a stream of noise reports. Your entities stay available through the normal failure-tolerance window in the meantime.
+
+## [2.12.3] - 2026-06-08
+
+### Changed
+
+- **Everything's translated now — all eight languages, end to end.** We went through every string the integration shows and filled in the gaps: the newer entity names (battery temperature, climate zones, navigation charge target, parking-map links, plug LED colour, the "command pending" sensors and friends), the little help texts under the login and options fields, the "open the brand app" service, and the repair notices (wake the car, portal session expired, optional browser package missing, OLA headers outdated). Until now anything we hadn't translated quietly fell back to English, so non-English users saw a mix. EN, DE, NL, SV, FR, ES, PL and CS are now complete — with everyday wording for the car terms instead of literal tech-speak.
+
+## [2.12.2] - 2026-06-08
+
+### Added
+
+- **"No vehicle data" hint when the portal is empty.** When the VW EU Data Act portal logs in but returns no data, the integration now raises a clear Home Assistant repair notice instead of staying silent. It explains the likely causes — most often the VW-side portal outage that's been running since late May 2026 (which hits every tool, not just us), or a data request that isn't set up yet — and tells you the quickest check: open the VW data portal in a browser and see whether *you* can see your car's data there. If it's empty there too, it's on VW's side. The notice clears by itself once data starts flowing. Fully translated across all eight bundled languages (EN, DE, NL, SV, FR, ES, PL, CS).
+
+Quick follow-up to the v2.12.0 VW EU portal beta, from the first round of live testing.
+
+### Fixed
+
+- **VW EU portal broke after a Home Assistant restart** (#393). The portal saves a cookie-session placeholder token, and on restart the integration reused it and skipped the login — so the portal session was never rebuilt and the next call hit the old (dead) endpoint with a useless token, ending in "No vehicles found". Now a fresh portal login runs on every restart, so the session is always re-established.
+- **"No data request" no longer spams errors** (#393, #424). Until you manually create a continuous data request for your car in the VW data portal, the data endpoint returns 404/500 — that's expected, not a failure. The integration now treats it as "no data yet" (the car still appears, data fills in once the request goes live) instead of logging an error every poll.
+- **Scout noise on Audi charging timers/profiles** (#423). Registered the deeper `chargingTimers` / `chargingProfiles` sub-paths and the DC auto-unlock setting the Scout kept flagging.
+
+## [2.12.0] - 2026-06-07
+
+The big one for VW EU. We confirmed live that VW has closed every token-based login route for passenger cars — the hybrid trick another project used now gets a hard 403 from Auth0, the code-flow needs a client secret we can't have, and device-login isn't enabled for the VW client. The only door VW has to keep open under the EU Data Act is the read-only data portal, so that's the path we built.
+
+### Added
+
+- **VW EU Data Act portal connector (read-only, BETA).** A brand-new cookie-based login + data path for VW passenger cars, using the EU Data Act portal. It logs in, pulls the vehicle's data export, and surfaces the high-value bits (charge level, odometer, range, charging state, doors, window heating, temperatures). Trade-offs: it's read-only (no remote climate/charge commands), updates on roughly a 15-minute cadence, and you have to switch on a one-time "continuous data request" on the VW portal first. Kicks in automatically once the old token logins fail. Marked beta — the live login is being validated on #388/#393 before we lean on it.
+- **Brand-aware portal config.** The portal connector is wired as a fallback in every brand's login chain, so it now picks the right OAuth client + brand selector per brand (VW, CUPRA, SEAT verified; others fall back gracefully) instead of always using VW's. Foundation for offering the read-only portal path to more brands later.
+- **Skoda trip cost.** Total / fuel / electricity / CNG cost for the trip overview, with the currency, when Skoda ships it.
+
+### Fixed
+
+- **Cars stuck showing "online" forever.** Some vehicles report a capture timestamp years in the future (a known broken-clock quirk on certain control units), which pinned the connection state to "online" with a nonsense last-seen time. We now ignore timestamps beyond a 5-minute window. Applies to every brand.
+- **Scout noise.** Registered the climatisation sub-blocks (CUPRA/SEAT) and the battery-support / charging-profiles / charging-timers blocks (VW/Audi) the Data Scout kept flagging, so it stops re-reporting fields we already read. Closes the scout reports behind #411, #414, #415, #416, #417, #419.
+
+### Legal
+
+- Added `LEGAL.md` documenting the statutory basis (EU Software Directive Art. 6, §69e UrhG, Art. 21 URG, DMCA §1201(f), EU Data Act Arts. 4–6) and attribution for the open-source projects the portal connector's mechanics were adapted from.
+
 ## [2.11.4] - 2026-06-05
 
 Bundle release covering the v2.11.3 fallout. After v2.11.3 unblocked the Auth0 state-token wall, the next bottleneck surfaced: the VW EU signin-service flow is a TWO-step submit (POST email first to get a fresh hmac for the password page, then POST password to a different URL). Plus a handful of upstream-sync fixes for Skoda + small parser additions from the latest scout reports.

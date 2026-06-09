@@ -67,6 +67,12 @@
           "spin": "S-PIN",
           "scan_interval": "Aktualisierungsintervall",
           "force_enable_access": "Tür-Status erzwingen"
+        },
+        "data_description": {
+          "brand": "Es werden nur Marken mit Browser-Login-Unterstützung angezeigt. Für Volkswagen EU und Porsche 'E-Mail + Passwort' verwenden.",
+          "force_enable_access": "Tür-Status-Entitäten erzwingen, auch wenn das Fahrzeug die Daten als fehlend meldet.",
+          "scan_interval": "Minuten zwischen den Datenabfragen des Fahrzeugs.",
+          "spin": "Optionale 4-stellige Sicherheits-PIN für Fernaktionen (Verriegeln, Entriegeln, Klima)."
         }
       },
       "browser_login_pending": {
@@ -547,6 +553,63 @@
       },
       "last_trip_reset_at": {
         "name": "Letzter Trip-Reset"
+      },
+      "battery_temp_c": {
+        "name": "Batterietemperatur"
+      },
+      "charging_settings_pending": {
+        "name": "Ladeeinstellungen ausstehend"
+      },
+      "charging_status_pending": {
+        "name": "Ladebefehle ausstehend"
+      },
+      "climate_remaining_time_min": {
+        "name": "Klima-Restzeit"
+      },
+      "climate_without_external_power": {
+        "name": "Klima ohne externe Stromversorgung"
+      },
+      "climate_zone_front_left": {
+        "name": "Klimazone vorne links"
+      },
+      "climate_zone_front_right": {
+        "name": "Klimazone vorne rechts"
+      },
+      "climatisation_settings_pending": {
+        "name": "Klima-Einstellungen ausstehend"
+      },
+      "climatisation_status_pending": {
+        "name": "Klima-Befehle ausstehend"
+      },
+      "connection_active": {
+        "name": "Verbindung aktiv"
+      },
+      "connection_battery_power_level": {
+        "name": "Batterieladestand (Verbindung)"
+      },
+      "daily_power_budget_warning": {
+        "name": "Warnung: tägliches Strombudget"
+      },
+      "insufficient_battery_level_warning": {
+        "name": "Warnung: Batteriestand zu niedrig"
+      },
+      "nav_target_soc_pct": {
+        "name": "Ziel-Ladestand (Navigation)"
+      },
+      "parking_map_url_dark": {
+        "name": "Parkkarten-URL (dunkel)"
+      },
+      "parking_map_url_light": {
+        "name": "Parkkarten-URL (hell)"
+      },
+      "plug_led_color": {
+        "name": "Ladestecker-LED-Farbe"
+      },
+      "remaining_charge_time_nav_min": {
+        "name": "Lade-Restzeit (Navigation)"
+      },
+      "vehicle_nickname": {
+        "name": "Fahrzeug-Spitzname"
       }
     },
     "binary_sensor": {
@@ -702,6 +765,15 @@
       },
       "permission_can_command": {
         "name": "Konto darf Befehle senden"
+      },
+      "external_power_available": {
+        "name": "Externe Stromversorgung vorhanden"
+      },
+      "hood_open": {
+        "name": "Motorhaube offen"
+      },
+      "trunk_open": {
+        "name": "Kofferraum offen"
       }
     },
     "switch": {
@@ -866,10 +938,6 @@
       "title": "API-Quota KRITISCH — {remaining} Anfragen heute übrig",
       "description": "Dein VAG-Account hat weniger als 25 API-Anfragen heute übrig ({remaining} von {limit}, {pct}%). Das Hersteller-Backend kann den Account temporär sperren wenn das Limit erschöpft wird.\n\n**Sofort-Maßnahmen:**\n1. **Polling pausieren** — Einstellungen → Geräte & Dienste → VW Group Connect → Konfigurieren → Update-Intervall → auf 30 min oder höher setzen\n2. Manuelle Refreshes / Fahrzeug-Wakeups vermeiden bis das Kontingent zurückgesetzt ist\n\nDiese Warnung verschwindet automatisch, sobald sich das Kontingent erholt hat."
     },
-    "data_act_wake_needed": {
-      "title": "EU Data Act Portal: Fahrzeug wecken um Daten zu aktualisieren ({brand})",
-      "description": "Die Integration läuft für {brand} ({username}) im EU Data Act Portal Nur-Lesen-Modus und das Portal hat **{streak}** Polls in Folge keine neuen Daten für VIN-Ende {vin_suffix} geliefert.\n\nDas Portal veröffentlicht erst dann einen frischen Datensatz, wenn das Fahrzeug seit dem letzten Drop ein Wake-Event hatte. Wake-Events sind:\n\n- Zündung an (Fahrt)\n- Ladekabel anstecken oder abziehen (Charge-Session startet oder endet)\n- Ent- oder Verriegeln (ein vollständiger Zyklus)\n\n**Was zu tun ist:** löse eine der oben genannten Aktionen am Fahrzeug aus. Innerhalb des nächsten 15-Minuten-Portal-Zyklus übernimmt die Integration den frischen Export automatisch und diese Warnung verschwindet.\n\nWenn du das Fahrzeug seit Tagen wirklich nicht bewegt hast, ist das Fehlen frischer Daten erwartet und kein Bug der Integration."
-    },
     "data_act_browser_missing": {
       "title": "EU Data Act Portal: optionales 'playwright'-Paket fehlt",
       "description": "Du hast den Headless-Browser-Fallback für das EU Data Act Portal aktiviert, aber das Python-Paket `playwright` ist im Home Assistant Container nicht installiert.\n\n**Installation:** öffne die HA-Container-Shell (Add-ons → Terminal & SSH, oder `docker exec` für eine manuelle Installation) und führe aus:\n\n```\npip install playwright\nplaywright install chromium\n```\n\nDer Chromium-Download ist groß (ca. 100 MB), deswegen ist diese Abhängigkeit Opt-In statt mit der Integration gebündelt. Nach der Installation Home Assistant neu starten.\n\nAlternative: den Schalter unter Einstellungen → Geräte & Dienste → VW Group Connect → Konfigurieren → 'EU Data Act Portal: Headless-Browser-Fallback' deaktivieren."
@@ -877,6 +945,18 @@
     "account_locked": {
       "title": "{brand}-Konto scheint vorübergehend gesperrt zu sein",
       "description": "Das Marken-Backend hat in den letzten 30 Minuten **3 Lock-Antworten** zurückgegeben (zuletzt HTTP {last_status}). Das bedeutet typischerweise, dass VW dein Marken-Konto nach zu vielen fehlgeschlagenen Token-Refreshes vorübergehend gesperrt hat.\n\nDie Sperre wird normalerweise innerhalb von **wenigen Stunden bis 24 Stunden** aufgehoben. Die Integration hat die Versuche eingestellt, damit das Sperrfenster sich nicht verlängert.\n\n**Während du wartest**:\n\n1. **Nicht** wiederholt in der offiziellen App ein- und ausloggen, das verlängert die Sperre.\n2. Mindestens 1-2 Stunden warten, dann die offizielle Hersteller-App auf dem Handy öffnen. Wenn sich die App sauber einloggt, ist dein Konto wieder entsperrt.\n3. Nach dem Entsperren `scan_interval` in Einstellungen → Geräte & Dienste → VW Group Connect → Konfigurieren auf 15-30 Minuten erhöhen, um zukünftigen Druck zu reduzieren.\n4. Optional: Den read-only EU Data Act Portal-Modus via OptionsFlow aktivieren, um bei zukünftigen Vorfällen weiter Daten zu bekommen.\n\nDiese Warnung verschwindet automatisch beim nächsten erfolgreichen Token-Refresh."
+    },
+    "data_act_no_data": {
+      "title": "EU-Data-Act-Portal: noch keine Fahrzeugdaten ({brand})",
+      "description": "Das EU-Data-Act-Portal hat sich für {brand} angemeldet, liefert aber noch keine Fahrzeugdaten.\n\nTypische Ursachen:\n\n1. **Eine Störung auf VW-Seite.** VW meldet seit Ende Mai 2026 eine markenübergreifende Störung des EU-Data-Act-Portals (laut deren Mitteilung ist die Infrastruktur für die Datenextraktion unter Last ausgefallen). Solange sie andauert, liefert das Portal für jedes Tool leere Daten – nicht nur für diese Integration – und erholt sich nach und nach pro Marke.\n2. **Keine Datenanfrage eingerichtet.** Das Portal liefert erst, wenn du für dein Auto eine *fortlaufende* Datenanfrage anlegst.\n3. **Das Auto hat nichts Neues gesendet.** Ein neuer Datensatz wird erst veröffentlicht, nachdem das Auto gefahren, geladen oder ab-/aufgeschlossen wurde.\n\n**Schnellster Check:** öffne `eu-data-act.drivesomethinggreater.com` im Browser und melde dich an. Siehst du auch dort keine Daten für dein Auto, liegt es an VW – die Integration kann nichts tun, bis VW es wiederherstellt. Gibt es keine Datenanfrage, lege eine fortlaufende (15-Minuten-)Anfrage an, hake alle Datencluster an, fahre oder wecke dann das Auto und warte ein bis zwei Stunden.\n\nDies ist die schreibgeschützte Portal-Beta – die Warnung verschwindet von selbst, sobald Daten ankommen."
+    },
+    "data_act_session_expired": {
+      "description": "Das {brand}-Portal unter `eu-data-act.drivesomethinggreater.com` hat einen API-Aufruf für eine Custom Data Request mit HTTP 401 beantwortet – das bedeutet, die Sitzungs-Cookies sind abgelaufen. Das Portal unterstützt keine Token-Aktualisierung im Hintergrund, daher kann Home Assistant das nicht automatisch beheben.\n\n**Was zu tun ist:** Einstellungen → Geräte & Dienste → VW Group Connect → 3-Punkte-Menü → Neu konfigurieren → Zugangsdaten erneut eingeben. Beim nächsten Einrichtungsdurchlauf wird die Portal-Sitzung neu geöffnet und die Integration nimmt das Abfragen der aktiven Custom Data Request wieder auf.\n\nDiese Warnung verschwindet von selbst, sobald der nächste API-Aufruf des Portals erfolgreich ist.",
+      "title": "EU-Data-Act-Portal-Sitzung abgelaufen – neu anmelden"
+    },
+    "ola_headers_outdated": {
+      "description": "Das OLA-Backend der VW Group (der SEAT/CUPRA-Server) hat **{count}** Anfragen in Folge mit HTTP 403 Forbidden abgelehnt – sogar nachdem wir alle eingebauten Fallback-Header-Sätze ausprobiert haben.\n\n**Wahrscheinlichste Ursache**: VW hat seine Anforderungen an die App-Identifikations-Header erneut geändert. Das ist am 2026-05-20 passiert und kann erneut passieren, wenn die offizielle {brand}-App neue Versionen veröffentlicht.\n\n**Was zu tun ist:**\n\n1. **Auf ein Integrations-Update prüfen** – HACS → VW Group Connect → Update. Maintainer liefern eine Header-Anpassung meist innerhalb von ~1 Woche nach Upstream-Änderungen (wir überwachen das per wöchentlichem CI-Workflow).\n2. **Den OptionsFlow-Override versuchen** (fortgeschritten) – Einstellungen → Geräte & Dienste → VW Group Connect → Konfigurieren → `ola_app_version_override` auf eine neuere App-Version setzen (z. B. die Version der offiziellen {brand}-App auf deinem Telefon, sichtbar in den App-Einstellungen).\n3. **Wenn beides nicht hilft**: öffne ein GitHub-Issue mit deinem Log auf DEBUG-Ebene, damit wir es untersuchen können.\n\nDiese Warnung verschwindet von selbst, sobald die nächste Anfrage erfolgreich ist.",
+      "title": "{brand}-OLA-Header müssen eventuell aktualisiert werden – {count} aufeinanderfolgende 403-Fehler"
     }
   },
   "selector": {

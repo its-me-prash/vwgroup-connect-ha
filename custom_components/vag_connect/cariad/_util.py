@@ -407,18 +407,29 @@ def compute_connection_state(
                 out.extend(_extract_timestamps(item))
         return out
 
+    # v2.12.0 (myskoda PR #581 / HA #1105) — guard against future-dated
+    # timestamps from broken vehicle OCU clocks. Real-world cars have
+    # been observed reporting carCapturedTimestamp years in the future
+    # (e.g. 2079), which would otherwise become the "freshest" timestamp
+    # and pin connection_state to "online" forever with a nonsense
+    # last_seen_at. Discard anything beyond a 5-minute clock-skew window.
+    now = datetime.now(tz=timezone.utc)
+    max_acceptable = now.timestamp() + 300
+
     latest_ts: datetime | None = None
     for sub in sub_objects:
         if isinstance(sub, BaseException):
             continue
         for ts in _extract_timestamps(sub):
+            if ts.timestamp() > max_acceptable:
+                continue  # future-dated → broken OCU clock, ignore
             if latest_ts is None or ts > latest_ts:
                 latest_ts = ts
 
     if latest_ts is None:
         return None, None
 
-    age_s = (datetime.now(tz=timezone.utc) - latest_ts).total_seconds()
+    age_s = (now - latest_ts).total_seconds()
     if age_s < _CONNECTION_ONLINE_THRESHOLD_S:
         return "online", latest_ts
     if age_s < _CONNECTION_STANDBY_THRESHOLD_S:

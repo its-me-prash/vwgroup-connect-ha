@@ -609,7 +609,19 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # _refresh_tokens which writes back. We still call
             # authenticate() if NO persisted tokens exist (first setup,
             # storage cleared, or version mismatch).
-            if persisted is None:
+            # v2.12.1 (#393) — the EU Data Act portal strategy persists a
+            # cookie-session SENTINEL token (no usable bearer, and the
+            # cookie jar isn't restored across restarts). Reusing it skips
+            # the portal login, so the connector is never rebuilt and
+            # get_vehicles falls through to the dead CARIAD BFF with the
+            # sentinel → HTTP 400 "missing or invalid auth header". Force a
+            # fresh login for that strategy so the cookie session + the
+            # portal connector are re-established on every restart.
+            persisted_is_portal = (
+                persisted is not None
+                and persisted.strategy == "data_act_portal"
+            )
+            if persisted is None or persisted_is_portal:
                 await self._cariad_client.authenticate()
             else:
                 _LOGGER.debug(
@@ -935,6 +947,38 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             },
         )
 
+    def _update_data_act_no_data_repair(self) -> None:
+        """v2.12.2 (#393/#424) — raise/clear the "portal returned no data"
+        repair issue for EU Data Act portal mode.
+
+        The portal connector records ``last_no_data_reason`` each poll. When
+        it's non-empty the portal logged in but delivered nothing — usually
+        the VW-side all-brands outage that started late May 2026, or the
+        user hasn't created a continuous data request yet. We surface a
+        single actionable repair issue pointing them to check the portal
+        website themselves; it auto-clears the moment data arrives.
+        """
+        from homeassistant.helpers import issue_registry as ir  # noqa: PLC0415
+
+        portal = getattr(self._cariad_client, "_eu_portal", None)
+        issue_id = f"data_act_no_data_{self.entry.entry_id}"
+        reason = getattr(portal, "last_no_data_reason", "") if portal else ""
+        if portal is None or not reason:
+            ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+            return
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            is_persistent=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="data_act_no_data",
+            translation_placeholders={
+                "brand": self.entry.data[CONF_BRAND],
+            },
+        )
+
     async def _poll_loop(self) -> None:
         """Background polling loop — runs independently of HA scheduler.
 
@@ -1010,18 +1054,36 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         # gets logged in the ring buffer with masked context so
                         # users can 1-click report it. Wrapped in try/except —
                         # error reporting must NEVER raise.
-                        try:
-                            record_error(
-                                self.error_buffer,
-                                exception=result,
-                                brand=self.entry.data.get(CONF_BRAND, ""),
-                                vin=vin,
-                                model_year=self.vehicles.get(vin, {}).get("model_year"),
-                                firmware=self.vehicles.get(vin, {}).get("firmware_version"),
-                                endpoint="get_status",
-                            )
-                        except Exception:  # noqa: BLE001
-                            pass
+                        # v2.12.4 (#438) — but DON'T escalate a transient
+                        # VW-backend 5xx (token-endpoint UpstreamUnavailableError,
+                        # or a data endpoint that exhausted its 5xx retries) to
+                        # the Error Reporter. It's not our bug and not actionable;
+                        # this is what spammed #435-#439 during the late-May
+                        # outage. The vehicle still keeps its last-known data
+                        # (above) and recovers on the next poll.
+                        from .cariad.exceptions import (  # noqa: PLC0415
+                            APIError,
+                            UpstreamUnavailableError,
+                        )
+                        is_transient_upstream = isinstance(
+                            result, UpstreamUnavailableError
+                        ) or (
+                            isinstance(result, APIError)
+                            and getattr(result, "status", 0) >= 500
+                        )
+                        if not is_transient_upstream:
+                            try:
+                                record_error(
+                                    self.error_buffer,
+                                    exception=result,
+                                    brand=self.entry.data.get(CONF_BRAND, ""),
+                                    vin=vin,
+                                    model_year=self.vehicles.get(vin, {}).get("model_year"),
+                                    firmware=self.vehicles.get(vin, {}).get("firmware_version"),
+                                    endpoint="get_status",
+                                )
+                            except Exception:  # noqa: BLE001
+                                pass
                     elif isinstance(result, VehicleData):
                         # v1.10.1 (#58 Phase 2) — wrap to_dict + _enrich
                         # in their own try/except. A single VehicleData
@@ -1097,6 +1159,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 # call: ``ensure_*_issue`` deletes when empty and updates
                 # in-place when the IDs already exist.
                 self._refresh_reporter_issues()
+                # v2.12.2 — raise/clear the "EU Data Act portal: no data"
+                # repair issue based on the portal connector's last outcome.
+                try:
+                    self._update_data_act_no_data_repair()
+                except Exception:  # noqa: BLE001
+                    pass  # a repair-issue update must never break the poll
                 # v1.14.0 (#24) — Trip Stats refresh, best-effort + cached
                 # 1h. Brand-restricted to audi/volkswagen inside helper.
                 # Runs after vehicle update so newest VINs are present
@@ -1173,25 +1241,43 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             except Exception as err:  # noqa: BLE001
                 # Auth failure that survived the client's refresh-then-relogin
                 # fallback means the credentials are stale. Trigger HA reauth.
-                from .cariad.exceptions import AuthenticationError  # noqa: PLC0415
+                from .cariad.exceptions import (  # noqa: PLC0415
+                    APIError,
+                    AuthenticationError,
+                    UpstreamUnavailableError,
+                )
                 if isinstance(err, AuthenticationError):
                     self._trigger_reauth(str(err) or type(err).__name__)
                     await self._async_push_update({}, success=False)
                     return
-                _LOGGER.error("VAG Connect poll error: %s", err)
-                # v1.9.0 — Error Reporter: outer poll-loop crash gets a
-                # buffer entry too. Critical because these are the kind of
-                # errors users hit and never know about (silent except).
-                try:
-                    record_error(
-                        self.error_buffer,
-                        exception=err,
-                        brand=self.entry.data.get(CONF_BRAND, ""),
-                        endpoint="poll_loop",
+                # v2.12.4 (#438) — a transient VW-backend 5xx that escaped the
+                # per-VIN handler (UpstreamUnavailableError, or a 5xx APIError)
+                # is logged but NOT escalated to the Error Reporter: it's a
+                # server-side outage symptom, not our bug, and escalating it
+                # spammed #435-#439. Entities stay available via the
+                # failure-tolerance window below.
+                is_transient_upstream = isinstance(err, UpstreamUnavailableError) or (
+                    isinstance(err, APIError) and getattr(err, "status", 0) >= 500
+                )
+                if is_transient_upstream:
+                    _LOGGER.warning(
+                        "VAG Connect: VW backend temporarily unavailable — %s", err
                     )
-                    self._refresh_reporter_issues()
-                except Exception:  # noqa: BLE001
-                    pass
+                else:
+                    _LOGGER.error("VAG Connect poll error: %s", err)
+                    # v1.9.0 — Error Reporter: outer poll-loop crash gets a
+                    # buffer entry too. Critical because these are the kind of
+                    # errors users hit and never know about (silent except).
+                    try:
+                        record_error(
+                            self.error_buffer,
+                            exception=err,
+                            brand=self.entry.data.get(CONF_BRAND, ""),
+                            endpoint="poll_loop",
+                        )
+                        self._refresh_reporter_issues()
+                    except Exception:  # noqa: BLE001
+                        pass
                 if not hasattr(self, "vehicle_success"):
                     self.vehicle_success = {}
                 if not hasattr(self, "vehicle_failure_count"):
