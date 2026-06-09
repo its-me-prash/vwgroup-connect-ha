@@ -40,11 +40,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
-## [2.12.4] - 2026-06-08
+## [2.12.4] - 2026-06-09
+
+A resilience release for the ongoing VW-side backend outage: the integration now rides out transient server errors quietly instead of treating them like a broken login.
 
 ### Fixed
 
 - **VW portal outage no longer spams errors or triggers needless re-logins** (#428, #429, #430, #431). While VW's EU Data Act portal is in its ongoing outage, the data endpoints keep returning HTTP 500. We were treating that 500 as an authentication failure — so it logged an error every poll and kicked off pointless re-login attempts. A 500 is the portal having a bad moment, not a dead session, so it's now handled as "no data this poll" (the existing "no vehicle data" notice already explains the outage). A genuine 401/403 still re-authenticates exactly as before.
+- **Token-refresh hiccups no longer look like a wrong password** (#438). When the VW token server returns a transient gateway error (HTTP 502/503/504) on an otherwise-valid login — common while their backend is flaky — the integration was treating it as an authentication failure: it popped up a "please reconfigure" reauth prompt and filed error reports for what is purely a VW-side blip. Now a 5xx on the token endpoint is treated as "VW backend temporarily unavailable": your entities keep their last value, the integration retries on the next poll, and nothing prompts you to re-enter credentials. A genuinely rejected refresh token (HTTP 400) still triggers a real re-login. Applies to every brand (Audi, VW, Škoda, SEAT, CUPRA).
+- **Quieter during outages** (#435, #436, #437, #438, #439). Transient VW-backend 5xx errors — the kind above — no longer get escalated to the in-app Error Reporter. They're a server-side outage symptom, not an actionable bug, and were generating a stream of noise reports. Your entities stay available through the normal failure-tolerance window in the meantime.
 
 ## [2.12.3] - 2026-06-08
 

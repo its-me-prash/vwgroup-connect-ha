@@ -2814,10 +2814,14 @@ class TestIDKAuthAdditional:
                 auth._follow_to_app_redirect("https://idp/auth", {}, "myaudi:///")
             )
 
-    def test_refresh_non_200_non_400_raises(self):
-        """Non-200/400 status on refresh raises AuthenticationError."""
+    def test_refresh_5xx_raises_upstream_unavailable(self):
+        """v2.12.4 (#438): a transient 5xx on refresh → UpstreamUnavailableError
+        (server-side outage), NOT AuthenticationError — the latter wrongly
+        triggered the HA reauth flow + Error-Reporter spam for a VW-side blip."""
         from custom_components.vag_connect.cariad.auth.idk import IDKAuth
-        from custom_components.vag_connect.cariad.exceptions import AuthenticationError
+        from custom_components.vag_connect.cariad.exceptions import (
+            UpstreamUnavailableError,
+        )
         from custom_components.vag_connect.cariad.models import BRAND_SKODA
 
         oidc = self._resp(200, json_data={"token_endpoint": "https://idp/token"})
@@ -2826,7 +2830,23 @@ class TestIDKAuthAdditional:
         session.get = MagicMock(return_value=oidc)
         session.post = MagicMock(return_value=bad)
         auth = IDKAuth(session, BRAND_SKODA)
-        with pytest.raises(AuthenticationError, match="503"):
+        with pytest.raises(UpstreamUnavailableError, match="503"):
+            asyncio.get_event_loop().run_until_complete(auth.refresh("old_token"))
+
+    def test_refresh_non_200_non_5xx_raises_auth(self):
+        """A non-200 that is neither 400 nor a 5xx (e.g. 401) is still a genuine
+        auth failure and must raise AuthenticationError."""
+        from custom_components.vag_connect.cariad.auth.idk import IDKAuth
+        from custom_components.vag_connect.cariad.exceptions import AuthenticationError
+        from custom_components.vag_connect.cariad.models import BRAND_SKODA
+
+        oidc = self._resp(200, json_data={"token_endpoint": "https://idp/token"})
+        bad = self._resp(401, text="Unauthorized")
+        session = MagicMock()
+        session.get = MagicMock(return_value=oidc)
+        session.post = MagicMock(return_value=bad)
+        auth = IDKAuth(session, BRAND_SKODA)
+        with pytest.raises(AuthenticationError, match="401"):
             asyncio.get_event_loop().run_until_complete(auth.refresh("old_token"))
 
     def test_idk_auth_hmac_extraction_from_js(self):
