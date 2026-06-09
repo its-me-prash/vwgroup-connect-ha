@@ -40,6 +40,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Changed
+
+- Housekeeping: removed an orphaned repair-notice translation key (`data_act_wake_needed`) that was superseded by the "no vehicle data" notice and is never shown. No user-facing change.
+
 ## [2.12.4] - 2026-06-09
 
 A resilience release for the ongoing VW-side backend outage: the integration now rides out transient server errors quietly instead of treating them like a broken login.
