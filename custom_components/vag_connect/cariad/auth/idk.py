@@ -42,6 +42,12 @@ from ..models import BrandConfig, TokenSet
 _LOGGER = logging.getLogger(__name__)
 
 _AUTH_TIMEOUT = ClientTimeout(total=30)  # per-request timeout for auth flows
+# v2.12.4 (#438) — token-endpoint statuses that mean "VW backend is having a
+# bad moment", not "your refresh token is dead". A 5xx here is transient
+# (gateway/Azure-WAF flakiness during the 2026 outage) → raise
+# UpstreamUnavailableError so the coordinator tolerates it instead of
+# triggering reauth. (400 still means a genuinely rejected refresh token.)
+_TRANSIENT_TOKEN_STATUSES = (500, 502, 503, 504)
 
 _IDK_BASE = "https://identity.vwgroup.io"
 _SIGNIN_BASE = f"{_IDK_BASE}/signin-service/v1"
@@ -1292,6 +1298,17 @@ class IDKAuth:
         ) as resp:
             if resp.status == 400:
                 raise TokenExpiredError("Refresh token rejected — full re-login required.")
+            # v2.12.4 (#438) — a 5xx on the token endpoint is a transient
+            # gateway/backend fault (the VW Group Azure infra has been flaky
+            # through the late-May 2026 outage), NOT a credentials problem.
+            # Raising AuthenticationError here wrongly triggered the HA reauth
+            # flow + filed Error-Reporter issues for a server-side blip.
+            # UpstreamUnavailableError is not an AuthenticationError, so the
+            # coordinator tolerates it (entities stay available via the
+            # failure-tolerance window) and retries next poll instead of
+            # prompting for re-login.
+            if resp.status in _TRANSIENT_TOKEN_STATUSES:
+                raise UpstreamUnavailableError(resp.status, self._brand.name)
             if resp.status != 200:
                 raise AuthenticationError(f"Token refresh returned HTTP {resp.status}")
             payload: dict[str, Any] = await resp.json()
@@ -1315,6 +1332,9 @@ class IDKAuth:
         ) as resp:
             if resp.status == 400:
                 raise TokenExpiredError("Škoda refresh token rejected.")
+            # v2.12.4 (#438) — transient 5xx → upstream-unavailable, not auth.
+            if resp.status in _TRANSIENT_TOKEN_STATUSES:
+                raise UpstreamUnavailableError(resp.status, self._brand.name)
             if resp.status != 200:
                 raise AuthenticationError(f"Škoda token refresh HTTP {resp.status}")
             payload: dict[str, Any] = await resp.json()

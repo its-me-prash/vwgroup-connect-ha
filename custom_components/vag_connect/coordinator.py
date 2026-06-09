@@ -1054,18 +1054,36 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         # gets logged in the ring buffer with masked context so
                         # users can 1-click report it. Wrapped in try/except —
                         # error reporting must NEVER raise.
-                        try:
-                            record_error(
-                                self.error_buffer,
-                                exception=result,
-                                brand=self.entry.data.get(CONF_BRAND, ""),
-                                vin=vin,
-                                model_year=self.vehicles.get(vin, {}).get("model_year"),
-                                firmware=self.vehicles.get(vin, {}).get("firmware_version"),
-                                endpoint="get_status",
-                            )
-                        except Exception:  # noqa: BLE001
-                            pass
+                        # v2.12.4 (#438) — but DON'T escalate a transient
+                        # VW-backend 5xx (token-endpoint UpstreamUnavailableError,
+                        # or a data endpoint that exhausted its 5xx retries) to
+                        # the Error Reporter. It's not our bug and not actionable;
+                        # this is what spammed #435-#439 during the late-May
+                        # outage. The vehicle still keeps its last-known data
+                        # (above) and recovers on the next poll.
+                        from .cariad.exceptions import (  # noqa: PLC0415
+                            APIError,
+                            UpstreamUnavailableError,
+                        )
+                        is_transient_upstream = isinstance(
+                            result, UpstreamUnavailableError
+                        ) or (
+                            isinstance(result, APIError)
+                            and getattr(result, "status", 0) >= 500
+                        )
+                        if not is_transient_upstream:
+                            try:
+                                record_error(
+                                    self.error_buffer,
+                                    exception=result,
+                                    brand=self.entry.data.get(CONF_BRAND, ""),
+                                    vin=vin,
+                                    model_year=self.vehicles.get(vin, {}).get("model_year"),
+                                    firmware=self.vehicles.get(vin, {}).get("firmware_version"),
+                                    endpoint="get_status",
+                                )
+                            except Exception:  # noqa: BLE001
+                                pass
                     elif isinstance(result, VehicleData):
                         # v1.10.1 (#58 Phase 2) — wrap to_dict + _enrich
                         # in their own try/except. A single VehicleData
@@ -1223,25 +1241,43 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             except Exception as err:  # noqa: BLE001
                 # Auth failure that survived the client's refresh-then-relogin
                 # fallback means the credentials are stale. Trigger HA reauth.
-                from .cariad.exceptions import AuthenticationError  # noqa: PLC0415
+                from .cariad.exceptions import (  # noqa: PLC0415
+                    APIError,
+                    AuthenticationError,
+                    UpstreamUnavailableError,
+                )
                 if isinstance(err, AuthenticationError):
                     self._trigger_reauth(str(err) or type(err).__name__)
                     await self._async_push_update({}, success=False)
                     return
-                _LOGGER.error("VAG Connect poll error: %s", err)
-                # v1.9.0 — Error Reporter: outer poll-loop crash gets a
-                # buffer entry too. Critical because these are the kind of
-                # errors users hit and never know about (silent except).
-                try:
-                    record_error(
-                        self.error_buffer,
-                        exception=err,
-                        brand=self.entry.data.get(CONF_BRAND, ""),
-                        endpoint="poll_loop",
+                # v2.12.4 (#438) — a transient VW-backend 5xx that escaped the
+                # per-VIN handler (UpstreamUnavailableError, or a 5xx APIError)
+                # is logged but NOT escalated to the Error Reporter: it's a
+                # server-side outage symptom, not our bug, and escalating it
+                # spammed #435-#439. Entities stay available via the
+                # failure-tolerance window below.
+                is_transient_upstream = isinstance(err, UpstreamUnavailableError) or (
+                    isinstance(err, APIError) and getattr(err, "status", 0) >= 500
+                )
+                if is_transient_upstream:
+                    _LOGGER.warning(
+                        "VAG Connect: VW backend temporarily unavailable — %s", err
                     )
-                    self._refresh_reporter_issues()
-                except Exception:  # noqa: BLE001
-                    pass
+                else:
+                    _LOGGER.error("VAG Connect poll error: %s", err)
+                    # v1.9.0 — Error Reporter: outer poll-loop crash gets a
+                    # buffer entry too. Critical because these are the kind of
+                    # errors users hit and never know about (silent except).
+                    try:
+                        record_error(
+                            self.error_buffer,
+                            exception=err,
+                            brand=self.entry.data.get(CONF_BRAND, ""),
+                            endpoint="poll_loop",
+                        )
+                        self._refresh_reporter_issues()
+                    except Exception:  # noqa: BLE001
+                        pass
                 if not hasattr(self, "vehicle_success"):
                     self.vehicle_success = {}
                 if not hasattr(self, "vehicle_failure_count"):
