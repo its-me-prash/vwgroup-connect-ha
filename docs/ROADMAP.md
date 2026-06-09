@@ -1,6 +1,6 @@
 # Roadmap
 
-Living plan for VW Group Connect. Phased by release. Updated 2026-06-07.
+Living plan for VW Group Connect. Phased by release. Updated 2026-06-09.
 
 This is internal planning, not a promise — items move between phases as
 upstream backends change and as live-test feedback arrives. Tracker issues
@@ -8,8 +8,12 @@ are referenced by number.
 
 ## Where we are
 
-- **Stable:** v2.11.4
-- **In validation:** v2.12.0 (EU Data Act portal connector for VW EU, beta)
+- **Stable:** v2.12.4
+- **VW EU Data Act portal:** connector shipped (beta, read-only). Currently
+  riding out the VW-side all-brands portal outage that started late May
+  2026 — login + entities work, but telemetry only flows when VW's backend
+  is up. v2.12.4 makes the integration treat that outage as transient
+  instead of an auth failure.
 
 ## Auth paths by brand (2026-06-07)
 
@@ -32,27 +36,36 @@ brands can fall back to if their token routes close later.
 
 ## Phases
 
-### v2.12.0 — shipping (in validation)
-- EU Data Act portal connector for VW EU (cookie login + ZIP delivery →
-  curated VehicleData mapping). Read-only, beta.
-- `/login/login/` duplicate-segment guard in the portal login.
-- Škoda trip overall-cost (total / fuel / electricity / cng + currency).
-- Future-dated `carCapturedTimestamp` guard (all brands).
-- Scout `EXPECTED_KEYS` cross-brand cleanup. Closes the scout reports on
-  #411, #414, #415, #416, #417, #419.
-- `LEGAL.md` (statutory basis + attribution).
+### Shipped (v2.12.0 → v2.12.4)
+- **v2.12.0** — EU Data Act portal connector for VW EU (cookie login + ZIP
+  delivery → curated VehicleData mapping, read-only beta);
+  `/login/login/` duplicate-segment guard; Škoda trip overall-cost;
+  future-dated `carCapturedTimestamp` guard (all brands); Scout
+  `EXPECTED_KEYS` cross-brand cleanup; `LEGAL.md`.
+- **v2.12.1** — portal session re-established on every restart (#393);
+  metadata 404/500 treated as "no data yet", not an error (#393, #424);
+  Audi scout depth for charging timers/profiles (#423).
+- **v2.12.2** — "no vehicle data" repair notice when the portal logs in but
+  returns nothing (points at the VW outage / missing data request), 8 langs.
+- **v2.12.3** — complete translations across all 8 languages (no more
+  English fallback for non-EN users).
+- **v2.12.4** — outage resilience: a transient VW-backend 5xx (portal HTTP
+  500, CARIAD token-endpoint 502) is treated as "temporarily unavailable"
+  instead of an auth failure, so it no longer triggers a reauth prompt or
+  spams the Error Reporter (#428–#439). Entities keep their last value
+  through the failure-tolerance window.
 
-Scope is frozen — no further additions before tag; remaining backlog needs
-either a DEBUG log or a live tester, so it belongs in later phases.
-
-### v2.12.1 — next (verified, post-validation)
-- CUPRA Formentor PHEV field mapping: fuel level, combustion/total range,
-  primary/secondary engine values, target/outside temperature, permissions,
-  trip stats. **Blocked on a DEBUG log** (raw mycar + climatisation
+### Next (verified backlog)
+- **CUPRA Formentor PHEV field mapping** — fuel level, combustion/total
+  range, primary/secondary engine, target/outside temperature, permissions,
+  trip stats. Still **blocked on a DEBUG log** (raw mycar + climatisation
   response) so the exact PHEV key paths are mapped, not guessed (#392).
-- Portal connector hardening from VW EU live feedback (#388, #393).
-- Portal field coverage — expand beyond the curated ~15 fields toward the
-  fuller EU Data Act dictionary, as live datasets confirm shapes.
+- **Portal bootstrap-merge** — on first run, fetch all available portal
+  datasets and merge the latest value per field for a better cold-start.
+  Deliberately deferred until the VW outage lifts (mid-outage it would only
+  multiply requests against a failing portal).
+- **Portal field coverage** — expand beyond the curated ~15 fields toward
+  the fuller EU Data Act dictionary, as live datasets confirm shapes.
 
 ### v2.13 — mid-term
 - Offer the EU Data Act portal path for other brands as an optional
