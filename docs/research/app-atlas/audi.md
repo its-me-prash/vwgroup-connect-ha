@@ -1,7 +1,7 @@
 # App Atlas — Audi (myAudi)
 
 > **Auto-generated** by `.github/workflows/app-atlas-builder.yml` ·
-> Last refreshed: 2026-06-08
+> Last refreshed: 2026-06-10
 
 ## Identity
 
