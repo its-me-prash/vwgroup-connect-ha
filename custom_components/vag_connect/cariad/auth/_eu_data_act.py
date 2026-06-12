@@ -376,6 +376,7 @@ class EUDataActConnector:
         brand: str = "volkswagen",
         country: str = "de",
         language: str = "de",
+        access_token: str | None = None,
     ) -> None:
         self._session = session
         cfg = _EUDA_BRANDS.get(brand.lower())
@@ -399,9 +400,31 @@ class EUDataActConnector:
         #                  VW-side portal outage at the metadata layer)
         #   "empty"      → request exists but the portal delivered no dataset
         self.last_no_data_reason: str = ""
+        # v2.13.0 — device-code/QR Bearer mode. When set, every proxy_api call
+        # authenticates via ``Authorization: Bearer <token>`` (the device-grant
+        # access_token, aud=portal client) instead of the cookie-scrape session,
+        # and login() becomes a no-op. None → legacy cookie mode (unchanged).
+        self._bearer: str | None = access_token
+
+    def set_bearer(self, token: str) -> None:
+        """Inject / refresh the device-grant access_token for Bearer mode.
+
+        Switches the connector to header auth and marks it logged-in without a
+        cookie-scrape login(). Called on auth and after every token refresh so
+        the long-lived connector never carries a stale bearer (which would 401
+        mid-poll)."""
+        self._bearer = token
+        self.logged_in = True
 
     async def login(self, email: str, password: str) -> None:
-        """Run the OIDC code-flow login; portal backend sets cookies."""
+        """Run the OIDC code-flow login; portal backend sets cookies.
+
+        v2.13.0 — in device-code Bearer mode (``self._bearer`` set) this is a
+        no-op: the device-grant already minted the token, so there is no SPA
+        scrape to run (this is what retires the #388/#393 fragility)."""
+        if self._bearer:
+            self.logged_in = True
+            return
         headers = {"User-Agent": _USER_AGENT}
 
         # 0. Prime portal session cookies (AEM load-balancer state).
@@ -511,8 +534,14 @@ class EUDataActConnector:
         request hasn't been enabled / hasn't propagated yet (#393, #424) —
         that's an expected transient, not a hard error.
         """
+        # v2.13.0 — Bearer mode: attach the device-grant token. Covers every
+        # JSON proxy_api call (vehicles list, metadata, datadelivery list,
+        # relation) since they all funnel through here. No-op in cookie mode.
+        eff_headers = dict(headers or {})
+        if self._bearer:
+            eff_headers["Authorization"] = f"Bearer {self._bearer}"
         async with self._session.get(
-            url, headers=headers, timeout=ClientTimeout(total=_TIMEOUT_S),
+            url, headers=eff_headers, timeout=ClientTimeout(total=_TIMEOUT_S),
         ) as resp:
             if resp.status >= 400:
                 if soft and resp.status in _TRANSIENT_STATUSES:
@@ -604,10 +633,15 @@ class EUDataActConnector:
             _LOGGER.debug("EU Data Act portal: no dataset files for %s yet", vin[-6:])
             return d
         newest = names[-1]
-        # 3. download ZIP → JSON
+        # 3. download ZIP → JSON. This GET bypasses _get_json, so the Bearer
+        # header (v2.13.0) must be merged in separately without clobbering the
+        # filename/type headers the download endpoint requires.
+        dl_headers = {"filename": newest, "type": "partial"}
+        if self._bearer:
+            dl_headers["Authorization"] = f"Bearer {self._bearer}"
         async with self._session.get(
             f"{_PORTAL_BASE}{_DOWNLOAD_PATH.format(vin=vin, identifier=identifier)}",
-            headers={"filename": newest, "type": "partial"},
+            headers=dl_headers,
             timeout=ClientTimeout(total=_TIMEOUT_S),
         ) as resp:
             if resp.status in _TRANSIENT_STATUSES:
