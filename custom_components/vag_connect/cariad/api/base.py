@@ -430,6 +430,21 @@ class CariadBaseClient:
                 tokens.expires_at,
                 tokens.strategy or "(legacy)",
             )
+            # v2.13.0 — device-code/QR portal entries carry a REAL bearer for
+            # the EU-Data-Act proxy_api (not the BFF). Build the portal
+            # connector in Bearer mode now so the first poll — at setup AND
+            # after a restart (this is the single central token-load point for
+            # both) — routes to the portal, not the dead BFF. _refresh_tokens
+            # re-injects a fresh bearer on expiry.
+            if tokens.strategy == "device_grant_portal":
+                from ..auth._eu_data_act import (  # noqa: PLC0415
+                    EUDataActConnector,
+                )
+
+                self._eu_portal = EUDataActConnector(
+                    self._session, brand=self._brand.name,
+                    access_token=tokens.access_token,
+                )
             if tokens.auth_cookies and hasattr(
                 self._auth, "hydrate_session_cookies"
             ):
@@ -913,6 +928,35 @@ class CariadBaseClient:
                     "Token refresh storm — please reauthenticate"
                 )
             self._refresh_history.append(now)
+
+            # v2.13.0 — device-code/QR portal tokens refresh at the IDP token
+            # endpoint as a PUBLIC client, NOT via self._auth.refresh() (which
+            # routes VW to the dead CARIAD BFF). Re-inject the fresh bearer into
+            # the live portal connector so it never 401s mid-poll. If the IDP
+            # rejects the refresh (the one unverified runtime assumption), the
+            # error propagates → the coordinator triggers a QR reauth prompt.
+            if (
+                self._tokens
+                and self._tokens.strategy == "device_grant_portal"
+                and self._tokens.refresh_token
+            ):
+                from ..auth._device_grant import (  # noqa: PLC0415
+                    DeviceAuthorizationGrant,
+                    portal_dag_config,
+                )
+
+                pc = portal_dag_config(self._brand.name)
+                if pc is not None:
+                    client_id, scope = pc
+                    grant = DeviceAuthorizationGrant(
+                        self._session, client_id, scope=scope,
+                        strategy="device_grant_portal",
+                    )
+                    self._tokens = await grant.refresh(self._tokens.refresh_token)
+                    if getattr(self, "_eu_portal", None) is not None:
+                        self._eu_portal.set_bearer(self._tokens.access_token)
+                    await self._notify_tokens_changed()
+                    return
 
             if self._tokens and self._tokens.refresh_token:
                 try:

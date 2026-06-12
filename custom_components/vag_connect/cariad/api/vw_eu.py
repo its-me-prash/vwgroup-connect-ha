@@ -114,7 +114,13 @@ class VWEUClient(CariadBaseClient):
             try:
                 vins = await portal.list_vehicle_vins()
             except AuthenticationError:
-                await portal.login(self._email, self._password)
+                # v2.13.0 — device-code/QR entries store no password; a 401
+                # means the bearer expired → refresh it (re-injects a fresh
+                # token into the connector). Legacy cookie entries re-scrape.
+                if self._tokens and self._tokens.strategy == "device_grant_portal":
+                    await self._refresh_tokens()
+                else:
+                    await portal.login(self._email, self._password)
                 vins = await portal.list_vehicle_vins()
             # Best-effort nickname enrichment from the relation endpoint.
             self._vehicle_metadata: dict[str, dict[str, Any]] = {}
@@ -344,7 +350,12 @@ class VWEUClient(CariadBaseClient):
             try:
                 data: VehicleData = await portal.get_vehicle_data(vin)
             except AuthenticationError:
-                await portal.login(self._email, self._password)
+                # v2.13.0 — device-code/QR: refresh bearer (no stored password);
+                # legacy cookie entries re-scrape via login().
+                if self._tokens and self._tokens.strategy == "device_grant_portal":
+                    await self._refresh_tokens()
+                else:
+                    await portal.login(self._email, self._password)
                 data = await portal.get_vehicle_data(vin)
             return data
         # v2.1.0 — per-VIN base URL via HomeRegion lookup.
