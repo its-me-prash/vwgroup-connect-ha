@@ -228,6 +228,44 @@ def _login_error(html: str) -> str | None:
 
 # ── Dataset parsing + curated field mapping ────────────────────────────────
 
+# v2.13.0 (P1) — timestamp keys carried alongside a datapoint/report node.
+_TS_KEYS = (
+    "capturedAt", "carCapturedTimestamp", "timestamp", "recordedAt",
+    "lastUpdated", "ts", "time", "datetime",
+)
+
+
+def _parse_ts(value: Any) -> float | None:
+    """Best-effort timestamp → comparable float (epoch seconds). Never raises.
+
+    Handles epoch seconds, epoch milliseconds (heuristic: > 1e12 → ms) and
+    ISO-8601 strings. Unparseable → None (caller falls back to array order).
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        f = float(value)
+        return f / 1000.0 if f > 1e12 else f
+    if isinstance(value, str):
+        s = value.strip()
+        if not s:
+            return None
+        try:
+            f = float(s)
+            return f / 1000.0 if f > 1e12 else f
+        except ValueError:
+            pass
+        try:
+            from datetime import datetime  # noqa: PLC0415
+
+            return datetime.fromisoformat(s.replace("Z", "+00:00")).timestamp()
+        except (ValueError, TypeError):
+            return None
+    return None
+
+
 def _walk_fields(payload: Any) -> dict[str, str]:
     """Flatten the EU Data Act dataset into ``{field_name: value}``.
 
@@ -235,36 +273,59 @@ def _walk_fields(payload: Any) -> dict[str, str]:
     (flat eGolf vs structured MEB). We walk it defensively, collecting any
     node that carries a recognizable ``dataFieldName``/``name``+``value``
     pair, plus dotted-path fallbacks for nested ``{report: {field: v}}``
-    shapes. Robust to wrapper differences.
+    shapes.
+
+    v2.13.0 (P1) — LATEST-WINS. The portal ships an unordered event-log, so
+    the same field can appear at several timestamps; the old first-wins
+    ``setdefault`` picked an arbitrary (often oldest) value, which is why SoC /
+    odometer jumped around for everyone on the portal. We now keep, per field,
+    the candidate with the highest parsed timestamp (read from a sibling
+    ``_TS_KEYS`` key on the same node); ties / missing timestamps fall back to
+    last-in-array (still better than first). Single-occurrence datasets are
+    unaffected, so existing shape tests stay green.
     """
-    out: dict[str, str] = {}
+    # name -> (value_str, ts) where ts is float (-inf when unknown)
+    best: dict[str, tuple[str, float]] = {}
 
-    def add(name: Any, value: Any) -> None:
-        if isinstance(name, str) and name and value is not None:
-            if isinstance(value, (str, int, float, bool)):
-                out.setdefault(name, str(value))
+    def add(name: Any, value: Any, ts: float | None) -> None:
+        if not (isinstance(name, str) and name and value is not None):
+            return
+        if not isinstance(value, (str, int, float, bool)):
+            return
+        cand = ts if ts is not None else float("-inf")
+        prev = best.get(name)
+        # latest-wins; >= so a later array entry replaces an equal/unknown ts.
+        if prev is None or cand >= prev[1]:
+            best[name] = (str(value), cand)
 
-    def walk(node: Any, prefix: str = "") -> None:
+    def walk(node: Any, prefix: str = "", node_ts: float | None = None) -> None:
         if isinstance(node, dict):
+            ts = node_ts
+            for tk in _TS_KEYS:
+                if tk in node:
+                    parsed = _parse_ts(node[tk])
+                    if parsed is not None:
+                        ts = parsed
+                        break
             # data-point shape: {dataFieldName|name: X, value: Y}
             fname = node.get("dataFieldName") or node.get("name")
             if fname is not None and "value" in node:
-                add(fname, node.get("value"))
+                add(fname, node.get("value"), ts)
             for k, val in node.items():
                 if k in ("dataFieldName", "name", "value"):
                     continue
                 key = f"{prefix}.{k}" if prefix else str(k)
                 if isinstance(val, (str, int, float, bool)):
-                    add(key, val)
-                    add(str(k), val)
+                    add(key, val, ts)
+                    add(str(k), val, ts)
                 else:
-                    walk(val, key)
+                    walk(val, key, ts)
         elif isinstance(node, list):
             for item in node:
-                walk(item, prefix)
+                walk(item, prefix, node_ts)
 
     walk(payload)
-    return out
+    return {k: v[0] for k, v in best.items()}
 
 
 def _to_float(raw: str | None) -> float | None:
@@ -664,6 +725,12 @@ class EUDataActConnector:
         _LOGGER.debug(
             "EU Data Act portal: %s dataset carried %d fields", vin[-6:], len(fields)
         )
+        # v2.13.0 (P1) — an empty/no-content ZIP (now returned as {} instead of
+        # raising) means no data this poll: flag it so the no-data notice fires,
+        # and do NOT mark the vehicle online with a blank dataset.
+        if not fields:
+            self.last_no_data_reason = "empty"
+            return d
         self.last_no_data_reason = ""
         d.connection_state = "online"
         return map_dataset_to_vehicle_data(fields, d)
@@ -684,15 +751,24 @@ class EUDataActConnector:
 
 
 def _unzip_json(raw: bytes, name: str) -> dict[str, Any]:
+    """Extract the JSON dataset from a portal ZIP, or ``{}`` if there is none.
+
+    v2.13.0 (P1) — a 200 that returns an empty / no-content / corrupt ZIP is
+    "no data this poll", NOT an authentication failure. Returning ``{}`` lets
+    ``get_vehicle_data`` record ``last_no_data_reason="empty"`` instead of
+    raising ``AuthenticationError``, which used to burn the session on a
+    pointless re-login. The genuine auth decision is made by HTTP status at the
+    call sites (401/403 → raise), never by ZIP-parse outcome.
+    """
+    if name.endswith(_NO_CONTENT_SUFFIX):
+        return {}
     try:
         with zipfile.ZipFile(io.BytesIO(raw)) as zf:
             members = [n for n in zf.namelist() if n.lower().endswith(".json")]
             if not members:
-                raise AuthenticationError(f"EU Data Act portal: no JSON in {name}")
+                return {}
             with zf.open(members[0]) as fh:
                 parsed = json.loads(fh.read().decode("utf-8"))
             return parsed if isinstance(parsed, dict) else {}
-    except (zipfile.BadZipFile, ValueError) as err:
-        raise AuthenticationError(
-            f"EU Data Act portal: could not read {name}: {err}"
-        ) from err
+    except (zipfile.BadZipFile, ValueError, KeyError, OSError):
+        return {}

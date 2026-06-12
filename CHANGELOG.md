@@ -46,6 +46,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Fixed
 
+- **Jumping SoC / odometer on the EU Data Act portal.** The portal ships an unordered event-log, and we were keeping the first value we happened to see for each field (often the oldest), so battery level and mileage bounced around. We now keep the newest value per field by timestamp — the same data-quality problem the whole portal ecosystem hit. Empty / no-content / corrupt portal ZIPs are also handled as "no data this poll" instead of being mistaken for a login failure (which used to trigger a pointless re-login).
 - **Audi scout noise on deeper charging timer/profile fields** (#446, #448). The selectivestatus backend started nesting `chargingTimers` / `chargingProfiles` one level deeper (4 segments, e.g. `…Status.value.timers`); registered the deeper wildcards so the Vehicle Data Scout stops re-flagging fields we already read.
 
 ### Changed
