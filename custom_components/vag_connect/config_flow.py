@@ -293,11 +293,11 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             step_id="user",
             menu_options={
                 "browser_login": (
-                    "Browser-Login — Audi / Škoda / SEAT / CUPRA "
-                    "(empfohlen, kein Passwort in HA)"
+                    "Browser-Login (QR) — Audi / Škoda / SEAT / CUPRA / "
+                    "Volkswagen EU (empfohlen, kein Passwort in HA)"
                 ),
                 "email_password": (
-                    "E-Mail + Passwort — Volkswagen EU / Porsche (Legacy)"
+                    "E-Mail + Passwort — Volkswagen EU (Fallback) / Porsche"
                 ),
             },
         )
@@ -372,13 +372,21 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         Submits → we start the background DAG task and transition to the
         pending step (which shows progress + verification URL).
         """
-        from .cariad.auth._device_grant import DAG_ENABLED_BRANDS  # noqa: PLC0415
+        from .cariad.auth._device_grant import (  # noqa: PLC0415
+            DAG_ENABLED_BRANDS,
+            PORTAL_DAG_BRANDS,
+        )
+
+        # v2.13.0 — browser-login (device-code/QR) now also covers the
+        # EU-Data-Act PORTAL brands (VW EU + the CUPRA/SEAT reserve), not just
+        # the CARIAD-BFF DAG brands.
+        eligible_dag_brands = DAG_ENABLED_BRANDS | PORTAL_DAG_BRANDS
 
         errors: dict[str, str] = {}
 
         if user_input is not None:
             brand = user_input[CONF_BRAND]
-            if brand not in DAG_ENABLED_BRANDS:
+            if brand not in eligible_dag_brands:
                 # Defence in depth — the form should have filtered these
                 # out already, but the user could send a crafted payload.
                 errors["base"] = "brand_not_dag_eligible"
@@ -399,7 +407,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         # DAG-eligible brand options only (subset of the standard list).
         dag_brand_options: list[SelectOptionDict] = [
             opt for opt in _BRAND_OPTIONS
-            if opt["value"] in DAG_ENABLED_BRANDS
+            if opt["value"] in eligible_dag_brands
         ]
         dag_brand_selector = SelectSelector(
             SelectSelectorConfig(
@@ -676,12 +684,32 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 cookie_jar=aiohttp.CookieJar(unsafe=True),
             )
             from .cariad.models import BRANDS as BRAND_CONFIGS  # noqa: PLC0415
+            from .cariad.auth._device_grant import (  # noqa: PLC0415
+                is_portal_dag_eligible,
+                portal_dag_config,
+            )
 
-            brand_cfg = BRAND_CONFIGS[self._dag_brand]
+            # v2.13.0 — portal brands (VW EU + CUPRA/SEAT reserve) mint the
+            # EU-Data-Act PORTAL client token tagged device_grant_portal, so it
+            # routes to the read-only proxy_api (Bearer) rather than the dead
+            # BFF. Other DAG brands keep the app client + device_grant tag.
+            pc = (
+                portal_dag_config(self._dag_brand)
+                if is_portal_dag_eligible(self._dag_brand)
+                else None
+            )
+            if pc is not None:
+                client_id, scope = pc
+                self._dag_strategy = "device_grant_portal"
+            else:
+                brand_cfg = BRAND_CONFIGS[self._dag_brand]
+                client_id, scope = brand_cfg.client_id, brand_cfg.scope
+                self._dag_strategy = "device_grant"
             self._dag_client = DeviceAuthorizationGrant(
                 self._dag_session,
-                brand_cfg.client_id,
-                scope=brand_cfg.scope,
+                client_id,
+                scope=scope,
+                strategy=self._dag_strategy,
             )
             code = await self._dag_client.request_device_code()
             self._dag_device_code = code.device_code
@@ -773,7 +801,10 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             "refresh_token": self._dag_tokens.refresh_token,
             "id_token": self._dag_tokens.id_token,
             "expires_at": self._dag_tokens.expires_at,
-            "strategy": "device_grant",
+            # v2.13.0 — carry the chosen strategy so portal brands (VW EU +
+            # CUPRA/SEAT) are tagged device_grant_portal and routed to the
+            # read-only proxy_api, not the BFF.
+            "strategy": getattr(self, "_dag_strategy", "device_grant"),
         }
         return self.async_create_entry(
             title=f"{BRANDS[self._dag_brand]} — {self._dag_user_id[:8]}…",
