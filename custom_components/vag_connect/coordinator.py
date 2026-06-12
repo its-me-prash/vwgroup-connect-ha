@@ -868,10 +868,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
         tokens = getattr(self._cariad_client, "_tokens", None)
         active_strategy = getattr(tokens, "strategy", "") if tokens else ""
-        if active_strategy != "data_act_portal":
+        # v2.13.0 — device-code/QR portal entries (device_grant_portal) use the
+        # same EU-Data-Act portal proxy_api, so they need the continuous
+        # data-request kickoff too, not just the cookie data_act_portal path.
+        if active_strategy not in ("data_act_portal", "device_grant_portal"):
             _LOGGER.debug(
-                "Data Act kickoff: skipped (active strategy is %r, not "
-                "data_act_portal)", active_strategy,
+                "Data Act kickoff: skipped (active strategy is %r, not a "
+                "portal strategy)", active_strategy,
             )
             return
 
@@ -1889,9 +1892,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 return False
             tokens = getattr(client, "_tokens", None)
             strategy = getattr(tokens, "strategy", "") if tokens else ""
-            # Hybrid_full / data_act_portal / device_grant all flow
+            # Hybrid_full / data_act_portal / device_grant(_portal) all flow
             # through the browser-based DAG/IDP path (v2.6.0+).
-            return strategy in ("hybrid_full", "data_act_portal", "device_grant")
+            return strategy in (
+                "hybrid_full", "data_act_portal", "device_grant",
+                "device_grant_portal",
+            )
 
         # Vehicle-data capabilities: scan VINs for a non-None field.
         fields = self._CAPABILITY_FIELD_MAP.get(capability)
@@ -3242,10 +3248,22 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         entities. Service calls that would send commands raise
         ServiceValidationError before reaching the API.
 
-        Lookup order: options (Options Flow) > data (initial config) >
-        False default. Pattern matches the existing reverse-geocoding
-        opt-in (v1.8.0).
+        Lookup order: portal strategy (structural) > options (Options Flow) >
+        data (initial config) > False default. Pattern matches the existing
+        reverse-geocoding opt-in (v1.8.0).
+
+        v2.13.0 — the EU-Data-Act portal strategies (cookie ``data_act_portal``
+        and device-code ``device_grant_portal``) are STRUCTURALLY read-only:
+        their token is rejected by the command BFF (403 "clientId not
+        whitelisted"), so command entities could only ever fail. Force
+        read-only for them regardless of the user toggle, so lock/switch/
+        button/climate/number/time platforms skip creation entirely.
         """
+        client = getattr(self, "_cariad_client", None)
+        tokens = getattr(client, "_tokens", None) if client else None
+        strategy = getattr(tokens, "strategy", "") if tokens else ""
+        if strategy in ("data_act_portal", "device_grant_portal"):
+            return True
         options = getattr(self.entry, "options", None) or {}
         data = getattr(self.entry, "data", None) or {}
         return (
