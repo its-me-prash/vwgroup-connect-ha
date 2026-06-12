@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Skonfiguruj VW Group Connect",
-        "description": "Połącz swój pojazd z Home Assistant.\n\nWybierz markę i wprowadź dane logowania z aplikacji producenta.",
+        "description": "Jak chcesz się zalogować?\n\n**Logowanie przez przeglądarkę / QR (zalecane)** — otwórz adres URL (lub zeskanuj kod QR) na telefonie albo laptopie, zaloguj się na konto Brand ID, zatwierdź urządzenie. W Home Assistant nie jest przechowywane żadne hasło. Dostępne dla Audi, Škoda, SEAT, CUPRA i Volkswagen EU (portal EU Data Act tylko do odczytu).\n\n**E-mail + hasło (starsze)** — wprowadź dane logowania Brand ID bezpośrednio. Nadal dostępne jako rezerwa dla Volkswagen EU; wymagane dla Porsche.",
         "data": {
           "brand": "Marka pojazdu",
           "username": "Adres e-mail",
@@ -85,7 +85,7 @@
           "force_enable_access": "Force Door Status"
         },
         "data_description": {
-          "brand": "Wyświetlane są tylko marki obsługujące logowanie przez przeglądarkę. Dla Volkswagen EU i Porsche użyj 'E-mail + hasło'.",
+          "brand": "Marki obsługujące logowanie przez przeglądarkę (QR) — teraz także Volkswagen EU (tylko do odczytu). Dla Porsche użyj 'E-mail + hasło'.",
           "force_enable_access": "Wymuś encje stanu drzwi, nawet gdy pojazd zgłasza brak danych.",
           "scan_interval": "Minuty między odpytaniami danych pojazdu.",
           "spin": "Opcjonalny 4-cyfrowy PIN bezpieczeństwa do akcji zdalnych (blokowanie, odblokowanie, klimatyzacja)."

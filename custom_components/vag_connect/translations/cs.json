@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Nastavit VW Group Connect",
-        "description": "Připojte své vozidlo k Home Assistant.\n\nVyberte značku a zadejte přihlašovací údaje z aplikace výrobce.",
+        "description": "Jak se chcete přihlásit?\n\n**Přihlášení přes prohlížeč / QR (doporučeno)** — otevřete URL (nebo naskenujte QR) na telefonu či notebooku, přihlaste se k účtu Brand ID, potvrďte zařízení. V Home Assistantu se nikdy neukládá žádné heslo. Dostupné pro Audi, Škoda, SEAT, CUPRA a Volkswagen EU (portál EU Data Act pouze pro čtení).\n\n**E-mail + heslo (starší)** — zadejte přihlašovací údaje Brand ID přímo. Stále dostupné jako záloha pro Volkswagen EU; nutné pro Porsche.",
         "data": {
           "brand": "Značka vozidla",
           "username": "E-mailová adresa",
@@ -85,7 +85,7 @@
           "force_enable_access": "Force Door Status"
         },
         "data_description": {
-          "brand": "Zobrazují se pouze značky s podporou přihlášení přes prohlížeč. Pro Volkswagen EU a Porsche použijte „E-mail + heslo“.",
+          "brand": "Značky s přihlášením přes prohlížeč (QR) — nově i Volkswagen EU (pouze pro čtení). Pro Porsche použijte „E-mail + heslo“.",
           "force_enable_access": "Vynutit entity stavu dveří, i když vozidlo hlásí chybějící data.",
           "scan_interval": "Minuty mezi dotazy na data vozidla.",
           "spin": "Volitelný 4místný bezpečnostní PIN pro vzdálené akce (zamknout, odemknout, klimatizace)."
