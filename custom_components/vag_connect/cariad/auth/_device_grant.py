@@ -133,6 +133,7 @@ class DeviceAuthorizationGrant:
         client_id: str,
         *,
         scope: str = "openid profile",
+        strategy: str = "device_grant",
     ) -> None:
         """Initialise with the brand-specific OAuth client_id + scope.
 
@@ -150,6 +151,13 @@ class DeviceAuthorizationGrant:
         self._session = session
         self._client_id = client_id
         self._scope = scope
+        # v2.13.0 — the strategy tag this grant stamps onto its TokenSet.
+        # ``device_grant`` = normal CARIAD-BFF brands (Audi/Škoda/SEAT/CUPRA).
+        # ``device_grant_portal`` = the EU-Data-Act PORTAL clients (VW EU +
+        # CUPRA/SEAT reserve) whose token the BFF rejects but the portal
+        # proxy_api accepts (read-only). The tag routes the token to the
+        # right consumer downstream (see base.py / coordinator).
+        self._strategy = strategy
 
     async def request_device_code(self) -> DeviceCodeResponse:
         """Start the flow — call ``/device_authorization`` once.
@@ -302,7 +310,7 @@ class DeviceAuthorizationGrant:
                     refresh_token=refresh_token,
                     id_token=id_token,
                     expires_at=expires_at,
-                    strategy="device_grant",
+                    strategy=self._strategy,
                 )
 
             err = payload.get("error", "")
@@ -338,6 +346,64 @@ class DeviceAuthorizationGrant:
                 f"Device grant: unexpected /token error {status} "
                 f"({err}): {err_desc}"
             )
+
+    async def refresh(self, refresh_token: str) -> TokenSet:
+        """Refresh a device-grant token at the IDP token endpoint.
+
+        v2.13.0 — public client, no secret: POST ``grant_type=refresh_token``
+        to ``identity.vwgroup.io/oidc/v1/token`` with our ``client_id`` +
+        ``scope``. Mirrors ``poll_for_tokens`` 200-handling and preserves
+        ``self._strategy`` so a refreshed ``device_grant_portal`` token stays
+        portal-tagged. Any non-200 raises ``AuthenticationError`` so the caller
+        can fall back (to a fresh device-code prompt).
+
+        NOTE: the refresh round-trip for the PORTAL client (``9b58543e``) was
+        not live-verified at design time — only mint + proxy_api read were. If
+        the IDP rejects it at runtime, the integration degrades to re-prompting
+        the QR login; no data loss, just a re-auth.
+        """
+        from aiohttp import ClientTimeout  # noqa: PLC0415
+
+        data = {
+            "grant_type": "refresh_token",
+            "client_id": self._client_id,
+            "refresh_token": refresh_token,
+            "scope": self._scope,
+        }
+        try:
+            async with self._session.post(
+                _IDP_TOKEN_URL,
+                data=data,
+                timeout=ClientTimeout(total=_REQUEST_TIMEOUT_S),
+            ) as resp:
+                status = resp.status
+                payload = await resp.json(content_type=None)
+        except AuthenticationError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise AuthenticationError(
+                f"Device grant refresh: request failed ({exc})"
+            ) from exc
+
+        if status != 200:
+            err = payload.get("error", "") if isinstance(payload, dict) else ""
+            raise AuthenticationError(
+                f"Device grant refresh: IDP returned HTTP {status} ({err})"
+            )
+        access_token = payload.get("access_token", "")
+        if not access_token:
+            raise AuthenticationError(
+                "Device grant refresh: 200 but no access_token in payload"
+            )
+        return TokenSet(
+            access_token=access_token,
+            # The IDP may rotate the refresh_token; reuse the old one if it
+            # doesn't return a fresh one.
+            refresh_token=payload.get("refresh_token") or refresh_token,
+            id_token=payload.get("id_token", ""),
+            expires_at=time.time() + int(payload.get("expires_in", 3600)) - 60,
+            strategy=self._strategy,
+        )
 
     async def run(
         self,
@@ -402,3 +468,42 @@ def is_dag_eligible(brand_name: str) -> bool:
     the given brand. Strategy resolver in base.py consults this before
     putting DAG at the head of the chain."""
     return brand_name.lower() in DAG_ENABLED_BRANDS
+
+
+# v2.13.0 — PORTAL device grant. SEPARATE from DAG_ENABLED_BRANDS because the
+# token these brands mint comes from the EU-Data-Act PORTAL client
+# (aud=9b58543e VW / f85e5b69 CUPRA·SEAT) which the CARIAD BFF REJECTS (403
+# "clientId not whitelisted") but the portal proxy_api ACCEPTS (read-only).
+# The VW EU *app* clients above are still DAG-dead; the *portal* client is NOT
+# — it returns a working RFC-8628 flow at /oidc/v1/device_authorization.
+# Live-verified 2026-06-12 (VW, real EU account: device_code → bearer →
+# proxy_api 200). CUPRA/SEAT: device_authorization 200 confirmed; proxy_api
+# Bearer data path UNVERIFIED — armed reserve while the OLA route is
+# server-side blocked (may recover).
+PORTAL_DAG_BRANDS = frozenset({"volkswagen", "cupra", "seat"})
+
+
+def is_portal_dag_eligible(brand_name: str) -> bool:
+    """True for brands whose device grant must use the EU-Data-Act PORTAL
+    client + read-only proxy_api path (NOT the CARIAD-BFF app client)."""
+    return brand_name.lower() in PORTAL_DAG_BRANDS
+
+
+def portal_dag_config(brand_name: str) -> tuple[str, str] | None:
+    """``(client_id, scope)`` for the portal device grant, sourced from the
+    proven ``_EUDA_BRANDS`` table — but ONLY for ``PORTAL_DAG_BRANDS``.
+
+    Returns ``None`` for any other brand. NOTE (v2.13.0 audit): audi/skoda map
+    to the VW client inside ``_EUDA_BRANDS``, so a bare table lookup would
+    wrongly self-gate them into portal mode. The ``PORTAL_DAG_BRANDS`` guard
+    prevents that, so callers may safely gate on
+    ``portal_dag_config(brand) is not None``.
+    """
+    if brand_name.lower() not in PORTAL_DAG_BRANDS:
+        return None
+    from ._eu_data_act import _EUDA_BRANDS  # noqa: PLC0415
+
+    cfg = _EUDA_BRANDS.get(brand_name.lower())
+    if cfg is None:
+        return None
+    return cfg["client_id"], cfg["scope"]
