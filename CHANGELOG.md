@@ -42,7 +42,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Added
 
-- Foundation for VW EU / CUPRA / SEAT **device-code (QR) portal login** (v2.13.0, landing in stages): the device-grant module can now mint and refresh the EU-Data-Act portal-client tokens (`PORTAL_DAG_BRANDS` + the `device_grant_portal` strategy), routed separately from the CARIAD-BFF device-grant so the portal-only token never hits the BFF. Connector Bearer mode, runtime routing and the config-flow QR step land in the same v2.13.0 release.
+- Foundation for VW EU / CUPRA / SEAT **device-code (QR) portal login** (v2.13.0, landing in stages): the device-grant module can now mint and refresh the EU-Data-Act portal-client tokens (`PORTAL_DAG_BRANDS` + the `device_grant_portal` strategy), routed separately from the CARIAD-BFF device-grant so the portal-only token never hits the BFF, and the portal connector now accepts those tokens as an `Authorization: Bearer` (read-only proxy_api) instead of the fragile cookie-scrape. Runtime routing and the config-flow QR step land in the same v2.13.0 release.
 
 ### Fixed
 
