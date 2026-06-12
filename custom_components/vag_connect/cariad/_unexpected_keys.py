@@ -642,6 +642,13 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             "chargingTimers", "chargingTimers.*", "chargingTimers.*.*",
             "charging.chargingTimers", "charging.chargingTimers.*",
             "charging.chargingTimers.*.*",
+            # v2.13.0 (#446 + #448 audi) — the backend nests these ONE LEVEL
+            # DEEPER again: e.g. ``chargingTimers.chargingTimersStatus.value.
+            # timers`` and ``chargingProfiles.chargingProfilesStatus.value.
+            # profiles`` (4 segments). Equal-depth matcher → add 4-deep (and
+            # the charging.-prefixed 5-deep) wildcards for each container.
+            "chargingProfiles.*.*.*", "charging.chargingProfiles.*.*.*",
+            "chargingTimers.*.*.*", "charging.chargingTimers.*.*.*",
             # v2.12.1 (#423) — DC counterpart of the long-parsed
             # autoUnlockPlugWhenChargedAC setting.
             "charging.chargingSettings.value.autoUnlockPlugWhenChargedDC",

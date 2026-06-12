@@ -40,6 +40,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+
+- **Audi scout noise on deeper charging timer/profile fields** (#446, #448). The selectivestatus backend started nesting `chargingTimers` / `chargingProfiles` one level deeper (4 segments, e.g. `…Status.value.timers`); registered the deeper wildcards so the Vehicle Data Scout stops re-flagging fields we already read.
+
 ### Changed
 
 - Housekeeping: removed an orphaned repair-notice translation key (`data_act_wake_needed`) that was superseded by the "no vehicle data" notice and is never shown. No user-facing change.
