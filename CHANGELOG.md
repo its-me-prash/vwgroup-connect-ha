@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [Unreleased]
+
+### Fixed
+
+- **CUPRA, SEAT and Škoda now route their data reads through the EU Data Act portal when the portal fallback is active** — not just their login. Until now, when a brand's native backend went dark (e.g. CUPRA/SEAT's online services getting blocked by VW), the login correctly fell back to the read-only portal, but the very next data poll still hit the dead native endpoint — so you'd get a successful login and then no data. These brands now follow the same portal-routing path VW EU already used, both for the vehicle list and the status read. It's the EU Data Act portal becoming the universal read-only safety net: as VW keeps closing native access brand by brand, each one degrades gracefully to the portal instead of going dark. Non-breaking — the native path is completely unchanged whenever the portal fallback isn't engaged.
+
 ## [2.12.6] - 2026-06-13
 
 An honesty fix for the CUPRA/SEAT repair notice.

@@ -25,7 +25,7 @@ from .._util import (
     workshop_phone_from_contact,
 )
 from .._ola_headers import get_fallback_count, get_ola_headers
-from ..exceptions import APIError, SpinError
+from ..exceptions import APIError, AuthenticationError, SpinError
 from ..models import BRAND_CUPRA, BRAND_SEAT, BrandConfig, VehicleData
 from .base import CariadBaseClient
 
@@ -262,6 +262,24 @@ class SeatCupraClient(CariadBaseClient):
         sensors. The garage response already includes these; we just
         weren't reading them.
         """
+        # v2.12.6 — EU Data Act portal mode (read-only fallback). When the
+        # OLA backend is blocked (CUPRA/SEAT behind VW's 2026-06 device-
+        # attestation wall), the auth resolver retains a portal connector on
+        # ``self._eu_portal``. VIN enumeration must come from the portal too —
+        # otherwise the login falls back but the next poll still hits the dead
+        # OLA garage and the entry ends with "no vehicles" (the same gap VW EU
+        # closed for itself in #388).
+        portal = getattr(self, "_eu_portal", None)
+        if portal is not None:
+            try:
+                portal_vins: list[str] = await portal.list_vehicle_vins()
+            except AuthenticationError:
+                if self._tokens and self._tokens.strategy == "device_grant_portal":
+                    await self._refresh_tokens()
+                else:
+                    await portal.login(self._email, self._password)
+                portal_vins = await portal.list_vehicle_vins()
+            return portal_vins
         if not self._user_id:
             await self._fetch_user_id()
         data = await self._get(f"{_BASE}/v2/users/{self._user_id}/garage/vehicles")
@@ -439,6 +457,20 @@ class SeatCupraClient(CariadBaseClient):
 
     async def get_status(self, vin: str) -> VehicleData:
         """Fetch full status from OLA server."""
+        # v2.12.6 — EU Data Act portal mode (read-only fallback). Route the
+        # whole status read through the portal connector on ``self._eu_portal``
+        # when the OLA backend is blocked (same pattern as VW EU).
+        portal = getattr(self, "_eu_portal", None)
+        if portal is not None:
+            try:
+                data: VehicleData = await portal.get_vehicle_data(vin)
+            except AuthenticationError:
+                if self._tokens and self._tokens.strategy == "device_grant_portal":
+                    await self._refresh_tokens()
+                else:
+                    await portal.login(self._email, self._password)
+                data = await portal.get_vehicle_data(vin)
+            return data
         v = self._val
         d = VehicleData(vin=vin)
 
