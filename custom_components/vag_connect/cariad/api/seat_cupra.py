@@ -280,9 +280,26 @@ class SeatCupraClient(CariadBaseClient):
                     await portal.login(self._email, self._password)
                 portal_vins = await portal.list_vehicle_vins()
             return portal_vins
-        if not self._user_id:
-            await self._fetch_user_id()
-        data = await self._get(f"{_BASE}/v2/users/{self._user_id}/garage/vehicles")
+        try:
+            if not self._user_id:
+                await self._fetch_user_id()
+            data = await self._get(f"{_BASE}/v2/users/{self._user_id}/garage/vehicles")
+        except APIError as exc:
+            # v2.12.7 — the native OLA backend is blocked (VW's device-
+            # attestation wall returns 403 even though the IDP login
+            # succeeded, so the login-time portal fallback never armed).
+            # Arm the read-only EU Data Act portal now and serve VINs from
+            # there instead of leaving the entry stuck with "no vehicles".
+            if exc.status != 403:
+                raise
+            _LOGGER.warning(
+                "%s OLA garage blocked (403) despite a valid login — arming "
+                "the read-only EU Data Act portal fallback.",
+                self._brand.name.upper(),
+            )
+            await self._arm_eu_portal()
+            armed_vins: list[str] = await self._eu_portal.list_vehicle_vins()
+            return armed_vins
         vehicles: list[dict[str, Any]] = data.get("vehicles", [])
         vins = []
         for vehicle in vehicles:
