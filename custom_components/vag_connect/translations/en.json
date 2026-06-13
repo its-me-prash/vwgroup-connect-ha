@@ -955,8 +955,8 @@
       "title": "EU Data Act portal session expired - reauthenticate"
     },
     "ola_headers_outdated": {
-      "description": "VW Group's OLA backend (the SEAT/CUPRA server) has rejected **{count}** requests in a row with HTTP 403 Forbidden — even after we tried all built-in fallback header-sets.\n\n**Most likely cause**: VW updated their app-identifying header requirements again. This happened on 2026-05-20 and may happen again as the official {brand} app releases new versions.\n\n**What to do:**\n\n1. **Check for an integration update** — HACS → VW Group Connect → Update. Maintainers usually ship a header bump within ~1 week of upstream changes (we monitor via weekly CI workflow).\n2. **Try the OptionsFlow override** (advanced) — Settings → Devices & Services → VW Group Connect → Configure → set `ola_app_version_override` to a fresher app version (e.g. the version of the official {brand} app on your phone, visible in app settings).\n3. **If neither helps**: open a GitHub issue with your DEBUG-level log so we can investigate.\n\nThis warning auto-clears when the next request succeeds.",
-      "title": "{brand} OLA headers may need an update — {count} consecutive 403 errors"
+      "description": "VW Group's online-services backend (OLA) has refused **{count}** requests in a row for {brand} with HTTP 403 Forbidden.\n\nThis is **not** an outdated-header or app-version problem, and it's not something you can fix by reconfiguring or re-logging in. VW appears to have restricted online-services access for {brand} (and SEAT) on their side — the official app uses a separate, fully-trusted access path we can't reproduce, so a header bump or app-version override won't bring it back.\n\nWhere it can, the integration falls back to the read-only EU Data Act portal for whatever data is still available. {brand} data should return on its own once VW restores access. Nothing to do on your end — this warning auto-clears when requests start succeeding again.",
+      "title": "{brand} online services blocked on VW's side — {count} consecutive 403 errors"
     }
   },
   "services": {

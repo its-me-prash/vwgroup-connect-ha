@@ -246,15 +246,17 @@ def raise_issue_ola_headers_outdated(
 
     Raise an HA Repair issue when the OLA backend has returned 403
     consecutively despite our header-injection + fallback chain
-    exhaustion. Most likely cause: VW updated their app-identifying
-    requirements again and our centralized header constants
-    (``cariad/_ola_headers.py``) need bumping.
+    exhaustion. As of 2026-06 the cause is a VW server-side access
+    revocation for SEAT/CUPRA — NOT a header/app-version problem the
+    user can fix. The notice text is worded accordingly (no header-bump
+    or OptionsFlow-override advice; data falls back to the read-only EU
+    Data Act portal where available).
 
     Args:
         hass: Home Assistant runtime instance.
         entry_id: ConfigEntry ID owning this client.
         brand: ``"seat"`` or ``"cupra"`` — included in the message
-            so the user knows which brand-app version to check.
+            so the user knows which brand is affected.
         consecutive_403_count: how many in a row we've seen — included
             in the message to give the user a sense of certainty
             (10+ = high confidence, 5-9 = possible).
@@ -271,16 +273,13 @@ def raise_issue_ola_headers_outdated(
             "brand": brand.upper(),
             "count": str(consecutive_403_count),
         },
-        learn_more_url=(
-            "https://github.com/its-me-prash/vwgroup-connect-ha/blob/main/"
-            "custom_components/vag_connect/cariad/_ola_headers.py"
-        ),
     )
     _LOGGER.warning(
-        "VW Group Connect OLA-Headers Repair-Issue created: brand=%s "
-        "consecutive_403=%d. Likely cause: OLA backend updated app-"
-        "identifying requirements. Check for integration update or "
-        "use the advanced OptionsFlow override.",
+        "VW Group Connect OLA Repair-Issue created: brand=%s "
+        "consecutive_403=%d. Cause: VW server-side online-services "
+        "access revocation for SEAT/CUPRA (not a fixable header/app-"
+        "version problem); data falls back to the read-only EU Data "
+        "Act portal where available.",
         brand, consecutive_403_count,
     )
 
