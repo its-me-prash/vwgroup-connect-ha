@@ -38,11 +38,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
-## [Unreleased]
+## [2.12.5] - 2026-06-13
 
-### Added
-
-- Foundation for VW EU / CUPRA / SEAT **device-code (QR) portal login** (v2.13.0, landing in stages): the device-grant module can now mint and refresh the EU-Data-Act portal-client tokens (`PORTAL_DAG_BRANDS` + the `device_grant_portal` strategy), routed separately from the CARIAD-BFF device-grant so the portal-only token never hits the BFF, and the portal connector now accepts those tokens as an `Authorization: Bearer` (read-only proxy_api) instead of the fragile cookie-scrape. The runtime now routes those tokens to the portal (builds the Bearer connector at setup and after restart), refreshes them at the IDP token endpoint (a real `refresh_token`, so no more session-expiry re-login), and treats portal entries as structurally read-only. **Volkswagen EU (and the CUPRA/SEAT reserve) can now sign in via the browser/QR device-code flow** in the config flow — pick "Browser-Login (QR)", scan/open the URL, approve in your VW account, done; no password is stored in Home Assistant. (Existing email+password entries keep working as the fallback.) The sign-in step copy is translated across all 8 bundled languages.
+A data-quality patch for the EU Data Act portal, plus a scout-noise fix for Audi.
 
 ### Fixed
 
