@@ -314,33 +314,13 @@ class CariadBaseClient:
                         **opts,
                     )
                 elif kind == "data_act_portal":
-                    # v2.12.0 — cookie-based EU Data Act portal connector.
-                    # Replaces the old PKCE-token DataActPortalAuth, which
-                    # was architecturally wrong (the portal is a confidential
-                    # Auth0 client; we can't exchange the code). The connector
-                    # logs in via cookies and serves data from /proxy_api.
-                    import time as _time  # noqa: PLC0415
-
-                    from ..auth._eu_data_act import (  # noqa: PLC0415
-                        EUDataActConnector,
-                    )
-                    connector = EUDataActConnector(
-                        self._session, brand=self._brand.name,
-                    )
-                    await connector.login(self._email, self._password)
-                    self._eu_portal = connector
-                    # Sentinel TokenSet: no real token (cookie session),
-                    # but valid() needs access_token + id_token non-empty
-                    # so downstream treats us as authenticated. Long expiry
-                    # so the coordinator doesn't churn re-logins; the
-                    # connector re-logins on 401/403 via get_status.
-                    self._tokens = TokenSet(
-                        access_token="eu-data-act-portal-cookie-session",
-                        refresh_token="",
-                        id_token="eu-data-act-portal-cookie-session",
-                        expires_at=_time.time() + 3300,
-                        strategy="data_act_portal",
-                    )
+                    # v2.12.0 — cookie-based EU Data Act portal connector
+                    # (read-only). v2.12.7 — the build+login+sentinel logic
+                    # moved to ``_arm_eu_portal`` so the SAME arming can fire
+                    # as a runtime fallback when a brand's native data backend
+                    # is blocked mid-flight (e.g. CUPRA/SEAT OLA 403) even
+                    # though the IDP login still succeeds.
+                    await self._arm_eu_portal()
                 else:
                     raise AuthenticationError(f"Unknown strategy kind: {kind}")
 
@@ -405,6 +385,36 @@ class CariadBaseClient:
                         f"Auth failed with {type(err).__name__} "
                         f"(no usable strategy left)"
                     ) from err
+
+    async def _arm_eu_portal(self) -> None:
+        """Build + log in the read-only EU Data Act portal connector and
+        retain it on ``self._eu_portal`` with a sentinel TokenSet.
+
+        v2.12.7 — used both by the ``data_act_portal`` login strategy AND as
+        a runtime fallback when a brand's native data backend is blocked
+        (e.g. the CUPRA/SEAT OLA ``403`` device-attestation wall) while the
+        IDP login still succeeds. In that case the login-time fallback never
+        fires, so the brand's read methods arm the portal here on a persistent
+        native block — reads then degrade to the portal instead of going dark.
+        """
+        import time as _time  # noqa: PLC0415
+
+        from ..auth._eu_data_act import EUDataActConnector  # noqa: PLC0415
+
+        connector = EUDataActConnector(self._session, brand=self._brand.name)
+        await connector.login(self._email, self._password)
+        self._eu_portal = connector
+        # Sentinel TokenSet: no real token (cookie session), but valid()
+        # needs access_token + id_token non-empty so downstream treats us as
+        # authenticated. Long expiry so the coordinator doesn't churn
+        # re-logins; the connector re-logins on 401/403 via the read methods.
+        self._tokens = TokenSet(
+            access_token="eu-data-act-portal-cookie-session",
+            refresh_token="",
+            id_token="eu-data-act-portal-cookie-session",
+            expires_at=_time.time() + 3300,
+            strategy="data_act_portal",
+        )
 
     def set_persisted_tokens(self, tokens: TokenSet | None) -> None:
         """v1.19.2 (#118) — inject tokens loaded from HA storage at
