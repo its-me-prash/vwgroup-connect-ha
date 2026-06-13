@@ -1981,6 +1981,18 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         Only SEAT/CUPRA's OLA endpoint is implemented in this PR; other
         brands return silently from the client side.
         """
+        # v2.12.7 — in EU Data Act portal mode the BFF capabilities endpoint
+        # is unreachable (the portal sentinel token isn't a real BFF token),
+        # so the call always 400s with "missing or invalid auth header".
+        # Skip it to drop the debug-log noise; the portal serves its own
+        # field set. Gated on the portal STRATEGY specifically (not the
+        # broader read-only flag) so a user-toggled read-only native session
+        # — which still has a real token — keeps fetching capabilities.
+        portal_strategy = getattr(
+            getattr(self._cariad_client, "_tokens", None), "strategy", ""
+        )
+        if portal_strategy in ("data_act_portal", "device_grant_portal"):
+            return
         if not force and self.is_capabilities_cache_fresh(vin):
             return
         client = self._cariad_client
