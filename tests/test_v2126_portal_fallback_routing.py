@@ -118,3 +118,35 @@ class TestSeatCupraRuntimeArming:
         with pytest.raises(APIError):
             asyncio.run(client.get_vehicles())
         client._arm_eu_portal.assert_not_awaited()
+
+
+class TestCapabilitiesPortalSkip:
+    """v2.12.7 — refresh_capabilities skips the BFF capabilities call in EU
+    Data Act portal mode (the sentinel token always 400s there), gated on the
+    portal STRATEGY specifically so a user-toggled read-only native session
+    (which still has a real token) keeps fetching."""
+
+    def _coord(self, strategy):
+        from custom_components.vag_connect.coordinator import VagConnectCoordinator
+        coord = VagConnectCoordinator.__new__(VagConnectCoordinator)
+        coord._cariad_client = MagicMock()
+        coord._cariad_client._tokens = MagicMock(strategy=strategy)
+        coord._cariad_client.get_capabilities = AsyncMock(return_value={"x": 1})
+        coord.vehicle_capabilities = {}
+        coord._capabilities_fetched_at = {}
+        return coord
+
+    def test_data_act_portal_skips_capabilities(self):
+        coord = self._coord("data_act_portal")
+        asyncio.run(coord.refresh_capabilities("VIN1", force=True))
+        coord._cariad_client.get_capabilities.assert_not_awaited()
+
+    def test_device_grant_portal_skips_capabilities(self):
+        coord = self._coord("device_grant_portal")
+        asyncio.run(coord.refresh_capabilities("VIN1", force=True))
+        coord._cariad_client.get_capabilities.assert_not_awaited()
+
+    def test_native_strategy_still_fetches_capabilities(self):
+        coord = self._coord("classic")
+        asyncio.run(coord.refresh_capabilities("VIN1", force=True))
+        coord._cariad_client.get_capabilities.assert_awaited_once_with("VIN1")
