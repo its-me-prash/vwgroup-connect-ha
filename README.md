@@ -47,18 +47,6 @@
 
 ---
 
-## Was ist neu in v2.13.0
-
-**Passwort-loser Login für VW EU — als Erste und Einzige.** Volkswagen EU (We Connect ID) kann sich jetzt per **QR-/Device-Code** anmelden: „Browser-Login (QR)" wählen, den Link auf Handy oder Laptop öffnen (oder den QR scannen), im VW-Account bestätigen — fertig. **Es wird kein Passwort und kein Session-Cookie in Home Assistant gespeichert** — nur ein OAuth-Token, das du jederzeit in deinem VW-Account widerrufen kannst. Damit sind wir die **erste und einzige** VAG-Integration, die VW-EU-Daten ganz ohne hinterlegte Login-Daten holt — sauber per QR.
-
-Technisch dahinter: ein echtes `refresh_token` (Schluss mit dem Re-Login der alten Cookie-Session, kein `data_act_session_expired` mehr), kein fragiles SPA-Scraping (das war die wiederkehrende Bruchstelle bei #388 / #393), und der Token spricht direkt das read-only EU-Data-Act-Portal an. Bestehende E-Mail+Passwort-Einträge laufen unverändert als Fallback weiter.
-
-> **Read-only, ehrlich gesagt:** der VW-EU-Portal-Pfad liefert nur Daten (kein Ver-/Entriegeln, Klima, Laden). Fernbefehle für VW EU bleiben technisch unmöglich — die CARIAD-BFF lehnt den Portal-Token ab (Google Play Integrity / App-Attestation, die ein Server/Browser nicht erzeugen kann). CUPRA/SEAT bekommen denselben QR-Login als scharfgeschalteten Reserve-Pfad, falls VWs server-seitige OLA-Sperre wieder aufgeht.
-
-**Datenqualität.** Springende SoC-/Kilometer-Werte auf dem Portal gefixt (das Portal liefert ein unsortiertes Event-Log; wir nehmen jetzt den neuesten Wert pro Feld — dasselbe Problem, an dem das ganze Portal-Ökosystem hängt). Leere oder kaputte Portal-ZIPs werden als „keine Daten" behandelt statt als Login-Fehler.
-
----
-
 ## Was ist neu in v2.10.0
 
 Das grösste Release dieser Integration bisher. Etwa 6 Wochen intensive Arbeit in einem Cut.
@@ -179,8 +167,8 @@ Settings → Devices & Services → Integration hinzufügen → "VW Group Connec
 
 **Beim ersten Setup wählst du:**
 
-- **Browser-Login (QR)** (empfohlen für Audi/Škoda/SEAT/CUPRA **und neu Volkswagen EU**): QR-Code scannen oder URL öffnen, im Brand-ID-Account bestätigen — kein Passwort in HA gespeichert. (VW EU läuft dabei read-only über das EU-Data-Act-Portal.)
-- **E-Mail + Passwort** (Fallback für VW EU; nötig für Porsche, VW US/CA): klassisch mit Brand-ID Credentials
+- **Browser-Login** (empfohlen für Audi/Škoda/SEAT/CUPRA): QR-Code scannen oder URL öffnen, kein Passwort in HA gespeichert
+- **E-Mail + Passwort** (für VW EU, Porsche, VW US/CA): klassisch mit Brand-ID Credentials
 
 **Optionen** (nach Setup verfügbar):
 - Polling-Intervall (5-60 min, Default 10 min)
