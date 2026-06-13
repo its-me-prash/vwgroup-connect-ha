@@ -38,7 +38,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
-## [Unreleased]
+## [2.12.6] - 2026-06-13
+
+An honesty fix for the CUPRA/SEAT repair notice.
 
 ### Changed
 
