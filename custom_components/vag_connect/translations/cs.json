@@ -971,8 +971,8 @@
       "title": "Relace portálu EU Data Act vypršela – přihlas se znovu"
     },
     "ola_headers_outdated": {
-      "description": "OLA backend skupiny VW (server SEAT/CUPRA) odmítl **{count}** požadavků za sebou s chybou HTTP 403 Forbidden – i poté, co jsme vyzkoušeli všechny vestavěné záložní sady hlaviček.\n\n**Nejpravděpodobnější příčina**: VW znovu změnil požadavky na hlavičky identifikující aplikaci. Stalo se to 2026-05-20 a může se to opakovat, jak oficiální aplikace {brand} vydává nové verze.\n\n**Co dělat:**\n\n1. **Zkontroluj aktualizaci integrace** – HACS → VW Group Connect → Aktualizovat. Správci obvykle vydají úpravu hlaviček do ~1 týdne od změn v upstreamu (sledujeme to týdenním CI workflow).\n2. **Vyzkoušej přepsání přes OptionsFlow** (pokročilé) – Nastavení → Zařízení a služby → VW Group Connect → Konfigurovat → nastav `ola_app_version_override` na novější verzi aplikace (např. verzi oficiální aplikace {brand} v tvém telefonu, viditelnou v nastavení aplikace).\n3. **Pokud nepomůže ani jedno**: otevři issue na GitHubu s logem na úrovni DEBUG, abychom to mohli prošetřit.\n\nToto upozornění zmizí samo, jakmile další požadavek uspěje.",
-      "title": "Hlavičky OLA {brand} možná potřebují aktualizaci – {count} po sobě jdoucích chyb 403"
+      "description": "Backend online služeb VW Group (OLA) odmítl **{count}** požadavků v řadě pro {brand} s chybou HTTP 403 Forbidden.\n\nToto **není** problém se zastaralými hlavičkami ani verzí aplikace a nelze jej vyřešit novou konfigurací ani opětovným přihlášením. VW zřejmě na své straně omezil přístup k online službám pro {brand} (a SEAT) — oficiální aplikace používá samostatný, plně důvěryhodný přístup, který nedokážeme napodobit. Změna hlavičky ani verze aplikace jej neobnoví.\n\nKde to jde, integrace se vrací k portálu EU Data Act pouze pro čtení a načte stále dostupná data. Data {brand} se sama vrátí, jakmile VW přístup obnoví. Na tvé straně není nic třeba — toto upozornění automaticky zmizí, jakmile požadavky začnou znovu procházet.",
+      "title": "Online služby {brand} zablokovány na straně VW — {count} po sobě jdoucích chyb 403"
     }
   },
   "services": {

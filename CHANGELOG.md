@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [Unreleased]
+
+### Changed
+
+- **The CUPRA/SEAT "OLA 403" repair notice now tells the truth.** It used to suggest the app-identifying headers might be outdated and told you to check for an update or try an app-version override — but those 403s are a VW server-side access revocation for SEAT/CUPRA, not anything a header bump or a reconfigure can fix. The notice now says that plainly (in all eight languages), drops the dead-end advice, and notes the integration falls back to the read-only EU Data Act portal where it can (#432, #444, #456, #392).
+
 ## [2.12.5] - 2026-06-13
 
 A data-quality patch for the EU Data Act portal, plus a scout-noise fix for Audi.
