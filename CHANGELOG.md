@@ -38,7 +38,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
-## [Unreleased]
+## [2.13.0] - 2026-06-13
+
+The EU Data Act portal becomes the **universal read-only safety net**: as VW keeps closing native API access brand by brand (VW EU's token logins are gone, CUPRA/SEAT's online services are now behind a device-attestation wall), each affected brand now degrades gracefully to the read-only portal instead of going dark.
 
 ### Fixed
 
