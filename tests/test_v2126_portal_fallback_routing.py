@@ -95,7 +95,9 @@ class TestSeatCupraRuntimeArming:
     def test_get_vehicles_arms_portal_on_ola_403(self):
         client = _seatcupra("cupra")
         client._user_id = "uid-123"
-        client._get = AsyncMock(side_effect=APIError("HTTP 403 Forbidden on ola.prod"))
+        client._get = AsyncMock(
+            side_effect=APIError(403, "https://ola.prod.code.seat.cloud.vwgroup.com/garage")
+        )
         portal = _portal(vins=["VINPORTAL09"])
 
         async def _arm():
@@ -109,7 +111,9 @@ class TestSeatCupraRuntimeArming:
     def test_get_vehicles_non_403_does_not_arm(self):
         client = _seatcupra("seat")
         client._user_id = "uid-123"
-        client._get = AsyncMock(side_effect=APIError("HTTP 500 server error"))
+        client._get = AsyncMock(
+            side_effect=APIError(500, "https://ola.prod.code.seat.cloud.vwgroup.com/garage")
+        )
         client._arm_eu_portal = AsyncMock()
         with pytest.raises(APIError):
             asyncio.run(client.get_vehicles())

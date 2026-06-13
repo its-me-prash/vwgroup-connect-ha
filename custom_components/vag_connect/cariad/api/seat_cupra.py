@@ -290,7 +290,7 @@ class SeatCupraClient(CariadBaseClient):
             # succeeded, so the login-time portal fallback never armed).
             # Arm the read-only EU Data Act portal now and serve VINs from
             # there instead of leaving the entry stuck with "no vehicles".
-            if "403" not in str(exc):
+            if exc.status != 403:
                 raise
             _LOGGER.warning(
                 "%s OLA garage blocked (403) despite a valid login — arming "
