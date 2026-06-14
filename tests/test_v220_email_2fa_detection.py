@@ -190,8 +190,11 @@ class TestTranslationCoverage:
         issue = data["issues"]["email_two_factor_required"]
         assert "title" in issue
         assert "description" in issue
-        # {brand} placeholder required for Repair-flow templating
-        assert "{brand}" in issue["title"]
+        # v2.14.4 — the title is intentionally placeholder-free now, so it
+        # renders cleanly even for a stale repair issue created (pre-2.14.3)
+        # without translation_placeholders. No {brand} dependency in the title.
+        assert issue["title"]
+        assert "{brand}" not in issue["title"]
 
     def test_strings_json_has_both(self) -> None:
         import json
