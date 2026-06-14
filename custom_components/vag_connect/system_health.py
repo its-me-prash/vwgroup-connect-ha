@@ -96,9 +96,14 @@ async def _system_health_info(hass: HomeAssistant) -> dict[str, Any]:
     if push_states:
         info["push_channels"] = " | ".join(push_states)
 
-    # Reachability ping to the most-used backend (cariad bff)
+    # Reachability ping to the most-used backend (cariad bff).
+    # v2.14.1 — the legacy /login/v1/idk/openid-configuration discovery URL now
+    # returns 403 before credentials (VW flipped it to the OIDC path), which
+    # made this health probe report "failed" even on a perfectly healthy
+    # backend. Ping the current /auth/v1/idk/oidc/ discovery endpoint, which
+    # returns 200 — the same path the auth resolver already uses.
     info["cariad_bff_reachable"] = system_health.async_check_can_reach_url(
-        hass, "https://emea.bff.cariad.digital/login/v1/idk/openid-configuration"
+        hass, "https://emea.bff.cariad.digital/auth/v1/idk/oidc/openid-configuration"
     )
 
     return info
