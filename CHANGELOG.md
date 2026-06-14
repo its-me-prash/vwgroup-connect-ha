@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.14.4] - 2026-06-15
+
+### Fixed
+
+- **The "Email 2FA required" repair notice stops throwing translation errors for good.** v2.14.3 supplied the missing `{brand}` value, but a notice already sitting in the repairs list from an older version had no value and kept spamming `MISSING_VALUE` in the logs. The notice title no longer depends on a placeholder at all (all 8 languages), so old and new notices both render cleanly, and the repair description now also gets its `{username}` value supplied. Purely a cosmetics/log-noise fix.
+
 ## [2.14.3] - 2026-06-14
 
 ### Fixed

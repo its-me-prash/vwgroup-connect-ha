@@ -135,10 +135,15 @@ def raise_issue_auth_required(
         is_persistent=False,
         severity=severity,
         translation_key=translation_key,
-        # v2.14.3 — several of these titles embed {brand} (e.g. the Email-2FA
-        # one); without supplying the placeholder the frontend fails to render
-        # the title and spams "MISSING_VALUE" errors. Provide it for all.
-        translation_placeholders={"brand": (brand or "").title() or "VW Group"},
+        # v2.14.3/.4 — several of these titles/descriptions embed {brand} and
+        # {username}; without the placeholders the frontend fails to render and
+        # spams "MISSING_VALUE" errors. Supply both for every auth repair (the
+        # email_two_factor_required TITLE also had {brand} dropped in v2.14.4 so
+        # even pre-2.14.3 issues lingering in the registry render cleanly).
+        translation_placeholders={
+            "brand": (brand or "").title() or "VW Group",
+            "username": "",
+        },
         learn_more_url=_learn_url_for_reason(brand, reason),
         data={"entry_id": entry_id, "reason": reason},
     )

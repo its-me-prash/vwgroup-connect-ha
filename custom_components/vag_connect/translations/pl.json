@@ -944,7 +944,7 @@
       "description": "1. Otwórz aplikację **{brand}**\n2. Zaloguj się ręcznie\n3. Potwierdź kod e-mail\n4. Uruchom ponownie Home Assistant"
     },
     "email_two_factor_required": {
-      "title": "2FA przez e-mail — sprawdź skrzynkę ({brand})",
+      "title": "2FA przez e-mail — sprawdź skrzynkę",
       "description": "Twoje konto {brand} ({username}) wymaga **kodu weryfikacyjnego e-mail**.\n\n**Jednorazowa naprawa:**\n1. **Sprawdź e-mail** (i spam) — 6-cyfrowy kod od VAG IDP\n2. Otwórz aplikację **{brand}**\n3. Zaloguj się ręcznie i wprowadź kod\n4. Uruchom ponownie Home Assistant"
     },
     "terms_and_conditions": {
