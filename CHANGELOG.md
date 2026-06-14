@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.14.2] - 2026-06-14
+
+### Fixed
+
+- **volkswagen.de website login (beta): the email code now submits correctly.** The OTP step was posting just the code + state, but the VW identity email-challenge page is a form with hidden fields (`_csrf` / `relayState` / …) that have to come along — without them the code didn't go through cleanly. It now parses the challenge form exactly like the password step does and submits the code inside the real form, so email-OTP logins complete. (Opt-in beta channel only.)
+
 ## [2.14.1] - 2026-06-14
 
 ### Fixed

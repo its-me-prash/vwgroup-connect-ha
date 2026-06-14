@@ -279,6 +279,9 @@ class WebsiteAuthProxyConnector:
         # URL plus the Auth0 state needed to POST the OTP code.
         self._otp_url: str | None = None
         self._otp_state: str | None = None
+        # The email-challenge page HTML — parsed in submit_otp for its hidden
+        # form fields (_csrf / relayState / hmac), same as the password step.
+        self._otp_html: str | None = None
 
     # ── login ──────────────────────────────────────────────────────────────
 
@@ -365,6 +368,7 @@ class WebsiteAuthProxyConnector:
         #    so the UI can collect the code.
         if "/u/email-challenge" in landed or "/u/mfa" in landed:
             self._otp_url = landed
+            self._otp_html = landed_html
             self._otp_state = (
                 parse_qs(urlparse(landed).query).get("state", [auth0_state or ""])[0]
                 or auth0_state
@@ -386,9 +390,19 @@ class WebsiteAuthProxyConnector:
                 "Website authproxy: no pending OTP challenge — call "
                 "begin_login() first"
             )
+        # The Auth0 email-challenge page is a form carrying hidden fields
+        # (_csrf / relayState / hmac); a hardcoded {code, state} POST omits
+        # them, which is what made the OTP "not transmit cleanly". Parse the
+        # challenge form exactly like the password step (begin_login) and merge
+        # the code into the real fields before POSTing to the form's action.
+        fields, action = _login_fields(self._otp_html or "")
+        fields["code"] = str(code).strip()
+        if self._otp_state:
+            fields.setdefault("state", self._otp_state)
+        post_url = _resolve_action(self._otp_url, action)
         async with self._session.post(
-            self._otp_url,
-            data={"code": str(code).strip(), "state": self._otp_state or ""},
+            post_url,
+            data=fields,
             headers=self._headers({"Referer": self._otp_url}),
             allow_redirects=True,
             timeout=ClientTimeout(total=_TIMEOUT_S),
@@ -404,6 +418,7 @@ class WebsiteAuthProxyConnector:
             )
         self._otp_url = None
         self._otp_state = None
+        self._otp_html = None
         self._finalise_login(landed)
         return self.logged_in
 
