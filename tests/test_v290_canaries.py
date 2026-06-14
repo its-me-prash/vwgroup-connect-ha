@@ -18,7 +18,7 @@ _PKG = _ROOT / "custom_components" / "vag_connect"
 
 def test_canaries_module_imports() -> None:
     from custom_components.vag_connect import _canaries
-    assert len(_canaries.ALL_CANARIES) == 5
+    assert len(_canaries.ALL_CANARIES) == 6
 
 
 def test_auth_resolver_carries_canary() -> None:
@@ -44,6 +44,13 @@ def test_scout_carries_canary() -> None:
 def test_watchdog_carries_canary() -> None:
     text = (_PKG / "coordinator.py").read_text(encoding="utf-8")
     assert "watchdog_silentauth_provenance_n2vpw9c3_2026" in text
+
+
+def test_website_authproxy_carries_canary() -> None:
+    text = (
+        _PKG / "cariad" / "auth" / "_website_authproxy.py"
+    ).read_text(encoding="utf-8")
+    assert "website_authproxy_provenance_b6tkd2x9_2026" in text
 
 
 def test_all_canaries_have_anchor() -> None:

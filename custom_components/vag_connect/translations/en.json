@@ -56,7 +56,32 @@
         "description": "How would you like to sign in?\n\n**Browser-Login (recommended)** — open a URL on your phone or laptop, sign in to your Brand ID account, approve the device. No password is ever stored in Home Assistant. Available for Audi, Škoda, SEAT and CUPRA.\n\n**Email + Password (legacy)** — enter your Brand ID credentials directly. Required for Volkswagen EU and Porsche.",
         "menu_options": {
           "browser_login": "Browser-Login (recommended)",
-          "email_password": "Email + Password (legacy)"
+          "email_password": "Email + Password (legacy)",
+          "website_authproxy": "Volkswagen.de website (beta — read-only)"
+        }
+      },
+      "website_authproxy": {
+        "title": "Volkswagen.de website (BETA, read-only)",
+        "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next.",
+        "data": {
+          "username": "Email Address",
+          "password": "Password",
+          "scan_interval": "Update Interval"
+        },
+        "data_description": {
+          "username": "The email of your Volkswagen ID / myVolkswagen account.",
+          "password": "Your Volkswagen ID password.",
+          "scan_interval": "How often data is fetched (minutes). Minimum: 5."
+        }
+      },
+      "website_authproxy_otp": {
+        "title": "Email verification code",
+        "description": "A verification code was sent to the email for **{username}**.\n\nEnter the code to finish signing in to the Volkswagen.de website (beta) channel.",
+        "data": {
+          "mfa_code": "Verification Code"
+        },
+        "data_description": {
+          "mfa_code": "Code from your email inbox — valid for a few minutes."
         }
       },
       "browser_login": {

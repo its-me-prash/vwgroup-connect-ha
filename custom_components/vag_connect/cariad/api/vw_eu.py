@@ -102,6 +102,19 @@ class VWEUClient(CariadBaseClient):
 
     async def get_vehicles(self) -> list[str]:
         """Return list of VINs from the CARIAD garage."""
+        # v2.14.0 — OPT-IN website-authproxy mode (read-only beta). When the
+        # user explicitly chose it, VINs come from the authproxy relations
+        # endpoint, not the BFF. Routed first + identically to the EU Data Act
+        # portal below; dormant (proxy is None) for every other entry.
+        web = getattr(self, "_website_proxy", None)
+        if web is not None:
+            try:
+                web_vins: list[str] = await web.list_vehicle_vins()
+            except AuthenticationError:
+                await web.refresh()
+                web_vins = await web.list_vehicle_vins()
+            return web_vins
+
         # v2.12.0 — EU Data Act portal mode: the token-based CARIAD garage
         # is dead for VW EU, so VIN enumeration also has to come from the
         # portal (not just get_status). Without this the coordinator's
@@ -340,6 +353,19 @@ class VWEUClient(CariadBaseClient):
 
     async def get_status(self, vin: str) -> VehicleData:
         """Fetch full vehicle status via selectivestatus."""
+        # v2.14.0 — OPT-IN website-authproxy mode (read-only beta). Routed
+        # first + identically to the EU Data Act portal below; on a stale
+        # cookie session the connector re-establishes it via refresh().
+        # Dormant (proxy is None) for every other entry.
+        web = getattr(self, "_website_proxy", None)
+        if web is not None:
+            try:
+                web_data: VehicleData = await web.get_vehicle_data(vin)
+            except AuthenticationError:
+                await web.refresh()
+                web_data = await web.get_vehicle_data(vin)
+            return web_data
+
         # v2.12.0 — EU Data Act portal mode (read-only fallback). When the
         # token-based BFF strategies are exhausted, the auth resolver
         # retains a cookie-based portal connector on ``self._eu_portal``.

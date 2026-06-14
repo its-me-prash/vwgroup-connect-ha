@@ -72,6 +72,15 @@ CANARY_SCOUT: Final[str] = "scout_unexpected_provenance_f4hzl5r8_2026"
 # logic travels with it.
 CANARY_WATCHDOG: Final[str] = "watchdog_silentauth_provenance_n2vpw9c3_2026"
 
+# v2.14.0 — Website authproxy canary: referenced from
+# WebsiteAuthProxyConnector.__init__ in
+# cariad/auth/_website_authproxy.py so any port of the volkswagen.de
+# website-authproxy read channel (Auth0 login + /app/authproxy reverse-
+# proxy data reads) travels with it.
+CANARY_WEBSITE_AUTHPROXY: Final[str] = (
+    "website_authproxy_provenance_b6tkd2x9_2026"
+)
+
 
 # Full list, exported for the watcher workflow + provenance test.
 ALL_CANARIES: Final[tuple[str, ...]] = (
@@ -80,4 +89,5 @@ ALL_CANARIES: Final[tuple[str, ...]] = (
     CANARY_DAG_FLOW,
     CANARY_SCOUT,
     CANARY_WATCHDOG,
+    CANARY_WEBSITE_AUTHPROXY,
 )
