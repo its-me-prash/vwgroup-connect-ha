@@ -552,6 +552,24 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             ):
                 inner_auth.set_user_client_id_override(client_id_override)
 
+        # v2.14.0 — OPT-IN, BETA. When the entry was created via the
+        # "Volkswagen.de website (beta)" config-flow option, flip the brand
+        # client into website-authproxy mode BEFORE the first authenticate().
+        # Gated on the explicit per-entry flag + brand == volkswagen + the
+        # client supporting the setter, so this is a no-op for every other
+        # entry and leaves all existing strategy paths untouched.
+        from .const import CONF_WEBSITE_AUTHPROXY  # noqa: PLC0415
+        if (
+            brand == "volkswagen"
+            and self.entry.data.get(CONF_WEBSITE_AUTHPROXY)
+            and hasattr(self._cariad_client, "set_website_authproxy_mode")
+        ):
+            self._cariad_client.set_website_authproxy_mode(True)
+            _LOGGER.info(
+                "VAG Connect: volkswagen.de website-authproxy mode enabled "
+                "(opt-in, read-only beta) for this entry."
+            )
+
         # v1.19.2 (#118 eismarkt) — token persistence wire-up.
         # Load any persisted IDK tokens from HA storage BEFORE the
         # first authenticate() so HACS updates / HA restarts don't
@@ -617,9 +635,16 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # sentinel → HTTP 400 "missing or invalid auth header". Force a
             # fresh login for that strategy so the cookie session + the
             # portal connector are re-established on every restart.
+            # v2.14.0 — the website-authproxy sentinel is the same shape: a
+            # cookie session, no usable bearer, and the cookie jar isn't
+            # restored across restarts. Reusing it would skip the login and
+            # leave _website_proxy unarmed → get_status falls through to the
+            # dead BFF. Force a fresh login so the connector is rebuilt.
             persisted_is_portal = (
                 persisted is not None
-                and persisted.strategy == "data_act_portal"
+                and persisted.strategy in (
+                    "data_act_portal", "website_authproxy",
+                )
             )
             if persisted is None or persisted_is_portal:
                 await self._cariad_client.authenticate()
@@ -3274,7 +3299,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         client = getattr(self, "_cariad_client", None)
         tokens = getattr(client, "_tokens", None) if client else None
         strategy = getattr(tokens, "strategy", "") if tokens else ""
-        if strategy in ("data_act_portal", "device_grant_portal"):
+        # v2.14.0 — the volkswagen.de website authproxy (opt-in beta) is a
+        # read-only channel too: the confidential web OAuth client has no
+        # command surface, so command entities could only ever fail. Force
+        # read-only structurally alongside the EU-Data-Act portal strategies.
+        if strategy in (
+            "data_act_portal", "device_grant_portal", "website_authproxy"
+        ):
             return True
         options = getattr(self.entry, "options", None) or {}
         data = getattr(self.entry, "data", None) or {}

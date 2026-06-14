@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.14.0] - 2026-06-14
+
+### Added
+
+- **New opt-in beta way to connect a Volkswagen: the volkswagen.de website (read-only).** There's now a third sign-in option when you add a Volkswagen — "Volkswagen.de website (beta)" — that logs in the same way the volkswagen.de "myVolkswagen" web area does and reads your car through it. The point: that website uses its own server-side login, so it goes around the app-attestation wall that's been killing the normal token logins for VW. You sign in with your Volkswagen ID email + password (and an emailed code if your account asks for one), and you get charge level, range, charging state and power, charge target, plus odometer and service-due info. It's **read-only** — no lock/climate/charge commands — and **opt-in**: you have to pick it on purpose. Nothing changes for anyone who doesn't, every existing setup (app login, browser login, EU Data Act portal) behaves exactly as before. It's a beta and hasn't been verified end-to-end against a live VW account yet, so treat it as experimental.
+
 ## [2.13.1] - 2026-06-14
 
 ### Fixed

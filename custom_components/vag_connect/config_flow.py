@@ -47,6 +47,7 @@ from .const import (
     CONF_READ_ONLY,
     CONF_SCAN_INTERVAL,
     CONF_SPIN,
+    CONF_WEBSITE_AUTHPROXY,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     MIN_SCAN_INTERVAL,
@@ -268,6 +269,14 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         self._dag_user_id: str = ""
         # Captured if either phase fails.
         self._dag_error: str = ""
+        # v2.14.0 — website-authproxy (opt-in beta) pending state between the
+        # credentials step and the email-OTP step. The connector + its session
+        # are held open across the two-step OTP exchange so the cookie jar
+        # survives; closed in either terminal path.
+        self._wap_username: str = ""
+        self._wap_user_input: dict[str, Any] = {}
+        self._wap_connector: Any = None
+        self._wap_session: Any = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -298,6 +307,13 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 ),
                 "email_password": (
                     "E-Mail + Passwort — Volkswagen EU / Porsche (Legacy)"
+                ),
+                # v2.14.0 — OPT-IN, BETA. Volkswagen-only read-only channel
+                # via the volkswagen.de website authproxy. Clearly labelled so
+                # users self-select; the email_password path is untouched.
+                "website_authproxy": (
+                    "Volkswagen.de website (beta) — nur Volkswagen, "
+                    "nur Lesen"
                 ),
             },
         )
@@ -362,6 +378,194 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             ),
             errors=errors,
         )
+
+    async def async_step_website_authproxy(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """v2.14.0 — OPT-IN, BETA: volkswagen.de website-authproxy login.
+
+        Volkswagen-only, read-only channel. Collects email + password, drives
+        the authproxy → Auth0 login, and either creates the entry (with the
+        ``website_authproxy`` flag) or advances to the email-OTP step. The
+        existing email_password / browser_login paths are untouched.
+        """
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            username = user_input[CONF_USERNAME]
+            password = user_input[CONF_PASSWORD]
+
+            await self.async_set_unique_id(f"volkswagen_web_{username}")
+            self._abort_if_unique_id_configured()
+
+            self._wap_username = username
+            self._wap_user_input = dict(user_input)
+            try:
+                needs_otp = await self._wap_begin_login(username, password)
+            except ValueError as err:
+                errors["base"] = _map_error(str(err))
+            else:
+                if needs_otp:
+                    return await self.async_step_website_authproxy_otp()
+                return self.async_create_entry(
+                    title=f"Volkswagen.de (beta) — {username}",
+                    data=self._build_website_entry_data(username, user_input),
+                )
+
+        suggested = user_input or {}
+        return self.async_show_form(
+            step_id="website_authproxy",
+            data_schema=vol.Schema({
+                vol.Required(
+                    CONF_USERNAME,
+                    default=suggested.get(CONF_USERNAME, vol.UNDEFINED),
+                ): _USERNAME_SELECTOR,
+                vol.Required(CONF_PASSWORD): _PASSWORD_SELECTOR,
+                vol.Optional(
+                    CONF_SCAN_INTERVAL,
+                    default=int(
+                        suggested.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+                    ),
+                ): _INTERVAL_SELECTOR,
+            }),
+            errors=errors,
+        )
+
+    async def async_step_website_authproxy_otp(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """v2.14.0 — email-OTP step for the website-authproxy login."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            code = str(user_input.get("mfa_code", "")).strip()
+            try:
+                ok = await self._wap_submit_otp(code)
+            except ValueError as err:
+                errors["base"] = _map_error(str(err))
+            else:
+                if ok:
+                    return self.async_create_entry(
+                        title=f"Volkswagen.de (beta) — {self._wap_username}",
+                        data=self._build_website_entry_data(
+                            self._wap_username, self._wap_user_input,
+                        ),
+                    )
+                errors["base"] = "invalid_credentials"
+
+        return self.async_show_form(
+            step_id="website_authproxy_otp",
+            data_schema=vol.Schema({
+                vol.Required("mfa_code"): _MFA_SELECTOR,
+            }),
+            description_placeholders={"username": self._wap_username},
+            errors=errors,
+        )
+
+    async def _wap_begin_login(self, username: str, password: str) -> bool:
+        """Drive the authproxy login; return True if an OTP step is needed.
+
+        Keeps the connector + its aiohttp session open across an OTP exchange
+        (the cookie jar must survive). Maps connector errors to the same
+        ValueError codes the email_password path uses, so the shared
+        ``_map_error`` produces a localised message.
+        """
+        import aiohttp  # noqa: PLC0415
+
+        from .cariad.auth._website_authproxy import (  # noqa: PLC0415
+            WebsiteAuthProxyConnector,
+        )
+        from .cariad.exceptions import (  # noqa: PLC0415
+            AuthenticationError,
+            EmailTwoFactorRequiredError,
+        )
+
+        # Close any half-open connector from a prior attempt in this flow.
+        await self._wap_close_session()
+        connector_ssl = aiohttp.TCPConnector(ssl=True)
+        self._wap_session = aiohttp.ClientSession(
+            connector=connector_ssl,
+            cookie_jar=aiohttp.CookieJar(unsafe=True),
+        )
+        self._wap_connector = WebsiteAuthProxyConnector(
+            self._wap_session, username, password, brand="volkswagen",
+        )
+        try:
+            result = await self._wap_connector.begin_login()
+        except EmailTwoFactorRequiredError:
+            return True
+        except AuthenticationError as err:
+            await self._wap_close_session()
+            _LOGGER.warning("Website authproxy login failed: %s", err)
+            raise ValueError("invalid_credentials") from err
+        except Exception as err:  # noqa: BLE001
+            await self._wap_close_session()
+            _LOGGER.error(
+                "Website authproxy unexpected error: %s", type(err).__name__,
+            )
+            raise ValueError("cannot_connect") from err
+        if result == "otp_required":
+            return True
+        # Logged in without OTP — the validation succeeded. The runtime
+        # coordinator re-runs the login on its own session; this throwaway
+        # validation session can be closed now.
+        await self._wap_close_session()
+        return False
+
+    async def _wap_submit_otp(self, code: str) -> bool:
+        """Submit the OTP against the open connector. Returns login success."""
+        from .cariad.exceptions import AuthenticationError  # noqa: PLC0415
+
+        if self._wap_connector is None:
+            raise ValueError("cannot_connect")
+        try:
+            ok = bool(await self._wap_connector.submit_otp(code))
+        except AuthenticationError as err:
+            _LOGGER.warning("Website authproxy OTP failed: %s", err)
+            raise ValueError("invalid_credentials") from err
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.error(
+                "Website authproxy OTP unexpected error: %s",
+                type(err).__name__,
+            )
+            raise ValueError("cannot_connect") from err
+        finally:
+            await self._wap_close_session()
+        return ok
+
+    async def _wap_close_session(self) -> None:
+        """Close the throwaway validation session + drop the connector."""
+        sess = self._wap_session
+        self._wap_session = None
+        self._wap_connector = None
+        if sess is not None:
+            try:
+                await sess.close()
+            except Exception:  # noqa: BLE001
+                pass
+
+    @staticmethod
+    def _build_website_entry_data(
+        username: str, user_input: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Entry data for the website-authproxy (opt-in beta) mode.
+
+        Carries the ``CONF_WEBSITE_AUTHPROXY`` flag the coordinator keys on,
+        plus the standard credentials/interval. ``CONF_READ_ONLY`` is forced
+        True (the channel cannot send commands), and ``CONF_BRAND`` is pinned
+        to volkswagen.
+        """
+        return {
+            CONF_BRAND:            "volkswagen",
+            CONF_USERNAME:         username,
+            CONF_PASSWORD:         user_input.get(CONF_PASSWORD, ""),
+            CONF_WEBSITE_AUTHPROXY: True,
+            CONF_READ_ONLY:        True,
+            CONF_SCAN_INTERVAL: max(
+                int(user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)),
+                MIN_SCAN_INTERVAL,
+            ),
+        }
 
     async def async_step_browser_login(
         self, user_input: dict[str, Any] | None = None

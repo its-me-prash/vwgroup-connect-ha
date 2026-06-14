@@ -135,6 +135,16 @@ CONF_CLIENT_ID_OVERRIDE       = "client_id_override"
 CONF_EU_DATA_ACT_AUTO_KICKOFF = "eu_data_act_auto_kickoff"
 CONF_DATA_ACT_IDENTIFIERS     = "data_act_identifiers"
 
+# v2.14.0 — OPT-IN, BETA. When set on a Volkswagen entry, the integration
+# authenticates + reads via the volkswagen.de website authproxy (a confidential
+# server-side OAuth client on www.volkswagen.de that avoids the Play-Integrity
+# wall) instead of the token-based CARIAD BFF. STRICTLY additive: only honoured
+# when present + truthy AND brand == "volkswagen"; absent / False = every
+# existing path (BFF, EU Data Act portal, native CARIAD) behaves identically.
+# The channel is read-only (no remote commands). Chosen explicitly by the user
+# via the dedicated "Volkswagen.de website (beta)" config-flow option.
+CONF_WEBSITE_AUTHPROXY        = "website_authproxy"
+
 # Supported brands — must match CariadClientFactory.create() keys
 BRANDS = {
     "audi":           "Audi (myAudi)",

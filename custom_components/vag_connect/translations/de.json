@@ -56,7 +56,32 @@
         "description": "Wie möchtest du dich anmelden?\n\n**Browser-Login (empfohlen)** — öffne eine URL auf Handy oder Laptop, melde dich mit deinem Brand-ID-Konto an, bestätige das Gerät. Kein Passwort wird in Home Assistant gespeichert. Verfügbar für Audi, Škoda, SEAT und CUPRA.\n\n**E-Mail + Passwort (Legacy)** — gib deine Brand-ID-Zugangsdaten direkt ein. Erforderlich für Volkswagen EU und Porsche.",
         "menu_options": {
           "browser_login": "Browser-Login (empfohlen)",
-          "email_password": "E-Mail + Passwort (Legacy)"
+          "email_password": "E-Mail + Passwort (Legacy)",
+          "website_authproxy": "Volkswagen.de Website (Beta — nur Lesen)"
+        }
+      },
+      "website_authproxy": {
+        "title": "Volkswagen.de Website (BETA, nur Lesen)",
+        "description": "**Experimentell, freiwillig.** Liest deinen Volkswagen über die Anmeldung auf volkswagen.de statt über das App-Backend. Nur Volkswagen, nur Lesen (keine Fernbefehle). Melde dich mit deiner Volkswagen-ID-E-Mail und deinem Passwort an. Falls dein Konto eine E-Mail-Bestätigung nutzt, wirst du im nächsten Schritt nach dem Code gefragt.",
+        "data": {
+          "username": "E-Mail-Adresse",
+          "password": "Passwort",
+          "scan_interval": "Aktualisierungsintervall"
+        },
+        "data_description": {
+          "username": "Die E-Mail deines Volkswagen-ID- / myVolkswagen-Kontos.",
+          "password": "Dein Volkswagen-ID-Passwort.",
+          "scan_interval": "Wie oft Daten abgerufen werden (Minuten). Minimum: 5."
+        }
+      },
+      "website_authproxy_otp": {
+        "title": "E-Mail-Bestätigungscode",
+        "description": "Ein Bestätigungscode wurde an die E-Mail von **{username}** gesendet.\n\nGib den Code ein, um die Anmeldung am Volkswagen.de-Website-Kanal (Beta) abzuschließen.",
+        "data": {
+          "mfa_code": "Bestätigungscode"
+        },
+        "data_description": {
+          "mfa_code": "Code aus deinem E-Mail-Posteingang — einige Minuten gültig."
         }
       },
       "browser_login": {
