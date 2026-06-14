@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.14.5] - 2026-06-15
+
+### Fixed
+
+- **volkswagen.de website login (beta) no longer crashes with a redirect loop when resuming a saved session.** When the integration came back up and reused the saved login cookies, the website login could bounce in a redirect loop (`TooManyRedirects`) and surface as a bogus "invalid credentials". It now caps the redirects and handles the two real cases cleanly: an already-logged-in session is recognised straight away (no re-login, no OTP), and a stale-cookie loop is reported as a normal "please re-authenticate" instead of a crash. (Opt-in beta channel only.)
+
 ## [2.14.4] - 2026-06-15
 
 ### Fixed

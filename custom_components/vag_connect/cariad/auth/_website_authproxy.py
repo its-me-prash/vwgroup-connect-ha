@@ -41,7 +41,7 @@ import re
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from aiohttp import ClientSession, ClientTimeout
+from aiohttp import ClientSession, ClientTimeout, TooManyRedirects
 
 from ..._canaries import CANARY_WEBSITE_AUTHPROXY
 from ..exceptions import AuthenticationError, EmailTwoFactorRequiredError
@@ -308,21 +308,46 @@ class WebsiteAuthProxyConnector:
         self._otp_state = None
 
         # 1. Hit the authproxy login trigger; follow into Auth0 universal login.
-        async with self._session.get(
-            f"{_SITE_BASE}{_LOGIN_PATH}",
-            params=_LOGIN_PARAMS,
-            headers=self._headers(),
-            allow_redirects=True,
-            timeout=ClientTimeout(total=_TIMEOUT_S),
-        ) as resp:
-            login_url = str(resp.url)
-            login_html = await resp.text(errors="replace")
-            login_status = resp.status
+        #    A hydrated (cookie-resumed) session changes the shape: it can land
+        #    straight back on volkswagen.de already-logged-in, OR — if the
+        #    persisted cookies are only partially valid — bounce the authproxy
+        #    against the IDP (prompt=none) in a redirect loop. Cap the hops so a
+        #    loop raises a clean, handled error instead of an unguarded crash,
+        #    and treat an already-authenticated landing as success (no OTP).
+        try:
+            async with self._session.get(
+                f"{_SITE_BASE}{_LOGIN_PATH}",
+                params=_LOGIN_PARAMS,
+                headers=self._headers(),
+                allow_redirects=True,
+                max_redirects=20,
+                timeout=ClientTimeout(total=_TIMEOUT_S),
+            ) as resp:
+                login_url = str(resp.url)
+                login_html = await resp.text(errors="replace")
+                login_status = resp.status
+        except TooManyRedirects as exc:
+            # A resumed session looping between the authproxy and the IDP means
+            # the persisted cookies are stale. Surface a normal auth failure so
+            # the coordinator re-authenticates rather than crashing the poll.
+            raise AuthenticationError(
+                "Website authproxy: redirect loop resuming the session "
+                "(persisted cookies stale) — re-authentication needed"
+            ) from exc
 
         if login_status >= 400:
             raise AuthenticationError(
                 f"Website authproxy: login page HTTP {login_status}"
             )
+
+        # Already authenticated? A valid resumed session lands back on
+        # volkswagen.de WITHOUT passing through the identity login page — that
+        # means the persisted cookies are still good, so we're in (no OTP).
+        host = urlparse(login_url).hostname or ""
+        if host.endswith("volkswagen.de") and "/u/login" not in login_url:
+            self._finalise_login(login_url)
+            return "ok"
+
         if "/u/login" not in login_url and "signin-service" not in login_url:
             raise AuthenticationError(
                 "Website authproxy: did not reach the VW identity login "
