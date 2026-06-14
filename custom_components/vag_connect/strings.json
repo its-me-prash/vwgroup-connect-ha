@@ -928,7 +928,7 @@
       "description": "Your {brand} account ({username}) requires an email verification code.\n\n**One-time fix:**\n1. Open the **{brand} app** on your phone\n2. Sign in manually\n3. Confirm the code sent by email\n4. Restart Home Assistant\n\nAfter this one-time step, the integration stores the login token — you won't need to repeat this."
     },
     "email_two_factor_required": {
-      "title": "Email 2FA — check your inbox ({brand})",
+      "title": "Email 2FA — check your inbox",
       "description": "Your {brand} account ({username}) requires an **email verification code**.\n\n**One-time fix:**\n1. **Check your email inbox** (and spam folder) for a 6-digit code from VAG IDP\n2. Open the **{brand} app** on your phone\n3. Sign in manually and enter the code\n4. Restart Home Assistant\n\nAfter this one-time step, the integration stores the login token — you won't need to repeat this."
     },
     "terms_and_conditions": {

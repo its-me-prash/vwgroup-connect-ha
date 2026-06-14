@@ -928,7 +928,7 @@
       "description": "Dein {brand}-Konto ({username}) verlangt eine Bestätigung per E-Mail-Code.\n\n**Einmalige Lösung:**\n1. Öffne die **{brand}-App** auf deinem Handy\n2. Melde dich dort manuell an\n3. Bestätige den Code, der per E-Mail kommt\n4. Starte Home Assistant neu\n\nNach diesem einmaligen Schritt speichert die Integration das Login-Token — du musst das nicht wiederholen."
     },
     "email_two_factor_required": {
-      "title": "E-Mail-2FA — Postfach prüfen ({brand})",
+      "title": "E-Mail-2FA — Postfach prüfen",
       "description": "Dein {brand}-Konto ({username}) erfordert einen **E-Mail-Bestätigungscode**.\n\n**Einmalige Behebung:**\n1. **Postfach prüfen** (und Spam-Ordner) — 6-stelliger Code von VAG IDP\n2. **{brand}-App** auf dem Smartphone öffnen\n3. Manuell anmelden und Code eingeben\n4. Home Assistant neu starten\n\nNach diesem einmaligen Schritt speichert die Integration den Login-Token — du musst es nicht wiederholen."
     },
     "terms_and_conditions": {

@@ -944,7 +944,7 @@
       "description": "1. Otevřete aplikaci **{brand}**\n2. Přihlaste se ručně\n3. Potvrďte kód z e-mailu\n4. Restartujte Home Assistant"
     },
     "email_two_factor_required": {
-      "title": "E-mailové 2FA — zkontrolujte schránku ({brand})",
+      "title": "E-mailové 2FA — zkontrolujte schránku",
       "description": "Váš účet {brand} ({username}) vyžaduje **e-mailový ověřovací kód**.\n\n**Jednorázová oprava:**\n1. **Zkontrolujte e-mail** (i spam) — 6místný kód od VAG IDP\n2. Otevřete aplikaci **{brand}**\n3. Přihlaste se ručně a zadejte kód\n4. Restartujte Home Assistant"
     },
     "terms_and_conditions": {

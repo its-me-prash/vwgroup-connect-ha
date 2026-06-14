@@ -944,7 +944,7 @@
       "description": "1. Öppna **{brand}-appen**\n2. Logga in manuellt\n3. Bekräfta e-postkoden\n4. Starta om Home Assistant"
     },
     "email_two_factor_required": {
-      "title": "E-post 2FA — kolla din inkorg ({brand})",
+      "title": "E-post 2FA — kolla din inkorg",
       "description": "Ditt {brand}-konto ({username}) kräver en **e-postbekräftelsekod**.\n\n**Engångsfix:**\n1. **Kolla din e-post** (och skräppost) — 6-siffrig kod från VAG IDP\n2. Öppna **{brand}-appen**\n3. Logga in manuellt och ange koden\n4. Starta om Home Assistant"
     },
     "terms_and_conditions": {
