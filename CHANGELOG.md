@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.14.1] - 2026-06-14
+
+### Fixed
+
+- **System Health no longer falsely reports the VW/Audi backend as unreachable.** The connectivity check pinged an old discovery URL (`/login/v1/idk/openid-configuration`) that VW has started answering with a `403` before you even log in — so Home Assistant's System Health card showed the CARIAD backend as "failed" even when everything was working. It now pings the current endpoint (the same one the login already uses), which answers normally.
+
 ## [2.14.0] - 2026-06-14
 
 ### Added
