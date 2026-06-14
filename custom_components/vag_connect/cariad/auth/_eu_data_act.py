@@ -28,6 +28,7 @@ Attribution in LEGAL.md.
 """
 from __future__ import annotations
 
+import asyncio
 import io
 import json
 import logging
@@ -104,6 +105,12 @@ _TIMEOUT_S = 60
 # of raising AuthenticationError and triggering pointless re-login churn + a
 # stream of error reports. 401/403 still mean a genuinely expired session.
 _TRANSIENT_STATUSES = (404, 410, 500, 502, 503, 504)
+# v2.13.1 — of those, only the genuinely transient server errors are worth
+# retrying with backoff; 404/410 ("data request not provisioned yet") are a
+# stable state and return "no data" immediately, so we don't add latency to
+# the common not-set-up case.
+_RETRIABLE_STATUSES = frozenset({500, 502, 503, 504})
+_PORTAL_RETRY_DELAYS = (3.0, 6.0)  # backoff (s) before giving up on a soft call
 
 
 # ── HTML / templateModel parsing (community-proven mechanics) ──────────────
@@ -601,14 +608,30 @@ class EUDataActConnector:
         eff_headers = dict(headers or {})
         if self._bearer:
             eff_headers["Authorization"] = f"Bearer {self._bearer}"
-        async with self._session.get(
-            url, headers=eff_headers, timeout=ClientTimeout(total=_TIMEOUT_S),
-        ) as resp:
-            if resp.status >= 400:
-                if soft and resp.status in _TRANSIENT_STATUSES:
-                    return None
-                raise AuthenticationError(f"EU Data Act GET {url} → HTTP {resp.status}")
-            return await resp.json(content_type=None)
+        # v2.13.1 — the portal is flaky: transient 5xx come and go within
+        # seconds (the whole portal ecosystem hit this). On a soft call we
+        # back off and retry the genuinely-transient server errors a couple of
+        # times before giving up as "no data this poll", recovering polls the
+        # portal would otherwise drop. A 404/410 (request not provisioned)
+        # returns immediately; a real 401/403 still raises.
+        for attempt in range(len(_PORTAL_RETRY_DELAYS) + 1):
+            async with self._session.get(
+                url, headers=eff_headers, timeout=ClientTimeout(total=_TIMEOUT_S),
+            ) as resp:
+                if resp.status >= 400:
+                    if soft and resp.status in _TRANSIENT_STATUSES:
+                        if (
+                            resp.status in _RETRIABLE_STATUSES
+                            and attempt < len(_PORTAL_RETRY_DELAYS)
+                        ):
+                            await asyncio.sleep(_PORTAL_RETRY_DELAYS[attempt])
+                            continue
+                        return None
+                    raise AuthenticationError(
+                        f"EU Data Act GET {url} → HTTP {resp.status}"
+                    )
+                return await resp.json(content_type=None)
+        return None
 
     async def list_vehicle_vins(self) -> list[str]:
         """Return the VINs consented on the portal."""

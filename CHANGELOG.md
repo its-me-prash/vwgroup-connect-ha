@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.13.1] - 2026-06-14
+
+### Fixed
+
+- **Fewer dropped polls when the EU Data Act portal is having a moment.** The portal throws transient server errors (500/502/503/504) that come and go within seconds — and until now a single blip meant skipping the whole poll and waiting 15 minutes for the next one. The integration now backs off briefly and retries (a couple of times, a few seconds apart) before giving up as "no data this poll", so a short hiccup no longer costs you a full cycle of data. The "you haven't enabled the data request yet" case (404) still returns instantly with no added delay, and a real auth failure still re-authenticates as before.
+
 ## [2.13.0] - 2026-06-13
 
 The EU Data Act portal becomes the **universal read-only safety net**: as VW keeps closing native API access brand by brand (VW EU's token logins are gone, CUPRA/SEAT's online services are now behind a device-attestation wall), each affected brand now degrades gracefully to the read-only portal instead of going dark.
