@@ -48,6 +48,7 @@ from .const import (
     CONF_SCAN_INTERVAL,
     CONF_SPIN,
     CONF_WEBSITE_AUTHPROXY,
+    CONF_WEBSITE_COOKIES,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     MIN_SCAN_INTERVAL,
@@ -277,6 +278,11 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         self._wap_user_input: dict[str, Any] = {}
         self._wap_connector: Any = None
         self._wap_session: Any = None
+        # v2.14.3 — session cookies captured after a successful website-authproxy
+        # login (no-OTP path in _wap_begin_login OR after _wap_submit_otp). Saved
+        # into entry.data under CONF_WEBSITE_COOKIES so the runtime coordinator
+        # can hydrate the jar and skip re-prompting the email-OTP on setup.
+        self._wap_cookies: list[dict[str, Any]] = []
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -409,7 +415,9 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     return await self.async_step_website_authproxy_otp()
                 return self.async_create_entry(
                     title=f"Volkswagen.de (beta) — {username}",
-                    data=self._build_website_entry_data(username, user_input),
+                    data=self._build_website_entry_data(
+                        username, user_input, self._wap_cookies,
+                    ),
                 )
 
         suggested = user_input or {}
@@ -449,6 +457,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                         title=f"Volkswagen.de (beta) — {self._wap_username}",
                         data=self._build_website_entry_data(
                             self._wap_username, self._wap_user_input,
+                            self._wap_cookies,
                         ),
                     )
                 errors["base"] = "invalid_credentials"
@@ -506,9 +515,10 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             raise ValueError("cannot_connect") from err
         if result == "otp_required":
             return True
-        # Logged in without OTP — the validation succeeded. The runtime
-        # coordinator re-runs the login on its own session; this throwaway
-        # validation session can be closed now.
+        # Logged in without OTP — the validation succeeded. Capture the fresh
+        # session cookies BEFORE closing the throwaway session so the runtime
+        # coordinator can hydrate them and skip a fresh login + OTP prompt.
+        self._wap_cookies = self._wap_capture_cookies()
         await self._wap_close_session()
         return False
 
@@ -520,6 +530,10 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             raise ValueError("cannot_connect")
         try:
             ok = bool(await self._wap_connector.submit_otp(code))
+            # Capture the post-OTP session cookies BEFORE the finally-block
+            # closes the session, so they can be persisted into entry.data.
+            if ok:
+                self._wap_cookies = self._wap_capture_cookies()
         except AuthenticationError as err:
             _LOGGER.warning("Website authproxy OTP failed: %s", err)
             raise ValueError("invalid_credentials") from err
@@ -532,6 +546,22 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         finally:
             await self._wap_close_session()
         return ok
+
+    def _wap_capture_cookies(self) -> list[dict[str, Any]]:
+        """Export the connector's volkswagen.de / vwgroup.io session cookies.
+
+        Returns an empty list (never raises) when no connector is held or the
+        export fails, so a capture hiccup can never block entry creation — the
+        worst case is the runtime path falling back to a fresh login.
+        """
+        connector = self._wap_connector
+        if connector is None:
+            return []
+        try:
+            cookies = connector.export_cookies()
+        except Exception:  # noqa: BLE001
+            return []
+        return cookies if isinstance(cookies, list) else []
 
     async def _wap_close_session(self) -> None:
         """Close the throwaway validation session + drop the connector."""
@@ -546,7 +576,9 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
 
     @staticmethod
     def _build_website_entry_data(
-        username: str, user_input: dict[str, Any]
+        username: str,
+        user_input: dict[str, Any],
+        cookies: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Entry data for the website-authproxy (opt-in beta) mode.
 
@@ -554,12 +586,19 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         plus the standard credentials/interval. ``CONF_READ_ONLY`` is forced
         True (the channel cannot send commands), and ``CONF_BRAND`` is pinned
         to volkswagen.
+
+        v2.14.3 — ``cookies`` are the volkswagen.de / vwgroup.io session cookies
+        captured by the config flow after the login (incl. email-OTP) succeeded.
+        Persisting them under ``CONF_WEBSITE_COOKIES`` lets the coordinator
+        hydrate the jar at runtime so ``_arm_website_proxy`` resumes the session
+        instead of re-prompting the email-OTP on every setup/restart.
         """
         return {
             CONF_BRAND:            "volkswagen",
             CONF_USERNAME:         username,
             CONF_PASSWORD:         user_input.get(CONF_PASSWORD, ""),
             CONF_WEBSITE_AUTHPROXY: True,
+            CONF_WEBSITE_COOKIES:  cookies or [],
             CONF_READ_ONLY:        True,
             CONF_SCAN_INTERVAL: max(
                 int(user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)),

@@ -558,16 +558,29 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # Gated on the explicit per-entry flag + brand == volkswagen + the
         # client supporting the setter, so this is a no-op for every other
         # entry and leaves all existing strategy paths untouched.
-        from .const import CONF_WEBSITE_AUTHPROXY  # noqa: PLC0415
+        from .const import (  # noqa: PLC0415
+            CONF_WEBSITE_AUTHPROXY,
+            CONF_WEBSITE_COOKIES,
+        )
         if (
             brand == "volkswagen"
             and self.entry.data.get(CONF_WEBSITE_AUTHPROXY)
             and hasattr(self._cariad_client, "set_website_authproxy_mode")
         ):
-            self._cariad_client.set_website_authproxy_mode(True)
+            # v2.14.3 — hand the brand client the cookies the config flow
+            # persisted after its login (incl. email-OTP). _arm_website_proxy
+            # hydrates them before begin_login() so the session resumes without
+            # re-prompting the OTP on this setup/restart. Empty list / absent =
+            # the prior fresh-login behaviour (which re-raised on 2FA).
+            persisted_cookies = self.entry.data.get(CONF_WEBSITE_COOKIES) or []
+            self._cariad_client.set_website_authproxy_mode(
+                True, cookies=persisted_cookies,
+            )
             _LOGGER.info(
                 "VAG Connect: volkswagen.de website-authproxy mode enabled "
-                "(opt-in, read-only beta) for this entry."
+                "(opt-in, read-only beta) for this entry%s.",
+                " — resuming from persisted cookies" if persisted_cookies
+                else "",
             )
 
         # v1.19.2 (#118 eismarkt) — token persistence wire-up.
@@ -648,6 +661,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             )
             if persisted is None or persisted_is_portal:
                 await self._cariad_client.authenticate()
+                # v2.14.3 — the website-authproxy login rotates the cookie jar;
+                # persist the fresh cookies back so the NEXT setup/restart
+                # resumes the session (and keeps skipping the OTP prompt).
+                # Guarded so it only ever touches website-authproxy entries.
+                self._persist_website_cookies()
             else:
                 _LOGGER.debug(
                     "VAG Connect: using persisted IDK tokens for %s "
@@ -2841,6 +2859,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         data = result.to_dict()
                         data["_client"] = self._cariad_client
                         self.vehicles[vin] = await self._enrich(data)
+            # v2.14.3 — a mid-poll 401 may have silently re-logged the
+            # website-authproxy session (rotating its cookie jar). Persist the
+            # fresh cookies so the next restart keeps skipping the OTP prompt.
+            # No-op (and cheap) for every non-website-authproxy entry.
+            self._persist_website_cookies()
             _LOGGER.debug("VAG Connect: Manual refresh OK")
             return dict(self.vehicles)
         except Exception as err:  # noqa: BLE001
@@ -3275,6 +3298,57 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         """v1.13.0 (#63 Phase 2) / v1.25.0 PR-D delegated — True if a
         command for this VIN+command-class is currently locked."""
         return self._ensure_dispatcher().is_command_in_flight(vin, command_class)  # type: ignore[no-any-return]
+
+    def _persist_website_cookies(self) -> None:
+        """v2.14.3 — write the live website-authproxy cookies back to the entry.
+
+        The website-authproxy session cookie jar rotates on each successful
+        login/refresh. After such a login we export the fresh cookies and store
+        them on ``entry.data[CONF_WEBSITE_COOKIES]`` so the next setup/restart
+        resumes the session and keeps skipping the email-OTP prompt.
+
+        STRICTLY guarded: a no-op unless this is a website-authproxy entry and
+        the client actually exported a non-empty cookie set, and it only writes
+        when the cookies actually changed (avoids a pointless entry update +
+        listener churn on every poll). Never raises — a persistence hiccup must
+        not break polling; the in-memory session stays valid regardless.
+        """
+        from .const import (  # noqa: PLC0415
+            CONF_WEBSITE_AUTHPROXY,
+            CONF_WEBSITE_COOKIES,
+        )
+
+        if not self.entry.data.get(CONF_WEBSITE_AUTHPROXY):
+            return
+        client = getattr(self, "_cariad_client", None)
+        if client is None or not hasattr(client, "get_website_proxy_cookies"):
+            return
+        try:
+            fresh: list[dict[str, Any]] = client.get_website_proxy_cookies()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "VAG Connect: website-authproxy cookie export failed (%s) "
+                "— session still valid in-memory", type(err).__name__,
+            )
+            return
+        if not fresh:
+            return
+        if fresh == (self.entry.data.get(CONF_WEBSITE_COOKIES) or []):
+            return
+        try:
+            self.hass.config_entries.async_update_entry(
+                self.entry,
+                data={**self.entry.data, CONF_WEBSITE_COOKIES: fresh},
+            )
+            _LOGGER.debug(
+                "VAG Connect: persisted %d refreshed website-authproxy "
+                "cookie(s) back to the entry.", len(fresh),
+            )
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "VAG Connect: could not persist website-authproxy cookies "
+                "(%s) — will retry next login.", type(err).__name__,
+            )
 
     def is_read_only(self) -> bool:
         """v1.12.0 (#63) — return True if user enabled Read-only Mode.

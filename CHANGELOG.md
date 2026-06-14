@@ -38,6 +38,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.14.3] - 2026-06-14
+
+### Fixed
+
+- **volkswagen.de website login (beta): you only enter the email code once now, not on every restart.** The beta channel logged you in (code and all) when you set it up, but then threw all that away and started fresh every time Home Assistant restarted — which meant it asked for a new email code on every single restart, and if you weren't there to type it in, the integration just got stuck. It now remembers the login session from setup and reuses it, so a restart picks up where it left off instead of pestering you for another code. If the saved session has genuinely gone stale, it falls back to asking you to sign in again, same as before. The session keeps itself fresh in the background after each successful login. (Opt-in beta channel only; still read-only.)
+- **Repair notifications show the brand name properly instead of a literal `{brand}`.** A couple of the "please sign in again" repair prompts (including the email-code one) had a `{brand}` placeholder that wasn't being filled in, so the title could read awkwardly. It now drops in the actual brand (or a sensible fallback) so the message reads cleanly.
+
 ## [2.14.2] - 2026-06-14
 
 ### Fixed

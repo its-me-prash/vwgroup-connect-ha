@@ -145,6 +145,19 @@ CONF_DATA_ACT_IDENTIFIERS     = "data_act_identifiers"
 # via the dedicated "Volkswagen.de website (beta)" config-flow option.
 CONF_WEBSITE_AUTHPROXY        = "website_authproxy"
 
+# v2.14.3 — persisted login cookies for the website-authproxy channel. The
+# config flow logs in once (incl. email-OTP) and stashes the resulting
+# volkswagen.de / vwgroup.io session cookies here in entry.data. At runtime the
+# coordinator hands them to the brand client so ``_arm_website_proxy`` hydrates
+# the cookie jar BEFORE ``begin_login()`` — an already-authenticated session
+# redirects straight back to volkswagen.de WITHOUT re-prompting the email-OTP,
+# which was previously raised on every setup/restart. The jar rotates on each
+# successful login/refresh, so the coordinator writes the fresh cookies back to
+# the entry. STRICTLY additive: only ever read/written for website-authproxy
+# entries; absent for every other mode/brand. Value: a list of cookie dicts as
+# produced by ``WebsiteAuthProxyConnector.export_cookies``.
+CONF_WEBSITE_COOKIES          = "website_cookies"
+
 # Supported brands — must match CariadClientFactory.create() keys
 BRANDS = {
     "audi":           "Audi (myAudi)",

@@ -132,6 +132,14 @@ class CariadBaseClient:
         # the code the user enters in the config flow is handed to the
         # connector via this field before authenticate() runs.
         self._website_proxy_otp: str | None = None
+        # v2.14.3 — persisted website-authproxy session cookies. The config
+        # flow exports the volkswagen.de / vwgroup.io cookies after a
+        # successful login (incl. email-OTP) and the coordinator threads them
+        # in via set_website_authproxy_mode(..., cookies=...). _arm_website_proxy
+        # hydrates them into the connector BEFORE begin_login() so an
+        # already-authenticated session resumes WITHOUT re-prompting the OTP.
+        # None / empty = no persisted session → normal (OTP-prompting) login.
+        self._website_cookies: list[dict[str, Any]] | None = None
         self._image_data: dict[str, VehicleImageData] = {}
         self._refresh_lock: asyncio.Lock | None = None
         # Sliding window of token refresh attempt timestamps (monotonic seconds).
@@ -446,7 +454,11 @@ class CariadBaseClient:
         )
 
     def set_website_authproxy_mode(
-        self, enabled: bool, *, otp: str | None = None
+        self,
+        enabled: bool,
+        *,
+        otp: str | None = None,
+        cookies: list[dict[str, Any]] | None = None,
     ) -> None:
         """v2.14.0 — OPT-IN: route this client through the website authproxy.
 
@@ -456,9 +468,17 @@ class CariadBaseClient:
         changes and every existing strategy path runs unmodified. ``otp`` is
         the email-OTP code collected by the config flow, consumed once on the
         next ``authenticate()``.
+
+        v2.14.3 — ``cookies`` are the persisted volkswagen.de / vwgroup.io
+        session cookies (as exported by the config flow). When supplied, they
+        are hydrated into the connector BEFORE ``begin_login()`` in
+        ``_arm_website_proxy``, so an already-authenticated session resumes
+        without re-prompting the email-OTP. Defaults to None → unchanged
+        behaviour (a fresh, OTP-prompting login) for callers that don't pass it.
         """
         self._use_website_proxy = bool(enabled)
         self._website_proxy_otp = otp
+        self._website_cookies = cookies
 
     async def _arm_website_proxy(self) -> None:
         """Build + log in the read-only website-authproxy connector.
@@ -484,6 +504,14 @@ class CariadBaseClient:
         connector = WebsiteAuthProxyConnector(
             self._session, self._email, self._password, brand=self._brand.name,
         )
+        # v2.14.3 — hydrate persisted session cookies BEFORE begin_login(). When
+        # the cookies are still valid, the authproxy redirects the already-
+        # authenticated session straight back to volkswagen.de and begin_login()
+        # returns "ok" WITHOUT an OTP challenge — fixing the re-prompt-on-every-
+        # restart bug. If the cookies are stale the IDP re-prompts and
+        # begin_login() surfaces "otp_required" → the normal reauth path below.
+        if self._website_cookies:
+            connector.import_cookies(self._website_cookies)
         result = await connector.begin_login()
         if result == "otp_required":
             if not self._website_proxy_otp:
@@ -507,6 +535,27 @@ class CariadBaseClient:
             expires_at=_time.time() + 3300,
             strategy="website_authproxy",
         )
+
+    def get_website_proxy_cookies(self) -> list[dict[str, Any]]:
+        """v2.14.3 — export the live website-authproxy session cookies.
+
+        The coordinator calls this after a successful website-authproxy login/
+        refresh to persist the (rotated) cookies back into the config entry, so
+        the next setup/restart resumes the session without an OTP prompt.
+        Returns an empty list (never raises) when the connector is unarmed or
+        the export fails, so a capture hiccup never breaks the poll.
+        """
+        connector = self._website_proxy
+        if connector is None:
+            return []
+        try:
+            cookies = connector.export_cookies()
+        except Exception:  # noqa: BLE001
+            return []
+        # Typed intermediate so mypy doesn't flag a Returning-Any on the
+        # connector's loosely-typed export.
+        result: list[dict[str, Any]] = cookies if isinstance(cookies, list) else []
+        return result
 
     def set_persisted_tokens(self, tokens: TokenSet | None) -> None:
         """v1.19.2 (#118) — inject tokens loaded from HA storage at
