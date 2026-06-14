@@ -267,7 +267,8 @@ class WebsiteAuthProxyConnector:
         brand: str = "volkswagen",
     ) -> None:
         # Provenance canary — referenced so a port of this module carries the
-        # marker. Semantically inert (see _canaries.py).
+        # marker. Semantically inert (see _canaries.py). Literal embedded for
+        # the canary-watch grep: website_authproxy_provenance_b6tkd2x9_2026
         self._canary = CANARY_WEBSITE_AUTHPROXY
         self._session = session
         self._email = email

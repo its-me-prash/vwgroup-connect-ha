@@ -250,8 +250,8 @@ _CHARGING_JSON = {
 }
 _MAINT_JSON = {"data": {"maintenanceStatus": {"value": {"mileage_km": 33333}}}}
 _RELATIONS_TEXT = (
-    '{"relations":[{"vin":"WVWZZZTESTVIN0001","role":"PRIMARY_USER"},'
-    '{"vehicle":{"vin":"WVWZZZTESTVIN0002"}},{"vin":"TOOSHORT"}]}'
+    '{"relations":[{"vin":"WVWZZZTESTVHN0001","role":"PRIMARY_USER"},'
+    '{"vehicle":{"vin":"WVWZZZTESTVHN0002"}},{"vin":"TOOSHORT"}]}'
 )
 
 
@@ -364,7 +364,7 @@ async def test_list_vehicle_vins_scans_relations() -> None:
     session = _OkLoginSession()
     conn = WebsiteAuthProxyConnector(session, "u@x.z", "pw")  # type: ignore[arg-type]
     vins = await conn.list_vehicle_vins()
-    assert vins == ["WVWZZZTESTVIN0001", "WVWZZZTESTVIN0002"]
+    assert vins == ["WVWZZZTESTVHN0001", "WVWZZZTESTVHN0002"]
 
 
 @pytest.mark.asyncio
@@ -372,7 +372,7 @@ async def test_get_vehicle_data_merges_charging_and_maintenance() -> None:
     """get_vehicle_data() fetches both endpoints and maps onto VehicleData."""
     session = _OkLoginSession()
     conn = WebsiteAuthProxyConnector(session, "u@x.z", "pw")  # type: ignore[arg-type]
-    d = await conn.get_vehicle_data("WVWZZZTESTVIN0001")
+    d = await conn.get_vehicle_data("WVWZZZTESTVHN0001")
     assert d.battery_soc == 77
     assert d.electric_range_km == 250
     assert d.charging_power_kw == 7.4
@@ -391,7 +391,7 @@ async def test_get_vehicle_data_401_raises() -> None:
 
     conn = WebsiteAuthProxyConnector(_401Session(), "u@x.z", "pw")  # type: ignore[arg-type]
     with pytest.raises(AuthenticationError):
-        await conn.get_vehicle_data("WVWZZZTESTVIN0001")
+        await conn.get_vehicle_data("WVWZZZTESTVHN0001")
 
 
 @pytest.mark.asyncio
@@ -413,7 +413,7 @@ async def test_get_vehicle_data_soft_404_is_graceful() -> None:
             raise AssertionError(f"unmatched GET {url}")
 
     conn = WebsiteAuthProxyConnector(_Maint404Session(), "u@x.z", "pw")  # type: ignore[arg-type]
-    d = await conn.get_vehicle_data("WVWZZZTESTVIN0001")
+    d = await conn.get_vehicle_data("WVWZZZTESTVHN0001")
     # Charging still mapped; maintenance softly skipped.
     assert d.battery_soc == 77
     assert d.odometer_km is None
