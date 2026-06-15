@@ -512,7 +512,18 @@ class CariadBaseClient:
         # begin_login() surfaces "otp_required" → the normal reauth path below.
         if self._website_cookies:
             connector.import_cookies(self._website_cookies)
-        result = await connector.begin_login()
+            # v2.14.6 — probe a data endpoint with the resumed cookies BEFORE
+            # touching the login flow. A still-valid session lets us adopt it
+            # directly and skip the /app/authproxy/login OAuth dance — which is
+            # the path that redirect-loops (TooManyRedirects) when the persisted
+            # cookies are only partially valid. A dead session (probe False)
+            # falls through to a full begin_login() → OTP, exactly as before.
+            if await connector.session_alive():
+                result = "ok"
+            else:
+                result = await connector.begin_login()
+        else:
+            result = await connector.begin_login()
         if result == "otp_required":
             if not self._website_proxy_otp:
                 raise EmailTwoFactorRequiredError()
