@@ -41,7 +41,7 @@ import re
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from aiohttp import ClientSession, ClientTimeout, TooManyRedirects
+from aiohttp import ClientError, ClientSession, ClientTimeout, TooManyRedirects
 
 from ..._canaries import CANARY_WEBSITE_AUTHPROXY
 from ..exceptions import AuthenticationError, EmailTwoFactorRequiredError
@@ -368,16 +368,26 @@ class WebsiteAuthProxyConnector:
         fields.setdefault("action", "default")
         post_url = _resolve_action(login_url, action)
 
-        async with self._session.post(
-            post_url,
-            data=fields,
-            headers=self._headers({"Referer": login_url}),
-            allow_redirects=True,
-            timeout=ClientTimeout(total=_TIMEOUT_S),
-        ) as resp:
-            landed = str(resp.url)
-            landed_html = await resp.text(errors="replace")
-            landed_status = resp.status
+        try:
+            async with self._session.post(
+                post_url,
+                data=fields,
+                headers=self._headers({"Referer": login_url}),
+                allow_redirects=True,
+                max_redirects=20,
+                timeout=ClientTimeout(total=_TIMEOUT_S),
+            ) as resp:
+                landed = str(resp.url)
+                landed_html = await resp.text(errors="replace")
+                landed_status = resp.status
+        except TooManyRedirects as exc:
+            # The credential POST bouncing the authproxy against the IDP means
+            # the flow can't settle — surface a clean auth failure rather than
+            # an unguarded crash (mirrors the begin_login GET guard above).
+            raise AuthenticationError(
+                "Website authproxy: redirect loop posting credentials "
+                "— login could not complete"
+            ) from exc
 
         if landed_status == 401:
             raise AuthenticationError(
@@ -575,6 +585,45 @@ class WebsiteAuthProxyConnector:
                 )
             except Exception:  # noqa: BLE001
                 continue
+
+    async def session_alive(self) -> bool:
+        """Probe the relations endpoint with the currently-loaded cookies.
+
+        The resume partner to ``import_cookies``: a cheap authenticated read
+        that tells us whether a persisted session is still good WITHOUT
+        re-running the redirect-loop-prone ``/app/authproxy/login`` OAuth
+        dance. Returns ``True`` only on a clean authenticated ``200``. A stale
+        session — ``401``/``403``, or a ``3xx`` redirect to the login page —
+        returns ``False`` WITHOUT following the hop (``allow_redirects=False``),
+        so a dead session degrades to a fresh login instead of bouncing the
+        authproxy against the IDP in a ``TooManyRedirects`` loop.
+
+        On success it marks the connector logged-in so the caller can adopt the
+        resumed session directly and skip ``begin_login()`` altogether.
+        """
+        url = f"{_SITE_BASE}{_RELATIONS_PATH}"
+        headers = self._headers({
+            "Accept": "application/json",
+            "user-id": "__userId__",
+            "Referer": _REDIRECT_URL,
+        })
+        try:
+            async with self._session.get(
+                url,
+                headers=headers,
+                allow_redirects=False,
+                timeout=ClientTimeout(total=_TIMEOUT_S),
+            ) as resp:
+                alive = resp.status == 200
+        except (ClientError, TimeoutError):
+            return False
+        if alive:
+            self.logged_in = True
+            _LOGGER.info(
+                "Website authproxy: resumed session still valid "
+                "(read-only, beta) — skipped re-login"
+            )
+        return alive
 
     # ── reads ──────────────────────────────────────────────────────────────
 

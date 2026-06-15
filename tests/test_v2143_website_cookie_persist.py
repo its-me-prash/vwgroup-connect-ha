@@ -14,8 +14,9 @@ The pieces pinned here are the ones verifiable without a live VW account:
   1. ``set_website_authproxy_mode(True, cookies=[...])`` stores the cookies on
      the client (and the param defaults to None → no behaviour change).
   2. ``_arm_website_proxy`` imports the persisted cookies into the connector
-     BEFORE ``begin_login()``, so a valid session short-circuits to "ok" and
-     NO OTP is requested.
+     and probes the data endpoint (``session_alive``, v2.14.6); a still-valid
+     session is adopted directly — ``begin_login()`` is skipped and NO OTP is
+     requested. Stale cookies fall through to the full login.
   3. Stale cookies still surface the OTP requirement (normal reauth path).
   4. ``get_website_proxy_cookies`` exports the live jar for refresh-back, and
      ``export_cookies``/``import_cookies`` round-trip the two VW domains.
@@ -99,12 +100,13 @@ def test_set_mode_disabled_is_inert() -> None:
 
 @pytest.mark.asyncio
 async def test_arm_imports_cookies_and_skips_otp(monkeypatch: Any) -> None:
-    """With persisted cookies, the connector's session is already valid:
-    begin_login() returns "ok" and NO OTP is requested."""
+    """With persisted cookies that are still valid, the v2.14.6 data-endpoint
+    probe (session_alive) returns True → the session is adopted directly,
+    begin_login() is SKIPPED entirely and NO OTP is requested."""
     connector = MagicMock()
     connector.import_cookies = MagicMock()
-    # A valid session short-circuits straight to "ok" (the authproxy redirects
-    # an already-authenticated session back to volkswagen.de).
+    # A valid resumed session: the probe confirms it without the login dance.
+    connector.session_alive = AsyncMock(return_value=True)
     connector.begin_login = AsyncMock(return_value="ok")
     connector.submit_otp = AsyncMock(return_value=True)
     connector.export_cookies = MagicMock(return_value=_PERSISTED_COOKIES)
@@ -120,9 +122,10 @@ async def test_arm_imports_cookies_and_skips_otp(monkeypatch: Any) -> None:
     c.set_website_authproxy_mode(True, cookies=_PERSISTED_COOKIES)
     await c._arm_website_proxy()
 
-    # Cookies were imported BEFORE begin_login() short-circuited.
+    # Cookies imported, then the probe short-circuited the login flow.
     connector.import_cookies.assert_called_once_with(_PERSISTED_COOKIES)
-    connector.begin_login.assert_awaited_once()
+    connector.session_alive.assert_awaited_once()
+    connector.begin_login.assert_not_awaited()
     connector.submit_otp.assert_not_awaited()
     # Connector retained + sentinel token marks the client authenticated.
     assert c._website_proxy is connector
@@ -154,10 +157,13 @@ async def test_arm_no_cookies_does_not_import(monkeypatch: Any) -> None:
 
 @pytest.mark.asyncio
 async def test_arm_stale_cookies_surface_otp(monkeypatch: Any) -> None:
-    """Stale cookies → the IDP still re-prompts; with no OTP code on hand the
-    arm raises EmailTwoFactorRequiredError (routes to the normal reauth path)."""
+    """Stale cookies → the probe (session_alive) returns False, so we fall
+    through to a full begin_login(); the IDP re-prompts and with no OTP code on
+    hand the arm raises EmailTwoFactorRequiredError (normal reauth path)."""
     connector = MagicMock()
     connector.import_cookies = MagicMock()
+    # Stale session: the probe fails → fall through to the full login flow.
+    connector.session_alive = AsyncMock(return_value=False)
     connector.begin_login = AsyncMock(return_value="otp_required")
     connector.submit_otp = AsyncMock(return_value=True)
     factory = MagicMock(return_value=connector)
@@ -173,6 +179,8 @@ async def test_arm_stale_cookies_surface_otp(monkeypatch: Any) -> None:
     with pytest.raises(EmailTwoFactorRequiredError):
         await c._arm_website_proxy()
     connector.import_cookies.assert_called_once_with(_PERSISTED_COOKIES)
+    connector.session_alive.assert_awaited_once()
+    connector.begin_login.assert_awaited_once()
     connector.submit_otp.assert_not_awaited()
 
 

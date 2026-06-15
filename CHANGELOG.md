@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.14.6] - 2026-06-15
+
+### Fixed
+
+- **volkswagen.de website login (beta) now actually resumes a saved session instead of re-logging-in every time.** v2.14.5 stopped the redirect-loop crash, but it still kicked you back to a fresh email-OTP whenever the resume wobbled. Now, when the integration comes back up it does a quick, redirect-free check against the data endpoint with your saved cookies: if the session is still good it's adopted straight away — no login dance, no OTP — and only a genuinely expired session falls back to a fresh login. As a belt-and-suspenders extra, the credential step also can't get stuck in a redirect loop anymore. (Opt-in beta channel only; no change for any other brand or mode.)
+
 ## [2.14.5] - 2026-06-15
 
 ### Fixed
