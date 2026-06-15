@@ -326,10 +326,19 @@ class WebsiteAuthProxyConnector:
                 login_url = str(resp.url)
                 login_html = await resp.text(errors="replace")
                 login_status = resp.status
+                _LOGGER.debug(
+                    "Website authproxy begin_login GET → status %s, chain: %s",
+                    login_status,
+                    self._redirect_hosts(getattr(resp, "history", ()), login_url),
+                )
         except TooManyRedirects as exc:
             # A resumed session looping between the authproxy and the IDP means
             # the persisted cookies are stale. Surface a normal auth failure so
             # the coordinator re-authenticates rather than crashing the poll.
+            _LOGGER.debug(
+                "Website authproxy begin_login GET redirect LOOP — chain: %s",
+                self._redirect_hosts(getattr(exc, "history", ())),
+            )
             raise AuthenticationError(
                 "Website authproxy: redirect loop resuming the session "
                 "(persisted cookies stale) — re-authentication needed"
@@ -380,10 +389,19 @@ class WebsiteAuthProxyConnector:
                 landed = str(resp.url)
                 landed_html = await resp.text(errors="replace")
                 landed_status = resp.status
+                _LOGGER.debug(
+                    "Website authproxy credential POST → status %s, chain: %s",
+                    landed_status,
+                    self._redirect_hosts(getattr(resp, "history", ()), landed),
+                )
         except TooManyRedirects as exc:
             # The credential POST bouncing the authproxy against the IDP means
             # the flow can't settle — surface a clean auth failure rather than
             # an unguarded crash (mirrors the begin_login GET guard above).
+            _LOGGER.debug(
+                "Website authproxy credential POST redirect LOOP — chain: %s",
+                self._redirect_hosts(getattr(exc, "history", ())),
+            )
             raise AuthenticationError(
                 "Website authproxy: redirect loop posting credentials "
                 "— login could not complete"
@@ -503,6 +521,27 @@ class WebsiteAuthProxyConnector:
             )
 
     @staticmethod
+    def _redirect_hosts(history: Any, final_url: str | None = None) -> str:
+        """Hostname-only redirect chain, safe for DEBUG logging.
+
+        Maps each hop in an aiohttp ``resp.history`` (or a ``TooManyRedirects``
+        exception's ``.history``) to just its hostname and joins them with an
+        arrow. It deliberately drops paths and query strings — the OAuth
+        ``state`` and any tokens live in the query — so only hostnames are
+        emitted. A repeating ``A → B → A → B`` pattern is exactly the loop
+        signature we need to diagnose a stuck session-resume. Never raises.
+        """
+        hosts: list[str] = []
+        try:
+            for hop in history or ():
+                hosts.append(urlparse(str(getattr(hop, "url", ""))).hostname or "?")
+        except (TypeError, AttributeError):
+            pass
+        if final_url:
+            hosts.append(urlparse(final_url).hostname or "?")
+        return " → ".join(hosts) if hosts else "(no redirects)"
+
+    @staticmethod
     def _auth0_state(login_url: str, html: str) -> str | None:
         """Pull the Auth0 ``state`` from the page (hidden input or URL query)."""
         m = re.search(
@@ -615,7 +654,15 @@ class WebsiteAuthProxyConnector:
                 timeout=ClientTimeout(total=_TIMEOUT_S),
             ) as resp:
                 alive = resp.status == 200
-        except (ClientError, TimeoutError):
+                _LOGGER.debug(
+                    "Website authproxy resume probe → status %s (host %s)",
+                    resp.status,
+                    urlparse(str(resp.url)).hostname or "?",
+                )
+        except (ClientError, TimeoutError) as exc:
+            _LOGGER.debug(
+                "Website authproxy resume probe failed: %s", type(exc).__name__
+            )
             return False
         if alive:
             self.logged_in = True
