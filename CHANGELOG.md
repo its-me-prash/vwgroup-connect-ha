@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.14.7] - 2026-06-15
+
+### Added
+
+- **volkswagen.de website login (beta): redirect-chain debug logging, so a stuck login can finally be diagnosed.** When the website login bounces in a loop, the error message is redacted (it can carry tokens), which made the root cause invisible from a normal log. This adds a `DEBUG`-level, hostname-only trace of the redirect chain (and the resume-probe result) — e.g. `volkswagen.de → identity.vwgroup.io → volkswagen.de → …`. Only hostnames are logged; paths and query strings (where the OAuth `state`/tokens live) are never written. Turn on debug logging for `custom_components.vag_connect` to capture it. No functional change — purely diagnostics for the beta channel.
+
 ## [2.14.6] - 2026-06-15
 
 ### Fixed
