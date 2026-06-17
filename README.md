@@ -47,6 +47,18 @@
 
 ---
 
+## What is this? / Überblick
+
+**VW Group Connect is a [Home Assistant](https://www.home-assistant.io) integration for connected-car data and control across all seven Volkswagen Group brands — Volkswagen, Audi, Škoda, SEAT, CUPRA, Porsche and VW US/Canada — from a single config entry, installable through [HACS](https://hacs.xyz).**
+
+It surfaces battery and charging state, range, odometer, climate, doors/windows and location, and — where the brand's backend still allows it (e.g. Audi) — sends commands such as lock/unlock, climate and charge control. To stay working through Volkswagen's 2026 API changes it speaks several channels and falls back automatically when one is blocked: the brand-native backends, the read-only **EU Data Act** vehicle-data portal, and an opt-in `volkswagen.de` web channel.
+
+Unlike portal-only integrations it also covers **Porsche** (which the EU Data Act portal excludes) and keeps **Audi two-way control**.
+
+> Eine [Home Assistant](https://www.home-assistant.io)-Integration für vernetzte Fahrzeugdaten und -steuerung über alle sieben VW-Konzernmarken (Volkswagen, Audi, Škoda, SEAT, CUPRA, Porsche, VW US/CA) — eine Integration, mehrere Datenkanäle, automatischer Fallback, Installation über HACS.
+
+---
+
 ## Was ist neu in v2.10.0
 
 Das grösste Release dieser Integration bisher. Etwa 6 Wochen intensive Arbeit in einem Cut.
