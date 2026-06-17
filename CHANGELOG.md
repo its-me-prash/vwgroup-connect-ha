@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.14.9] - 2026-06-17
+
+### Fixed
+
+- **volkswagen.de website login (beta): a restart now actually resumes the session instead of looping / asking for a new email code.** This was the real root cause behind the redirect loop on resume. The single-sign-on cookie that keeps you logged in lives only on the identity host and has no domain attached, so the old code quietly dropped it when saving and never restored it — which meant a restart had no valid session to resume and bounced back to the login page. The login cookies (the SSO one included) are now captured and restored across both hosts, so a restart silently reuses your session. A stale session reported as `412`/`428` (not just `401`/`403`) now also correctly triggers a clean re-login. (Opt-in beta channel only.)
+
 ## [2.14.8] - 2026-06-17
 
 ### Fixed
