@@ -100,6 +100,18 @@ _TIMEOUT_S = 60
 _RETRIABLE_STATUSES = frozenset({500, 502, 503, 504})
 _RETRY_DELAYS = (3.0, 6.0)
 
+# A stale authproxy session answers data calls with 401/403, but ALSO with
+# 412 Precondition Failed / 428 Precondition Required (the proxy's own
+# "your session is no longer valid" signal). Treat all four as "re-login".
+_AUTH_FAIL_STATUSES = frozenset({401, 403, 412, 428})
+
+# v2.14.9 — cookie persistence spans BOTH hosts: the portal session cookies on
+# www.volkswagen.de AND the ``auth0`` SSO cookie on identity.vwgroup.io. The
+# SSO cookie is host-only (aiohttp exposes an empty domain for it), so it must
+# be captured and broadcast across both hosts explicitly — otherwise the silent
+# session-resume can't re-establish and every restart loops / re-prompts OTP.
+_COOKIE_HOSTS = (f"{_SITE_BASE}/", f"{_IDENTITY_BASE}/")
+
 _VIN_RE = re.compile(r'"vin"\s*:\s*"([A-HJ-NPR-Z0-9]{17})"')
 
 
@@ -554,43 +566,62 @@ class WebsiteAuthProxyConnector:
     # ── cookie persistence ─────────────────────────────────────────────────
 
     def export_cookies(self) -> list[dict[str, Any]]:
-        """Serialise volkswagen.de + vwgroup.io cookies for persistence.
+        """Serialise the authproxy session cookies for persistence.
 
-        Domain-filtered so we never persist cookies that belong to other
-        integrations sharing Home Assistant's aiohttp session.
+        v2.14.9 — collect via ``cookie_jar.filter_cookies()`` for BOTH the
+        volkswagen.de and identity.vwgroup.io hosts, rather than scanning the
+        raw jar and filtering by a domain string. That string filter silently
+        dropped the host-only ``auth0`` SSO cookie (aiohttp exposes an empty
+        domain for host-only cookies), and WITHOUT that SSO cookie the silent
+        resume can never re-establish the session — the restart redirect-loop /
+        re-OTP bug. ``filter_cookies`` returns exactly the cookies each host
+        would receive (host-only ones included) and nothing from other hosts,
+        so it stays scoped to our two domains.
         """
+        from yarl import URL  # noqa: PLC0415
+
         out: list[dict[str, Any]] = []
+        seen: set[tuple[str, str]] = set()
         try:
-            jar_iter = iter(self._session.cookie_jar)
+            jar = self._session.cookie_jar
         except Exception:  # noqa: BLE001
             return out
-        for cookie in jar_iter:
+        for host in _COOKIE_HOSTS:
             try:
-                domain = str(cookie.get("domain") or cookie["domain"] or "")
-            except (KeyError, AttributeError):
-                continue
-            if "volkswagen.de" not in domain and "vwgroup.io" not in domain:
-                continue
-            try:
-                out.append({
-                    "name": cookie.key,
-                    "value": cookie.value,
-                    "domain": domain,
-                    "path": str(cookie.get("path") or "/"),
-                    "expires": str(cookie.get("expires") or ""),
-                    "secure": bool(cookie.get("secure") or False),
-                    "httponly": bool(cookie.get("httponly") or False),
-                })
+                filtered = jar.filter_cookies(URL(host))
             except Exception:  # noqa: BLE001
                 continue
+            host_name = URL(host).host or ""
+            for name, morsel in filtered.items():
+                key = (str(name), str(morsel.value))
+                if key in seen:
+                    continue
+                seen.add(key)
+                try:
+                    out.append({
+                        "name": str(name),
+                        "value": str(morsel.value),
+                        "domain": str(morsel["domain"] or host_name),
+                        "path": str(morsel["path"] or "/"),
+                        "expires": str(morsel["expires"] or ""),
+                        "secure": bool(morsel["secure"]),
+                        "httponly": bool(morsel["httponly"]),
+                    })
+                except Exception:  # noqa: BLE001
+                    continue
         return out
 
     def import_cookies(self, cookies: list[dict[str, Any]]) -> None:
-        """Hydrate persisted volkswagen.de / vwgroup.io cookies into the jar.
+        """Hydrate persisted session cookies, broadcast to BOTH authproxy hosts.
 
-        Lets a restarted Home Assistant resume the authproxy session (and skip
-        the OTP prompt) without re-running the full login. Filtered to the two
-        relevant domains so we never inject cookies for anything else.
+        v2.14.9 — each persisted cookie is injected host-only against BOTH
+        www.volkswagen.de AND identity.vwgroup.io. aiohttp loses the host for
+        host-only cookies, so binding the ``auth0`` SSO cookie to a single host
+        left it unreachable from the other; broadcasting to both guarantees the
+        SSO cookie reaches identity.vwgroup.io (the linchpin of silent resume).
+        An extra cookie a host doesn't expect is harmless. This (with the
+        matching ``export_cookies`` fix) is what makes a restart resume the
+        session instead of redirect-looping / re-prompting OTP.
         """
         if not cookies:
             return
@@ -606,24 +637,32 @@ class WebsiteAuthProxyConnector:
             value = ck.get("value")
             if not name or value is None:
                 continue
+            # Scope guard: only ever inject cookies that belong to our two
+            # hosts (export stamps every persisted cookie with its real host),
+            # so a malformed/foreign entry is never broadcast. The host-only
+            # SSO cookie now carries domain="identity.vwgroup.io" from export,
+            # so it passes this guard (it was the empty-domain drop that broke).
             domain = str(ck.get("domain") or "")
             if "volkswagen.de" not in domain and "vwgroup.io" not in domain:
                 continue
             morsel: Morsel[str] = Morsel()
             morsel.set(str(name), str(value), str(value))
-            for attr in ("domain", "path", "expires", "secure", "httponly"):
+            # Deliberately do NOT copy the domain onto the morsel → the cookie
+            # binds host-only to each host we broadcast it to (matches the
+            # working rafaelhutter pattern).
+            for attr in ("path", "expires", "secure", "httponly"):
                 if attr in ck and ck[attr] not in (None, ""):
                     try:
                         morsel[attr] = ck[attr]
                     except (KeyError, ValueError):
                         pass
-            url = URL(f"https://{domain.lstrip('.')}/")
-            try:
-                self._session.cookie_jar.update_cookies(
-                    {str(name): morsel}, response_url=url,
-                )
-            except Exception:  # noqa: BLE001
-                continue
+            for host in _COOKIE_HOSTS:
+                try:
+                    self._session.cookie_jar.update_cookies(
+                        {str(name): morsel}, response_url=URL(host),
+                    )
+                except Exception:  # noqa: BLE001
+                    continue
 
     async def session_alive(self) -> bool:
         """Probe the relations endpoint with the currently-loaded cookies.
@@ -702,7 +741,7 @@ class WebsiteAuthProxyConnector:
                 headers=headers,
                 timeout=ClientTimeout(total=_TIMEOUT_S),
             ) as resp:
-                if resp.status in (401, 403):
+                if resp.status in _AUTH_FAIL_STATUSES:
                     raise AuthenticationError(
                         f"Website authproxy GET {url} → HTTP {resp.status}"
                     )
