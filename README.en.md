@@ -47,74 +47,68 @@
 
 ---
 
-## What is new in v2.10.0
+## What is this?
 
-The biggest release of this integration so far. ~6 weeks of intensive work folded into a single cut.
+**VW Group Connect is a [Home Assistant](https://www.home-assistant.io) integration for connected-car data and control across all seven Volkswagen Group brands — Volkswagen, Audi, Škoda, SEAT, CUPRA, Porsche and VW US/Canada — from a single config entry, installable through [HACS](https://hacs.xyz).**
 
-**VW EU Auth0 SPA login fixed (#388 BalooDK + swebachus).** Around 2026-05-31 VW migrated the universal-login password page to a full-SPA template. Our form-encoded POST started returning 400 even with correct credentials, and the Data Act portal fallback misidentified the SPA's `consent.js` asset as a consent wall. Both legs fixed: JSON Content-Type retry against the same `/u/login` URL when the form path 400s, and consent detection now requires specific markers (`data act`, `datenverarbeitung`, `shape the future`, `/u/consent`) instead of the bare word `consent`. VW EU users on classic-auth strategy are unblocked again.
+It surfaces battery and charging state, range, odometer, climate, doors/windows and location, and — where the brand's backend still allows it (e.g. Audi) — sends commands such as lock/unlock, climate and charge control. To stay working through Volkswagen's 2026 API changes it speaks several channels and falls back automatically when one is blocked: the brand-native backends, the read-only **EU Data Act** vehicle-data portal, and an opt-in `volkswagen.de` web channel.
 
-**Across-brand parser parity.** Three coordinated parser-gap closures so every brand surfaces what its backend already returns:
-- **VW EU (Group A) - 10 new fields**: 12V starter battery health, optimised battery use, active ventilation state + remaining time, rear sunroof, convertible roof cover, per-trip totals (fuel + electric kWh), tire pressure fallback via `measurements.tirePressureStatus` for newer PPC firmware.
-- **SEAT / CUPRA (Group B) - 6 new OLA endpoints**: dedicated warning-lights v3 endpoint, settable battery-care preservation mode + target SoC, charging-statistics history aggregator, preferred-workshop, charging-modes catalog, charging-actions PUT for runtime settings.
-- **VW NA (Group C) - 4 new endpoints**: doors + windows + lights migrated to the modern `data.exteriorStatus.*` shape (closes #322 roberttco's 2023 ID.4 US "everything-null" symptom), climate via `climateStatusReport`, odometer fallback `data.currentMileage`, GPS fallback `lastParkedLocation` for OFFLINE cars.
+Unlike portal-only integrations it also covers **Porsche** (which the EU Data Act portal excludes) and keeps **Audi two-way control**.
 
-**VW account-lock detection.** Three throttled-or-locked token responses inside a 30-minute window now surface a guided Repairs issue (`account_locked`) explaining the lock + next steps (wait, raise `scan_interval`, optionally switch to read-only Data Act portal mode). Auto-clears on next successful auth.
+---
 
-**Scout-policy enforcement.** Every silenced JSON path now MUST also be parsed into an entity, or carry an explicit T2-T5 exemption comment. The pre-existing "silence first, parse later" pattern is gone; existing silencer-only entries from v2.4.x are documented as exempt or promoted to parsed sensors (active ventilation alone closed an IOU from 2026-05-27). Wildcard rules for `.error.*` envelopes now stop Scout descending into the bff-error wrappers (closes #389, #384).
+## Current status
 
-**Provenance canaries + weekly watcher.** Five uniquely-spelled identifier strings watermark the strategic modules (auth resolver, Data Act scraper, DAG flow, Scout, watchdog). A weekly cron queries GitHub Code Search for the canaries outside the `its-me-prash` namespace and opens a triage issue if a foreign hit appears. Apache 2.0 permits the port; the canaries make stripping the LICENSE + NOTICE observable.
+In 2026 VW progressively locked down direct vehicle access for third-party tools (CARIAD BFF with device attestation, CUPRA/SEAT OLA behind Play Integrity since June 2026). This integration stays usable because it speaks **several channels** and switches automatically the moment one is blocked:
 
-**Hardening.** SPDX license headers on every Python file. Pre-commit hook enforces `ruff check`, `mypy --strict`, CHANGELOG version-match, and Bruno-collection URL drift gate. Python ↔ Bruno strict-mode CI prevents URLs from diverging from their reference recordings.
+- **Brand-native backends** — full access including control, where available (Audi, Škoda, Porsche, VW US/CA).
+- **EU Data Act portal** — read-only fallback for all brands (attestation-free, ~15 min cadence).
+- **volkswagen.de web channel (beta, opt-in)** — a second attestation-free read channel for VW.
 
-**Carried over from v2.7-v2.9** (still all live): Browser-Login (DAG) for Audi/Škoda/SEAT/CUPRA, multi-strategy auth resolver, EU Data Act portal read-only tier, MFA / email-OTP config flow, coordinator auto-reload watchdog, FCM push-channel for Audi/VW, Standheizung Auxheat entities, `vag_connect.open_app` service, brake-service sensors + preferred workshop, parser-health telemetry, per-brand capability advertisement, InvalidURL safety net, attestation gate watcher.
+Current work centres on portal robustness (timeout retry, data freshness) and resilience across the channels.
 
-Full [CHANGELOG](CHANGELOG.md#2100---2026-06-02).
+➡️ Full version history: **[CHANGELOG.md](CHANGELOG.md)**.
 
 ---
 
 ## Where we lead
 
-State as of 2026-05-31, after the 2026-05-27 VW backend change that hit the entire HA-VAG-integration community simultaneously:
+Honest picture as of mid-2026: the EU Data Act portal has by now become the de-facto standard channel, and many integrations use it. What concretely sets us apart:
 
-| Feature | Status here | Status in other HA-VAG integrations |
+| Strength | Us | Portal-only alternatives |
 |---|---|---|
-| **OAuth Device Authorization Grant (QR-Login)** for Audi/Škoda/SEAT/CUPRA | ✅ live since v2.7.0 | Nobody has it |
-| **Multi-strategy auth fallback chain** (3 tiers per brand) | ✅ live since v2.6.0 | Nobody |
-| **EU Data Act portal read-only tier** as 3rd-tier fallback | ✅ integrated since v2.6.0 | Only available as separate standalone integration |
-| **InvalidURL safety net** prevents token leakage in logs | ✅ live since v2.7.2 | Nobody |
-| **Server-side attestation gate watcher** alerts on VW backend flag flips | ✅ live since v2.7.0 | Nobody |
-| **Vehicle Data Scout** auto-detects API drift, generates 1-click bug reports | ✅ live since v1.9.0 | No comparable feature |
-| **All 7 VAG brands in one integration** (Audi+VW+Škoda+SEAT+CUPRA+Porsche+VW NA) | ✅ | Other projects ship one repo per brand |
+| **All 7 group brands incl. Porsche** in one integration | ✅ | The EU Data Act portal **structurally excludes Porsche** — portal-only tools can never cover Porsche |
+| **Audi two-way control** (lock/climate/charge, set target SoC) | ✅ | The portal is by design **read-only** |
+| **Multi-channel auth with auto-fallback** (brand backend → EU Data Act portal → opt-in vw.de web) | ✅ | mostly single-source — one portal outage = total outage |
+| **Vehicle Data Scout** — detects API drift automatically, generates 1-click bug reports | ✅ | nothing comparable |
 
 ---
 
 ## Where the limits are (honest)
 
-**VW EU is hard Play-Integrity-gated since the 2026-05-27 backend change.** This wall hits every Python-based VAG integration (ours included). It is not a temporary delay on our side, it is VW's backend policy:
+**VW EU and CUPRA/SEAT OLA have been behind device attestation since 2026.** This wall (Google Play Integrity / Firebase App Check) hits every Python-based VAG integration — ours included. It is not a delay on our side, it is VW backend policy:
 
-- The token endpoint validates an `X-Assertion` header that must be a Google Play Integrity signed JWS token
-- Python cannot generate this token because the signing key lives only inside Google's mobile-app attestation service
-- Consequence: **VW EU users do not get a real refresh_token** and are forced into a re-login every ~2 hours
+- The token / OLA endpoint demands an attestation token signed by the official app, which Python cannot produce (the signing key lives only inside the Google/Firebase attestation service).
+- Consequence: **VW EU** gets no durable `refresh_token` (the OIDC hybrid flow lasts ~2 h), and **CUPRA/SEAT** over OLA get `403 "Forbidden device detected"` since ~2026-06-08.
 
-What we still offer for VW EU:
+What we offer regardless:
 
-1. **OIDC Hybrid Flow** as primary strategy (read + write, but 2h re-login)
-2. **EU Data Act portal** as read-only fallback (15-min cadence, attestation-free, unbreakable)
-3. **Attestation gate watcher** that polls weekly and auto-opens an issue the moment VW opens the gate
+1. **EU Data Act portal** as a read-only fallback for all brands (attestation-free, ~15 min cadence) — takes over automatically when the native backend blocks.
+2. **volkswagen.de web channel (beta, opt-in)** as a second attestation-free read channel for VW.
+3. **OIDC hybrid flow** for VW EU as a read+write strategy (with the 2h re-login as the price).
 
-**EU Data Act 2026-09-12 compliance deadline.** By that date, VW must legally provide direct vehicle-data access to owners without attestation gating. Our `_data_act_portal.py` is positioned for that day.
+**EU Data Act deadline 2026-09-12.** By that date, EU regulation requires VW to offer direct, attestation-free owner-data access — portal field coverage is expected to keep growing until then.
 
-Brand status:
+Status per brand:
 
-| Brand | Auth | refresh_token? | Notes |
+| Brand | Control | Data | Note |
 |---|---|---|---|
-| **Audi** | DAG Browser-Login or email+pwd Hybrid | ✅ yes (via DAG) | Fully functional |
-| **Škoda** | DAG Browser-Login or email+pwd | ✅ yes (via DAG) | Fully functional |
-| **SEAT** | DAG Browser-Login or OLA | ✅ yes (via DAG) | Fully functional |
-| **CUPRA** | DAG Browser-Login or OLA | ✅ yes (via DAG) | Fully functional |
-| **VW EU** | OIDC Hybrid Flow or Data Act Portal | ⚠️ no, 2h re-login | Backend-gated (see above) |
-| **Porsche** | Auth0 + PPA | ✅ yes | Stable |
-| **VW US/CA** | VW NA Cloud | ✅ yes | Beta |
+| **Audi** | ✅ Two-way | ✅ full | myAudi backend, no attestation wall |
+| **Škoda** | ✅ Two-way | ✅ full | own Škoda backend |
+| **Porsche** | ✅ Two-way | ✅ full | Auth0 + PPA, stable |
+| **VW US/CA** | ✅ Two-way | ✅ full | VW NA cloud (beta) |
+| **VW EU** | ⚠️ via OIDC hybrid (~2h re-login) | ✅ read-only portal / vw.de beta | backend attestation-gated |
+| **CUPRA / SEAT** | ❌ OLA blocked (App Check) | ✅ read-only portal | since ~2026-06-08, not fixable via headers |
 
 ---
 
