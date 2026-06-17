@@ -103,18 +103,26 @@ def test_import_broadcasts_sso_cookie_to_both_hosts() -> None:
     """Each persisted cookie is injected against BOTH authproxy hosts so the
     SSO cookie reliably reaches identity.vwgroup.io."""
     jar = _FilterJar({})
+    # Domain stamped by export() (here identity.vwgroup.io) — import broadcasts
+    # it host-only to BOTH hosts regardless of the stored domain.
     _conn(_Sess(jar)).import_cookies(
-        [{"name": "auth0", "value": "ssotoken", "path": "/"}]
+        [{"name": "auth0", "value": "ssotoken",
+          "domain": "identity.vwgroup.io", "path": "/"}]
     )
     hosts = {host for host, name in jar.updates if name == "auth0"}
     assert hosts == {"www.volkswagen.de", "identity.vwgroup.io"}
 
 
 def test_import_skips_malformed_entries() -> None:
-    """Malformed entries are ignored without raising."""
+    """Malformed entries (and foreign-domain ones) are ignored without raising."""
     jar = _FilterJar({})
     _conn(_Sess(jar)).import_cookies(
-        [{"value": "noname"}, "notadict", {"name": "ok", "value": "v"}]  # type: ignore[list-item]
+        [
+            {"value": "noname"},  # no name
+            "notadict",  # not a dict
+            {"name": "foreign", "value": "v", "domain": "example.com"},  # off-domain
+            {"name": "ok", "value": "v", "domain": "www.volkswagen.de"},
+        ]  # type: ignore[list-item]
     )
     names = {name for _h, name in jar.updates}
     assert names == {"ok"}

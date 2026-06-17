@@ -637,10 +637,19 @@ class WebsiteAuthProxyConnector:
             value = ck.get("value")
             if not name or value is None:
                 continue
+            # Scope guard: only ever inject cookies that belong to our two
+            # hosts (export stamps every persisted cookie with its real host),
+            # so a malformed/foreign entry is never broadcast. The host-only
+            # SSO cookie now carries domain="identity.vwgroup.io" from export,
+            # so it passes this guard (it was the empty-domain drop that broke).
+            domain = str(ck.get("domain") or "")
+            if "volkswagen.de" not in domain and "vwgroup.io" not in domain:
+                continue
             morsel: Morsel[str] = Morsel()
             morsel.set(str(name), str(value), str(value))
-            # Deliberately NO domain attr → the cookie binds host-only to each
-            # host we broadcast it to (matches the working rafaelhutter pattern).
+            # Deliberately do NOT copy the domain onto the morsel → the cookie
+            # binds host-only to each host we broadcast it to (matches the
+            # working rafaelhutter pattern).
             for attr in ("path", "expires", "secure", "httponly"):
                 if attr in ck and ck[attr] not in (None, ""):
                     try:

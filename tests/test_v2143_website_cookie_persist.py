@@ -238,6 +238,21 @@ class _FakeJarSession:
     def __iter__(self) -> Any:
         return iter(self._cookies)
 
+    def filter_cookies(self, url: Any) -> Any:
+        # v2.14.9 — mirror aiohttp's CookieJar.filter_cookies: return the
+        # cookies that would be sent for *url*'s host (host-only included).
+        from http.cookies import SimpleCookie
+
+        host = getattr(url, "host", "") or ""
+        sc: SimpleCookie = SimpleCookie()
+        for c in self._cookies:
+            dom = str(c.get("domain") or "").lstrip(".")
+            if dom and (host == dom or host.endswith("." + dom)):
+                sc[c.key] = c.value
+                sc[c.key]["domain"] = c.get("domain") or ""
+                sc[c.key]["path"] = c.get("path") or "/"
+        return sc
+
     def update_cookies(
         self, cookies: dict[str, Any], response_url: Any = None
     ) -> None:
