@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.14.8] - 2026-06-17
+
+### Fixed
+
+- **EU Data Act portal: a slow/unreachable portal no longer errors the whole poll — it just means "no data this poll".** When the portal was sluggish, the request could time out at the network layer (before any response), and that timeout slipped past the retry logic and surfaced as an error (the spike of auto-reported `TimeoutError`s on June 16). Now a timeout or dropped connection is retried with the same short backoff as a transient server error, and if it keeps failing the poll quietly skips and tries again next cycle — instead of erroring or, worse, forcing a pointless re-login. Affects both the data-listing and the dataset-download steps.
+
 ## [2.14.7] - 2026-06-15
 
 ### Added

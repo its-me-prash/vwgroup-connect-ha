@@ -39,7 +39,7 @@ from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
-from aiohttp import ClientSession, ClientTimeout
+from aiohttp import ClientConnectionError, ClientSession, ClientTimeout
 
 from ..exceptions import AuthenticationError
 from ..models import VehicleData
@@ -615,22 +615,37 @@ class EUDataActConnector:
         # portal would otherwise drop. A 404/410 (request not provisioned)
         # returns immediately; a real 401/403 still raises.
         for attempt in range(len(_PORTAL_RETRY_DELAYS) + 1):
-            async with self._session.get(
-                url, headers=eff_headers, timeout=ClientTimeout(total=_TIMEOUT_S),
-            ) as resp:
-                if resp.status >= 400:
-                    if soft and resp.status in _TRANSIENT_STATUSES:
-                        if (
-                            resp.status in _RETRIABLE_STATUSES
-                            and attempt < len(_PORTAL_RETRY_DELAYS)
-                        ):
-                            await asyncio.sleep(_PORTAL_RETRY_DELAYS[attempt])
-                            continue
-                        return None
-                    raise AuthenticationError(
-                        f"EU Data Act GET {url} → HTTP {resp.status}"
-                    )
-                return await resp.json(content_type=None)
+            try:
+                async with self._session.get(
+                    url, headers=eff_headers, timeout=ClientTimeout(total=_TIMEOUT_S),
+                ) as resp:
+                    if resp.status >= 400:
+                        if soft and resp.status in _TRANSIENT_STATUSES:
+                            if (
+                                resp.status in _RETRIABLE_STATUSES
+                                and attempt < len(_PORTAL_RETRY_DELAYS)
+                            ):
+                                await asyncio.sleep(_PORTAL_RETRY_DELAYS[attempt])
+                                continue
+                            return None
+                        raise AuthenticationError(
+                            f"EU Data Act GET {url} → HTTP {resp.status}"
+                        )
+                    return await resp.json(content_type=None)
+            except (TimeoutError, ClientConnectionError):
+                # v2.14.8 — a transport-level timeout/disconnect (portal slow or
+                # briefly unreachable) is NOT an auth failure. Retry with the
+                # same backoff as a transient 5xx; a soft call then gives up as
+                # "no data this poll", a hard call re-raises. NEVER convert it to
+                # AuthenticationError — that forces a pointless re-login (the
+                # churn v2.12.4 fixed). Fixes #481-#483, where a TimeoutError from
+                # _session.get bypassed the status-only retry entirely.
+                if attempt < len(_PORTAL_RETRY_DELAYS):
+                    await asyncio.sleep(_PORTAL_RETRY_DELAYS[attempt])
+                    continue
+                if soft:
+                    return None
+                raise
         return None
 
     async def list_vehicle_vins(self) -> list[str]:
@@ -723,26 +738,38 @@ class EUDataActConnector:
         dl_headers = {"filename": newest, "type": "partial"}
         if self._bearer:
             dl_headers["Authorization"] = f"Bearer {self._bearer}"
-        async with self._session.get(
-            f"{_PORTAL_BASE}{_DOWNLOAD_PATH.format(vin=vin, identifier=identifier)}",
-            headers=dl_headers,
-            timeout=ClientTimeout(total=_TIMEOUT_S),
-        ) as resp:
-            if resp.status in _TRANSIENT_STATUSES:
-                # Same outage story as the listing call — the ZIP download
-                # 500s mid-outage. Don't burn the session; just skip this poll.
-                self.last_no_data_reason = "empty"
-                _LOGGER.info(
-                    "EU Data Act portal: dataset download returned a transient "
-                    "error (HTTP %s) for %s; treating as no data this poll.",
-                    resp.status, vin[-6:],
-                )
-                return d
-            if resp.status >= 400:
-                raise AuthenticationError(
-                    f"EU Data Act portal: download → HTTP {resp.status}"
-                )
-            raw = await resp.read()
+        try:
+            async with self._session.get(
+                f"{_PORTAL_BASE}{_DOWNLOAD_PATH.format(vin=vin, identifier=identifier)}",
+                headers=dl_headers,
+                timeout=ClientTimeout(total=_TIMEOUT_S),
+            ) as resp:
+                if resp.status in _TRANSIENT_STATUSES:
+                    # Same outage story as the listing call — the ZIP download
+                    # 500s mid-outage. Don't burn the session; just skip this poll.
+                    self.last_no_data_reason = "empty"
+                    _LOGGER.info(
+                        "EU Data Act portal: dataset download returned a transient "
+                        "error (HTTP %s) for %s; treating as no data this poll.",
+                        resp.status, vin[-6:],
+                    )
+                    return d
+                if resp.status >= 400:
+                    raise AuthenticationError(
+                        f"EU Data Act portal: download → HTTP {resp.status}"
+                    )
+                raw = await resp.read()
+        except (TimeoutError, ClientConnectionError):
+            # v2.14.8 — same as the soft GETs: a transport timeout/disconnect on
+            # the ZIP download is a portal hiccup, not a dead session. Skip the
+            # poll instead of letting a raw TimeoutError bubble to the coordinator.
+            self.last_no_data_reason = "empty"
+            _LOGGER.info(
+                "EU Data Act portal: dataset download timed out / disconnected "
+                "for %s; treating as no data this poll.",
+                vin[-6:],
+            )
+            return d
         payload = _unzip_json(raw, newest)
         fields = _walk_fields(payload)
         _LOGGER.debug(
