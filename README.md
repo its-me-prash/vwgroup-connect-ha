@@ -59,74 +59,58 @@ Unlike portal-only integrations it also covers **Porsche** (which the EU Data Ac
 
 ---
 
-## Was ist neu in v2.10.0
+## Aktuell
 
-Das grösste Release dieser Integration bisher. Etwa 6 Wochen intensive Arbeit in einem Cut.
+VW hat 2026 den direkten Fahrzeug-Zugriff für Dritt-Tools schrittweise dichtgemacht (CARIAD-BFF mit Geräte-Attestation, CUPRA/SEAT-OLA hinter Play Integrity seit Juni 2026). Diese Integration bleibt nutzbar, weil sie **mehrere Kanäle** spricht und automatisch umschaltet, sobald einer blockiert:
 
-**VW EU Auth0 SPA-Login gefixt (#388 BalooDK + swebachus).** Um den 2026-05-31 hat VW die universal-login Passwort-Seite auf ein full-SPA-Template migriert. Unser form-encoded POST kam mit 400 zurück trotz korrekter Credentials, und der Data Act Portal Fallback hat dann das `consent.js` Asset der SPA fälschlich als Consent-Wall interpretiert. Beide Beine gefixt: JSON Content-Type Retry gegen die gleiche `/u/login` URL wenn der Form-Pfad 400 wirft, und die Consent-Detection verlangt jetzt spezifische Marker (`data act`, `datenverarbeitung`, `shape the future`, `/u/consent`) statt das blosse Wort `consent`. VW EU User auf Classic-Auth sind wieder unblockiert.
+- **Marken-eigene Backends** — voller Zugriff inkl. Steuerung, wo verfügbar (Audi, Škoda, Porsche, VW US/CA).
+- **EU-Data-Act-Portal** — read-only Fallback für alle Marken (attestation-frei, ~15 min Cadence).
+- **volkswagen.de-Web-Kanal (Beta, opt-in)** — zweiter attestation-freier Lesekanal für VW.
 
-**Cross-Brand Parser-Parität.** Drei koordinierte Parser-Gap-Closures damit jede Marke das ausgibt was ihr Backend wirklich liefert:
-- **VW EU (Group A) - 10 neue Felder**: 12V Starter-Batterie Health, optimised battery use, Active Ventilation State + Restzeit, hinteres Sonnendach, Cabrio-Verdeck, per-Trip-Totals (Fuel + Elektro kWh), Reifendruck-Fallback über `measurements.tirePressureStatus` für neuere PPC-Firmware.
-- **SEAT / CUPRA (Group B) - 6 neue OLA-Endpoints**: dediziertes warning-lights v3, settable Battery-Care Preservation-Mode + Target SoC, Charging-Statistics History-Aggregator, Preferred Workshop, Charging-Modes Katalog, Charging-Actions PUT für Runtime-Settings.
-- **VW NA (Group C) - 4 neue Endpoints**: Türen + Fenster + Lichter auf das moderne `data.exteriorStatus.*` Schema migriert (löst #322 roberttco's 2023 ID.4 US "alles-null" Symptom), Klima via `climateStatusReport`, Odometer-Fallback `data.currentMileage`, GPS-Fallback `lastParkedLocation` für OFFLINE-Autos.
+Die laufende Arbeit dreht sich um Portal-Robustheit (Timeout-Retry, Daten-Freshness) und Resilienz über die Kanäle.
 
-**VW Account-Lock Detection.** Drei throttled-or-locked Token-Antworten innerhalb von 30 Minuten lösen jetzt eine geführte Repairs-Issue (`account_locked`) aus mit Erklärung + nächste Schritte (warten, `scan_interval` hochziehen, optional auf Read-only Data Act Portal umschalten). Räumt sich beim nächsten erfolgreichen Auth selbst auf.
-
-**Scout-Policy Enforcement.** Jeder silenced JSON-Pfad MUSS jetzt auch in eine Entity geparst werden, oder einen expliziten T2-T5 Exemption-Kommentar tragen. Das alte "erst silence, später parse" Pattern ist weg; vorhandene silencer-only Entries aus v2.4.x sind entweder als exempt dokumentiert oder zu echten Sensoren promoted (Active Ventilation alleine schliesst einen IOU vom 2026-05-27). Wildcard-Rules für `.error.*` Envelopes stoppen Scout's Abstieg in die BFF-error Wrapper (schliesst #389, #384).
-
-**Provenance Canaries + Weekly Watcher.** Fünf einzigartig geschriebene Identifier-Strings markieren die strategischen Module (Auth Resolver, Data Act Scraper, DAG Flow, Scout, Watchdog). Wöchentlicher Cron fragt GitHub Code Search nach den Canaries ausserhalb des `its-me-prash` Namespace und öffnet eine Triage-Issue wenn ein Fremdtreffer auftaucht. Apache 2.0 erlaubt den Port; die Canaries machen entferntes LICENSE + NOTICE observable.
-
-**Hardening.** SPDX License-Headers in jeder Python-Datei. Pre-commit Hook enforced `ruff check`, `mypy --strict`, CHANGELOG-Version-Match, und Bruno-Collection URL-Drift-Gate. Python ↔ Bruno Strict-Mode CI verhindert dass URLs von ihren Reference-Recordings driften.
-
-**Übernommen aus v2.7-v2.9** (alles weiter live): Browser-Login (DAG) für Audi/Škoda/SEAT/CUPRA, Multi-Strategy Auth Resolver, EU Data Act Portal Read-only Tier, MFA / Email-OTP Config-Flow, Coordinator Auto-Reload Watchdog, FCM Push-Channel für Audi/VW, Standheizung Auxheat Entities, `vag_connect.open_app` Service, Brake-Service Sensors + Preferred Workshop, Parser-Health Telemetrie, Per-Brand Capability Advertisement, InvalidURL Safety Net, Attestation Gate Watcher.
-
-Voll [CHANGELOG](CHANGELOG.md#2100---2026-06-02).
+➡️ Vollständige Versionshistorie: **[CHANGELOG.md](CHANGELOG.md)**.
 
 ---
 
 ## Wo wir vorne sind
 
-Stand 2026-05-31 nach dem 2026-05-27 VW Auth-Wechsel, der die ganze HA-VAG-Integration-Community gleichzeitig getroffen hat:
+Ehrlicher Stand Mitte 2026: das EU-Data-Act-Portal ist inzwischen der De-facto-Standard-Kanal, viele Integrationen nutzen ihn. Was uns konkret unterscheidet:
 
-| Feature | Status hier | Status bei anderen HA-VAG-Integrationen |
+| Stärke | Wir | Portal-only-Alternativen |
 |---|---|---|
-| **OAuth Device Authorization Grant (QR-Login)** für Audi/Škoda/SEAT/CUPRA | ✅ live in v2.7.0 | Niemand hat das |
-| **Multi-Strategy Auth-Fallback Chain** (3 Tiers pro Marke) | ✅ live in v2.6.0 | Niemand |
-| **EU Data Act Portal Read-only Tier** als 3rd-tier fallback | ✅ integriert in v2.6.0 | Nur als separate standalone-Integration verfügbar |
-| **InvalidURL Safety Net** verhindert Token-Leakage im Log | ✅ live in v2.7.2 | Niemand |
-| **Server-side Attestation Gate Watcher** alerted bei VW-Backend-Flag-Flips | ✅ live in v2.7.0 | Niemand |
-| **Vehicle Data Scout** auto-detected API-Drift, generiert 1-Klick-Bug-Reports | ✅ live seit v1.9.0 | Niemand vergleichbares |
-| **All-7-VAG-Brands in einer Integration** (Audi+VW+Škoda+SEAT+CUPRA+Porsche+VW NA) | ✅ | Andere haben pro Marke ein eigenes Repo |
+| **Alle 7 Konzernmarken inkl. Porsche** in einer Integration | ✅ | Das EU-Data-Act-Portal **schließt Porsche strukturell aus** — portal-only-Tools können Porsche nie abdecken |
+| **Audi Zwei-Wege-Steuerung** (Lock/Klima/Laden, Target-SoC setzen) | ✅ | Portal ist by-design **read-only** |
+| **Multi-Channel-Auth mit Auto-Fallback** (Marken-Backend → EU-Data-Act-Portal → opt-in vw.de-Web) | ✅ | meist single-source — ein Portal-Ausfall = Totalausfall |
+| **Vehicle Data Scout** — erkennt API-Drift automatisch, generiert 1-Klick-Bug-Reports | ✅ | nichts Vergleichbares |
 
 ---
 
 ## Wo die Grenzen liegen (ehrlich)
 
-**VW EU ist seit dem 2026-05-27 Backend-Wechsel hart Play-Integrity-gegated.** Diese Wand trifft jede Python-basierte VAG-Integration (uns inklusive). Das ist keine vorübergehende Verzögerung von uns, das ist VW's Backend-Politik:
+**VW EU und CUPRA/SEAT-OLA sind seit 2026 hinter Geräte-Attestation.** Diese Wand (Google Play Integrity / Firebase App Check) trifft jede Python-basierte VAG-Integration — uns inklusive. Sie ist keine Verzögerung unsererseits, sondern VW-Backend-Politik:
 
-- Das Token-Endpoint validiert seit der Welle einen `X-Assertion` Header, der ein von Google Play Integrity signiertes JWS Token sein muss
-- Python kann diesen Token nicht generieren, weil das Signing-Key nur in Google's mobile-app-attestation Service liegt
-- Konsequenz: **VW EU User bekommen kein echtes refresh_token** und werden alle ~2 Stunden auf einen Re-Login zurückgezwungen
+- Das Token-/OLA-Endpoint verlangt ein von der offiziellen App signiertes Attestation-Token, das Python nicht erzeugen kann (das Signing-Key liegt nur im Google/Firebase-Attestation-Service).
+- Konsequenz: **VW EU** bekommt kein dauerhaftes `refresh_token` (der OIDC-Hybrid-Flow hält ~2 h), und **CUPRA/SEAT** über OLA bekommen seit ~2026-06-08 `403 "Forbidden device detected"`.
 
-Was wir trotzdem für VW EU bieten:
+Was wir trotzdem bieten:
 
-1. **OIDC Hybrid Flow** als primäre Strategie (read+write, aber 2h Re-Login)
-2. **EU Data Act Portal** als read-only fallback (15min Cadence, attestation-frei, unkaputtbar)
-3. **Attestation-Gate Watcher** der wöchentlich pollt und automatisch ein Issue öffnet sobald VW die Gate öffnet
+1. **EU-Data-Act-Portal** als read-only Fallback für alle Marken (attestation-frei, ~15 min Cadence) — übernimmt automatisch, wenn das native Backend blockt.
+2. **volkswagen.de-Web-Kanal (Beta, opt-in)** als zweiter attestation-freier Lesekanal für VW.
+3. **OIDC-Hybrid-Flow** für VW EU als read+write-Strategie (mit dem 2h-Re-Login als Preis).
 
-**EU Data Act 2026-09-12 Compliance-Deadline.** Bis zu diesem Datum muss VW per EU-Verordnung "direkten Datenzugriff für Owner ohne Attestation" anbieten. Unsere `_data_act_portal.py` Implementation ist genau für diesen Tag positioniert.
+**EU-Data-Act-Deadline 2026-09-12.** Bis dahin muss VW per EU-Verordnung direkten, attestation-freien Owner-Datenzugriff anbieten — die Portal-Feldabdeckung wächst bis dahin voraussichtlich weiter.
 
-Status anderer Brands:
+Status pro Marke:
 
-| Marke | Auth | refresh_token? | Bemerkung |
+| Marke | Steuerung | Daten | Bemerkung |
 |---|---|---|---|
-| **Audi** | DAG Browser-Login oder Email+Pwd Hybrid | ✅ ja (via DAG) | Voll funktional |
-| **Škoda** | DAG Browser-Login oder Email+Pwd | ✅ ja (via DAG) | Voll funktional |
-| **SEAT** | DAG Browser-Login oder OLA | ✅ ja (via DAG) | Voll funktional |
-| **CUPRA** | DAG Browser-Login oder OLA | ✅ ja (via DAG) | Voll funktional |
-| **VW EU** | OIDC Hybrid Flow oder Data Act Portal | ⚠️ nein, 2h Re-Login | Backend-gegated (siehe oben) |
-| **Porsche** | Auth0 + PPA | ✅ ja | Stabil |
-| **VW US/CA** | VW NA Cloud | ✅ ja | Beta |
+| **Audi** | ✅ Zwei-Wege | ✅ voll | myAudi-Backend, keine Attestation-Wand |
+| **Škoda** | ✅ Zwei-Wege | ✅ voll | eigenes Škoda-Backend |
+| **Porsche** | ✅ Zwei-Wege | ✅ voll | Auth0 + PPA, stabil |
+| **VW US/CA** | ✅ Zwei-Wege | ✅ voll | VW-NA-Cloud (Beta) |
+| **VW EU** | ⚠️ via OIDC-Hybrid (~2h Re-Login) | ✅ read-only Portal / vw.de-Beta | Backend-attestation-gegated |
+| **CUPRA / SEAT** | ❌ OLA blockiert (App Check) | ✅ read-only Portal | seit ~2026-06-08, nicht per Header fixbar |
 
 ---
 
