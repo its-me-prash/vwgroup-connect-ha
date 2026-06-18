@@ -251,6 +251,61 @@ class TestApkExtractorModule:
         assert "Cleanup" in src or "cleanup" in src
 
 
+class TestPhaseA2Robustness:
+    """Phase A.2 hardening: Windows apktool resolution, Uptodown fallback,
+    and the package-identity guard that rejects decoy downloads."""
+
+    def _extractor(self):
+        import importlib
+        import sys
+        sys.path.insert(0, str(_REPO_ROOT / "scripts" / "app_atlas"))
+        return importlib.import_module("apk_extractor")
+
+    def _fake_apk(self, tmp_path, package: str):
+        import zipfile
+        apk = tmp_path / "x.apk"
+        with zipfile.ZipFile(apk, "w") as z:
+            # Binary AXML stores strings as UTF-16LE; emulate the package string.
+            z.writestr("AndroidManifest.xml", package.encode("utf-16-le"))
+            z.writestr("classes.dex", b"dex\n035\x00")
+        return apk
+
+    def test_apktool_resolved_via_which(self) -> None:
+        """Windows ships apktool as a .BAT wrapper that a bare subprocess call
+        cannot resolve — it must go through shutil.which."""
+        src = _EXTRACTOR_PATH.read_text(encoding="utf-8")
+        assert 'shutil.which("apktool")' in src
+
+    def test_uptodown_fallback_present(self) -> None:
+        src = _EXTRACTOR_PATH.read_text(encoding="utf-8")
+        assert "def resolve_uptodown_download(" in src
+        assert "resolve_uptodown_download(uptodown_sub)" in src
+
+    def test_package_guard_wired(self) -> None:
+        src = _EXTRACTOR_PATH.read_text(encoding="utf-8")
+        assert "def _apk_declares_package(" in src
+        assert "_apk_declares_package(base_apk, expected_pkg)" in src
+
+    def test_guard_accepts_matching_package(self, tmp_path) -> None:
+        mod = self._extractor()
+        apk = self._fake_apk(tmp_path, "de.myaudi.mobile.assistant")
+        assert mod._apk_declares_package(apk, "de.myaudi.mobile.assistant") is True
+
+    def test_guard_rejects_decoy(self, tmp_path) -> None:
+        """Uptodown serves its own com.uptodown app for gated downloads — the
+        guard must reject it when a brand package was requested."""
+        mod = self._extractor()
+        apk = self._fake_apk(tmp_path, "com.uptodown.activities")
+        assert mod._apk_declares_package(apk, "cz.skodaauto.myskoda") is False
+
+    def test_uptodown_token_regex(self) -> None:
+        mod = self._extractor()
+        html = ('<button id="detail-download-button" class="button" '
+                'data-url="AbC123_tok-en">Download</button>')
+        m = mod._UPTODOWN_TOKEN_RE.search(html)
+        assert m is not None and m.group(1) == "AbC123_tok-en"
+
+
 class TestPhaseA2Integration:
     """build_atlas.py wires the apk_extractor in when --with-apk-extraction."""
 
