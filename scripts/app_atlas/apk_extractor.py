@@ -444,10 +444,10 @@ def extract_brand_apk(brand: str, brand_cfg: dict[str, Any],
     # 3b. Identity guard — confirm the APK actually IS the brand app. Some
     #     mirrors (notably Uptodown) gate downloads and serve their OWN client
     #     app (com.uptodown.*) instead of the requested one. Without this check
-    #     we'd silently analyse the wrong app and report bogus findings. The
-    #     expected package is the second segment of the apkcombo slug.
-    expected_pkg = (apkcombo_slug.split("/")[-1]
-                    if apkcombo_slug and "/" in apkcombo_slug else None)
+    #     we'd silently analyse the wrong app and report bogus findings. Uses
+    #     the canonical per-brand package_id from config.json so the guard also
+    #     applies to brands fetched via a non-APKCombo source.
+    expected_pkg = brand_cfg.get("package_id")
     if expected_pkg and not _apk_declares_package(base_apk, expected_pkg):
         _LOGGER.error("Brand %s: downloaded APK does not declare expected package "
                       "%r — likely a decoy/wrong download (e.g. Uptodown's own "
