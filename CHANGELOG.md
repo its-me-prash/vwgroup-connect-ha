@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.14.10] - 2026-06-18
+
+### Fixed
+
+- **volkswagen.de website login (beta): the email code is finally accepted instead of looping with a new code every time.** Entering the emailed code kept failing as a "credential issue", and a fresh code was sent after each attempt. The login page's code box isn't always named the same thing internally, and the integration was filling in the wrong one — so the identity service saw an empty code, rejected it, and emailed a new one, over and over. It now fills whichever code box the page actually shows (and ticks "remember this browser" when offered, so the saved session lasts longer). (Opt-in beta channel only.)
+
 ## [2.14.9] - 2026-06-17
 
 ### Fixed
