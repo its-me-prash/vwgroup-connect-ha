@@ -23,6 +23,7 @@ from .._util import (
     safe_int,
     workshop_phone_from_contact,
 )
+from ..exceptions import AuthenticationError
 from ..models import BRAND_SKODA, VehicleData
 from .base import CariadBaseClient
 
@@ -40,6 +41,21 @@ class SkodaClient(CariadBaseClient):
 
     async def get_vehicles(self) -> list[str]:
         """Return VINs from Škoda garage."""
+        # v2.12.6 — EU Data Act portal mode (read-only fallback). If the
+        # native Škoda backend is blocked, VIN enumeration comes from the
+        # portal connector on ``self._eu_portal`` (same pattern as VW EU) so
+        # the entry doesn't end with "no vehicles" after a portal login.
+        portal = getattr(self, "_eu_portal", None)
+        if portal is not None:
+            try:
+                portal_vins: list[str] = await portal.list_vehicle_vins()
+            except AuthenticationError:
+                if self._tokens and self._tokens.strategy == "device_grant_portal":
+                    await self._refresh_tokens()
+                else:
+                    await portal.login(self._email, self._password)
+                portal_vins = await portal.list_vehicle_vins()
+            return portal_vins
         params = {
             "connectivityGenerations": ["MOD1", "MOD2", "MOD3", "MOD4"],
         }
@@ -413,6 +429,20 @@ class SkodaClient(CariadBaseClient):
 
     async def get_status(self, vin: str) -> VehicleData:
         """Fetch full status from Škoda API."""
+        # v2.12.6 — EU Data Act portal mode (read-only fallback). Route the
+        # whole status read through the portal connector on ``self._eu_portal``
+        # when the native backend is blocked (same pattern as VW EU).
+        portal = getattr(self, "_eu_portal", None)
+        if portal is not None:
+            try:
+                data: VehicleData = await portal.get_vehicle_data(vin)
+            except AuthenticationError:
+                if self._tokens and self._tokens.strategy == "device_grant_portal":
+                    await self._refresh_tokens()
+                else:
+                    await portal.login(self._email, self._password)
+                data = await portal.get_vehicle_data(vin)
+            return data
         v = self._val
         d = VehicleData(vin=vin)
 

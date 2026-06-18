@@ -1,0 +1,847 @@
+# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# SPDX-License-Identifier: Apache-2.0
+"""Volkswagen.de website authproxy connector — OPT-IN, BETA, read-only.
+
+v2.14.0 — a SECOND, attestation-free read channel for VW passenger cars,
+parallel to (and independent of) the EU Data Act portal path. It rides the
+confidential server-side OAuth client that ``www.volkswagen.de`` already
+runs for its "myVolkswagen" web area, so it never touches the Play-Integrity
+/ App-Check wall that killed the native WeConnect token path.
+
+Architecture (mirrors the EU Data Act cookie connector, different host):
+  1. GET ``/app/authproxy/login`` on ``www.volkswagen.de``. The authproxy
+     starts an OIDC login and redirects us into the SAME Auth0 universal
+     login at ``identity.vwgroup.io`` the rest of the integration already
+     handles (email + password, optional email-OTP MFA).
+  2. The authproxy's OWN backend consumes the OAuth code and sets first-
+     party session cookies on ``www.volkswagen.de`` — we never exchange a
+     code ourselves (we are not the confidential client; we cannot).
+  3. Authenticated reads go to ``/app/authproxy/{fag}/proxy/...`` which the
+     site reverse-proxies to the real VW backends. Some calls carry the
+     literal header ``user-id: __userId__`` which the authproxy substitutes
+     for the signed-in user's real id server-side.
+
+This channel is **read-only** and dormant unless the user explicitly opts
+into the "Volkswagen.de website (beta)" mode in the config flow. It is wired
+additively into ``VWEUClient`` (see ``_website_proxy``) exactly the way the
+EU Data Act portal connector is wired through ``_eu_portal`` — it never
+changes behaviour for any other mode/brand.
+
+We reuse the Auth0 form/cookie/MFA mechanics from ``idk.py`` and the
+form-field/parse helpers from ``_eu_data_act.py`` rather than re-deriving
+them. Endpoint paths and response field names were cross-checked against the
+community VW website-portal connector (rafaelhutter/ha-volkswagen-connect);
+the parser below is our own.
+"""
+from __future__ import annotations
+
+import asyncio
+import logging
+import re
+from typing import Any
+from urllib.parse import parse_qs, urlparse
+
+from aiohttp import ClientError, ClientSession, ClientTimeout, TooManyRedirects
+
+from ..._canaries import CANARY_WEBSITE_AUTHPROXY
+from ..exceptions import AuthenticationError, EmailTwoFactorRequiredError
+from ..models import VehicleData
+from ._eu_data_act import _login_fields, _login_error, _resolve_action
+
+_LOGGER = logging.getLogger(__name__)
+
+_SITE_BASE = "https://www.volkswagen.de"
+_IDENTITY_BASE = "https://identity.vwgroup.io"
+_REDIRECT_URL = (
+    "https://www.volkswagen.de/de/besitzer-und-nutzer/myvolkswagen.html"
+)
+
+# The login trigger fans out across two upstream "function access groups"
+# (``fag``): ``vw-de`` (the myVolkswagen web backend) and ``vwag-weconnect``
+# (the WeConnect vehicle backend). Each gets its own scope set. The authproxy
+# does the confidential OIDC exchange and lands the browser back on
+# ``_REDIRECT_URL`` with first-party cookies set.
+_LOGIN_PATH = "/app/authproxy/login"
+_LOGIN_PARAMS: dict[str, str] = {
+    "fag": "vw-de,vwag-weconnect",
+    "scope-vw-de": (
+        "profile,address,phone,carConfigurations,dealers,cars,vin,"
+        "profession"
+    ),
+    "scope-vwag-weconnect": "openid,mbb",
+    "prompt-vwag-weconnect": "none",
+    "redirectUrl": _REDIRECT_URL,
+    "sessionTimeout": "1800",
+}
+
+# Reverse-proxy data endpoints. ``{vin}`` is substituted per call.
+_RELATIONS_PATH = (
+    "/app/authproxy/vw-de/proxy/v2/users/me/relations?resourceHost=myvw-vum-prod"
+)
+_CHARGING_PATH = (
+    "/app/authproxy/vwag-weconnect/proxy/vehicles/{vin}/charging/status"
+)
+_MAINTENANCE_PATH = (
+    "/app/authproxy/vw-de/proxy/vehicles/{vin}/maintenance/status"
+)
+
+# Realistic desktop browser identity — the authproxy fronts a public website
+# and is content-negotiation sensitive on the login pages.
+_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
+)
+_TIMEOUT_S = 60
+
+# Transient server statuses worth a short backoff before we give up on a
+# single poll, mirroring the EU Data Act connector's softening. A genuine
+# 401/403 (session dead) is never swallowed here — it propagates so the
+# caller can re-login.
+_RETRIABLE_STATUSES = frozenset({500, 502, 503, 504})
+_RETRY_DELAYS = (3.0, 6.0)
+
+# A stale authproxy session answers data calls with 401/403, but ALSO with
+# 412 Precondition Failed / 428 Precondition Required (the proxy's own
+# "your session is no longer valid" signal). Treat all four as "re-login".
+_AUTH_FAIL_STATUSES = frozenset({401, 403, 412, 428})
+
+# v2.14.9 — cookie persistence spans BOTH hosts: the portal session cookies on
+# www.volkswagen.de AND the ``auth0`` SSO cookie on identity.vwgroup.io. The
+# SSO cookie is host-only (aiohttp exposes an empty domain for it), so it must
+# be captured and broadcast across both hosts explicitly — otherwise the silent
+# session-resume can't re-establish and every restart loops / re-prompts OTP.
+_COOKIE_HOSTS = (f"{_SITE_BASE}/", f"{_IDENTITY_BASE}/")
+
+_VIN_RE = re.compile(r'"vin"\s*:\s*"([A-HJ-NPR-Z0-9]{17})"')
+
+
+def _to_float(raw: Any) -> float | None:
+    """Best-effort float; tolerates comma decimals; never raises."""
+    if raw is None or isinstance(raw, bool):
+        return None
+    try:
+        return float(str(raw).replace(",", "."))
+    except (ValueError, TypeError):
+        return None
+
+
+def _to_int(raw: Any) -> int | None:
+    """Best-effort int via float (so ``"82.0"`` → 82); never raises."""
+    f = _to_float(raw)
+    return int(f) if f is not None else None
+
+
+def _kelvin_to_celsius(raw: Any) -> float | None:
+    """Convert a Kelvin scalar to Celsius, rounded to 1 dp. None-safe."""
+    k = _to_float(raw)
+    return round(k - 273.15, 1) if k is not None else None
+
+
+def map_charging_to_vehicle_data(payload: Any, d: VehicleData) -> VehicleData:
+    """Map a ``charging/status`` response onto ``VehicleData``.
+
+    The authproxy reverse-proxies the WeConnect charging surface, so the body
+    is the familiar ``{"data": {"batteryStatus", "chargingStatus",
+    "plugStatus"}}`` shape. Every read is defensive — a missing block or
+    field leaves the corresponding ``VehicleData`` attribute at its default.
+    """
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(data, dict):
+        return d
+    battery = data.get("batteryStatus")
+    charging = data.get("chargingStatus")
+    plug = data.get("plugStatus")
+    battery = battery if isinstance(battery, dict) else {}
+    charging = charging if isinstance(charging, dict) else {}
+    plug = plug if isinstance(plug, dict) else {}
+
+    soc = _to_int(battery.get("currentSOC_pct"))
+    if soc is not None:
+        d.battery_soc = soc
+        d.has_battery = True
+        d.is_electric = True
+
+    erange = _to_int(battery.get("cruisingRangeElectric_km"))
+    if erange is not None:
+        d.electric_range_km = erange
+        if d.range_km is None:
+            d.range_km = erange
+
+    tsoc = _to_int(battery.get("navigationTargetSOC_pct"))
+    if tsoc is not None:
+        d.target_soc = tsoc
+
+    btemp = _kelvin_to_celsius(battery.get("temperatureHvBattery_K"))
+    if btemp is not None:
+        d.battery_temp_c = btemp
+
+    state = charging.get("chargingState")
+    if isinstance(state, str) and state:
+        d.charging_state = state
+        d.is_charging = state.lower() in ("charging", "chargepurposereachedandconservation")
+
+    power = _to_float(charging.get("chargePower_kW"))
+    if power is not None:
+        d.charging_power_kw = power
+
+    rate = _to_float(charging.get("chargeRate_kmph"))
+    if rate is not None:
+        d.charging_rate_kmh = rate
+
+    eta = _to_int(charging.get("remainingChargingTimeToComplete_min"))
+    if eta is not None:
+        d.remaining_charge_time_nav_min = eta
+
+    mode = charging.get("chargeMode")
+    if isinstance(mode, str) and mode:
+        d.charge_mode = mode
+
+    plug_state = plug.get("plugConnectionState")
+    if isinstance(plug_state, str) and plug_state:
+        d.plug_state = plug_state
+        d.plug_connected = plug_state.lower() == "connected"
+
+    lock_state = plug.get("plugLockState")
+    if isinstance(lock_state, str) and lock_state:
+        d.connector_locked = lock_state.lower() == "locked"
+
+    ext = plug.get("externalPower")
+    if isinstance(ext, str) and ext:
+        d.external_power = ext.lower() not in ("unavailable", "off", "")
+
+    return d
+
+
+def map_maintenance_to_vehicle_data(payload: Any, d: VehicleData) -> VehicleData:
+    """Map a ``maintenance/status`` response onto ``VehicleData``.
+
+    The authproxy passes the maintenance surface through verbatim, so the
+    body is the WeConnect ``{"data": {"maintenanceStatus": {"value": {...}}}}``
+    shape. We accept either the wrapped ``value`` node or a flat ``data``
+    object so a backend reshuffle of the envelope still maps. Field names
+    follow the CARIAD maintenance vocabulary the rest of the integration
+    already parses. Negative "overdue" day counts are kept as-is — the
+    sensor layer renders them.
+    """
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(data, dict):
+        return d
+    status = data.get("maintenanceStatus")
+    if isinstance(status, dict):
+        node = status.get("value")
+        if not isinstance(node, dict):
+            node = status
+    else:
+        node = data
+
+    odo = _to_int(node.get("mileage_km"))
+    if odo is not None:
+        d.odometer_km = odo
+
+    insp_km = _to_int(node.get("inspectionDue_km"))
+    if insp_km is not None:
+        d.service_km = insp_km
+    insp_days = _to_int(node.get("inspectionDue_days"))
+    if insp_days is not None:
+        d.service_due_in_days = insp_days
+
+    oil_km = _to_int(node.get("oilServiceDue_km"))
+    if oil_km is not None:
+        d.oil_service_km = oil_km
+    oil_days = _to_int(node.get("oilServiceDue_days"))
+    if oil_days is not None:
+        d.oil_service_due_in_days = oil_days
+
+    return d
+
+
+class WebsiteAuthProxyConnector:
+    """OPT-IN, read-only volkswagen.de website-authproxy client.
+
+    Lifecycle:
+      ``begin_login()`` once → ``"ok"`` (logged in) or ``"otp_required"``
+      (email-OTP challenge pending — call ``submit_otp(code)``). Thereafter
+      ``list_vehicle_vins()`` + ``get_vehicle_data(vin)`` per poll, and
+      ``refresh()`` to silently re-establish the session via the persisted
+      SSO cookie on a 401.
+
+    This connector NEVER sends a command — it is a read channel only.
+    """
+
+    #: Marks this channel as command-free for any caller that introspects it.
+    read_only: bool = True
+
+    def __init__(
+        self,
+        session: ClientSession,
+        email: str,
+        password: str,
+        brand: str = "volkswagen",
+    ) -> None:
+        # Provenance canary — referenced so a port of this module carries the
+        # marker. Semantically inert (see _canaries.py). Literal embedded for
+        # the canary-watch grep: website_authproxy_provenance_b6tkd2x9_2026
+        self._canary = CANARY_WEBSITE_AUTHPROXY
+        self._session = session
+        self._email = email
+        self._password = password
+        self._brand = brand
+        self.logged_in = False
+        # Stashed between begin_login() and submit_otp(): the email-challenge
+        # URL plus the Auth0 state needed to POST the OTP code.
+        self._otp_url: str | None = None
+        self._otp_state: str | None = None
+        # The email-challenge page HTML — parsed in submit_otp for its hidden
+        # form fields (_csrf / relayState / hmac), same as the password step.
+        self._otp_html: str | None = None
+
+    # ── login ──────────────────────────────────────────────────────────────
+
+    def _headers(self, extra: dict[str, str] | None = None) -> dict[str, str]:
+        headers = {
+            "User-Agent": _USER_AGENT,
+            "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
+        }
+        if extra:
+            headers.update(extra)
+        return headers
+
+    async def begin_login(self) -> str:
+        """Drive authproxy → Auth0 email + password. Returns the next step.
+
+        Returns ``"ok"`` when the session landed back on volkswagen.de
+        (cookies set, logged in), or ``"otp_required"`` when the IDP wants an
+        email-OTP code (the challenge URL + state are stashed for
+        ``submit_otp``). Raises ``AuthenticationError`` on bad credentials or
+        an unexpected flow.
+        """
+        self.logged_in = False
+        self._otp_url = None
+        self._otp_state = None
+
+        # 1. Hit the authproxy login trigger; follow into Auth0 universal login.
+        #    A hydrated (cookie-resumed) session changes the shape: it can land
+        #    straight back on volkswagen.de already-logged-in, OR — if the
+        #    persisted cookies are only partially valid — bounce the authproxy
+        #    against the IDP (prompt=none) in a redirect loop. Cap the hops so a
+        #    loop raises a clean, handled error instead of an unguarded crash,
+        #    and treat an already-authenticated landing as success (no OTP).
+        try:
+            async with self._session.get(
+                f"{_SITE_BASE}{_LOGIN_PATH}",
+                params=_LOGIN_PARAMS,
+                headers=self._headers(),
+                allow_redirects=True,
+                max_redirects=20,
+                timeout=ClientTimeout(total=_TIMEOUT_S),
+            ) as resp:
+                login_url = str(resp.url)
+                login_html = await resp.text(errors="replace")
+                login_status = resp.status
+                _LOGGER.debug(
+                    "Website authproxy begin_login GET → status %s, chain: %s",
+                    login_status,
+                    self._redirect_hosts(getattr(resp, "history", ()), login_url),
+                )
+        except TooManyRedirects as exc:
+            # A resumed session looping between the authproxy and the IDP means
+            # the persisted cookies are stale. Surface a normal auth failure so
+            # the coordinator re-authenticates rather than crashing the poll.
+            _LOGGER.debug(
+                "Website authproxy begin_login GET redirect LOOP — chain: %s",
+                self._redirect_hosts(getattr(exc, "history", ())),
+            )
+            raise AuthenticationError(
+                "Website authproxy: redirect loop resuming the session "
+                "(persisted cookies stale) — re-authentication needed"
+            ) from exc
+
+        if login_status >= 400:
+            raise AuthenticationError(
+                f"Website authproxy: login page HTTP {login_status}"
+            )
+
+        # Already authenticated? A valid resumed session lands back on
+        # volkswagen.de WITHOUT passing through the identity login page — that
+        # means the persisted cookies are still good, so we're in (no OTP).
+        host = urlparse(login_url).hostname or ""
+        if host.endswith("volkswagen.de") and "/u/login" not in login_url:
+            self._finalise_login(login_url)
+            return "ok"
+
+        if "/u/login" not in login_url and "signin-service" not in login_url:
+            raise AuthenticationError(
+                "Website authproxy: did not reach the VW identity login "
+                f"(landed at {login_url[:80]})"
+            )
+
+        auth0_state = self._auth0_state(login_url, login_html)
+
+        # 2. POST credentials to the Auth0 universal-login endpoint. The state
+        #    travels in BOTH the URL query and the form body (the same pattern
+        #    idk.py uses against this exact /u/login page).
+        fields, action = _login_fields(login_html)
+        fields["username"] = self._email
+        fields["email"] = self._email
+        fields["password"] = self._password
+        if auth0_state:
+            fields["state"] = auth0_state
+        fields.setdefault("action", "default")
+        post_url = _resolve_action(login_url, action)
+
+        try:
+            async with self._session.post(
+                post_url,
+                data=fields,
+                headers=self._headers({"Referer": login_url}),
+                allow_redirects=True,
+                max_redirects=20,
+                timeout=ClientTimeout(total=_TIMEOUT_S),
+            ) as resp:
+                landed = str(resp.url)
+                landed_html = await resp.text(errors="replace")
+                landed_status = resp.status
+                _LOGGER.debug(
+                    "Website authproxy credential POST → status %s, chain: %s",
+                    landed_status,
+                    self._redirect_hosts(getattr(resp, "history", ()), landed),
+                )
+        except TooManyRedirects as exc:
+            # The credential POST bouncing the authproxy against the IDP means
+            # the flow can't settle — surface a clean auth failure rather than
+            # an unguarded crash (mirrors the begin_login GET guard above).
+            _LOGGER.debug(
+                "Website authproxy credential POST redirect LOOP — chain: %s",
+                self._redirect_hosts(getattr(exc, "history", ())),
+            )
+            raise AuthenticationError(
+                "Website authproxy: redirect loop posting credentials "
+                "— login could not complete"
+            ) from exc
+
+        if landed_status == 401:
+            raise AuthenticationError(
+                "Website authproxy: invalid email or password"
+            )
+        if landed_status >= 400 and "email-challenge" not in landed:
+            err = _login_error(landed_html)
+            raise AuthenticationError(
+                err or f"Website authproxy: login rejected (HTTP {landed_status})"
+            )
+
+        # 3. Email-OTP challenge? Stash the challenge URL + state and bail out
+        #    so the UI can collect the code.
+        if "/u/email-challenge" in landed or "/u/mfa" in landed:
+            self._otp_url = landed
+            self._otp_html = landed_html
+            self._otp_state = (
+                parse_qs(urlparse(landed).query).get("state", [auth0_state or ""])[0]
+                or auth0_state
+            )
+            _LOGGER.debug("Website authproxy: email-OTP challenge pending")
+            return "otp_required"
+
+        self._finalise_login(landed)
+        return "ok"
+
+    async def submit_otp(self, code: str) -> bool:
+        """POST the email-OTP code and finish the login. Returns success.
+
+        Must be called after ``begin_login()`` returned ``"otp_required"``.
+        Follows the post-challenge redirect chain back to volkswagen.de.
+        """
+        if not self._otp_url:
+            raise AuthenticationError(
+                "Website authproxy: no pending OTP challenge — call "
+                "begin_login() first"
+            )
+        # The Auth0 email-challenge form carries hidden fields (_csrf /
+        # relayState / hmac) AND a code input whose name is NOT always "code" —
+        # it can be otp / mfa-code / token / passcode. Our form parser surfaces
+        # value-less inputs, so the real field is present in ``fields``; set the
+        # code into whichever the form actually carries. A hardcoded "code" left
+        # the real field empty, so the IDP treated it as "no code entered",
+        # re-issued a FRESH challenge (= a new email) and we bounced on
+        # "email-challenge" forever — the "credential issue + new code every
+        # attempt" loop. Also opt into any "remember" field so the SSO cookie
+        # lives longer (helps the silent resume). Fall back to "code" only if the
+        # form exposes no recognisable code field. (Mirrors the working
+        # rafaelhutter authproxy flow.)
+        fields, action = _login_fields(self._otp_html or "")
+        code_clean = str(code).strip()
+        matched = False
+        for key in list(fields):
+            kl = key.lower()
+            if kl in (
+                "code", "otp", "mfa-code", "mfa_code",
+                "email-code", "passcode", "token",
+            ):
+                fields[key] = code_clean
+                matched = True
+            elif "remember" in kl:
+                fields[key] = "true"
+        if not matched:
+            fields["code"] = code_clean
+        if self._otp_state:
+            fields.setdefault("state", self._otp_state)
+        post_url = _resolve_action(self._otp_url, action)
+        async with self._session.post(
+            post_url,
+            data=fields,
+            headers=self._headers({"Referer": self._otp_url}),
+            allow_redirects=True,
+            timeout=ClientTimeout(total=_TIMEOUT_S),
+        ) as resp:
+            landed = str(resp.url)
+            landed_html = await resp.text(errors="replace")
+            landed_status = resp.status
+
+        if landed_status >= 400 or "email-challenge" in landed:
+            err = _login_error(landed_html)
+            raise AuthenticationError(
+                err or "Website authproxy: OTP rejected — check the code"
+            )
+        self._otp_url = None
+        self._otp_state = None
+        self._otp_html = None
+        self._finalise_login(landed)
+        return self.logged_in
+
+    async def refresh(self) -> None:
+        """Silently re-establish the session via the persisted SSO cookie.
+
+        The IDP keeps an SSO session cookie on ``identity.vwgroup.io`` after a
+        successful login, so re-running the authproxy login trigger usually
+        completes without a fresh password POST (the universal-login page
+        recognises the session and redirects straight through). If the IDP
+        instead re-prompts for credentials we fall back to the full
+        ``begin_login`` flow; a surfaced OTP requirement raises so the caller
+        can route the user back through the OTP UI.
+        """
+        async with self._session.get(
+            f"{_SITE_BASE}{_LOGIN_PATH}",
+            params=_LOGIN_PARAMS,
+            headers=self._headers(),
+            allow_redirects=True,
+            timeout=ClientTimeout(total=_TIMEOUT_S),
+        ) as resp:
+            landed = str(resp.url)
+            status = resp.status
+
+        if status < 400 and urlparse(landed).netloc == urlparse(_SITE_BASE).netloc:
+            # SSO cookie carried us straight back to the site — done.
+            self._finalise_login(landed)
+            if self.logged_in:
+                return
+        # SSO did not short-circuit — fall back to a full login.
+        result = await self.begin_login()
+        if result == "otp_required":
+            raise EmailTwoFactorRequiredError()
+
+    def _finalise_login(self, landed_url: str) -> None:
+        """Mark logged-in iff we ended back on the volkswagen.de host."""
+        host = urlparse(_SITE_BASE).netloc
+        if urlparse(landed_url).netloc == host:
+            self.logged_in = True
+            _LOGGER.info(
+                "Website authproxy: login succeeded (read-only, beta)"
+            )
+        else:
+            raise AuthenticationError(
+                "Website authproxy: login did not complete "
+                f"(ended at {landed_url[:80]})"
+            )
+
+    @staticmethod
+    def _redirect_hosts(history: Any, final_url: str | None = None) -> str:
+        """Hostname-only redirect chain, safe for DEBUG logging.
+
+        Maps each hop in an aiohttp ``resp.history`` (or a ``TooManyRedirects``
+        exception's ``.history``) to just its hostname and joins them with an
+        arrow. It deliberately drops paths and query strings — the OAuth
+        ``state`` and any tokens live in the query — so only hostnames are
+        emitted. A repeating ``A → B → A → B`` pattern is exactly the loop
+        signature we need to diagnose a stuck session-resume. Never raises.
+        """
+        hosts: list[str] = []
+        try:
+            for hop in history or ():
+                hosts.append(urlparse(str(getattr(hop, "url", ""))).hostname or "?")
+        except (TypeError, AttributeError):
+            pass
+        if final_url:
+            hosts.append(urlparse(final_url).hostname or "?")
+        return " → ".join(hosts) if hosts else "(no redirects)"
+
+    @staticmethod
+    def _auth0_state(login_url: str, html: str) -> str | None:
+        """Pull the Auth0 ``state`` from the page (hidden input or URL query)."""
+        m = re.search(
+            r'name=["\']state["\']\s+value=["\']([^"\']+)["\']', html
+        )
+        if m:
+            return m.group(1)
+        return parse_qs(urlparse(login_url).query).get("state", [""])[0] or None
+
+    # ── cookie persistence ─────────────────────────────────────────────────
+
+    def export_cookies(self) -> list[dict[str, Any]]:
+        """Serialise the authproxy session cookies for persistence.
+
+        v2.14.9 — collect via ``cookie_jar.filter_cookies()`` for BOTH the
+        volkswagen.de and identity.vwgroup.io hosts, rather than scanning the
+        raw jar and filtering by a domain string. That string filter silently
+        dropped the host-only ``auth0`` SSO cookie (aiohttp exposes an empty
+        domain for host-only cookies), and WITHOUT that SSO cookie the silent
+        resume can never re-establish the session — the restart redirect-loop /
+        re-OTP bug. ``filter_cookies`` returns exactly the cookies each host
+        would receive (host-only ones included) and nothing from other hosts,
+        so it stays scoped to our two domains.
+        """
+        from yarl import URL  # noqa: PLC0415
+
+        out: list[dict[str, Any]] = []
+        seen: set[tuple[str, str]] = set()
+        try:
+            jar = self._session.cookie_jar
+        except Exception:  # noqa: BLE001
+            return out
+        for host in _COOKIE_HOSTS:
+            try:
+                filtered = jar.filter_cookies(URL(host))
+            except Exception:  # noqa: BLE001
+                continue
+            host_name = URL(host).host or ""
+            for name, morsel in filtered.items():
+                key = (str(name), str(morsel.value))
+                if key in seen:
+                    continue
+                seen.add(key)
+                try:
+                    out.append({
+                        "name": str(name),
+                        "value": str(morsel.value),
+                        "domain": str(morsel["domain"] or host_name),
+                        "path": str(morsel["path"] or "/"),
+                        "expires": str(morsel["expires"] or ""),
+                        "secure": bool(morsel["secure"]),
+                        "httponly": bool(morsel["httponly"]),
+                    })
+                except Exception:  # noqa: BLE001
+                    continue
+        return out
+
+    def import_cookies(self, cookies: list[dict[str, Any]]) -> None:
+        """Hydrate persisted session cookies, broadcast to BOTH authproxy hosts.
+
+        v2.14.9 — each persisted cookie is injected host-only against BOTH
+        www.volkswagen.de AND identity.vwgroup.io. aiohttp loses the host for
+        host-only cookies, so binding the ``auth0`` SSO cookie to a single host
+        left it unreachable from the other; broadcasting to both guarantees the
+        SSO cookie reaches identity.vwgroup.io (the linchpin of silent resume).
+        An extra cookie a host doesn't expect is harmless. This (with the
+        matching ``export_cookies`` fix) is what makes a restart resume the
+        session instead of redirect-looping / re-prompting OTP.
+        """
+        if not cookies:
+            return
+        try:
+            from http.cookies import Morsel  # noqa: PLC0415
+            from yarl import URL  # noqa: PLC0415
+        except ImportError:
+            return
+        for ck in cookies:
+            if not isinstance(ck, dict):
+                continue
+            name = ck.get("name")
+            value = ck.get("value")
+            if not name or value is None:
+                continue
+            # Scope guard: only ever inject cookies that belong to our two
+            # hosts (export stamps every persisted cookie with its real host),
+            # so a malformed/foreign entry is never broadcast. The host-only
+            # SSO cookie now carries domain="identity.vwgroup.io" from export,
+            # so it passes this guard (it was the empty-domain drop that broke).
+            domain = str(ck.get("domain") or "")
+            if "volkswagen.de" not in domain and "vwgroup.io" not in domain:
+                continue
+            morsel: Morsel[str] = Morsel()
+            morsel.set(str(name), str(value), str(value))
+            # Deliberately do NOT copy the domain onto the morsel → the cookie
+            # binds host-only to each host we broadcast it to (matches the
+            # working rafaelhutter pattern).
+            for attr in ("path", "expires", "secure", "httponly"):
+                if attr in ck and ck[attr] not in (None, ""):
+                    try:
+                        morsel[attr] = ck[attr]
+                    except (KeyError, ValueError):
+                        pass
+            for host in _COOKIE_HOSTS:
+                try:
+                    self._session.cookie_jar.update_cookies(
+                        {str(name): morsel}, response_url=URL(host),
+                    )
+                except Exception:  # noqa: BLE001
+                    continue
+
+    async def session_alive(self) -> bool:
+        """Probe the relations endpoint with the currently-loaded cookies.
+
+        The resume partner to ``import_cookies``: a cheap authenticated read
+        that tells us whether a persisted session is still good WITHOUT
+        re-running the redirect-loop-prone ``/app/authproxy/login`` OAuth
+        dance. Returns ``True`` only on a clean authenticated ``200``. A stale
+        session — ``401``/``403``, or a ``3xx`` redirect to the login page —
+        returns ``False`` WITHOUT following the hop (``allow_redirects=False``),
+        so a dead session degrades to a fresh login instead of bouncing the
+        authproxy against the IDP in a ``TooManyRedirects`` loop.
+
+        On success it marks the connector logged-in so the caller can adopt the
+        resumed session directly and skip ``begin_login()`` altogether.
+        """
+        url = f"{_SITE_BASE}{_RELATIONS_PATH}"
+        headers = self._headers({
+            "Accept": "application/json",
+            "user-id": "__userId__",
+            "Referer": _REDIRECT_URL,
+        })
+        try:
+            async with self._session.get(
+                url,
+                headers=headers,
+                allow_redirects=False,
+                timeout=ClientTimeout(total=_TIMEOUT_S),
+            ) as resp:
+                alive = resp.status == 200
+                _LOGGER.debug(
+                    "Website authproxy resume probe → status %s (host %s)",
+                    resp.status,
+                    urlparse(str(resp.url)).hostname or "?",
+                )
+        except (ClientError, TimeoutError) as exc:
+            _LOGGER.debug(
+                "Website authproxy resume probe failed: %s", type(exc).__name__
+            )
+            return False
+        if alive:
+            self.logged_in = True
+            _LOGGER.info(
+                "Website authproxy: resumed session still valid "
+                "(read-only, beta) — skipped re-login"
+            )
+        return alive
+
+    # ── reads ──────────────────────────────────────────────────────────────
+
+    async def _get_json(
+        self,
+        url: str,
+        *,
+        accept: str = "application/json",
+        soft: bool = False,
+    ) -> Any:
+        """GET a reverse-proxy endpoint and parse JSON.
+
+        Sends the per-endpoint ``Accept`` plus the literal
+        ``user-id: __userId__`` placeholder the authproxy substitutes for the
+        signed-in user's real id. On ``soft=True`` a transient 5xx returns
+        ``None`` (after a short backoff) instead of raising — so a flaky
+        backend just means "no data this poll" rather than a dead session. A
+        401/403 always raises ``AuthenticationError`` so the caller can
+        re-login. (Backoff pattern mirrors the EU Data Act connector.)
+        """
+        headers = self._headers({
+            "Accept": accept,
+            "user-id": "__userId__",
+            "Referer": _REDIRECT_URL,
+        })
+        for attempt in range(len(_RETRY_DELAYS) + 1):
+            async with self._session.get(
+                url,
+                headers=headers,
+                timeout=ClientTimeout(total=_TIMEOUT_S),
+            ) as resp:
+                if resp.status in _AUTH_FAIL_STATUSES:
+                    raise AuthenticationError(
+                        f"Website authproxy GET {url} → HTTP {resp.status}"
+                    )
+                if resp.status >= 400:
+                    if (
+                        soft
+                        and resp.status in _RETRIABLE_STATUSES
+                        and attempt < len(_RETRY_DELAYS)
+                    ):
+                        await asyncio.sleep(_RETRY_DELAYS[attempt])
+                        continue
+                    if soft:
+                        return None
+                    raise AuthenticationError(
+                        f"Website authproxy GET {url} → HTTP {resp.status}"
+                    )
+                return await resp.json(content_type=None)
+        return None
+
+    async def list_vehicle_vins(self) -> list[str]:
+        """Return the 17-char VINs the signed-in account is related to.
+
+        The relations payload nests the VIN under a per-vehicle relation
+        object whose exact shape varies, so we scan the raw body for VIN
+        tokens (the same robust approach used elsewhere for relation
+        endpoints) and de-duplicate while preserving order.
+        """
+        url = f"{_SITE_BASE}{_RELATIONS_PATH}"
+        headers = self._headers({
+            "Accept": "application/json",
+            "user-id": "__userId__",
+            "Referer": _REDIRECT_URL,
+        })
+        async with self._session.get(
+            url, headers=headers, timeout=ClientTimeout(total=_TIMEOUT_S),
+        ) as resp:
+            if resp.status in (401, 403):
+                raise AuthenticationError(
+                    f"Website authproxy: relations → HTTP {resp.status}"
+                )
+            if resp.status >= 400:
+                raise AuthenticationError(
+                    f"Website authproxy: relations → HTTP {resp.status}"
+                )
+            body = await resp.text(errors="replace")
+        seen: list[str] = []
+        for vin in _VIN_RE.findall(body):
+            if vin not in seen:
+                seen.append(vin)
+        return seen
+
+    async def get_vehicle_data(self, vin: str) -> VehicleData:
+        """Fetch charging + maintenance for *vin* and map to ``VehicleData``.
+
+        Both reads are ``soft`` — a transient backend hiccup on either one
+        leaves the corresponding fields unset instead of failing the whole
+        poll. A real 401/403 propagates so the caller re-logs in. The vehicle
+        is marked online once any data block parsed successfully.
+        """
+        d = VehicleData(vin=vin)
+        got_data = False
+
+        charging = await self._get_json(
+            f"{_SITE_BASE}{_CHARGING_PATH.format(vin=vin)}",
+            accept="*/*",
+            soft=True,
+        )
+        if isinstance(charging, dict):
+            map_charging_to_vehicle_data(charging, d)
+            got_data = True
+
+        maintenance = await self._get_json(
+            f"{_SITE_BASE}{_MAINTENANCE_PATH.format(vin=vin)}",
+            accept="*/*",
+            soft=True,
+        )
+        if isinstance(maintenance, dict):
+            map_maintenance_to_vehicle_data(maintenance, d)
+            got_data = True
+
+        if got_data:
+            d.connection_state = "online"
+        return d

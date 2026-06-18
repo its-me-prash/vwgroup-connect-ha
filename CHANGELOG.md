@@ -38,11 +38,100 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
-## [Unreleased]
+## [2.14.10] - 2026-06-18
+
+### Fixed
+
+- **volkswagen.de website login (beta): the email code is finally accepted instead of looping with a new code every time.** Entering the emailed code kept failing as a "credential issue", and a fresh code was sent after each attempt. The login page's code box isn't always named the same thing internally, and the integration was filling in the wrong one — so the identity service saw an empty code, rejected it, and emailed a new one, over and over. It now fills whichever code box the page actually shows (and ticks "remember this browser" when offered, so the saved session lasts longer). (Opt-in beta channel only.)
+
+## [2.14.9] - 2026-06-17
+
+### Fixed
+
+- **volkswagen.de website login (beta): a restart now actually resumes the session instead of looping / asking for a new email code.** This was the real root cause behind the redirect loop on resume. The single-sign-on cookie that keeps you logged in lives only on the identity host and has no domain attached, so the old code quietly dropped it when saving and never restored it — which meant a restart had no valid session to resume and bounced back to the login page. The login cookies (the SSO one included) are now captured and restored across both hosts, so a restart silently reuses your session. A stale session reported as `412`/`428` (not just `401`/`403`) now also correctly triggers a clean re-login. (Opt-in beta channel only.)
+
+## [2.14.8] - 2026-06-17
+
+### Fixed
+
+- **EU Data Act portal: a slow/unreachable portal no longer errors the whole poll — it just means "no data this poll".** When the portal was sluggish, the request could time out at the network layer (before any response), and that timeout slipped past the retry logic and surfaced as an error (the spike of auto-reported `TimeoutError`s on June 16). Now a timeout or dropped connection is retried with the same short backoff as a transient server error, and if it keeps failing the poll quietly skips and tries again next cycle — instead of erroring or, worse, forcing a pointless re-login. Affects both the data-listing and the dataset-download steps.
+
+## [2.14.7] - 2026-06-15
 
 ### Added
 
-- Foundation for VW EU / CUPRA / SEAT **device-code (QR) portal login** (v2.13.0, landing in stages): the device-grant module can now mint and refresh the EU-Data-Act portal-client tokens (`PORTAL_DAG_BRANDS` + the `device_grant_portal` strategy), routed separately from the CARIAD-BFF device-grant so the portal-only token never hits the BFF, and the portal connector now accepts those tokens as an `Authorization: Bearer` (read-only proxy_api) instead of the fragile cookie-scrape. The runtime now routes those tokens to the portal (builds the Bearer connector at setup and after restart), refreshes them at the IDP token endpoint (a real `refresh_token`, so no more session-expiry re-login), and treats portal entries as structurally read-only. **Volkswagen EU (and the CUPRA/SEAT reserve) can now sign in via the browser/QR device-code flow** in the config flow — pick "Browser-Login (QR)", scan/open the URL, approve in your VW account, done; no password is stored in Home Assistant. (Existing email+password entries keep working as the fallback.) The sign-in step copy is translated across all 8 bundled languages.
+- **volkswagen.de website login (beta): redirect-chain debug logging, so a stuck login can finally be diagnosed.** When the website login bounces in a loop, the error message is redacted (it can carry tokens), which made the root cause invisible from a normal log. This adds a `DEBUG`-level, hostname-only trace of the redirect chain (and the resume-probe result) — e.g. `volkswagen.de → identity.vwgroup.io → volkswagen.de → …`. Only hostnames are logged; paths and query strings (where the OAuth `state`/tokens live) are never written. Turn on debug logging for `custom_components.vag_connect` to capture it. No functional change — purely diagnostics for the beta channel.
+
+## [2.14.6] - 2026-06-15
+
+### Fixed
+
+- **volkswagen.de website login (beta) now actually resumes a saved session instead of re-logging-in every time.** v2.14.5 stopped the redirect-loop crash, but it still kicked you back to a fresh email-OTP whenever the resume wobbled. Now, when the integration comes back up it does a quick, redirect-free check against the data endpoint with your saved cookies: if the session is still good it's adopted straight away — no login dance, no OTP — and only a genuinely expired session falls back to a fresh login. As a belt-and-suspenders extra, the credential step also can't get stuck in a redirect loop anymore. (Opt-in beta channel only; no change for any other brand or mode.)
+
+## [2.14.5] - 2026-06-15
+
+### Fixed
+
+- **volkswagen.de website login (beta) no longer crashes with a redirect loop when resuming a saved session.** When the integration came back up and reused the saved login cookies, the website login could bounce in a redirect loop (`TooManyRedirects`) and surface as a bogus "invalid credentials". It now caps the redirects and handles the two real cases cleanly: an already-logged-in session is recognised straight away (no re-login, no OTP), and a stale-cookie loop is reported as a normal "please re-authenticate" instead of a crash. (Opt-in beta channel only.)
+
+## [2.14.4] - 2026-06-15
+
+### Fixed
+
+- **The "Email 2FA required" repair notice stops throwing translation errors for good.** v2.14.3 supplied the missing `{brand}` value, but a notice already sitting in the repairs list from an older version had no value and kept spamming `MISSING_VALUE` in the logs. The notice title no longer depends on a placeholder at all (all 8 languages), so old and new notices both render cleanly, and the repair description now also gets its `{username}` value supplied. Purely a cosmetics/log-noise fix.
+
+## [2.14.3] - 2026-06-14
+
+### Fixed
+
+- **volkswagen.de website login (beta): you only enter the email code once now, not on every restart.** The beta channel logged you in (code and all) when you set it up, but then threw all that away and started fresh every time Home Assistant restarted — which meant it asked for a new email code on every single restart, and if you weren't there to type it in, the integration just got stuck. It now remembers the login session from setup and reuses it, so a restart picks up where it left off instead of pestering you for another code. If the saved session has genuinely gone stale, it falls back to asking you to sign in again, same as before. The session keeps itself fresh in the background after each successful login. (Opt-in beta channel only; still read-only.)
+- **Repair notifications show the brand name properly instead of a literal `{brand}`.** A couple of the "please sign in again" repair prompts (including the email-code one) had a `{brand}` placeholder that wasn't being filled in, so the title could read awkwardly. It now drops in the actual brand (or a sensible fallback) so the message reads cleanly.
+
+## [2.14.2] - 2026-06-14
+
+### Fixed
+
+- **volkswagen.de website login (beta): the email code now submits correctly.** The OTP step was posting just the code + state, but the VW identity email-challenge page is a form with hidden fields (`_csrf` / `relayState` / …) that have to come along — without them the code didn't go through cleanly. It now parses the challenge form exactly like the password step does and submits the code inside the real form, so email-OTP logins complete. (Opt-in beta channel only.)
+
+## [2.14.1] - 2026-06-14
+
+### Fixed
+
+- **System Health no longer falsely reports the VW/Audi backend as unreachable.** The connectivity check pinged an old discovery URL (`/login/v1/idk/openid-configuration`) that VW has started answering with a `403` before you even log in — so Home Assistant's System Health card showed the CARIAD backend as "failed" even when everything was working. It now pings the current endpoint (the same one the login already uses), which answers normally.
+
+## [2.14.0] - 2026-06-14
+
+### Added
+
+- **New opt-in beta way to connect a Volkswagen: the volkswagen.de website (read-only).** There's now a third sign-in option when you add a Volkswagen — "Volkswagen.de website (beta)" — that logs in the same way the volkswagen.de "myVolkswagen" web area does and reads your car through it. The point: that website uses its own server-side login, so it goes around the app-attestation wall that's been killing the normal token logins for VW. You sign in with your Volkswagen ID email + password (and an emailed code if your account asks for one), and you get charge level, range, charging state and power, charge target, plus odometer and service-due info. It's **read-only** — no lock/climate/charge commands — and **opt-in**: you have to pick it on purpose. Nothing changes for anyone who doesn't, every existing setup (app login, browser login, EU Data Act portal) behaves exactly as before. It's a beta and hasn't been verified end-to-end against a live VW account yet, so treat it as experimental.
+
+## [2.13.1] - 2026-06-14
+
+### Fixed
+
+- **Fewer dropped polls when the EU Data Act portal is having a moment.** The portal throws transient server errors (500/502/503/504) that come and go within seconds — and until now a single blip meant skipping the whole poll and waiting 15 minutes for the next one. The integration now backs off briefly and retries (a couple of times, a few seconds apart) before giving up as "no data this poll", so a short hiccup no longer costs you a full cycle of data. The "you haven't enabled the data request yet" case (404) still returns instantly with no added delay, and a real auth failure still re-authenticates as before.
+
+## [2.13.0] - 2026-06-13
+
+The EU Data Act portal becomes the **universal read-only safety net**: as VW keeps closing native API access brand by brand (VW EU's token logins are gone, CUPRA/SEAT's online services are now behind a device-attestation wall), each affected brand now degrades gracefully to the read-only portal instead of going dark.
+
+### Fixed
+
+- **CUPRA, SEAT and Škoda now route their data reads through the EU Data Act portal when the portal fallback is active** — not just their login. Until now, when a brand's native backend went dark (e.g. CUPRA/SEAT's online services getting blocked by VW), the login correctly fell back to the read-only portal, but the very next data poll still hit the dead native endpoint — so you'd get a successful login and then no data. These brands now follow the same portal-routing path VW EU already used, both for the vehicle list and the status read. It's the EU Data Act portal becoming the universal read-only safety net: as VW keeps closing native access brand by brand, each one degrades gracefully to the portal instead of going dark. Non-breaking — the native path is completely unchanged whenever the portal fallback isn't engaged.
+- **CUPRA/SEAT now actually reach that fallback.** There was a catch: the portal fallback only ever armed when the *login* failed — but for CUPRA/SEAT the login still succeeds and it's only the data call that gets blocked (the 403 device-attestation wall). So the fallback never fired and the previous fix couldn't help. Now, when the native garage call comes back 403 despite a valid login, the integration arms the read-only EU Data Act portal on the spot and serves the vehicle list from there. This is what makes the portal safety net real for the brands that are blocked *today*.
+- **Quieter logs in EU Data Act portal mode.** When a car is running on the read-only portal, the integration was still trying the manufacturer-backend "capabilities" call on every setup — which can't work there (the portal session isn't a real backend token) and just logged a `400` every time. It now skips that call in portal mode. Cars on a normal (non-portal) connection are unaffected, including when you've turned on read-only mode yourself.
+
+## [2.12.6] - 2026-06-13
+
+An honesty fix for the CUPRA/SEAT repair notice.
+
+### Changed
+
+- **The CUPRA/SEAT "OLA 403" repair notice now tells the truth.** It used to suggest the app-identifying headers might be outdated and told you to check for an update or try an app-version override — but those 403s are a VW server-side access revocation for SEAT/CUPRA, not anything a header bump or a reconfigure can fix. The notice now says that plainly (in all eight languages), drops the dead-end advice, and notes the integration falls back to the read-only EU Data Act portal where it can (#432, #444, #456, #392).
+
+## [2.12.5] - 2026-06-13
+
+A data-quality patch for the EU Data Act portal, plus a scout-noise fix for Audi.
 
 ### Fixed
 

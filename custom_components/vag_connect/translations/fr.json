@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Configurer VW Group Connect",
-        "description": "Comment souhaitez-vous vous connecter ?\n\n**Connexion par navigateur / QR (recommandé)** — ouvrez une URL (ou scannez un QR) sur votre téléphone ou ordinateur, connectez-vous à votre compte Brand ID, approuvez l'appareil. Aucun mot de passe n'est jamais stocké dans Home Assistant. Disponible pour Audi, Škoda, SEAT, CUPRA et Volkswagen EU (portail EU Data Act en lecture seule).\n\n**E-mail + mot de passe (ancien)** — saisissez directement vos identifiants Brand ID. Toujours disponible en repli pour Volkswagen EU ; requis pour Porsche.",
+        "description": "Connectez votre véhicule à Home Assistant.\n\nChoisissez votre marque et entrez les identifiants de l'application fabricant.",
         "data": {
           "brand": "Marque du véhicule",
           "username": "Adresse e-mail",
@@ -22,7 +22,32 @@
         },
         "menu_options": {
           "browser_login": "Browser-Login (recommended)",
-          "email_password": "Email + Password (legacy)"
+          "email_password": "Email + Password (legacy)",
+          "website_authproxy": "Volkswagen.de website (beta — read-only)"
+        }
+      },
+      "website_authproxy": {
+        "title": "Volkswagen.de website (BETA, read-only)",
+        "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next.",
+        "data": {
+          "username": "Email Address",
+          "password": "Password",
+          "scan_interval": "Update Interval"
+        },
+        "data_description": {
+          "username": "The email of your Volkswagen ID / myVolkswagen account.",
+          "password": "Your Volkswagen ID password.",
+          "scan_interval": "How often data is fetched (minutes). Minimum: 5."
+        }
+      },
+      "website_authproxy_otp": {
+        "title": "Email verification code",
+        "description": "A verification code was sent to the email for **{username}**.\n\nEnter the code to finish signing in to the Volkswagen.de website (beta) channel.",
+        "data": {
+          "mfa_code": "Verification Code"
+        },
+        "data_description": {
+          "mfa_code": "Code from your email inbox — valid for a few minutes."
         }
       },
       "reauth_confirm": {
@@ -85,7 +110,7 @@
           "force_enable_access": "Force Door Status"
         },
         "data_description": {
-          "brand": "Marques prenant en charge la connexion par navigateur (QR) — désormais aussi Volkswagen EU (lecture seule). Utilisez « E-mail + mot de passe » pour Porsche.",
+          "brand": "Seules les marques prenant en charge la connexion par navigateur sont listées. Utilisez « E-mail + mot de passe » pour Volkswagen EU et Porsche.",
           "force_enable_access": "Forcer les entités d'état des portes même lorsque le véhicule signale les données comme manquantes.",
           "scan_interval": "Minutes entre chaque interrogation des données du véhicule.",
           "spin": "Code de sécurité (S-PIN) à 4 chiffres facultatif pour les actions à distance (verrouillage, déverrouillage, climatisation)."
@@ -919,7 +944,7 @@
       "description": "Votre compte {brand} ({username}) nécessite un code de vérification par e-mail.\n\n1. Ouvrez l'application **{brand}**\n2. Connectez-vous manuellement\n3. Confirmez le code reçu par e-mail\n4. Redémarrez Home Assistant"
     },
     "email_two_factor_required": {
-      "title": "2FA par e-mail — vérifiez votre boîte ({brand})",
+      "title": "2FA par e-mail — vérifiez votre boîte",
       "description": "Votre compte {brand} ({username}) nécessite un **code de vérification par e-mail**.\n\n**Solution unique :**\n1. **Vérifiez votre e-mail** (et spam) — code à 6 chiffres de VAG IDP\n2. Ouvrez l'application **{brand}**\n3. Connectez-vous manuellement et entrez le code\n4. Redémarrez Home Assistant"
     },
     "terms_and_conditions": {
@@ -971,8 +996,8 @@
       "title": "Session du portail EU Data Act expirée – reconnectez-vous"
     },
     "ola_headers_outdated": {
-      "description": "Le backend OLA de VW Group (le serveur SEAT/CUPRA) a rejeté **{count}** requêtes d'affilée avec une erreur HTTP 403 Forbidden – même après que nous ayons essayé tous les jeux d'en-têtes de repli intégrés.\n\n**Cause la plus probable** : VW a de nouveau modifié les exigences de ses en-têtes d'identification d'application. C'est arrivé le 2026-05-20 et cela peut se reproduire à mesure que l'application officielle {brand} publie de nouvelles versions.\n\n**Que faire :**\n\n1. **Vérifiez s'il existe une mise à jour de l'intégration** – HACS → VW Group Connect → Mettre à jour. Les mainteneurs publient généralement un ajustement d'en-têtes dans la semaine suivant les changements en amont (nous surveillons via un workflow CI hebdomadaire).\n2. **Essayez la surcharge OptionsFlow** (avancé) – Paramètres → Appareils et services → VW Group Connect → Configurer → définissez `ola_app_version_override` sur une version d'application plus récente (p. ex. la version de l'application officielle {brand} sur votre téléphone, visible dans les paramètres de l'application).\n3. **Si rien ne fonctionne** : ouvrez un ticket GitHub avec votre journal au niveau DEBUG pour que nous puissions enquêter.\n\nCet avertissement disparaît tout seul lorsque la requête suivante réussit.",
-      "title": "Les en-têtes OLA {brand} doivent peut-être être mis à jour – {count} erreurs 403 consécutives"
+      "description": "Le backend des services en ligne de VW Group (OLA) a refusé **{count}** requêtes d'affilée pour {brand} avec une erreur HTTP 403 Forbidden.\n\nCe **n'est pas** un problème d'en-têtes obsolètes ou de version d'application, et cela ne se corrige pas en reconfigurant ou en se reconnectant. VW semble avoir restreint l'accès aux services en ligne pour {brand} (et SEAT) de son côté — l'application officielle utilise un accès distinct, entièrement approuvé, que nous ne pouvons pas reproduire. Un changement d'en-tête ou de version d'application ne le rétablira pas.\n\nLorsque c'est possible, l'intégration bascule sur le portail EU Data Act en lecture seule pour les données encore disponibles. Les données {brand} reviendront d'elles-mêmes une fois que VW aura rétabli l'accès. Rien à faire de votre côté — cet avertissement disparaît automatiquement dès que les requêtes réussissent à nouveau.",
+      "title": "Services en ligne {brand} bloqués côté VW — {count} erreurs 403 consécutives"
     }
   },
   "services": {

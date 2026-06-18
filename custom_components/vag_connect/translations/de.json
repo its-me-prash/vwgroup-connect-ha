@@ -53,10 +53,35 @@
       },
       "user": {
         "title": "VW Group Connect einrichten",
-        "description": "Wie möchtest du dich anmelden?\n\n**Browser-Login / QR (empfohlen)** — öffne eine URL (oder scanne einen QR) auf Handy oder Laptop, melde dich in deinem Brand-ID-Account an, bestätige das Gerät. Es wird kein Passwort in Home Assistant gespeichert. Verfügbar für Audi, Škoda, SEAT, CUPRA und Volkswagen EU (read-only EU-Data-Act-Portal).\n\n**E-Mail + Passwort (Legacy)** — gib deine Brand-ID-Zugangsdaten direkt ein. Weiterhin als Fallback für Volkswagen EU verfügbar; nötig für Porsche.",
+        "description": "Wie möchtest du dich anmelden?\n\n**Browser-Login (empfohlen)** — öffne eine URL auf Handy oder Laptop, melde dich mit deinem Brand-ID-Konto an, bestätige das Gerät. Kein Passwort wird in Home Assistant gespeichert. Verfügbar für Audi, Škoda, SEAT und CUPRA.\n\n**E-Mail + Passwort (Legacy)** — gib deine Brand-ID-Zugangsdaten direkt ein. Erforderlich für Volkswagen EU und Porsche.",
         "menu_options": {
           "browser_login": "Browser-Login (empfohlen)",
-          "email_password": "E-Mail + Passwort (Legacy)"
+          "email_password": "E-Mail + Passwort (Legacy)",
+          "website_authproxy": "Volkswagen.de Website (Beta — nur Lesen)"
+        }
+      },
+      "website_authproxy": {
+        "title": "Volkswagen.de Website (BETA, nur Lesen)",
+        "description": "**Experimentell, freiwillig.** Liest deinen Volkswagen über die Anmeldung auf volkswagen.de statt über das App-Backend. Nur Volkswagen, nur Lesen (keine Fernbefehle). Melde dich mit deiner Volkswagen-ID-E-Mail und deinem Passwort an. Falls dein Konto eine E-Mail-Bestätigung nutzt, wirst du im nächsten Schritt nach dem Code gefragt.",
+        "data": {
+          "username": "E-Mail-Adresse",
+          "password": "Passwort",
+          "scan_interval": "Aktualisierungsintervall"
+        },
+        "data_description": {
+          "username": "Die E-Mail deines Volkswagen-ID- / myVolkswagen-Kontos.",
+          "password": "Dein Volkswagen-ID-Passwort.",
+          "scan_interval": "Wie oft Daten abgerufen werden (Minuten). Minimum: 5."
+        }
+      },
+      "website_authproxy_otp": {
+        "title": "E-Mail-Bestätigungscode",
+        "description": "Ein Bestätigungscode wurde an die E-Mail von **{username}** gesendet.\n\nGib den Code ein, um die Anmeldung am Volkswagen.de-Website-Kanal (Beta) abzuschließen.",
+        "data": {
+          "mfa_code": "Bestätigungscode"
+        },
+        "data_description": {
+          "mfa_code": "Code aus deinem E-Mail-Posteingang — einige Minuten gültig."
         }
       },
       "browser_login": {
@@ -69,7 +94,7 @@
           "force_enable_access": "Tür-Status erzwingen"
         },
         "data_description": {
-          "brand": "Marken mit Browser-Login-(QR)-Unterstützung — jetzt auch Volkswagen EU (read-only). Für Porsche 'E-Mail + Passwort' verwenden.",
+          "brand": "Es werden nur Marken mit Browser-Login-Unterstützung angezeigt. Für Volkswagen EU und Porsche 'E-Mail + Passwort' verwenden.",
           "force_enable_access": "Tür-Status-Entitäten erzwingen, auch wenn das Fahrzeug die Daten als fehlend meldet.",
           "scan_interval": "Minuten zwischen den Datenabfragen des Fahrzeugs.",
           "spin": "Optionale 4-stellige Sicherheits-PIN für Fernaktionen (Verriegeln, Entriegeln, Klima)."
@@ -903,7 +928,7 @@
       "description": "Dein {brand}-Konto ({username}) verlangt eine Bestätigung per E-Mail-Code.\n\n**Einmalige Lösung:**\n1. Öffne die **{brand}-App** auf deinem Handy\n2. Melde dich dort manuell an\n3. Bestätige den Code, der per E-Mail kommt\n4. Starte Home Assistant neu\n\nNach diesem einmaligen Schritt speichert die Integration das Login-Token — du musst das nicht wiederholen."
     },
     "email_two_factor_required": {
-      "title": "E-Mail-2FA — Postfach prüfen ({brand})",
+      "title": "E-Mail-2FA — Postfach prüfen",
       "description": "Dein {brand}-Konto ({username}) erfordert einen **E-Mail-Bestätigungscode**.\n\n**Einmalige Behebung:**\n1. **Postfach prüfen** (und Spam-Ordner) — 6-stelliger Code von VAG IDP\n2. **{brand}-App** auf dem Smartphone öffnen\n3. Manuell anmelden und Code eingeben\n4. Home Assistant neu starten\n\nNach diesem einmaligen Schritt speichert die Integration den Login-Token — du musst es nicht wiederholen."
     },
     "terms_and_conditions": {
@@ -955,8 +980,8 @@
       "title": "EU-Data-Act-Portal-Sitzung abgelaufen – neu anmelden"
     },
     "ola_headers_outdated": {
-      "description": "Das OLA-Backend der VW Group (der SEAT/CUPRA-Server) hat **{count}** Anfragen in Folge mit HTTP 403 Forbidden abgelehnt – sogar nachdem wir alle eingebauten Fallback-Header-Sätze ausprobiert haben.\n\n**Wahrscheinlichste Ursache**: VW hat seine Anforderungen an die App-Identifikations-Header erneut geändert. Das ist am 2026-05-20 passiert und kann erneut passieren, wenn die offizielle {brand}-App neue Versionen veröffentlicht.\n\n**Was zu tun ist:**\n\n1. **Auf ein Integrations-Update prüfen** – HACS → VW Group Connect → Update. Maintainer liefern eine Header-Anpassung meist innerhalb von ~1 Woche nach Upstream-Änderungen (wir überwachen das per wöchentlichem CI-Workflow).\n2. **Den OptionsFlow-Override versuchen** (fortgeschritten) – Einstellungen → Geräte & Dienste → VW Group Connect → Konfigurieren → `ola_app_version_override` auf eine neuere App-Version setzen (z. B. die Version der offiziellen {brand}-App auf deinem Telefon, sichtbar in den App-Einstellungen).\n3. **Wenn beides nicht hilft**: öffne ein GitHub-Issue mit deinem Log auf DEBUG-Ebene, damit wir es untersuchen können.\n\nDiese Warnung verschwindet von selbst, sobald die nächste Anfrage erfolgreich ist.",
-      "title": "{brand}-OLA-Header müssen eventuell aktualisiert werden – {count} aufeinanderfolgende 403-Fehler"
+      "description": "VWs Online-Services-Backend (OLA) hat **{count}** Anfragen für {brand} in Folge mit HTTP 403 Forbidden abgelehnt.\n\nDas ist **kein** Problem mit veralteten Headern oder einer App-Version, und es lässt sich nicht durch Neu-Konfigurieren oder erneutes Anmelden beheben. VW hat den Zugang zu den Online-Diensten für {brand} (und SEAT) offenbar serverseitig gesperrt — die offizielle App nutzt einen separaten, voll vertrauenswürdigen Zugang, den wir nicht nachbauen können. Ein Header- oder App-Versions-Override bringt ihn nicht zurück.\n\nWo möglich, fällt die Integration auf das schreibgeschützte EU-Data-Act-Portal zurück und holt die noch verfügbaren Daten. Die {brand}-Daten kommen von selbst wieder, sobald VW den Zugang freigibt. Auf deiner Seite ist nichts zu tun — diese Warnung verschwindet automatisch, sobald Anfragen wieder durchgehen.",
+      "title": "{brand}-Online-Dienste von VW gesperrt — {count} aufeinanderfolgende 403-Fehler"
     }
   },
   "selector": {

@@ -135,6 +135,29 @@ CONF_CLIENT_ID_OVERRIDE       = "client_id_override"
 CONF_EU_DATA_ACT_AUTO_KICKOFF = "eu_data_act_auto_kickoff"
 CONF_DATA_ACT_IDENTIFIERS     = "data_act_identifiers"
 
+# v2.14.0 — OPT-IN, BETA. When set on a Volkswagen entry, the integration
+# authenticates + reads via the volkswagen.de website authproxy (a confidential
+# server-side OAuth client on www.volkswagen.de that avoids the Play-Integrity
+# wall) instead of the token-based CARIAD BFF. STRICTLY additive: only honoured
+# when present + truthy AND brand == "volkswagen"; absent / False = every
+# existing path (BFF, EU Data Act portal, native CARIAD) behaves identically.
+# The channel is read-only (no remote commands). Chosen explicitly by the user
+# via the dedicated "Volkswagen.de website (beta)" config-flow option.
+CONF_WEBSITE_AUTHPROXY        = "website_authproxy"
+
+# v2.14.3 — persisted login cookies for the website-authproxy channel. The
+# config flow logs in once (incl. email-OTP) and stashes the resulting
+# volkswagen.de / vwgroup.io session cookies here in entry.data. At runtime the
+# coordinator hands them to the brand client so ``_arm_website_proxy`` hydrates
+# the cookie jar BEFORE ``begin_login()`` — an already-authenticated session
+# redirects straight back to volkswagen.de WITHOUT re-prompting the email-OTP,
+# which was previously raised on every setup/restart. The jar rotates on each
+# successful login/refresh, so the coordinator writes the fresh cookies back to
+# the entry. STRICTLY additive: only ever read/written for website-authproxy
+# entries; absent for every other mode/brand. Value: a list of cookie dicts as
+# produced by ``WebsiteAuthProxyConnector.export_cookies``.
+CONF_WEBSITE_COOKIES          = "website_cookies"
+
 # Supported brands — must match CariadClientFactory.create() keys
 BRANDS = {
     "audi":           "Audi (myAudi)",

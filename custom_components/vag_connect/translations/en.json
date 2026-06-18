@@ -53,10 +53,35 @@
       },
       "user": {
         "title": "Set up VW Group Connect",
-        "description": "How would you like to sign in?\n\n**Browser-Login / QR (recommended)** — open a URL (or scan a QR) on your phone or laptop, sign in to your Brand ID account, approve the device. No password is ever stored in Home Assistant. Available for Audi, Škoda, SEAT, CUPRA and Volkswagen EU (read-only EU Data Act portal).\n\n**Email + Password (legacy)** — enter your Brand ID credentials directly. Still available as a fallback for Volkswagen EU; required for Porsche.",
+        "description": "How would you like to sign in?\n\n**Browser-Login (recommended)** — open a URL on your phone or laptop, sign in to your Brand ID account, approve the device. No password is ever stored in Home Assistant. Available for Audi, Škoda, SEAT and CUPRA.\n\n**Email + Password (legacy)** — enter your Brand ID credentials directly. Required for Volkswagen EU and Porsche.",
         "menu_options": {
           "browser_login": "Browser-Login (recommended)",
-          "email_password": "Email + Password (legacy)"
+          "email_password": "Email + Password (legacy)",
+          "website_authproxy": "Volkswagen.de website (beta — read-only)"
+        }
+      },
+      "website_authproxy": {
+        "title": "Volkswagen.de website (BETA, read-only)",
+        "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next.",
+        "data": {
+          "username": "Email Address",
+          "password": "Password",
+          "scan_interval": "Update Interval"
+        },
+        "data_description": {
+          "username": "The email of your Volkswagen ID / myVolkswagen account.",
+          "password": "Your Volkswagen ID password.",
+          "scan_interval": "How often data is fetched (minutes). Minimum: 5."
+        }
+      },
+      "website_authproxy_otp": {
+        "title": "Email verification code",
+        "description": "A verification code was sent to the email for **{username}**.\n\nEnter the code to finish signing in to the Volkswagen.de website (beta) channel.",
+        "data": {
+          "mfa_code": "Verification Code"
+        },
+        "data_description": {
+          "mfa_code": "Code from your email inbox — valid for a few minutes."
         }
       },
       "browser_login": {
@@ -69,7 +94,7 @@
           "force_enable_access": "Force Door Status"
         },
         "data_description": {
-          "brand": "Brands with browser-login (QR) support — now including Volkswagen EU (read-only). Use 'Email + Password' for Porsche.",
+          "brand": "Only brands with browser-login support are listed. Use 'Email + Password' for Volkswagen EU and Porsche.",
           "force_enable_access": "Force door-status entities even when the vehicle reports the data missing.",
           "scan_interval": "Minutes between vehicle data polls.",
           "spin": "Optional 4-digit Security-PIN for remote actions (lock, unlock, climate)."
@@ -903,7 +928,7 @@
       "description": "Your {brand} account ({username}) requires an email verification code.\n\n**One-time fix:**\n1. Open the **{brand} app** on your phone\n2. Sign in manually\n3. Confirm the code sent by email\n4. Restart Home Assistant\n\nAfter this one-time step, the integration stores the login token — you won't need to repeat this."
     },
     "email_two_factor_required": {
-      "title": "Email 2FA — check your inbox ({brand})",
+      "title": "Email 2FA — check your inbox",
       "description": "Your {brand} account ({username}) requires an **email verification code**.\n\n**One-time fix:**\n1. **Check your email inbox** (and spam folder) for a 6-digit code from VAG IDP\n2. Open the **{brand} app** on your phone\n3. Sign in manually and enter the code\n4. Restart Home Assistant\n\nAfter this one-time step, the integration stores the login token — you won't need to repeat this."
     },
     "terms_and_conditions": {
@@ -955,8 +980,8 @@
       "title": "EU Data Act portal session expired - reauthenticate"
     },
     "ola_headers_outdated": {
-      "description": "VW Group's OLA backend (the SEAT/CUPRA server) has rejected **{count}** requests in a row with HTTP 403 Forbidden — even after we tried all built-in fallback header-sets.\n\n**Most likely cause**: VW updated their app-identifying header requirements again. This happened on 2026-05-20 and may happen again as the official {brand} app releases new versions.\n\n**What to do:**\n\n1. **Check for an integration update** — HACS → VW Group Connect → Update. Maintainers usually ship a header bump within ~1 week of upstream changes (we monitor via weekly CI workflow).\n2. **Try the OptionsFlow override** (advanced) — Settings → Devices & Services → VW Group Connect → Configure → set `ola_app_version_override` to a fresher app version (e.g. the version of the official {brand} app on your phone, visible in app settings).\n3. **If neither helps**: open a GitHub issue with your DEBUG-level log so we can investigate.\n\nThis warning auto-clears when the next request succeeds.",
-      "title": "{brand} OLA headers may need an update — {count} consecutive 403 errors"
+      "description": "VW Group's online-services backend (OLA) has refused **{count}** requests in a row for {brand} with HTTP 403 Forbidden.\n\nThis is **not** an outdated-header or app-version problem, and it's not something you can fix by reconfiguring or re-logging in. VW appears to have restricted online-services access for {brand} (and SEAT) on their side — the official app uses a separate, fully-trusted access path we can't reproduce, so a header bump or app-version override won't bring it back.\n\nWhere it can, the integration falls back to the read-only EU Data Act portal for whatever data is still available. {brand} data should return on its own once VW restores access. Nothing to do on your end — this warning auto-clears when requests start succeeding again.",
+      "title": "{brand} online services blocked on VW's side — {count} consecutive 403 errors"
     }
   },
   "services": {

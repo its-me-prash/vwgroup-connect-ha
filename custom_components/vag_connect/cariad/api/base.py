@@ -119,6 +119,27 @@ class CariadBaseClient:
         # retained here so the brand client's get_status routes through
         # it instead of the (dead) token-based BFF. None = token mode.
         self._eu_portal: Any = None
+        # v2.14.0 — OPT-IN, BETA. When the user explicitly chooses the
+        # volkswagen.de website-authproxy mode, the coordinator flips this
+        # flag (set_website_authproxy_mode) BEFORE authenticate(). It makes
+        # authenticate() use the cookie-based WebsiteAuthProxyConnector
+        # (retained on _website_proxy) as the sole strategy and routes
+        # get_vehicles/get_status through it — exactly the way _eu_portal is
+        # wired. Default False → every existing strategy path is untouched.
+        self._use_website_proxy: bool = False
+        self._website_proxy: Any = None
+        # When the website-authproxy login surfaces an email-OTP challenge,
+        # the code the user enters in the config flow is handed to the
+        # connector via this field before authenticate() runs.
+        self._website_proxy_otp: str | None = None
+        # v2.14.3 — persisted website-authproxy session cookies. The config
+        # flow exports the volkswagen.de / vwgroup.io cookies after a
+        # successful login (incl. email-OTP) and the coordinator threads them
+        # in via set_website_authproxy_mode(..., cookies=...). _arm_website_proxy
+        # hydrates them into the connector BEFORE begin_login() so an
+        # already-authenticated session resumes WITHOUT re-prompting the OTP.
+        # None / empty = no persisted session → normal (OTP-prompting) login.
+        self._website_cookies: list[dict[str, Any]] | None = None
         self._image_data: dict[str, VehicleImageData] = {}
         self._refresh_lock: asyncio.Lock | None = None
         # Sliding window of token refresh attempt timestamps (monotonic seconds).
@@ -284,7 +305,18 @@ class CariadBaseClient:
         # standard IDKAuth.authenticate path and "data_act_portal" for the
         # last-resort read-only fallback.
         strategies: list[tuple[str, dict[str, bool]]] = []
-        if self._brand.name == "volkswagen":
+        # v2.14.0 — when authenticate() is re-driven with an OTP code (e.g. a
+        # coordinator reauth for the website-authproxy channel), feed it to the
+        # connector so the email-challenge step can complete.
+        if self._use_website_proxy and mfa_code:
+            self._website_proxy_otp = mfa_code
+        # v2.14.0 — OPT-IN website-authproxy mode short-circuits the whole
+        # resolver: it is the ONLY strategy when the user selected it, so we
+        # never touch the BFF/hybrid/Data-Act chain. Gated on the explicit
+        # opt-in flag, so this branch is dead for every other entry.
+        if self._use_website_proxy:
+            strategies = [("website_authproxy", {})]
+        elif self._brand.name == "volkswagen":
             strategies = [
                 ("idk", {"hybrid_full": True}),
                 ("idk", {"hybrid_full": False}),
@@ -314,33 +346,18 @@ class CariadBaseClient:
                         **opts,
                     )
                 elif kind == "data_act_portal":
-                    # v2.12.0 — cookie-based EU Data Act portal connector.
-                    # Replaces the old PKCE-token DataActPortalAuth, which
-                    # was architecturally wrong (the portal is a confidential
-                    # Auth0 client; we can't exchange the code). The connector
-                    # logs in via cookies and serves data from /proxy_api.
-                    import time as _time  # noqa: PLC0415
-
-                    from ..auth._eu_data_act import (  # noqa: PLC0415
-                        EUDataActConnector,
-                    )
-                    connector = EUDataActConnector(
-                        self._session, brand=self._brand.name,
-                    )
-                    await connector.login(self._email, self._password)
-                    self._eu_portal = connector
-                    # Sentinel TokenSet: no real token (cookie session),
-                    # but valid() needs access_token + id_token non-empty
-                    # so downstream treats us as authenticated. Long expiry
-                    # so the coordinator doesn't churn re-logins; the
-                    # connector re-logins on 401/403 via get_status.
-                    self._tokens = TokenSet(
-                        access_token="eu-data-act-portal-cookie-session",
-                        refresh_token="",
-                        id_token="eu-data-act-portal-cookie-session",
-                        expires_at=_time.time() + 3300,
-                        strategy="data_act_portal",
-                    )
+                    # v2.12.0 — cookie-based EU Data Act portal connector
+                    # (read-only). v2.12.7 — the build+login+sentinel logic
+                    # moved to ``_arm_eu_portal`` so the SAME arming can fire
+                    # as a runtime fallback when a brand's native data backend
+                    # is blocked mid-flight (e.g. CUPRA/SEAT OLA 403) even
+                    # though the IDP login still succeeds.
+                    await self._arm_eu_portal()
+                elif kind == "website_authproxy":
+                    # v2.14.0 — OPT-IN, read-only volkswagen.de website
+                    # authproxy connector. Only reached when the user opted in
+                    # (see the strategy list above), so dormant otherwise.
+                    await self._arm_website_proxy()
                 else:
                     raise AuthenticationError(f"Unknown strategy kind: {kind}")
 
@@ -405,6 +422,151 @@ class CariadBaseClient:
                         f"Auth failed with {type(err).__name__} "
                         f"(no usable strategy left)"
                     ) from err
+
+    async def _arm_eu_portal(self) -> None:
+        """Build + log in the read-only EU Data Act portal connector and
+        retain it on ``self._eu_portal`` with a sentinel TokenSet.
+
+        v2.12.7 — used both by the ``data_act_portal`` login strategy AND as
+        a runtime fallback when a brand's native data backend is blocked
+        (e.g. the CUPRA/SEAT OLA ``403`` device-attestation wall) while the
+        IDP login still succeeds. In that case the login-time fallback never
+        fires, so the brand's read methods arm the portal here on a persistent
+        native block — reads then degrade to the portal instead of going dark.
+        """
+        import time as _time  # noqa: PLC0415
+
+        from ..auth._eu_data_act import EUDataActConnector  # noqa: PLC0415
+
+        connector = EUDataActConnector(self._session, brand=self._brand.name)
+        await connector.login(self._email, self._password)
+        self._eu_portal = connector
+        # Sentinel TokenSet: no real token (cookie session), but valid()
+        # needs access_token + id_token non-empty so downstream treats us as
+        # authenticated. Long expiry so the coordinator doesn't churn
+        # re-logins; the connector re-logins on 401/403 via the read methods.
+        self._tokens = TokenSet(
+            access_token="eu-data-act-portal-cookie-session",
+            refresh_token="",
+            id_token="eu-data-act-portal-cookie-session",
+            expires_at=_time.time() + 3300,
+            strategy="data_act_portal",
+        )
+
+    def set_website_authproxy_mode(
+        self,
+        enabled: bool,
+        *,
+        otp: str | None = None,
+        cookies: list[dict[str, Any]] | None = None,
+    ) -> None:
+        """v2.14.0 — OPT-IN: route this client through the website authproxy.
+
+        Called by the coordinator (and the config-flow validator) when the
+        user explicitly selected the "Volkswagen.de website (beta)" mode.
+        Strictly additive: when ``enabled`` is False (the default), nothing
+        changes and every existing strategy path runs unmodified. ``otp`` is
+        the email-OTP code collected by the config flow, consumed once on the
+        next ``authenticate()``.
+
+        v2.14.3 — ``cookies`` are the persisted volkswagen.de / vwgroup.io
+        session cookies (as exported by the config flow). When supplied, they
+        are hydrated into the connector BEFORE ``begin_login()`` in
+        ``_arm_website_proxy``, so an already-authenticated session resumes
+        without re-prompting the email-OTP. Defaults to None → unchanged
+        behaviour (a fresh, OTP-prompting login) for callers that don't pass it.
+        """
+        self._use_website_proxy = bool(enabled)
+        self._website_proxy_otp = otp
+        self._website_cookies = cookies
+
+    async def _arm_website_proxy(self) -> None:
+        """Build + log in the read-only website-authproxy connector.
+
+        v2.14.0 — mirrors ``_arm_eu_portal``: it logs the connector in,
+        retains it on ``self._website_proxy`` so the brand client's
+        get_vehicles/get_status route through it, and stores a sentinel
+        TokenSet (``strategy="website_authproxy"``) so downstream treats the
+        client as authenticated and the coordinator forces read-only mode.
+
+        A pending email-OTP challenge raises ``EmailTwoFactorRequiredError``
+        unless an OTP code was supplied via ``set_website_authproxy_mode`` —
+        the config flow catches that to add the OTP step, and the coordinator
+        surfaces the matching Repair issue.
+        """
+        import time as _time  # noqa: PLC0415
+
+        from ..auth._website_authproxy import (  # noqa: PLC0415
+            WebsiteAuthProxyConnector,
+        )
+        from ..exceptions import EmailTwoFactorRequiredError  # noqa: PLC0415
+
+        connector = WebsiteAuthProxyConnector(
+            self._session, self._email, self._password, brand=self._brand.name,
+        )
+        # v2.14.3 — hydrate persisted session cookies BEFORE begin_login(). When
+        # the cookies are still valid, the authproxy redirects the already-
+        # authenticated session straight back to volkswagen.de and begin_login()
+        # returns "ok" WITHOUT an OTP challenge — fixing the re-prompt-on-every-
+        # restart bug. If the cookies are stale the IDP re-prompts and
+        # begin_login() surfaces "otp_required" → the normal reauth path below.
+        if self._website_cookies:
+            connector.import_cookies(self._website_cookies)
+            # v2.14.6 — probe a data endpoint with the resumed cookies BEFORE
+            # touching the login flow. A still-valid session lets us adopt it
+            # directly and skip the /app/authproxy/login OAuth dance — which is
+            # the path that redirect-loops (TooManyRedirects) when the persisted
+            # cookies are only partially valid. A dead session (probe False)
+            # falls through to a full begin_login() → OTP, exactly as before.
+            if await connector.session_alive():
+                result = "ok"
+            else:
+                result = await connector.begin_login()
+        else:
+            result = await connector.begin_login()
+        if result == "otp_required":
+            if not self._website_proxy_otp:
+                raise EmailTwoFactorRequiredError()
+            ok = await connector.submit_otp(self._website_proxy_otp)
+            # OTP is single-use — drop it so a later re-login doesn't reuse it.
+            self._website_proxy_otp = None
+            if not ok:
+                raise AuthenticationError(
+                    "Website authproxy: OTP submission did not complete login"
+                )
+        self._website_proxy = connector
+        # Sentinel TokenSet: no usable bearer (cookie session), but valid()
+        # needs access_token + id_token non-empty so the client counts as
+        # authenticated. Long expiry so the coordinator doesn't churn relogins;
+        # the connector re-establishes the session on 401/403 via refresh().
+        self._tokens = TokenSet(
+            access_token="vw-website-authproxy-cookie-session",
+            refresh_token="",
+            id_token="vw-website-authproxy-cookie-session",
+            expires_at=_time.time() + 3300,
+            strategy="website_authproxy",
+        )
+
+    def get_website_proxy_cookies(self) -> list[dict[str, Any]]:
+        """v2.14.3 — export the live website-authproxy session cookies.
+
+        The coordinator calls this after a successful website-authproxy login/
+        refresh to persist the (rotated) cookies back into the config entry, so
+        the next setup/restart resumes the session without an OTP prompt.
+        Returns an empty list (never raises) when the connector is unarmed or
+        the export fails, so a capture hiccup never breaks the poll.
+        """
+        connector = self._website_proxy
+        if connector is None:
+            return []
+        try:
+            cookies = connector.export_cookies()
+        except Exception:  # noqa: BLE001
+            return []
+        # Typed intermediate so mypy doesn't flag a Returning-Any on the
+        # connector's loosely-typed export.
+        result: list[dict[str, Any]] = cookies if isinstance(cookies, list) else []
+        return result
 
     def set_persisted_tokens(self, tokens: TokenSet | None) -> None:
         """v1.19.2 (#118) — inject tokens loaded from HA storage at

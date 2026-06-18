@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Configurar VW Group Connect",
-        "description": "¿Cómo quieres iniciar sesión?\n\n**Inicio por navegador / QR (recomendado)** — abre una URL (o escanea un QR) en tu teléfono o portátil, inicia sesión en tu cuenta Brand ID, aprueba el dispositivo. Nunca se guarda ninguna contraseña en Home Assistant. Disponible para Audi, Škoda, SEAT, CUPRA y Volkswagen EU (portal EU Data Act de solo lectura).\n\n**Correo + contraseña (heredado)** — introduce tus credenciales Brand ID directamente. Sigue disponible como alternativa para Volkswagen EU; necesario para Porsche.",
+        "description": "Conecta tu vehículo a Home Assistant.\n\nElige tu marca e introduce las credenciales de la app del fabricante.",
         "data": {
           "brand": "Marca del vehículo",
           "username": "Correo electrónico",
@@ -22,7 +22,32 @@
         },
         "menu_options": {
           "browser_login": "Browser-Login (recommended)",
-          "email_password": "Email + Password (legacy)"
+          "email_password": "Email + Password (legacy)",
+          "website_authproxy": "Volkswagen.de website (beta — read-only)"
+        }
+      },
+      "website_authproxy": {
+        "title": "Volkswagen.de website (BETA, read-only)",
+        "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next.",
+        "data": {
+          "username": "Email Address",
+          "password": "Password",
+          "scan_interval": "Update Interval"
+        },
+        "data_description": {
+          "username": "The email of your Volkswagen ID / myVolkswagen account.",
+          "password": "Your Volkswagen ID password.",
+          "scan_interval": "How often data is fetched (minutes). Minimum: 5."
+        }
+      },
+      "website_authproxy_otp": {
+        "title": "Email verification code",
+        "description": "A verification code was sent to the email for **{username}**.\n\nEnter the code to finish signing in to the Volkswagen.de website (beta) channel.",
+        "data": {
+          "mfa_code": "Verification Code"
+        },
+        "data_description": {
+          "mfa_code": "Code from your email inbox — valid for a few minutes."
         }
       },
       "reauth_confirm": {
@@ -85,7 +110,7 @@
           "force_enable_access": "Force Door Status"
         },
         "data_description": {
-          "brand": "Marcas compatibles con el inicio por navegador (QR) — ahora también Volkswagen EU (solo lectura). Usa 'Correo + contraseña' para Porsche.",
+          "brand": "Solo se muestran las marcas compatibles con el inicio de sesión por navegador. Usa 'Correo electrónico + contraseña' para Volkswagen EU y Porsche.",
           "force_enable_access": "Forzar las entidades de estado de las puertas aunque el vehículo informe de que faltan los datos.",
           "scan_interval": "Minutos entre cada consulta de datos del vehículo.",
           "spin": "PIN de seguridad de 4 dígitos opcional para acciones remotas (bloquear, desbloquear, climatización)."
@@ -919,7 +944,7 @@
       "description": "1. Abre la app **{brand}**\n2. Inicia sesión manualmente\n3. Confirma el código de correo\n4. Reinicia Home Assistant"
     },
     "email_two_factor_required": {
-      "title": "2FA por email — revisa tu bandeja ({brand})",
+      "title": "2FA por email — revisa tu bandeja",
       "description": "Tu cuenta de {brand} ({username}) requiere un **código de verificación por email**.\n\n**Solución única:**\n1. **Revisa tu email** (y spam) — código de 6 dígitos de VAG IDP\n2. Abre la app de **{brand}**\n3. Inicia sesión manualmente e ingresa el código\n4. Reinicia Home Assistant"
     },
     "terms_and_conditions": {
@@ -971,8 +996,8 @@
       "title": "La sesión del portal EU Data Act ha caducado: vuelve a autenticarte"
     },
     "ola_headers_outdated": {
-      "description": "El backend OLA de VW Group (el servidor de SEAT/CUPRA) ha rechazado **{count}** peticiones seguidas con HTTP 403 Forbidden, incluso después de probar todos los conjuntos de cabeceras de reserva integrados.\n\n**Causa más probable**: VW ha vuelto a cambiar los requisitos de sus cabeceras de identificación de la app. Ocurrió el 2026-05-20 y puede volver a ocurrir cuando la app oficial de {brand} publique versiones nuevas.\n\n**Qué hacer:**\n\n1. **Comprueba si hay una actualización de la integración** – HACS → VW Group Connect → Actualizar. Los mantenedores suelen publicar un ajuste de cabeceras en aproximadamente 1 semana tras los cambios upstream (lo vigilamos con un flujo de CI semanal).\n2. **Prueba la anulación de OptionsFlow** (avanzado) – Ajustes → Dispositivos y servicios → VW Group Connect → Configurar → establece `ola_app_version_override` en una versión de app más reciente (p. ej. la versión de la app oficial de {brand} en tu teléfono, visible en los ajustes de la app).\n3. **Si nada de esto ayuda**: abre una incidencia en GitHub con tu registro a nivel DEBUG para que podamos investigarlo.\n\nEste aviso desaparece solo cuando la siguiente petición tiene éxito.",
-      "title": "Puede que las cabeceras OLA de {brand} necesiten actualizarse – {count} errores 403 seguidos"
+      "description": "El backend de servicios en línea de VW Group (OLA) ha rechazado **{count}** solicitudes seguidas de {brand} con HTTP 403 Forbidden.\n\nEsto **no** es un problema de cabeceras desactualizadas ni de versión de la app, y no se soluciona reconfigurando ni volviendo a iniciar sesión. Parece que VW ha restringido el acceso a los servicios en línea de {brand} (y SEAT) en su lado — la app oficial usa un acceso aparte, de plena confianza, que no podemos reproducir. Cambiar la cabecera o la versión de la app no lo restaurará.\n\nCuando puede, la integración recurre al portal EU Data Act de solo lectura para los datos que aún estén disponibles. Los datos de {brand} volverán por sí solos cuando VW restablezca el acceso. No hay nada que hacer por tu parte: este aviso desaparece automáticamente cuando las solicitudes vuelven a funcionar.",
+      "title": "Servicios en línea de {brand} bloqueados por VW — {count} errores 403 seguidos"
     }
   },
   "services": {

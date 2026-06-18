@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Skonfiguruj VW Group Connect",
-        "description": "Jak chcesz się zalogować?\n\n**Logowanie przez przeglądarkę / QR (zalecane)** — otwórz adres URL (lub zeskanuj kod QR) na telefonie albo laptopie, zaloguj się na konto Brand ID, zatwierdź urządzenie. W Home Assistant nie jest przechowywane żadne hasło. Dostępne dla Audi, Škoda, SEAT, CUPRA i Volkswagen EU (portal EU Data Act tylko do odczytu).\n\n**E-mail + hasło (starsze)** — wprowadź dane logowania Brand ID bezpośrednio. Nadal dostępne jako rezerwa dla Volkswagen EU; wymagane dla Porsche.",
+        "description": "Połącz swój pojazd z Home Assistant.\n\nWybierz markę i wprowadź dane logowania z aplikacji producenta.",
         "data": {
           "brand": "Marka pojazdu",
           "username": "Adres e-mail",
@@ -22,7 +22,32 @@
         },
         "menu_options": {
           "browser_login": "Browser-Login (recommended)",
-          "email_password": "Email + Password (legacy)"
+          "email_password": "Email + Password (legacy)",
+          "website_authproxy": "Volkswagen.de website (beta — read-only)"
+        }
+      },
+      "website_authproxy": {
+        "title": "Volkswagen.de website (BETA, read-only)",
+        "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next.",
+        "data": {
+          "username": "Email Address",
+          "password": "Password",
+          "scan_interval": "Update Interval"
+        },
+        "data_description": {
+          "username": "The email of your Volkswagen ID / myVolkswagen account.",
+          "password": "Your Volkswagen ID password.",
+          "scan_interval": "How often data is fetched (minutes). Minimum: 5."
+        }
+      },
+      "website_authproxy_otp": {
+        "title": "Email verification code",
+        "description": "A verification code was sent to the email for **{username}**.\n\nEnter the code to finish signing in to the Volkswagen.de website (beta) channel.",
+        "data": {
+          "mfa_code": "Verification Code"
+        },
+        "data_description": {
+          "mfa_code": "Code from your email inbox — valid for a few minutes."
         }
       },
       "reauth_confirm": {
@@ -85,7 +110,7 @@
           "force_enable_access": "Force Door Status"
         },
         "data_description": {
-          "brand": "Marki obsługujące logowanie przez przeglądarkę (QR) — teraz także Volkswagen EU (tylko do odczytu). Dla Porsche użyj 'E-mail + hasło'.",
+          "brand": "Wyświetlane są tylko marki obsługujące logowanie przez przeglądarkę. Dla Volkswagen EU i Porsche użyj 'E-mail + hasło'.",
           "force_enable_access": "Wymuś encje stanu drzwi, nawet gdy pojazd zgłasza brak danych.",
           "scan_interval": "Minuty między odpytaniami danych pojazdu.",
           "spin": "Opcjonalny 4-cyfrowy PIN bezpieczeństwa do akcji zdalnych (blokowanie, odblokowanie, klimatyzacja)."
@@ -919,7 +944,7 @@
       "description": "1. Otwórz aplikację **{brand}**\n2. Zaloguj się ręcznie\n3. Potwierdź kod e-mail\n4. Uruchom ponownie Home Assistant"
     },
     "email_two_factor_required": {
-      "title": "2FA przez e-mail — sprawdź skrzynkę ({brand})",
+      "title": "2FA przez e-mail — sprawdź skrzynkę",
       "description": "Twoje konto {brand} ({username}) wymaga **kodu weryfikacyjnego e-mail**.\n\n**Jednorazowa naprawa:**\n1. **Sprawdź e-mail** (i spam) — 6-cyfrowy kod od VAG IDP\n2. Otwórz aplikację **{brand}**\n3. Zaloguj się ręcznie i wprowadź kod\n4. Uruchom ponownie Home Assistant"
     },
     "terms_and_conditions": {
@@ -971,8 +996,8 @@
       "title": "Sesja portalu EU Data Act wygasła – zaloguj się ponownie"
     },
     "ola_headers_outdated": {
-      "description": "Backend OLA grupy VW (serwer SEAT/CUPRA) odrzucił **{count}** żądań z rzędu z błędem HTTP 403 Forbidden – nawet po wypróbowaniu wszystkich wbudowanych zapasowych zestawów nagłówków.\n\n**Najbardziej prawdopodobna przyczyna**: VW ponownie zmienił wymagania dotyczące nagłówków identyfikujących aplikację. Zdarzyło się to 2026-05-20 i może się powtórzyć, gdy oficjalna aplikacja {brand} wyda nowe wersje.\n\n**Co zrobić:**\n\n1. **Sprawdź aktualizację integracji** – HACS → VW Group Connect → Aktualizuj. Opiekunowie zwykle wydają poprawkę nagłówków w ciągu ~1 tygodnia od zmian w upstream (monitorujemy to cotygodniowym workflow CI).\n2. **Wypróbuj nadpisanie OptionsFlow** (zaawansowane) – Ustawienia → Urządzenia i usługi → VW Group Connect → Konfiguruj → ustaw `ola_app_version_override` na nowszą wersję aplikacji (np. wersję oficjalnej aplikacji {brand} na Twoim telefonie, widoczną w ustawieniach aplikacji).\n3. **Jeśli żadne z tego nie pomoże**: otwórz zgłoszenie na GitHubie ze swoim logiem na poziomie DEBUG, abyśmy mogli to zbadać.\n\nTo ostrzeżenie zniknie samo, gdy następne żądanie się powiedzie.",
-      "title": "Nagłówki OLA {brand} mogą wymagać aktualizacji – {count} kolejnych błędów 403"
+      "description": "Backend usług online VW Group (OLA) odrzucił **{count}** żądań z rzędu dla {brand} z błędem HTTP 403 Forbidden.\n\nTo **nie** jest problem z nieaktualnymi nagłówkami ani wersją aplikacji i nie da się go naprawić przez ponowną konfigurację czy ponowne logowanie. VW najwyraźniej ograniczył dostęp do usług online dla {brand} (i SEAT) po swojej stronie — oficjalna aplikacja korzysta z osobnego, w pełni zaufanego dostępu, którego nie jesteśmy w stanie odtworzyć. Zmiana nagłówka ani wersji aplikacji tego nie przywróci.\n\nTam, gdzie to możliwe, integracja przełącza się na portal EU Data Act tylko do odczytu, aby pobrać wciąż dostępne dane. Dane {brand} wrócą same, gdy VW przywróci dostęp. Nie musisz nic robić — to ostrzeżenie zniknie automatycznie, gdy żądania znów zaczną się udawać.",
+      "title": "Usługi online {brand} zablokowane po stronie VW — {count} kolejnych błędów 403"
     }
   },
   "services": {
