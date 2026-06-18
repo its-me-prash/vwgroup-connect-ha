@@ -118,6 +118,37 @@ def resolve_apkcombo_download(slug: str) -> str | None:
     return f"https://apkcombo.com{relative}"
 
 
+# Uptodown embeds a per-download token in the download button's data-url;
+# the file is served from dw.uptodown.net/dwn/<token>.
+_UPTODOWN_TOKEN_RE = re.compile(
+    r'id="detail-download-button"[^>]*data-url="([^"]+)"'
+)
+
+
+def resolve_uptodown_download(subdomain: str) -> str | None:
+    """Resolve the direct APK/XAPK URL from an Uptodown app subdomain.
+
+    Fallback for brands not served by APKCombo (e.g. Škoda). ``subdomain``
+    is e.g. ``"cz-skodaauto-myskoda"``. The ``/android/download`` page carries
+    a token in the ``#detail-download-button`` ``data-url``; the file lives at
+    ``https://dw.uptodown.net/dwn/<token>``. Returns the URL or None.
+    """
+    page_url = f"https://{subdomain}.en.uptodown.com/android/download"
+    try:
+        body = fetch_text(page_url)
+    except urllib.error.HTTPError as exc:
+        _LOGGER.warning("Uptodown %s → HTTP %s", page_url, exc.code)
+        return None
+    except Exception as exc:  # noqa: BLE001
+        _LOGGER.warning("Uptodown %s → %s", page_url, exc)
+        return None
+    m = _UPTODOWN_TOKEN_RE.search(body)
+    if not m:
+        _LOGGER.warning("Uptodown %s: no download token found", page_url)
+        return None
+    return f"https://dw.uptodown.net/dwn/{m.group(1)}"
+
+
 def download_to(url: str, dest: Path) -> bool:
     """Download a URL to ``dest`` using browser-like headers.
 
@@ -188,19 +219,41 @@ def unpack_xapk(xapk_path: Path, dest_dir: Path) -> Path | None:
         return target
 
 
+def _apk_declares_package(base_apk: Path, expected_pkg: str) -> bool:
+    """True if the APK's AndroidManifest contains the expected package name.
+
+    Guard against decoy downloads: some mirrors (Uptodown) gate the real file
+    and serve their own client app instead. Binary AXML stores strings as
+    UTF-16LE, so a substring scan of AndroidManifest.xml reliably confirms the
+    declared package is present.
+    """
+    try:
+        with zipfile.ZipFile(base_apk) as z:
+            manifest = z.read("AndroidManifest.xml")
+    except (KeyError, zipfile.BadZipFile, OSError) as exc:
+        _LOGGER.warning("Could not read AndroidManifest from %s: %s", base_apk, exc)
+        return False
+    return expected_pkg in manifest.decode("utf-16-le", errors="ignore")
+
+
 def apktool_decode(apk_path: Path, dest_dir: Path) -> bool:
     """Run ``apktool d <apk> -o <dest>``. Returns True on success."""
+    import shutil
     if dest_dir.exists():
         # apktool refuses to overwrite by default.
-        import shutil
         shutil.rmtree(dest_dir)
+    # Windows: apktool ships as a .BAT/.cmd wrapper — a bare ["apktool", ...] is NOT
+    # resolved by CreateProcess (which only finds .exe, not PATHEXT scripts), so it raised
+    # FileNotFoundError on local Windows runs. shutil.which() honours PATHEXT and returns the
+    # full path to apktool.BAT, which subprocess can execute. On Linux it returns the binary.
+    apktool_bin = shutil.which("apktool") or "apktool"
     try:
         result = subprocess.run(
-            ["apktool", "d", "--force-manifest", "-o", str(dest_dir), str(apk_path)],
+            [apktool_bin, "d", "--force-manifest", "-o", str(dest_dir), str(apk_path)],
             check=False,
             capture_output=True,
             text=True,
-            timeout=120,
+            timeout=600,
         )
         if result.returncode != 0:
             _LOGGER.error("apktool failed (rc=%d):\n%s\n%s",
@@ -211,7 +264,7 @@ def apktool_decode(apk_path: Path, dest_dir: Path) -> bool:
         _LOGGER.error("apktool not on PATH — workflow needs `apt-get install apktool`")
         return False
     except subprocess.TimeoutExpired:
-        _LOGGER.error("apktool timed out after 120s for %s", apk_path)
+        _LOGGER.error("apktool timed out after 600s for %s", apk_path)
         return False
 
 
@@ -357,14 +410,22 @@ def extract_brand_apk(brand: str, brand_cfg: dict[str, Any],
     """
     sources = brand_cfg.get("sources", {})
     apkcombo_slug = sources.get("apkcombo_slug")
-    if not apkcombo_slug:
-        _LOGGER.warning("Brand %s: no apkcombo_slug — skipping APK extraction "
-                       "(Phase A.2 currently only supports APKCombo CDN)", brand)
+    uptodown_sub = sources.get("uptodown_subdomain")
+    if not apkcombo_slug and not uptodown_sub:
+        _LOGGER.warning("Brand %s: no apkcombo_slug or uptodown_subdomain — "
+                       "skipping APK extraction", brand)
         return None
 
-    # 1. Resolve download URL.
-    download_url = resolve_apkcombo_download(apkcombo_slug)
+    # 1. Resolve download URL — APKCombo first (XAPK, fast CDN), then fall
+    #    back to Uptodown for brands APKCombo doesn't serve (e.g. Škoda).
+    download_url = None
+    if apkcombo_slug:
+        download_url = resolve_apkcombo_download(apkcombo_slug)
+    if not download_url and uptodown_sub:
+        _LOGGER.info("Brand %s: APKCombo unavailable — trying Uptodown", brand)
+        download_url = resolve_uptodown_download(uptodown_sub)
     if not download_url:
+        _LOGGER.warning("Brand %s: no download URL via APKCombo or Uptodown", brand)
         return None
     _LOGGER.info("Brand %s: APK download URL resolved", brand)
 
@@ -378,6 +439,19 @@ def extract_brand_apk(brand: str, brand_cfg: dict[str, Any],
     unpack_dir = tmp_dir / f"{brand}_unpacked"
     base_apk = unpack_xapk(apk_path, unpack_dir)
     if not base_apk:
+        return None
+
+    # 3b. Identity guard — confirm the APK actually IS the brand app. Some
+    #     mirrors (notably Uptodown) gate downloads and serve their OWN client
+    #     app (com.uptodown.*) instead of the requested one. Without this check
+    #     we'd silently analyse the wrong app and report bogus findings. Uses
+    #     the canonical per-brand package_id from config.json so the guard also
+    #     applies to brands fetched via a non-APKCombo source.
+    expected_pkg = brand_cfg.get("package_id")
+    if expected_pkg and not _apk_declares_package(base_apk, expected_pkg):
+        _LOGGER.error("Brand %s: downloaded APK does not declare expected package "
+                      "%r — likely a decoy/wrong download (e.g. Uptodown's own "
+                      "app). Rejecting.", brand, expected_pkg)
         return None
 
     # 4. apktool decode.
