@@ -42,7 +42,7 @@
 > Ogromne podziękowania dla społeczności **Home Assistant UK** oraz **HA Ideas, Projects and Solutions**
 > za zwrócenie uwagi — szczególnie dla **Si Gregory**, **Ben Johnson** i **Evets David**.
 >
-> I specjalne pozdrowienia dla **Jordana Waelesa**, którego komentarz `show_vag()` jest teraz oficjalnie
+> I specjalne pozdrowienia dla **Jordan Waeles**, którego komentarz `show_vag()` jest teraz oficjalnie
 > wspieranym easter eggiem w tej integracji (usługa `vag_connect.show_vag`, patrz CHANGELOG v2.2.3).
 
 ---
