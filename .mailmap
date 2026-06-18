@@ -1,5 +1,0 @@
-# Canonicalize historical commit identities to the maintainer.
-# Maps early-history commits (made under a tooling identity) onto the
-# canonical author so `git shortlog`, the contributor graph and any
-# mailmap-aware view show a single, consistent maintainer.
-Prash <pirabhu.balan@gmail.com> <noreply@anthropic.com>
