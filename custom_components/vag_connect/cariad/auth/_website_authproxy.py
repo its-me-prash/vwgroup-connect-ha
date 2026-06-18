@@ -455,13 +455,33 @@ class WebsiteAuthProxyConnector:
                 "Website authproxy: no pending OTP challenge — call "
                 "begin_login() first"
             )
-        # The Auth0 email-challenge page is a form carrying hidden fields
-        # (_csrf / relayState / hmac); a hardcoded {code, state} POST omits
-        # them, which is what made the OTP "not transmit cleanly". Parse the
-        # challenge form exactly like the password step (begin_login) and merge
-        # the code into the real fields before POSTing to the form's action.
+        # The Auth0 email-challenge form carries hidden fields (_csrf /
+        # relayState / hmac) AND a code input whose name is NOT always "code" —
+        # it can be otp / mfa-code / token / passcode. Our form parser surfaces
+        # value-less inputs, so the real field is present in ``fields``; set the
+        # code into whichever the form actually carries. A hardcoded "code" left
+        # the real field empty, so the IDP treated it as "no code entered",
+        # re-issued a FRESH challenge (= a new email) and we bounced on
+        # "email-challenge" forever — the "credential issue + new code every
+        # attempt" loop. Also opt into any "remember" field so the SSO cookie
+        # lives longer (helps the silent resume). Fall back to "code" only if the
+        # form exposes no recognisable code field. (Mirrors the working
+        # rafaelhutter authproxy flow.)
         fields, action = _login_fields(self._otp_html or "")
-        fields["code"] = str(code).strip()
+        code_clean = str(code).strip()
+        matched = False
+        for key in list(fields):
+            kl = key.lower()
+            if kl in (
+                "code", "otp", "mfa-code", "mfa_code",
+                "email-code", "passcode", "token",
+            ):
+                fields[key] = code_clean
+                matched = True
+            elif "remember" in kl:
+                fields[key] = "true"
+        if not matched:
+            fields["code"] = code_clean
         if self._otp_state:
             fields.setdefault("state", self._otp_state)
         post_url = _resolve_action(self._otp_url, action)
