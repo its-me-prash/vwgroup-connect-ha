@@ -121,11 +121,14 @@ class TestVWNAUsesNAOverrides:
         src = _VW_NA_PY.read_text(encoding="utf-8")
         assert '_NA_IDP_BASE = "https://identity.na.vwgroup.io"' in src
 
-    def test_na_signin_guid_constant(self) -> None:
+    def test_na_signin_guid_is_dormant_not_wired(self) -> None:
+        """b14 (#503): matpoulin's old browser-client GUID is DORMANT — kept
+        documented but NOT passed to IDKAuth. With it, NA login dead-ended at
+        ``signin-service/v1/b680e751… → "no code"`` even after the b13 scope
+        revert; the current flow uses the MYVW_ANDROID client throughout."""
         src = _VW_NA_PY.read_text(encoding="utf-8")
-        # Per matpoulin/CarConnectivity-connector-volkswagen-na/
-        # auth/vw_web_session.py — hardcoded NA IDP browser-client GUID.
-        assert "b680e751-7e1f-4008-8ec1-3a528183d215@apps_vw-dilab_com" in src
+        assert "_NA_SIGNIN_CLIENT_GUID_DORMANT" in src       # kept for the record
+        assert "signin_client_id_override" not in src        # but NOT wired in
 
     def test_idkauth_constructed_with_authorize_override(self) -> None:
         src = _VW_NA_PY.read_text(encoding="utf-8")
@@ -141,9 +144,13 @@ class TestVWNAUsesNAOverrides:
         src = _VW_NA_PY.read_text(encoding="utf-8")
         assert "idk_base_override=_NA_IDP_BASE" in src
 
-    def test_idkauth_constructed_with_signin_guid_override(self) -> None:
+    def test_idkauth_NOT_constructed_with_signin_guid_override(self) -> None:
+        """b14 (#503): the signin client_id override is removed, so IDKAuth
+        falls back to ``brand.client_id`` (the per-country MYVW_ANDROID client)
+        for the signin-service URL — matching the live MyVW app + a working US
+        implementation. Re-adding the override regresses NA login to "no code"."""
         src = _VW_NA_PY.read_text(encoding="utf-8")
-        assert "signin_client_id_override=_NA_SIGNIN_CLIENT_GUID" in src
+        assert "signin_client_id_override" not in src
 
     def test_scope_stays_bare_openid(self) -> None:
         """REGRESSION PIN (#269 / #503): BRAND_VW_NA.scope MUST be bare

@@ -38,6 +38,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.0b14] - 2026-06-25
+
+> **Beta / pre-release** — the actual fix for VW US/Canada login (#503).
+
+### Fixed
+
+- **VW US/Canada login (#503) — the real cause.** b13 reverted an over-widened OAuth scope, but sign-in still dead-ended at VW's North-America sign-in service with "no code in …/signin-service/v1/b680e751…". The real culprit was a stale, separate "browser" client-id (`b680e751…`) that was used *only* to build the NA sign-in URL — but the current MyVW app uses the same app client all the way through. Removed that stale override so the sign-in now uses the real per-country MyVW client; confirmed against the live MyVW app (its code has zero `b680e751` / `identity.na` literals) and an independent working US setup. (A live US/CA login confirms the close.)
+
 ## [2.15.0b13] - 2026-06-24
 
 > **Beta / pre-release** — one car, reads *and* commands: the EU Data Act portal for data + a durable-MBB command channel on top. And a simpler 2-path setup.

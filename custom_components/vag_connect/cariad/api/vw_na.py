@@ -57,11 +57,14 @@ BRAND_VW_NA = BrandConfig(
 _CA_CLIENT_ID = "69eb3c39-d2be-4006-8197-37cc4971e8fe_MYVW_ANDROID"
 
 # v2.3.0 (#269) — VW NA-specific IDP host: identity.na.vwgroup.io
-# (NOT identity.vwgroup.io). When the authorize-redirect lands on the
-# NA IDP, the signin-service URL uses a hardcoded NA client GUID
-# distinct from our API client_id. Per matpoulin's working flow.
+# (NOT identity.vwgroup.io). The authorize-redirect lands on this NA IDP and
+# the signin form is served here (relative form-action paths resolve against it).
 _NA_IDP_BASE = "https://identity.na.vwgroup.io"
-_NA_SIGNIN_CLIENT_GUID = "b680e751-7e1f-4008-8ec1-3a528183d215@apps_vw-dilab_com"
+# b14 (#503) — DORMANT/outdated. matpoulin's old "browser IDP client" GUID. It
+# is no longer wired in (see IDKAuth construction below): the current NA flow
+# uses the MYVW_ANDROID client throughout, so this would dead-end at
+# ``signin-service/v1/b680e751… → "no code"``. Kept documented, not used.
+_NA_SIGNIN_CLIENT_GUID_DORMANT = "b680e751-7e1f-4008-8ec1-3a528183d215@apps_vw-dilab_com"
 
 
 class VWNAClient:
@@ -120,20 +123,22 @@ class VWNAClient:
         #      relative form-actions + the ``Origin`` header must point
         #      at the right base.
         #
-        #   4. signin_client_id_override → hardcoded NA GUID
-        #      ``b680e751-7e1f-4008-8ec1-3a528183d215@apps_vw-dilab_com``.
-        #      The signin-service URL embeds a "browser IDP client" that
-        #      is distinct from our "device API client" (MYVW_ANDROID).
-        #
-        # Source: matpoulin/CarConnectivity-connector-volkswagen-na
-        # (Apache-2.0), cited at the top of this file.
+        # b14 (#503) — NO separate signin client_id. matpoulin's old GUID
+        # ``b680e751-…@apps_vw-dilab_com`` was used to build the fallback
+        # signin-service URL, but it is OUTDATED: with it, NA login dies at
+        # ``signin-service/v1/b680e751… → "no code"`` even after the b13 scope
+        # revert (Canaillee, b13 test). The current NA flow uses the SAME
+        # MYVW_ANDROID client throughout — verified against the live MyVW app
+        # (its DEX has zero ``b680e751`` / ``identity.na`` literals) and an
+        # independent working US implementation. Dropping the override makes
+        # ``idk._signin_client_id`` fall back to ``brand.client_id`` (the
+        # per-country 59992128 / 69eb3c39 MYVW client), matching the app.
         self._auth = IDKAuth(
             session,
             brand,
             authorize_url_override=f"{self._base}/oidc/v1/authorize",
             token_url_override=f"{self._base}/oidc/v1/token",
             idk_base_override=_NA_IDP_BASE,
-            signin_client_id_override=_NA_SIGNIN_CLIENT_GUID,
         )
         # UUID cache: VIN → UUID (returned by garage)
         self._vin_to_uuid: dict[str, str] = {}
