@@ -38,6 +38,28 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.0] - 2026-06-25
+
+First stable release of the 2.15.0 line (consolidates the `2.15.0a*` / `2.15.0b*` betas). Highlights:
+
+### Added
+
+- **Command channel for portal-primary setups (opt-in).** Climate and charging commands now work for accounts whose data comes from the EU Data Act portal, via a second sign-in on a durable command backend. Opt-in per entry; existing read-only setups are unchanged.
+- **Portal-safety / last-known-good cache.** Each vehicle's last good readout is cached locally and restored across restarts, so a momentary empty/failed portal fetch no longer blanks your dashboard — values carry forward (the odometer never goes backwards) until fresh data arrives, and the failed poll just feeds the staleness watchdog.
+- **More fields surfaced.** The Vehicle Data Scout no longer hides any portal field, and the older VW EU charger format now maps its battery level to State of Charge.
+
+### Fixed
+
+- **VW US/Canada login (#503).** Two separate causes — an over-widened OAuth scope and a stale, separate sign-in client-id — both removed; the North-America flow now matches the live MyVW app end-to-end.
+- **Duplicate / stale portal fields (#465, #504).** Reworked the portal field de-duplication so the freshest value wins and array-nested fields don't collapse onto the wrong key.
+- **App-identity refreshed** to current builds (We Connect 3.63.2, myAudi 5.5.1) so the command/data endpoints stop rejecting stale versions.
+- **Škoda lock/unlock** uses the current PIN field name.
+
+### Changed
+
+- **Honest CUPRA/SEAT command status.** Those brands' command backend is now gated server-side (App Check + WAF); the integration says so plainly instead of silently failing. Data continues via the EU Data Act portal.
+- **MEB "commands unavailable" notice** surfaces as a Home Assistant repair when a newer MEB car can't use the legacy command channel.
+
 ## [2.15.0b14] - 2026-06-25
 
 > **Beta / pre-release** — the actual fix for VW US/Canada login (#503).
