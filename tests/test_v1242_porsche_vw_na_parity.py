@@ -251,6 +251,10 @@ class TestVWNAParserHappy:
         client = VWNAClient.__new__(VWNAClient)
         client._base = "https://example.test"
         client._vin_to_uuid = {"WVWZZZ7AZRE000001": "uuid-abc"}
+        # metadata caches populated by list_vehicles in a real client; get_status
+        # now threads model/nickname from them onto VehicleData.
+        client._vin_to_model = {"WVWZZZ7AZRE000001": "ID.4 Pro"}
+        client._vin_to_nickname = {"WVWZZZ7AZRE000001": "My ID4"}
         client._get = AsyncMock(side_effect=[  # type: ignore[method-assign]
             _VW_NA_RAW_HAPPY,
             _VW_NA_CHARGE_HAPPY,
@@ -260,6 +264,10 @@ class TestVWNAParserHappy:
         assert isinstance(d, VehicleData)
         assert d.vin == "WVWZZZ7AZRE000001"
         assert d.manufacturer == "Volkswagen"
+        # get_status threads the cached model + nickname (previously always None
+        # for VW US/CA because the cache had zero readers).
+        assert d.model == "ID.4 Pro"
+        assert d.vehicle_nickname == "My ID4"
         assert d.odometer_km == 8740
         # range_km comes from powerStatus.cruiseRange (RVS, real) — still 285.
         assert d.range_km == 285
@@ -295,6 +303,8 @@ class TestVWNAParserDegraded:
         client = VWNAClient.__new__(VWNAClient)
         client._base = "https://example.test"
         client._vin_to_uuid = {"VW0X": "uuid"}
+        client._vin_to_model = {}
+        client._vin_to_nickname = {}
         client._get = AsyncMock(side_effect=[  # type: ignore[method-assign]
             RuntimeError("net"),
             RuntimeError("net"),
@@ -314,6 +324,8 @@ class TestVWNAParserDegraded:
         client = VWNAClient.__new__(VWNAClient)
         client._base = "https://example.test"
         client._vin_to_uuid = {"VW0X": "uuid"}
+        client._vin_to_model = {}
+        client._vin_to_nickname = {}
         client._get = AsyncMock(side_effect=[  # type: ignore[method-assign]
             {},  # empty raw
             {},  # empty charge
@@ -336,6 +348,8 @@ class TestVWNAParserDegraded:
         client = VWNAClient.__new__(VWNAClient)
         client._base = "https://example.test"
         client._vin_to_uuid = {"VW0X": "uuid"}
+        client._vin_to_model = {}
+        client._vin_to_nickname = {}
         client._get = AsyncMock(side_effect=[  # type: ignore[method-assign]
             {},
             {"chargingStatus": {"remainingChargingTimeToComplete": 0}},

@@ -370,6 +370,11 @@ class VWNAClient:
         v = self._val
         uuid = self._vin_to_uuid.get(vin, vin)
         d = VehicleData(vin=vin, manufacturer="Volkswagen")
+        # Thread the human-friendly metadata cached during garage discovery.
+        # Without this, d.model was always None for VW US/CA, so Scout/Error
+        # reports showed model=None even though list_vehicles cached modelName.
+        d.model = self._vin_to_model.get(vin)
+        d.vehicle_nickname = self._vin_to_nickname.get(vin)
 
         results = await asyncio.gather(
             self._get(f"{self._base}/rvs/v1/vehicle/{uuid}"),

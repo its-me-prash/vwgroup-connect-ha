@@ -655,17 +655,11 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         suggested_display_precision=0,
     ),
     # v1.20.0 Bundle 2 Phase A (myskoda PR #557 widget + vehicle-info).
-    # Two diagnostic sensors enriching DeviceInfo for Skoda vehicles:
-    # license_plate (from widget per-tick) + equipment_count (from
-    # equipment endpoint, 24h cache). Both data-present-gated so non-
-    # Skoda brands don't get phantom entities.
-    VagSensorDescription(
-        key="license_plate",
-        translation_key="license_plate",
-        data_key="license_plate",
-        icon="mdi:card-text-outline",
-        entity_category=EntityCategory.DIAGNOSTIC,
-    ),
+    # equipment_count (from equipment endpoint, 24h cache) enriches DeviceInfo
+    # for Skoda vehicles; data-present-gated so non-Skoda brands don't get a
+    # phantom entity. (The license_plate description that was here duplicated the
+    # authoritative OLA def above on the same `key=` — HA's last-wins dict
+    # silently dropped one — so the duplicate is removed.)
     VagSensorDescription(
         key="equipment_count",
         translation_key="equipment_count",
@@ -808,16 +802,10 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
     # Two thin OLA endpoints surface battery-care mode + target SoC.
     # Skoda has equivalent under different paths (covered v1.15.0 cap-id
     # work). Brand-restricted via _DATA_PRESENT_REQUIRED gating below.
-    VagSensorDescription(
-        key="battery_care_target_soc_pct",
-        translation_key="battery_care_target_soc_pct",
-        data_key="battery_care_target_soc_pct",
-        native_unit_of_measurement=PERCENTAGE,
-        state_class=SensorStateClass.MEASUREMENT,
-        icon="mdi:battery-heart",
-        suggested_display_precision=0,
-        condition="electric",
-    ),
+    # NOTE: the battery_care_target_soc_pct description lives further down as
+    # the DIAGNOSTIC mirror (v2.10.0); the duplicate that was here collided on
+    # the same `key=` and was silently dropped by HA's last-wins dict, so it is
+    # removed (one authoritative def, no behaviour change).
     # v2.0.0 (Big-Bang) — Skoda driving-score (efficiency metric 0-100).
     # mysmob ``GET /api/v2/vehicle-status/{vin}/driving-score`` (MY24+).
     # Brand-restricted via _DATA_PRESENT_REQUIRED — non-Skoda vehicles

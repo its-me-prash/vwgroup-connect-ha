@@ -414,9 +414,12 @@ def _walk_fields(payload: Any) -> dict[str, str]:
             return
         if not isinstance(value, (str, int, float, bool)):
             return
-        if _is_sentinel(name, value):  # a11: drop uint-max / field "no reading"
-            _LOGGER.debug("EU Data Act: dropped sentinel %s=%s", name, value)
-            return
+        # NO-SUPPRESSION (hard rule): sentinels ("no reading" / uint-max) must
+        # NOT be dropped from the flattened surface here — that removed the
+        # field from raw_unmapped (Scout) entirely, even for fields we never
+        # consume but whose name merely contains a sentinel needle. We keep the
+        # field Scout-visible; the sentinel VALUE is skipped only at mapping
+        # time in first(), so no sentinel ever lands on a mapped target.
         cand = ts if ts is not None else float("-inf")
         cand_real = ts_real and ts is not None
         prev = best.get(name)
@@ -635,8 +638,15 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     def first(*names: str) -> str | None:
         for n in names:
             if n in fields:
+                val = fields[n]
+                # NO-SUPPRESSION: a sentinel ("no reading") value must never be
+                # assigned to a mapped target, but the field stays Scout-visible.
+                # We skip it WITHOUT marking it used, so it still appears in
+                # raw_unmapped_fields for discovery/mapping later.
+                if _is_sentinel(n, val):
+                    continue
                 used.add(n)
-                return fields[n]
+                return val
         return None
 
     soc = _to_int(first("battery_state_report.soc", "soc", "stateOfChargeInPercent",
@@ -1052,9 +1062,11 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     if _pcr is not None:
         d.profile_charge_reason = _shorten_enum(_pcr)
 
-    _cse = _to_float(first("charge_session_energy", "charge_session_energy_kwh"))
-    if _cse is not None:
-        d.charge_session_energy_kwh = _cse
+    # NOTE: charge_session_energy_kwh is already populated earlier from the real
+    # dict key battery_state_report.charge_energy (with a >=0 guard). The block
+    # that previously sat here used GUESSED names (charge_session_energy /
+    # charge_session_energy_kwh) that never appear in the EU data dictionary, so
+    # it never fired and only risked clobbering the real value — removed.
 
     _rcb = _dur_to_min(first(
         "battery_state_report.remaining_charging_time_bulk",
@@ -1092,13 +1104,17 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     if _rid is not None:
         d.last_report_id = _rid
 
-    _clim_e = _to_float(first("climate_energy_consumption",
-                             "climatisation_energy_consumption"))
+    # Real EU data-dictionary keys (the previous first() names were guessed and
+    # never matched, so these never populated). Dictionary unit is null for both,
+    # so we store the raw numeric value as-is (no scale applied) until a live
+    # payload confirms the unit; comment kept as a flag for that follow-up.
+    _clim_e = _to_float(first(
+        "additional_consumptions.interior_climatization_consumption"))
     if _clim_e is not None:
-        d.climate_energy_consumption_kwh = _clim_e
-    _res_e = _to_float(first("residual_energy_consumption"))
+        d.climate_energy_consumption_kwh = _clim_e  # unit unconfirmed (dict: null)
+    _res_e = _to_float(first("additional_consumptions.residual_consumption"))
     if _res_e is not None:
-        d.residual_energy_consumption_kwh = _res_e
+        d.residual_energy_consumption_kwh = _res_e  # unit unconfirmed (dict: null)
 
     _st_rec = _to_float(first("short_term_data_average_recuperation"))
     if _st_rec is not None:

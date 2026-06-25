@@ -177,17 +177,20 @@ class TestEUNewFields:
         assert d.profile_charge_reason == "MIN_SOC"
 
     def test_charge_session_energy(self) -> None:
-        d = _map({"charge_session_energy": "7.2"})
+        # charge_session_energy_kwh is populated from the REAL dict key
+        # battery_state_report.charge_energy (with a >=0 guard). The earlier
+        # guessed "charge_session_energy" key never existed and was removed.
+        d = _map({"battery_state_report.charge_energy": "7.2"})
         assert d.charge_session_energy_kwh == 7.2
 
     def test_remaining_charge_time_bulk(self) -> None:
         d = _map({"battery_state_report.remaining_charging_time_bulk": "40"})
         assert d.remaining_charge_time_bulk_min == 40
 
-    def test_bulk_sentinel_minus1_dropped_at_walk_stage(self) -> None:
-        # -1 is the table-driven sentinel for remaining_charging_time fields;
-        # it is filtered by _walk_fields (the real flatten step) before the
-        # mapper ever sees it, so a -1 datapoint never reaches the field.
+    def test_bulk_sentinel_minus1_not_mapped_but_scout_visible(self) -> None:
+        # -1 is the table-driven sentinel for remaining_charging_time fields.
+        # NO-SUPPRESSION: the field stays on the flattened surface (Scout) but
+        # the mapper must NOT assign the sentinel value to the target.
         from custom_components.vag_connect.cariad.auth._eu_data_act import (
             _walk_fields,
         )
@@ -195,9 +198,16 @@ class TestEUNewFields:
             "battery_state_report": {"remaining_charging_time_bulk": -1},
         }
         flat = _walk_fields(payload)
-        assert "battery_state_report.remaining_charging_time_bulk" not in flat
+        # kept on the flattened surface (no-suppress)…
+        assert "battery_state_report.remaining_charging_time_bulk" in flat
         d = map_dataset_to_vehicle_data(flat, VehicleData(vin="X"))
+        # …but the sentinel value never lands on the mapped target…
         assert d.remaining_charge_time_bulk_min is None
+        # …and it remains Scout-visible for discovery.
+        assert (
+            "battery_state_report.remaining_charging_time_bulk"
+            in d.raw_unmapped_fields
+        )
 
     def test_bulk_real_value_maps(self) -> None:
         from custom_components.vag_connect.cariad.auth._eu_data_act import (
@@ -233,9 +243,10 @@ class TestEUNewFields:
         assert "message_id" in d.raw_unmapped_fields
 
     def test_climate_and_residual_energy(self) -> None:
+        # Real EU data-dictionary keys (the earlier guessed names never matched).
         d = _map({
-            "climate_energy_consumption": "1.5",
-            "residual_energy_consumption": "0.4",
+            "additional_consumptions.interior_climatization_consumption": "1.5",
+            "additional_consumptions.residual_consumption": "0.4",
         })
         assert d.climate_energy_consumption_kwh == 1.5
         assert d.residual_energy_consumption_kwh == 0.4

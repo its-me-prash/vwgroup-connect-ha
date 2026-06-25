@@ -41,6 +41,15 @@ _hyp_settings.load_profile("vag")
 # Detect HA availability ONCE — used by the auto-skip hook below.
 _HA_AVAILABLE = importlib.util.find_spec("homeassistant") is not None
 
+# Determinism: a few legacy tests (e.g. test_v1242_porsche_vw_na_parity) do a
+# module-level skip keyed on whether ``homeassistant`` is ALREADY in
+# ``sys.modules`` rather than on whether it's importable. That makes them
+# collection-order dependent: they run in the full suite (something imported HA
+# first) but skip when run alone. Prime the import here when HA is installed so
+# the skip decision is deterministic regardless of collection order.
+if _HA_AVAILABLE and "homeassistant" not in sys.modules:
+    import homeassistant  # noqa: F401
+
 
 def pytest_collection_modifyitems(config, items):  # noqa: ARG001
     """Auto-skip tests that need Home Assistant when HA isn't installed.
