@@ -80,7 +80,7 @@
       },
       "website_authproxy": {
         "title": "Volkswagen.de Website (BETA, nur Lesen)",
-        "description": "**Experimentell, freiwillig.** Liest deinen Volkswagen über die Anmeldung auf volkswagen.de statt über das App-Backend. Nur Volkswagen, nur Lesen (keine Fernbefehle). Melde dich mit deiner Volkswagen-ID-E-Mail und deinem Passwort an. Falls dein Konto eine E-Mail-Bestätigung nutzt, wirst du im nächsten Schritt nach dem Code gefragt.",
+        "description": "**Experimentell, freiwillig.** Liest deinen Volkswagen über die Anmeldung auf volkswagen.de statt über das App-Backend. Nur Volkswagen, nur Lesen (keine Fernbefehle). Melde dich mit deiner Volkswagen-ID-E-Mail und deinem Passwort an. Falls dein Konto eine E-Mail-Bestätigung nutzt, wirst du im nächsten Schritt nach dem Code gefragt. **Voraussetzung:** Deine Volkswagen ID muss Hauptnutzer des Fahrzeugs sein — einmalig „Identität bestätigen“ auf volkswagen.de durchführen (myVolkswagen → dein Fahrzeug). Ohne das liefert die Website keine Fahrzeugdaten.",
         "data": {
           "username": "E-Mail-Adresse",
           "password": "Passwort",
@@ -205,7 +205,7 @@
       },
       "add_vwde": {
         "title": "Volkswagen.de Website (BETA, nur Lesen)",
-        "description": "**Experimentell, freiwillig.** Liest deinen Volkswagen über die Anmeldung auf volkswagen.de statt über das App-Backend. Nur Volkswagen, nur Lesen (keine Fernbefehle). Melde dich mit deiner Volkswagen-ID-E-Mail und deinem Passwort an. Falls dein Konto eine E-Mail-Bestätigung nutzt, wirst du im nächsten Schritt nach dem Code gefragt.",
+        "description": "**Experimentell, freiwillig.** Liest deinen Volkswagen über die Anmeldung auf volkswagen.de statt über das App-Backend. Nur Volkswagen, nur Lesen (keine Fernbefehle). Melde dich mit deiner Volkswagen-ID-E-Mail und deinem Passwort an. Falls dein Konto eine E-Mail-Bestätigung nutzt, wirst du im nächsten Schritt nach dem Code gefragt. **Voraussetzung:** Deine Volkswagen ID muss Hauptnutzer des Fahrzeugs sein — einmalig „Identität bestätigen“ auf volkswagen.de durchführen (myVolkswagen → dein Fahrzeug). Ohne das liefert die Website keine Fahrzeugdaten.",
         "data": {
           "username": "E-Mail-Adresse",
           "password": "Passwort",

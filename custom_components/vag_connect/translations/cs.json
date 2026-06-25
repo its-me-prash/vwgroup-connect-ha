@@ -28,7 +28,7 @@
       },
       "website_authproxy": {
         "title": "Volkswagen.de website (BETA, read-only)",
-        "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next.",
+        "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next. **Předpoklad:** tvé Volkswagen ID musí být hlavním uživatelem vozidla — jednou potvrď totožnost na volkswagen.de (myVolkswagen → tvé vozidlo). Bez toho web nevrací žádná data.",
         "data": {
           "username": "Email Address",
           "password": "Password",
@@ -203,7 +203,7 @@
       },
       "add_vwde": {
         "title": "Volkswagen.de website (BETA, read-only)",
-        "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next.",
+        "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next. **Předpoklad:** tvé Volkswagen ID musí být hlavním uživatelem vozidla — jednou potvrď totožnost na volkswagen.de (myVolkswagen → tvé vozidlo). Bez toho web nevrací žádná data.",
         "data": {
           "username": "Email Address",
           "password": "Password",

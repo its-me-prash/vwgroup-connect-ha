@@ -80,7 +80,7 @@
       },
       "website_authproxy": {
         "title": "Volkswagen.de website (BETA, read-only)",
-        "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next.",
+        "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next. **Prerequisite:** your Volkswagen ID must be the vehicle's primary user — confirm your identity once on volkswagen.de (myVolkswagen → your vehicle → “Confirm identity”). Without this the website returns no vehicle data.",
         "data": {
           "username": "Email Address",
           "password": "Password",
@@ -205,7 +205,7 @@
       },
       "add_vwde": {
         "title": "Volkswagen.de website (BETA, read-only)",
-        "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next.",
+        "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next. **Prerequisite:** your Volkswagen ID must be the vehicle's primary user — confirm your identity once on volkswagen.de (myVolkswagen → your vehicle → “Confirm identity”). Without this the website returns no vehicle data.",
         "data": {
           "username": "Email Address",
           "password": "Password",

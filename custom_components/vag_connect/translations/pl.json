@@ -28,7 +28,7 @@
       },
       "website_authproxy": {
         "title": "Volkswagen.de website (BETA, read-only)",
-        "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next.",
+        "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next. **Wymóg:** Twoje Volkswagen ID musi być głównym użytkownikiem pojazdu — jednorazowo potwierdź tożsamość na volkswagen.de (myVolkswagen → Twój pojazd). Bez tego strona nie zwraca żadnych danych.",
         "data": {
           "username": "Email Address",
           "password": "Password",
@@ -203,7 +203,7 @@
       },
       "add_vwde": {
         "title": "Volkswagen.de website (BETA, read-only)",
-        "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next.",
+        "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next. **Wymóg:** Twoje Volkswagen ID musi być głównym użytkownikiem pojazdu — jednorazowo potwierdź tożsamość na volkswagen.de (myVolkswagen → Twój pojazd). Bez tego strona nie zwraca żadnych danych.",
         "data": {
           "username": "Email Address",
           "password": "Password",

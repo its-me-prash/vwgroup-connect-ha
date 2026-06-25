@@ -34,3 +34,15 @@ def test_canonical_soc_wins_when_both_present() -> None:
 def test_no_soc_source_leaves_battery_unset() -> None:
     d = _map({"some_other_field": "1"})
     assert d.battery_soc is None
+
+
+def test_charger_dialect_charge_energy_maps_to_total_charged() -> None:
+    # 2.15.1 — the charger dialect also reports charged energy; map it to the
+    # cross-brand total_charged_energy_kwh (matches CUPRA/SEAT chargeEnergyInKwh).
+    d = _map({"battery_state_report.charge_energy": "12.5"})
+    assert d.total_charged_energy_kwh == 12.5
+
+
+def test_negative_charge_energy_ignored() -> None:
+    d = _map({"battery_state_report.charge_energy": "-1"})
+    assert d.total_charged_energy_kwh is None

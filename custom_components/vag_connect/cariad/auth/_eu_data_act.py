@@ -576,6 +576,15 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     if cp is not None:
         d.charging_power_kw = cp
 
+    # 2.15.1 — the charger dialect also reports charged energy
+    # (battery_state_report.charge_energy). Map to the cross-brand
+    # total_charged_energy_kwh, matching the CUPRA/SEAT chargeEnergyInKwh
+    # mapping; TOTAL_INCREASING handles per-session resets gracefully.
+    ce = _to_float(first("battery_state_report.charge_energy", "charge_energy",
+                        "chargedEnergy_kWh"))
+    if ce is not None and ce >= 0:
+        d.total_charged_energy_kwh = ce
+
     tsoc = _to_int(first("settings.target_soc", "target_soc", "targetSOC_pct"))
     if tsoc is not None:
         d.target_soc = tsoc

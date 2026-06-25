@@ -38,6 +38,19 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.1] - 2026-06-25
+
+### Added
+
+- **EU Data Act portal: charged energy.** The older charger format also reports `battery_state_report.charge_energy`; it now maps to the cross-brand charged-energy sensor (`total_charged_energy_kwh`), the same one CUPRA/SEAT already populate.
+- **volkswagen.de setup now states the prerequisite.** The opt-in Volkswagen.de website channel returns no data unless your Volkswagen ID is the vehicle's **primary user** — the setup screen now says so (complete "Confirm identity" once on volkswagen.de). Added in all supported languages.
+
+### Docs
+
+- Regenerated the 6 language READMEs (fr/es/nl/pl/cs/sv) from the current English README — localized the sponsor text (was English), corrected the install steps to HACS Default, fixed the language picker; removed the orphan `README.en.md`.
+- `NOTICE.md`: corrected the copyright footer to GNU AGPL v3.0-or-later (was Apache-2.0); added Bentley to the trademark table.
+- `CONTRIBUTING.md`: added Bentley to the live-testers table.
+
 ## [2.15.0] - 2026-06-25
 
 First stable release of the 2.15.0 line (consolidates the `2.15.0a*` / `2.15.0b*` betas). Highlights:
