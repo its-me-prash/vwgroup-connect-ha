@@ -48,6 +48,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Fixed
 
+- **VW US/Canada EVs showed no battery or range (#503).** The EV traction State of Charge and electric range come from the dedicated `…/hvbattery` endpoint and `cruiseRangeFirst`, not the 12V `rvs.batteryStatus` / bare `cruiseRange` we read before. The integration now reads both (additive fallbacks), verified against the MyVW app. Confirmed against the dismantled MyVW APK.
 - **Charging / climate remaining-time read as seconds (#511).** The EU Data Act portal sends these durations as seconds with a trailing `s` (e.g. `"2400s"` = 40 min, `"0s"` = 0); v2.15.1 read them as a plain number and left the sensors empty. They now convert `Ns` → minutes, and the climate-time read also accepts the `remaining_climate_time` key. A bare number is still treated as minutes (older firmwares). Thanks to @Ra72xx for the sample data.
 
 ## [2.15.1] - 2026-06-25

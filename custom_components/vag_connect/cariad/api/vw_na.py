@@ -375,10 +375,14 @@ class VWNAClient:
             self._get(f"{self._base}/rvs/v1/vehicle/{uuid}"),
             self._get(f"{self._base}/ev/v1/vehicle/{uuid}/charge/summary"),
             self._get(f"{self._base}/ev/v1/vehicle/{uuid}/climate/summary"),
+            # v2.15.2 (#503, MyVW APK) — dedicated HV-battery endpoint. On EVs the
+            # traction SoC + electric range live here; rvs.batteryStatus is the
+            # 12V battery, so EV users got no battery/range. Soft + additive.
+            self._get(f"{self._base}/ev/v1/vehicle/{uuid}/hvbattery"),
             self.get_subscription_privileges(vin),
             return_exceptions=True,
         )
-        vehicle_raw, charge, climate, privileges = results
+        vehicle_raw, charge, climate, hvbattery, privileges = results
 
         # ── Vehicle status ────────────────────────────────────────────────────
         if isinstance(vehicle_raw, dict):
@@ -397,7 +401,13 @@ class VWNAClient:
             # is "KM" or "MI"; pre-v2.11.0 we unconditionally treated
             # the value as km, miles users got their range under-
             # reported by ~38%.
+            # v2.15.2 (#503, MyVW APK) — modern NA backend splits range into
+            # cruiseRangeFirst/Second and may omit the bare cruiseRange; EVs
+            # report their range in cruiseRangeFirst, so a bare read left them
+            # with no range at all.
             range_raw = v(power, "cruiseRange")
+            if range_raw is None:
+                range_raw = v(power, "cruiseRangeFirst")
             range_unit = (v(power, "cruiseRangeUnits") or "KM").upper()
             if isinstance(range_raw, (int, float)):
                 if range_unit == "MI":
@@ -613,6 +623,28 @@ class VWNAClient:
             remaining_min = safe_int(v(charge, "chargingStatus", "remainingChargingTimeToComplete_min"))
             if remaining_min is not None and remaining_min > 0:
                 d.charge_complete_eta = datetime.now(tz=timezone.utc) + timedelta(minutes=remaining_min)
+
+        # ── HV battery (#503, MyVW APK) ──────────────────────────────────────────
+        # The dedicated /ev/v1/vehicle/{id}/hvbattery endpoint carries the EV
+        # traction SoC + electric range; rvs.batteryStatus is the 12V battery.
+        # Additive fallback — only fills what charge/summary + rvs did not.
+        if isinstance(hvbattery, dict):
+            hv_soc = (
+                v(hvbattery, "stateOfChargePercent")
+                or v(hvbattery, "currentSOCPct")
+                or v(hvbattery, "socPercent")
+                or v(hvbattery, "batteryLevel")
+            )
+            if isinstance(hv_soc, (int, float)) and d.battery_soc is None:
+                d.battery_soc = int(hv_soc)
+                d.has_battery = True
+            hv_range = (
+                v(hvbattery, "cruiseRange")
+                or v(hvbattery, "electricRange")
+                or v(hvbattery, "remainingRange")
+            )
+            if isinstance(hv_range, (int, float)) and d.electric_range_km is None:
+                d.electric_range_km = int(hv_range)
 
         # ── Climate ────────────────────────────────────────────────────────────
         # v2.10.0 (#322 roberttco) — VW NA climate response uses the
