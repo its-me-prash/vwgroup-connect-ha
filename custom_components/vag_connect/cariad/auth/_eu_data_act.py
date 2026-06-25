@@ -509,6 +509,25 @@ def _to_int(raw: str | None) -> int | None:
     return int(f) if f is not None else None
 
 
+def _dur_to_min(raw: str | None) -> int | None:
+    """Parse a charging/climate duration to whole minutes (v2.15.2, #511 Ra72xx).
+
+    The EU portal sends seconds with a trailing ``s`` (e.g. ``"2400s"`` = 40 min,
+    ``"0s"`` = 0). A bare number is treated as already-minutes (older firmwares),
+    preserving the previous behaviour.
+    """
+    if raw is None:
+        return None
+    s = str(raw).strip().lower()
+    if not s:
+        return None
+    if s.endswith("s"):
+        f = _to_float(s[:-1])
+        return int(f // 60) if f is not None else None
+    f = _to_float(s)
+    return int(f) if f is not None else None
+
+
 def _epoch_or_iso(raw: str | None) -> str | None:
     """Normalise a capture timestamp to ISO-8601 UTC.
 
@@ -860,13 +879,13 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
         d.monthly_mileage_km = _mm
 
     # remaining times (minutes)
-    _rcl = _to_int(first("remaining_climatisation_time"))
+    _rcl = _dur_to_min(first("remaining_climatisation_time", "remaining_climate_time"))
     if _rcl is not None and d.climate_remaining_time_min is None:
         d.climate_remaining_time_min = _rcl
     # v2.15.1 — battery_state_report.remaining_charging_time_complete is the
     # preferred source; it joins this EXISTING chain ahead of the bare
     # remaining_charging_time. Single assignment — do not add a second line.
-    _rch = _to_int(first(
+    _rch = _dur_to_min(first(
         "battery_state_report.remaining_charging_time_complete",
         "remaining_charging_time_complete",
         "remaining_charging_time",
@@ -1018,7 +1037,7 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     if _cse is not None:
         d.charge_session_energy_kwh = _cse
 
-    _rcb = _to_int(first(
+    _rcb = _dur_to_min(first(
         "battery_state_report.remaining_charging_time_bulk",
         "remaining_charging_time_bulk",
     ))

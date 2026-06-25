@@ -38,6 +38,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.2] - unreleased
+
+> Prepared, collecting more field-format feedback before release — see #511.
+
+### Fixed
+
+- **Charging / climate remaining-time read as seconds (#511).** The EU Data Act portal sends these durations as seconds with a trailing `s` (e.g. `"2400s"` = 40 min, `"0s"` = 0); v2.15.1 read them as a plain number and left the sensors empty. They now convert `Ns` → minutes, and the climate-time read also accepts the `remaining_climate_time` key. A bare number is still treated as minutes (older firmwares). Thanks to @Ra72xx for the sample data.
+
 ## [2.15.1] - 2026-06-25
 
 ### Added
