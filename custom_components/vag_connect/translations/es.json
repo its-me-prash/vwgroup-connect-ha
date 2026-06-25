@@ -770,6 +770,66 @@
       "dataset_key": {
         "name": "Clave del conjunto de datos"
       },
+      "charge_mode_selection": {
+        "name": "Modo de carga seleccionado"
+      },
+      "max_charge_current_ac": {
+        "name": "Corriente de carga CA máx."
+      },
+      "auto_unlock_charge_port": {
+        "name": "Desbloqueo auto. del puerto de carga"
+      },
+      "charge_bulk_threshold_pct": {
+        "name": "Umbral de carga rápida"
+      },
+      "charge_rate_unit": {
+        "name": "Unidad de velocidad de carga"
+      },
+      "lifetime_trip_distance_km": {
+        "name": "Distancia de viaje a largo plazo"
+      },
+      "lifetime_trip_start_odometer_km": {
+        "name": "Cuentakilómetros inicial (largo plazo)"
+      },
+      "last_trip_start_odometer_km": {
+        "name": "Cuentakilómetros al inicio del último viaje"
+      },
+      "oil_level_liters": {
+        "name": "Nivel de aceite (litros)"
+      },
+      "oil_level_additional_pct": {
+        "name": "Nivel de aceite adicional"
+      },
+      "tyre_pressure_diff_fl": {
+        "name": "Desviación de presión neumático del. izq."
+      },
+      "tyre_pressure_diff_fr": {
+        "name": "Desviación de presión neumático del. der."
+      },
+      "tyre_pressure_diff_rl": {
+        "name": "Desviación de presión neumático tras. izq."
+      },
+      "tyre_pressure_diff_rr": {
+        "name": "Desviación de presión neumático tras. der."
+      },
+      "tyre_pressure_diff_spare": {
+        "name": "Desviación de presión rueda de repuesto"
+      },
+      "parking_lights_state": {
+        "name": "Luces de estacionamiento"
+      },
+      "aux_battery_energy_pct": {
+        "name": "Nivel de batería auxiliar"
+      },
+      "dashboard_warnings_raw": {
+        "name": "Testigos de aviso (valor bruto)"
+      },
+      "climate_error_code": {
+        "name": "Código de error de climatización"
+      },
+      "window_heating_error_code": {
+        "name": "Código de error calefacción de lunas"
+      },
       "lpg_range_km": {
         "name": "Autonomía GLP"
       },
@@ -987,6 +1047,27 @@
       },
       "energy_flow_active": {
         "name": "Flujo de energía"
+      },
+      "battery_care_mode_active": {
+        "name": "Modo cuidado de batería"
+      },
+      "bonnet_locked": {
+        "name": "Capó bloqueado"
+      },
+      "closures_secured": {
+        "name": "Todas las aberturas aseguradas"
+      },
+      "service_hatch_open": {
+        "name": "Trampilla de servicio abierta"
+      },
+      "spoiler_open": {
+        "name": "Alerón desplegado"
+      },
+      "oil_dipstick_active": {
+        "name": "Varilla de aceite activa"
+      },
+      "fuel_level_estimated": {
+        "name": "Nivel de combustible estimado"
       }
     },
     "switch": {

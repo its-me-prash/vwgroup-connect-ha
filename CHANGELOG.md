@@ -38,7 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
-## [2.15.3] - 2026-06-25
+## [2.15.3] - 2026-06-26
+
+### Added
+
+- **~28 more EU Data Act portal fields mapped (#465, #514, #515, #516).** Selected charge mode, max AC charge current, auto-unlock charge port, battery-care mode, bulk-charge threshold, door/closure safe-states + bonnet lock, sunroof / service-hatch / spoiler state, trip-odometer endpoints, fuel level + oil / AdBlue (SCR), per-corner tyre-pressure differentials, the instrument-cluster warning indicator, and more — now surface as (mostly diagnostic) sensors, named in all supported languages. Low-confidence fields are disabled by default; nothing is hidden — anything still unmapped stays visible in the Scout.
+- **Vehicle model shown in the Scout / Error reports.** The auto-filed issue title and body now include the vehicle model (e.g. "…on volkswagen ID.4"), so reports are recognisable at a glance. Model name only — no VIN or other personal data.
 
 ### Fixed
 

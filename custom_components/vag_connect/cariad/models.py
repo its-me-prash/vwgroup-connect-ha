@@ -1430,6 +1430,69 @@ class VehicleData:
     # Charge-port LED pattern (e.g. "pulse") — disabled-by-default. sensor.
     charge_led_pattern: str | None = None
 
+    # ── v2.15.3 — EU Data Act portal new fields (#465/#514/#515/#516) ────────
+    # All written by _eu_data_act.py only (EU-Data-Act dialect). DIAGNOSTIC
+    # unless noted; LOW-confidence ones disabled-by-default at the entity layer.
+    # A. Charging settings (settings.* block).
+    # Currently-selected charge mode (CHARGE_MODE_SELECTION_* enum). sensor.
+    charge_mode_selection: str | None = None
+    # AC charge-current cap setting (MAX_CHARGE_CURRENT_AC_* enum). sensor.
+    max_charge_current_ac: str | None = None
+    # Auto-unlock charge port setting (AUTO_UNLOCK_AC_* enum). sensor.
+    auto_unlock_charge_port: str | None = None
+    # Battery-care mode on/off (setting.bcam_activation). binary_sensor.
+    battery_care_mode_active: bool | None = None
+    # Bulk→trickle threshold (% — charging slows after this). sensor.
+    charge_bulk_threshold_pct: int | None = None
+    # Companion unit for the charge rate (CHARGE_RATE_UNIT_* enum) — LOW,
+    # disabled-by-default. sensor.
+    charge_rate_unit: str | None = None
+    # B. Door / closure SAFE-state (2=safe / 3=unsafe — INVERSE polarity).
+    # Front bonnet lock (locked_state_front_engine_bonnet 2=locked). binary_sensor.
+    bonnet_locked: bool | None = None
+    # All present closures secured (safe_state_* rollup, all==2). binary_sensor.
+    closures_secured: bool | None = None
+    # Service hatch open (state_service_hatch 2=open) — LOW. binary_sensor.
+    service_hatch_open: bool | None = None
+    # Rear spoiler deployed (state_spoiler 2=open) — LOW. binary_sensor.
+    spoiler_open: bool | None = None
+    # C. Trip odometer endpoints (km).
+    # Distance covered in the long-term trip window. sensor (TOTAL_INCREASING).
+    lifetime_trip_distance_km: int | None = None
+    # Odometer when the long-term window began — LOW. sensor, diagnostic.
+    lifetime_trip_start_odometer_km: int | None = None
+    # Odometer when the current/last trip began — LOW. sensor, diagnostic.
+    last_trip_start_odometer_km: int | None = None
+    # D. Fuel / fluids / SCR.
+    # Engine oil amount (litres). sensor, diagnostic.
+    oil_level_liters: float | None = None
+    # Failure-overwrite additional oil level (%) — LOW. sensor, diagnostic.
+    oil_level_additional_pct: float | None = None
+    # Oil dipstick electronic-function active (0/1) — LOW. binary_sensor.
+    oil_dipstick_active: bool | None = None
+    # Fuel reading is calculated rather than measured (fuel_level__accuracy
+    # 1=calculated) — LOW. binary_sensor, diagnostic.
+    fuel_level_estimated: bool | None = None
+    # E. Tyres — pressure DELTA vs target (unit-ambiguous; sentinels 0/1
+    # dropped at the parser). LOW — disabled-by-default. sensor, diagnostic.
+    tyre_pressure_diff_fl: int | None = None
+    tyre_pressure_diff_fr: int | None = None
+    tyre_pressure_diff_rl: int | None = None
+    tyre_pressure_diff_rr: int | None = None
+    tyre_pressure_diff_spare: int | None = None
+    # F. Lights / energy / misc.
+    # Parking lights state (parking_lights enum → off/left/right/both). sensor.
+    parking_lights_state: str | None = None
+    # Auxiliary/12V battery energy-management level (%). sensor, diagnostic.
+    aux_battery_energy_pct: int | None = None
+    # Instrument-cluster warning bitmask — RAW hex/interpreted value only, no
+    # decode. LOW — disabled-by-default. sensor, diagnostic.
+    dashboard_warnings_raw: str | None = None
+    # Climatisation error code; "0"/"#0" (no error) dropped → None. sensor.
+    climate_error_code: str | None = None
+    # Window-heating error code; "0"/"#0" (no error) dropped → None. sensor.
+    window_heating_error_code: str | None = None
+
     # — BFF / selectivestatus dialect NEW fields —
     # Per-corner tire pressure STATE strings (shared — EU tires.[*].state and
     # BFF {corner}TireState both write these). Lowercased passthrough.

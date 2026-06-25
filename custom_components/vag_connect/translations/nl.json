@@ -770,6 +770,66 @@
       "dataset_key": {
         "name": "Datasetsleutel"
       },
+      "charge_mode_selection": {
+        "name": "Geselecteerde laadmodus"
+      },
+      "max_charge_current_ac": {
+        "name": "Max. AC-laadstroom"
+      },
+      "auto_unlock_charge_port": {
+        "name": "Laadklep automatisch ontgrendelen"
+      },
+      "charge_bulk_threshold_pct": {
+        "name": "Snellaaddrempel"
+      },
+      "charge_rate_unit": {
+        "name": "Eenheid laadsnelheid"
+      },
+      "lifetime_trip_distance_km": {
+        "name": "Langetermijn-ritafstand"
+      },
+      "lifetime_trip_start_odometer_km": {
+        "name": "Kilometerstand bij start (langetermijn)"
+      },
+      "last_trip_start_odometer_km": {
+        "name": "Kilometerstand bij start laatste rit"
+      },
+      "oil_level_liters": {
+        "name": "Oliepeil (liter)"
+      },
+      "oil_level_additional_pct": {
+        "name": "Aanvullend oliepeil"
+      },
+      "tyre_pressure_diff_fl": {
+        "name": "Bandenspanningsafwijking linksvoor"
+      },
+      "tyre_pressure_diff_fr": {
+        "name": "Bandenspanningsafwijking rechtsvoor"
+      },
+      "tyre_pressure_diff_rl": {
+        "name": "Bandenspanningsafwijking linksachter"
+      },
+      "tyre_pressure_diff_rr": {
+        "name": "Bandenspanningsafwijking rechtsachter"
+      },
+      "tyre_pressure_diff_spare": {
+        "name": "Bandenspanningsafwijking reservewiel"
+      },
+      "parking_lights_state": {
+        "name": "Parkeerlichten"
+      },
+      "aux_battery_energy_pct": {
+        "name": "Niveau hulpaccu"
+      },
+      "dashboard_warnings_raw": {
+        "name": "Waarschuwingslampjes (ruw)"
+      },
+      "climate_error_code": {
+        "name": "Foutcode klimaatregeling"
+      },
+      "window_heating_error_code": {
+        "name": "Foutcode ruitverwarming"
+      },
       "lpg_range_km": {
         "name": "LPG-bereik"
       },
@@ -987,6 +1047,27 @@
       },
       "energy_flow_active": {
         "name": "Energiestroom"
+      },
+      "battery_care_mode_active": {
+        "name": "Accuspaarmodus"
+      },
+      "bonnet_locked": {
+        "name": "Motorkap vergrendeld"
+      },
+      "closures_secured": {
+        "name": "Alle openingen beveiligd"
+      },
+      "service_hatch_open": {
+        "name": "Serviceluik open"
+      },
+      "spoiler_open": {
+        "name": "Spoiler uitgeklapt"
+      },
+      "oil_dipstick_active": {
+        "name": "Oliepeilstok actief"
+      },
+      "fuel_level_estimated": {
+        "name": "Brandstofniveau geschat"
       }
     },
     "switch": {

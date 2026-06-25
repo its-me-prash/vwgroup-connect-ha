@@ -61,6 +61,8 @@ class ErrorRecord:
         brand: Brand identifier (e.g. ``"audi"``, ``"skoda"``).
         vin_masked: VIN masked via ``mask_vin`` (e.g. ``"***ABC123"``)
             or empty string if not vehicle-bound.
+        model: Vehicle model name if known (e.g. ``"ID.4"``). Generic,
+            NOT PII — makes the bug report recognizable at a glance.
         model_year: Model year if known (helps PPC/PPE detection).
         firmware: Firmware version string if known.
         exception_type: Class name of the exception (e.g. ``"APIError"``).
@@ -81,6 +83,7 @@ class ErrorRecord:
     message_masked: str
     traceback_masked: str
     endpoint: str = ""
+    model: str | None = None
 
 
 @dataclass
@@ -139,6 +142,7 @@ def record_error(
     exception: BaseException,
     brand: str,
     vin: str | None = None,
+    model: str | None = None,
     model_year: int | None = None,
     firmware: str | None = None,
     endpoint: str | None = None,
@@ -161,6 +165,7 @@ def record_error(
             timestamp=datetime.now(tz=timezone.utc).isoformat(),
             brand=brand,
             vin_masked=mask_vin(vin) if vin else "",
+            model=model,
             model_year=model_year,
             firmware=firmware,
             exception_type=type(exception).__name__,
@@ -176,6 +181,7 @@ def record_error(
             timestamp=datetime.now(tz=timezone.utc).isoformat(),
             brand=brand,
             vin_masked="",
+            model=model,
             model_year=None,
             firmware=None,
             exception_type="ErrorReporterFailure",
@@ -197,6 +203,7 @@ def serialise_for_diagnostics(buffer: ErrorRingBuffer) -> list[dict[str, Any]]:
             "timestamp": r.timestamp,
             "brand": r.brand,
             "vin_masked": r.vin_masked,
+            "model": r.model,
             "model_year": r.model_year,
             "firmware": r.firmware,
             "exception_type": r.exception_type,

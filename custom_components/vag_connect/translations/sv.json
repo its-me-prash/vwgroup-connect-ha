@@ -770,6 +770,66 @@
       "dataset_key": {
         "name": "Datauppsättningsnyckel"
       },
+      "charge_mode_selection": {
+        "name": "Valt laddningsläge"
+      },
+      "max_charge_current_ac": {
+        "name": "Max AC-laddström"
+      },
+      "auto_unlock_charge_port": {
+        "name": "Lås upp laddluckan automatiskt"
+      },
+      "charge_bulk_threshold_pct": {
+        "name": "Snabbladdningströskel"
+      },
+      "charge_rate_unit": {
+        "name": "Enhet för laddhastighet"
+      },
+      "lifetime_trip_distance_km": {
+        "name": "Långtidsreslängd"
+      },
+      "lifetime_trip_start_odometer_km": {
+        "name": "Mätarställning vid start (långtid)"
+      },
+      "last_trip_start_odometer_km": {
+        "name": "Mätarställning vid senaste resans start"
+      },
+      "oil_level_liters": {
+        "name": "Oljenivå (liter)"
+      },
+      "oil_level_additional_pct": {
+        "name": "Extra oljenivå"
+      },
+      "tyre_pressure_diff_fl": {
+        "name": "Däcktrycksavvikelse vänster fram"
+      },
+      "tyre_pressure_diff_fr": {
+        "name": "Däcktrycksavvikelse höger fram"
+      },
+      "tyre_pressure_diff_rl": {
+        "name": "Däcktrycksavvikelse vänster bak"
+      },
+      "tyre_pressure_diff_rr": {
+        "name": "Däcktrycksavvikelse höger bak"
+      },
+      "tyre_pressure_diff_spare": {
+        "name": "Däcktrycksavvikelse reservhjul"
+      },
+      "parking_lights_state": {
+        "name": "Parkeringsljus"
+      },
+      "aux_battery_energy_pct": {
+        "name": "Nivå hjälpbatteri"
+      },
+      "dashboard_warnings_raw": {
+        "name": "Varningslampor (rådata)"
+      },
+      "climate_error_code": {
+        "name": "Felkod klimatanläggning"
+      },
+      "window_heating_error_code": {
+        "name": "Felkod rutvärme"
+      },
       "lpg_range_km": {
         "name": "Räckvidd gasol"
       },
@@ -987,6 +1047,27 @@
       },
       "energy_flow_active": {
         "name": "Energiflöde"
+      },
+      "battery_care_mode_active": {
+        "name": "Batterivårdsläge"
+      },
+      "bonnet_locked": {
+        "name": "Motorhuv låst"
+      },
+      "closures_secured": {
+        "name": "Alla öppningar säkrade"
+      },
+      "service_hatch_open": {
+        "name": "Servicelucka öppen"
+      },
+      "spoiler_open": {
+        "name": "Spoiler utfälld"
+      },
+      "oil_dipstick_active": {
+        "name": "Oljesticka aktiv"
+      },
+      "fuel_level_estimated": {
+        "name": "Bränslenivå uppskattad"
       }
     },
     "switch": {

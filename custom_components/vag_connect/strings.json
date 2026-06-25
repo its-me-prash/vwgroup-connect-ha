@@ -772,6 +772,66 @@
       "dataset_key": {
         "name": "Dataset key"
       },
+      "charge_mode_selection": {
+        "name": "Selected charge mode"
+      },
+      "max_charge_current_ac": {
+        "name": "Max AC charge current"
+      },
+      "auto_unlock_charge_port": {
+        "name": "Auto-unlock charge port"
+      },
+      "charge_bulk_threshold_pct": {
+        "name": "Fast-charge threshold"
+      },
+      "charge_rate_unit": {
+        "name": "Charge-rate unit"
+      },
+      "lifetime_trip_distance_km": {
+        "name": "Long-term trip distance"
+      },
+      "lifetime_trip_start_odometer_km": {
+        "name": "Long-term trip start odometer"
+      },
+      "last_trip_start_odometer_km": {
+        "name": "Last trip start odometer"
+      },
+      "oil_level_liters": {
+        "name": "Oil level (litres)"
+      },
+      "oil_level_additional_pct": {
+        "name": "Additional oil level"
+      },
+      "tyre_pressure_diff_fl": {
+        "name": "Tyre pressure deviation front-left"
+      },
+      "tyre_pressure_diff_fr": {
+        "name": "Tyre pressure deviation front-right"
+      },
+      "tyre_pressure_diff_rl": {
+        "name": "Tyre pressure deviation rear-left"
+      },
+      "tyre_pressure_diff_rr": {
+        "name": "Tyre pressure deviation rear-right"
+      },
+      "tyre_pressure_diff_spare": {
+        "name": "Tyre pressure deviation spare"
+      },
+      "parking_lights_state": {
+        "name": "Parking lights"
+      },
+      "aux_battery_energy_pct": {
+        "name": "Auxiliary battery level"
+      },
+      "dashboard_warnings_raw": {
+        "name": "Dashboard warnings (raw)"
+      },
+      "climate_error_code": {
+        "name": "Climate error code"
+      },
+      "window_heating_error_code": {
+        "name": "Window-heating error code"
+      },
       "lpg_range_km": {
         "name": "LPG range"
       },
@@ -989,6 +1049,27 @@
       },
       "energy_flow_active": {
         "name": "Energy flow"
+      },
+      "battery_care_mode_active": {
+        "name": "Battery care mode"
+      },
+      "bonnet_locked": {
+        "name": "Bonnet locked"
+      },
+      "closures_secured": {
+        "name": "All closures secured"
+      },
+      "service_hatch_open": {
+        "name": "Service hatch open"
+      },
+      "spoiler_open": {
+        "name": "Spoiler deployed"
+      },
+      "oil_dipstick_active": {
+        "name": "Oil dipstick active"
+      },
+      "fuel_level_estimated": {
+        "name": "Fuel level estimated"
       }
     },
     "switch": {

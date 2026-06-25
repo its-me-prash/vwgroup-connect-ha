@@ -389,7 +389,15 @@ class VWNAClient:
         if _LOGGER.isEnabledFor(logging.DEBUG):
             def _shape(obj: Any) -> str:
                 if isinstance(obj, Exception):
-                    return f"EXC {obj!r}"
+                    # TYPE-ONLY: never log the exception repr — its message can
+                    # carry response-body fragments / a UUID. Surface the class
+                    # name plus an optional numeric HTTP status if one is attached.
+                    _st = getattr(obj, "status", None)
+                    return (
+                        f"EXC {type(obj).__name__} status={_st}"
+                        if isinstance(_st, int)
+                        else f"EXC {type(obj).__name__}"
+                    )
                 if isinstance(obj, dict):
                     return f"dict keys={sorted(obj.keys())}"
                 return f"type={type(obj).__name__}"

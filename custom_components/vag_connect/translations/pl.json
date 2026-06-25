@@ -770,6 +770,66 @@
       "dataset_key": {
         "name": "Klucz zestawu danych"
       },
+      "charge_mode_selection": {
+        "name": "Wybrany tryb ładowania"
+      },
+      "max_charge_current_ac": {
+        "name": "Maks. prąd ładowania AC"
+      },
+      "auto_unlock_charge_port": {
+        "name": "Auto-odblokowanie gniazda ładowania"
+      },
+      "charge_bulk_threshold_pct": {
+        "name": "Próg szybkiego ładowania"
+      },
+      "charge_rate_unit": {
+        "name": "Jednostka szybkości ładowania"
+      },
+      "lifetime_trip_distance_km": {
+        "name": "Dystans podróży długoterminowej"
+      },
+      "lifetime_trip_start_odometer_km": {
+        "name": "Przebieg na początku (długoterm.)"
+      },
+      "last_trip_start_odometer_km": {
+        "name": "Przebieg na początku ostatniej podróży"
+      },
+      "oil_level_liters": {
+        "name": "Poziom oleju (litry)"
+      },
+      "oil_level_additional_pct": {
+        "name": "Dodatkowy poziom oleju"
+      },
+      "tyre_pressure_diff_fl": {
+        "name": "Odchyłka ciśnienia opony przód lewy"
+      },
+      "tyre_pressure_diff_fr": {
+        "name": "Odchyłka ciśnienia opony przód prawy"
+      },
+      "tyre_pressure_diff_rl": {
+        "name": "Odchyłka ciśnienia opony tył lewy"
+      },
+      "tyre_pressure_diff_rr": {
+        "name": "Odchyłka ciśnienia opony tył prawy"
+      },
+      "tyre_pressure_diff_spare": {
+        "name": "Odchyłka ciśnienia koła zapasowego"
+      },
+      "parking_lights_state": {
+        "name": "Światła postojowe"
+      },
+      "aux_battery_energy_pct": {
+        "name": "Poziom akumulatora pomocniczego"
+      },
+      "dashboard_warnings_raw": {
+        "name": "Kontrolki ostrzegawcze (surowe)"
+      },
+      "climate_error_code": {
+        "name": "Kod błędu klimatyzacji"
+      },
+      "window_heating_error_code": {
+        "name": "Kod błędu ogrzewania szyb"
+      },
       "lpg_range_km": {
         "name": "Zasięg LPG"
       },
@@ -987,6 +1047,27 @@
       },
       "energy_flow_active": {
         "name": "Przepływ energii"
+      },
+      "battery_care_mode_active": {
+        "name": "Tryb ochrony akumulatora"
+      },
+      "bonnet_locked": {
+        "name": "Maska zablokowana"
+      },
+      "closures_secured": {
+        "name": "Wszystkie otwory zabezpieczone"
+      },
+      "service_hatch_open": {
+        "name": "Klapa serwisowa otwarta"
+      },
+      "spoiler_open": {
+        "name": "Spojler wysunięty"
+      },
+      "oil_dipstick_active": {
+        "name": "Bagnet oleju aktywny"
+      },
+      "fuel_level_estimated": {
+        "name": "Poziom paliwa szacowany"
       }
     },
     "switch": {

@@ -772,6 +772,66 @@
       "dataset_key": {
         "name": "Datensatz-Schlüssel"
       },
+      "charge_mode_selection": {
+        "name": "Gewählter Lademodus"
+      },
+      "max_charge_current_ac": {
+        "name": "Max. AC-Ladestrom"
+      },
+      "auto_unlock_charge_port": {
+        "name": "Ladeklappe automatisch entriegeln"
+      },
+      "charge_bulk_threshold_pct": {
+        "name": "Schnellladegrenze"
+      },
+      "charge_rate_unit": {
+        "name": "Einheit Ladegeschwindigkeit"
+      },
+      "lifetime_trip_distance_km": {
+        "name": "Langzeit-Fahrtstrecke"
+      },
+      "lifetime_trip_start_odometer_km": {
+        "name": "Langzeit-Start-Kilometerstand"
+      },
+      "last_trip_start_odometer_km": {
+        "name": "Letzte-Fahrt-Start-Kilometerstand"
+      },
+      "oil_level_liters": {
+        "name": "Ölstand (Liter)"
+      },
+      "oil_level_additional_pct": {
+        "name": "Zusätzlicher Ölstand"
+      },
+      "tyre_pressure_diff_fl": {
+        "name": "Reifendruck-Abweichung vorne links"
+      },
+      "tyre_pressure_diff_fr": {
+        "name": "Reifendruck-Abweichung vorne rechts"
+      },
+      "tyre_pressure_diff_rl": {
+        "name": "Reifendruck-Abweichung hinten links"
+      },
+      "tyre_pressure_diff_rr": {
+        "name": "Reifendruck-Abweichung hinten rechts"
+      },
+      "tyre_pressure_diff_spare": {
+        "name": "Reifendruck-Abweichung Reserverad"
+      },
+      "parking_lights_state": {
+        "name": "Standlicht"
+      },
+      "aux_battery_energy_pct": {
+        "name": "Zusatzbatterie-Ladestand"
+      },
+      "dashboard_warnings_raw": {
+        "name": "Warnleuchten (Rohwert)"
+      },
+      "climate_error_code": {
+        "name": "Klima-Fehlercode"
+      },
+      "window_heating_error_code": {
+        "name": "Scheibenheizung-Fehlercode"
+      },
       "lpg_range_km": {
         "name": "Autogas-Reichweite"
       },
@@ -989,6 +1049,27 @@
       },
       "energy_flow_active": {
         "name": "Energiefluss"
+      },
+      "battery_care_mode_active": {
+        "name": "Batterieschonmodus"
+      },
+      "bonnet_locked": {
+        "name": "Motorhaube verriegelt"
+      },
+      "closures_secured": {
+        "name": "Alle Öffnungen gesichert"
+      },
+      "service_hatch_open": {
+        "name": "Serviceklappe offen"
+      },
+      "spoiler_open": {
+        "name": "Spoiler ausgefahren"
+      },
+      "oil_dipstick_active": {
+        "name": "Ölmessstab aktiv"
+      },
+      "fuel_level_estimated": {
+        "name": "Tankfüllstand geschätzt"
       }
     },
     "switch": {

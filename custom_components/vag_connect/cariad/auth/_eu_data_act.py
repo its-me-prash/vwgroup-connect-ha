@@ -288,6 +288,9 @@ _FIELD_SENTINELS: tuple[tuple[str, frozenset[float]], ...] = (
     ("remainingchargingtime", frozenset({-1.0})),
     ("tyre_pressure_actual", frozenset({0.0, 1.0})),  # 0=unsupported 1=invalid
     ("tirepressure", frozenset({0.0, 1.0})),
+    # v2.15.3 — pressure DELTA-vs-target family: 0=unsupported 1=invalid,
+    # >1=valid int (mirrors the tyre_pressure_actual rule).
+    ("tyre_pressure_differential", frozenset({0.0, 1.0})),
 )
 
 # Monotonic fields must never regress: an out-of-order OLDER snapshot must not
@@ -571,6 +574,12 @@ _ENUM_PREFIXES = (
     "IMMEDIATE_ACTION_STATE_", "PLUG_STATE_", "ENERGY_FLOW_",
     # v2.15.1 — charge-type / scenario / charge-reason enum families.
     "CHARGE_TYPE_", "CHARGING_SCENARIO_", "PROFILE_CHARGE_REASON_",
+    # v2.15.3 — charge-settings enum families (#465/#514 settings.* block).
+    # NOTE: the dict enum tokens are MAX_CHARGE_CURRENT_{INVALID,REDUCED,MAXIMUM,
+    # MAX} — the prefix is MAX_CHARGE_CURRENT_ (NOT *_AC_, which is the field
+    # name suffix, not the value prefix).
+    "CHARGE_MODE_SELECTION_", "MAX_CHARGE_CURRENT_", "AUTO_UNLOCK_AC_",
+    "BCAM_ACTIVATION_",
 )
 
 # v2.15.1 — labels appended to ``available_charge_modes`` per truthy
@@ -593,10 +602,14 @@ def _shorten_enum(value: str | None) -> str | None:
     if not isinstance(value, str):
         return value
     up = value.upper()
+    # v2.15.3 — match the LONGEST applicable prefix, not the first listed: the
+    # families overlap (``CHARGE_MODE_`` is a prefix of ``CHARGE_MODE_SELECTION_``)
+    # so first-match would strip too little. Longest-first is order-independent.
+    best = ""
     for pref in _ENUM_PREFIXES:
-        if up.startswith(pref) and len(value) > len(pref):
-            return value[len(pref):]
-    return value
+        if up.startswith(pref) and len(value) > len(pref) and len(pref) > len(best):
+            best = pref
+    return value[len(best):] if best else value
 
 
 # b1/A6 — cap raw-discovery fields kept on the diagnostic sensor's attributes,
@@ -723,7 +736,10 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     # Data Act portal instead of empty entities. Only unambiguous explicit-field
     # mappings here — primary/electric range stays for the EV-type detection
     # (B3) to avoid mislabelling a PHEV's ICE range as electric.
-    fuel = _to_int(first("fuel_level_current_level", "fuelLevel_pct", "fuel_level"))
+    # v2.15.3 — tank_current_level is the EU-portal dialect name for the fuel
+    # percent (distinct from fuel_level_current_level already tried first).
+    fuel = _to_int(first("fuel_level_current_level", "tank_current_level",
+                         "fuelLevel_pct", "fuel_level"))
     if fuel is not None:
         d.fuel_level = fuel
 
@@ -1130,6 +1146,151 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     _led_s = first("led_state")
     if _led_s is not None:
         d.charge_led_pattern = _led_s
+
+    # ── v2.15.3 — EU Data Act portal new fields (#465/#514/#515/#516) ────────
+    # All additive, guarded, EU-Data-Act-dialect only; mirrors the v2.15.1/2
+    # style (first(), _shorten_enum, _ENUM_PREFIXES, sentinel drops).
+
+    # A. Charging settings (settings.*  +  the singular setting.bcam_activation).
+    _csel = first("settings.charge_mode_selection", "charge_mode_selection")
+    if _csel is not None:
+        d.charge_mode_selection = _shorten_enum(_csel)
+    _mca = first("settings.max_charge_current_ac", "max_charge_current_ac")
+    if _mca is not None:
+        d.max_charge_current_ac = _shorten_enum(_mca)
+    _aua = first("settings.auto_unlock_ac", "auto_unlock_ac")
+    if _aua is not None:
+        d.auto_unlock_charge_port = _shorten_enum(_aua)
+    # setting.bcam_activation (singular) → battery_care_mode_active bool.
+    _bcam_act = first("setting.bcam_activation", "bcam_activation")
+    if _bcam_act is not None:
+        d.battery_care_mode_active = (
+            str(_bcam_act).upper().endswith("ACTIVATED")
+            and "DEACTIVATED" not in str(_bcam_act).upper()
+        )
+    # charge_bulk_threshold (% SoC at which charging slows bulk→trickle).
+    _cbt = _to_int(first("battery_state_report.charge_bulk_threshold",
+                         "charge_bulk_threshold"))
+    if _cbt is not None:
+        d.charge_bulk_threshold_pct = _cbt
+    # charge_rate_unit — LOW, disabled-by-default companion enum for the rate.
+    _cru = first("battery_state_report.charge_rate_unit", "charge_rate_unit")
+    if _cru is not None:
+        d.charge_rate_unit = _shorten_enum(_cru)
+
+    # B. Door / closure SAFE-state (2=safe 3=unsafe — INVERSE polarity of the
+    # locked_state 2=locked/3=unlocked block above; do NOT reuse those helpers).
+    # NOTE (polarity): the 2=safe/3=unsafe mapping is documented in the dict only
+    # for the three door safe_state_* fields (front_right / rear_left /
+    # rear_right). The bonnet + tailgate safe-state polarity is INFERRED from the
+    # same enum family (and from the locked_state block's bonnet entry); if a live
+    # payload shows otherwise these two should be re-verified.
+    _bonnet_lock = _to_int(first("locked_state_front_engine_bonnet"))
+    if _bonnet_lock in (2, 3):
+        d.bonnet_locked = _bonnet_lock == 2
+    # Rolled-up "all present closures safe" aggregate (2=safe). Only dict-confirmed
+    # safe_state_* fields (NO safe_state_front_left_door — it is absent from the
+    # spec; the documented set is front_right/rear_left/rear_right + bonnet/tailgate).
+    _safe_vals = [
+        _to_int(first(_n)) for _n in (
+            "safe_state_front_engine_bonnet",
+            "safe_state_front_right_door",
+            "safe_state_rear_left_door", "safe_state_rear_right_door",
+            "safe_state_tailgate",
+        )
+    ]
+    _safe_present = [v for v in _safe_vals if v in (2, 3)]
+    if _safe_present:
+        d.closures_secured = all(v == 2 for v in _safe_present)
+
+    # state_* closures (2=open 3=closed; 0=unsupported/1=invalid → ignore).
+    _sunroof_vals = [
+        _to_int(first("state_sunroof_motor_hood_1")),
+        _to_int(first("state_sunroof_motor_hood_3")),
+    ]
+    _sunroof_present = [v for v in _sunroof_vals if v in (2, 3)]
+    if _sunroof_present and d.sunroof_open is None:
+        d.sunroof_open = any(v == 2 for v in _sunroof_present)
+    _svc_hatch = _to_int(first("state_service_hatch"))
+    if _svc_hatch in (2, 3):
+        d.service_hatch_open = _svc_hatch == 2
+    _spoiler = _to_int(first("state_spoiler"))
+    if _spoiler in (2, 3):
+        d.spoiler_open = _spoiler == 2
+
+    # C. Trip odometer endpoints (km).
+    _lt_dist = _to_int(first("long_term_data_mileage"))
+    if _lt_dist is not None:
+        d.lifetime_trip_distance_km = _lt_dist
+    _lt_start = _to_int(first("long_term_data_start_mileage"))
+    if _lt_start is not None:
+        d.lifetime_trip_start_odometer_km = _lt_start
+    _st_start = _to_int(first("short_term_data_start_mileage"))
+    if _st_start is not None:
+        d.last_trip_start_odometer_km = _st_start
+
+    # D. Fuel / fluids / SCR.
+    _oil_l = _to_float(first("oil_level_total_max"))
+    if _oil_l is not None:
+        d.oil_level_liters = _oil_l
+    _oil_add = _to_float(first("oil_level_additional_oil_level"))
+    if _oil_add is not None:
+        d.oil_level_additional_pct = _oil_add
+    _oil_dip = _to_int(first("oil_level_dipstick_indicator_function"))
+    if _oil_dip is not None:
+        d.oil_dipstick_active = _oil_dip == 1
+    # scr_range — AdBlue/SCR range (km). Empty string guarded by _to_int.
+    _scr = _to_int(first("scr_range"))
+    if _scr is not None and d.adblue_range_km is None:
+        d.adblue_range_km = _scr
+    # fuel_level__accuracy (double underscore): 0=measured 1=calculated.
+    _fla = _to_int(first("fuel_level__accuracy"))
+    if _fla is not None:
+        d.fuel_level_estimated = _fla == 1
+
+    # E. Tyres — pressure DELTA vs target. The _FIELD_SENTINELS rule already
+    # drops the 0/1 (unsupported/invalid) sentinels in _walk_fields, so only a
+    # genuine >1 reading survives. Map the full corner+spare set defensively.
+    for _attr, _name in (
+        ("tyre_pressure_diff_fl", "tyre_pressure_differential_front_left"),
+        ("tyre_pressure_diff_fr", "tyre_pressure_differential_front_right"),
+        ("tyre_pressure_diff_rl", "tyre_pressure_differential_rear_left"),
+        ("tyre_pressure_diff_rr", "tyre_pressure_differential_rear_right"),
+        ("tyre_pressure_diff_spare", "tyre_pressure_differential_spare_tyre"),
+    ):
+        _tpd = _to_int(first(_name))
+        if _tpd is not None:
+            setattr(d, _attr, _tpd)
+
+    # F. Lights / energy / misc.
+    # parking_lights (plural enum): 0=unsup 1=invalid 2=off 3=left 4=right 5=both.
+    _plights = _to_int(first("parking_lights"))
+    if _plights is not None and _plights >= 2:
+        d.parking_lights_state = {
+            2: "off", 3: "left", 4: "right", 5: "both",
+        }.get(_plights)
+    # bem_level — auxiliary/12V battery energy management level (%).
+    _bem = _to_int(first("bem_level"))
+    if _bem is not None:
+        d.aux_battery_energy_pct = _bem
+    # active_warnings_in_instrument_cluster_feff_filtered — RAW hex/interpreted
+    # bitmask only. Do NOT attempt an enum decode we can't verify; surface the
+    # raw value as a disabled-by-default diagnostic.
+    _warn = first("active_warnings_in_instrument_cluster_feff_filtered")
+    if _warn is not None:
+        d.dashboard_warnings_raw = str(_warn)
+    # climate_error_code / window_heating_error_code — drop "0"/"#0" like the
+    # existing charging_state_error_code pattern.
+    _clim_err = first("climate_error_code")
+    if _clim_err is not None:
+        _ces = str(_clim_err).strip()
+        if _ces and _ces != "#0" and _to_float(_ces) != 0:
+            d.climate_error_code = _ces
+    _wh_err = first("window_heating_error_code")
+    if _wh_err is not None:
+        _whs = str(_wh_err).strip()
+        if _whs and _whs != "#0" and _to_float(_whs) != 0:
+            d.window_heating_error_code = _whs
 
     # b1/B3 — derive drivetrain from the data actually present (fixes the
     # #37 class: an EV like the e-up! showing only combustion entities, or a

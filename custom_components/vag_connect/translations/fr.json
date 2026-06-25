@@ -770,6 +770,66 @@
       "dataset_key": {
         "name": "Clé du jeu de données"
       },
+      "charge_mode_selection": {
+        "name": "Mode de charge sélectionné"
+      },
+      "max_charge_current_ac": {
+        "name": "Courant de charge CA max."
+      },
+      "auto_unlock_charge_port": {
+        "name": "Déverrouillage auto. de la trappe"
+      },
+      "charge_bulk_threshold_pct": {
+        "name": "Seuil de charge rapide"
+      },
+      "charge_rate_unit": {
+        "name": "Unité de vitesse de charge"
+      },
+      "lifetime_trip_distance_km": {
+        "name": "Distance trajet longue durée"
+      },
+      "lifetime_trip_start_odometer_km": {
+        "name": "Compteur au début (longue durée)"
+      },
+      "last_trip_start_odometer_km": {
+        "name": "Compteur au début du dernier trajet"
+      },
+      "oil_level_liters": {
+        "name": "Niveau d'huile (litres)"
+      },
+      "oil_level_additional_pct": {
+        "name": "Niveau d'huile additionnel"
+      },
+      "tyre_pressure_diff_fl": {
+        "name": "Écart de pression pneu avant gauche"
+      },
+      "tyre_pressure_diff_fr": {
+        "name": "Écart de pression pneu avant droit"
+      },
+      "tyre_pressure_diff_rl": {
+        "name": "Écart de pression pneu arrière gauche"
+      },
+      "tyre_pressure_diff_rr": {
+        "name": "Écart de pression pneu arrière droit"
+      },
+      "tyre_pressure_diff_spare": {
+        "name": "Écart de pression roue de secours"
+      },
+      "parking_lights_state": {
+        "name": "Feux de stationnement"
+      },
+      "aux_battery_energy_pct": {
+        "name": "Niveau batterie auxiliaire"
+      },
+      "dashboard_warnings_raw": {
+        "name": "Voyants d'alerte (brut)"
+      },
+      "climate_error_code": {
+        "name": "Code d'erreur climatisation"
+      },
+      "window_heating_error_code": {
+        "name": "Code d'erreur dégivrage"
+      },
       "lpg_range_km": {
         "name": "Autonomie GPL"
       },
@@ -987,6 +1047,27 @@
       },
       "energy_flow_active": {
         "name": "Flux d'énergie"
+      },
+      "battery_care_mode_active": {
+        "name": "Mode préservation batterie"
+      },
+      "bonnet_locked": {
+        "name": "Capot verrouillé"
+      },
+      "closures_secured": {
+        "name": "Toutes les ouvertures sécurisées"
+      },
+      "service_hatch_open": {
+        "name": "Trappe de service ouverte"
+      },
+      "spoiler_open": {
+        "name": "Aileron déployé"
+      },
+      "oil_dipstick_active": {
+        "name": "Jauge d'huile active"
+      },
+      "fuel_level_estimated": {
+        "name": "Niveau de carburant estimé"
       }
     },
     "switch": {

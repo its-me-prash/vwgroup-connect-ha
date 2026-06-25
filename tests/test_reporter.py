@@ -402,3 +402,131 @@ class TestReporterPipeline:
             kwargs = mock_create.call_args.kwargs
             # Errors get higher severity than unexpected keys
             assert kwargs["severity"] == ir.IssueSeverity.ERROR
+
+    def test_unexpected_keys_report_includes_model_in_body(self):
+        from custom_components.vag_connect.cariad._reporter_pipeline import (
+            build_unexpected_keys_report,
+        )
+        from custom_components.vag_connect.cariad._unexpected_keys import (
+            UnexpectedField,
+        )
+
+        findings = [
+            UnexpectedField(
+                path="overall.newField",
+                sample_masked='"YES"',
+                endpoint="vehicle-status",
+                first_seen_at="2026-04-29T10:00:00Z",
+            )
+        ]
+        body = build_unexpected_keys_report(
+            findings, brand="vw_eu", model="ID.4", model_year=2024
+        )
+        assert "- **Model:** `ID.4`" in body
+        # Omitted when not provided
+        body_no_model = build_unexpected_keys_report(findings, brand="vw_eu")
+        assert "**Model:**" not in body_no_model
+
+    def test_error_report_includes_model_in_body(self):
+        from custom_components.vag_connect.cariad._error_reporter import (
+            ErrorRecord,
+        )
+        from custom_components.vag_connect.cariad._reporter_pipeline import (
+            build_error_report,
+        )
+
+        rec = ErrorRecord(
+            timestamp="2026-04-29T10:00:00",
+            brand="vw_eu",
+            vin_masked="***ABC123",
+            model_year=2024,
+            firmware=None,
+            exception_type="APIError",
+            message_masked="boom",
+            traceback_masked="",
+            model="ID.4",
+        )
+        # Report-level model (passed by ensure_*) shows in the context block
+        body = build_error_report([rec], brand="vw_eu", model="ID.4")
+        assert "- **Model:** `ID.4`" in body
+        # Per-record model also rendered in the error section
+        assert body.count("`ID.4`") >= 2
+
+    def test_ensure_unexpected_keys_issue_model_in_title(self):
+        from custom_components.vag_connect.cariad._reporter_pipeline import (
+            ensure_unexpected_keys_issue,
+        )
+        from custom_components.vag_connect.cariad._unexpected_keys import (
+            UnexpectedField,
+        )
+
+        findings = [
+            UnexpectedField("a.b", '"x"', "vehicle-status", "2026-04-29T10:00:00")
+        ]
+        with patch(
+            "custom_components.vag_connect.cariad._reporter_pipeline.ir.async_create_issue"
+        ) as mock_create:
+            ensure_unexpected_keys_issue(
+                hass=object(),
+                entry_id="entry1",
+                findings=findings,
+                brand="vw_eu",
+                model="ID.4",
+            )
+            url = mock_create.call_args.kwargs["learn_more_url"]
+            title = urllib.parse.parse_qs(url.split("?", 1)[1])["title"][0]
+            assert title == "[Vehicle Data Scout] 1 new field(s) on vw_eu ID.4"
+
+    def test_ensure_unexpected_keys_issue_title_brand_only_without_model(self):
+        from custom_components.vag_connect.cariad._reporter_pipeline import (
+            ensure_unexpected_keys_issue,
+        )
+        from custom_components.vag_connect.cariad._unexpected_keys import (
+            UnexpectedField,
+        )
+
+        findings = [
+            UnexpectedField("a.b", '"x"', "vehicle-status", "2026-04-29T10:00:00")
+        ]
+        with patch(
+            "custom_components.vag_connect.cariad._reporter_pipeline.ir.async_create_issue"
+        ) as mock_create:
+            ensure_unexpected_keys_issue(
+                hass=object(), entry_id="entry1", findings=findings, brand="vw_eu",
+            )
+            url = mock_create.call_args.kwargs["learn_more_url"]
+            title = urllib.parse.parse_qs(url.split("?", 1)[1])["title"][0]
+            assert title == "[Vehicle Data Scout] 1 new field(s) on vw_eu"
+
+    def test_ensure_error_reporter_issue_model_in_title(self):
+        from custom_components.vag_connect.cariad._error_reporter import (
+            ErrorRecord,
+        )
+        from custom_components.vag_connect.cariad._reporter_pipeline import (
+            ensure_error_reporter_issue,
+        )
+
+        rec = ErrorRecord(
+            timestamp="2026-04-29",
+            brand="vw_eu",
+            vin_masked="",
+            model_year=None,
+            firmware=None,
+            exception_type="X",
+            message_masked="m",
+            traceback_masked="",
+            model="ID.4",
+        )
+        with patch(
+            "custom_components.vag_connect.cariad._reporter_pipeline.ir.async_create_issue"
+        ) as mock_create:
+            ensure_error_reporter_issue(
+                hass=object(),
+                entry_id="e",
+                records=[rec],
+                brand="vw_eu",
+                model="ID.4",
+            )
+            url = mock_create.call_args.kwargs["learn_more_url"]
+            title = urllib.parse.parse_qs(url.split("?", 1)[1])["title"][0]
+            assert title == "[Error Reporter] 1 recent error(s) on vw_eu ID.4"

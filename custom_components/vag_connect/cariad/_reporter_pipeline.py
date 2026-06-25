@@ -76,6 +76,7 @@ def build_unexpected_keys_report(
     findings: Iterable[UnexpectedField],
     *,
     brand: str,
+    model: str | None = None,
     model_year: int | None = None,
     firmware: str | None = None,
     integration_version: str = "",
@@ -85,7 +86,7 @@ def build_unexpected_keys_report(
     Layout matches the issue templates so a maintainer can triage in one
     glance:
 
-    - context block (brand / model year / firmware / version)
+    - context block (brand / model / model year / firmware / version)
     - one row per finding (path, masked sample, endpoint, first seen)
     - a privacy note at the bottom so the reporter knows what was stripped
 
@@ -100,6 +101,8 @@ def build_unexpected_keys_report(
     lines.append(f"## Vehicle Data Scout — {len(findings_list)} new field(s)")
     lines.append("")
     lines.append(f"- **Brand:** `{brand}`")
+    if model:
+        lines.append(f"- **Model:** `{model}`")
     if model_year is not None:
         lines.append(f"- **Model year:** `{model_year}`")
     if firmware:
@@ -141,6 +144,7 @@ def build_error_report(
     records: Iterable[ErrorRecord],
     *,
     brand: str,
+    model: str | None = None,
     integration_version: str = "",
 ) -> str:
     """Format Error Reporter records as a copy-pasteable Markdown body.
@@ -158,6 +162,8 @@ def build_error_report(
     lines.append(f"## Error Reporter — {len(records_list)} recent error(s)")
     lines.append("")
     lines.append(f"- **Brand:** `{brand}`")
+    if model:
+        lines.append(f"- **Model:** `{model}`")
     if integration_version:
         lines.append(f"- **Integration:** `vag_connect {integration_version}`")
     lines.append(
@@ -169,6 +175,8 @@ def build_error_report(
         lines.append(f"### {idx}. `{r.exception_type}` at {r.timestamp}")
         if r.endpoint:
             lines.append(f"- **Endpoint:** `{r.endpoint}`")
+        if r.model:
+            lines.append(f"- **Model:** `{r.model}`")
         if r.model_year is not None:
             lines.append(f"- **Model year:** `{r.model_year}`")
         if r.firmware:
@@ -239,6 +247,7 @@ def ensure_unexpected_keys_issue(
     entry_id: str,
     findings: Iterable[UnexpectedField],
     brand: str,
+    model: str | None = None,
     model_year: int | None = None,
     firmware: str | None = None,
     integration_version: str = "",
@@ -268,12 +277,14 @@ def ensure_unexpected_keys_issue(
     body = build_unexpected_keys_report(
         findings_list,
         brand=brand,
+        model=model,
         model_year=model_year,
         firmware=firmware,
         integration_version=integration_version,
     )
+    brand_model = f"{brand} {model}" if model else brand
     url = github_issue_url(
-        f"[Vehicle Data Scout] {len(findings_list)} new field(s) on {brand}",
+        f"[Vehicle Data Scout] {len(findings_list)} new field(s) on {brand_model}",
         body,
         labels=("vehicle-data-scout", brand),
     )
@@ -300,6 +311,7 @@ def ensure_error_reporter_issue(
     entry_id: str,
     records: Iterable[ErrorRecord],
     brand: str,
+    model: str | None = None,
     integration_version: str = "",
 ) -> None:
     """Create or refresh the Error Reporter repair issue for one entry.
@@ -321,10 +333,12 @@ def ensure_error_reporter_issue(
     body = build_error_report(
         records_list,
         brand=brand,
+        model=model,
         integration_version=integration_version,
     )
+    brand_model = f"{brand} {model}" if model else brand
     url = github_issue_url(
-        f"[Error Reporter] {len(records_list)} recent error(s) on {brand}",
+        f"[Error Reporter] {len(records_list)} recent error(s) on {brand_model}",
         body,
         labels=("error-reporter", brand),
     )

@@ -327,13 +327,18 @@ class TestVWNAParserDegraded:
     @pytest.mark.asyncio
     async def test_negative_remaining_skips_eta(self):
         """v1.24.2 fix: ``remaining > 0`` guard added. Pre-fix a 0
-        or negative value still produced an ETA (now() + 0min)."""
+        or negative value still produced an ETA (now() + 0min).
+
+        Uses the BARE ``remainingChargingTimeToComplete`` key (the name the
+        parser actually reads) so a 0 genuinely re-exercises the ``>0`` guard,
+        rather than the never-matched ``_min`` alias which would leave the ETA
+        None for the wrong reason."""
         client = VWNAClient.__new__(VWNAClient)
         client._base = "https://example.test"
         client._vin_to_uuid = {"VW0X": "uuid"}
         client._get = AsyncMock(side_effect=[  # type: ignore[method-assign]
             {},
-            {"chargingStatus": {"remainingChargingTimeToComplete_min": 0}},
+            {"chargingStatus": {"remainingChargingTimeToComplete": 0}},
             {},
         ])
         d = await client.get_status("VW0X")

@@ -770,6 +770,66 @@
       "dataset_key": {
         "name": "Klíč datové sady"
       },
+      "charge_mode_selection": {
+        "name": "Zvolený režim nabíjení"
+      },
+      "max_charge_current_ac": {
+        "name": "Max. nabíjecí proud AC"
+      },
+      "auto_unlock_charge_port": {
+        "name": "Auto-odemknutí nabíjecího portu"
+      },
+      "charge_bulk_threshold_pct": {
+        "name": "Práh rychlonabíjení"
+      },
+      "charge_rate_unit": {
+        "name": "Jednotka rychlosti nabíjení"
+      },
+      "lifetime_trip_distance_km": {
+        "name": "Vzdálenost dlouhodobé jízdy"
+      },
+      "lifetime_trip_start_odometer_km": {
+        "name": "Stav tachometru na začátku (dlouhodobě)"
+      },
+      "last_trip_start_odometer_km": {
+        "name": "Stav tachometru na začátku poslední jízdy"
+      },
+      "oil_level_liters": {
+        "name": "Hladina oleje (litry)"
+      },
+      "oil_level_additional_pct": {
+        "name": "Dodatečná hladina oleje"
+      },
+      "tyre_pressure_diff_fl": {
+        "name": "Odchylka tlaku pneu přední levá"
+      },
+      "tyre_pressure_diff_fr": {
+        "name": "Odchylka tlaku pneu přední pravá"
+      },
+      "tyre_pressure_diff_rl": {
+        "name": "Odchylka tlaku pneu zadní levá"
+      },
+      "tyre_pressure_diff_rr": {
+        "name": "Odchylka tlaku pneu zadní pravá"
+      },
+      "tyre_pressure_diff_spare": {
+        "name": "Odchylka tlaku rezervního kola"
+      },
+      "parking_lights_state": {
+        "name": "Parkovací světla"
+      },
+      "aux_battery_energy_pct": {
+        "name": "Úroveň pomocné baterie"
+      },
+      "dashboard_warnings_raw": {
+        "name": "Výstražné kontrolky (surová data)"
+      },
+      "climate_error_code": {
+        "name": "Chybový kód klimatizace"
+      },
+      "window_heating_error_code": {
+        "name": "Chybový kód vyhřívání oken"
+      },
       "lpg_range_km": {
         "name": "Dojezd LPG"
       },
@@ -987,6 +1047,27 @@
       },
       "energy_flow_active": {
         "name": "Tok energie"
+      },
+      "battery_care_mode_active": {
+        "name": "Režim šetření baterie"
+      },
+      "bonnet_locked": {
+        "name": "Kapota zamčena"
+      },
+      "closures_secured": {
+        "name": "Všechny otvory zajištěny"
+      },
+      "service_hatch_open": {
+        "name": "Servisní dvířka otevřena"
+      },
+      "spoiler_open": {
+        "name": "Spoiler vysunut"
+      },
+      "oil_dipstick_active": {
+        "name": "Olejová měrka aktivní"
+      },
+      "fuel_level_estimated": {
+        "name": "Hladina paliva odhadnuta"
       }
     },
     "switch": {

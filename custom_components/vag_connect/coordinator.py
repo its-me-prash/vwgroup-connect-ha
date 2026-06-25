@@ -1398,6 +1398,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                                     exception=result,
                                     brand=self.entry.data.get(CONF_BRAND, ""),
                                     vin=vin,
+                                    model=self.vehicles.get(vin, {}).get("model"),
                                     model_year=self.vehicles.get(vin, {}).get("model_year"),
                                     firmware=self.vehicles.get(vin, {}).get("firmware_version"),
                                     endpoint="get_status",
@@ -1458,6 +1459,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                                     exception=parse_err,
                                     brand=self.entry.data.get(CONF_BRAND, ""),
                                     vin=vin,
+                                    model=self.vehicles.get(vin, {}).get("model"),
                                     model_year=self.vehicles.get(vin, {}).get("model_year"),
                                     firmware=self.vehicles.get(vin, {}).get("firmware_version"),
                                     endpoint="parse",
@@ -1859,6 +1861,18 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         brand = self.entry.data.get(CONF_BRAND, "")
         entry_id = getattr(self.entry, "entry_id", "") or ""
 
+        # Vehicle model name (e.g. "ID.4") makes the GitHub issue recognizable
+        # at a glance and doubles as the maintainer's private per-model stat.
+        # NOT PII (generic), VIN stays masked. Entries are typically one car;
+        # pick the first vehicle that carries a model name.
+        model: str | None = None
+        for vdata in getattr(self, "vehicles", {}).values():
+            if isinstance(vdata, dict):
+                m = vdata.get("model")
+                if m:
+                    model = m
+                    break
+
         # Flatten per-VIN findings into a single chronological list.
         all_findings = []
         for per_vin in getattr(self, "unexpected_findings", {}).values():
@@ -1870,6 +1884,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 entry_id=entry_id,
                 findings=all_findings,
                 brand=brand,
+                model=model,
             )
         except Exception:  # noqa: BLE001
             pass
@@ -1882,6 +1897,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 entry_id=entry_id,
                 records=records,
                 brand=brand,
+                model=model,
             )
         except Exception:  # noqa: BLE001
             pass

@@ -633,6 +633,71 @@ _NEW_BINARY: tuple[VagBinarySensorDescription, ...] = (
         icon="mdi:flash",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # ── v2.15.3 — EU Data Act portal new fields (#465/#514/#515/#516) ────────
+    # Battery-care mode on/off (setting.bcam_activation). DIAGNOSTIC.
+    VagBinarySensorDescription(
+        key="battery_care_mode_active",
+        translation_key="battery_care_mode_active",
+        data_key="battery_care_mode_active",
+        icon="mdi:battery-heart-variant",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # Front bonnet lock (safe-state family, 2=locked). DIAGNOSTIC.
+    VagBinarySensorDescription(
+        key="bonnet_locked",
+        translation_key="bonnet_locked",
+        data_key="bonnet_locked",
+        device_class=BinarySensorDeviceClass.LOCK,
+        icon="mdi:car-door-lock",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # All present closures secured (safe_state_* rollup). DIAGNOSTIC. No
+    # device_class: the field is True==secured, the natural reading; a SAFETY
+    # class would invert it (on=problem) and mislabel a secured car "unsafe".
+    VagBinarySensorDescription(
+        key="closures_secured",
+        translation_key="closures_secured",
+        data_key="closures_secured",
+        icon="mdi:shield-car",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # Service hatch / spoiler — LOW, disabled-by-default.
+    VagBinarySensorDescription(
+        key="service_hatch_open",
+        translation_key="service_hatch_open",
+        data_key="service_hatch_open",
+        device_class=BinarySensorDeviceClass.OPENING,
+        icon="mdi:car-back",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagBinarySensorDescription(
+        key="spoiler_open",
+        translation_key="spoiler_open",
+        data_key="spoiler_open",
+        device_class=BinarySensorDeviceClass.OPENING,
+        icon="mdi:car-sports",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # Oil dipstick electronic-function active — LOW, disabled-by-default.
+    VagBinarySensorDescription(
+        key="oil_dipstick_active",
+        translation_key="oil_dipstick_active",
+        data_key="oil_dipstick_active",
+        icon="mdi:oil",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # Fuel reading is calculated rather than measured — LOW, disabled-by-default.
+    VagBinarySensorDescription(
+        key="fuel_level_estimated",
+        translation_key="fuel_level_estimated",
+        data_key="fuel_level_estimated",
+        icon="mdi:gas-station-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
 )
 BINARY_DESCRIPTIONS = BINARY_DESCRIPTIONS + _NEW_BINARY
 
@@ -731,6 +796,14 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "parking_light_right",
     # v2.15.2 — EU Data Act portal "charger detail" (#513 Scout).
     "energy_flow_active",
+    # v2.15.3 — EU Data Act portal new fields (#465/#514/#515/#516).
+    "battery_care_mode_active",
+    "bonnet_locked",
+    "closures_secured",
+    "service_hatch_open",
+    "spoiler_open",
+    "oil_dipstick_active",
+    "fuel_level_estimated",
 })
 
 
