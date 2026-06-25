@@ -38,6 +38,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.3] - 2026-06-25
+
+### Fixed
+
+- **VW US/Canada EVs: battery, range and charged energy now populate (#503).** v2.15.2 read these from the wrong endpoint (`…/hvbattery` is only the departure-timer "use HV battery" toggle) and from guessed field names, so nothing filled. Verified against the dismantled MyVW app: the EV State of Charge, range and charged energy live on the charge-summary `batteryStatus` object (`currentSOCPct`, `cruisingRange.range`, `chargeEnergy`), and the charge-complete time field is `remainingChargingTimeToComplete` (the prior `_min` suffix never matched). All corrected.
+- **Charging error code:** a `0.0` value is now treated as "no error" instead of surfacing a bogus code.
+
 ## [2.15.2] - 2026-06-25
 
 ### Added

@@ -1110,11 +1110,13 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     if _creason is not None:
         d.charging_reason = _shorten_enum(_creason)
 
-    # charging_state_error_code — "0"/"#0" are the "no error" sentinels → None.
+    # charging_state_error_code — "0"/"0.0"/"#0" are the "no error" sentinels → None.
+    # v2.15.3: normalise numerically so a float-typed "0.0" is also dropped.
     _cerr = first("charging_state_error_code")
     if _cerr is not None:
         _cerrs = str(_cerr).strip()
-        if _cerrs and _cerrs not in ("0", "#0"):
+        _cerrn = _to_float(_cerrs)
+        if _cerrs and _cerrs != "#0" and _cerrn != 0:
             d.charging_error_code = _cerrs
 
     _rtts = first("remaining_charging_time_target_soc")

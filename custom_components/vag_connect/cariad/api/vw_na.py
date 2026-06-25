@@ -375,14 +375,41 @@ class VWNAClient:
             self._get(f"{self._base}/rvs/v1/vehicle/{uuid}"),
             self._get(f"{self._base}/ev/v1/vehicle/{uuid}/charge/summary"),
             self._get(f"{self._base}/ev/v1/vehicle/{uuid}/climate/summary"),
-            # v2.15.2 (#503, MyVW APK) — dedicated HV-battery endpoint. On EVs the
-            # traction SoC + electric range live here; rvs.batteryStatus is the
-            # 12V battery, so EV users got no battery/range. Soft + additive.
-            self._get(f"{self._base}/ev/v1/vehicle/{uuid}/hvbattery"),
             self.get_subscription_privileges(vin),
             return_exceptions=True,
         )
-        vehicle_raw, charge, climate, hvbattery, privileges = results
+        vehicle_raw, charge, climate, privileges = results
+
+        # v2.15.3 (#503) — COMPACT shape-only DEBUG log so a user's DEBUG log
+        # reveals the real response shape without ever logging values (privacy).
+        # Emits, per response, either the exception repr OR the sorted top-level
+        # keys; for the charge dict it also drills into the batteryStatus /
+        # chargingStatus / plugStatus sub-object keys (the EV SoC/range lived in
+        # an unexpected sub-object — keys-only makes the next report diagnostic).
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            def _shape(obj: Any) -> str:
+                if isinstance(obj, Exception):
+                    return f"EXC {obj!r}"
+                if isinstance(obj, dict):
+                    return f"dict keys={sorted(obj.keys())}"
+                return f"type={type(obj).__name__}"
+
+            _LOGGER.debug("VW NA get_status shapes: rvs=%s", _shape(vehicle_raw))
+            _LOGGER.debug("VW NA get_status shapes: charge=%s", _shape(charge))
+            if isinstance(charge, dict):
+                for _sub in ("batteryStatus", "chargingStatus", "plugStatus"):
+                    _val_sub = charge.get(_sub)
+                    if isinstance(_val_sub, dict):
+                        _LOGGER.debug(
+                            "VW NA get_status charge.%s keys=%s",
+                            _sub, sorted(_val_sub.keys()),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "VW NA get_status charge.%s type=%s",
+                            _sub, type(_val_sub).__name__,
+                        )
+            _LOGGER.debug("VW NA get_status shapes: climate=%s", _shape(climate))
 
         # ── Vehicle status ────────────────────────────────────────────────────
         if isinstance(vehicle_raw, dict):
@@ -415,10 +442,10 @@ class VWNAClient:
                 else:
                     d.range_km = int(range_raw)
 
-            # Battery
-            bat = v(vehicle_raw, "batteryStatus") or {}
-            d.battery_soc = v(bat, "stateOfChargePercent")
-            d.has_battery = d.battery_soc is not None
+            # v2.15.3 (#503, MyVW APK DEX-verified) — the OLD rvs.batteryStatus
+            # read lived here. RvsResponse carries NO batteryStatus object, so it
+            # always returned None. EV SoC/range/charged-energy now come from the
+            # charge/summary BatteryStatus block below; has_battery is set there.
 
             # v2.10.0 (#322 roberttco — 2023 ID.4 US) — VW NA RVS
             # response shape migration. Pre-v2.10.0 we read doors and
@@ -612,39 +639,33 @@ class VWNAClient:
                 v(charge, "chargeSettings", "targetSOCPercentage")
                 or v(charge, "chargingSettings", "targetSOC_pct")
             )
-            # v2.11.0 (zackcornelius source-verified): battery_soc lives
-            # on the charging endpoint at chargingStatus.currentSOCPct,
-            # NOT on the RVS endpoint (we attempted to read it from the
-            # wrong endpoint before).
-            soc_charge = v(charge, "chargingStatus", "currentSOCPct")
+            # v2.15.3 (#503, MyVW APK DEX-verified) — the EV traction SoC, range
+            # and charged energy live on charge/summary's BatteryStatus object
+            # (BatteryAndPlugStatusResponse.batteryStatus), a SIBLING of
+            # chargingStatus. The earlier chargingStatus.currentSOCPct read always
+            # returned None, and the /hvbattery endpoint (briefly tried in v2.15.2)
+            # is only the departure-timer "use HV battery" toggle, not a status
+            # read. Read SoC + range + charged-energy from batteryStatus instead.
+            bs = v(charge, "batteryStatus") or {}
+            soc_charge = v(bs, "currentSOCPct")
             if isinstance(soc_charge, (int, float)) and d.battery_soc is None:
                 d.battery_soc = int(soc_charge)
-            # v1.24.2 (audit): safe_int + safe_float defensive coerce
-            remaining_min = safe_int(v(charge, "chargingStatus", "remainingChargingTimeToComplete_min"))
+                d.has_battery = True
+            # BatteryStatus.cruisingRange = {engineType, range} (km on NA EV)
+            cr_range = v(bs, "cruisingRange", "range")
+            if isinstance(cr_range, (int, float)):
+                if d.range_km is None:
+                    d.range_km = int(cr_range)
+                if d.electric_range_km is None:
+                    d.electric_range_km = int(cr_range)
+            ce = v(bs, "chargeEnergy")
+            if isinstance(ce, (int, float)) and ce >= 0 and d.total_charged_energy_kwh is None:
+                d.total_charged_energy_kwh = float(ce)
+            # charge-complete ETA — field is bare remainingChargingTimeToComplete;
+            # the prior ``_min`` suffix never matched (always None).
+            remaining_min = safe_int(v(charge, "chargingStatus", "remainingChargingTimeToComplete"))
             if remaining_min is not None and remaining_min > 0:
                 d.charge_complete_eta = datetime.now(tz=timezone.utc) + timedelta(minutes=remaining_min)
-
-        # ── HV battery (#503, MyVW APK) ──────────────────────────────────────────
-        # The dedicated /ev/v1/vehicle/{id}/hvbattery endpoint carries the EV
-        # traction SoC + electric range; rvs.batteryStatus is the 12V battery.
-        # Additive fallback — only fills what charge/summary + rvs did not.
-        if isinstance(hvbattery, dict):
-            hv_soc = (
-                v(hvbattery, "stateOfChargePercent")
-                or v(hvbattery, "currentSOCPct")
-                or v(hvbattery, "socPercent")
-                or v(hvbattery, "batteryLevel")
-            )
-            if isinstance(hv_soc, (int, float)) and d.battery_soc is None:
-                d.battery_soc = int(hv_soc)
-                d.has_battery = True
-            hv_range = (
-                v(hvbattery, "cruiseRange")
-                or v(hvbattery, "electricRange")
-                or v(hvbattery, "remainingRange")
-            )
-            if isinstance(hv_range, (int, float)) and d.electric_range_km is None:
-                d.electric_range_km = int(hv_range)
 
         # ── Climate ────────────────────────────────────────────────────────────
         # v2.10.0 (#322 roberttco) — VW NA climate response uses the
