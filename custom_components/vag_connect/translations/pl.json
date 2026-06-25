@@ -709,6 +709,84 @@
       },
       "remaining_charge_time_min": {
         "name": "Pozostały czas ładowania"
+      },
+      "charging_scenario": {
+        "name": "Scenariusz ładowania"
+      },
+      "immediate_charge_action_state": {
+        "name": "Stan natychmiastowego ładowania"
+      },
+      "profile_charge_reason": {
+        "name": "Powód ładowania"
+      },
+      "charge_session_energy_kwh": {
+        "name": "Naładowana energia"
+      },
+      "remaining_charge_time_bulk_min": {
+        "name": "Pozostały czas do 80% (szybkie ładowanie)"
+      },
+      "odometer_state": {
+        "name": "Stan licznika"
+      },
+      "instrument_cluster_time": {
+        "name": "Zegar pojazdu"
+      },
+      "data_error_detail": {
+        "name": "Błąd danych"
+      },
+      "last_report_id": {
+        "name": "ID raportu"
+      },
+      "climate_energy_consumption_kwh": {
+        "name": "Zużycie energii klimatyzacji"
+      },
+      "residual_energy_consumption_kwh": {
+        "name": "Zużycie sieci pokładowej"
+      },
+      "last_trip_avg_recuperation_kwh_100km": {
+        "name": "Rekuperacja w trasie (śr.)"
+      },
+      "lifetime_avg_recuperation_kwh_100km": {
+        "name": "Rekuperacja całkowita (śr.)"
+      },
+      "dataset_key": {
+        "name": "Klucz zestawu danych"
+      },
+      "lpg_range_km": {
+        "name": "Zasięg LPG"
+      },
+      "engine_status": {
+        "name": "Stan silnika"
+      },
+      "trip_avg_aux_consumption_kwh": {
+        "name": "Śr. zużycie dodatkowe"
+      },
+      "departure_charge_kwh": {
+        "name": "Ładowanie do wyjazdu"
+      },
+      "tire_pressure_fl_state": {
+        "name": "Stan opony przód lewa"
+      },
+      "tire_pressure_fl_errorcode": {
+        "name": "Kod błędu opony przód lewa"
+      },
+      "tire_pressure_fr_state": {
+        "name": "Stan opony przód prawa"
+      },
+      "tire_pressure_fr_errorcode": {
+        "name": "Kod błędu opony przód prawa"
+      },
+      "tire_pressure_rl_state": {
+        "name": "Stan opony tył lewa"
+      },
+      "tire_pressure_rl_errorcode": {
+        "name": "Kod błędu opony tył lewa"
+      },
+      "tire_pressure_rr_state": {
+        "name": "Stan opony tył prawa"
+      },
+      "tire_pressure_rr_errorcode": {
+        "name": "Kod błędu opony tył prawa"
       }
     },
     "binary_sensor": {
@@ -879,6 +957,15 @@
       },
       "warning_inspection": {
         "name": "Przegląd wymagany"
+      },
+      "parking_brake_engaged": {
+        "name": "Hamulec postojowy"
+      },
+      "parking_light_left": {
+        "name": "Światło postojowe (lewe)"
+      },
+      "parking_light_right": {
+        "name": "Światło postojowe (prawe)"
       }
     },
     "switch": {

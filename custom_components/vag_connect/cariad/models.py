@@ -1365,6 +1365,72 @@ class VehicleData:
     # Vehicle Data Scout report: one detection pass, both worlds.
     raw_unmapped_fields: dict[str, str] = field(default_factory=dict)
 
+    # ── v2.15.1 — EU Data Act + BFF wire-key mapping (2.15.0 plan) ──────────
+    # New fields declared once on the shared model; each is written by the EU
+    # Data Act portal parser (_eu_data_act.py) and/or the BFF selectivestatus
+    # parser (vw_eu.py). All None/False-defaulted so a parser miss leaves the
+    # entity "unknown" and never fabricates a value.
+
+    # — EU Data Act dialect (portal) NEW fields —
+    # Charging scenario enum (CHARGING_SCENARIO_*) — active/finished ×
+    # departure-timer/immediate/optimised.
+    charging_scenario: str | None = None
+    # Immediate-charge action state (IMMEDIATE_ACTION_STATE_*). Diagnostic —
+    # may be a constant INVALID on portal firmware.
+    immediate_charge_action_state: str | None = None
+    # Reason the car decided to charge (PROFILE_CHARGE_REASON_*).
+    profile_charge_reason: str | None = None
+    # Energy added this charge session (kWh). TOTAL_INCREASING.
+    charge_session_energy_kwh: float | None = None
+    # Remaining time to the bulk/80 % stage (minutes). Sentinel -1 dropped.
+    remaining_charge_time_bulk_min: int | None = None
+    # Odometer measurement quality flag (mileage.state enum). Diagnostic.
+    odometer_state: str | None = None
+    # In-vehicle instrument-cluster clock (timestamp). Diagnostic.
+    instrument_cluster_time: str | None = None
+    # Joined non-empty data-error fields (error_code/number/description),
+    # sentinels "#0"/"0" filtered. Diagnostic.
+    data_error_detail: str | None = None
+    # Portal report/message id (change detector). Diagnostic.
+    last_report_id: str | None = None
+    # Climatisation energy consumed (kWh). TOTAL_INCREASING.
+    climate_energy_consumption_kwh: float | None = None
+    # On-board electronics / residual consumption (kWh). TOTAL_INCREASING.
+    residual_energy_consumption_kwh: float | None = None
+    # Recuperated energy per 100 km (last trip / lifetime). kWh/100 km.
+    last_trip_avg_recuperation_kwh_100km: float | None = None
+    lifetime_avg_recuperation_kwh_100km: float | None = None
+    # Parking brake engaged (shared — EU parking_brake.is_set / BFF
+    # parkingBrakeStatus both write THIS field). binary_sensor.
+    parking_brake_engaged: bool | None = None
+    # Parking lights left/right (aggregate feeds the existing parking_light).
+    parking_light_left: bool | None = None
+    parking_light_right: bool | None = None
+    # Portal dataset key — LOW confidence, disabled-by-default. Diagnostic.
+    dataset_key: str | None = None
+
+    # — BFF / selectivestatus dialect NEW fields —
+    # Per-corner tire pressure STATE strings (shared — EU tires.[*].state and
+    # BFF {corner}TireState both write these). Lowercased passthrough.
+    tire_pressure_fl_state: str | None = None
+    tire_pressure_fr_state: str | None = None
+    tire_pressure_rl_state: str | None = None
+    tire_pressure_rr_state: str | None = None
+    # Per-corner tire error code (int). Sentinels 0/1 dropped → None.
+    tire_pressure_fl_errorcode: int | None = None
+    tire_pressure_fr_errorcode: int | None = None
+    tire_pressure_rl_errorcode: int | None = None
+    tire_pressure_rr_errorcode: int | None = None
+    # LPG (autogas) remaining range (km).
+    lpg_range_km: int | None = None
+    # Engine running/idle status (enum/lowercased; bool→on/off). Diagnostic.
+    engine_status: str | None = None
+    # Avg auxiliary consumption — LOW, unit ambiguous, NOT rescaled.
+    # Disabled-by-default. (kWh)
+    trip_avg_aux_consumption_kwh: float | None = None
+    # Energy charged at departure — LOW. Disabled-by-default. (kWh)
+    departure_charge_kwh: float | None = None
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to plain dict for coordinator.vehicles storage."""
         from dataclasses import asdict  # noqa: PLC0415

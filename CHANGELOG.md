@@ -42,13 +42,20 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Added
 
+- **Volkswagen US/Canada: region selector.** Setup now asks US vs Canada, so Canadian accounts authenticate against the Canadian backend and client id instead of silently defaulting to the US one (which made Canadian logins fail). Existing entries keep working (default US). (#503)
+- **~30 more vehicle-data fields mapped.** Many fields the Vehicle Data Scout surfaced now become proper sensors — charge type / scenario / reason, charged energy, battery-care target, available & maximal energy content, trip and lifetime consumption + recuperation, parking brake and lights, per-corner tire-pressure status, LPG/CNG, engine status and more (several diagnostic or disabled-by-default). Nothing is hidden — anything still unmapped stays visible in the Scout. (#504, #508, #509, #510)
 - **EU Data Act portal: charged energy.** The older charger format also reports `battery_state_report.charge_energy`; it now maps to the cross-brand charged-energy sensor (`total_charged_energy_kwh`), the same one CUPRA/SEAT already populate.
 - **volkswagen.de setup now states the prerequisite.** The opt-in Volkswagen.de website channel returns no data unless your Volkswagen ID is the vehicle's **primary user** — the setup screen now says so (complete "Confirm identity" once on volkswagen.de). Added in all supported languages.
+
+### Fixed
+
+- **Target SoC (and other repeated fields) could show a stale value (#465).** The EU Data Act portal ships a flat, ordered event-log where each snapshot's capture time arrives as its own `car_captured_time` data-point. When a field changed across snapshots (e.g. battery-care lowering the charge target from 100% to 80%), the parser tied on the dataset-level timestamp and kept the first-seen (stale) value. It now carries the running `car_captured_time` so the value from the latest snapshot wins. Thanks to @RaAdNe for the precise diagnosis and data.
 
 ### Docs
 
 - Regenerated the 6 language READMEs (fr/es/nl/pl/cs/sv) from the current English README — localized the sponsor text (was English), corrected the install steps to HACS Default, fixed the language picker; removed the orphan `README.en.md`.
-- `NOTICE.md`: corrected the copyright footer to GNU AGPL v3.0-or-later (was Apache-2.0); added Bentley to the trademark table.
+- `NOTICE.md`: corrected the copyright footer to GNU AGPL v3.0-or-later (was Apache-2.0); added Bentley to the trademark table; replaced placeholder reference URLs with plain-text credits.
+- `ATTRIBUTION.md`: use the current display name "VW Group Connect" as the primary name (keeping "VAG Connect" in the protected-names list).
 - `CONTRIBUTING.md`: added Bentley to the live-testers table.
 
 ## [2.15.0] - 2026-06-25

@@ -70,6 +70,34 @@ _SELECTIVE_STATUS_JOBS = ",".join([
 ])
 
 
+def _find_flat(node: Any, key: str) -> Any:
+    """Return the first value for *key* anywhere in the nested *node*.
+
+    v2.15.1 — several flat BFF wire-keys (``petrolRange``, ``gasRange``,
+    ``currentCngLevel_pct``, ``batteryCapacityNetto``, ``oilLevelResult``,
+    ``engineStatus``, ``parkingBrakeStatus``, the per-corner ``*TireState`` /
+    ``*TireErrorCode``…) are documented on the selectivestatus envelope, but
+    the exact container under which a given firmware nests them is live-test
+    gated (MED confidence per the 2.15.0 plan). A targeted depth-first scan
+    for the exact key name is robust to placement without guessing the path,
+    and returns the first non-container value found (matching the leaf-value
+    semantics the rest of the parser relies on). Returns None if absent.
+    """
+    if isinstance(node, dict):
+        if key in node and not isinstance(node[key], (dict, list)):
+            return node[key]
+        for val in node.values():
+            found = _find_flat(val, key)
+            if found is not None:
+                return found
+    elif isinstance(node, list):
+        for item in node:
+            found = _find_flat(item, key)
+            if found is not None:
+                return found
+    return None
+
+
 class VWEUClient(CariadBaseClient):
     """VW EU / WeConnect client — emea.bff.cariad.digital.
 
@@ -2365,6 +2393,12 @@ class VWEUClient(CariadBaseClient):
             or v(raw, "charging", "chargingCareSettings", "value", "batteryCareTargetSoc")
         )
         d.battery_care_target_soc_pct = safe_int(care_target)
+        # v2.15.1 — flat `batteryCareTargetSOC_pct` is a FALLBACK ONLY behind the
+        # canonical batteryChargingCare path above. Only fill it when that path
+        # left the field None — do NOT double-map / clobber a real value.
+        if d.battery_care_target_soc_pct is None:
+            _bcare_flat = _find_flat(raw, "batteryCareTargetSOC_pct")
+            d.battery_care_target_soc_pct = safe_int(_bcare_flat)
 
         # v1.26.0 — Auto-Unlock plug when charged. From scout #144 VW ID.4 Pro.
         auto_unlock_raw = v(raw, "charging", "chargingSettings", "value", "autoUnlockPlugWhenCharged")
@@ -3353,6 +3387,20 @@ class VWEUClient(CariadBaseClient):
             if isinstance(oil_pct, (int, float)):
                 d.oil_level_pct = int(oil_pct)
 
+        # v2.15.1 — flat `oilLevelResult` wire-key (BFF dialect). Maps into the
+        # same oil_level_status field + derives oil_level_warning with the same
+        # logic as the structured oilLevel block above. Guard is None so the
+        # structured path (when present) stays authoritative.
+        if d.oil_level_status is None:
+            oil_result = _find_flat(raw, "oilLevelResult")
+            if isinstance(oil_result, str) and oil_result:
+                d.oil_level_status = oil_result
+                lowered = oil_result.lower()
+                if lowered in ("normal", "ok", "sufficient"):
+                    d.oil_level_warning = False
+                elif "warning" in lowered or "service" in lowered or "low" in lowered:
+                    d.oil_level_warning = True
+
         # v2.7.0b10 — tyrePressure job, parity with upstream.
         # Backend ships per-corner status + numeric pressure (kPa or bar
         # depending on firmware). Convert kPa->bar when needed (divide by
@@ -3400,6 +3448,34 @@ class VWEUClient(CariadBaseClient):
                 )
             elif isinstance(warning_raw, bool):
                 d.tire_pressure_warning = warning_raw
+
+            # v2.15.1 — per-corner tire STATE + ERROR CODE (BFF dialect NEW
+            # fields). Walk the same value block: route by corner substring,
+            # then by `state` vs `errorcode`/`errcode` in the key. State is a
+            # lowercased passthrough string; errorcode is int with the 0/1
+            # sentinels (unsupported / invalid) dropped to None.
+            for key, value in tyre_value.items():
+                klow = key.lower()
+                corner: str | None = None
+                if "frontleft" in klow or "_fl" in klow or klow.startswith("fl"):
+                    corner = "fl"
+                elif "frontright" in klow or "_fr" in klow or klow.startswith("fr"):
+                    corner = "fr"
+                elif "rearleft" in klow or "_rl" in klow or klow.startswith("rl"):
+                    corner = "rl"
+                elif "rearright" in klow or "_rr" in klow or klow.startswith("rr"):
+                    corner = "rr"
+                if corner is None:
+                    continue
+                if "errorcode" in klow or "errcode" in klow or "error_code" in klow:
+                    ec = safe_int(value)
+                    if ec is not None and ec not in (0, 1):
+                        setattr(d, f"tire_pressure_{corner}_errorcode", ec)
+                elif "state" in klow and "status" not in klow:
+                    if isinstance(value, str) and value:
+                        setattr(
+                            d, f"tire_pressure_{corner}_state", value.lower()
+                        )
 
         d.service_km = v(raw, "vehicleHealthInspection", "maintenanceStatus", "value", "inspectionDue_km")
         d.service_due_at = v(raw, "vehicleHealthInspection", "maintenanceStatus", "value", "inspectionDue_days")
@@ -3631,5 +3707,71 @@ class VWEUClient(CariadBaseClient):
         from .._util import derive_car_type_if_missing  # noqa: PLC0415
 
         derive_car_type_if_missing(d)
+
+        # ── v2.15.1 — flat BFF wire-key mapping (2.15.0 plan) ───────────────
+        # Runs LAST so the structured engine/range blocks above stay
+        # authoritative. Each flat key is scanned defensively via _find_flat
+        # since its exact container on selectivestatus is live-test gated.
+
+        # petrolRange → combustion_range_km, only if the structured block
+        # left it None (guard is None so the engine block wins).
+        if d.combustion_range_km is None:
+            d.combustion_range_km = safe_int(_find_flat(raw, "petrolRange"))
+
+        # gasRange (CNG) → cng_range_km preferred, else combustion_range_km.
+        _gas = safe_int(_find_flat(raw, "gasRange"))
+        if _gas is not None:
+            if d.cng_range_km is None:
+                d.cng_range_km = _gas
+            elif d.combustion_range_km is None:
+                d.combustion_range_km = _gas
+
+        # currentCngLevel_pct → cng_level_pct (0–100).
+        if d.cng_level_pct is None:
+            d.cng_level_pct = safe_int(_find_flat(raw, "currentCngLevel_pct"))
+
+        # batteryCapacityNetto → battery_cap_kwh. kWh vs Wh: a value > 500 is
+        # treated as Wh and divided by 1000 (live-test heuristic).
+        if d.battery_cap_kwh is None:
+            _cap = safe_float(_find_flat(raw, "batteryCapacityNetto"))
+            if _cap is not None:
+                d.battery_cap_kwh = _cap / 1000.0 if _cap > 500 else _cap
+
+        # parkingBrakeStatus → parking_brake_engaged (shared field). enum→bool.
+        _pbrk = _find_flat(raw, "parkingBrakeStatus")
+        if _pbrk is not None:
+            if isinstance(_pbrk, bool):
+                d.parking_brake_engaged = _pbrk
+            elif isinstance(_pbrk, str):
+                d.parking_brake_engaged = _pbrk.lower() in (
+                    "engaged", "applied", "set", "on", "true", "active",
+                )
+
+        # — BFF NEW fields —
+        # lpgRange → lpg_range_km.
+        d.lpg_range_km = safe_int(_find_flat(raw, "lpgRange"))
+
+        # engineStatus → engine_status (lowercased; bool→on/off).
+        _eng = _find_flat(raw, "engineStatus")
+        if isinstance(_eng, bool):
+            d.engine_status = "on" if _eng else "off"
+        elif isinstance(_eng, str) and _eng:
+            d.engine_status = _eng.lower()
+
+        # trip_avg_aux_consumption_kwh — LOW, unit ambiguous → NOT rescaled.
+        _aux = safe_float(
+            _find_flat(raw, "tripAverageAuxConsumption")
+            or _find_flat(raw, "averageAuxiliaryConsumption")
+        )
+        if _aux is not None:
+            d.trip_avg_aux_consumption_kwh = _aux
+
+        # departure_charge_kwh — LOW.
+        _dep = safe_float(
+            _find_flat(raw, "departureCharge")
+            or _find_flat(raw, "departureChargeEnergy_kwh")
+        )
+        if _dep is not None:
+            d.departure_charge_kwh = _dep
 
         return d

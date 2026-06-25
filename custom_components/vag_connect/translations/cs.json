@@ -709,6 +709,84 @@
       },
       "remaining_charge_time_min": {
         "name": "Zbývající čas nabíjení"
+      },
+      "charging_scenario": {
+        "name": "Scénář nabíjení"
+      },
+      "immediate_charge_action_state": {
+        "name": "Stav okamžitého nabíjení"
+      },
+      "profile_charge_reason": {
+        "name": "Důvod nabíjení"
+      },
+      "charge_session_energy_kwh": {
+        "name": "Nabitá energie"
+      },
+      "remaining_charge_time_bulk_min": {
+        "name": "Zbývající čas do 80 % (rychlé nabíjení)"
+      },
+      "odometer_state": {
+        "name": "Stav tachometru"
+      },
+      "instrument_cluster_time": {
+        "name": "Hodiny vozidla"
+      },
+      "data_error_detail": {
+        "name": "Chyba dat"
+      },
+      "last_report_id": {
+        "name": "ID hlášení"
+      },
+      "climate_energy_consumption_kwh": {
+        "name": "Spotřeba klimatizace"
+      },
+      "residual_energy_consumption_kwh": {
+        "name": "Spotřeba palubní sítě"
+      },
+      "last_trip_avg_recuperation_kwh_100km": {
+        "name": "Rekuperace jízdy (prům.)"
+      },
+      "lifetime_avg_recuperation_kwh_100km": {
+        "name": "Rekuperace celkem (prům.)"
+      },
+      "dataset_key": {
+        "name": "Klíč datové sady"
+      },
+      "lpg_range_km": {
+        "name": "Dojezd LPG"
+      },
+      "engine_status": {
+        "name": "Stav motoru"
+      },
+      "trip_avg_aux_consumption_kwh": {
+        "name": "Prům. vedlejší spotřeba"
+      },
+      "departure_charge_kwh": {
+        "name": "Nabití do odjezdu"
+      },
+      "tire_pressure_fl_state": {
+        "name": "Stav pneumatiky vlevo vpředu"
+      },
+      "tire_pressure_fl_errorcode": {
+        "name": "Chybový kód pneumatiky vlevo vpředu"
+      },
+      "tire_pressure_fr_state": {
+        "name": "Stav pneumatiky vpravo vpředu"
+      },
+      "tire_pressure_fr_errorcode": {
+        "name": "Chybový kód pneumatiky vpravo vpředu"
+      },
+      "tire_pressure_rl_state": {
+        "name": "Stav pneumatiky vlevo vzadu"
+      },
+      "tire_pressure_rl_errorcode": {
+        "name": "Chybový kód pneumatiky vlevo vzadu"
+      },
+      "tire_pressure_rr_state": {
+        "name": "Stav pneumatiky vpravo vzadu"
+      },
+      "tire_pressure_rr_errorcode": {
+        "name": "Chybový kód pneumatiky vpravo vzadu"
       }
     },
     "binary_sensor": {
@@ -879,6 +957,15 @@
       },
       "warning_inspection": {
         "name": "Nutná prohlídka"
+      },
+      "parking_brake_engaged": {
+        "name": "Parkovací brzda"
+      },
+      "parking_light_left": {
+        "name": "Parkovací světlo (levé)"
+      },
+      "parking_light_right": {
+        "name": "Parkovací světlo (pravé)"
       }
     },
     "switch": {

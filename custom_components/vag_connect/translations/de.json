@@ -711,6 +711,84 @@
       },
       "remaining_charge_time_min": {
         "name": "Restladezeit"
+      },
+      "charging_scenario": {
+        "name": "Ladeszenario"
+      },
+      "immediate_charge_action_state": {
+        "name": "Sofort-Ladevorgang Status"
+      },
+      "profile_charge_reason": {
+        "name": "Ladegrund"
+      },
+      "charge_session_energy_kwh": {
+        "name": "Geladene Energie"
+      },
+      "remaining_charge_time_bulk_min": {
+        "name": "Restzeit bis 80 % (Bulk)"
+      },
+      "odometer_state": {
+        "name": "Kilometerstand-Status"
+      },
+      "instrument_cluster_time": {
+        "name": "Fahrzeuguhr"
+      },
+      "data_error_detail": {
+        "name": "Datenfehler"
+      },
+      "last_report_id": {
+        "name": "Bericht-ID"
+      },
+      "climate_energy_consumption_kwh": {
+        "name": "Klima-Energieverbrauch"
+      },
+      "residual_energy_consumption_kwh": {
+        "name": "Verbrauch Bordnetz"
+      },
+      "last_trip_avg_recuperation_kwh_100km": {
+        "name": "Rekuperation Fahrt (Ø)"
+      },
+      "lifetime_avg_recuperation_kwh_100km": {
+        "name": "Rekuperation gesamt (Ø)"
+      },
+      "dataset_key": {
+        "name": "Datensatz-Schlüssel"
+      },
+      "lpg_range_km": {
+        "name": "Autogas-Reichweite"
+      },
+      "engine_status": {
+        "name": "Motorstatus"
+      },
+      "trip_avg_aux_consumption_kwh": {
+        "name": "Ø Nebenverbrauch"
+      },
+      "departure_charge_kwh": {
+        "name": "Ladung bis Abfahrt"
+      },
+      "tire_pressure_fl_state": {
+        "name": "Reifenstatus vorne links"
+      },
+      "tire_pressure_fl_errorcode": {
+        "name": "Reifenfehlercode vorne links"
+      },
+      "tire_pressure_fr_state": {
+        "name": "Reifenstatus vorne rechts"
+      },
+      "tire_pressure_fr_errorcode": {
+        "name": "Reifenfehlercode vorne rechts"
+      },
+      "tire_pressure_rl_state": {
+        "name": "Reifenstatus hinten links"
+      },
+      "tire_pressure_rl_errorcode": {
+        "name": "Reifenfehlercode hinten links"
+      },
+      "tire_pressure_rr_state": {
+        "name": "Reifenstatus hinten rechts"
+      },
+      "tire_pressure_rr_errorcode": {
+        "name": "Reifenfehlercode hinten rechts"
       }
     },
     "binary_sensor": {
@@ -881,6 +959,15 @@
       },
       "warning_inspection": {
         "name": "Inspektion fällig"
+      },
+      "parking_brake_engaged": {
+        "name": "Feststellbremse"
+      },
+      "parking_light_left": {
+        "name": "Standlicht (links)"
+      },
+      "parking_light_right": {
+        "name": "Standlicht (rechts)"
       }
     },
     "switch": {

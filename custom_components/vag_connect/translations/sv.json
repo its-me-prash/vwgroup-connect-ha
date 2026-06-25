@@ -709,6 +709,84 @@
       },
       "remaining_charge_time_min": {
         "name": "Återstående laddtid"
+      },
+      "charging_scenario": {
+        "name": "Laddningsscenario"
+      },
+      "immediate_charge_action_state": {
+        "name": "Omedelbar laddningsåtgärd"
+      },
+      "profile_charge_reason": {
+        "name": "Laddningsorsak"
+      },
+      "charge_session_energy_kwh": {
+        "name": "Laddad energi"
+      },
+      "remaining_charge_time_bulk_min": {
+        "name": "Återstående tid till 80 % (snabbladdning)"
+      },
+      "odometer_state": {
+        "name": "Vägmätarstatus"
+      },
+      "instrument_cluster_time": {
+        "name": "Fordonsklocka"
+      },
+      "data_error_detail": {
+        "name": "Datafel"
+      },
+      "last_report_id": {
+        "name": "Rapport-ID"
+      },
+      "climate_energy_consumption_kwh": {
+        "name": "Klimatets energiförbrukning"
+      },
+      "residual_energy_consumption_kwh": {
+        "name": "Förbrukning fordonsnät"
+      },
+      "last_trip_avg_recuperation_kwh_100km": {
+        "name": "Återvinning resa (snitt)"
+      },
+      "lifetime_avg_recuperation_kwh_100km": {
+        "name": "Total återvinning (snitt)"
+      },
+      "dataset_key": {
+        "name": "Datauppsättningsnyckel"
+      },
+      "lpg_range_km": {
+        "name": "Räckvidd gasol"
+      },
+      "engine_status": {
+        "name": "Motorstatus"
+      },
+      "trip_avg_aux_consumption_kwh": {
+        "name": "Snittförbrukning kringutrustning"
+      },
+      "departure_charge_kwh": {
+        "name": "Laddning till avgång"
+      },
+      "tire_pressure_fl_state": {
+        "name": "Däckstatus vänster fram"
+      },
+      "tire_pressure_fl_errorcode": {
+        "name": "Däckfelkod vänster fram"
+      },
+      "tire_pressure_fr_state": {
+        "name": "Däckstatus höger fram"
+      },
+      "tire_pressure_fr_errorcode": {
+        "name": "Däckfelkod höger fram"
+      },
+      "tire_pressure_rl_state": {
+        "name": "Däckstatus vänster bak"
+      },
+      "tire_pressure_rl_errorcode": {
+        "name": "Däckfelkod vänster bak"
+      },
+      "tire_pressure_rr_state": {
+        "name": "Däckstatus höger bak"
+      },
+      "tire_pressure_rr_errorcode": {
+        "name": "Däckfelkod höger bak"
       }
     },
     "binary_sensor": {
@@ -879,6 +957,15 @@
       },
       "warning_inspection": {
         "name": "Service krävs"
+      },
+      "parking_brake_engaged": {
+        "name": "Parkeringsbroms"
+      },
+      "parking_light_left": {
+        "name": "Parkeringsljus (vänster)"
+      },
+      "parking_light_right": {
+        "name": "Parkeringsljus (höger)"
       }
     },
     "switch": {

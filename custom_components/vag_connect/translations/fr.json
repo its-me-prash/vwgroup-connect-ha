@@ -709,6 +709,84 @@
       },
       "remaining_charge_time_min": {
         "name": "Temps de charge restant"
+      },
+      "charging_scenario": {
+        "name": "Scénario de charge"
+      },
+      "immediate_charge_action_state": {
+        "name": "Action de charge immédiate"
+      },
+      "profile_charge_reason": {
+        "name": "Raison de la charge"
+      },
+      "charge_session_energy_kwh": {
+        "name": "Énergie chargée"
+      },
+      "remaining_charge_time_bulk_min": {
+        "name": "Temps restant jusqu'à 80 % (charge rapide)"
+      },
+      "odometer_state": {
+        "name": "État du compteur"
+      },
+      "instrument_cluster_time": {
+        "name": "Horloge du véhicule"
+      },
+      "data_error_detail": {
+        "name": "Erreur de données"
+      },
+      "last_report_id": {
+        "name": "ID du rapport"
+      },
+      "climate_energy_consumption_kwh": {
+        "name": "Conso. clim."
+      },
+      "residual_energy_consumption_kwh": {
+        "name": "Conso. réseau de bord"
+      },
+      "last_trip_avg_recuperation_kwh_100km": {
+        "name": "Récupération trajet (moy.)"
+      },
+      "lifetime_avg_recuperation_kwh_100km": {
+        "name": "Récupération totale (moy.)"
+      },
+      "dataset_key": {
+        "name": "Clé du jeu de données"
+      },
+      "lpg_range_km": {
+        "name": "Autonomie GPL"
+      },
+      "engine_status": {
+        "name": "État moteur"
+      },
+      "trip_avg_aux_consumption_kwh": {
+        "name": "Conso. auxiliaire moy."
+      },
+      "departure_charge_kwh": {
+        "name": "Charge avant départ"
+      },
+      "tire_pressure_fl_state": {
+        "name": "État pneu avant gauche"
+      },
+      "tire_pressure_fl_errorcode": {
+        "name": "Code défaut pneu avant gauche"
+      },
+      "tire_pressure_fr_state": {
+        "name": "État pneu avant droit"
+      },
+      "tire_pressure_fr_errorcode": {
+        "name": "Code défaut pneu avant droit"
+      },
+      "tire_pressure_rl_state": {
+        "name": "État pneu arrière gauche"
+      },
+      "tire_pressure_rl_errorcode": {
+        "name": "Code défaut pneu arrière gauche"
+      },
+      "tire_pressure_rr_state": {
+        "name": "État pneu arrière droit"
+      },
+      "tire_pressure_rr_errorcode": {
+        "name": "Code défaut pneu arrière droit"
       }
     },
     "binary_sensor": {
@@ -879,6 +957,15 @@
       },
       "warning_inspection": {
         "name": "Inspection à prévoir"
+      },
+      "parking_brake_engaged": {
+        "name": "Frein de stationnement"
+      },
+      "parking_light_left": {
+        "name": "Feu de stationnement (gauche)"
+      },
+      "parking_light_right": {
+        "name": "Feu de stationnement (droit)"
       }
     },
     "switch": {

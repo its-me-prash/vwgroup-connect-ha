@@ -595,6 +595,33 @@ _NEW_BINARY: tuple[VagBinarySensorDescription, ...] = (
         icon="mdi:remote",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # ── v2.15.1 — EU Data Act + BFF wire-key mapping (2.15.0 plan) ──────────
+    # parking_brake_engaged is shared: written by the EU Data Act portal
+    # (parking_brake.is_set) and the BFF selectivestatus (parkingBrakeStatus).
+    VagBinarySensorDescription(
+        key="parking_brake_engaged",
+        translation_key="parking_brake_engaged",
+        data_key="parking_brake_engaged",
+        icon="mdi:car-brake-parking",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # Parking lights left/right (aggregate feeds the existing parking_light).
+    VagBinarySensorDescription(
+        key="parking_light_left",
+        translation_key="parking_light_left",
+        data_key="parking_light_left",
+        device_class=BinarySensorDeviceClass.LIGHT,
+        icon="mdi:car-parking-lights",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="parking_light_right",
+        translation_key="parking_light_right",
+        data_key="parking_light_right",
+        device_class=BinarySensorDeviceClass.LIGHT,
+        icon="mdi:car-parking-lights",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
 )
 BINARY_DESCRIPTIONS = BINARY_DESCRIPTIONS + _NEW_BINARY
 
@@ -685,6 +712,12 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # so no phantom binary sensor surfaces.
     "permission_is_owner",
     "permission_can_command",
+    # v2.15.1 — EU Data Act + BFF wire-key mapping (2.15.0 plan). Brand/
+    # firmware-restricted at the parser level; vehicles/channels without the
+    # underlying field stay None so no phantom binary sensor surfaces.
+    "parking_brake_engaged",
+    "parking_light_left",
+    "parking_light_right",
 })
 
 

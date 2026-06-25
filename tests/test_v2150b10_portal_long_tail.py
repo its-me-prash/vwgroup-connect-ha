@@ -110,15 +110,16 @@ def test_trip_stats_units() -> None:
     assert d.lifetime_avg_speed_kmh == 49
     assert d.lifetime_travel_time_min == 3933
 
-def test_consumption_is_deferred_not_mapped() -> None:
-    # suspicious values + scale flagged → left Scout-visible, not mapped.
+def test_consumption_is_mapped() -> None:
+    # v2.15.1 (2.15.0 plan) — the b10 "deferred" decision is lifted: the EU
+    # portal trip-consumption fields now map into the lifetime/last-trip avg
+    # consumption fields with the l/1000km → l/100km (÷10) scale.
     d = _map({
-        "long_term_data_average_fuel_consumption": "0",
-        "long_term_data_average_electr_engine_consumption": "2",
+        "long_term_data_average_fuel_consumption": "68",   # 6.8 l/100km
+        "long_term_data_average_electr_engine_consumption": "182",  # 18.2 kWh/100km
     })
-    assert d.lifetime_avg_fuel_consumption_l_100km is None
-    assert d.lifetime_avg_electric_consumption_kwh_100km is None
-    assert "long_term_data_average_fuel_consumption" in d.raw_unmapped_fields
+    assert d.lifetime_avg_fuel_consumption_l_100km == 6.8
+    assert d.lifetime_avg_electric_consumption_kwh_100km == 18.2
 
 
 # ── maintenance + remaining times ────────────────────────────────────────────

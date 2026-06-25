@@ -711,6 +711,84 @@
       },
       "remaining_charge_time_min": {
         "name": "Remaining Charge Time"
+      },
+      "charging_scenario": {
+        "name": "Charging scenario"
+      },
+      "immediate_charge_action_state": {
+        "name": "Immediate charge action"
+      },
+      "profile_charge_reason": {
+        "name": "Charge reason"
+      },
+      "charge_session_energy_kwh": {
+        "name": "Charged energy"
+      },
+      "remaining_charge_time_bulk_min": {
+        "name": "Remaining time to 80% (bulk)"
+      },
+      "odometer_state": {
+        "name": "Odometer status"
+      },
+      "instrument_cluster_time": {
+        "name": "Vehicle clock"
+      },
+      "data_error_detail": {
+        "name": "Data error"
+      },
+      "last_report_id": {
+        "name": "Report ID"
+      },
+      "climate_energy_consumption_kwh": {
+        "name": "Climate energy use"
+      },
+      "residual_energy_consumption_kwh": {
+        "name": "On-board electronics consumption"
+      },
+      "last_trip_avg_recuperation_kwh_100km": {
+        "name": "Trip recuperation (avg)"
+      },
+      "lifetime_avg_recuperation_kwh_100km": {
+        "name": "Lifetime recuperation (avg)"
+      },
+      "dataset_key": {
+        "name": "Dataset key"
+      },
+      "lpg_range_km": {
+        "name": "LPG range"
+      },
+      "engine_status": {
+        "name": "Engine status"
+      },
+      "trip_avg_aux_consumption_kwh": {
+        "name": "Avg auxiliary consumption"
+      },
+      "departure_charge_kwh": {
+        "name": "Departure charge"
+      },
+      "tire_pressure_fl_state": {
+        "name": "Tire status front-left"
+      },
+      "tire_pressure_fl_errorcode": {
+        "name": "Tire error code front-left"
+      },
+      "tire_pressure_fr_state": {
+        "name": "Tire status front-right"
+      },
+      "tire_pressure_fr_errorcode": {
+        "name": "Tire error code front-right"
+      },
+      "tire_pressure_rl_state": {
+        "name": "Tire status rear-left"
+      },
+      "tire_pressure_rl_errorcode": {
+        "name": "Tire error code rear-left"
+      },
+      "tire_pressure_rr_state": {
+        "name": "Tire status rear-right"
+      },
+      "tire_pressure_rr_errorcode": {
+        "name": "Tire error code rear-right"
       }
     },
     "binary_sensor": {
@@ -881,6 +959,15 @@
       },
       "warning_inspection": {
         "name": "Inspection Due"
+      },
+      "parking_brake_engaged": {
+        "name": "Parking brake"
+      },
+      "parking_light_left": {
+        "name": "Parking light (left)"
+      },
+      "parking_light_right": {
+        "name": "Parking light (right)"
       }
     },
     "switch": {

@@ -709,6 +709,84 @@
       },
       "remaining_charge_time_min": {
         "name": "Resterende laadtijd"
+      },
+      "charging_scenario": {
+        "name": "Laadscenario"
+      },
+      "immediate_charge_action_state": {
+        "name": "Directe laadactie"
+      },
+      "profile_charge_reason": {
+        "name": "Laadreden"
+      },
+      "charge_session_energy_kwh": {
+        "name": "Geladen energie"
+      },
+      "remaining_charge_time_bulk_min": {
+        "name": "Resterende tijd tot 80% (snellaad)"
+      },
+      "odometer_state": {
+        "name": "Status kilometerstand"
+      },
+      "instrument_cluster_time": {
+        "name": "Voertuigklok"
+      },
+      "data_error_detail": {
+        "name": "Datafout"
+      },
+      "last_report_id": {
+        "name": "Rapport-ID"
+      },
+      "climate_energy_consumption_kwh": {
+        "name": "Klimaverbruik"
+      },
+      "residual_energy_consumption_kwh": {
+        "name": "Verbruik boordnet"
+      },
+      "last_trip_avg_recuperation_kwh_100km": {
+        "name": "Recuperatie rit (gem.)"
+      },
+      "lifetime_avg_recuperation_kwh_100km": {
+        "name": "Recuperatie totaal (gem.)"
+      },
+      "dataset_key": {
+        "name": "Datasetsleutel"
+      },
+      "lpg_range_km": {
+        "name": "LPG-bereik"
+      },
+      "engine_status": {
+        "name": "Motorstatus"
+      },
+      "trip_avg_aux_consumption_kwh": {
+        "name": "Gem. nevenverbruik"
+      },
+      "departure_charge_kwh": {
+        "name": "Lading tot vertrek"
+      },
+      "tire_pressure_fl_state": {
+        "name": "Bandenstatus linksvoor"
+      },
+      "tire_pressure_fl_errorcode": {
+        "name": "Bandenfoutcode linksvoor"
+      },
+      "tire_pressure_fr_state": {
+        "name": "Bandenstatus rechtsvoor"
+      },
+      "tire_pressure_fr_errorcode": {
+        "name": "Bandenfoutcode rechtsvoor"
+      },
+      "tire_pressure_rl_state": {
+        "name": "Bandenstatus linksachter"
+      },
+      "tire_pressure_rl_errorcode": {
+        "name": "Bandenfoutcode linksachter"
+      },
+      "tire_pressure_rr_state": {
+        "name": "Bandenstatus rechtsachter"
+      },
+      "tire_pressure_rr_errorcode": {
+        "name": "Bandenfoutcode rechtsachter"
       }
     },
     "binary_sensor": {
@@ -879,6 +957,15 @@
       },
       "warning_inspection": {
         "name": "Inspectie nodig"
+      },
+      "parking_brake_engaged": {
+        "name": "Parkeerrem"
+      },
+      "parking_light_left": {
+        "name": "Parkeerlicht (links)"
+      },
+      "parking_light_right": {
+        "name": "Parkeerlicht (rechts)"
       }
     },
     "switch": {

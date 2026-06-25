@@ -468,8 +468,28 @@ def _walk_fields(payload: Any) -> dict[str, str]:
                 else:
                     walk(val, key, ts, ts_real, in_array)
         elif isinstance(node, list):
+            # v2.15.1 (#465 RaAdNe): the portal ships a flat, ORDERED event-log
+            # where each snapshot's capture time arrives as its OWN data-point
+            # (``dataFieldName: car_captured_time``) rather than a sibling key, so
+            # the per-point ts logic above never fires for it. Carry the running
+            # capture time across the list so every following field inherits its
+            # snapshot's REAL timestamp. Without it, a field repeated across
+            # snapshots (e.g. ``settings.target_soc`` 100 then 80 after battery-care
+            # lowered it) ties on the dataset floor and first-seen wins — surfacing
+            # the stale 100 instead of the current 80 the car/app actually show.
+            run_ts, run_real = node_ts, node_ts_real
             for item in node:
-                walk(item, prefix, node_ts, node_ts_real, in_array=True)
+                if isinstance(item, dict):
+                    ifn = item.get("dataFieldName") or item.get("name")
+                    if (
+                        isinstance(ifn, str)
+                        and "value" in item
+                        and any(h in ifn.lower() for h in _CAPTURED_NAME_HINTS)
+                    ):
+                        parsed = _parse_ts(item.get("value"))
+                        if parsed is not None:
+                            run_ts, run_real = parsed, True
+                walk(item, prefix, run_ts, run_real, in_array=True)
 
     walk(payload, node_ts=dataset_ts)  # a11: bare fields inherit dataset freshness
     return {k: v[0] for k, v in best.items()}
@@ -489,6 +509,32 @@ def _to_int(raw: str | None) -> int | None:
     return int(f) if f is not None else None
 
 
+def _epoch_or_iso(raw: str | None) -> str | None:
+    """Normalise a capture timestamp to ISO-8601 UTC.
+
+    v2.15.1 — epoch seconds (or milliseconds) → ISO-8601 UTC string; an
+    already-ISO string passes through unchanged. Unparseable → None.
+    """
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    # Numeric → epoch seconds (ms heuristic: > 1e12).
+    try:
+        f = float(s)
+    except (ValueError, TypeError):
+        return s  # non-numeric → assume it's already an ISO/string timestamp
+    from datetime import datetime, timezone  # noqa: PLC0415
+
+    if f > 1e12:
+        f /= 1000.0
+    try:
+        return datetime.fromtimestamp(f, tz=timezone.utc).isoformat()
+    except (ValueError, OSError, OverflowError):
+        return None
+
+
 def _is_miles(unit_raw: str | None) -> bool:
     """True if a portal distance-unit companion field denotes miles.
 
@@ -504,6 +550,20 @@ def _is_miles(unit_raw: str | None) -> bool:
 _ENUM_PREFIXES = (
     "CHARGE_STATE_", "CHARGING_STATE_", "CHARGE_MODE_", "CHARGING_MODE_",
     "IMMEDIATE_ACTION_STATE_", "PLUG_STATE_", "ENERGY_FLOW_",
+    # v2.15.1 — charge-type / scenario / charge-reason enum families.
+    "CHARGE_TYPE_", "CHARGING_SCENARIO_", "PROFILE_CHARGE_REASON_",
+)
+
+# v2.15.1 — labels appended to ``available_charge_modes`` per truthy
+# charge_mode_selection_options flag. ONE list attribute, no per-flag entity.
+_CHARGE_MODE_SUPPORT_LABELS: tuple[tuple[str, str], ...] = (
+    ("immediate_charging", "IMMEDIATE"),
+    ("timer_charging", "TIMER"),
+    ("timer_charging_climatization", "TIMER_WITH_CLIMATISATION"),
+    ("preferred_charging_times", "PREFERRED_CHARGING_TIMES"),
+    ("only_own_current", "ONLY_OWN_CURRENT"),
+    ("home_storage_charging", "HOME_STORAGE"),
+    ("immediate_discharging", "IMMEDIATE_DISCHARGING"),
 )
 
 
@@ -803,7 +863,14 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     _rcl = _to_int(first("remaining_climatisation_time"))
     if _rcl is not None and d.climate_remaining_time_min is None:
         d.climate_remaining_time_min = _rcl
-    _rch = _to_int(first("remaining_charging_time"))
+    # v2.15.1 — battery_state_report.remaining_charging_time_complete is the
+    # preferred source; it joins this EXISTING chain ahead of the bare
+    # remaining_charging_time. Single assignment — do not add a second line.
+    _rch = _to_int(first(
+        "battery_state_report.remaining_charging_time_complete",
+        "remaining_charging_time_complete",
+        "remaining_charging_time",
+    ))
     if _rch is not None and d.remaining_charge_time_min is None:
         d.remaining_charge_time_min = _rch
 
@@ -819,6 +886,196 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
             _val = getattr(d, _attr)
             if _val is not None:
                 setattr(d, _attr, round(_val * 1.60934))
+
+    # ── v2.15.1 — 2.15.0 plan: EU Data Act MAP-INTO-EXISTING + NEW fields ────
+    # All additive and guarded; every existing mapping above is untouched.
+
+    # charge_mode_selection_options (7 bools) → available_charge_modes labels.
+    # Collapses to ONE list attribute (no per-flag entity). De-duplicated.
+    for _opt, _label in _CHARGE_MODE_SUPPORT_LABELS:
+        _mode_flag = first(
+            f"charge_mode_selection_options.{_opt}",
+            f"charge_mode_selection_options_{_opt}",
+            _opt,
+        )
+        if (
+            _mode_flag is not None
+            and str(_mode_flag).lower() in ("true", "1", "set", "on", "yes")
+            and _label not in d.available_charge_modes
+        ):
+            d.available_charge_modes.append(_label)
+
+    # charge_type → charging_type (_shorten_enum, CHARGE_TYPE_ prefix added).
+    _ctype = first("charging_state_report.charge_type", "charge_type", "chargeType")
+    if _ctype is not None:
+        d.charging_type = _shorten_enum(_ctype)
+
+    # charging_mode → charging_preferred_mode (guard is None so a BFF value
+    # is never clobbered).
+    _cmode = first("charging_mode", "chargingMode")
+    if _cmode is not None and d.charging_preferred_mode is None:
+        d.charging_preferred_mode = _shorten_enum(_cmode)
+
+    # battery_care_mode.charge_bcam_threshold → battery_care_target_soc_pct.
+    _bcam = _to_int(first("battery_care_mode.charge_bcam_threshold",
+                          "charge_bcam_threshold"))
+    if _bcam is not None:
+        d.battery_care_target_soc_pct = _bcam
+
+    # energy_contents.{current,maximal}_energy_content.physical_value gated on
+    # the companion value_type being valid.
+    def _value_type_ok(*names: str) -> bool:
+        vt = first(*names)
+        # Companion is consumed (so it leaves raw_unmapped_fields) but only
+        # gates: an explicit "invalid"/"error"/"0" token blocks the value.
+        if vt is None:
+            return True  # no gate present → don't block a real reading
+        return str(vt).strip().lower() not in ("invalid", "error", "0", "false")
+
+    _cur_kwh = _to_float(first(
+        "energy_contents.current_energy_content.physical_value",
+        "current_energy_content.physical_value",
+    ))
+    if _cur_kwh is not None and _value_type_ok(
+        "energy_contents.current_energy_content.value_type",
+        "current_energy_content.value_type",
+    ):
+        d.battery_available_kwh = _cur_kwh
+    _max_kwh = _to_float(first(
+        "energy_contents.maximal_energy_content.physical_value",
+        "maximal_energy_content.physical_value",
+    ))
+    if _max_kwh is not None and _value_type_ok(
+        "energy_contents.maximal_energy_content.value_type",
+        "maximal_energy_content.value_type",
+    ):
+        d.battery_cap_kwh = _max_kwh
+
+    # Trip consumption averages (l/1000km → l/100km, kWh/1000km → kWh/100km).
+    # Guard is None so we don't overwrite a value the structured path set.
+    _stf = _to_float(first("short_term_data_average_fuel_consumption"))
+    if _stf is not None and d.last_trip_avg_fuel_consumption_l_100km is None:
+        d.last_trip_avg_fuel_consumption_l_100km = _stf / 10
+    _ste = _to_float(first("short_term_data_average_electr_engine_consumption"))
+    if _ste is not None and d.last_trip_avg_electric_consumption_kwh_100km is None:
+        d.last_trip_avg_electric_consumption_kwh_100km = _ste / 10
+    _ltf = _to_float(first("long_term_data_average_fuel_consumption"))
+    if _ltf is not None and d.lifetime_avg_fuel_consumption_l_100km is None:
+        d.lifetime_avg_fuel_consumption_l_100km = _ltf / 10
+    _lte = _to_float(first("long_term_data_average_electr_engine_consumption"))
+    if _lte is not None and d.lifetime_avg_electric_consumption_kwh_100km is None:
+        d.lifetime_avg_electric_consumption_kwh_100km = _lte / 10
+
+    # parking_light_left / _right → aggregate parking_light + per-side fields.
+    _pll = first("parking_light_left")
+    _plr = first("parking_light_right")
+
+    def _truthy_light(raw: str | None) -> bool | None:
+        if raw is None:
+            return None
+        return str(raw).lower() in ("true", "1", "on")
+
+    _pll_b = _truthy_light(_pll)
+    _plr_b = _truthy_light(_plr)
+    if _pll_b is not None:
+        d.parking_light_left = _pll_b
+    if _plr_b is not None:
+        d.parking_light_right = _plr_b
+    if (_pll_b is not None or _plr_b is not None) and d.parking_light is None:
+        d.parking_light = bool(_pll_b) or bool(_plr_b)
+
+    # Capture timestamp → last_seen_at. epoch-seconds→ISO-8601 UTC; ISO
+    # passthrough. (_dataset_captured_ts already reads these for freshness —
+    # surfacing is additive.)
+    _cap = first(
+        "car_captured_utc_timestamp", "car_captured_time", "instrument_cluster_time",
+    )
+    if _cap is not None and d.last_seen_at is None:
+        d.last_seen_at = _epoch_or_iso(_cap)
+
+    # parking_brake.is_set → parking_brake_engaged (shared field).
+    _pb = first("parking_brake.is_set", "parking_brake_is_set", "parking_brake")
+    if _pb is not None:
+        d.parking_brake_engaged = str(_pb).lower() in ("true", "1", "set")
+
+    # bare `open` → sunroof: LOW confidence (3 dict definitions). Per the plan,
+    # leave to raw_unmapped_fields until live-test; intentionally NOT mapped.
+
+    # ── EU NEW fields ───────────────────────────────────────────────────────
+    _cscn = first("charging_scenario", "chargingScenario")
+    if _cscn is not None:
+        d.charging_scenario = _shorten_enum(_cscn)
+
+    _icas = first("immediate_charge_action_state", "immediate_action_state")
+    if _icas is not None:
+        d.immediate_charge_action_state = _shorten_enum(_icas)
+
+    _pcr = first("profile_charge_reason", "charge_reason")
+    if _pcr is not None:
+        d.profile_charge_reason = _shorten_enum(_pcr)
+
+    _cse = _to_float(first("charge_session_energy", "charge_session_energy_kwh"))
+    if _cse is not None:
+        d.charge_session_energy_kwh = _cse
+
+    _rcb = _to_int(first(
+        "battery_state_report.remaining_charging_time_bulk",
+        "remaining_charging_time_bulk",
+    ))
+    if _rcb is not None:
+        d.remaining_charge_time_bulk_min = _rcb
+
+    _ostate = first("mileage.state")
+    if _ostate is not None:
+        d.odometer_state = _shorten_enum(_ostate)
+
+    _ict = first("instrument_cluster_time")
+    if _ict is not None:
+        d.instrument_cluster_time = _ict
+
+    # data_error_detail — join non-empty of error_code/number/description,
+    # filtering "#0"/"0" "no error" sentinels.
+    _err_parts: list[str] = []
+    for _en in ("error_code", "error_number", "error_description"):
+        _ev = first(_en)
+        if _ev is None:
+            continue
+        _evs = str(_ev).strip()
+        if _evs and _evs not in ("#0", "0"):
+            _err_parts.append(_evs)
+    if _err_parts:
+        d.data_error_detail = " ".join(_err_parts)
+
+    # last_report_id — change-detector metadata. Surfaced as a diagnostic but
+    # NOT consumed: per the b14 no-suppress policy (and the plan's "kept
+    # Scout-visible" note for message_id/dataset_key) it must still appear in
+    # raw_unmapped_fields, so we peek without marking it used.
+    _rid = fields.get("message_id")
+    if _rid is not None:
+        d.last_report_id = _rid
+
+    _clim_e = _to_float(first("climate_energy_consumption",
+                             "climatisation_energy_consumption"))
+    if _clim_e is not None:
+        d.climate_energy_consumption_kwh = _clim_e
+    _res_e = _to_float(first("residual_energy_consumption"))
+    if _res_e is not None:
+        d.residual_energy_consumption_kwh = _res_e
+
+    _st_rec = _to_float(first("short_term_data_average_recuperation"))
+    if _st_rec is not None:
+        d.last_trip_avg_recuperation_kwh_100km = _st_rec / 10
+    _lt_rec = _to_float(first("long_term_data_average_recuperation"))
+    if _lt_rec is not None:
+        d.lifetime_avg_recuperation_kwh_100km = _lt_rec / 10
+
+    # dataset_key — LOW confidence, disabled-by-default. ZIP-envelope
+    # metadata that the plan flags as possibly redundant with the message_id
+    # change-detector; like last_report_id it is surfaced but NOT consumed, so
+    # the bare key stays Scout-visible (b14 no-suppress policy).
+    _dkey = fields.get("Data.key") or fields.get("dataset_key") or fields.get("key")
+    if _dkey is not None:
+        d.dataset_key = str(_dkey)
 
     # b1/B3 — derive drivetrain from the data actually present (fixes the
     # #37 class: an EV like the e-up! showing only combustion entities, or a
