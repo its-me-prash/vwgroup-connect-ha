@@ -1,6 +1,6 @@
 # Attribution & Naming Requirements
 
-This project — **VAG Connect** (`vag_connect`), repository
+This project — **VW Group Connect** (`vag_connect`), repository
 [`its-me-prash/vwgroup-connect-ha`](https://github.com/its-me-prash/vwgroup-connect-ha),
 created and maintained by **Prash Balan ([@its-me-prash](https://github.com/its-me-prash))** —
 is licensed under the **GNU Affero General Public License v3.0 or later** (see
@@ -18,7 +18,7 @@ Any derivative, fork, or product that incorporates code, methods, or
 discoveries from this project MUST, in its README (or equivalent primary
 documentation) and its in-app/about credits, clearly and visibly state:
 
-> Based on **VAG Connect** (`vag_connect`) by **@its-me-prash** —
+> Based on **VW Group Connect** (`vag_connect`) by **@its-me-prash** —
 > https://github.com/its-me-prash/vwgroup-connect-ha
 
 The credit must name **both** the project/repository name **and** that it is
@@ -36,7 +36,7 @@ findings must credit this project as the origin of the discovery.
 
 ## 3. Name / trademark
 
-The names **"VAG Connect"** and **"vwgroup-connect-ha"**, together with the
+The names **"VW Group Connect"**, **"VAG Connect"** and **"vwgroup-connect-ha"**, together with the
 project's branding, are asserted as the unregistered trademarks of the author.
 You may exercise your AGPL rights over the **code**, but you may **not**:
 
