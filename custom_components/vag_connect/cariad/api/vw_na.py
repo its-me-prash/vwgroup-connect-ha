@@ -666,9 +666,14 @@ class VWNAClient:
                     d.range_km = int(cr_range)
                 if d.electric_range_km is None:
                     d.electric_range_km = int(cr_range)
+            # v2.15.3 — BatteryStatus.chargeEnergy is the CURRENT-charge (per-
+            # session) value, not a lifetime total (matches the EU data-dict
+            # battery_state_report.charge_energy: a 0..1000 kWh gauge that reads
+            # 0 when idle). Route it to the per-session sensor, not the lifetime
+            # total_charged_energy_kwh.
             ce = v(bs, "chargeEnergy")
-            if isinstance(ce, (int, float)) and ce >= 0 and d.total_charged_energy_kwh is None:
-                d.total_charged_energy_kwh = float(ce)
+            if isinstance(ce, (int, float)) and ce >= 0 and d.charge_session_energy_kwh is None:
+                d.charge_session_energy_kwh = float(ce)
             # charge-complete ETA — field is bare remainingChargingTimeToComplete;
             # the prior ``_min`` suffix never matched (always None).
             remaining_min = safe_int(v(charge, "chargingStatus", "remainingChargingTimeToComplete"))

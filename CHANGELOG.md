@@ -49,6 +49,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 - **VW US/Canada EVs: battery, range and charged energy now populate (#503).** v2.15.2 read these from the wrong endpoint (`…/hvbattery` is only the departure-timer "use HV battery" toggle) and from guessed field names, so nothing filled. Verified against the dismantled MyVW app: the EV State of Charge, range and charged energy live on the charge-summary `batteryStatus` object (`currentSOCPct`, `cruisingRange.range`, `chargeEnergy`), and the charge-complete time field is `remainingChargingTimeToComplete` (the prior `_min` suffix never matched). All corrected.
 - **Charging error code:** a `0.0` value is now treated as "no error" instead of surfacing a bogus code.
+- **Charged energy is per-session, not lifetime (#511).** The portal's `charge_energy` (and the VW US/CA charge value) is a current-session gauge that reads 0 when idle — it now feeds the per-session **Charged energy** sensor instead of being mislabelled as the lifetime **Total Charged Energy** (which also revives that per-session sensor; it was never populated before). The lifetime total stays sourced only from genuinely cumulative fields (CUPRA/SEAT/Škoda).
+- **Volkswagen EU login uses the current app version** (User-Agent We Connect 3.63.2; a stale 3.61.0 was still riding the login/data path while the command path already used 3.63.2).
 
 ## [2.15.2] - 2026-06-25
 

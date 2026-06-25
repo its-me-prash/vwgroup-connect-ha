@@ -36,13 +36,17 @@ def test_no_soc_source_leaves_battery_unset() -> None:
     assert d.battery_soc is None
 
 
-def test_charger_dialect_charge_energy_maps_to_total_charged() -> None:
-    # 2.15.1 — the charger dialect also reports charged energy; map it to the
-    # cross-brand total_charged_energy_kwh (matches CUPRA/SEAT chargeEnergyInKwh).
+def test_charger_dialect_charge_energy_maps_to_session() -> None:
+    # v2.15.3 — battery_state_report.charge_energy is PER-SESSION (EU data-dict:
+    # "charged energy in kWh, 0..1000, EV must be connected to charger" — a gauge
+    # that reads 0 when idle), so it maps to charge_session_energy_kwh, NOT the
+    # lifetime total_charged_energy_kwh.
     d = _map({"battery_state_report.charge_energy": "12.5"})
-    assert d.total_charged_energy_kwh == 12.5
+    assert d.charge_session_energy_kwh == 12.5
+    assert d.total_charged_energy_kwh is None
 
 
 def test_negative_charge_energy_ignored() -> None:
     d = _map({"battery_state_report.charge_energy": "-1"})
+    assert d.charge_session_energy_kwh is None
     assert d.total_charged_energy_kwh is None

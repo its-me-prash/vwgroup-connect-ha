@@ -668,14 +668,17 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     if cp is not None:
         d.charging_power_kw = cp
 
-    # 2.15.1 — the charger dialect also reports charged energy
-    # (battery_state_report.charge_energy). Map to the cross-brand
-    # total_charged_energy_kwh, matching the CUPRA/SEAT chargeEnergyInKwh
-    # mapping; TOTAL_INCREASING handles per-session resets gracefully.
+    # 2.15.1 — the charger dialect reports charged energy
+    # (battery_state_report.charge_energy). The EU data dictionary defines this
+    # as PER-SESSION ("charged energy in kWh, 0..1000, EV must be connected to
+    # charger" — a gauge that reads 0.0 when idle), NOT a lifetime total. So it
+    # belongs on the per-session sensor (charge_session_energy_kwh), not the
+    # lifetime total_charged_energy_kwh. (The CUPRA/SEAT chargeEnergyInKwh field
+    # IS genuinely lifetime and is mapped separately — left untouched.)
     ce = _to_float(first("battery_state_report.charge_energy", "charge_energy",
                         "chargedEnergy_kWh"))
     if ce is not None and ce >= 0:
-        d.total_charged_energy_kwh = ce
+        d.charge_session_energy_kwh = ce
 
     tsoc = _to_int(first("settings.target_soc", "target_soc", "targetSOC_pct"))
     if tsoc is not None:
