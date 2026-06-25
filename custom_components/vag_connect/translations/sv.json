@@ -734,6 +734,24 @@
       "data_error_detail": {
         "name": "Datafel"
       },
+      "external_power_supply_state": {
+        "name": "Extern strömförsörjning"
+      },
+      "charging_reason": {
+        "name": "Laddningsorsak"
+      },
+      "charging_error_code": {
+        "name": "Laddningsfelkod"
+      },
+      "remaining_time_target_soc": {
+        "name": "Laddningsmål (återstående tid)"
+      },
+      "charge_led_color": {
+        "name": "Laddportens LED-färg"
+      },
+      "charge_led_pattern": {
+        "name": "Laddportens LED-mönster"
+      },
       "last_report_id": {
         "name": "Rapport-ID"
       },
@@ -966,6 +984,9 @@
       },
       "parking_light_right": {
         "name": "Parkeringsljus (höger)"
+      },
+      "energy_flow_active": {
+        "name": "Energiflöde"
       }
     },
     "switch": {

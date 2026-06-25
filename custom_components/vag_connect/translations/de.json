@@ -736,6 +736,24 @@
       "data_error_detail": {
         "name": "Datenfehler"
       },
+      "external_power_supply_state": {
+        "name": "Externe Stromversorgung"
+      },
+      "charging_reason": {
+        "name": "Ladegrund"
+      },
+      "charging_error_code": {
+        "name": "Ladefehlercode"
+      },
+      "remaining_time_target_soc": {
+        "name": "Restzeit-Ladeziel"
+      },
+      "charge_led_color": {
+        "name": "Ladeanschluss-LED-Farbe"
+      },
+      "charge_led_pattern": {
+        "name": "Ladeanschluss-LED-Muster"
+      },
       "last_report_id": {
         "name": "Bericht-ID"
       },
@@ -968,6 +986,9 @@
       },
       "parking_light_right": {
         "name": "Standlicht (rechts)"
+      },
+      "energy_flow_active": {
+        "name": "Energiefluss"
       }
     },
     "switch": {

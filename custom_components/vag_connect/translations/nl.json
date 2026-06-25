@@ -734,6 +734,24 @@
       "data_error_detail": {
         "name": "Datafout"
       },
+      "external_power_supply_state": {
+        "name": "Externe voeding"
+      },
+      "charging_reason": {
+        "name": "Laadreden"
+      },
+      "charging_error_code": {
+        "name": "Laadfoutcode"
+      },
+      "remaining_time_target_soc": {
+        "name": "Resterende-tijd laaddoel"
+      },
+      "charge_led_color": {
+        "name": "Kleur LED laadpoort"
+      },
+      "charge_led_pattern": {
+        "name": "Patroon LED laadpoort"
+      },
       "last_report_id": {
         "name": "Rapport-ID"
       },
@@ -966,6 +984,9 @@
       },
       "parking_light_right": {
         "name": "Parkeerlicht (rechts)"
+      },
+      "energy_flow_active": {
+        "name": "Energiestroom"
       }
     },
     "switch": {

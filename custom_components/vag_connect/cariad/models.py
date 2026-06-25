@@ -1409,6 +1409,27 @@ class VehicleData:
     # Portal dataset key — LOW confidence, disabled-by-default. Diagnostic.
     dataset_key: str | None = None
 
+    # ── v2.15.2 — EU Data Act portal "charger detail" fields (#513 Scout) ────
+    # New EU-Data-Act-dialect-only fields surfaced by the per-poll charger
+    # detail block. All written by _eu_data_act.py; all DIAGNOSTIC.
+    # External power-supply state (enum, e.g. "available"). sensor.
+    external_power_supply_state: str | None = None
+    # Energy actively flowing to/from the HV battery right now (raw portal
+    # "energy_flow" on/off). binary_sensor. Distinct from the cross-brand
+    # OLA-sourced ``energy_flow`` bool above — this is the EU portal signal.
+    energy_flow_active: bool | None = None
+    # Reason the current charge was triggered (enum, e.g. "immediate"). sensor.
+    charging_reason: str | None = None
+    # Charging-state error code; "0"/"#0" sentinels (= no error) dropped → None.
+    charging_error_code: str | None = None
+    # Which SoC target the remaining charging time counts down to
+    # (enum, e.g. "maxSOC"). sensor.
+    remaining_time_target_soc: str | None = None
+    # Charge-port LED colour (e.g. "green") — disabled-by-default. sensor.
+    charge_led_color: str | None = None
+    # Charge-port LED pattern (e.g. "pulse") — disabled-by-default. sensor.
+    charge_led_pattern: str | None = None
+
     # — BFF / selectivestatus dialect NEW fields —
     # Per-corner tire pressure STATE strings (shared — EU tires.[*].state and
     # BFF {corner}TireState both write these). Lowercased passthrough.

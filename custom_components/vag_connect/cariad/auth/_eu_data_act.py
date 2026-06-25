@@ -1096,6 +1096,39 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     if _dkey is not None:
         d.dataset_key = str(_dkey)
 
+    # ── v2.15.2 — EU Data Act portal "charger detail" fields (#513 Scout) ────
+    # All additive, guarded, EU-Data-Act-dialect only.
+    _eps = first("external_power_supply_state")
+    if _eps is not None:
+        d.external_power_supply_state = _shorten_enum(_eps)
+
+    _eflow = first("energy_flow")
+    if _eflow is not None:
+        d.energy_flow_active = str(_eflow).lower() in ("on", "true", "1", "active")
+
+    _creason = first("charging_reason_trigger")
+    if _creason is not None:
+        d.charging_reason = _shorten_enum(_creason)
+
+    # charging_state_error_code — "0"/"#0" are the "no error" sentinels → None.
+    _cerr = first("charging_state_error_code")
+    if _cerr is not None:
+        _cerrs = str(_cerr).strip()
+        if _cerrs and _cerrs not in ("0", "#0"):
+            d.charging_error_code = _cerrs
+
+    _rtts = first("remaining_charging_time_target_soc")
+    if _rtts is not None:
+        d.remaining_time_target_soc = _rtts
+
+    _led_c = first("led_color")
+    if _led_c is not None:
+        d.charge_led_color = _led_c
+
+    _led_s = first("led_state")
+    if _led_s is not None:
+        d.charge_led_pattern = _led_s
+
     # b1/B3 — derive drivetrain from the data actually present (fixes the
     # #37 class: an EV like the e-up! showing only combustion entities, or a
     # PHEV like the Golf GTE flagged as neither). Additive: only set flags True

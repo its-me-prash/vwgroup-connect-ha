@@ -734,6 +734,24 @@
       "data_error_detail": {
         "name": "Chyba dat"
       },
+      "external_power_supply_state": {
+        "name": "Externí napájení"
+      },
+      "charging_reason": {
+        "name": "Důvod nabíjení"
+      },
+      "charging_error_code": {
+        "name": "Kód chyby nabíjení"
+      },
+      "remaining_time_target_soc": {
+        "name": "Cíl nabití (zbývající čas)"
+      },
+      "charge_led_color": {
+        "name": "Barva LED nabíjecího portu"
+      },
+      "charge_led_pattern": {
+        "name": "Vzor LED nabíjecího portu"
+      },
       "last_report_id": {
         "name": "ID hlášení"
       },
@@ -966,6 +984,9 @@
       },
       "parking_light_right": {
         "name": "Parkovací světlo (pravé)"
+      },
+      "energy_flow_active": {
+        "name": "Tok energie"
       }
     },
     "switch": {

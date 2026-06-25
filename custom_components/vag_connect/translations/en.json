@@ -736,6 +736,24 @@
       "data_error_detail": {
         "name": "Data error"
       },
+      "external_power_supply_state": {
+        "name": "External power supply"
+      },
+      "charging_reason": {
+        "name": "Charging reason"
+      },
+      "charging_error_code": {
+        "name": "Charging error code"
+      },
+      "remaining_time_target_soc": {
+        "name": "Remaining-time charge target"
+      },
+      "charge_led_color": {
+        "name": "Charge-port LED colour"
+      },
+      "charge_led_pattern": {
+        "name": "Charge-port LED pattern"
+      },
       "last_report_id": {
         "name": "Report ID"
       },
@@ -968,6 +986,9 @@
       },
       "parking_light_right": {
         "name": "Parking light (right)"
+      },
+      "energy_flow_active": {
+        "name": "Energy flow"
       }
     },
     "switch": {

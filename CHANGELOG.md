@@ -42,6 +42,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 > Prepared, collecting more field-format feedback before release — see #511.
 
+### Added
+
+- **More charger-detail fields (#513).** External power supply state, energy flow, charging reason, charging error code, remaining-time charge target, and the charge-port LED (colour + pattern, disabled by default) now surface as (mostly diagnostic) sensors. The keep-alive `echo` field and raw IDs stay Scout-only.
+
 ### Fixed
 
 - **Charging / climate remaining-time read as seconds (#511).** The EU Data Act portal sends these durations as seconds with a trailing `s` (e.g. `"2400s"` = 40 min, `"0s"` = 0); v2.15.1 read them as a plain number and left the sensors empty. They now convert `Ns` → minutes, and the climate-time read also accepts the `remaining_climate_time` key. A bare number is still treated as minutes (older firmwares). Thanks to @Ra72xx for the sample data.

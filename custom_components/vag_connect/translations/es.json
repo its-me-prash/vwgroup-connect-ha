@@ -734,6 +734,24 @@
       "data_error_detail": {
         "name": "Error de datos"
       },
+      "external_power_supply_state": {
+        "name": "Suministro externo"
+      },
+      "charging_reason": {
+        "name": "Motivo de carga"
+      },
+      "charging_error_code": {
+        "name": "Código de error de carga"
+      },
+      "remaining_time_target_soc": {
+        "name": "Objetivo de carga (tiempo restante)"
+      },
+      "charge_led_color": {
+        "name": "Color LED del puerto de carga"
+      },
+      "charge_led_pattern": {
+        "name": "Patrón LED del puerto de carga"
+      },
       "last_report_id": {
         "name": "ID del informe"
       },
@@ -966,6 +984,9 @@
       },
       "parking_light_right": {
         "name": "Luz de estacionamiento (der.)"
+      },
+      "energy_flow_active": {
+        "name": "Flujo de energía"
       }
     },
     "switch": {

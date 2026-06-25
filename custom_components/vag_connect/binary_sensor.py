@@ -622,6 +622,17 @@ _NEW_BINARY: tuple[VagBinarySensorDescription, ...] = (
         icon="mdi:car-parking-lights",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # v2.15.2 — EU Data Act portal "charger detail" (#513 Scout). Distinct
+    # from the cross-brand ``energy_flow`` above: this is the EU portal's own
+    # ``energy_flow`` on/off signal. DIAGNOSTIC.
+    VagBinarySensorDescription(
+        key="energy_flow_active",
+        translation_key="energy_flow_active",
+        data_key="energy_flow_active",
+        device_class=BinarySensorDeviceClass.POWER,
+        icon="mdi:flash",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
 )
 BINARY_DESCRIPTIONS = BINARY_DESCRIPTIONS + _NEW_BINARY
 
@@ -718,6 +729,8 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "parking_brake_engaged",
     "parking_light_left",
     "parking_light_right",
+    # v2.15.2 — EU Data Act portal "charger detail" (#513 Scout).
+    "energy_flow_active",
 })
 
 
