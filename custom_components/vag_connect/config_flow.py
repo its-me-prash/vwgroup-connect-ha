@@ -33,6 +33,7 @@ from .const import (
     BRANDS,
     CONF_BRAND,
     CONF_CLIENT_ID_OVERRIDE,
+    CONF_COUNTRY,
     CONF_ENABLE_DATA_ACT_BROWSER,
     CONF_EU_DATA_ACT_AUTO_KICKOFF,
     CONF_WAKE_BEFORE_POLL,
@@ -97,6 +98,20 @@ _PASSWORD_SELECTOR = TextSelector(
     TextSelectorConfig(type=TextSelectorType.PASSWORD, autocomplete="current-password")
 )
 
+# v2.15.1 (#503) — Volkswagen US/Canada region picker. Only relevant for the
+# volkswagen_na brand (US vs CA pick different MYVW client_id + API host); all
+# other brands ignore the stored value. Inline English option labels (no
+# translation_key) so we don't add per-option i18n keys to all 9 string files.
+_COUNTRY_SELECTOR = SelectSelector(
+    SelectSelectorConfig(
+        options=[
+            SelectOptionDict(value="us", label="United States"),
+            SelectOptionDict(value="ca", label="Canada"),
+        ],
+        mode=SelectSelectorMode.DROPDOWN,
+    )
+)
+
 _SPIN_SELECTOR = TextSelector(
     TextSelectorConfig(type=TextSelectorType.PASSWORD, autocomplete="off")
 )
@@ -126,6 +141,7 @@ _BOOL_SELECTOR = BooleanSelector()
 async def _validate_credentials(
     hass: HomeAssistant, brand: str, username: str, password: str,
     mfa_code: str | None = None,
+    country: str = "us",
 ) -> None:
     """Validate credentials by authenticating with the CARIAD API."""
     import aiohttp  # noqa: PLC0415
@@ -144,7 +160,9 @@ async def _validate_credentials(
         connector=connector,
         cookie_jar=aiohttp.CookieJar(unsafe=True),
     ) as auth_session:
-        client = CariadClientFactory.create(brand, auth_session, username, password)
+        client = CariadClientFactory.create(
+            brand, auth_session, username, password, country=country
+        )
         try:
             await client.authenticate(mfa_code=mfa_code)
         except TermsAndConditionsError as err:
@@ -238,6 +256,7 @@ def _credentials_schema(
     spin: str = "",
     force_access: bool = False,
     enable_mbb_commands: bool = False,
+    country: str = "us",
 ) -> vol.Schema:
     """Credentials + advanced settings schema with proper selectors."""
     schema: dict[vol.Marker, Any] = {
@@ -245,6 +264,10 @@ def _credentials_schema(
         vol.Required(CONF_USERNAME, default=username or vol.UNDEFINED): _USERNAME_SELECTOR,
         vol.Required(CONF_PASSWORD): _PASSWORD_SELECTOR,
         vol.Optional(CONF_SPIN, default=spin): _SPIN_SELECTOR,
+        # v2.15.1 (#503) — Volkswagen US/Canada region. Only consumed by the
+        # volkswagen_na brand; ignored everywhere else. Default "us" keeps
+        # pre-existing entries (which never stored a country) working.
+        vol.Optional(CONF_COUNTRY, default=country): _COUNTRY_SELECTOR,
         vol.Optional(CONF_SCAN_INTERVAL, default=scan_interval): _INTERVAL_SELECTOR,
         vol.Optional(CONF_FORCE_ACCESS, default=force_access): _BOOL_SELECTOR,
         # b12 — Volkswagen only: after the portal login, add a durable-MBB
@@ -376,12 +399,15 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             brand    = user_input[CONF_BRAND]
             username = user_input[CONF_USERNAME]
             password = user_input[CONF_PASSWORD]
+            country  = user_input.get(CONF_COUNTRY, "us")
 
             await self.async_set_unique_id(f"{brand}_{username}")
             self._abort_if_unique_id_configured()
 
             try:
-                await _validate_credentials(self.hass, brand, username, password)
+                await _validate_credentials(
+                    self.hass, brand, username, password, country=country
+                )
             except ValueError as err:
                 err_str = str(err)
                 if err_str.startswith("two_factor_required"):
@@ -450,6 +476,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 enable_mbb_commands=bool(
                     suggested.get("enable_mbb_commands", False)
                 ),
+                country=suggested.get(CONF_COUNTRY, "us"),
             ),
             errors=errors,
         )
@@ -1287,6 +1314,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     self._pending_username,
                     self._pending_password,
                     mfa_code=mfa_code,
+                    country=self._pending_entry_data.get(CONF_COUNTRY, "us"),
                 )
             except ValueError as err:
                 errors["base"] = _map_error(str(err))
@@ -1325,9 +1353,12 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             username = reauth_entry.data[CONF_USERNAME]
             password = user_input[CONF_PASSWORD]
             spin     = user_input.get(CONF_SPIN, reauth_entry.data.get(CONF_SPIN, ""))
+            country  = reauth_entry.data.get(CONF_COUNTRY, "us")
 
             try:
-                await _validate_credentials(self.hass, brand, username, password)
+                await _validate_credentials(
+                    self.hass, brand, username, password, country=country
+                )
             except ValueError as err:
                 errors["base"] = _map_error(str(err))
             else:
@@ -1365,9 +1396,12 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             brand    = user_input[CONF_BRAND]
             username = user_input[CONF_USERNAME]
             password = user_input[CONF_PASSWORD]
+            country  = user_input.get(CONF_COUNTRY, "us")
 
             try:
-                await _validate_credentials(self.hass, brand, username, password)
+                await _validate_credentials(
+                    self.hass, brand, username, password, country=country
+                )
             except ValueError as err:
                 errors["base"] = _map_error(str(err))
             else:
@@ -1393,6 +1427,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 scan_interval=current.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
                 spin=current.get(CONF_SPIN, ""),
                 force_access=current.get(CONF_FORCE_ACCESS, False),
+                country=current.get(CONF_COUNTRY, "us"),
             ),
             errors=errors,
         )
@@ -1415,6 +1450,9 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             CONF_USERNAME:      username,
             CONF_PASSWORD:      password,
             CONF_SPIN:          user_input.get(CONF_SPIN, ""),
+            # v2.15.1 (#503) — persist the Volkswagen US/Canada region so the
+            # coordinator can pick the right MYVW client_id + host on reload.
+            CONF_COUNTRY:       user_input.get(CONF_COUNTRY, "us"),
             CONF_SCAN_INTERVAL: max(
                 int(user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)),
                 MIN_SCAN_INTERVAL,

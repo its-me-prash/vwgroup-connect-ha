@@ -66,6 +66,7 @@
           "username": "Correo electrónico",
           "password": "Contraseña",
           "spin": "S-PIN",
+          "country": "Región (solo Volkswagen EE. UU./Canadá)",
           "scan_interval": "Intervalo de actualización",
           "force_enable_access": "Forzar estado de puertas"
         }
@@ -88,6 +89,7 @@
           "username": "Email Address",
           "password": "Password",
           "spin": "S-PIN",
+          "country": "Región (solo Volkswagen EE. UU./Canadá)",
           "scan_interval": "Update Interval",
           "force_enable_access": "Force Door Status",
           "enable_mbb_commands": "Activar comandos remotos MBB (solo Volkswagen — confirmación QR)"

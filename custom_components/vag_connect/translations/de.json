@@ -17,6 +17,7 @@
           "username": "E-Mail-Adresse",
           "password": "Passwort",
           "spin": "S-PIN (optional, für Türverriegelung)",
+          "country": "Region (nur Volkswagen US/Kanada)",
           "scan_interval": "Aktualisierungsintervall (Minuten)",
           "force_enable_access": "Türzustand erzwingen (für ältere Modelle)"
         }
@@ -39,6 +40,7 @@
           "username": "E-Mail-Adresse",
           "password": "Passwort",
           "spin": "S-PIN (optional, für Türverriegelung)",
+          "country": "Region (nur Volkswagen US/Kanada)",
           "scan_interval": "Aktualisierungsintervall (Minuten)",
           "force_enable_access": "Türzustand erzwingen (für ältere Modelle)",
           "enable_mbb_commands": "MBB-Fernbefehle aktivieren (nur Volkswagen — zusätzlicher QR-Login)"

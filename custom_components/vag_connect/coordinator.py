@@ -24,6 +24,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
     CONF_BRAND,
+    CONF_COUNTRY,
     CONF_ENABLE_PUSH_AUDI_VW,
     CONF_ENABLE_PUSH_FCM,
     CONF_ENABLE_PUSH_MQTT,
@@ -542,6 +543,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         session = async_get_clientsession(self.hass)
         self._cariad_client = CariadClientFactory.create(
             brand, session, username, password, spin,
+            # v2.15.1 (#503) — Volkswagen US/Canada region. Only the
+            # volkswagen_na client consumes it; every other brand ignores
+            # the kwarg. Default "us" for entries created before this field.
+            country=self.entry.data.get(CONF_COUNTRY, "us"),
             ola_app_version_override=ola_app_v,
             ola_user_agent_override=ola_ua,
         )

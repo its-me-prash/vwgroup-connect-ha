@@ -9,6 +9,11 @@ CONF_BRAND                    = "brand"
 CONF_USERNAME                 = "username"
 CONF_PASSWORD                 = "password"
 CONF_SPIN                     = "spin"
+# v2.15.1 (#503) — Volkswagen US/Canada region selector. VWNorthAmericaClient
+# picks the right MYVW client_id + b-h-s.spr.{us|ca}00 host from this value.
+# Only consumed by the volkswagen_na brand; every other brand ignores it.
+# Backward-compatible default "us" for entries created before this field.
+CONF_COUNTRY                  = "country"
 # v2.15.0 — durable MBB strategy: optional manual VIN(s). The MBB
 # fal-scoped bearer cannot call the account-level usermanagement garage
 # endpoint (403 RS.security.9007 XID_APP_VW), so the user supplies the VIN
