@@ -377,7 +377,9 @@ def _dataset_captured_ts(payload: Any) -> float | None:
 
 
 def _walk_fields(
-    payload: Any, _ts_out: dict[str, float] | None = None
+    payload: Any,
+    _ts_out: dict[str, float] | None = None,
+    _syn_out: dict[str, set[str]] | None = None,
 ) -> dict[str, str]:
     """Flatten the EU Data Act dataset into ``{field_name: value}``.
 
@@ -431,6 +433,16 @@ def _walk_fields(
     real per-point capture ts of each surfaced field (only fields whose winning
     sample carried a genuine ts). #529 step 2 uses this so ``last_seen_at`` is
     never advanced past the snapshot the surfaced odometer actually came from.
+
+    ``_syn_out`` (optional): if a dict is passed, it is filled with an EXPLICIT,
+    bidirectional synonym map ``{spelling -> {the other spelling(s)}}`` recording,
+    per PHYSICAL data-point node, the bare-leaf and container-qualified spellings
+    we emit for the SAME datum (the v2.15.4 overreport fix below emits BOTH). This
+    is the no-suppression-safe replacement for the old leaf+value heuristic in
+    ``first()``: two synonyms ALWAYS originate from one node, so two distinct nodes
+    that merely share a leaf name (e.g. ``battery_state_report.soc`` vs
+    ``front_left_tyre.soc``) are NEVER synonyms and can never cross-collapse — even
+    if their values happen to be equal.
     """
     # name -> (value_str, ts, ts_real); ts_real distinguishes a genuine
     # per-point timestamp from the inherited dataset-level floor (-inf=unknown).
@@ -490,6 +502,25 @@ def _walk_fields(
             fname = node.get("dataFieldName") or node.get("name")
             if fname is not None and "value" in node:
                 add(fname, node.get("value"), ts, ts_real)
+                # v2.15.4 overreport fix: a data-point node reached through a
+                # container (e.g. slope_consumption_values.ascent_slope_consumption
+                # .physical_value) carries its full dotted path in ``prefix``. Emit
+                # that CONTAINER-QUALIFIED key IN ADDITION to the bare leaf so (1)
+                # the dotted first() forms actually match in the realistic portal
+                # shape, and (2) ascent vs descent disambiguate — the bare leaf
+                # ``physical_value`` is SHARED by both siblings and latest-wins
+                # would otherwise collapse them to one value. The leftover bare
+                # synonym is reclaimed by first()'s synonym-collapse so it does not
+                # become a new chronic raw_unmapped re-reporter.
+                if prefix and not in_array:
+                    add(prefix, node.get("value"), ts, ts_real)
+                    # Record the bare/qualified pair as EXPLICIT synonyms of each
+                    # other (bidirectional). They come from THIS one physical node,
+                    # so first()'s synonym-collapse is precise: it never touches a
+                    # same-leaf field emitted by a DIFFERENT node.
+                    if _syn_out is not None and isinstance(fname, str):
+                        _syn_out.setdefault(fname, set()).add(prefix)
+                        _syn_out.setdefault(prefix, set()).add(fname)
             for k, val in node.items():
                 if k in ("dataFieldName", "name", "value"):
                     continue
@@ -669,6 +700,7 @@ def map_dataset_to_vehicle_data(
     fields: dict[str, str],
     d: VehicleData,
     field_ts: dict[str, float] | None = None,
+    field_syn: dict[str, set[str]] | None = None,
 ) -> VehicleData:
     """Map a curated subset of EU Data Act fields onto ``VehicleData``.
 
@@ -679,6 +711,7 @@ def map_dataset_to_vehicle_data(
     (``battery_state_report.soc``); we try both.
     """
     used: set[str] = set()
+    syn = field_syn or {}
 
     def first(*names: str) -> str | None:
         for n in names:
@@ -691,6 +724,28 @@ def map_dataset_to_vehicle_data(
                 if _is_sentinel(n, val):
                     continue
                 used.add(n)
+                # v2.15.4 synonym-collapse (no-suppression-safe): bare / dotted /
+                # container-qualified spellings of the SAME field coexist in
+                # ``fields`` because the walker emits BOTH the bare leaf AND the
+                # full dotted path for a data-point node nested under a container.
+                # Once we consume one spelling, mark every OTHER spelling of the
+                # same datum used so it stops re-surfacing in raw_unmapped_fields.
+                # "Other spellings" = (a) the remaining explicit ``*names`` of this
+                # call, and (b) the matched name's EXPLICIT synonyms — the bare/
+                # qualified twins recorded by _walk_fields for the one physical node
+                # that emitted them. Because a synonym pair always originates from a
+                # SINGLE node, two distinct nodes that merely share a leaf name
+                # (e.g. battery_state_report.soc vs front_left_tyre.soc) are NEVER
+                # synonyms and can never cross-collapse — even with equal values.
+                # ascent/descent slope each carry their OWN container-qualified
+                # synonym, so the shared bare ``physical_value`` is reclaimed by
+                # whichever was matched first without conflating the two values.
+                for other in names:
+                    if other != n and other in fields:
+                        used.add(other)
+                for other in syn.get(n, frozenset()):
+                    if other in fields:
+                        used.add(other)
                 return val
         return None
 
@@ -1533,18 +1588,24 @@ def map_dataset_to_vehicle_data(
     _ncs = first(
         "profile_state_report.next_charging_timer_information.estimated_start_time",
         "next_charging_timer_information.estimated_start_time",
+        # v2.15.4 overreport fix: bare leaf — the realistic data-point shape emits
+        # the bare key; the leaf name is UNIQUE so this alias is safe. Listed here
+        # so synonym-collapse also reclaims it from raw_unmapped.
+        "estimated_start_time",
     )
     if _ncs is not None and d.next_charge_timer_start_at is None:
         d.next_charge_timer_start_at = _epoch_or_iso(_ncs)
     _ncf = first(
         "profile_state_report.next_charging_timer_information.estimated_finish_time",
         "next_charging_timer_information.estimated_finish_time",
+        "estimated_finish_time",  # v2.15.4: unique bare leaf — safe alias.
     )
     if _ncf is not None and d.next_charge_timer_finish_at is None:
         d.next_charge_timer_finish_at = _epoch_or_iso(_ncf)
     _ncr = first(
         "profile_state_report.next_charging_timer_information.target_reachability",
         "next_charging_timer_information.target_reachability",
+        "target_reachability",  # v2.15.4: unique bare leaf — safe alias.
     )
     if _ncr is not None and d.next_charge_target_reachability is None:
         # Dict tokens (target_reachability desc): TARGET_REACHABILITY_{INVALID,
@@ -2048,7 +2109,8 @@ class EUDataActConnector:
             return d
         payload = _unzip_json(raw, newest)
         field_ts: dict[str, float] = {}  # #529: resolved per-field capture ts
-        fields = _walk_fields(payload, field_ts)
+        field_syn: dict[str, set[str]] = {}  # v2.15.4: bare/qualified synonym map
+        fields = _walk_fields(payload, field_ts, field_syn)
         _LOGGER.debug(
             "EU Data Act portal: %s dataset carried %d fields", vin[-6:], len(fields)
         )
@@ -2061,7 +2123,7 @@ class EUDataActConnector:
         self.last_no_data_reason = ""
         d.no_data = False  # real dataset parsed → this is a genuine good poll
         d.connection_state = "online"
-        return map_dataset_to_vehicle_data(fields, d, field_ts)
+        return map_dataset_to_vehicle_data(fields, d, field_ts, field_syn)
 
     async def get_relation_nickname(self, vin: str) -> str | None:
         """Best-effort vehicle nickname from the relation endpoint."""
