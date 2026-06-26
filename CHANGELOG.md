@@ -44,6 +44,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 - **More mapped fields.** The "last update reason" — why the car last pushed a report to the backend (e.g. it started charging, ignition went on/off, climate ran) — now surfaces as a diagnostic sensor (disabled by default). One of the recurring VW-EU Scout fields, now off the list. Nothing hidden.
 
+### Fixed
+
+- **VW US/CA: data reads work again on locked-down accounts with an S-PIN (#503).** Some US/Canada accounts could log in and list the garage but every per-vehicle read came back 403. If you've set your S-PIN, the integration now unlocks those reads the way the official app does — it asks for a short-lived per-car token and uses that for the data. It's done carefully: the token is cached and only refreshed when it expires (never on every poll), and if your S-PIN looks wrong or you're near the attempt limit it backs off immediately and falls back to the normal path, so it can't lock your S-PIN. Accounts without an S-PIN are unchanged. And a persistent 403 that used to stay silent now raises the repair notice after it keeps happening.
+
 ## [2.15.4] - 2026-06-26
 
 ### Fixed
