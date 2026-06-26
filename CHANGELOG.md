@@ -48,6 +48,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **More mapped fields (#521, #522).** Next-charging-timer schedule (start/finish/reachability), uphill/downhill slope consumption, the charging error code, and an outdoor-temperature alias. Diagnostic; low-confidence disabled by default; nothing hidden.
 - **More mapped fields (#523).** Actual charge rate (folded into the charge-rate sensor), comfort settings (climatisation-at-unlock, mirror heating, front climate-zone enable) and the start/stop charging action. Diagnostic, disabled by default; nothing hidden.
 - **More mapped fields (#528).** Start/stop modification, hood state, front tyre pressures, and the last-trip gas / range-gain / zero-emission aggregates (the short-term counterparts to the lifetime figures). Diagnostic, disabled by default; nothing hidden.
+- **Audi next-charging-timer fallback (#530).** Some Audis report the charge-timer id + target-SoC-reachable under a different container than the integration was reading, so the sensor stayed empty. Now read as a fallback — the existing 'target SoC reachable' sensor populates. No new entities.
 
 ## [2.15.3] - 2026-06-26
 

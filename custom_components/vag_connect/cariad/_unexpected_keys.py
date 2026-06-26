@@ -649,6 +649,14 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # the charging.-prefixed 5-deep) wildcards for each container.
             "chargingProfiles.*.*.*", "charging.chargingProfiles.*.*.*",
             "chargingTimers.*.*.*", "charging.chargingTimers.*.*.*",
+            # v2.15.4 (#530 audi) — these two 5-segment leaves under the
+            # chargingProfilesStatus container are now CONSUMED by the parser
+            # (next_charging_timer_id + next_charging_timer_target_soc_reachable;
+            # see vw_eu.py _parse_status). Register them explicitly so the Scout
+            # stops re-reporting once the fallback maps them. Equal-depth matcher
+            # → the 4-deep ``chargingProfiles.*.*.*`` above does NOT cover these.
+            "chargingProfiles.chargingProfilesStatus.value.nextChargingTimer.id",
+            "chargingProfiles.chargingProfilesStatus.value.nextChargingTimer.targetSOCreachable",
             # v2.12.1 (#423) — DC counterpart of the long-parsed
             # autoUnlockPlugWhenChargedAC setting.
             "charging.chargingSettings.value.autoUnlockPlugWhenChargedDC",

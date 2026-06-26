@@ -2411,12 +2411,28 @@ class VWEUClient(CariadBaseClient):
 
         # v1.26.0 — Next-Charging-Timer info (read-side complement to v1.16.0
         # write-side). From scout #144/#145/#146/#147 (3-user convergence).
+        # v2.15.4 (#530 audi) — some Audi firmware ships the same two fields
+        # under a DIFFERENT container: ``chargingProfiles.chargingProfilesStatus
+        # .value.nextChargingTimer.{id,targetSOCreachable}`` instead of the
+        # ``automation.chargingProfiles.value.nextChargingTimer.*`` path. Keep
+        # the automation path PRIMARY; the chargingProfilesStatus container is a
+        # FALLBACK (first-non-null wins). Same model fields/entities/i18n.
         nct_id = v(raw, "automation", "chargingProfiles", "value", "nextChargingTimer", "id")
+        if nct_id is None:
+            nct_id = v(
+                raw, "chargingProfiles", "chargingProfilesStatus", "value",
+                "nextChargingTimer", "id",
+            )
         d.next_charging_timer_id = safe_int(nct_id)
         nct_target = v(
             raw, "automation", "chargingProfiles", "value",
             "nextChargingTimer", "targetSOCreachable",
         )
+        if nct_target is None:
+            nct_target = v(
+                raw, "chargingProfiles", "chargingProfilesStatus", "value",
+                "nextChargingTimer", "targetSOCreachable",
+            )
         if isinstance(nct_target, str) and nct_target:
             d.next_charging_timer_target_soc_reachable = nct_target
 
