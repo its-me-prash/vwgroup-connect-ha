@@ -974,6 +974,12 @@
       "report_type": {
         "name": "Report type"
       },
+      "result_app": {
+        "name": "App data result"
+      },
+      "result_master": {
+        "name": "Master data result"
+      },
       "start_stop_action": {
         "name": "Charge start/stop action"
       },

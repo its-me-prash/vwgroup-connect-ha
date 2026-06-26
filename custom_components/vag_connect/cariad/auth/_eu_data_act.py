@@ -1781,6 +1781,19 @@ def map_dataset_to_vehicle_data(
     if _rtype is not None and d.report_type is None:
         d.report_type = _shorten_enum(_rtype)
 
+    # result_app / result_master — generic delivery/sync "result" status enums
+    # for the app-data and master-data channels. The dict lists NO values for
+    # either (type=enum, unit=null), so — like report_type — code adds no
+    # speculative prefix and passes the raw token through _shorten_enum for
+    # display. LOW value (metadata, not telemetry) → disabled-by-default
+    # diagnostic, but mapped (never Scout-suppressed).
+    _rapp = first("result_app")
+    if _rapp is not None and d.result_app is None:
+        d.result_app = _shorten_enum(_rapp)
+    _rmaster = first("result_master")
+    if _rmaster is not None and d.result_master is None:
+        d.result_master = _shorten_enum(_rmaster)
+
     # ── v2.15.4 (#523) — EU Data Act portal new fields ───────────────────────
     # All additive, guarded, EU-Data-Act-dialect only.
     # Climatisation settings — dict type=string, Climatisation cluster. The

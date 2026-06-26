@@ -1566,6 +1566,12 @@ class VehicleData:
     # shortened) — metadata, not telemetry. LOW — disabled-by-default.
     # sensor, diagnostic.
     report_type: str | None = None
+    # Delivery/sync result status of the app- and master-data channel
+    # (generic "result" enums, dict lists no values → raw value shortened
+    # for display). Metadata, not telemetry. LOW — disabled-by-default.
+    # sensor, diagnostic.
+    result_app: str | None = None
+    result_master: str | None = None
 
     # ── v2.15.4 (#523) — EU Data Act portal new fields ───────────────────────
     # All written by _eu_data_act.py only (EU-Data-Act dialect). Climatisation

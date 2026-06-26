@@ -974,6 +974,12 @@
       "report_type": {
         "name": "Rapporttype"
       },
+      "result_app": {
+        "name": "Resultaat app-gegevens"
+      },
+      "result_master": {
+        "name": "Resultaat stamgegevens"
+      },
       "start_stop_action": {
         "name": "Laad start/stop-actie"
       },

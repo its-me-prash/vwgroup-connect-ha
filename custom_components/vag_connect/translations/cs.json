@@ -974,6 +974,12 @@
       "report_type": {
         "name": "Typ zprávy"
       },
+      "result_app": {
+        "name": "Výsledek dat aplikace"
+      },
+      "result_master": {
+        "name": "Výsledek kmenových dat"
+      },
       "start_stop_action": {
         "name": "Akce spuštění/zastavení nabíjení"
       },

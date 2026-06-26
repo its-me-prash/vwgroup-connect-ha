@@ -2536,6 +2536,24 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # result_app / result_master — delivery/sync result status enums.
+    # Metadata, not telemetry. LOW — disabled-by-default.
+    VagSensorDescription(
+        key="result_app",
+        translation_key="result_app",
+        data_key="result_app",
+        icon="mdi:check-network-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="result_master",
+        translation_key="result_master",
+        data_key="result_master",
+        icon="mdi:check-network-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     # ── v2.15.4 (#523) — EU Data Act portal new fields ──────────────────────
     # start_stop_action — charging-related action string. LOW —
     # disabled-by-default.
@@ -2867,6 +2885,8 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "ascent_slope_consumption",
     "descent_slope_consumption",
     "report_type",
+    "result_app",
+    "result_master",
     # v2.15.4 (#523) — EU Data Act portal new field. EU-Data-Act dialect only;
     # vehicles/channels without the field stay None → no phantom.
     "start_stop_action",

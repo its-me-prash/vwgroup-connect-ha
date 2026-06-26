@@ -177,6 +177,20 @@ def test_522_report_type_no_prefix_passthrough() -> None:
     assert d.report_type == "REPORT_TYPE_CONSUMPTION_VALUES"
 
 
+def test_535_result_app_no_prefix_passthrough() -> None:
+    # #535 Scout — generic delivery/sync result enum; dict lists NO values →
+    # no confirmed prefix, raw passes through _shorten_enum unchanged.
+    d = _map({"result_app": "RESULT_APP_SUCCESS"})
+    assert d.result_app == "RESULT_APP_SUCCESS"
+
+
+def test_535_result_master_no_prefix_passthrough() -> None:
+    # #535 Scout — generic delivery/sync result enum; dict lists NO values →
+    # no confirmed prefix, raw passes through _shorten_enum unchanged.
+    d = _map({"result_master": "RESULT_MASTER_SUCCESS"})
+    assert d.result_master == "RESULT_MASTER_SUCCESS"
+
+
 # ── #523 — comfort/climate settings (bool), start/stop action
 
 

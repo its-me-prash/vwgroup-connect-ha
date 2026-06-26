@@ -974,6 +974,12 @@
       "report_type": {
         "name": "Rapporttyp"
       },
+      "result_app": {
+        "name": "Resultat appdata"
+      },
+      "result_master": {
+        "name": "Resultat masterdata"
+      },
       "start_stop_action": {
         "name": "Laddningsstart/stopp-åtgärd"
       },

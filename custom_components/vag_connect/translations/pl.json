@@ -974,6 +974,12 @@
       "report_type": {
         "name": "Typ raportu"
       },
+      "result_app": {
+        "name": "Wynik danych aplikacji"
+      },
+      "result_master": {
+        "name": "Wynik danych podstawowych"
+      },
       "start_stop_action": {
         "name": "Akcja start/stop ładowania"
       },
