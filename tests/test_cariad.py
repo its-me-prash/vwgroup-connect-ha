@@ -1097,6 +1097,89 @@ class TestVWEUCommands:
         asyncio.run(client.command_flash("VIN1"))
         client._session.request.assert_called()
 
+    def test_command_flash_request_shape(self):
+        """v2.15.5 — command_flash must build the real CARIAD ``honkandflash``
+        request (NOT the invented ``vehicleLights/flash`` + ``{"action"}``
+        body that the BFF answered with a flat 400).
+
+        Grounded in the decompiled We Connect EU app:
+        - POST .../vehicle/v1/vehicles/{vin}/honkandflash
+        - body {"mode": "FLASH_ONLY", "duration": <int>}
+        """
+        client = self._client()
+        asyncio.run(client.command_flash("VIN1"))
+
+        call = client._session.request.call_args
+        method, url = call.args[0], call.args[1]
+        body = call.kwargs["json"]
+
+        assert method == "POST"
+        # Real endpoint suffix — and NOT the old invented one.
+        assert url.endswith("/vehicle/v1/vehicles/VIN1/honkandflash")
+        assert "vehicleLights/flash" not in url
+        # Real body schema — mode enum value + integer duration, no "action".
+        assert body["mode"] == "FLASH_ONLY"
+        assert isinstance(body["duration"], int)
+        assert "action" not in body
+        # Bare body first → no userPosition unless the backend 400s.
+        assert "userPosition" not in body
+
+    def test_command_flash_retries_with_userposition_on_400(self):
+        """v2.15.5 — when the bare body is rejected with 400, retry with a
+        ``userPosition`` built from the caller-supplied coordinates."""
+        from custom_components.vag_connect.cariad.api.vw_eu import VWEUClient
+        from custom_components.vag_connect.cariad.models import TokenSet
+
+        # First response 400 (bare body), second 204 (with userPosition).
+        resp_400 = AsyncMock()
+        resp_400.status = 400
+        resp_400.headers = {"Content-Type": "application/json"}
+        resp_400.json = AsyncMock(return_value={"error": "needs userPosition"})
+        resp_400.text = AsyncMock(return_value='{"error":"needs userPosition"}')
+        resp_400.__aenter__ = AsyncMock(return_value=resp_400)
+        resp_400.__aexit__ = AsyncMock(return_value=False)
+        resp_ok = AsyncMock()
+        resp_ok.status = 204
+        resp_ok.headers = {"Content-Type": "application/json"}
+        resp_ok.__aenter__ = AsyncMock(return_value=resp_ok)
+        resp_ok.__aexit__ = AsyncMock(return_value=False)
+        session = MagicMock()
+        session.request = MagicMock(side_effect=[resp_400, resp_ok])
+        client = VWEUClient(session, "u@t.de", "pw")
+        client._tokens = TokenSet("acc", "ref", "id")
+
+        asyncio.run(
+            client.command_flash("VIN1", latitude=48.13743, longitude=11.57549)
+        )
+
+        assert session.request.call_count == 2
+        retry_body = session.request.call_args_list[1].kwargs["json"]
+        assert retry_body["mode"] == "FLASH_ONLY"
+        assert retry_body["userPosition"]["latitude"] == 48.1374
+        assert retry_body["userPosition"]["longitude"] == 11.5754
+
+    def test_command_flash_400_without_coords_raises(self):
+        """v2.15.5 — bare-body 400 + no coordinates → actionable APIError,
+        not a silent failure."""
+        from custom_components.vag_connect.cariad.api.vw_eu import VWEUClient
+        from custom_components.vag_connect.cariad.exceptions import APIError
+        from custom_components.vag_connect.cariad.models import TokenSet
+
+        resp_400 = AsyncMock()
+        resp_400.status = 400
+        resp_400.headers = {"Content-Type": "application/json"}
+        resp_400.json = AsyncMock(return_value={"error": "needs userPosition"})
+        resp_400.text = AsyncMock(return_value='{"error":"needs userPosition"}')
+        resp_400.__aenter__ = AsyncMock(return_value=resp_400)
+        resp_400.__aexit__ = AsyncMock(return_value=False)
+        session = MagicMock()
+        session.request = MagicMock(return_value=resp_400)
+        client = VWEUClient(session, "u@t.de", "pw")
+        client._tokens = TokenSet("acc", "ref", "id")
+
+        with pytest.raises(APIError):
+            asyncio.run(client.command_flash("VIN1"))
+
     def test_command_wake(self):
         client = self._client()
         asyncio.run(client.command_wake("VIN1"))

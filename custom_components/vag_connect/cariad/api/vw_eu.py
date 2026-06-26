@@ -824,14 +824,74 @@ class VWEUClient(CariadBaseClient):
     async def command_flash(
         self,
         vin: str,
-        latitude: float | None = None,  # noqa: ARG002
-        longitude: float | None = None,  # noqa: ARG002
+        latitude: float | None = None,
+        longitude: float | None = None,
     ) -> None:
-        """Honk and flash."""
-        await self._post(
-            f"{self._base_for_vin(vin)}/vehicle/v1/vehicles/{vin}/vehicleLights/flash",
-            json={"action": "flash"},
-        )
+        """Flash the lights — CARIAD-BFF ``honkandflash`` endpoint.
+
+        v2.15.5 — corrected from the invented ``vehicleLights/flash`` +
+        ``{"action":"flash"}`` shape (which the BFF rejected with a flat
+        ``400 Bad Request``) to the real We Connect EU contract, grounded
+        in the decompiled We Connect EU app:
+
+        - **Path**: ``/vehicle/v1/vehicles/{vin}/honkandflash`` (literal in
+          classes3.dex; routed via ``_post_command`` so it inherits the
+          v1→v2 404 fallback every other command uses).
+        - **Body**: a ``HonkAndFlashRequest`` whose ctor signature in the
+          DEX is ``(int duration, String mode, UserPosition userPosition)``
+          → JSON keys ``duration`` / ``mode`` / ``userPosition`` (the last
+          nesting ``latitude`` / ``longitude``).
+        - **Mode**: the CARIAD ``HonkAndFlashParameters$Mode`` enum has
+          exactly two members — ``HONK_AND_FLASH`` and ``FLASH_ONLY``.
+          We flash only, so ``mode = "FLASH_ONLY"``.
+        - **duration**: integer seconds; the app exposes a
+          ``HonkAndFlashDuration`` config — 10 s is a safe default.
+
+        The app's ``HonkAndFlashViewModel`` gates the command on a known
+        position (it shows ``location_disabled_alert`` and blocks the call
+        without a fix), so the BFF very likely requires ``userPosition``.
+
+        Resilient strategy (mirrors SEAT/CUPRA ``command_flash``): send the
+        bare ``mode``/``duration`` body first — some firmwares accept it and
+        this unblocks users whose vehicle has never reported GPS — and only
+        if the backend answers ``400`` do we retry with ``userPosition``
+        built from the caller-supplied coordinates. If the bare body 400s
+        and no coordinates are available, raise an actionable ``APIError``.
+
+        ️ Live-test gate: ``userPosition``/``latitude``/``longitude`` keys
+        and the location-gating UI behaviour are confirmed statically, but
+        whether the BFF *hard-rejects* a flash with ``userPosition`` omitted
+        (vs. only the honk variant) is the one detail not provable from the
+        static strings. The bare-body-then-position retry covers both cases.
+        """
+        body: dict[str, Any] = {"mode": "FLASH_ONLY", "duration": 10}
+        try:
+            await self._post_command(vin, "honkandflash", json=body)
+            return
+        except APIError as exc:
+            if exc.status != 400:
+                raise
+            # 400 → most likely the BFF wants a bounding ``userPosition``.
+            # Retry with coordinates if we have them; otherwise surface an
+            # actionable hint instead of an opaque "API error 400".
+            if latitude is None or longitude is None:
+                raise APIError(
+                    400,
+                    f"{self._base_for_vin(vin)}"
+                    f"/vehicle/v1/vehicles/{vin}/honkandflash",
+                    "honk-and-flash rejected the bare body (the BFF likely "
+                    "requires userPosition) AND no GPS position is available "
+                    "for this vehicle. Wake the car / wait for a status poll "
+                    "so a parking position is reported, then retry. If GPS "
+                    "stays empty, check whether privacy-mode is enabled in "
+                    "the head-unit settings.",
+                ) from exc
+            body["userPosition"] = {
+                # Truncate to ~11 m precision, matching the SEAT path.
+                "latitude": int(latitude * 10000) / 10000,
+                "longitude": int(longitude * 10000) / 10000,
+            }
+            await self._post_command(vin, "honkandflash", json=body)
 
     async def command_wake(self, vin: str) -> None:
         """Wake vehicle — Cariad-BFF first, MBB legacy fallback.
