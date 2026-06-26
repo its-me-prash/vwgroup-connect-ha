@@ -44,6 +44,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Fixed
 
+- **Battery capacity / available energy were 10x too high (#534).** The EU-portal energy-content readings are in 0.1-kWh units but were passed through unscaled — an ID.4 showed 756 kWh instead of 75.6 (and 461 instead of 46.1 available). Now scaled correctly.
+
 - **Clearer login errors (#527).** A portal login that fails for a non-password reason — terms/consent not yet accepted, a 2FA or onboarding step, a region/soft-block — no longer shows the misleading "check email and password". You now get the real reason and what to do (open the portal once in a browser, finish the prompt, retry), so users with correct credentials aren't sent chasing a password problem. Failure logging now records the landing page type/error code (no secrets) to pin the cause.
 
 - **Charge-timer & slope-consumption now actually populate, and the Scout stops re-reporting them.** These EU-portal fields were only read under one payload shape and silently missed the realistic one — so they never showed AND recurred in the Vehicle Data Scout for every VW-EU user. Now read from either shape; uphill/downhill slope no longer collide; the Scout only lists genuine unmapped metadata.

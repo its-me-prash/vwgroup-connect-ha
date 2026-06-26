@@ -1242,6 +1242,8 @@ def map_dataset_to_vehicle_data(
             return True  # no gate present → don't block a real reading
         return str(vt).strip().lower() not in ("invalid", "error", "0", "false")
 
+    # physical_value is reported in 0.1-kWh units (100 Wh), so divide by 10 to
+    # get kWh — e.g. raw 756 → 75.6 kWh, 461 → 46.1 kWh (#534, ID.4 2024).
     _cur_kwh = _to_float(first(
         "energy_contents.current_energy_content.physical_value",
         "current_energy_content.physical_value",
@@ -1250,7 +1252,7 @@ def map_dataset_to_vehicle_data(
         "energy_contents.current_energy_content.value_type",
         "current_energy_content.value_type",
     ):
-        d.battery_available_kwh = _cur_kwh
+        d.battery_available_kwh = _cur_kwh / 10.0
     _max_kwh = _to_float(first(
         "energy_contents.maximal_energy_content.physical_value",
         "maximal_energy_content.physical_value",
@@ -1259,7 +1261,7 @@ def map_dataset_to_vehicle_data(
         "energy_contents.maximal_energy_content.value_type",
         "maximal_energy_content.value_type",
     ):
-        d.battery_cap_kwh = _max_kwh
+        d.battery_cap_kwh = _max_kwh / 10.0
 
     # Trip consumption averages (l/1000km → l/100km, kWh/1000km → kWh/100km).
     # Guard is None so we don't overwrite a value the structured path set.

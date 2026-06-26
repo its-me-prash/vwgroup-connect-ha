@@ -100,10 +100,11 @@ class TestEUMapIntoExisting:
         assert d.battery_care_target_soc_pct == 80
 
     def test_energy_contents_gated_on_value_type(self) -> None:
+        # physical_value is in 0.1-kWh units → divided by 10 to reach kWh (#534).
         d = _map({
-            "energy_contents.current_energy_content.physical_value": "42.5",
+            "energy_contents.current_energy_content.physical_value": "425",
             "energy_contents.current_energy_content.value_type": "valid",
-            "energy_contents.maximal_energy_content.physical_value": "58",
+            "energy_contents.maximal_energy_content.physical_value": "580",
             "energy_contents.maximal_energy_content.value_type": "valid",
         })
         assert d.battery_available_kwh == 42.5
