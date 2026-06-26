@@ -965,6 +965,9 @@
       "next_charge_target_reachability": {
         "name": "Laddmål nåbart"
       },
+      "next_charge_timer_number": {
+        "name": "Nästa laddningstimer (nummer)"
+      },
       "ascent_slope_consumption": {
         "name": "Lutningsförbrukning (uppför)"
       },

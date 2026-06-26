@@ -2506,6 +2506,17 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # v2.15.4 (#537 Scout) — which timer slot (1-15) is the next charging timer.
+    # Bare slot index, low user value → diagnostic NUMBER, disabled-by-default.
+    VagSensorDescription(
+        key="next_charge_timer_number",
+        translation_key="next_charge_timer_number",
+        data_key="next_charge_timer_number",
+        icon="mdi:counter",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     # Slope consumption — LOW, unit unconfirmed (dict null), disabled-by-default.
     VagSensorDescription(
         key="ascent_slope_consumption",
@@ -2882,6 +2893,9 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "next_charge_timer_start_at",
     "next_charge_timer_finish_at",
     "next_charge_target_reachability",
+    # v2.15.4 (#537) — next-charging-timer slot index. EU-Data-Act dialect only;
+    # vehicles/channels without the field stay None → no phantom.
+    "next_charge_timer_number",
     "ascent_slope_consumption",
     "descent_slope_consumption",
     "report_type",

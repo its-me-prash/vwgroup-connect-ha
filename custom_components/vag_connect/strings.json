@@ -965,6 +965,9 @@
       "next_charge_target_reachability": {
         "name": "Charge target reachability"
       },
+      "next_charge_timer_number": {
+        "name": "Next charge timer number"
+      },
       "ascent_slope_consumption": {
         "name": "Slope consumption (uphill)"
       },

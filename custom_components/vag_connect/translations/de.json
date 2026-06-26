@@ -965,6 +965,9 @@
       "next_charge_target_reachability": {
         "name": "Ladeziel erreichbar"
       },
+      "next_charge_timer_number": {
+        "name": "Nächster Lade-Timer (Nummer)"
+      },
       "ascent_slope_consumption": {
         "name": "Steigungsverbrauch (bergauf)"
       },

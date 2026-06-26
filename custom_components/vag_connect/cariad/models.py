@@ -1557,6 +1557,11 @@ class VehicleData:
     # Whether the next-charge target is reachable in time
     # (TARGET_REACHABILITY_* enum → shortened). sensor, diagnostic.
     next_charge_target_reachability: str | None = None
+    # Which timer slot (1-15) is the next charging timer — dict-confirmed
+    # type=number, unit=null ("Profile1: 1,2,3 ... Profile5: 13,14,15"). A
+    # plain slot index, low user value → disabled-by-default. sensor (NUMBER),
+    # diagnostic. EU-Data-Act dialect only.
+    next_charge_timer_number: int | None = None
     # Slope (gradient) energy consumption while ascending / descending — raw
     # physical_value, unit unconfirmed (dict unit=null), gated on value_type.
     # LOW — disabled-by-default. sensor, diagnostic.

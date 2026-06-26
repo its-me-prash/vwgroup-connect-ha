@@ -96,6 +96,25 @@ def test_521_next_charge_timer_iso_passthrough() -> None:
     assert d.next_charge_timer_finish_at == "2026-07-02T05:30:00Z"
 
 
+def test_537_next_charge_timer_number_dotted() -> None:
+    # #537 — nextChargingTimer is the slot index (1-15) of the next timer.
+    # dict type=number → diagnostic int via _to_int. Dotted-form source.
+    d = _map(
+        {
+            "profile_state_report.next_charging_timer_information."
+            "nextChargingTimer": "7",
+        }
+    )
+    assert d.next_charge_timer_number == 7
+
+
+def test_537_next_charge_timer_number_bare_leaf() -> None:
+    # _walk_fields emits the BARE dataFieldName for data-point nodes — the
+    # realistic shape. The bare-leaf alias must resolve to the same index.
+    d = _map({"nextChargingTimer": "13"})
+    assert d.next_charge_timer_number == 13
+
+
 def test_521_target_reachability_reachable_shortened() -> None:
     d = _map(
         {

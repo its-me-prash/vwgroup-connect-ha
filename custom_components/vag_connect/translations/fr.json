@@ -965,6 +965,9 @@
       "next_charge_target_reachability": {
         "name": "Objectif de charge atteignable"
       },
+      "next_charge_timer_number": {
+        "name": "Numéro du prochain minuteur de charge"
+      },
       "ascent_slope_consumption": {
         "name": "Consommation en pente (montée)"
       },

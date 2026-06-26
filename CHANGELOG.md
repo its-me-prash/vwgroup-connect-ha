@@ -62,6 +62,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **More mapped fields (#528).** Start/stop modification, hood state, front tyre pressures, and the last-trip gas / range-gain / zero-emission aggregates (the short-term counterparts to the lifetime figures). Diagnostic, disabled by default; nothing hidden.
 - **Audi next-charging-timer fallback (#530).** Some Audis report the charge-timer id + target-SoC-reachable under a different container than the integration was reading, so the sensor stayed empty. Now read as a fallback — the existing 'target SoC reachable' sensor populates. No new entities.
 - **More mapped fields (#535).** App/master data-result status enums now surface as diagnostic sensors (disabled by default). With this, the recurring VW-EU Scout reports are down to genuine envelope metadata only.
+- **More mapped fields (#537).** The next-charge-timer slot number (which of the profile timers is next) now surfaces as a diagnostic sensor (disabled by default).
 - **EU portal values could disagree with each other (#529).** Battery level, odometer and "last seen" were each read independently from the portal's multi-snapshot export, so they could come from different moments — wrong/uncorrelated readings and even a phantom "moved overnight". Now every field is taken from its latest sample so they stay in sync; the odometer's never-go-backwards guard now lives at the cross-poll layer where it belongs. (VW EU portal only; the BFF path was unaffected.)
 
 ## [2.15.3] - 2026-06-26

@@ -1748,6 +1748,19 @@ def map_dataset_to_vehicle_data(
             _ncr_short = None
         if _ncr_short is not None:
             d.next_charge_target_reachability = _ncr_short
+    # nextChargingTimer = which timer slot (1-15) is queued next. Dict-confirmed
+    # type=number, unit=null ("Profile1: 1,2,3 ... Profile5: 13,14,15"). A bare
+    # slot index → diagnostic NUMBER. _walk_fields keys data-point nodes by the
+    # BARE dataFieldName (nextChargingTimer) plus a container-qualified twin;
+    # list both the dotted forms and the bare leaf so synonym-collapse reclaims
+    # the qualified twin and the realistic data-point shape resolves.
+    _nctn = first(
+        "profile_state_report.next_charging_timer_information.nextChargingTimer",
+        "next_charging_timer_information.nextChargingTimer",
+        "nextChargingTimer",
+    )
+    if _nctn is not None and d.next_charge_timer_number is None:
+        d.next_charge_timer_number = _to_int(_nctn)
 
     # Slope consumption (ascent/descent) — dict-confirmed type=number,
     # unit=null (no scale applied; raw physical_value). Gated on the sibling

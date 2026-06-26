@@ -965,6 +965,9 @@
       "next_charge_target_reachability": {
         "name": "Osiągalność celu ładowania"
       },
+      "next_charge_timer_number": {
+        "name": "Numer następnego harmonogramu ładowania"
+      },
       "ascent_slope_consumption": {
         "name": "Zużycie na wzniesieniu (pod górę)"
       },

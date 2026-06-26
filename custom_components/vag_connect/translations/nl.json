@@ -965,6 +965,9 @@
       "next_charge_target_reachability": {
         "name": "Laaddoel haalbaar"
       },
+      "next_charge_timer_number": {
+        "name": "Volgende laadtimer (nummer)"
+      },
       "ascent_slope_consumption": {
         "name": "Hellingverbruik (omhoog)"
       },

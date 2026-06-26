@@ -965,6 +965,9 @@
       "next_charge_target_reachability": {
         "name": "Dosažitelnost cíle nabíjení"
       },
+      "next_charge_timer_number": {
+        "name": "Číslo dalšího časovače nabíjení"
+      },
       "ascent_slope_consumption": {
         "name": "Spotřeba ve stoupání (do kopce)"
       },
