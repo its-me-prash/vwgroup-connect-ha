@@ -785,6 +785,10 @@ _ENUM_PREFIXES = (
     # (report_type has no dict-listed values yet — no prefix; _shorten_enum keeps
     # its raw value until a real sample confirms one.)
     "TARGET_REACHABILITY_",
+    # v2.15.5 — report-trigger reason enum family (update_reason, many VW-EU
+    # Scouts). Tokens: UPDATE_REASON_{INVALID,CHARGING,CLAMP15_OFF,CLAMP15_ON,
+    # CLIMATISATION,OTHER} — dict-confirmed, so _shorten_enum strips the prefix.
+    "UPDATE_REASON_",
 )
 
 # v2.15.1 — labels appended to ``available_charge_modes`` per truthy
@@ -1827,6 +1831,15 @@ def map_dataset_to_vehicle_data(
     _rmaster = first("result_master")
     if _rmaster is not None and d.result_master is None:
         d.result_master = _shorten_enum(_rmaster)
+
+    # v2.15.5 — update_reason: why the report was sent to the backend
+    # (UPDATE_REASON_* enum). dict-confirmed values, so the UPDATE_REASON_
+    # prefix is in _ENUM_PREFIXES and _shorten_enum strips it for display
+    # (UPDATE_REASON_CHARGING → CHARGING). LOW value (metadata, not telemetry)
+    # → disabled-by-default diagnostic, but mapped (never Scout-suppressed).
+    _ureason = first("update_reason")
+    if _ureason is not None and d.update_reason is None:
+        d.update_reason = _shorten_enum(_ureason)
 
     # ── v2.15.4 (#523) — EU Data Act portal new fields ───────────────────────
     # All additive, guarded, EU-Data-Act-dialect only.

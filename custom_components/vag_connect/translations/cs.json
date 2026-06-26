@@ -1007,6 +1007,9 @@
       "result_master": {
         "name": "Výsledek kmenových dat"
       },
+      "update_reason": {
+        "name": "Důvod poslední aktualizace"
+      },
       "start_stop_action": {
         "name": "Akce spuštění/zastavení nabíjení"
       },

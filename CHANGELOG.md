@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.5] - unreleased
+
+### Added
+
+- **More mapped fields.** The "last update reason" — why the car last pushed a report to the backend (e.g. it started charging, ignition went on/off, climate ran) — now surfaces as a diagnostic sensor (disabled by default). One of the recurring VW-EU Scout fields, now off the list. Nothing hidden.
+
 ## [2.15.4] - 2026-06-26
 
 ### Fixed

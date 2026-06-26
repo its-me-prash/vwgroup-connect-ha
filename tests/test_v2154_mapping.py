@@ -210,6 +210,13 @@ def test_535_result_master_no_prefix_passthrough() -> None:
     assert d.result_master == "RESULT_MASTER_SUCCESS"
 
 
+def test_v2155_update_reason_charging_shortened() -> None:
+    # v2.15.5 Scout — report-trigger reason; dict-confirmed UPDATE_REASON_*
+    # values, so UPDATE_REASON_ is in _ENUM_PREFIXES and _shorten_enum strips it.
+    d = _map({"update_reason": "UPDATE_REASON_CHARGING"})
+    assert d.update_reason == "CHARGING"
+
+
 # ── #523 — comfort/climate settings (bool), start/stop action
 
 

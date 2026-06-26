@@ -1007,6 +1007,9 @@
       "result_master": {
         "name": "Wynik danych podstawowych"
       },
+      "update_reason": {
+        "name": "Powód ostatniej aktualizacji"
+      },
       "start_stop_action": {
         "name": "Akcja start/stop ładowania"
       },

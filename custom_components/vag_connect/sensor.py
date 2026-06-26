@@ -2631,6 +2631,16 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # v2.15.5 — update_reason: report-trigger reason enum. Metadata, not
+    # telemetry. LOW — disabled-by-default.
+    VagSensorDescription(
+        key="update_reason",
+        translation_key="update_reason",
+        data_key="update_reason",
+        icon="mdi:message-alert-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     # ── v2.15.4 (#523) — EU Data Act portal new fields ──────────────────────
     # start_stop_action — charging-related action string. LOW —
     # disabled-by-default.
@@ -2967,6 +2977,9 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "report_type",
     "result_app",
     "result_master",
+    # v2.15.5 — report-trigger reason. EU-Data-Act dialect only; vehicles/
+    # channels without the field stay None → no phantom.
+    "update_reason",
     # v2.15.4 (#523) — EU Data Act portal new field. EU-Data-Act dialect only;
     # vehicles/channels without the field stay None → no phantom.
     "start_stop_action",

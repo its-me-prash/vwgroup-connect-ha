@@ -1007,6 +1007,9 @@
       "result_master": {
         "name": "Resultado de datos maestros"
       },
+      "update_reason": {
+        "name": "Motivo de la última actualización"
+      },
       "start_stop_action": {
         "name": "Acción de inicio/parada de carga"
       },

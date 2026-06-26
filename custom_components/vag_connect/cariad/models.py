@@ -1588,6 +1588,11 @@ class VehicleData:
     # sensor, diagnostic.
     result_app: str | None = None
     result_master: str | None = None
+    # v2.15.5 — why the report was sent to the backend (UPDATE_REASON_* enum →
+    # shortened). dict-confirmed values (CHARGING / CLAMP15_ON|OFF /
+    # CLIMATISATION / OTHER / INVALID). Metadata, not telemetry. LOW —
+    # disabled-by-default sensor, diagnostic.
+    update_reason: str | None = None
 
     # ── v2.15.4 (#523) — EU Data Act portal new fields ───────────────────────
     # All written by _eu_data_act.py only (EU-Data-Act dialect). Climatisation
