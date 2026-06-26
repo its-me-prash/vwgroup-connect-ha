@@ -278,6 +278,39 @@ _ONBOARDING_MARKERS = (
 )
 _RATELIMIT_MARKERS = ("too-many", "rate-limit", "ratelimit", "throttl")
 
+# v2.15.5 (#527 follow-on) — GENERIC OAuth/IDP consent page. Distinct from the
+# MARKETING-consent interstitial (_CONSENT_MARKERS): this is the standard
+# signin-service grant page the IDP shows AFTER credentials when the OAuth
+# client needs an authorization grant the account has not yet given. Confirmed
+# on v2.15.4 diagnostics (sarahlesage): the portal credential POST lands on
+# ``identity.vwgroup.io/signin-service/v1/consent/users/{uid}/{client}`` with
+# templateModel pageType='consent', status 200 — a generic consent grant, not a
+# marketing opt-in. The user already entered creds + wants the integration
+# authorized, so the official-app behaviour is to ACCEPT the grant. We mirror
+# that (auto-accept in login()); the classifier markers below are the fallback
+# for when auto-accept does not complete the login.
+_GENERIC_CONSENT_MARKERS = ("/signin-service/v1/consent/", "/consent/users/")
+_GENERIC_CONSENT_PAGETYPES = ("consent",)
+
+
+def _is_generic_consent_page(
+    landing_url: str, page_type: str, blob: str
+) -> bool:
+    """True if the landing is the generic IDP/OAuth consent grant page (#527).
+
+    Matches on the signin-service consent URL family, the consent VIN-less
+    ``/consent/users/`` path, OR a templateModel pageType of ``consent``.
+    Deliberately does NOT match the MARKETING-consent interstitial (that is
+    handled by _CONSENT_MARKERS → MarketingConsentError) — the generic grant
+    page is the standard "authorize this client" page, not a marketing opt-in.
+    """
+    url_l = landing_url.lower()
+    if any(m in url_l for m in _GENERIC_CONSENT_MARKERS):
+        return True
+    if page_type and page_type.lower() in _GENERIC_CONSENT_PAGETYPES:
+        return True
+    return any(m in blob for m in _GENERIC_CONSENT_MARKERS)
+
 
 def classify_portal_login_failure(
     landing_url: str, landing_html: str
@@ -335,6 +368,20 @@ def classify_portal_login_failure(
     if any(m in blob for m in _RATELIMIT_MARKERS):
         log_ctx.setdefault("classified", "portal_interaction_required")
         return PortalInteractionRequiredError("temporary block / rate limit"), log_ctx
+
+    # 1b. Generic OAuth/IDP consent grant page (#527). Checked AFTER the
+    #     marketing-consent markers (so a marketing opt-in still maps to
+    #     MarketingConsentError) but BEFORE the credential fallback so this
+    #     non-credential page never surfaces as "check password". This is the
+    #     classifier-side FALLBACK for when login()'s auto-accept could not
+    #     complete the grant (e.g. the IDP changed the form shape). The user
+    #     then gets the actionable "complete the consent in a browser" message.
+    if _is_generic_consent_page(landing_url, str(page_type), blob):
+        log_ctx.setdefault("classified", "portal_interaction_required")
+        return (
+            PortalInteractionRequiredError("consent / terms acceptance"),
+            log_ctx,
+        )
 
     # 2. A machine-readable error/errorCode that is NOT one of the known
     #    bad-credential codes → carry the real reason as a non-credential
@@ -1987,6 +2034,74 @@ class EUDataActConnector:
         self._bearer = token
         self.logged_in = True
 
+    @staticmethod
+    def _is_consent_landing(landing_url: str, landing_html: str) -> bool:
+        """True if the post-credential landing is the generic consent grant page.
+
+        Mirrors the classifier's detection (URL family + templateModel
+        pageType=='consent'), but excludes the MARKETING-consent interstitial:
+        a marketing opt-in is a deliberate user choice we must NOT silently
+        accept, so it stays on the MarketingConsentError path. The generic OAuth
+        grant page (#527) is the only one we auto-accept here.
+        """
+        url_l = landing_url.lower()
+        if any(m in url_l for m in _CONSENT_MARKERS):
+            return False  # marketing opt-in → never auto-accept
+        model = _extract_template_model(landing_html) or {}
+        page_type = str(
+            model.get("template") or model.get("templateName") or ""
+        )
+        blob = f"{url_l}\n{landing_html.lower()}"
+        return _is_generic_consent_page(landing_url, page_type, blob)
+
+    async def _accept_consent_page(
+        self, consent_url: str, consent_html: str
+    ) -> tuple[str, str, int] | None:
+        """Scrape + POST the consent grant form to ACCEPT it (#527, v2.15.5).
+
+        The signin-service consent page is a server-rendered form carrying the
+        same hidden-field machinery as the credential pages (hmac / _csrf /
+        relayState) plus an ``action`` pointing at the accept/grant endpoint.
+        We reuse ``_login_fields`` + ``_resolve_action`` (the helpers the
+        credential steps already use) so the parsing stays in one place.
+
+        Returns the new ``(landing_url, landing_html, status)`` after the
+        accept POST + redirect-follow, or ``None`` when the form could not be
+        parsed (no fields/action) so the caller falls through to the typed
+        non-credential classification (no silent loop — we accept once).
+        """
+        fields, action = _login_fields(consent_html)
+        # Need at least one form anti-CSRF token to POST a valid acceptance;
+        # without one the page is not the expected scrapeable consent form.
+        if not any(k in fields for k in ("hmac", "_csrf", "relayState")):
+            _LOGGER.debug(
+                "EU Data Act portal: consent page at %s carried no form "
+                "fields — cannot auto-accept, leaving to classifier",
+                _safe_url(consent_url),
+            )
+            return None
+        accept_action = _resolve_action(consent_url, action)
+        try:
+            async with self._session.post(
+                accept_action, data=fields,
+                headers={"User-Agent": _USER_AGENT, "Referer": consent_url},
+                allow_redirects=True, timeout=ClientTimeout(total=_TIMEOUT_S),
+            ) as resp:
+                new_landing = str(resp.url)
+                new_html = await resp.text(errors="replace")
+                new_status = resp.status
+        except Exception as exc:  # noqa: BLE001 — best-effort accept
+            _LOGGER.debug(
+                "EU Data Act portal: consent accept POST failed (%s) — "
+                "leaving to classifier", type(exc).__name__,
+            )
+            return None
+        _LOGGER.debug(
+            "EU Data Act portal: consent accepted → landing=%s status=%s",
+            _safe_url(new_landing), new_status,
+        )
+        return new_landing, new_html, new_status
+
     async def login(self, email: str, password: str) -> None:
         """Run the OIDC code-flow login; portal backend sets cookies.
 
@@ -2066,6 +2181,29 @@ class EUDataActConnector:
             landing = str(resp.url)
             landing_html = await resp.text(errors="replace")
             status = resp.status
+
+        # 3b. (#527, v2.15.5) — generic OAuth/IDP consent grant page. After
+        # correct credentials the IDP can interject a server-rendered consent
+        # page (``/signin-service/v1/consent/users/{uid}/{client}``,
+        # templateModel pageType='consent') asking the account to AUTHORIZE
+        # this OAuth client. This is NOT a marketing opt-in and NOT a bad
+        # password — the user already entered their creds and wants the
+        # integration authorized, so accepting the grant is exactly what the
+        # official app does. We scrape the consent form (hmac/_csrf/relayState
+        # via the same _login_fields helper) and POST to accept it, then let
+        # the portal complete the redirect back to the portal host. Bounded:
+        # accept at most ONCE — if the result is still not a completed landing
+        # we fall through to classify_portal_login_failure (which now also
+        # recognises the consent page as a non-credential PortalInteraction).
+        if self._is_consent_landing(landing, landing_html):
+            _LOGGER.info(
+                "EU Data Act portal: consent grant page at %s — auto-accepting "
+                "(user already authenticated; mirrors official-app behaviour)",
+                _safe_url(landing),
+            )
+            accepted = await self._accept_consent_page(landing, landing_html)
+            if accepted is not None:
+                landing, landing_html, status = accepted
 
         # A completed flow lands back on the portal host via
         # /services/callbacklogin. Anything else (HTTP >= 400, a
