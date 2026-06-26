@@ -867,6 +867,99 @@
       },
       "tire_pressure_rr_errorcode": {
         "name": "Tire error code rear-right"
+      },
+      "last_trip_avg_aux_consumption_kwh_100km": {
+        "name": "Last trip auxiliary consumption (avg)"
+      },
+      "lifetime_avg_aux_consumption_kwh_100km": {
+        "name": "Lifetime auxiliary consumption (avg)"
+      },
+      "lifetime_avg_gas_consumption_kg_100km": {
+        "name": "Lifetime gas consumption (avg)"
+      },
+      "lifetime_range_gain_km": {
+        "name": "Lifetime range gained"
+      },
+      "lifetime_zero_emission_km": {
+        "name": "Lifetime zero-emission distance"
+      },
+      "charger_update_trigger": {
+        "name": "Charger update trigger"
+      },
+      "active_target_soc": {
+        "name": "Active charge target"
+      },
+      "charge_time_display": {
+        "name": "Charge time details"
+      },
+      "charging_plug1_flap_lock_state": {
+        "name": "Charge port 1 flap lock"
+      },
+      "charging_plug1_flap_state": {
+        "name": "Charge port 1 flap"
+      },
+      "charging_plug1_infrastructure_state": {
+        "name": "Charge port 1 station status"
+      },
+      "charging_plug1_lock_state": {
+        "name": "Charge port 1 plug lock"
+      },
+      "charging_plug2_connectionstate": {
+        "name": "Charge port 2 connection"
+      },
+      "charging_plug2_flap_lock_state": {
+        "name": "Charge port 2 flap lock"
+      },
+      "charging_plug2_flap_state": {
+        "name": "Charge port 2 flap"
+      },
+      "charging_plug2_infrastructure_state": {
+        "name": "Charge port 2 station status"
+      },
+      "charging_plug2_lock_state": {
+        "name": "Charge port 2 plug lock"
+      },
+      "battery_available_kwh": {
+        "name": "Battery energy available"
+      },
+      "battery_cap_kwh": {
+        "name": "Battery capacity (energy)"
+      },
+      "trip_total_cost": {
+        "name": "Trip total cost"
+      },
+      "trip_fuel_cost": {
+        "name": "Trip fuel cost"
+      },
+      "trip_electricity_cost": {
+        "name": "Trip electricity cost"
+      },
+      "trip_cng_cost": {
+        "name": "Trip CNG cost"
+      },
+      "oil_level_pct": {
+        "name": "Oil level (percent)"
+      },
+      "next_charge_timer_start_at": {
+        "name": "Next charge start"
+      },
+      "next_charge_timer_finish_at": {
+        "name": "Next charge finish"
+      },
+      "next_charge_target_reachability": {
+        "name": "Charge target reachability"
+      },
+      "ascent_slope_consumption": {
+        "name": "Slope consumption (uphill)"
+      },
+      "descent_slope_consumption": {
+        "name": "Slope consumption (downhill)"
+      },
+      "report_type": {
+        "name": "Report type"
+      },
+      "start_stop_action": {
+        "name": "Charge start/stop action"
       }
     },
     "binary_sensor": {
@@ -1070,6 +1163,18 @@
       },
       "fuel_level_estimated": {
         "name": "Fuel level estimated"
+      },
+      "climatisation_at_unlock": {
+        "name": "Climatisation at unlock"
+      },
+      "mirror_heating_enabled": {
+        "name": "Mirror heating"
+      },
+      "climate_zone_front_left_enabled": {
+        "name": "Climate zone front-left"
+      },
+      "climate_zone_front_right_enabled": {
+        "name": "Climate zone front-right"
       }
     },
     "switch": {

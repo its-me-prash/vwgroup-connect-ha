@@ -688,11 +688,14 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     cp = _to_float(first("battery_state_report.charge_power", "charge_power",
                         "chargePower_kW",
                         # v2.15.3 (#518) — EU-Data-Act dialect alias. Dict
-                        # defines charging_power as "Power of charging"
-                        # (type=number, unit=null); the sibling charge_rate_unit
-                        # in this dialect is kW, so treat it as kW like the other
-                        # aliases. LAST fallback only — canonical charge_power
-                        # keys win when a car reports both.
+                        # defines charging_power (UUID 978be4ed) as "Power of
+                        # charging" (type=number, unit=null). Treating it as kW
+                        # is a CONVENTION for a charging-power field (typical
+                        # magnitudes are kW), NOT substantiated by the dict —
+                        # the sibling charge_rate_unit is a distance/time RATE
+                        # unit enum ("Unit of charge rate"), never a power unit.
+                        # LAST fallback only — canonical charge_power keys win
+                        # when a car reports both.
                         "charging_power"))
     if cp is not None:
         d.charging_power_kw = cp
@@ -751,9 +754,11 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
 
     # a12 — additional high-confidence portal fields (purely additive; every
     # existing mapping above is untouched). Names tried defensively via first().
-    # v2.15.4 (#523) — actual_charge_rate is the EU-portal dialect alias for the
-    # same charge rate. The dict's `Charge Rate` entry carries unit=kmPerHour, so
-    # it is the same km/h rate as the existing charging_rate_kmh field — added as
+    # v2.15.4 (#523) — actual_charge_rate (dict UUID 370c2092) has its OWN
+    # unit=null, so the dict does NOT mark it km/h. It is folded into
+    # charging_rate_kmh as the "actual" variant of the same charge-rate family
+    # the canonical `Charge Rate` entry (dict UUID 732b602c, unit=kmPerHour)
+    # already represents — i.e. the km/h rate charging_rate_kmh maps. Added as
     # the LAST alias so canonical/report-shaped keys still win when both appear.
     crate = _to_int(first("battery_state_report.charge_rate", "charge_rate",
                           "chargeRate_kmph", "charging_rate_kmh",
@@ -1454,7 +1459,17 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
         "next_charging_timer_information.target_reachability",
     )
     if _ncr is not None and d.next_charge_target_reachability is None:
-        d.next_charge_target_reachability = _shorten_enum(_ncr)
+        # Dict tokens (target_reachability desc): TARGET_REACHABILITY_{INVALID,
+        # CALCULATING,REACHABLE,NOT_REACHABLE}. INVALID/CALCULATING mean the
+        # timer is uninitialized/uncomputed — surface them as unknown (None)
+        # instead of a stale literal state. Keep REACHABLE / NOT_REACHABLE.
+        _ncr_short = _shorten_enum(_ncr)
+        if isinstance(_ncr_short, str) and _ncr_short.upper() in (
+            "INVALID", "CALCULATING"
+        ):
+            _ncr_short = None
+        if _ncr_short is not None:
+            d.next_charge_target_reachability = _ncr_short
 
     # Slope consumption (ascent/descent) — dict-confirmed type=number,
     # unit=null (no scale applied; raw physical_value). Gated on the sibling
@@ -1478,8 +1493,10 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     ):
         d.descent_slope_consumption = _desc_slope
 
-    # report_type — dict-confirmed enum metadata (e.g. REPORT_TYPE_
-    # CONSUMPTION_VALUES) describing which report this poll's payload is.
+    # report_type — dict-confirmed enum metadata describing which report this
+    # poll's payload is. (The dict lists NO values for report_type, so a token
+    # like "REPORT_TYPE_CONSUMPTION_VALUES" is illustrative/unconfirmed; code
+    # deliberately adds no prefix and passes the raw value through.)
     # LOW value (metadata, not telemetry) → disabled-by-default diagnostic, but
     # mapped (never Scout-suppressed). Shortened for display.
     _rtype = first("report_type")

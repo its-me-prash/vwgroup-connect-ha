@@ -2428,6 +2428,7 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:clock-start",
         condition="electric",
         entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
     ),
     VagSensorDescription(
         key="next_charge_timer_finish_at",
@@ -2437,6 +2438,7 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:clock-end",
         condition="electric",
         entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
     ),
     VagSensorDescription(
         key="next_charge_target_reachability",
@@ -2445,6 +2447,7 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:target",
         condition="electric",
         entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
     ),
     # Slope consumption — LOW, unit unconfirmed (dict null), disabled-by-default.
     VagSensorDescription(
