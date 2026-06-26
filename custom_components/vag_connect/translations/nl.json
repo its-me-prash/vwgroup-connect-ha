@@ -784,6 +784,15 @@
       "lifetime_zero_emission_km": {
         "name": "Emissievrije afstand totaal"
       },
+      "last_trip_avg_gas_consumption_kg_100km": {
+        "name": "Gasverbruik laatste rit (gem.)"
+      },
+      "last_trip_range_gain_km": {
+        "name": "Gewonnen actieradius laatste rit"
+      },
+      "last_trip_zero_emission_km": {
+        "name": "Emissievrije afstand laatste rit"
+      },
       "charger_update_trigger": {
         "name": "Trigger lader-update"
       },
@@ -889,6 +898,12 @@
       "tyre_pressure_diff_spare": {
         "name": "Bandenspanningsafwijking reservewiel"
       },
+      "tyre_pressure_actual_fl": {
+        "name": "Bandenspanning linksvoor"
+      },
+      "tyre_pressure_actual_fr": {
+        "name": "Bandenspanning rechtsvoor"
+      },
       "parking_lights_state": {
         "name": "Parkeerlichten"
       },
@@ -960,6 +975,9 @@
       },
       "start_stop_action": {
         "name": "Laad start/stop-actie"
+      },
+      "start_stop_modification": {
+        "name": "Start/stop-wijziging"
       }
     },
     "binary_sensor": {

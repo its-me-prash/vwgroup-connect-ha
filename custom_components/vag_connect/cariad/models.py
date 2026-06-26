@@ -1482,6 +1482,12 @@ class VehicleData:
     tyre_pressure_diff_rl: int | None = None
     tyre_pressure_diff_rr: int | None = None
     tyre_pressure_diff_spare: int | None = None
+    # Tyres — ACTUAL per-wheel pressure (dict unit "10kPA / Bar / PSI/ kPA" is
+    # ambiguous → unitless diagnostic; sentinels 0=unsupported/1=invalid dropped
+    # at the parser). #528 reported the front pair only. LOW — disabled-by-
+    # default. sensor, diagnostic.
+    tyre_pressure_actual_fl: int | None = None
+    tyre_pressure_actual_fr: int | None = None
     # F. Lights / energy / misc.
     # Parking lights state (parking_lights enum → off/left/right/both). sensor.
     parking_lights_state: str | None = None
@@ -1500,10 +1506,16 @@ class VehicleData:
     lifetime_avg_aux_consumption_kwh_100km: float | None = None
     # Avg gas (CNG) consumption, long-term (dict kg/1000km → kg/100 km). sensor.
     lifetime_avg_gas_consumption_kg_100km: float | None = None
+    # Avg gas (CNG) consumption, last trip (dict kg/1000km → kg/100 km). sensor.
+    last_trip_avg_gas_consumption_kg_100km: float | None = None
     # Gained range distance, long-term (dict 100m → km). sensor (TOTAL_INCREASING).
     lifetime_range_gain_km: float | None = None
+    # Gained range distance, last trip (dict 100m → km). sensor.
+    last_trip_range_gain_km: float | None = None
     # Distance driven without emission, long-term (dict 100m → km). sensor.
     lifetime_zero_emission_km: float | None = None
+    # Distance driven without emission, last trip (dict 100m → km). sensor.
+    last_trip_zero_emission_km: float | None = None
     # Trigger info about the last battery-charger update (string, e.g. "other").
     # LOW — disabled-by-default. sensor, diagnostic.
     charger_update_trigger: str | None = None
@@ -1572,6 +1584,11 @@ class VehicleData:
     # list; _shorten_enum passes unprefixed values through). LOW —
     # disabled-by-default. sensor, diagnostic.
     start_stop_action: str | None = None
+    # start_stop_modification — dict type=string, "Contains the detail related
+    # to start stop modification". Distinct from start_stop_action. No enum list
+    # → _shorten_enum passes unprefixed values through. LOW — disabled-by-
+    # default. sensor, diagnostic.
+    start_stop_modification: str | None = None
 
     # — BFF / selectivestatus dialect NEW fields —
     # Per-corner tire pressure STATE strings (shared — EU tires.[*].state and

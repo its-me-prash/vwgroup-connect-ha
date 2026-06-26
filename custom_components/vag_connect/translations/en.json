@@ -784,6 +784,15 @@
       "lifetime_zero_emission_km": {
         "name": "Lifetime zero-emission distance"
       },
+      "last_trip_avg_gas_consumption_kg_100km": {
+        "name": "Last trip gas consumption (avg)"
+      },
+      "last_trip_range_gain_km": {
+        "name": "Last trip range gained"
+      },
+      "last_trip_zero_emission_km": {
+        "name": "Last trip zero-emission distance"
+      },
       "charger_update_trigger": {
         "name": "Charger update trigger"
       },
@@ -889,6 +898,12 @@
       "tyre_pressure_diff_spare": {
         "name": "Tyre pressure deviation spare"
       },
+      "tyre_pressure_actual_fl": {
+        "name": "Tyre pressure front-left"
+      },
+      "tyre_pressure_actual_fr": {
+        "name": "Tyre pressure front-right"
+      },
       "parking_lights_state": {
         "name": "Parking lights"
       },
@@ -960,6 +975,9 @@
       },
       "start_stop_action": {
         "name": "Charge start/stop action"
+      },
+      "start_stop_modification": {
+        "name": "Start/stop modification"
       }
     },
     "binary_sensor": {

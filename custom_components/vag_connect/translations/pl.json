@@ -784,6 +784,15 @@
       "lifetime_zero_emission_km": {
         "name": "Dystans bezemisyjny łącznie"
       },
+      "last_trip_avg_gas_consumption_kg_100km": {
+        "name": "Zużycie gazu ostatnia trasa (śr.)"
+      },
+      "last_trip_range_gain_km": {
+        "name": "Uzyskany zasięg ostatnia trasa"
+      },
+      "last_trip_zero_emission_km": {
+        "name": "Dystans bezemisyjny ostatnia trasa"
+      },
       "charger_update_trigger": {
         "name": "Wyzwalacz aktualizacji ładowarki"
       },
@@ -889,6 +898,12 @@
       "tyre_pressure_diff_spare": {
         "name": "Odchyłka ciśnienia koła zapasowego"
       },
+      "tyre_pressure_actual_fl": {
+        "name": "Ciśnienie opony przód lewy"
+      },
+      "tyre_pressure_actual_fr": {
+        "name": "Ciśnienie opony przód prawy"
+      },
       "parking_lights_state": {
         "name": "Światła postojowe"
       },
@@ -960,6 +975,9 @@
       },
       "start_stop_action": {
         "name": "Akcja start/stop ładowania"
+      },
+      "start_stop_modification": {
+        "name": "Modyfikacja start/stop"
       }
     },
     "binary_sensor": {

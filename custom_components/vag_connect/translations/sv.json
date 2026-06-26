@@ -784,6 +784,15 @@
       "lifetime_zero_emission_km": {
         "name": "Nollutsläppssträcka totalt"
       },
+      "last_trip_avg_gas_consumption_kg_100km": {
+        "name": "Gasförbrukning senaste resan (snitt)"
+      },
+      "last_trip_range_gain_km": {
+        "name": "Vunnen räckvidd senaste resan"
+      },
+      "last_trip_zero_emission_km": {
+        "name": "Nollutsläppssträcka senaste resan"
+      },
       "charger_update_trigger": {
         "name": "Utlösare laddaruppdatering"
       },
@@ -889,6 +898,12 @@
       "tyre_pressure_diff_spare": {
         "name": "Däcktrycksavvikelse reservhjul"
       },
+      "tyre_pressure_actual_fl": {
+        "name": "Däcktryck fram vänster"
+      },
+      "tyre_pressure_actual_fr": {
+        "name": "Däcktryck fram höger"
+      },
       "parking_lights_state": {
         "name": "Parkeringsljus"
       },
@@ -960,6 +975,9 @@
       },
       "start_stop_action": {
         "name": "Laddningsstart/stopp-åtgärd"
+      },
+      "start_stop_modification": {
+        "name": "Start/stopp-ändring"
       }
     },
     "binary_sensor": {

@@ -889,6 +889,12 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     _bonnet_open = _to_int(first("open_state_front_engine_bonnet"))
     if _bonnet_open in (2, 3) and d.hood_open is None:
         d.hood_open = _bonnet_open == 2
+    # state_of_hood — separate source field, same enum family (dict: unsupported
+    # 0 / invalid 1 / open 2 / closed 3). Fold into hood_open as a fallback when
+    # the open_state_front_engine_bonnet channel is absent.
+    _hood_state = _to_int(first("state_of_hood"))
+    if _hood_state in (2, 3) and d.hood_open is None:
+        d.hood_open = _hood_state == 2
 
     # window-lifter state → windows_individual (True == CLOSED, per the model
     # convention) + windows_open aggregate; position is % open.
@@ -1059,15 +1065,24 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     _ltgas = _to_float(first("long_term_data_average_gas_consumption"))
     if _ltgas is not None and d.lifetime_avg_gas_consumption_kg_100km is None:
         d.lifetime_avg_gas_consumption_kg_100km = _ltgas / 10
+    _stgas = _to_float(first("short_term_data_average_gas_consumption"))
+    if _stgas is not None and d.last_trip_avg_gas_consumption_kg_100km is None:
+        d.last_trip_avg_gas_consumption_kg_100km = _stgas / 10
 
     # v2.15.3 (#517) — long-term range-gain + zero-emission distance. Dict unit
     # for both is "100m" (i.e. 0.1 km steps) → multiply by 0.1 for km.
     _ltrg = _to_float(first("long_term_data_range_gain_distance"))
     if _ltrg is not None and d.lifetime_range_gain_km is None:
         d.lifetime_range_gain_km = _ltrg * 0.1
+    _strg = _to_float(first("short_term_data_range_gain_distance"))
+    if _strg is not None and d.last_trip_range_gain_km is None:
+        d.last_trip_range_gain_km = _strg * 0.1
     _ltze = _to_float(first("long_term_data_zero_emission_distance"))
     if _ltze is not None and d.lifetime_zero_emission_km is None:
         d.lifetime_zero_emission_km = _ltze * 0.1
+    _stze = _to_float(first("short_term_data_zero_emission_distance"))
+    if _stze is not None and d.last_trip_zero_emission_km is None:
+        d.last_trip_zero_emission_km = _stze * 0.1
 
     # v2.15.3 (#517) — trigger info about the last battery-charger update
     # (string enum, e.g. "other"). Shorten any verbose prefix. LOW value but
@@ -1392,9 +1407,9 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     if _fla is not None:
         d.fuel_level_estimated = _fla == 1
 
-    # E. Tyres — pressure DELTA vs target. The _FIELD_SENTINELS rule already
-    # drops the 0/1 (unsupported/invalid) sentinels in _walk_fields, so only a
-    # genuine >1 reading survives. Map the full corner+spare set defensively.
+    # E. Tyres — pressure DELTA vs target. The _FIELD_SENTINELS rule drops the
+    # 0/1 (unsupported/invalid) sentinels in first()/_is_sentinel at map time, so
+    # only a genuine >1 reading survives. Map the full corner+spare set defensively.
     for _attr, _name in (
         ("tyre_pressure_diff_fl", "tyre_pressure_differential_front_left"),
         ("tyre_pressure_diff_fr", "tyre_pressure_differential_front_right"),
@@ -1405,6 +1420,19 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
         _tpd = _to_int(first(_name))
         if _tpd is not None:
             setattr(d, _attr, _tpd)
+
+    # E'. Tyres — ACTUAL per-wheel pressure (#528). Same 0/1 sentinel rule as
+    # the diff family (dict: unsupported 0 / invalid 1 / valid int), dropped in
+    # first()/_is_sentinel via the "tyre_pressure_actual" _FIELD_SENTINELS entry,
+    # so a surviving value is a genuine reading. #528 reported the front pair
+    # only; rear/spare exist in the dict but aren't wired until reported.
+    for _attr, _name in (
+        ("tyre_pressure_actual_fl", "tyre_pressure_actual_front_left"),
+        ("tyre_pressure_actual_fr", "tyre_pressure_actual_front_right"),
+    ):
+        _tpa = _to_int(first(_name))
+        if _tpa is not None:
+            setattr(d, _attr, _tpa)
 
     # F. Lights / energy / misc.
     # parking_lights (plural enum): 0=unsup 1=invalid 2=off 3=left 4=right 5=both.
@@ -1542,6 +1570,13 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     _ssa = first("start_stop_action")
     if _ssa is not None and d.start_stop_action is None:
         d.start_stop_action = _shorten_enum(_ssa)
+
+    # start_stop_modification — dict type=string, "Contains the detail related
+    # to start stop modification". Distinct field from start_stop_action; no
+    # dict-listed enum → _shorten_enum passes unprefixed values through.
+    _ssm = first("start_stop_modification")
+    if _ssm is not None and d.start_stop_modification is None:
+        d.start_stop_modification = _shorten_enum(_ssm)
 
     # b1/B3 — derive drivetrain from the data actually present (fixes the
     # #37 class: an EV like the e-up! showing only combustion entities, or a

@@ -784,6 +784,15 @@
       "lifetime_zero_emission_km": {
         "name": "Bezemisní vzdálenost celkem"
       },
+      "last_trip_avg_gas_consumption_kg_100km": {
+        "name": "Spotřeba plynu poslední jízda (prům.)"
+      },
+      "last_trip_range_gain_km": {
+        "name": "Získaný dojezd poslední jízda"
+      },
+      "last_trip_zero_emission_km": {
+        "name": "Bezemisní vzdálenost poslední jízda"
+      },
       "charger_update_trigger": {
         "name": "Spouštěč aktualizace nabíječky"
       },
@@ -889,6 +898,12 @@
       "tyre_pressure_diff_spare": {
         "name": "Odchylka tlaku rezervního kola"
       },
+      "tyre_pressure_actual_fl": {
+        "name": "Tlak v pneumatice vpředu vlevo"
+      },
+      "tyre_pressure_actual_fr": {
+        "name": "Tlak v pneumatice vpředu vpravo"
+      },
       "parking_lights_state": {
         "name": "Parkovací světla"
       },
@@ -960,6 +975,9 @@
       },
       "start_stop_action": {
         "name": "Akce spuštění/zastavení nabíjení"
+      },
+      "start_stop_modification": {
+        "name": "Úprava start/stop"
       }
     },
     "binary_sensor": {

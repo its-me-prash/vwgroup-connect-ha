@@ -2003,6 +2003,24 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # E'. Tyre ACTUAL per-wheel pressure (#528) — dict unit ambiguous
+    # ("10kPA / Bar / PSI/ kPA") → unitless diagnostic. LOW — disabled-by-default.
+    VagSensorDescription(
+        key="tyre_pressure_actual_fl",
+        translation_key="tyre_pressure_actual_fl",
+        data_key="tyre_pressure_actual_fl",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tyre_pressure_actual_fr",
+        translation_key="tyre_pressure_actual_fr",
+        data_key="tyre_pressure_actual_fr",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     # F. Lights / energy / misc.
     VagSensorDescription(
         key="parking_lights_state",
@@ -2102,6 +2120,45 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:leaf",
         entity_category=EntityCategory.DIAGNOSTIC,
         suggested_display_precision=1,
+    ),
+    # Short-term (last-trip) counterparts of the gas/range-gain/zero-emission
+    # lifetime aggregates above. Same units; per-trip values reset each drive so
+    # MEASUREMENT (not TOTAL_INCREASING). Diagnostic, disabled-by-default.
+    VagSensorDescription(
+        key="last_trip_avg_gas_consumption_kg_100km",
+        translation_key="last_trip_avg_gas_consumption_kg_100km",
+        data_key="last_trip_avg_gas_consumption_kg_100km",
+        native_unit_of_measurement="kg/100 km",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:gas-cylinder",
+        condition="combustion",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="last_trip_range_gain_km",
+        translation_key="last_trip_range_gain_km",
+        data_key="last_trip_range_gain_km",
+        native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:map-marker-distance",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="last_trip_zero_emission_km",
+        translation_key="last_trip_zero_emission_km",
+        data_key="last_trip_zero_emission_km",
+        native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:leaf",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+        entity_registry_enabled_default=False,
     ),
     # LOW — last battery-charger update trigger. Disabled-by-default.
     VagSensorDescription(
@@ -2490,6 +2547,16 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # start_stop_modification — start/stop modification detail string. LOW —
+    # disabled-by-default.
+    VagSensorDescription(
+        key="start_stop_modification",
+        translation_key="start_stop_modification",
+        data_key="start_stop_modification",
+        icon="mdi:play-pause",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
 )
 
 # Sensor keys that read from coordinator helpers instead of the per-vehicle
@@ -2765,8 +2832,11 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "last_trip_avg_aux_consumption_kwh_100km",
     "lifetime_avg_aux_consumption_kwh_100km",
     "lifetime_avg_gas_consumption_kg_100km",
+    "last_trip_avg_gas_consumption_kg_100km",
     "lifetime_range_gain_km",
+    "last_trip_range_gain_km",
     "lifetime_zero_emission_km",
+    "last_trip_zero_emission_km",
     "charger_update_trigger",
     # v2.15.3 (#518) — EU-Data-Act charging-detail string family. Junk
     # sentinels dropped to None at the parser → single-port cars never get a
@@ -2800,6 +2870,11 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # v2.15.4 (#523) — EU Data Act portal new field. EU-Data-Act dialect only;
     # vehicles/channels without the field stay None → no phantom.
     "start_stop_action",
+    # v2.15.4 (#528) — EU Data Act portal new fields. EU-Data-Act dialect only;
+    # vehicles/channels without the field stay None → no phantom.
+    "start_stop_modification",
+    "tyre_pressure_actual_fl",
+    "tyre_pressure_actual_fr",
 })
 
 # v1.14.0 (#24) — Trip Statistics is brand-restricted at the API level

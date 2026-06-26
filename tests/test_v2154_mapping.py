@@ -10,6 +10,8 @@ convention) the asserts only check the value passes through, not a scaled unit.
 """
 from __future__ import annotations
 
+import pytest
+
 from custom_components.vag_connect.cariad.auth._eu_data_act import (
     map_dataset_to_vehicle_data,
 )
@@ -220,6 +222,68 @@ def test_523_start_stop_action_passthrough() -> None:
     assert d.start_stop_action == "START"
 
 
+# ── #528 — start/stop modification, hood state, actual front tyre pressures
+
+
+def test_528_start_stop_modification_passthrough() -> None:
+    # dict type=string, no enum list → no prefix; distinct from start_stop_action.
+    d = _map({"start_stop_modification": "ENABLED"})
+    assert d.start_stop_modification == "ENABLED"
+
+
+def test_528_start_stop_modification_distinct_from_action() -> None:
+    d = _map({"start_stop_action": "START", "start_stop_modification": "STOP"})
+    assert d.start_stop_action == "START"
+    assert d.start_stop_modification == "STOP"
+
+
+def test_528_state_of_hood_open() -> None:
+    # dict enum: unsupported 0 / invalid 1 / open 2 / closed 3.
+    assert _map({"state_of_hood": "2"}).hood_open is True
+
+
+def test_528_state_of_hood_closed() -> None:
+    assert _map({"state_of_hood": "3"}).hood_open is False
+
+
+def test_528_state_of_hood_sentinels_to_none() -> None:
+    # sample "0" = unsupported, 1 = invalid → no entity.
+    assert _map({"state_of_hood": "0"}).hood_open is None
+    assert _map({"state_of_hood": "1"}).hood_open is None
+
+
+def test_528_state_of_hood_does_not_override_bonnet_channel() -> None:
+    # primary open_state channel wins; state_of_hood only fills when absent.
+    d = _map({"open_state_front_engine_bonnet": "2", "state_of_hood": "3"})
+    assert d.hood_open is True
+
+
+def test_528_tyre_pressure_actual_front_pair() -> None:
+    # _FIELD_SENTINELS drops 0/1; a surviving >1 reading passes through as int.
+    d = _map(
+        {
+            "tyre_pressure_actual_front_left": "230",
+            "tyre_pressure_actual_front_right": "228",
+        }
+    )
+    assert d.tyre_pressure_actual_fl == 230
+    assert d.tyre_pressure_actual_fr == 228
+
+
+def test_528_tyre_pressure_actual_sentinels_dropped() -> None:
+    # 0=unsupported, 1=invalid → None (no entity). This flat dict never hits
+    # _walk_fields; the drop happens inside first()/_is_sentinel via the
+    # ``tyre_pressure_actual`` _FIELD_SENTINELS rule ({0.0, 1.0}).
+    d = _map(
+        {
+            "tyre_pressure_actual_front_left": "0",
+            "tyre_pressure_actual_front_right": "1",
+        }
+    )
+    assert d.tyre_pressure_actual_fl is None
+    assert d.tyre_pressure_actual_fr is None
+
+
 # ── aliases (LAST-fallback dialect names folding onto canonical attributes)
 
 
@@ -254,3 +318,48 @@ def test_alias_charging_state_report_error_code() -> None:
 
 def test_alias_charging_error_code_zero_sentinel_dropped() -> None:
     assert _map({"charging_state_report.error_code": "0"}).charging_error_code is None
+
+
+# ── #528 short-term (last-trip) gas/range-gain/zero-emission counterparts.
+# Same conversions as the long-term/lifetime mappings: gas dict kg/1000km → /10
+# for kg/100 km; range-gain + zero-emission dict 100m → *0.1 for km.
+
+
+def test_528_last_trip_avg_gas_consumption() -> None:
+    # kg/1000km → kg/100 km (÷10), mirroring lifetime_avg_gas_consumption.
+    d = _map({"short_term_data_average_gas_consumption": "45"})
+    assert d.last_trip_avg_gas_consumption_kg_100km == 4.5
+
+
+def test_528_last_trip_range_gain() -> None:
+    # 100m steps → km (×0.1), mirroring lifetime_range_gain_km.
+    d = _map({"short_term_data_range_gain_distance": "123"})
+    assert d.last_trip_range_gain_km == pytest.approx(12.3)
+
+
+def test_528_last_trip_zero_emission() -> None:
+    # 100m steps → km (×0.1), mirroring lifetime_zero_emission_km.
+    d = _map({"short_term_data_zero_emission_distance": "87"})
+    assert d.last_trip_zero_emission_km == pytest.approx(8.7)
+
+
+def test_528_short_term_matches_lifetime_conversion() -> None:
+    # Identical raw inputs through short- and long-term keys must yield equal
+    # converted values (same conversion semantics).
+    st = _map(
+        {
+            "short_term_data_average_gas_consumption": "45",
+            "short_term_data_range_gain_distance": "123",
+            "short_term_data_zero_emission_distance": "87",
+        }
+    )
+    lt = _map(
+        {
+            "long_term_data_average_gas_consumption": "45",
+            "long_term_data_range_gain_distance": "123",
+            "long_term_data_zero_emission_distance": "87",
+        }
+    )
+    assert st.last_trip_avg_gas_consumption_kg_100km == lt.lifetime_avg_gas_consumption_kg_100km
+    assert st.last_trip_range_gain_km == lt.lifetime_range_gain_km
+    assert st.last_trip_zero_emission_km == lt.lifetime_zero_emission_km
