@@ -787,6 +787,39 @@
       "charger_update_trigger": {
         "name": "Charger update trigger"
       },
+      "active_target_soc": {
+        "name": "Active charge target"
+      },
+      "charge_time_display": {
+        "name": "Charge time details"
+      },
+      "charging_plug1_flap_lock_state": {
+        "name": "Charge port 1 flap lock"
+      },
+      "charging_plug1_flap_state": {
+        "name": "Charge port 1 flap"
+      },
+      "charging_plug1_infrastructure_state": {
+        "name": "Charge port 1 station status"
+      },
+      "charging_plug1_lock_state": {
+        "name": "Charge port 1 plug lock"
+      },
+      "charging_plug2_connectionstate": {
+        "name": "Charge port 2 connection"
+      },
+      "charging_plug2_flap_lock_state": {
+        "name": "Charge port 2 flap lock"
+      },
+      "charging_plug2_flap_state": {
+        "name": "Charge port 2 flap"
+      },
+      "charging_plug2_infrastructure_state": {
+        "name": "Charge port 2 station status"
+      },
+      "charging_plug2_lock_state": {
+        "name": "Charge port 2 plug lock"
+      },
       "battery_available_kwh": {
         "name": "Battery energy available"
       },

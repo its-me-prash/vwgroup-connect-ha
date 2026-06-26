@@ -787,6 +787,39 @@
       "charger_update_trigger": {
         "name": "Disparador actualización cargador"
       },
+      "active_target_soc": {
+        "name": "Objetivo de carga activo"
+      },
+      "charge_time_display": {
+        "name": "Detalles del tiempo de carga"
+      },
+      "charging_plug1_flap_lock_state": {
+        "name": "Bloqueo tapa de carga 1"
+      },
+      "charging_plug1_flap_state": {
+        "name": "Tapa de carga 1"
+      },
+      "charging_plug1_infrastructure_state": {
+        "name": "Estado punto de carga 1"
+      },
+      "charging_plug1_lock_state": {
+        "name": "Bloqueo conector de carga 1"
+      },
+      "charging_plug2_connectionstate": {
+        "name": "Conexión toma de carga 2"
+      },
+      "charging_plug2_flap_lock_state": {
+        "name": "Bloqueo tapa de carga 2"
+      },
+      "charging_plug2_flap_state": {
+        "name": "Tapa de carga 2"
+      },
+      "charging_plug2_infrastructure_state": {
+        "name": "Estado punto de carga 2"
+      },
+      "charging_plug2_lock_state": {
+        "name": "Bloqueo conector de carga 2"
+      },
       "battery_available_kwh": {
         "name": "Energía disponible de la batería"
       },

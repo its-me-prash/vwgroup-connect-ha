@@ -787,6 +787,39 @@
       "charger_update_trigger": {
         "name": "Auslöser Ladegerät-Update"
       },
+      "active_target_soc": {
+        "name": "Aktives Ladeziel"
+      },
+      "charge_time_display": {
+        "name": "Ladezeit-Details"
+      },
+      "charging_plug1_flap_lock_state": {
+        "name": "Ladeklappe 1 Verriegelung"
+      },
+      "charging_plug1_flap_state": {
+        "name": "Ladeklappe 1"
+      },
+      "charging_plug1_infrastructure_state": {
+        "name": "Ladepunkt 1 Status"
+      },
+      "charging_plug1_lock_state": {
+        "name": "Ladestecker 1 Verriegelung"
+      },
+      "charging_plug2_connectionstate": {
+        "name": "Ladeanschluss 2 Verbindung"
+      },
+      "charging_plug2_flap_lock_state": {
+        "name": "Ladeklappe 2 Verriegelung"
+      },
+      "charging_plug2_flap_state": {
+        "name": "Ladeklappe 2"
+      },
+      "charging_plug2_infrastructure_state": {
+        "name": "Ladepunkt 2 Status"
+      },
+      "charging_plug2_lock_state": {
+        "name": "Ladestecker 2 Verriegelung"
+      },
       "battery_available_kwh": {
         "name": "Verfügbare Batterieenergie"
       },

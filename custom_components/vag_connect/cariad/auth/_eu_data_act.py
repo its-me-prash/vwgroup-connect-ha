@@ -681,7 +681,14 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
             d.electric_range_km = rng
 
     cp = _to_float(first("battery_state_report.charge_power", "charge_power",
-                        "chargePower_kW"))
+                        "chargePower_kW",
+                        # v2.15.3 (#518) — EU-Data-Act dialect alias. Dict
+                        # defines charging_power as "Power of charging"
+                        # (type=number, unit=null); the sibling charge_rate_unit
+                        # in this dialect is kW, so treat it as kW like the other
+                        # aliases. LAST fallback only — canonical charge_power
+                        # keys win when a car reports both.
+                        "charging_power"))
     if cp is not None:
         d.charging_power_kw = cp
 
@@ -1051,6 +1058,63 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     # NOTE: scope_potential_total (PPE-only, opaque) and echo (constant
     # heartbeat token) are intentionally NOT mapped — they stay Scout-visible
     # in raw_unmapped_fields (no first() call → no false signal).
+
+    # v2.15.3 (#518) — EU-Data-Act charging-detail string family. All
+    # dict-confirmed type=string with no enum list in the dictionary (the enum
+    # tokens are only observed from samples: connected/disconnected, locked/
+    # unlocked, initializing/notAvailable, …). We map each via first() with
+    # _shorten_enum() for display consistency and store the lowercased junk
+    # sentinels as None so single-port cars don't get a dead "invalid" entity.
+    # NEVER suppressed at the field layer — two-port cars (plug2) exist and the
+    # field is always defined; only this car's junk samples are skipped.
+    def _charge_str(*names: str) -> str | None:
+        raw = first(*names)
+        if raw is None:
+            return None
+        # junk sentinels for these state strings: no active session / single-
+        # port car / infra not yet up. Skip → field stays None (no phantom
+        # entity) but the raw key is still consumed for discovery hygiene.
+        if str(raw).strip().lower() in (
+            "invalid", "unavailable", "notavailable", "error", "unknown",
+        ):
+            return None
+        return _shorten_enum(raw)
+
+    _atsoc = _charge_str("active_target_soc")
+    if _atsoc is not None and d.active_target_soc is None:
+        d.active_target_soc = _atsoc
+    _ctd = _charge_str("charge_time_display")
+    if _ctd is not None and d.charge_time_display is None:
+        d.charge_time_display = _ctd
+
+    _p1fl = _charge_str("charging_plug1_flap_lock_state")
+    if _p1fl is not None and d.charging_plug1_flap_lock_state is None:
+        d.charging_plug1_flap_lock_state = _p1fl
+    _p1f = _charge_str("charging_plug1_flap_state")
+    if _p1f is not None and d.charging_plug1_flap_state is None:
+        d.charging_plug1_flap_state = _p1f
+    _p1i = _charge_str("charging_plug1_infrastructure_state")
+    if _p1i is not None and d.charging_plug1_infrastructure_state is None:
+        d.charging_plug1_infrastructure_state = _p1i
+    _p1l = _charge_str("charging_plug1_lock_state")
+    if _p1l is not None and d.charging_plug1_lock_state is None:
+        d.charging_plug1_lock_state = _p1l
+
+    _p2c = _charge_str("charging_plug2_connectionstate")
+    if _p2c is not None and d.charging_plug2_connectionstate is None:
+        d.charging_plug2_connectionstate = _p2c
+    _p2fl = _charge_str("charging_plug2_flap_lock_state")
+    if _p2fl is not None and d.charging_plug2_flap_lock_state is None:
+        d.charging_plug2_flap_lock_state = _p2fl
+    _p2f = _charge_str("charging_plug2_flap_state")
+    if _p2f is not None and d.charging_plug2_flap_state is None:
+        d.charging_plug2_flap_state = _p2f
+    _p2i = _charge_str("charging_plug2_infrastructure_state")
+    if _p2i is not None and d.charging_plug2_infrastructure_state is None:
+        d.charging_plug2_infrastructure_state = _p2i
+    _p2l = _charge_str("charging_plug2_lock_state")
+    if _p2l is not None and d.charging_plug2_lock_state is None:
+        d.charging_plug2_lock_state = _p2l
 
     # parking_light_left / _right → aggregate parking_light + per-side fields.
     _pll = first("parking_light_left")

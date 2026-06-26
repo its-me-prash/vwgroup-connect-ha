@@ -787,6 +787,39 @@
       "charger_update_trigger": {
         "name": "Spouštěč aktualizace nabíječky"
       },
+      "active_target_soc": {
+        "name": "Aktivní cíl nabíjení"
+      },
+      "charge_time_display": {
+        "name": "Detaily doby nabíjení"
+      },
+      "charging_plug1_flap_lock_state": {
+        "name": "Zámek dvířek nabíjení 1"
+      },
+      "charging_plug1_flap_state": {
+        "name": "Dvířka nabíjení 1"
+      },
+      "charging_plug1_infrastructure_state": {
+        "name": "Stav nabíjecího bodu 1"
+      },
+      "charging_plug1_lock_state": {
+        "name": "Zámek konektoru nabíjení 1"
+      },
+      "charging_plug2_connectionstate": {
+        "name": "Připojení nabíjecího portu 2"
+      },
+      "charging_plug2_flap_lock_state": {
+        "name": "Zámek dvířek nabíjení 2"
+      },
+      "charging_plug2_flap_state": {
+        "name": "Dvířka nabíjení 2"
+      },
+      "charging_plug2_infrastructure_state": {
+        "name": "Stav nabíjecího bodu 2"
+      },
+      "charging_plug2_lock_state": {
+        "name": "Zámek konektoru nabíjení 2"
+      },
       "battery_available_kwh": {
         "name": "Dostupná energie baterie"
       },

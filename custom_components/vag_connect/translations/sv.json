@@ -787,6 +787,39 @@
       "charger_update_trigger": {
         "name": "Utlösare laddaruppdatering"
       },
+      "active_target_soc": {
+        "name": "Aktivt laddmål"
+      },
+      "charge_time_display": {
+        "name": "Laddtidsdetaljer"
+      },
+      "charging_plug1_flap_lock_state": {
+        "name": "Lås laddlucka 1"
+      },
+      "charging_plug1_flap_state": {
+        "name": "Laddlucka 1"
+      },
+      "charging_plug1_infrastructure_state": {
+        "name": "Status laddpunkt 1"
+      },
+      "charging_plug1_lock_state": {
+        "name": "Lås laddkontakt 1"
+      },
+      "charging_plug2_connectionstate": {
+        "name": "Anslutning laddport 2"
+      },
+      "charging_plug2_flap_lock_state": {
+        "name": "Lås laddlucka 2"
+      },
+      "charging_plug2_flap_state": {
+        "name": "Laddlucka 2"
+      },
+      "charging_plug2_infrastructure_state": {
+        "name": "Status laddpunkt 2"
+      },
+      "charging_plug2_lock_state": {
+        "name": "Lås laddkontakt 2"
+      },
       "battery_available_kwh": {
         "name": "Tillgänglig batterienergi"
       },

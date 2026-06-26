@@ -787,6 +787,39 @@
       "charger_update_trigger": {
         "name": "Wyzwalacz aktualizacji ładowarki"
       },
+      "active_target_soc": {
+        "name": "Aktywny cel ładowania"
+      },
+      "charge_time_display": {
+        "name": "Szczegóły czasu ładowania"
+      },
+      "charging_plug1_flap_lock_state": {
+        "name": "Blokada klapki ładowania 1"
+      },
+      "charging_plug1_flap_state": {
+        "name": "Klapka ładowania 1"
+      },
+      "charging_plug1_infrastructure_state": {
+        "name": "Stan punktu ładowania 1"
+      },
+      "charging_plug1_lock_state": {
+        "name": "Blokada wtyczki ładowania 1"
+      },
+      "charging_plug2_connectionstate": {
+        "name": "Połączenie gniazda ładowania 2"
+      },
+      "charging_plug2_flap_lock_state": {
+        "name": "Blokada klapki ładowania 2"
+      },
+      "charging_plug2_flap_state": {
+        "name": "Klapka ładowania 2"
+      },
+      "charging_plug2_infrastructure_state": {
+        "name": "Stan punktu ładowania 2"
+      },
+      "charging_plug2_lock_state": {
+        "name": "Blokada wtyczki ładowania 2"
+      },
       "battery_available_kwh": {
         "name": "Dostępna energia akumulatora"
       },

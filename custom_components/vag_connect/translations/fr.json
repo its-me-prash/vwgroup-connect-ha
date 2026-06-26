@@ -787,6 +787,39 @@
       "charger_update_trigger": {
         "name": "Déclencheur mise à jour chargeur"
       },
+      "active_target_soc": {
+        "name": "Objectif de charge actif"
+      },
+      "charge_time_display": {
+        "name": "Détails du temps de charge"
+      },
+      "charging_plug1_flap_lock_state": {
+        "name": "Verrou trappe de charge 1"
+      },
+      "charging_plug1_flap_state": {
+        "name": "Trappe de charge 1"
+      },
+      "charging_plug1_infrastructure_state": {
+        "name": "État borne charge 1"
+      },
+      "charging_plug1_lock_state": {
+        "name": "Verrou prise de charge 1"
+      },
+      "charging_plug2_connectionstate": {
+        "name": "Connexion prise de charge 2"
+      },
+      "charging_plug2_flap_lock_state": {
+        "name": "Verrou trappe de charge 2"
+      },
+      "charging_plug2_flap_state": {
+        "name": "Trappe de charge 2"
+      },
+      "charging_plug2_infrastructure_state": {
+        "name": "État borne charge 2"
+      },
+      "charging_plug2_lock_state": {
+        "name": "Verrou prise de charge 2"
+      },
       "battery_available_kwh": {
         "name": "Énergie batterie disponible"
       },

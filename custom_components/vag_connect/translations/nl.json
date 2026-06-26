@@ -787,6 +787,39 @@
       "charger_update_trigger": {
         "name": "Trigger lader-update"
       },
+      "active_target_soc": {
+        "name": "Actief laaddoel"
+      },
+      "charge_time_display": {
+        "name": "Laadtijd-details"
+      },
+      "charging_plug1_flap_lock_state": {
+        "name": "Laadklep 1 vergrendeling"
+      },
+      "charging_plug1_flap_state": {
+        "name": "Laadklep 1"
+      },
+      "charging_plug1_infrastructure_state": {
+        "name": "Laadpunt 1 status"
+      },
+      "charging_plug1_lock_state": {
+        "name": "Laadstekker 1 vergrendeling"
+      },
+      "charging_plug2_connectionstate": {
+        "name": "Laadaansluiting 2 verbinding"
+      },
+      "charging_plug2_flap_lock_state": {
+        "name": "Laadklep 2 vergrendeling"
+      },
+      "charging_plug2_flap_state": {
+        "name": "Laadklep 2"
+      },
+      "charging_plug2_infrastructure_state": {
+        "name": "Laadpunt 2 status"
+      },
+      "charging_plug2_lock_state": {
+        "name": "Laadstekker 2 vergrendeling"
+      },
       "battery_available_kwh": {
         "name": "Beschikbare accu-energie"
       },

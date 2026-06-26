@@ -1508,6 +1508,32 @@ class VehicleData:
     # LOW — disabled-by-default. sensor, diagnostic.
     charger_update_trigger: str | None = None
 
+    # v2.15.3 (#518) — EU-Data-Act charging-detail string family. All
+    # dict-confirmed type=string (no enum list in the dict). LOW —
+    # disabled-by-default diagnostic sensors. Junk sentinels (invalid/
+    # unavailable/notAvailable) are dropped to None at the parser so single-
+    # port cars don't get a dead entity; the fields stay defined so two-port
+    # cars surface plug2 (NEVER suppress Scout fields).
+    # active_target_soc: the CURRENTLY-active charge goal (distinct from the
+    # target_soc SETTING above). No SoC token in the entity NAME ("Active
+    # charge target").
+    active_target_soc: str | None = None
+    # Details of remaining charge time (free-form string; not the numeric ETA).
+    charge_time_display: str | None = None
+    # Charging plug1 (primary port) flap / lock / infrastructure states.
+    charging_plug1_flap_lock_state: str | None = None
+    charging_plug1_flap_state: str | None = None
+    charging_plug1_infrastructure_state: str | None = None
+    charging_plug1_lock_state: str | None = None
+    # Charging plug2 (second port — dual-port cars) connection / flap / lock /
+    # infrastructure states. Mirror of plug1 but a SECOND port; kept separate,
+    # NOT folded into plug_connected/plug_state.
+    charging_plug2_connectionstate: str | None = None
+    charging_plug2_flap_lock_state: str | None = None
+    charging_plug2_flap_state: str | None = None
+    charging_plug2_infrastructure_state: str | None = None
+    charging_plug2_lock_state: str | None = None
+
     # — BFF / selectivestatus dialect NEW fields —
     # Per-corner tire pressure STATE strings (shared — EU tires.[*].state and
     # BFF {corner}TireState both write these). Lowercased passthrough.
