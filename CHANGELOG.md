@@ -44,6 +44,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Fixed
 
+- **VW US/CA: clearer diagnosis when sensors stay empty (#503).** Login + the garage list now succeed (US/Canada selector), but if the per-vehicle data endpoints return 403, the integration classifies why — an inactive Car-Net / VW Connect subscription, a VW device-attestation lockdown, or a transient block — and raises a repair notice (with the cause in the debug log, no secrets) instead of silently showing nothing. Last-known data keeps showing.
+
 - **Battery capacity / available energy were 10x too high (#534).** The EU-portal energy-content readings are in 0.1-kWh units but were passed through unscaled — an ID.4 showed 756 kWh instead of 75.6 (and 461 instead of 46.1 available). Now scaled correctly.
 
 - **Clearer login errors (#527).** A portal login that fails for a non-password reason — terms/consent not yet accepted, a 2FA or onboarding step, a region/soft-block — no longer shows the misleading "check email and password". You now get the real reason and what to do (open the portal once in a browser, finish the prompt, retry), so users with correct credentials aren't sent chasing a password problem. Failure logging now records the landing page type/error code (no secrets) to pin the cause.

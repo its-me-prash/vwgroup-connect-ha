@@ -1612,6 +1612,33 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         clear_ola_headers_issue(self.hass, self.entry.entry_id)
                 except Exception:  # noqa: BLE001
                     pass
+
+                # v2.15.4 (#503) — VW NA read-path entitlement surfacing.
+                # login + garage succeed but per-vehicle reads 403; the client
+                # classifies the 403 (markers-only) and the privileges outcome
+                # into vw_na_data_forbidden + a value-free reason. Raise/clear a
+                # Repair issue so the user sees an honest entitlement state
+                # instead of a silent-empty vehicle. Cheap attr check — no-op
+                # for non-VW-NA brands. Mirrors the OLA block above.
+                try:
+                    na_forbidden = getattr(
+                        self._cariad_client, "vw_na_data_forbidden", False
+                    )
+                    na_reason = getattr(
+                        self._cariad_client, "vw_na_data_forbidden_reason", ""
+                    )
+                    if na_forbidden:
+                        from .repairs import raise_issue_vw_na_data_forbidden  # noqa: PLC0415
+                        raise_issue_vw_na_data_forbidden(
+                            self.hass, self.entry.entry_id, na_reason,
+                        )
+                    else:
+                        from .repairs import clear_vw_na_data_forbidden_issue  # noqa: PLC0415
+                        clear_vw_na_data_forbidden_issue(
+                            self.hass, self.entry.entry_id,
+                        )
+                except Exception:  # noqa: BLE001
+                    pass
             except Exception as err:  # noqa: BLE001
                 # Auth failure that survived the client's refresh-then-relogin
                 # fallback means the credentials are stale. Trigger HA reauth.

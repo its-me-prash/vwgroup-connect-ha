@@ -1384,6 +1384,14 @@
       "description": "VW Group's online-services backend (OLA) refused **{count}** requests in a row for {brand} with HTTP 403 Forbidden.\n\nThis is a **server-side lockdown by VW**, not something an update, header change, or re-login can fix. VW now requires a Google-signed device-attestation token (Firebase App Check / Play Integrity) plus a web-application-firewall token on the SEAT/CUPRA backend — the official app mints these from a hardened, Google-signed build, which an open-source client cannot reproduce. So remote **commands** for {brand} (and SEAT) are unlikely to return.\n\nVehicle **data** still flows through the read-only EU Data Act portal where available — that's the path forward for these brands. This is entirely VW-side; nothing to fix on your end. (Tracked: #464.)",
       "title": "{brand} commands blocked by VW (device attestation) — {count} consecutive 403 errors"
     },
+    "vw_na_data_forbidden": {
+      "title": "Volkswagen US/CA: vehicle data blocked (subscription)",
+      "description": "Your Volkswagen account signed in and your garage was read, but the per-vehicle data requests (status, charging, climate) are being refused with HTTP 403 Forbidden.\n\nThe most common cause is an **inactive Car-Net / VW Connect subscription** on this vehicle. The same data would flow again if the subscription is renewed.\n\n**What to do:**\n\n1. Open the official MyVW app and confirm your Remote Access / Car-Net subscription is active for this car.\n2. If it lapsed, renew it via VW, then wait for the next poll.\n\nThe integration keeps showing the last data it cached. This warning clears by itself the moment a data request succeeds again."
+    },
+    "vw_na_data_forbidden_attestation": {
+      "title": "Volkswagen US/CA: vehicle data blocked by VW (device attestation)",
+      "description": "Your Volkswagen account signed in and your garage was read, but the per-vehicle data requests (status, charging, climate) are being refused with HTTP 403 Forbidden, and the response carries a **device-attestation** marker.\n\nThis is a **server-side lockdown by VW**, not a subscription problem and not something a re-login can fix — so renewing Car-Net will not help. VW now requires a Google-signed device-attestation token (Firebase App Check / Play Integrity) that the official app mints from a hardened build, which an open-source client cannot reproduce.\n\nThe integration keeps showing the last data it cached. This warning clears by itself if VW reopens the data plane."
+    },
     "supplementary_reauth": {
       "title": "Volkswagen.de read channel needs re-login",
       "description": "The supplementary volkswagen.de read channel couldn't resume its session (Volkswagen wants the email one-time code again). Your vehicle's main data is unaffected. To restore the extra vw.de data, open this integration's options and re-run \"Add a Volkswagen.de read channel\"."

@@ -324,6 +324,56 @@ def clear_ola_headers_issue(hass: HomeAssistant, entry_id: str) -> None:
     ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_ola_headers_outdated")
 
 
+def raise_issue_vw_na_data_forbidden(
+    hass: HomeAssistant,
+    entry_id: str,
+    reason: str,
+) -> None:
+    """v2.15.4 (#503) — surface a VW NA read-path 403 to the user.
+
+    Login + garage succeed but the per-vehicle reads (rvs / charge / climate)
+    return HTTP 403. Without this, the integration showed a silent-empty
+    vehicle. The coordinator raises this issue when the VW NA client flags
+    ``vw_na_data_forbidden`` and clears it the moment a read succeeds.
+
+    ``reason`` is one of the value-free labels the client computed:
+    ``"entitlement"`` (subscription inactive / privileges 403 — same channel
+    would work if renewed) or ``"attestation"`` (VW put the data plane behind
+    device attestation an open-source client can't satisfy — NOT a renewal
+    problem). The label drives a distinct translation so we never send an
+    attestation-locked user chasing a phantom renewal.
+
+    Mirrors the OLA / data_act_no_data repair plumbing: not auto-fixable
+    (there is no integration-side action), WARNING severity, idempotent.
+    """
+    translation_key = (
+        "vw_na_data_forbidden_attestation"
+        if reason == "attestation"
+        else "vw_na_data_forbidden"
+    )
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        f"{entry_id}_vw_na_data_forbidden",
+        is_fixable=False,
+        is_persistent=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key=translation_key,
+        learn_more_url="https://github.com/its-me-prash/vag-connect-ha/blob/main/docs/FAQ.md",
+    )
+    _LOGGER.warning(
+        "VW NA Repair-Issue: vehicle data forbidden (reason=%s) — login + "
+        "garage succeed but the per-vehicle reads return 403. Showing "
+        "last-known data where cached.",
+        reason,
+    )
+
+
+def clear_vw_na_data_forbidden_issue(hass: HomeAssistant, entry_id: str) -> None:
+    """v2.15.4 (#503) — clear the VW NA data-403 issue when a read succeeds."""
+    ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_vw_na_data_forbidden")
+
+
 # v2.9.0 — VW account-lock detection.
 # The 2026-05-31 ecosystem-wide VW Auth chaos surfaced a new failure
 # mode: when an integration retries auth too aggressively after a

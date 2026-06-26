@@ -20,11 +20,77 @@ from aiohttp import ClientSession
 from .._util import mask_vin as _mask_vin
 from .._util import safe_float, safe_int
 from ..models import VehicleData
-from ..exceptions import AuthenticationError, APIError, TokenExpiredError
+from ..exceptions import (
+    AuthenticationError,
+    APIError,
+    CommandFailureReason,
+    TokenExpiredError,
+    classify_command_failure,
+)
 from ..auth.idk import IDKAuth
 from ..models import BrandConfig, TokenSet
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _classify_data_403(exc: APIError) -> str:
+    """v2.15.4 (#503) — classify a VW NA data-plane 403 from its body MARKERS.
+
+    Returns one of the short, value-free labels ``"attestation"`` /
+    ``"entitlement"`` / ``"bare-403"`` for the per-``get_status`` triage log.
+
+    ``classify_command_failure`` only sees ``str(exc)``, which truncates the
+    body to 200 chars (``exceptions.py`` ``APIError.__init__`` →
+    ``body[:200]``), so an attestation marker further into the body could be
+    cut off. We therefore re-classify against the retained ``exc.body`` (up to
+    4 KB) by building a throw-away ``APIError`` whose ``str()`` carries the
+    full body, then reuse the shared marker table — keeping ONE source of
+    truth for the attestation/entitlement vocabulary.
+
+    CRITICAL — privacy: the returned string is a fixed label only. The body is
+    inspected locally for substring markers and is NEVER returned, logged, or
+    attached to anything. Callers must log only the returned label.
+    """
+    body = exc.body if isinstance(getattr(exc, "body", None), str) else ""
+    # Feed the FULL retained body through the shared classifier by wrapping it
+    # in a probe whose str() exposes the whole body (no 200-char clip on the
+    # marker scan). url is fixed/empty so no real URL is ever materialised.
+    probe = APIError(exc.status, "", body)
+    # str(probe) still clips to body[:200]; classify off the full body instead
+    # by temporarily exposing it. We call the shared marker logic directly on a
+    # probe whose __str__ we don't rely on: re-run classify on a probe whose
+    # body[:200] already holds the markers when they're early, else fall to the
+    # explicit full-body marker grep below.
+    reason = classify_command_failure(probe)
+    if reason is CommandFailureReason.ATTESTATION_LOCKED:
+        return "attestation"
+    # Full-body (up to 4 KB) attestation marker grep — covers markers that sit
+    # past the 200-char str() clip the shared classifier scans.
+    low = body.lower()
+    if (
+        "missing-device-token" in low
+        or "missing_device_token" in low
+        or "forbidden device detected" in low
+        or "x-firebase-appcheck" in low
+        or "firebase-appcheck" in low
+        or "appcheck" in low
+        or "play integrity" in low
+        or "play_integrity" in low
+    ):
+        return "attestation"
+    if (
+        "not_entitled" in low
+        or "not-entitled" in low
+        or "license_required" in low
+        or "license-required" in low
+        or "entitlement" in low
+        or "subscription" in low
+    ):
+        return "entitlement"
+    if reason is CommandFailureReason.NOT_ENTITLED:
+        # status-only 403 with no body marker
+        return "bare-403"
+    return "bare-403"
 
 # Country → API base: US=us, CA=ca
 _COUNTRY_BASES: dict[str, str] = {
@@ -153,6 +219,18 @@ class VWNAClient:
         # claim. Refer to the privileges + SPIN flow comments below for
         # the endpoints that consume it.
         self._user_id: str | None = None
+        # v2.15.4 (#503) — read-path entitlement surfacing. The coordinator
+        # polls these after each cycle (mirrors the OLA / data_act_no_data
+        # repair plumbing) to decide whether to raise the
+        # ``vw_na_data_forbidden`` Repair issue. They are set ONLY from the
+        # 403 marker classification + the privileges-call outcome inside
+        # ``get_status`` — never from a value, VIN, UUID or token. Markers-only.
+        self.vw_na_data_forbidden: bool = False
+        self.vw_na_data_forbidden_reason: str = ""
+        # Last HTTP status of the privileges (4th gather) call. ``None`` means
+        # the call wasn't attempted (no user_id) or succeeded; an int is the
+        # last error status. Used as the entitlement discriminator only.
+        self._last_privileges_status: int | None = None
 
     async def authenticate(self, mfa_code: str | None = None) -> None:
         """IDK PKCE login against VW NA endpoint."""
@@ -290,6 +368,9 @@ class VWNAClient:
         to ``None`` so the gated sensors stay hidden when the call
         fails or the user_id is unavailable.
         """
+        # v2.15.4 (#503) — reset the per-poll privileges status so a previous
+        # cycle's error never lingers as a false entitlement signal.
+        self._last_privileges_status = None
         if not self._user_id:
             _LOGGER.debug(
                 "VW NA: get_subscription_privileges skipped (no user_id captured)"
@@ -303,6 +384,10 @@ class VWNAClient:
         try:
             data = await self._get(url)
         except APIError as err:
+            # v2.15.4 (#503) — remember the status so get_status can use the
+            # privileges outcome as the entitlement discriminator. Numeric
+            # status only — never the body/url.
+            self._last_privileges_status = err.status
             # 401 / 403 / 404 are expected on accounts without an active
             # Car-Net subscription or on legacy firmware that does not
             # expose this endpoint. 5xx is also benign here, the rest
@@ -423,6 +508,70 @@ class VWNAClient:
                             _sub, type(_val_sub).__name__,
                         )
             _LOGGER.debug("VW NA get_status shapes: climate=%s", _shape(climate))
+
+        # ── #503 read-path 403 triage + entitlement surfacing ──────────────────
+        # login + garage succeed but the per-vehicle reads (rvs / charge /
+        # climate) 403. Until now the only signal was the type+numeric-status
+        # shape log above, so attestation-lock vs not-entitled vs a bare 403
+        # could not be told apart. Classify the FIRST data 403 from its body
+        # MARKERS (never its text), emit ONE value-free DEBUG line, and use the
+        # privileges (4th gather) outcome as the entitlement discriminator.
+        #
+        # PRIVACY: every value below is a fixed label, a class name, or a
+        # numeric HTTP status. No UUID / VIN / body fragment / token is ever
+        # built into these strings (matches the shape-only log above).
+        data_403s = [
+            r for r in (vehicle_raw, charge, climate)
+            if isinstance(r, APIError) and getattr(r, "status", None) == 403
+        ]
+        if data_403s:
+            data_class = _classify_data_403(data_403s[0])
+            _LOGGER.debug(
+                "VW NA data 403 classified as %s (%d/3 reads 403)",
+                data_class, len(data_403s),
+            )
+            # Privileges shape/status as the entitlement discriminator —
+            # value-safe: only the dict-ness, an active bool, a count int, or
+            # the last error status.
+            priv_status = self._last_privileges_status
+            if isinstance(privileges, dict) and privileges:
+                _LOGGER.debug(
+                    "VW NA data 403 privileges: dict subscription_active=%s "
+                    "capabilities_count=%s",
+                    privileges.get("subscription_active"),
+                    privileges.get("capabilities_count"),
+                )
+            else:
+                _LOGGER.debug(
+                    "VW NA data 403 privileges: empty (last_status=%s)",
+                    priv_status,
+                )
+            # Entitlement decision: the data plane is forbidden AND either the
+            # privileges call also 403/401'd OR the privileges payload reports
+            # an INACTIVE subscription. Attestation locks are NOT an
+            # entitlement problem — never surface them as a phantom renewal.
+            sub_active = (
+                privileges.get("subscription_active")
+                if isinstance(privileges, dict)
+                else None
+            )
+            privileges_forbidden = priv_status in (401, 403)
+            if data_class == "attestation":
+                self.vw_na_data_forbidden = True
+                self.vw_na_data_forbidden_reason = "attestation"
+            elif data_class == "entitlement" or privileges_forbidden or sub_active is False:
+                self.vw_na_data_forbidden = True
+                self.vw_na_data_forbidden_reason = "entitlement"
+            else:
+                # Bare 403 with no corroborating entitlement signal — could be
+                # transient. Do NOT raise the Repair issue on this alone.
+                self.vw_na_data_forbidden = False
+                self.vw_na_data_forbidden_reason = "bare-403"
+        else:
+            # Any successful (or non-403) read clears the forbidden flag so the
+            # coordinator drops the Repair issue on recovery.
+            self.vw_na_data_forbidden = False
+            self.vw_na_data_forbidden_reason = ""
 
         # ── Vehicle status ────────────────────────────────────────────────────
         if isinstance(vehicle_raw, dict):
