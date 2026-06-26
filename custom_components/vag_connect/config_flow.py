@@ -211,6 +211,7 @@ def _map_error(err_code: str) -> str:
         "too_many_requests", "invalid_credentials", "missing_library",
         "upstream_unavailable",  # v2.5.7 — 5xx from VW backend
         "brand_not_dag_eligible",  # v2.7.0 — user picked non-DAG brand for browser login
+        "portal_interaction_required",  # v2.15.4 (#527) — non-credential portal stop
     } else "cannot_connect"
 
 
@@ -1777,7 +1778,15 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
         import aiohttp  # noqa: PLC0415
 
         from .cariad.auth._eu_data_act import EUDataActConnector  # noqa: PLC0415
-        from .cariad.exceptions import AuthenticationError  # noqa: PLC0415
+        from .cariad.exceptions import (  # noqa: PLC0415
+            AuthenticationError,
+            EmailTwoFactorRequiredError,
+            MarketingConsentError,
+            PortalInteractionRequiredError,
+            RateLimitError,
+            TermsAndConditionsError,
+            TwoFactorRequiredError,
+        )
 
         brand = str(self._config_entry.data.get(CONF_BRAND, "")) or "volkswagen"
         session = aiohttp.ClientSession(
@@ -1787,6 +1796,23 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
         try:
             connector = EUDataActConnector(session, brand=brand)
             await connector.login(email, password)
+        # v2.15.4 (#527) — the portal login can stop on a non-credential
+        # step (T&C / consent / 2FA / onboarding / soft block). Map each to
+        # its existing distinct code so valid-credential users are NOT told
+        # to fix their password. Subclass order: Email-2FA before its 2FA
+        # parent; the generic AuthenticationError catch-all stays LAST.
+        except TermsAndConditionsError as err:
+            raise ValueError("terms_and_conditions") from err
+        except MarketingConsentError as err:
+            raise ValueError("marketing_consent") from err
+        except EmailTwoFactorRequiredError as err:
+            raise ValueError("two_factor_required") from err
+        except TwoFactorRequiredError as err:
+            raise ValueError("two_factor_required") from err
+        except RateLimitError as err:
+            raise ValueError("too_many_requests") from err
+        except PortalInteractionRequiredError as err:
+            raise ValueError("portal_interaction_required") from err
         except AuthenticationError as err:
             raise ValueError("invalid_credentials") from err
         except Exception as err:  # noqa: BLE001

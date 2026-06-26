@@ -44,6 +44,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Fixed
 
+- **Clearer login errors (#527).** A portal login that fails for a non-password reason — terms/consent not yet accepted, a 2FA or onboarding step, a region/soft-block — no longer shows the misleading "check email and password". You now get the real reason and what to do (open the portal once in a browser, finish the prompt, retry), so users with correct credentials aren't sent chasing a password problem. Failure logging now records the landing page type/error code (no secrets) to pin the cause.
+
 - **Charge-timer & slope-consumption now actually populate, and the Scout stops re-reporting them.** These EU-portal fields were only read under one payload shape and silently missed the realistic one — so they never showed AND recurred in the Vehicle Data Scout for every VW-EU user. Now read from either shape; uphill/downhill slope no longer collide; the Scout only lists genuine unmapped metadata.
 
 - **VIN privacy.** Scout / error-report titles no longer expose the full VIN. For a car whose name was never changed (notably Audi, where CARIAD defaults the vehicle name to the VIN) the "model" fell back to the raw 17-char VIN — bypassing the last-6 masking the footer promises. The model is now omitted when it is (or contains) a VIN; the brand alone scopes the issue.

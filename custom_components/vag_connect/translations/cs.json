@@ -150,6 +150,7 @@
       "email_two_factor_required": "Vyžadováno e-mailové 2FA. Zkontrolujte schránku (i spam), pak se přihlaste ručně v aplikaci.",
       "too_many_requests": "Účet dočasně zablokován. Počkejte 15 minut.",
       "invalid_credentials": "Nesprávná e-mailová adresa nebo heslo.",
+      "portal_interaction_required": "Portál EU Data Act vyžaduje jednorázovou akci ve vašem prohlížeči nebo aplikaci značky (např. přijmout podmínky, potvrdit souhlas, dokončit onboarding/výběr regionu), než začne fungovat bezhlavý přístup. Toto NENÍ problém se špatným heslem — otevřete portál jednou v prohlížeči, dokončete výzvu a zkuste to znovu.",
       "upstream_unavailable": "Backend VW dočasně nedostupný. Toto je problém na straně serveru VW, NIKOLI chyba přihlášení. Počkejte 5–15 minut a zkuste to znovu. Integraci znovu NEKONFIGURUJTE.",
       "brand_not_dag_eligible": "Selected brand does not support browser login. Use the email + password flow instead.",
       "still_waiting_browser": "Still waiting for browser approval. Open the URL above, sign in, confirm the code, then click Submit again."

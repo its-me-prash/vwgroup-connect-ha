@@ -510,6 +510,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         from .cariad.exceptions import (  # noqa: PLC0415
             AuthenticationError,
             EmailTwoFactorRequiredError,
+            PortalInteractionRequiredError,
             TermsAndConditionsError,
             MarketingConsentError,
             TwoFactorRequiredError,
@@ -838,6 +839,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             raise ValueError("two_factor_required") from err
         except RateLimitError as err:
             raise ValueError("too_many_requests") from err
+        # v2.15.4 (#527) — a non-credential EU Data Act portal stop
+        # (onboarding/region/soft-block, or a portal error with a real
+        # errorCode). Subclass of AuthenticationError, so it MUST be caught
+        # before the credential catch-all — otherwise valid-credential users
+        # get told to fix their password.
+        except PortalInteractionRequiredError as err:
+            raise ValueError("portal_interaction_required") from err
         except AuthenticationError as err:
             raise ValueError("invalid_credentials") from err
         except Exception as err:  # noqa: BLE001

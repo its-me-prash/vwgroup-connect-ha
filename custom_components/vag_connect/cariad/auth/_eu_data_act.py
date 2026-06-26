@@ -41,7 +41,14 @@ from urllib.parse import urljoin, urlparse
 
 from aiohttp import ClientConnectionError, ClientSession, ClientTimeout
 
-from ..exceptions import AuthenticationError
+from ..exceptions import (
+    AuthenticationError,
+    EmailTwoFactorRequiredError,
+    MarketingConsentError,
+    PortalInteractionRequiredError,
+    TermsAndConditionsError,
+    TwoFactorRequiredError,
+)
 from ..models import VehicleData
 
 _LOGGER = logging.getLogger(__name__)
@@ -231,6 +238,126 @@ def _login_error(html: str) -> str | None:
     if isinstance(err, dict):
         return err.get("text") or err.get("errorCode") or str(err)
     return str(err) if err else None
+
+
+def _safe_url(url: str) -> str:
+    """Return host+path of *url* with the query string STRIPPED.
+
+    Query strings on the signin-service flow carry ``relayState`` / ``code``
+    / login tokens — never log them. This yields only the part that is safe
+    to log (host + path) so #527 reporters' real failure step can be pinned
+    from a debug log without leaking secrets.
+    """
+    try:
+        p = urlparse(url)
+        return f"{p.netloc}{p.path}"
+    except Exception:  # noqa: BLE001
+        return "<unparseable-url>"
+
+
+# v2.15.4 (#527) — interstitial markers. The portal login lands on the
+# signin-service host (or re-renders the credential page) for MANY reasons
+# besides bad credentials: T&C, marketing consent, 2FA/OTP, onboarding,
+# region selection, soft rate-limit. The historic code classified ALL of
+# these as "check email and password" purely from a URL substring. These
+# markers (URL fragments + templateModel keys/page identifiers) let us raise
+# the SAME typed exceptions the main auth chain (idk.py) already raises, so
+# the coordinator/config_flow's existing branches fire and the user gets an
+# actionable, non-credential message. Substrings mirror idk.py.
+_TC_MARKERS = ("terms-and-conditions", "/u/terms", "termsandconditions")
+_CONSENT_MARKERS = (
+    "consent/marketing", "/u/consent", "marketing-consent", "marketingconsent",
+)
+_EMAIL_2FA_MARKERS = (
+    "/u/email-challenge", "email-otp", "email-code", "send-email-code",
+)
+_2FA_MARKERS = ("/u/mfa", "two-factor", "2fa", "totp", "mfa-challenge")
+_ONBOARDING_MARKERS = (
+    "onboarding", "region-select", "select-region", "country-select",
+    "/u/login/identifier-first",
+)
+_RATELIMIT_MARKERS = ("too-many", "rate-limit", "ratelimit", "throttl")
+
+
+def classify_portal_login_failure(
+    landing_url: str, landing_html: str
+) -> tuple[AuthenticationError | None, dict[str, str]]:
+    """Classify a non-completed portal login landing.
+
+    Returns ``(exc, log_ctx)`` where:
+      * ``exc`` is a TYPED ``AuthenticationError`` subclass to raise, or
+        ``None`` when the landing is a genuine bad-credential re-render
+        (caller raises the credential catch-all).
+      * ``log_ctx`` is a secret-free dict (page-type / error / errorCode
+        keys only — NEVER email/password/tokens/relayState/code) suitable
+        for a DEBUG/WARNING log line.
+
+    Order matters: machine-readable interstitial markers first (so a real
+    "accept the T&C" page never surfaces as "wrong password"), then the
+    templateModel error/errorCode, then the credential fallback.
+    """
+    haystack = f"{landing_url}\n{landing_html}".lower()
+    model = _extract_template_model(landing_html) or {}
+    err = model.get("error")
+    err_code = model.get("errorCode")
+    if isinstance(err, dict):
+        err_code = err_code or err.get("errorCode")
+        err = err.get("text") or err.get("errorCode")
+    page_type = model.get("template") or model.get("templateName") or ""
+
+    log_ctx: dict[str, str] = {}
+    if err:
+        log_ctx["error"] = str(err)[:120]
+    if err_code:
+        log_ctx["errorCode"] = str(err_code)[:120]
+    if page_type:
+        log_ctx["pageType"] = str(page_type)[:120]
+
+    blob = f"{haystack} {str(err_code).lower()} {str(page_type).lower()}"
+
+    # 1. Interstitials we recognise — reuse the main-chain exceptions.
+    if any(m in blob for m in _TC_MARKERS):
+        log_ctx.setdefault("classified", "terms_and_conditions")
+        return TermsAndConditionsError(), log_ctx
+    if any(m in blob for m in _CONSENT_MARKERS):
+        log_ctx.setdefault("classified", "marketing_consent")
+        return MarketingConsentError(), log_ctx
+    # Email-OTP must be checked BEFORE the generic 2FA family (subclass).
+    if any(m in blob for m in _EMAIL_2FA_MARKERS):
+        log_ctx.setdefault("classified", "email_two_factor_required")
+        return EmailTwoFactorRequiredError(), log_ctx
+    if any(m in blob for m in _2FA_MARKERS):
+        log_ctx.setdefault("classified", "two_factor_required")
+        return TwoFactorRequiredError(), log_ctx
+    if any(m in blob for m in _ONBOARDING_MARKERS):
+        log_ctx.setdefault("classified", "portal_interaction_required")
+        return PortalInteractionRequiredError("onboarding / region step"), log_ctx
+    if any(m in blob for m in _RATELIMIT_MARKERS):
+        log_ctx.setdefault("classified", "portal_interaction_required")
+        return PortalInteractionRequiredError("temporary block / rate limit"), log_ctx
+
+    # 2. A machine-readable error/errorCode that is NOT one of the known
+    #    bad-credential codes → carry the real reason as a non-credential
+    #    failure (we couldn't prove it's the password).
+    cred_codes = {
+        "login.error.password_invalid",
+        "login.errors.password_invalid",
+        "incorrect_credentials",
+        "invalid_credentials",
+        "log.in.error.wrong.credentials",
+    }
+    err_code_l = str(err_code or "").lower()
+    if err_code and err_code_l not in cred_codes:
+        log_ctx.setdefault("classified", "portal_interaction_required")
+        return (
+            PortalInteractionRequiredError(f"portal error {err_code}"),
+            log_ctx,
+        )
+
+    # 3. Genuine bad-credential re-render (or no machine-readable reason at
+    #    all): let the caller raise the credential catch-all.
+    log_ctx.setdefault("classified", "invalid_credentials")
+    return None, log_ctx
 
 
 # ── Dataset parsing + curated field mapping ────────────────────────────────
@@ -1878,22 +2005,56 @@ class EUDataActConnector:
             landing_html = await resp.text(errors="replace")
             status = resp.status
 
-        if status >= 400:
-            err = _login_error(landing_html)
-            raise AuthenticationError(
-                err or f"EU Data Act portal: login rejected (HTTP {status})"
-            )
         # A completed flow lands back on the portal host via
-        # /services/callbacklogin. Bad credentials re-render signin-service.
+        # /services/callbacklogin. Anything else (HTTP >= 400, a
+        # signin-service/'/error' re-render, or an off-host landing) is a
+        # FAILURE — but the failure can be many things besides bad
+        # credentials (#527). v2.15.4: consult the templateModel + known
+        # interstitial markers FIRST and raise the matching TYPED exception
+        # so the callers' existing branches fire; only fall back to the
+        # credential catch-all when there is genuinely no machine-readable
+        # non-credential reason.
         portal_host = urlparse(_PORTAL_BASE).netloc
-        if "signin-service" in landing or "/error" in landing:
-            raise AuthenticationError(
-                "EU Data Act portal: login failed — check email and password"
+        landed_failed = (
+            status >= 400
+            or "signin-service" in landing
+            or "/error" in landing
+            or urlparse(landing).netloc != portal_host
+        )
+        if landed_failed:
+            typed_exc, log_ctx = classify_portal_login_failure(
+                landing, landing_html
             )
-        if urlparse(landing).netloc != portal_host:
-            raise AuthenticationError(
-                f"EU Data Act portal: login did not complete (ended at "
-                f"{landing[:80]})"
+            # Secret-free diagnostics: host+path (query STRIPPED), HTTP
+            # status, and templateModel error/errorCode/page-type keys.
+            # NEVER email/password/tokens/relayState/code/query strings.
+            _LOGGER.warning(
+                "EU Data Act portal: login did not complete — "
+                "landing=%s status=%s ctx=%s",
+                _safe_url(landing), status, log_ctx,
+            )
+            if typed_exc is not None:
+                raise typed_exc
+            # classify_portal_login_failure returned None → it could NOT
+            # find a non-credential reason (a known bad-credential errorCode,
+            # or no machine-readable reason on a signin-service re-render). In
+            # both cases this is the genuine credential failure: raise the
+            # credential catch-all so the user is told to check the password
+            # ONLY here, where we actually believe it.
+            if "signin-service" in landing or "/error" in landing:
+                raise AuthenticationError(
+                    "EU Data Act portal: login failed — check email and password"
+                )
+            # Off-host / HTTP-error landing with no recognisable reason: we
+            # can't prove it's the password, so surface a NON-credential
+            # failure (server-side / unexpected page) rather than blaming
+            # the user's credentials.
+            if status >= 400:
+                raise PortalInteractionRequiredError(
+                    f"login rejected (HTTP {status})"
+                )
+            raise PortalInteractionRequiredError(
+                "login did not complete (unexpected landing page)"
             )
         self.logged_in = True
         _LOGGER.info(

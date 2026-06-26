@@ -150,6 +150,7 @@
       "email_two_factor_required": "Authentification 2FA par e-mail requise. Vérifiez votre boîte de réception (et spam) pour un code à 6 chiffres, puis connectez-vous manuellement dans l'application.",
       "too_many_requests": "Compte suspendu temporairement. Attendez 15 minutes.",
       "invalid_credentials": "Adresse e-mail ou mot de passe incorrect.",
+      "portal_interaction_required": "Le portail EU Data Act nécessite une action ponctuelle dans votre navigateur ou l'application de la marque (par ex. accepter les conditions, confirmer le consentement, terminer l'intégration / la sélection de région) avant que l'accès sans interface ne fonctionne. Ce n'est PAS un problème de mot de passe — ouvrez le portail une fois dans un navigateur, complétez l'invite, puis réessayez.",
       "upstream_unavailable": "Backend VW temporairement indisponible. C'est un problème côté serveur chez VW, PAS un problème d'identifiants. Veuillez patienter 5 à 15 minutes puis réessayer. NE reconfigurez PAS l'intégration.",
       "brand_not_dag_eligible": "Selected brand does not support browser login. Use the email + password flow instead.",
       "still_waiting_browser": "Still waiting for browser approval. Open the URL above, sign in, confirm the code, then click Submit again."

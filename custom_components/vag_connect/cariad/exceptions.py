@@ -260,6 +260,35 @@ class EmailTwoFactorRequiredError(TwoFactorRequiredError):
         )
 
 
+class PortalInteractionRequiredError(AuthenticationError):
+    """v2.15.4 (#527) — the EU Data Act portal login stopped on a step that
+    needs a one-time human action in the browser/app, but is NOT a wrong-
+    credentials case.
+
+    Examples: a portal onboarding / region-selection wall, a soft block, or
+    any signin-service interstitial we recognise as non-credential but that
+    doesn't fit the existing T&C / marketing-consent / 2FA buckets.
+
+    Distinct from ``AuthenticationError`` so the config-flow + coordinator
+    surface a non-credential message — #527 reporters with valid passwords
+    were being told to "check email and password" because the portal
+    connector flattened every non-redirect landing to the credential
+    catch-all. Carrying a specific (secret-free) reason lets the UI explain
+    what actually happened.
+    """
+
+    def __init__(self, reason: str = "") -> None:
+        msg = (
+            "EU Data Act portal login needs a one-time action in the browser "
+            "or brand app before headless access works"
+        )
+        if reason:
+            msg += f" ({reason})"
+        msg += ". This is NOT a wrong-password problem."
+        super().__init__(msg)
+        self.reason = reason
+
+
 class RateLimitError(CariadError):
     """Account temporarily blocked by VAG rate limiter."""
 

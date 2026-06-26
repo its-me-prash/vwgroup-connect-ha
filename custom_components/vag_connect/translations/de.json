@@ -150,6 +150,7 @@
       "email_two_factor_required": "E-Mail-2FA nötig. Postfach (und Spam) auf 6-stelligen Code von VAG IDP prüfen, dann einmal manuell in der Marken-App anmelden.",
       "too_many_requests": "Account vorübergehend gesperrt (zu viele Anmeldeversuche). Bitte 15 Minuten warten.",
       "invalid_credentials": "E-Mail-Adresse oder Passwort falsch.",
+      "portal_interaction_required": "Das EU-Data-Act-Portal benötigt eine einmalige Aktion in deinem Browser oder der Marken-App (z. B. AGB akzeptieren, Einwilligung bestätigen, Onboarding/Region-Auswahl abschließen), bevor der headless-Zugriff funktioniert. Das ist KEIN Passwort-Problem — öffne das Portal einmal im Browser, schließe die Abfrage ab und versuche es erneut.",
       "upstream_unavailable": "VW-Backend vorübergehend nicht erreichbar. Das ist ein Server-Problem bei VW, KEIN Anmeldefehler. Bitte 5–15 Minuten warten und nochmal versuchen. Die Integration NICHT neu konfigurieren.",
       "brand_not_dag_eligible": "Diese Marke unterstützt kein Browser-Login. Nutze stattdessen E-Mail + Passwort.",
       "still_waiting_browser": "Warte noch auf die Browser-Bestätigung. Öffne die URL oben, melde dich an, bestätige den Code und klick dann nochmal auf Senden."
