@@ -769,6 +769,45 @@
       "lifetime_avg_recuperation_kwh_100km": {
         "name": "Lifetime recuperation (avg)"
       },
+      "last_trip_avg_aux_consumption_kwh_100km": {
+        "name": "Last trip auxiliary consumption (avg)"
+      },
+      "lifetime_avg_aux_consumption_kwh_100km": {
+        "name": "Lifetime auxiliary consumption (avg)"
+      },
+      "lifetime_avg_gas_consumption_kg_100km": {
+        "name": "Lifetime gas consumption (avg)"
+      },
+      "lifetime_range_gain_km": {
+        "name": "Lifetime range gained"
+      },
+      "lifetime_zero_emission_km": {
+        "name": "Lifetime zero-emission distance"
+      },
+      "charger_update_trigger": {
+        "name": "Charger update trigger"
+      },
+      "battery_available_kwh": {
+        "name": "Battery energy available"
+      },
+      "battery_cap_kwh": {
+        "name": "Battery capacity (energy)"
+      },
+      "trip_total_cost": {
+        "name": "Trip total cost"
+      },
+      "trip_fuel_cost": {
+        "name": "Trip fuel cost"
+      },
+      "trip_electricity_cost": {
+        "name": "Trip electricity cost"
+      },
+      "trip_cng_cost": {
+        "name": "Trip CNG cost"
+      },
+      "oil_level_pct": {
+        "name": "Oil level (percent)"
+      },
       "dataset_key": {
         "name": "Dataset key"
       },

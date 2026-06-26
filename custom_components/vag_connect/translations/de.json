@@ -769,6 +769,45 @@
       "lifetime_avg_recuperation_kwh_100km": {
         "name": "Rekuperation gesamt (Ø)"
       },
+      "last_trip_avg_aux_consumption_kwh_100km": {
+        "name": "Letzte Fahrt Nebenverbraucher (Ø)"
+      },
+      "lifetime_avg_aux_consumption_kwh_100km": {
+        "name": "Nebenverbraucher gesamt (Ø)"
+      },
+      "lifetime_avg_gas_consumption_kg_100km": {
+        "name": "Gasverbrauch gesamt (Ø)"
+      },
+      "lifetime_range_gain_km": {
+        "name": "Reichweitengewinn gesamt"
+      },
+      "lifetime_zero_emission_km": {
+        "name": "Emissionsfreie Strecke gesamt"
+      },
+      "charger_update_trigger": {
+        "name": "Auslöser Ladegerät-Update"
+      },
+      "battery_available_kwh": {
+        "name": "Verfügbare Batterieenergie"
+      },
+      "battery_cap_kwh": {
+        "name": "Batteriekapazität (Energie)"
+      },
+      "trip_total_cost": {
+        "name": "Fahrtkosten gesamt"
+      },
+      "trip_fuel_cost": {
+        "name": "Fahrtkosten Kraftstoff"
+      },
+      "trip_electricity_cost": {
+        "name": "Fahrtkosten Strom"
+      },
+      "trip_cng_cost": {
+        "name": "Fahrtkosten Erdgas"
+      },
+      "oil_level_pct": {
+        "name": "Ölstand (Prozent)"
+      },
       "dataset_key": {
         "name": "Datensatz-Schlüssel"
       },

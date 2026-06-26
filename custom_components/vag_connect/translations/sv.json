@@ -4,26 +4,27 @@
       "user": {
         "title": "Konfigurera VW Group Connect",
         "description": "Anslut ditt fordon till Home Assistant.\n\nVälj ditt märke och ange inloggningsuppgifterna från tillverkarens app.",
+        "menu_options": {
+          "browser_login": "Browser-Login (recommended)",
+          "email_password": "Email + Password (legacy)",
+          "website_authproxy": "Volkswagen.de website (beta — read-only)",
+          "mbb_login": "Volkswagen EU — Varaktig inloggning (MBB, tvåvägs-alfa)"
+        }
+      },
+      "mbb_login": {
+        "title": "Volkswagen EU — Varaktig inloggning (MBB, ALFA)",
+        "description": "**Experimentell, frivillig — endast Volkswagen EU.** En bekräftelse i webbläsaren (inget lösenord lagras i Home Assistant) skapar en varaktig, förnybar token via det äldre MBB-backendet. Till skillnad från den skrivskyddade portalen överlever den omstarter och stöder tvåvägs fjärrlåsning/upplåsning. **Ange ditt VIN** (MBB-token kan inte lista ditt garage själv) och lägg till din S-PIN för att aktivera låsning/upplåsning. På nästa skärm visas en kort kod och en URL att öppna på valfri enhet.",
         "data": {
-          "brand": "Fordonsvarumärke",
-          "username": "E-postadress",
-          "password": "Lösenord",
+          "mbb_vins": "VIN (fordonsidentifieringsnummer)",
           "spin": "S-PIN",
           "scan_interval": "Uppdateringsintervall",
           "force_enable_access": "Tvinga dörrstatus"
         },
         "data_description": {
-          "brand": "Välj ditt märke — myAudi, WeConnect ID, MyŠkoda, SEAT, CUPRA, VW US/CA eller Porsche.",
-          "username": "E-postadress från tillverkarens app.",
-          "password": "Lösenord från appen.",
-          "spin": "Krävs endast för låsning. App → Säkerhet → S-PIN.",
-          "scan_interval": "Hur ofta data hämtas. Standard: 5 min. Minimum: 3 min.",
-          "force_enable_access": "För äldre fordon som inte klarar kapabilitetskontrollen."
-        },
-        "menu_options": {
-          "browser_login": "Browser-Login (recommended)",
-          "email_password": "Email + Password (legacy)",
-          "website_authproxy": "Volkswagen.de website (beta — read-only)"
+          "mbb_vins": "Ditt 17-teckens VIN (på vindrutan / registreringsbeviset). Flera bilar: separera med komma. Krävs — den varaktiga MBB-token fungerar per VIN men kan inte räkna upp ditt garage.",
+          "spin": "Valfri 4-siffrig säkerhets-PIN — krävs för fjärrlåsning/upplåsning.",
+          "scan_interval": "Minuter mellan hämtningar av fordonsdata.",
+          "force_enable_access": "Tvinga fram dörrstatus-entiteter även när fordonet rapporterar att data saknas."
         }
       },
       "website_authproxy": {
@@ -156,7 +157,8 @@
     "abort": {
       "already_configured": "Det här kontot är redan konfigurerat.",
       "reauth_successful": "Omautentisering lyckades.",
-      "reconfigure_successful": "Konfigurationen uppdaterades."
+      "reconfigure_successful": "Konfigurationen uppdaterades.",
+      "mbb_not_eligible": "Ditt fordon är inte behörigt för den varaktiga MBB-inloggningen — backend returnerade \"Unknown user\". Det är en nyare ID-/MEB-modell (ID.3/4/5, e-up osv.) som aldrig registrerades i det gamla Car-Net/MBB-systemet, så den varaktiga inloggningen och fjärrkommandona når den inte. Använd EU Data Act-portalkanalen (eller e-post + lösenord-inloggningen) för sådana fordon. MBB-inloggningen är för äldre Car-Net-bilar (de flesta laddhybrid-/förbränningsmodeller)."
     },
     "progress": {
       "awaiting_browser_login": "Open {verification_uri} in any browser, sign in with your Brand ID account, and confirm the code {user_code}.",
@@ -766,6 +768,45 @@
       },
       "lifetime_avg_recuperation_kwh_100km": {
         "name": "Total återvinning (snitt)"
+      },
+      "last_trip_avg_aux_consumption_kwh_100km": {
+        "name": "Tillbehörsförbrukning senaste resan (snitt)"
+      },
+      "lifetime_avg_aux_consumption_kwh_100km": {
+        "name": "Tillbehörsförbrukning totalt (snitt)"
+      },
+      "lifetime_avg_gas_consumption_kg_100km": {
+        "name": "Gasförbrukning totalt (snitt)"
+      },
+      "lifetime_range_gain_km": {
+        "name": "Vunnen räckvidd totalt"
+      },
+      "lifetime_zero_emission_km": {
+        "name": "Nollutsläppssträcka totalt"
+      },
+      "charger_update_trigger": {
+        "name": "Utlösare laddaruppdatering"
+      },
+      "battery_available_kwh": {
+        "name": "Tillgänglig batterienergi"
+      },
+      "battery_cap_kwh": {
+        "name": "Batterikapacitet (energi)"
+      },
+      "trip_total_cost": {
+        "name": "Total reskostnad"
+      },
+      "trip_fuel_cost": {
+        "name": "Bränslekostnad resa"
+      },
+      "trip_electricity_cost": {
+        "name": "Elkostnad resa"
+      },
+      "trip_cng_cost": {
+        "name": "Fordonsgaskostnad resa"
+      },
+      "oil_level_pct": {
+        "name": "Oljenivå (procent)"
       },
       "dataset_key": {
         "name": "Datauppsättningsnyckel"

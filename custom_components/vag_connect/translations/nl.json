@@ -4,26 +4,27 @@
       "user": {
         "title": "VW Group Connect instellen",
         "description": "Verbind je voertuig met Home Assistant.\n\nKies je merk en voer de inloggegevens van de fabrieksapp in.",
-        "data": {
-          "brand": "Voertuigmerk",
-          "username": "E-mailadres",
-          "password": "Wachtwoord",
-          "spin": "S-PIN",
-          "scan_interval": "Update-interval",
-          "force_enable_access": "Deurstatus forceren"
-        },
-        "data_description": {
-          "brand": "Kies je merk — myAudi, WeConnect ID, MyŠkoda, SEAT, CUPRA, VW US/CA of Porsche.",
-          "username": "E-mailadres uit de fabrieksapp.",
-          "password": "Wachtwoord uit de app.",
-          "spin": "Alleen nodig voor vergrendeling. App → Beveiliging → S-PIN.",
-          "scan_interval": "Hoe vaak gegevens worden opgehaald. Standaard: 5 min. Minimum: 3 min.",
-          "force_enable_access": "Voor oudere voertuigen die de capabiliteitscheck niet doorstaan."
-        },
         "menu_options": {
           "browser_login": "Browser-Login (recommended)",
           "email_password": "Email + Password (legacy)",
-          "website_authproxy": "Volkswagen.de website (beta — read-only)"
+          "website_authproxy": "Volkswagen.de website (beta — read-only)",
+          "mbb_login": "Volkswagen EU — Duurzame login (MBB, tweerichtings-alpha)"
+        }
+      },
+      "mbb_login": {
+        "title": "Volkswagen EU — Duurzame login (MBB, ALPHA)",
+        "description": "**Experimenteel, opt-in — alleen Volkswagen EU.** Een bevestiging in de browser (geen wachtwoord opgeslagen in Home Assistant) maakt via de oude MBB-backend een duurzaam, vernieuwbaar token aan. Anders dan het alleen-lezen portaal overleeft dit herstarts en ondersteunt het tweerichtings vergrendelen/ontgrendelen op afstand. **Voer je VIN in** (het MBB-token kan je garage niet zelf opsommen) en voeg je S-PIN toe om vergrendelen/ontgrendelen mogelijk te maken. In het volgende scherm zie je een korte code en een URL om op een willekeurig apparaat te openen.",
+        "data": {
+          "mbb_vins": "VIN (voertuigidentificatienummer)",
+          "spin": "S-PIN",
+          "scan_interval": "Bijwerkinterval",
+          "force_enable_access": "Deurstatus forceren"
+        },
+        "data_description": {
+          "mbb_vins": "Je 17-cijferige VIN (op de voorruit / het kentekenbewijs). Meerdere auto's: scheiden met een komma. Verplicht — het duurzame MBB-token werkt per VIN maar kan je garage niet opsommen.",
+          "spin": "Optionele 4-cijferige beveiligings-PIN — vereist voor vergrendelen/ontgrendelen op afstand.",
+          "scan_interval": "Minuten tussen het ophalen van voertuiggegevens.",
+          "force_enable_access": "Forceer deurstatus-entiteiten ook wanneer het voertuig de gegevens als ontbrekend meldt."
         }
       },
       "website_authproxy": {
@@ -156,7 +157,8 @@
     "abort": {
       "already_configured": "Dit account is al geconfigureerd.",
       "reauth_successful": "Herauthenticatie geslaagd.",
-      "reconfigure_successful": "Configuratie succesvol bijgewerkt."
+      "reconfigure_successful": "Configuratie succesvol bijgewerkt.",
+      "mbb_not_eligible": "Je voertuig komt niet in aanmerking voor de duurzame MBB-login — de backend gaf \"Unknown user\" terug. Het is een nieuwer ID-/MEB-model (ID.3/4/5, e-up enz.) dat nooit in het oude Car-Net/MBB-systeem was geregistreerd, dus de duurzame login en de commando's op afstand kunnen het niet bereiken. Gebruik voor zulke voertuigen het EU Data Act-portaalkanaal (of de e-mail-+-wachtwoordlogin). De MBB-login is voor oudere Car-Net-auto's (de meeste plug-inhybride / verbrandingsmodellen)."
     },
     "progress": {
       "awaiting_browser_login": "Open {verification_uri} in any browser, sign in with your Brand ID account, and confirm the code {user_code}.",
@@ -766,6 +768,45 @@
       },
       "lifetime_avg_recuperation_kwh_100km": {
         "name": "Recuperatie totaal (gem.)"
+      },
+      "last_trip_avg_aux_consumption_kwh_100km": {
+        "name": "Verbruik nevenverbruikers laatste rit (gem.)"
+      },
+      "lifetime_avg_aux_consumption_kwh_100km": {
+        "name": "Verbruik nevenverbruikers totaal (gem.)"
+      },
+      "lifetime_avg_gas_consumption_kg_100km": {
+        "name": "Gasverbruik totaal (gem.)"
+      },
+      "lifetime_range_gain_km": {
+        "name": "Gewonnen actieradius totaal"
+      },
+      "lifetime_zero_emission_km": {
+        "name": "Emissievrije afstand totaal"
+      },
+      "charger_update_trigger": {
+        "name": "Trigger lader-update"
+      },
+      "battery_available_kwh": {
+        "name": "Beschikbare accu-energie"
+      },
+      "battery_cap_kwh": {
+        "name": "Accucapaciteit (energie)"
+      },
+      "trip_total_cost": {
+        "name": "Totale ritkosten"
+      },
+      "trip_fuel_cost": {
+        "name": "Brandstofkosten rit"
+      },
+      "trip_electricity_cost": {
+        "name": "Stroomkosten rit"
+      },
+      "trip_cng_cost": {
+        "name": "CNG-kosten rit"
+      },
+      "oil_level_pct": {
+        "name": "Oliepeil (procent)"
       },
       "dataset_key": {
         "name": "Datasetsleutel"

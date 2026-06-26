@@ -53,6 +53,24 @@ _BRAND_APP_IDS: dict[str, str] = {
     "cupra":      "com.cupraofficial.mycupra",
 }
 
+# v2.15.3 — brand-aware app version + User-Agent for the vgql proxy. Previously
+# every brand sent the hardcoded myAudi build, which can get a foreign-brand
+# request flagged by the proxy. Map per brand; fall back to the Audi build.
+_BRAND_APP_VERSIONS: dict[str, str] = {
+    "audi":       "5.5.1",
+    "volkswagen": "4.27.0",
+    "skoda":      "7.20.0",
+    "seat":       "3.0.0",
+    "cupra":      "3.0.0",
+}
+_BRAND_USER_AGENTS: dict[str, str] = {
+    "audi":       "myAudi/5.5.1 Android/34",
+    "volkswagen": "We Connect/4.27.0 Android/34",
+    "skoda":      "myŠkoda/7.20.0 Android/34",
+    "seat":       "SEAT CONNECT/3.0.0 Android/34",
+    "cupra":      "MyCUPRA/3.0.0 Android/34",
+}
+
 # Complete metadata for all 7 render image types
 # Order = preference (best for Lovelace first)
 RENDER_IMAGE_TYPES: list[dict[str, str]] = [
@@ -196,8 +214,10 @@ class VehicleImageFetcher:
                 "Content-Type":  "application/json",
                 "Accept":        "application/json",
                 "X-App-ID":      _BRAND_APP_IDS.get(brand.lower(), "de.audi.myaudi"),
-                "X-App-Version": "5.5.1",  # b13 (RE) — live myAudi build
-                "User-Agent":    "myAudi/5.5.1 Android/34",
+                # v2.15.3 — brand-aware version + UA (Audi build as fallback).
+                "X-App-Version": _BRAND_APP_VERSIONS.get(brand.lower(), "5.5.1"),
+                "User-Agent":    _BRAND_USER_AGENTS.get(
+                    brand.lower(), "myAudi/5.5.1 Android/34"),
             }
 
             async with self._session.post(

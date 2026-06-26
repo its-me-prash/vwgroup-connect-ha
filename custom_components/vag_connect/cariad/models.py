@@ -1494,6 +1494,19 @@ class VehicleData:
     climate_error_code: str | None = None
     # Window-heating error code; "0"/"#0" (no error) dropped → None. sensor.
     window_heating_error_code: str | None = None
+    # G. v2.15.3 (#517) — consumption / range aggregates (EU-Data-Act dialect).
+    # Avg auxiliary-consumer consumption (dict kwH/1000km → kWh/100 km). sensor.
+    last_trip_avg_aux_consumption_kwh_100km: float | None = None
+    lifetime_avg_aux_consumption_kwh_100km: float | None = None
+    # Avg gas (CNG) consumption, long-term (dict kg/1000km → kg/100 km). sensor.
+    lifetime_avg_gas_consumption_kg_100km: float | None = None
+    # Gained range distance, long-term (dict 100m → km). sensor (TOTAL_INCREASING).
+    lifetime_range_gain_km: float | None = None
+    # Distance driven without emission, long-term (dict 100m → km). sensor.
+    lifetime_zero_emission_km: float | None = None
+    # Trigger info about the last battery-charger update (string, e.g. "other").
+    # LOW — disabled-by-default. sensor, diagnostic.
+    charger_update_trigger: str | None = None
 
     # — BFF / selectivestatus dialect NEW fields —
     # Per-corner tire pressure STATE strings (shared — EU tires.[*].state and

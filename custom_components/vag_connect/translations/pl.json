@@ -4,26 +4,27 @@
       "user": {
         "title": "Skonfiguruj VW Group Connect",
         "description": "Połącz swój pojazd z Home Assistant.\n\nWybierz markę i wprowadź dane logowania z aplikacji producenta.",
-        "data": {
-          "brand": "Marka pojazdu",
-          "username": "Adres e-mail",
-          "password": "Hasło",
-          "spin": "S-PIN",
-          "scan_interval": "Interwał aktualizacji",
-          "force_enable_access": "Wymuś stan drzwi"
-        },
-        "data_description": {
-          "brand": "Wybierz markę — myAudi, WeConnect ID, MyŠkoda, SEAT, CUPRA, VW US/CA lub Porsche.",
-          "username": "Adres e-mail z aplikacji producenta.",
-          "password": "Hasło z aplikacji.",
-          "spin": "Wymagany tylko do blokowania. App → Bezpieczeństwo → S-PIN.",
-          "scan_interval": "Jak często pobierane są dane. Domyślnie: 5 min. Minimum: 3 min.",
-          "force_enable_access": "Dla starszych pojazdów, które nie przechodzą sprawdzania możliwości."
-        },
         "menu_options": {
           "browser_login": "Browser-Login (recommended)",
           "email_password": "Email + Password (legacy)",
-          "website_authproxy": "Volkswagen.de website (beta — read-only)"
+          "website_authproxy": "Volkswagen.de website (beta — read-only)",
+          "mbb_login": "Volkswagen EU — Trwałe logowanie (MBB, dwukierunkowa alfa)"
+        }
+      },
+      "mbb_login": {
+        "title": "Volkswagen EU — Trwałe logowanie (MBB, ALFA)",
+        "description": "**Eksperymentalne, opcjonalne — tylko Volkswagen EU.** Potwierdzenie w przeglądarce (bez zapisywania hasła w Home Assistant) tworzy trwały, odnawialny token za pośrednictwem starego backendu MBB. W odróżnieniu od portalu tylko do odczytu przetrwa restarty i obsługuje dwukierunkowe zdalne ryglowanie/odryglowanie. **Wpisz swój VIN** (token MBB nie potrafi sam wylistować garażu) i dodaj kod S-PIN, aby włączyć ryglowanie/odryglowanie. Na następnym ekranie zobaczysz krótki kod i adres URL do otwarcia na dowolnym urządzeniu.",
+        "data": {
+          "mbb_vins": "VIN (numer identyfikacyjny pojazdu)",
+          "spin": "S-PIN",
+          "scan_interval": "Interwał aktualizacji",
+          "force_enable_access": "Wymuś status drzwi"
+        },
+        "data_description": {
+          "mbb_vins": "Twój 17-znakowy VIN (na szybie / w dowodzie rejestracyjnym). Kilka aut: oddziel przecinkiem. Wymagane — trwały token MBB działa per VIN, ale nie potrafi wylistować garażu.",
+          "spin": "Opcjonalny 4-cyfrowy PIN bezpieczeństwa — wymagany do zdalnego ryglowania/odryglowania.",
+          "scan_interval": "Minuty między odpytaniami danych pojazdu.",
+          "force_enable_access": "Wymuś encje statusu drzwi nawet wtedy, gdy pojazd zgłasza brak danych."
         }
       },
       "website_authproxy": {
@@ -156,7 +157,8 @@
     "abort": {
       "already_configured": "To konto jest już skonfigurowane.",
       "reauth_successful": "Ponowne uwierzytelnianie zakończone sukcesem.",
-      "reconfigure_successful": "Konfiguracja zaktualizowana pomyślnie."
+      "reconfigure_successful": "Konfiguracja zaktualizowana pomyślnie.",
+      "mbb_not_eligible": "Twój pojazd nie kwalifikuje się do trwałego logowania MBB — backend zwrócił „Unknown user”. To nowszy model ID / MEB (ID.3/4/5, e-up itp.), który nigdy nie był zarejestrowany w starym systemie Car-Net/MBB, więc trwałe logowanie i polecenia zdalne nie mogą go osiągnąć. Dla takich pojazdów użyj kanału portalu EU Data Act (lub logowania e-mail + hasło). Logowanie MBB jest przeznaczone dla starszych aut Car-Net (większość modeli hybryd plug-in / spalinowych)."
     },
     "progress": {
       "awaiting_browser_login": "Open {verification_uri} in any browser, sign in with your Brand ID account, and confirm the code {user_code}.",
@@ -766,6 +768,45 @@
       },
       "lifetime_avg_recuperation_kwh_100km": {
         "name": "Rekuperacja całkowita (śr.)"
+      },
+      "last_trip_avg_aux_consumption_kwh_100km": {
+        "name": "Zużycie odbiorników dod. ostatnia trasa (śr.)"
+      },
+      "lifetime_avg_aux_consumption_kwh_100km": {
+        "name": "Zużycie odbiorników dod. łącznie (śr.)"
+      },
+      "lifetime_avg_gas_consumption_kg_100km": {
+        "name": "Zużycie gazu łącznie (śr.)"
+      },
+      "lifetime_range_gain_km": {
+        "name": "Uzyskany zasięg łącznie"
+      },
+      "lifetime_zero_emission_km": {
+        "name": "Dystans bezemisyjny łącznie"
+      },
+      "charger_update_trigger": {
+        "name": "Wyzwalacz aktualizacji ładowarki"
+      },
+      "battery_available_kwh": {
+        "name": "Dostępna energia akumulatora"
+      },
+      "battery_cap_kwh": {
+        "name": "Pojemność akumulatora (energia)"
+      },
+      "trip_total_cost": {
+        "name": "Całkowity koszt podróży"
+      },
+      "trip_fuel_cost": {
+        "name": "Koszt paliwa podróży"
+      },
+      "trip_electricity_cost": {
+        "name": "Koszt energii podróży"
+      },
+      "trip_cng_cost": {
+        "name": "Koszt CNG podróży"
+      },
+      "oil_level_pct": {
+        "name": "Poziom oleju (procent)"
       },
       "dataset_key": {
         "name": "Klucz zestawu danych"

@@ -1265,8 +1265,10 @@ class SkodaClient(CariadBaseClient):
 
             # v2.12.0 (myskoda PR #575 source-verified): overall_cost
             # breakdown on the OverviewTrip. Each sub-cost is an object
-            # {cost, costCurrency, pricePerUnit}; we surface the cost
-            # amounts + a single currency code (they share one currency).
+            # {cost, costCurrency, pricePerUnit}; we store the cost amounts +
+            # a single currency code (they share one currency). v2.15.3 wires
+            # these to four trip_*_cost diagnostic sensors (sensor.py), with the
+            # currency exposed as a per-sensor attribute.
             overall_cost = trip_stats.get("overallCost") or (
                 overview.get("overallCost") if isinstance(overview, dict) else None
             )

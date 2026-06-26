@@ -573,8 +573,8 @@ def _is_miles(unit_raw: str | None) -> bool:
 
 
 _ENUM_PREFIXES = (
-    "CHARGE_STATE_", "CHARGING_STATE_", "CHARGE_MODE_", "CHARGING_MODE_",
-    "IMMEDIATE_ACTION_STATE_", "PLUG_STATE_", "ENERGY_FLOW_",
+    "CHARGE_STATE_", "CHARGE_MODE_", "CHARGING_MODE_",
+    "IMMEDIATE_ACTION_STATE_",
     # v2.15.1 — charge-type / scenario / charge-reason enum families.
     "CHARGE_TYPE_", "CHARGING_SCENARIO_", "PROFILE_CHARGE_REASON_",
     # v2.15.3 — charge-settings enum families (#465/#514 settings.* block).
@@ -657,7 +657,14 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
                         # only the charger-dialect cars (which carry nothing
                         # else) fall back to it.
                         "battery_level_HV.value",
-                        "battery_level_HV.battery_level_HV.value"))
+                        "battery_level_HV.battery_level_HV.value",
+                        # v2.15.3 (#517) — charger-dialect alias: dict defines
+                        # hv_soc as "state of charge for the high voltage
+                        # battery" (identical semantic to battery_level_HV).
+                        # LAST fallback only — never out-competes the canonical
+                        # soc/battery_state_report.soc keys; just widens
+                        # coverage for cars that report nothing else.
+                        "hv_soc"))
     if soc is not None:
         d.battery_soc = soc
         d.has_battery = True
@@ -1013,6 +1020,37 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     _lte = _to_float(first("long_term_data_average_electr_engine_consumption"))
     if _lte is not None and d.lifetime_avg_electric_consumption_kwh_100km is None:
         d.lifetime_avg_electric_consumption_kwh_100km = _lte / 10
+
+    # v2.15.3 (#517) — auxiliary-consumer + gas consumption averages.
+    # Dict units: aux = "kwH/1000km", gas = "kg/1000km" → /10 for per-100km.
+    _ltaux = _to_float(first("long_term_data_average_aux_consumer_consumption"))
+    if _ltaux is not None and d.lifetime_avg_aux_consumption_kwh_100km is None:
+        d.lifetime_avg_aux_consumption_kwh_100km = _ltaux / 10
+    _staux = _to_float(first("short_term_data_average_aux_consumer_consumption"))
+    if _staux is not None and d.last_trip_avg_aux_consumption_kwh_100km is None:
+        d.last_trip_avg_aux_consumption_kwh_100km = _staux / 10
+    _ltgas = _to_float(first("long_term_data_average_gas_consumption"))
+    if _ltgas is not None and d.lifetime_avg_gas_consumption_kg_100km is None:
+        d.lifetime_avg_gas_consumption_kg_100km = _ltgas / 10
+
+    # v2.15.3 (#517) — long-term range-gain + zero-emission distance. Dict unit
+    # for both is "100m" (i.e. 0.1 km steps) → multiply by 0.1 for km.
+    _ltrg = _to_float(first("long_term_data_range_gain_distance"))
+    if _ltrg is not None and d.lifetime_range_gain_km is None:
+        d.lifetime_range_gain_km = _ltrg * 0.1
+    _ltze = _to_float(first("long_term_data_zero_emission_distance"))
+    if _ltze is not None and d.lifetime_zero_emission_km is None:
+        d.lifetime_zero_emission_km = _ltze * 0.1
+
+    # v2.15.3 (#517) — trigger info about the last battery-charger update
+    # (string enum, e.g. "other"). Shorten any verbose prefix. LOW value but
+    # dict-confirmed; disabled-by-default at the entity layer.
+    _bcut = first("last_battery_charger_update_trigger")
+    if _bcut is not None and d.charger_update_trigger is None:
+        d.charger_update_trigger = _shorten_enum(_bcut)
+    # NOTE: scope_potential_total (PPE-only, opaque) and echo (constant
+    # heartbeat token) are intentionally NOT mapped — they stay Scout-visible
+    # in raw_unmapped_fields (no first() call → no false signal).
 
     # parking_light_left / _right → aggregate parking_light + per-side fields.
     _pll = first("parking_light_left")

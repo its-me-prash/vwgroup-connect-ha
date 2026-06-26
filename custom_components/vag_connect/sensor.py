@@ -2047,6 +2047,160 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_registry_enabled_default=False,
     ),
 
+    # G. v2.15.3 (#517) — consumption / range aggregates (EU-Data-Act dialect).
+    VagSensorDescription(
+        key="last_trip_avg_aux_consumption_kwh_100km",
+        translation_key="last_trip_avg_aux_consumption_kwh_100km",
+        data_key="last_trip_avg_aux_consumption_kwh_100km",
+        native_unit_of_measurement="kWh/100 km",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:fan",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+    ),
+    VagSensorDescription(
+        key="lifetime_avg_aux_consumption_kwh_100km",
+        translation_key="lifetime_avg_aux_consumption_kwh_100km",
+        data_key="lifetime_avg_aux_consumption_kwh_100km",
+        native_unit_of_measurement="kWh/100 km",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:fan",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+    ),
+    VagSensorDescription(
+        key="lifetime_avg_gas_consumption_kg_100km",
+        translation_key="lifetime_avg_gas_consumption_kg_100km",
+        data_key="lifetime_avg_gas_consumption_kg_100km",
+        native_unit_of_measurement="kg/100 km",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:gas-cylinder",
+        condition="combustion",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+    ),
+    VagSensorDescription(
+        key="lifetime_range_gain_km",
+        translation_key="lifetime_range_gain_km",
+        data_key="lifetime_range_gain_km",
+        native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon="mdi:map-marker-distance",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+    ),
+    VagSensorDescription(
+        key="lifetime_zero_emission_km",
+        translation_key="lifetime_zero_emission_km",
+        data_key="lifetime_zero_emission_km",
+        native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon="mdi:leaf",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+    ),
+    # LOW — last battery-charger update trigger. Disabled-by-default.
+    VagSensorDescription(
+        key="charger_update_trigger",
+        translation_key="charger_update_trigger",
+        data_key="charger_update_trigger",
+        icon="mdi:update",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+
+    # v2.15.3 — deferred parsed-but-unsurfaced energy-content fields. Both are
+    # parsed from energy_contents.{current,maximal}_energy_content (EU Data Act)
+    # and batteryCapacityNetto (BFF) but had no entity until now. Diagnostic.
+    VagSensorDescription(
+        key="battery_available_kwh",
+        translation_key="battery_available_kwh",
+        data_key="battery_available_kwh",
+        native_unit_of_measurement="kWh",
+        device_class=SensorDeviceClass.ENERGY_STORAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-charging-medium",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+    ),
+    VagSensorDescription(
+        key="battery_cap_kwh",
+        translation_key="battery_cap_kwh",
+        data_key="battery_cap_kwh",
+        native_unit_of_measurement="kWh",
+        device_class=SensorDeviceClass.ENERGY_STORAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-high",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+    ),
+
+    # v2.15.3 — Skoda trip-cost breakdown (parsed in skoda.py, previously
+    # unsurfaced). Currency is dynamic (per account) so it lives in
+    # extra_state_attributes ("currency"), not a fixed native unit. Diagnostic.
+    # device_class is intentionally NOT MONETARY: that class mandates a fixed
+    # currency native unit, but the currency is per-account-dynamic. We keep the
+    # value unitless and expose the ISO currency code via extra_state_attributes.
+    VagSensorDescription(
+        key="trip_total_cost",
+        translation_key="trip_total_cost",
+        data_key="trip_total_cost",
+        state_class=SensorStateClass.TOTAL,
+        icon="mdi:cash-multiple",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=2,
+    ),
+    VagSensorDescription(
+        key="trip_fuel_cost",
+        translation_key="trip_fuel_cost",
+        data_key="trip_fuel_cost",
+        state_class=SensorStateClass.TOTAL,
+        icon="mdi:gas-station",
+        condition="combustion",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=2,
+    ),
+    VagSensorDescription(
+        key="trip_electricity_cost",
+        translation_key="trip_electricity_cost",
+        data_key="trip_electricity_cost",
+        state_class=SensorStateClass.TOTAL,
+        icon="mdi:transmission-tower",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=2,
+    ),
+    VagSensorDescription(
+        key="trip_cng_cost",
+        translation_key="trip_cng_cost",
+        data_key="trip_cng_cost",
+        state_class=SensorStateClass.TOTAL,
+        icon="mdi:gas-cylinder",
+        condition="combustion",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=2,
+    ),
+
+    # v2.15.3 — engine oil level percentage gauge (BFF oilLevel + EU Data Act
+    # oil_level_actual_level both write oil_level_pct). Combustion-gated.
+    VagSensorDescription(
+        key="oil_level_pct",
+        translation_key="oil_level_pct",
+        data_key="oil_level_pct",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:oil-level",
+        condition="combustion",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+
     # BFF / selectivestatus dialect sensors.
     # Per-corner tire STATE — diagnostic, disabled-by-default.
     VagSensorDescription(
@@ -2426,6 +2580,23 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "dashboard_warnings_raw",
     "climate_error_code",
     "window_heating_error_code",
+    # v2.15.3 (#517) — consumption / range aggregates (EU-Data-Act dialect) +
+    # deferred energy-content + Skoda trip-cost + oil-level-pct. All
+    # brand/firmware-restricted at the parser level → None on cars/channels
+    # without the field, so no phantom diagnostic entity surfaces.
+    "last_trip_avg_aux_consumption_kwh_100km",
+    "lifetime_avg_aux_consumption_kwh_100km",
+    "lifetime_avg_gas_consumption_kg_100km",
+    "lifetime_range_gain_km",
+    "lifetime_zero_emission_km",
+    "charger_update_trigger",
+    "battery_available_kwh",
+    "battery_cap_kwh",
+    "trip_total_cost",
+    "trip_fuel_cost",
+    "trip_electricity_cost",
+    "trip_cng_cost",
+    "oil_level_pct",
 })
 
 # v1.14.0 (#24) — Trip Statistics is brand-restricted at the API level
@@ -2625,6 +2796,16 @@ class VagConnectSensor(VagConnectEntity, SensorEntity):
             raw = self._vehicle.get("raw_unmapped_fields")
             if isinstance(raw, dict) and raw:
                 return json_safe_dict({"fields": raw})
+        # v2.15.3 — Skoda trip-cost sensors carry the (dynamic) ISO currency
+        # code as an attribute, since device_class=MONETARY would force a fixed
+        # native currency unit we don't know ahead of time.
+        if self.entity_description.key in (
+            "trip_total_cost", "trip_fuel_cost",
+            "trip_electricity_cost", "trip_cng_cost",
+        ):
+            currency = self._vehicle.get("trip_cost_currency")
+            if isinstance(currency, str) and currency:
+                return json_safe_dict({"currency": currency})
         return None
 
     @property
