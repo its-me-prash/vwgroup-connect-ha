@@ -957,6 +957,9 @@
       },
       "report_type": {
         "name": "Type de rapport"
+      },
+      "start_stop_action": {
+        "name": "Action de démarrage/arrêt de charge"
       }
     },
     "binary_sensor": {
@@ -1160,6 +1163,18 @@
       },
       "fuel_level_estimated": {
         "name": "Niveau de carburant estimé"
+      },
+      "climatisation_at_unlock": {
+        "name": "Climatisation au déverrouillage"
+      },
+      "mirror_heating_enabled": {
+        "name": "Chauffage des rétroviseurs"
+      },
+      "climate_zone_front_left_enabled": {
+        "name": "Zone climatique avant gauche"
+      },
+      "climate_zone_front_right_enabled": {
+        "name": "Zone climatique avant droite"
       }
     },
     "switch": {

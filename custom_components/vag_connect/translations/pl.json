@@ -957,6 +957,9 @@
       },
       "report_type": {
         "name": "Typ raportu"
+      },
+      "start_stop_action": {
+        "name": "Akcja start/stop ładowania"
       }
     },
     "binary_sensor": {
@@ -1160,6 +1163,18 @@
       },
       "fuel_level_estimated": {
         "name": "Poziom paliwa szacowany"
+      },
+      "climatisation_at_unlock": {
+        "name": "Klimatyzacja przy odblokowaniu"
+      },
+      "mirror_heating_enabled": {
+        "name": "Podgrzewanie lusterek"
+      },
+      "climate_zone_front_left_enabled": {
+        "name": "Strefa klimatyczna przód lewa"
+      },
+      "climate_zone_front_right_enabled": {
+        "name": "Strefa klimatyczna przód prawa"
       }
     },
     "switch": {

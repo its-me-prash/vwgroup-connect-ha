@@ -2476,6 +2476,17 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # ── v2.15.4 (#523) — EU Data Act portal new fields ──────────────────────
+    # start_stop_action — charging-related action string. LOW —
+    # disabled-by-default.
+    VagSensorDescription(
+        key="start_stop_action",
+        translation_key="start_stop_action",
+        data_key="start_stop_action",
+        icon="mdi:play-pause",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
 )
 
 # Sensor keys that read from coordinator helpers instead of the per-vehicle
@@ -2783,6 +2794,9 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "ascent_slope_consumption",
     "descent_slope_consumption",
     "report_type",
+    # v2.15.4 (#523) — EU Data Act portal new field. EU-Data-Act dialect only;
+    # vehicles/channels without the field stay None → no phantom.
+    "start_stop_action",
 })
 
 # v1.14.0 (#24) — Trip Statistics is brand-restricted at the API level

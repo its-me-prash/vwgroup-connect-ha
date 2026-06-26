@@ -957,6 +957,9 @@
       },
       "report_type": {
         "name": "Rapporttyp"
+      },
+      "start_stop_action": {
+        "name": "Laddningsstart/stopp-åtgärd"
       }
     },
     "binary_sensor": {
@@ -1160,6 +1163,18 @@
       },
       "fuel_level_estimated": {
         "name": "Bränslenivå uppskattad"
+      },
+      "climatisation_at_unlock": {
+        "name": "Klimatisering vid upplåsning"
+      },
+      "mirror_heating_enabled": {
+        "name": "Spegelvärme"
+      },
+      "climate_zone_front_left_enabled": {
+        "name": "Klimatzon fram vänster"
+      },
+      "climate_zone_front_right_enabled": {
+        "name": "Klimatzon fram höger"
       }
     },
     "switch": {

@@ -957,6 +957,9 @@
       },
       "report_type": {
         "name": "Typ zprávy"
+      },
+      "start_stop_action": {
+        "name": "Akce spuštění/zastavení nabíjení"
       }
     },
     "binary_sensor": {
@@ -1160,6 +1163,18 @@
       },
       "fuel_level_estimated": {
         "name": "Hladina paliva odhadnuta"
+      },
+      "climatisation_at_unlock": {
+        "name": "Klimatizace při odemknutí"
+      },
+      "mirror_heating_enabled": {
+        "name": "Vyhřívání zrcátek"
+      },
+      "climate_zone_front_left_enabled": {
+        "name": "Klimatická zóna vpředu vlevo"
+      },
+      "climate_zone_front_right_enabled": {
+        "name": "Klimatická zóna vpředu vpravo"
       }
     },
     "switch": {

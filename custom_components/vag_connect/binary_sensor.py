@@ -698,6 +698,40 @@ _NEW_BINARY: tuple[VagBinarySensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # ── v2.15.4 (#523) — EU Data Act portal climatisation settings ──────────
+    # All DIAGNOSTIC, LOW — disabled-by-default.
+    VagBinarySensorDescription(
+        key="climatisation_at_unlock",
+        translation_key="climatisation_at_unlock",
+        data_key="climatisation_at_unlock",
+        icon="mdi:air-conditioner",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagBinarySensorDescription(
+        key="mirror_heating_enabled",
+        translation_key="mirror_heating_enabled",
+        data_key="mirror_heating_enabled",
+        icon="mdi:car-side",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagBinarySensorDescription(
+        key="climate_zone_front_left_enabled",
+        translation_key="climate_zone_front_left_enabled",
+        data_key="climate_zone_front_left_enabled",
+        icon="mdi:thermostat",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagBinarySensorDescription(
+        key="climate_zone_front_right_enabled",
+        translation_key="climate_zone_front_right_enabled",
+        data_key="climate_zone_front_right_enabled",
+        icon="mdi:thermostat",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
 )
 BINARY_DESCRIPTIONS = BINARY_DESCRIPTIONS + _NEW_BINARY
 
@@ -804,6 +838,12 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "spoiler_open",
     "oil_dipstick_active",
     "fuel_level_estimated",
+    # v2.15.4 (#523) — EU Data Act portal climatisation settings. EU-Data-Act
+    # dialect only; vehicles/channels without the field stay None → no phantom.
+    "climatisation_at_unlock",
+    "mirror_heating_enabled",
+    "climate_zone_front_left_enabled",
+    "climate_zone_front_right_enabled",
 })
 
 

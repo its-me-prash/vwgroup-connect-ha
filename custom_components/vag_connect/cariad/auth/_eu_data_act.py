@@ -751,8 +751,13 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
 
     # a12 — additional high-confidence portal fields (purely additive; every
     # existing mapping above is untouched). Names tried defensively via first().
+    # v2.15.4 (#523) — actual_charge_rate is the EU-portal dialect alias for the
+    # same charge rate. The dict's `Charge Rate` entry carries unit=kmPerHour, so
+    # it is the same km/h rate as the existing charging_rate_kmh field — added as
+    # the LAST alias so canonical/report-shaped keys still win when both appear.
     crate = _to_int(first("battery_state_report.charge_rate", "charge_rate",
-                          "chargeRate_kmph", "charging_rate_kmh"))
+                          "chargeRate_kmph", "charging_rate_kmh",
+                          "actual_charge_rate"))
     if crate is not None:
         d.charging_rate_kmh = crate
 
@@ -1480,6 +1485,46 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     _rtype = first("report_type")
     if _rtype is not None and d.report_type is None:
         d.report_type = _shorten_enum(_rtype)
+
+    # ── v2.15.4 (#523) — EU Data Act portal new fields ───────────────────────
+    # All additive, guarded, EU-Data-Act-dialect only.
+    # Climatisation settings — dict type=string, Climatisation cluster. The
+    # values are on/off/enabled-style strings ("Is short conditioning enabled",
+    # "Is glass surface heating active", "Is extended conditioning in front
+    # left/right zone enabled") → coerce to bool. No enum list in the dict, so
+    # accept the common truthy tokens.
+    def _setting_bool(raw: str | None) -> bool | None:
+        # v2.15.4 — dict lists these as string with no enum; map known truthy/
+        # falsy tokens, leave anything unrecognized (e.g. invalid/unsupported) as
+        # None rather than a hard False, until a live payload pins the vocab.
+        if raw is None:
+            return None
+        v = str(raw).strip().lower()
+        if v in ("true", "1", "on", "enabled", "active", "activated", "yes"):
+            return True
+        if v in ("false", "0", "off", "disabled", "inactive", "deactivated", "no"):
+            return False
+        return None
+
+    _cau = _setting_bool(first("setting_climatisation_at_unlock"))
+    if _cau is not None and d.climatisation_at_unlock is None:
+        d.climatisation_at_unlock = _cau
+    _mhe = _setting_bool(first("setting_mirror_heating_enabled"))
+    if _mhe is not None and d.mirror_heating_enabled is None:
+        d.mirror_heating_enabled = _mhe
+    _zfl = _setting_bool(first("setting_zone_enabled_front_left"))
+    if _zfl is not None and d.climate_zone_front_left_enabled is None:
+        d.climate_zone_front_left_enabled = _zfl
+    _zfr = _setting_bool(first("setting_zone_enabled_front_right"))
+    if _zfr is not None and d.climate_zone_front_right_enabled is None:
+        d.climate_zone_front_right_enabled = _zfr
+
+    # start_stop_action — dict type=string, "Indicates the action related to
+    # charging". No dict-listed enum values → no confirmed prefix; _shorten_enum
+    # passes unprefixed values through unchanged (so it is safe to apply).
+    _ssa = first("start_stop_action")
+    if _ssa is not None and d.start_stop_action is None:
+        d.start_stop_action = _shorten_enum(_ssa)
 
     # b1/B3 — derive drivetrain from the data actually present (fixes the
     # #37 class: an EV like the e-up! showing only combustion entities, or a

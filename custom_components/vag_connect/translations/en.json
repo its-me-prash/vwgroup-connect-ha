@@ -957,6 +957,9 @@
       },
       "report_type": {
         "name": "Report type"
+      },
+      "start_stop_action": {
+        "name": "Charge start/stop action"
       }
     },
     "binary_sensor": {
@@ -1160,6 +1163,18 @@
       },
       "fuel_level_estimated": {
         "name": "Fuel level estimated"
+      },
+      "climatisation_at_unlock": {
+        "name": "Climatisation at unlock"
+      },
+      "mirror_heating_enabled": {
+        "name": "Mirror heating"
+      },
+      "climate_zone_front_left_enabled": {
+        "name": "Climate zone front-left"
+      },
+      "climate_zone_front_right_enabled": {
+        "name": "Climate zone front-right"
       }
     },
     "switch": {

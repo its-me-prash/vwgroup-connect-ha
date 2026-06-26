@@ -957,6 +957,9 @@
       },
       "report_type": {
         "name": "Tipo de informe"
+      },
+      "start_stop_action": {
+        "name": "Acción de inicio/parada de carga"
       }
     },
     "binary_sensor": {
@@ -1160,6 +1163,18 @@
       },
       "fuel_level_estimated": {
         "name": "Nivel de combustible estimado"
+      },
+      "climatisation_at_unlock": {
+        "name": "Climatización al desbloquear"
+      },
+      "mirror_heating_enabled": {
+        "name": "Calefacción de espejos"
+      },
+      "climate_zone_front_left_enabled": {
+        "name": "Zona climática delantera izquierda"
+      },
+      "climate_zone_front_right_enabled": {
+        "name": "Zona climática delantera derecha"
       }
     },
     "switch": {

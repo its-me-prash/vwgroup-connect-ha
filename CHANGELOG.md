@@ -46,6 +46,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 - **More EU Data Act portal fields mapped (#518).** Active charge target, charge-time display, charging power, and the dual charging-plug state set (plug 1 + 2: flap, flap-lock, lock, infrastructure, connection) now surface as diagnostic sensors. Nothing hidden — unmapped fields stay in the Scout.
 - **More mapped fields (#521, #522).** Next-charging-timer schedule (start/finish/reachability), uphill/downhill slope consumption, the charging error code, and an outdoor-temperature alias. Diagnostic; low-confidence disabled by default; nothing hidden.
+- **More mapped fields (#523).** Actual charge rate (folded into the charge-rate sensor), comfort settings (climatisation-at-unlock, mirror heating, front climate-zone enable) and the start/stop charging action. Diagnostic, disabled by default; nothing hidden.
 
 ## [2.15.3] - 2026-06-26
 

@@ -1555,6 +1555,24 @@ class VehicleData:
     # sensor, diagnostic.
     report_type: str | None = None
 
+    # ── v2.15.4 (#523) — EU Data Act portal new fields ───────────────────────
+    # All written by _eu_data_act.py only (EU-Data-Act dialect). Climatisation
+    # settings are on/off bools (dict type=string, Climatisation cluster).
+    # Short conditioning when the car is unlocked (setting_climatisation_at_
+    # unlock). binary_sensor, diagnostic.
+    climatisation_at_unlock: bool | None = None
+    # Glass-surface / mirror heating active (setting_mirror_heating_enabled).
+    # binary_sensor, diagnostic.
+    mirror_heating_enabled: bool | None = None
+    # Extended conditioning per climate zone enabled (setting_zone_enabled_
+    # front_left / _front_right). binary_sensor, diagnostic.
+    climate_zone_front_left_enabled: bool | None = None
+    climate_zone_front_right_enabled: bool | None = None
+    # Charging-related action (start_stop_action — dict type=string, no enum
+    # list; _shorten_enum passes unprefixed values through). LOW —
+    # disabled-by-default. sensor, diagnostic.
+    start_stop_action: str | None = None
+
     # — BFF / selectivestatus dialect NEW fields —
     # Per-corner tire pressure STATE strings (shared — EU tires.[*].state and
     # BFF {corner}TireState both write these). Lowercased passthrough.
