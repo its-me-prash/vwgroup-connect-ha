@@ -38,9 +38,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
-## [2.15.4] - unreleased
-
-> Prepared, batching more Scout field-feedback before release (#518/#519/#520 and others).
+## [2.15.4] - 2026-06-26
 
 ### Fixed
 
