@@ -390,3 +390,43 @@ class TestReadOnlyMode:
             lock_setup(MagicMock(), entry, _capture)
         )
         assert added and len(added[0]) == 1  # one VagDoorLock for VINX
+
+
+class TestReadOnlyOptionsPrecedence543:
+    """Issue #543 — Options-Flow value must win over initial-config data.
+
+    Initial setup force-sets ``data[read_only]=True`` for some paths; when the
+    user later DISABLES read-only via the Options Flow, the old OR kept
+    returning True (data won) and commands stayed blocked. The documented
+    precedence is options > data > False.
+    """
+
+    @staticmethod
+    def _coord(options, data):
+        from custom_components.vag_connect.coordinator import VagConnectCoordinator
+
+        coord = VagConnectCoordinator.__new__(VagConnectCoordinator)
+        coord.entry = MagicMock()
+        coord.entry.options = options
+        coord.entry.data = data
+        # No portal strategy / MBB channel — exercise the options/data branch.
+        coord._cariad_client = None
+        return coord
+
+    def test_options_false_overrides_data_true(self):
+        """#543 core: data forced True but Options disables → commands allowed."""
+        coord = self._coord({"read_only_mode": False}, {"read_only_mode": True})
+        assert coord.is_read_only() is False
+
+    def test_options_true_wins(self):
+        coord = self._coord({"read_only_mode": True}, {})
+        assert coord.is_read_only() is True
+
+    def test_neither_set_defaults_false(self):
+        coord = self._coord({}, {})
+        assert coord.is_read_only() is False
+
+    def test_data_true_no_options_key_backcompat(self):
+        """Options never set the key → data is the fallback (back-compat)."""
+        coord = self._coord({}, {"read_only_mode": True})
+        assert coord.is_read_only() is True

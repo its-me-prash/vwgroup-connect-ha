@@ -3837,10 +3837,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 return True
         options = getattr(self.entry, "options", None) or {}
         data = getattr(self.entry, "data", None) or {}
-        return (
-            (isinstance(options, dict) and options.get(CONF_READ_ONLY) is True)
-            or (isinstance(data, dict) and data.get(CONF_READ_ONLY) is True)
-        )
+        # #543 — honour the documented precedence: an explicit Options-Flow
+        # value (True OR False) wins over the initial config ``data``. The old
+        # OR collapsed both to True, so disabling read-only in the Options Flow
+        # was ignored whenever ``data`` had been force-set True at first setup.
+        if isinstance(options, dict) and CONF_READ_ONLY in options:
+            return options.get(CONF_READ_ONLY) is True
+        if isinstance(data, dict) and CONF_READ_ONLY in data:
+            return data.get(CONF_READ_ONLY) is True
+        return False
 
     # ── v2.15.5 — ABRP (A Better Routeplanner) telemetry push ───────────────
 
