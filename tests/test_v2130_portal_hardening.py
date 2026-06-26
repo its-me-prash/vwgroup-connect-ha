@@ -32,17 +32,19 @@ def test_walk_fields_latest_wins_by_timestamp() -> None:
     assert _walk_fields(log)["soc"] == "82"  # newest timestamp wins
 
 
-def test_walk_fields_no_real_timestamp_keeps_first_seen() -> None:
-    # b13 (#465): when duplicate same-name points carry NO genuine per-point
-    # timestamp (only the shared dataset floor / none), the picker must be
-    # deterministic and keep the FIRST-seen entry — NOT let the last array
-    # entry clobber it. The old "last-in-array" fallback is what let a stale
-    # duplicate (80%) override the correct value on the ID.5.
+def test_walk_fields_no_real_timestamp_keeps_last_seen() -> None:
+    # PREMISE CHANGED in #529 (v2.15.4): this test previously asserted FIRST-seen
+    # on a no-real-ts tie. The empirical #529 trace (S5/S6) showed that rule
+    # surfaces the STALE earlier sample: the portal ZIP is an append-ordered
+    # event-log, so a later duplicate is the NEWER reading (this matches the
+    # reference reader rafaelhutter/ha-volkswagen-connect, which is order-last-
+    # wins). With genuine per-point timestamps the freshest still wins; the tie
+    # only happens when NEITHER candidate has a real ts, and then LAST wins.
     log = {"data": [
         {"dataFieldName": "x", "value": "1"},
         {"dataFieldName": "x", "value": "9"},
     ]}
-    assert _walk_fields(log)["x"] == "1"  # first-seen on a true (no-real-ts) tie
+    assert _walk_fields(log)["x"] == "9"  # last-write on a true (no-real-ts) tie
 
 
 def test_walk_fields_datapoint_shape_unchanged() -> None:

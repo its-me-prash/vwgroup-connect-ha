@@ -49,6 +49,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **More mapped fields (#523).** Actual charge rate (folded into the charge-rate sensor), comfort settings (climatisation-at-unlock, mirror heating, front climate-zone enable) and the start/stop charging action. Diagnostic, disabled by default; nothing hidden.
 - **More mapped fields (#528).** Start/stop modification, hood state, front tyre pressures, and the last-trip gas / range-gain / zero-emission aggregates (the short-term counterparts to the lifetime figures). Diagnostic, disabled by default; nothing hidden.
 - **Audi next-charging-timer fallback (#530).** Some Audis report the charge-timer id + target-SoC-reachable under a different container than the integration was reading, so the sensor stayed empty. Now read as a fallback — the existing 'target SoC reachable' sensor populates. No new entities.
+- **EU portal values could disagree with each other (#529).** Battery level, odometer and "last seen" were each read independently from the portal's multi-snapshot export, so they could come from different moments — wrong/uncorrelated readings and even a phantom "moved overnight". Now every field is taken from its latest sample so they stay in sync; the odometer's never-go-backwards guard now lives at the cross-poll layer where it belongs. (VW EU portal only; the BFF path was unaffected.)
 
 ## [2.15.3] - 2026-06-26
 

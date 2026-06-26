@@ -376,7 +376,9 @@ def _dataset_captured_ts(payload: Any) -> float | None:
     return best
 
 
-def _walk_fields(payload: Any) -> dict[str, str]:
+def _walk_fields(
+    payload: Any, _ts_out: dict[str, float] | None = None
+) -> dict[str, str]:
     """Flatten the EU Data Act dataset into ``{field_name: value}``.
 
     The portal ZIP contains a JSON dataset whose shape varies by firmware
@@ -393,16 +395,42 @@ def _walk_fields(payload: Any) -> dict[str, str]:
     sibling ``_TS_KEYS`` key on the same node).
 
     b13 (#465 RaAdNe): VW returns several data points with the SAME logical
-    name (e.g. four ``target_soc`` candidates, two ``soc`` values) and we were
-    picking by array order whenever they shared the dataset-level floor
-    timestamp — so the wrong one (a stale 80% over the live 90%) could win. Now
-    the tie-break tracks whether a timestamp is a REAL per-point value or just
-    the inherited dataset floor: a real ts beats the floor/unknown, the
-    strictly-newer of two real ts wins, and with no real ts on either we keep
-    the first-seen entry instead of letting the last array entry clobber it.
+    name (e.g. four ``target_soc`` candidates, two ``soc`` values). We pick by
+    genuine freshness, never by array order: a real per-point timestamp beats the
+    inherited dataset floor, and the strictly-newer of two real timestamps wins.
     Fields nested inside an array (e.g. inside ``chargingProfiles[]``) no longer
     collapse onto the bare top-level key. Single-occurrence datasets are
     unaffected, so existing shape tests stay green.
+
+    v2.15.4 (#529): snapshot COHERENCE. The ZIP is a flat, append-ordered
+    multi-snapshot log; resolving each field independently let soc, odometer and
+    last_seen surface from DIFFERENT snapshots — odometer in particular was
+    lifted by a within-ZIP monotonic MAX from an arbitrary older snapshot while
+    last_seen tracked the newest one, manufacturing a phantom "moved at night".
+    Two changes make every field resolve to its latest available sample, so the
+    surfaced values no longer contradict each other (the odometer is never from
+    an older block than last_seen):
+      1. Drop the odometer/mileage monotonic-MAX. Odometer now resolves to its
+         latest-cct sample like every other field, so it tracks the same latest
+         samples as soc/last_seen instead of a numeric max from an arbitrary
+         older block. The "never goes backwards" guarantee (a11) is NOT lost —
+         it is owned across polls by ``vehicle_cache.reconcile``
+         (MONOTONIC_INCREASING_FIELDS), which rejects a regression vs the last
+         PERSISTED value. That is the right layer: a within-ZIP max conflated
+         genuinely-distinct snapshots; the persisted-value guard does not. (Note
+         the a11 monotonic tests still pass — in each the newer timestamp legit-
+         imately carries the higher reading, which latest-cct selects anyway.)
+      2. On a tie with NO real per-point timestamp on either candidate, take the
+         LAST write, not the first. The portal log is append-ordered, so a later
+         duplicate is the newer sample. This flips the old first-seen tie-break
+         that surfaced the stale earlier value (#529 S5/S6); it only affects the
+         degenerate no-timestamp tie — real #465 payloads carry car_captured_time
+         and resolve by freshness regardless, so #465 stays fixed.
+
+    ``_ts_out`` (optional): if a dict is passed, it is filled with the RESOLVED
+    real per-point capture ts of each surfaced field (only fields whose winning
+    sample carried a genuine ts). #529 step 2 uses this so ``last_seen_at`` is
+    never advanced past the snapshot the surfaced odometer actually came from.
     """
     # name -> (value_str, ts, ts_real); ts_real distinguishes a genuine
     # per-point timestamp from the inherited dataset-level floor (-inf=unknown).
@@ -426,20 +454,22 @@ def _walk_fields(payload: Any) -> dict[str, str]:
         if prev is None:
             best[name] = (str(value), cand, cand_real)
             return
-        if _is_monotonic(name):  # a11: odometer/mileage must never regress
-            new_n, old_n = _num(value), _num(prev[0])
-            if new_n is not None and old_n is not None:
-                if new_n >= old_n:
-                    best[name] = (str(value), max(cand, prev[1]), cand_real or prev[2])
-                return
-        # b13 (#465): pick by REAL freshness, never by array order.
+        # #529: ALL fields (incl. monotonic odometer/mileage) resolve by genuine
+        # freshness so they come from the same snapshot. Cross-poll monotonic
+        # protection lives in vehicle_cache.reconcile, not here.
         prev_real = prev[2]
         if cand_real and prev_real:
-            if cand > prev[1]:  # strictly-newer real timestamp wins
+            # >= not >: a newer real ts wins, AND on an EQUAL real ts (two samples
+            # in the SAME snapshot block, #529 S6) the later-appended one wins —
+            # the log is append-ordered, so last-in-block is the newer reading.
+            if cand >= prev[1]:
                 best[name] = (str(value), cand, True)
         elif cand_real and not prev_real:
             best[name] = (str(value), cand, True)  # real beats floor/unknown
-        # else: incumbent is real, or both unknown → keep the first-seen entry.
+        elif not cand_real and not prev_real:
+            # #529 S5/S6: no real ts on either → append-ordered log ⇒ last wins.
+            best[name] = (str(value), cand, False)
+        # else: incumbent is real and candidate is not → keep the real one.
 
     def walk(
         node: Any,
@@ -498,6 +528,12 @@ def _walk_fields(payload: Any) -> dict[str, str]:
                 walk(item, prefix, run_ts, run_real, in_array=True)
 
     walk(payload, node_ts=dataset_ts)  # a11: bare fields inherit dataset freshness
+    if _ts_out is not None:
+        # Expose only GENUINE (real) per-point capture timestamps; floor/unknown
+        # (-inf) carry no snapshot identity and must not constrain last_seen.
+        for k, (_v, ts_v, ts_real_v) in best.items():
+            if ts_real_v:
+                _ts_out[k] = ts_v
     return {k: v[0] for k, v in best.items()}
 
 
@@ -629,7 +665,11 @@ _RAW_FIELD_CAP = 250
 # ``_is_noise`` filter was removed — we map everything, we don't suppress.)
 
 
-def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> VehicleData:
+def map_dataset_to_vehicle_data(
+    fields: dict[str, str],
+    d: VehicleData,
+    field_ts: dict[str, float] | None = None,
+) -> VehicleData:
     """Map a curated subset of EU Data Act fields onto ``VehicleData``.
 
     v2.12.0 ships the ~15 highest-value fields users care about (odometer,
@@ -1176,7 +1216,27 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
         "car_captured_utc_timestamp", "car_captured_time", "instrument_cluster_time",
     )
     if _cap is not None and d.last_seen_at is None:
-        d.last_seen_at = _epoch_or_iso(_cap)
+        cap_iso = _epoch_or_iso(_cap)
+        # #529 step 2: never advance last_seen_at PAST the snapshot the surfaced
+        # odometer actually came from. If the newest snapshot re-reported a
+        # capture time but NOT the odometer, the odometer is genuinely older;
+        # letting last_seen run ahead of it lets HA infer movement ("odometer
+        # changed AND last_seen advanced") that never happened. Cap last_seen to
+        # the odometer's resolved capture ts whenever the latter is older. We
+        # only know the odometer's ts from field_ts (the _walk_fields out-param);
+        # without it we fall back to the raw capture (pre-#529 behaviour).
+        if field_ts and d.odometer_km is not None:
+            odo_ts = next(
+                (field_ts[k] for k in ("mileage.value", "mileage", "odometer",
+                                       "totalMileage") if k in field_ts),
+                None,
+            )
+            cap_ts = _parse_ts(_cap)
+            if odo_ts is not None and cap_ts is not None and odo_ts < cap_ts:
+                capped = _epoch_or_iso(str(odo_ts))
+                if capped is not None:
+                    cap_iso = capped
+        d.last_seen_at = cap_iso
 
     # parking_brake.is_set → parking_brake_engaged (shared field).
     _pb = first("parking_brake.is_set", "parking_brake_is_set", "parking_brake")
@@ -1919,18 +1979,35 @@ class EUDataActConnector:
             )
             return d
         files = listing if isinstance(listing, list) else listing.get("files", [])
-        names: list[str] = []
-        for f in files:
+        # (name, delivery_ts) per content file; keep array index as the tie/
+        # fallback order so a listing with no timestamp behaves as before.
+        cands: list[tuple[str, float | None, int]] = []
+        for idx, f in enumerate(files):
             if not isinstance(f, dict):
                 continue
             name = f.get("name")
             if isinstance(name, str) and not name.endswith(_NO_CONTENT_SUFFIX):
-                names.append(name)
-        if not names:
+                # #529 step 4: prefer an explicit delivery timestamp over array
+                # order (the array is NOT guaranteed newest-last). createdOn is
+                # the portal's field (confirmed in the reference reader); accept
+                # a few aliases defensively.
+                dts = None
+                for tk in ("createdOn", "created_on", "createdAt", "creationDate"):
+                    if tk in f:
+                        dts = _parse_ts(f.get(tk))
+                        if dts is not None:
+                            break
+                cands.append((name, dts, idx))
+        if not cands:
             self.last_no_data_reason = "empty"
             _LOGGER.debug("EU Data Act portal: no dataset files for %s yet", vin[-6:])
             return d
-        newest = names[-1]
+        # Newest by delivery ts when present; files without a ts sort below those
+        # with one (-inf), and ties / a fully-tsless listing fall back to array
+        # order (the original names[-1] behaviour).
+        newest = max(
+            cands, key=lambda c: (c[1] if c[1] is not None else float("-inf"), c[2])
+        )[0]
         # 3. download ZIP → JSON. This GET bypasses _get_json, so the Bearer
         # header (v2.13.0) must be merged in separately without clobbering the
         # filename/type headers the download endpoint requires.
@@ -1970,7 +2047,8 @@ class EUDataActConnector:
             )
             return d
         payload = _unzip_json(raw, newest)
-        fields = _walk_fields(payload)
+        field_ts: dict[str, float] = {}  # #529: resolved per-field capture ts
+        fields = _walk_fields(payload, field_ts)
         _LOGGER.debug(
             "EU Data Act portal: %s dataset carried %d fields", vin[-6:], len(fields)
         )
@@ -1983,7 +2061,7 @@ class EUDataActConnector:
         self.last_no_data_reason = ""
         d.no_data = False  # real dataset parsed → this is a genuine good poll
         d.connection_state = "online"
-        return map_dataset_to_vehicle_data(fields, d)
+        return map_dataset_to_vehicle_data(fields, d, field_ts)
 
     async def get_relation_nickname(self, vin: str) -> str | None:
         """Best-effort vehicle nickname from the relation endpoint."""

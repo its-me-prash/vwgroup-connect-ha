@@ -12,15 +12,22 @@ from __future__ import annotations
 from custom_components.vag_connect.cariad.auth._eu_data_act import _walk_fields
 
 
-def test_duplicate_soc_no_real_ts_keeps_first_not_last() -> None:
-    # ID.5 case: duplicates with no genuine per-point timestamp — the picker
-    # must keep the first (correct) one, not let the last array entry win
-    # (the old ">=" fallback is what surfaced a stale 80% over the live 90%).
+def test_duplicate_soc_no_real_ts_keeps_last_not_first() -> None:
+    # PREMISE CHANGED in #529 (v2.15.4): this test previously assumed the FIRST
+    # duplicate was the correct one when neither carried a real per-point ts.
+    # The #529 root-cause trace (S5/S6) disproved that: the portal ZIP is an
+    # append-ordered event-log, so on a no-real-ts tie the LATER duplicate is
+    # the newer sample and must win — an append-ordered log makes the later
+    # duplicate the newer sample. The original "first 90 is live, later 80 is
+    # stale" framing was coincidental ordering, not a portal guarantee — when
+    # the freshness actually matters the data carries genuine timestamps (see
+    # test_duplicate_soc_distinct_real_ts_picks_freshest below), and those still
+    # win regardless of array position.
     log = {"data": [
-        {"dataFieldName": "soc", "value": "90"},   # correct (matches app)
-        {"dataFieldName": "soc", "value": "80"},   # stale duplicate, later in array
+        {"dataFieldName": "soc", "value": "90"},   # earlier append
+        {"dataFieldName": "soc", "value": "80"},   # later append = newer sample
     ]}
-    assert _walk_fields(log)["soc"] == "90"
+    assert _walk_fields(log)["soc"] == "80"
 
 
 def test_duplicate_soc_distinct_real_ts_picks_freshest() -> None:
