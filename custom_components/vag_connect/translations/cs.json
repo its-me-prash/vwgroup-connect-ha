@@ -905,6 +905,30 @@
       "tyre_pressure_actual_fr": {
         "name": "Tlak v pneumatice vpředu vpravo"
       },
+      "tyre_pressure_actual_rl": {
+        "name": "Tlak v pneumatice vzadu vlevo (skutečný)"
+      },
+      "tyre_pressure_actual_rr": {
+        "name": "Tlak v pneumatice vzadu vpravo (skutečný)"
+      },
+      "tyre_pressure_actual_spare": {
+        "name": "Tlak v rezervním kole (skutečný)"
+      },
+      "tyre_pressure_required_fl": {
+        "name": "Tlak v pneumatice vpředu vlevo (cílový)"
+      },
+      "tyre_pressure_required_fr": {
+        "name": "Tlak v pneumatice vpředu vpravo (cílový)"
+      },
+      "tyre_pressure_required_rl": {
+        "name": "Tlak v pneumatice vzadu vlevo (cílový)"
+      },
+      "tyre_pressure_required_rr": {
+        "name": "Tlak v pneumatice vzadu vpravo (cílový)"
+      },
+      "tyre_pressure_required_spare": {
+        "name": "Tlak v rezervním kole (cílový)"
+      },
       "parking_lights_state": {
         "name": "Parkovací světla"
       },

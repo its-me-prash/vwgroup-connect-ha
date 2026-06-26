@@ -905,6 +905,30 @@
       "tyre_pressure_actual_fr": {
         "name": "Bandenspanning rechtsvoor"
       },
+      "tyre_pressure_actual_rl": {
+        "name": "Bandenspanning linksachter (werkelijk)"
+      },
+      "tyre_pressure_actual_rr": {
+        "name": "Bandenspanning rechtsachter (werkelijk)"
+      },
+      "tyre_pressure_actual_spare": {
+        "name": "Bandenspanning reservewiel (werkelijk)"
+      },
+      "tyre_pressure_required_fl": {
+        "name": "Bandenspanning linksvoor (streefwaarde)"
+      },
+      "tyre_pressure_required_fr": {
+        "name": "Bandenspanning rechtsvoor (streefwaarde)"
+      },
+      "tyre_pressure_required_rl": {
+        "name": "Bandenspanning linksachter (streefwaarde)"
+      },
+      "tyre_pressure_required_rr": {
+        "name": "Bandenspanning rechtsachter (streefwaarde)"
+      },
+      "tyre_pressure_required_spare": {
+        "name": "Bandenspanning reservewiel (streefwaarde)"
+      },
       "parking_lights_state": {
         "name": "Parkeerlichten"
       },

@@ -2021,6 +2021,72 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # E'' (#538) — rear + spare ACTUAL, and the REQUIRED/target family. Same
+    # ambiguous unit → unitless diagnostic, disabled-by-default.
+    VagSensorDescription(
+        key="tyre_pressure_actual_rl",
+        translation_key="tyre_pressure_actual_rl",
+        data_key="tyre_pressure_actual_rl",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tyre_pressure_actual_rr",
+        translation_key="tyre_pressure_actual_rr",
+        data_key="tyre_pressure_actual_rr",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tyre_pressure_actual_spare",
+        translation_key="tyre_pressure_actual_spare",
+        data_key="tyre_pressure_actual_spare",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tyre_pressure_required_fl",
+        translation_key="tyre_pressure_required_fl",
+        data_key="tyre_pressure_required_fl",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tyre_pressure_required_fr",
+        translation_key="tyre_pressure_required_fr",
+        data_key="tyre_pressure_required_fr",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tyre_pressure_required_rl",
+        translation_key="tyre_pressure_required_rl",
+        data_key="tyre_pressure_required_rl",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tyre_pressure_required_rr",
+        translation_key="tyre_pressure_required_rr",
+        data_key="tyre_pressure_required_rr",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tyre_pressure_required_spare",
+        translation_key="tyre_pressure_required_spare",
+        data_key="tyre_pressure_required_spare",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     # F. Lights / energy / misc.
     VagSensorDescription(
         key="parking_lights_state",
@@ -2909,6 +2975,16 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "start_stop_modification",
     "tyre_pressure_actual_fl",
     "tyre_pressure_actual_fr",
+    # v2.15.4 (#538) — rear + spare ACTUAL and the REQUIRED/target family.
+    # EU-Data-Act dialect only; vehicles/channels without the field stay None.
+    "tyre_pressure_actual_rl",
+    "tyre_pressure_actual_rr",
+    "tyre_pressure_actual_spare",
+    "tyre_pressure_required_fl",
+    "tyre_pressure_required_fr",
+    "tyre_pressure_required_rl",
+    "tyre_pressure_required_rr",
+    "tyre_pressure_required_spare",
 })
 
 # v1.14.0 (#24) — Trip Statistics is brand-restricted at the API level

@@ -396,3 +396,71 @@ def test_528_short_term_matches_lifetime_conversion() -> None:
     assert st.last_trip_avg_gas_consumption_kg_100km == lt.lifetime_avg_gas_consumption_kg_100km
     assert st.last_trip_range_gain_km == lt.lifetime_range_gain_km
     assert st.last_trip_zero_emission_km == lt.lifetime_zero_emission_km
+
+
+# ── #538 (RichardL6) — rear + spare ACTUAL tyre pressure, and the full
+# REQUIRED/target family. Same 0/1 sentinel rule as the front pair (#528).
+
+
+def test_538_tyre_pressure_actual_rear_and_spare() -> None:
+    # _FIELD_SENTINELS ``tyre_pressure_actual`` rule drops 0/1; >1 passes as int.
+    d = _map(
+        {
+            "tyre_pressure_actual_rear_left": "226",
+            "tyre_pressure_actual_rear_right": "224",
+            "tyre_pressure_actual_spare_tyre": "260",
+        }
+    )
+    assert d.tyre_pressure_actual_rl == 226
+    assert d.tyre_pressure_actual_rr == 224
+    assert d.tyre_pressure_actual_spare == 260
+
+
+def test_538_tyre_pressure_actual_rear_spare_sentinels_dropped() -> None:
+    d = _map(
+        {
+            "tyre_pressure_actual_rear_left": "0",
+            "tyre_pressure_actual_rear_right": "1",
+            "tyre_pressure_actual_spare_tyre": "0",
+        }
+    )
+    assert d.tyre_pressure_actual_rl is None
+    assert d.tyre_pressure_actual_rr is None
+    assert d.tyre_pressure_actual_spare is None
+
+
+def test_538_tyre_pressure_required_family() -> None:
+    # NEW ``tyre_pressure_required`` _FIELD_SENTINELS rule ({0.0, 1.0}); >1 → int.
+    d = _map(
+        {
+            "tyre_pressure_required_front_left": "240",
+            "tyre_pressure_required_front_right": "240",
+            "tyre_pressure_required_rear_left": "230",
+            "tyre_pressure_required_rear_right": "230",
+            "tyre_pressure_required_spare_tyre": "270",
+        }
+    )
+    assert d.tyre_pressure_required_fl == 240
+    assert d.tyre_pressure_required_fr == 240
+    assert d.tyre_pressure_required_rl == 230
+    assert d.tyre_pressure_required_rr == 230
+    assert d.tyre_pressure_required_spare == 270
+
+
+def test_538_tyre_pressure_required_sentinels_dropped() -> None:
+    # 0=unsupported, 1=invalid → None (no entity), via the new
+    # ``tyre_pressure_required`` _FIELD_SENTINELS rule.
+    d = _map(
+        {
+            "tyre_pressure_required_front_left": "0",
+            "tyre_pressure_required_front_right": "1",
+            "tyre_pressure_required_rear_left": "1",
+            "tyre_pressure_required_rear_right": "0",
+            "tyre_pressure_required_spare_tyre": "1",
+        }
+    )
+    assert d.tyre_pressure_required_fl is None
+    assert d.tyre_pressure_required_fr is None
+    assert d.tyre_pressure_required_rl is None
+    assert d.tyre_pressure_required_rr is None
+    assert d.tyre_pressure_required_spare is None

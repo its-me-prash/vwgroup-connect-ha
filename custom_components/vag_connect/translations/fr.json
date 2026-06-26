@@ -905,6 +905,30 @@
       "tyre_pressure_actual_fr": {
         "name": "Pression pneu avant droit"
       },
+      "tyre_pressure_actual_rl": {
+        "name": "Pression pneu arrière gauche (réel)"
+      },
+      "tyre_pressure_actual_rr": {
+        "name": "Pression pneu arrière droit (réel)"
+      },
+      "tyre_pressure_actual_spare": {
+        "name": "Pression pneu de secours (réel)"
+      },
+      "tyre_pressure_required_fl": {
+        "name": "Pression pneu avant gauche (cible)"
+      },
+      "tyre_pressure_required_fr": {
+        "name": "Pression pneu avant droit (cible)"
+      },
+      "tyre_pressure_required_rl": {
+        "name": "Pression pneu arrière gauche (cible)"
+      },
+      "tyre_pressure_required_rr": {
+        "name": "Pression pneu arrière droit (cible)"
+      },
+      "tyre_pressure_required_spare": {
+        "name": "Pression pneu de secours (cible)"
+      },
       "parking_lights_state": {
         "name": "Feux de stationnement"
       },

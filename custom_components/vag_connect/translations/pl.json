@@ -905,6 +905,30 @@
       "tyre_pressure_actual_fr": {
         "name": "Ciśnienie opony przód prawy"
       },
+      "tyre_pressure_actual_rl": {
+        "name": "Ciśnienie opony tył lewy (rzeczywiste)"
+      },
+      "tyre_pressure_actual_rr": {
+        "name": "Ciśnienie opony tył prawy (rzeczywiste)"
+      },
+      "tyre_pressure_actual_spare": {
+        "name": "Ciśnienie koła zapasowego (rzeczywiste)"
+      },
+      "tyre_pressure_required_fl": {
+        "name": "Ciśnienie opony przód lewy (docelowe)"
+      },
+      "tyre_pressure_required_fr": {
+        "name": "Ciśnienie opony przód prawy (docelowe)"
+      },
+      "tyre_pressure_required_rl": {
+        "name": "Ciśnienie opony tył lewy (docelowe)"
+      },
+      "tyre_pressure_required_rr": {
+        "name": "Ciśnienie opony tył prawy (docelowe)"
+      },
+      "tyre_pressure_required_spare": {
+        "name": "Ciśnienie koła zapasowego (docelowe)"
+      },
       "parking_lights_state": {
         "name": "Światła postojowe"
       },

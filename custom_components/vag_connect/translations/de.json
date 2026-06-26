@@ -905,6 +905,30 @@
       "tyre_pressure_actual_fr": {
         "name": "Reifendruck vorne rechts"
       },
+      "tyre_pressure_actual_rl": {
+        "name": "Reifendruck hinten links (Ist)"
+      },
+      "tyre_pressure_actual_rr": {
+        "name": "Reifendruck hinten rechts (Ist)"
+      },
+      "tyre_pressure_actual_spare": {
+        "name": "Reifendruck Reserverad (Ist)"
+      },
+      "tyre_pressure_required_fl": {
+        "name": "Reifendruck vorne links (Soll)"
+      },
+      "tyre_pressure_required_fr": {
+        "name": "Reifendruck vorne rechts (Soll)"
+      },
+      "tyre_pressure_required_rl": {
+        "name": "Reifendruck hinten links (Soll)"
+      },
+      "tyre_pressure_required_rr": {
+        "name": "Reifendruck hinten rechts (Soll)"
+      },
+      "tyre_pressure_required_spare": {
+        "name": "Reifendruck Reserverad (Soll)"
+      },
       "parking_lights_state": {
         "name": "Standlicht"
       },

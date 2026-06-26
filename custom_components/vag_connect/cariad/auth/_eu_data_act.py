@@ -418,6 +418,9 @@ _FIELD_SENTINELS: tuple[tuple[str, frozenset[float]], ...] = (
     # v2.15.3 — pressure DELTA-vs-target family: 0=unsupported 1=invalid,
     # >1=valid int (mirrors the tyre_pressure_actual rule).
     ("tyre_pressure_differential", frozenset({0.0, 1.0})),
+    # v2.15.4 (#538) — REQUIRED/target per-wheel pressure family: same dict
+    # convention (0=unsupported 1=invalid, >1=valid int) as the actual family.
+    ("tyre_pressure_required", frozenset({0.0, 1.0})),
 )
 
 # Monotonic fields must never regress: an out-of-order OLDER snapshot must not
@@ -1665,18 +1668,36 @@ def map_dataset_to_vehicle_data(
         if _tpd is not None:
             setattr(d, _attr, _tpd)
 
-    # E'. Tyres — ACTUAL per-wheel pressure (#528). Same 0/1 sentinel rule as
-    # the diff family (dict: unsupported 0 / invalid 1 / valid int), dropped in
-    # first()/_is_sentinel via the "tyre_pressure_actual" _FIELD_SENTINELS entry,
-    # so a surviving value is a genuine reading. #528 reported the front pair
-    # only; rear/spare exist in the dict but aren't wired until reported.
+    # E'. Tyres — ACTUAL per-wheel pressure (#528 front pair, #538 rear+spare).
+    # Same 0/1 sentinel rule as the diff family (dict: unsupported 0 / invalid 1
+    # / valid int), dropped in first()/_is_sentinel via the
+    # "tyre_pressure_actual" _FIELD_SENTINELS entry, so a surviving value is a
+    # genuine reading. #538 (RichardL6) reported the rear pair + spare.
     for _attr, _name in (
         ("tyre_pressure_actual_fl", "tyre_pressure_actual_front_left"),
         ("tyre_pressure_actual_fr", "tyre_pressure_actual_front_right"),
+        ("tyre_pressure_actual_rl", "tyre_pressure_actual_rear_left"),
+        ("tyre_pressure_actual_rr", "tyre_pressure_actual_rear_right"),
+        ("tyre_pressure_actual_spare", "tyre_pressure_actual_spare_tyre"),
     ):
         _tpa = _to_int(first(_name))
         if _tpa is not None:
             setattr(d, _attr, _tpa)
+
+    # E''. Tyres — REQUIRED/target per-wheel pressure (#538). Same 0/1 sentinel
+    # rule via the "tyre_pressure_required" _FIELD_SENTINELS entry. Unit
+    # ("10kPA / Bar / PSI/ kPA") is ambiguous → unitless diagnostic, no
+    # device_class, disabled-by-default (mirrors the actual family).
+    for _attr, _name in (
+        ("tyre_pressure_required_fl", "tyre_pressure_required_front_left"),
+        ("tyre_pressure_required_fr", "tyre_pressure_required_front_right"),
+        ("tyre_pressure_required_rl", "tyre_pressure_required_rear_left"),
+        ("tyre_pressure_required_rr", "tyre_pressure_required_rear_right"),
+        ("tyre_pressure_required_spare", "tyre_pressure_required_spare_tyre"),
+    ):
+        _tpr = _to_int(first(_name))
+        if _tpr is not None:
+            setattr(d, _attr, _tpr)
 
     # F. Lights / energy / misc.
     # parking_lights (plural enum): 0=unsup 1=invalid 2=off 3=left 4=right 5=both.

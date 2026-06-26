@@ -905,6 +905,30 @@
       "tyre_pressure_actual_fr": {
         "name": "Tyre pressure front-right"
       },
+      "tyre_pressure_actual_rl": {
+        "name": "Tyre pressure rear-left (actual)"
+      },
+      "tyre_pressure_actual_rr": {
+        "name": "Tyre pressure rear-right (actual)"
+      },
+      "tyre_pressure_actual_spare": {
+        "name": "Tyre pressure spare (actual)"
+      },
+      "tyre_pressure_required_fl": {
+        "name": "Tyre pressure front-left (target)"
+      },
+      "tyre_pressure_required_fr": {
+        "name": "Tyre pressure front-right (target)"
+      },
+      "tyre_pressure_required_rl": {
+        "name": "Tyre pressure rear-left (target)"
+      },
+      "tyre_pressure_required_rr": {
+        "name": "Tyre pressure rear-right (target)"
+      },
+      "tyre_pressure_required_spare": {
+        "name": "Tyre pressure spare (target)"
+      },
       "parking_lights_state": {
         "name": "Parking lights"
       },

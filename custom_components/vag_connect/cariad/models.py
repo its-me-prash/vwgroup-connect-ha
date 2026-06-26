@@ -1484,10 +1484,21 @@ class VehicleData:
     tyre_pressure_diff_spare: int | None = None
     # Tyres — ACTUAL per-wheel pressure (dict unit "10kPA / Bar / PSI/ kPA" is
     # ambiguous → unitless diagnostic; sentinels 0=unsupported/1=invalid dropped
-    # at the parser). #528 reported the front pair only. LOW — disabled-by-
+    # at the parser). #528 front pair, #538 rear+spare. LOW — disabled-by-
     # default. sensor, diagnostic.
     tyre_pressure_actual_fl: int | None = None
     tyre_pressure_actual_fr: int | None = None
+    tyre_pressure_actual_rl: int | None = None
+    tyre_pressure_actual_rr: int | None = None
+    tyre_pressure_actual_spare: int | None = None
+    # Tyres — REQUIRED/target per-wheel pressure (#538). Same ambiguous unit →
+    # unitless diagnostic; sentinels 0/1 dropped at the parser. LOW — disabled-
+    # by-default. sensor, diagnostic.
+    tyre_pressure_required_fl: int | None = None
+    tyre_pressure_required_fr: int | None = None
+    tyre_pressure_required_rl: int | None = None
+    tyre_pressure_required_rr: int | None = None
+    tyre_pressure_required_spare: int | None = None
     # F. Lights / energy / misc.
     # Parking lights state (parking_lights enum → off/left/right/both). sensor.
     parking_lights_state: str | None = None

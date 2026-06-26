@@ -905,6 +905,30 @@
       "tyre_pressure_actual_fr": {
         "name": "Däcktryck fram höger"
       },
+      "tyre_pressure_actual_rl": {
+        "name": "Däcktryck bak vänster (faktiskt)"
+      },
+      "tyre_pressure_actual_rr": {
+        "name": "Däcktryck bak höger (faktiskt)"
+      },
+      "tyre_pressure_actual_spare": {
+        "name": "Däcktryck reservhjul (faktiskt)"
+      },
+      "tyre_pressure_required_fl": {
+        "name": "Däcktryck fram vänster (mål)"
+      },
+      "tyre_pressure_required_fr": {
+        "name": "Däcktryck fram höger (mål)"
+      },
+      "tyre_pressure_required_rl": {
+        "name": "Däcktryck bak vänster (mål)"
+      },
+      "tyre_pressure_required_rr": {
+        "name": "Däcktryck bak höger (mål)"
+      },
+      "tyre_pressure_required_spare": {
+        "name": "Däcktryck reservhjul (mål)"
+      },
       "parking_lights_state": {
         "name": "Parkeringsljus"
       },

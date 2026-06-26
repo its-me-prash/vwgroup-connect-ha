@@ -905,6 +905,30 @@
       "tyre_pressure_actual_fr": {
         "name": "Presión neumático delantero derecho"
       },
+      "tyre_pressure_actual_rl": {
+        "name": "Presión neumático trasero izquierdo (real)"
+      },
+      "tyre_pressure_actual_rr": {
+        "name": "Presión neumático trasero derecho (real)"
+      },
+      "tyre_pressure_actual_spare": {
+        "name": "Presión neumático de repuesto (real)"
+      },
+      "tyre_pressure_required_fl": {
+        "name": "Presión neumático delantero izquierdo (objetivo)"
+      },
+      "tyre_pressure_required_fr": {
+        "name": "Presión neumático delantero derecho (objetivo)"
+      },
+      "tyre_pressure_required_rl": {
+        "name": "Presión neumático trasero izquierdo (objetivo)"
+      },
+      "tyre_pressure_required_rr": {
+        "name": "Presión neumático trasero derecho (objetivo)"
+      },
+      "tyre_pressure_required_spare": {
+        "name": "Presión neumático de repuesto (objetivo)"
+      },
       "parking_lights_state": {
         "name": "Luces de estacionamiento"
       },
