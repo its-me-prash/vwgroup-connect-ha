@@ -1449,20 +1449,31 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         brand: str, username: str, password: str, user_input: dict[str, Any]
     ) -> dict[str, Any]:
         """Build the config entry data dict from validated user input."""
-        return {
+        data: dict[str, Any] = {
             CONF_BRAND:         brand,
             CONF_USERNAME:      username,
             CONF_PASSWORD:      password,
             CONF_SPIN:          user_input.get(CONF_SPIN, ""),
-            # v2.15.1 (#503) — persist the Volkswagen US/Canada region so the
-            # coordinator can pick the right MYVW client_id + host on reload.
-            CONF_COUNTRY:       user_input.get(CONF_COUNTRY, "us"),
             CONF_SCAN_INTERVAL: max(
                 int(user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)),
                 MIN_SCAN_INTERVAL,
             ),
             CONF_FORCE_ACCESS:  user_input.get(CONF_FORCE_ACCESS, False),
         }
+        # v2.15.5 — the US/Canada region picker is ONLY meaningful for the
+        # volkswagen_na brand (it selects the MYVW client_id + API host).
+        # Previously we stamped CONF_COUNTRY="us" onto EVERY brand's entry,
+        # which polluted Swiss/EU entries with a bogus country="us" (the
+        # field is shown to all email/password brands via the shared schema).
+        # It is harmless downstream — the EU Data Act portal builds its OIDC
+        # state from its own country/language defaults ("de__de__BRAND"), not
+        # from CONF_COUNTRY — but it is misleading in diagnostics and a latent
+        # trap. So we only persist it for volkswagen_na; every other brand
+        # leaves it unset (the coordinator/factory already default to "us"
+        # for the VW-NA path that is the only consumer).
+        if brand.lower() == "volkswagen_na":
+            data[CONF_COUNTRY] = user_input.get(CONF_COUNTRY, "us")
+        return data
 
 
 # ── Options Flow ──────────────────────────────────────────────────────────────
