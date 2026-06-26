@@ -939,6 +939,24 @@
       },
       "tire_pressure_rr_errorcode": {
         "name": "Kod błędu opony tył prawa"
+      },
+      "next_charge_timer_start_at": {
+        "name": "Następny start ładowania"
+      },
+      "next_charge_timer_finish_at": {
+        "name": "Następny koniec ładowania"
+      },
+      "next_charge_target_reachability": {
+        "name": "Osiągalność celu ładowania"
+      },
+      "ascent_slope_consumption": {
+        "name": "Zużycie na wzniesieniu (pod górę)"
+      },
+      "descent_slope_consumption": {
+        "name": "Zużycie na wzniesieniu (z górki)"
+      },
+      "report_type": {
+        "name": "Typ raportu"
       }
     },
     "binary_sensor": {

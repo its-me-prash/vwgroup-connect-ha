@@ -2416,6 +2416,66 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_registry_enabled_default=False,
         suggested_display_precision=2,
     ),
+
+    # v2.15.4 — EU Data Act portal new fields (#521/#522 Scout). EU-Data-Act
+    # dialect only; brand/firmware-restricted at the parser level so vehicles/
+    # channels without the field stay None → no phantom diagnostic entity.
+    VagSensorDescription(
+        key="next_charge_timer_start_at",
+        translation_key="next_charge_timer_start_at",
+        data_key="next_charge_timer_start_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:clock-start",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="next_charge_timer_finish_at",
+        translation_key="next_charge_timer_finish_at",
+        data_key="next_charge_timer_finish_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:clock-end",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="next_charge_target_reachability",
+        translation_key="next_charge_target_reachability",
+        data_key="next_charge_target_reachability",
+        icon="mdi:target",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # Slope consumption — LOW, unit unconfirmed (dict null), disabled-by-default.
+    VagSensorDescription(
+        key="ascent_slope_consumption",
+        translation_key="ascent_slope_consumption",
+        data_key="ascent_slope_consumption",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:slope-uphill",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        suggested_display_precision=2,
+    ),
+    VagSensorDescription(
+        key="descent_slope_consumption",
+        translation_key="descent_slope_consumption",
+        data_key="descent_slope_consumption",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:slope-downhill",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        suggested_display_precision=2,
+    ),
+    # report_type — metadata, not telemetry. LOW — disabled-by-default.
+    VagSensorDescription(
+        key="report_type",
+        translation_key="report_type",
+        data_key="report_type",
+        icon="mdi:file-document-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
 )
 
 # Sensor keys that read from coordinator helpers instead of the per-vehicle
@@ -2715,6 +2775,14 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "trip_electricity_cost",
     "trip_cng_cost",
     "oil_level_pct",
+    # v2.15.4 — EU Data Act portal new fields (#521/#522). EU-Data-Act dialect
+    # only; vehicles/channels without the field stay None → no phantom.
+    "next_charge_timer_start_at",
+    "next_charge_timer_finish_at",
+    "next_charge_target_reachability",
+    "ascent_slope_consumption",
+    "descent_slope_consumption",
+    "report_type",
 })
 
 # v1.14.0 (#24) — Trip Statistics is brand-restricted at the API level

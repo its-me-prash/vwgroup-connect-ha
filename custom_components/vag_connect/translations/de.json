@@ -939,6 +939,24 @@
       },
       "tire_pressure_rr_errorcode": {
         "name": "Reifenfehlercode hinten rechts"
+      },
+      "next_charge_timer_start_at": {
+        "name": "Nächster Ladestart"
+      },
+      "next_charge_timer_finish_at": {
+        "name": "Nächstes Ladeende"
+      },
+      "next_charge_target_reachability": {
+        "name": "Ladeziel erreichbar"
+      },
+      "ascent_slope_consumption": {
+        "name": "Steigungsverbrauch (bergauf)"
+      },
+      "descent_slope_consumption": {
+        "name": "Steigungsverbrauch (bergab)"
+      },
+      "report_type": {
+        "name": "Berichtstyp"
       }
     },
     "binary_sensor": {

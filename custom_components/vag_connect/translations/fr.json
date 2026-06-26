@@ -939,6 +939,24 @@
       },
       "tire_pressure_rr_errorcode": {
         "name": "Code défaut pneu arrière droit"
+      },
+      "next_charge_timer_start_at": {
+        "name": "Début de charge prévu"
+      },
+      "next_charge_timer_finish_at": {
+        "name": "Fin de charge prévue"
+      },
+      "next_charge_target_reachability": {
+        "name": "Objectif de charge atteignable"
+      },
+      "ascent_slope_consumption": {
+        "name": "Consommation en pente (montée)"
+      },
+      "descent_slope_consumption": {
+        "name": "Consommation en pente (descente)"
+      },
+      "report_type": {
+        "name": "Type de rapport"
       }
     },
     "binary_sensor": {

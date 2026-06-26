@@ -939,6 +939,24 @@
       },
       "tire_pressure_rr_errorcode": {
         "name": "Däckfelkod höger bak"
+      },
+      "next_charge_timer_start_at": {
+        "name": "Nästa laddstart"
+      },
+      "next_charge_timer_finish_at": {
+        "name": "Nästa laddslut"
+      },
+      "next_charge_target_reachability": {
+        "name": "Laddmål nåbart"
+      },
+      "ascent_slope_consumption": {
+        "name": "Lutningsförbrukning (uppför)"
+      },
+      "descent_slope_consumption": {
+        "name": "Lutningsförbrukning (nedför)"
+      },
+      "report_type": {
+        "name": "Rapporttyp"
       }
     },
     "binary_sensor": {

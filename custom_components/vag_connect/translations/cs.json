@@ -939,6 +939,24 @@
       },
       "tire_pressure_rr_errorcode": {
         "name": "Chybový kód pneumatiky vpravo vzadu"
+      },
+      "next_charge_timer_start_at": {
+        "name": "Příští začátek nabíjení"
+      },
+      "next_charge_timer_finish_at": {
+        "name": "Příští konec nabíjení"
+      },
+      "next_charge_target_reachability": {
+        "name": "Dosažitelnost cíle nabíjení"
+      },
+      "ascent_slope_consumption": {
+        "name": "Spotřeba ve stoupání (do kopce)"
+      },
+      "descent_slope_consumption": {
+        "name": "Spotřeba ve stoupání (z kopce)"
+      },
+      "report_type": {
+        "name": "Typ zprávy"
       }
     },
     "binary_sensor": {

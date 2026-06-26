@@ -1534,6 +1534,27 @@ class VehicleData:
     charging_plug2_infrastructure_state: str | None = None
     charging_plug2_lock_state: str | None = None
 
+    # ── v2.15.4 — EU Data Act portal new fields (#521/#522 Scout) ────────────
+    # All written by _eu_data_act.py only (EU-Data-Act dialect).
+    # Next-charging-timer estimated start/finish (ISO timestamps). The car's
+    # OWN estimate for when the next scheduled charge will begin/end — distinct
+    # from next_charging_time (Skoda profile schedule). sensor (TIMESTAMP),
+    # diagnostic.
+    next_charge_timer_start_at: Any | None = None
+    next_charge_timer_finish_at: Any | None = None
+    # Whether the next-charge target is reachable in time
+    # (TARGET_REACHABILITY_* enum → shortened). sensor, diagnostic.
+    next_charge_target_reachability: str | None = None
+    # Slope (gradient) energy consumption while ascending / descending — raw
+    # physical_value, unit unconfirmed (dict unit=null), gated on value_type.
+    # LOW — disabled-by-default. sensor, diagnostic.
+    ascent_slope_consumption: float | None = None
+    descent_slope_consumption: float | None = None
+    # Which report this poll's payload represents (REPORT_TYPE_* enum →
+    # shortened) — metadata, not telemetry. LOW — disabled-by-default.
+    # sensor, diagnostic.
+    report_type: str | None = None
+
     # — BFF / selectivestatus dialect NEW fields —
     # Per-corner tire pressure STATE strings (shared — EU tires.[*].state and
     # BFF {corner}TireState both write these). Lowercased passthrough.

@@ -939,6 +939,24 @@
       },
       "tire_pressure_rr_errorcode": {
         "name": "Tire error code rear-right"
+      },
+      "next_charge_timer_start_at": {
+        "name": "Next charge start"
+      },
+      "next_charge_timer_finish_at": {
+        "name": "Next charge finish"
+      },
+      "next_charge_target_reachability": {
+        "name": "Charge target reachability"
+      },
+      "ascent_slope_consumption": {
+        "name": "Slope consumption (uphill)"
+      },
+      "descent_slope_consumption": {
+        "name": "Slope consumption (downhill)"
+      },
+      "report_type": {
+        "name": "Report type"
       }
     },
     "binary_sensor": {

@@ -939,6 +939,24 @@
       },
       "tire_pressure_rr_errorcode": {
         "name": "Bandenfoutcode rechtsachter"
+      },
+      "next_charge_timer_start_at": {
+        "name": "Volgende laadstart"
+      },
+      "next_charge_timer_finish_at": {
+        "name": "Volgend laadeinde"
+      },
+      "next_charge_target_reachability": {
+        "name": "Laaddoel haalbaar"
+      },
+      "ascent_slope_consumption": {
+        "name": "Hellingverbruik (omhoog)"
+      },
+      "descent_slope_consumption": {
+        "name": "Hellingverbruik (omlaag)"
+      },
+      "report_type": {
+        "name": "Rapporttype"
       }
     },
     "binary_sensor": {

@@ -939,6 +939,24 @@
       },
       "tire_pressure_rr_errorcode": {
         "name": "Código error neumático tras. der."
+      },
+      "next_charge_timer_start_at": {
+        "name": "Inicio de carga previsto"
+      },
+      "next_charge_timer_finish_at": {
+        "name": "Fin de carga previsto"
+      },
+      "next_charge_target_reachability": {
+        "name": "Objetivo de carga alcanzable"
+      },
+      "ascent_slope_consumption": {
+        "name": "Consumo en pendiente (subida)"
+      },
+      "descent_slope_consumption": {
+        "name": "Consumo en pendiente (bajada)"
+      },
+      "report_type": {
+        "name": "Tipo de informe"
       }
     },
     "binary_sensor": {

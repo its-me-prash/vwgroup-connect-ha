@@ -583,6 +583,11 @@ _ENUM_PREFIXES = (
     # name suffix, not the value prefix).
     "CHARGE_MODE_SELECTION_", "MAX_CHARGE_CURRENT_", "AUTO_UNLOCK_AC_",
     "BCAM_ACTIVATION_",
+    # v2.15.4 — next-charging-timer reachability enum family (#521/#522 Scout).
+    # Tokens: TARGET_REACHABILITY_{INVALID,CALCULATING,REACHABLE,NOT_REACHABLE}.
+    # (report_type has no dict-listed values yet — no prefix; _shorten_enum keeps
+    # its raw value until a real sample confirms one.)
+    "TARGET_REACHABILITY_",
 )
 
 # v2.15.1 — labels appended to ``available_charge_modes`` per truthy
@@ -778,8 +783,13 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     if oil is not None:
         d.oil_level_pct = oil
 
+    # v2.15.4 (#521/#522) — outdoor_temperature is the EU-portal dialect alias
+    # for the same ambient reading (dict: "Current outdoor temperature in °C").
+    # Added LAST so the dK-carrying outside_temperature wins when both appear;
+    # the > 200 guard below already handles dK-vs-°C either way, so the plain-°C
+    # outdoor_temperature sample (e.g. 31.5) passes through untouched.
     otemp = _to_float(first("outsideTemperatureIndication", "outside_temperature",
-                            "outside_temp"))
+                            "outside_temp", "outdoor_temperature"))
     if otemp is not None:
         # flat MQB ships outside temp in deci-Kelvin (e.g. 2981 = 24.95 °C); an
         # already-°C value (e.g. 17.1) stays as-is — no ambient temp is > 200 °C.
@@ -1249,7 +1259,10 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
 
     # charging_state_error_code — "0"/"0.0"/"#0" are the "no error" sentinels → None.
     # v2.15.3: normalise numerically so a float-typed "0.0" is also dropped.
-    _cerr = first("charging_state_error_code")
+    # v2.15.4 (#521): charging_state_report.error_code is the nested EU-portal
+    # alias for the same code (dict-confirmed type=number) — added so the report-
+    # shaped payload populates the same sensor; sentinel-drop still applies.
+    _cerr = first("charging_state_error_code", "charging_state_report.error_code")
     if _cerr is not None:
         _cerrs = str(_cerr).strip()
         _cerrn = _to_float(_cerrs)
@@ -1412,6 +1425,61 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
         _whs = str(_wh_err).strip()
         if _whs and _whs != "#0" and _to_float(_whs) != 0:
             d.window_heating_error_code = _whs
+
+    # ── v2.15.4 — EU Data Act portal new fields (#521/#522 Scout) ────────────
+    # All additive, guarded, EU-Data-Act-dialect only; same style as 2.15.1-3.
+
+    # Next-charging-timer info: estimated start/finish are dict-confirmed
+    # type=string ISO timestamps (the service sends UTC) → ISO passthrough via
+    # _epoch_or_iso. target_reachability is a dict-confirmed enum (shortened).
+    _ncs = first(
+        "profile_state_report.next_charging_timer_information.estimated_start_time",
+        "next_charging_timer_information.estimated_start_time",
+    )
+    if _ncs is not None and d.next_charge_timer_start_at is None:
+        d.next_charge_timer_start_at = _epoch_or_iso(_ncs)
+    _ncf = first(
+        "profile_state_report.next_charging_timer_information.estimated_finish_time",
+        "next_charging_timer_information.estimated_finish_time",
+    )
+    if _ncf is not None and d.next_charge_timer_finish_at is None:
+        d.next_charge_timer_finish_at = _epoch_or_iso(_ncf)
+    _ncr = first(
+        "profile_state_report.next_charging_timer_information.target_reachability",
+        "next_charging_timer_information.target_reachability",
+    )
+    if _ncr is not None and d.next_charge_target_reachability is None:
+        d.next_charge_target_reachability = _shorten_enum(_ncr)
+
+    # Slope consumption (ascent/descent) — dict-confirmed type=number,
+    # unit=null (no scale applied; raw physical_value). Gated on the sibling
+    # value_type being valid, exactly like the energy_contents pattern above.
+    _asc_slope = _to_float(first(
+        "slope_consumption_values.ascent_slope_consumption.physical_value",
+        "ascent_slope_consumption.physical_value",
+    ))
+    if _asc_slope is not None and _value_type_ok(
+        "slope_consumption_values.ascent_slope_consumption.value_type",
+        "ascent_slope_consumption.value_type",
+    ):
+        d.ascent_slope_consumption = _asc_slope
+    _desc_slope = _to_float(first(
+        "slope_consumption_values.descent_slope_consumption.physical_value",
+        "descent_slope_consumption.physical_value",
+    ))
+    if _desc_slope is not None and _value_type_ok(
+        "slope_consumption_values.descent_slope_consumption.value_type",
+        "descent_slope_consumption.value_type",
+    ):
+        d.descent_slope_consumption = _desc_slope
+
+    # report_type — dict-confirmed enum metadata (e.g. REPORT_TYPE_
+    # CONSUMPTION_VALUES) describing which report this poll's payload is.
+    # LOW value (metadata, not telemetry) → disabled-by-default diagnostic, but
+    # mapped (never Scout-suppressed). Shortened for display.
+    _rtype = first("report_type")
+    if _rtype is not None and d.report_type is None:
+        d.report_type = _shorten_enum(_rtype)
 
     # b1/B3 — derive drivetrain from the data actually present (fixes the
     # #37 class: an EV like the e-up! showing only combustion entities, or a
