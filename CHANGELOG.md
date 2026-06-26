@@ -42,6 +42,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 > Prepared, batching more Scout field-feedback before release (#518/#519/#520 and others).
 
+### Fixed
+
+- **VIN privacy.** Scout / error-report titles no longer expose the full VIN. For a car whose name was never changed (notably Audi, where CARIAD defaults the vehicle name to the VIN) the "model" fell back to the raw 17-char VIN — bypassing the last-6 masking the footer promises. The model is now omitted when it is (or contains) a VIN; the brand alone scopes the issue.
+
 ### Added
 
 - **More EU Data Act portal fields mapped (#518).** Active charge target, charge-time display, charging power, and the dual charging-plug state set (plug 1 + 2: flap, flap-lock, lock, infrastructure, connection) now surface as diagnostic sensors. Nothing hidden — unmapped fields stay in the Scout.

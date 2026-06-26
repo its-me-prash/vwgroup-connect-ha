@@ -203,14 +203,32 @@ class VWEUClient(CariadBaseClient):
 
         # Cache nickname/model per VIN — used in _parse_status to set device name
         # CARIAD returns: nickname (user-set in app), model, modelYear
+        #
+        # Privacy guard: myAudi/CARIAD defaults the vehicle "nickname" to the
+        # raw VIN when the owner never renamed the car, so a naive
+        # ``nickname or model`` lands the full VIN in ``d.model`` — which then
+        # leaks into the public Vehicle Data Scout / Error Reporter issue
+        # titles. Drop any candidate that *is* the VIN before it becomes the
+        # model. (_reporter_pipeline._safe_model is the hard backstop, but
+        # filtering here keeps device names + diagnostics clean too.)
+        def _pick_model(v: dict[str, Any], vin: str) -> str | None:
+            vin_u = vin.strip().upper()
+            for candidate in (
+                v.get("nickname"),      # user-set name (e.g. "Golf GTE")
+                v.get("vehicleNick"),
+                v.get("model"),
+                v.get("carModel"),
+            ):
+                if not isinstance(candidate, str):
+                    continue
+                trimmed = candidate.strip()
+                if trimmed and trimmed.upper() != vin_u:
+                    return trimmed
+            return None
+
         self._vehicle_metadata = {
             v["vin"]: {
-                "model": (
-                    v.get("nickname")       # user-set name (e.g. "Golf GTE")
-                    or v.get("vehicleNick")
-                    or v.get("model")
-                    or v.get("carModel")
-                ),
+                "model": _pick_model(v, v["vin"]),
                 "model_year": v.get("modelYear") or v.get("model_year"),
             }
             for v in vehicles if v.get("vin")

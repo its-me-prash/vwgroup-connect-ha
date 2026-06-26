@@ -44,7 +44,7 @@ from homeassistant.core import HomeAssistant
 
 from ..const import DOMAIN
 from ._error_reporter import ErrorRecord
-from ._unexpected_keys import UnexpectedField
+from ._unexpected_keys import UnexpectedField, _VIN_RE
 
 # GitHub caps issue-URL query params at ~8KB total. v2.11.4 dropped
 # this from 6500 to 4000 because urllib.parse.quote inflates markdown
@@ -65,6 +65,50 @@ _REPO_URL = "https://github.com/its-me-prash/vag-connect-ha"
 # existing card instead of stacking duplicates.
 ISSUE_ID_UNEXPECTED_KEYS = "vehicle_data_scout_findings"
 ISSUE_ID_ERROR_REPORTER = "error_reporter_findings"
+
+
+# ---------------------------------------------------------------------------
+# Privacy guard — the model-name choke point
+# ---------------------------------------------------------------------------
+
+
+def _safe_model(model: str | None, *, vin: str | None = None) -> str | None:
+    """Return a privacy-safe model name, or ``None`` to omit it entirely.
+
+    The model is meant to be a *generic* label like ``"ID.4"`` — fine to put
+    in a public GitHub issue title/body. But for some brands (notably Audi,
+    whose CARIAD/myAudi vehicle list ships the VIN as the vehicle "name" when
+    the owner never renamed the car) the value we receive is the raw 17-char
+    VIN — a privacy-sensitive identifier that ties to registration and
+    ownership records. The footer claims "VINs masked to last 6 chars", so a
+    full VIN leaking through the title/model bypasses that guarantee.
+
+    This is the single choke point every report flows through, so the guard
+    here is bulletproof regardless of how the upstream resolved the model:
+
+    - empty / whitespace-only  → ``None`` (caller omits the line)
+    - contains a VIN substring (17-char VIN charset, any case) → ``None``
+    - equals this vehicle's VIN (case-insensitive) → ``None``
+    - anything else → the trimmed model, passed through unchanged
+
+    We *omit* rather than mask-to-6: a 6-char VIN tail is not a "model" and
+    would only confuse triage. The brand alone is enough to scope the issue,
+    and the per-record masked VIN (``r.vin_masked``) still gives a maintainer
+    a disambiguator inside the body.
+    """
+    if not model:
+        return None
+    trimmed = model.strip()
+    if not trimmed:
+        return None
+    if vin and trimmed.upper() == vin.strip().upper():
+        return None
+    # Catch an embedded VIN in ANY case — a suffixed "<VIN> Quattro" or a
+    # lowercased VIN — via search()+upper(), not an all-or-nothing uppercase
+    # fullmatch (a model containing a full 17-char VIN is never legitimate).
+    if _VIN_RE.search(trimmed.upper()):
+        return None
+    return trimmed
 
 
 # ---------------------------------------------------------------------------
@@ -96,6 +140,8 @@ def build_unexpected_keys_report(
     findings_list = list(findings)
     if not findings_list:
         return ""
+
+    model = _safe_model(model)
 
     lines: list[str] = []
     lines.append(f"## Vehicle Data Scout — {len(findings_list)} new field(s)")
@@ -158,6 +204,8 @@ def build_error_report(
     if not records_list:
         return ""
 
+    model = _safe_model(model)
+
     lines: list[str] = []
     lines.append(f"## Error Reporter — {len(records_list)} recent error(s)")
     lines.append("")
@@ -175,8 +223,9 @@ def build_error_report(
         lines.append(f"### {idx}. `{r.exception_type}` at {r.timestamp}")
         if r.endpoint:
             lines.append(f"- **Endpoint:** `{r.endpoint}`")
-        if r.model:
-            lines.append(f"- **Model:** `{r.model}`")
+        rec_model = _safe_model(r.model)
+        if rec_model:
+            lines.append(f"- **Model:** `{rec_model}`")
         if r.model_year is not None:
             lines.append(f"- **Model year:** `{r.model_year}`")
         if r.firmware:
@@ -282,7 +331,8 @@ def ensure_unexpected_keys_issue(
         firmware=firmware,
         integration_version=integration_version,
     )
-    brand_model = f"{brand} {model}" if model else brand
+    safe_model = _safe_model(model)
+    brand_model = f"{brand} {safe_model}" if safe_model else brand
     url = github_issue_url(
         f"[Vehicle Data Scout] {len(findings_list)} new field(s) on {brand_model}",
         body,
@@ -336,7 +386,8 @@ def ensure_error_reporter_issue(
         model=model,
         integration_version=integration_version,
     )
-    brand_model = f"{brand} {model}" if model else brand
+    safe_model = _safe_model(model)
+    brand_model = f"{brand} {safe_model}" if safe_model else brand
     url = github_issue_url(
         f"[Error Reporter] {len(records_list)} recent error(s) on {brand_model}",
         body,
