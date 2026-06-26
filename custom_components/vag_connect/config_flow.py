@@ -31,6 +31,9 @@ from homeassistant.helpers.selector import (
 
 from .const import (
     BRANDS,
+    CONF_ABRP_API_KEY,
+    CONF_ABRP_ENABLE,
+    CONF_ABRP_USER_TOKEN,
     CONF_BRAND,
     CONF_CLIENT_ID_OVERRIDE,
     CONF_COUNTRY,
@@ -1482,7 +1485,22 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
         """Options: scan interval, S-PIN, reverse geocoding opt-in."""
+        errors: dict[str, str] = {}
         if user_input is not None:
+            # v2.15.5 — ABRP: if the user flipped the master switch on, both
+            # the developer api_key and the per-vehicle token must be set,
+            # else the sender can't authenticate. Re-show the form with an
+            # error instead of saving a half-configured (silently dormant)
+            # state. The values themselves never get logged.
+            if user_input.get(CONF_ABRP_ENABLE):
+                if not (user_input.get(CONF_ABRP_API_KEY) or "").strip() or not (
+                    user_input.get(CONF_ABRP_USER_TOKEN) or ""
+                ).strip():
+                    errors["base"] = "abrp_credentials_required"
+
+        # Only persist / branch when the submit validated cleanly. On an
+        # error we fall through to re-show the form (with ``errors``) below.
+        if user_input is not None and not errors:
             # b1/C1 — if the user ticked "add vw.de read channel", branch into
             # the login sub-flow; the remaining options are saved when it
             # completes. Default-False so untouched submits behave exactly as
@@ -1694,6 +1712,40 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                         current_data.get(CONF_HIDE_EMPTY_ENTITIES, True),
                     ),
                 ): _BOOL_SELECTOR,
+                # v2.15.5 — ABRP (A Better Routeplanner) live telemetry push.
+                # Three opt-in fields, all default-dormant. The api_key is a
+                # DEVELOPER key you register with iternio (we don't ship one —
+                # hardcoding a key we don't own would be impersonation). The
+                # token is the per-vehicle "Generic" token from the ABRP app
+                # (Settings → car → Live Data). With the enable switch off, or
+                # either field blank, the sender makes zero outbound calls.
+                vol.Optional(
+                    CONF_ABRP_ENABLE,
+                    default=current_options.get(
+                        CONF_ABRP_ENABLE,
+                        current_data.get(CONF_ABRP_ENABLE, False),
+                    ),
+                ): _BOOL_SELECTOR,
+                vol.Optional(
+                    CONF_ABRP_API_KEY,
+                    default=current_options.get(
+                        CONF_ABRP_API_KEY,
+                        current_data.get(CONF_ABRP_API_KEY, ""),
+                    ),
+                ): _PASSWORD_SELECTOR,
+                vol.Optional(
+                    CONF_ABRP_USER_TOKEN,
+                    default=current_options.get(
+                        CONF_ABRP_USER_TOKEN,
+                        current_data.get(CONF_ABRP_USER_TOKEN, ""),
+                    ) if isinstance(
+                        current_options.get(
+                            CONF_ABRP_USER_TOKEN,
+                            current_data.get(CONF_ABRP_USER_TOKEN, ""),
+                        ),
+                        str,
+                    ) else "",
+                ): _PASSWORD_SELECTOR,
                 # b1/C1 — opt-in: add (or refresh) a supplementary read-only
                 # volkswagen.de channel that the coordinator merges onto this
                 # entry's primary data (VIN/odometer/service/master). Ticking it
@@ -1725,6 +1777,7 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(schema),
+            errors=errors,
         )
 
     # ── b8/C1: supplementary EU Data Act portal read-channel sub-flow ───────

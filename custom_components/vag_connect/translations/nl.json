@@ -188,7 +188,10 @@
           "hide_empty_entities": "Entiteiten zonder gegevens verbergen",
           "supplementary_eu_portal": "EU Data Act-portaal-leeskanaal toevoegen",
           "remove_supplementary_authproxy": "vw.de-leeskanaal verwijderen",
-          "remove_supplementary_eu_portal": "EU Data Act-portaal-leeskanaal verwijderen"
+          "remove_supplementary_eu_portal": "EU Data Act-portaal-leeskanaal verwijderen",
+          "abrp_enable": "ABRP-telemetrie verzenden inschakelen",
+          "abrp_api_key": "ABRP-api_key (ontwikkelaarssleutel)",
+          "abrp_user_token": "ABRP-token (per voertuig)"
         },
         "data_description": {
           "scan_interval": "Hoe vaak gegevens worden opgehaald (minuten). Minimum: 3.",
@@ -203,7 +206,10 @@
           "wake_delay_seconds": "Seconds to wait between the wake-up POST and the status fetch. The default of 15 seconds is what most brand backends need to ingest the wake-induced data push. Lower values risk reading stale data; higher values stretch the poll cycle without further benefit.",
           "client_id_override": "Power-user escape hatch for when the community spots a fresh OAuth client_id in a new VW Group APK before our daily atlas builder catches it. Paste the full UUID@apps_vw-dilab_com string here and the resolver tries it FIRST on every authenticate, with all the existing client_ids still in the chain as fallback. Leave empty for default behaviour. Format: 8-4-4-4-12 hex digits followed by @apps_vw-dilab_com. Malformed values are silently ignored.",
           "eu_data_act_auto_kickoff": "Only meaningful when the integration is operating in read-only EU Data Act portal mode (live BFF strategies have failed). When ON, the coordinator checks for an active 15-min Custom Data Request per VIN at startup and creates one when none exists. The kickoff implies a 1-month data subscription on your account at the portal, so this is opt-in. The portal accepts AT MOST ONE active custom request per VIN at a time. Off by default.",
-          "enable_data_act_browser": "EXPERIMENTEEL: alleen zinvol wanneer de integratie is teruggevallen op het EU Data Act-portaal (alleen-lezen). Stuurt een headless Chromium aan via het optionele Python-pakket 'playwright' om de data-exportknop van het portaal automatisch te klikken. Het pakket is NIET voorgeïnstalleerd (het haalt ongeveer 100 MB Chromium op). Wanneer ingeschakeld maar ontbrekend, legt een Reparatie-melding uit hoe je het installeert in de Home Assistant-container. Herlaad de integratie na het omschakelen."
+          "enable_data_act_browser": "EXPERIMENTEEL: alleen zinvol wanneer de integratie is teruggevallen op het EU Data Act-portaal (alleen-lezen). Stuurt een headless Chromium aan via het optionele Python-pakket 'playwright' om de data-exportknop van het portaal automatisch te klikken. Het pakket is NIET voorgeïnstalleerd (het haalt ongeveer 100 MB Chromium op). Wanneer ingeschakeld maar ontbrekend, legt een Reparatie-melding uit hoe je het installeert in de Home Assistant-container. Herlaad de integratie na het omschakelen.",
+          "abrp_enable": "Live telemetrie naar A Better Routeplanner sturen. Vereist een api_key en een token per voertuig. Uit = geen uitgaande oproepen.",
+          "abrp_api_key": "Een ontwikkelaars-/partnersleutel die je bij iternio registreert (wij leveren er geen). Identificeert de integratie. Wordt nooit gelogd.",
+          "abrp_user_token": "Het 'Generic'-token uit de ABRP-app: Instellingen -> je auto -> Live Data. Wordt nooit gelogd."
         }
       },
       "add_vwde": {
@@ -238,6 +244,9 @@
           "password": "Wachtwoord"
         }
       }
+    },
+    "error": {
+      "abrp_credentials_required": "Om ABRP in te schakelen moet je zowel de api_key als het voertuigtoken invoeren."
     }
   },
   "entity": {
@@ -1230,6 +1239,9 @@
       },
       "climate_zone_front_right_enabled": {
         "name": "Klimaatzone rechtsvoor"
+      },
+      "abrp_data_changed": {
+        "name": "ABRP-gegevens gewijzigd"
       }
     },
     "switch": {
@@ -1523,6 +1535,28 @@
         }
       },
       "name": "Native merk-app openen (deeplink)"
+    },
+    "abrp_send": {
+      "name": "Telemetrie naar ABRP sturen",
+      "description": "Bouwt en stuurt de huidige telemetrie van het voertuig naar A Better Routeplanner.",
+      "fields": {
+        "device_id": {
+          "name": "Voertuig",
+          "description": "Het te uploaden voertuig (of gebruik VIN)."
+        },
+        "vin": {
+          "name": "VIN",
+          "description": "VIN van het voertuig (alternatief voor apparaat)."
+        },
+        "api_key": {
+          "name": "api_key overschrijven",
+          "description": "Optioneel. Vervangt de opgeslagen ontwikkelaarssleutel. Wordt nooit gelogd."
+        },
+        "token": {
+          "name": "token overschrijven",
+          "description": "Optioneel. Vervangt het opgeslagen voertuigtoken. Wordt nooit gelogd."
+        }
+      }
     }
   },
   "exceptions": {

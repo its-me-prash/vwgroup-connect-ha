@@ -188,7 +188,10 @@
           "hide_empty_entities": "Entitäten ohne Daten ausblenden",
           "supplementary_eu_portal": "EU-Data-Act-Portal-Lesekanal hinzufügen",
           "remove_supplementary_authproxy": "vw.de-Lesekanal entfernen",
-          "remove_supplementary_eu_portal": "EU-Data-Act-Portal-Lesekanal entfernen"
+          "remove_supplementary_eu_portal": "EU-Data-Act-Portal-Lesekanal entfernen",
+          "abrp_enable": "ABRP-Telemetrie senden",
+          "abrp_api_key": "ABRP-api_key (Entwicklerschlüssel)",
+          "abrp_user_token": "ABRP-Token (pro Fahrzeug)"
         },
         "data_description": {
           "enable_reverse_geocoding": "Sendet GPS der Parkposition an OpenStreetMap Nominatim, um Straße/Stadt zu ermitteln. Standard: aus (Datenschutz).",
@@ -203,7 +206,10 @@
           "wake_before_poll": "Wenn aktiviert, sendet die Integration einen Wake-POST an Fahrzeuge die beim letzten Poll OFFLINE waren, bevor sie den Status abruft. Das Auto bekommt einen serverseitigen Wake-up und pusht frische Daten, dann wartet die Integration die Wake-Verzögerung ab und liest erst dann. Schließt die 'alle Sensoren unbekannt bei geparktem Auto'-Lücke, kostet aber pro Offline-VIN pro Poll-Zyklus einen zusätzlichen API-Call. Standard: aus. Integration nach dem Umschalten neu laden.",
           "wake_delay_seconds": "Sekunden Wartezeit zwischen dem Wake-up-POST und dem Status-Abruf. Die Standardeinstellung von 15 Sekunden ist das, was die meisten Brand-Backends brauchen um den Wake-induzierten Daten-Push zu verarbeiten. Niedrigere Werte riskieren veraltete Daten; höhere strecken den Poll-Zyklus ohne weiteren Nutzen.",
           "client_id_override": "Power-User Eskapeluke wenn die Community einen frischen OAuth client_id in einer neuen VW Group APK entdeckt bevor unser täglicher Atlas-Builder ihn findet. Paste den vollen UUID@apps_vw-dilab_com String hier rein, dann probiert der Resolver ihn ZUERST bei jedem authenticate, mit allen bestehenden client_ids weiter als Fallback in der Chain. Leer lassen für Default-Verhalten. Format: 8-4-4-4-12 hex Zeichen gefolgt von @apps_vw-dilab_com. Ungültige Werte werden stillschweigend ignoriert.",
-          "eu_data_act_auto_kickoff": "Nur relevant wenn die Integration im Read-only EU Data Act Portal-Modus läuft (die Live BFF Strategien sind gescheitert). Wenn AN, prüft der Coordinator beim Start ob pro VIN ein aktiver 15-min Custom Data Request existiert und legt einen an wenn nicht. Der Kickoff impliziert ein 1-Monats Daten-Abo auf deinem Account beim Portal, deshalb opt-in. Das Portal akzeptiert HÖCHSTENS EINEN aktiven Custom Request pro VIN gleichzeitig. Standard: aus."
+          "eu_data_act_auto_kickoff": "Nur relevant wenn die Integration im Read-only EU Data Act Portal-Modus läuft (die Live BFF Strategien sind gescheitert). Wenn AN, prüft der Coordinator beim Start ob pro VIN ein aktiver 15-min Custom Data Request existiert und legt einen an wenn nicht. Der Kickoff impliziert ein 1-Monats Daten-Abo auf deinem Account beim Portal, deshalb opt-in. Das Portal akzeptiert HÖCHSTENS EINEN aktiven Custom Request pro VIN gleichzeitig. Standard: aus.",
+          "abrp_enable": "Live-Telemetrie an A Better Routeplanner senden. Benötigt api_key und einen Token pro Fahrzeug. Aus = keine ausgehenden Aufrufe.",
+          "abrp_api_key": "Ein Entwickler-/Partnerschlüssel, den du bei iternio registrierst (wir liefern keinen). Identifiziert die Integration. Wird nie protokolliert.",
+          "abrp_user_token": "Der 'Generic'-Token aus der ABRP-App: Einstellungen -> dein Auto -> Live Data. Wird nie protokolliert."
         }
       },
       "add_vwde": {
@@ -238,6 +244,9 @@
           "password": "Passwort"
         }
       }
+    },
+    "error": {
+      "abrp_credentials_required": "Zum Aktivieren von ABRP musst du sowohl den api_key als auch den Fahrzeug-Token eingeben."
     }
   },
   "entity": {
@@ -1230,6 +1239,9 @@
       },
       "climate_zone_front_right_enabled": {
         "name": "Klimazone vorne rechts"
+      },
+      "abrp_data_changed": {
+        "name": "ABRP-Daten geändert"
       }
     },
     "switch": {
@@ -1541,6 +1553,28 @@
         "auto_unlock_charge": {
           "name": "Stecker bei vollem Akku entriegeln",
           "description": "Wenn aktiv, entriegelt sich der Stecker selbst nach abgeschlossenem Ladevorgang."
+        }
+      }
+    },
+    "abrp_send": {
+      "name": "Telemetrie an ABRP senden",
+      "description": "Erstellt und sendet die aktuellen Telemetriedaten des Fahrzeugs an A Better Routeplanner.",
+      "fields": {
+        "device_id": {
+          "name": "Fahrzeug",
+          "description": "Das hochzuladende Fahrzeug (oder VIN verwenden)."
+        },
+        "vin": {
+          "name": "VIN",
+          "description": "VIN des Fahrzeugs (Alternative zum Gerät)."
+        },
+        "api_key": {
+          "name": "api_key überschreiben",
+          "description": "Optional. Überschreibt den gespeicherten Entwicklerschlüssel. Wird nie protokolliert."
+        },
+        "token": {
+          "name": "Token überschreiben",
+          "description": "Optional. Überschreibt den gespeicherten Fahrzeug-Token. Wird nie protokolliert."
         }
       }
     }

@@ -743,6 +743,42 @@ def _register_services(hass: HomeAssistant) -> None:
     from .services import async_register_open_app_service  # noqa: PLC0415
     async_register_open_app_service(hass)
 
+    # v2.15.5 — vag_connect.abrp_send. Builds + POSTs the targeted vehicle's
+    # current telemetry to A Better Routeplanner. Accepts EITHER a device_id
+    # (Lovelace UX) or a bare vin, plus optional inline api_key + token that
+    # override the stored options. This is an OUTBOUND push, NOT a command to
+    # the car, so it deliberately uses ``_coord`` (not ``_coord_writeable``):
+    # read-only entries can still push telemetry. On success the coordinator
+    # records the fingerprint so the "ABRP data changed" sensor resets.
+    async def _handle_abrp_send(call: ServiceCall) -> None:
+        device_id = call.data.get("device_id")
+        vin = call.data.get("vin")
+        if not vin and device_id:
+            vin = _resolve_device_to_vin(str(device_id))
+        if not vin:
+            raise ServiceValidationError(
+                "abrp_send needs either a device_id or a vin.",
+                translation_domain=DOMAIN,
+                translation_key="vehicle_not_found",
+            )
+        await _coord(str(vin)).async_abrp_send(
+            str(vin),
+            api_key=call.data.get("api_key"),
+            token=call.data.get("token"),
+        )
+
+    hass.services.async_register(
+        DOMAIN,
+        "abrp_send",
+        _handle_abrp_send,
+        schema=vol.Schema({
+            vol.Optional("device_id"): cv.string,
+            vol.Optional("vin"):       cv.string,
+            vol.Optional("api_key"):   cv.string,
+            vol.Optional("token"):     cv.string,
+        }),
+    )
+
 
 async def async_remove_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) -> None:
     """Clean up persisted IDK tokens when the user removes the integration.
@@ -798,6 +834,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) 
             "start_climate_control",
             # v2.10.0 Group B - SEAT/CUPRA settable charge plan
             "update_charging_settings",
+            # v2.15.5 — ABRP (A Better Routeplanner) telemetry push
+            "abrp_send",
         ]:
             if hass.services.has_service(DOMAIN, svc):
                 hass.services.async_remove(DOMAIN, svc)

@@ -188,7 +188,10 @@
           "hide_empty_entities": "Hide entities without data",
           "supplementary_eu_portal": "Add an EU Data Act portal read channel",
           "remove_supplementary_authproxy": "Remove the vw.de read channel",
-          "remove_supplementary_eu_portal": "Remove the EU Data Act portal read channel"
+          "remove_supplementary_eu_portal": "Remove the EU Data Act portal read channel",
+          "abrp_enable": "Enable ABRP telemetry push",
+          "abrp_api_key": "ABRP api_key (developer key)",
+          "abrp_user_token": "ABRP token (per vehicle)"
         },
         "data_description": {
           "scan_interval": "How often data is fetched (minutes). Minimum: 3.",
@@ -203,7 +206,10 @@
           "wake_before_poll": "When enabled, the integration sends a wake POST to the vehicle before fetching status for any VIN that was OFFLINE on the previous poll. The car receives a server-side wake-up and pushes fresh data, then the integration waits the wake delay before the status read. Closes the 'all sensors unknown for parked cars' gap but costs one extra API call per offline VIN per poll cycle. Off by default. Reload the integration after toggling.",
           "wake_delay_seconds": "Seconds to wait between the wake-up POST and the status fetch. The default of 15 seconds is what most brand backends need to ingest the wake-induced data push. Lower values risk reading stale data; higher values stretch the poll cycle without further benefit.",
           "client_id_override": "Power-user escape hatch for when the community spots a fresh OAuth client_id in a new VW Group APK before our daily atlas builder catches it. Paste the full UUID@apps_vw-dilab_com string here and the resolver tries it FIRST on every authenticate, with all the existing client_ids still in the chain as fallback. Leave empty for default behaviour. Format: 8-4-4-4-12 hex digits followed by @apps_vw-dilab_com. Malformed values are silently ignored.",
-          "eu_data_act_auto_kickoff": "Only meaningful when the integration is operating in read-only EU Data Act portal mode (live BFF strategies have failed). When ON, the coordinator checks for an active 15-min Custom Data Request per VIN at startup and creates one when none exists. The kickoff implies a 1-month data subscription on your account at the portal, so this is opt-in. The portal accepts AT MOST ONE active custom request per VIN at a time. Off by default."
+          "eu_data_act_auto_kickoff": "Only meaningful when the integration is operating in read-only EU Data Act portal mode (live BFF strategies have failed). When ON, the coordinator checks for an active 15-min Custom Data Request per VIN at startup and creates one when none exists. The kickoff implies a 1-month data subscription on your account at the portal, so this is opt-in. The portal accepts AT MOST ONE active custom request per VIN at a time. Off by default.",
+          "abrp_enable": "Send live telemetry to A Better Routeplanner. Needs both an api_key and a per-vehicle token below. Off = no outbound calls.",
+          "abrp_api_key": "A developer/partner key you register with iternio (we don't ship one). Identifies the integration. Never logged.",
+          "abrp_user_token": "The 'Generic' token from the ABRP app: Settings -> your car -> Live Data. Never logged."
         }
       },
       "add_vwde": {
@@ -238,6 +244,9 @@
           "password": "Password"
         }
       }
+    },
+    "error": {
+      "abrp_credentials_required": "To enable ABRP you must enter both the api_key and the per-vehicle token."
     }
   },
   "entity": {
@@ -1230,6 +1239,9 @@
       },
       "climate_zone_front_right_enabled": {
         "name": "Climate zone front-right"
+      },
+      "abrp_data_changed": {
+        "name": "ABRP Data Changed"
       }
     },
     "switch": {
@@ -1541,6 +1553,28 @@
         "auto_unlock_charge": {
           "name": "Auto-unlock plug when fully charged",
           "description": "When true the connector unlocks itself once charging is complete."
+        }
+      }
+    },
+    "abrp_send": {
+      "name": "Send telemetry to ABRP",
+      "description": "Build and send the vehicle's current telemetry to A Better Routeplanner.",
+      "fields": {
+        "device_id": {
+          "name": "Vehicle",
+          "description": "The vehicle to upload (or use vin)."
+        },
+        "vin": {
+          "name": "VIN",
+          "description": "VIN of the vehicle (alternative to device)."
+        },
+        "api_key": {
+          "name": "api_key override",
+          "description": "Optional. Overrides the stored developer key. Never logged."
+        },
+        "token": {
+          "name": "token override",
+          "description": "Optional. Overrides the stored per-vehicle token. Never logged."
         }
       }
     }

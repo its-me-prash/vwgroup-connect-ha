@@ -866,9 +866,22 @@ async def async_setup_entry(
         entry.data.get(CONF_HIDE_EMPTY_ENTITIES, True),
     ))
 
+    # v2.15.5 — surface the "ABRP data changed" diagnostic sensor only when
+    # the user opted into ABRP (master switch). Default off = no extra entity.
+    from .const import CONF_ABRP_ENABLE  # noqa: PLC0415
+    abrp_enabled = bool(entry.options.get(
+        CONF_ABRP_ENABLE,
+        entry.data.get(CONF_ABRP_ENABLE, False),
+    ))
+
     def _build_for_vin(vin: str, vehicle: dict) -> list:
         entities: list = []
         has_battery = vehicle.get("has_battery", False)
+        # v2.15.5 — ABRP data-changed trigger sensor (diagnostic). Only for
+        # EV/battery vehicles (ABRP is an EV route planner) and only when the
+        # ABRP feature is enabled.
+        if abrp_enabled and has_battery:
+            entities.append(VagAbrpDataChangedSensor(coordinator, vin))
         # 1) Description-driven binary sensors
         for desc in BINARY_DESCRIPTIONS:
             if desc.condition == "electric" and not has_battery:
@@ -956,6 +969,54 @@ class VagConnectBinarySensor(VagConnectEntity, BinarySensorEntity):
                 attrs["raw_status"] = status
             return attrs or None
         return None
+
+
+# v2.15.5 — ABRP "data changed" trigger sensor.
+
+
+class VagAbrpDataChangedSensor(VagConnectEntity, BinarySensorEntity):
+    """Diagnostic: ON when telemetry differs from the last ABRP upload.
+
+    The idempotent automation trigger for the shipped ABRP blueprint. ON
+    means "there is a NEW telemetry snapshot worth uploading"; the
+    ``vag_connect.abrp_send`` service records the fingerprint on a successful
+    send, which flips this back OFF — so the blueprint never uploads the same
+    snapshot twice. Carries NO data itself (no soc / gps), so it's safe to
+    enable regardless of the privacy posture; the actual GPS only leaves the
+    house when ``abrp_send`` runs (gated behind the user's own automation).
+    """
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:map-marker-path"
+    _attr_translation_key = "abrp_data_changed"
+
+    def __init__(self, coordinator: VagConnectCoordinator, vin: str) -> None:
+        super().__init__(coordinator, vin, "abrp_data_changed")
+
+    @property
+    def is_on(self) -> bool | None:
+        from .abrp import telemetry_fingerprint  # noqa: PLC0415
+
+        vehicle = self._vehicle
+        if not vehicle:
+            return None
+        # Need at least soc before anything is uploadable.
+        if vehicle.get("battery_soc") is None:
+            return False
+        current = telemetry_fingerprint(vehicle)
+        last = self.coordinator.abrp_last_sent_fingerprint.get(self._vin)
+        # Never uploaded yet → there IS something new to upload.
+        if last is None:
+            return True
+        return current != last
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        last = self.coordinator.abrp_last_sent_fingerprint.get(self._vin)
+        attrs: dict[str, Any] = {
+            "last_upload_recorded": last is not None,
+        }
+        return attrs
 
 
 # Per-door binary sensors.

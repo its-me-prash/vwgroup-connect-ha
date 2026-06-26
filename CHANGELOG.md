@@ -42,6 +42,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Added
 
+- **Optional ABRP (A Better Routeplanner) live telemetry push.** You can now feed your car's live data straight into ABRP so it plans routes around your real state of charge. It's off by default and opt-in: turn it on in the integration options, paste your ABRP token (and a developer api_key — see the README on how to get one), and a shipped blueprint uploads automatically whenever there's something new to send. There's a small diagnostic "ABRP data changed" sensor that makes sure the same snapshot never gets uploaded twice. Your location only ever leaves the house when an upload actually runs, and the token + key are never written to the log.
 - **More mapped fields.** The "last update reason" — why the car last pushed a report to the backend (e.g. it started charging, ignition went on/off, climate ran) — now surfaces as a diagnostic sensor (disabled by default). One of the recurring VW-EU Scout fields, now off the list. Nothing hidden.
 
 ### Fixed

@@ -19,7 +19,7 @@ import threading
 from typing import Any
 
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
@@ -455,6 +455,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # exposed in diagnostics so users can see how stale the cached
         # state is.
         self.vehicle_last_good_at: dict[str, datetime] = {}
+
+        # v2.15.5 — ABRP (A Better Routeplanner) per-VIN last-successfully-
+        # sent telemetry fingerprint. The "ABRP data changed" binary sensor
+        # is ON when the current telemetry fingerprint differs from this; the
+        # abrp_send service writes the fresh fingerprint here on a 200 so the
+        # sensor flips back OFF (idempotent automation trigger). Empty until
+        # the first successful send for a VIN.
+        self.abrp_last_sent_fingerprint: dict[str, tuple[Any, ...]] = {}
 
         # Per-VIN capabilities cache. Hydrated best-effort during setup.
         # Read by Capability-Filter Phase 3 (v1.13.0) at PRE-entity-
@@ -3833,6 +3841,102 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             (isinstance(options, dict) and options.get(CONF_READ_ONLY) is True)
             or (isinstance(data, dict) and data.get(CONF_READ_ONLY) is True)
         )
+
+    # ── v2.15.5 — ABRP (A Better Routeplanner) telemetry push ───────────────
+
+    def _abrp_credentials(
+        self, vin: str, *, api_key: str | None = None, token: str | None = None
+    ) -> tuple[str, str]:
+        """Resolve the ABRP api_key + per-VIN token for *vin*.
+
+        Inline service params win; otherwise fall back to the config-flow
+        options. The token option may be a per-VIN dict ``{vin: token}`` or a
+        bare single-VIN string. Returns ``("", "")`` when nothing is set.
+        Never logs either value.
+        """
+        from .const import (  # noqa: PLC0415
+            CONF_ABRP_API_KEY,
+            CONF_ABRP_USER_TOKEN,
+        )
+
+        opts = getattr(self.entry, "options", None) or {}
+        data = getattr(self.entry, "data", None) or {}
+
+        resolved_key = api_key or opts.get(CONF_ABRP_API_KEY) or data.get(
+            CONF_ABRP_API_KEY
+        ) or ""
+
+        resolved_token = token or ""
+        if not resolved_token:
+            stored = opts.get(CONF_ABRP_USER_TOKEN)
+            if stored is None:
+                stored = data.get(CONF_ABRP_USER_TOKEN)
+            if isinstance(stored, dict):
+                resolved_token = str(stored.get(vin) or "")
+            elif isinstance(stored, str):
+                resolved_token = stored
+        return str(resolved_key), str(resolved_token)
+
+    async def async_abrp_send(
+        self, vin: str, *, api_key: str | None = None, token: str | None = None
+    ) -> None:
+        """Build + POST the current telemetry for *vin* to ABRP.
+
+        On a successful send the per-VIN fingerprint is recorded so the
+        "ABRP data changed" binary sensor flips OFF (idempotent trigger).
+        Raises ``HomeAssistantError`` on a missing credential / unknown VIN /
+        missing core data / send failure so the service surfaces it; never
+        logs the api_key or token.
+        """
+        from homeassistant.helpers.aiohttp_client import (  # noqa: PLC0415
+            async_get_clientsession,
+        )
+
+        from . import abrp as _abrp  # noqa: PLC0415
+
+        vehicle = self.vehicles.get(vin)
+        if not isinstance(vehicle, dict):
+            raise HomeAssistantError(f"Vehicle '{vin}' not found for ABRP send.")
+
+        resolved_key, resolved_token = self._abrp_credentials(
+            vin, api_key=api_key, token=token
+        )
+        if not resolved_key or not resolved_token:
+            raise HomeAssistantError(
+                "ABRP send needs both an api_key and a per-vehicle token. "
+                "Set them in the integration options (ABRP section) or pass "
+                "them to the service. "
+                f"(api_key={_abrp.redact(resolved_key)}, "
+                f"token={_abrp.redact(resolved_token)})"
+            )
+
+        # Core field gate — never POST without soc (ABRP rejects it).
+        if vehicle.get("battery_soc") is None:
+            raise HomeAssistantError(
+                f"ABRP send skipped for ...{vin[-4:]}: no battery state-of-"
+                "charge available yet."
+            )
+
+        now_epoch = int(datetime.now(tz=timezone.utc).timestamp())
+        sample_utc = _abrp.resolve_sample_utc(vehicle, now_epoch=now_epoch)
+        tlm = _abrp.build_tlm(vehicle, sample_utc)
+
+        session = async_get_clientsession(self.hass)
+        try:
+            await _abrp.send_telemetry(
+                session, resolved_key, resolved_token, tlm
+            )
+        except _abrp.AbrpError as exc:
+            # exc text is already credential-free by construction.
+            raise HomeAssistantError(str(exc)) from exc
+
+        # Success — record the fingerprint so the data-changed sensor resets.
+        self.abrp_last_sent_fingerprint[vin] = _abrp.telemetry_fingerprint(
+            vehicle
+        )
+        # Nudge listeners so the binary sensor re-evaluates immediately.
+        self.async_update_listeners()
+        _LOGGER.debug("ABRP telemetry sent for ...%s", vin[-4:])
 
     def _optimistic_set(self, vin: str, fields: dict[str, Any]) -> dict[str, Any]:
         """v1.11.1 (3B-Part-3 — myskoda #832 pattern) — push expected

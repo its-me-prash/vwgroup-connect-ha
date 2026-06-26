@@ -188,7 +188,10 @@
           "hide_empty_entities": "Dölj entiteter utan data",
           "supplementary_eu_portal": "Lägg till en EU Data Act-portalläskanal",
           "remove_supplementary_authproxy": "Ta bort vw.de-läskanalen",
-          "remove_supplementary_eu_portal": "Ta bort EU Data Act-portalläskanalen"
+          "remove_supplementary_eu_portal": "Ta bort EU Data Act-portalläskanalen",
+          "abrp_enable": "Aktivera ABRP-telemetri",
+          "abrp_api_key": "ABRP-api_key (utvecklarnyckel)",
+          "abrp_user_token": "ABRP-token (per fordon)"
         },
         "data_description": {
           "scan_interval": "Hur ofta data hämtas (minuter). Minimum: 3.",
@@ -203,7 +206,10 @@
           "wake_delay_seconds": "Seconds to wait between the wake-up POST and the status fetch. The default of 15 seconds is what most brand backends need to ingest the wake-induced data push. Lower values risk reading stale data; higher values stretch the poll cycle without further benefit.",
           "client_id_override": "Power-user escape hatch for when the community spots a fresh OAuth client_id in a new VW Group APK before our daily atlas builder catches it. Paste the full UUID@apps_vw-dilab_com string here and the resolver tries it FIRST on every authenticate, with all the existing client_ids still in the chain as fallback. Leave empty for default behaviour. Format: 8-4-4-4-12 hex digits followed by @apps_vw-dilab_com. Malformed values are silently ignored.",
           "eu_data_act_auto_kickoff": "Only meaningful when the integration is operating in read-only EU Data Act portal mode (live BFF strategies have failed). When ON, the coordinator checks for an active 15-min Custom Data Request per VIN at startup and creates one when none exists. The kickoff implies a 1-month data subscription on your account at the portal, so this is opt-in. The portal accepts AT MOST ONE active custom request per VIN at a time. Off by default.",
-          "enable_data_act_browser": "EXPERIMENTELL: bara meningsfullt när integrationen har fallit tillbaka på EU Data Act-portalen (skrivskyddad). Styr en headless Chromium via det valfria Python-paketet 'playwright' för att automatiskt klicka på portalens dataexport-knapp. Paketet är INTE förinstallerat (det hämtar runt 100 MB Chromium). När det är aktiverat men saknas förklarar en Reparation-avisering hur du installerar det inifrån Home Assistant-containern. Ladda om integrationen efter att du växlat."
+          "enable_data_act_browser": "EXPERIMENTELL: bara meningsfullt när integrationen har fallit tillbaka på EU Data Act-portalen (skrivskyddad). Styr en headless Chromium via det valfria Python-paketet 'playwright' för att automatiskt klicka på portalens dataexport-knapp. Paketet är INTE förinstallerat (det hämtar runt 100 MB Chromium). När det är aktiverat men saknas förklarar en Reparation-avisering hur du installerar det inifrån Home Assistant-containern. Ladda om integrationen efter att du växlat.",
+          "abrp_enable": "Skicka livetelemetri till A Better Routeplanner. Kräver en api_key och en token per fordon. Av = inga utgående anrop.",
+          "abrp_api_key": "En utvecklar-/partnernyckel som du registrerar hos iternio (vi levererar ingen). Identifierar integrationen. Loggas aldrig.",
+          "abrp_user_token": "'Generic'-token från ABRP-appen: Inställningar -> din bil -> Live Data. Loggas aldrig."
         }
       },
       "add_vwde": {
@@ -238,6 +244,9 @@
           "password": "Lösenord"
         }
       }
+    },
+    "error": {
+      "abrp_credentials_required": "För att aktivera ABRP måste du ange både api_key och fordonstoken."
     }
   },
   "entity": {
@@ -1230,6 +1239,9 @@
       },
       "climate_zone_front_right_enabled": {
         "name": "Klimatzon fram höger"
+      },
+      "abrp_data_changed": {
+        "name": "ABRP-data ändrad"
       }
     },
     "switch": {
@@ -1523,6 +1535,28 @@
         }
       },
       "name": "Öppna märkets app (djuplänk)"
+    },
+    "abrp_send": {
+      "name": "Skicka telemetri till ABRP",
+      "description": "Bygger och skickar fordonets aktuella telemetri till A Better Routeplanner.",
+      "fields": {
+        "device_id": {
+          "name": "Fordon",
+          "description": "Fordonet som ska laddas upp (eller använd VIN)."
+        },
+        "vin": {
+          "name": "VIN",
+          "description": "Fordonets VIN (alternativ till enhet)."
+        },
+        "api_key": {
+          "name": "Åsidosätt api_key",
+          "description": "Valfritt. Ersätter den lagrade utvecklarnyckeln. Loggas aldrig."
+        },
+        "token": {
+          "name": "Åsidosätt token",
+          "description": "Valfritt. Ersätter den lagrade fordonstoken. Loggas aldrig."
+        }
+      }
     }
   },
   "exceptions": {

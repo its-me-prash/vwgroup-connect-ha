@@ -188,7 +188,10 @@
           "hide_empty_entities": "Ukryj encje bez danych",
           "supplementary_eu_portal": "Dodaj kanał odczytu portalu EU Data Act",
           "remove_supplementary_authproxy": "Usuń kanał odczytu vw.de",
-          "remove_supplementary_eu_portal": "Usuń kanał odczytu portalu EU Data Act"
+          "remove_supplementary_eu_portal": "Usuń kanał odczytu portalu EU Data Act",
+          "abrp_enable": "Włącz wysyłanie telemetrii ABRP",
+          "abrp_api_key": "api_key ABRP (klucz dewelopera)",
+          "abrp_user_token": "Token ABRP (na pojazd)"
         },
         "data_description": {
           "scan_interval": "Jak często pobierane są dane (minuty). Minimum: 3.",
@@ -203,7 +206,10 @@
           "wake_delay_seconds": "Seconds to wait between the wake-up POST and the status fetch. The default of 15 seconds is what most brand backends need to ingest the wake-induced data push. Lower values risk reading stale data; higher values stretch the poll cycle without further benefit.",
           "client_id_override": "Power-user escape hatch for when the community spots a fresh OAuth client_id in a new VW Group APK before our daily atlas builder catches it. Paste the full UUID@apps_vw-dilab_com string here and the resolver tries it FIRST on every authenticate, with all the existing client_ids still in the chain as fallback. Leave empty for default behaviour. Format: 8-4-4-4-12 hex digits followed by @apps_vw-dilab_com. Malformed values are silently ignored.",
           "eu_data_act_auto_kickoff": "Only meaningful when the integration is operating in read-only EU Data Act portal mode (live BFF strategies have failed). When ON, the coordinator checks for an active 15-min Custom Data Request per VIN at startup and creates one when none exists. The kickoff implies a 1-month data subscription on your account at the portal, so this is opt-in. The portal accepts AT MOST ONE active custom request per VIN at a time. Off by default.",
-          "enable_data_act_browser": "EKSPERYMENTALNE: ma sens tylko, gdy integracja przeszła w tryb awaryjny portalu EU Data Act (tylko do odczytu). Steruje przeglądarką headless Chromium za pomocą opcjonalnego pakietu Pythona 'playwright', aby automatycznie kliknąć przycisk eksportu danych w portalu. Pakiet NIE jest preinstalowany (pobiera około 100 MB Chromium). Gdy jest włączony, ale go brakuje, zgłoszenie Naprawy wyjaśnia, jak zainstalować go wewnątrz kontenera Home Assistant. Po przełączeniu przeładuj integrację."
+          "enable_data_act_browser": "EKSPERYMENTALNE: ma sens tylko, gdy integracja przeszła w tryb awaryjny portalu EU Data Act (tylko do odczytu). Steruje przeglądarką headless Chromium za pomocą opcjonalnego pakietu Pythona 'playwright', aby automatycznie kliknąć przycisk eksportu danych w portalu. Pakiet NIE jest preinstalowany (pobiera około 100 MB Chromium). Gdy jest włączony, ale go brakuje, zgłoszenie Naprawy wyjaśnia, jak zainstalować go wewnątrz kontenera Home Assistant. Po przełączeniu przeładuj integrację.",
+          "abrp_enable": "Wysyłaj telemetrię na żywo do A Better Routeplanner. Wymaga api_key oraz tokenu na pojazd. Wyłączone = brak połączeń wychodzących.",
+          "abrp_api_key": "Klucz dewelopera/partnera rejestrowany w iternio (nie dostarczamy go). Identyfikuje integrację. Nigdy nie jest logowany.",
+          "abrp_user_token": "Token 'Generic' z aplikacji ABRP: Ustawienia -> Twój samochód -> Live Data. Nigdy nie jest logowany."
         }
       },
       "add_vwde": {
@@ -238,6 +244,9 @@
           "password": "Hasło"
         }
       }
+    },
+    "error": {
+      "abrp_credentials_required": "Aby włączyć ABRP, musisz podać zarówno api_key, jak i token pojazdu."
     }
   },
   "entity": {
@@ -1230,6 +1239,9 @@
       },
       "climate_zone_front_right_enabled": {
         "name": "Strefa klimatyczna przód prawa"
+      },
+      "abrp_data_changed": {
+        "name": "Dane ABRP zmienione"
       }
     },
     "switch": {
@@ -1523,6 +1535,28 @@
         }
       },
       "name": "Otwórz natywną aplikację marki (deeplink)"
+    },
+    "abrp_send": {
+      "name": "Wyślij telemetrię do ABRP",
+      "description": "Tworzy i wysyła bieżącą telemetrię pojazdu do A Better Routeplanner.",
+      "fields": {
+        "device_id": {
+          "name": "Pojazd",
+          "description": "Pojazd do wysłania (lub użyj VIN)."
+        },
+        "vin": {
+          "name": "VIN",
+          "description": "VIN pojazdu (alternatywa dla urządzenia)."
+        },
+        "api_key": {
+          "name": "Zastąp api_key",
+          "description": "Opcjonalnie. Zastępuje zapisany klucz dewelopera. Nigdy nie jest logowany."
+        },
+        "token": {
+          "name": "Zastąp token",
+          "description": "Opcjonalnie. Zastępuje zapisany token pojazdu. Nigdy nie jest logowany."
+        }
+      }
     }
   },
   "exceptions": {

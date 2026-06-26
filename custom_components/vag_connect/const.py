@@ -205,6 +205,34 @@ CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES = "supplementary_authproxy_cookies"
 # gated. Set False to show every entity regardless of data.
 CONF_HIDE_EMPTY_ENTITIES = "hide_empty_entities"
 
+# v2.15.5 — OPTIONAL ABRP (A Better Routeplanner) live-telemetry push.
+# Three opt-in option fields grouped with the other CONF_ENABLE_PUSH_*
+# flags. ALL default-dormant: with the enable flag off (or no api_key /
+# token) the ABRP sender makes ZERO outbound calls, exactly like the
+# other opt-in push features.
+#
+# CONF_ABRP_ENABLE      — master switch. Default False. When False the
+#                         abrp_data_changed binary sensor is not created
+#                         and the abrp_send service is a no-op unless
+#                         given inline credentials.
+# CONF_ABRP_API_KEY     — developer/partner key issued by iternio (per
+#                         integration, NOT per user). The user pastes one
+#                         they registered with iternio — we deliberately do
+#                         NOT ship/hardcode a key (hardcoding one we don't
+#                         own would be impersonation + bakes a non-owned
+#                         secret into an AGPL public repo). Empty = required
+#                         from the service call instead.
+# CONF_ABRP_USER_TOKEN  — per-VIN user token from the ABRP app
+#                         (Settings → car → Live Data → Generic). Stored as
+#                         a {vin: token} dict so multi-VIN accounts each
+#                         carry their own token. A bare string is also
+#                         accepted (single-VIN convenience) and applied to
+#                         every VIN.
+# SECURITY: neither value is ever logged — see abrp.redact().
+CONF_ABRP_ENABLE              = "abrp_enable"
+CONF_ABRP_API_KEY            = "abrp_api_key"
+CONF_ABRP_USER_TOKEN         = "abrp_user_token"
+
 # Supported brands — must match CariadClientFactory.create() keys
 BRANDS = {
     "audi":           "Audi (myAudi)",
