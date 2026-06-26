@@ -1639,6 +1639,18 @@ class VehicleData:
     # Energy charged at departure — LOW. Disabled-by-default. (kWh)
     departure_charge_kwh: float | None = None
 
+    # ── v2.15.5 (#541) — V2G / bidirectional-charging charge-level limits ─────
+    # Written by _eu_data_act.py only (EU-Data-Act dialect). dict-confirmed
+    # type=number; "Additional SOC range for bidirectional charging" → percent.
+    # Upper / lower charge-level limit the car may bidi-charge within. LOW —
+    # disabled-by-default diagnostic sensors. NO 'SoC' token in entity NAMES.
+    bidi_max_charge_level_pct: int | None = None
+    bidi_min_charge_level_pct: int | None = None
+    # ── v2.15.5 (#544) — sunroof motor hood 1 POSITION (distinct from the
+    # open/closed STATE in sunroof_open). dict-confirmed type=number, unit "%"
+    # (0 = closed). LOW — disabled-by-default diagnostic sensor.
+    sunroof_position_pct: int | None = None
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to plain dict for coordinator.vehicles storage."""
         from dataclasses import asdict  # noqa: PLC0415

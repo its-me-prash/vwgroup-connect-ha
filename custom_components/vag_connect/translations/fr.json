@@ -1024,6 +1024,15 @@
       },
       "start_stop_modification": {
         "name": "Modification start/stop"
+      },
+      "bidi_max_charge_level_pct": {
+        "name": "Charge bidirectionnelle niveau de charge max."
+      },
+      "bidi_min_charge_level_pct": {
+        "name": "Charge bidirectionnelle niveau de charge min."
+      },
+      "sunroof_position_pct": {
+        "name": "Position du toit ouvrant"
       }
     },
     "binary_sensor": {

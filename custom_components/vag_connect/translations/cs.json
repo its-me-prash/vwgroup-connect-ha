@@ -1024,6 +1024,15 @@
       },
       "start_stop_modification": {
         "name": "Úprava start/stop"
+      },
+      "bidi_max_charge_level_pct": {
+        "name": "Obousměrné nabíjení max. úroveň nabití"
+      },
+      "bidi_min_charge_level_pct": {
+        "name": "Obousměrné nabíjení min. úroveň nabití"
+      },
+      "sunroof_position_pct": {
+        "name": "Poloha střešního okna"
       }
     },
     "binary_sensor": {

@@ -1372,6 +1372,21 @@ def map_dataset_to_vehicle_data(
     # heartbeat token) are intentionally NOT mapped — they stay Scout-visible
     # in raw_unmapped_fields (no first() call → no false signal).
 
+    # v2.15.5 (#541) — V2G / bidirectional-charging charge-level limits. Dict
+    # type=number, unit=null; description "Additional SOC range for
+    # bidirectional charging" → percent. Upper / lower bidi charge-level limit.
+    # first() drops the uint16 65535 sentinel; container + bare spellings tried.
+    # ONLY these two bidi_* fields were reported (#541) — the rest of the
+    # bidirectional_charging_mode.* family stays Scout-visible.
+    _bidi_max = _to_int(first(
+        "bidirectional_charging_mode.bidi_max_Soc", "bidi_max_Soc"))
+    if _bidi_max is not None and d.bidi_max_charge_level_pct is None:
+        d.bidi_max_charge_level_pct = _bidi_max
+    _bidi_min = _to_int(first(
+        "bidirectional_charging_mode.bidi_min_Soc", "bidi_min_Soc"))
+    if _bidi_min is not None and d.bidi_min_charge_level_pct is None:
+        d.bidi_min_charge_level_pct = _bidi_min
+
     # v2.15.3 (#518) — EU-Data-Act charging-detail string family. All
     # dict-confirmed type=string with no enum list in the dictionary (the enum
     # tokens are only observed from samples: connected/disconnected, locked/
@@ -1668,6 +1683,12 @@ def map_dataset_to_vehicle_data(
     _sunroof_present = [v for v in _sunroof_vals if v in (2, 3)]
     if _sunroof_present and d.sunroof_open is None:
         d.sunroof_open = any(v == 2 for v in _sunroof_present)
+    # v2.15.5 (#544) — sunroof motor hood 1 POSITION (%; 0=closed). Distinct
+    # from the open/closed STATE above. Dict type=number, unit "%". first()
+    # drops the uint16 65535 "no reading" sentinel; valid 0-100 survives.
+    _sunroof_pos = _to_int(first("position_sunroof_motor_hood_1"))
+    if _sunroof_pos is not None and d.sunroof_position_pct is None:
+        d.sunroof_position_pct = _sunroof_pos
     _svc_hatch = _to_int(first("state_service_hatch"))
     if _svc_hatch in (2, 3):
         d.service_hatch_open = _svc_hatch == 2

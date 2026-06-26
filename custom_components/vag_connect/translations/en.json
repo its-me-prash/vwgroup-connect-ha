@@ -1024,6 +1024,15 @@
       },
       "start_stop_modification": {
         "name": "Start/stop modification"
+      },
+      "bidi_max_charge_level_pct": {
+        "name": "Bidirectional charging max charge level"
+      },
+      "bidi_min_charge_level_pct": {
+        "name": "Bidirectional charging min charge level"
+      },
+      "sunroof_position_pct": {
+        "name": "Sunroof position"
       }
     },
     "binary_sensor": {

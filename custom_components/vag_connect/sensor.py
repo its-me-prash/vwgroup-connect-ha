@@ -2662,6 +2662,43 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # ── v2.15.5 (#541) — V2G / bidirectional-charging charge-level limits ────
+    # Upper / lower charge-level limit (percent) the car may bidi-charge within.
+    # LOW — diagnostic, disabled-by-default. NO 'SoC' token in the NAME.
+    VagSensorDescription(
+        key="bidi_max_charge_level_pct",
+        translation_key="bidi_max_charge_level_pct",
+        data_key="bidi_max_charge_level_pct",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-charging-high",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="bidi_min_charge_level_pct",
+        translation_key="bidi_min_charge_level_pct",
+        data_key="bidi_min_charge_level_pct",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-charging-low",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # ── v2.15.5 (#544) — sunroof motor hood 1 POSITION (%; 0=closed). Distinct
+    # from the sunroof_open STATE. LOW — diagnostic, disabled-by-default.
+    VagSensorDescription(
+        key="sunroof_position_pct",
+        translation_key="sunroof_position_pct",
+        data_key="sunroof_position_pct",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:window-shutter-open",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
 )
 
 # Sensor keys that read from coordinator helpers instead of the per-vehicle
@@ -2998,6 +3035,13 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "tyre_pressure_required_rl",
     "tyre_pressure_required_rr",
     "tyre_pressure_required_spare",
+    # v2.15.5 (#541) — V2G / bidirectional-charging charge-level limits.
+    # EU-Data-Act dialect only; vehicles/channels without the field stay None.
+    "bidi_max_charge_level_pct",
+    "bidi_min_charge_level_pct",
+    # v2.15.5 (#544) — sunroof motor hood 1 position. EU-Data-Act dialect only;
+    # vehicles/channels without the field stay None → no phantom.
+    "sunroof_position_pct",
 })
 
 # v1.14.0 (#24) — Trip Statistics is brand-restricted at the API level

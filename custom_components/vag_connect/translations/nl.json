@@ -1024,6 +1024,15 @@
       },
       "start_stop_modification": {
         "name": "Start/stop-wijziging"
+      },
+      "bidi_max_charge_level_pct": {
+        "name": "Bidirectioneel laden max. laadniveau"
+      },
+      "bidi_min_charge_level_pct": {
+        "name": "Bidirectioneel laden min. laadniveau"
+      },
+      "sunroof_position_pct": {
+        "name": "Schuifdakpositie"
       }
     },
     "binary_sensor": {

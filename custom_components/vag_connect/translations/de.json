@@ -1024,6 +1024,15 @@
       },
       "start_stop_modification": {
         "name": "Start/Stopp-Änderung"
+      },
+      "bidi_max_charge_level_pct": {
+        "name": "Bidirektionales Laden max. Ladestand"
+      },
+      "bidi_min_charge_level_pct": {
+        "name": "Bidirektionales Laden min. Ladestand"
+      },
+      "sunroof_position_pct": {
+        "name": "Schiebedach-Position"
       }
     },
     "binary_sensor": {

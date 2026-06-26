@@ -1024,6 +1024,15 @@
       },
       "start_stop_modification": {
         "name": "Modyfikacja start/stop"
+      },
+      "bidi_max_charge_level_pct": {
+        "name": "Ładowanie dwukierunkowe maks. poziom naładowania"
+      },
+      "bidi_min_charge_level_pct": {
+        "name": "Ładowanie dwukierunkowe min. poziom naładowania"
+      },
+      "sunroof_position_pct": {
+        "name": "Pozycja dachu przesuwnego"
       }
     },
     "binary_sensor": {

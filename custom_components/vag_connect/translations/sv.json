@@ -1024,6 +1024,15 @@
       },
       "start_stop_modification": {
         "name": "Start/stopp-ändring"
+      },
+      "bidi_max_charge_level_pct": {
+        "name": "Dubbelriktad laddning max. laddnivå"
+      },
+      "bidi_min_charge_level_pct": {
+        "name": "Dubbelriktad laddning min. laddnivå"
+      },
+      "sunroof_position_pct": {
+        "name": "Soltakets position"
       }
     },
     "binary_sensor": {
