@@ -38,6 +38,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.6] - unreleased
+
+### Fixed
+
+- **Honest message when a portal car can't take commands (#543).** If your car connects through VW's read-only EU Data Act portal and you try to send a command (lock, climate, charging), you used to get told to "disable read-only mode in the options" — but there's no switch that helps: the portal simply has no command path. The message now says that plainly, so you're not sent hunting for a setting that can't change anything. Cars where read-only really is just a toggle you flipped still get the old "disable it in the options" hint.
+- **No more stray US/Canada dropdown for non-US cars (#465).** Setting up an EU car (or any brand before you'd picked one) showed a "country" field that only offered USA and Canada — confusing, since it never applied to you. That picker now only appears when you choose Volkswagen US/Canada, where it actually selects your region. Pick VW US/CA and the US↔Canada chooser is right there as before; everyone else never sees it.
+
 ## [2.15.5] - 2026-06-27
 
 ### Added

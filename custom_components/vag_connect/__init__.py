@@ -249,6 +249,16 @@ def _register_services(hass: HomeAssistant) -> None:
         """
         c = _coord(vin)
         if c.is_read_only():
+            # #543 — a portal/website car is STRUCTURALLY read-only: the
+            # token has no command path, so "disable the option" is wrong
+            # advice. Use an honest message that says it isn't toggleable.
+            if c.is_structural_read_only():
+                raise ServiceValidationError(
+                    "This vehicle connects through VW's read-only EU Data "
+                    "Act portal, so remote commands aren't available for it.",
+                    translation_domain=DOMAIN,
+                    translation_key="read_only_portal_active",
+                )
             raise ServiceValidationError(
                 "Read-only mode is enabled. Disable it in the integration "
                 "options to send vehicle commands.",

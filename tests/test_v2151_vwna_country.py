@@ -85,9 +85,12 @@ class TestCountryConstAndSelector:
         src = _CONFIG_FLOW_PY.read_text(encoding="utf-8")
         # The builder gained a country= parameter ...
         assert 'country: str = "us"' in src
-        # ... and the schema dict carries the optional field with the selector.
+        # ... and the schema attaches the optional field with the selector.
+        # v2.15.6 (gr6803/#465): the field is now added conditionally (only for
+        # volkswagen_na) via item-assignment instead of an unconditional dict
+        # literal, so we assert the selector wiring rather than the old literal.
         assert (
-            "vol.Optional(CONF_COUNTRY, default=country): _COUNTRY_SELECTOR"
+            "schema[vol.Optional(CONF_COUNTRY, default=country)] = _COUNTRY_SELECTOR"
             in src
         )
 

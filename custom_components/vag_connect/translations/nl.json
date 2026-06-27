@@ -1586,6 +1586,9 @@
     },
     "read_only_mode_active": {
       "message": "Alleen-lezen modus is ingeschakeld in de integratie-opties. Schakel het uit onder Instellingen → Apparaten en diensten → VW Group Connect → Configureren om voertuigcommando's te verzenden."
+    },
+    "read_only_portal_active": {
+      "message": "Dit voertuig maakt verbinding via VW's alleen-lezen EU Data Act-portaal, dus commando's op afstand (vergrendelen, klimaat, laden) zijn er niet voor beschikbaar. Dit is geen instelling die je kunt aan- of uitzetten — het portaalkanaal heeft geen commandopad."
     }
   },
   "selector": {

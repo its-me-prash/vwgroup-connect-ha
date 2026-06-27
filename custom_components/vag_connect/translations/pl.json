@@ -1586,6 +1586,9 @@
     },
     "read_only_mode_active": {
       "message": "Tryb tylko do odczytu jest włączony w opcjach integracji. Wyłącz go w Ustawienia → Urządzenia i usługi → VW Group Connect → Skonfiguruj, aby wysyłać polecenia do pojazdu."
+    },
+    "read_only_portal_active": {
+      "message": "Ten pojazd łączy się przez tylko-do-odczytu portal EU Data Act firmy VW, więc polecenia zdalne (zamykanie, klimatyzacja, ładowanie) nie są dla niego dostępne. To nie jest ustawienie, które możesz przełączyć — kanał portalu nie ma żadnej ścieżki poleceń."
     }
   },
   "selector": {

@@ -1586,6 +1586,9 @@
     },
     "read_only_mode_active": {
       "message": "Le mode lecture seule est activé dans les options d'intégration. Désactive-le sous Paramètres → Appareils et services → VW Group Connect → Configurer pour envoyer des commandes au véhicule."
+    },
+    "read_only_portal_active": {
+      "message": "Ce véhicule est connecté via le portail EU Data Act en lecture seule de VW, les commandes à distance (verrouillage, climatisation, charge) ne sont donc pas disponibles pour lui. Ce n'est pas une option que tu peux activer ou désactiver — le canal du portail n'a aucune voie de commande."
     }
   },
   "selector": {

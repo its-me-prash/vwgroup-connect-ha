@@ -1586,6 +1586,9 @@
     },
     "read_only_mode_active": {
       "message": "Skrivskyddat läge är aktiverat i integrationsalternativen. Inaktivera det under Inställningar → Enheter och tjänster → VW Group Connect → Konfigurera för att skicka fordonskommandon."
+    },
+    "read_only_portal_active": {
+      "message": "Det här fordonet ansluter via VW:s skrivskyddade EU Data Act-portal, så fjärrkommandon (lås, klimat, laddning) är inte tillgängliga för det. Det här är ingen inställning du kan slå av eller på — portalkanalen har ingen kommandoväg."
     }
   },
   "selector": {

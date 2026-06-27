@@ -268,17 +268,25 @@ def _credentials_schema(
         vol.Required(CONF_USERNAME, default=username or vol.UNDEFINED): _USERNAME_SELECTOR,
         vol.Required(CONF_PASSWORD): _PASSWORD_SELECTOR,
         vol.Optional(CONF_SPIN, default=spin): _SPIN_SELECTOR,
-        # v2.15.1 (#503) — Volkswagen US/Canada region. Only consumed by the
-        # volkswagen_na brand; ignored everywhere else. Default "us" keeps
-        # pre-existing entries (which never stored a country) working.
-        vol.Optional(CONF_COUNTRY, default=country): _COUNTRY_SELECTOR,
+    }
+    # v2.15.6 (gr6803/#465) — the US/Canada region picker is ONLY meaningful for
+    # the volkswagen_na brand (US vs CA pick different MYVW client_id + API
+    # host). Previously it was added unconditionally, so EU users (who select
+    # the form's brand in this same step) saw a stray "country" dropdown that
+    # only offered USA/Canada. Now we render it solely for volkswagen_na — on
+    # the first render (brand unknown) it stays hidden; if a VW-NA login fails,
+    # the form re-renders with brand=volkswagen_na and the picker appears so the
+    # user can switch us↔ca. Every other brand never sees it.
+    if brand.lower() == "volkswagen_na":
+        schema[vol.Optional(CONF_COUNTRY, default=country)] = _COUNTRY_SELECTOR
+    schema.update({
         vol.Optional(CONF_SCAN_INTERVAL, default=scan_interval): _INTERVAL_SELECTOR,
         vol.Optional(CONF_FORCE_ACCESS, default=force_access): _BOOL_SELECTOR,
         # b12 — Volkswagen only: after the portal login, add a durable-MBB
         # command channel (extra QR confirm) so this read-only portal entry
         # also gets remote lock/climate/charge. Ignored for non-VW brands.
         vol.Optional("enable_mbb_commands", default=enable_mbb_commands): _BOOL_SELECTOR,
-    }
+    })
     return vol.Schema(schema)
 
 

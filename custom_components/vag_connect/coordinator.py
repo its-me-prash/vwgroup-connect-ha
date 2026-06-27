@@ -3847,6 +3847,34 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             return data.get(CONF_READ_ONLY) is True
         return False
 
+    def is_structural_read_only(self) -> bool:
+        """#543 — True when read-only is forced by the portal/website branch.
+
+        Returns True exactly when ``is_read_only()`` is forced by the
+        STRUCTURAL portal/website-authproxy branch above — i.e. the active
+        strategy is one of ``data_act_portal`` / ``device_grant_portal`` /
+        ``website_authproxy`` AND no MBB command channel is armed. In that
+        case the read-only state is NOT a user toggle: the portal token is
+        rejected by the command BFF, so there is no command path at all and
+        the Options-Flow read-only switch can't change anything.
+
+        Service-call handlers use this to pick an honest error message
+        (``read_only_portal_active``) instead of the misleading
+        "disable it in the options" message (``read_only_mode_active``).
+        """
+        client = getattr(self, "_cariad_client", None)
+        tokens = getattr(client, "_tokens", None) if client else None
+        strategy = getattr(tokens, "strategy", "") if tokens else ""
+        if strategy in (
+            "data_act_portal", "device_grant_portal", "website_authproxy"
+        ):
+            if not (
+                self.entry.data.get(CONF_MBB_COMMAND_CHANNEL)
+                and getattr(client, "_mbb_command", None) is not None
+            ):
+                return True
+        return False
+
     # ── v2.15.5 — ABRP (A Better Routeplanner) telemetry push ───────────────
 
     def _abrp_credentials(

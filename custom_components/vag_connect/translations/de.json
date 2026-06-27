@@ -1606,6 +1606,9 @@
     },
     "read_only_mode_active": {
       "message": "Read-only Modus ist in den Integrations-Optionen aktiviert. Deaktiviere ihn unter Einstellungen → Geräte & Dienste → VW Group Connect → Konfigurieren um Fahrzeug-Befehle zu senden."
+    },
+    "read_only_portal_active": {
+      "message": "Dieses Fahrzeug ist über VWs schreibgeschütztes EU-Data-Act-Portal angebunden, deshalb sind Fernbefehle (Verriegeln, Klima, Laden) dafür nicht verfügbar. Das ist keine Einstellung, die du umschalten kannst — der Portal-Kanal hat keinen Befehlsweg."
     }
   }
 }

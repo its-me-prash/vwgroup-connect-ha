@@ -1586,6 +1586,9 @@
     },
     "read_only_mode_active": {
       "message": "Režim jen pro čtení je povolen v možnostech integrace. Vypněte jej v Nastavení → Zařízení a služby → VW Group Connect → Konfigurovat, abyste mohli odesílat příkazy do vozidla."
+    },
+    "read_only_portal_active": {
+      "message": "Toto vozidlo se připojuje přes portál EU Data Act od VW určený jen pro čtení, takže vzdálené příkazy (zamykání, klimatizace, nabíjení) pro něj nejsou dostupné. Není to nastavení, které byste mohli přepnout — kanál portálu nemá žádnou cestu pro příkazy."
     }
   },
   "selector": {
