@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """v2.13.0 Block D (P1) — EU Data Act portal data hardening.
 
 - _walk_fields is LATEST-WINS by timestamp (fixes the jumping SoC/odometer
@@ -32,12 +32,19 @@ def test_walk_fields_latest_wins_by_timestamp() -> None:
     assert _walk_fields(log)["soc"] == "82"  # newest timestamp wins
 
 
-def test_walk_fields_no_timestamp_falls_back_to_last() -> None:
+def test_walk_fields_no_real_timestamp_keeps_last_seen() -> None:
+    # PREMISE CHANGED in #529 (v2.15.4): this test previously asserted FIRST-seen
+    # on a no-real-ts tie. The empirical #529 trace (S5/S6) showed that rule
+    # surfaces the STALE earlier sample: the portal ZIP is an append-ordered
+    # event-log, so a later duplicate is the NEWER reading (this matches the
+    # reference reader rafaelhutter/ha-volkswagen-connect, which is order-last-
+    # wins). With genuine per-point timestamps the freshest still wins; the tie
+    # only happens when NEITHER candidate has a real ts, and then LAST wins.
     log = {"data": [
         {"dataFieldName": "x", "value": "1"},
         {"dataFieldName": "x", "value": "9"},
     ]}
-    assert _walk_fields(log)["x"] == "9"  # last-in-array, not first
+    assert _walk_fields(log)["x"] == "9"  # last-write on a true (no-real-ts) tie
 
 
 def test_walk_fields_datapoint_shape_unchanged() -> None:

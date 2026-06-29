@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """v2.2.0 Phase 4 PR #15/20 — Lamborghini brand-adapter scaffold.
 
 **BETA — TESTER VALIDATION PENDING.** This PR ships the LamboClient
@@ -66,40 +66,39 @@ class TestBrandLamboConfig:
     host + scope set inherited from VW EU pattern) even with placeholder
     OAuth values."""
 
-    def test_api_base_is_cariad_bff(self) -> None:
+    def test_api_base_is_structurally_wrong_kept_marker(self) -> None:
         from custom_components.vag_connect.cariad.models import BRAND_LAMBO
 
-        # Lamborghini Unica = Cariad-BFF backend per API-Evangelist
-        # OpenAPI catalog metadata
+        # v2.14.11 — atlas proved Unica is NOT on the Cariad-BFF; api_base is
+        # left only so the scaffold imports. It is documented WRONG (real flow
+        # is sdp.lamborghini.com/unicav2/mbbcoauth). Pinned to detect anyone
+        # mistaking it for a working data base.
         assert BRAND_LAMBO.api_base == "https://emea.bff.cariad.digital"
 
-    def test_client_id_is_placeholder(self) -> None:
-        # Sanity-check that we haven't shipped a real-looking value
-        # by mistake (which would imply someone forgot the tester
-        # validation step)
+    def test_client_id_marked_server_side_not_real(self) -> None:
+        # v2.14.11 — atlas: Unica ships NO dilab client_id; the real MBB
+        # client is held server-side on the SDP proxy. The config carries a
+        # non-functional marker, never a usable client.
         from custom_components.vag_connect.cariad.models import BRAND_LAMBO
 
-        assert "PLACEHOLDER" in BRAND_LAMBO.client_id
+        assert "SERVER-SIDE" in BRAND_LAMBO.client_id
 
     def test_redirect_uri_uses_unica_scheme(self) -> None:
         from custom_components.vag_connect.cariad.models import BRAND_LAMBO
 
-        # Even with placeholder client_id, the redirect-uri scheme
-        # SHOULD match the actual Unica app (best-guess from app name)
         assert BRAND_LAMBO.redirect_uri.startswith("unica://")
 
     def test_user_agent_mentions_unica(self) -> None:
         from custom_components.vag_connect.cariad.models import BRAND_LAMBO
 
-        # UA must identify as the Unica app for backend routing
         assert "Unica" in BRAND_LAMBO.user_agent
 
-    def test_scope_includes_baseline_claims(self) -> None:
+    def test_scope_is_mbb_sc2_fal(self) -> None:
         from custom_components.vag_connect.cariad.models import BRAND_LAMBO
 
-        # Minimum claims for Cariad-BFF: openid, profile, vin
-        for required in ("openid", "profile", "vin"):
-            assert required in BRAND_LAMBO.scope
+        # v2.14.11 — atlas: Unica's MBB co-auth scope is ``sc2:fal``, NOT the
+        # Cariad-BFF openid/profile/vin claim set.
+        assert BRAND_LAMBO.scope == "sc2:fal"
 
 
 class TestFactoryNotWiredYet:

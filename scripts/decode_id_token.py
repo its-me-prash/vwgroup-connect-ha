@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 """Decode the id_token currently in mbb.local.bru and print SAFE claims only.
 
 Usage:

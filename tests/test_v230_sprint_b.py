@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """v2.3.0 — Sprint B: VW NA auth-fix (#269) + Audi nav-aware charging (#264).
 
 This single test-file pins the two user-facing changes that ship in
@@ -121,11 +121,14 @@ class TestVWNAUsesNAOverrides:
         src = _VW_NA_PY.read_text(encoding="utf-8")
         assert '_NA_IDP_BASE = "https://identity.na.vwgroup.io"' in src
 
-    def test_na_signin_guid_constant(self) -> None:
+    def test_na_signin_guid_is_dormant_not_wired(self) -> None:
+        """b14 (#503): matpoulin's old browser-client GUID is DORMANT — kept
+        documented but NOT passed to IDKAuth. With it, NA login dead-ended at
+        ``signin-service/v1/b680e751… → "no code"`` even after the b13 scope
+        revert; the current flow uses the MYVW_ANDROID client throughout."""
         src = _VW_NA_PY.read_text(encoding="utf-8")
-        # Per matpoulin/CarConnectivity-connector-volkswagen-na/
-        # auth/vw_web_session.py — hardcoded NA IDP browser-client GUID.
-        assert "b680e751-7e1f-4008-8ec1-3a528183d215@apps_vw-dilab_com" in src
+        assert "_NA_SIGNIN_CLIENT_GUID_DORMANT" in src       # kept for the record
+        assert "signin_client_id_override" not in src        # but NOT wired in
 
     def test_idkauth_constructed_with_authorize_override(self) -> None:
         src = _VW_NA_PY.read_text(encoding="utf-8")
@@ -141,33 +144,40 @@ class TestVWNAUsesNAOverrides:
         src = _VW_NA_PY.read_text(encoding="utf-8")
         assert "idk_base_override=_NA_IDP_BASE" in src
 
-    def test_idkauth_constructed_with_signin_guid_override(self) -> None:
+    def test_idkauth_NOT_constructed_with_signin_guid_override(self) -> None:
+        """b14 (#503): the signin client_id override is removed, so IDKAuth
+        falls back to ``brand.client_id`` (the per-country MYVW_ANDROID client)
+        for the signin-service URL — matching the live MyVW app + a working US
+        implementation. Re-adding the override regresses NA login to "no code"."""
         src = _VW_NA_PY.read_text(encoding="utf-8")
-        assert "signin_client_id_override=_NA_SIGNIN_CLIENT_GUID" in src
+        assert "signin_client_id_override" not in src
 
-    def test_scope_narrowed_to_openid_only(self) -> None:
-        """v2.11.0: BRAND_VW_NA.scope is "openid profile cars vin"
-        per zackcornelius source-verified audit. Pre-v2.11.0 we sent
-        bare "openid" per matpoulin (#269) but the NA IDP returns
-        reduced consent + missing claims with that narrow scope.
+    def test_scope_stays_bare_openid(self) -> None:
+        """REGRESSION PIN (#269 / #503): BRAND_VW_NA.scope MUST be bare
+        "openid". NA tester roberttco hit a live HTTP 400 (#269) when the
+        EU-style "openid profile cars vin" chain was requested against the
+        NA IDP. v2.11.0 re-widened it from a source-read (never live-tested
+        against NA) and silently regressed NA login to "no code" (#503).
 
-        The wider EU-style scope chain (``openid profile email
-        offline_access mbb vin cars dealers``) stays rejected.
+        Do NOT re-widen this from another project's source without a live
+        NA login test — that is exactly how it regressed. Two scopes are
+        live-verified: bare "openid" works; the full EU chain 400s.
         """
         src = _VW_NA_PY.read_text(encoding="utf-8")
-        assert 'scope="openid profile cars vin"' in src
-        # Make sure the EU-wide scope chain stays absent.
+        assert 'scope="openid"' in src
+        assert 'scope="openid profile cars vin"' not in src
+        # The wider EU-style scope chain must also stay absent.
         assert 'scope="openid profile email offline_access mbb vin cars dealers"' not in src
 
-    def test_models_brand_scope_also_narrowed(self) -> None:
-        """v2.11.0: models.BRAND_VW_NA_MODEL.scope must match
-        BRAND_VW_NA.scope after the zackcornelius-verified bump to
-        "openid profile cars vin"."""
+    def test_models_brand_scope_matches_bare_openid(self) -> None:
+        """models.BRAND_VW_NA_MODEL.scope must stay in sync with
+        BRAND_VW_NA.scope at bare "openid" (see #269/#503 above)."""
         src = _MODELS_PY.read_text(encoding="utf-8")
         idx = src.find("BRAND_VW_NA_MODEL = BrandConfig(")
         assert idx > 0
         block = src[idx : idx + 600]
-        assert 'scope="openid profile cars vin"' in block
+        assert 'scope="openid"' in block
+        assert 'scope="openid profile cars vin"' not in block
 
 
 # ──────────────────────────────────────────────────────────────────────

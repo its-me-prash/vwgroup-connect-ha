@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """v2.6.0 — OAuth 2.0 Device Authorization Grant (RFC 8628).
 
 This module implements the standard headless-device OAuth flow:
@@ -507,3 +507,35 @@ def portal_dag_config(brand_name: str) -> tuple[str, str] | None:
     if cfg is None:
         return None
     return cfg["client_id"], cfg["scope"]
+
+
+# v2.15.0 — MBB DURABLE device grant (the VW EU two-way breakthrough).
+# SEPARATE again from both DAG_ENABLED_BRANDS and PORTAL_DAG_BRANDS: VW's own
+# app client is DAG-dead and the portal client is read-only, but the legacy
+# We Connect e-Remote client below IS device-grant-able AND — with the load-
+# bearing ``mbb`` scope — mints an id_token whose ``aud`` includes the MBB
+# backend audience (VWGMBB01DELIV1). That id_token exchanges at the MBB OAuth
+# backend (``cariad/auth/_mbboauth.py``) for a DURABLE, refreshable bearer that
+# predates (and bypasses) the Google Play-Integrity App-Check wall blocking the
+# modern CARIAD BFF. Live-verified 2026-06-20 (real VW EU account → HTTP 200 +
+# durable refresh_token). See ``scripts/mbb_dag_test.py`` for the proving
+# harness and memory ``vag-connect-mbb-findings`` for the recipe.
+MBB_DAG_CLIENT_ID = "9496332b-ea03-4091-a224-8c746b885068@apps_vw-dilab_com"
+# The ``mbb`` token is the key — without it the id_token aud is the OIDC client
+# and the exchange 400s ("Audiences don't match issuer (VWGMBB01DELIV1)").
+MBB_DAG_SCOPE = "openid profile mbb cars"
+MBB_DAG_BRANDS = frozenset({"volkswagen"})
+
+
+def mbb_dag_config(brand_name: str) -> tuple[str, str] | None:
+    """``(client_id, scope)`` for the durable MBB device grant, or ``None``.
+
+    Single source of truth read by the config flow + the refresh path so the
+    MBB login uses the e-Remote client + ``mbb`` scope rather than the
+    DAG-dead VW app client. Returns ``None`` for any brand outside
+    ``MBB_DAG_BRANDS`` so callers can gate on
+    ``mbb_dag_config(brand) is not None``.
+    """
+    if brand_name.lower() not in MBB_DAG_BRANDS:
+        return None
+    return MBB_DAG_CLIENT_ID, MBB_DAG_SCOPE

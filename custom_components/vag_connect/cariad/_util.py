@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Pure helpers usable from both the API client layer and the HA layer."""
 
 from __future__ import annotations

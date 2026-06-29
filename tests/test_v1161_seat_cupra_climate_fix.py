@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Tests for v1.16.1 PATCH — SEAT/CUPRA climate endpoint fix (#53)
 + #122 SEAT scout-paths registration.
 
@@ -36,7 +36,7 @@ class TestClimateEndpointFix:
 
     def test_start_uses_path_suffix_first(self):
         client = self._client()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_start_climate("VINX")
         )
         url = client._post.await_args.args[0]
@@ -47,7 +47,7 @@ class TestClimateEndpointFix:
 
     def test_stop_uses_path_suffix_first(self):
         client = self._client()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_stop_climate("VINX")
         )
         url = client._post.await_args.args[0]
@@ -61,7 +61,7 @@ class TestClimateEndpointFix:
             APIError(404, "primary-url", "No static resource"),
             None,
         ])
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_start_climate("VINX")
         )
         # Two calls made: primary 404, fallback to legacy
@@ -79,7 +79,7 @@ class TestClimateEndpointFix:
         client = self._client()
         client._post = AsyncMock(side_effect=APIError(403, "primary-url", "forbidden"))
         with pytest.raises(APIError) as exc_info:
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 client.command_start_climate("VINX")
             )
         assert exc_info.value.status == 403

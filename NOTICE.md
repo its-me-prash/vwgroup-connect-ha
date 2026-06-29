@@ -17,9 +17,9 @@ The following MIT/Apache-2.0 licensed projects were used as **reference only**
 
 | Project | License | Used for |
 |---|---|---|
-| [upstream](https://github.com/upstream/upstream) | MIT | Audi API endpoint reference |
+| an open-source Audi API project | MIT | Audi API endpoint reference |
 | [myskoda](https://github.com/skodaconnect/myskoda) | MIT | Škoda API endpoint reference |
-| [pycupra](https://github.com/upstream/pycupra) | Apache-2.0 | SEAT/CUPRA API reference |
+| pycupra | Apache-2.0 | SEAT/CUPRA API reference |
 | [pyporscheconnectapi](https://github.com/CJNE/pyporscheconnectapi) | MIT | Porsche API reference (v0.15.0) |
 | [CarConnectivity-connector-audi](https://github.com/acfischer42/CarConnectivity-connector-audi) | MIT | Audi client_id reference |
 | [CarConnectivity-connector-volkswagen-na](https://github.com/zackcornelius/CarConnectivity-connector-volkswagen-na) | MIT | VW NA auth reference (v0.16.0) |
@@ -47,6 +47,7 @@ associated with any of these companies.
 | SEAT, My SEAT | SEAT, S.A., Barcelona, Spain |
 | CUPRA, MyCupra | CUPRA Automóvil S.L., Barcelona, Spain |
 | Porsche, My Porsche | Dr. Ing. h.c. F. Porsche AG, Stuttgart, Germany |
+| Bentley, My Bentley | Bentley Motors Limited, Crewe, England |
 | Home Assistant | Nabu Casa, Inc. |
 
 ---
@@ -61,4 +62,4 @@ software, including but not limited to account suspension or data loss.
 
 ---
 
-*Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0*
+*Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later (see [LICENSE](LICENSE)).*

@@ -1,5 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) - Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """v2.10.0 (Group C) - VW NA endpoint parity tests.
 
 Covers the 4 new Cox-backend behaviours added in Group C:

@@ -1,0 +1,98 @@
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# v2.15.5 — Ship an automation blueprint that uploads a vehicle's telemetry
+# to A Better Routeplanner whenever there's a NEW snapshot worth sending.
+#
+# It triggers on the per-vehicle "ABRP data changed" binary sensor turning
+# ON (the idempotent signal that the current telemetry differs from the last
+# successful upload) and calls vag_connect.abrp_send for that vehicle. The
+# service records the fingerprint on success, which flips the sensor back
+# OFF — so the same snapshot is never uploaded twice.
+#
+# The api_key + token are read from the integration options by default; the
+# inputs below let you override them inline if you'd rather keep them in the
+# automation. Leave them blank to use the stored options.
+blueprint:
+  name: ABRP — upload telemetry on data change
+  description: >
+    Push this vehicle's live telemetry (state of charge, GPS, charging
+    state, range, temperatures, odometer) to A Better Routeplanner whenever
+    a new snapshot is available. Triggered by the vehicle's "ABRP data
+    changed" diagnostic binary sensor so the same snapshot is never uploaded
+    twice. The ABRP api_key and per-vehicle token are taken from the
+    integration options unless you fill them in below.
+
+
+    Prerequisites: enable ABRP in the integration options (or fill the
+    overrides here), and obtain (1) a developer api_key from iternio and
+    (2) the per-vehicle "Generic" token from the ABRP app
+    (Settings -> your car -> Live Data).
+  domain: automation
+  author: VW Group Connect (@its-me-prash)
+  input:
+    data_changed_sensor:
+      name: "ABRP data-changed sensor"
+      description: >
+        The vehicle's "ABRP data changed" binary sensor
+        (binary_sensor.*_abrp_data_changed). Created when ABRP is enabled in
+        the integration options.
+      selector:
+        entity:
+          filter:
+            - integration: vag_connect
+              domain: binary_sensor
+    vehicle_device:
+      name: "Vehicle"
+      description: "The same vehicle the sensor belongs to."
+      selector:
+        device:
+          integration: vag_connect
+    abrp_api_key:
+      name: "ABRP api_key (optional override)"
+      description: >
+        Leave blank to use the api_key stored in the integration options.
+      default: ""
+      selector:
+        text:
+    abrp_token:
+      name: "ABRP token (optional override)"
+      description: >
+        Leave blank to use the per-vehicle token stored in the integration
+        options.
+      default: ""
+      selector:
+        text:
+
+# Re-evaluate the trigger while the automation runs; a fresh snapshot that
+# lands mid-upload still gets sent on the next turn-on.
+mode: single
+max_exceeded: silent
+
+trigger:
+  - platform: state
+    entity_id: !input data_changed_sensor
+    to: "on"
+
+# Only act on a genuine OFF/unknown -> ON edge (skip restarts / attribute-
+# only updates that re-fire the state trigger with the same "on" state).
+condition:
+  - condition: template
+    value_template: >
+      {{ trigger.from_state is none
+         or trigger.from_state.state != trigger.to_state.state }}
+
+action:
+  - service: vag_connect.abrp_send
+    data: >
+      {% set base = {'device_id': device_id} %}
+      {% set key = abrp_api_key | default('', true) %}
+      {% set tok = abrp_token | default('', true) %}
+      {% set base = dict(base, **({'api_key': key} if key else {})) %}
+      {% set base = dict(base, **({'token': tok} if tok else {})) %}
+      {{ base }}
+    # device_id resolved from the selected vehicle device.
+variables:
+  device_id: !input vehicle_device
+  abrp_api_key: !input abrp_api_key
+  abrp_token: !input abrp_token

@@ -1,5 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) - Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Pin that every provenance canary is referenced from its anchor file.
 
 The canary system depends on the canary value being grep-able in the

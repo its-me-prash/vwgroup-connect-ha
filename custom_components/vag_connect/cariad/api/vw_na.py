@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Volkswagen North America API client — b-h-s.spr.{country}00.p.con-veh.net.
 
 Endpoints from matpoulin/CarConnectivity-connector-volkswagen-na (Apache-2.0).
@@ -20,11 +20,77 @@ from aiohttp import ClientSession
 from .._util import mask_vin as _mask_vin
 from .._util import safe_float, safe_int
 from ..models import VehicleData
-from ..exceptions import AuthenticationError, APIError, TokenExpiredError
+from ..exceptions import (
+    AuthenticationError,
+    APIError,
+    CommandFailureReason,
+    TokenExpiredError,
+    classify_command_failure,
+)
 from ..auth.idk import IDKAuth
 from ..models import BrandConfig, TokenSet
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _classify_data_403(exc: APIError) -> str:
+    """v2.15.4 (#503) — classify a VW NA data-plane 403 from its body MARKERS.
+
+    Returns one of the short, value-free labels ``"attestation"`` /
+    ``"entitlement"`` / ``"bare-403"`` for the per-``get_status`` triage log.
+
+    ``classify_command_failure`` only sees ``str(exc)``, which truncates the
+    body to 200 chars (``exceptions.py`` ``APIError.__init__`` →
+    ``body[:200]``), so an attestation marker further into the body could be
+    cut off. We therefore re-classify against the retained ``exc.body`` (up to
+    4 KB) by building a throw-away ``APIError`` whose ``str()`` carries the
+    full body, then reuse the shared marker table — keeping ONE source of
+    truth for the attestation/entitlement vocabulary.
+
+    CRITICAL — privacy: the returned string is a fixed label only. The body is
+    inspected locally for substring markers and is NEVER returned, logged, or
+    attached to anything. Callers must log only the returned label.
+    """
+    body = exc.body if isinstance(getattr(exc, "body", None), str) else ""
+    # Feed the FULL retained body through the shared classifier by wrapping it
+    # in a probe whose str() exposes the whole body (no 200-char clip on the
+    # marker scan). url is fixed/empty so no real URL is ever materialised.
+    probe = APIError(exc.status, "", body)
+    # str(probe) still clips to body[:200]; classify off the full body instead
+    # by temporarily exposing it. We call the shared marker logic directly on a
+    # probe whose __str__ we don't rely on: re-run classify on a probe whose
+    # body[:200] already holds the markers when they're early, else fall to the
+    # explicit full-body marker grep below.
+    reason = classify_command_failure(probe)
+    if reason is CommandFailureReason.ATTESTATION_LOCKED:
+        return "attestation"
+    # Full-body (up to 4 KB) attestation marker grep — covers markers that sit
+    # past the 200-char str() clip the shared classifier scans.
+    low = body.lower()
+    if (
+        "missing-device-token" in low
+        or "missing_device_token" in low
+        or "forbidden device detected" in low
+        or "x-firebase-appcheck" in low
+        or "firebase-appcheck" in low
+        or "appcheck" in low
+        or "play integrity" in low
+        or "play_integrity" in low
+    ):
+        return "attestation"
+    if (
+        "not_entitled" in low
+        or "not-entitled" in low
+        or "license_required" in low
+        or "license-required" in low
+        or "entitlement" in low
+        or "subscription" in low
+    ):
+        return "entitlement"
+    if reason is CommandFailureReason.NOT_ENTITLED:
+        # status-only 403 with no body marker
+        return "bare-403"
+    return "bare-403"
 
 # Country → API base: US=us, CA=ca
 _COUNTRY_BASES: dict[str, str] = {
@@ -38,25 +104,33 @@ BRAND_VW_NA = BrandConfig(
     redirect_uri="kombi:///login",
     user_agent="MyVW/1.0 Android",
     api_base="https://b-h-s.spr.us00.p.con-veh.net",
-    # v2.11.0 (zackcornelius source-verified) - scope must be
-    # "openid profile cars vin", not bare "openid". The NA IDP
-    # returns reduced consent + missing claims when only "openid"
-    # is requested.
-    scope="openid profile cars vin",
+    # b13 (#503) — scope MUST stay bare "openid". APK-CONFIRMED: dismantling
+    # the live MyVW app (com.vw.carnet.release) shows the only OAuth scope
+    # literal in the DEX is bare "openid" — "openid profile cars vin" appears
+    # nowhere (not as literal, not url-encoded). v2.3.0 (#269) also live-
+    # confirmed it: NA tester roberttco hit HTTP 400 with the wider chain.
+    # v2.11.0 re-widened it from a source-read (never live-tested against NA)
+    # and silently regressed login → the authorize redirect never lands a
+    # code → "Legacy: no code in: identity.na.vwgroup.io/signin-service".
+    scope="openid",
 )
 
-# v2.11.0 (zackcornelius source-verified) - Canada needs its own
-# OAuth client_id. matpoulin's old shared client_id worked for some
-# accounts but the NA IDP rejects CA accounts that authenticate with
-# the US client_id on newer firmware revisions.
+# b13 (#503) — CA uses its own MYVW client_id. APK-CONFIRMED real: the live
+# MyVW DEX carries this exact id (alongside the US 59992128 and 5 others), so
+# it is a genuine app client, not an invented value. It is NOT the #503 cause
+# — a wrong client_id yields "invalid_client", whereas the observed "no code"
+# is a scope/consent symptom (fixed by the scope revert above). Kept as-is.
 _CA_CLIENT_ID = "69eb3c39-d2be-4006-8197-37cc4971e8fe_MYVW_ANDROID"
 
 # v2.3.0 (#269) — VW NA-specific IDP host: identity.na.vwgroup.io
-# (NOT identity.vwgroup.io). When the authorize-redirect lands on the
-# NA IDP, the signin-service URL uses a hardcoded NA client GUID
-# distinct from our API client_id. Per matpoulin's working flow.
+# (NOT identity.vwgroup.io). The authorize-redirect lands on this NA IDP and
+# the signin form is served here (relative form-action paths resolve against it).
 _NA_IDP_BASE = "https://identity.na.vwgroup.io"
-_NA_SIGNIN_CLIENT_GUID = "b680e751-7e1f-4008-8ec1-3a528183d215@apps_vw-dilab_com"
+# b14 (#503) — DORMANT/outdated. matpoulin's old "browser IDP client" GUID. It
+# is no longer wired in (see IDKAuth construction below): the current NA flow
+# uses the MYVW_ANDROID client throughout, so this would dead-end at
+# ``signin-service/v1/b680e751… → "no code"``. Kept documented, not used.
+_NA_SIGNIN_CLIENT_GUID_DORMANT = "b680e751-7e1f-4008-8ec1-3a528183d215@apps_vw-dilab_com"
 
 
 class VWNAClient:
@@ -82,7 +156,9 @@ class VWNAClient:
         self._base     = _COUNTRY_BASES.get(self._country, _COUNTRY_BASES["us"])
         self._tokens: TokenSet | None = None
         # VW NA uses IDK auth but against a country-specific endpoint.
-        # v2.11.0 - CA gets the dedicated CA client_id per zackcornelius.
+        # b13 (#503) — CA keeps its own APK-confirmed client_id; US uses the
+        # shared one. The #503 regression was the scope (reverted above), not
+        # this id.
         client_id = (
             _CA_CLIENT_ID if self._country == "ca" else BRAND_VW_NA.client_id
         )
@@ -113,20 +189,22 @@ class VWNAClient:
         #      relative form-actions + the ``Origin`` header must point
         #      at the right base.
         #
-        #   4. signin_client_id_override → hardcoded NA GUID
-        #      ``b680e751-7e1f-4008-8ec1-3a528183d215@apps_vw-dilab_com``.
-        #      The signin-service URL embeds a "browser IDP client" that
-        #      is distinct from our "device API client" (MYVW_ANDROID).
-        #
-        # Source: matpoulin/CarConnectivity-connector-volkswagen-na
-        # (Apache-2.0), cited at the top of this file.
+        # b14 (#503) — NO separate signin client_id. matpoulin's old GUID
+        # ``b680e751-…@apps_vw-dilab_com`` was used to build the fallback
+        # signin-service URL, but it is OUTDATED: with it, NA login dies at
+        # ``signin-service/v1/b680e751… → "no code"`` even after the b13 scope
+        # revert (Canaillee, b13 test). The current NA flow uses the SAME
+        # MYVW_ANDROID client throughout — verified against the live MyVW app
+        # (its DEX has zero ``b680e751`` / ``identity.na`` literals) and an
+        # independent working US implementation. Dropping the override makes
+        # ``idk._signin_client_id`` fall back to ``brand.client_id`` (the
+        # per-country 59992128 / 69eb3c39 MYVW client), matching the app.
         self._auth = IDKAuth(
             session,
             brand,
             authorize_url_override=f"{self._base}/oidc/v1/authorize",
             token_url_override=f"{self._base}/oidc/v1/token",
             idk_base_override=_NA_IDP_BASE,
-            signin_client_id_override=_NA_SIGNIN_CLIENT_GUID,
         )
         # UUID cache: VIN → UUID (returned by garage)
         self._vin_to_uuid: dict[str, str] = {}
@@ -141,6 +219,55 @@ class VWNAClient:
         # claim. Refer to the privileges + SPIN flow comments below for
         # the endpoints that consume it.
         self._user_id: str | None = None
+        # v2.15.4 (#503) — read-path entitlement surfacing. The coordinator
+        # polls these after each cycle (mirrors the OLA / data_act_no_data
+        # repair plumbing) to decide whether to raise the
+        # ``vw_na_data_forbidden`` Repair issue. They are set ONLY from the
+        # 403 marker classification + the privileges-call outcome inside
+        # ``get_status`` — never from a value, VIN, UUID or token. Markers-only.
+        self.vw_na_data_forbidden: bool = False
+        self.vw_na_data_forbidden_reason: str = ""
+        # Last HTTP status of the privileges (4th gather) call. ``None`` means
+        # the call wasn't attempted (no user_id) or succeeded; an int is the
+        # last error status. Used as the entitlement discriminator only.
+        self._last_privileges_status: int | None = None
+        # v2.15.5 (#503) — SPIN read-session auth (peer-confirmed:
+        # zackcornelius/CarConnectivity-connector-volkswagen-na, 2026-06-24).
+        # On locked-down NA accounts the rvs/ev reads 403 on the bare
+        # access_token but succeed when authorised with a per-vehicle
+        # ``carnetVehicleToken`` obtained via the SPIN challenge/session
+        # handshake. We cache that token per-UUID and only re-run the exchange
+        # when it is missing/expired (the S-PIN has a limited try budget — an
+        # exchange every poll would brick the user's PIN).
+        #   uuid -> (carnetVehicleToken, exp_epoch_or_None)
+        self._read_session_tokens: dict[str, tuple[str, float | None]] = {}
+        # LOCKOUT GUARD: once the SPIN read-session exchange fails for an auth
+        # reason (low remainingTries, 401/403 on the session POST, or a wrong
+        # S-PIN), we set this and NEVER retry the exchange this session — we
+        # fall back to the access_token read path. This avoids a poll-loop that
+        # would burn through the remaining S-PIN tries and lock the user out.
+        self._spin_read_session_disabled: bool = False
+        # One-time "S-PIN looks wrong" surfacing (set True after we've warned).
+        self._spin_read_warned: bool = False
+        # v2.15.5 (#503) — persistence counter so a bare-403 (active sub, no
+        # marker) that recurs across N polls surfaces the repair instead of
+        # staying silent forever. Reset on any successful / non-403 read.
+        self._bare_403_streak: int = 0
+
+    # v2.15.5 (#503) — number of consecutive bare-403 polls before we surface
+    # the vw_na_data_forbidden repair for an otherwise-silent persistent lock.
+    _BARE_403_PERSIST_THRESHOLD = 3
+    # remainingTries at/below which we refuse to spend an S-PIN attempt.
+    _SPIN_MIN_REMAINING_TRIES = 2
+    # Peer header block (Car-Net app fingerprint) applied ONLY to the rvs/ev
+    # data reads when authorising with a carnetVehicleToken. The login + garage
+    # path already returns 200 with the default headers and is left untouched.
+    _READ_HEADERS = {
+        "User-Agent": "Car-Net/60 CFNetwork/1121.2.2 Darwin/19.3.0",
+        "content-version": "1",
+        "Accept-Language": "en-us",
+        "Accept": "*/*",
+    }
 
     async def authenticate(self, mfa_code: str | None = None) -> None:
         """IDK PKCE login against VW NA endpoint."""
@@ -186,6 +313,177 @@ class VWNAClient:
                     self._user_id = sub
             except Exception:  # noqa: BLE001
                 _LOGGER.debug("VW NA: could not decode id_token sub claim")
+
+    @staticmethod
+    def _jwt_exp(token: str) -> float | None:
+        """Decode the ``exp`` (epoch seconds) claim from a JWT, locally.
+
+        No signature check (we don't hold the key and don't need to — we only
+        want to know when to stop reusing the cached carnetVehicleToken). Any
+        decode error returns ``None`` so the caller treats it as "no known
+        expiry" and re-runs the exchange next time it's needed.
+        """
+        try:
+            import base64  # noqa: PLC0415
+            import json as _json  # noqa: PLC0415
+            payload_b64 = token.split(".")[1]
+            payload_b64 += "=" * (4 - len(payload_b64) % 4)
+            payload = _json.loads(base64.urlsafe_b64decode(payload_b64))
+            exp = payload.get("exp")
+            if isinstance(exp, (int, float)):
+                return float(exp)
+        except Exception:  # noqa: BLE001
+            return None
+        return None
+
+    async def _get_read_session_token(self, vin: str) -> str | None:
+        """v2.15.5 (#503) — per-vehicle carnetVehicleToken for the data reads.
+
+        PEER-CONFIRMED (zackcornelius/CarConnectivity-connector-volkswagen-na,
+        pushed 2026-06-24): on locked-down NA accounts the rvs/ev reads 403 on
+        the bare access_token but succeed when authorised with a per-vehicle
+        ``carnetVehicleToken``. The token is obtained via a SPIN handshake:
+
+            1. GET  {base}/ss/v1/user/{uid}/challenge
+                    -> data.challenge (str) + data.remainingTries (int)
+            2. spinHash = SHA512(challenge + "." + spin).hexdigest().upper()
+            3. POST {base}/ss/v1/user/{uid}/vehicle/{uuid}/session
+                    body {idToken, spinHash, tsp:"WCT"}
+                    -> data.carnetVehicleToken (a JWT)
+
+        NOTE — this READ session endpoint
+        (``/ss/v1/user/{uid}/vehicle/{uuid}/session``) is DISTINCT from our
+        command-SPIN path (``/ss/v1/user/{uid}/spin`` with {challenge,response}
+        in ``_get_na_spin_session_token``). We implement the read flow exactly
+        as the peer does; we do NOT assume the two are identical.
+
+        SAFETY:
+        - S-PIN-gated: returns ``None`` immediately if no S-PIN is configured
+          (caller then keeps the plain access_token path → non-S-PIN users
+          unchanged).
+        - Cached per-UUID; only re-runs the exchange when the cached token is
+          missing or its JWT ``exp`` has passed → NOT every poll.
+        - Lockout-safe: if ``remainingTries`` is low or the session POST fails
+          for an auth reason, sets ``_spin_read_session_disabled`` and never
+          retries this session (fall back to access_token). Surfaces a single
+          warning if the S-PIN looks wrong.
+
+        Returns the carnetVehicleToken, or ``None`` to signal "use the plain
+        access_token read path".
+        """
+        # getattr defaults keep this safe for clients built via __new__ in
+        # tests (which skip __init__) — they have no S-PIN so we short-circuit.
+        spin = getattr(self, "_spin", "")
+        if not spin or not getattr(self, "_user_id", None) or not getattr(
+            self, "_tokens", None
+        ):
+            return None
+        if getattr(self, "_spin_read_session_disabled", False):
+            return None
+        if not hasattr(self, "_read_session_tokens"):
+            self._read_session_tokens = {}
+        if not hasattr(self, "_spin_read_warned"):
+            self._spin_read_warned = False
+        uuid = self._vin_to_uuid.get(vin, vin)
+
+        # ── cache hit (not expired) ───────────────────────────────────────────
+        cached = self._read_session_tokens.get(uuid)
+        if cached is not None:
+            token, exp = cached
+            if exp is None:
+                return token
+            # 60s skew so we don't hand back a token about to expire mid-read.
+            if exp - 60 > datetime.now(tz=timezone.utc).timestamp():
+                return token
+            # expired — drop it and re-exchange below
+            self._read_session_tokens.pop(uuid, None)
+
+        id_token = self._tokens.id_token if self._tokens else None
+        if not id_token:
+            return None
+
+        # ── 1) challenge ──────────────────────────────────────────────────────
+        try:
+            ch_resp = await self._get(
+                f"{self._base}/ss/v1/user/{self._user_id}/challenge"
+            )
+        except APIError as err:
+            _LOGGER.debug(
+                "VW NA read-session: challenge failed (%s) for vin ***%s — "
+                "falling back to access_token reads",
+                err.status, vin[-6:],
+            )
+            return None
+        if not isinstance(ch_resp, dict):
+            return None
+        _ch_nested = ch_resp.get("data")
+        data: dict[str, Any] = _ch_nested if isinstance(_ch_nested, dict) else ch_resp
+        challenge = data.get("challenge")
+        remaining = data.get("remainingTries")
+        if not isinstance(challenge, str) or not challenge:
+            return None
+        # LOCKOUT GUARD: refuse to spend an attempt when few tries remain.
+        if isinstance(remaining, int) and remaining <= self._SPIN_MIN_REMAINING_TRIES:
+            self._spin_read_session_disabled = True
+            if not self._spin_read_warned:
+                self._spin_read_warned = True
+                _LOGGER.warning(
+                    "VW NA read-session: only %d S-PIN attempt(s) remain — "
+                    "NOT spending one on the data-read session exchange to "
+                    "avoid locking your S-PIN. Falling back to the standard "
+                    "read path. Verify your S-PIN is correct, then reload the "
+                    "integration to re-enable the SPIN read path.",
+                    remaining,
+                )
+            return None
+
+        # ── 2) spinHash ───────────────────────────────────────────────────────
+        spin_hash = hashlib.sha512(
+            f"{challenge}.{spin}".encode("utf-8")
+        ).hexdigest().upper()
+
+        # ── 3) session ────────────────────────────────────────────────────────
+        try:
+            sess = await self._post(
+                f"{self._base}/ss/v1/user/{self._user_id}/vehicle/{uuid}/session",
+                json={"idToken": id_token, "spinHash": spin_hash, "tsp": "WCT"},
+            )
+        except APIError as err:
+            status = err.status or 0
+            if status in (401, 403):
+                # Wrong S-PIN (or PIN-protected lockout). DISABLE for the
+                # session so we never loop and burn the remaining tries.
+                self._spin_read_session_disabled = True
+                if not self._spin_read_warned:
+                    self._spin_read_warned = True
+                    _LOGGER.warning(
+                        "VW NA read-session: the S-PIN session exchange was "
+                        "rejected (%s) — your S-PIN may be wrong. Disabling the "
+                        "SPIN read path for this session (falling back to the "
+                        "standard reads) so we don't lock your S-PIN. Fix the "
+                        "S-PIN and reload the integration to retry.",
+                        status,
+                    )
+            else:
+                _LOGGER.debug(
+                    "VW NA read-session: session POST failed (%s) for vin "
+                    "***%s — falling back to access_token reads",
+                    status, vin[-6:],
+                )
+            return None
+        if not isinstance(sess, dict):
+            return None
+        _s_nested = sess.get("data")
+        sdata: dict[str, Any] = _s_nested if isinstance(_s_nested, dict) else sess
+        new_token = sdata.get("carnetVehicleToken")
+        if not isinstance(new_token, str) or not new_token:
+            return None
+        self._read_session_tokens[uuid] = (new_token, self._jwt_exp(new_token))
+        _LOGGER.debug(
+            "VW NA read-session: obtained carnetVehicleToken for vin ***%s "
+            "(cached)", vin[-6:],
+        )
+        return new_token
 
     async def get_vehicles(self) -> list[str]:
         """Return VINs from VW NA garage.
@@ -278,6 +576,9 @@ class VWNAClient:
         to ``None`` so the gated sensors stay hidden when the call
         fails or the user_id is unavailable.
         """
+        # v2.15.4 (#503) — reset the per-poll privileges status so a previous
+        # cycle's error never lingers as a false entitlement signal.
+        self._last_privileges_status = None
         if not self._user_id:
             _LOGGER.debug(
                 "VW NA: get_subscription_privileges skipped (no user_id captured)"
@@ -291,6 +592,10 @@ class VWNAClient:
         try:
             data = await self._get(url)
         except APIError as err:
+            # v2.15.4 (#503) — remember the status so get_status can use the
+            # privileges outcome as the entitlement discriminator. Numeric
+            # status only — never the body/url.
+            self._last_privileges_status = err.status
             # 401 / 403 / 404 are expected on accounts without an active
             # Car-Net subscription or on legacy firmware that does not
             # expose this endpoint. 5xx is also benign here, the rest
@@ -357,16 +662,159 @@ class VWNAClient:
         """Fetch vehicle status using UUID."""
         v = self._val
         uuid = self._vin_to_uuid.get(vin, vin)
+        # Defensive: tests construct the client via __new__ (skipping __init__),
+        # so the v2.15.5 counters may be absent. Treat as fresh.
+        if not hasattr(self, "_bare_403_streak"):
+            self._bare_403_streak = 0
+        if not hasattr(self, "_read_session_tokens"):
+            self._read_session_tokens = {}
         d = VehicleData(vin=vin, manufacturer="Volkswagen")
+        # Thread the human-friendly metadata cached during garage discovery.
+        # Without this, d.model was always None for VW US/CA, so Scout/Error
+        # reports showed model=None even though list_vehicles cached modelName.
+        d.model = self._vin_to_model.get(vin)
+        d.vehicle_nickname = self._vin_to_nickname.get(vin)
+
+        # v2.15.5 (#503) — SPIN read-session auth. On locked-down NA accounts
+        # the rvs/ev reads 403 on the bare access_token but succeed with a
+        # per-vehicle carnetVehicleToken (peer-confirmed). S-PIN-gated + cached
+        # + lockout-safe (see _get_read_session_token). ``None`` => keep the
+        # plain access_token path (non-S-PIN users + fallback are unchanged).
+        carnet_token = await self._get_read_session_token(vin)
 
         results = await asyncio.gather(
-            self._get(f"{self._base}/rvs/v1/vehicle/{uuid}"),
-            self._get(f"{self._base}/ev/v1/vehicle/{uuid}/charge/summary"),
-            self._get(f"{self._base}/ev/v1/vehicle/{uuid}/climate/summary"),
+            self._read(f"{self._base}/rvs/v1/vehicle/{uuid}", carnet_token),
+            self._read(f"{self._base}/ev/v1/vehicle/{uuid}/charge/summary", carnet_token),
+            self._read(f"{self._base}/ev/v1/vehicle/{uuid}/climate/summary", carnet_token),
             self.get_subscription_privileges(vin),
             return_exceptions=True,
         )
         vehicle_raw, charge, climate, privileges = results
+
+        # v2.15.3 (#503) — COMPACT shape-only DEBUG log so a user's DEBUG log
+        # reveals the real response shape without ever logging values (privacy).
+        # Emits, per response, either the exception repr OR the sorted top-level
+        # keys; for the charge dict it also drills into the batteryStatus /
+        # chargingStatus / plugStatus sub-object keys (the EV SoC/range lived in
+        # an unexpected sub-object — keys-only makes the next report diagnostic).
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            def _shape(obj: Any) -> str:
+                if isinstance(obj, Exception):
+                    # TYPE-ONLY: never log the exception repr — its message can
+                    # carry response-body fragments / a UUID. Surface the class
+                    # name plus an optional numeric HTTP status if one is attached.
+                    _st = getattr(obj, "status", None)
+                    return (
+                        f"EXC {type(obj).__name__} status={_st}"
+                        if isinstance(_st, int)
+                        else f"EXC {type(obj).__name__}"
+                    )
+                if isinstance(obj, dict):
+                    return f"dict keys={sorted(obj.keys())}"
+                return f"type={type(obj).__name__}"
+
+            _LOGGER.debug("VW NA get_status shapes: rvs=%s", _shape(vehicle_raw))
+            _LOGGER.debug("VW NA get_status shapes: charge=%s", _shape(charge))
+            if isinstance(charge, dict):
+                for _sub in ("batteryStatus", "chargingStatus", "plugStatus"):
+                    _val_sub = charge.get(_sub)
+                    if isinstance(_val_sub, dict):
+                        _LOGGER.debug(
+                            "VW NA get_status charge.%s keys=%s",
+                            _sub, sorted(_val_sub.keys()),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "VW NA get_status charge.%s type=%s",
+                            _sub, type(_val_sub).__name__,
+                        )
+            _LOGGER.debug("VW NA get_status shapes: climate=%s", _shape(climate))
+
+        # ── #503 read-path 403 triage + entitlement surfacing ──────────────────
+        # login + garage succeed but the per-vehicle reads (rvs / charge /
+        # climate) 403. Until now the only signal was the type+numeric-status
+        # shape log above, so attestation-lock vs not-entitled vs a bare 403
+        # could not be told apart. Classify the FIRST data 403 from its body
+        # MARKERS (never its text), emit ONE value-free DEBUG line, and use the
+        # privileges (4th gather) outcome as the entitlement discriminator.
+        #
+        # PRIVACY: every value below is a fixed label, a class name, or a
+        # numeric HTTP status. No UUID / VIN / body fragment / token is ever
+        # built into these strings (matches the shape-only log above).
+        data_403s = [
+            r for r in (vehicle_raw, charge, climate)
+            if isinstance(r, APIError) and getattr(r, "status", None) == 403
+        ]
+        if data_403s:
+            data_class = _classify_data_403(data_403s[0])
+            _LOGGER.debug(
+                "VW NA data 403 classified as %s (%d/3 reads 403)",
+                data_class, len(data_403s),
+            )
+            # Privileges shape/status as the entitlement discriminator —
+            # value-safe: only the dict-ness, an active bool, a count int, or
+            # the last error status.
+            priv_status = self._last_privileges_status
+            if isinstance(privileges, dict) and privileges:
+                _LOGGER.debug(
+                    "VW NA data 403 privileges: dict subscription_active=%s "
+                    "capabilities_count=%s",
+                    privileges.get("subscription_active"),
+                    privileges.get("capabilities_count"),
+                )
+            else:
+                _LOGGER.debug(
+                    "VW NA data 403 privileges: empty (last_status=%s)",
+                    priv_status,
+                )
+            # Entitlement decision: the data plane is forbidden AND either the
+            # privileges call also 403/401'd OR the privileges payload reports
+            # an INACTIVE subscription. Attestation locks are NOT an
+            # entitlement problem — never surface them as a phantom renewal.
+            sub_active = (
+                privileges.get("subscription_active")
+                if isinstance(privileges, dict)
+                else None
+            )
+            privileges_forbidden = priv_status in (401, 403)
+            # v2.15.5 (#503) — a carnetVehicleToken read that STILL 403s means
+            # the cached token is stale/rejected: drop it so the next poll
+            # re-exchanges (subject to the lockout guard). Never re-exchange in
+            # THIS poll (would risk a second S-PIN attempt back-to-back).
+            if carnet_token is not None:
+                self._read_session_tokens.pop(uuid, None)
+            if data_class == "attestation":
+                self.vw_na_data_forbidden = True
+                self.vw_na_data_forbidden_reason = "attestation"
+                self._bare_403_streak = 0
+            elif data_class == "entitlement" or privileges_forbidden or sub_active is False:
+                self.vw_na_data_forbidden = True
+                self.vw_na_data_forbidden_reason = "entitlement"
+                self._bare_403_streak = 0
+            else:
+                # Bare 403 with no corroborating entitlement signal — could be
+                # transient. v2.15.5 (#503): count consecutive bare-403 polls;
+                # once it persists past the threshold, surface the repair so a
+                # silent persistent lockout (active sub, no marker — e.g. the
+                # SPIN read path couldn't be used) isn't invisible forever.
+                self._bare_403_streak += 1
+                if self._bare_403_streak >= self._BARE_403_PERSIST_THRESHOLD:
+                    self.vw_na_data_forbidden = True
+                    self.vw_na_data_forbidden_reason = "bare-403"
+                    _LOGGER.debug(
+                        "VW NA data 403: bare-403 persisted %d polls — "
+                        "surfacing repair",
+                        self._bare_403_streak,
+                    )
+                else:
+                    self.vw_na_data_forbidden = False
+                    self.vw_na_data_forbidden_reason = "bare-403"
+        else:
+            # Any successful (or non-403) read clears the forbidden flag so the
+            # coordinator drops the Repair issue on recovery.
+            self.vw_na_data_forbidden = False
+            self.vw_na_data_forbidden_reason = ""
+            self._bare_403_streak = 0
 
         # ── Vehicle status ────────────────────────────────────────────────────
         if isinstance(vehicle_raw, dict):
@@ -385,7 +833,13 @@ class VWNAClient:
             # is "KM" or "MI"; pre-v2.11.0 we unconditionally treated
             # the value as km, miles users got their range under-
             # reported by ~38%.
+            # v2.15.2 (#503, MyVW APK) — modern NA backend splits range into
+            # cruiseRangeFirst/Second and may omit the bare cruiseRange; EVs
+            # report their range in cruiseRangeFirst, so a bare read left them
+            # with no range at all.
             range_raw = v(power, "cruiseRange")
+            if range_raw is None:
+                range_raw = v(power, "cruiseRangeFirst")
             range_unit = (v(power, "cruiseRangeUnits") or "KM").upper()
             if isinstance(range_raw, (int, float)):
                 if range_unit == "MI":
@@ -393,10 +847,10 @@ class VWNAClient:
                 else:
                     d.range_km = int(range_raw)
 
-            # Battery
-            bat = v(vehicle_raw, "batteryStatus") or {}
-            d.battery_soc = v(bat, "stateOfChargePercent")
-            d.has_battery = d.battery_soc is not None
+            # v2.15.3 (#503, MyVW APK DEX-verified) — the OLD rvs.batteryStatus
+            # read lived here. RvsResponse carries NO batteryStatus object, so it
+            # always returned None. EV SoC/range/charged-energy now come from the
+            # charge/summary BatteryStatus block below; has_battery is set there.
 
             # v2.10.0 (#322 roberttco — 2023 ID.4 US) — VW NA RVS
             # response shape migration. Pre-v2.10.0 we read doors and
@@ -590,15 +1044,36 @@ class VWNAClient:
                 v(charge, "chargeSettings", "targetSOCPercentage")
                 or v(charge, "chargingSettings", "targetSOC_pct")
             )
-            # v2.11.0 (zackcornelius source-verified): battery_soc lives
-            # on the charging endpoint at chargingStatus.currentSOCPct,
-            # NOT on the RVS endpoint (we attempted to read it from the
-            # wrong endpoint before).
-            soc_charge = v(charge, "chargingStatus", "currentSOCPct")
+            # v2.15.3 (#503, MyVW APK DEX-verified) — the EV traction SoC, range
+            # and charged energy live on charge/summary's BatteryStatus object
+            # (BatteryAndPlugStatusResponse.batteryStatus), a SIBLING of
+            # chargingStatus. The earlier chargingStatus.currentSOCPct read always
+            # returned None, and the /hvbattery endpoint (briefly tried in v2.15.2)
+            # is only the departure-timer "use HV battery" toggle, not a status
+            # read. Read SoC + range + charged-energy from batteryStatus instead.
+            bs = v(charge, "batteryStatus") or {}
+            soc_charge = v(bs, "currentSOCPct")
             if isinstance(soc_charge, (int, float)) and d.battery_soc is None:
                 d.battery_soc = int(soc_charge)
-            # v1.24.2 (audit): safe_int + safe_float defensive coerce
-            remaining_min = safe_int(v(charge, "chargingStatus", "remainingChargingTimeToComplete_min"))
+                d.has_battery = True
+            # BatteryStatus.cruisingRange = {engineType, range} (km on NA EV)
+            cr_range = v(bs, "cruisingRange", "range")
+            if isinstance(cr_range, (int, float)):
+                if d.range_km is None:
+                    d.range_km = int(cr_range)
+                if d.electric_range_km is None:
+                    d.electric_range_km = int(cr_range)
+            # v2.15.3 — BatteryStatus.chargeEnergy is the CURRENT-charge (per-
+            # session) value, not a lifetime total (matches the EU data-dict
+            # battery_state_report.charge_energy: a 0..1000 kWh gauge that reads
+            # 0 when idle). Route it to the per-session sensor, not the lifetime
+            # total_charged_energy_kwh.
+            ce = v(bs, "chargeEnergy")
+            if isinstance(ce, (int, float)) and ce >= 0 and d.charge_session_energy_kwh is None:
+                d.charge_session_energy_kwh = float(ce)
+            # charge-complete ETA — field is bare remainingChargingTimeToComplete;
+            # the prior ``_min`` suffix never matched (always None).
+            remaining_min = safe_int(v(charge, "chargingStatus", "remainingChargingTimeToComplete"))
             if remaining_min is not None and remaining_min > 0:
                 d.charge_complete_eta = datetime.now(tz=timezone.utc) + timedelta(minutes=remaining_min)
 
@@ -1041,26 +1516,63 @@ class VWNAClient:
 
     # ── HTTP helpers ──────────────────────────────────────────────────────────
 
+    async def _read(self, url: str, carnet_token: str | None) -> Any:
+        """v2.15.5 (#503) — a data read (rvs/ev), optionally SPIN-authorised.
+
+        When ``carnet_token`` is set, authorise with the per-vehicle
+        carnetVehicleToken (Bearer) and apply the peer Car-Net header block —
+        ONLY here, on the data reads. The login + garage path and every other
+        request keep ``_request``'s default headers + access_token, so the
+        already-working 200 path is untouched.
+
+        ``carnet_token=None`` (no S-PIN, or the exchange was skipped/failed)
+        delegates to the plain ``_get`` so non-S-PIN users behave exactly as
+        before.
+        """
+        if not carnet_token:
+            return await self._get(url)
+        headers = dict(self._READ_HEADERS)
+        headers["Authorization"] = f"Bearer {carnet_token}"
+        # _carnet_auth=True: tell _request not to overwrite the carnet Bearer
+        # with the access_token, and to skip the 401-refresh retry (a 401 here
+        # means the carnet token expired/was rejected, not the access_token).
+        return await self._request("GET", url, headers=headers, _carnet_auth=True)
+
     async def _get(self, url: str, **kwargs: Any) -> Any:
         return await self._request("GET", url, **kwargs)
 
     async def _post(self, url: str, **kwargs: Any) -> Any:
         return await self._request("POST", url, **kwargs)
 
-    async def _request(self, method: str, url: str, retry: bool = True, **kwargs: Any) -> Any:
+    async def _request(
+        self,
+        method: str,
+        url: str,
+        retry: bool = True,
+        _carnet_auth: bool = False,
+        **kwargs: Any,
+    ) -> Any:
         from aiohttp import ClientTimeout  # noqa: PLC0415
         if not self._tokens:
             raise AuthenticationError("Not authenticated")
         headers = kwargs.pop("headers", {})
-        headers.update({
-            "Authorization": f"Bearer {self._tokens.access_token}",
-            "User-Agent":    BRAND_VW_NA.user_agent,
-            "Accept":        "application/json",
-        })
+        if _carnet_auth:
+            # v2.15.5 (#503) — carnetVehicleToken read: the caller already set
+            # Authorization (Bearer <carnetVehicleToken>) + the peer header
+            # block. Do NOT clobber it with the access_token, and do NOT widen
+            # the header set (peer headers only). A bare Accept default is
+            # filled only if the caller omitted one.
+            headers.setdefault("Accept", "application/json")
+        else:
+            headers.update({
+                "Authorization": f"Bearer {self._tokens.access_token}",
+                "User-Agent":    BRAND_VW_NA.user_agent,
+                "Accept":        "application/json",
+            })
         async with self._session.request(
             method, url, headers=headers, timeout=ClientTimeout(total=30), **kwargs
         ) as resp:
-            if resp.status == 401 and retry:
+            if resp.status == 401 and retry and not _carnet_auth:
                 await self._refresh()
                 return await self._request(method, url, retry=False, **kwargs)
             if resp.status == 204:

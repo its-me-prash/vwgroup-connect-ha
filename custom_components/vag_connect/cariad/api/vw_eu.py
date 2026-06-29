@@ -1,15 +1,26 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Volkswagen EU API client — emea.bff.cariad.digital."""
 
 from __future__ import annotations
 
+import asyncio
+import base64
 from datetime import datetime, timedelta, timezone
+import json
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .._mbb import MbbOperationList
 
 from .._util import compute_connection_state, safe_float, safe_int
-from ..exceptions import APIError, AuthenticationError
+from ..exceptions import (
+    APIError,
+    AuthenticationError,
+    SpinError,
+    VehicleCommandError,
+)
 from ..models import BRAND_VW_EU, VehicleData
 from .base import CariadBaseClient
 
@@ -57,6 +68,34 @@ _SELECTIVE_STATUS_JOBS = ",".join([
     "vehicleHealthInspection",
     "vehicleHealthWarnings",
 ])
+
+
+def _find_flat(node: Any, key: str) -> Any:
+    """Return the first value for *key* anywhere in the nested *node*.
+
+    v2.15.1 — several flat BFF wire-keys (``petrolRange``, ``gasRange``,
+    ``currentCngLevel_pct``, ``batteryCapacityNetto``, ``oilLevelResult``,
+    ``engineStatus``, ``parkingBrakeStatus``, the per-corner ``*TireState`` /
+    ``*TireErrorCode``…) are documented on the selectivestatus envelope, but
+    the exact container under which a given firmware nests them is live-test
+    gated (MED confidence per the 2.15.0 plan). A targeted depth-first scan
+    for the exact key name is robust to placement without guessing the path,
+    and returns the first non-container value found (matching the leaf-value
+    semantics the rest of the parser relies on). Returns None if absent.
+    """
+    if isinstance(node, dict):
+        if key in node and not isinstance(node[key], (dict, list)):
+            return node[key]
+        for val in node.values():
+            found = _find_flat(val, key)
+            if found is not None:
+                return found
+    elif isinstance(node, list):
+        for item in node:
+            found = _find_flat(item, key)
+            if found is not None:
+                return found
+    return None
 
 
 class VWEUClient(CariadBaseClient):
@@ -152,19 +191,44 @@ class VWEUClient(CariadBaseClient):
                 )
             return vins
 
+        # v2.15.0 — durable MBB strategy: the token-based CARIAD garage is
+        # dead/attestation-gated for VW EU, so enumerate VINs via the legacy
+        # MBB usermanagement endpoint with the durable MBB bearer (NOT the BFF,
+        # and NOT self._get — that would send the bearer to the dead BFF host).
+        if self._tokens and self._tokens.strategy == "mbb":
+            return await self._get_vehicles_via_mbb()
+
         data = await self._get(f"{_BASE}/vehicle/v1/vehicles")
         vehicles: list[dict[str, Any]] = data.get("data", [])
 
         # Cache nickname/model per VIN — used in _parse_status to set device name
         # CARIAD returns: nickname (user-set in app), model, modelYear
+        #
+        # Privacy guard: myAudi/CARIAD defaults the vehicle "nickname" to the
+        # raw VIN when the owner never renamed the car, so a naive
+        # ``nickname or model`` lands the full VIN in ``d.model`` — which then
+        # leaks into the public Vehicle Data Scout / Error Reporter issue
+        # titles. Drop any candidate that *is* the VIN before it becomes the
+        # model. (_reporter_pipeline._safe_model is the hard backstop, but
+        # filtering here keeps device names + diagnostics clean too.)
+        def _pick_model(v: dict[str, Any], vin: str) -> str | None:
+            vin_u = vin.strip().upper()
+            for candidate in (
+                v.get("nickname"),      # user-set name (e.g. "Golf GTE")
+                v.get("vehicleNick"),
+                v.get("model"),
+                v.get("carModel"),
+            ):
+                if not isinstance(candidate, str):
+                    continue
+                trimmed = candidate.strip()
+                if trimmed and trimmed.upper() != vin_u:
+                    return trimmed
+            return None
+
         self._vehicle_metadata = {
             v["vin"]: {
-                "model": (
-                    v.get("nickname")       # user-set name (e.g. "Golf GTE")
-                    or v.get("vehicleNick")
-                    or v.get("model")
-                    or v.get("carModel")
-                ),
+                "model": _pick_model(v, v["vin"]),
                 "model_year": v.get("modelYear") or v.get("model_year"),
             }
             for v in vehicles if v.get("vin")
@@ -329,6 +393,11 @@ class VWEUClient(CariadBaseClient):
         method returns an empty list so the calling service never
         raises into the polling loop.
         """
+        # v2.15.0 — durable MBB tenants have no CARIAD-BFF POI access; never
+        # send the MBB bearer to the BFF host. POI lookup is unsupported on
+        # MBB, so return an empty list (the documented no-result shape).
+        if self._tokens and self._tokens.strategy == "mbb":
+            return []
         url = f"{_BASE}/charging-stations/v1/locations"
         params: dict[str, Any] = {
             "latitude": str(latitude),
@@ -384,6 +453,13 @@ class VWEUClient(CariadBaseClient):
                     await portal.login(self._email, self._password)
                 data = await portal.get_vehicle_data(vin)
             return data
+
+        # v2.15.0 — durable MBB strategy: route the whole status read through
+        # the legacy VSR endpoint with the MBB bearer + registered X-Client-Id.
+        # Never falls through to the dead BFF for MBB entries.
+        if self._tokens and self._tokens.strategy == "mbb":
+            return await self._get_status_via_mbb_vsr(vin)
+
         # v2.1.0 — per-VIN base URL via HomeRegion lookup.
         base = self._base_for_vin(vin)
         url = f"{base}/vehicle/v1/vehicles/{vin}/selectivestatus"
@@ -496,6 +572,49 @@ class VWEUClient(CariadBaseClient):
 
         return d
 
+    def _mbb_command_target(self) -> "VWEUClient | None":
+        """b12 — which connector runs MBB commands. On an MBB-PRIMARY entry
+        that's ``self`` (behaviour unchanged). On a read-only primary (EU Data
+        Act portal) with an armed MBB command channel it's that second
+        connector. None → no MBB path (falls through to the BFF, as before)."""
+        if self._tokens and self._tokens.strategy == "mbb":
+            return self
+        return getattr(self, "_mbb_command", None)
+
+    async def arm_mbb_command_channel(
+        self, tokens: Any, client_id: str, vins: list[str], spin: str = "",
+    ) -> bool:
+        """b12 — arm a durable-MBB command connector ALONGSIDE this (read-only
+        primary) client: commands route through MBB while reads stay on the
+        primary. Builds a second VWEUClient on the shared session (MBB = bearer,
+        no IDP-cookie clobber). Fail-soft → False leaves the slot None and the
+        primary unaffected. Skipped if THIS client is already MBB-primary."""
+        if not tokens or not getattr(tokens, "access_token", ""):
+            return False
+        if self._tokens and self._tokens.strategy == "mbb":
+            return False
+        try:
+            # VWEUClient is hardcoded to VW EU (MBB is VW-only); no brand kwarg.
+            cmd = VWEUClient(
+                self._session, self._email, self._password, spin or self._spin,
+            )
+            cmd.set_persisted_tokens(tokens)
+            cmd._mbb_client_id = client_id or ""
+            cmd._mbb_manual_vins = list(vins or [])
+            self._mbb_command = cmd
+            _LOGGER.info(
+                "VAG Connect: MBB command channel armed alongside the"
+                " read-only primary (commands → MBB, reads → primary)."
+            )
+            return True
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning(
+                "VAG Connect: could not arm MBB command channel (%s) —"
+                " primary unaffected.", type(err).__name__,
+            )
+            self._mbb_command = None
+            return False
+
     async def command_lock(self, vin: str, spin: str = "") -> None:
         """Lock vehicle — combined endpoint with separate-endpoint fallback,
         each tried on both /vehicle/v1/ and /vehicle/v2/ paths.
@@ -513,6 +632,12 @@ class VWEUClient(CariadBaseClient):
         on older / non-premium models that don't enforce the S-PIN
         requirement on lock.
         """
+        # v2.15.0 — durable MBB strategy uses the classic Car-Net RLU flow
+        # (3-leg S-PIN secure-token handshake + lock action), NOT the BFF.
+        _tgt = self._mbb_command_target()
+        if _tgt is not None:
+            await _tgt._command_rlu_mbb(vin, spin=spin, lock=True)
+            return
         primary_payload: dict[str, Any] = {"action": "lock"}
         fallback_payload: dict[str, Any] = {}
         if spin or self._spin:
@@ -535,6 +660,11 @@ class VWEUClient(CariadBaseClient):
         unlock endpoint accepts the PIN in the body, the same way the
         SecToken-using SEAT/CUPRA flow does in v1.8.4).
         """
+        # v2.15.0 — durable MBB strategy uses the classic Car-Net RLU flow.
+        _tgt = self._mbb_command_target()
+        if _tgt is not None:
+            await _tgt._command_rlu_mbb(vin, spin=spin, lock=False)
+            return
         primary_payload: dict[str, Any] = {"action": "unlock"}
         fallback_payload: dict[str, Any] = {}
         if spin or self._spin:
@@ -569,6 +699,10 @@ class VWEUClient(CariadBaseClient):
         unreliable). ️ [Inference] — body shape verified from upstream
         PRs but Audi never published a definitive PPE compatibility list.
         """
+        _tgt = self._mbb_command_target()
+        if _tgt is not None:
+            await _tgt._command_mbb_op(vin, "climate_start")
+            return
         if ppe_mode:
             fallback_payload = {
                 "climatisationMode": "comfort",
@@ -647,6 +781,10 @@ class VWEUClient(CariadBaseClient):
 
     async def command_stop_climate(self, vin: str) -> None:
         """Stop pre-conditioning — combined endpoint with separate fallback."""
+        _tgt = self._mbb_command_target()
+        if _tgt is not None:
+            await _tgt._command_mbb_op(vin, "climate_stop")
+            return
         await self._post_command_with_fallback_paths(
             vin,
             primary_suffix="climatisation/start-stop",
@@ -657,6 +795,10 @@ class VWEUClient(CariadBaseClient):
 
     async def command_start_charging(self, vin: str) -> None:
         """Start charging — combined endpoint with separate fallback."""
+        _tgt = self._mbb_command_target()
+        if _tgt is not None:
+            await _tgt._command_mbb_op(vin, "charge_start")
+            return
         await self._post_command_with_fallback_paths(
             vin,
             primary_suffix="charging/start-stop",
@@ -667,6 +809,10 @@ class VWEUClient(CariadBaseClient):
 
     async def command_stop_charging(self, vin: str) -> None:
         """Stop charging — combined endpoint with separate fallback."""
+        _tgt = self._mbb_command_target()
+        if _tgt is not None:
+            await _tgt._command_mbb_op(vin, "charge_stop")
+            return
         await self._post_command_with_fallback_paths(
             vin,
             primary_suffix="charging/start-stop",
@@ -678,14 +824,74 @@ class VWEUClient(CariadBaseClient):
     async def command_flash(
         self,
         vin: str,
-        latitude: float | None = None,  # noqa: ARG002
-        longitude: float | None = None,  # noqa: ARG002
+        latitude: float | None = None,
+        longitude: float | None = None,
     ) -> None:
-        """Honk and flash."""
-        await self._post(
-            f"{self._base_for_vin(vin)}/vehicle/v1/vehicles/{vin}/vehicleLights/flash",
-            json={"action": "flash"},
-        )
+        """Flash the lights — CARIAD-BFF ``honkandflash`` endpoint.
+
+        v2.15.5 — corrected from the invented ``vehicleLights/flash`` +
+        ``{"action":"flash"}`` shape (which the BFF rejected with a flat
+        ``400 Bad Request``) to the real We Connect EU contract, grounded
+        in the decompiled We Connect EU app:
+
+        - **Path**: ``/vehicle/v1/vehicles/{vin}/honkandflash`` (literal in
+          classes3.dex; routed via ``_post_command`` so it inherits the
+          v1→v2 404 fallback every other command uses).
+        - **Body**: a ``HonkAndFlashRequest`` whose ctor signature in the
+          DEX is ``(int duration, String mode, UserPosition userPosition)``
+          → JSON keys ``duration`` / ``mode`` / ``userPosition`` (the last
+          nesting ``latitude`` / ``longitude``).
+        - **Mode**: the CARIAD ``HonkAndFlashParameters$Mode`` enum has
+          exactly two members — ``HONK_AND_FLASH`` and ``FLASH_ONLY``.
+          We flash only, so ``mode = "FLASH_ONLY"``.
+        - **duration**: integer seconds; the app exposes a
+          ``HonkAndFlashDuration`` config — 10 s is a safe default.
+
+        The app's ``HonkAndFlashViewModel`` gates the command on a known
+        position (it shows ``location_disabled_alert`` and blocks the call
+        without a fix), so the BFF very likely requires ``userPosition``.
+
+        Resilient strategy (mirrors SEAT/CUPRA ``command_flash``): send the
+        bare ``mode``/``duration`` body first — some firmwares accept it and
+        this unblocks users whose vehicle has never reported GPS — and only
+        if the backend answers ``400`` do we retry with ``userPosition``
+        built from the caller-supplied coordinates. If the bare body 400s
+        and no coordinates are available, raise an actionable ``APIError``.
+
+        ️ Live-test gate: ``userPosition``/``latitude``/``longitude`` keys
+        and the location-gating UI behaviour are confirmed statically, but
+        whether the BFF *hard-rejects* a flash with ``userPosition`` omitted
+        (vs. only the honk variant) is the one detail not provable from the
+        static strings. The bare-body-then-position retry covers both cases.
+        """
+        body: dict[str, Any] = {"mode": "FLASH_ONLY", "duration": 10}
+        try:
+            await self._post_command(vin, "honkandflash", json=body)
+            return
+        except APIError as exc:
+            if exc.status != 400:
+                raise
+            # 400 → most likely the BFF wants a bounding ``userPosition``.
+            # Retry with coordinates if we have them; otherwise surface an
+            # actionable hint instead of an opaque "API error 400".
+            if latitude is None or longitude is None:
+                raise APIError(
+                    400,
+                    f"{self._base_for_vin(vin)}"
+                    f"/vehicle/v1/vehicles/{vin}/honkandflash",
+                    "honk-and-flash rejected the bare body (the BFF likely "
+                    "requires userPosition) AND no GPS position is available "
+                    "for this vehicle. Wake the car / wait for a status poll "
+                    "so a parking position is reported, then retry. If GPS "
+                    "stays empty, check whether privacy-mode is enabled in "
+                    "the head-unit settings.",
+                ) from exc
+            body["userPosition"] = {
+                # Truncate to ~11 m precision, matching the SEAT path.
+                "latitude": int(latitude * 10000) / 10000,
+                "longitude": int(longitude * 10000) / 10000,
+            }
+            await self._post_command(vin, "honkandflash", json=body)
 
     async def command_wake(self, vin: str) -> None:
         """Wake vehicle — Cariad-BFF first, MBB legacy fallback.
@@ -718,6 +924,15 @@ class VWEUClient(CariadBaseClient):
             MBBBackendCache,
             is_cariad_wrapper_404,
         )
+
+        # v2.15.0 — durable MBB strategy: never touch the CARIAD BFF. Go
+        # straight to the MBB wake (which uses the MBB-headered poster), so
+        # the bearer never leaks to the dead BFF host. Mirrors the gates on
+        # get_status / command_lock / command_unlock.
+        _tgt = self._mbb_command_target()
+        if _tgt is not None:
+            await _tgt._command_wake_mbb(vin)
+            return
 
         # v2.1.0 — ``_home_region_cache`` is now eager-init in __init__
         # (mypy strict). MBBBackendCache stays lazy because it's only
@@ -779,17 +994,29 @@ class VWEUClient(CariadBaseClient):
         if "cariad.digital" in read_base or "bff.cariad" in read_base:
             read_base = MBB_DEFAULT_READ_BASE
 
-        # Brand segment: Audi/VW. Country defaults to DE — most users
-        # are EU. Future enhancement: detect country from IDK token.
+        # Brand segment: Audi/VW. Country: for the durable MBB strategy use
+        # the account's own country from the id_token (CH/DE/AT…); the legacy
+        # IDK wrapper-404 path keeps the DE default.
         brand_name = self._brand.name  # 'volkswagen' or 'audi'
-        country = "DE"
+        if self._tokens and self._tokens.strategy == "mbb":
+            country = self._mbb_country_from_id_token() or "DE"
+        else:
+            country = "DE"
         url = build_mbb_wake_url(read_base, brand_name, country, vin)
         _LOGGER.debug(
             "MBB wake POST → %s (vin ***%s)",
             url.replace(vin, f"***{vin[-6:]}"),
             vin[-6:],
         )
-        await self._post(url, json={})
+        # v2.15.0 — for the durable MBB strategy the wake must carry the
+        # registered X-Client-Id / X-MbbUserId headers (the MBB backend 403s
+        # without them), so use the dedicated MBB poster. The legacy IDK-token
+        # wrapper-404 fallback path (non-mbb entries on older MIB3 cars) keeps
+        # its original ``self._post`` behaviour.
+        if self._tokens and self._tokens.strategy == "mbb":
+            await self._mbb_post_json(url, {})
+        else:
+            await self._post(url, json={})
 
     async def _maybe_fill_from_mbb_vsr(self, vin: str, d: VehicleData) -> None:
         """v1.25.0 PR-G — MBB VSR Phase 2 read-side fallback.
@@ -882,6 +1109,695 @@ class VWEUClient(CariadBaseClient):
                     "MBB VSR Phase 2: filled combustion_range_km=%d for ***%s",
                     range_km, vin[-6:],
                 )
+
+    # ── v2.15.0 — durable MBB strategy: auth-isolated HTTP + read + RLU ─────
+    #
+    # All MBB requests carry the MBB bearer (``self._access_token`` for an
+    # ``mbb`` entry) + the registered ``X-Client-Id`` (``self._mbb_client_id``)
+    # via these DEDICATED getters/posters — never ``self._get``/``self._post``,
+    # which would send the MBB bearer to the dead CARIAD BFF host. This keeps
+    # the blast radius of the MBB strategy to exactly these methods.
+
+    def _mbb_user_id(self) -> str:
+        """Return the ``sub`` claim of the id_token (X-MbbUserId), or ''.
+
+        Decodes only the public JWT payload — never the signature, never
+        logged. Some MBB endpoints 403 without this header even when the
+        security token is valid.
+        """
+        tok = self._tokens.id_token if self._tokens else ""
+        if not tok:
+            return ""
+        try:
+            payload = tok.split(".")[1]
+            payload += "=" * (-len(payload) % 4)
+            claims = json.loads(base64.urlsafe_b64decode(payload))
+        except (ValueError, IndexError, json.JSONDecodeError):
+            return ""
+        sub = claims.get("sub")
+        return sub if isinstance(sub, str) else ""
+
+    def _mbb_country_from_id_token(self) -> str | None:
+        """Best-effort ISO-2 country for the MBB market segment.
+
+        The fs-car path carries a ``{country}`` market segment (DE/CH/AT…).
+        Most VW id_tokens carry a ``locale`` (e.g. ``de-CH``) or an explicit
+        ``country`` claim; we read the region from there. Returns None when
+        nothing usable is present (caller falls back to a candidate list).
+        """
+        tok = self._tokens.id_token if self._tokens else ""
+        if not tok:
+            return None
+        try:
+            payload = tok.split(".")[1]
+            payload += "=" * (-len(payload) % 4)
+            claims = json.loads(base64.urlsafe_b64decode(payload))
+        except (ValueError, IndexError, json.JSONDecodeError):
+            return None
+        for key in ("country", "countryCode", "market"):
+            val = claims.get(key)
+            if isinstance(val, str) and len(val) == 2:
+                return val.upper()
+        locale = claims.get("locale")
+        if isinstance(locale, str) and "-" in locale:
+            region = locale.split("-")[-1]
+            if len(region) == 2:
+                return region.upper()
+        return None
+
+    def _mbb_app_identity(self) -> tuple[str, str]:
+        """``(X-App-Name, X-App-Version)`` for the active brand.
+
+        The fs-car / usermanagement endpoints gate on the app-identification
+        headers (grounded in the We Connect / myAudi app + the Bruno legacy
+        fixtures). Audi uses ``myAudi``; everything else the VW We Connect id.
+        """
+        if self._brand.name == "audi":
+            return "myAudi", "5.5.1"  # b13 (RE) — live myAudi build (was 4.24.0)
+        # b13 (#503 dismantle / H5) — bumped to the live We Connect version.
+        # Verified against the dismantled com.volkswagen.weconnect APK
+        # (versionName 3.63.2, androguard 2026-06). A fidelity check on the
+        # fs-car endpoints rejects stale versions, so tracking the current
+        # build hardens the command path; this is the value the App-Atlas
+        # refresh unblocked.
+        return "Volkswagen", "3.63.2"
+
+    def _mbb_headers(self, extra: dict[str, str] | None = None) -> dict[str, str]:
+        app_name, app_version = self._mbb_app_identity()
+        headers = {
+            "Authorization": f"Bearer {self._access_token}",
+            "X-Client-Id": self._mbb_client_id,
+            "Accept": "application/json",
+            # The MBB fs-car endpoints reject calls without the app-identity
+            # headers (usermanagement / rolesrights are picky); send them on
+            # every MBB request so reads, enumeration and commands all carry
+            # them. Grounded in the We Connect app + the mbb_legacy fixtures.
+            "X-App-Name": app_name,
+            "X-App-Version": app_version,
+            "User-Agent": "okhttp/3.14.9",
+        }
+        uid = self._mbb_user_id()
+        if uid:
+            headers["X-MbbUserId"] = uid
+        if extra:
+            headers.update(extra)
+        return headers
+
+    async def _mbb_ensure_fresh(self) -> None:
+        """b11 — PROACTIVELY refresh the durable MBB bearer before it expires.
+
+        The key MBB reads (operationList, VSR) run with ``_retry=False`` so a
+        data-plane ACL 401 can't trigger a refresh storm — which means the
+        reactive 401→refresh path is disabled for them. So the ONLY thing that
+        keeps the bearer alive is this pre-flight check: when the token is within
+        the 60s expiry skew, refresh it now via the durable MBB branch. (The
+        operationList comment used to assume a "scheduled refresh" that never
+        existed — this is it.) No-op for non-MBB strategies and fresh tokens.
+        """
+        tok = self._tokens
+        if tok and tok.strategy == "mbb" and tok.needs_refresh():
+            await self._refresh_tokens()
+
+    async def _mbb_get(self, url: str, *, _retry: bool = True) -> dict[str, Any]:
+        """GET an MBB endpoint with the MBB bearer + registered X-Client-Id.
+
+        Pre-flight refreshes the bearer if it's expiring (``_mbb_ensure_fresh``).
+        On a 401 (expired MBB bearer) refresh ONCE via the durable MBB refresh
+        branch and retry. These requests bypass ``base._request`` (the usual
+        401→refresh trigger). The storm guard in ``_refresh_tokens`` bounds
+        retries; ``_retry=False`` on the second attempt prevents recursion.
+        """
+        await self._mbb_ensure_fresh()
+        async with self._session.get(url, headers=self._mbb_headers()) as resp:
+            text = await resp.text()
+            if resp.status == 401 and _retry:
+                await self._refresh_tokens()
+                return await self._mbb_get(url, _retry=False)
+            if resp.status >= 400:
+                raise APIError(resp.status, url, body=text)
+            if not text:
+                return {}
+            try:
+                loaded = json.loads(text)
+            except ValueError:
+                return {}
+            return loaded if isinstance(loaded, dict) else {}
+
+    async def _mbb_post_json(
+        self, url: str, body: dict[str, Any], *, _retry: bool = True
+    ) -> dict[str, Any]:
+        """POST a JSON body to an MBB endpoint (leg-2 SPIN completion).
+
+        Refreshes once on a 401 and retries (see ``_mbb_get``).
+        """
+        await self._mbb_ensure_fresh()
+        headers = self._mbb_headers({"Content-Type": "application/json"})
+        async with self._session.post(url, json=body, headers=headers) as resp:
+            text = await resp.text()
+            if resp.status == 401 and _retry:
+                await self._refresh_tokens()
+                return await self._mbb_post_json(url, body, _retry=False)
+            if resp.status >= 400:
+                raise APIError(resp.status, url, body=text)
+            if not text:
+                return {}
+            try:
+                loaded = json.loads(text)
+            except ValueError:
+                return {}
+            return loaded if isinstance(loaded, dict) else {}
+
+    async def _mbb_post_rlu(
+        self, url: str, sec_token: str, *, _retry: bool = True
+    ) -> dict[str, Any]:
+        """POST the RLU lock/unlock action — EMPTY body, x-securityToken header.
+
+        The lock/unlock verb is encoded in the URL path tail, NOT a body
+        (the ``<rluAction>`` XML body is the deprecated pre-2019 variant).
+        The Content-Type must still be the RemoteLockUnlock vendor type or
+        the backend 415s. Refreshes once on a 401 and retries (see
+        ``_mbb_get``) — but note the ``sec_token`` is action-bound, so a 401
+        here is the bearer expiring, not the sec-token (which would 403).
+        """
+        from .._mbb import MBB_RLU_CONTENT_TYPE  # noqa: PLC0415
+
+        await self._mbb_ensure_fresh()
+        headers = self._mbb_headers({
+            "Content-Type": MBB_RLU_CONTENT_TYPE,
+            "x-securityToken": sec_token,
+        })
+        async with self._session.post(url, data=None, headers=headers) as resp:
+            text = await resp.text()
+            if resp.status == 401 and _retry:
+                await self._refresh_tokens()
+                return await self._mbb_post_rlu(url, sec_token, _retry=False)
+            if resp.status >= 400:
+                raise APIError(resp.status, url, body=text)
+            if not text:
+                return {}
+            try:
+                loaded = json.loads(text)
+            except ValueError:
+                return {}
+            return loaded if isinstance(loaded, dict) else {}
+
+    async def _mbb_resolve_read_base(self, vin: str) -> str:
+        """Resolve the per-VIN MBB read base via homeRegion (≠ setter host)."""
+        from .._home_region import resolve_home_region  # noqa: PLC0415
+        from .._mbb import MBB_DEFAULT_READ_BASE  # noqa: PLC0415
+
+        try:
+            read_base = await resolve_home_region(
+                self, vin, cache=self._home_region_cache,
+            )
+        except Exception:  # noqa: BLE001
+            read_base = MBB_DEFAULT_READ_BASE
+        if "cariad.digital" in read_base or "bff.cariad" in read_base:
+            read_base = MBB_DEFAULT_READ_BASE
+        return read_base
+
+    async def _get_vehicles_via_mbb(self) -> list[str]:
+        """Enumerate paired VINs via the legacy MBB usermanagement endpoint.
+
+        The account-level pairing call has no per-VIN homeRegion yet, and the
+        ``{country}`` market segment varies by account (CH/DE/AT…). We try the
+        id_token's country first, then common fallbacks, across the two known
+        hosts, and return on the first candidate that yields VINs. Every
+        candidate's HTTP status is logged so a persistent failure pinpoints the
+        endpoint instead of a vague "APIError". On total failure we return []
+        (never falling through to the dead BFF).
+        """
+        from .._mbb import (  # noqa: PLC0415
+            MBB_DEFAULT_READ_BASE,
+            build_mbb_vehicles_url,
+            parse_mbb_vehicle_vins,
+        )
+
+        self._vehicle_metadata = {}
+
+        # Primary path: user-supplied VIN(s). The durable MBB bearer is
+        # ``sc2:fal``-scoped (vehicle function/status layer) and is REJECTED by
+        # the account-level usermanagement garage endpoint (live-confirmed
+        # 2026-06-21: HTTP 403 ``RS.security.9007`` "no permission for systemId
+        # XID_APP_VW"). Vehicle-level reads/commands work with this token, so
+        # the user enters the VIN directly in the MBB login and we use it.
+        manual = [v for v in getattr(self, "_mbb_manual_vins", []) if v]
+        if manual:
+            _LOGGER.info(
+                "MBB: using %d user-supplied VIN(s) (garage enumeration is "
+                "not available to the fal-scoped MBB token).", len(manual),
+            )
+            return manual
+
+        # Fallback (best-effort): try the usermanagement endpoint anyway, in
+        # case some accounts/markets DO grant it. Single host — ``mal-1a`` is
+        # /api-only and 404s for /fs-car (live-confirmed). Log each status.
+        countries: list[str] = []
+        tok_country = self._mbb_country_from_id_token()
+        if tok_country:
+            countries.append(tok_country)
+        for c in ("CH", "DE", "AT"):
+            if c not in countries:
+                countries.append(c)
+
+        host = MBB_DEFAULT_READ_BASE
+        host_label = host.split("//")[-1].split("/")[0]
+        last_status: int | str = "?"
+        for country in countries:
+            url = build_mbb_vehicles_url(host, self._brand.name, country)
+            try:
+                resp = await self._mbb_get(url)
+            except APIError as err:
+                last_status = err.status
+                _LOGGER.warning(
+                    "MBB enum %s /%s → HTTP %s: %s",
+                    host_label, country, err.status, str(err.body)[:160],
+                )
+                continue
+            except Exception as err:  # noqa: BLE001
+                last_status = type(err).__name__
+                _LOGGER.warning(
+                    "MBB enum %s /%s → %s", host_label, country,
+                    type(err).__name__,
+                )
+                continue
+            vins = parse_mbb_vehicle_vins(resp)
+            if vins:
+                _LOGGER.info(
+                    "MBB enumeration OK via %s /%s → %d vehicle(s)",
+                    host_label, country, len(vins),
+                )
+                return vins
+            _LOGGER.warning(
+                "MBB enum %s /%s → HTTP 200 but no paired vehicles",
+                host_label, country,
+            )
+
+        _LOGGER.warning(
+            "MBB: no VIN available (enumeration last status %s, and no VIN was "
+            "entered). Reconfigure the MBB login and enter your VIN — the "
+            "durable token can't list the garage but works per-VIN.",
+            last_status,
+        )
+        return []
+
+    async def _get_mbb_operationlist(
+        self, vin: str,
+    ) -> "MbbOperationList | None":
+        """Fetch + cache the per-VIN MBB operationList (service directory).
+
+        Cached 12h — the licence/enrolment state changes rarely, and the call
+        is on the setter host (mal-1a, ``/api`` prefix). Returns a parsed
+        ``MbbOperationList`` or None on failure (caller treats None as
+        "unknown" — it does NOT block the read).
+        """
+        from .._mbb import (  # noqa: PLC0415
+            MBB_SETTER_BASE,
+            build_mbb_operationlist_url,
+            parse_mbb_operationlist,
+        )
+
+        if not hasattr(self, "_mbb_oplist_cache"):
+            self._mbb_oplist_cache: dict[
+                str, tuple[MbbOperationList, datetime]
+            ] = {}
+        now = datetime.now(tz=timezone.utc)
+        cached = self._mbb_oplist_cache.get(vin)
+        if cached and cached[1] > now:
+            return cached[0]
+
+        url = build_mbb_operationlist_url(MBB_SETTER_BASE, vin)
+        try:
+            # v2.15.0a10 — _retry=False: a 401 here is the data-plane ACL
+            # rejecting the MBB read, NOT an expired bearer. The default
+            # 401→refresh would hammer the refresh endpoint every poll and trip
+            # the refresh-storm guard (IP-ban risk, seen live). b11 — the bearer
+            # is instead kept fresh PROACTIVELY by _mbb_ensure_fresh() inside
+            # _mbb_get (refresh within the 60s expiry skew), so a genuine expiry
+            # no longer leaves every read 401-ing until restart.
+            resp = await self._mbb_get(url, _retry=False)
+        except APIError as err:
+            _LOGGER.warning(
+                "MBB operationList ***%s → HTTP %s: %s",
+                vin[-6:], err.status, str(err.body)[:160],
+            )
+            return None
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning(
+                "MBB operationList ***%s failed: %s", vin[-6:], type(err).__name__,
+            )
+            return None
+
+        oplist = parse_mbb_operationlist(resp, vin)
+        if oplist is not None:
+            self._mbb_oplist_cache[vin] = (oplist, now + timedelta(hours=12))
+            enabled = [s for s in oplist.services.values() if s.enabled]
+            _LOGGER.info(
+                "MBB operationList ***%s: role=%s status=%s, %d/%d services "
+                "enabled", vin[-6:], oplist.role, oplist.status,
+                len(enabled), len(oplist.services),
+            )
+        return oplist
+
+    def _apply_mbb_subscription(
+        self, d: VehicleData, oplist: "MbbOperationList | None",
+    ) -> None:
+        """Populate the subscription_* fields from the operationList status
+        service licence (surfaces as the subscription sensors in HA)."""
+        from .._mbb import mbb_operation_granted, mbb_subscription_active  # noqa: PLC0415
+
+        d.subscription_active = mbb_subscription_active(oplist)
+        # b1/B2 — "two-way available" symbol: at least one remote command
+        # (climate or charge) granted on a currently-licensed service. None when
+        # we have no operationList this poll (unknown), not False.
+        d.mbb_two_way_available = None if oplist is None else (
+            mbb_operation_granted(oplist, "rclima_v1", "P_START_CLIMA_NOSET")
+            or mbb_operation_granted(oplist, "rbatterycharge_v1", "P_START")
+        )
+        if oplist is None:
+            return
+        svc = oplist.status_service
+        if svc is None or not svc.license_expiry:
+            return
+        d.subscription_expiry_at = svc.license_expiry
+        try:
+            exp = datetime.fromisoformat(svc.license_expiry.replace("Z", "+00:00"))
+            if exp.tzinfo is None:
+                exp = exp.replace(tzinfo=timezone.utc)
+            delta = exp - datetime.now(tz=timezone.utc)
+            d.subscription_days_remaining = delta.days
+        except (ValueError, TypeError):
+            pass
+
+    async def _get_status_via_mbb_vsr(self, vin: str) -> VehicleData:
+        """Read vehicle status via the durable MBB VSR endpoint.
+
+        Strongest for combustion/PHEV (tank %, total range, AdBlue); EV
+        SoC/charging field IDs are not yet catalogued so those stay at the
+        ``VehicleData`` defaults until a live VSR dump confirms them.
+        """
+        from .._mbb import (  # noqa: PLC0415
+            MBB_VSR_FIELD_ADBLUE_RANGE_KM,
+            MBB_VSR_FIELD_TANK_PCT,
+            MBB_VSR_FIELD_TOTAL_RANGE_KM,
+            build_mbb_vsr_status_url,
+            mbb_subscription_active,
+            mbb_vsr_field_ids as _mbb_vsr_field_ids,
+            parse_mbb_vsr_field,
+        )
+
+        d = VehicleData(vin=vin)
+
+        # ── operationList: the service directory. It tells us, authoritatively,
+        # whether the vehicle-status service is LICENSED. The classic "no data"
+        # case is an EXPIRED We Connect subscription — every paid service is
+        # Disabled/noActiveLicense and the VSR read just 403s. Read it first so
+        # we (a) surface the subscription state on the entity and (b) skip the
+        # doomed VSR call (and its scary 403 log) when it's not licensed. ──
+        oplist = await self._get_mbb_operationlist(vin)
+        self._apply_mbb_subscription(d, oplist)
+        if mbb_subscription_active(oplist) is False:
+            _LOGGER.warning(
+                "MBB ***%s: the vehicle-status service is not licensed — your "
+                "We Connect subscription looks expired/inactive (renew it in "
+                "the We Connect app). Skipping the status read; the "
+                "subscription sensors still update.", vin[-6:],
+            )
+            return d
+
+        read_base = await self._mbb_resolve_read_base(vin)
+        country = self._mbb_country_from_id_token() or "DE"
+        host_label = read_base.split("//")[-1].split("/")[0]
+        url = build_mbb_vsr_status_url(read_base, self._brand.name, country, vin)
+        _LOGGER.info(
+            "MBB VSR status GET → host=%s country=%s (vin ***%s)",
+            host_label, country, vin[-6:],
+        )
+        try:
+            # v2.15.0a10 — _retry=False, see _get_mbb_operationlist: avoid the
+            # per-poll token-refresh storm when the data-plane ACL 401s the read.
+            resp = await self._mbb_get(url, _retry=False)
+        except APIError as err:
+            _LOGGER.warning(
+                "MBB VSR read ***%s via %s/%s → HTTP %s: %s",
+                vin[-6:], host_label, country, err.status, str(err.body)[:200],
+            )
+            return d
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning(
+                "MBB VSR read failed for ***%s (%s/%s): %s",
+                vin[-6:], host_label, country, type(err).__name__,
+            )
+            return d
+
+        tank = safe_int(parse_mbb_vsr_field(resp, MBB_VSR_FIELD_TANK_PCT))
+        if tank is not None:
+            d.fuel_level = tank
+        rng = safe_int(parse_mbb_vsr_field(resp, MBB_VSR_FIELD_TOTAL_RANGE_KM))
+        if rng is not None:
+            d.combustion_range_km = rng
+        adblue = safe_int(parse_mbb_vsr_field(resp, MBB_VSR_FIELD_ADBLUE_RANGE_KM))
+        if adblue is not None:
+            d.adblue_range_km = adblue
+
+        # Diagnostics: a 200 with an unexpected shape (or a car that hasn't
+        # reported) leaves every field None. Surface the actual envelope so the
+        # next round can map the real field IDs instead of guessing — list the
+        # field IDs the car DID return (capped), or the top-level keys if the
+        # StoredVehicleDataResponse envelope is missing entirely.
+        mapped = [v for v in (tank, rng, adblue) if v is not None]
+        if not mapped:
+            field_ids = _mbb_vsr_field_ids(resp)
+            if field_ids:
+                _LOGGER.warning(
+                    "MBB VSR ***%s via %s/%s → HTTP 200 but none of the mapped "
+                    "fields were present. Field IDs the car returned: %s",
+                    vin[-6:], host_label, country, ", ".join(field_ids[:40]),
+                )
+            else:
+                _LOGGER.warning(
+                    "MBB VSR ***%s via %s/%s → HTTP 200 but no StoredVehicleData "
+                    "fields. Envelope top-level keys: %s",
+                    vin[-6:], host_label, country,
+                    list(resp.keys())[:10] if isinstance(resp, dict) else type(resp).__name__,
+                )
+        else:
+            _LOGGER.info(
+                "MBB VSR ***%s → mapped %d field(s): fuel=%s range=%s adblue=%s",
+                vin[-6:], len(mapped), tank, rng, adblue,
+            )
+        return d
+
+    async def _command_rlu_mbb(
+        self, vin: str, *, spin: str = "", lock: bool = True,
+    ) -> None:
+        """Lock/unlock via the classic Car-Net 3-leg S-PIN SecToken + RLU flow.
+
+        Leg 1: GET the SPIN challenge.  Leg 2: POST the hashed SPIN → level-2
+        security token.  Leg 3: POST the empty-body lock/unlock action with
+        ``x-securityToken`` → poll the request status. The S-PIN is validated
+        locally first (a wrong hash burns one of the three allowed tries).
+        """
+        from .._mbb import (  # noqa: PLC0415
+            MBB_SETTER_BASE,
+            build_mbb_completed_body,
+            build_mbb_rlu_action_url,
+            build_mbb_spin_challenge_url,
+            build_mbb_spin_completed_url,
+            compute_spin_hash,
+            parse_mbb_completed_token,
+            parse_mbb_rlu_request_id,
+            parse_mbb_spin_challenge,
+            validate_spin_format,
+        )
+
+        verb = "lock" if lock else "unlock"
+        pin = spin or self._spin
+        if not pin:
+            raise SpinError("S-PIN required for MBB lock/unlock")
+        validate_spin_format(pin)  # raises locally BEFORE burning a try
+
+        setter = MBB_SETTER_BASE
+
+        # Leg 1 — challenge
+        ch_resp = await self._mbb_get(
+            build_mbb_spin_challenge_url(setter, vin, lock=lock)
+        )
+        level1, challenge, remaining = parse_mbb_spin_challenge(ch_resp)
+        if not level1 or not challenge:
+            raise VehicleCommandError(verb, "MBB SPIN challenge missing token/challenge")
+        if remaining is not None and remaining < 2:
+            raise SpinError(
+                f"S-PIN has only {remaining} attempt(s) left — refusing to "
+                "risk a lockout. Verify your S-PIN in the brand app first."
+            )
+
+        # Leg 2 — submit hashed SPIN, get the level-2 security token
+        spin_hash = compute_spin_hash(pin, challenge)
+        comp_resp = await self._mbb_post_json(
+            build_mbb_spin_completed_url(setter),
+            build_mbb_completed_body(level1, challenge, spin_hash),
+        )
+        sec_token = parse_mbb_completed_token(comp_resp)
+        if not sec_token:
+            raise VehicleCommandError(verb, "MBB SPIN completion returned no token")
+
+        # Leg 3 — the action (empty body) + poll
+        action_resp = await self._mbb_post_rlu(
+            build_mbb_rlu_action_url(setter, vin, lock=lock), sec_token,
+        )
+        request_id = parse_mbb_rlu_request_id(action_resp)
+        _LOGGER.info(
+            "MBB %s sent for ***%s (request_id=%s)",
+            verb, vin[-6:], request_id or "(none)",
+        )
+        if request_id:
+            await self._poll_mbb_rlu(setter, vin, request_id, verb)
+
+    async def _poll_mbb_rlu(
+        self, setter: str, vin: str, request_id: str, verb: str,
+    ) -> None:
+        """Poll the RLU request status until success/fail or timeout (~45s)."""
+        from .._mbb import (  # noqa: PLC0415
+            build_mbb_rlu_status_url,
+            parse_mbb_rlu_status,
+        )
+
+        url = build_mbb_rlu_status_url(setter, vin, request_id)
+        for _ in range(15):
+            await asyncio.sleep(3)
+            try:
+                resp = await self._mbb_get(url)
+            except Exception:  # noqa: BLE001
+                continue
+            status = parse_mbb_rlu_status(resp)
+            if status in ("request_successful", "succeeded"):
+                _LOGGER.info("MBB %s confirmed for ***%s", verb, vin[-6:])
+                return
+            if status in ("request_fail", "failed"):
+                raise VehicleCommandError(
+                    verb, f"MBB backend reported {status} (door open / key inside?)"
+                )
+        _LOGGER.warning(
+            "MBB %s status poll timed out for ***%s — command may still complete",
+            verb, vin[-6:],
+        )
+
+    async def _mbb_post_action(
+        self, url: str, sec_token: str, body: str | None, content_type: str,
+        *, _retry: bool = True,
+    ) -> dict[str, Any]:
+        """POST an MBB write-command action (XML body) with the level-2
+        x-securityToken + the vendor content-type. Refresh-once on 401."""
+        await self._mbb_ensure_fresh()
+        headers = self._mbb_headers({
+            "Content-Type": content_type,
+            "x-securityToken": sec_token,
+        })
+        data = body.encode("utf-8") if isinstance(body, str) else None
+        async with self._session.post(url, data=data, headers=headers) as resp:
+            text = await resp.text()
+            if resp.status == 401 and _retry:
+                await self._refresh_tokens()
+                return await self._mbb_post_action(
+                    url, sec_token, body, content_type, _retry=False)
+            if resp.status >= 400:
+                raise APIError(resp.status, url, body=text)
+            if not text:
+                return {}
+            try:
+                loaded = json.loads(text)
+            except ValueError:
+                return {}
+            return loaded if isinstance(loaded, dict) else {}
+
+    async def _command_mbb_op(
+        self, vin: str, command_name: str, *, spin: str = "",
+        body_override: str | None = None,
+    ) -> None:
+        """Durable MBB write-command via the 3-leg SecToken flow, routed
+        GENERICALLY through the operationList (per-service host = correct for
+        any country/brand) and gated on the operation actually being granted.
+
+        Live-confirmed that leg-1 (security-pin-auth-requested) = HTTP 200 for
+        climate/charge — so this drives DURABLE two-way where data reads can't.
+        """
+        from .._mbb import (  # noqa: PLC0415
+            MBB_COMMANDS,
+            MBB_SETTER_BASE,
+            build_mbb_action_url,
+            build_mbb_completed_body,
+            build_mbb_op_auth_url,
+            build_mbb_spin_completed_url,
+            compute_spin_hash,
+            mbb_operation_granted,
+            mbb_service_base,
+            parse_mbb_action_request_id,
+            parse_mbb_completed_token,
+            parse_mbb_spin_challenge,
+            validate_spin_format,
+        )
+
+        spec = MBB_COMMANDS.get(command_name)
+        if spec is None:
+            raise VehicleCommandError(command_name, "unknown MBB command")
+        pin = spin or self._spin
+        if not pin:
+            raise SpinError(f"S-PIN required for MBB {command_name}")
+        validate_spin_format(pin)
+
+        # operationList → per-service host (generic) + granted gate
+        oplist = await self._get_mbb_operationlist(vin)
+        country = self._mbb_country_from_id_token() or "DE"
+        base = mbb_service_base(
+            oplist, spec.service_id, brand=self._brand.name,
+            country=country, vin=vin)
+        if base is None:
+            raise VehicleCommandError(
+                command_name,
+                f"{spec.service_id} not available on this vehicle "
+                "(not in the operationList)")
+        if not mbb_operation_granted(oplist, spec.service_id, spec.operation_id):
+            raise VehicleCommandError(
+                command_name,
+                f"{spec.operation_id} not granted — check the We Connect "
+                "subscription / that you're the primary user")
+
+        setter = MBB_SETTER_BASE
+        # Leg 1 — operation-specific SecToken challenge
+        ch = await self._mbb_get(
+            build_mbb_op_auth_url(setter, vin, spec.service_id, spec.operation_id))
+        level1, challenge, remaining = parse_mbb_spin_challenge(ch)
+        if not level1 or not challenge:
+            raise VehicleCommandError(command_name, "SecToken challenge missing")
+        if remaining is not None and remaining < 2:
+            raise SpinError(
+                f"S-PIN has only {remaining} attempt(s) left — refusing to risk "
+                "a lockout. Verify your S-PIN in the brand app first.")
+        # Leg 2 — submit hashed S-PIN
+        comp = await self._mbb_post_json(
+            build_mbb_spin_completed_url(setter),
+            build_mbb_completed_body(level1, challenge, compute_spin_hash(pin, challenge)))
+        sec = parse_mbb_completed_token(comp)
+        if not sec:
+            raise VehicleCommandError(command_name, "SecToken completion returned no token")
+        # Leg 3 — the action on the service's own host
+        url = build_mbb_action_url(base, spec.action_subpath)
+        resp = await self._mbb_post_action(
+            url, sec, body_override if body_override is not None else spec.body,
+            spec.content_type)
+        request_id = parse_mbb_action_request_id(resp)
+        # NOTE: we deliberately do NOT poll for confirmation on the climater/
+        # charger/timer actions. The action fires correctly above, but their
+        # per-service status URL + response envelope differ from the RLU one
+        # and aren't live-captured yet — reusing the RLU poll (different host +
+        # path) would just 404 for ~45s and block the coordinator. HA reflects
+        # the new state on the next poll cycle. (RLU keeps its own poll in
+        # _command_rlu_mbb.) Wire a per-service _poll_mbb_action once the
+        # climater/charger status shape is captured live.
+        _LOGGER.info(
+            "MBB command %s sent for ***%s (request_id=%s) — state updates "
+            "on the next poll", command_name, vin[-6:], request_id or "(none)")
 
     # ── v1/v2 endpoint dispatch (Session 3A — #51, #74) ─────────────────────
     #
@@ -981,6 +1897,13 @@ class VWEUClient(CariadBaseClient):
 
     async def command_set_target_soc(self, vin: str, target: int) -> None:
         """Set charge target SoC. Tries v1 first, falls back to v2 on 404."""
+        _tgt = self._mbb_command_target()
+        if _tgt is not None:
+            from .._mbb import build_mbb_charger_settings_body  # noqa: PLC0415
+            await _tgt._command_mbb_op(
+                vin, "charge_target_soc",
+                body_override=build_mbb_charger_settings_body(target))
+            return
         await self._post_command(
             vin, "charging/settings", json={"targetSOC_pct": target},
         )
@@ -1033,6 +1956,10 @@ class VWEUClient(CariadBaseClient):
 
     async def command_start_window_heating(self, vin: str) -> None:
         """Start window heating (front windscreen + rear window)."""
+        _tgt = self._mbb_command_target()
+        if _tgt is not None:
+            await _tgt._command_mbb_op(vin, "window_heat_start")
+            return
         await self._post(
             f"{self._base_for_vin(vin)}/vehicle/v1/vehicles/{vin}/climatisation/windowheating/start-stop",
             json={"action": "start"},
@@ -1040,6 +1967,10 @@ class VWEUClient(CariadBaseClient):
 
     async def command_stop_window_heating(self, vin: str) -> None:
         """Stop window heating."""
+        _tgt = self._mbb_command_target()
+        if _tgt is not None:
+            await _tgt._command_mbb_op(vin, "window_heat_stop")
+            return
         await self._post(
             f"{self._base_for_vin(vin)}/vehicle/v1/vehicles/{vin}/climatisation/windowheating/start-stop",
             json={"action": "stop"},
@@ -1540,6 +2471,12 @@ class VWEUClient(CariadBaseClient):
             or v(raw, "charging", "chargingCareSettings", "value", "batteryCareTargetSoc")
         )
         d.battery_care_target_soc_pct = safe_int(care_target)
+        # v2.15.1 — flat `batteryCareTargetSOC_pct` is a FALLBACK ONLY behind the
+        # canonical batteryChargingCare path above. Only fill it when that path
+        # left the field None — do NOT double-map / clobber a real value.
+        if d.battery_care_target_soc_pct is None:
+            _bcare_flat = _find_flat(raw, "batteryCareTargetSOC_pct")
+            d.battery_care_target_soc_pct = safe_int(_bcare_flat)
 
         # v1.26.0 — Auto-Unlock plug when charged. From scout #144 VW ID.4 Pro.
         auto_unlock_raw = v(raw, "charging", "chargingSettings", "value", "autoUnlockPlugWhenCharged")
@@ -1552,12 +2489,28 @@ class VWEUClient(CariadBaseClient):
 
         # v1.26.0 — Next-Charging-Timer info (read-side complement to v1.16.0
         # write-side). From scout #144/#145/#146/#147 (3-user convergence).
+        # v2.15.4 (#530 audi) — some Audi firmware ships the same two fields
+        # under a DIFFERENT container: ``chargingProfiles.chargingProfilesStatus
+        # .value.nextChargingTimer.{id,targetSOCreachable}`` instead of the
+        # ``automation.chargingProfiles.value.nextChargingTimer.*`` path. Keep
+        # the automation path PRIMARY; the chargingProfilesStatus container is a
+        # FALLBACK (first-non-null wins). Same model fields/entities/i18n.
         nct_id = v(raw, "automation", "chargingProfiles", "value", "nextChargingTimer", "id")
+        if nct_id is None:
+            nct_id = v(
+                raw, "chargingProfiles", "chargingProfilesStatus", "value",
+                "nextChargingTimer", "id",
+            )
         d.next_charging_timer_id = safe_int(nct_id)
         nct_target = v(
             raw, "automation", "chargingProfiles", "value",
             "nextChargingTimer", "targetSOCreachable",
         )
+        if nct_target is None:
+            nct_target = v(
+                raw, "chargingProfiles", "chargingProfilesStatus", "value",
+                "nextChargingTimer", "targetSOCreachable",
+            )
         if isinstance(nct_target, str) and nct_target:
             d.next_charging_timer_target_soc_reachable = nct_target
 
@@ -2210,7 +3163,18 @@ class VWEUClient(CariadBaseClient):
 
         # ── Climatisation ─────────────────────────────────────────────────────
         d.climatisation_state = v(raw, "climatisation", "climatisationStatus", "value", "climatisationState")
-        d.climatisation_active = d.climatisation_state not in (None, "OFF", "CLIMATISATION_STATUS_UNAVAILABLE")
+        # v2.15.0a9 — #442 (nekas123, Audi e-tron): the car can report
+        # ``climatisationState = "invalid"`` (a degraded/no-data sentinel — seen
+        # when climatisation can't start, e.g. at a low battery level). The old
+        # check only treated OFF / CLIMATISATION_STATUS_UNAVAILABLE as inactive,
+        # so "invalid" (and any case variant) fell through to active=True — a
+        # false positive. Normalise case and treat the no-data sentinels as off.
+        _clima = d.climatisation_state
+        d.climatisation_active = (
+            _clima is not None
+            and str(_clima).strip().upper()
+            not in ("OFF", "INVALID", "CLIMATISATION_STATUS_UNAVAILABLE", "UNSUPPORTED")
+        )
         d.target_temperature = v(raw, "climatisation", "climatisationSettings", "value", "targetTemperature_C")
 
         # v2.2.3 — scout #272 (VW EU arvcer 2026-05-23): third member
@@ -2517,6 +3481,20 @@ class VWEUClient(CariadBaseClient):
             if isinstance(oil_pct, (int, float)):
                 d.oil_level_pct = int(oil_pct)
 
+        # v2.15.1 — flat `oilLevelResult` wire-key (BFF dialect). Maps into the
+        # same oil_level_status field + derives oil_level_warning with the same
+        # logic as the structured oilLevel block above. Guard is None so the
+        # structured path (when present) stays authoritative.
+        if d.oil_level_status is None:
+            oil_result = _find_flat(raw, "oilLevelResult")
+            if isinstance(oil_result, str) and oil_result:
+                d.oil_level_status = oil_result
+                lowered = oil_result.lower()
+                if lowered in ("normal", "ok", "sufficient"):
+                    d.oil_level_warning = False
+                elif "warning" in lowered or "service" in lowered or "low" in lowered:
+                    d.oil_level_warning = True
+
         # v2.7.0b10 — tyrePressure job, parity with upstream.
         # Backend ships per-corner status + numeric pressure (kPa or bar
         # depending on firmware). Convert kPa->bar when needed (divide by
@@ -2564,6 +3542,34 @@ class VWEUClient(CariadBaseClient):
                 )
             elif isinstance(warning_raw, bool):
                 d.tire_pressure_warning = warning_raw
+
+            # v2.15.1 — per-corner tire STATE + ERROR CODE (BFF dialect NEW
+            # fields). Walk the same value block: route by corner substring,
+            # then by `state` vs `errorcode`/`errcode` in the key. State is a
+            # lowercased passthrough string; errorcode is int with the 0/1
+            # sentinels (unsupported / invalid) dropped to None.
+            for key, value in tyre_value.items():
+                klow = key.lower()
+                corner: str | None = None
+                if "frontleft" in klow or "_fl" in klow or klow.startswith("fl"):
+                    corner = "fl"
+                elif "frontright" in klow or "_fr" in klow or klow.startswith("fr"):
+                    corner = "fr"
+                elif "rearleft" in klow or "_rl" in klow or klow.startswith("rl"):
+                    corner = "rl"
+                elif "rearright" in klow or "_rr" in klow or klow.startswith("rr"):
+                    corner = "rr"
+                if corner is None:
+                    continue
+                if "errorcode" in klow or "errcode" in klow or "error_code" in klow:
+                    ec = safe_int(value)
+                    if ec is not None and ec not in (0, 1):
+                        setattr(d, f"tire_pressure_{corner}_errorcode", ec)
+                elif "state" in klow and "status" not in klow:
+                    if isinstance(value, str) and value:
+                        setattr(
+                            d, f"tire_pressure_{corner}_state", value.lower()
+                        )
 
         d.service_km = v(raw, "vehicleHealthInspection", "maintenanceStatus", "value", "inspectionDue_km")
         d.service_due_at = v(raw, "vehicleHealthInspection", "maintenanceStatus", "value", "inspectionDue_days")
@@ -2795,5 +3801,71 @@ class VWEUClient(CariadBaseClient):
         from .._util import derive_car_type_if_missing  # noqa: PLC0415
 
         derive_car_type_if_missing(d)
+
+        # ── v2.15.1 — flat BFF wire-key mapping (2.15.0 plan) ───────────────
+        # Runs LAST so the structured engine/range blocks above stay
+        # authoritative. Each flat key is scanned defensively via _find_flat
+        # since its exact container on selectivestatus is live-test gated.
+
+        # petrolRange → combustion_range_km, only if the structured block
+        # left it None (guard is None so the engine block wins).
+        if d.combustion_range_km is None:
+            d.combustion_range_km = safe_int(_find_flat(raw, "petrolRange"))
+
+        # gasRange (CNG) → cng_range_km preferred, else combustion_range_km.
+        _gas = safe_int(_find_flat(raw, "gasRange"))
+        if _gas is not None:
+            if d.cng_range_km is None:
+                d.cng_range_km = _gas
+            elif d.combustion_range_km is None:
+                d.combustion_range_km = _gas
+
+        # currentCngLevel_pct → cng_level_pct (0–100).
+        if d.cng_level_pct is None:
+            d.cng_level_pct = safe_int(_find_flat(raw, "currentCngLevel_pct"))
+
+        # batteryCapacityNetto → battery_cap_kwh. kWh vs Wh: a value > 500 is
+        # treated as Wh and divided by 1000 (live-test heuristic).
+        if d.battery_cap_kwh is None:
+            _cap = safe_float(_find_flat(raw, "batteryCapacityNetto"))
+            if _cap is not None:
+                d.battery_cap_kwh = _cap / 1000.0 if _cap > 500 else _cap
+
+        # parkingBrakeStatus → parking_brake_engaged (shared field). enum→bool.
+        _pbrk = _find_flat(raw, "parkingBrakeStatus")
+        if _pbrk is not None:
+            if isinstance(_pbrk, bool):
+                d.parking_brake_engaged = _pbrk
+            elif isinstance(_pbrk, str):
+                d.parking_brake_engaged = _pbrk.lower() in (
+                    "engaged", "applied", "set", "on", "true", "active",
+                )
+
+        # — BFF NEW fields —
+        # lpgRange → lpg_range_km.
+        d.lpg_range_km = safe_int(_find_flat(raw, "lpgRange"))
+
+        # engineStatus → engine_status (lowercased; bool→on/off).
+        _eng = _find_flat(raw, "engineStatus")
+        if isinstance(_eng, bool):
+            d.engine_status = "on" if _eng else "off"
+        elif isinstance(_eng, str) and _eng:
+            d.engine_status = _eng.lower()
+
+        # trip_avg_aux_consumption_kwh — LOW, unit ambiguous → NOT rescaled.
+        _aux = safe_float(
+            _find_flat(raw, "tripAverageAuxConsumption")
+            or _find_flat(raw, "averageAuxiliaryConsumption")
+        )
+        if _aux is not None:
+            d.trip_avg_aux_consumption_kwh = _aux
+
+        # departure_charge_kwh — LOW.
+        _dep = safe_float(
+            _find_flat(raw, "departureCharge")
+            or _find_flat(raw, "departureChargeEnergy_kwh")
+        )
+        if _dep is not None:
+            d.departure_charge_kwh = _dep
 
         return d

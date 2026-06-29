@@ -17,6 +17,7 @@
           "username": "Email Address",
           "password": "Password",
           "spin": "S-PIN",
+          "country": "Region (Volkswagen US/Canada only)",
           "scan_interval": "Update Interval",
           "force_enable_access": "Force Door Status"
         }
@@ -39,8 +40,10 @@
           "username": "Email Address",
           "password": "Password",
           "spin": "S-PIN",
+          "country": "Region (Volkswagen US/Canada only)",
           "scan_interval": "Update Interval",
-          "force_enable_access": "Force Door Status"
+          "force_enable_access": "Force Door Status",
+          "enable_mbb_commands": "Enable MBB remote commands (Volkswagen only — adds a QR confirm)"
         },
         "data_description": {
           "brand": "Choose your brand — myAudi, WeConnect ID, MyŠkoda, SEAT, CUPRA, VW US/CA or Porsche.",
@@ -57,12 +60,29 @@
         "menu_options": {
           "browser_login": "Browser-Login (recommended)",
           "email_password": "Email + Password (legacy)",
-          "website_authproxy": "Volkswagen.de website (beta — read-only)"
+          "website_authproxy": "Volkswagen.de website (beta — read-only)",
+          "mbb_login": "Volkswagen EU — Durable Login (MBB, two-way alpha)"
+        }
+      },
+      "mbb_login": {
+        "title": "Volkswagen EU — Durable Login (MBB, ALPHA)",
+        "description": "**Experimental, opt-in — Volkswagen EU only.** A browser confirmation (no password stored in Home Assistant) mints a durable, refreshable token via the legacy MBB backend. Unlike the read-only portal, this survives restarts and supports two-way remote lock/unlock. **Enter your VIN** (the MBB token can't list your garage by itself), and add your S-PIN to enable lock/unlock. On the next screen you will see a short code and a URL to open on any device.",
+        "data": {
+          "mbb_vins": "VIN (vehicle identification number)",
+          "spin": "S-PIN",
+          "scan_interval": "Update Interval",
+          "force_enable_access": "Force Door Status"
+        },
+        "data_description": {
+          "mbb_vins": "Your 17-character VIN (on the windscreen / registration). Multiple cars: separate with a comma. Required — the durable MBB token works per-VIN but can't enumerate your garage.",
+          "spin": "Optional 4-digit Security-PIN — required for remote lock/unlock.",
+          "scan_interval": "Minutes between vehicle data polls.",
+          "force_enable_access": "Force door-status entities even when the vehicle reports the data missing."
         }
       },
       "website_authproxy": {
         "title": "Volkswagen.de website (BETA, read-only)",
-        "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next.",
+        "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next. **Prerequisite:** your Volkswagen ID must be the vehicle's primary user — confirm your identity once on volkswagen.de (myVolkswagen → your vehicle → “Confirm identity”). Without this the website returns no vehicle data.",
         "data": {
           "username": "Email Address",
           "password": "Password",
@@ -132,12 +152,14 @@
       "invalid_credentials": "Email address or password incorrect.",
       "upstream_unavailable": "VW backend temporarily unavailable. This is a server-side issue at VW, NOT a credentials problem. Please wait 5–15 minutes and try again. Do NOT reconfigure the integration.",
       "brand_not_dag_eligible": "Selected brand does not support browser login. Use the email + password flow instead.",
+      "portal_interaction_required": "The EU Data Act portal needs a one-time action in your browser or brand app (e.g. accept terms, confirm consent, finish onboarding/region selection) before headless access works. This is NOT a wrong-password problem — open the portal once in a browser, complete the prompt, then try again.",
       "still_waiting_browser": "Still waiting for browser approval. Open the URL above, sign in, confirm the code, then click Submit again."
     },
     "abort": {
       "already_configured": "This account is already configured.",
       "reauth_successful": "Re-authentication successful.",
-      "reconfigure_successful": "Configuration updated successfully."
+      "reconfigure_successful": "Configuration updated successfully.",
+      "mbb_not_eligible": "Your vehicle isn't eligible for the MBB durable login — the backend returned \"Unknown user\". This means it's a newer ID / MEB model (ID.3/4/5, e-up, etc.) that was never enrolled in the legacy Car-Net/MBB system, so the durable login + remote commands can't reach it. Use the EU Data Act portal channel (or the Email + Password login) for these vehicles instead. The MBB login is for older Car-Net cars (most PHEV / combustion models)."
     },
     "progress": {
       "awaiting_browser_login": "Open {verification_uri} in any browser, sign in with your Brand ID account, and confirm the code {user_code}.",
@@ -161,7 +183,15 @@
           "wake_delay_seconds": "Wake delay (seconds)",
           "client_id_override": "OAuth client_id override (power users)",
           "eu_data_act_auto_kickoff": "EU Data Act: auto-kickoff Custom Data Request",
-          "enable_data_act_browser": "EU Data Act portal: headless-browser fallback (EXPERIMENTAL)"
+          "enable_data_act_browser": "EU Data Act portal: headless-browser fallback (EXPERIMENTAL)",
+          "supplementary_authproxy": "Add a Volkswagen.de read channel (merge extra data)",
+          "hide_empty_entities": "Hide entities without data",
+          "supplementary_eu_portal": "Add an EU Data Act portal read channel",
+          "remove_supplementary_authproxy": "Remove the vw.de read channel",
+          "remove_supplementary_eu_portal": "Remove the EU Data Act portal read channel",
+          "abrp_enable": "Enable ABRP telemetry push",
+          "abrp_api_key": "ABRP api_key (developer key)",
+          "abrp_user_token": "ABRP token (per vehicle)"
         },
         "data_description": {
           "scan_interval": "How often data is fetched (minutes). Minimum: 3.",
@@ -176,9 +206,47 @@
           "wake_delay_seconds": "Seconds to wait between the wake-up POST and the status fetch. The default of 15 seconds is what most brand backends need to ingest the wake-induced data push. Lower values risk reading stale data; higher values stretch the poll cycle without further benefit.",
           "client_id_override": "Power-user escape hatch for when the community spots a fresh OAuth client_id in a new VW Group APK before our daily atlas builder catches it. Paste the full UUID@apps_vw-dilab_com string here and the resolver tries it FIRST on every authenticate, with all the existing client_ids still in the chain as fallback. Leave empty for default behaviour. Format: 8-4-4-4-12 hex digits followed by @apps_vw-dilab_com. Malformed values are silently ignored.",
           "eu_data_act_auto_kickoff": "Only meaningful when the integration is operating in read-only EU Data Act portal mode (live BFF strategies have failed). When ON, the coordinator checks for an active 15-min Custom Data Request per VIN at startup and creates one when none exists. The kickoff implies a 1-month data subscription on your account at the portal, so this is opt-in. The portal accepts AT MOST ONE active custom request per VIN at a time. Off by default.",
-          "enable_data_act_browser": "EXPERIMENTAL: only meaningful when the integration has fallen back to the EU Data Act portal (read-only). Drives a headless Chromium via the optional 'playwright' Python package to click the portal's data-export button automatically. The package is NOT preinstalled (it pulls roughly 100 MB of Chromium). When enabled but missing, a Repair issue tells you how to install it from inside the Home Assistant container. Reload the integration after toggling."
+          "enable_data_act_browser": "EXPERIMENTAL: only meaningful when the integration has fallen back to the EU Data Act portal (read-only). Drives a headless Chromium via the optional 'playwright' Python package to click the portal's data-export button automatically. The package is NOT preinstalled (it pulls roughly 100 MB of Chromium). When enabled but missing, a Repair issue tells you how to install it from inside the Home Assistant container. Reload the integration after toggling.",
+          "abrp_enable": "Send live telemetry to A Better Routeplanner. Needs both an api_key and a per-vehicle token below. Off = no outbound calls.",
+          "abrp_api_key": "A developer/partner key you register with iternio (we don't ship one). Identifies the integration. Never logged.",
+          "abrp_user_token": "The 'Generic' token from the ABRP app: Settings -> your car -> Live Data. Never logged."
+        }
+      },
+      "add_vwde": {
+        "title": "Volkswagen.de website (BETA, read-only)",
+        "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next. **Prerequisite:** your Volkswagen ID must be the vehicle's primary user — confirm your identity once on volkswagen.de (myVolkswagen → your vehicle → “Confirm identity”). Without this the website returns no vehicle data.",
+        "data": {
+          "username": "Email Address",
+          "password": "Password",
+          "scan_interval": "Update Interval"
+        },
+        "data_description": {
+          "username": "The email of your Volkswagen ID / myVolkswagen account.",
+          "password": "Your Volkswagen ID password.",
+          "scan_interval": "How often data is fetched (minutes). Minimum: 5."
+        }
+      },
+      "add_vwde_otp": {
+        "title": "Email verification code",
+        "description": "A verification code was sent to the email for **{username}**.\n\nEnter the code to finish signing in to the Volkswagen.de website (beta) channel.",
+        "data": {
+          "mfa_code": "Verification Code"
+        },
+        "data_description": {
+          "mfa_code": "Code from your email inbox — valid for a few minutes."
+        }
+      },
+      "add_portal": {
+        "title": "EU Data Act portal — read channel",
+        "description": "Sign in to the EU Data Act portal (email + password) to add SoC, charging, odometer and service reads, merged onto your primary channel.",
+        "data": {
+          "username": "Email",
+          "password": "Password"
         }
       }
+    },
+    "error": {
+      "abrp_credentials_required": "To enable ABRP you must enter both the api_key and the per-vehicle token."
     }
   },
   "entity": {
@@ -356,6 +424,12 @@
       },
       "api_observer_findings": {
         "name": "Vehicle Data Scout"
+      },
+      "raw_api_fields": {
+        "name": "Raw API fields"
+      },
+      "data_source_channel": {
+        "name": "Data source channel"
       },
       "error_reporter_count": {
         "name": "Error Reporter"
@@ -635,9 +709,336 @@
       },
       "vehicle_nickname": {
         "name": "Vehicle Nickname"
+      },
+      "lifetime_avg_speed_kmh": {
+        "name": "Lifetime Average Speed"
+      },
+      "lifetime_travel_time_min": {
+        "name": "Lifetime Driving Time"
+      },
+      "monthly_mileage_km": {
+        "name": "Monthly Mileage"
+      },
+      "remaining_charge_time_min": {
+        "name": "Remaining Charge Time"
+      },
+      "charging_scenario": {
+        "name": "Charging scenario"
+      },
+      "immediate_charge_action_state": {
+        "name": "Immediate charge action"
+      },
+      "profile_charge_reason": {
+        "name": "Charge reason"
+      },
+      "charge_session_energy_kwh": {
+        "name": "Charged energy"
+      },
+      "remaining_charge_time_bulk_min": {
+        "name": "Remaining time to 80% (bulk)"
+      },
+      "odometer_state": {
+        "name": "Odometer status"
+      },
+      "instrument_cluster_time": {
+        "name": "Vehicle clock"
+      },
+      "data_error_detail": {
+        "name": "Data error"
+      },
+      "external_power_supply_state": {
+        "name": "External power supply"
+      },
+      "charging_reason": {
+        "name": "Charging reason"
+      },
+      "charging_error_code": {
+        "name": "Charging error code"
+      },
+      "remaining_time_target_soc": {
+        "name": "Remaining-time charge target"
+      },
+      "charge_led_color": {
+        "name": "Charge-port LED colour"
+      },
+      "charge_led_pattern": {
+        "name": "Charge-port LED pattern"
+      },
+      "last_report_id": {
+        "name": "Report ID"
+      },
+      "climate_energy_consumption_kwh": {
+        "name": "Climate energy use"
+      },
+      "residual_energy_consumption_kwh": {
+        "name": "On-board electronics consumption"
+      },
+      "last_trip_avg_recuperation_kwh_100km": {
+        "name": "Trip recuperation (avg)"
+      },
+      "lifetime_avg_recuperation_kwh_100km": {
+        "name": "Lifetime recuperation (avg)"
+      },
+      "last_trip_avg_aux_consumption_kwh_100km": {
+        "name": "Last trip auxiliary consumption (avg)"
+      },
+      "lifetime_avg_aux_consumption_kwh_100km": {
+        "name": "Lifetime auxiliary consumption (avg)"
+      },
+      "lifetime_avg_gas_consumption_kg_100km": {
+        "name": "Lifetime gas consumption (avg)"
+      },
+      "lifetime_range_gain_km": {
+        "name": "Lifetime range gained"
+      },
+      "lifetime_zero_emission_km": {
+        "name": "Lifetime zero-emission distance"
+      },
+      "last_trip_avg_gas_consumption_kg_100km": {
+        "name": "Last trip gas consumption (avg)"
+      },
+      "last_trip_range_gain_km": {
+        "name": "Last trip range gained"
+      },
+      "last_trip_zero_emission_km": {
+        "name": "Last trip zero-emission distance"
+      },
+      "charger_update_trigger": {
+        "name": "Charger update trigger"
+      },
+      "active_target_soc": {
+        "name": "Active charge target"
+      },
+      "charge_time_display": {
+        "name": "Charge time details"
+      },
+      "charging_plug1_flap_lock_state": {
+        "name": "Charge port 1 flap lock"
+      },
+      "charging_plug1_flap_state": {
+        "name": "Charge port 1 flap"
+      },
+      "charging_plug1_infrastructure_state": {
+        "name": "Charge port 1 station status"
+      },
+      "charging_plug1_lock_state": {
+        "name": "Charge port 1 plug lock"
+      },
+      "charging_plug2_connectionstate": {
+        "name": "Charge port 2 connection"
+      },
+      "charging_plug2_flap_lock_state": {
+        "name": "Charge port 2 flap lock"
+      },
+      "charging_plug2_flap_state": {
+        "name": "Charge port 2 flap"
+      },
+      "charging_plug2_infrastructure_state": {
+        "name": "Charge port 2 station status"
+      },
+      "charging_plug2_lock_state": {
+        "name": "Charge port 2 plug lock"
+      },
+      "battery_available_kwh": {
+        "name": "Battery energy available"
+      },
+      "battery_cap_kwh": {
+        "name": "Battery capacity (energy)"
+      },
+      "trip_total_cost": {
+        "name": "Trip total cost"
+      },
+      "trip_fuel_cost": {
+        "name": "Trip fuel cost"
+      },
+      "trip_electricity_cost": {
+        "name": "Trip electricity cost"
+      },
+      "trip_cng_cost": {
+        "name": "Trip CNG cost"
+      },
+      "oil_level_pct": {
+        "name": "Oil level (percent)"
+      },
+      "dataset_key": {
+        "name": "Dataset key"
+      },
+      "charge_mode_selection": {
+        "name": "Selected charge mode"
+      },
+      "max_charge_current_ac": {
+        "name": "Max AC charge current"
+      },
+      "auto_unlock_charge_port": {
+        "name": "Auto-unlock charge port"
+      },
+      "charge_bulk_threshold_pct": {
+        "name": "Fast-charge threshold"
+      },
+      "charge_rate_unit": {
+        "name": "Charge-rate unit"
+      },
+      "lifetime_trip_distance_km": {
+        "name": "Long-term trip distance"
+      },
+      "lifetime_trip_start_odometer_km": {
+        "name": "Long-term trip start odometer"
+      },
+      "last_trip_start_odometer_km": {
+        "name": "Last trip start odometer"
+      },
+      "oil_level_liters": {
+        "name": "Oil level (litres)"
+      },
+      "oil_level_additional_pct": {
+        "name": "Additional oil level"
+      },
+      "tyre_pressure_diff_fl": {
+        "name": "Tyre pressure deviation front-left"
+      },
+      "tyre_pressure_diff_fr": {
+        "name": "Tyre pressure deviation front-right"
+      },
+      "tyre_pressure_diff_rl": {
+        "name": "Tyre pressure deviation rear-left"
+      },
+      "tyre_pressure_diff_rr": {
+        "name": "Tyre pressure deviation rear-right"
+      },
+      "tyre_pressure_diff_spare": {
+        "name": "Tyre pressure deviation spare"
+      },
+      "tyre_pressure_actual_fl": {
+        "name": "Tyre pressure front-left"
+      },
+      "tyre_pressure_actual_fr": {
+        "name": "Tyre pressure front-right"
+      },
+      "tyre_pressure_actual_rl": {
+        "name": "Tyre pressure rear-left (actual)"
+      },
+      "tyre_pressure_actual_rr": {
+        "name": "Tyre pressure rear-right (actual)"
+      },
+      "tyre_pressure_actual_spare": {
+        "name": "Tyre pressure spare (actual)"
+      },
+      "tyre_pressure_required_fl": {
+        "name": "Tyre pressure front-left (target)"
+      },
+      "tyre_pressure_required_fr": {
+        "name": "Tyre pressure front-right (target)"
+      },
+      "tyre_pressure_required_rl": {
+        "name": "Tyre pressure rear-left (target)"
+      },
+      "tyre_pressure_required_rr": {
+        "name": "Tyre pressure rear-right (target)"
+      },
+      "tyre_pressure_required_spare": {
+        "name": "Tyre pressure spare (target)"
+      },
+      "parking_lights_state": {
+        "name": "Parking lights"
+      },
+      "aux_battery_energy_pct": {
+        "name": "Auxiliary battery level"
+      },
+      "dashboard_warnings_raw": {
+        "name": "Dashboard warnings (raw)"
+      },
+      "climate_error_code": {
+        "name": "Climate error code"
+      },
+      "window_heating_error_code": {
+        "name": "Window-heating error code"
+      },
+      "lpg_range_km": {
+        "name": "LPG range"
+      },
+      "engine_status": {
+        "name": "Engine status"
+      },
+      "trip_avg_aux_consumption_kwh": {
+        "name": "Avg auxiliary consumption"
+      },
+      "departure_charge_kwh": {
+        "name": "Departure charge"
+      },
+      "tire_pressure_fl_state": {
+        "name": "Tire status front-left"
+      },
+      "tire_pressure_fl_errorcode": {
+        "name": "Tire error code front-left"
+      },
+      "tire_pressure_fr_state": {
+        "name": "Tire status front-right"
+      },
+      "tire_pressure_fr_errorcode": {
+        "name": "Tire error code front-right"
+      },
+      "tire_pressure_rl_state": {
+        "name": "Tire status rear-left"
+      },
+      "tire_pressure_rl_errorcode": {
+        "name": "Tire error code rear-left"
+      },
+      "tire_pressure_rr_state": {
+        "name": "Tire status rear-right"
+      },
+      "tire_pressure_rr_errorcode": {
+        "name": "Tire error code rear-right"
+      },
+      "next_charge_timer_start_at": {
+        "name": "Next charge start"
+      },
+      "next_charge_timer_finish_at": {
+        "name": "Next charge finish"
+      },
+      "next_charge_target_reachability": {
+        "name": "Charge target reachability"
+      },
+      "next_charge_timer_number": {
+        "name": "Next charge timer number"
+      },
+      "ascent_slope_consumption": {
+        "name": "Slope consumption (uphill)"
+      },
+      "descent_slope_consumption": {
+        "name": "Slope consumption (downhill)"
+      },
+      "report_type": {
+        "name": "Report type"
+      },
+      "result_app": {
+        "name": "App data result"
+      },
+      "result_master": {
+        "name": "Master data result"
+      },
+      "update_reason": {
+        "name": "Last update reason"
+      },
+      "start_stop_action": {
+        "name": "Charge start/stop action"
+      },
+      "start_stop_modification": {
+        "name": "Start/stop modification"
+      },
+      "bidi_max_charge_level_pct": {
+        "name": "Bidirectional charging max charge level"
+      },
+      "bidi_min_charge_level_pct": {
+        "name": "Bidirectional charging min charge level"
+      },
+      "sunroof_position_pct": {
+        "name": "Sunroof position"
       }
     },
     "binary_sensor": {
+      "mbb_two_way_available": {
+        "name": "MBB Two-Way Available"
+      },
       "doors_locked": {
         "name": "Doors Locked"
       },
@@ -799,6 +1200,57 @@
       },
       "trunk_open": {
         "name": "Trunk Open"
+      },
+      "warning_inspection": {
+        "name": "Inspection Due"
+      },
+      "parking_brake_engaged": {
+        "name": "Parking brake"
+      },
+      "parking_light_left": {
+        "name": "Parking light (left)"
+      },
+      "parking_light_right": {
+        "name": "Parking light (right)"
+      },
+      "energy_flow_active": {
+        "name": "Energy flow"
+      },
+      "battery_care_mode_active": {
+        "name": "Battery care mode"
+      },
+      "bonnet_locked": {
+        "name": "Bonnet locked"
+      },
+      "closures_secured": {
+        "name": "All closures secured"
+      },
+      "service_hatch_open": {
+        "name": "Service hatch open"
+      },
+      "spoiler_open": {
+        "name": "Spoiler deployed"
+      },
+      "oil_dipstick_active": {
+        "name": "Oil dipstick active"
+      },
+      "fuel_level_estimated": {
+        "name": "Fuel level estimated"
+      },
+      "climatisation_at_unlock": {
+        "name": "Climatisation at unlock"
+      },
+      "mirror_heating_enabled": {
+        "name": "Mirror heating"
+      },
+      "climate_zone_front_left_enabled": {
+        "name": "Climate zone front-left"
+      },
+      "climate_zone_front_right_enabled": {
+        "name": "Climate zone front-right"
+      },
+      "abrp_data_changed": {
+        "name": "ABRP Data Changed"
       }
     },
     "switch": {
@@ -980,8 +1432,24 @@
       "title": "EU Data Act portal session expired - reauthenticate"
     },
     "ola_headers_outdated": {
-      "description": "VW Group's online-services backend (OLA) has refused **{count}** requests in a row for {brand} with HTTP 403 Forbidden.\n\nThis is **not** an outdated-header or app-version problem, and it's not something you can fix by reconfiguring or re-logging in. VW appears to have restricted online-services access for {brand} (and SEAT) on their side — the official app uses a separate, fully-trusted access path we can't reproduce, so a header bump or app-version override won't bring it back.\n\nWhere it can, the integration falls back to the read-only EU Data Act portal for whatever data is still available. {brand} data should return on its own once VW restores access. Nothing to do on your end — this warning auto-clears when requests start succeeding again.",
-      "title": "{brand} online services blocked on VW's side — {count} consecutive 403 errors"
+      "description": "VW Group's online-services backend (OLA) refused **{count}** requests in a row for {brand} with HTTP 403 Forbidden.\n\nThis is a **server-side lockdown by VW**, not something an update, header change, or re-login can fix. VW now requires a Google-signed device-attestation token (Firebase App Check / Play Integrity) plus a web-application-firewall token on the SEAT/CUPRA backend — the official app mints these from a hardened, Google-signed build, which an open-source client cannot reproduce. So remote **commands** for {brand} (and SEAT) are unlikely to return.\n\nVehicle **data** still flows through the read-only EU Data Act portal where available — that's the path forward for these brands. This is entirely VW-side; nothing to fix on your end. (Tracked: #464.)",
+      "title": "{brand} commands blocked by VW (device attestation) — {count} consecutive 403 errors"
+    },
+    "vw_na_data_forbidden": {
+      "title": "Volkswagen US/CA: vehicle data blocked (subscription)",
+      "description": "Your Volkswagen account signed in and your garage was read, but the per-vehicle data requests (status, charging, climate) are being refused with HTTP 403 Forbidden.\n\nThe most common cause is an **inactive Car-Net / VW Connect subscription** on this vehicle. The same data would flow again if the subscription is renewed.\n\n**What to do:**\n\n1. Open the official MyVW app and confirm your Remote Access / Car-Net subscription is active for this car.\n2. If it lapsed, renew it via VW, then wait for the next poll.\n\nThe integration keeps showing the last data it cached. This warning clears by itself the moment a data request succeeds again."
+    },
+    "vw_na_data_forbidden_attestation": {
+      "title": "Volkswagen US/CA: vehicle data blocked by VW (device attestation)",
+      "description": "Your Volkswagen account signed in and your garage was read, but the per-vehicle data requests (status, charging, climate) are being refused with HTTP 403 Forbidden, and the response carries a **device-attestation** marker.\n\nThis is a **server-side lockdown by VW**, not a subscription problem and not something a re-login can fix — so renewing Car-Net will not help. VW now requires a Google-signed device-attestation token (Firebase App Check / Play Integrity) that the official app mints from a hardened build, which an open-source client cannot reproduce.\n\nThe integration keeps showing the last data it cached. This warning clears by itself if VW reopens the data plane."
+    },
+    "supplementary_reauth": {
+      "title": "Volkswagen.de read channel needs re-login",
+      "description": "The supplementary volkswagen.de read channel couldn't resume its session (Volkswagen wants the email one-time code again). Your vehicle's main data is unaffected. To restore the extra vw.de data, open this integration's options and re-run \"Add a Volkswagen.de read channel\"."
+    },
+    "meb_commands_unavailable": {
+      "title": "Remote commands aren't available for this car ({brand})",
+      "description": "You enabled MBB remote commands when setting up {brand}, but this is an MEB / ID-family car (ID.3/4/5/7, Enyaq, Born, Q4). VW's MEB backend doesn't support the durable Car-Net command path — the durable login answered \"Unknown user\" — so lock, climate and charge commands can't be sent.\n\nThe entry was kept **read-only**: vehicle data still flows through the EU Data Act portal, you just won't see command entities. This is a known limitation of VW's MEB platform, not a setup error — you can dismiss this notice."
     }
   },
   "services": {
@@ -1076,6 +1544,28 @@
         }
       },
       "name": "Open native brand app (deeplink)"
+    },
+    "abrp_send": {
+      "name": "Send telemetry to ABRP",
+      "description": "Build and send the vehicle's current telemetry to A Better Routeplanner.",
+      "fields": {
+        "device_id": {
+          "name": "Vehicle",
+          "description": "The vehicle to upload (or use vin)."
+        },
+        "vin": {
+          "name": "VIN",
+          "description": "VIN of the vehicle (alternative to device)."
+        },
+        "api_key": {
+          "name": "api_key override",
+          "description": "Optional. Overrides the stored developer key. Never logged."
+        },
+        "token": {
+          "name": "token override",
+          "description": "Optional. Overrides the stored per-vehicle token. Never logged."
+        }
+      }
     }
   },
   "exceptions": {
@@ -1096,6 +1586,9 @@
     },
     "read_only_mode_active": {
       "message": "Read-only mode is enabled in the integration options. Disable it under Settings → Devices & Services → VW Group Connect → Configure if you want to send vehicle commands."
+    },
+    "read_only_portal_active": {
+      "message": "This vehicle connects through VW's read-only EU Data Act portal, so remote commands (lock, climate, charging) aren't available for it. This isn't a setting you can toggle — the portal channel has no command path."
     }
   },
   "selector": {

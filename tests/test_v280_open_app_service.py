@@ -1,5 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) - Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """v2.8.0 quick-win B - tests for the ``vag_connect.open_app`` service.
 
 Coverage:

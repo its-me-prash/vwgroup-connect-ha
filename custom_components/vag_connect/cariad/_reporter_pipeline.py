@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Reporter Pipeline — shared 1-click bug-discovery workflow.
 
 Companion to ``_unexpected_keys.py`` (Vehicle Data Scout) and
@@ -44,7 +44,7 @@ from homeassistant.core import HomeAssistant
 
 from ..const import DOMAIN
 from ._error_reporter import ErrorRecord
-from ._unexpected_keys import UnexpectedField
+from ._unexpected_keys import UnexpectedField, _VIN_RE
 
 # GitHub caps issue-URL query params at ~8KB total. v2.11.4 dropped
 # this from 6500 to 4000 because urllib.parse.quote inflates markdown
@@ -68,6 +68,50 @@ ISSUE_ID_ERROR_REPORTER = "error_reporter_findings"
 
 
 # ---------------------------------------------------------------------------
+# Privacy guard — the model-name choke point
+# ---------------------------------------------------------------------------
+
+
+def _safe_model(model: str | None, *, vin: str | None = None) -> str | None:
+    """Return a privacy-safe model name, or ``None`` to omit it entirely.
+
+    The model is meant to be a *generic* label like ``"ID.4"`` — fine to put
+    in a public GitHub issue title/body. But for some brands (notably Audi,
+    whose CARIAD/myAudi vehicle list ships the VIN as the vehicle "name" when
+    the owner never renamed the car) the value we receive is the raw 17-char
+    VIN — a privacy-sensitive identifier that ties to registration and
+    ownership records. The footer claims "VINs masked to last 6 chars", so a
+    full VIN leaking through the title/model bypasses that guarantee.
+
+    This is the single choke point every report flows through, so the guard
+    here is bulletproof regardless of how the upstream resolved the model:
+
+    - empty / whitespace-only  → ``None`` (caller omits the line)
+    - contains a VIN substring (17-char VIN charset, any case) → ``None``
+    - equals this vehicle's VIN (case-insensitive) → ``None``
+    - anything else → the trimmed model, passed through unchanged
+
+    We *omit* rather than mask-to-6: a 6-char VIN tail is not a "model" and
+    would only confuse triage. The brand alone is enough to scope the issue,
+    and the per-record masked VIN (``r.vin_masked``) still gives a maintainer
+    a disambiguator inside the body.
+    """
+    if not model:
+        return None
+    trimmed = model.strip()
+    if not trimmed:
+        return None
+    if vin and trimmed.upper() == vin.strip().upper():
+        return None
+    # Catch an embedded VIN in ANY case — a suffixed "<VIN> Quattro" or a
+    # lowercased VIN — via search()+upper(), not an all-or-nothing uppercase
+    # fullmatch (a model containing a full 17-char VIN is never legitimate).
+    if _VIN_RE.search(trimmed.upper()):
+        return None
+    return trimmed
+
+
+# ---------------------------------------------------------------------------
 # Markdown formatters — pure functions, easy to unit-test
 # ---------------------------------------------------------------------------
 
@@ -76,6 +120,7 @@ def build_unexpected_keys_report(
     findings: Iterable[UnexpectedField],
     *,
     brand: str,
+    model: str | None = None,
     model_year: int | None = None,
     firmware: str | None = None,
     integration_version: str = "",
@@ -85,7 +130,7 @@ def build_unexpected_keys_report(
     Layout matches the issue templates so a maintainer can triage in one
     glance:
 
-    - context block (brand / model year / firmware / version)
+    - context block (brand / model / model year / firmware / version)
     - one row per finding (path, masked sample, endpoint, first seen)
     - a privacy note at the bottom so the reporter knows what was stripped
 
@@ -96,10 +141,14 @@ def build_unexpected_keys_report(
     if not findings_list:
         return ""
 
+    model = _safe_model(model)
+
     lines: list[str] = []
     lines.append(f"## Vehicle Data Scout — {len(findings_list)} new field(s)")
     lines.append("")
     lines.append(f"- **Brand:** `{brand}`")
+    if model:
+        lines.append(f"- **Model:** `{model}`")
     if model_year is not None:
         lines.append(f"- **Model year:** `{model_year}`")
     if firmware:
@@ -110,17 +159,23 @@ def build_unexpected_keys_report(
         f"- **Reported at:** `{datetime.now(tz=timezone.utc).isoformat(timespec='seconds')}`"
     )
     lines.append("")
-    lines.append("| Path | Sample (masked) | Endpoint | First seen |")
-    lines.append("|---|---|---|---|")
+    # b1/A3 — annotate each finding with the official EU Data Act spec name
+    # when the path identifies a known field UUID. Turns an opaque UUID into a
+    # human field name in the bug report (and is the same dictionary the raw
+    # field discovery uses). Enrichment only — never fails the report.
+    from .auth import eu_data_dictionary as _dd  # noqa: PLC0415
+    lines.append("| Path | Spec field (official) | Sample (masked) | Endpoint | First seen |")
+    lines.append("|---|---|---|---|---|")
     for f in findings_list:
         # Pipe characters in any cell would break the Markdown table.
         # Replace defensively — the masking layer never produces them
         # but a future regex change might.
         path = f.path.replace("|", "\\|")
+        spec = (_dd.describe(f.path) or "—").replace("|", "\\|")
         sample = (f.sample_masked or "").replace("|", "\\|")
         endpoint = (f.endpoint or "").replace("|", "\\|")
         first_seen = f.first_seen_at or ""
-        lines.append(f"| `{path}` | `{sample}` | `{endpoint}` | {first_seen} |")
+        lines.append(f"| `{path}` | {spec} | `{sample}` | `{endpoint}` | {first_seen} |")
     lines.append("")
     lines.append("---")
     lines.append("")
@@ -135,6 +190,7 @@ def build_error_report(
     records: Iterable[ErrorRecord],
     *,
     brand: str,
+    model: str | None = None,
     integration_version: str = "",
 ) -> str:
     """Format Error Reporter records as a copy-pasteable Markdown body.
@@ -148,10 +204,14 @@ def build_error_report(
     if not records_list:
         return ""
 
+    model = _safe_model(model)
+
     lines: list[str] = []
     lines.append(f"## Error Reporter — {len(records_list)} recent error(s)")
     lines.append("")
     lines.append(f"- **Brand:** `{brand}`")
+    if model:
+        lines.append(f"- **Model:** `{model}`")
     if integration_version:
         lines.append(f"- **Integration:** `vag_connect {integration_version}`")
     lines.append(
@@ -163,6 +223,9 @@ def build_error_report(
         lines.append(f"### {idx}. `{r.exception_type}` at {r.timestamp}")
         if r.endpoint:
             lines.append(f"- **Endpoint:** `{r.endpoint}`")
+        rec_model = _safe_model(r.model)
+        if rec_model:
+            lines.append(f"- **Model:** `{rec_model}`")
         if r.model_year is not None:
             lines.append(f"- **Model year:** `{r.model_year}`")
         if r.firmware:
@@ -233,6 +296,7 @@ def ensure_unexpected_keys_issue(
     entry_id: str,
     findings: Iterable[UnexpectedField],
     brand: str,
+    model: str | None = None,
     model_year: int | None = None,
     firmware: str | None = None,
     integration_version: str = "",
@@ -262,12 +326,15 @@ def ensure_unexpected_keys_issue(
     body = build_unexpected_keys_report(
         findings_list,
         brand=brand,
+        model=model,
         model_year=model_year,
         firmware=firmware,
         integration_version=integration_version,
     )
+    safe_model = _safe_model(model)
+    brand_model = f"{brand} {safe_model}" if safe_model else brand
     url = github_issue_url(
-        f"[Vehicle Data Scout] {len(findings_list)} new field(s) on {brand}",
+        f"[Vehicle Data Scout] {len(findings_list)} new field(s) on {brand_model}",
         body,
         labels=("vehicle-data-scout", brand),
     )
@@ -294,6 +361,7 @@ def ensure_error_reporter_issue(
     entry_id: str,
     records: Iterable[ErrorRecord],
     brand: str,
+    model: str | None = None,
     integration_version: str = "",
 ) -> None:
     """Create or refresh the Error Reporter repair issue for one entry.
@@ -315,10 +383,13 @@ def ensure_error_reporter_issue(
     body = build_error_report(
         records_list,
         brand=brand,
+        model=model,
         integration_version=integration_version,
     )
+    safe_model = _safe_model(model)
+    brand_model = f"{brand} {safe_model}" if safe_model else brand
     url = github_issue_url(
-        f"[Error Reporter] {len(records_list)} recent error(s) on {brand}",
+        f"[Error Reporter] {len(records_list)} recent error(s) on {brand_model}",
         body,
         labels=("error-reporter", brand),
     )

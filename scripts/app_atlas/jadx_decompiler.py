@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 """jadx full decompile wrapper — Phase A.3.
 
 Phase A.2 used ``apktool`` for fast smali-level extraction. This

@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Config flow for VAG Connect — setup, reconfigure, and re-authentication."""
 
 from __future__ import annotations
@@ -31,8 +31,12 @@ from homeassistant.helpers.selector import (
 
 from .const import (
     BRANDS,
+    CONF_ABRP_API_KEY,
+    CONF_ABRP_ENABLE,
+    CONF_ABRP_USER_TOKEN,
     CONF_BRAND,
     CONF_CLIENT_ID_OVERRIDE,
+    CONF_COUNTRY,
     CONF_ENABLE_DATA_ACT_BROWSER,
     CONF_EU_DATA_ACT_AUTO_KICKOFF,
     CONF_WAKE_BEFORE_POLL,
@@ -44,9 +48,20 @@ from .const import (
     CONF_ENABLE_REVERSE_GEOCODING,
     CONF_FORCE_ACCESS,
     CONF_FORCE_PPE_CLIMATE,
+    CONF_MBB_COMMAND_CHANNEL,
+    CONF_MEB_COMMANDS_UNAVAILABLE,
+    CONF_MBB_COMMAND_CLIENT_ID,
+    CONF_MBB_COMMAND_TOKENS,
+    CONF_MBB_VINS,
     CONF_READ_ONLY,
     CONF_SCAN_INTERVAL,
     CONF_SPIN,
+    CONF_HIDE_EMPTY_ENTITIES,
+    CONF_SUPPLEMENTARY_AUTHPROXY,
+    CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES,
+    CONF_SUPPLEMENTARY_EU_PORTAL,
+    CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD,
+    CONF_SUPPLEMENTARY_EU_PORTAL_USERNAME,
     CONF_WEBSITE_AUTHPROXY,
     CONF_WEBSITE_COOKIES,
     DEFAULT_SCAN_INTERVAL,
@@ -66,6 +81,8 @@ _BRAND_OPTIONS: list[SelectOptionDict] = [
     SelectOptionDict(value="cupra",         label="CUPRA"),
     SelectOptionDict(value="volkswagen_na", label="Volkswagen US / CA"),
     SelectOptionDict(value="porsche",       label="Porsche (My Porsche)"),
+    # v2.14.11 — Bentley (login+read; Audi IDK tenant). Two-way live-test gated.
+    SelectOptionDict(value="bentley",       label="Bentley (My Bentley)"),
 ]
 
 _BRAND_SELECTOR = SelectSelector(
@@ -82,6 +99,20 @@ _USERNAME_SELECTOR = TextSelector(
 
 _PASSWORD_SELECTOR = TextSelector(
     TextSelectorConfig(type=TextSelectorType.PASSWORD, autocomplete="current-password")
+)
+
+# v2.15.1 (#503) — Volkswagen US/Canada region picker. Only relevant for the
+# volkswagen_na brand (US vs CA pick different MYVW client_id + API host); all
+# other brands ignore the stored value. Inline English option labels (no
+# translation_key) so we don't add per-option i18n keys to all 9 string files.
+_COUNTRY_SELECTOR = SelectSelector(
+    SelectSelectorConfig(
+        options=[
+            SelectOptionDict(value="us", label="United States"),
+            SelectOptionDict(value="ca", label="Canada"),
+        ],
+        mode=SelectSelectorMode.DROPDOWN,
+    )
 )
 
 _SPIN_SELECTOR = TextSelector(
@@ -113,6 +144,7 @@ _BOOL_SELECTOR = BooleanSelector()
 async def _validate_credentials(
     hass: HomeAssistant, brand: str, username: str, password: str,
     mfa_code: str | None = None,
+    country: str = "us",
 ) -> None:
     """Validate credentials by authenticating with the CARIAD API."""
     import aiohttp  # noqa: PLC0415
@@ -131,7 +163,9 @@ async def _validate_credentials(
         connector=connector,
         cookie_jar=aiohttp.CookieJar(unsafe=True),
     ) as auth_session:
-        client = CariadClientFactory.create(brand, auth_session, username, password)
+        client = CariadClientFactory.create(
+            brand, auth_session, username, password, country=country
+        )
         try:
             await client.authenticate(mfa_code=mfa_code)
         except TermsAndConditionsError as err:
@@ -180,6 +214,7 @@ def _map_error(err_code: str) -> str:
         "too_many_requests", "invalid_credentials", "missing_library",
         "upstream_unavailable",  # v2.5.7 — 5xx from VW backend
         "brand_not_dag_eligible",  # v2.7.0 — user picked non-DAG brand for browser login
+        "portal_interaction_required",  # v2.15.4 (#527) — non-credential portal stop
     } else "cannot_connect"
 
 
@@ -224,6 +259,8 @@ def _credentials_schema(
     scan_interval: int = DEFAULT_SCAN_INTERVAL,
     spin: str = "",
     force_access: bool = False,
+    enable_mbb_commands: bool = False,
+    country: str = "us",
 ) -> vol.Schema:
     """Credentials + advanced settings schema with proper selectors."""
     schema: dict[vol.Marker, Any] = {
@@ -231,9 +268,25 @@ def _credentials_schema(
         vol.Required(CONF_USERNAME, default=username or vol.UNDEFINED): _USERNAME_SELECTOR,
         vol.Required(CONF_PASSWORD): _PASSWORD_SELECTOR,
         vol.Optional(CONF_SPIN, default=spin): _SPIN_SELECTOR,
+    }
+    # v2.15.6 (gr6803/#465) — the US/Canada region picker is ONLY meaningful for
+    # the volkswagen_na brand (US vs CA pick different MYVW client_id + API
+    # host). Previously it was added unconditionally, so EU users (who select
+    # the form's brand in this same step) saw a stray "country" dropdown that
+    # only offered USA/Canada. Now we render it solely for volkswagen_na — on
+    # the first render (brand unknown) it stays hidden; if a VW-NA login fails,
+    # the form re-renders with brand=volkswagen_na and the picker appears so the
+    # user can switch us↔ca. Every other brand never sees it.
+    if brand.lower() == "volkswagen_na":
+        schema[vol.Optional(CONF_COUNTRY, default=country)] = _COUNTRY_SELECTOR
+    schema.update({
         vol.Optional(CONF_SCAN_INTERVAL, default=scan_interval): _INTERVAL_SELECTOR,
         vol.Optional(CONF_FORCE_ACCESS, default=force_access): _BOOL_SELECTOR,
-    }
+        # b12 — Volkswagen only: after the portal login, add a durable-MBB
+        # command channel (extra QR confirm) so this read-only portal entry
+        # also gets remote lock/climate/charge. Ignored for non-VW brands.
+        vol.Optional("enable_mbb_commands", default=enable_mbb_commands): _BOOL_SELECTOR,
+    })
     return vol.Schema(schema)
 
 
@@ -270,6 +323,25 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         self._dag_user_id: str = ""
         # Captured if either phase fails.
         self._dag_error: str = ""
+        # v2.15.0 — durable MBB strategy flag. When True the DAG flow uses the
+        # e-Remote client + ``mbb`` scope and, after the browser confirm, mints
+        # a durable MBB bearer via register/v1 + token-exchange. Default False
+        # → the standard browser-login flow is completely unaffected.
+        self._dag_mbb: bool = False
+        self._dag_mbb_tokens: Any = None
+        self._dag_mbb_client_id: str = ""
+        # v2.15.0a8 — set when the MBB exchange says "Unknown user" (account/car
+        # has no legacy Car-Net/MBB enrolment → newer ID/MEB car). Aborts the
+        # flow with a clear "not eligible, use EU Data Act" message.
+        self._dag_mbb_ineligible: bool = False
+        # b12 — MBB COMMAND-CHANNEL setup: the Portal (email/pw) login can tick
+        # "enable MBB commands" → after the portal validates, chain to the MBB
+        # QR; the finish then creates a PORTAL-primary entry (reads) WITH the
+        # MBB command channel (commands). These hold the portal entry across
+        # the QR detour.
+        self._dag_mbb_command: bool = False
+        self._pending_portal_data: dict[str, Any] = {}
+        self._pending_portal_title: str = ""
         # v2.14.0 — website-authproxy (opt-in beta) pending state between the
         # credentials step and the email-OTP step. The connector + its session
         # are held open across the two-step OTP exchange so the cookie jar
@@ -304,22 +376,22 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         exist in the cached strings. Embedding the labels makes the
         menu render correctly regardless of cache state.
         """
+        # b12 — TWO login paths only. QR/browser-login (passwordless, two-way
+        # native) for Audi/Škoda/SEAT/CUPRA; Portal (email/pw) for Volkswagen
+        # EU / Porsche, which can opt into a durable-MBB command channel right
+        # in that step (the old standalone "mbb_login" + "website_authproxy"
+        # menu entries are gone — MBB is now the Portal's command toggle, and
+        # vw.de is an options-only supplementary read channel).
         return self.async_show_menu(
             step_id="user",
             menu_options={
                 "browser_login": (
-                    "Browser-Login — Audi / Škoda / SEAT / CUPRA "
+                    "Browser-Login (QR) — Audi / Škoda / SEAT / CUPRA "
                     "(empfohlen, kein Passwort in HA)"
                 ),
                 "email_password": (
-                    "E-Mail + Passwort — Volkswagen EU / Porsche (Legacy)"
-                ),
-                # v2.14.0 — OPT-IN, BETA. Volkswagen-only read-only channel
-                # via the volkswagen.de website authproxy. Clearly labelled so
-                # users self-select; the email_password path is untouched.
-                "website_authproxy": (
-                    "Volkswagen.de website (beta) — nur Volkswagen, "
-                    "nur Lesen"
+                    "Portal (E-Mail + Passwort) — Volkswagen EU / Porsche "
+                    "(+ Toggle: MBB-Fahrzeug → Fernbefehle)"
                 ),
             },
         )
@@ -339,12 +411,15 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             brand    = user_input[CONF_BRAND]
             username = user_input[CONF_USERNAME]
             password = user_input[CONF_PASSWORD]
+            country  = user_input.get(CONF_COUNTRY, "us")
 
             await self.async_set_unique_id(f"{brand}_{username}")
             self._abort_if_unique_id_configured()
 
             try:
-                await _validate_credentials(self.hass, brand, username, password)
+                await _validate_credentials(
+                    self.hass, brand, username, password, country=country
+                )
             except ValueError as err:
                 err_str = str(err)
                 if err_str.startswith("two_factor_required"):
@@ -355,9 +430,38 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     return await self.async_step_mfa()
                 errors["base"] = _map_error(err_str)
             else:
+                portal_data = self._build_entry_data(
+                    brand, username, password, user_input,
+                )
+                # b12 — Volkswagen + "enable MBB commands": the portal validated
+                # above (reads); now chain to the MBB QR so the finish creates a
+                # portal-primary entry WITH a durable-MBB command channel on top.
+                # Non-VW or unticked → plain portal entry, exactly as before.
+                if (
+                    user_input.get("enable_mbb_commands")
+                    and brand == "volkswagen"
+                ):
+                    self._pending_portal_data = portal_data
+                    self._pending_portal_title = f"{BRANDS[brand]} — {username}"
+                    self._dag_mbb = True
+                    self._dag_mbb_command = True
+                    self._dag_brand = "volkswagen"
+                    self._dag_user_input = dict(user_input)
+                    self._dag_request_task = None
+                    self._dag_poll_task = None
+                    self._dag_user_code = ""
+                    self._dag_verification_uri = ""
+                    self._dag_device_code = ""
+                    self._dag_tokens = None
+                    self._dag_mbb_tokens = None
+                    self._dag_mbb_client_id = ""
+                    self._dag_mbb_ineligible = False
+                    self._dag_user_id = ""
+                    self._dag_error = ""
+                    return await self.async_step_browser_login_pending()
                 return self.async_create_entry(
                     title=f"{BRANDS[brand]} — {username}",
-                    data=self._build_entry_data(brand, username, password, user_input),
+                    data=portal_data,
                 )
 
         # v2.2.3 (#270 roberttco VW NA, 2026-05-21) — when validation
@@ -381,6 +485,10 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 ),
                 spin=suggested.get(CONF_SPIN, ""),
                 force_access=bool(suggested.get(CONF_FORCE_ACCESS, False)),
+                enable_mbb_commands=bool(
+                    suggested.get("enable_mbb_commands", False)
+                ),
+                country=suggested.get(CONF_COUNTRY, "us"),
             ),
             errors=errors,
         )
@@ -606,6 +714,55 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             ),
         }
 
+    async def async_step_mbb_login(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """v2.15.0 — Volkswagen EU durable MBB login (alpha) step 1.
+
+        VW-pinned variant of the browser-login flow: no brand picker (the
+        MBB recipe is VW-only), but it surfaces the S-PIN field so two-way
+        lock/unlock works. Submits → reuse the exact same DAG QR/poll
+        machinery (with the MBB client + scope, set via ``self._dag_mbb``).
+        """
+        if user_input is not None:
+            # Reset DAG state for this MBB attempt.
+            self._dag_mbb = True
+            self._dag_brand = "volkswagen"
+            self._dag_user_input = dict(user_input)
+            self._dag_request_task = None
+            self._dag_poll_task = None
+            self._dag_user_code = ""
+            self._dag_verification_uri = ""
+            self._dag_device_code = ""
+            self._dag_tokens = None
+            self._dag_mbb_tokens = None
+            self._dag_mbb_client_id = ""
+            self._dag_mbb_ineligible = False
+            self._dag_user_id = ""
+            self._dag_error = ""
+            return await self.async_step_browser_login_pending()
+
+        suggested: dict[str, Any] = user_input or {}
+        return self.async_show_form(
+            step_id="mbb_login",
+            data_schema=vol.Schema({
+                vol.Optional(
+                    CONF_MBB_VINS, default=suggested.get(CONF_MBB_VINS, ""),
+                ): TextSelector(TextSelectorConfig()),
+                vol.Optional(
+                    CONF_SPIN, default=suggested.get(CONF_SPIN, ""),
+                ): _SPIN_SELECTOR,
+                vol.Optional(
+                    CONF_SCAN_INTERVAL,
+                    default=int(suggested.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)),
+                ): _INTERVAL_SELECTOR,
+                vol.Optional(
+                    CONF_FORCE_ACCESS,
+                    default=bool(suggested.get(CONF_FORCE_ACCESS, False)),
+                ): _BOOL_SELECTOR,
+            }),
+        )
+
     async def async_step_browser_login(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
@@ -627,6 +784,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 errors["base"] = "brand_not_dag_eligible"
             else:
                 # Reset state for this attempt.
+                self._dag_mbb = False
                 self._dag_brand = brand
                 self._dag_user_input = dict(user_input)
                 self._dag_request_task = None
@@ -715,7 +873,9 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             # Phase 1 failed — drop back to the brand picker so user
             # can retry. The error message lives in self._dag_error
             # (surfaced via debug log; future: repair-issue / notification).
-            return self.async_show_progress_done(next_step_id="browser_login")
+            return self.async_show_progress_done(
+                next_step_id="mbb_login" if self._dag_mbb else "browser_login"
+            )
 
         # Phase 1 done — hand off to Phase 2 (separate step_id so HA
         # re-renders the progress dialog with the populated placeholders).
@@ -788,12 +948,39 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             # User clicked "I've approved" — check poll state
             if self._dag_poll_task.done():
                 self._dismiss_dag_persistent_notification()
-                if self._dag_tokens:
+                # v2.15.0 — for the MBB flow, success also requires the
+                # durable bearer to have been minted (register + exchange);
+                # a poll-OK but mint-failed attempt must route back to retry.
+                minted_ok = self._dag_tokens and (
+                    not self._dag_mbb or self._dag_mbb_tokens is not None
+                )
+                if minted_ok:
                     return await self.async_step_browser_login_finish()
-                # Poll completed with error — reset state and route
-                # back to brand picker so user can retry.
+                # v2.15.0a8 — MBB exchange said "Unknown user": this car is a
+                # newer ID/MEB model with no legacy Car-Net/MBB enrolment, so
+                # MBB will never work for it. Abort with a clear pointer to the
+                # EU Data Act / email-password channels rather than looping.
+                if self._dag_mbb and self._dag_mbb_ineligible:
+                    # b12 — when MBB was an add-on command channel on a portal
+                    # entry, an MBB-ineligible (MEB/ID) car must NOT lose the
+                    # portal reads: create the portal entry without commands.
+                    if self._dag_mbb_command and self._pending_portal_data:
+                        # b13 — flag the read-only fallback so the coordinator
+                        # raises a clear "commands unavailable on this MEB/ID
+                        # car" repair instead of silently missing the command
+                        # entities the user ticked the box for.
+                        return self.async_create_entry(
+                            title=self._pending_portal_title,
+                            data={**self._pending_portal_data,
+                                  CONF_MEB_COMMANDS_UNAVAILABLE: True},
+                        )
+                    return self.async_abort(reason="mbb_not_eligible")
+                # Poll/mint completed with error — reset state and route
+                # back to the right brand/MBB picker so user can retry.
                 self._dag_poll_task = None
                 self._dag_device_code = ""
+                if self._dag_mbb:
+                    return await self.async_step_mbb_login()
                 return await self.async_step_browser_login()
             # Clicked submit before poll completed — re-render with hint
             errors["base"] = "still_waiting_browser"
@@ -918,14 +1105,34 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 connector=connector,
                 cookie_jar=aiohttp.CookieJar(unsafe=True),
             )
-            from .cariad.models import BRANDS as BRAND_CONFIGS  # noqa: PLC0415
+            # v2.15.0 — durable MBB login uses the e-Remote client + ``mbb``
+            # scope (NOT the DAG-dead VW app client), tagged strategy="mbb".
+            if self._dag_mbb:
+                from .cariad.auth._device_grant import (  # noqa: PLC0415
+                    mbb_dag_config,
+                )
 
-            brand_cfg = BRAND_CONFIGS[self._dag_brand]
-            self._dag_client = DeviceAuthorizationGrant(
-                self._dag_session,
-                brand_cfg.client_id,
-                scope=brand_cfg.scope,
-            )
+                mbb_cfg = mbb_dag_config(self._dag_brand)
+                if mbb_cfg is None:
+                    raise ValueError(
+                        f"MBB durable login is VW-only (got {self._dag_brand})"
+                    )
+                mbb_client_id, mbb_scope = mbb_cfg
+                self._dag_client = DeviceAuthorizationGrant(
+                    self._dag_session,
+                    mbb_client_id,
+                    scope=mbb_scope,
+                    strategy="mbb",
+                )
+            else:
+                from .cariad.models import BRANDS as BRAND_CONFIGS  # noqa: PLC0415
+
+                brand_cfg = BRAND_CONFIGS[self._dag_brand]
+                self._dag_client = DeviceAuthorizationGrant(
+                    self._dag_session,
+                    brand_cfg.client_id,
+                    scope=brand_cfg.scope,
+                )
             code = await self._dag_client.request_device_code()
             self._dag_device_code = code.device_code
             self._dag_user_code = code.user_code
@@ -969,8 +1176,33 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 _CONST_BRANDS.get(self._dag_brand, self._dag_brand),
                 self._dag_user_id[:8] if self._dag_user_id else "(none)",
             )
+            # v2.15.0 — durable MBB: exchange the freshly-minted ``mbb``-scoped
+            # id_token for the durable MBB bearer via register/v1 + token
+            # exchange. Runs HERE (Phase 2) so it reuses the still-open DAG
+            # session before the finally-block closes it.
+            if self._dag_mbb:
+                from .cariad.auth import _mbboauth  # noqa: PLC0415
+
+                mbb_tokens, mbb_client_id = await _mbboauth.mint_mbb_bearer(
+                    self._dag_session, self._dag_tokens.id_token,
+                )
+                self._dag_mbb_tokens = mbb_tokens
+                self._dag_mbb_client_id = mbb_client_id
+                _LOGGER.info(
+                    "MBB durable bearer minted (refresh_token present: %s)",
+                    bool(mbb_tokens.refresh_token),
+                )
         except Exception as err:  # noqa: BLE001 — flow-level catch
             self._dag_error = str(err)
+            # v2.15.0a8 — the MBB token exchange returns
+            # ``invalid_grant: "Unknown user"`` when the account/vehicle has no
+            # legacy Car-Net/MBB enrolment — i.e. a newer ID/MEB car. That's
+            # not a transient failure: MBB (durable login + commands) simply
+            # doesn't cover MEB cars. Flag it so the flow aborts with a clear
+            # "use EU Data Act instead" message rather than looping the VIN form.
+            low = str(err).lower()
+            if self._dag_mbb and ("unknown user" in low or "invalid_grant" in low):
+                self._dag_mbb_ineligible = True
             _LOGGER.warning(
                 "Browser login Phase 2 failed for %s: %s",
                 self._dag_brand, err,
@@ -996,6 +1228,31 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             # Shouldn't happen if step routing is correct, but defensive.
             return self.async_abort(reason="dag_no_tokens")
 
+        # b12 — Portal-primary entry WITH an MBB command channel: the QR just
+        # minted the durable-MBB bearer; attach it to the pending portal entry
+        # (reads) as a command channel. The portal's unique_id was already set +
+        # de-duped in async_step_email_password, so don't touch it here.
+        if self._dag_mbb_command:
+            entry_data = dict(self._pending_portal_data)
+            if self._dag_mbb_tokens is not None:
+                entry_data[CONF_MBB_COMMAND_CHANNEL] = True
+                entry_data[CONF_MBB_COMMAND_TOKENS] = {
+                    "access_token": self._dag_mbb_tokens.access_token,
+                    "refresh_token": self._dag_mbb_tokens.refresh_token,
+                    "id_token": self._dag_tokens.id_token,
+                    "expires_at": self._dag_mbb_tokens.expires_at,
+                    "strategy": "mbb",
+                }
+                entry_data[CONF_MBB_COMMAND_CLIENT_ID] = self._dag_mbb_client_id
+            else:
+                # b13 — commands requested but the MBB bearer never minted
+                # (MEB/ID car): keep the read-only portal entry and flag it so
+                # the coordinator surfaces a clear "commands unavailable" repair.
+                entry_data[CONF_MEB_COMMANDS_UNAVAILABLE] = True
+            return self.async_create_entry(
+                title=self._pending_portal_title, data=entry_data,
+            )
+
         unique = f"{self._dag_brand}_{self._dag_user_id}"
         await self.async_set_unique_id(unique)
         self._abort_if_unique_id_configured()
@@ -1009,6 +1266,37 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             "",  # no password stored
             self._dag_user_input,
         )
+        # v2.15.0 — durable MBB entry: persist the MBB bearer + refresh
+        # (strategy="mbb") plus the registered X-Client-Id that minted it
+        # (needed by every MBB refresh + read + command). Keep the OIDC
+        # id_token too — its ``sub`` becomes the X-MbbUserId header.
+        if self._dag_mbb:
+            if self._dag_mbb_tokens is None:
+                return self.async_abort(reason="dag_no_tokens")
+            entry_data["dag_initial_tokens"] = {
+                "access_token": self._dag_mbb_tokens.access_token,
+                "refresh_token": self._dag_mbb_tokens.refresh_token,
+                "id_token": self._dag_tokens.id_token,
+                "expires_at": self._dag_mbb_tokens.expires_at,
+                "strategy": "mbb",
+            }
+            entry_data["mbb_client_id"] = self._dag_mbb_client_id
+            # v2.15.0a4 — the fal-scoped MBB bearer can't list the garage
+            # (usermanagement 403s with XID_APP_VW), so persist the VIN(s)
+            # the user supplied. Normalise to an uppercased list, splitting
+            # on commas/whitespace and keeping plausible 11–17-char VINs.
+            raw_vins = str(self._dag_user_input.get(CONF_MBB_VINS, "") or "")
+            vins = [
+                v.strip().upper()
+                for v in raw_vins.replace(",", " ").split()
+                if 11 <= len(v.strip()) <= 17
+            ]
+            entry_data[CONF_MBB_VINS] = vins
+            return self.async_create_entry(
+                title=f"Volkswagen EU (MBB) — {self._dag_user_id[:8]}…",
+                data=entry_data,
+            )
+
         # Stash the DAG-acquired tokens so the coordinator's token
         # persistence loader picks them up before the first poll cycle.
         entry_data["dag_initial_tokens"] = {
@@ -1038,6 +1326,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     self._pending_username,
                     self._pending_password,
                     mfa_code=mfa_code,
+                    country=self._pending_entry_data.get(CONF_COUNTRY, "us"),
                 )
             except ValueError as err:
                 errors["base"] = _map_error(str(err))
@@ -1076,9 +1365,12 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             username = reauth_entry.data[CONF_USERNAME]
             password = user_input[CONF_PASSWORD]
             spin     = user_input.get(CONF_SPIN, reauth_entry.data.get(CONF_SPIN, ""))
+            country  = reauth_entry.data.get(CONF_COUNTRY, "us")
 
             try:
-                await _validate_credentials(self.hass, brand, username, password)
+                await _validate_credentials(
+                    self.hass, brand, username, password, country=country
+                )
             except ValueError as err:
                 errors["base"] = _map_error(str(err))
             else:
@@ -1116,9 +1408,12 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             brand    = user_input[CONF_BRAND]
             username = user_input[CONF_USERNAME]
             password = user_input[CONF_PASSWORD]
+            country  = user_input.get(CONF_COUNTRY, "us")
 
             try:
-                await _validate_credentials(self.hass, brand, username, password)
+                await _validate_credentials(
+                    self.hass, brand, username, password, country=country
+                )
             except ValueError as err:
                 errors["base"] = _map_error(str(err))
             else:
@@ -1144,6 +1439,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 scan_interval=current.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
                 spin=current.get(CONF_SPIN, ""),
                 force_access=current.get(CONF_FORCE_ACCESS, False),
+                country=current.get(CONF_COUNTRY, "us"),
             ),
             errors=errors,
         )
@@ -1161,7 +1457,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         brand: str, username: str, password: str, user_input: dict[str, Any]
     ) -> dict[str, Any]:
         """Build the config entry data dict from validated user input."""
-        return {
+        data: dict[str, Any] = {
             CONF_BRAND:         brand,
             CONF_USERNAME:      username,
             CONF_PASSWORD:      password,
@@ -1172,6 +1468,20 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             ),
             CONF_FORCE_ACCESS:  user_input.get(CONF_FORCE_ACCESS, False),
         }
+        # v2.15.5 — the US/Canada region picker is ONLY meaningful for the
+        # volkswagen_na brand (it selects the MYVW client_id + API host).
+        # Previously we stamped CONF_COUNTRY="us" onto EVERY brand's entry,
+        # which polluted Swiss/EU entries with a bogus country="us" (the
+        # field is shown to all email/password brands via the shared schema).
+        # It is harmless downstream — the EU Data Act portal builds its OIDC
+        # state from its own country/language defaults ("de__de__BRAND"), not
+        # from CONF_COUNTRY — but it is misleading in diagnostics and a latent
+        # trap. So we only persist it for volkswagen_na; every other brand
+        # leaves it unset (the coordinator/factory already default to "us"
+        # for the VW-NA path that is the only consumer).
+        if brand.lower() == "volkswagen_na":
+            data[CONF_COUNTRY] = user_input.get(CONF_COUNTRY, "us")
+        return data
 
 
 # ── Options Flow ──────────────────────────────────────────────────────────────
@@ -1181,19 +1491,77 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         self._config_entry = config_entry
+        # b1/C1 — state for the optional "add vw.de read channel" sub-flow.
+        self._ovw_session: Any = None
+        self._ovw_connector: Any = None
+        self._ovw_cookies: list[dict[str, Any]] = []
+        self._ovw_username: str = ""
+        self._ovw_pending_options: dict[str, Any] = {}
+        # b8/C1 — state for the "add EU Data Act portal read channel" sub-flow.
+        self._oportal_pending_options: dict[str, Any] = {}
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
         """Options: scan interval, S-PIN, reverse geocoding opt-in."""
+        errors: dict[str, str] = {}
         if user_input is not None:
+            # v2.15.5 — ABRP: if the user flipped the master switch on, both
+            # the developer api_key and the per-vehicle token must be set,
+            # else the sender can't authenticate. Re-show the form with an
+            # error instead of saving a half-configured (silently dormant)
+            # state. The values themselves never get logged.
+            if user_input.get(CONF_ABRP_ENABLE):
+                if not (user_input.get(CONF_ABRP_API_KEY) or "").strip() or not (
+                    user_input.get(CONF_ABRP_USER_TOKEN) or ""
+                ).strip():
+                    errors["base"] = "abrp_credentials_required"
+
+        # Only persist / branch when the submit validated cleanly. On an
+        # error we fall through to re-show the form (with ``errors``) below.
+        if user_input is not None and not errors:
+            # b1/C1 — if the user ticked "add vw.de read channel", branch into
+            # the login sub-flow; the remaining options are saved when it
+            # completes. Default-False so untouched submits behave exactly as
+            # before (the flag is popped so it's never stored as an option).
+            if user_input.pop(CONF_SUPPLEMENTARY_AUTHPROXY, False):
+                self._ovw_pending_options = dict(user_input)
+                return await self.async_step_add_vwde()
+            # b8/C1 — add the EU Data Act portal as a supplementary read channel
+            # (email/pw, no OTP) to fill the reads a command primary (MBB) lacks.
+            if user_input.pop(CONF_SUPPLEMENTARY_EU_PORTAL, False):
+                self._oportal_pending_options = dict(user_input)
+                return await self.async_step_add_portal()
+            # b11 — OFF-switch for the supplementary channels. Without this a
+            # channel could only ever be ADDED (the toggles above route on True),
+            # so a stuck/dead/redundant supplementary kept failing every restart
+            # with no way to remove it. Ticking a remove-toggle clears it from
+            # entry.data + reloads. Shown in the schema only when it's active.
+            remove_web = user_input.pop("remove_supplementary_authproxy", False)
+            remove_portal = user_input.pop("remove_supplementary_eu_portal", False)
+            if remove_web or remove_portal:
+                new_data = {**self._config_entry.data}
+                if remove_web:
+                    new_data.pop(CONF_SUPPLEMENTARY_AUTHPROXY, None)
+                    new_data.pop(CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES, None)
+                if remove_portal:
+                    new_data.pop(CONF_SUPPLEMENTARY_EU_PORTAL, None)
+                    new_data.pop(CONF_SUPPLEMENTARY_EU_PORTAL_USERNAME, None)
+                    new_data.pop(CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD, None)
+                self.hass.config_entries.async_update_entry(
+                    self._config_entry, data=new_data,
+                )
+                self.hass.async_create_task(
+                    self.hass.config_entries.async_reload(
+                        self._config_entry.entry_id
+                    )
+                )
+                return self.async_create_entry(title="", data=user_input)
             return self.async_create_entry(title="", data=user_input)
 
         current_data = self._config_entry.data
         current_options = self._config_entry.options
-        return self.async_show_form(
-            step_id="init",
-            data_schema=vol.Schema({
+        schema: dict[Any, Any] = {
                 vol.Optional(
                     CONF_SCAN_INTERVAL,
                     default=current_options.get(
@@ -1353,5 +1721,329 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                         ),
                     ),
                 ): _BOOL_SELECTOR,
-            }),
+                # b3 — hide entities without data (default on) so the device
+                # isn't flooded with "unknown" sensors; an entity still appears
+                # the moment its value arrives. Off = show every entity.
+                vol.Optional(
+                    CONF_HIDE_EMPTY_ENTITIES,
+                    default=current_options.get(
+                        CONF_HIDE_EMPTY_ENTITIES,
+                        current_data.get(CONF_HIDE_EMPTY_ENTITIES, True),
+                    ),
+                ): _BOOL_SELECTOR,
+                # v2.15.5 — ABRP (A Better Routeplanner) live telemetry push.
+                # Three opt-in fields, all default-dormant. The api_key is a
+                # DEVELOPER key you register with iternio (we don't ship one —
+                # hardcoding a key we don't own would be impersonation). The
+                # token is the per-vehicle "Generic" token from the ABRP app
+                # (Settings → car → Live Data). With the enable switch off, or
+                # either field blank, the sender makes zero outbound calls.
+                vol.Optional(
+                    CONF_ABRP_ENABLE,
+                    default=current_options.get(
+                        CONF_ABRP_ENABLE,
+                        current_data.get(CONF_ABRP_ENABLE, False),
+                    ),
+                ): _BOOL_SELECTOR,
+                vol.Optional(
+                    CONF_ABRP_API_KEY,
+                    default=current_options.get(
+                        CONF_ABRP_API_KEY,
+                        current_data.get(CONF_ABRP_API_KEY, ""),
+                    ),
+                ): _PASSWORD_SELECTOR,
+                vol.Optional(
+                    CONF_ABRP_USER_TOKEN,
+                    default=current_options.get(
+                        CONF_ABRP_USER_TOKEN,
+                        current_data.get(CONF_ABRP_USER_TOKEN, ""),
+                    ) if isinstance(
+                        current_options.get(
+                            CONF_ABRP_USER_TOKEN,
+                            current_data.get(CONF_ABRP_USER_TOKEN, ""),
+                        ),
+                        str,
+                    ) else "",
+                ): _PASSWORD_SELECTOR,
+                # b1/C1 — opt-in: add (or refresh) a supplementary read-only
+                # volkswagen.de channel that the coordinator merges onto this
+                # entry's primary data (VIN/odometer/service/master). Ticking it
+                # routes to the vw.de login; default False = no change. Brand-
+                # gated to volkswagen on submit.
+                vol.Optional(
+                    CONF_SUPPLEMENTARY_AUTHPROXY,
+                    default=False,
+                ): _BOOL_SELECTOR,
+                # b8/C1 — opt-in: add the EU Data Act portal as a supplementary
+                # read channel (email/pw, no OTP) to fill the reads a command
+                # primary (MBB) can't. Default False = no change.
+                vol.Optional(
+                    CONF_SUPPLEMENTARY_EU_PORTAL,
+                    default=False,
+                ): _BOOL_SELECTOR,
+        }
+        # b11 — only surface a remove-toggle for a channel that's actually
+        # active, so a stuck/redundant supplementary can be turned off (and the
+        # form stays uncluttered for everyone else).
+        if current_data.get(CONF_SUPPLEMENTARY_AUTHPROXY):
+            schema[vol.Optional(
+                "remove_supplementary_authproxy", default=False,
+            )] = _BOOL_SELECTOR
+        if current_data.get(CONF_SUPPLEMENTARY_EU_PORTAL):
+            schema[vol.Optional(
+                "remove_supplementary_eu_portal", default=False,
+            )] = _BOOL_SELECTOR
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(schema),
+            errors=errors,
         )
+
+    # ── b8/C1: supplementary EU Data Act portal read-channel sub-flow ───────
+
+    async def async_step_add_portal(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Collect EU Data Act portal credentials (email/pw, no OTP), validate
+        with a test login, and store them as a supplementary read channel that
+        the coordinator merges onto the primary (e.g. MBB) — filling SoC /
+        charging / odometer / service that the primary can't read."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            email = user_input[CONF_USERNAME]
+            password = user_input[CONF_PASSWORD]
+            try:
+                await self._oportal_test_login(email, password)
+            except ValueError as err:
+                errors["base"] = _map_error(str(err))
+            else:
+                self.hass.config_entries.async_update_entry(
+                    self._config_entry,
+                    data={
+                        **self._config_entry.data,
+                        CONF_SUPPLEMENTARY_EU_PORTAL: True,
+                        CONF_SUPPLEMENTARY_EU_PORTAL_USERNAME: email,
+                        CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD: password,
+                    },
+                )
+                self.hass.async_create_task(
+                    self.hass.config_entries.async_reload(
+                        self._config_entry.entry_id
+                    )
+                )
+                return self.async_create_entry(
+                    title="", data=self._oportal_pending_options
+                )
+
+        return self.async_show_form(
+            step_id="add_portal",
+            data_schema=vol.Schema({
+                vol.Required(CONF_USERNAME): _USERNAME_SELECTOR,
+                vol.Required(CONF_PASSWORD): _PASSWORD_SELECTOR,
+            }),
+            errors=errors,
+        )
+
+    async def _oportal_test_login(self, email: str, password: str) -> None:
+        """Validate the portal credentials with a throwaway login. Raises
+        ValueError(code) on failure so _map_error renders a localised message."""
+        import aiohttp  # noqa: PLC0415
+
+        from .cariad.auth._eu_data_act import EUDataActConnector  # noqa: PLC0415
+        from .cariad.exceptions import (  # noqa: PLC0415
+            AuthenticationError,
+            EmailTwoFactorRequiredError,
+            MarketingConsentError,
+            PortalInteractionRequiredError,
+            RateLimitError,
+            TermsAndConditionsError,
+            TwoFactorRequiredError,
+        )
+
+        brand = str(self._config_entry.data.get(CONF_BRAND, "")) or "volkswagen"
+        session = aiohttp.ClientSession(
+            connector=aiohttp.TCPConnector(ssl=True),
+            cookie_jar=aiohttp.CookieJar(unsafe=True),
+        )
+        try:
+            connector = EUDataActConnector(session, brand=brand)
+            await connector.login(email, password)
+        # v2.15.4 (#527) — the portal login can stop on a non-credential
+        # step (T&C / consent / 2FA / onboarding / soft block). Map each to
+        # its existing distinct code so valid-credential users are NOT told
+        # to fix their password. Subclass order: Email-2FA before its 2FA
+        # parent; the generic AuthenticationError catch-all stays LAST.
+        except TermsAndConditionsError as err:
+            raise ValueError("terms_and_conditions") from err
+        except MarketingConsentError as err:
+            raise ValueError("marketing_consent") from err
+        except EmailTwoFactorRequiredError as err:
+            raise ValueError("two_factor_required") from err
+        except TwoFactorRequiredError as err:
+            raise ValueError("two_factor_required") from err
+        except RateLimitError as err:
+            raise ValueError("too_many_requests") from err
+        except PortalInteractionRequiredError as err:
+            raise ValueError("portal_interaction_required") from err
+        except AuthenticationError as err:
+            raise ValueError("invalid_credentials") from err
+        except Exception as err:  # noqa: BLE001
+            raise ValueError("cannot_connect") from err
+        finally:
+            try:
+                await session.close()
+            except Exception:  # noqa: BLE001
+                pass
+
+    # ── b1/C1: supplementary vw.de read-channel sub-flow ────────────────────
+
+    async def async_step_add_vwde(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Collect vw.de credentials + drive the read-only login. Volkswagen
+        only; on success stores the session cookies as a supplementary channel
+        and reloads so the coordinator merges it onto the primary."""
+        errors: dict[str, str] = {}
+        if self._config_entry.data.get(CONF_BRAND) != "volkswagen":
+            return self.async_abort(reason="not_volkswagen")
+
+        if user_input is not None:
+            self._ovw_username = user_input[CONF_USERNAME]
+            try:
+                needs_otp = await self._ovw_begin_login(
+                    self._ovw_username, user_input[CONF_PASSWORD],
+                )
+            except ValueError as err:
+                errors["base"] = _map_error(str(err))
+            else:
+                if needs_otp:
+                    return await self.async_step_add_vwde_otp()
+                return await self._ovw_finish()
+
+        return self.async_show_form(
+            step_id="add_vwde",
+            data_schema=vol.Schema({
+                vol.Required(CONF_USERNAME): _USERNAME_SELECTOR,
+                vol.Required(CONF_PASSWORD): _PASSWORD_SELECTOR,
+            }),
+            errors=errors,
+        )
+
+    async def async_step_add_vwde_otp(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Email-OTP step for the supplementary vw.de channel login."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            try:
+                ok = await self._ovw_submit_otp(str(user_input.get("mfa_code", "")).strip())
+            except ValueError as err:
+                errors["base"] = _map_error(str(err))
+            else:
+                if ok:
+                    return await self._ovw_finish()
+                errors["base"] = "invalid_credentials"
+
+        return self.async_show_form(
+            step_id="add_vwde_otp",
+            data_schema=vol.Schema({vol.Required("mfa_code"): _MFA_SELECTOR}),
+            description_placeholders={"username": self._ovw_username},
+            errors=errors,
+        )
+
+    async def _ovw_finish(self) -> config_entries.ConfigFlowResult:
+        """Persist the supplementary cookies onto the entry + reload so the
+        coordinator arms the merged channel. Saves any pending options too."""
+        self.hass.config_entries.async_update_entry(
+            self._config_entry,
+            data={
+                **self._config_entry.data,
+                CONF_SUPPLEMENTARY_AUTHPROXY: True,
+                CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES: self._ovw_cookies,
+            },
+        )
+        # The update listener only reloads on credential changes; the
+        # supplementary config lives in entry.data, so reload explicitly
+        # (after this flow returns) to arm the merged channel.
+        self.hass.async_create_task(
+            self.hass.config_entries.async_reload(self._config_entry.entry_id)
+        )
+        return self.async_create_entry(title="", data=self._ovw_pending_options)
+
+    async def _ovw_begin_login(self, username: str, password: str) -> bool:
+        """Drive the vw.de authproxy login; True if an OTP step is needed.
+        Mirrors the config-flow's _wap_begin_login (kept self-contained so the
+        OptionsFlow owns its own throwaway session + connector)."""
+        import aiohttp  # noqa: PLC0415
+
+        from .cariad.auth._website_authproxy import (  # noqa: PLC0415
+            WebsiteAuthProxyConnector,
+        )
+        from .cariad.exceptions import (  # noqa: PLC0415
+            AuthenticationError,
+            EmailTwoFactorRequiredError,
+        )
+
+        await self._ovw_close_session()
+        self._ovw_session = aiohttp.ClientSession(
+            connector=aiohttp.TCPConnector(ssl=True),
+            cookie_jar=aiohttp.CookieJar(unsafe=True),
+        )
+        self._ovw_connector = WebsiteAuthProxyConnector(
+            self._ovw_session, username, password, brand="volkswagen",
+        )
+        try:
+            result = await self._ovw_connector.begin_login()
+        except EmailTwoFactorRequiredError:
+            return True
+        except AuthenticationError as err:
+            await self._ovw_close_session()
+            raise ValueError("invalid_credentials") from err
+        except Exception as err:  # noqa: BLE001
+            await self._ovw_close_session()
+            raise ValueError("cannot_connect") from err
+        if result == "otp_required":
+            return True
+        self._ovw_cookies = self._ovw_capture_cookies()
+        await self._ovw_close_session()
+        return False
+
+    async def _ovw_submit_otp(self, code: str) -> bool:
+        """Submit the OTP for the supplementary vw.de login."""
+        from .cariad.exceptions import AuthenticationError  # noqa: PLC0415
+
+        if self._ovw_connector is None:
+            raise ValueError("cannot_connect")
+        try:
+            ok = bool(await self._ovw_connector.submit_otp(code))
+            if ok:
+                self._ovw_cookies = self._ovw_capture_cookies()
+        except AuthenticationError as err:
+            raise ValueError("invalid_credentials") from err
+        except Exception as err:  # noqa: BLE001
+            raise ValueError("cannot_connect") from err
+        finally:
+            await self._ovw_close_session()
+        return ok
+
+    def _ovw_capture_cookies(self) -> list[dict[str, Any]]:
+        """Export the connector's session cookies (never raises → empty list)."""
+        connector = self._ovw_connector
+        if connector is None:
+            return []
+        try:
+            cookies = connector.export_cookies()
+        except Exception:  # noqa: BLE001
+            return []
+        return cookies if isinstance(cookies, list) else []
+
+    async def _ovw_close_session(self) -> None:
+        """Close the throwaway login session + drop the connector."""
+        sess = self._ovw_session
+        self._ovw_session = None
+        self._ovw_connector = None
+        if sess is not None:
+            try:
+                await sess.close()
+            except Exception:  # noqa: BLE001
+                pass

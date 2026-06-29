@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 """Squeeze every possible sensor/entity out of the Golf 7 GTE.
 
 We've been hitting capabilities surface-level. The capabilities list reveals

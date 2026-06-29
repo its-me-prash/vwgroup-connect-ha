@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Tests for v1.17.5 — Scout silencing for #129/#130/#131/#132/#133.
 
 Five Vehicle Data Scout reports landed within 24h on 2026-05-03/04:

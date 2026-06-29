@@ -565,6 +565,53 @@ start_climate_control:
             - comfort
             - economy
 
+# v2.15.5 — push the vehicle's current telemetry to A Better Routeplanner
+# (iternio /tlm/send). Target by device or VIN. The api_key + token are
+# read from the integration options (ABRP section) when omitted here; pass
+# them inline only if you prefer to keep them in the automation. Neither is
+# ever written to the log. On success the "ABRP data changed" binary sensor
+# resets so the shipped blueprint won't re-upload the same snapshot.
+abrp_send:
+  name: Send telemetry to ABRP
+  description: >-
+    Build and POST the targeted vehicle's current telemetry (SoC, GPS,
+    charging state, range, temperatures, odometer) to A Better Routeplanner.
+    The developer api_key and the per-vehicle ABRP token are taken from the
+    integration options unless supplied here. This sends GPS off-device — it
+    only runs when you call it (or via the shipped blueprint).
+  fields:
+    device_id:
+      name: Vehicle
+      description: The vehicle device to upload. Either this or vin is required.
+      required: false
+      selector:
+        device:
+          integration: vag_connect
+    vin:
+      name: VIN
+      description: VIN of the vehicle. Alternative to device_id.
+      required: false
+      example: "WVWZZZ00000000000"
+      selector:
+        text:
+    api_key:
+      name: ABRP api_key (optional override)
+      description: >-
+        Developer/partner key from iternio. Leave empty to use the key stored
+        in the integration options. Never logged.
+      required: false
+      selector:
+        text:
+    token:
+      name: ABRP token (optional override)
+      description: >-
+        Per-vehicle "Generic" token from the ABRP app (Settings → car → Live
+        Data). Leave empty to use the token stored in the integration
+        options. Never logged.
+      required: false
+      selector:
+        text:
+
 # v2.10.0 Group B - SEAT/CUPRA settable charge plan.
 # Maps to POST /v1/vehicles/{vin}/charging/actions/update-settings.
 # At least one of the optional fields must be provided; an empty body

@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Constants for VAG Connect."""
 
 DOMAIN = "vag_connect"
@@ -9,6 +9,26 @@ CONF_BRAND                    = "brand"
 CONF_USERNAME                 = "username"
 CONF_PASSWORD                 = "password"
 CONF_SPIN                     = "spin"
+# v2.15.1 (#503) — Volkswagen US/Canada region selector. VWNorthAmericaClient
+# picks the right MYVW client_id + b-h-s.spr.{us|ca}00 host from this value.
+# Only consumed by the volkswagen_na brand; every other brand ignores it.
+# Backward-compatible default "us" for entries created before this field.
+CONF_COUNTRY                  = "country"
+# v2.15.0 — durable MBB strategy: optional manual VIN(s). The MBB
+# fal-scoped bearer cannot call the account-level usermanagement garage
+# endpoint (403 RS.security.9007 XID_APP_VW), so the user supplies the VIN
+# directly. Comma/space-separated for multiple cars. Vehicle-level reads +
+# commands (VSR / rlu) work fine with the fal token.
+CONF_MBB_VINS                 = "mbb_vins"
+# b12 — MBB COMMAND CHANNEL layered on a read-only primary (e.g. EU Data Act
+# portal for reads). The portal can't command; this arms a durable-MBB
+# connector ALONGSIDE it so lock/climate/charge route through MBB while reads
+# stay on the portal. Stored separately from the primary's dag_initial_tokens
+# so the portal primary is untouched.
+CONF_MBB_COMMAND_CHANNEL      = "mbb_command_channel"      # bool: armed?
+CONF_MBB_COMMAND_TOKENS       = "mbb_command_tokens"       # dag-shaped dict (strategy=mbb)
+CONF_MBB_COMMAND_CLIENT_ID    = "mbb_command_client_id"    # registered X-Client-Id
+CONF_MEB_COMMANDS_UNAVAILABLE = "meb_commands_unavailable"  # bool: MEB/ID car, commands requested but impossible
 CONF_SCAN_INTERVAL            = "scan_interval"
 CONF_FORCE_ACCESS             = "force_enable_access"
 CONF_ENABLE_REVERSE_GEOCODING = "enable_reverse_geocoding"
@@ -157,6 +177,61 @@ CONF_WEBSITE_AUTHPROXY        = "website_authproxy"
 # entries; absent for every other mode/brand. Value: a list of cookie dicts as
 # produced by ``WebsiteAuthProxyConnector.export_cookies``.
 CONF_WEBSITE_COOKIES          = "website_cookies"
+
+# v2.15.0b1 (C1) — SUPPLEMENTARY vw.de read channel armed ALONGSIDE a primary
+# channel (e.g. an EU-Data-Act-portal entry that also pulls VIN/odometer/service
+# from volkswagen.de and merges them). Distinct from CONF_WEBSITE_AUTHPROXY,
+# which makes vw.de the SOLE/primary channel: this flag adds vw.de as an extra
+# read-only source that the coordinator unions onto the primary snapshot via
+# merge_channels. Absent / False = single-channel behaviour, unchanged.
+CONF_SUPPLEMENTARY_AUTHPROXY         = "supplementary_authproxy"
+# v2.15.0b8 (C1) — supplementary EU Data Act PORTAL read channel (email/pw,
+# no OTP) merged onto a command-capable primary like MBB to fill the reads MBB
+# can't. Creds stored separately from the primary's (an MBB-QR entry has none).
+CONF_SUPPLEMENTARY_EU_PORTAL          = "supplementary_eu_portal"
+CONF_SUPPLEMENTARY_EU_PORTAL_USERNAME = "supplementary_eu_portal_username"
+CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD = "supplementary_eu_portal_password"
+# Persisted vw.de session cookies for the supplementary channel (same shape +
+# lifecycle as CONF_WEBSITE_COOKIES, but for the supplementary slot). Written by
+# the OptionsFlow "add vw.de read channel" step; read by the coordinator to arm
+# the client's _supplementary_authproxy connector at setup.
+CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES = "supplementary_authproxy_cookies"
+
+# v2.15.0b3 — "hide entities without data" (default ON). When enabled, data
+# sensors / binary sensors whose value hasn't arrived are not created, so a
+# device isn't flooded with dozens of "unknown" entities. The per-id dynamic
+# spawner re-evaluates each poll, so an entity still appears the moment its
+# value first arrives. Controls (lock/climate/button/number/switch) are never
+# gated. Set False to show every entity regardless of data.
+CONF_HIDE_EMPTY_ENTITIES = "hide_empty_entities"
+
+# v2.15.5 — OPTIONAL ABRP (A Better Routeplanner) live-telemetry push.
+# Three opt-in option fields grouped with the other CONF_ENABLE_PUSH_*
+# flags. ALL default-dormant: with the enable flag off (or no api_key /
+# token) the ABRP sender makes ZERO outbound calls, exactly like the
+# other opt-in push features.
+#
+# CONF_ABRP_ENABLE      — master switch. Default False. When False the
+#                         abrp_data_changed binary sensor is not created
+#                         and the abrp_send service is a no-op unless
+#                         given inline credentials.
+# CONF_ABRP_API_KEY     — developer/partner key issued by iternio (per
+#                         integration, NOT per user). The user pastes one
+#                         they registered with iternio — we deliberately do
+#                         NOT ship/hardcode a key (hardcoding one we don't
+#                         own would be impersonation + bakes a non-owned
+#                         secret into an AGPL public repo). Empty = required
+#                         from the service call instead.
+# CONF_ABRP_USER_TOKEN  — per-VIN user token from the ABRP app
+#                         (Settings → car → Live Data → Generic). Stored as
+#                         a {vin: token} dict so multi-VIN accounts each
+#                         carry their own token. A bare string is also
+#                         accepted (single-VIN convenience) and applied to
+#                         every VIN.
+# SECURITY: neither value is ever logged — see abrp.redact().
+CONF_ABRP_ENABLE              = "abrp_enable"
+CONF_ABRP_API_KEY            = "abrp_api_key"
+CONF_ABRP_USER_TOKEN         = "abrp_user_token"
 
 # Supported brands — must match CariadClientFactory.create() keys
 BRANDS = {

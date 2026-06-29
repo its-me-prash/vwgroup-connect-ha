@@ -1,5 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) - Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Tests for v2.10.0 Group A VW EU field parity additions.
 
 Coverage:

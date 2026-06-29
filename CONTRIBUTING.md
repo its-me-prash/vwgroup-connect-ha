@@ -249,7 +249,8 @@ Some brands are implemented but lack real-world verification:
 | SEAT | Awaiting first real account |
 | CUPRA | Live tested (Born — limited by subscription, see #53 #42) |
 | Porsche | Implemented, **no live test** — `new_brand.yml` template |
-| VW US/CA | Implemented, **no live test** — `new_brand.yml` template |
+| VW US/CA | Implemented — live test in progress (US/CA, see #503) |
+| Bentley | Implemented, **live-test gated** — runs on the Audi platform |
 
 If you have a vehicle and want to help, open the
 [`new_brand.yml`](https://github.com/its-me-prash/vwgroup-connect-ha/issues/new?template=new_brand.yml)

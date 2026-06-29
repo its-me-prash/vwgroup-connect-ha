@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Tests for v1.20.2 — Skoda doors_locked parser hardening (#131 Bug B).
 
 Proactive defensive fix without waiting for Chr1sDub's specific JSON

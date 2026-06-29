@@ -1,37 +1,25 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
-"""Lamborghini Unica API client — Cariad-BFF backend (scaffold).
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
+"""Lamborghini Unica API client — NOT a Cariad-BFF brand (do NOT wire).
 
-**BETA — TESTER VALIDATION PENDING.** This module ships as scaffolding
-only. The class compiles, imports cleanly, and inherits the full
-VWEUClient feature set, but the OAuth ``client_id`` and ``redirect_uri``
-in ``BRAND_LAMBO`` (``cariad/models.py``) are PLACEHOLDERS that need
-a tester with a Lamborghini Unica app install to confirm via
-mitmproxy / Charles inspection of the production login flow.
+v2.14.11 — the 2026-06-18 app-atlas (``lamborghini.connectedcar``) DISPROVED
+the original "same Cariad-BFF as Audi/VW EU" assumption. Lamborghini Unica:
+- ships **NO** ``@apps_vw-dilab_com`` IDK client_id anywhere in the APK;
+- authenticates via **MBB co-auth proxied through Lamborghini's own SDP
+  gateway**: token endpoint ``https://sdp.lamborghini.com/unicav2/mbbcoauth``,
+  scope ``sc2:fal``; the real VW MBB client_id is held SERVER-SIDE on the SDP
+  proxy and is never shipped in the app;
+- uses AWS Cognito only as an analytics identity-pool (Pinpoint), not login.
 
-Until those values are confirmed:
-- The class is NOT wired into ``CariadClientFactory``
-- The brand is NOT exposed in the config-flow UI
-- A power-user / tester can manually instantiate ``LamboClient(...)``
-  in a debug-script to exercise the IDK login and report back what
-  succeeds or fails
+Therefore this ``LamboClient(VWEUClient)`` subclass is the WRONG shape — the
+IDK/Cariad-BFF login path it inherits cannot speak the SDP-proxy MBB flow, and
+``BRAND_LAMBO.api_base = emea.bff.cariad.digital`` is incorrect. Integrating
+Lamborghini needs a dedicated SDP-proxy MBB-co-auth adapter (Tier-3 project)
+whose request shape can only be derived from a live mitmproxy capture of a
+real Unica login — not from static APK analysis.
 
-Inheritance rationale (from API-Evangelist OpenAPI catalog metadata,
-2026-05-03):
-
-- Lamborghini Unica is a VAG luxury brand fronted by the same
-  Cariad-BFF host (``emea.bff.cariad.digital``) as VW EU + Audi
-- Vehicle-data endpoints, capability schema, charging settings —
-  all share the parent contract via ``VWEUClient``
-- The only brand-specific delta is the IDK ``client_id`` /
-  ``redirect_uri`` (login flow) and the User-Agent header
-
-This file is intentionally minimal: subclass + ``BRAND_LAMBO``
-binding. When tester confirms values, the binding fills in and
-a single one-line addition to ``factory.py`` enables the brand.
-
-"And that's why you always leave a note." — Marshall Eriksen,
-on shipping defensive scaffolding for unknown firmware
+Kept as documentation only: NOT wired into ``CariadClientFactory`` / ``BRANDS``
+/ config-flow, and must stay that way until the SDP-proxy adapter exists.
 """
 
 from __future__ import annotations
@@ -47,19 +35,13 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class LamboClient(VWEUClient):
-    """Lamborghini Unica client — Cariad-BFF for data, no AZS exchange.
+    """Lamborghini Unica — placeholder subclass, structurally WRONG, NOT wired.
 
-    Inherits the full data-fetch + command-send surface from
-    ``VWEUClient``. The only brand-specific override is the
-    ``BRAND_LAMBO`` binding passed to the base ``__init__``.
-
-    Unlike ``AudiClient`` (which exchanges for an AZS token to fetch
-    vgql render images), Lamborghini doesn't have a separate vgql
-    endpoint — vehicle images come from the standard Cariad-BFF
-    image endpoint. So we don't need a separate token exchange.
-
-    v2.2.0 PR #15/20 — scaffold. Activation requires tester to
-    confirm ``BRAND_LAMBO.client_id`` + ``redirect_uri``.
+    Inherits ``VWEUClient`` only because the brand was originally (mis)assumed
+    to be a Cariad-BFF brand. The atlas (v2.14.11) proved Unica uses an
+    SDP-proxy MBB co-auth flow (see module docstring), which this IDK subclass
+    cannot perform. Do NOT instantiate in production — a dedicated SDP-proxy
+    MBB adapter is required first (Tier-3). Retained as documentation of why.
     """
 
     def __init__(
@@ -76,8 +58,9 @@ class LamboClient(VWEUClient):
         CariadBaseClient.__init__(
             self, session, BRAND_LAMBO, email, password, spin
         )
-        _LOGGER.info(
-            "Lambo client instantiated (BETA scaffold — client_id is "
-            "placeholder until tester validation). Brand: %s",
+        _LOGGER.warning(
+            "Lambo client instantiated, but Lamborghini Unica uses an "
+            "SDP-proxy MBB flow this IDK client cannot speak — NOT wired for "
+            "production. Brand: %s",
             BRAND_LAMBO.name,
         )

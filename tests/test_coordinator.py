@@ -1,5 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) - Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Tests for VagConnectCoordinator — uses full mocks, no real API calls."""
 from __future__ import annotations
 
@@ -149,7 +149,7 @@ class TestEnrich:
         from datetime import datetime, timezone
         coord = self._make_coord()
         data = {"latitude": None, "longitude": None}
-        result = asyncio.get_event_loop().run_until_complete(coord._enrich(data))
+        result = asyncio.run(coord._enrich(data))
         assert result["last_updated_at"] is not None
         assert isinstance(result["last_updated_at"], datetime)
         assert result["last_updated_at"].tzinfo == timezone.utc
@@ -159,14 +159,14 @@ class TestEnrich:
         coord = self._make_coord()
         data = {"is_online": True, "is_driving": False, "is_charging": False,
                 "latitude": None, "longitude": None}
-        result = asyncio.get_event_loop().run_until_complete(coord._enrich(data))
+        result = asyncio.run(coord._enrich(data))
         assert result["vehicle_state"] == "PARKED"
 
     def test_vehicle_state_offline(self):
         import asyncio
         coord = self._make_coord()
         data = {"is_online": False, "latitude": None, "longitude": None}
-        result = asyncio.get_event_loop().run_until_complete(coord._enrich(data))
+        result = asyncio.run(coord._enrich(data))
         assert result["vehicle_state"] == "OFFLINE"
 
     def test_vehicle_state_charging(self):
@@ -175,7 +175,7 @@ class TestEnrich:
         data = {"is_online": True, "is_driving": False, "is_charging": True,
                 "plug_connected": True,  # must be True for is_charging to hold
                 "latitude": None, "longitude": None}
-        result = asyncio.get_event_loop().run_until_complete(coord._enrich(data))
+        result = asyncio.run(coord._enrich(data))
         assert result["vehicle_state"] == "CHARGING"
 
     def test_existing_vehicle_state_preserved(self):
@@ -183,7 +183,7 @@ class TestEnrich:
         import asyncio
         coord = self._make_coord()
         data = {"vehicle_state": "DRIVING", "latitude": None, "longitude": None}
-        result = asyncio.get_event_loop().run_until_complete(coord._enrich(data))
+        result = asyncio.run(coord._enrich(data))
         assert result["vehicle_state"] == "DRIVING"
 
     def test_geocoding_off_by_default(self):
@@ -197,7 +197,7 @@ class TestEnrich:
         coord.entry.data = {"brand": "audi"}
         with patch.object(coord, "_reverse_geocode", new=AsyncMock()) as mock_geo:
             data = {"latitude": 48.1351, "longitude": 11.5820, "parking_address": None}
-            asyncio.get_event_loop().run_until_complete(coord._enrich(data))
+            asyncio.run(coord._enrich(data))
             mock_geo.assert_not_called()
 
     def test_geocoding_skipped_when_address_already_set(self):
@@ -211,7 +211,7 @@ class TestEnrich:
         with patch.object(coord, "_reverse_geocode", new=AsyncMock()) as mock_geo:
             data = {"latitude": 48.1, "longitude": 11.5,
                     "parking_address": "Existierende Straße 1, München"}
-            asyncio.get_event_loop().run_until_complete(coord._enrich(data))
+            asyncio.run(coord._enrich(data))
             mock_geo.assert_not_called()
 
     def test_geocoding_called_when_opted_in_and_gps_available(self):
@@ -226,7 +226,7 @@ class TestEnrich:
         )
         with patch.object(coord, "_reverse_geocode", new=mock_geo):
             data = {"latitude": 48.1351, "longitude": 11.5820, "parking_address": None}
-            result = asyncio.get_event_loop().run_until_complete(coord._enrich(data))
+            result = asyncio.run(coord._enrich(data))
             mock_geo.assert_called_once()
             assert result["parking_address"] == "Teststraße 1, München"
             assert result["parking_city"] == "München"
@@ -244,7 +244,7 @@ class TestEnrich:
             new=AsyncMock(side_effect=Exception("Network error")),
         ):
             data = {"latitude": 48.1, "longitude": 11.5, "parking_address": None}
-            result = asyncio.get_event_loop().run_until_complete(coord._enrich(data))
+            result = asyncio.run(coord._enrich(data))
             assert result.get("parking_address") is None  # no crash, address stays None
 
 
@@ -378,7 +378,7 @@ class TestIsChargingReset:
         import asyncio
         coord = self._make_coord()
         data = {"is_charging": True, "plug_connected": False, "latitude": None, "longitude": None}
-        result = asyncio.get_event_loop().run_until_complete(coord._enrich(data))
+        result = asyncio.run(coord._enrich(data))
         assert result["is_charging"] is False
 
     def test_is_charging_preserved_when_plugged(self):
@@ -386,7 +386,7 @@ class TestIsChargingReset:
         import asyncio
         coord = self._make_coord()
         data = {"is_charging": True, "plug_connected": True, "latitude": None, "longitude": None}
-        result = asyncio.get_event_loop().run_until_complete(coord._enrich(data))
+        result = asyncio.run(coord._enrich(data))
         assert result["is_charging"] is True
 
     def test_is_charging_false_stays_false(self):
@@ -394,7 +394,7 @@ class TestIsChargingReset:
         import asyncio
         coord = self._make_coord()
         data = {"is_charging": False, "plug_connected": True, "latitude": None, "longitude": None}
-        result = asyncio.get_event_loop().run_until_complete(coord._enrich(data))
+        result = asyncio.run(coord._enrich(data))
         assert result["is_charging"] is False
 
 

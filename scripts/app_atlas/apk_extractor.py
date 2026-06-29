@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 """APK extraction module — Phase A.2.
 
 Builds on Phase A.1's version polling. When a version changes, this

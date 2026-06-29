@@ -1,5 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) - Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """v2.13.1 — exponential backoff on the flaky EU Data Act portal.
 
 The portal returns transient 5xx that come and go within seconds (the whole

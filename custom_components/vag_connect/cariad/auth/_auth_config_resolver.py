@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """v2.5.6 — APK-primary, competitor-fallback auth config resolver.
 
 v2.5.11 — added Audi market-config layer (between OIDC discovery and
@@ -76,8 +76,49 @@ _ALTERNATE_CLIENT_IDS: dict[str, tuple[str, ...]] = {
         # Discovered in classes3.dex of WeConnect ID 3.61.0 (post-WAF prep version).
         # Both are NOT our current hardcoded client_id — worth trying as
         # candidates if the primary one starts 401/403'ing.
+        # v2.14.11 — 2026-06-18 cross-brand app-atlas re-confirmed these are
+        # the ONLY two VW EU dilab clients in the modern app (com.volkswagen.weconnect);
+        # the VW EU degrade to the read-only portal is fundamentally an
+        # App-Check/Play-Integrity wall, not a client_id. The two below are the
+        # canonical modern-app clients.
         "4edc53db-4b79-4e37-b614-19a95dea20dc@apps_vw-dilab_com",
         "a24fba63-34b3-4d43-b181-942111e6bda8@apps_vw-dilab_com",
+        # v2.14.11 LONG-SHOT — dilab clients from OTHER VW-published apps, added
+        # as tail candidates purely to see if one lucks past the wall (VW EU is
+        # already on the read-only portal, so there is nothing to lose; these
+        # only get tried after the two canonical clients 4xx). Low odds — the
+        # blocker is attestation, not the client — BUT 9496332b ships in the
+        # legacy We Connect / Car-Net e-Remote app whose MBB stack PREDATES the
+        # CARIAD App-Check, so it is the one candidate that could authorize via
+        # a less-guarded path. ac42b0fa is the We Connect Go (OBD) client. Both
+        # are LIVE-TEST candidates: keep only if a tester confirms a real token.
+        "9496332b-ea03-4091-a224-8c746b885068@apps_vw-dilab_com",
+        "ac42b0fa-3b11-48a0-a941-43a399e7ef84@apps_vw-dilab_com",
+    ),
+    # v2.14.11 — Skoda/SEAT/CUPRA alternates from the 2026-06-18 cross-brand
+    # app-atlas (apkeep apk-pure pull + DEX/config grep, verified absent from
+    # this repo before adding). These brands previously had NO fallback key at
+    # all — a single IdP client-rotation would have locked them out. Tried only
+    # after the canonical client 401/403s at the IDK authorize/token step
+    # (see idk.py), so they are inert under normal operation.
+    "skoda": (
+        # cz.skodaauto.myskoda classes3.dex — the ONLY alternate co-located
+        # with the canonical 7f045eee in the modern app; also present in the
+        # legacy cz.skodaauto.connect build (cross-app => production, not a
+        # per-feature client). Strongest Skoda fallback.
+        "4fffed6b-815a-4b6f-af4a-b0ccccb4ff6d@apps_vw-dilab_com",
+    ),
+    "seat": (
+        # Shared SEAT<->CUPRA OLA client pair — present in BOTH
+        # com.seat.myseat.ola AND com.cupra.mycupra classes (rotated OLA
+        # client set). Either may be accepted if 99a5b77d/3c756d46 rotate.
+        "3f16b970-38ab-49c6-a1bf-af38460fd388@apps_vw-dilab_com",
+        "f1cd60b6-e40f-4bf2-822d-0201eabc09b5@apps_vw-dilab_com",
+    ),
+    "cupra": (
+        # Same shared OLA client pair as SEAT (above).
+        "3f16b970-38ab-49c6-a1bf-af38460fd388@apps_vw-dilab_com",
+        "f1cd60b6-e40f-4bf2-822d-0201eabc09b5@apps_vw-dilab_com",
     ),
 }
 

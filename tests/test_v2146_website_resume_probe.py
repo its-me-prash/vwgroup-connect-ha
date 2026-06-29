@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """v2.14.6 — website-authproxy session-resume probe (skip the login dance).
 
 Pre-2.14.6 a cookie-resumed website-authproxy session ALWAYS re-ran
@@ -125,3 +125,80 @@ async def test_credential_post_redirect_loop_is_clean_auth_error() -> None:
     with pytest.raises(AuthenticationError) as ei:
         await conn.begin_login()
     assert "redirect loop" in str(ei.value).lower()
+
+
+# ── b9: prompt=none SILENT refresh — the rafaelhutter resume mechanism ───────
+
+
+def _session_landing(url: str, status: int = 200) -> Any:
+    """A fake session whose GET lands the silent re-authorize on ``url``."""
+    class _S:
+        def get(self, u: str, **kw: Any) -> _Resp:
+            return _Resp(url, status)
+
+    return _S()
+
+
+@pytest.mark.asyncio
+async def test_refresh_silent_resume_on_live_sso() -> None:
+    """A live Auth0 SSO cookie carries the prompt=none authorize straight back
+    to volkswagen.de → session adopted silently, NO begin_login (no OTP)."""
+    from unittest.mock import AsyncMock
+
+    conn = WebsiteAuthProxyConnector(
+        _session_landing("https://www.volkswagen.de/de/besitzer-und-nutzer.html"),
+        "u@x.z", "pw",
+    )  # type: ignore[arg-type]
+    conn.begin_login = AsyncMock()  # must NOT be called
+    await conn.refresh()
+    assert conn.logged_in is True
+    conn.begin_login.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_refresh_dead_sso_raises_without_begin_login() -> None:
+    """A dead SSO bounces the prompt=none authorize to /u/login → refresh()
+    RAISES (so the caller surfaces a re-add) and NEVER calls begin_login — the
+    fix for the OTP-email storm on every reload."""
+    from unittest.mock import AsyncMock
+
+    conn = WebsiteAuthProxyConnector(
+        _session_landing("https://identity.vwgroup.io/u/login?state=ST"),
+        "u@x.z", "pw",
+    )  # type: ignore[arg-type]
+    conn.begin_login = AsyncMock()
+    with pytest.raises(AuthenticationError):
+        await conn.refresh()
+    assert conn.logged_in is False
+    conn.begin_login.assert_not_awaited()  # no OTP-email storm
+
+
+@pytest.mark.asyncio
+async def test_refresh_sso_error_query_raises() -> None:
+    """A silent-auth ``?error=login_required`` bounce-back is also a dead SSO."""
+    conn = WebsiteAuthProxyConnector(
+        _session_landing("https://www.volkswagen.de/cb?error=login_required"),
+        "u@x.z", "pw",
+    )  # type: ignore[arg-type]
+    with pytest.raises(AuthenticationError):
+        await conn.refresh()
+
+
+@pytest.mark.asyncio
+async def test_headers_send_x_csrf_token_from_cookie() -> None:
+    """Double-submit CSRF: the csrf_token cookie value is echoed into the
+    ``x-csrf-token`` header on every request (reads 412/{} silently without it)."""
+    from http.cookies import SimpleCookie
+
+    class _Jar:
+        def filter_cookies(self, _url: Any) -> SimpleCookie:
+            c: SimpleCookie = SimpleCookie()
+            c["csrf_token"] = "CSRF-123"
+            return c
+
+    class _S:
+        cookie_jar = _Jar()
+
+    conn = WebsiteAuthProxyConnector(_S(), "u@x.z", "pw")  # type: ignore[arg-type]
+    headers = conn._headers()
+    assert headers["x-csrf-token"] == "CSRF-123"

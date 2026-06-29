@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Legacy MBB endpoint paths for older Audi/VW models (pre-PPE/MEB).
 
 v1.21.0 — implements per-VIN backend-detection + MBB-fallback for
@@ -40,9 +40,17 @@ MBB endpoints — skip the dead Cariad-BFF call.
 - `command_wake` MBB fallback (most-requested command)
 - `_post_mbb_command` helper for future commands
 
-### Phase 2+ (future releases)
+### Phase 2 (v2.15.0 — this release)
 
-- `command_lock` / `command_unlock` MBB with SPIN secure-token flow
+- `command_lock` / `command_unlock` MBB with the S-PIN secure-token flow
+  (3-leg rolesrights handshake + RLU action — builders/hash/parsers below,
+  HTTP orchestration in `api/vw_eu.py` under the `mbb` auth strategy).
+  NOTE: the RLU action + rolesrights paths use the SETTER host under the
+  `/api` prefix and carry NO brand/country segment (DEX-confirmed) — unlike
+  the `/fs-car/...{Brand}/{country}...` VSR read paths above.
+
+### Phase 3+ (future releases)
+
 - `command_start_climate` / `_stop` MBB
 - `command_start_charging` / `_stop` MBB
 - `command_set_target_soc` MBB
@@ -56,7 +64,9 @@ MBB endpoints — skip the dead Cariad-BFF call.
 
 from __future__ import annotations
 
+import hashlib
 import logging
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
 _LOGGER = logging.getLogger(__name__)
@@ -246,6 +256,51 @@ def build_mbb_vsr_status_url(
     return f"{read_base}/fs-car/bs/vsr/v1/{seg}/{country}/vehicles/{vin}/status"
 
 
+def build_mbb_vehicles_url(read_base: str, brand: str, country: str) -> str:
+    """Build the MBB garage-enumeration (paired vehicles) URL.
+
+    Pattern: ``{readBase}/fs-car/usermanagement/users/v1/{Brand}/{country}/vehicles``
+    — the classic Car-Net endpoint that lists the VINs paired to the
+    account (upstream audi_services ``_get_vehicles`` / volkswagencarnet).
+    Returns ``{"userVehicles": {"vehicle": ["VIN1", ...]}}``.
+
+    NOTE: needs live confirmation against a real VW EU MBB account; the
+    caller treats an empty/failed response as "no VINs" and the config
+    flow surfaces a clear message rather than crashing.
+    """
+    seg = mbb_brand_segment(brand)
+    return f"{read_base}/fs-car/usermanagement/users/v1/{seg}/{country}/vehicles"
+
+
+def parse_mbb_vehicle_vins(response: dict | None) -> list[str]:
+    """Extract the list of VINs from an MBB usermanagement response.
+
+    Defensive against the two observed envelopes:
+      - ``{"userVehicles": {"vehicle": ["VIN", ...]}}`` (list of strings)
+      - ``{"userVehicles": {"vehicle": [{"vin": "VIN"}, ...]}}`` (objects)
+    Returns ``[]`` for any unexpected shape.
+    """
+    if not isinstance(response, dict):
+        return []
+    user_vehicles = response.get("userVehicles")
+    if not isinstance(user_vehicles, dict):
+        return []
+    raw = user_vehicles.get("vehicle")
+    if isinstance(raw, str):
+        raw = [raw]
+    if not isinstance(raw, list):
+        return []
+    vins: list[str] = []
+    for item in raw:
+        if isinstance(item, str) and item:
+            vins.append(item)
+        elif isinstance(item, dict):
+            vin = item.get("vin") or item.get("content")
+            if isinstance(vin, str) and vin:
+                vins.append(vin)
+    return vins
+
+
 def parse_mbb_vsr_field(response: dict | None, field_id: str) -> str | None:
     """Walk a MBB VSR response and return the value for ``field_id``.
 
@@ -286,3 +341,556 @@ def parse_mbb_vsr_field(response: dict | None, field_id: str) -> str | None:
                     return None
                 return str(val)
     return None
+
+
+def mbb_vsr_field_ids(response: dict | None) -> list[str]:
+    """Return every field ``id`` present in a MBB VSR response (diagnostics).
+
+    Used to discover which field IDs a given car actually publishes, so the
+    parser can be extended to map them. Returns [] for an unexpected shape.
+    """
+    ids: list[str] = []
+    if not isinstance(response, dict):
+        return ids
+    svd = response.get("StoredVehicleDataResponse")
+    if not isinstance(svd, dict):
+        return ids
+    vehicle_data = svd.get("vehicleData")
+    if not isinstance(vehicle_data, dict):
+        return ids
+    data_groups = vehicle_data.get("data")
+    if not isinstance(data_groups, list):
+        return ids
+    for group in data_groups:
+        if not isinstance(group, dict):
+            continue
+        fields = group.get("field")
+        if not isinstance(fields, list):
+            continue
+        for f in fields:
+            if isinstance(f, dict):
+                fid = f.get("id")
+                if isinstance(fid, str):
+                    ids.append(fid)
+    return ids
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# v2.15.0 — MBB S-PIN SecToken + RLU lock/unlock (Phase 2 two-way payoff)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# The classic Car-Net remote lock/unlock ("RLU") needs an action-bound
+# security token minted from the user's S-PIN. The handshake is three legs,
+# all on the homeRegion SETTER host (``MBB_SETTER_BASE``) under the ``/api``
+# prefix (NOT the ``/fs-car`` prefix the VSR reads use), and the RLU action
+# path carries NO brand/country segment — lock/unlock is the path tail:
+#
+#   1. GET  {setter}/api/rolesrights/authorization/v2/vehicles/{vin}
+#             /services/rlu_v1/operations/{LOCK|UNLOCK}/security-pin-auth-requested
+#        → securityPinAuthInfo.securityToken (level-1) + .securityPinTransmission
+#          .challenge (hex) + .remainingTries
+#   2. POST {setter}/api/rolesrights/authorization/v2/security-pin-auth-completed
+#        body {securityPinAuthentication:{securityPin:{challenge,
+#              securityPinHash}, securityToken: <level-1>}}
+#        → securityToken (level-2) = the ``x-securityToken`` for the command
+#   3. POST {setter}/api/bs/rlu/v1/vehicles/{vin}/{lock|unlock}
+#        Content-Type application/vnd.vwg.mbb.RemoteLockUnlock_v1_0_0+xml,
+#        header x-securityToken: <level-2>, EMPTY body
+#        → rluActionResponse.requestId ; poll
+#          {setter}/api/bs/rlu/v1/vehicles/{vin}/requests/{requestId}/status
+#
+# Grounding (two independent sources + our own DEX):
+#   - DEX literals (de.volkswagen.carnet.eu.eremote + cz.skodaauto.connect +
+#     SEAT/CUPRA mod2connectapp): ``/bs/rlu/v1/vehicles/{vehicleVin}/lock``,
+#     ``…/unlock``, ``…/requests/{requestId}/status``; ``rlu_v1/operations/
+#     LOCK|UNLOCK``; ``security-pin-auth-requested``/``-completed``;
+#     ``securityPinHash``/``securityPinTransmission``/``challenge``.
+#   - upstream audi_connect_ha ``audi_services.py`` (_get_security_token,
+#     set_vehicle_lock, _generate_security_pin_hash) and the volkswagencarnet
+#     ``vw_connection.hash_spin`` — both hex-DECODE the S-PIN and SHA-512 it
+#     with the hex-decoded challenge (NOT HMAC, NOT utf-8).
+MBB_RLU_CONTENT_TYPE = "application/vnd.vwg.mbb.RemoteLockUnlock_v1_0_0+xml"
+
+
+def compute_spin_hash(spin: str, challenge: str) -> str:
+    """Return the uppercase SHA-512 hex of hex(spin) ++ hex(challenge).
+
+    CRITICAL (the classic footgun): the S-PIN is treated as a HEX string
+    and decoded with ``bytes.fromhex`` — NOT utf-8 encoded. A 4-digit PIN
+    ``"1234"`` hashes the bytes ``0x12 0x34``, not the ASCII ``0x31..0x34``.
+    The challenge (server-supplied) is hex-decoded the same way. It is a
+    plain SHA-512, not an HMAC. Confirmed in BOTH audi_connect_ha
+    ``util.to_byte_array`` and volkswagencarnet ``hash_spin``.
+
+    Raises ``ValueError`` (via ``bytes.fromhex``) if either input is not
+    valid hex — call ``validate_spin_format`` up front so a malformed PIN
+    fails BEFORE the challenge request (a wrong hash burns a SPIN try
+    toward the 3-strike lockout).
+    """
+    pin_bytes = bytes.fromhex(spin)
+    challenge_bytes = bytes.fromhex(challenge)
+    return hashlib.sha512(pin_bytes + challenge_bytes).hexdigest().upper()
+
+
+def validate_spin_format(spin: str) -> None:
+    """Raise ``ValueError`` if ``spin`` is unusable for the hash.
+
+    VW/Audi S-PINs are 4 digits (some 6); decimal digits are valid hex and
+    even-length, so a normal PIN passes. Guarding here means a typo'd /
+    empty / odd-length SPIN raises locally instead of wasting one of the
+    three allowed attempts against the backend.
+    """
+    if not spin:
+        raise ValueError("S-PIN is empty — configure it in the integration options")
+    if len(spin) % 2 != 0:
+        raise ValueError("S-PIN must have an even number of digits for the MBB hash")
+    try:
+        bytes.fromhex(spin)
+    except ValueError as exc:
+        raise ValueError("S-PIN must be digits only (hex-decodable)") from exc
+
+
+def build_mbb_spin_challenge_url(setter_base: str, vin: str, *, lock: bool) -> str:
+    """GET URL for leg 1 — request the SPIN challenge for LOCK/UNLOCK."""
+    op = "LOCK" if lock else "UNLOCK"
+    return (
+        f"{setter_base}/api/rolesrights/authorization/v2/vehicles/"
+        f"{vin.upper()}/services/rlu_v1/operations/{op}/security-pin-auth-requested"
+    )
+
+
+def build_mbb_spin_completed_url(setter_base: str) -> str:
+    """POST URL for leg 2 — submit the hashed SPIN, get the level-2 token."""
+    return f"{setter_base}/api/rolesrights/authorization/v2/security-pin-auth-completed"
+
+
+def build_mbb_op_auth_url(
+    setter_base: str, vin: str, service_id: str, operation_id: str,
+) -> str:
+    """GET URL for SecToken leg-1 for ANY service/operation (generic — drives
+    climate/charge/timer commands, not just rlu). Live-confirmed HTTP 200 for
+    rclima_v1/P_START_CLIMA_NOSET + rbatterycharge_v1/P_START."""
+    return (
+        f"{setter_base}/api/rolesrights/authorization/v2/vehicles/"
+        f"{vin.upper()}/services/{service_id}/operations/{operation_id}/"
+        "security-pin-auth-requested"
+    )
+
+
+def build_mbb_rlu_action_url(setter_base: str, vin: str, *, lock: bool) -> str:
+    """POST URL for leg 3 — the actual lock/unlock action (no brand/country)."""
+    tail = "lock" if lock else "unlock"
+    return f"{setter_base}/api/bs/rlu/v1/vehicles/{vin.upper()}/{tail}"
+
+
+def build_mbb_rlu_status_url(setter_base: str, vin: str, request_id: str) -> str:
+    """GET URL to poll the RLU action's request status."""
+    return (
+        f"{setter_base}/api/bs/rlu/v1/vehicles/{vin.upper()}/requests/"
+        f"{request_id}/status"
+    )
+
+
+def build_mbb_completed_body(level1_token: str, challenge: str, spin_hash: str) -> dict:
+    """Build the leg-2 ``security-pin-auth-completed`` JSON body.
+
+    Shape (upstream-confirmed)::
+
+        {"securityPinAuthentication": {
+            "securityPin": {"challenge": <hex>, "securityPinHash": <UPPER hex>},
+            "securityToken": <level-1 token>}}
+    """
+    return {
+        "securityPinAuthentication": {
+            "securityPin": {
+                "challenge": challenge,
+                "securityPinHash": spin_hash,
+            },
+            "securityToken": level1_token,
+        }
+    }
+
+
+def parse_mbb_spin_challenge(response: dict | None) -> tuple[str | None, str | None, int | None]:
+    """Extract ``(level1_token, challenge, remaining_tries)`` from leg 1.
+
+    Defensive against a missing ``securityPinAuthInfo`` envelope / fields.
+    ``remaining_tries`` is None when the backend doesn't report it.
+    """
+    if not isinstance(response, dict):
+        return None, None, None
+    info = response.get("securityPinAuthInfo")
+    if not isinstance(info, dict):
+        return None, None, None
+    level1 = info.get("securityToken")
+    transmission = info.get("securityPinTransmission")
+    challenge = None
+    remaining = None
+    if isinstance(transmission, dict):
+        challenge = transmission.get("challenge")
+        rt = transmission.get("remainingTries")
+        if isinstance(rt, int):
+            remaining = rt
+    return (
+        level1 if isinstance(level1, str) else None,
+        challenge if isinstance(challenge, str) else None,
+        remaining,
+    )
+
+
+def parse_mbb_completed_token(response: dict | None) -> str | None:
+    """Extract the level-2 ``securityToken`` from the leg-2 response."""
+    if not isinstance(response, dict):
+        return None
+    tok = response.get("securityToken")
+    return tok if isinstance(tok, str) else None
+
+
+def parse_mbb_rlu_request_id(response: dict | None) -> str | None:
+    """Extract ``rluActionResponse.requestId`` from the leg-3 response."""
+    if not isinstance(response, dict):
+        return None
+    action = response.get("rluActionResponse")
+    if not isinstance(action, dict):
+        return None
+    request_id = action.get("requestId")
+    if request_id is None:
+        return None
+    return str(request_id)
+
+
+def parse_mbb_action_request_id(response: dict | None) -> str | None:
+    """Extract the request/action id from ANY MBB action response envelope
+    (rluActionResponse / climaterActionResponse / chargerActionResponse /
+    action.actionId). Generic so one parser serves all command families."""
+    if not isinstance(response, dict):
+        return None
+    for key, idfield in (
+        ("rluActionResponse", "requestId"),
+        ("climaterActionResponse", "requestId"),
+        ("chargerActionResponse", "requestId"),
+        ("action", "actionId"),
+        ("action", "requestId"),
+    ):
+        wrapper = response.get(key)
+        if isinstance(wrapper, dict) and wrapper.get(idfield) is not None:
+            return str(wrapper[idfield])
+    # last resort: a bare requestId/actionId
+    for f in ("requestId", "actionId"):
+        if response.get(f) is not None:
+            return str(response[f])
+    return None
+
+
+def parse_mbb_rlu_status(response: dict | None) -> str | None:
+    """Extract the RLU request status string from the poll response.
+
+    Returns e.g. ``"request_successful"`` / ``"request_fail"`` /
+    ``"request_in_progress"`` — or None if the envelope is unexpected.
+    The status lives at ``requestStatusResponse.status`` (upstream shape);
+    we also accept a bare top-level ``status`` for resilience.
+    """
+    if not isinstance(response, dict):
+        return None
+    wrapper = response.get("requestStatusResponse")
+    if isinstance(wrapper, dict):
+        status = wrapper.get("status")
+        if isinstance(status, str):
+            return status
+    status = response.get("status")
+    return status if isinstance(status, str) else None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# v2.15.0a6 — MBB operationList: the service directory (license + hosts + cmds)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# ``GET {setter}/api/rolesrights/operationlist/v3/vehicles/{vin}`` returns the
+# per-vehicle service catalogue. Live-confirmed 2026-06-21 (real account):
+# HTTP 200 even when the paid services are unlicensed — it is the authoritative
+# source for (a) WHETHER a service is licensed/enabled (so we surface
+# "subscription expired" instead of a cryptic 403, and skip doomed reads),
+# (b) the per-service host (``invocationUrl``) for commands, and (c) the granted
+# operations + their ``remoteCommand`` names. The whole "no data" mystery on a
+# car turned out to be an EXPIRED We Connect subscription — every paid service
+# (``statusreport_v1`` = vehicle status, ``rclima_v1``, ``rbatterycharge_v1`` …)
+# was ``serviceStatus: Disabled, reason: noActiveLicense``.
+#
+# Shape (real, redacted)::
+#
+#   {"operationList": {"vin": "...", "role": "PRIMARY_USER", "status": "ENABLED",
+#     "serviceInfo": [
+#       {"serviceId": "statusreport_v1", "licenseRequired": true,
+#        "serviceStatus": {"status": "Disabled", "reason": ["noActiveLicense"]},
+#        "cumulatedLicense": {"status": "EXPIRED",
+#          "expirationDate": {"content": "2026-06-16T22:34:00Z"}},
+#        "operation": [{"id": "G_SVDATA", "permission": "granted"}, …]},
+#       {"serviceId": "rclima_v1", …,
+#        "invocationUrl": {"content": "https://mal-1a…/api/bs/climatisation/v1/vehicles/{vin}/"}},
+#       …]}}
+
+# The canonical status service — its licence is the proxy for "the user's
+# We Connect / connect subscription is active" (all paid services share one
+# cumulatedLicence in practice).
+MBB_STATUS_SERVICE_ID = "statusreport_v1"
+
+
+def build_mbb_operationlist_url(setter_base: str, vin: str) -> str:
+    """GET URL for the per-VIN operationList (service directory)."""
+    return (
+        f"{setter_base}/api/rolesrights/operationlist/v3/vehicles/{vin.upper()}"
+    )
+
+
+@dataclass
+class MbbService:
+    """One entry of the operationList ``serviceInfo``."""
+
+    service_id: str
+    status: str                       # "Enabled" / "Disabled" / "" (unknown)
+    license_required: bool = False
+    license_status: str | None = None  # "EXPIRED" / "ACTIVE" / None
+    license_expiry: str | None = None  # ISO-8601 string
+    reasons: list[str] = field(default_factory=list)
+    invocation_url: str | None = None  # template, may carry {vin}/{brand}/{country}
+    operations: list[dict] = field(default_factory=list)
+
+    @property
+    def enabled(self) -> bool:
+        return self.status.lower() == "enabled"
+
+
+@dataclass
+class MbbOperationList:
+    """Parsed operationList for one VIN."""
+
+    vin: str
+    role: str | None = None
+    status: str | None = None
+    services: dict[str, MbbService] = field(default_factory=dict)
+
+    def service(self, service_id: str) -> MbbService | None:
+        return self.services.get(service_id)
+
+    @property
+    def status_service(self) -> MbbService | None:
+        return self.services.get(MBB_STATUS_SERVICE_ID)
+
+
+def parse_mbb_operationlist(
+    response: dict | None, vin: str = "",
+) -> MbbOperationList | None:
+    """Parse the operationList response into a typed structure.
+
+    Defensive against every level being absent / the wrong type. Returns
+    None only when there is no recognisable ``operationList`` envelope.
+    """
+    if not isinstance(response, dict):
+        return None
+    ol = response.get("operationList")
+    if not isinstance(ol, dict):
+        return None
+    result = MbbOperationList(
+        vin=str(ol.get("vin") or vin),
+        role=ol.get("role") if isinstance(ol.get("role"), str) else None,
+        status=ol.get("status") if isinstance(ol.get("status"), str) else None,
+    )
+    services = ol.get("serviceInfo")
+    if not isinstance(services, list):
+        return result
+    for svc in services:
+        if not isinstance(svc, dict):
+            continue
+        sid = svc.get("serviceId")
+        if not isinstance(sid, str):
+            continue
+        svc_status = svc.get("serviceStatus")
+        status = ""
+        reasons: list[str] = []
+        if isinstance(svc_status, dict):
+            status = str(svc_status.get("status") or "")
+            raw_reasons = svc_status.get("reason")
+            if isinstance(raw_reasons, list):
+                reasons = [str(r) for r in raw_reasons]
+        lic = svc.get("cumulatedLicense")
+        lic_status: str | None = None
+        lic_expiry: str | None = None
+        if isinstance(lic, dict):
+            lic_status = lic.get("status") if isinstance(lic.get("status"), str) else None
+            exp = lic.get("expirationDate")
+            if isinstance(exp, dict) and isinstance(exp.get("content"), str):
+                lic_expiry = exp["content"]
+        inv = svc.get("invocationUrl")
+        inv_url: str | None = None
+        if isinstance(inv, dict) and isinstance(inv.get("content"), str):
+            inv_url = inv["content"]
+        ops = svc.get("operation")
+        operations = [o for o in ops if isinstance(o, dict)] if isinstance(ops, list) else []
+        result.services[sid] = MbbService(
+            service_id=sid,
+            status=status,
+            license_required=bool(svc.get("licenseRequired")),
+            license_status=lic_status,
+            license_expiry=lic_expiry,
+            reasons=reasons,
+            invocation_url=inv_url,
+            operations=operations,
+        )
+    return result
+
+
+def mbb_subscription_active(oplist: MbbOperationList | None) -> bool | None:
+    """Is the vehicle-status service licensed/usable right now?
+
+    True  → ``statusreport_v1`` is Enabled (subscription active → reads work).
+    False → it exists but is Disabled (expired / no active licence).
+    None  → unknown (no operationList / no status service entry).
+    """
+    if oplist is None:
+        return None
+    svc = oplist.status_service
+    if svc is None:
+        return None
+    return svc.enabled
+
+
+def mbb_service_base(
+    oplist: MbbOperationList | None, service_id: str, *, brand: str, country: str,
+    vin: str,
+) -> str | None:
+    """Return a fully-substituted host base for a service from its
+    ``invocationUrl`` template, or None when the service has no URL.
+
+    The template carries ``{vin}`` and sometimes ``{brand}``/``{country}``;
+    substitute them so the caller gets a ready base (still ending in ``/``).
+    This is what makes the command paths GENERIC across countries/brands — the
+    portal hands us the right host per service per market, no hardcoding.
+    """
+    if oplist is None:
+        return None
+    svc = oplist.service(service_id)
+    if svc is None or not svc.invocation_url:
+        return None
+    seg = mbb_brand_segment(brand)
+    return (
+        svc.invocation_url
+        .replace("{vin}", vin.upper())
+        .replace("{brand}", seg)
+        .replace("{country}", country)
+        .rstrip("/")
+    )
+
+
+def mbb_operation_granted(
+    oplist: MbbOperationList | None, service_id: str, operation_id: str,
+) -> bool:
+    """True if the operationList lists ``operation_id`` as ``granted`` on a
+    currently-Enabled service — so we only attempt commands the car/account
+    actually allows (avoids burning S-PIN tries / hitting licence walls)."""
+    if oplist is None:
+        return False
+    svc = oplist.service(service_id)
+    if svc is None or not svc.enabled:
+        return False
+    for op in svc.operations:
+        if op.get("id") == operation_id:
+            return str(op.get("permission", "")).lower() == "granted"
+    return False
+
+
+# ── v2.15.0a7 — MBB write-command action recipes (SecToken + per-service) ────
+#
+# Grounded against upstream audi_services.py (legacy MBB action paths +
+# content-types) + our live operationList (per-service invocationUrl +
+# granted operations). The durable MBB token CANNOT read data (systemId ACL),
+# but the SecToken/rolesrights command path IS open (live-confirmed:
+# security-pin-auth-requested = HTTP 200 for rclima/rbatterycharge/rlu). So
+# these drive DURABLE two-way: climate, charging, timers — actuated via the
+# 3-leg S-PIN SecToken flow then a POST to the service's own host.
+MBB_CLIMATER_ACTION_CT = "application/vnd.vwg.mbb.ClimaterAction_v1_0_0+xml"
+MBB_CHARGER_ACTION_CT = "application/vnd.vwg.mbb.ChargerAction_v1_0_0+xml"
+
+# Each command: (service_id, operation_id, action_subpath, content_type,
+# payload). operation_id is what the SecToken leg-1 authorizes. payload is the
+# request body (XML string for climater/charger actions; the {temp} placeholder
+# is substituted for climate-start). ``None`` payload = empty body.
+_MBB_CLIMATER_START = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    "<action><type>startClimatisation</type><settings>"
+    "<heaterSource>electric</heaterSource></settings></action>"
+)
+_MBB_CLIMATER_STOP = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    "<action><type>stopClimatisation</type></action>"
+)
+_MBB_WINDOWHEAT_START = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    "<action><type>startWindowHeating</type></action>"
+)
+_MBB_WINDOWHEAT_STOP = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    "<action><type>stopWindowHeating</type></action>"
+)
+_MBB_CHARGER_START = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    "<action><type>start</type></action>"
+)
+_MBB_CHARGER_STOP = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    "<action><type>stop</type></action>"
+)
+
+
+@dataclass
+class MbbCommandSpec:
+    """A durable MBB write-command: which service+operation to authorize via
+    the SecToken flow, and the action POST (subpath, content-type, body)."""
+
+    service_id: str
+    operation_id: str
+    action_subpath: str          # appended to the service base (e.g. "climater/actions")
+    content_type: str
+    body: str | None             # XML string, or None for empty body
+
+
+# The supported durable commands, keyed by a stable name the coordinator uses.
+MBB_COMMANDS: dict[str, MbbCommandSpec] = {
+    "climate_start": MbbCommandSpec(
+        "rclima_v1", "P_START_CLIMA_NOSET", "climater/actions",
+        MBB_CLIMATER_ACTION_CT, _MBB_CLIMATER_START),
+    "climate_stop": MbbCommandSpec(
+        "rclima_v1", "P_STOP", "climater/actions",
+        MBB_CLIMATER_ACTION_CT, _MBB_CLIMATER_STOP),
+    "window_heat_start": MbbCommandSpec(
+        "rclima_v1", "P_START_WND", "climater/actions",
+        MBB_CLIMATER_ACTION_CT, _MBB_WINDOWHEAT_START),
+    "window_heat_stop": MbbCommandSpec(
+        "rclima_v1", "P_STOP_WND", "climater/actions",
+        MBB_CLIMATER_ACTION_CT, _MBB_WINDOWHEAT_STOP),
+    "charge_start": MbbCommandSpec(
+        "rbatterycharge_v1", "P_START", "charger/actions",
+        MBB_CHARGER_ACTION_CT, _MBB_CHARGER_START),
+    "charge_stop": MbbCommandSpec(
+        "rbatterycharge_v1", "P_STOP", "charger/actions",
+        MBB_CHARGER_ACTION_CT, _MBB_CHARGER_STOP),
+    # body is supplied at call time via build_mbb_charger_settings_body(soc).
+    "charge_target_soc": MbbCommandSpec(
+        "rbatterycharge_v1", "P_SETTINGS", "charger/actions",
+        MBB_CHARGER_ACTION_CT, None),
+}
+
+
+def build_mbb_action_url(service_base: str, action_subpath: str) -> str:
+    """Join an operationList service base with a command's action subpath."""
+    return f"{service_base.rstrip('/')}/{action_subpath.lstrip('/')}"
+
+
+def build_mbb_charger_settings_body(target_soc_pct: int) -> str:
+    """ChargerAction body to set the target state-of-charge (%)."""
+    soc = max(0, min(100, int(target_soc_pct)))
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        "<action><type>setSettings</type><settings>"
+        f"<targetStateOfChargeInPercent>{soc}</targetStateOfChargeInPercent>"
+        "</settings></action>"
+    )

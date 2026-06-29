@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """
 VAG Connect Repair-Flows für Auth-Probleme + Quota-Warnings.
 
@@ -162,6 +162,32 @@ def clear_auth_issues(hass: HomeAssistant, entry_id: str) -> None:
         ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_{reason}")
 
 
+def raise_issue_supplementary_reauth(hass: HomeAssistant, entry_id: str) -> None:
+    """v2.15.0b5 (C1) — the supplementary vw.de read channel can't silently
+    resume (login=otp_required); prompt the user to re-add it. Not auto-fixable
+    (re-login needs the email-OTP via the OptionsFlow), WARNING severity — the
+    primary channel keeps working regardless. Idempotent."""
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        f"{entry_id}_supplementary_reauth",
+        is_fixable=False,
+        is_persistent=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="supplementary_reauth",
+        learn_more_url="https://github.com/its-me-prash/vag-connect-ha/blob/main/docs/FAQ.md",
+    )
+    _LOGGER.info(
+        "VAG Connect: supplementary vw.de channel needs re-login — Repair issue"
+        " raised for entry %s", entry_id,
+    )
+
+
+def clear_supplementary_reauth_issue(hass: HomeAssistant, entry_id: str) -> None:
+    """Clear the supplementary re-login Repair issue (armed / disabled)."""
+    ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_supplementary_reauth")
+
+
 def raise_issue_requirements_conflict(hass: HomeAssistant) -> None:
     """Raise a repair issue for configuration problems."""
     ir.async_create_issue(
@@ -296,6 +322,56 @@ def raise_issue_ola_headers_outdated(
 def clear_ola_headers_issue(hass: HomeAssistant, entry_id: str) -> None:
     """v2.4.1 — Clear the OLA headers repair issue when 403s stop."""
     ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_ola_headers_outdated")
+
+
+def raise_issue_vw_na_data_forbidden(
+    hass: HomeAssistant,
+    entry_id: str,
+    reason: str,
+) -> None:
+    """v2.15.4 (#503) — surface a VW NA read-path 403 to the user.
+
+    Login + garage succeed but the per-vehicle reads (rvs / charge / climate)
+    return HTTP 403. Without this, the integration showed a silent-empty
+    vehicle. The coordinator raises this issue when the VW NA client flags
+    ``vw_na_data_forbidden`` and clears it the moment a read succeeds.
+
+    ``reason`` is one of the value-free labels the client computed:
+    ``"entitlement"`` (subscription inactive / privileges 403 — same channel
+    would work if renewed) or ``"attestation"`` (VW put the data plane behind
+    device attestation an open-source client can't satisfy — NOT a renewal
+    problem). The label drives a distinct translation so we never send an
+    attestation-locked user chasing a phantom renewal.
+
+    Mirrors the OLA / data_act_no_data repair plumbing: not auto-fixable
+    (there is no integration-side action), WARNING severity, idempotent.
+    """
+    translation_key = (
+        "vw_na_data_forbidden_attestation"
+        if reason == "attestation"
+        else "vw_na_data_forbidden"
+    )
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        f"{entry_id}_vw_na_data_forbidden",
+        is_fixable=False,
+        is_persistent=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key=translation_key,
+        learn_more_url="https://github.com/its-me-prash/vag-connect-ha/blob/main/docs/FAQ.md",
+    )
+    _LOGGER.warning(
+        "VW NA Repair-Issue: vehicle data forbidden (reason=%s) — login + "
+        "garage succeed but the per-vehicle reads return 403. Showing "
+        "last-known data where cached.",
+        reason,
+    )
+
+
+def clear_vw_na_data_forbidden_issue(hass: HomeAssistant, entry_id: str) -> None:
+    """v2.15.4 (#503) — clear the VW NA data-403 issue when a read succeeds."""
+    ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_vw_na_data_forbidden")
 
 
 # v2.9.0 — VW account-lock detection.

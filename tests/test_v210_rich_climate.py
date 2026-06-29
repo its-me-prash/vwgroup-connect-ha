@@ -1,5 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) - Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Tests for v2.10.0 rich climate-control payload.
 
 Coverage:
@@ -48,7 +48,7 @@ class TestRichClimateBody:
     def _run(self, **kwargs):
         client = _vw_client()
         client._post = AsyncMock(return_value=None)
-        asyncio.new_event_loop().run_until_complete(
+        asyncio.run(
             client.command_start_climate_control("VINX", **kwargs)
         )
         call = client._post.await_args
@@ -107,7 +107,7 @@ class TestEmptyBody:
     def test_no_kwargs_emits_empty_dict(self):
         client = _vw_client()
         client._post = AsyncMock(return_value=None)
-        asyncio.new_event_loop().run_until_complete(
+        asyncio.run(
             client.command_start_climate_control("VINX")
         )
         call = client._post.await_args
@@ -123,7 +123,7 @@ class TestSeatGrouping:
     def test_single_seat_triggers_all_four_zones(self):
         client = _vw_client()
         client._post = AsyncMock(return_value=None)
-        asyncio.new_event_loop().run_until_complete(
+        asyncio.run(
             client.command_start_climate_control("VINX", seat_fl=True)
         )
         body = client._post.await_args.kwargs["json"]
@@ -137,7 +137,7 @@ class TestSeatGrouping:
     def test_all_seats_explicit_false(self):
         client = _vw_client()
         client._post = AsyncMock(return_value=None)
-        asyncio.new_event_loop().run_until_complete(
+        asyncio.run(
             client.command_start_climate_control(
                 "VINX",
                 seat_fl=False,
@@ -158,7 +158,7 @@ class TestSeatGrouping:
     def test_no_seat_args_emits_no_zone_keys(self):
         client = _vw_client()
         client._post = AsyncMock(return_value=None)
-        asyncio.new_event_loop().run_until_complete(
+        asyncio.run(
             client.command_start_climate_control("VINX", temp_c=20.0)
         )
         body = client._post.await_args.kwargs["json"]
@@ -202,7 +202,7 @@ class TestBaseStub:
         )
         client = CariadBaseClient.__new__(CariadBaseClient)
         with pytest.raises(NotImplementedError):
-            asyncio.new_event_loop().run_until_complete(
+            asyncio.run(
                 client.command_start_climate_control("VINX")
             )
 
@@ -236,7 +236,7 @@ class TestCoordinatorBrandRouting:
     @pytest.mark.parametrize("brand", ["audi", "volkswagen"])
     def test_cariad_brands_use_rich_path(self, brand):
         coord = _coord(brand)
-        asyncio.new_event_loop().run_until_complete(
+        asyncio.run(
             coord.async_start_climate_control(
                 "VINX",
                 temp_c=21.0,
@@ -273,7 +273,7 @@ class TestCoordinatorBrandRouting:
     )
     def test_other_brands_fall_through_to_basic_start(self, brand):
         coord = _coord(brand)
-        asyncio.new_event_loop().run_until_complete(
+        asyncio.run(
             coord.async_start_climate_control(
                 "VINX",
                 temp_c=21.0,
@@ -290,7 +290,7 @@ class TestCoordinatorBrandRouting:
     def test_no_cariad_client_is_noop(self):
         coord = _coord("audi")
         coord._cariad_client = None
-        asyncio.new_event_loop().run_until_complete(
+        asyncio.run(
             coord.async_start_climate_control("VINX", temp_c=21.0)
         )
         coord._cariad_cmd_optimistic.assert_not_called()

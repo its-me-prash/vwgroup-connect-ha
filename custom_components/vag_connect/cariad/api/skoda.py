@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Škoda API client — mysmob.api.connect.skoda-auto.cz.
 
 API endpoints verified against skodaconnect/myskoda (MIT) model classes.
@@ -1265,8 +1265,10 @@ class SkodaClient(CariadBaseClient):
 
             # v2.12.0 (myskoda PR #575 source-verified): overall_cost
             # breakdown on the OverviewTrip. Each sub-cost is an object
-            # {cost, costCurrency, pricePerUnit}; we surface the cost
-            # amounts + a single currency code (they share one currency).
+            # {cost, costCurrency, pricePerUnit}; we store the cost amounts +
+            # a single currency code (they share one currency). v2.15.3 wires
+            # these to four trip_*_cost diagnostic sensors (sensor.py), with the
+            # currency exposed as a per-sensor attribute.
             overall_cost = trip_stats.get("overallCost") or (
                 overview.get("overallCost") if isinstance(overview, dict) else None
             )
@@ -1484,7 +1486,11 @@ class SkodaClient(CariadBaseClient):
     async def command_unlock(self, vin: str, spin: str = "") -> None:
         payload: dict[str, Any] = {}
         if spin or self._spin:
-            payload["spin"] = spin or self._spin
+            # b14 (RE myskoda 8.13.0) — the S-PIN body wire key is ``currentSpin``
+            # (DTO ``SpinDto{currentSpin}``); the live app never sends a bare
+            # ``spin`` key, so our old ``spin`` was rejected. Strictly safer —
+            # a strict backend is now fixed, a lenient one accepts it too.
+            payload["currentSpin"] = spin or self._spin
         await self._post(f"{_BASE}/api/v1/vehicle-access/{vin}/unlock", json=payload)
 
     async def command_start_climate(self, vin: str) -> None:

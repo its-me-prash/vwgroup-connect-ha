@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 """Verify all MBB read endpoints work for Golf 7 GTE PHEV.
 
 Reads vw_access_token + x_client_id from mbb.local.bru and tries the

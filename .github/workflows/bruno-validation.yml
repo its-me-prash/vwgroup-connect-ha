@@ -86,7 +86,7 @@ jobs:
           # v1.17.4 — FULL strict mode across all 3 brands.
           # seat_cupra: 35/35 strict pass
           # skoda:      24/24 strict pass
-          # cariad_bff: 21/21 strict pass (incl. v1 separate-route
+          # cariad_bff: 22/22 strict pass (incl. v1 separate-route
           #             fallbacks — v2 fallback templates filtered as
           #             auto-fallbacks via _is_skipped_template).
           # Any new endpoint added to cariad/api/*.py without a matching

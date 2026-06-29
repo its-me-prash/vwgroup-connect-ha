@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Porsche + VW NA parser parity tests (v1.24.2 — Audit 2026-05-08).
 
 Pre-v1.24.2 these two clients had ZERO behavioural test coverage —
@@ -186,13 +186,18 @@ class TestPorscheParserDegraded:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+# v2.15.3 (#503, MyVW APK DEX-verified) — RvsResponse has NO batteryStatus
+# object; EV SoC/range/charged-energy live on charge/summary's BatteryStatus.
+# The old fictional rvs-level ``batteryStatus.stateOfChargePercent`` was removed
+# from this mock so the test exercises the real DEX shape, not a value the
+# parser no longer reads. powerStatus.cruiseRange stays 285 (the RVS range read
+# is real) so range_km still asserts 285.
 _VW_NA_RAW_HAPPY = {
     "powerStatus": {
         "odometer": 8740,
         "fuelPercentRemaining": None,  # pure EV
         "cruiseRange": 285,
     },
-    "batteryStatus": {"stateOfChargePercent": 82},
     "doorStatus": {
         "overallStatus": "LOCKED",
         "frontLeftDoor": "CLOSED",
@@ -213,11 +218,22 @@ _VW_NA_RAW_HAPPY = {
     "vehicleType": {"engine": "BEV"},
 }
 
+# v2.15.3 (#503, MyVW APK DEX-verified) — BatteryAndPlugStatusResponse carries
+# sibling batteryStatus + chargingStatus + plugStatus objects. EV SoC lives in
+# batteryStatus.currentSOCPct, range in batteryStatus.cruisingRange.range,
+# charged energy in batteryStatus.chargeEnergy. The charge-ETA field is the BARE
+# remainingChargingTimeToComplete (no ``_min`` suffix — that old name never
+# matched, so the ETA silently stayed None).
 _VW_NA_CHARGE_HAPPY = {
+    "batteryStatus": {
+        "currentSOCPct": 82,
+        "cruisingRange": {"engineType": "electric", "range": 285},
+        "chargeEnergy": 12.5,
+    },
     "chargingStatus": {
         "chargingState": "CHARGING",
         "chargePower_kW": 11.0,
-        "remainingChargingTimeToComplete_min": 95,
+        "remainingChargingTimeToComplete": 95,
     },
     "plugStatus": {"plugConnectionState": "CONNECTED"},
     "chargingSettings": {"targetSOC_pct": 90},
@@ -235,6 +251,10 @@ class TestVWNAParserHappy:
         client = VWNAClient.__new__(VWNAClient)
         client._base = "https://example.test"
         client._vin_to_uuid = {"WVWZZZ7AZRE000001": "uuid-abc"}
+        # metadata caches populated by list_vehicles in a real client; get_status
+        # now threads model/nickname from them onto VehicleData.
+        client._vin_to_model = {"WVWZZZ7AZRE000001": "ID.4 Pro"}
+        client._vin_to_nickname = {"WVWZZZ7AZRE000001": "My ID4"}
         client._get = AsyncMock(side_effect=[  # type: ignore[method-assign]
             _VW_NA_RAW_HAPPY,
             _VW_NA_CHARGE_HAPPY,
@@ -244,8 +264,18 @@ class TestVWNAParserHappy:
         assert isinstance(d, VehicleData)
         assert d.vin == "WVWZZZ7AZRE000001"
         assert d.manufacturer == "Volkswagen"
+        # get_status threads the cached model + nickname (previously always None
+        # for VW US/CA because the cache had zero readers).
+        assert d.model == "ID.4 Pro"
+        assert d.vehicle_nickname == "My ID4"
         assert d.odometer_km == 8740
+        # range_km comes from powerStatus.cruiseRange (RVS, real) — still 285.
         assert d.range_km == 285
+        # v2.15.3 (#503) — electric_range_km now sourced from charge/summary
+        # batteryStatus.cruisingRange.range (the DEX-real EV-range location).
+        assert d.electric_range_km == 285
+        # v2.15.3 (#503) — SoC now sourced from charge batteryStatus.currentSOCPct
+        # (RvsResponse has no batteryStatus); value unchanged at 82.
         assert d.battery_soc == 82
         assert d.has_battery is True
         assert d.is_electric is True
@@ -273,6 +303,8 @@ class TestVWNAParserDegraded:
         client = VWNAClient.__new__(VWNAClient)
         client._base = "https://example.test"
         client._vin_to_uuid = {"VW0X": "uuid"}
+        client._vin_to_model = {}
+        client._vin_to_nickname = {}
         client._get = AsyncMock(side_effect=[  # type: ignore[method-assign]
             RuntimeError("net"),
             RuntimeError("net"),
@@ -292,6 +324,8 @@ class TestVWNAParserDegraded:
         client = VWNAClient.__new__(VWNAClient)
         client._base = "https://example.test"
         client._vin_to_uuid = {"VW0X": "uuid"}
+        client._vin_to_model = {}
+        client._vin_to_nickname = {}
         client._get = AsyncMock(side_effect=[  # type: ignore[method-assign]
             {},  # empty raw
             {},  # empty charge
@@ -305,13 +339,20 @@ class TestVWNAParserDegraded:
     @pytest.mark.asyncio
     async def test_negative_remaining_skips_eta(self):
         """v1.24.2 fix: ``remaining > 0`` guard added. Pre-fix a 0
-        or negative value still produced an ETA (now() + 0min)."""
+        or negative value still produced an ETA (now() + 0min).
+
+        Uses the BARE ``remainingChargingTimeToComplete`` key (the name the
+        parser actually reads) so a 0 genuinely re-exercises the ``>0`` guard,
+        rather than the never-matched ``_min`` alias which would leave the ETA
+        None for the wrong reason."""
         client = VWNAClient.__new__(VWNAClient)
         client._base = "https://example.test"
         client._vin_to_uuid = {"VW0X": "uuid"}
+        client._vin_to_model = {}
+        client._vin_to_nickname = {}
         client._get = AsyncMock(side_effect=[  # type: ignore[method-assign]
             {},
-            {"chargingStatus": {"remainingChargingTimeToComplete_min": 0}},
+            {"chargingStatus": {"remainingChargingTimeToComplete": 0}},
             {},
         ])
         d = await client.get_status("VW0X")

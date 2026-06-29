@@ -43,9 +43,12 @@ docs {
     challenge = response["securityPinAuthInfo"]["securityPinTransmission"]["challenge"]
     token1    = response["securityPinAuthInfo"]["securityToken"]
 
-    spin_bytes = bytes(spin, "utf-8")             # "1234" → b"1234"
+    spin_bytes = bytes.fromhex(spin)              # "1234" → b"\x12\x34"  (HEX, not utf-8!)
     challenge_bytes = bytes.fromhex(challenge)
     pin_hash = sha512(spin_bytes + challenge_bytes).hexdigest().upper()
+    # NB: the SPIN is HEX-DECODED, not utf-8 encoded — confirmed in both
+    # audi_connect_ha util.to_byte_array AND volkswagencarnet hash_spin.
+    # A wrong (utf-8) hash burns one of the 3 allowed tries → lockout risk.
 
     # Dann POST /security-pin-auth-completed mit:
     {

@@ -38,6 +38,414 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.6] - 2026-06-27
+
+### Fixed
+
+- **Honest message when a portal car can't take commands (#543).** If your car connects through VW's read-only EU Data Act portal and you try to send a command (lock, climate, charging), you used to get told to "disable read-only mode in the options" — but there's no switch that helps: the portal simply has no command path. The message now says that plainly, so you're not sent hunting for a setting that can't change anything. Cars where read-only really is just a toggle you flipped still get the old "disable it in the options" hint.
+- **No more stray US/Canada dropdown for non-US cars (#465).** Setting up an EU car (or any brand before you'd picked one) showed a "country" field that only offered USA and Canada — confusing, since it never applied to you. That picker now only appears when you choose Volkswagen US/Canada, where it actually selects your region. Pick VW US/CA and the US↔Canada chooser is right there as before; everyone else never sees it.
+
+## [2.15.5] - 2026-06-27
+
+### Added
+
+- **Optional ABRP (A Better Routeplanner) live telemetry push.** You can now feed your car's live data straight into ABRP so it plans routes around your real state of charge. It's off by default and opt-in: turn it on in the integration options, paste your ABRP token (and a developer api_key — see the README on how to get one), and a shipped blueprint uploads automatically whenever there's something new to send. There's a small diagnostic "ABRP data changed" sensor that makes sure the same snapshot never gets uploaded twice. Your location only ever leaves the house when an upload actually runs, and the token + key are never written to the log.
+- **More mapped fields.** The "last update reason" — why the car last pushed a report to the backend (e.g. it started charging, ignition went on/off, climate ran) — now surfaces as a diagnostic sensor (disabled by default). One of the recurring VW-EU Scout fields, now off the list. Nothing hidden.
+- **Bidirectional charging (V2G) limits (#541).** If your car reports them, the upper and lower charge-level limits it'll bidi-charge within now show up as two diagnostic sensors (disabled by default).
+- **Sunroof position (#544).** On top of the open/closed state we already had, the actual sunroof position (as a percentage) now surfaces as a diagnostic sensor (disabled by default).
+
+### Fixed
+
+- **Aux-consumer consumption no longer shows a bogus 65535 (#544).** When the car had no reading, the average auxiliary-consumer consumption sensors were passing the "no data" placeholder through as if it were a real value. They now read empty in that case instead, so it can't poison your long-term stats.
+
+- **VW US/CA: data reads work again on locked-down accounts with an S-PIN (#503).** Some US/Canada accounts could log in and list the garage but every per-vehicle read came back 403. If you've set your S-PIN, the integration now unlocks those reads the way the official app does — it asks for a short-lived per-car token and uses that for the data. It's done carefully: the token is cached and only refreshed when it expires (never on every poll), and if your S-PIN looks wrong or you're near the attempt limit it backs off immediately and falls back to the normal path, so it can't lock your S-PIN. Accounts without an S-PIN are unchanged. And a persistent 403 that used to stay silent now raises the repair notice after it keeps happening.
+- **EU Data Act portal: "check email and password" with a correct password (#527).** After you typed the right login, the portal sometimes showed a one-time "authorize this app" consent screen instead of finishing — and the integration mistook that for a wrong password. It now accepts that consent for you automatically (you already entered your login and want it connected, exactly what the app does), so login just goes through. If for some reason it can't, you now get a clear "finish the consent in your browser" message instead of being told your password is wrong. A genuinely wrong password still says so.
+- **Flash-lights button works again on VW/Audi (EU).** It was calling an endpoint that doesn't exist with the wrong body, so the car always answered "bad request" and nothing happened. It now sends the same request the official app does. If your car insists on a location for the flash, it retries with the car's last-known position automatically, and if there's no position yet you get a clear hint to wake the car first instead of a silent failure.
+- **The US/Canada region setting is no longer saved on non-US/CA cars.** That dropdown only matters for Volkswagen US/Canada, but every brand was quietly getting "United States" stored in its config even when it was irrelevant — so a Swiss or EU car ended up looking like a US car in the diagnostics. It never affected your data (EU cars ignored it), but it was confusing and could have tripped up future code. Now it's only kept for Volkswagen US/Canada, where it actually does something; everyone else leaves it blank. Existing setups that already have the stray value keep working untouched.
+- **Turning OFF read-only mode now actually re-enables commands (#543).** If your car was set up with read-only on, switching it off in the integration options had no effect — the old value still won and lock/climate/charge stayed blocked. Now your choice in the options always takes priority, so disabling read-only brings the command buttons back as expected.
+
+## [2.15.4] - 2026-06-26
+
+### Fixed
+
+- **VW US/CA: clearer diagnosis when sensors stay empty (#503).** Login + the garage list now succeed (US/Canada selector), but if the per-vehicle data endpoints return 403, the integration classifies why — an inactive Car-Net / VW Connect subscription, a VW device-attestation lockdown, or a transient block — and raises a repair notice (with the cause in the debug log, no secrets) instead of silently showing nothing. Last-known data keeps showing.
+
+- **Battery capacity / available energy were 10x too high (#534).** The EU-portal energy-content readings are in 0.1-kWh units but were passed through unscaled — an ID.4 showed 756 kWh instead of 75.6 (and 461 instead of 46.1 available). Now scaled correctly.
+
+- **Clearer login errors (#527).** A portal login that fails for a non-password reason — terms/consent not yet accepted, a 2FA or onboarding step, a region/soft-block — no longer shows the misleading "check email and password". You now get the real reason and what to do (open the portal once in a browser, finish the prompt, retry), so users with correct credentials aren't sent chasing a password problem. Failure logging now records the landing page type/error code (no secrets) to pin the cause.
+
+- **Charge-timer & slope-consumption now actually populate, and the Scout stops re-reporting them.** These EU-portal fields were only read under one payload shape and silently missed the realistic one — so they never showed AND recurred in the Vehicle Data Scout for every VW-EU user. Now read from either shape; uphill/downhill slope no longer collide; the Scout only lists genuine unmapped metadata.
+
+- **VIN privacy.** Scout / error-report titles no longer expose the full VIN. For a car whose name was never changed (notably Audi, where CARIAD defaults the vehicle name to the VIN) the "model" fell back to the raw 17-char VIN — bypassing the last-6 masking the footer promises. The model is now omitted when it is (or contains) a VIN; the brand alone scopes the issue.
+
+### Added
+
+- **More EU Data Act portal fields mapped (#518).** Active charge target, charge-time display, charging power, and the dual charging-plug state set (plug 1 + 2: flap, flap-lock, lock, infrastructure, connection) now surface as diagnostic sensors. Nothing hidden — unmapped fields stay in the Scout.
+- **More mapped fields (#521, #522).** Next-charging-timer schedule (start/finish/reachability), uphill/downhill slope consumption, the charging error code, and an outdoor-temperature alias. Diagnostic; low-confidence disabled by default; nothing hidden.
+- **More mapped fields (#523).** Actual charge rate (folded into the charge-rate sensor), comfort settings (climatisation-at-unlock, mirror heating, front climate-zone enable) and the start/stop charging action. Diagnostic, disabled by default; nothing hidden.
+- **More mapped fields (#528).** Start/stop modification, hood state, front tyre pressures, and the last-trip gas / range-gain / zero-emission aggregates (the short-term counterparts to the lifetime figures). Diagnostic, disabled by default; nothing hidden.
+- **Audi next-charging-timer fallback (#530).** Some Audis report the charge-timer id + target-SoC-reachable under a different container than the integration was reading, so the sensor stayed empty. Now read as a fallback — the existing 'target SoC reachable' sensor populates. No new entities.
+- **More mapped fields (#535).** App/master data-result status enums now surface as diagnostic sensors (disabled by default). With this, the recurring VW-EU Scout reports are down to genuine envelope metadata only.
+- **More mapped fields (#537).** The next-charge-timer slot number (which of the profile timers is next) now surfaces as a diagnostic sensor (disabled by default).
+- **More mapped fields (#538).** Rear + spare actual tyre pressures (the front pair shipped earlier) and the full target/required tyre-pressure set now surface as diagnostic sensors (disabled by default, unit ambiguous so unitless).
+- **EU portal values could disagree with each other (#529).** Battery level, odometer and "last seen" were each read independently from the portal's multi-snapshot export, so they could come from different moments — wrong/uncorrelated readings and even a phantom "moved overnight". Now every field is taken from its latest sample so they stay in sync; the odometer's never-go-backwards guard now lives at the cross-poll layer where it belongs. (VW EU portal only; the BFF path was unaffected.)
+
+## [2.15.3] - 2026-06-26
+
+### Added
+
+- **~28 more EU Data Act portal fields mapped (#465, #514, #515, #516).** Selected charge mode, max AC charge current, auto-unlock charge port, battery-care mode, bulk-charge threshold, door/closure safe-states + bonnet lock, sunroof / service-hatch / spoiler state, trip-odometer endpoints, fuel level + oil / AdBlue (SCR), per-corner tyre-pressure differentials, the instrument-cluster warning indicator, and more — now surface as (mostly diagnostic) sensors, named in all supported languages. Low-confidence fields are disabled by default; nothing is hidden — anything still unmapped stays visible in the Scout.
+- **Vehicle model shown in the Scout / Error reports.** The auto-filed issue title and body now include the vehicle model (e.g. "…on volkswagen ID.4"), so reports are recognisable at a glance. Model name only — no VIN or other personal data.
+- **More mapped fields + surfaced entities (#517).** `hv_soc` (folds into State of Charge), long/short-term auxiliary and gas consumption averages, range-gain and zero-emission distance, and the charger-update trigger; plus new sensors for battery available/capacity energy (kWh), Škoda trip costs, and oil level (%). Opaque/heartbeat fields (`scope_potential_total`, `echo`) stay Scout-only.
+- **MBB durable-login setup translated** into French, Spanish, Dutch, Polish, Czech and Swedish (was English-only).
+
+### Fixed
+
+- **VW US/Canada EVs: battery, range and charged energy now populate (#503).** v2.15.2 read these from the wrong endpoint (`…/hvbattery` is only the departure-timer "use HV battery" toggle) and from guessed field names, so nothing filled. Verified against the dismantled MyVW app: the EV State of Charge, range and charged energy live on the charge-summary `batteryStatus` object (`currentSOCPct`, `cruisingRange.range`, `chargeEnergy`), and the charge-complete time field is `remainingChargingTimeToComplete` (the prior `_min` suffix never matched). All corrected.
+- **Charging error code:** a `0.0` value is now treated as "no error" instead of surfacing a bogus code.
+- **Charged energy is per-session, not lifetime (#511).** The portal's `charge_energy` (and the VW US/CA charge value) is a current-session gauge that reads 0 when idle — it was mislabelled onto the lifetime **Total Charged Energy**, and now feeds the per-session **Charged energy** sensor where it belongs. The lifetime total stays sourced only from genuinely cumulative fields (CUPRA/SEAT/Škoda).
+- **Volkswagen EU login uses the current app version** (User-Agent We Connect 3.63.2; a stale 3.61.0 was still riding the login/data path while the command path already used 3.63.2).
+- **Robustness (full-codebase audit).** The VW US/Canada vehicle model now appears in Scout/Error reports; the climate / on-board-electronics energy fields now populate (were mapped to non-existent keys); de-duplicated two sensor definitions; and a charging-state sentinel value can no longer hide an unrelated field from the Scout.
+
+## [2.15.2] - 2026-06-25
+
+### Added
+
+- **More charger-detail fields (#513).** External power supply state, energy flow, charging reason, charging error code, remaining-time charge target, and the charge-port LED (colour + pattern, disabled by default) now surface as (mostly diagnostic) sensors. The keep-alive `echo` field and raw IDs stay Scout-only.
+
+### Fixed
+
+- **VW US/Canada EVs showed no battery or range (#503).** The EV traction State of Charge and electric range come from the dedicated `…/hvbattery` endpoint and `cruiseRangeFirst`, not the 12V `rvs.batteryStatus` / bare `cruiseRange` we read before. The integration now reads both (additive fallbacks), verified against the MyVW app. Confirmed against the dismantled MyVW APK.
+- **Charging / climate remaining-time read as seconds (#511).** The EU Data Act portal sends these durations as seconds with a trailing `s` (e.g. `"2400s"` = 40 min, `"0s"` = 0); v2.15.1 read them as a plain number and left the sensors empty. They now convert `Ns` → minutes, and the climate-time read also accepts the `remaining_climate_time` key. A bare number is still treated as minutes (older firmwares). Thanks to @Ra72xx for the sample data.
+
+## [2.15.1] - 2026-06-25
+
+### Added
+
+- **Volkswagen US/Canada: region selector.** Setup now asks US vs Canada, so Canadian accounts authenticate against the Canadian backend and client id instead of silently defaulting to the US one (which made Canadian logins fail). Existing entries keep working (default US). (#503)
+- **~30 more vehicle-data fields mapped.** Many fields the Vehicle Data Scout surfaced now become proper sensors — charge type / scenario / reason, charged energy, battery-care target, available & maximal energy content, trip and lifetime consumption + recuperation, parking brake and lights, per-corner tire-pressure status, LPG/CNG, engine status and more (several diagnostic or disabled-by-default). Nothing is hidden — anything still unmapped stays visible in the Scout. (#504, #508, #509, #510)
+- **EU Data Act portal: charged energy.** The older charger format also reports `battery_state_report.charge_energy`; it now maps to the cross-brand charged-energy sensor (`total_charged_energy_kwh`), the same one CUPRA/SEAT already populate.
+- **volkswagen.de setup now states the prerequisite.** The opt-in Volkswagen.de website channel returns no data unless your Volkswagen ID is the vehicle's **primary user** — the setup screen now says so (complete "Confirm identity" once on volkswagen.de). Added in all supported languages.
+
+### Fixed
+
+- **Target SoC (and other repeated fields) could show a stale value (#465).** The EU Data Act portal ships a flat, ordered event-log where each snapshot's capture time arrives as its own `car_captured_time` data-point. When a field changed across snapshots (e.g. battery-care lowering the charge target from 100% to 80%), the parser tied on the dataset-level timestamp and kept the first-seen (stale) value. It now carries the running `car_captured_time` so the value from the latest snapshot wins. Thanks to @RaAdNe for the precise diagnosis and data.
+
+### Docs
+
+- Regenerated the 6 language READMEs (fr/es/nl/pl/cs/sv) from the current English README — localized the sponsor text (was English), corrected the install steps to HACS Default, fixed the language picker; removed the orphan `README.en.md`.
+- `NOTICE.md`: corrected the copyright footer to GNU AGPL v3.0-or-later (was Apache-2.0); added Bentley to the trademark table; replaced placeholder reference URLs with plain-text credits.
+- `ATTRIBUTION.md`: use the current display name "VW Group Connect" as the primary name (keeping "VAG Connect" in the protected-names list).
+- `CONTRIBUTING.md`: added Bentley to the live-testers table.
+
+## [2.15.0] - 2026-06-25
+
+First stable release of the 2.15.0 line (consolidates the `2.15.0a*` / `2.15.0b*` betas). Highlights:
+
+### Added
+
+- **Command channel for portal-primary setups (opt-in).** Climate and charging commands now work for accounts whose data comes from the EU Data Act portal, via a second sign-in on a durable command backend. Opt-in per entry; existing read-only setups are unchanged.
+- **Portal-safety / last-known-good cache.** Each vehicle's last good readout is cached locally and restored across restarts, so a momentary empty/failed portal fetch no longer blanks your dashboard — values carry forward (the odometer never goes backwards) until fresh data arrives, and the failed poll just feeds the staleness watchdog.
+- **More fields surfaced.** The Vehicle Data Scout no longer hides any portal field, and the older VW EU charger format now maps its battery level to State of Charge.
+
+### Fixed
+
+- **VW US/Canada login (#503).** Two separate causes — an over-widened OAuth scope and a stale, separate sign-in client-id — both removed; the North-America flow now matches the live MyVW app end-to-end.
+- **Duplicate / stale portal fields (#465, #504).** Reworked the portal field de-duplication so the freshest value wins and array-nested fields don't collapse onto the wrong key.
+- **App-identity refreshed** to current builds (We Connect 3.63.2, myAudi 5.5.1) so the command/data endpoints stop rejecting stale versions.
+- **Škoda lock/unlock** uses the current PIN field name.
+
+### Changed
+
+- **Honest CUPRA/SEAT command status.** Those brands' command backend is now gated server-side (App Check + WAF); the integration says so plainly instead of silently failing. Data continues via the EU Data Act portal.
+- **MEB "commands unavailable" notice** surfaces as a Home Assistant repair when a newer MEB car can't use the legacy command channel.
+
+## [2.15.0b14] - 2026-06-25
+
+> **Beta / pre-release** — the actual fix for VW US/Canada login (#503).
+
+### Fixed
+
+- **VW US/Canada login (#503) — the real cause.** b13 reverted an over-widened OAuth scope, but sign-in still dead-ended at VW's North-America sign-in service with "no code in …/signin-service/v1/b680e751…". The real culprit was a stale, separate "browser" client-id (`b680e751…`) that was used *only* to build the NA sign-in URL — but the current MyVW app uses the same app client all the way through. Removed that stale override so the sign-in now uses the real per-country MyVW client; confirmed against the live MyVW app (its code has zero `b680e751` / `identity.na` literals) and an independent working US setup. (A live US/CA login confirms the close.)
+
+## [2.15.0b13] - 2026-06-24
+
+> **Beta / pre-release** — one car, reads *and* commands: the EU Data Act portal for data + a durable-MBB command channel on top. And a simpler 2-path setup.
+
+### Added
+
+- **The setup login is now two clear paths.** "Browser-Login (QR)" for Audi / Škoda / SEAT / CUPRA (passwordless, two-way native), and "Portal (E-Mail + Passwort)" for Volkswagen EU / Porsche. The standalone "MBB durable login" and "Volkswagen.de" menu entries are gone — MBB is now a toggle on the Portal path, and vw.de stays an options-only extra read channel.
+- **MBB remote commands on a Volkswagen portal entry.** On the Portal login you can tick "Enable MBB remote commands"; after the email/password sign-in it adds one QR confirm and arms a durable-MBB command channel **alongside** the portal. Result on one device: reads come from the EU Data Act portal, and lock / climate / charge / target-SoC / window-heating commands go through MBB. The MBB bearer refreshes itself (survives restarts). If the car turns out to be MBB-ineligible (newer ID/MEB), the portal entry is still created — you just get reads without commands, instead of the whole setup failing.
+- **Portal-safety: your recorded values now survive an outage *and* a restart.** The integration keeps a small local cache of each car's last-known telemetry. When a poll comes back empty or partial — a common thing on the EU Data Act portal — it no longer blanks the fields it didn't get this time: SoC, odometer, range, fuel, service intervals and the like stay visible at their last recorded value until real new data arrives. That cache is now written to disk, so after a Home Assistant restart your dashboard shows the recorded values immediately instead of "unknown" until the first poll finishes. Volatile states (locks, charging, doors) are deliberately *not* carried forward — a stale "unlocked" would be misleading — so those still reflect the latest poll.
+- **A backwards odometer reading is rejected.** The portal occasionally serves a stale or zero mileage, so the "km" sensor would jump down and then back up. It now keeps the recorded value whenever a fresh reading is lower than what we already have, so the odometer only ever moves forward.
+- **A clear notice when an MEB / ID car can't do remote commands.** If you enable MBB commands on the Portal login but the car turns out to be an MEB / ID-family model (ID.3/4/5/7, Enyaq, Born, Q4), commands aren't possible — VW's MEB backend doesn't speak the durable command path. Instead of silently missing the lock/climate/charge entities, the integration now creates the read-only entry **and** raises a clear repair explaining it's a known MEB limitation, not a setup error. The README also gained a "Known limitations" section spelling out MEB, the CUPRA/SEAT command block, and the portal's thin-and-growing data.
+
+### Changed
+
+- A Volkswagen portal entry that has the MBB command channel armed is no longer forced read-only — its command entities (lock/switch/climate/buttons) now appear. A portal entry without the command channel stays read-only as before.
+- **The Vehicle Data Scout no longer hides any fields.** b10 had started filtering "plumbing" fields (request ids, envelope timestamps, and the like) out of the Scout report — that was the wrong call, because it also hid things worth mapping. The Scout now surfaces *everything* the portal sends, so nothing gets quietly dropped before it can be turned into a real sensor.
+- **A device-attestation block on commands is now reported honestly.** VW is rolling Firebase App Check / Play Integrity across its backends (it already killed CUPRA/SEAT reads). If that ever reaches a command channel, the 403 used to be mislabeled as "not entitled" — sending you to chase a subscription renewal that wouldn't help. It's now recognised from the response body as an attestation lock and surfaced as exactly that: commands gone on that channel, reads continue. (No current channel is affected — this is so the day it happens, the message is the truth.)
+- **VW EU command headers now track the current We Connect app version.** The app-identity the integration presents to VW's command endpoints was pinned at an old build (3.51.1); it's bumped to the live `com.volkswagen.weconnect` version (3.63.2, confirmed by dismantling the current APK). These endpoints can reject stale app versions, so tracking the real build keeps the command path healthy — and a regression test now pins it so it can't quietly drift stale again.
+- **Audi app-identity refreshed to the current myAudi build, everywhere.** All four places the integration claimed to be the myAudi app were stale (4.31.0 / 4.24.0 / 4.18.0); they're now the live `de.myaudi.mobile.assistant` version 5.5.1 (versionCode 800344232, verified against the dismantled APK manifest) — the brand config, GraphQL headers, the MBB app-identity and the market-config fetch. Same rationale: stay indistinguishable from the real app so a future version check can't lock us out. Pinned by a regression test.
+- **The CUPRA/SEAT "online services blocked" notice now names the real cause and is honest about it.** Reverse-engineering the current apps confirmed VW's block is **device attestation** (Firebase App Check / Play Integrity) plus a web-application firewall on the SEAT/CUPRA backend — not a header or app-version problem, and not something an open-source client can reproduce. The repair message (all 9 languages) now says exactly that and sets honest expectations: remote **commands** for these brands are unlikely to come back, while vehicle **data** keeps flowing through the EU Data Act portal. Also documented the dismantle-verified fallback OAuth client-ids (for the `client_id` override option) in case VW ever blocklists a primary. (#464)
+
+### Fixed
+
+- **Volkswagen US / Canada login was broken (#503).** A v2.11.0 change widened the North-America OAuth scope from `openid` to `openid profile cars vin` based on a source-read that was never live-tested against the NA backend — and it silently regressed sign-in: the authorize redirect stopped returning a code, so login failed with a misleading "email or password wrong". Reverted to bare `openid`, which is **confirmed against the live MyVW app** (the dismantled APK carries `openid` as its only OAuth scope; the wider chain appears nowhere) and matches the value an NA tester verified in #269. (Canada keeps its own app client-id, which the APK confirms is genuine — it wasn't the cause.)
+- **Wrong value shown when VW sends duplicate data points (#465).** The EU Data Act portal sometimes returns several data points with the *same* name (e.g. multiple SoC or target-SoC candidates). We were resolving ties by array order, so a stale duplicate could win — one reporter's ID.5 showed 80% SoC while the car and app showed 90%. Now duplicates are resolved by each point's own capture time (a genuine timestamp beats the shared dataset floor; the newer of two real timestamps wins; with neither, the first is kept deterministically), and a field nested inside an array (like a charge profile) no longer collapses onto the active top-level value.
+- **State of charge now shows for cars on the legacy charger format (#504).** Some VWs report the traction battery only as `battery_level_HV` (the old Car-Net charger report) instead of the standard field, so their SoC sensor was blank. It's now read as a last-resort source — cars that send the standard field are unaffected, and the duplicate-resolution above keeps the freshest reading.
+- **Škoda unlock now sends the correct S-PIN field.** A reverse-engineering pass against the current MyŠkoda app showed its unlock body uses the wire key `currentSpin` (and never a bare `spin`) — our old `spin` key was being rejected by Škoda's backend, so unlock-with-PIN failed. Fixed to `currentSpin`. (Lock is unaffected — it needs no PIN.)
+
+## [2.15.0b12] - 2026-06-23
+
+> **Beta / pre-release** — the EU Data Act portal as a *supplementary* read channel now actually delivers data (e.g. portal reads alongside MBB commands).
+
+### Fixed
+
+- **Adding the EU Data Act portal as a read channel on a non-portal entry (e.g. an MBB command entry) returned no data — silently.** The portal only delivers while an active "continuous data request" exists for the car, and the request kickoff was only ever run for a portal-*primary* entry. So a portal *supplementary* never got a request → it logged in fine but every read came back empty, with nothing in the log to explain it. Now the kickoff also runs for a configured portal supplementary (it shares the signed-in session), and the "no active data request" notice is surfaced for the supplementary channel too, so it's no longer a silent dead end. **Note:** the kickoff is still opt-in — turn on "EU Data Act: automatically create a custom data request" in the options for the channel to populate (it starts a 1-month data subscription on your portal account).
+
+> **Beta / pre-release** — keeps a durable-MBB entry alive (it was going stale ~an hour after setup).
+
+### Fixed
+
+- **Durable-MBB entries stopped working about an hour after setup.** The MBB bearer was only ever refreshed when a request came back with "expired" — but the main MBB reads deliberately don't trigger a refresh on a rejection (to avoid hammering the login endpoint when the car's data access is simply restricted). The result: once the bearer actually expired, every read failed with "token expired" until a restart. It's now refreshed proactively, just before it expires, so an MBB entry (and its remote commands) stays alive on its own. This is what makes the "commands via MBB + reads via the EU Data Act portal" combination usable unattended.
+
+### Security
+
+- **The EU Data Act portal password was stored in the clear in the diagnostics download.** The supplementary-channel credentials added in b8/b9 (portal email + password, and the vw.de session cookies, which carry the sign-in tokens) were never registered with the diagnostics redaction, so a downloaded diagnostics file exposed them in plaintext — the very file users attach to bug reports. They're now redacted like every other secret. **If you added a portal or vw.de read channel on an earlier 2.15.0 beta, change that portal password** and don't re-share any diagnostics you exported from those builds.
+
+### Added
+
+- **You can now remove a supplementary read channel.** Until now the vw.de and EU Data Act portal read-channel toggles could only ADD a channel — once added there was no way to turn one back off, so a redundant or no-longer-resuming channel kept retrying (and showing a "re-add" repair) on every restart. The options now show a "Remove …" toggle for each channel that's currently active; ticking it clears that channel and reloads, and any leftover "re-add" repair is cleared with it.
+
+## [2.15.0b10] - 2026-06-23
+
+> **Beta / pre-release** — EU Data Act portal: many more signals mapped, a lock-state bug fixed, and a tidier Scout. (Includes the b9 vw.de silent-resume fix.)
+
+### Fixed
+
+- **The "doors locked" sensor could read *unlocked* on a locked car.** The portal reports each door's lock state individually (and no single overall flag), which we weren't reading — so the lock sensor fell back to a stale/empty value and showed unlocked. It's now derived from the actual per-door lock states, so a fully-locked car reads locked.
+
+### Added
+
+- **Lots more from the EU Data Act portal, now as proper sensors.** Per-door open + lock states, the tailgate and bonnet, per-window open/closed + how far each window is down, last-trip distance & duration, lifetime average speed & driving time, average monthly mileage, an inspection-due warning, and remaining charge/climate time — all read from the portal and mapped onto the right entities (enum meanings + units taken from the official data dictionary).
+- **The Vehicle Data Scout report now shows the official spec name** for each unknown field (it was blank before because the lookup didn't match the portal's field names).
+
+### Changed
+
+- **The Vehicle Data Scout is less noisy.** Pure plumbing / identity fields (request ids, hashed account id, VIN, envelope timestamps, measurement-quality flags) are no longer reported as "new fields" — only real vehicle signals are.
+
+## [2.15.0b9] - 2026-06-23
+
+> **Beta / pre-release** — the vw.de channel finally resumes silently (no more code-email on every restart).
+
+### Fixed
+
+- **vw.de no longer asks for a new email code on every reload.** The session now resumes through a silent re-authorization (it re-uses the long-lived sign-in cookie to mint a fresh session in the background), instead of probing a data endpoint and falling back to a full login when that probe failed. The data probe was the wrong test — the portal session quietly expires about half an hour after sign-in even while the underlying sign-in is still good, so it kept forcing a needless code-email. The silent resume only ever asks for a code when the sign-in itself has genuinely expired (a one-time re-add), never on a routine restart. Applies to both the vw.de primary mode and the vw.de supplementary read channel.
+- **vw.de reads were silently coming back empty.** Every request now sends the CSRF token the portal expects (echoed from its cookie), which the reads require — without it the portal answered with empty data.
+
+## [2.15.0b8] - 2026-06-23
+
+> **Beta / pre-release** — the real two-way + reads combo: EU Data Act portal as a supplementary read channel.
+
+### Added
+
+- **Add the EU Data Act portal as a read channel on top of a command-capable entry (e.g. durable MBB).** MBB gives you remote commands and fuel but can't read SoC / charging / odometer / service; the portal can. Tick "Add an EU Data Act portal read channel" in the options, sign in with email + password (no one-time code), and the portal's reads are merged onto your primary channel — so you get commands *and* full data on one device. Read-only, email/pw with automatic re-login (reliable, unlike the OTP-bound vw.de channel), and it never touches command routing. The merged "Data source channel" sensor shows both channels contributing.
+
+## [2.15.0b7] - 2026-06-23
+
+> **Beta / pre-release** — event-loop hygiene.
+
+### Fixed
+
+- **No more "blocking call" warning from the data dictionary.** Once the Scout report started naming portal fields from the dictionary, the first lookup read the 288 KB spec file on the event loop. The cache is now warmed off-loop at setup, so the in-poll lookups never block.
+
+## [2.15.0b6] - 2026-06-23
+
+> **Beta / pre-release** — service-countdown sign fix, no more vw.de code-email storm, unmapped fields in the Scout.
+
+### Fixed
+
+- **Service & oil-change countdowns now read correctly.** They were showing as overdue (negative) when the car actually has them coming up — the portal reports these as a negative "remaining until due", so "due in 155 days / 14900 km" was landing as −155 / −14900. Now flipped: a positive countdown, and only genuinely-overdue cars go negative.
+- **The vw.de channel no longer triggers a new code-email on every poll.** When its session couldn't be resumed it kept starting a fresh login, which made Volkswagen send a new one-time-code email each cycle. It now only probes (no email) and raises the re-login repair once — re-add it from the options when you're ready, no more code-email storm.
+
+### Changed
+
+- **Unmapped portal fields now also show up in the Vehicle Data Scout report**, not just on the raw-fields sensor — so the long tail of fields we haven't curated yet is visible and one-click reportable, which is how more of them become proper sensors over time.
+
+## [2.15.0b5] - 2026-06-23
+
+> **Beta / pre-release** — more service data straight from the portal + graceful vw.de re-login.
+
+### Added
+
+- **Service & maintenance intervals, lock status and window heating now come straight from the EU Data Act portal.** The raw-field discovery surfaced that the portal already sends inspection + oil-change intervals (distance and days), central-lock state and window-heating state for Golf-class cars — these are now mapped onto the proper sensors, so you get them without needing the separate vw.de channel.
+
+### Fixed
+
+- **The vw.de read channel now fails gracefully instead of silently.** When its session can't be resumed without a fresh one-time code, it raises a clear "Volkswagen.de read channel needs re-login" repair you can act on, rather than just logging "stale". The primary channel is unaffected, and the repair clears itself once the channel is back.
+
+## [2.15.0b4] - 2026-06-23
+
+> **Beta / pre-release** — supplementary-channel resume fix.
+
+### Fixed
+
+- **The supplementary vw.de channel now resumes from freshly-added cookies.** Even after re-adding the channel, it kept reporting "cookies stale" — the cheap resume probe returns a redirect for a valid session, and the supplementary path gave up on it instead of trying the full silent login (which a valid session completes without an OTP). It now falls back to that login exactly like the primary vw.de channel, so a freshly-added channel arms and merges. If the session is genuinely dead the log now says why (`login=otp_required` → re-add), and the primary channel is unaffected either way.
+
+## [2.15.0b3] - 2026-06-23
+
+> **Beta / pre-release** — declutter: hide entities without data.
+
+### Added
+
+- **Entities without data are now hidden by default, so a vehicle isn't flooded with dozens of "unknown" sensors.** Only sensors and binary sensors that actually have a value are created; an entity still appears automatically the moment its value first arrives (the dynamic spawner now re-evaluates every poll and tracks entities individually). Controls (lock, climate, buttons, …) are never affected. Untick **"Hide entities without data"** in the integration options if you'd rather see everything.
+
+## [2.15.0b2] - 2026-06-23
+
+> **Beta / pre-release** — hotfix for the b1 multi-channel live test.
+
+### Fixed
+
+- **The supplementary vw.de read channel now arms reliably alongside an EU Data Act portal entry.** In b1 the supplementary channel reused the shared session, and because vw.de and the portal share the same login host and cookie names, importing the vw.de cookies clobbered the portal's — the resume probe failed ("cookies stale") and the merge never ran. The vw.de channel now uses its own isolated session, so the two channels can't interfere; this also clears the duplicate-entity warnings that the cookie clash could trigger. Update and restart — the saved cookies should now resume directly (re-add the channel only if they've genuinely expired).
+
+## [2.15.0b1] - 2026-06-23
+
+> **Beta / pre-release** — bundles the unreleased a11–a13 work plus the EU Data Act read-path expansion, the official data dictionary + raw-field discovery, the multi-channel merge with a live vw.de opt-in, and reliability hardening. Install via the HACS beta channel to test.
+
+### Added
+
+- **Rich EU Data Act reads for legacy & PHEV cars, with miles→km auto-conversion.** Flat field names used by older Golf GTE and PHEV vehicles now map cleanly — fuel level, oil level, outside temperature, service intervals — instead of being silently skipped. Distance units are detected and converted (miles → km via the companion unit field) so readings land in the car's market unit. Drivetrain detection now infers electric/combustion/hybrid from the data present, fixing EVs shown as combustion-only and PHEVs as neither.
+- **The official EU Data Act data dictionary (V5.0, 1142 fields).** The Vehicle Data Scout report now names an unmapped field from the official spec when its path is a known identifier — opaque UUIDs become human names for maintainers.
+- **Raw field discovery — one diagnostic sensor for unmapped portal fields.** A single disabled-by-default sensor per car shows how many portal fields aren't curated yet, with the full value set in its attributes. Same detection that feeds the Scout, so you see every value the backend sent without waiting for a curated mapping — and without an entity per field. Available in all 8 languages.
+- **Multi-channel data merge with provenance.** For cars whose data is split across channels (fuel on one, SoC on another, odometer on a third), a field-level union now gap-fills in priority order — the highest-trust channel is never overwritten — and records which channels contributed in a new "Data source channel" diagnostic sensor.
+- **Live multi-channel polling: opt-in vw.de read channel.** A new "Add a Volkswagen.de read channel" option pulls VIN / odometer / service / master data from volkswagen.de in parallel and merges it onto your primary channel. Read-only, Volkswagen-only (email + email-OTP). Single-channel setups are byte-for-byte unchanged, and it fails gracefully if vw.de is unavailable.
+- **MBB "two-way available" diagnostic sensor.** Tells you when the durable Car-Net backend grants a remote command (climate/charge) on a currently-licensed service — derived from the operation list, no extra request, icon-only.
+- **Charge-rate and plug-connection mapping** from the EU Data Act portal, plus the energy-dashboard tip in the README (use the cumulative charged-energy sensor, not the per-100 km averages). Bentley added to the brand table.
+
+### Fixed
+
+- **Account rate-limit protection.** When the backend hard-limits (HTTP 430, or 429 after retries are spent), the integration now pauses all requests on that account for a cool-down (429 → 30 min, 430 → 2 h) instead of hammering and risking an IP ban. Self-clears on expiry.
+- **Bogus "no reading" values no longer reach your dashboard.** Portal sentinel markers (65535 / 2147483647 / 4294967295, −1 charging-time, 0/1 tyre-pressure) are filtered out instead of poisoning SoC / range / odometer statistics. The odometer also never jumps backwards — monotonic fields keep the highest reading regardless of delivery order — and bare fields inherit the dataset capture time so the freshest snapshot wins.
+- **Per-session/trip kWh deltas no longer carry the energy device-class** (HA 2026.6 rejects energy + measurement together).
+- **No source-aliasing in the merge** — gap-filled list/dict fields are deep-copied so a merged result can't be corrupted by a later change to a source snapshot.
+
+### Changed
+
+- **VW enum labels shortened for display** (strip CHARGE_STATE_/CHARGING_MODE_/PLUG_STATE_… prefixes) so charging state reads cleanly — display only, logic unchanged.
+- **Coordinator passes its config entry explicitly** (HA 2026.8 readiness).
+- **Automatic discovery of unmapped portal fields** keeps logging the long tail so coverage grows from real payloads, not guesswork. Test suite modernized for Python 3.14.
+
+## [2.15.0a10] - 2026-06-22
+
+> **Alpha / pre-release** — reliability batch (from the failsafe audit + a tester log).
+
+### Fixed
+
+- **Vehicle entities keep their last values during a portal outage instead of going blank.** When the EU Data Act portal times out or is briefly down, the car's sensors used to flip to unknown for that cycle (and the "last updated" time falsely reset to now). The integration now recognises a no-data poll and keeps the previous values visible (marked stale) — so a portal hiccup no longer blanks your dashboard. A brand-new car with no data yet still appears and fills in as before.
+- **MBB no longer hammers the login endpoint when a read is blocked.** On the durable-MBB path, a blocked status read could trigger a token refresh every poll, which tripped the safety guard ("pausing to prevent IP ban"). Those reads no longer refresh on a block, so the integration stops risking a rate-limit / IP ban while the read channel is unavailable. The scheduled refresh still keeps the session fresh.
+
+## [2.15.0a9] - 2026-06-22
+
+> **Alpha / pre-release** — small fix from a tester report (#442).
+
+### Fixed
+
+- **Climatisation no longer shows as "on" when the car can't actually start it.** On some Audi/VW cars the climatisation status comes back as `invalid` — a no-data state the car returns when climatisation can't run, e.g. at a low battery. The integration was treating anything that wasn't an explicit "off" as "running", so the climatisation binary sensor flipped on by mistake. It now treats those no-data states as off, so the sensor reflects reality.
+
+## [2.15.0a8] - 2026-06-22
+
+> **Alpha / pre-release** — small but important UX fix from a tester report (#498).
+
+### Fixed
+
+- **The MBB login now tells newer ID / MEB owners why it can't work, instead of looping the VIN screen.** If the durable MBB login returns `Unknown user`, that means the car is a newer ID.3/4/5 / MEB model that was never enrolled in the legacy Car-Net backend — so the durable login + remote commands genuinely can't reach it. Instead of bouncing you back to the VIN form with a cryptic error, the flow now stops with a clear message pointing you to the EU Data Act portal (or email + password) for those vehicles. The MBB login is for older Car-Net cars (most PHEV / combustion models).
+
+## [2.15.0a7] - 2026-06-22
+
+> **Alpha / pre-release — the "Endstufe" two-way test.** The deep dive settled what the durable VW login can and can't do, and this build ships the part that genuinely works durably: **remote commands**. No re-add needed — update and restart, then try a command.
+
+### Added
+
+- **Durable two-way commands over the MBB login: climate, charging and charge target.** The investigation proved the durable (password-free) VW login can't *read* live data — VW closed that path for this token type — but it CAN issue **commands** (the command path does an extra authorisation step that reads don't). So with the MBB login + your S-PIN you now get durable **climate start/stop, window heating, charging start/stop, and set charge target %** — and these keep working across restarts, no app-attestation, no ~1‑hour re-login.
+- **Country-agnostic by design.** Commands are routed through the car's own service directory (the operationList), which hands over the right server per service per market — so this works for German, Austrian, Dutch, etc. VW EU vehicles, not just the Swiss car it was discovered on. Each command is only attempted if the directory says your car+subscription actually allows it (so you don't waste S-PIN tries on a 403).
+
+> ⚠️ **Live-test the commands deliberately.** The command bodies are grounded against the classic Car-Net app + the car's own directory but haven't been actuated on every model — try one (e.g. start climate) and check it acts. A wrong S‑PIN counts toward the 3‑try lock, so the integration refuses to act when the car reports you're down to your last attempt. Reads still come from your other channel (EU Data Act / the existing login) — the MBB login is login + licence + commands.
+
+## [2.15.0a6] - 2026-06-21
+
+> **Alpha / pre-release** — the diagnostics paid off. Live probing revealed the durable VW login works perfectly *and* reads data — the empty status on the test car was simply an **expired We Connect subscription** (every paid service was off). This build reads the car's service directory so it knows that, and tells you instead of failing silently. No re-add needed — update and restart.
+
+### Added
+
+- **The MBB integration now reads your vehicle's "service directory" (operationList).** This is the authoritative list of which connected services your car has and whether they're licensed/active. From it the integration now:
+  - **tells you when your We Connect / connect subscription is expired or inactive** — the `subscription_active` / subscription-expiry / days-remaining sensors are populated, and the log says "renew it in the app" instead of dumping cryptic 403 errors;
+  - **skips the status read entirely when the subscription is inactive** (it would only 403), so the log stays clean and the poll is faster;
+  - lays the groundwork for the full command set later (the directory hands over the exact per-service hosts and the granted remote-commands for climate, charging and timers).
+
+> ℹ️ If your car shows everything "unknown" and `subscription_active` is off, that's the cause — renew We Connect for that vehicle (or test on a car with an active subscription) and the data flows. The durable login itself is working.
+
+## [2.15.0a5] - 2026-06-21
+
+> **Alpha / pre-release** — diagnostics build. a4 got the car to appear via the VIN; now the status read returns nothing, so this surfaces exactly why. No re-add needed — just update and restart.
+
+### Changed
+
+- **MBB status read now logs exactly what the server returns.** Your Golf GTE shows up but all sensors are "unknown" — to pin down whether the status endpoint rejects the token, returns an empty body, or returns data in a shape we don't yet map, the read now logs the host/country it used and, on an empty result, the exact field IDs (or envelope keys) the car returned. This is the same diagnostic approach that pinned the garage issue in one step.
+
+## [2.15.0a4] - 2026-06-21
+
+> **Alpha / pre-release** — second live-test follow-up. The diagnostics from a3 pinned the exact blocker, and this fixes it.
+
+### Fixed
+
+- **MBB: you now enter your VIN directly, and the car finally appears.** The a3 diagnostics showed the durable VW token is allowed to read your *car* but not to list your *account's garage* (the server replied `403 — no permission for systemId XID_APP_VW`). That's expected for this token type — so the MBB login now has a **VIN field**: enter your 17-character VIN (windscreen / registration; comma-separate multiple cars) and the integration uses it directly. Everything car-level — status, and lock/unlock with your S-PIN — works with this token; only the garage *listing* didn't, and the VIN field replaces it.
+
+> ℹ️ **If you already added the MBB login on a2/a3:** delete that entry and add it again with the new "Volkswagen EU — Durable Login (MBB)" option so you can enter the VIN. The browser confirm is quick.
+
+## [2.15.0a3] - 2026-06-21
+
+> **Alpha / pre-release** — follow-up to a2 from the first live test. The MBB durable login itself worked end-to-end (browser confirm → durable token); the only blocker was finding your cars afterwards.
+
+### Fixed
+
+- **MBB: the car list is now looked up with the right country and headers.** On the first live test the durable VW login succeeded but the integration found no vehicles, because the account-list call was hardcoded to Germany (`DE`) and was missing the app-identification headers the VW servers expect. It now reads your account's country from the login token (e.g. `CH` for Switzerland), sends the `Volkswagen`/`myAudi` app headers on every MBB call, and tries the known server/country combinations until your cars appear.
+- **Better diagnostics:** if the car list still comes back empty, the log now shows the exact HTTP status for each server/country it tried (instead of a vague "APIError"), so the endpoint can be pinned down quickly.
+
+## [2.15.0a2] - 2026-06-21
+
+> **Alpha / pre-release** — please live-test and report back. Expect rough edges.
+
+### Added
+
+- **Volkswagen EU durable login (MBB) — now a real option in the integration, not just a test script.** There's a new sign-in choice "Volkswagen EU — Durable Login (MBB)": you confirm once in your browser (no password stored in Home Assistant) and the integration keeps a long-lived, self-refreshing session that survives restarts — unlike the read-only portal. Add your S-PIN in the options to also get **two-way lock/unlock**. VW-only, alpha — the status read works best for combustion/PHEV (fuel level, range, AdBlue) for now; EV battery fields via this path come later.
+- **Remote lock/unlock over the MBB path**, using the classic security-PIN handshake. The S-PIN is checked locally before anything is sent so a typo can't burn one of your three tries, and the integration refuses to act if the car reports you're down to your last attempt (3 wrong PINs locks it until you reset in the car/app).
+
+> ⚠️ The durable VW path needs a confirmation from your account to fully verify end-to-end on real cars — that's exactly what this alpha is for. If lock/unlock reports a failure with the doors open or the key inside the car, that's the car refusing, not a bug.
+
+### Internal (MBB hardening, pre-release review)
+
+- The MBB session now auto-refreshes when its token expires (previously the durable token could go stale after a restart and the car would show "unknown" until you re-confirmed in the browser — the whole point of "durable" is that it shouldn't).
+- Tightened token isolation: several background calls (capability/trip-stats prefetch, the field-probe pass, wake, charging-station lookup) are now skipped for MBB sessions so the MBB token is only ever sent to the MBB servers, never to the (dead, for VW) app backend.
+
+## [2.15.0a1] - 2026-06-20
+
+> **Alpha / pre-release** — ships the latest reverse-engineering findings for live testing. Expect rough edges; please report what you see.
+
+### Added
+
+- **Bentley is now a selectable brand (login + read).** My Bentley runs on the same backend as Audi, so it slots straight in. Two-way (commands) for Bentley is a follow-up.
+- **Login resilience for Škoda, SEAT and CUPRA.** If the app's login key ever gets rotated by the manufacturer, the integration now has spare keys to fall back to automatically — so a rotation doesn't lock you out.
+- **VW Group app-atlas research** in `docs/research/` — a catalogue of every brand app's login scheme, plus the discovery of a durable, refreshable login path for Volkswagen that gets past the new app-attestation wall. A local test tool (`scripts/mbb_dag_test.py`) lets you verify the VW path against your own account via a confirmation link (your credentials stay in your browser; it never prints tokens).
+
+### Changed
+
+- **Project relicensed to GNU AGPL v3.0-or-later** (was Apache-2.0). Forks must stay open-source under the same license. See [`ATTRIBUTION.md`](ATTRIBUTION.md) for the attribution + naming terms, and consider supporting the project via GitHub Sponsors.
+
+### Fixed
+
+- The advanced OLA User-Agent override for SEAT/CUPRA is no longer silently overwritten, so it actually applies now.
+
 ## [2.14.10] - 2026-06-18
 
 ### Fixed

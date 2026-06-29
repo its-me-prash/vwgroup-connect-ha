@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Binary sensors for VAG Connect — correct data keys from coordinator."""
 
 from dataclasses import dataclass
@@ -39,6 +39,16 @@ BINARY_DESCRIPTIONS: tuple[VagBinarySensorDescription, ...] = (
         data_key="doors_open",
         device_class=BinarySensorDeviceClass.DOOR,
         icon="mdi:car-door",
+    ),
+    # b1/B2 — "MBB two-way available" symbol (durable Car-Net remote commands
+    # licensed + granted for this car). Diagnostic; mdi icon only (no VW logo).
+    VagBinarySensorDescription(
+        key="mbb_two_way_available",
+        translation_key="mbb_two_way_available",
+        data_key="mbb_two_way_available",
+        device_class=BinarySensorDeviceClass.CONNECTIVITY,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        icon="mdi:car-key",
     ),
     VagBinarySensorDescription(
         key="windows_open",
@@ -160,6 +170,14 @@ BINARY_DESCRIPTIONS: tuple[VagBinarySensorDescription, ...] = (
         data_key="warning_oil",
         device_class=BinarySensorDeviceClass.PROBLEM,
         icon="mdi:oil",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(  # b10 — EU Data Act portal inspection warning
+        key="warning_inspection",
+        translation_key="warning_inspection",
+        data_key="warning_inspection",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        icon="mdi:car-wrench",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     VagBinarySensorDescription(
@@ -577,6 +595,143 @@ _NEW_BINARY: tuple[VagBinarySensorDescription, ...] = (
         icon="mdi:remote",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # ── v2.15.1 — EU Data Act + BFF wire-key mapping (2.15.0 plan) ──────────
+    # parking_brake_engaged is shared: written by the EU Data Act portal
+    # (parking_brake.is_set) and the BFF selectivestatus (parkingBrakeStatus).
+    VagBinarySensorDescription(
+        key="parking_brake_engaged",
+        translation_key="parking_brake_engaged",
+        data_key="parking_brake_engaged",
+        icon="mdi:car-brake-parking",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # Parking lights left/right (aggregate feeds the existing parking_light).
+    VagBinarySensorDescription(
+        key="parking_light_left",
+        translation_key="parking_light_left",
+        data_key="parking_light_left",
+        device_class=BinarySensorDeviceClass.LIGHT,
+        icon="mdi:car-parking-lights",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="parking_light_right",
+        translation_key="parking_light_right",
+        data_key="parking_light_right",
+        device_class=BinarySensorDeviceClass.LIGHT,
+        icon="mdi:car-parking-lights",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # v2.15.2 — EU Data Act portal "charger detail" (#513 Scout). Distinct
+    # from the cross-brand ``energy_flow`` above: this is the EU portal's own
+    # ``energy_flow`` on/off signal. DIAGNOSTIC.
+    VagBinarySensorDescription(
+        key="energy_flow_active",
+        translation_key="energy_flow_active",
+        data_key="energy_flow_active",
+        device_class=BinarySensorDeviceClass.POWER,
+        icon="mdi:flash",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # ── v2.15.3 — EU Data Act portal new fields (#465/#514/#515/#516) ────────
+    # Battery-care mode on/off (setting.bcam_activation). DIAGNOSTIC.
+    VagBinarySensorDescription(
+        key="battery_care_mode_active",
+        translation_key="battery_care_mode_active",
+        data_key="battery_care_mode_active",
+        icon="mdi:battery-heart-variant",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # Front bonnet lock (safe-state family, 2=locked). DIAGNOSTIC.
+    VagBinarySensorDescription(
+        key="bonnet_locked",
+        translation_key="bonnet_locked",
+        data_key="bonnet_locked",
+        device_class=BinarySensorDeviceClass.LOCK,
+        icon="mdi:car-door-lock",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # All present closures secured (safe_state_* rollup). DIAGNOSTIC. No
+    # device_class: the field is True==secured, the natural reading; a SAFETY
+    # class would invert it (on=problem) and mislabel a secured car "unsafe".
+    VagBinarySensorDescription(
+        key="closures_secured",
+        translation_key="closures_secured",
+        data_key="closures_secured",
+        icon="mdi:shield-car",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # Service hatch / spoiler — LOW, disabled-by-default.
+    VagBinarySensorDescription(
+        key="service_hatch_open",
+        translation_key="service_hatch_open",
+        data_key="service_hatch_open",
+        device_class=BinarySensorDeviceClass.OPENING,
+        icon="mdi:car-back",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagBinarySensorDescription(
+        key="spoiler_open",
+        translation_key="spoiler_open",
+        data_key="spoiler_open",
+        device_class=BinarySensorDeviceClass.OPENING,
+        icon="mdi:car-sports",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # Oil dipstick electronic-function active — LOW, disabled-by-default.
+    VagBinarySensorDescription(
+        key="oil_dipstick_active",
+        translation_key="oil_dipstick_active",
+        data_key="oil_dipstick_active",
+        icon="mdi:oil",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # Fuel reading is calculated rather than measured — LOW, disabled-by-default.
+    VagBinarySensorDescription(
+        key="fuel_level_estimated",
+        translation_key="fuel_level_estimated",
+        data_key="fuel_level_estimated",
+        icon="mdi:gas-station-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # ── v2.15.4 (#523) — EU Data Act portal climatisation settings ──────────
+    # All DIAGNOSTIC, LOW — disabled-by-default.
+    VagBinarySensorDescription(
+        key="climatisation_at_unlock",
+        translation_key="climatisation_at_unlock",
+        data_key="climatisation_at_unlock",
+        icon="mdi:air-conditioner",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagBinarySensorDescription(
+        key="mirror_heating_enabled",
+        translation_key="mirror_heating_enabled",
+        data_key="mirror_heating_enabled",
+        icon="mdi:car-side",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagBinarySensorDescription(
+        key="climate_zone_front_left_enabled",
+        translation_key="climate_zone_front_left_enabled",
+        data_key="climate_zone_front_left_enabled",
+        icon="mdi:thermostat",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagBinarySensorDescription(
+        key="climate_zone_front_right_enabled",
+        translation_key="climate_zone_front_right_enabled",
+        data_key="climate_zone_front_right_enabled",
+        icon="mdi:thermostat",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
 )
 BINARY_DESCRIPTIONS = BINARY_DESCRIPTIONS + _NEW_BINARY
 
@@ -667,6 +822,28 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # so no phantom binary sensor surfaces.
     "permission_is_owner",
     "permission_can_command",
+    # v2.15.1 — EU Data Act + BFF wire-key mapping (2.15.0 plan). Brand/
+    # firmware-restricted at the parser level; vehicles/channels without the
+    # underlying field stay None so no phantom binary sensor surfaces.
+    "parking_brake_engaged",
+    "parking_light_left",
+    "parking_light_right",
+    # v2.15.2 — EU Data Act portal "charger detail" (#513 Scout).
+    "energy_flow_active",
+    # v2.15.3 — EU Data Act portal new fields (#465/#514/#515/#516).
+    "battery_care_mode_active",
+    "bonnet_locked",
+    "closures_secured",
+    "service_hatch_open",
+    "spoiler_open",
+    "oil_dipstick_active",
+    "fuel_level_estimated",
+    # v2.15.4 (#523) — EU Data Act portal climatisation settings. EU-Data-Act
+    # dialect only; vehicles/channels without the field stay None → no phantom.
+    "climatisation_at_unlock",
+    "mirror_heating_enabled",
+    "climate_zone_front_left_enabled",
+    "climate_zone_front_right_enabled",
 })
 
 
@@ -679,10 +856,32 @@ async def async_setup_entry(
     all 4 sub-loops (descriptions / doors / windows / lights) run
     per-VIN once, idempotently re-run when new vehicles wake up."""
     coordinator: VagConnectCoordinator = entry.runtime_data
+    # b3 — "hide entities without data" (default on): skip binary sensors whose
+    # value hasn't arrived (None) so the device isn't flooded with "unknown".
+    # Only None is treated as "no data" — False is a real "off" reading. The
+    # per-id spawner re-spawns the sensor when its value first appears.
+    from .const import CONF_HIDE_EMPTY_ENTITIES  # noqa: PLC0415
+    hide_empty = bool(entry.options.get(
+        CONF_HIDE_EMPTY_ENTITIES,
+        entry.data.get(CONF_HIDE_EMPTY_ENTITIES, True),
+    ))
+
+    # v2.15.5 — surface the "ABRP data changed" diagnostic sensor only when
+    # the user opted into ABRP (master switch). Default off = no extra entity.
+    from .const import CONF_ABRP_ENABLE  # noqa: PLC0415
+    abrp_enabled = bool(entry.options.get(
+        CONF_ABRP_ENABLE,
+        entry.data.get(CONF_ABRP_ENABLE, False),
+    ))
 
     def _build_for_vin(vin: str, vehicle: dict) -> list:
         entities: list = []
         has_battery = vehicle.get("has_battery", False)
+        # v2.15.5 — ABRP data-changed trigger sensor (diagnostic). Only for
+        # EV/battery vehicles (ABRP is an EV route planner) and only when the
+        # ABRP feature is enabled.
+        if abrp_enabled and has_battery:
+            entities.append(VagAbrpDataChangedSensor(coordinator, vin))
         # 1) Description-driven binary sensors
         for desc in BINARY_DESCRIPTIONS:
             if desc.condition == "electric" and not has_battery:
@@ -690,6 +889,13 @@ async def async_setup_entry(
             # v1.11.0 (#91) — phantom-entity prevention.
             if (
                 desc.key in _DATA_PRESENT_REQUIRED
+                and vehicle.get(desc.data_key) is None
+            ):
+                continue
+            # b3 — broad hide-empty (None only, so a real False still shows).
+            if (
+                hide_empty
+                and desc.data_key
                 and vehicle.get(desc.data_key) is None
             ):
                 continue
@@ -763,6 +969,54 @@ class VagConnectBinarySensor(VagConnectEntity, BinarySensorEntity):
                 attrs["raw_status"] = status
             return attrs or None
         return None
+
+
+# v2.15.5 — ABRP "data changed" trigger sensor.
+
+
+class VagAbrpDataChangedSensor(VagConnectEntity, BinarySensorEntity):
+    """Diagnostic: ON when telemetry differs from the last ABRP upload.
+
+    The idempotent automation trigger for the shipped ABRP blueprint. ON
+    means "there is a NEW telemetry snapshot worth uploading"; the
+    ``vag_connect.abrp_send`` service records the fingerprint on a successful
+    send, which flips this back OFF — so the blueprint never uploads the same
+    snapshot twice. Carries NO data itself (no soc / gps), so it's safe to
+    enable regardless of the privacy posture; the actual GPS only leaves the
+    house when ``abrp_send`` runs (gated behind the user's own automation).
+    """
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:map-marker-path"
+    _attr_translation_key = "abrp_data_changed"
+
+    def __init__(self, coordinator: VagConnectCoordinator, vin: str) -> None:
+        super().__init__(coordinator, vin, "abrp_data_changed")
+
+    @property
+    def is_on(self) -> bool | None:
+        from .abrp import telemetry_fingerprint  # noqa: PLC0415
+
+        vehicle = self._vehicle
+        if not vehicle:
+            return None
+        # Need at least soc before anything is uploadable.
+        if vehicle.get("battery_soc") is None:
+            return False
+        current = telemetry_fingerprint(vehicle)
+        last = self.coordinator.abrp_last_sent_fingerprint.get(self._vin)
+        # Never uploaded yet → there IS something new to upload.
+        if last is None:
+            return True
+        return current != last
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        last = self.coordinator.abrp_last_sent_fingerprint.get(self._vin)
+        attrs: dict[str, Any] = {
+            "last_upload_recorded": last is not None,
+        }
+        return attrs
 
 
 # Per-door binary sensors.

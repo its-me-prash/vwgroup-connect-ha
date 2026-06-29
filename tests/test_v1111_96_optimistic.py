@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Tests for v1.11.1 — Issue #96 fixes + 3B-Part-3 Optimistic UI.
 
 Two main areas:
@@ -251,7 +251,7 @@ def _make_coord_with_vehicle():
 class TestOptimisticLock:
     def test_lock_flips_doors_locked_immediately(self):
         coord = _make_coord_with_vehicle()
-        asyncio.get_event_loop().run_until_complete(coord.async_lock("VINX"))
+        asyncio.run(coord.async_lock("VINX"))
         # State flipped before async_request_refresh would have polled
         assert coord.vehicles["VINX"]["doors_locked"] is True
         # async_set_updated_data was called so HA UI knows
@@ -261,7 +261,7 @@ class TestOptimisticLock:
         coord = _make_coord_with_vehicle()
         coord.vehicles["VINX"]["doors_locked"] = True
         coord.entry.options = {"spin": "1234"}
-        asyncio.get_event_loop().run_until_complete(coord.async_unlock("VINX"))
+        asyncio.run(coord.async_unlock("VINX"))
         assert coord.vehicles["VINX"]["doors_locked"] is False
 
     def test_lock_failure_reverts_optimistic_state(self):
@@ -274,7 +274,7 @@ class TestOptimisticLock:
         # Before: doors_locked=False
         assert coord.vehicles["VINX"]["doors_locked"] is False
         with pytest.raises(APIError):
-            asyncio.get_event_loop().run_until_complete(coord.async_lock("VINX"))
+            asyncio.run(coord.async_lock("VINX"))
         # Reverted after failure
         assert coord.vehicles["VINX"]["doors_locked"] is False
 
@@ -282,7 +282,7 @@ class TestOptimisticLock:
 class TestOptimisticClimate:
     def test_start_climate_sets_active_immediately(self):
         coord = _make_coord_with_vehicle()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.async_start_climatisation("VINX")
         )
         assert coord.vehicles["VINX"]["climatisation_active"] is True
@@ -292,7 +292,7 @@ class TestOptimisticClimate:
         coord = _make_coord_with_vehicle()
         coord.vehicles["VINX"]["climatisation_active"] = True
         coord.vehicles["VINX"]["climatisation_state"] = "HEATING"
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.async_stop_climatisation("VINX")
         )
         assert coord.vehicles["VINX"]["climatisation_active"] is False
@@ -302,7 +302,7 @@ class TestOptimisticClimate:
 class TestOptimisticCharging:
     def test_start_charging_flips_is_charging(self):
         coord = _make_coord_with_vehicle()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.async_start_charging("VINX")
         )
         assert coord.vehicles["VINX"]["is_charging"] is True
@@ -318,7 +318,7 @@ class TestOptimisticCharging:
             side_effect=APIError(403, "/x", "not_entitled"),
         )
         with pytest.raises(APIError):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 coord.async_stop_charging("VINX")
             )
         # Reverted
@@ -329,7 +329,7 @@ class TestOptimisticCharging:
 class TestOptimisticWindowHeating:
     def test_start_window_heating_flips_both(self):
         coord = _make_coord_with_vehicle()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.async_start_window_heating("VINX")
         )
         assert coord.vehicles["VINX"]["window_heating_front"] is True

@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Coordinator for VAG Connect — async polling via own CARIAD API client.
 
 Data flow:
@@ -19,16 +19,19 @@ import threading
 from typing import Any
 
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
     CONF_BRAND,
+    CONF_COUNTRY,
     CONF_ENABLE_PUSH_AUDI_VW,
     CONF_ENABLE_PUSH_FCM,
     CONF_ENABLE_PUSH_MQTT,
     CONF_ENABLE_REVERSE_GEOCODING,
     CONF_FORCE_PPE_CLIMATE,
+    CONF_MBB_COMMAND_CHANNEL,
+    CONF_MEB_COMMANDS_UNAVAILABLE,
     CONF_PASSWORD,
     CONF_READ_ONLY,
     CONF_SCAN_INTERVAL,
@@ -453,6 +456,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # state is.
         self.vehicle_last_good_at: dict[str, datetime] = {}
 
+        # v2.15.5 — ABRP (A Better Routeplanner) per-VIN last-successfully-
+        # sent telemetry fingerprint. The "ABRP data changed" binary sensor
+        # is ON when the current telemetry fingerprint differs from this; the
+        # abrp_send service writes the fresh fingerprint here on a 200 so the
+        # sensor flips back OFF (idempotent automation trigger). Empty until
+        # the first successful send for a VIN.
+        self.abrp_last_sent_fingerprint: dict[str, tuple[Any, ...]] = {}
+
         # Per-VIN capabilities cache. Hydrated best-effort during setup.
         # Read by Capability-Filter Phase 3 (v1.13.0) at PRE-entity-
         # creation gating in ``cariad/_capabilities.py:cap_id_for`` and
@@ -494,6 +505,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=entry,
             name=f"{DOMAIN}_{entry.entry_id}",
             update_interval=None,
         )
@@ -506,6 +518,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         from .cariad.exceptions import (  # noqa: PLC0415
             AuthenticationError,
             EmailTwoFactorRequiredError,
+            PortalInteractionRequiredError,
             TermsAndConditionsError,
             MarketingConsentError,
             TwoFactorRequiredError,
@@ -539,6 +552,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         session = async_get_clientsession(self.hass)
         self._cariad_client = CariadClientFactory.create(
             brand, session, username, password, spin,
+            # v2.15.1 (#503) — Volkswagen US/Canada region. Only the
+            # volkswagen_na client consumes it; every other brand ignores
+            # the kwarg. Default "us" for entries created before this field.
+            country=self.entry.data.get(CONF_COUNTRY, "us"),
             ola_app_version_override=ola_app_v,
             ola_user_agent_override=ola_ua,
         )
@@ -605,6 +622,57 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         self._token_storage = TokenStorage(store)
         persisted = await self._token_storage.load()
 
+        # b13 — Portal-safety: restore the last-known-good vehicle snapshot so
+        # entities show their recorded values immediately on restart (not
+        # "unknown" until the first poll completes), and a first-poll outage
+        # still has a cache to fall back to. Best-effort; never blocks setup.
+        from homeassistant.helpers.json import JSONEncoder  # noqa: PLC0415
+        from .cariad.vehicle_cache import (  # noqa: PLC0415
+            VEHICLE_CACHE_VERSION,
+            vehicle_cache_key,
+        )
+        self._vehicle_store: Store[dict[str, Any]] = Store(
+            self.hass,
+            VEHICLE_CACHE_VERSION,
+            vehicle_cache_key(self.entry.entry_id),
+            encoder=JSONEncoder,
+        )
+        try:
+            cached = await self._vehicle_store.async_load()
+        except Exception:  # noqa: BLE001
+            cached = None
+        if cached and isinstance(cached.get("vehicles"), dict):
+            with self._vehicles_lock:
+                for vin, vdata in cached["vehicles"].items():
+                    if vin == "_meta" or vin in self.vehicles:
+                        continue
+                    if isinstance(vdata, dict):
+                        restored = dict(vdata)
+                        restored["_restored"] = True
+                        restored["_poll_failed"] = False
+                        self.vehicles[vin] = restored
+            _LOGGER.debug(
+                "VAG Connect portal-safety: restored %d cached vehicle(s) "
+                "for %s", len(self.vehicles), brand,
+            )
+
+        # b13 — MEB/ID known-limitation. Setup flags an entry when the user
+        # asked for MBB commands but the car is MEB-ineligible (the portal
+        # entry was created read-only). Surface a clear repair so it's a known
+        # limit, not a silent missing-command-entities failure.
+        if self.entry.data.get(CONF_MEB_COMMANDS_UNAVAILABLE):
+            from homeassistant.helpers import issue_registry as ir  # noqa: PLC0415
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                f"meb_commands_unavailable_{self.entry.entry_id}",
+                is_fixable=False,
+                is_persistent=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key="meb_commands_unavailable",
+                translation_placeholders={"brand": self.entry.data.get(CONF_BRAND, "")},
+            )
+
         # v2.7.0 — config_flow's browser-login (DAG) flow stashes the
         # initial tokens in entry.data["dag_initial_tokens"] because
         # the persistent storage hadn't been set up yet at that point.
@@ -631,6 +699,25 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
         if persisted is not None:
             self._cariad_client.set_persisted_tokens(persisted)
+            # v2.15.0 — thread the registered MBB X-Client-Id into the client
+            # so the durable MBB strategy's refresh + VSR read + RLU command
+            # all send the same client id that minted the bearer (a mismatch
+            # 403s). No-op for every non-MBB entry (attribute defaults to "").
+            if getattr(persisted, "strategy", "") == "mbb":
+                self._cariad_client._mbb_client_id = self.entry.data.get(
+                    "mbb_client_id", ""
+                )
+                # User-supplied VIN(s) — the fal-scoped MBB bearer can't list
+                # the garage, so get_vehicles returns these directly.
+                from .const import CONF_MBB_VINS  # noqa: PLC0415
+                mbb_vins = self.entry.data.get(CONF_MBB_VINS) or []
+                if isinstance(mbb_vins, str):
+                    mbb_vins = [
+                        v.strip().upper()
+                        for v in mbb_vins.replace(",", " ").split()
+                        if v.strip()
+                    ]
+                self._cariad_client._mbb_manual_vins = list(mbb_vins)
         # Fire-and-forget save callback — never blocks API path.
         self._cariad_client.on_tokens_changed = self._token_storage.save
 
@@ -672,6 +759,18 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     "— skipping fresh login",
                     brand,
                 )
+            # v2.15.0b1 (C1) — arm any supplementary read channel (e.g. vw.de)
+            # AFTER the primary authenticate, so the per-poll merge has it.
+            # No-op when none configured; fail-soft (primary unaffected).
+            await self._arm_supplementary_channels()
+            # v2.15.0b7 — pre-warm the EU Data Act dictionary cache OFF the event
+            # loop so the Scout report's describe() lookups (which run in-loop)
+            # never trigger a blocking 288 KB file read. lru_cached → one warm-up.
+            try:
+                from .cariad.auth import eu_data_dictionary as _dd  # noqa: PLC0415
+                await self.hass.async_add_executor_job(_dd._load)
+            except Exception:  # noqa: BLE001
+                pass
             vins = await self._cariad_client.get_vehicles()
             if not vins:
                 return False
@@ -748,6 +847,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             raise ValueError("two_factor_required") from err
         except RateLimitError as err:
             raise ValueError("too_many_requests") from err
+        # v2.15.4 (#527) — a non-credential EU Data Act portal stop
+        # (onboarding/region/soft-block, or a portal error with a real
+        # errorCode). Subclass of AuthenticationError, so it MUST be caught
+        # before the credential catch-all — otherwise valid-credential users
+        # get told to fix their password.
+        except PortalInteractionRequiredError as err:
+            raise ValueError("portal_interaction_required") from err
         except AuthenticationError as err:
             raise ValueError("invalid_credentials") from err
         except Exception as err:  # noqa: BLE001
@@ -904,9 +1010,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         from .const import (  # noqa: PLC0415
             CONF_DATA_ACT_IDENTIFIERS,
             CONF_EU_DATA_ACT_AUTO_KICKOFF,
+            CONF_SUPPLEMENTARY_EU_PORTAL,
         )
 
-        if not self.entry.options.get(CONF_EU_DATA_ACT_AUTO_KICKOFF, False):
+        if not self.entry.options.get(
+            CONF_EU_DATA_ACT_AUTO_KICKOFF,
+            self.entry.data.get(CONF_EU_DATA_ACT_AUTO_KICKOFF, False),
+        ):
             return
 
         tokens = getattr(self._cariad_client, "_tokens", None)
@@ -914,10 +1024,19 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # v2.13.0 — device-code/QR portal entries (device_grant_portal) use the
         # same EU-Data-Act portal proxy_api, so they need the continuous
         # data-request kickoff too, not just the cookie data_act_portal path.
-        if active_strategy not in ("data_act_portal", "device_grant_portal"):
+        # b12 — AND a portal SUPPLEMENTARY armed on a non-portal primary (e.g.
+        # MBB for commands) needs it too: without an active Custom Data Request
+        # the portal returns no identifier → no_request → zero reads merged. The
+        # kickoff scraper shares the client session, where the supplementary
+        # portal already logged in (armed before this runs), so it's authed.
+        supp_portal = self.entry.data.get(CONF_SUPPLEMENTARY_EU_PORTAL)
+        if (
+            active_strategy not in ("data_act_portal", "device_grant_portal")
+            and not supp_portal
+        ):
             _LOGGER.debug(
-                "Data Act kickoff: skipped (active strategy is %r, not a "
-                "portal strategy)", active_strategy,
+                "Data Act kickoff: skipped (strategy %r, no supplementary "
+                "portal)", active_strategy,
             )
             return
 
@@ -1006,7 +1125,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         """
         from homeassistant.helpers import issue_registry as ir  # noqa: PLC0415
 
-        portal = getattr(self._cariad_client, "_eu_portal", None)
+        # b12 — also surface the reason for a portal SUPPLEMENTARY (it records
+        # the same last_no_data_reason); previously only the PRIMARY portal was
+        # checked, so a supplementary portal returning no_request/empty failed
+        # SILENTLY (the user saw "added but no data" with nothing in the log).
+        portal = (
+            getattr(self._cariad_client, "_eu_portal", None)
+            or getattr(self._cariad_client, "_supplementary_eu_portal", None)
+        )
         issue_id = f"data_act_no_data_{self.entry.entry_id}"
         reason = getattr(portal, "last_no_data_reason", "") if portal else ""
         if portal is None or not reason:
@@ -1024,6 +1150,170 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 "brand": self.entry.data[CONF_BRAND],
             },
         )
+
+    def _primary_channel_name(self) -> str:
+        """v2.15.0b1 (C1) — label for the primary channel, for merge provenance.
+
+        The primary is the command-capable (or first-configured) channel; it
+        stays highest priority in the merge so read-only supplementary channels
+        only ever fill gaps."""
+        from .const import CONF_WEBSITE_AUTHPROXY  # noqa: PLC0415
+        data = self.entry.data
+        if data.get(CONF_WEBSITE_AUTHPROXY):
+            return "website_authproxy"
+        dag = data.get("dag_initial_tokens") or {}
+        if dag.get("strategy") == "mbb":
+            return "mbb"
+        if getattr(self._cariad_client, "_eu_portal", None) is not None:
+            return "eu_data_act"
+        return str(data.get(CONF_BRAND, "")) or "primary"
+
+    async def _arm_supplementary_channels(self) -> None:
+        """v2.15.0b1 (C1) — arm configured supplementary read channels on the
+        client. No-op when none configured → single-channel setup unchanged;
+        fail-soft so a supplementary channel never blocks setup."""
+        from .const import (  # noqa: PLC0415
+            CONF_SUPPLEMENTARY_AUTHPROXY,
+            CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES,
+            CONF_SUPPLEMENTARY_EU_PORTAL,
+            CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD,
+            CONF_SUPPLEMENTARY_EU_PORTAL_USERNAME,
+        )
+        data = self.entry.data
+        client = self._cariad_client
+
+        # ── vw.de supplementary (cookie-based, OTP-bound) ───────────────────
+        arm_web = getattr(client, "arm_supplementary_authproxy", None)
+        if data.get(CONF_SUPPLEMENTARY_AUTHPROXY) and arm_web is not None:
+            cookies = data.get(CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES) or []
+            armed = False
+            try:
+                armed = bool(await arm_web(cookies))
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning(
+                    "VAG Connect: supplementary vw.de arming failed (%s)"
+                    " — primary channel unaffected.", type(err).__name__,
+                )
+            # v2.15.0b5 — graceful "re-login" Repair when the OTP-bound vw.de
+            # session can't resume; cleared once it arms again.
+            from .repairs import (  # noqa: PLC0415
+                clear_supplementary_reauth_issue,
+                raise_issue_supplementary_reauth,
+            )
+            if not armed and getattr(client, "_supplementary_needs_reauth", False):
+                raise_issue_supplementary_reauth(self.hass, self.entry.entry_id)
+            else:
+                clear_supplementary_reauth_issue(self.hass, self.entry.entry_id)
+        else:
+            # b11 — vw.de not configured (or just removed via the off-switch):
+            # clear any stale "re-login" Repair so a removed channel stops nagging.
+            from .repairs import (  # noqa: PLC0415
+                clear_supplementary_reauth_issue,
+            )
+            clear_supplementary_reauth_issue(self.hass, self.entry.entry_id)
+
+        # ── EU Data Act portal supplementary (email/pw, reliable) ───────────
+        arm_portal = getattr(client, "arm_supplementary_eu_portal", None)
+        if data.get(CONF_SUPPLEMENTARY_EU_PORTAL) and arm_portal is not None:
+            try:
+                await arm_portal(
+                    data.get(CONF_SUPPLEMENTARY_EU_PORTAL_USERNAME),
+                    data.get(CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD),
+                )
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning(
+                    "VAG Connect: supplementary portal arming failed (%s)"
+                    " — primary channel unaffected.", type(err).__name__,
+                )
+
+        # ── b12: MBB COMMAND channel (commands on a read-only primary) ──────
+        arm_cmd = getattr(client, "arm_mbb_command_channel", None)
+        if data.get(CONF_MBB_COMMAND_CHANNEL) and arm_cmd is not None:
+            from .cariad.models import TokenSet  # noqa: PLC0415
+            from .const import (  # noqa: PLC0415
+                CONF_MBB_COMMAND_CLIENT_ID,
+                CONF_MBB_COMMAND_TOKENS,
+                CONF_MBB_VINS,
+            )
+            tok = data.get(CONF_MBB_COMMAND_TOKENS) or {}
+            cmd_tokens = TokenSet(
+                access_token=str(tok.get("access_token", "")),
+                refresh_token=str(tok.get("refresh_token", "")),
+                id_token=str(tok.get("id_token", "")),
+                expires_at=float(tok.get("expires_at", 0.0) or 0.0),
+                strategy="mbb",
+            )
+            vins = data.get(CONF_MBB_VINS) or []
+            if isinstance(vins, str):
+                vins = [
+                    v.strip().upper()
+                    for v in vins.replace(",", " ").split() if v.strip()
+                ]
+            try:
+                armed = bool(await arm_cmd(
+                    cmd_tokens,
+                    data.get(CONF_MBB_COMMAND_CLIENT_ID, ""),
+                    list(vins),
+                    data.get(CONF_SPIN, ""),
+                ))
+                if armed:
+                    # persist the rotated MBB bearer (durable refresh survives
+                    # restarts) — separate slot from the primary's tokens.
+                    cmd = getattr(client, "_mbb_command", None)
+                    if cmd is not None:
+                        cmd.on_tokens_changed = self._persist_mbb_command_tokens
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning(
+                    "VAG Connect: MBB command channel arming failed (%s)"
+                    " — reads unaffected.", type(err).__name__,
+                )
+
+    async def _persist_mbb_command_tokens(self, tokens: Any) -> None:
+        """b12 — write the MBB command channel's rotated bearer back to
+        entry.data[CONF_MBB_COMMAND_TOKENS] so the durable refresh survives a
+        restart. Separate from the primary's token storage. Fail-soft."""
+        from .const import CONF_MBB_COMMAND_TOKENS  # noqa: PLC0415
+        try:
+            self.hass.config_entries.async_update_entry(
+                self.entry,
+                data={
+                    **self.entry.data,
+                    CONF_MBB_COMMAND_TOKENS: {
+                        "access_token": tokens.access_token,
+                        "refresh_token": tokens.refresh_token,
+                        "id_token": tokens.id_token,
+                        "expires_at": tokens.expires_at,
+                        "strategy": "mbb",
+                    },
+                },
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
+    async def _merge_supplementary(self, vin: str, primary: VehicleData) -> VehicleData:
+        """v2.15.0b1 (C1) — union armed supplementary read-only channels onto
+        the primary snapshot. No-op (returns ``primary`` unchanged) when no
+        supplementary channel is armed, so single-channel polling is untouched.
+        Fail-soft: any merge error keeps the primary — a read-only fallback must
+        never sink the poll, and command routing is never touched."""
+        client = self._cariad_client
+        readers = getattr(client, "supplementary_readers", None)
+        if readers is None:
+            return primary
+        suppliers = readers(vin)
+        if not suppliers:
+            return primary
+        from .cariad._channel_merge import gather_and_merge  # noqa: PLC0415
+        try:
+            return await gather_and_merge(
+                self._primary_channel_name(), primary, suppliers,
+            )
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "C1 supplementary merge failed for %s — keeping primary: %s",
+                mask_vin(vin), err,
+            )
+            return primary
 
     async def _poll_loop(self) -> None:
         """Background polling loop — runs independently of HA scheduler.
@@ -1124,6 +1414,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                                     exception=result,
                                     brand=self.entry.data.get(CONF_BRAND, ""),
                                     vin=vin,
+                                    model=self.vehicles.get(vin, {}).get("model"),
                                     model_year=self.vehicles.get(vin, {}).get("model_year"),
                                     firmware=self.vehicles.get(vin, {}).get("firmware_version"),
                                     endpoint="get_status",
@@ -1131,6 +1422,29 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                             except Exception:  # noqa: BLE001
                                 pass
                     elif isinstance(result, VehicleData):
+                        # v2.15.0a10 (#481-residue) — a no-data poll (e.g. EU
+                        # Data Act portal timeout/outage) returns a bare
+                        # VehicleData carrying only the VIN. If we already hold
+                        # good data for this car, keep it VISIBLE ("old but
+                        # visible") and count this as a failed poll so the
+                        # stale-cache watchdog engages — instead of overwriting
+                        # SoC/odometer with blanks and resetting the failure
+                        # counter + last-good timestamp. A VIN we've never seen
+                        # falls through so a brand-new car still appears.
+                        if getattr(result, "no_data", False) and self.vehicles.get(vin):
+                            old = self.vehicles.get(vin, {})
+                            old["_poll_failed"] = True
+                            fresh[vin] = old
+                            self.vehicle_success[vin] = False
+                            self.vehicle_failure_count[vin] = (
+                                self.vehicle_failure_count.get(vin, 0) + 1
+                            )
+                            continue
+                        # v2.15.0b1 (C1) — multi-channel merge: union any armed
+                        # supplementary read-only channel (e.g. vw.de authproxy)
+                        # onto the primary snapshot before storing. No-op for
+                        # single-channel entries → returns result unchanged.
+                        result = await self._merge_supplementary(vin, result)
                         # v1.10.1 (#58 Phase 2) — wrap to_dict + _enrich
                         # in their own try/except. A single VehicleData
                         # field with an unexpected type used to crash
@@ -1161,6 +1475,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                                     exception=parse_err,
                                     brand=self.entry.data.get(CONF_BRAND, ""),
                                     vin=vin,
+                                    model=self.vehicles.get(vin, {}).get("model"),
                                     model_year=self.vehicles.get(vin, {}).get("model_year"),
                                     firmware=self.vehicles.get(vin, {}).get("firmware_version"),
                                     endpoint="parse",
@@ -1168,6 +1483,21 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                             except Exception:  # noqa: BLE001
                                 pass
                             continue
+                        # b13 — Portal-safety: reconcile the fresh poll over
+                        # the last-known-good snapshot — carry cumulative
+                        # telemetry (SoC/odometer/range/…) forward when this
+                        # poll omitted it, and reject a backwards odometer —
+                        # so a partial portal payload never blanks a field and
+                        # a glitched "km" reading never jumps down.
+                        from .cariad.vehicle_cache import reconcile  # noqa: PLC0415
+                        enriched, _discrepancies = reconcile(
+                            self.vehicles.get(vin), enriched
+                        )
+                        if _discrepancies:
+                            _LOGGER.debug(
+                                "VAG Connect portal-safety %s: %s",
+                                mask_vin(vin), "; ".join(_discrepancies),
+                            )
                         fresh[vin] = enriched
                         any_success = True
                         self.vehicle_success[vin] = True
@@ -1190,7 +1520,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         # the brand client opted to stash; never blocks the
                         # poll if the detector itself raises.
                         try:
-                            self._scan_for_unexpected_keys(vin)
+                            self._scan_for_unexpected_keys(vin, fresh.get(vin))
                         except Exception:  # noqa: BLE001
                             pass
                     else:
@@ -1201,6 +1531,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         )
                 with self._vehicles_lock:
                     self.vehicles.update(fresh)
+                # b13 — Portal-safety: persist the merged snapshot (debounced)
+                # so the recorded values survive a HA restart. Best-effort.
+                try:
+                    self._save_vehicle_cache()
+                except Exception:  # noqa: BLE001
+                    pass
                 # v1.9.0 — Refresh the two reporter repair issues. Cheap to
                 # call: ``ensure_*_issue`` deletes when empty and updates
                 # in-place when the IDs already exist.
@@ -1284,6 +1620,33 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         clear_ola_headers_issue(self.hass, self.entry.entry_id)
                 except Exception:  # noqa: BLE001
                     pass
+
+                # v2.15.4 (#503) — VW NA read-path entitlement surfacing.
+                # login + garage succeed but per-vehicle reads 403; the client
+                # classifies the 403 (markers-only) and the privileges outcome
+                # into vw_na_data_forbidden + a value-free reason. Raise/clear a
+                # Repair issue so the user sees an honest entitlement state
+                # instead of a silent-empty vehicle. Cheap attr check — no-op
+                # for non-VW-NA brands. Mirrors the OLA block above.
+                try:
+                    na_forbidden = getattr(
+                        self._cariad_client, "vw_na_data_forbidden", False
+                    )
+                    na_reason = getattr(
+                        self._cariad_client, "vw_na_data_forbidden_reason", ""
+                    )
+                    if na_forbidden:
+                        from .repairs import raise_issue_vw_na_data_forbidden  # noqa: PLC0415
+                        raise_issue_vw_na_data_forbidden(
+                            self.hass, self.entry.entry_id, na_reason,
+                        )
+                    else:
+                        from .repairs import clear_vw_na_data_forbidden_issue  # noqa: PLC0415
+                        clear_vw_na_data_forbidden_issue(
+                            self.hass, self.entry.entry_id,
+                        )
+                except Exception:  # noqa: BLE001
+                    pass
             except Exception as err:  # noqa: BLE001
                 # Auth failure that survived the client's refresh-then-relogin
                 # fallback means the credentials are stale. Trigger HA reauth.
@@ -1345,6 +1708,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         self._started = False
         # v2.0.0 (Big-Bang) — stop push managers before dropping client.
         await self.async_stop_push_managers()
+        # v2.15.0b1 (C1) — close the dedicated supplementary vw.de session so
+        # we don't leak an aiohttp session on unload/reload.
+        close_supp = getattr(self._cariad_client, "close_supplementary", None)
+        if close_supp is not None:
+            try:
+                await close_supp()
+            except Exception:  # noqa: BLE001
+                pass
         self._cariad_client = None
         _LOGGER.debug("VAG Connect: shutdown complete")
 
@@ -1476,7 +1847,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
     # ── Vehicle Data Scout + Error Reporter (v1.9.0) ───────────────────────
 
-    def _scan_for_unexpected_keys(self, vin: str) -> None:
+    def _scan_for_unexpected_keys(
+        self, vin: str, vehicle: dict | None = None
+    ) -> None:
         """Run ``detect_unexpected`` over the brand client's stashed responses.
 
         Brand clients opt in by populating ``last_raw_responses`` in
@@ -1500,6 +1873,24 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             for finding in detect_unexpected(brand, endpoint, payload):
                 # De-dupe by path — keep the first observation timestamp.
                 per_vin.setdefault(finding.path, finding)
+        # b6 — feed the EU Data Act portal fields the curated parser did NOT map
+        # (the A6 raw-discovery set) into the SAME Scout report, so the unmapped
+        # long tail is visible/reportable and we learn what to map next. Endpoint
+        # isn't in EXPECTED_KEYS so detect_unexpected skips it — surface directly.
+        raw = (vehicle or {}).get("raw_unmapped_fields")
+        if isinstance(raw, dict) and raw:
+            from datetime import datetime, timezone  # noqa: PLC0415
+
+            from .cariad._unexpected_keys import mask_value  # noqa: PLC0415
+            now = datetime.now(tz=timezone.utc).isoformat()
+            for name, value in raw.items():
+                path = f"eu_data_act.{name}"
+                per_vin.setdefault(path, UnexpectedField(
+                    path=path,
+                    sample_masked=mask_value(value),
+                    endpoint="eu_data_act",
+                    first_seen_at=now,
+                ))
 
     def _refresh_reporter_issues(self) -> None:
         """Recreate / delete the two HA repair issues from current buffers.
@@ -1513,6 +1904,18 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         brand = self.entry.data.get(CONF_BRAND, "")
         entry_id = getattr(self.entry, "entry_id", "") or ""
 
+        # Vehicle model name (e.g. "ID.4") makes the GitHub issue recognizable
+        # at a glance and doubles as the maintainer's private per-model stat.
+        # NOT PII (generic), VIN stays masked. Entries are typically one car;
+        # pick the first vehicle that carries a model name.
+        model: str | None = None
+        for vdata in getattr(self, "vehicles", {}).values():
+            if isinstance(vdata, dict):
+                m = vdata.get("model")
+                if m:
+                    model = m
+                    break
+
         # Flatten per-VIN findings into a single chronological list.
         all_findings = []
         for per_vin in getattr(self, "unexpected_findings", {}).values():
@@ -1524,6 +1927,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 entry_id=entry_id,
                 findings=all_findings,
                 brand=brand,
+                model=model,
             )
         except Exception:  # noqa: BLE001
             pass
@@ -1536,6 +1940,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 entry_id=entry_id,
                 records=records,
                 brand=brand,
+                model=model,
             )
         except Exception:  # noqa: BLE001
             pass
@@ -1637,6 +2042,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         elif reason in (
             CommandFailureReason.SUBSCRIPTION_EXPIRED,
             CommandFailureReason.NOT_ENTITLED,
+            # b13 — attestation lock is a backend-access denial, not a vehicle
+            # capability gap: keep the entity (reads continue) and re-probe in
+            # 24h in case VW rolls it back, like an entitlement wall.
+            CommandFailureReason.ATTESTATION_LOCKED,
         ):
             state.entitled_by_account = False
             state.retry_after = retry_at
@@ -2034,7 +2443,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         portal_strategy = getattr(
             getattr(self._cariad_client, "_tokens", None), "strategy", ""
         )
-        if portal_strategy in ("data_act_portal", "device_grant_portal"):
+        # v2.15.0 — the durable MBB strategy has no BFF capabilities endpoint
+        # and its bearer must not be sent to the dead CARIAD BFF host; skip it
+        # the same way the portal strategies are skipped.
+        if portal_strategy in ("data_act_portal", "device_grant_portal", "mbb"):
             return
         if not force and self.is_capabilities_cache_fresh(vin):
             return
@@ -2163,6 +2575,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         except Exception:  # noqa: BLE001
             return
         if brand not in self._TRIP_STATS_BRANDS:
+            return
+        # v2.15.0 — the durable MBB strategy reads via the legacy VSR endpoint
+        # and has no BFF trip-statistics equivalent; without this gate the
+        # brand-only check would send the MBB bearer to the dead CARIAD BFF
+        # host every poll. Skip entirely for MBB entries.
+        if getattr(
+            getattr(self._cariad_client, "_tokens", None), "strategy", ""
+        ) == "mbb":
             return
         if not hasattr(self, "_trip_stats_fetched_at"):
             self._trip_stats_fetched_at: dict[str, datetime] = {}
@@ -2793,6 +3213,32 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         self._geocode_cache[cache_key] = result
         return result
 
+    def _save_vehicle_cache(self) -> None:
+        """Persist the last-known-good vehicle snapshot (debounced 30s).
+
+        Portal-safety: strips runtime-only keys and writes the recorded values
+        to ``.storage`` so they survive a Home Assistant restart. Scheduled via
+        ``async_delay_save`` so it never blocks the poll.
+        """
+        store = getattr(self, "_vehicle_store", None)
+        if store is None:
+            return
+
+        def _snapshot() -> dict[str, Any]:
+            from .cariad.vehicle_cache import strip_runtime  # noqa: PLC0415
+            with self._vehicles_lock:
+                vehicles = {
+                    vin: strip_runtime(v)
+                    for vin, v in self.vehicles.items()
+                    if vin != "_meta" and isinstance(v, dict)
+                }
+            return {
+                "saved_at": datetime.now(tz=timezone.utc).isoformat(),
+                "vehicles": vehicles,
+            }
+
+        store.async_delay_save(_snapshot, 30)
+
     async def _async_update_data(self) -> dict[str, Any]:
         """Manual refresh — fetches fresh status for all known VINs."""
         if not self._started or self._cariad_client is None:
@@ -3380,13 +3826,150 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         if strategy in (
             "data_act_portal", "device_grant_portal", "website_authproxy"
         ):
-            return True
+            # b12 — UNLESS an MBB command channel is armed on this read-only
+            # primary: then lock/climate/charge DO have a path (they route to
+            # the MBB connector), so command entities should exist. Fall through
+            # to the user toggle below instead of forcing read-only.
+            if not (
+                self.entry.data.get(CONF_MBB_COMMAND_CHANNEL)
+                and getattr(client, "_mbb_command", None) is not None
+            ):
+                return True
         options = getattr(self.entry, "options", None) or {}
         data = getattr(self.entry, "data", None) or {}
-        return (
-            (isinstance(options, dict) and options.get(CONF_READ_ONLY) is True)
-            or (isinstance(data, dict) and data.get(CONF_READ_ONLY) is True)
+        # #543 — honour the documented precedence: an explicit Options-Flow
+        # value (True OR False) wins over the initial config ``data``. The old
+        # OR collapsed both to True, so disabling read-only in the Options Flow
+        # was ignored whenever ``data`` had been force-set True at first setup.
+        if isinstance(options, dict) and CONF_READ_ONLY in options:
+            return options.get(CONF_READ_ONLY) is True
+        if isinstance(data, dict) and CONF_READ_ONLY in data:
+            return data.get(CONF_READ_ONLY) is True
+        return False
+
+    def is_structural_read_only(self) -> bool:
+        """#543 — True when read-only is forced by the portal/website branch.
+
+        Returns True exactly when ``is_read_only()`` is forced by the
+        STRUCTURAL portal/website-authproxy branch above — i.e. the active
+        strategy is one of ``data_act_portal`` / ``device_grant_portal`` /
+        ``website_authproxy`` AND no MBB command channel is armed. In that
+        case the read-only state is NOT a user toggle: the portal token is
+        rejected by the command BFF, so there is no command path at all and
+        the Options-Flow read-only switch can't change anything.
+
+        Service-call handlers use this to pick an honest error message
+        (``read_only_portal_active``) instead of the misleading
+        "disable it in the options" message (``read_only_mode_active``).
+        """
+        client = getattr(self, "_cariad_client", None)
+        tokens = getattr(client, "_tokens", None) if client else None
+        strategy = getattr(tokens, "strategy", "") if tokens else ""
+        if strategy in (
+            "data_act_portal", "device_grant_portal", "website_authproxy"
+        ):
+            if not (
+                self.entry.data.get(CONF_MBB_COMMAND_CHANNEL)
+                and getattr(client, "_mbb_command", None) is not None
+            ):
+                return True
+        return False
+
+    # ── v2.15.5 — ABRP (A Better Routeplanner) telemetry push ───────────────
+
+    def _abrp_credentials(
+        self, vin: str, *, api_key: str | None = None, token: str | None = None
+    ) -> tuple[str, str]:
+        """Resolve the ABRP api_key + per-VIN token for *vin*.
+
+        Inline service params win; otherwise fall back to the config-flow
+        options. The token option may be a per-VIN dict ``{vin: token}`` or a
+        bare single-VIN string. Returns ``("", "")`` when nothing is set.
+        Never logs either value.
+        """
+        from .const import (  # noqa: PLC0415
+            CONF_ABRP_API_KEY,
+            CONF_ABRP_USER_TOKEN,
         )
+
+        opts = getattr(self.entry, "options", None) or {}
+        data = getattr(self.entry, "data", None) or {}
+
+        resolved_key = api_key or opts.get(CONF_ABRP_API_KEY) or data.get(
+            CONF_ABRP_API_KEY
+        ) or ""
+
+        resolved_token = token or ""
+        if not resolved_token:
+            stored = opts.get(CONF_ABRP_USER_TOKEN)
+            if stored is None:
+                stored = data.get(CONF_ABRP_USER_TOKEN)
+            if isinstance(stored, dict):
+                resolved_token = str(stored.get(vin) or "")
+            elif isinstance(stored, str):
+                resolved_token = stored
+        return str(resolved_key), str(resolved_token)
+
+    async def async_abrp_send(
+        self, vin: str, *, api_key: str | None = None, token: str | None = None
+    ) -> None:
+        """Build + POST the current telemetry for *vin* to ABRP.
+
+        On a successful send the per-VIN fingerprint is recorded so the
+        "ABRP data changed" binary sensor flips OFF (idempotent trigger).
+        Raises ``HomeAssistantError`` on a missing credential / unknown VIN /
+        missing core data / send failure so the service surfaces it; never
+        logs the api_key or token.
+        """
+        from homeassistant.helpers.aiohttp_client import (  # noqa: PLC0415
+            async_get_clientsession,
+        )
+
+        from . import abrp as _abrp  # noqa: PLC0415
+
+        vehicle = self.vehicles.get(vin)
+        if not isinstance(vehicle, dict):
+            raise HomeAssistantError(f"Vehicle '{vin}' not found for ABRP send.")
+
+        resolved_key, resolved_token = self._abrp_credentials(
+            vin, api_key=api_key, token=token
+        )
+        if not resolved_key or not resolved_token:
+            raise HomeAssistantError(
+                "ABRP send needs both an api_key and a per-vehicle token. "
+                "Set them in the integration options (ABRP section) or pass "
+                "them to the service. "
+                f"(api_key={_abrp.redact(resolved_key)}, "
+                f"token={_abrp.redact(resolved_token)})"
+            )
+
+        # Core field gate — never POST without soc (ABRP rejects it).
+        if vehicle.get("battery_soc") is None:
+            raise HomeAssistantError(
+                f"ABRP send skipped for ...{vin[-4:]}: no battery state-of-"
+                "charge available yet."
+            )
+
+        now_epoch = int(datetime.now(tz=timezone.utc).timestamp())
+        sample_utc = _abrp.resolve_sample_utc(vehicle, now_epoch=now_epoch)
+        tlm = _abrp.build_tlm(vehicle, sample_utc)
+
+        session = async_get_clientsession(self.hass)
+        try:
+            await _abrp.send_telemetry(
+                session, resolved_key, resolved_token, tlm
+            )
+        except _abrp.AbrpError as exc:
+            # exc text is already credential-free by construction.
+            raise HomeAssistantError(str(exc)) from exc
+
+        # Success — record the fingerprint so the data-changed sensor resets.
+        self.abrp_last_sent_fingerprint[vin] = _abrp.telemetry_fingerprint(
+            vehicle
+        )
+        # Nudge listeners so the binary sensor re-evaluates immediately.
+        self.async_update_listeners()
+        _LOGGER.debug("ABRP telemetry sent for ...%s", vin[-4:])
 
     def _optimistic_set(self, vin: str, fields: dict[str, Any]) -> dict[str, Any]:
         """v1.11.1 (3B-Part-3 — myskoda #832 pattern) — push expected

@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """v2.2.1 Phase 8 PR #4 — VW EU/Audi primary_engine_fuel_level_pct mirror.
 
 Pure cross-brand expansion. Skoda has `primary_engine_fuel_level_pct`

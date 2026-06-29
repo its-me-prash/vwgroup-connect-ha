@@ -1,5 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) - Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """v2.8.0 quick win E - per-brand capability advertisement tests.
 
 Scope (per the v2.8.0 staging spec):
@@ -197,14 +197,16 @@ def test_unknown_brand_returns_empty_declared_without_crashing() -> None:
     """A brand not in DECLARED_CAPABILITIES must still produce a
     well-formed snapshot. Empty declared, observed runs as normal,
     drift stays empty (nothing declared = nothing can drift)."""
-    coord = _make_coordinator(brand="bentley")  # scaffold-only, not declared
+    # v2.14.11 — "bentley" is now a declared brand; use a genuinely-unknown
+    # brand-id to exercise the empty-declared path.
+    coord = _make_coordinator(brand="acme_unknown")
     snap = coord.capabilities_snapshot()
 
-    assert "bentley" in snap
-    bentley = snap["bentley"]
-    assert bentley["declared"] == {}
-    assert isinstance(bentley["observed"], dict)
-    assert bentley["drift"] == []
+    assert "acme_unknown" in snap
+    unknown = snap["acme_unknown"]
+    assert unknown["declared"] == {}
+    assert isinstance(unknown["observed"], dict)
+    assert unknown["drift"] == []
 
 
 def test_empty_brand_string_returns_well_formed_snapshot() -> None:
