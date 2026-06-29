@@ -1,11 +1,11 @@
 meta {
-  name: POST vehicleLights flash
+  name: POST honkandflash (flash only)
   type: http
   seq: 8
 }
 
 post {
-  url: {{base_url}}/vehicle/v1/vehicles/{{vin}}/vehicleLights/flash
+  url: {{base_url}}/vehicle/v1/vehicles/{{vin}}/honkandflash
   body: json
   auth: bearer
 }
@@ -21,14 +21,20 @@ headers {
 
 body:json {
   {
-    "action": "flash"
+    "mode": "FLASH_ONLY",
+    "duration": 10
   }
 }
 
 docs {
-  CARIAD-BFF flash for VW EU + Audi. No userPosition needed
-  (unlike SEAT/CUPRA OLA where it's mandatory).
+  v2.15.5 (#543 follow-up) — CARIAD-BFF flash for VW EU + Audi uses
+  the honkandflash command endpoint. The older vehicleLights/flash
+  endpoint was a guessed shape and returns 400.
 
-  Implementation: VWEUClient.command_flash() in cariad/api/vw_eu.py:309.
+  The integration first sends FLASH_ONLY without userPosition. If the
+  backend rejects the bare body and a last-known position is available,
+  VWEUClient.command_flash() retries with userPosition.
+
+  Implementation: VWEUClient.command_flash() in cariad/api/vw_eu.py.
   Audi inherits.
 }

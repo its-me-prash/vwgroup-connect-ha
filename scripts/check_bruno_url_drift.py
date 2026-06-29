@@ -147,6 +147,7 @@ _ACTION_EXPANSIONS = {
         "charging/start-stop",
         "charging/start",
         "charging/stop",
+        "honkandflash",
         "vehicleWakeup",
     ],
 }
