@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Exceptions for the VAG Connect CARIAD API client."""
 
 from __future__ import annotations
@@ -66,6 +66,11 @@ class CommandFailureReason(StrEnum):
     - ``INVALID_PAYLOAD`` — our bug. Fix and ship.
     - ``BACKEND_ERROR`` — manufacturer 5xx or unexpected 4xx body.
       Transient; do not derive long-term decisions.
+    - ``ATTESTATION_LOCKED`` — VW put this plane behind device attestation
+      (Firebase App Check / Play Integrity), which an open-source client
+      can't satisfy. Distinct from NOT_ENTITLED: it's NOT a subscription
+      problem, so messaging must not send users chasing a phantom renewal.
+      Commands are gone on this channel; reads continue via the portal.
     - ``UNKNOWN`` — default. Don't make assumptions.
     """
 
@@ -77,6 +82,7 @@ class CommandFailureReason(StrEnum):
     SPIN_REQUIRED = "spin_required"
     INVALID_PAYLOAD = "invalid_payload"
     BACKEND_ERROR = "backend_error"
+    ATTESTATION_LOCKED = "attestation_locked"
     UNKNOWN = "unknown"
 
 
@@ -128,6 +134,24 @@ def classify_command_failure(exc: BaseException) -> CommandFailureReason:
         or "entitlement" in body
     ):
         return CommandFailureReason.NOT_ENTITLED
+    # b13 — device-attestation lock (Firebase App Check / Play Integrity).
+    # VW is rolling attestation across its planes in 2026 (it already killed
+    # OLA reads with ``missing-device-token``). An open-source client cannot
+    # produce these Google-signed tokens, so it's a hard wall — but it is NOT
+    # a subscription/entitlement problem, and must not be mislabeled as one
+    # (that sends users chasing a phantom renewal). Keyed on the body marker,
+    # never on a bare 403, so genuine entitlement 403s still classify below.
+    if (
+        "missing-device-token" in body
+        or "missing_device_token" in body
+        or "forbidden device detected" in body
+        or "x-firebase-appcheck" in body
+        or "firebase-appcheck" in body
+        or "appcheck" in body
+        or "play integrity" in body
+        or "play_integrity" in body
+    ):
+        return CommandFailureReason.ATTESTATION_LOCKED
 
     # v1.20.3 — Cariad-BFF wraps real upstream backend issues in
     # fake-404 responses with a specific body marker. User-report
@@ -234,6 +258,35 @@ class EmailTwoFactorRequiredError(TwoFactorRequiredError):
             "Email 2FA required. Check your inbox (and spam) for a 6-digit "
             "code from VAG IDP, then sign in manually in the brand app once.",
         )
+
+
+class PortalInteractionRequiredError(AuthenticationError):
+    """v2.15.4 (#527) — the EU Data Act portal login stopped on a step that
+    needs a one-time human action in the browser/app, but is NOT a wrong-
+    credentials case.
+
+    Examples: a portal onboarding / region-selection wall, a soft block, or
+    any signin-service interstitial we recognise as non-credential but that
+    doesn't fit the existing T&C / marketing-consent / 2FA buckets.
+
+    Distinct from ``AuthenticationError`` so the config-flow + coordinator
+    surface a non-credential message — #527 reporters with valid passwords
+    were being told to "check email and password" because the portal
+    connector flattened every non-redirect landing to the credential
+    catch-all. Carrying a specific (secret-free) reason lets the UI explain
+    what actually happened.
+    """
+
+    def __init__(self, reason: str = "") -> None:
+        msg = (
+            "EU Data Act portal login needs a one-time action in the browser "
+            "or brand app before headless access works"
+        )
+        if reason:
+            msg += f" ({reason})"
+        msg += ". This is NOT a wrong-password problem."
+        super().__init__(msg)
+        self.reason = reason
 
 
 class RateLimitError(CariadError):

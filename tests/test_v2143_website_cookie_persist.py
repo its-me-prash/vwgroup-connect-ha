@@ -1,5 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) - Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """v2.14.3 - website-authproxy login-cookie persistence.
 
 The OPT-IN volkswagen.de website-authproxy channel (v2.14.0) logged in once
@@ -100,13 +100,13 @@ def test_set_mode_disabled_is_inert() -> None:
 
 @pytest.mark.asyncio
 async def test_arm_imports_cookies_and_skips_otp(monkeypatch: Any) -> None:
-    """With persisted cookies that are still valid, the v2.14.6 data-endpoint
-    probe (session_alive) returns True → the session is adopted directly,
-    begin_login() is SKIPPED entirely and NO OTP is requested."""
+    """With persisted cookies, the b9 prompt=none silent refresh re-mints the
+    session from the SSO cookie → adopted directly, begin_login() is SKIPPED
+    entirely and NO OTP is requested."""
     connector = MagicMock()
     connector.import_cookies = MagicMock()
-    # A valid resumed session: the probe confirms it without the login dance.
-    connector.session_alive = AsyncMock(return_value=True)
+    # A live SSO: the silent refresh succeeds without the interactive login.
+    connector.refresh = AsyncMock()
     connector.begin_login = AsyncMock(return_value="ok")
     connector.submit_otp = AsyncMock(return_value=True)
     connector.export_cookies = MagicMock(return_value=_PERSISTED_COOKIES)
@@ -122,9 +122,9 @@ async def test_arm_imports_cookies_and_skips_otp(monkeypatch: Any) -> None:
     c.set_website_authproxy_mode(True, cookies=_PERSISTED_COOKIES)
     await c._arm_website_proxy()
 
-    # Cookies imported, then the probe short-circuited the login flow.
+    # Cookies imported, then the silent refresh short-circuited the login flow.
     connector.import_cookies.assert_called_once_with(_PERSISTED_COOKIES)
-    connector.session_alive.assert_awaited_once()
+    connector.refresh.assert_awaited_once()
     connector.begin_login.assert_not_awaited()
     connector.submit_otp.assert_not_awaited()
     # Connector retained + sentinel token marks the client authenticated.
@@ -157,13 +157,16 @@ async def test_arm_no_cookies_does_not_import(monkeypatch: Any) -> None:
 
 @pytest.mark.asyncio
 async def test_arm_stale_cookies_surface_otp(monkeypatch: Any) -> None:
-    """Stale cookies → the probe (session_alive) returns False, so we fall
-    through to a full begin_login(); the IDP re-prompts and with no OTP code on
-    hand the arm raises EmailTwoFactorRequiredError (normal reauth path)."""
+    """Dead SSO → the silent refresh() raises, so we fall through to a full
+    begin_login(); the IDP re-prompts and with no OTP code on hand the arm
+    raises EmailTwoFactorRequiredError (normal, one-time reauth path)."""
+    from custom_components.vag_connect.cariad.exceptions import (
+        AuthenticationError,
+    )
     connector = MagicMock()
     connector.import_cookies = MagicMock()
-    # Stale session: the probe fails → fall through to the full login flow.
-    connector.session_alive = AsyncMock(return_value=False)
+    # Dead SSO: the silent refresh raises → fall through to the full login flow.
+    connector.refresh = AsyncMock(side_effect=AuthenticationError("SSO expired"))
     connector.begin_login = AsyncMock(return_value="otp_required")
     connector.submit_otp = AsyncMock(return_value=True)
     factory = MagicMock(return_value=connector)
@@ -174,12 +177,12 @@ async def test_arm_stale_cookies_surface_otp(monkeypatch: Any) -> None:
     )
 
     c = _base_client()
-    # Cookies supplied but stale; no OTP code available at runtime.
+    # Cookies supplied but the SSO is dead; no OTP code available at runtime.
     c.set_website_authproxy_mode(True, cookies=_PERSISTED_COOKIES)
     with pytest.raises(EmailTwoFactorRequiredError):
         await c._arm_website_proxy()
     connector.import_cookies.assert_called_once_with(_PERSISTED_COOKIES)
-    connector.session_alive.assert_awaited_once()
+    connector.refresh.assert_awaited_once()
     connector.begin_login.assert_awaited_once()
     connector.submit_otp.assert_not_awaited()
 

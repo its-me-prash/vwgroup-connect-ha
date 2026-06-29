@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """v2.2.0 Phase 4 PR #17/20 — CUPRA-standalone brand-adapter scaffold.
 
 **Phase 4 closer.** Third luxury/standalone scaffold alongside Lambo
@@ -158,16 +158,18 @@ class TestLegacyCupraUnaffected:
 
 
 class TestThreeWayLuxuryParity:
-    """Phase 4 = COMPLETE — all 3 scaffolds (Lambo + Bentley +
-    CUPRA-standalone) must remain beta-gated. Any of them slipping
-    past the gate without tester validation breaks this test."""
+    """v2.14.11 — Bentley was ACTIVATED (atlas resolved its client_id +
+    redirect_uri). Lambo + CUPRA-standalone remain beta-gated: Lambo because
+    it needs an SDP-proxy MBB adapter (not the IDK path), CUPRA-standalone
+    because its brand-isolated backend host hasn't appeared yet. Bentley's
+    own activation is covered in ``test_v220_bentley_scaffold.py``."""
 
-    def test_all_three_scaffolds_factory_rejected(self) -> None:
+    def test_remaining_scaffolds_factory_rejected(self) -> None:
         from custom_components.vag_connect.cariad.api.factory import (
             CariadClientFactory,
         )
 
-        for brand in ("lambo", "bentley", "cupra_standalone"):
+        for brand in ("lambo", "cupra_standalone"):
             with pytest.raises(ValueError, match=brand):
                 CariadClientFactory.create(
                     brand=brand,
@@ -176,14 +178,19 @@ class TestThreeWayLuxuryParity:
                     password="x",
                 )
 
-    def test_all_three_scaffolds_excluded_from_brands_registry(self) -> None:
+    def test_remaining_scaffolds_excluded_from_brands_registry(self) -> None:
         from custom_components.vag_connect.cariad.models import BRANDS
 
-        for brand_id in ("lambo", "bentley", "cupra_standalone"):
+        for brand_id in ("lambo", "cupra_standalone"):
             assert brand_id not in BRANDS, (
                 f"beta-gate broken: '{brand_id}' leaked into BRANDS "
                 f"registry without tester validation"
             )
+
+    def test_bentley_now_activated(self) -> None:
+        from custom_components.vag_connect.cariad.models import BRANDS
+
+        assert "bentley" in BRANDS
 
     def test_all_three_scaffold_configs_importable(self) -> None:
         # Sanity: testers MUST be able to import the configs directly

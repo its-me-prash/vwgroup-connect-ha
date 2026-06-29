@@ -1,5 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) - Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """v2.12.6 — universal EU Data Act portal read-routing fallback.
 
 When a brand's native backend is blocked (e.g. CUPRA/SEAT online services

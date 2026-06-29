@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """v2.5.11 — Audi Market-Config dynamic discovery.
 
 Backstory: when VW migrated the CARIAD token endpoint on 2026-05-28
@@ -144,8 +144,8 @@ async def fetch_audi_market_config(
                 # UA mirrors the official Audi app — content CDN does
                 # not require it but it makes the fetch indistinguishable
                 # from a real client which is friendlier to ops.
-                "User-Agent": (
-                    "Android/4.31.0 (Build 800341641.root project "
+                "User-Agent": (  # b13 (RE) — live myAudi 5.5.1 / 800344232
+                    "Android/5.5.1 (Build 800344232.root project "
                     "'myaudi_android'.ext.buildTime) Android/13"
                 ),
             },

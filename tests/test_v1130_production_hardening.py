@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Tests for v1.13.0 — Production Hardening Bundle.
 
 Four feature groups:
@@ -198,7 +198,7 @@ class TestCommandLock:
             async with lock:
                 assert coord.is_command_in_flight("VINX", "lock") is True
 
-        asyncio.get_event_loop().run_until_complete(_hold())
+        asyncio.run(_hold())
         # Released after with-block
         assert coord.is_command_in_flight("VINX", "lock") is False
 
@@ -207,7 +207,7 @@ class TestWakeCooldown:
     def test_first_wake_no_cooldown(self):
         coord = _make_coord_for_lock_tests()
         # No prior wake → no cooldown raise
-        asyncio.get_event_loop().run_until_complete(coord.async_wake_vehicle("VINX"))
+        asyncio.run(coord.async_wake_vehicle("VINX"))
         coord._cariad_client.command_wake.assert_awaited()
 
     def test_second_wake_within_cooldown_raises(self):
@@ -215,11 +215,11 @@ class TestWakeCooldown:
 
         coord = _make_coord_for_lock_tests()
         # First wake — succeeds
-        asyncio.get_event_loop().run_until_complete(coord.async_wake_vehicle("VINX"))
+        asyncio.run(coord.async_wake_vehicle("VINX"))
         coord._cariad_client.command_wake.reset_mock()
         # Second wake immediately → cooldown raises
         with pytest.raises(ServiceValidationError):
-            asyncio.get_event_loop().run_until_complete(coord.async_wake_vehicle("VINX"))
+            asyncio.run(coord.async_wake_vehicle("VINX"))
         # API was NOT called
         coord._cariad_client.command_wake.assert_not_awaited()
 
@@ -227,7 +227,7 @@ class TestWakeCooldown:
         coord = _make_coord_for_lock_tests()
         coord._wake_last_at = {"VINX": datetime.now(tz=timezone.utc) - timedelta(minutes=10)}
         # 10 min ago > 5-min cooldown → passes
-        asyncio.get_event_loop().run_until_complete(coord.async_wake_vehicle("VINX"))
+        asyncio.run(coord.async_wake_vehicle("VINX"))
         coord._cariad_client.command_wake.assert_awaited()
 
 
@@ -285,6 +285,33 @@ class TestDiagnosticsPolish:
             "client_secret",
         ):
             assert key in _REDACT_KEYS, f"missing token key: {key}"
+
+    def test_supplementary_credentials_in_redact_keys(self):
+        # b11 — the b8/b9 supplementary-channel secrets MUST be redacted; the
+        # portal password leaked in PLAINTEXT in a diagnostics download before.
+        from custom_components.vag_connect.diagnostics import _REDACT_KEYS
+
+        for key in (
+            "supplementary_eu_portal_password",
+            "supplementary_eu_portal_username",
+            "supplementary_authproxy_cookies",
+        ):
+            assert key in _REDACT_KEYS, f"missing supplementary key: {key}"
+
+    def test_scrub_redacts_supplementary_secrets(self):
+        from custom_components.vag_connect.diagnostics import _scrub
+
+        out = _scrub({
+            "supplementary_eu_portal_password": "hunter2",
+            "supplementary_eu_portal_username": "p@x.com",
+            "supplementary_authproxy_cookies": [{"name": "auth0-mf", "value": "SECRET"}],
+            "scan_interval": 10,
+        })
+        assert out["supplementary_eu_portal_password"] == "**REDACTED**"
+        assert out["supplementary_eu_portal_username"] == "**REDACTED**"
+        assert out["supplementary_authproxy_cookies"] == "**REDACTED**"
+        assert "SECRET" not in str(out)  # the SSO cookie value never survives
+        assert out["scan_interval"] == 10
 
     def test_email_partial_mask(self):
         from custom_components.vag_connect.diagnostics import _mask_email
@@ -346,7 +373,7 @@ class TestSkodaCapabilities:
         client = SkodaClient.__new__(SkodaClient)
         client._get = AsyncMock(return_value={"capabilities": []})
 
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.get_capabilities("VINX")
         )
         called_url = client._get.await_args.args[0]
@@ -358,7 +385,7 @@ class TestSkodaCapabilities:
 
         client = SkodaClient.__new__(SkodaClient)
         client._get = AsyncMock(return_value=["not a dict"])
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_capabilities("VINX")
         )
         assert result == {}

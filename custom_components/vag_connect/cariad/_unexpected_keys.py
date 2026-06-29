@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Vehicle Data Scout — detects JSON fields the parser doesn't read.
 
 Mirrors the `upstream/cc-*` "Unexpected Keys found"
@@ -649,6 +649,14 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # the charging.-prefixed 5-deep) wildcards for each container.
             "chargingProfiles.*.*.*", "charging.chargingProfiles.*.*.*",
             "chargingTimers.*.*.*", "charging.chargingTimers.*.*.*",
+            # v2.15.4 (#530 audi) — these two 5-segment leaves under the
+            # chargingProfilesStatus container are now CONSUMED by the parser
+            # (next_charging_timer_id + next_charging_timer_target_soc_reachable;
+            # see vw_eu.py _parse_status). Register them explicitly so the Scout
+            # stops re-reporting once the fallback maps them. Equal-depth matcher
+            # → the 4-deep ``chargingProfiles.*.*.*`` above does NOT cover these.
+            "chargingProfiles.chargingProfilesStatus.value.nextChargingTimer.id",
+            "chargingProfiles.chargingProfilesStatus.value.nextChargingTimer.targetSOCreachable",
             # v2.12.1 (#423) — DC counterpart of the long-parsed
             # autoUnlockPlugWhenChargedAC setting.
             "charging.chargingSettings.value.autoUnlockPlugWhenChargedDC",

@@ -19,7 +19,7 @@ carconnectivity.json
 # Bruno local environment files (real credentials — never commit)
 tests/bruno/**/environments/*.local.bru
 
-# Claude Code workspace settings (local)
+# Local editor / assistant workspace settings
 .claude/
 .release_notes_*
 

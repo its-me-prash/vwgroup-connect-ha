@@ -17,6 +17,7 @@
           "username": "E-Mail-Adresse",
           "password": "Passwort",
           "spin": "S-PIN (optional, für Türverriegelung)",
+          "country": "Region (nur Volkswagen US/Kanada)",
           "scan_interval": "Aktualisierungsintervall (Minuten)",
           "force_enable_access": "Türzustand erzwingen (für ältere Modelle)"
         }
@@ -39,8 +40,10 @@
           "username": "E-Mail-Adresse",
           "password": "Passwort",
           "spin": "S-PIN (optional, für Türverriegelung)",
+          "country": "Region (nur Volkswagen US/Kanada)",
           "scan_interval": "Aktualisierungsintervall (Minuten)",
-          "force_enable_access": "Türzustand erzwingen (für ältere Modelle)"
+          "force_enable_access": "Türzustand erzwingen (für ältere Modelle)",
+          "enable_mbb_commands": "MBB-Fernbefehle aktivieren (nur Volkswagen — zusätzlicher QR-Login)"
         },
         "data_description": {
           "spin": "Wird für Türverriegelung und einige andere Aktionen benötigt. Kann leer gelassen werden.",
@@ -57,12 +60,29 @@
         "menu_options": {
           "browser_login": "Browser-Login (empfohlen)",
           "email_password": "E-Mail + Passwort (Legacy)",
-          "website_authproxy": "Volkswagen.de Website (Beta — nur Lesen)"
+          "website_authproxy": "Volkswagen.de Website (Beta — nur Lesen)",
+          "mbb_login": "Volkswagen EU — Dauerhafter Login (MBB, Zwei-Wege-Alpha)"
+        }
+      },
+      "mbb_login": {
+        "title": "Volkswagen EU — Dauerhafter Login (MBB, ALPHA)",
+        "description": "**Experimentell, freiwillig — nur Volkswagen EU.** Eine Browser-Bestätigung (kein Passwort in Home Assistant) erzeugt über das Legacy-MBB-Backend ein dauerhaftes, erneuerbares Token. Anders als das nur-lesende Portal übersteht dies Neustarts und unterstützt Zwei-Wege-Fernverriegelung. **Trage deine VIN ein** (das MBB-Token kann deine Garage nicht selbst auflisten) und deine S-PIN für Ver-/Entriegeln. Im nächsten Schritt siehst du einen kurzen Code und eine URL für ein beliebiges Gerät.",
+        "data": {
+          "mbb_vins": "VIN (Fahrgestellnummer)",
+          "spin": "S-PIN",
+          "scan_interval": "Aktualisierungsintervall",
+          "force_enable_access": "Türstatus erzwingen"
+        },
+        "data_description": {
+          "mbb_vins": "Deine 17-stellige VIN (Windschutzscheibe / Fahrzeugausweis). Mehrere Autos: mit Komma trennen. Erforderlich — das dauerhafte MBB-Token funktioniert pro VIN, kann aber die Garage nicht auflisten.",
+          "spin": "Optionale 4-stellige Sicherheits-PIN — erforderlich für Fernver-/entriegelung.",
+          "scan_interval": "Minuten zwischen den Fahrzeug-Abfragen.",
+          "force_enable_access": "Türstatus-Entitäten auch dann erzwingen, wenn das Fahrzeug die Daten als fehlend meldet."
         }
       },
       "website_authproxy": {
         "title": "Volkswagen.de Website (BETA, nur Lesen)",
-        "description": "**Experimentell, freiwillig.** Liest deinen Volkswagen über die Anmeldung auf volkswagen.de statt über das App-Backend. Nur Volkswagen, nur Lesen (keine Fernbefehle). Melde dich mit deiner Volkswagen-ID-E-Mail und deinem Passwort an. Falls dein Konto eine E-Mail-Bestätigung nutzt, wirst du im nächsten Schritt nach dem Code gefragt.",
+        "description": "**Experimentell, freiwillig.** Liest deinen Volkswagen über die Anmeldung auf volkswagen.de statt über das App-Backend. Nur Volkswagen, nur Lesen (keine Fernbefehle). Melde dich mit deiner Volkswagen-ID-E-Mail und deinem Passwort an. Falls dein Konto eine E-Mail-Bestätigung nutzt, wirst du im nächsten Schritt nach dem Code gefragt. **Voraussetzung:** Deine Volkswagen ID muss Hauptnutzer des Fahrzeugs sein — einmalig „Identität bestätigen“ auf volkswagen.de durchführen (myVolkswagen → dein Fahrzeug). Ohne das liefert die Website keine Fahrzeugdaten.",
         "data": {
           "username": "E-Mail-Adresse",
           "password": "Passwort",
@@ -130,6 +150,7 @@
       "email_two_factor_required": "E-Mail-2FA nötig. Postfach (und Spam) auf 6-stelligen Code von VAG IDP prüfen, dann einmal manuell in der Marken-App anmelden.",
       "too_many_requests": "Account vorübergehend gesperrt (zu viele Anmeldeversuche). Bitte 15 Minuten warten.",
       "invalid_credentials": "E-Mail-Adresse oder Passwort falsch.",
+      "portal_interaction_required": "Das EU-Data-Act-Portal benötigt eine einmalige Aktion in deinem Browser oder der Marken-App (z. B. AGB akzeptieren, Einwilligung bestätigen, Onboarding/Region-Auswahl abschließen), bevor der headless-Zugriff funktioniert. Das ist KEIN Passwort-Problem — öffne das Portal einmal im Browser, schließe die Abfrage ab und versuche es erneut.",
       "upstream_unavailable": "VW-Backend vorübergehend nicht erreichbar. Das ist ein Server-Problem bei VW, KEIN Anmeldefehler. Bitte 5–15 Minuten warten und nochmal versuchen. Die Integration NICHT neu konfigurieren.",
       "brand_not_dag_eligible": "Diese Marke unterstützt kein Browser-Login. Nutze stattdessen E-Mail + Passwort.",
       "still_waiting_browser": "Warte noch auf die Browser-Bestätigung. Öffne die URL oben, melde dich an, bestätige den Code und klick dann nochmal auf Senden."
@@ -137,7 +158,8 @@
     "abort": {
       "already_configured": "Dieses Konto ist bereits eingerichtet.",
       "reauth_successful": "Erneute Anmeldung erfolgreich.",
-      "reconfigure_successful": "Konfiguration erfolgreich aktualisiert."
+      "reconfigure_successful": "Konfiguration erfolgreich aktualisiert.",
+      "mbb_not_eligible": "Dein Fahrzeug ist für den dauerhaften MBB-Login nicht geeignet — das Backend meldet „Unknown user\". Das heisst, es ist ein neueres ID-/MEB-Modell (ID.3/4/5, e-up usw.), das nie im alten Car-Net/MBB-System registriert war — der dauerhafte Login + die Fernbefehle erreichen es daher nicht. Nutze für solche Fahrzeuge den EU-Data-Act-Kanal (oder den E-Mail-+-Passwort-Login). Der MBB-Login ist für ältere Car-Net-Autos (die meisten PHEV-/Verbrenner-Modelle)."
     },
     "progress": {
       "awaiting_browser_login": "Öffne {verification_uri} in einem Browser, melde dich mit deinem Brand-ID-Konto an und bestätige den Code {user_code}.",
@@ -161,7 +183,15 @@
           "wake_before_poll": "Fahrzeug aktiv aufwecken vor Status-Abfrage",
           "wake_delay_seconds": "Wartezeit nach Wake-up (Sekunden)",
           "client_id_override": "OAuth client_id Override (Power-User)",
-          "eu_data_act_auto_kickoff": "EU Data Act: Custom Data Request automatisch anlegen"
+          "eu_data_act_auto_kickoff": "EU Data Act: Custom Data Request automatisch anlegen",
+          "supplementary_authproxy": "Volkswagen.de-Lesekanal hinzufügen (Daten zusammenführen)",
+          "hide_empty_entities": "Entitäten ohne Daten ausblenden",
+          "supplementary_eu_portal": "EU-Data-Act-Portal-Lesekanal hinzufügen",
+          "remove_supplementary_authproxy": "vw.de-Lesekanal entfernen",
+          "remove_supplementary_eu_portal": "EU-Data-Act-Portal-Lesekanal entfernen",
+          "abrp_enable": "ABRP-Telemetrie senden",
+          "abrp_api_key": "ABRP-api_key (Entwicklerschlüssel)",
+          "abrp_user_token": "ABRP-Token (pro Fahrzeug)"
         },
         "data_description": {
           "enable_reverse_geocoding": "Sendet GPS der Parkposition an OpenStreetMap Nominatim, um Straße/Stadt zu ermitteln. Standard: aus (Datenschutz).",
@@ -176,9 +206,47 @@
           "wake_before_poll": "Wenn aktiviert, sendet die Integration einen Wake-POST an Fahrzeuge die beim letzten Poll OFFLINE waren, bevor sie den Status abruft. Das Auto bekommt einen serverseitigen Wake-up und pusht frische Daten, dann wartet die Integration die Wake-Verzögerung ab und liest erst dann. Schließt die 'alle Sensoren unbekannt bei geparktem Auto'-Lücke, kostet aber pro Offline-VIN pro Poll-Zyklus einen zusätzlichen API-Call. Standard: aus. Integration nach dem Umschalten neu laden.",
           "wake_delay_seconds": "Sekunden Wartezeit zwischen dem Wake-up-POST und dem Status-Abruf. Die Standardeinstellung von 15 Sekunden ist das, was die meisten Brand-Backends brauchen um den Wake-induzierten Daten-Push zu verarbeiten. Niedrigere Werte riskieren veraltete Daten; höhere strecken den Poll-Zyklus ohne weiteren Nutzen.",
           "client_id_override": "Power-User Eskapeluke wenn die Community einen frischen OAuth client_id in einer neuen VW Group APK entdeckt bevor unser täglicher Atlas-Builder ihn findet. Paste den vollen UUID@apps_vw-dilab_com String hier rein, dann probiert der Resolver ihn ZUERST bei jedem authenticate, mit allen bestehenden client_ids weiter als Fallback in der Chain. Leer lassen für Default-Verhalten. Format: 8-4-4-4-12 hex Zeichen gefolgt von @apps_vw-dilab_com. Ungültige Werte werden stillschweigend ignoriert.",
-          "eu_data_act_auto_kickoff": "Nur relevant wenn die Integration im Read-only EU Data Act Portal-Modus läuft (die Live BFF Strategien sind gescheitert). Wenn AN, prüft der Coordinator beim Start ob pro VIN ein aktiver 15-min Custom Data Request existiert und legt einen an wenn nicht. Der Kickoff impliziert ein 1-Monats Daten-Abo auf deinem Account beim Portal, deshalb opt-in. Das Portal akzeptiert HÖCHSTENS EINEN aktiven Custom Request pro VIN gleichzeitig. Standard: aus."
+          "eu_data_act_auto_kickoff": "Nur relevant wenn die Integration im Read-only EU Data Act Portal-Modus läuft (die Live BFF Strategien sind gescheitert). Wenn AN, prüft der Coordinator beim Start ob pro VIN ein aktiver 15-min Custom Data Request existiert und legt einen an wenn nicht. Der Kickoff impliziert ein 1-Monats Daten-Abo auf deinem Account beim Portal, deshalb opt-in. Das Portal akzeptiert HÖCHSTENS EINEN aktiven Custom Request pro VIN gleichzeitig. Standard: aus.",
+          "abrp_enable": "Live-Telemetrie an A Better Routeplanner senden. Benötigt api_key und einen Token pro Fahrzeug. Aus = keine ausgehenden Aufrufe.",
+          "abrp_api_key": "Ein Entwickler-/Partnerschlüssel, den du bei iternio registrierst (wir liefern keinen). Identifiziert die Integration. Wird nie protokolliert.",
+          "abrp_user_token": "Der 'Generic'-Token aus der ABRP-App: Einstellungen -> dein Auto -> Live Data. Wird nie protokolliert."
+        }
+      },
+      "add_vwde": {
+        "title": "Volkswagen.de Website (BETA, nur Lesen)",
+        "description": "**Experimentell, freiwillig.** Liest deinen Volkswagen über die Anmeldung auf volkswagen.de statt über das App-Backend. Nur Volkswagen, nur Lesen (keine Fernbefehle). Melde dich mit deiner Volkswagen-ID-E-Mail und deinem Passwort an. Falls dein Konto eine E-Mail-Bestätigung nutzt, wirst du im nächsten Schritt nach dem Code gefragt. **Voraussetzung:** Deine Volkswagen ID muss Hauptnutzer des Fahrzeugs sein — einmalig „Identität bestätigen“ auf volkswagen.de durchführen (myVolkswagen → dein Fahrzeug). Ohne das liefert die Website keine Fahrzeugdaten.",
+        "data": {
+          "username": "E-Mail-Adresse",
+          "password": "Passwort",
+          "scan_interval": "Aktualisierungsintervall"
+        },
+        "data_description": {
+          "username": "Die E-Mail deines Volkswagen-ID- / myVolkswagen-Kontos.",
+          "password": "Dein Volkswagen-ID-Passwort.",
+          "scan_interval": "Wie oft Daten abgerufen werden (Minuten). Minimum: 5."
+        }
+      },
+      "add_vwde_otp": {
+        "title": "E-Mail-Bestätigungscode",
+        "description": "Ein Bestätigungscode wurde an die E-Mail von **{username}** gesendet.\n\nGib den Code ein, um die Anmeldung am Volkswagen.de-Website-Kanal (Beta) abzuschließen.",
+        "data": {
+          "mfa_code": "Bestätigungscode"
+        },
+        "data_description": {
+          "mfa_code": "Code aus deinem E-Mail-Posteingang — einige Minuten gültig."
+        }
+      },
+      "add_portal": {
+        "title": "EU-Data-Act-Portal — Lesekanal",
+        "description": "Beim EU-Data-Act-Portal anmelden (E-Mail + Passwort), um SoC, Laden, Kilometerstand und Service als Reads hinzuzufügen — gemergt auf deinen Primär-Kanal.",
+        "data": {
+          "username": "E-Mail",
+          "password": "Passwort"
         }
       }
+    },
+    "error": {
+      "abrp_credentials_required": "Zum Aktivieren von ABRP musst du sowohl den api_key als auch den Fahrzeug-Token eingeben."
     }
   },
   "entity": {
@@ -365,6 +433,12 @@
       },
       "api_observer_findings": {
         "name": "API-Beobachter"
+      },
+      "raw_api_fields": {
+        "name": "Rohe API-Felder"
+      },
+      "data_source_channel": {
+        "name": "Datenquelle (Kanal)"
       },
       "error_reporter_count": {
         "name": "Fehler-Berichter"
@@ -635,9 +709,336 @@
       },
       "vehicle_nickname": {
         "name": "Fahrzeug-Spitzname"
+      },
+      "lifetime_avg_speed_kmh": {
+        "name": "Ø-Geschwindigkeit gesamt"
+      },
+      "lifetime_travel_time_min": {
+        "name": "Fahrzeit gesamt"
+      },
+      "monthly_mileage_km": {
+        "name": "Monatliche Laufleistung"
+      },
+      "remaining_charge_time_min": {
+        "name": "Restladezeit"
+      },
+      "charging_scenario": {
+        "name": "Ladeszenario"
+      },
+      "immediate_charge_action_state": {
+        "name": "Sofort-Ladevorgang Status"
+      },
+      "profile_charge_reason": {
+        "name": "Ladegrund"
+      },
+      "charge_session_energy_kwh": {
+        "name": "Geladene Energie"
+      },
+      "remaining_charge_time_bulk_min": {
+        "name": "Restzeit bis 80 % (Bulk)"
+      },
+      "odometer_state": {
+        "name": "Kilometerstand-Status"
+      },
+      "instrument_cluster_time": {
+        "name": "Fahrzeuguhr"
+      },
+      "data_error_detail": {
+        "name": "Datenfehler"
+      },
+      "external_power_supply_state": {
+        "name": "Externe Stromversorgung"
+      },
+      "charging_reason": {
+        "name": "Ladegrund"
+      },
+      "charging_error_code": {
+        "name": "Ladefehlercode"
+      },
+      "remaining_time_target_soc": {
+        "name": "Restzeit-Ladeziel"
+      },
+      "charge_led_color": {
+        "name": "Ladeanschluss-LED-Farbe"
+      },
+      "charge_led_pattern": {
+        "name": "Ladeanschluss-LED-Muster"
+      },
+      "last_report_id": {
+        "name": "Bericht-ID"
+      },
+      "climate_energy_consumption_kwh": {
+        "name": "Klima-Energieverbrauch"
+      },
+      "residual_energy_consumption_kwh": {
+        "name": "Verbrauch Bordnetz"
+      },
+      "last_trip_avg_recuperation_kwh_100km": {
+        "name": "Rekuperation Fahrt (Ø)"
+      },
+      "lifetime_avg_recuperation_kwh_100km": {
+        "name": "Rekuperation gesamt (Ø)"
+      },
+      "last_trip_avg_aux_consumption_kwh_100km": {
+        "name": "Letzte Fahrt Nebenverbraucher (Ø)"
+      },
+      "lifetime_avg_aux_consumption_kwh_100km": {
+        "name": "Nebenverbraucher gesamt (Ø)"
+      },
+      "lifetime_avg_gas_consumption_kg_100km": {
+        "name": "Gasverbrauch gesamt (Ø)"
+      },
+      "lifetime_range_gain_km": {
+        "name": "Reichweitengewinn gesamt"
+      },
+      "lifetime_zero_emission_km": {
+        "name": "Emissionsfreie Strecke gesamt"
+      },
+      "last_trip_avg_gas_consumption_kg_100km": {
+        "name": "Letzte Fahrt Gasverbrauch (Ø)"
+      },
+      "last_trip_range_gain_km": {
+        "name": "Letzte Fahrt Reichweitengewinn"
+      },
+      "last_trip_zero_emission_km": {
+        "name": "Letzte Fahrt emissionsfreie Strecke"
+      },
+      "charger_update_trigger": {
+        "name": "Auslöser Ladegerät-Update"
+      },
+      "active_target_soc": {
+        "name": "Aktives Ladeziel"
+      },
+      "charge_time_display": {
+        "name": "Ladezeit-Details"
+      },
+      "charging_plug1_flap_lock_state": {
+        "name": "Ladeklappe 1 Verriegelung"
+      },
+      "charging_plug1_flap_state": {
+        "name": "Ladeklappe 1"
+      },
+      "charging_plug1_infrastructure_state": {
+        "name": "Ladepunkt 1 Status"
+      },
+      "charging_plug1_lock_state": {
+        "name": "Ladestecker 1 Verriegelung"
+      },
+      "charging_plug2_connectionstate": {
+        "name": "Ladeanschluss 2 Verbindung"
+      },
+      "charging_plug2_flap_lock_state": {
+        "name": "Ladeklappe 2 Verriegelung"
+      },
+      "charging_plug2_flap_state": {
+        "name": "Ladeklappe 2"
+      },
+      "charging_plug2_infrastructure_state": {
+        "name": "Ladepunkt 2 Status"
+      },
+      "charging_plug2_lock_state": {
+        "name": "Ladestecker 2 Verriegelung"
+      },
+      "battery_available_kwh": {
+        "name": "Verfügbare Batterieenergie"
+      },
+      "battery_cap_kwh": {
+        "name": "Batteriekapazität (Energie)"
+      },
+      "trip_total_cost": {
+        "name": "Fahrtkosten gesamt"
+      },
+      "trip_fuel_cost": {
+        "name": "Fahrtkosten Kraftstoff"
+      },
+      "trip_electricity_cost": {
+        "name": "Fahrtkosten Strom"
+      },
+      "trip_cng_cost": {
+        "name": "Fahrtkosten Erdgas"
+      },
+      "oil_level_pct": {
+        "name": "Ölstand (Prozent)"
+      },
+      "dataset_key": {
+        "name": "Datensatz-Schlüssel"
+      },
+      "charge_mode_selection": {
+        "name": "Gewählter Lademodus"
+      },
+      "max_charge_current_ac": {
+        "name": "Max. AC-Ladestrom"
+      },
+      "auto_unlock_charge_port": {
+        "name": "Ladeklappe automatisch entriegeln"
+      },
+      "charge_bulk_threshold_pct": {
+        "name": "Schnellladegrenze"
+      },
+      "charge_rate_unit": {
+        "name": "Einheit Ladegeschwindigkeit"
+      },
+      "lifetime_trip_distance_km": {
+        "name": "Langzeit-Fahrtstrecke"
+      },
+      "lifetime_trip_start_odometer_km": {
+        "name": "Langzeit-Start-Kilometerstand"
+      },
+      "last_trip_start_odometer_km": {
+        "name": "Letzte-Fahrt-Start-Kilometerstand"
+      },
+      "oil_level_liters": {
+        "name": "Ölstand (Liter)"
+      },
+      "oil_level_additional_pct": {
+        "name": "Zusätzlicher Ölstand"
+      },
+      "tyre_pressure_diff_fl": {
+        "name": "Reifendruck-Abweichung vorne links"
+      },
+      "tyre_pressure_diff_fr": {
+        "name": "Reifendruck-Abweichung vorne rechts"
+      },
+      "tyre_pressure_diff_rl": {
+        "name": "Reifendruck-Abweichung hinten links"
+      },
+      "tyre_pressure_diff_rr": {
+        "name": "Reifendruck-Abweichung hinten rechts"
+      },
+      "tyre_pressure_diff_spare": {
+        "name": "Reifendruck-Abweichung Reserverad"
+      },
+      "tyre_pressure_actual_fl": {
+        "name": "Reifendruck vorne links"
+      },
+      "tyre_pressure_actual_fr": {
+        "name": "Reifendruck vorne rechts"
+      },
+      "tyre_pressure_actual_rl": {
+        "name": "Reifendruck hinten links (Ist)"
+      },
+      "tyre_pressure_actual_rr": {
+        "name": "Reifendruck hinten rechts (Ist)"
+      },
+      "tyre_pressure_actual_spare": {
+        "name": "Reifendruck Reserverad (Ist)"
+      },
+      "tyre_pressure_required_fl": {
+        "name": "Reifendruck vorne links (Soll)"
+      },
+      "tyre_pressure_required_fr": {
+        "name": "Reifendruck vorne rechts (Soll)"
+      },
+      "tyre_pressure_required_rl": {
+        "name": "Reifendruck hinten links (Soll)"
+      },
+      "tyre_pressure_required_rr": {
+        "name": "Reifendruck hinten rechts (Soll)"
+      },
+      "tyre_pressure_required_spare": {
+        "name": "Reifendruck Reserverad (Soll)"
+      },
+      "parking_lights_state": {
+        "name": "Standlicht"
+      },
+      "aux_battery_energy_pct": {
+        "name": "Zusatzbatterie-Ladestand"
+      },
+      "dashboard_warnings_raw": {
+        "name": "Warnleuchten (Rohwert)"
+      },
+      "climate_error_code": {
+        "name": "Klima-Fehlercode"
+      },
+      "window_heating_error_code": {
+        "name": "Scheibenheizung-Fehlercode"
+      },
+      "lpg_range_km": {
+        "name": "Autogas-Reichweite"
+      },
+      "engine_status": {
+        "name": "Motorstatus"
+      },
+      "trip_avg_aux_consumption_kwh": {
+        "name": "Ø Nebenverbrauch"
+      },
+      "departure_charge_kwh": {
+        "name": "Ladung bis Abfahrt"
+      },
+      "tire_pressure_fl_state": {
+        "name": "Reifenstatus vorne links"
+      },
+      "tire_pressure_fl_errorcode": {
+        "name": "Reifenfehlercode vorne links"
+      },
+      "tire_pressure_fr_state": {
+        "name": "Reifenstatus vorne rechts"
+      },
+      "tire_pressure_fr_errorcode": {
+        "name": "Reifenfehlercode vorne rechts"
+      },
+      "tire_pressure_rl_state": {
+        "name": "Reifenstatus hinten links"
+      },
+      "tire_pressure_rl_errorcode": {
+        "name": "Reifenfehlercode hinten links"
+      },
+      "tire_pressure_rr_state": {
+        "name": "Reifenstatus hinten rechts"
+      },
+      "tire_pressure_rr_errorcode": {
+        "name": "Reifenfehlercode hinten rechts"
+      },
+      "next_charge_timer_start_at": {
+        "name": "Nächster Ladestart"
+      },
+      "next_charge_timer_finish_at": {
+        "name": "Nächstes Ladeende"
+      },
+      "next_charge_target_reachability": {
+        "name": "Ladeziel erreichbar"
+      },
+      "next_charge_timer_number": {
+        "name": "Nächster Lade-Timer (Nummer)"
+      },
+      "ascent_slope_consumption": {
+        "name": "Steigungsverbrauch (bergauf)"
+      },
+      "descent_slope_consumption": {
+        "name": "Steigungsverbrauch (bergab)"
+      },
+      "report_type": {
+        "name": "Berichtstyp"
+      },
+      "result_app": {
+        "name": "App-Daten-Ergebnis"
+      },
+      "result_master": {
+        "name": "Stammdaten-Ergebnis"
+      },
+      "update_reason": {
+        "name": "Letzter Aktualisierungsgrund"
+      },
+      "start_stop_action": {
+        "name": "Lade-Start/Stopp-Aktion"
+      },
+      "start_stop_modification": {
+        "name": "Start/Stopp-Änderung"
+      },
+      "bidi_max_charge_level_pct": {
+        "name": "Bidirektionales Laden max. Ladestand"
+      },
+      "bidi_min_charge_level_pct": {
+        "name": "Bidirektionales Laden min. Ladestand"
+      },
+      "sunroof_position_pct": {
+        "name": "Schiebedach-Position"
       }
     },
     "binary_sensor": {
+      "mbb_two_way_available": {
+        "name": "MBB Zwei-Wege verfügbar"
+      },
       "doors_locked": {
         "name": "Türen verriegelt"
       },
@@ -799,6 +1200,57 @@
       },
       "trunk_open": {
         "name": "Kofferraum offen"
+      },
+      "warning_inspection": {
+        "name": "Inspektion fällig"
+      },
+      "parking_brake_engaged": {
+        "name": "Feststellbremse"
+      },
+      "parking_light_left": {
+        "name": "Standlicht (links)"
+      },
+      "parking_light_right": {
+        "name": "Standlicht (rechts)"
+      },
+      "energy_flow_active": {
+        "name": "Energiefluss"
+      },
+      "battery_care_mode_active": {
+        "name": "Batterieschonmodus"
+      },
+      "bonnet_locked": {
+        "name": "Motorhaube verriegelt"
+      },
+      "closures_secured": {
+        "name": "Alle Öffnungen gesichert"
+      },
+      "service_hatch_open": {
+        "name": "Serviceklappe offen"
+      },
+      "spoiler_open": {
+        "name": "Spoiler ausgefahren"
+      },
+      "oil_dipstick_active": {
+        "name": "Ölmessstab aktiv"
+      },
+      "fuel_level_estimated": {
+        "name": "Tankfüllstand geschätzt"
+      },
+      "climatisation_at_unlock": {
+        "name": "Klimatisierung beim Entriegeln"
+      },
+      "mirror_heating_enabled": {
+        "name": "Spiegelheizung"
+      },
+      "climate_zone_front_left_enabled": {
+        "name": "Klimazone vorne links"
+      },
+      "climate_zone_front_right_enabled": {
+        "name": "Klimazone vorne rechts"
+      },
+      "abrp_data_changed": {
+        "name": "ABRP-Daten geändert"
       }
     },
     "switch": {
@@ -980,8 +1432,24 @@
       "title": "EU-Data-Act-Portal-Sitzung abgelaufen – neu anmelden"
     },
     "ola_headers_outdated": {
-      "description": "VWs Online-Services-Backend (OLA) hat **{count}** Anfragen für {brand} in Folge mit HTTP 403 Forbidden abgelehnt.\n\nDas ist **kein** Problem mit veralteten Headern oder einer App-Version, und es lässt sich nicht durch Neu-Konfigurieren oder erneutes Anmelden beheben. VW hat den Zugang zu den Online-Diensten für {brand} (und SEAT) offenbar serverseitig gesperrt — die offizielle App nutzt einen separaten, voll vertrauenswürdigen Zugang, den wir nicht nachbauen können. Ein Header- oder App-Versions-Override bringt ihn nicht zurück.\n\nWo möglich, fällt die Integration auf das schreibgeschützte EU-Data-Act-Portal zurück und holt die noch verfügbaren Daten. Die {brand}-Daten kommen von selbst wieder, sobald VW den Zugang freigibt. Auf deiner Seite ist nichts zu tun — diese Warnung verschwindet automatisch, sobald Anfragen wieder durchgehen.",
-      "title": "{brand}-Online-Dienste von VW gesperrt — {count} aufeinanderfolgende 403-Fehler"
+      "description": "VWs Online-Services-Backend (OLA) hat **{count}** Anfragen in Folge für {brand} mit HTTP 403 Forbidden abgelehnt.\n\nDas ist eine **serverseitige Sperre durch VW** — kein Update, Header-Wechsel oder Neu-Login behebt das. VW verlangt jetzt ein Google-signiertes Geräte-Attestierungs-Token (Firebase App Check / Play Integrity) plus ein Web-Application-Firewall-Token auf dem SEAT/CUPRA-Backend — die offizielle App erzeugt die aus einem gehärteten, Google-signierten Build, was ein Open-Source-Client nicht nachbilden kann. **Fernbefehle** für {brand} (und SEAT) kommen daher wahrscheinlich nicht zurück.\n\nFahrzeug-**Daten** laufen wo verfügbar weiter über das read-only EU-Data-Act-Portal — das ist der Weg für diese Marken. Das liegt komplett bei VW; auf deiner Seite nichts zu tun. (Verfolgt: #464.)",
+      "title": "{brand}-Befehle von VW gesperrt (Geräte-Attestierung) — {count} aufeinanderfolgende 403-Fehler"
+    },
+    "vw_na_data_forbidden": {
+      "title": "Volkswagen US/CA: Fahrzeugdaten gesperrt (Abonnement)",
+      "description": "Dein Volkswagen-Konto hat sich angemeldet und deine Garage wurde gelesen, aber die fahrzeugbezogenen Datenanfragen (Status, Laden, Klima) werden mit HTTP 403 Forbidden abgewiesen.\n\nDie häufigste Ursache ist ein **inaktives Car-Net-/VW-Connect-Abonnement** für dieses Fahrzeug. Dieselben Daten würden wieder fließen, sobald das Abonnement erneuert wird.\n\n**Was tun:**\n\n1. Öffne die offizielle MyVW-App und prüfe, ob dein Remote-Access-/Car-Net-Abonnement für dieses Auto aktiv ist.\n2. Ist es abgelaufen, erneuere es bei VW und warte dann auf die nächste Abfrage.\n\nDie Integration zeigt weiterhin die zuletzt zwischengespeicherten Daten an. Diese Warnung verschwindet von selbst, sobald eine Datenanfrage wieder erfolgreich ist."
+    },
+    "vw_na_data_forbidden_attestation": {
+      "title": "Volkswagen US/CA: Fahrzeugdaten von VW gesperrt (Geräte-Attestierung)",
+      "description": "Dein Volkswagen-Konto hat sich angemeldet und deine Garage wurde gelesen, aber die fahrzeugbezogenen Datenanfragen (Status, Laden, Klima) werden mit HTTP 403 Forbidden abgewiesen, und die Antwort trägt eine **Geräte-Attestierungs**-Markierung.\n\nDies ist eine **serverseitige Sperre durch VW**, kein Abonnement-Problem und nichts, was eine erneute Anmeldung beheben kann — eine Erneuerung von Car-Net hilft also nicht. VW verlangt jetzt ein Google-signiertes Geräte-Attestierungs-Token (Firebase App Check / Play Integrity), das die offizielle App aus einem gehärteten Build erzeugt und das ein Open-Source-Client nicht nachbilden kann.\n\nDie Integration zeigt weiterhin die zuletzt zwischengespeicherten Daten an. Diese Warnung verschwindet von selbst, falls VW die Datenebene wieder öffnet."
+    },
+    "supplementary_reauth": {
+      "title": "Volkswagen.de-Lesekanal: erneuter Login nötig",
+      "description": "Der zusätzliche volkswagen.de-Lesekanal konnte seine Sitzung nicht fortsetzen (Volkswagen verlangt erneut den Einmalcode per E-Mail). Die Hauptdaten deines Fahrzeugs sind nicht betroffen. Öffne die Optionen dieser Integration und führe \"Volkswagen.de-Lesekanal hinzufügen\" erneut aus, um die zusätzlichen vw.de-Daten wiederherzustellen."
+    },
+    "meb_commands_unavailable": {
+      "title": "Fernbefehle sind für dieses Auto nicht verfügbar ({brand})",
+      "description": "Du hast beim Einrichten von {brand} MBB-Fernbefehle aktiviert, aber das ist ein MEB-/ID-Fahrzeug (ID.3/4/5/7, Enyaq, Born, Q4). VWs MEB-Backend unterstützt den durablen Car-Net-Befehlspfad nicht — der durable Login antwortete „Unknown user“ — daher lassen sich Sperren, Klima und Laden nicht senden.\n\nDer Eintrag bleibt **read-only**: Fahrzeugdaten kommen weiter über das EU-Data-Act-Portal, du siehst nur keine Befehls-Entities. Das ist eine bekannte Einschränkung von VWs MEB-Plattform, kein Setup-Fehler — du kannst diesen Hinweis schließen."
     }
   },
   "selector": {
@@ -1096,6 +1564,28 @@
           "description": "Wenn aktiv, entriegelt sich der Stecker selbst nach abgeschlossenem Ladevorgang."
         }
       }
+    },
+    "abrp_send": {
+      "name": "Telemetrie an ABRP senden",
+      "description": "Erstellt und sendet die aktuellen Telemetriedaten des Fahrzeugs an A Better Routeplanner.",
+      "fields": {
+        "device_id": {
+          "name": "Fahrzeug",
+          "description": "Das hochzuladende Fahrzeug (oder VIN verwenden)."
+        },
+        "vin": {
+          "name": "VIN",
+          "description": "VIN des Fahrzeugs (Alternative zum Gerät)."
+        },
+        "api_key": {
+          "name": "api_key überschreiben",
+          "description": "Optional. Überschreibt den gespeicherten Entwicklerschlüssel. Wird nie protokolliert."
+        },
+        "token": {
+          "name": "Token überschreiben",
+          "description": "Optional. Überschreibt den gespeicherten Fahrzeug-Token. Wird nie protokolliert."
+        }
+      }
     }
   },
   "exceptions": {
@@ -1116,6 +1606,9 @@
     },
     "read_only_mode_active": {
       "message": "Read-only Modus ist in den Integrations-Optionen aktiviert. Deaktiviere ihn unter Einstellungen → Geräte & Dienste → VW Group Connect → Konfigurieren um Fahrzeug-Befehle zu senden."
+    },
+    "read_only_portal_active": {
+      "message": "Dieses Fahrzeug ist über VWs schreibgeschütztes EU-Data-Act-Portal angebunden, deshalb sind Fernbefehle (Verriegeln, Klima, Laden) dafür nicht verfügbar. Das ist keine Einstellung, die du umschalten kannst — der Portal-Kanal hat keinen Befehlsweg."
     }
   }
 }

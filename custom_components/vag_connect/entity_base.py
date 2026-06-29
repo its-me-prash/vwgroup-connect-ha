@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Base entity class for all VAG Connect entities."""
 
 from __future__ import annotations
@@ -217,22 +217,30 @@ def register_dynamic_spawner(
         the vehicle isn't yet ready (no data) — listener will retry on
         next coordinator update.
 
-    The set of "already-spawned" VINs is tracked in a closure so each
-    listener invocation only adds NEW VINs. Initial pass is also
-    performed synchronously here, so platforms that already-have-data
+    The set of "already-spawned" ENTITIES is tracked by unique_id in a closure,
+    and the build is re-evaluated on every coordinator update — so an entity
+    whose data only appears on a later poll (e.g. a sensor gated on data-present)
+    still spawns the moment its value arrives, while entities already added are
+    never duplicated. Initial pass runs synchronously so already-present entities
     spawn immediately instead of waiting for the first refresh.
+
+    v2.15.0b3 — switched from per-VIN to per-unique_id tracking to support the
+    "hide entities without data" gating, where build_for_vin may legitimately
+    return a growing set for a VIN across polls as fields populate.
     """
     added: set[str] = set()
 
     def _spawn() -> None:
         new_entities: list[Any] = []
         for vin, vehicle in coordinator.vehicles.items():
-            if vin in added:
-                continue
-            built = build_for_vin(vin, vehicle)
-            if built:
-                new_entities.extend(built)
-                added.add(vin)
+            for ent in build_for_vin(vin, vehicle):
+                uid = getattr(ent, "unique_id", None) or getattr(
+                    ent, "_attr_unique_id", None
+                )
+                if not uid or uid in added:
+                    continue
+                new_entities.append(ent)
+                added.add(uid)
         if new_entities:
             async_add_entities(new_entities)
 

@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Tests for v1.16.0 — Cross-Brand UX + Skoda Charging Profiles.
 
 Three feature groups:
@@ -78,7 +78,7 @@ class TestDepartureTimerTimeEntity:
 
     def test_async_set_value_dispatches_to_coordinator(self):
         e = self._entity("07:30")
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             e.async_set_value(time(8, 15))
         )
         e.coordinator.async_set_departure_timer.assert_awaited_once_with(
@@ -88,7 +88,7 @@ class TestDepartureTimerTimeEntity:
     def test_setting_time_also_enables_timer(self):
         """UX: editing the time implies the user wants this timer on."""
         e = self._entity("07:30")
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             e.async_set_value(time(6, 0))
         )
         kwargs = e.coordinator.async_set_departure_timer.await_args.kwargs
@@ -186,7 +186,7 @@ class TestGetChargingProfilesURL:
         from custom_components.vag_connect.cariad.api.skoda import SkodaClient
         client = SkodaClient.__new__(SkodaClient)
         client._get = AsyncMock(return_value={"chargingProfiles": []})
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.get_charging_profiles("VINX")
         )
         client._get.assert_awaited_once_with(
@@ -222,14 +222,14 @@ class TestRefreshChargingProfilesBrandRestriction:
 
     def test_audi_brand_skips(self):
         coord = self._coord(brand="audi")
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.refresh_charging_profiles("VINX")
         )
         coord._cariad_client.get_charging_profiles.assert_not_called()
 
     def test_skoda_brand_calls_endpoint_and_merges(self):
         coord = self._coord(brand="skoda")
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.refresh_charging_profiles("VINX")
         )
         coord._cariad_client.get_charging_profiles.assert_awaited_once()
@@ -240,7 +240,7 @@ class TestRefreshChargingProfilesBrandRestriction:
     def test_capability_false_skips(self):
         coord = self._coord(brand="skoda")
         coord.command_capability_supported = MagicMock(return_value=False)
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.refresh_charging_profiles("VINX")
         )
         coord._cariad_client.get_charging_profiles.assert_not_called()
@@ -250,7 +250,7 @@ class TestRefreshChargingProfilesBrandRestriction:
         coord._charging_profiles_fetched_at = {
             "VINX": datetime.now(tz=timezone.utc) - timedelta(minutes=30)
         }
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.refresh_charging_profiles("VINX")
         )
         coord._cariad_client.get_charging_profiles.assert_not_called()

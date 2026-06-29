@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Volkswagen.de website authproxy connector — OPT-IN, BETA, read-only.
 
 v2.14.0 — a SECOND, attestation-free read channel for VW passenger cars,
@@ -38,15 +38,22 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlparse
 
 from aiohttp import ClientError, ClientSession, ClientTimeout, TooManyRedirects
 
 from ..._canaries import CANARY_WEBSITE_AUTHPROXY
-from ..exceptions import AuthenticationError, EmailTwoFactorRequiredError
+from ..exceptions import AuthenticationError
 from ..models import VehicleData
 from ._eu_data_act import _login_fields, _login_error, _resolve_action
+
+if TYPE_CHECKING:
+    from .._authproxy import (
+        AuthproxyImage,
+        AuthproxyRelations,
+        AuthproxyVehicleInfo,
+    )
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -252,6 +259,13 @@ def map_maintenance_to_vehicle_data(payload: Any, d: VehicleData) -> VehicleData
     if oil_days is not None:
         d.oil_service_due_in_days = oil_days
 
+    # b1 — capture the freshness anchor the real authproxy maintenance body
+    # carries (verified live on a Golf GTE: data.carCapturedTimestamp). Feeds
+    # the per-poll channel-merge freshness + a future data-age sensor.
+    ts = node.get("carCapturedTimestamp") or data.get("carCapturedTimestamp")
+    if isinstance(ts, str) and ts:
+        d.maintenance_report_captured_at = ts
+
     return d
 
 
@@ -297,11 +311,35 @@ class WebsiteAuthProxyConnector:
 
     # ── login ──────────────────────────────────────────────────────────────
 
+    def _csrf(self) -> str:
+        """Current ``csrf_token`` cookie value, for the double-submit header.
+
+        The authproxy enforces a double-submit CSRF check: the value of the
+        ``csrf_token`` cookie must be echoed back in the ``x-csrf-token`` header
+        on every read (and it rotates on each silent refresh). Returns "" if
+        absent (never raises)."""
+        from yarl import URL  # noqa: PLC0415
+        try:
+            jar = self._session.cookie_jar
+            for host in _COOKIE_HOSTS:
+                ck = jar.filter_cookies(URL(host)).get("csrf_token")
+                if ck and ck.value:
+                    return str(ck.value)
+        except Exception:  # noqa: BLE001
+            pass
+        return ""
+
     def _headers(self, extra: dict[str, str] | None = None) -> dict[str, str]:
         headers = {
             "User-Agent": _USER_AGENT,
             "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
         }
+        # Double-submit CSRF: echo the csrf_token cookie into the header on every
+        # request, or the authproxy rejects reads (the reads silently returned
+        # {} / 412 without it).
+        csrf = self._csrf()
+        if csrf:
+            headers["x-csrf-token"] = csrf
         if extra:
             headers.update(extra)
         return headers
@@ -528,15 +566,31 @@ class WebsiteAuthProxyConnector:
             landed = str(resp.url)
             status = resp.status
 
+        # prompt=none silent re-authorize: a LIVE Auth0 SSO cookie mints a fresh
+        # portal session and lands us back on volkswagen.de. A DEAD SSO bounces
+        # to the login page / returns ?error=… — in which case we must NOT fall
+        # back to begin_login() (that would start the interactive flow and make
+        # the IDP email a fresh OTP every refresh). Raise → the caller surfaces
+        # a graceful re-add instead. OTP only ever lives on the interactive path.
+        if "/u/login" in landed or "/signin-service" in landed:
+            raise AuthenticationError(
+                "Website authproxy: SSO session expired — full re-login required"
+            )
+        sso_error = parse_qs(urlparse(landed).query).get("error", [None])[0]
+        if sso_error:
+            raise AuthenticationError(
+                f"Website authproxy: silent refresh failed (error={sso_error})"
+            )
         if status < 400 and urlparse(landed).netloc == urlparse(_SITE_BASE).netloc:
-            # SSO cookie carried us straight back to the site — done.
-            self._finalise_login(landed)
-            if self.logged_in:
-                return
-        # SSO did not short-circuit — fall back to a full login.
-        result = await self.begin_login()
-        if result == "otp_required":
-            raise EmailTwoFactorRequiredError()
+            self.logged_in = True
+            _LOGGER.info(
+                "Website authproxy: silent refresh resumed the session"
+                " (prompt=none, no OTP)"
+            )
+            return
+        raise AuthenticationError(
+            f"Website authproxy: refresh did not land on the portal ({landed[:80]})"
+        )
 
     def _finalise_login(self, landed_url: str) -> None:
         """Mark logged-in iff we ended back on the volkswagen.de host."""
@@ -812,6 +866,49 @@ class WebsiteAuthProxyConnector:
             if vin not in seen:
                 seen.append(vin)
         return seen
+
+    async def get_relations(self) -> AuthproxyRelations | None:
+        """Structured relations: VINs + ``mbbUserId`` + platform per vehicle.
+
+        a13 — the clean counterpart to the regex ``list_vehicle_vins`` scan.
+        Exposes ``mbbUserId`` (== the ``X-MbbUserId`` the MBB strategy needs) and
+        ``modBackend`` (MBB vs MEB) so a future combined entry can self-discover
+        VINs + user-id from the portal session instead of hard-coding them.
+        Returns ``None`` on a transient backend hiccup (401/403 still raises).
+        """
+        from .._authproxy import parse_relations  # noqa: PLC0415
+
+        body = await self._get_json(f"{_SITE_BASE}{_RELATIONS_PATH}", soft=True)
+        return parse_relations(body) if body is not None else None
+
+    async def get_master_data(self, vin: str) -> AuthproxyVehicleInfo:
+        """Market model name / engine / year / colour (text + code) for *vin*."""
+        from .._authproxy import (  # noqa: PLC0415
+            AuthproxyVehicleInfo,
+            build_vehicle_data_url,
+            build_vehicle_details_url,
+            parse_vehicle_data,
+            parse_vehicle_details,
+        )
+
+        info = AuthproxyVehicleInfo()
+        details = await self._get_json(build_vehicle_details_url(vin), soft=True)
+        if details is not None:
+            info = parse_vehicle_details(details, info)
+        data = await self._get_json(build_vehicle_data_url(vin), soft=True)
+        if data is not None:
+            info = parse_vehicle_data(data, info)
+        return info
+
+    async def get_exterior_images(self, vin: str) -> list[AuthproxyImage]:
+        """Exterior render URLs ({url, angle, viewDirection}) for *vin*."""
+        from .._authproxy import (  # noqa: PLC0415
+            build_vehicle_images_url,
+            parse_vehicle_images,
+        )
+
+        body = await self._get_json(build_vehicle_images_url(vin), soft=True)
+        return parse_vehicle_images(body) if body is not None else []
 
     async def get_vehicle_data(self, vin: str) -> VehicleData:
         """Fetch charging + maintenance for *vin* and map to ``VehicleData``.

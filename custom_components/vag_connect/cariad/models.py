@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Data models for the CARIAD API client."""
 
 from __future__ import annotations
@@ -52,23 +52,37 @@ BRAND_VW_EU = BrandConfig(
     name="volkswagen",
     client_id="a24fba63-34b3-4d43-b181-942111e6bda8@apps_vw-dilab_com",
     redirect_uri="weconnect://authenticated",
-    user_agent="Volkswagen/3.61.0-android/14",
+    user_agent="Volkswagen/3.63.2-android/14",
     api_base="https://emea.bff.cariad.digital",
     # scope from volkswagencarnet (upstream/volkswagencarnet, MIT) — confirmed working
     scope="openid profile badge cars dealers vin",
     # v2.5.11 — matches atlas profile vw_group_auth_profile.json#brands.vw.package_name.
     # Source: VW WeConnect 3.61.0 APK xapk archive name + ioBroker commit 884269b1.
+    # v2.15.3 — user_agent bumped 3.61.0 → 3.63.2 to match the live We Connect
+    # build (DEX-verified; _mbb_app_identity() in vw_eu.py already ships 3.63.2).
     # Pre-v2.5.11 this was silently impersonating the Audi package via the
     # hardcoded ``de.myaudi.mobile.assistant`` default in idk.py.
     android_package_name="de.volkswagen.weconnect",
 )
+
+# b13 (RE dismantle 2026-06) — known-good FALLBACK OAuth client_ids harvested
+# from the current brand APKs. Each app ships more dilab clients than we model;
+# if VW ever blocklists a primary client_id, a user can set one of these via the
+# ``CONF_CLIENT_ID_OVERRIDE`` option to recover. These are NOT active by default
+# (documentation only); all primary client_ids above are APK-verified-current.
+#   audi : 16dd7960-431d-4b88-b3a5-35724b2fce01@apps_vw-dilab_com
+#   vw_eu: 4edc53db-4b79-4e37-b614-19a95dea20dc@apps_vw-dilab_com
+#   skoda: 4fffed6b-815a-4b6f-af4a-b0ccccb4ff6d@apps_vw-dilab_com
+#   ola  : 3f16b970-38ab-49c6-a1bf-af38460fd388 / f1cd60b6-e40f-4bf2-822d-0201eabc09b5
+#   vw_na: 59992128-69a9-42c3-8621-7942041ba824_MYVW_ANDROID (US prod, primary)
 
 BRAND_AUDI = BrandConfig(
     name="audi",
     # client_id from upstream (arjenvrh/upstream, MIT) — confirmed working
     client_id="09b6cbec-cd19-4589-82fd-363dfa8c24da@apps_vw-dilab_com",
     redirect_uri="myaudi:///",
-    user_agent="Android/4.31.0 (Build 800341641.root project 'myaudi_android'.ext.buildTime) Android/13",
+    # b13 (RE myAudi dismantle) — live build 5.5.1 / versionCode 800344232.
+    user_agent="Android/5.5.1 (Build 800344232.root project 'myaudi_android'.ext.buildTime) Android/13",
     api_base="https://emea.bff.cariad.digital",
     # scope exactly matching upstream — no extra "cars"/"dealers" scopes
     scope=(
@@ -129,11 +143,11 @@ BRAND_VW_NA_MODEL = BrandConfig(
     redirect_uri="kombi:///login",
     user_agent="MyVW/1.0 Android",
     api_base="https://b-h-s.spr.us00.p.con-veh.net",
-    # v2.11.0 (zackcornelius source-verified) — full
-    # "openid profile cars vin" scope. Bare "openid" returns reduced
-    # consent + missing claims on the NA IDP. Kept in sync with
+    # b13 (#503) — reverted to bare "openid" (the field-verified v2.3.0/#269
+    # value); the v2.11.0 widening to "openid profile cars vin" was never
+    # live-tested against NA and regressed login. Kept in sync with
     # BRAND_VW_NA in api/vw_na.py via test_v230_sprint_b.
-    scope="openid profile cars vin",
+    scope="openid",
 )
 
 BRAND_PORSCHE = BrandConfig(
@@ -145,63 +159,59 @@ BRAND_PORSCHE = BrandConfig(
     scope="openid profile email offline_access mbb vin cars charging",
 )
 
-# v2.2.0 Phase 4 PR #15/20 — Lamborghini brand-adapter scaffold.
+# Lamborghini Unica brand-config — NOT wired, NOT IDK-compatible.
 #
-# **BETA — TESTER VALIDATION PENDING.** This brand-config is NOT wired
-# into the ``BRANDS`` registry / config-flow / factory yet — it ships
-# as scaffolding only so a tester can import the class directly and
-# manually exercise the IDK flow against the Lamborghini Unica app
-# to validate the client_id + redirect_uri.
-#
-# Inheritance rationale: Lamborghini Unica is a VAG luxury brand
-# fronted by the same Cariad-BFF backend as VW EU + Audi (verified
-# via API-Evangelist OpenAPI catalog metadata 2026-05-03 — same
-# ``emea.bff.cariad.digital`` host). So the data-fetch path inherits
-# unchanged from ``VWEUClient`` — only the brand-token + UA differ.
-#
-# Placeholder values below MUST be replaced by a tester with a
-# Lamborghini Unica app install (Android/iOS) inspecting the
-# OAuth flow with mitmproxy / Charles. Until then, attempting to
-# use this brand WILL fail at the IDK login step with HTTP 400.
-#
-# Activation in v2.2.x or v2.3.x once tester returns confirmed
-# values. The wiring into ``BRANDS`` + factory + config-flow is
-# a separate (one-liner) PR once values are known.
+# v2.14.11 — the 2026-06-18 app-atlas (lamborghini.connectedcar) DISPROVED
+# the original "same Cariad-BFF as Audi/VW EU" assumption. Unica ships NO
+# @apps_vw-dilab_com client_id at all; it logs in via MBB co-auth through
+# Lamborghini's own SDP gateway (token endpoint sdp.lamborghini.com/
+# unicav2/mbbcoauth, scope sc2:fal, client_id held SERVER-SIDE on the proxy).
+# AWS Cognito is analytics-only. So this BrandConfig's api_base + dilab
+# client_id are STRUCTURALLY WRONG for Unica — kept only as a documented
+# placeholder. A real integration needs a dedicated SDP-proxy MBB-co-auth
+# adapter (Tier-3; see api/lambo.py). Do NOT add to BRANDS/factory/config-flow.
 BRAND_LAMBO = BrandConfig(
     name="lambo",
-    client_id="PLACEHOLDER-lambo-tester-please-confirm@apps_vw-dilab_com",
+    # SERVER-SIDE: the real MBB client is held on the SDP proxy and is not in
+    # the APK. This dilab placeholder is a non-functional marker only.
+    client_id="SERVER-SIDE-sdp-proxy-not-in-apk@apps_vw-dilab_com",
     redirect_uri="unica://oauth-callback",
     user_agent="Unica/1.0.0 Android",
+    # WRONG for Unica (real flow is sdp.lamborghini.com/unicav2/mbbcoauth);
+    # left only so the scaffold imports. Do not rely on this.
     api_base="https://emea.bff.cariad.digital",
-    # Scope inherited from VW EU + Audi pattern; tester may need to
-    # adjust if the Lamborghini app uses a tighter or wider claim set.
-    scope="openid profile badge cars vin",
+    scope="sc2:fal",
 )
 
-# v2.2.0 Phase 4 PR #16/20 — Bentley brand-adapter scaffold.
+# Bentley brand-adapter — v2.2.0 scaffold, ACTIVATED v2.14.11 (login+read).
 #
-# **BETA — TESTER VALIDATION PENDING.** Same pattern as ``BRAND_LAMBO``
-# (PR #15) — scaffolding-only, NOT wired into the ``BRANDS`` registry
-# / config-flow / factory yet.
-#
-# Inheritance rationale: Bentley "My Bentley" app is a VAG luxury
-# brand fronted by the same Cariad-BFF backend as VW EU + Audi +
-# Lamborghini (verified via API-Evangelist OpenAPI catalog metadata
-# 2026-05-03 — same ``emea.bff.cariad.digital`` host). So the data-
-# fetch path inherits unchanged from ``VWEUClient`` — only the
-# brand-token + UA differ.
-#
-# Placeholder values below MUST be replaced by a tester with a My
-# Bentley app install (Android/iOS) inspecting the OAuth flow with
-# mitmproxy / Charles. Until then, attempting to use this brand
-# WILL fail at the IDK login step with HTTP 400.
-#
-# Activation in v2.2.x or v2.3.x once tester returns confirmed
-# values — one-liner factory + BRANDS registry addition.
+# Inheritance rationale: Bentley "My Bentley" is a VAG luxury brand on the
+# same Cariad-BFF backend as Audi (atlas-confirmed: Bentley's IDK client_id
+# is byte-identical to Audi's primary). Data-fetch path inherits unchanged
+# from ``VWEUClient``; only the brand-token + UA differ. Wired into BRANDS +
+# factory + config-flow. Ships read-only (two-way is a live-test-gated
+# follow-up — see the BRAND_BENTLEY comment + idk.py audi/volkswagen gates).
 BRAND_BENTLEY = BrandConfig(
+    # v2.14.11 — scaffold values RESOLVED from the 2026-06-18 app-atlas
+    # (uk.co.bentley.mybentley). ``assets/assets/url-configuration.json``
+    # key ``idkClientIDLive`` = 09b6cbec…  — i.e. Bentley runs on the SAME
+    # IDK client + tenant as Audi (Bentley = Audi platform). The two
+    # Bentley-unique dilab ids (7cd71138 Approval, a9d0a852 Dev) are
+    # non-production and are intentionally NOT used. redirect_uri taken
+    # from the app DEX (``mybentleyapp:///``) — the old scaffold value
+    # ``mybentley://oauth-callback`` was wrong and would fail server-side
+    # redirect validation.
+    #
+    # WIRED read-only: the qmauth/CARIAD assertion headers are still gated
+    # to audi/volkswagen (idk.py), so Bentley's classic token exchange will
+    # degrade to the read-only data_act_portal until a tester with a real
+    # My Bentley account confirms the Audi-qmauth secret is accepted for
+    # client 09b6cbec under the bentleyid tenant (then we add "bentley" to
+    # those gates for two-way). Ships login+read now; two-way is live-test
+    # gated. api_base = emea.bff.cariad.digital (Audi-like BFF).
     name="bentley",
-    client_id="PLACEHOLDER-bentley-tester-please-confirm@apps_vw-dilab_com",
-    redirect_uri="mybentley://oauth-callback",
+    client_id="09b6cbec-cd19-4589-82fd-363dfa8c24da@apps_vw-dilab_com",
+    redirect_uri="mybentleyapp:///",
     user_agent="MyBentley/1.0.0 Android",
     api_base="https://emea.bff.cariad.digital",
     # Scope inherited from VW EU + Audi pattern; tester may need to
@@ -259,6 +269,8 @@ BRANDS: dict[str, BrandConfig] = {
     "cupra":         BRAND_CUPRA,
     "volkswagen_na": BRAND_VW_NA_MODEL,
     "porsche":       BRAND_PORSCHE,
+    # v2.14.11 — Bentley wired (login+read; runs on the Audi IDK client/tenant).
+    "bentley":       BRAND_BENTLEY,
 }
 
 
@@ -590,6 +602,14 @@ class VehicleData:
     # window closed, False == open. Populated by SEAT/CUPRA OLA paths
     # (status.windows.{position}); other brands leave it empty for now.
     windows_individual: dict[str, bool] = field(default_factory=dict)
+    # b10 (EU Data Act portal long-tail) — extra signals mapped from the portal's
+    # per-window position + trip + maintenance fields.
+    windows_position: dict[str, int] = field(default_factory=dict)  # % open (0=closed)
+    warning_inspection: bool | None = None        # service inspection due
+    monthly_mileage_km: int | None = None         # avg distance driven per month
+    remaining_charge_time_min: int | None = None  # charging time left
+    lifetime_travel_time_min: int | None = None   # cumulative driving time (long-term)
+    lifetime_avg_speed_kmh: float | None = None   # average speed (long-term)
 
     # Location
     latitude: float | None = None
@@ -1309,6 +1329,13 @@ class VehicleData:
     permission_is_owner: bool | None = None
     permission_can_command: bool | None = None
 
+    # b1/B2 — "MBB two-way available" symbol: True when the durable Car-Net
+    # (MBB) backend grants at least one remote command (climate/charge) on a
+    # currently-licensed service for this car. Surfaced as a diagnostic
+    # binary_sensor so users see at a glance whether two-way control is
+    # possible. None = unknown (no operationList this poll / non-MBB car).
+    mbb_two_way_available: bool | None = None
+
     # Engine measurements endpoint. Both temperatures are stored in
     # Celsius after the parser converts from Kelvin if needed
     # (values above 200 are treated as Kelvin and shifted).
@@ -1320,6 +1347,309 @@ class VehicleData:
     # ``extra_state_attributes``. Stored as a plain list so the
     # JSON-safe attribute helper passes it through unchanged.
     available_charge_modes: list[str] = field(default_factory=list)
+
+    # v2.15.0a10 — transient per-poll flag (NOT a sensor). Set True by a
+    # connector when THIS poll produced no real data (e.g. EU Data Act portal
+    # timeout/outage, or an ACL-blocked MBB read) and the object carries only
+    # the VIN. The coordinator uses it to keep the previous good data visible
+    # ("old but visible") instead of blanking entities — but only when prior
+    # data exists, so a brand-new car still appears and fills in later.
+    no_data: bool = False
+    # v2.15.0b1 (B1) — provenance: which channel(s) produced this snapshot.
+    # Set by the channel-merge layer to the "+"-joined contributing channels
+    # (e.g. "eu_data_act+mbb"); None for a single-channel poll. Surfaced as a
+    # diagnostic attribute so users/maintainers can see where data came from.
+    source_channel: str | None = None
+    # v2.15.0b1 (A6) — raw field discovery: portal fields the curated parser
+    # did not map, kept as {field_name: value} so the user can see every value
+    # the backend sent (surfaced as attributes on ONE disabled diagnostic
+    # sensor — no per-field entity explosion). Same unmapped set that feeds the
+    # Vehicle Data Scout report: one detection pass, both worlds.
+    raw_unmapped_fields: dict[str, str] = field(default_factory=dict)
+
+    # ── v2.15.1 — EU Data Act + BFF wire-key mapping (2.15.0 plan) ──────────
+    # New fields declared once on the shared model; each is written by the EU
+    # Data Act portal parser (_eu_data_act.py) and/or the BFF selectivestatus
+    # parser (vw_eu.py). All None/False-defaulted so a parser miss leaves the
+    # entity "unknown" and never fabricates a value.
+
+    # — EU Data Act dialect (portal) NEW fields —
+    # Charging scenario enum (CHARGING_SCENARIO_*) — active/finished ×
+    # departure-timer/immediate/optimised.
+    charging_scenario: str | None = None
+    # Immediate-charge action state (IMMEDIATE_ACTION_STATE_*). Diagnostic —
+    # may be a constant INVALID on portal firmware.
+    immediate_charge_action_state: str | None = None
+    # Reason the car decided to charge (PROFILE_CHARGE_REASON_*).
+    profile_charge_reason: str | None = None
+    # Energy added this charge session (kWh). TOTAL_INCREASING.
+    charge_session_energy_kwh: float | None = None
+    # Remaining time to the bulk/80 % stage (minutes). Sentinel -1 dropped.
+    remaining_charge_time_bulk_min: int | None = None
+    # Odometer measurement quality flag (mileage.state enum). Diagnostic.
+    odometer_state: str | None = None
+    # In-vehicle instrument-cluster clock (timestamp). Diagnostic.
+    instrument_cluster_time: str | None = None
+    # Joined non-empty data-error fields (error_code/number/description),
+    # sentinels "#0"/"0" filtered. Diagnostic.
+    data_error_detail: str | None = None
+    # Portal report/message id (change detector). Diagnostic.
+    last_report_id: str | None = None
+    # Climatisation energy consumed (kWh). TOTAL_INCREASING.
+    climate_energy_consumption_kwh: float | None = None
+    # On-board electronics / residual consumption (kWh). TOTAL_INCREASING.
+    residual_energy_consumption_kwh: float | None = None
+    # Recuperated energy per 100 km (last trip / lifetime). kWh/100 km.
+    last_trip_avg_recuperation_kwh_100km: float | None = None
+    lifetime_avg_recuperation_kwh_100km: float | None = None
+    # Parking brake engaged (shared — EU parking_brake.is_set / BFF
+    # parkingBrakeStatus both write THIS field). binary_sensor.
+    parking_brake_engaged: bool | None = None
+    # Parking lights left/right (aggregate feeds the existing parking_light).
+    parking_light_left: bool | None = None
+    parking_light_right: bool | None = None
+    # Portal dataset key — LOW confidence, disabled-by-default. Diagnostic.
+    dataset_key: str | None = None
+
+    # ── v2.15.2 — EU Data Act portal "charger detail" fields (#513 Scout) ────
+    # New EU-Data-Act-dialect-only fields surfaced by the per-poll charger
+    # detail block. All written by _eu_data_act.py; all DIAGNOSTIC.
+    # External power-supply state (enum, e.g. "available"). sensor.
+    external_power_supply_state: str | None = None
+    # Energy actively flowing to/from the HV battery right now (raw portal
+    # "energy_flow" on/off). binary_sensor. Distinct from the cross-brand
+    # OLA-sourced ``energy_flow`` bool above — this is the EU portal signal.
+    energy_flow_active: bool | None = None
+    # Reason the current charge was triggered (enum, e.g. "immediate"). sensor.
+    charging_reason: str | None = None
+    # Charging-state error code; "0"/"#0" sentinels (= no error) dropped → None.
+    charging_error_code: str | None = None
+    # Which SoC target the remaining charging time counts down to
+    # (enum, e.g. "maxSOC"). sensor.
+    remaining_time_target_soc: str | None = None
+    # Charge-port LED colour (e.g. "green") — disabled-by-default. sensor.
+    charge_led_color: str | None = None
+    # Charge-port LED pattern (e.g. "pulse") — disabled-by-default. sensor.
+    charge_led_pattern: str | None = None
+
+    # ── v2.15.3 — EU Data Act portal new fields (#465/#514/#515/#516) ────────
+    # All written by _eu_data_act.py only (EU-Data-Act dialect). DIAGNOSTIC
+    # unless noted; LOW-confidence ones disabled-by-default at the entity layer.
+    # A. Charging settings (settings.* block).
+    # Currently-selected charge mode (CHARGE_MODE_SELECTION_* enum). sensor.
+    charge_mode_selection: str | None = None
+    # AC charge-current cap setting (MAX_CHARGE_CURRENT_AC_* enum). sensor.
+    max_charge_current_ac: str | None = None
+    # Auto-unlock charge port setting (AUTO_UNLOCK_AC_* enum). sensor.
+    auto_unlock_charge_port: str | None = None
+    # Battery-care mode on/off (setting.bcam_activation). binary_sensor.
+    battery_care_mode_active: bool | None = None
+    # Bulk→trickle threshold (% — charging slows after this). sensor.
+    charge_bulk_threshold_pct: int | None = None
+    # Companion unit for the charge rate (CHARGE_RATE_UNIT_* enum) — LOW,
+    # disabled-by-default. sensor.
+    charge_rate_unit: str | None = None
+    # B. Door / closure SAFE-state (2=safe / 3=unsafe — INVERSE polarity).
+    # Front bonnet lock (locked_state_front_engine_bonnet 2=locked). binary_sensor.
+    bonnet_locked: bool | None = None
+    # All present closures secured (safe_state_* rollup, all==2). binary_sensor.
+    closures_secured: bool | None = None
+    # Service hatch open (state_service_hatch 2=open) — LOW. binary_sensor.
+    service_hatch_open: bool | None = None
+    # Rear spoiler deployed (state_spoiler 2=open) — LOW. binary_sensor.
+    spoiler_open: bool | None = None
+    # C. Trip odometer endpoints (km).
+    # Distance covered in the long-term trip window. sensor (TOTAL_INCREASING).
+    lifetime_trip_distance_km: int | None = None
+    # Odometer when the long-term window began — LOW. sensor, diagnostic.
+    lifetime_trip_start_odometer_km: int | None = None
+    # Odometer when the current/last trip began — LOW. sensor, diagnostic.
+    last_trip_start_odometer_km: int | None = None
+    # D. Fuel / fluids / SCR.
+    # Engine oil amount (litres). sensor, diagnostic.
+    oil_level_liters: float | None = None
+    # Failure-overwrite additional oil level (%) — LOW. sensor, diagnostic.
+    oil_level_additional_pct: float | None = None
+    # Oil dipstick electronic-function active (0/1) — LOW. binary_sensor.
+    oil_dipstick_active: bool | None = None
+    # Fuel reading is calculated rather than measured (fuel_level__accuracy
+    # 1=calculated) — LOW. binary_sensor, diagnostic.
+    fuel_level_estimated: bool | None = None
+    # E. Tyres — pressure DELTA vs target (unit-ambiguous; sentinels 0/1
+    # dropped at the parser). LOW — disabled-by-default. sensor, diagnostic.
+    tyre_pressure_diff_fl: int | None = None
+    tyre_pressure_diff_fr: int | None = None
+    tyre_pressure_diff_rl: int | None = None
+    tyre_pressure_diff_rr: int | None = None
+    tyre_pressure_diff_spare: int | None = None
+    # Tyres — ACTUAL per-wheel pressure (dict unit "10kPA / Bar / PSI/ kPA" is
+    # ambiguous → unitless diagnostic; sentinels 0=unsupported/1=invalid dropped
+    # at the parser). #528 front pair, #538 rear+spare. LOW — disabled-by-
+    # default. sensor, diagnostic.
+    tyre_pressure_actual_fl: int | None = None
+    tyre_pressure_actual_fr: int | None = None
+    tyre_pressure_actual_rl: int | None = None
+    tyre_pressure_actual_rr: int | None = None
+    tyre_pressure_actual_spare: int | None = None
+    # Tyres — REQUIRED/target per-wheel pressure (#538). Same ambiguous unit →
+    # unitless diagnostic; sentinels 0/1 dropped at the parser. LOW — disabled-
+    # by-default. sensor, diagnostic.
+    tyre_pressure_required_fl: int | None = None
+    tyre_pressure_required_fr: int | None = None
+    tyre_pressure_required_rl: int | None = None
+    tyre_pressure_required_rr: int | None = None
+    tyre_pressure_required_spare: int | None = None
+    # F. Lights / energy / misc.
+    # Parking lights state (parking_lights enum → off/left/right/both). sensor.
+    parking_lights_state: str | None = None
+    # Auxiliary/12V battery energy-management level (%). sensor, diagnostic.
+    aux_battery_energy_pct: int | None = None
+    # Instrument-cluster warning bitmask — RAW hex/interpreted value only, no
+    # decode. LOW — disabled-by-default. sensor, diagnostic.
+    dashboard_warnings_raw: str | None = None
+    # Climatisation error code; "0"/"#0" (no error) dropped → None. sensor.
+    climate_error_code: str | None = None
+    # Window-heating error code; "0"/"#0" (no error) dropped → None. sensor.
+    window_heating_error_code: str | None = None
+    # G. v2.15.3 (#517) — consumption / range aggregates (EU-Data-Act dialect).
+    # Avg auxiliary-consumer consumption (dict kwH/1000km → kWh/100 km). sensor.
+    last_trip_avg_aux_consumption_kwh_100km: float | None = None
+    lifetime_avg_aux_consumption_kwh_100km: float | None = None
+    # Avg gas (CNG) consumption, long-term (dict kg/1000km → kg/100 km). sensor.
+    lifetime_avg_gas_consumption_kg_100km: float | None = None
+    # Avg gas (CNG) consumption, last trip (dict kg/1000km → kg/100 km). sensor.
+    last_trip_avg_gas_consumption_kg_100km: float | None = None
+    # Gained range distance, long-term (dict 100m → km). sensor (TOTAL_INCREASING).
+    lifetime_range_gain_km: float | None = None
+    # Gained range distance, last trip (dict 100m → km). sensor.
+    last_trip_range_gain_km: float | None = None
+    # Distance driven without emission, long-term (dict 100m → km). sensor.
+    lifetime_zero_emission_km: float | None = None
+    # Distance driven without emission, last trip (dict 100m → km). sensor.
+    last_trip_zero_emission_km: float | None = None
+    # Trigger info about the last battery-charger update (string, e.g. "other").
+    # LOW — disabled-by-default. sensor, diagnostic.
+    charger_update_trigger: str | None = None
+
+    # v2.15.3 (#518) — EU-Data-Act charging-detail string family. All
+    # dict-confirmed type=string (no enum list in the dict). LOW —
+    # disabled-by-default diagnostic sensors. Junk sentinels (invalid/
+    # unavailable/notAvailable) are dropped to None at the parser so single-
+    # port cars don't get a dead entity; the fields stay defined so two-port
+    # cars surface plug2 (NEVER suppress Scout fields).
+    # active_target_soc: the CURRENTLY-active charge goal (distinct from the
+    # target_soc SETTING above). No SoC token in the entity NAME ("Active
+    # charge target").
+    active_target_soc: str | None = None
+    # Details of remaining charge time (free-form string; not the numeric ETA).
+    charge_time_display: str | None = None
+    # Charging plug1 (primary port) flap / lock / infrastructure states.
+    charging_plug1_flap_lock_state: str | None = None
+    charging_plug1_flap_state: str | None = None
+    charging_plug1_infrastructure_state: str | None = None
+    charging_plug1_lock_state: str | None = None
+    # Charging plug2 (second port — dual-port cars) connection / flap / lock /
+    # infrastructure states. Mirror of plug1 but a SECOND port; kept separate,
+    # NOT folded into plug_connected/plug_state.
+    charging_plug2_connectionstate: str | None = None
+    charging_plug2_flap_lock_state: str | None = None
+    charging_plug2_flap_state: str | None = None
+    charging_plug2_infrastructure_state: str | None = None
+    charging_plug2_lock_state: str | None = None
+
+    # ── v2.15.4 — EU Data Act portal new fields (#521/#522 Scout) ────────────
+    # All written by _eu_data_act.py only (EU-Data-Act dialect).
+    # Next-charging-timer estimated start/finish (ISO timestamps). The car's
+    # OWN estimate for when the next scheduled charge will begin/end — distinct
+    # from next_charging_time (Skoda profile schedule). sensor (TIMESTAMP),
+    # diagnostic.
+    next_charge_timer_start_at: Any | None = None
+    next_charge_timer_finish_at: Any | None = None
+    # Whether the next-charge target is reachable in time
+    # (TARGET_REACHABILITY_* enum → shortened). sensor, diagnostic.
+    next_charge_target_reachability: str | None = None
+    # Which timer slot (1-15) is the next charging timer — dict-confirmed
+    # type=number, unit=null ("Profile1: 1,2,3 ... Profile5: 13,14,15"). A
+    # plain slot index, low user value → disabled-by-default. sensor (NUMBER),
+    # diagnostic. EU-Data-Act dialect only.
+    next_charge_timer_number: int | None = None
+    # Slope (gradient) energy consumption while ascending / descending — raw
+    # physical_value, unit unconfirmed (dict unit=null), gated on value_type.
+    # LOW — disabled-by-default. sensor, diagnostic.
+    ascent_slope_consumption: float | None = None
+    descent_slope_consumption: float | None = None
+    # Which report this poll's payload represents (REPORT_TYPE_* enum →
+    # shortened) — metadata, not telemetry. LOW — disabled-by-default.
+    # sensor, diagnostic.
+    report_type: str | None = None
+    # Delivery/sync result status of the app- and master-data channel
+    # (generic "result" enums, dict lists no values → raw value shortened
+    # for display). Metadata, not telemetry. LOW — disabled-by-default.
+    # sensor, diagnostic.
+    result_app: str | None = None
+    result_master: str | None = None
+    # v2.15.5 — why the report was sent to the backend (UPDATE_REASON_* enum →
+    # shortened). dict-confirmed values (CHARGING / CLAMP15_ON|OFF /
+    # CLIMATISATION / OTHER / INVALID). Metadata, not telemetry. LOW —
+    # disabled-by-default sensor, diagnostic.
+    update_reason: str | None = None
+
+    # ── v2.15.4 (#523) — EU Data Act portal new fields ───────────────────────
+    # All written by _eu_data_act.py only (EU-Data-Act dialect). Climatisation
+    # settings are on/off bools (dict type=string, Climatisation cluster).
+    # Short conditioning when the car is unlocked (setting_climatisation_at_
+    # unlock). binary_sensor, diagnostic.
+    climatisation_at_unlock: bool | None = None
+    # Glass-surface / mirror heating active (setting_mirror_heating_enabled).
+    # binary_sensor, diagnostic.
+    mirror_heating_enabled: bool | None = None
+    # Extended conditioning per climate zone enabled (setting_zone_enabled_
+    # front_left / _front_right). binary_sensor, diagnostic.
+    climate_zone_front_left_enabled: bool | None = None
+    climate_zone_front_right_enabled: bool | None = None
+    # Charging-related action (start_stop_action — dict type=string, no enum
+    # list; _shorten_enum passes unprefixed values through). LOW —
+    # disabled-by-default. sensor, diagnostic.
+    start_stop_action: str | None = None
+    # start_stop_modification — dict type=string, "Contains the detail related
+    # to start stop modification". Distinct from start_stop_action. No enum list
+    # → _shorten_enum passes unprefixed values through. LOW — disabled-by-
+    # default. sensor, diagnostic.
+    start_stop_modification: str | None = None
+
+    # — BFF / selectivestatus dialect NEW fields —
+    # Per-corner tire pressure STATE strings (shared — EU tires.[*].state and
+    # BFF {corner}TireState both write these). Lowercased passthrough.
+    tire_pressure_fl_state: str | None = None
+    tire_pressure_fr_state: str | None = None
+    tire_pressure_rl_state: str | None = None
+    tire_pressure_rr_state: str | None = None
+    # Per-corner tire error code (int). Sentinels 0/1 dropped → None.
+    tire_pressure_fl_errorcode: int | None = None
+    tire_pressure_fr_errorcode: int | None = None
+    tire_pressure_rl_errorcode: int | None = None
+    tire_pressure_rr_errorcode: int | None = None
+    # LPG (autogas) remaining range (km).
+    lpg_range_km: int | None = None
+    # Engine running/idle status (enum/lowercased; bool→on/off). Diagnostic.
+    engine_status: str | None = None
+    # Avg auxiliary consumption — LOW, unit ambiguous, NOT rescaled.
+    # Disabled-by-default. (kWh)
+    trip_avg_aux_consumption_kwh: float | None = None
+    # Energy charged at departure — LOW. Disabled-by-default. (kWh)
+    departure_charge_kwh: float | None = None
+
+    # ── v2.15.5 (#541) — V2G / bidirectional-charging charge-level limits ─────
+    # Written by _eu_data_act.py only (EU-Data-Act dialect). dict-confirmed
+    # type=number; "Additional SOC range for bidirectional charging" → percent.
+    # Upper / lower charge-level limit the car may bidi-charge within. LOW —
+    # disabled-by-default diagnostic sensors. NO 'SoC' token in entity NAMES.
+    bidi_max_charge_level_pct: int | None = None
+    bidi_min_charge_level_pct: int | None = None
+    # ── v2.15.5 (#544) — sunroof motor hood 1 POSITION (distinct from the
+    # open/closed STATE in sunroof_open). dict-confirmed type=number, unit "%"
+    # (0 = closed). LOW — disabled-by-default diagnostic sensor.
+    sunroof_position_pct: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to plain dict for coordinator.vehicles storage."""

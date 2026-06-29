@@ -5,8 +5,8 @@ meta {
 }
 
 post {
-  url: {{mal_url}}/api/bs/rlu/v1/{{brand}}/{{country}}/vehicles/{{vin}}/actions
-  body: xml
+  url: {{mal_url}}/api/bs/rlu/v1/vehicles/{{vin}}/lock
+  body: none
   auth: bearer
 }
 
@@ -17,32 +17,33 @@ auth:bearer {
 headers {
   Accept: application/json
   Content-Type: application/vnd.vwg.mbb.RemoteLockUnlock_v1_0_0+xml
-  X-mbbSecToken: PASTE_x-securityToken_FROM_SPIN_FLOW_HERE
+  x-securityToken: PASTE_x-securityToken_FROM_SPIN_FLOW_HERE
   X-App-Name: Volkswagen
-  X-App-Version: 3.51.1
-  User-Agent: Volkswagen/3.51.1-android/14
-}
-
-body:xml {
-  <?xml version="1.0" encoding="UTF-8"?>
-  <rluAction>
-    <action>lock</action>
-  </rluAction>
+  X-App-Version: 3.63.2
+  User-Agent: Volkswagen/3.63.2-android/14
 }
 
 docs {
   STUFE 5b — Lock/Unlock (REQUIRES SPIN)
 
-  ALTERNATIVE BODY für Unlock:
-    <rluAction><action>unlock</action></rluAction>
+  URL (grounded — DEX + upstream): lock/unlock is the PATH TAIL, no
+  brand/country segment, EMPTY body:
+    POST {mal_url}/api/bs/rlu/v1/vehicles/{vin}/lock
+    POST {mal_url}/api/bs/rlu/v1/vehicles/{vin}/unlock
+  The old /{brand}/{country}/.../actions form with an <rluAction> XML body
+  is the deprecated pre-2019 variant — both current upstream impls
+  (audi_connect_ha, volkswagencarnet) and the We Connect / Skoda DEX use
+  the path-tail form with NO body.
 
   HEADERS — KRITISCH:
-    X-mbbSecToken: <token aus 14_GET_spin_challenge>
-    Manche legacy-Variants nutzen "x-securityToken" statt "X-mbbSecToken".
-    Beide gleichzeitig setzen für max. Kompat.
+    x-securityToken: <token aus 14_GET_spin_challenge>
+    Header-Name ist "x-securityToken" (DEX + beide upstream-Impls) —
+    NICHT "X-mbbSecToken". HTTP-Header sind case-insensitiv, aber matche
+    die App. X-MbbUserId (= sub-Claim des Tokens) zusätzlich senden;
+    manche Endpoints 403en ohne ihn.
 
     Content-Type MUSS application/vnd.vwg.mbb.RemoteLockUnlock_v1_0_0+xml
-    sein — application/xml wird mit 415 abgelehnt.
+    sein — application/xml wird mit 415 abgelehnt. Body bleibt LEER.
 
   ERWARTETE ANTWORT (200/202):
     {
@@ -54,7 +55,7 @@ docs {
     }
 
   POLLING:
-    GET {mal_url}/api/bs/rlu/v1/{brand}/{country}/vehicles/{vin}/requests/{requestId}/status
+    GET {mal_url}/api/bs/rlu/v1/vehicles/{vin}/requests/{requestId}/status
     bis status ∈ {request_successful, request_fail}
 
   GOLF 7 GTE QUIRK:

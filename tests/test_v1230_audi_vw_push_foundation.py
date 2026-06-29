@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Tests for v1.23.0 — Audi/VW Cariad FCM push foundation.
 
 Mirrors v1.18.0 (Skoda MQTT) + v1.19.0 (CUPRA/SEAT FCM) test layout —

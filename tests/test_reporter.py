@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Tests for v1.9.0 — Vehicle Data Scout + Error Reporter + Pipeline.
 
 Three modules under test, each with its own class:
@@ -402,3 +402,267 @@ class TestReporterPipeline:
             kwargs = mock_create.call_args.kwargs
             # Errors get higher severity than unexpected keys
             assert kwargs["severity"] == ir.IssueSeverity.ERROR
+
+    def test_unexpected_keys_report_includes_model_in_body(self):
+        from custom_components.vag_connect.cariad._reporter_pipeline import (
+            build_unexpected_keys_report,
+        )
+        from custom_components.vag_connect.cariad._unexpected_keys import (
+            UnexpectedField,
+        )
+
+        findings = [
+            UnexpectedField(
+                path="overall.newField",
+                sample_masked='"YES"',
+                endpoint="vehicle-status",
+                first_seen_at="2026-04-29T10:00:00Z",
+            )
+        ]
+        body = build_unexpected_keys_report(
+            findings, brand="vw_eu", model="ID.4", model_year=2024
+        )
+        assert "- **Model:** `ID.4`" in body
+        # Omitted when not provided
+        body_no_model = build_unexpected_keys_report(findings, brand="vw_eu")
+        assert "**Model:**" not in body_no_model
+
+    def test_error_report_includes_model_in_body(self):
+        from custom_components.vag_connect.cariad._error_reporter import (
+            ErrorRecord,
+        )
+        from custom_components.vag_connect.cariad._reporter_pipeline import (
+            build_error_report,
+        )
+
+        rec = ErrorRecord(
+            timestamp="2026-04-29T10:00:00",
+            brand="vw_eu",
+            vin_masked="***ABC123",
+            model_year=2024,
+            firmware=None,
+            exception_type="APIError",
+            message_masked="boom",
+            traceback_masked="",
+            model="ID.4",
+        )
+        # Report-level model (passed by ensure_*) shows in the context block
+        body = build_error_report([rec], brand="vw_eu", model="ID.4")
+        assert "- **Model:** `ID.4`" in body
+        # Per-record model also rendered in the error section
+        assert body.count("`ID.4`") >= 2
+
+    def test_ensure_unexpected_keys_issue_model_in_title(self):
+        from custom_components.vag_connect.cariad._reporter_pipeline import (
+            ensure_unexpected_keys_issue,
+        )
+        from custom_components.vag_connect.cariad._unexpected_keys import (
+            UnexpectedField,
+        )
+
+        findings = [
+            UnexpectedField("a.b", '"x"', "vehicle-status", "2026-04-29T10:00:00")
+        ]
+        with patch(
+            "custom_components.vag_connect.cariad._reporter_pipeline.ir.async_create_issue"
+        ) as mock_create:
+            ensure_unexpected_keys_issue(
+                hass=object(),
+                entry_id="entry1",
+                findings=findings,
+                brand="vw_eu",
+                model="ID.4",
+            )
+            url = mock_create.call_args.kwargs["learn_more_url"]
+            title = urllib.parse.parse_qs(url.split("?", 1)[1])["title"][0]
+            assert title == "[Vehicle Data Scout] 1 new field(s) on vw_eu ID.4"
+
+    def test_ensure_unexpected_keys_issue_title_brand_only_without_model(self):
+        from custom_components.vag_connect.cariad._reporter_pipeline import (
+            ensure_unexpected_keys_issue,
+        )
+        from custom_components.vag_connect.cariad._unexpected_keys import (
+            UnexpectedField,
+        )
+
+        findings = [
+            UnexpectedField("a.b", '"x"', "vehicle-status", "2026-04-29T10:00:00")
+        ]
+        with patch(
+            "custom_components.vag_connect.cariad._reporter_pipeline.ir.async_create_issue"
+        ) as mock_create:
+            ensure_unexpected_keys_issue(
+                hass=object(), entry_id="entry1", findings=findings, brand="vw_eu",
+            )
+            url = mock_create.call_args.kwargs["learn_more_url"]
+            title = urllib.parse.parse_qs(url.split("?", 1)[1])["title"][0]
+            assert title == "[Vehicle Data Scout] 1 new field(s) on vw_eu"
+
+    def test_ensure_error_reporter_issue_model_in_title(self):
+        from custom_components.vag_connect.cariad._error_reporter import (
+            ErrorRecord,
+        )
+        from custom_components.vag_connect.cariad._reporter_pipeline import (
+            ensure_error_reporter_issue,
+        )
+
+        rec = ErrorRecord(
+            timestamp="2026-04-29",
+            brand="vw_eu",
+            vin_masked="",
+            model_year=None,
+            firmware=None,
+            exception_type="X",
+            message_masked="m",
+            traceback_masked="",
+            model="ID.4",
+        )
+        with patch(
+            "custom_components.vag_connect.cariad._reporter_pipeline.ir.async_create_issue"
+        ) as mock_create:
+            ensure_error_reporter_issue(
+                hass=object(),
+                entry_id="e",
+                records=[rec],
+                brand="vw_eu",
+                model="ID.4",
+            )
+            url = mock_create.call_args.kwargs["learn_more_url"]
+            title = urllib.parse.parse_qs(url.split("?", 1)[1])["title"][0]
+            assert title == "[Error Reporter] 1 recent error(s) on vw_eu ID.4"
+
+
+class TestReporterVinPrivacy:
+    """Regression guard: a VIN-shaped ``model`` must never leak into the
+    Scout / Error Reporter issue title or body (the bug where Audi resolves
+    ``model`` to the raw VIN and bypasses the last-6 masking convention).
+    """
+
+    # Real-world-shaped Audi VIN (17 chars, valid VIN charset, no I/O/Q).
+    AUDI_VIN = "WAUZZZGE7RB026421"
+
+    def test_safe_model_sanitization_rules(self):
+        from custom_components.vag_connect.cariad._reporter_pipeline import (
+            _safe_model,
+        )
+
+        # VIN-shaped → omitted
+        assert _safe_model(self.AUDI_VIN) is None
+        # Equals the vehicle VIN (even if not 17 chars by some fluke) → omitted
+        assert _safe_model("custom", vin="custom") is None
+        # Empty / whitespace → omitted
+        assert _safe_model("") is None
+        assert _safe_model("   ") is None
+        assert _safe_model(None) is None
+        # Real friendly model name passes through (trimmed)
+        assert _safe_model("ID.4") == "ID.4"
+        assert _safe_model("  Golf GTE  ") == "Golf GTE"
+        # A short model that merely contains digits is NOT a VIN → kept
+        assert _safe_model("Q4 e-tron") == "Q4 e-tron"
+        # Hardened (v2.15.4): a VIN with a suffix, or a lowercased VIN, is still
+        # caught (search()+upper, not an uppercase-only fullmatch).
+        assert _safe_model(f"{self.AUDI_VIN} Quattro") is None
+        assert _safe_model(self.AUDI_VIN.lower()) is None
+
+    def test_vin_like_model_omitted_from_scout_title_and_body(self):
+        from custom_components.vag_connect.cariad._reporter_pipeline import (
+            ensure_unexpected_keys_issue,
+        )
+        from custom_components.vag_connect.cariad._unexpected_keys import (
+            UnexpectedField,
+        )
+
+        findings = [
+            UnexpectedField("a.b", '"x"', "vehicle-status", "2026-04-29T10:00:00")
+        ]
+        with patch(
+            "custom_components.vag_connect.cariad._reporter_pipeline.ir.async_create_issue"
+        ) as mock_create:
+            ensure_unexpected_keys_issue(
+                hass=object(),
+                entry_id="entry1",
+                findings=findings,
+                brand="audi",
+                model=self.AUDI_VIN,
+            )
+            url = mock_create.call_args.kwargs["learn_more_url"]
+            qs = urllib.parse.parse_qs(url.split("?", 1)[1])
+            title = qs["title"][0]
+            body = qs["body"][0]
+            # Title falls back to brand-only
+            assert title == "[Vehicle Data Scout] 1 new field(s) on audi"
+            # The raw VIN appears NOWHERE in title or body
+            assert self.AUDI_VIN not in title
+            assert self.AUDI_VIN not in body
+            assert "**Model:**" not in body
+
+    def test_vin_like_model_omitted_from_error_report_title_and_body(self):
+        from custom_components.vag_connect.cariad._error_reporter import (
+            ErrorRecord,
+        )
+        from custom_components.vag_connect.cariad._reporter_pipeline import (
+            build_error_report,
+            ensure_error_reporter_issue,
+        )
+
+        rec = ErrorRecord(
+            timestamp="2026-04-29",
+            brand="audi",
+            vin_masked="***026421",
+            model_year=None,
+            firmware=None,
+            exception_type="APIError",
+            message_masked="boom",
+            traceback_masked="",
+            model=self.AUDI_VIN,  # per-record model also VIN-shaped
+        )
+        # Direct body builder: per-record VIN-model must not render
+        body = build_error_report([rec], brand="audi", model=self.AUDI_VIN)
+        assert self.AUDI_VIN not in body
+        assert "**Model:**" not in body
+        # Masked tail is still allowed (consistent privacy convention)
+        assert "***026421" in body
+
+        with patch(
+            "custom_components.vag_connect.cariad._reporter_pipeline.ir.async_create_issue"
+        ) as mock_create:
+            ensure_error_reporter_issue(
+                hass=object(),
+                entry_id="e",
+                records=[rec],
+                brand="audi",
+                model=self.AUDI_VIN,
+            )
+            url = mock_create.call_args.kwargs["learn_more_url"]
+            qs = urllib.parse.parse_qs(url.split("?", 1)[1])
+            title = qs["title"][0]
+            url_body = qs["body"][0]
+            assert title == "[Error Reporter] 1 recent error(s) on audi"
+            assert self.AUDI_VIN not in title
+            assert self.AUDI_VIN not in url_body
+
+    def test_real_model_name_still_passes_through(self):
+        from custom_components.vag_connect.cariad._reporter_pipeline import (
+            ensure_unexpected_keys_issue,
+        )
+        from custom_components.vag_connect.cariad._unexpected_keys import (
+            UnexpectedField,
+        )
+
+        findings = [
+            UnexpectedField("a.b", '"x"', "vehicle-status", "2026-04-29T10:00:00")
+        ]
+        with patch(
+            "custom_components.vag_connect.cariad._reporter_pipeline.ir.async_create_issue"
+        ) as mock_create:
+            ensure_unexpected_keys_issue(
+                hass=object(),
+                entry_id="entry1",
+                findings=findings,
+                brand="vw_eu",
+                model="ID.4",
+            )
+            url = mock_create.call_args.kwargs["learn_more_url"]
+            qs = urllib.parse.parse_qs(url.split("?", 1)[1])
+            assert qs["title"][0] == "[Vehicle Data Scout] 1 new field(s) on vw_eu ID.4"
+            assert "- **Model:** `ID.4`" in qs["body"][0]

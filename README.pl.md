@@ -5,266 +5,130 @@
 <h1 align="center">VW Group Connect</h1>
 
 <p align="center">
-  <strong>Integracja Home Assistant dla Audi · VW · Škoda · SEAT · CUPRA · Porsche · VW US/CA</strong><br>
-  <em>Jedna integracja dla wszystkich 7 marek VAG, bezpośredni dostęp do API, bez middleware</em>
+  <strong>Jedna integracja Home Assistant dla wszystkich siedmiu marek Grupy Volkswagen — Audi · Volkswagen · Škoda · SEAT · CUPRA · Porsche · VW USA/Kanada</strong><br>
+  <em>Bezpośredni dostęp do API, wiele kanałów z automatycznym przełączaniem, bez warstw pośrednich.</em>
 </p>
 
 <p align="center">
   <a href="https://github.com/sponsors/its-me-prash"><img src="https://img.shields.io/badge/%E2%9D%A4%20Sponsor-ec6cb9?logo=github-sponsors&logoColor=white" alt="Sponsor this project"></a>
-  <a href="https://hacs.xyz"><img src="https://img.shields.io/badge/HACS-Custom-orange.svg" alt="HACS"></a>
-  <a href="https://github.com/its-me-prash/vwgroup-connect-ha/releases"><img src="https://img.shields.io/github/v/release/its-me-prash/vwgroup-connect-ha" alt="Version"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="Licencja"></a>
+  <a href="https://github.com/hacs/integration"><img src="https://img.shields.io/badge/HACS-Default-41BDF5.svg" alt="HACS Default"></a>
+  <a href="https://github.com/its-me-prash/vwgroup-connect-ha/releases"><img src="https://img.shields.io/github/v/release/its-me-prash/vwgroup-connect-ha?include_prereleases" alt="Release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL%20v3-blue.svg" alt="License"></a>
   <a href="https://www.home-assistant.io"><img src="https://img.shields.io/badge/Home%20Assistant-2025.1%2B-blue" alt="Home Assistant"></a>
-  <a href="https://github.com/its-me-prash/vwgroup-connect-ha/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/its-me-prash/vwgroup-connect-ha/ci.yml?branch=main&label=CI" alt="CI"></a>
   <a href="https://www.home-assistant.io/docs/quality_scale/"><img src="https://img.shields.io/badge/quality_scale-platinum-d4af37" alt="Quality Scale Platinum"></a>
 </p>
 
 <p align="center">
-  <a href="README.md">Deutsch</a> ·
-  <a href="README.en.md">English</a> ·
-  <a href="README.fr.md">Français</a> ·
-  <a href="README.es.md">Español</a> ·
-  <a href="README.nl.md">Nederlands</a> ·
-  <a href="README.cs.md">Čeština</a> ·
-  <a href="README.sv.md">Svenska</a>
+  🌍 <a href="README.md">English</a> · <a href="README.fr.md">Français</a> · <a href="README.es.md">Español</a> · <a href="README.nl.md">Nederlands</a> · <a href="README.cs.md">Čeština</a> · <a href="README.sv.md">Svenska</a>
 </p>
 
 ---
 
-> ### 📛 Note on the rename
-> Wcześniej publikowane jako **`vag-connect-ha`** (VAG = Volkswagen AG, popularny skrót w regionie DACH).
-> Okazało się, że ten skrót brzmi *znacząco inaczej* dla osób anglojęzycznych 😅
+> ### 📛 Słowo o zmianie nazwy
+> Wcześniej publikowane jako **`vag-connect-ha`** (VAG = Volkswagen AG, standardowy skrót w krajach niemieckojęzycznych).
+> Okazało się, że dla anglojęzycznych ten skrót brzmi *zupełnie* inaczej 😅
 >
-> **Co działa dalej bez zmian**: wszystkie encje (np. `sensor.audi_q4_battery_soc`),
+> **Co działa tak jak wcześniej**: wszystkie encje (np. `sensor.audi_q4_battery_soc`),
 > wszystkie wywołania usług (`vag_connect.lock`, `vag_connect.show_vag` itd.), wszystkie automatyzacje,
-> instalacja przez HACS — **nic się nie psuje**. Zmienia się nazwa marketingowa / wyświetlana,
-> wnętrze kodu pozostaje takie samo. Szczegóły w [`MIGRATION.md`](MIGRATION.md).
+> instalacja przez HACS — **nic się nie psuje**. Zmienia się nazwa marketingowa/wyświetlana, a wnętrze kodu
+> pozostaje bez zmian. Zobacz [`MIGRATION.md`](MIGRATION.md).
 >
 > Ogromne podziękowania dla społeczności **Home Assistant UK** oraz **HA Ideas, Projects and Solutions**
 > za zwrócenie uwagi — szczególnie dla **Si Gregory**, **Ben Johnson** i **Evets David**.
 >
-> I specjalne pozdrowienia dla **Jordan Waeles**, którego komentarz `show_vag()` jest teraz oficjalnie
-> wspieranym easter eggiem w tej integracji (usługa `vag_connect.show_vag`, patrz CHANGELOG v2.2.3).
+> I specjalne ukłony w stronę **Jordan Waeles**, którego komentarz `show_vag()` jest teraz oficjalnie
+> wspieranym easter eggiem tej integracji (usługa `vag_connect.show_vag`, zobacz CHANGELOG v2.2.3).
 
 ---
 
 ## Co to jest?
 
-**VW Group Connect to integracja [Home Assistant](https://www.home-assistant.io) do odczytu danych i sterowania samochodami połączonymi we wszystkich siedmiu markach Grupy Volkswagen — Volkswagen, Audi, Škoda, SEAT, CUPRA, Porsche oraz VW US/Kanada — z jednego wpisu konfiguracyjnego, instalowana przez [HACS](https://hacs.xyz).**
+**VW Group Connect to integracja [Home Assistant](https://www.home-assistant.io), która wnosi dane i sterowanie połączonym autem do Twojego inteligentnego domu dla wszystkich siedmiu marek Grupy Volkswagen — Volkswagen, Audi, Škoda, SEAT, CUPRA, Porsche i VW USA/Kanada — plus Bentley (tylko odczyt), z jednego wpisu konfiguracyjnego.**
 
-Pokazuje stan akumulatora i ładowania, zasięg, przebieg, klimatyzację, drzwi/okna oraz lokalizację, a tam, gdzie backend marki nadal na to pozwala (np. Audi) — wysyła komendy takie jak zamykanie/otwieranie, sterowanie klimatyzacją i ładowaniem. Aby działać mimo zmian w API Volkswagena z 2026 roku, korzysta z kilku kanałów i automatycznie przełącza się na kolejny, gdy jeden zostanie zablokowany: natywne backendy marek, portal danych pojazdu **EU Data Act** (tylko do odczytu) oraz opcjonalny kanał webowy `volkswagen.de`.
+Pokazuje stan baterii i ładowania, zasięg, przebieg, klimatyzację, drzwi i okna, lokalizację i więcej, a tam, gdzie backend marki wciąż na to pozwala — wysyła zdalne polecenia, takie jak zamykanie/otwieranie, sterowanie klimatyzacją i ładowaniem. Aby działać mimo zmian w API Volkswagena z 2026 roku, korzysta z **kilku kanałów i automatycznie przełącza się**, gdy jeden zostanie zablokowany: natywnych backendów marek, portalu danych pojazdów **EU Data Act** (tylko odczyt), opcjonalnego kanału webowego `volkswagen.de` oraz trwałego logowania **bez hasła** dla starszych pojazdów Car-Net. Działa bezproblemowo **obok [evcc](https://evcc.io)** i nie wymaga **żadnych zależności z PyPI**.
 
-W odróżnieniu od integracji opartych wyłącznie na portalu, obejmuje też **Porsche** (którego portal EU Data Act nie udostępnia) i zachowuje **dwukierunkowe sterowanie Audi**.
-
-> Integracja [Home Assistant](https://www.home-assistant.io) do odczytu danych i sterowania samochodami połączonymi we wszystkich siedmiu markach koncernu VW (Volkswagen, Audi, Škoda, SEAT, CUPRA, Porsche, VW US/CA) — jedna integracja, wiele kanałów danych, automatyczny fallback, instalacja przez HACS.
+> 🎉 **Teraz dostępne bezpośrednio w HACS** — bez potrzeby dodawania własnego repozytorium.
 
 ---
 
-## Bieżący stan
+## Najważniejsze cechy
 
-W 2026 roku VW stopniowo zamykał bezpośredni dostęp do pojazdów dla narzędzi firm trzecich (CARIAD-BFF z atestacją urządzenia, OLA dla CUPRA/SEAT za Play Integrity od czerwca 2026). Ta integracja pozostaje używalna, ponieważ obsługuje **wiele kanałów** i automatycznie przełącza się, gdy tylko jeden zostanie zablokowany:
-
-- **Natywne backendy marek** — pełny dostęp wraz ze sterowaniem, tam gdzie jest dostępne (Audi, Škoda, Porsche, VW US/CA).
-- **Portal EU Data Act** — fallback tylko do odczytu dla wszystkich marek (bez atestacji, cadence ~15 min).
-- **Kanał webowy volkswagen.de (Beta, opt-in)** — drugi kanał odczytu dla VW bez atestacji.
-
-Bieżąca praca skupia się na odporności portalu (retry przy timeoutach, świeżość danych) i odporności między kanałami.
-
-➡️ Pełna historia wersji: **[CHANGELOG.md](CHANGELOG.md)**.
+- **Wszystkie 7 marek Grupy VW, w tym Porsche i VW USA/Kanada** w jednej integracji — portal EU Data Act z założenia *wyklucza* Porsche, więc narzędzia oparte wyłącznie na portalu nigdy go nie obsłużą.
+- **Dwukierunkowe sterowanie** tam, gdzie marka na to pozwala (zamykanie/otwieranie, klimatyzacja, ładowanie, docelowy SoC) — nie tylko odczyty.
+- **Opcja logowania bez hasła** (przeglądarka / kod urządzenia) — żadne hasło nie jest przechowywane w Home Assistant.
+- **Wiele kanałów z automatycznym przełączaniem** — natywny backend marki → portal EU Data Act → opcjonalny kanał webowy vw.de → trwały Car-Net. Awaria jednego kanału nie pozbawia Cię danych.
+- **Odporny z założenia** — zachowuje ostatnio znane wartości podczas awarii portalu, odfiltrowuje fałszywe wartości „brak odczytu", nigdy nie pozwala, by przebieg cofnął się wstecz.
+- **Lokalizator GPS**, ponad 100 encji w 11 platformach, ponad 20 wywołań usług, wiele pojazdów na koncie.
+- **Vehicle Data Scout** — automatycznie wykrywa zmiany w API i oferuje zgłoszenie błędu jednym kliknięciem. **Quality Scale: Platinum.**
 
 ---
 
-## Gdzie prowadzimy
+## Status marek
 
-Uczciwy stan na połowę 2026: portal EU Data Act stał się de facto standardowym kanałem, korzysta z niego wiele integracji. Co konkretnie nas wyróżnia:
-
-| Mocna strona | My | Alternatywy oparte tylko na portalu |
-|---|---|---|
-| **Wszystkie 7 marek koncernu wraz z Porsche** w jednej integracji | ✅ | Portal EU Data Act **strukturalnie wyklucza Porsche** — narzędzia oparte tylko na portalu nigdy nie obejmą Porsche |
-| **Dwukierunkowe sterowanie Audi** (Lock/Klima/Ładowanie, ustawianie docelowego SoC) | ✅ | Portal jest z założenia **tylko do odczytu** |
-| **Multi-channel auth z auto-fallbackiem** (backend marki → portal EU Data Act → opcjonalny web vw.de) | ✅ | zwykle pojedyncze źródło — awaria portalu = całkowita awaria |
-| **Vehicle Data Scout** — automatycznie wykrywa drift API, generuje raporty błędów jednym kliknięciem | ✅ | nic porównywalnego |
-
----
-
-## Gdzie są granice (uczciwie)
-
-**VW EU oraz OLA dla CUPRA/SEAT są od 2026 za atestacją urządzenia.** Ten mur (Google Play Integrity / Firebase App Check) uderza w każdą integrację VAG opartą o Python — w nas włącznie. To nie jest opóźnienie po naszej stronie, lecz polityka backendu VW:
-
-- Endpoint tokenu/OLA wymaga tokenu atestacji podpisanego przez oficjalną aplikację, którego Python nie potrafi wygenerować (klucz podpisujący leży wyłącznie w usłudze atestacji Google/Firebase).
-- Konsekwencja: **VW EU** nie dostaje trwałego `refresh_token` (hybrydowy flow OIDC trzyma ~2 h), a **CUPRA/SEAT** przez OLA dostają od ~2026-06-08 `403 "Forbidden device detected"`.
-
-Co mimo to oferujemy:
-
-1. **Portal EU Data Act** jako fallback tylko do odczytu dla wszystkich marek (bez atestacji, cadence ~15 min) — przejmuje automatycznie, gdy natywny backend blokuje.
-2. **Kanał webowy volkswagen.de (Beta, opt-in)** jako drugi kanał odczytu dla VW bez atestacji.
-3. **Hybrydowy flow OIDC** dla VW EU jako strategia odczyt+zapis (z ceną ponownego logowania co 2 h).
-
-**Termin EU Data Act 2026-09-12.** Do tej daty VW musi na mocy rozporządzenia UE zapewnić bezpośredni dostęp do danych właściciela bez atestacji — pokrycie pól w portalu do tego czasu prawdopodobnie będzie rosło.
-
-Status per marka:
-
-| Marka | Sterowanie | Dane | Uwaga |
+| Marka | Sterowanie | Dane | Uwagi |
 |---|---|---|---|
-| **Audi** | ✅ Dwukierunkowe | ✅ pełne | backend myAudi, bez muru atestacji |
-| **Škoda** | ✅ Dwukierunkowe | ✅ pełne | własny backend Škody |
-| **Porsche** | ✅ Dwukierunkowe | ✅ pełne | Auth0 + PPA, stabilne |
-| **VW US/CA** | ✅ Dwukierunkowe | ✅ pełne | VW-NA-Cloud (Beta) |
-| **VW EU** | ⚠️ przez hybrydowy OIDC (~2h re-login) | ✅ portal tylko do odczytu / vw.de-Beta | backend za atestacją |
-| **CUPRA / SEAT** | ❌ OLA zablokowane (App Check) | ✅ portal tylko do odczytu | od ~2026-06-08, nie do naprawienia nagłówkiem |
+| **Audi** | ✅ Dwukierunkowe | ✅ Pełne | backend myAudi |
+| **Škoda** | ✅ Dwukierunkowe | ✅ Pełne | natywny backend Škoda |
+| **Porsche** | ✅ Dwukierunkowe | ✅ Pełne | Porsche Connect |
+| **VW USA/KA** | ✅ Dwukierunkowe | ✅ Pełne | chmura VW NA |
+| **VW EU** | ⚠️ Trwały Car-Net (starsze modele) | ✅ EU Data Act + vw.de (beta) | nowsze auta ID/MEB: tylko odczyt przez portal |
+| **CUPRA / SEAT** | ⚠️ Ograniczone | ✅ EU Data Act | backend marki zablokowany przez VW od 2026 |
+| **Bentley** | ⏳ Czeka na testy na żywo | ✅ Logowanie + odczyt | My Bentley — działa na platformie/tenancie Audi |
+
+> Szczerze: w 2026 roku Volkswagen schował części swojego API za atestacją urządzeń. Ta integracja obchodzi to tam, gdzie się da (trwałe logowanie Car-Net, portal EU Data Act, web vw.de) i otwarcie mówi, co każdy kanał może, a czego nie może zrobić.
 
 ---
 
-## Co dostajesz
+## Znane ograniczenia
 
-100+ encji w 11 platformach HA, 20+ wywołań usług, natywne wsparcie wielu pojazdów na konto. Quality-Scale Platinum.
+Kilka rzeczy ma charakter **strukturalny** — wynikają z tego, jak działają backendy Volkswagena w 2026 roku, a nie z samej integracji, i żadne ustawienie ich nie naprawi:
 
-**Sensory** (per pojazd): Battery SoC, Range (electric / combustion / total), Fuel Level, Odometer, Outside Temp, Battery Temp, 12V Voltage, Service Days, Oil Service Days, Charging Power / Rate / Type, Last Trip Stats, Lifetime Trip Aggregates, Charging History, Plug State, Lights Count, Equipment Count, Software Version, API Quota Remaining, Connection State, Last Seen, Skoda Driving Score, Porsche TPMS 4 Corners, Last Alarm Timestamp, Heater Source dla ID.x, Oil Level Warning, ostrzeżenia pojazdu (sensor tekstowy ze wszystkimi ostrzeżeniami backendu).
-
-**Binary Sensors**: Doors Locked, Doors Open per drzwi, Windows Open per okno, Trunk / Hood / Sunroof, Plug Connected, Charging, OTA Update Available, 12V Low Warning, Lights On per światło, Vehicle Online, Departure-Timer 1-3 Enabled, Alarm Active + Siren Active, TPMS Warning.
-
-**Sterowanie**: Lock/Unlock, Climate Start/Stop, Charging Start/Stop, Window Heating, Cabin Ventilation (CUPRA/SEAT), Aux Heating (Webasto), Departure Timer 1-3 z Weekly-Preheat, Set Target SoC, Set Target Temp, Set Max Charge Current, Set Charge Mode, Honk-and-Flash, Wake Vehicle, Refresh, Find Charging Stations.
-
-**Image Platform**: 1-7 renderów pojazdu per VIN (Audi/VW przez GraphQL MediaService, CUPRA/SEAT przez OLA viewPoints, Skoda przez Widget + Multi-Angle Composites).
-
-**Device Tracker**: pozycja GPS jako TrackerEntity dla mapy HA Lovelace.
+- **Auta z rodziny MEB / ID są tylko do odczytu** (ID.3 / ID.4 / ID.5 / ID.7, Enyaq, Born, Q4 e-tron). Zdalne polecenia — zamykanie, klimatyzacja, ładowanie — **nie są dostępne** dla tych aut: trwała ścieżka poleceń Car-Net, której używamy, ich nie rozpoznaje (odpowiada „Unknown user"), a backend MEB Volkswagena nie udostępnia odpowiednika. Telemetrię nadal otrzymujesz przez portal EU Data Act — po prostu bez sterowania. Konfiguracja wykrywa to i tworzy **wpis tylko do odczytu** zamiast zgłaszać błąd, więc jest to ograniczenie znane, a nie ukryte.
+- **Zdalne polecenia CUPRA / SEAT są zablokowane przez VW.** Dostęp do usług online (OLA) dla tych marek został cofnięty po stronie serwera w 2026 roku (HTTP 403); ponowne logowanie ani aktualizacja wersji aplikacji tego nie przywrócą. Dane wciąż płyną przez portal EU Data Act. ([#464](https://github.com/its-me-prash/vwgroup-connect-ha/issues/464))
+- **Dane z portalu EU Data Act są skąpe i różnią się w zależności od auta.** VW publikuje dziś tylko część pól (często przebieg + zamki + ładowanie, czasem znacznie więcej). Z czasem zakres się poszerza, bo VW rozbudowuje portal przed terminem we wrześniu 2026 — pola, które dziś pokazują `unknown`, mogą same się wypełnić, bez żadnej zmiany. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465))
 
 ---
 
 ## Instalacja
 
-### Opcja 1: One-Click (zalecane)
+**Przez HACS (zalecane):**
 
-[![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=its-me-prash&repository=vwgroup-connect-ha&category=integration)
+1. Otwórz **HACS** w Home Assistant.
+2. Wyszukaj **„VW Group Connect"** i zainstaluj.
+3. Uruchom ponownie Home Assistant.
+4. Przejdź do **Ustawienia → Urządzenia i usługi → Dodaj integrację → VW Group Connect** i przejdź przez proces logowania.
 
-### Opcja 2: HACS Custom Repository
+<sup>Dopiero co dołączone do domyślnego HACS — jeśli jeszcze nie da się tego wyszukać, daj indeksowi HACS chwilę na odświeżenie albo w międzyczasie dodaj `its-me-prash/vwgroup-connect-ha` jako własne repozytorium.</sup>
 
-1. HACS → Integracje → ⋮ → Niestandardowe repozytoria
-2. URL: `https://github.com/its-me-prash/vwgroup-connect-ha`
-3. Kategoria: Integration
-4. Zainstaluj **VW Group Connect**
-5. Uruchom ponownie Home Assistant
-
-### Opcja 3: Ręcznie
-
-```bash
-cd /config/custom_components
-git clone https://github.com/its-me-prash/vwgroup-connect-ha.git
-mv vwgroup-connect-ha/custom_components/vag_connect .
-rm -rf vwgroup-connect-ha
-```
-
-Następnie uruchom ponownie HA.
+**Opcje logowania** (wybierz to, co obsługuje Twoje auto/marka):
+- **Przeglądarka / kod urządzenia (bez hasła)** — zaloguj się na telefonie lub laptopie, zatwierdź urządzenie; żadne hasło nie jest przechowywane. (Audi, Škoda, SEAT, CUPRA.)
+- **E-mail + hasło** — wymagane dla Volkswagena EU i Porsche.
+- **Portal EU Data Act** — awaryjny tryb tylko do odczytu dla wszystkich marek.
 
 ---
 
-## Konfiguracja
+## Co dostajesz
 
-Ustawienia → Urządzenia i usługi → Dodaj integrację → "VW Group Connect"
+- **Czujniki:** SoC baterii, zasięg (elektryczny / spalinowy / łączny), poziom paliwa, przebieg, temperatury, moc/szybkość/typ ładowania, cel ładowania, statystyki tras i sumy z całego okresu, interwały serwisu i wymiany oleju, wersja oprogramowania, stan połączenia, ostatnio widziano i więcej.
+- **Czujniki binarne:** zamknięte drzwi, otwarte drzwi/okna/bagażnik/maska/szyberdach, podłączona wtyczka, ładowanie, dostępna aktualizacja OTA, światła, pojazd online, programatory odjazdu, alarm.
+- **Sterowanie:** zamykanie/otwieranie, start/stop klimatyzacji, start/stop ładowania, ogrzewanie szyb, programatory odjazdu, ustawianie docelowego SoC / temperatury / maks. prądu ładowania, sygnał i mignięcie świateł, wybudzanie, odświeżanie, wyszukiwanie stacji ładowania *(dostępność zależy od marki i modelu)*.
+- **Lokalizator:** pozycja GPS na mapie Home Assistant.
+- **Obrazy:** wizualizacje pojazdu tam, gdzie marka je udostępnia.
 
-**Przy pierwszej konfiguracji wybierasz:**
-
-- **Logowanie przez przeglądarkę** (zalecane dla Audi/Škoda/SEAT/CUPRA): zeskanuj kod QR lub otwórz URL, hasło nie jest zapisywane w HA
-- **E-mail + hasło** (dla VW EU, Porsche, VW US/CA): klasycznie z danymi Brand-ID
-
-**Opcje** (dostępne po konfiguracji):
-- Interwał odpytywania (5-60 min, domyślnie 10 min)
-- Tryb read-only dla bezpiecznych automatyzacji bez przypadkowych komend
-- Reverse-geocoding opt-in (wysyła GPS do OpenStreetMap w celu rozwiązania adresu)
-- Push-Toggles (Skoda MQTT, CUPRA/SEAT FCM, Audi/VW FCM) jako fundament, aktywacja live w toku
+> 💡 **Panel energii:** czujnik naładowanej energii jest typu `total_increasing`, więc dodaj go bezpośrednio do **panelu energii** Home Assistant albo opakuj w pomocnika `utility_meter`, żeby uzyskać dzienne/miesięczne sumy naładowanej energii. Użyj do tego skumulowanego czujnika **naładowanej energii (kWh)** — nie czujników zużycia na 100 km (te podają średnie, a nie zliczają).
 
 ---
 
-## Przykłady Lovelace
+## Wesprzyj ten projekt ❤️
 
-### Map Card
-
-```yaml
-type: map
-title: Fuhrpark
-default_zoom: 12
-hours_to_show: 24
-entities:
-  - device_tracker.audi_a4_b9_position
-  - device_tracker.vw_golf_7_gte_position
-  - zone.home
-```
-
-### Picture-Entity Card z renderem pojazdu
-
-```yaml
-type: picture-entity
-entity: image.audi_a4_b9_render_side_lg
-camera_view: live
-show_state: false
-show_name: false
-```
-
-### Wyszukiwanie stacji ładowania
-
-```yaml
-action: vag_connect.find_charging_stations
-data:
-  vin: WAUZZZ...
-  latitude: 47.3769
-  longitude: 8.5417
-  radius_m: 5000
-  max_results: 25
-response_variable: result
-```
-
-Więcej przykładów w [`docs/FAQ.md`](docs/FAQ.md). Niestandardowe karty Lovelace integrują się automatycznie przez `extra_state_attributes.image_url`.
+To projekt jednej osoby — a VW nie ułatwia sprawy: każda zmiana backendu oznacza dni inżynierii wstecznej, żeby znów znaleźć działającą ścieżkę. To właśnie ta wytrwałość trzyma go przy życiu tam, gdzie uznane projekty już się poddały. Jeśli coś dla Ciebie znaczy, możesz wesprzeć dalsze utrzymanie przez **[GitHub Sponsors](https://github.com/sponsors/its-me-prash)**. Dziękuję! 🙏
 
 ---
 
-## Najczęstsze pytania
+## Współtworzenie
 
-| Pytanie | Odpowiedź |
-|---|---|
-| Kiedy moje auto jest budzone? | Tylko przy wywołaniach usług (Lock/Climate/Wake), nigdy przy odpytywaniu statusu. Smart-Wake-Cap: maks. 3 wybudzenia/dzień na auto, cooldown 5 min. |
-| Ile API-Quota? | MyCupra/MySeat: ~1500 wywołań/dzień. Przy odpytywaniu co 10 min: ~144 wywołań/dzień = 10% budżetu. Sensor `requests_remaining_today` pokazuje stan. |
-| Dlaczego przy VW EU muszę logować się ponownie co 2 h? | VW od 2026-05-27 umieścił endpoint tokenu za Google Play Integrity. Dotyczy to każdej integracji VAG opartej o Python. EU Data Act 2026-09-12 powinno to naprawić. |
-| Czy token przetrwa aktualizację HACS? | Tak, od v1.19.2 dzięki persystencji w HA Store. |
-| Jak zgłaszać błędy? | HA → Integracja → 🔧 Napraw → Bug-Report. Diagnostyka jest anonimizowana (VIN-y zamaskowane, GPS zaokrąglony, tokeny usunięte). |
-| Etykiety pól pokazują surowe klucze (`brand`, `spin`) po aktualizacji? | Twarde odświeżenie przeglądarki (Ctrl+Shift+R). HA cache'uje tłumaczenia po stronie klienta. |
-
-Pełne FAQ w [`docs/FAQ.md`](docs/FAQ.md). Rozwiązywanie problemów z dashboardami w [`docs/dashboards.md`](docs/dashboards.md).
-
----
-
-## Prywatność i bezpieczeństwo
-
-- Brak zewnętrznych usług, wszystko bezpośrednio między HA a API producenta
-- Token-Cache lokalnie w `.storage/` HA (per-config-entry, JSON, automatycznie usuwany przy usunięciu integracji)
-- Diagnostyka anonimizowana: VIN-y zamaskowane, GPS zaokrąglony do 1 miejsca po przecinku, tokeny i hasła całkowicie usunięte
-- Reverse-geocoding opt-in, domyślnie wyłączony
-- Maskowanie VIN konsekwentnie we wszystkich logach
-- URL-e z tokenami są redagowane w logu ERROR (v2.7.2+)
-
-Szczegóły w [`PRIVACY.md`](PRIVACY.md) i [`SECURITY.md`](SECURITY.md).
-
----
-
-## Support this project ❤️
-
-This integration is a one-person project — and VW doesn't make it easy: every backend change (most recently the attestation wall in May 2026) means days or weeks of reverse-engineering to find a working path again. That persistence is what keeps it alive where established projects have given up.
-
-If it's worth something to you, you can support me via **[GitHub Sponsors](https://github.com/sponsors/its-me-prash)**. Every contribution helps me stay on it — finding new channels, reacting fast to VW's changes, and keeping it working for everyone. Thank you! 🙏
-
-<p align="center">
-  <a href="https://github.com/sponsors/its-me-prash"><img src="https://img.shields.io/badge/Sponsor-%E2%9D%A4-ec6cb9?logo=github-sponsors&logoColor=white" alt="Sponsor"></a>
-</p>
-
----
-
-## Contributing
-
-PR-y mile widziane, patrz [`CONTRIBUTING.md`](CONTRIBUTING.md). Reguły stylu w [`STYLE.md`](STYLE.md) (prywatne w `_private/STYLE.md` dla maintainerów).
-
-**Vehicle Data Scout** (live od v1.9.0): gdy twoja integracja wykryje nieznane pola JSON, automatycznie tworzy powiadomienie HA Repair z gotowym linkiem do issue na GitHubie. Bug-Report jednym kliknięciem, bez studiowania kodu.
-
----
+PR-y mile widziane — zobacz [`CONTRIBUTING.md`](CONTRIBUTING.md). **Vehicle Data Scout** zamienia nieznane pola API w gotowe, wstępnie wypełnione zgłoszenie błędu jednym kliknięciem, więc możesz pomóc poprawić pokrycie bez czytania kodu.
 
 ## Licencja
 
-[Apache License 2.0](LICENSE) dla kodu integracji. [CC BY-NC-ND 4.0](LICENSE-RESEARCH) dla treści `docs/research/`. Atrybucje do upstreamowych projektów open-source w [`NOTICE.md`](NOTICE.md).
+[GNU AGPL v3.0-or-later](LICENSE) dla kodu integracji. Obowiązkowe warunki atrybucji oraz nazwy/znaku towarowego przy użyciu/forku: zobacz [`ATTRIBUTION.md`](ATTRIBUTION.md). Atrybucje open-source komponentów zewnętrznych w [`NOTICE.md`](NOTICE.md).

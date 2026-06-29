@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Tests for v1.14.0 — Audi Feature Pack Bundle.
 
 Four feature groups:
@@ -121,7 +121,7 @@ class TestGetTripStatisticsURL:
 
         client = VWEUClient.__new__(VWEUClient)
         client._get = AsyncMock(return_value={"tripDataList": {"tripData": []}})
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_trip_statistics("VINX", "longTerm")
         )
         client._get.assert_awaited_once_with(
@@ -150,14 +150,14 @@ class TestRefreshTripStatisticsBrandRestriction:
 
     def test_skoda_brand_skips_fetch(self):
         coord = self._coord(brand="skoda")
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.refresh_trip_statistics("VINX")
         )
         coord._cariad_client.get_trip_statistics.assert_not_called()
 
     def test_audi_brand_calls_both_endpoints(self):
         coord = self._coord(brand="audi")
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.refresh_trip_statistics("VINX")
         )
         # Two calls: shortTerm + longTerm
@@ -166,7 +166,7 @@ class TestRefreshTripStatisticsBrandRestriction:
     def test_capability_false_skips(self):
         coord = self._coord(brand="audi")
         coord.command_capability_supported = MagicMock(return_value=False)
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.refresh_trip_statistics("VINX")
         )
         coord._cariad_client.get_trip_statistics.assert_not_called()
@@ -176,7 +176,7 @@ class TestRefreshTripStatisticsBrandRestriction:
         coord._trip_stats_fetched_at = {
             "VINX": datetime.now(tz=timezone.utc) - timedelta(minutes=30)
         }
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.refresh_trip_statistics("VINX")
         )
         coord._cariad_client.get_trip_statistics.assert_not_called()
@@ -200,7 +200,7 @@ class TestAudiEngineStart:
 
     def test_engine_start_two_step_flow(self):
         client = self._client()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_engine_start("vinx")
         )
         # Step 1: PUT userpromptproof with S-PIN
@@ -217,7 +217,7 @@ class TestAudiEngineStart:
 
     def test_engine_start_uppercases_vin(self):
         client = self._client()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_engine_start("wvwzzz1jzcw000123")
         )
         url = client._request.await_args.args[1]
@@ -228,7 +228,7 @@ class TestAudiEngineStart:
 
         client = self._client(spin="")
         with pytest.raises(SpinError):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 client.command_engine_start("vinx")
             )
 
@@ -238,14 +238,14 @@ class TestAudiEngineStart:
         client = self._client()
         client._request = AsyncMock(return_value={})  # no userPromptProof
         with pytest.raises(SpinError):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 client.command_engine_start("vinx")
             )
 
     def test_engine_stop_no_body_no_spin(self):
         client = self._client(spin="")  # stop ignores S-PIN
         client._post = AsyncMock(return_value=None)
-        asyncio.get_event_loop().run_until_complete(client.command_engine_stop("vinx"))
+        asyncio.run(client.command_engine_stop("vinx"))
         client._post.assert_awaited_once_with(
             "https://emea.bff.cariad.digital/vehicle/v1/engine/VINX/stop"
         )
@@ -262,12 +262,13 @@ class TestPpcClimateBody:
     def _client(self):
         from custom_components.vag_connect.cariad.api.vw_eu import VWEUClient
         client = VWEUClient.__new__(VWEUClient)
+        client._tokens = None
         client._post_command_with_fallback_paths = AsyncMock(return_value=None)
         return client
 
     def test_legacy_body_includes_target_temperature(self):
         client = self._client()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_start_climate("VINX", ppe_mode=False)
         )
         kwargs = client._post_command_with_fallback_paths.await_args.kwargs
@@ -278,7 +279,7 @@ class TestPpcClimateBody:
 
     def test_ppe_body_omits_target_temperature_and_sets_mode(self):
         client = self._client()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_start_climate("VINX", ppe_mode=True)
         )
         kwargs = client._post_command_with_fallback_paths.await_args.kwargs
@@ -294,7 +295,7 @@ class TestPpcClimateBody:
     def test_default_is_legacy_body(self):
         """Backwards-compat: existing callers without ppe_mode get legacy."""
         client = self._client()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_start_climate("VINX")
         )
         fallback = client._post_command_with_fallback_paths.await_args.kwargs[

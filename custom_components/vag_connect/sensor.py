@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Sensor platform for VAG Connect.
 
 The VagSensorDescription.condition field gates sensor creation:
@@ -30,6 +30,7 @@ from homeassistant.const import (
     UnitOfSpeed,
     UnitOfTemperature,
     UnitOfTime,
+    UnitOfVolume,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -654,17 +655,11 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         suggested_display_precision=0,
     ),
     # v1.20.0 Bundle 2 Phase A (myskoda PR #557 widget + vehicle-info).
-    # Two diagnostic sensors enriching DeviceInfo for Skoda vehicles:
-    # license_plate (from widget per-tick) + equipment_count (from
-    # equipment endpoint, 24h cache). Both data-present-gated so non-
-    # Skoda brands don't get phantom entities.
-    VagSensorDescription(
-        key="license_plate",
-        translation_key="license_plate",
-        data_key="license_plate",
-        icon="mdi:card-text-outline",
-        entity_category=EntityCategory.DIAGNOSTIC,
-    ),
+    # equipment_count (from equipment endpoint, 24h cache) enriches DeviceInfo
+    # for Skoda vehicles; data-present-gated so non-Skoda brands don't get a
+    # phantom entity. (The license_plate description that was here duplicated the
+    # authoritative OLA def above on the same `key=` — HA's last-wins dict
+    # silently dropped one — so the duplicate is removed.)
     VagSensorDescription(
         key="equipment_count",
         translation_key="equipment_count",
@@ -708,7 +703,9 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         translation_key="last_charging_session_kwh",
         data_key="last_charging_session_kwh",
         native_unit_of_measurement="kWh",
-        device_class=SensorDeviceClass.ENERGY,
+        # b1 — HA 2026.6 rejects device_class=energy + state_class=measurement
+        # (energy needs total/total_increasing). These are per-session/trip delta
+        # measurements, not cumulative counters → drop device_class, keep kWh.
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:battery-charging",
         suggested_display_precision=2,
@@ -805,16 +802,10 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
     # Two thin OLA endpoints surface battery-care mode + target SoC.
     # Skoda has equivalent under different paths (covered v1.15.0 cap-id
     # work). Brand-restricted via _DATA_PRESENT_REQUIRED gating below.
-    VagSensorDescription(
-        key="battery_care_target_soc_pct",
-        translation_key="battery_care_target_soc_pct",
-        data_key="battery_care_target_soc_pct",
-        native_unit_of_measurement=PERCENTAGE,
-        state_class=SensorStateClass.MEASUREMENT,
-        icon="mdi:battery-heart",
-        suggested_display_precision=0,
-        condition="electric",
-    ),
+    # NOTE: the battery_care_target_soc_pct description lives further down as
+    # the DIAGNOSTIC mirror (v2.10.0); the duplicate that was here collided on
+    # the same `key=` and was silently dropped by HA's last-wins dict, so it is
+    # removed (one authoritative def, no behaviour change).
     # v2.0.0 (Big-Bang) — Skoda driving-score (efficiency metric 0-100).
     # mysmob ``GET /api/v2/vehicle-status/{vin}/driving-score`` (MY24+).
     # Brand-restricted via _DATA_PRESENT_REQUIRED — non-Skoda vehicles
@@ -963,6 +954,48 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:speedometer",
         suggested_display_precision=0,
     ),
+    # b10 — EU Data Act portal long-tail trip/maintenance sensors.
+    VagSensorDescription(
+        key="lifetime_avg_speed_kmh",
+        translation_key="lifetime_avg_speed_kmh",
+        data_key="lifetime_avg_speed_kmh",
+        native_unit_of_measurement=UnitOfSpeed.KILOMETERS_PER_HOUR,
+        device_class=SensorDeviceClass.SPEED,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:speedometer-medium",
+        suggested_display_precision=0,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="lifetime_travel_time_min",
+        translation_key="lifetime_travel_time_min",
+        data_key="lifetime_travel_time_min",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        device_class=SensorDeviceClass.DURATION,
+        icon="mdi:timer-outline",
+        suggested_display_precision=0,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="monthly_mileage_km",
+        translation_key="monthly_mileage_km",
+        data_key="monthly_mileage_km",
+        native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:road-variant",
+        suggested_display_precision=0,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="remaining_charge_time_min",
+        translation_key="remaining_charge_time_min",
+        data_key="remaining_charge_time_min",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-clock",
+    ),
     VagSensorDescription(
         key="last_trip_avg_fuel_consumption_l_100km",
         translation_key="last_trip_avg_fuel_consumption_l_100km",
@@ -991,6 +1024,33 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:radar",
         entity_category=EntityCategory.DIAGNOSTIC,
         state_class=SensorStateClass.MEASUREMENT,
+    ),
+    # b1/A6 — raw field discovery. ONE diagnostic sensor (disabled by default)
+    # whose state is the count of portal fields the curated parser did not map;
+    # the full {field: value} set lives in attributes. Same detection as the
+    # Scout report — the user gets every value the backend sent without waiting
+    # for a curated mapping, and without an entity per field. Gated on data
+    # present so only vehicles that actually have unmapped fields get it.
+    VagSensorDescription(
+        key="raw_api_fields",
+        translation_key="raw_api_fields",
+        data_key="raw_unmapped_fields",
+        icon="mdi:code-json",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+    ),
+    # b1/C1 — data provenance. Shows which channel(s) produced the snapshot
+    # (e.g. "eu_data_act+mbb") once the multi-channel merge runs. Gated on
+    # data-present so single-channel entries (source_channel=None) never get a
+    # phantom; only a merged poll spawns it.
+    VagSensorDescription(
+        key="data_source_channel",
+        translation_key="data_source_channel",
+        data_key="source_channel",
+        icon="mdi:transit-connection-variant",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
     ),
     VagSensorDescription(
         key="error_reporter_count",
@@ -1370,7 +1430,8 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         translation_key="refuel_trip_recuperation_kwh",
         data_key="refuel_trip_recuperation_kwh",
         native_unit_of_measurement="kWh",
-        device_class=SensorDeviceClass.ENERGY,
+        # b1 — HA 2026.6: energy device_class needs total/total_increasing, not
+        # measurement. Per-trip delta → drop device_class, keep kWh.
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:battery-arrow-up-outline",
         suggested_display_precision=2,
@@ -1564,7 +1625,8 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         translation_key="last_trip_total_electric_consumption_kwh",
         data_key="last_trip_total_electric_consumption_kwh",
         native_unit_of_measurement="kWh",
-        device_class=SensorDeviceClass.ENERGY,
+        # b1 — HA 2026.6: energy device_class needs total/total_increasing, not
+        # measurement. Per-trip delta → drop device_class, keep kWh.
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:lightning-bolt",
         suggested_display_precision=2,
@@ -1618,6 +1680,1025 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:thermometer-water",
         suggested_display_precision=1,
     ),
+
+    # ── v2.15.1 — EU Data Act + BFF wire-key mapping (2.15.0 plan) ──────────
+    # EU Data Act dialect sensors.
+    VagSensorDescription(
+        key="charging_scenario",
+        translation_key="charging_scenario",
+        data_key="charging_scenario",
+        icon="mdi:ev-station",
+        condition="electric",
+    ),
+    VagSensorDescription(
+        key="immediate_charge_action_state",
+        translation_key="immediate_charge_action_state",
+        data_key="immediate_charge_action_state",
+        icon="mdi:flash-alert",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="profile_charge_reason",
+        translation_key="profile_charge_reason",
+        data_key="profile_charge_reason",
+        icon="mdi:help-rhombus-outline",
+        condition="electric",
+    ),
+    VagSensorDescription(
+        key="charge_session_energy_kwh",
+        translation_key="charge_session_energy_kwh",
+        data_key="charge_session_energy_kwh",
+        native_unit_of_measurement="kWh",
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon="mdi:battery-charging",
+        suggested_display_precision=2,
+        condition="electric",
+    ),
+    VagSensorDescription(
+        key="remaining_charge_time_bulk_min",
+        translation_key="remaining_charge_time_bulk_min",
+        data_key="remaining_charge_time_bulk_min",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:clock-fast",
+        condition="electric",
+    ),
+    VagSensorDescription(
+        key="odometer_state",
+        translation_key="odometer_state",
+        data_key="odometer_state",
+        icon="mdi:counter",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="instrument_cluster_time",
+        translation_key="instrument_cluster_time",
+        data_key="instrument_cluster_time",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="data_error_detail",
+        translation_key="data_error_detail",
+        data_key="data_error_detail",
+        icon="mdi:alert-circle-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # v2.15.2 — EU Data Act portal "charger detail" fields (#513 Scout).
+    VagSensorDescription(
+        key="external_power_supply_state",
+        translation_key="external_power_supply_state",
+        data_key="external_power_supply_state",
+        icon="mdi:power-plug-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_reason",
+        translation_key="charging_reason",
+        data_key="charging_reason",
+        icon="mdi:help-rhombus-outline",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charging_error_code",
+        translation_key="charging_error_code",
+        data_key="charging_error_code",
+        icon="mdi:alert-circle-outline",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="remaining_time_target_soc",
+        translation_key="remaining_time_target_soc",
+        data_key="remaining_time_target_soc",
+        icon="mdi:battery-clock",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # Charge-port LED colour/pattern — disabled-by-default (niche diagnostic).
+    VagSensorDescription(
+        key="charge_led_color",
+        translation_key="charge_led_color",
+        data_key="charge_led_color",
+        icon="mdi:led-on",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="charge_led_pattern",
+        translation_key="charge_led_pattern",
+        data_key="charge_led_pattern",
+        icon="mdi:led-variant-on",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="last_report_id",
+        translation_key="last_report_id",
+        data_key="last_report_id",
+        icon="mdi:identifier",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="climate_energy_consumption_kwh",
+        translation_key="climate_energy_consumption_kwh",
+        data_key="climate_energy_consumption_kwh",
+        native_unit_of_measurement="kWh",
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon="mdi:air-conditioner",
+        suggested_display_precision=2,
+    ),
+    VagSensorDescription(
+        key="residual_energy_consumption_kwh",
+        translation_key="residual_energy_consumption_kwh",
+        data_key="residual_energy_consumption_kwh",
+        native_unit_of_measurement="kWh",
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon="mdi:car-electric",
+        suggested_display_precision=2,
+    ),
+    VagSensorDescription(
+        key="last_trip_avg_recuperation_kwh_100km",
+        translation_key="last_trip_avg_recuperation_kwh_100km",
+        data_key="last_trip_avg_recuperation_kwh_100km",
+        native_unit_of_measurement="kWh/100 km",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-plus-variant",
+        suggested_display_precision=1,
+        condition="electric",
+    ),
+    VagSensorDescription(
+        key="lifetime_avg_recuperation_kwh_100km",
+        translation_key="lifetime_avg_recuperation_kwh_100km",
+        data_key="lifetime_avg_recuperation_kwh_100km",
+        native_unit_of_measurement="kWh/100 km",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-plus-variant",
+        suggested_display_precision=1,
+        condition="electric",
+    ),
+    # LOW confidence — disabled-by-default, Scout/diagnostic only.
+    VagSensorDescription(
+        key="dataset_key",
+        translation_key="dataset_key",
+        data_key="dataset_key",
+        icon="mdi:key",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+
+    # ── v2.15.3 — EU Data Act portal new fields (#465/#514/#515/#516) ────────
+    # A. Charging settings.
+    VagSensorDescription(
+        key="charge_mode_selection",
+        translation_key="charge_mode_selection",
+        data_key="charge_mode_selection",
+        icon="mdi:ev-station",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="max_charge_current_ac",
+        translation_key="max_charge_current_ac",
+        data_key="max_charge_current_ac",
+        icon="mdi:current-ac",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="auto_unlock_charge_port",
+        translation_key="auto_unlock_charge_port",
+        data_key="auto_unlock_charge_port",
+        icon="mdi:lock-open-variant-outline",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="charge_bulk_threshold_pct",
+        translation_key="charge_bulk_threshold_pct",
+        data_key="charge_bulk_threshold_pct",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-70",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # LOW — companion unit for the charge rate. Disabled-by-default.
+    VagSensorDescription(
+        key="charge_rate_unit",
+        translation_key="charge_rate_unit",
+        data_key="charge_rate_unit",
+        icon="mdi:speedometer",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # C. Trip odometer endpoints.
+    VagSensorDescription(
+        key="lifetime_trip_distance_km",
+        translation_key="lifetime_trip_distance_km",
+        data_key="lifetime_trip_distance_km",
+        native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon="mdi:map-marker-distance",
+        suggested_display_precision=0,
+    ),
+    # LOW — odometer at window start. Disabled-by-default.
+    VagSensorDescription(
+        key="lifetime_trip_start_odometer_km",
+        translation_key="lifetime_trip_start_odometer_km",
+        data_key="lifetime_trip_start_odometer_km",
+        native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        icon="mdi:counter",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        suggested_display_precision=0,
+    ),
+    VagSensorDescription(
+        key="last_trip_start_odometer_km",
+        translation_key="last_trip_start_odometer_km",
+        data_key="last_trip_start_odometer_km",
+        native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        icon="mdi:counter",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        suggested_display_precision=0,
+    ),
+    # D. Fuel / fluids.
+    VagSensorDescription(
+        key="oil_level_liters",
+        translation_key="oil_level_liters",
+        data_key="oil_level_liters",
+        native_unit_of_measurement=UnitOfVolume.LITERS,
+        device_class=SensorDeviceClass.VOLUME_STORAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:oil",
+        condition="combustion",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+    ),
+    # LOW — failure-overwrite oil level. Disabled-by-default.
+    VagSensorDescription(
+        key="oil_level_additional_pct",
+        translation_key="oil_level_additional_pct",
+        data_key="oil_level_additional_pct",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:oil",
+        condition="combustion",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        suggested_display_precision=0,
+    ),
+    # E. Tyre pressure DELTA vs target — LOW, unit-ambiguous, disabled-by-default.
+    VagSensorDescription(
+        key="tyre_pressure_diff_fl",
+        translation_key="tyre_pressure_diff_fl",
+        data_key="tyre_pressure_diff_fl",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tyre_pressure_diff_fr",
+        translation_key="tyre_pressure_diff_fr",
+        data_key="tyre_pressure_diff_fr",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tyre_pressure_diff_rl",
+        translation_key="tyre_pressure_diff_rl",
+        data_key="tyre_pressure_diff_rl",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tyre_pressure_diff_rr",
+        translation_key="tyre_pressure_diff_rr",
+        data_key="tyre_pressure_diff_rr",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tyre_pressure_diff_spare",
+        translation_key="tyre_pressure_diff_spare",
+        data_key="tyre_pressure_diff_spare",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # E'. Tyre ACTUAL per-wheel pressure (#528) — dict unit ambiguous
+    # ("10kPA / Bar / PSI/ kPA") → unitless diagnostic. LOW — disabled-by-default.
+    VagSensorDescription(
+        key="tyre_pressure_actual_fl",
+        translation_key="tyre_pressure_actual_fl",
+        data_key="tyre_pressure_actual_fl",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tyre_pressure_actual_fr",
+        translation_key="tyre_pressure_actual_fr",
+        data_key="tyre_pressure_actual_fr",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # E'' (#538) — rear + spare ACTUAL, and the REQUIRED/target family. Same
+    # ambiguous unit → unitless diagnostic, disabled-by-default.
+    VagSensorDescription(
+        key="tyre_pressure_actual_rl",
+        translation_key="tyre_pressure_actual_rl",
+        data_key="tyre_pressure_actual_rl",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tyre_pressure_actual_rr",
+        translation_key="tyre_pressure_actual_rr",
+        data_key="tyre_pressure_actual_rr",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tyre_pressure_actual_spare",
+        translation_key="tyre_pressure_actual_spare",
+        data_key="tyre_pressure_actual_spare",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tyre_pressure_required_fl",
+        translation_key="tyre_pressure_required_fl",
+        data_key="tyre_pressure_required_fl",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tyre_pressure_required_fr",
+        translation_key="tyre_pressure_required_fr",
+        data_key="tyre_pressure_required_fr",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tyre_pressure_required_rl",
+        translation_key="tyre_pressure_required_rl",
+        data_key="tyre_pressure_required_rl",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tyre_pressure_required_rr",
+        translation_key="tyre_pressure_required_rr",
+        data_key="tyre_pressure_required_rr",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tyre_pressure_required_spare",
+        translation_key="tyre_pressure_required_spare",
+        data_key="tyre_pressure_required_spare",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # F. Lights / energy / misc.
+    VagSensorDescription(
+        key="parking_lights_state",
+        translation_key="parking_lights_state",
+        data_key="parking_lights_state",
+        icon="mdi:car-parking-lights",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="aux_battery_energy_pct",
+        translation_key="aux_battery_energy_pct",
+        data_key="aux_battery_energy_pct",
+        native_unit_of_measurement=PERCENTAGE,
+        device_class=SensorDeviceClass.BATTERY,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:car-battery",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # LOW — raw warning bitmask, no verified decode. Disabled-by-default.
+    VagSensorDescription(
+        key="dashboard_warnings_raw",
+        translation_key="dashboard_warnings_raw",
+        data_key="dashboard_warnings_raw",
+        icon="mdi:alert-circle-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="climate_error_code",
+        translation_key="climate_error_code",
+        data_key="climate_error_code",
+        icon="mdi:alert-circle-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="window_heating_error_code",
+        translation_key="window_heating_error_code",
+        data_key="window_heating_error_code",
+        icon="mdi:alert-circle-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+
+    # G. v2.15.3 (#517) — consumption / range aggregates (EU-Data-Act dialect).
+    VagSensorDescription(
+        key="last_trip_avg_aux_consumption_kwh_100km",
+        translation_key="last_trip_avg_aux_consumption_kwh_100km",
+        data_key="last_trip_avg_aux_consumption_kwh_100km",
+        native_unit_of_measurement="kWh/100 km",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:fan",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+    ),
+    VagSensorDescription(
+        key="lifetime_avg_aux_consumption_kwh_100km",
+        translation_key="lifetime_avg_aux_consumption_kwh_100km",
+        data_key="lifetime_avg_aux_consumption_kwh_100km",
+        native_unit_of_measurement="kWh/100 km",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:fan",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+    ),
+    VagSensorDescription(
+        key="lifetime_avg_gas_consumption_kg_100km",
+        translation_key="lifetime_avg_gas_consumption_kg_100km",
+        data_key="lifetime_avg_gas_consumption_kg_100km",
+        native_unit_of_measurement="kg/100 km",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:gas-cylinder",
+        condition="combustion",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+    ),
+    VagSensorDescription(
+        key="lifetime_range_gain_km",
+        translation_key="lifetime_range_gain_km",
+        data_key="lifetime_range_gain_km",
+        native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon="mdi:map-marker-distance",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+    ),
+    VagSensorDescription(
+        key="lifetime_zero_emission_km",
+        translation_key="lifetime_zero_emission_km",
+        data_key="lifetime_zero_emission_km",
+        native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon="mdi:leaf",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+    ),
+    # Short-term (last-trip) counterparts of the gas/range-gain/zero-emission
+    # lifetime aggregates above. Same units; per-trip values reset each drive so
+    # MEASUREMENT (not TOTAL_INCREASING). Diagnostic, disabled-by-default.
+    VagSensorDescription(
+        key="last_trip_avg_gas_consumption_kg_100km",
+        translation_key="last_trip_avg_gas_consumption_kg_100km",
+        data_key="last_trip_avg_gas_consumption_kg_100km",
+        native_unit_of_measurement="kg/100 km",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:gas-cylinder",
+        condition="combustion",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="last_trip_range_gain_km",
+        translation_key="last_trip_range_gain_km",
+        data_key="last_trip_range_gain_km",
+        native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:map-marker-distance",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="last_trip_zero_emission_km",
+        translation_key="last_trip_zero_emission_km",
+        data_key="last_trip_zero_emission_km",
+        native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:leaf",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+        entity_registry_enabled_default=False,
+    ),
+    # LOW — last battery-charger update trigger. Disabled-by-default.
+    VagSensorDescription(
+        key="charger_update_trigger",
+        translation_key="charger_update_trigger",
+        data_key="charger_update_trigger",
+        icon="mdi:update",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+
+    # v2.15.3 (#518) — EU-Data-Act charging-detail string family. All LOW,
+    # diagnostic, disabled-by-default. Data-present gated (see
+    # _DATA_PRESENT_REQUIRED) so single-port cars never get a plug2 entity and
+    # cars on other channels never get a phantom "unknown" entity.
+    VagSensorDescription(
+        key="active_target_soc",
+        translation_key="active_target_soc",
+        data_key="active_target_soc",
+        icon="mdi:battery-charging-90",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="charge_time_display",
+        translation_key="charge_time_display",
+        data_key="charge_time_display",
+        icon="mdi:timer-sand",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="charging_plug1_flap_lock_state",
+        translation_key="charging_plug1_flap_lock_state",
+        data_key="charging_plug1_flap_lock_state",
+        icon="mdi:lock",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="charging_plug1_flap_state",
+        translation_key="charging_plug1_flap_state",
+        data_key="charging_plug1_flap_state",
+        icon="mdi:ev-plug-type2",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="charging_plug1_infrastructure_state",
+        translation_key="charging_plug1_infrastructure_state",
+        data_key="charging_plug1_infrastructure_state",
+        icon="mdi:ev-station",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="charging_plug1_lock_state",
+        translation_key="charging_plug1_lock_state",
+        data_key="charging_plug1_lock_state",
+        icon="mdi:lock",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="charging_plug2_connectionstate",
+        translation_key="charging_plug2_connectionstate",
+        data_key="charging_plug2_connectionstate",
+        icon="mdi:power-plug",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="charging_plug2_flap_lock_state",
+        translation_key="charging_plug2_flap_lock_state",
+        data_key="charging_plug2_flap_lock_state",
+        icon="mdi:lock",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="charging_plug2_flap_state",
+        translation_key="charging_plug2_flap_state",
+        data_key="charging_plug2_flap_state",
+        icon="mdi:ev-plug-type2",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="charging_plug2_infrastructure_state",
+        translation_key="charging_plug2_infrastructure_state",
+        data_key="charging_plug2_infrastructure_state",
+        icon="mdi:ev-station",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="charging_plug2_lock_state",
+        translation_key="charging_plug2_lock_state",
+        data_key="charging_plug2_lock_state",
+        icon="mdi:lock",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+
+    # v2.15.3 — deferred parsed-but-unsurfaced energy-content fields. Both are
+    # parsed from energy_contents.{current,maximal}_energy_content (EU Data Act)
+    # and batteryCapacityNetto (BFF) but had no entity until now. Diagnostic.
+    VagSensorDescription(
+        key="battery_available_kwh",
+        translation_key="battery_available_kwh",
+        data_key="battery_available_kwh",
+        native_unit_of_measurement="kWh",
+        device_class=SensorDeviceClass.ENERGY_STORAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-charging-medium",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+    ),
+    VagSensorDescription(
+        key="battery_cap_kwh",
+        translation_key="battery_cap_kwh",
+        data_key="battery_cap_kwh",
+        native_unit_of_measurement="kWh",
+        device_class=SensorDeviceClass.ENERGY_STORAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-high",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
+    ),
+
+    # v2.15.3 — Skoda trip-cost breakdown (parsed in skoda.py, previously
+    # unsurfaced). Currency is dynamic (per account) so it lives in
+    # extra_state_attributes ("currency"), not a fixed native unit. Diagnostic.
+    # device_class is intentionally NOT MONETARY: that class mandates a fixed
+    # currency native unit, but the currency is per-account-dynamic. We keep the
+    # value unitless and expose the ISO currency code via extra_state_attributes.
+    VagSensorDescription(
+        key="trip_total_cost",
+        translation_key="trip_total_cost",
+        data_key="trip_total_cost",
+        state_class=SensorStateClass.TOTAL,
+        icon="mdi:cash-multiple",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=2,
+    ),
+    VagSensorDescription(
+        key="trip_fuel_cost",
+        translation_key="trip_fuel_cost",
+        data_key="trip_fuel_cost",
+        state_class=SensorStateClass.TOTAL,
+        icon="mdi:gas-station",
+        condition="combustion",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=2,
+    ),
+    VagSensorDescription(
+        key="trip_electricity_cost",
+        translation_key="trip_electricity_cost",
+        data_key="trip_electricity_cost",
+        state_class=SensorStateClass.TOTAL,
+        icon="mdi:transmission-tower",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=2,
+    ),
+    VagSensorDescription(
+        key="trip_cng_cost",
+        translation_key="trip_cng_cost",
+        data_key="trip_cng_cost",
+        state_class=SensorStateClass.TOTAL,
+        icon="mdi:gas-cylinder",
+        condition="combustion",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=2,
+    ),
+
+    # v2.15.3 — engine oil level percentage gauge (BFF oilLevel + EU Data Act
+    # oil_level_actual_level both write oil_level_pct). Combustion-gated.
+    VagSensorDescription(
+        key="oil_level_pct",
+        translation_key="oil_level_pct",
+        data_key="oil_level_pct",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:oil-level",
+        condition="combustion",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+
+    # BFF / selectivestatus dialect sensors.
+    # Per-corner tire STATE — diagnostic, disabled-by-default.
+    VagSensorDescription(
+        key="tire_pressure_fl_state",
+        translation_key="tire_pressure_fl_state",
+        data_key="tire_pressure_fl_state",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tire_pressure_fr_state",
+        translation_key="tire_pressure_fr_state",
+        data_key="tire_pressure_fr_state",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tire_pressure_rl_state",
+        translation_key="tire_pressure_rl_state",
+        data_key="tire_pressure_rl_state",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tire_pressure_rr_state",
+        translation_key="tire_pressure_rr_state",
+        data_key="tire_pressure_rr_state",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # Per-corner tire ERROR CODE — diagnostic, disabled-by-default.
+    VagSensorDescription(
+        key="tire_pressure_fl_errorcode",
+        translation_key="tire_pressure_fl_errorcode",
+        data_key="tire_pressure_fl_errorcode",
+        icon="mdi:alert-rhombus-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tire_pressure_fr_errorcode",
+        translation_key="tire_pressure_fr_errorcode",
+        data_key="tire_pressure_fr_errorcode",
+        icon="mdi:alert-rhombus-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tire_pressure_rl_errorcode",
+        translation_key="tire_pressure_rl_errorcode",
+        data_key="tire_pressure_rl_errorcode",
+        icon="mdi:alert-rhombus-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="tire_pressure_rr_errorcode",
+        translation_key="tire_pressure_rr_errorcode",
+        data_key="tire_pressure_rr_errorcode",
+        icon="mdi:alert-rhombus-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="lpg_range_km",
+        translation_key="lpg_range_km",
+        data_key="lpg_range_km",
+        native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:gas-cylinder",
+        condition="combustion",
+        suggested_display_precision=0,
+    ),
+    VagSensorDescription(
+        key="engine_status",
+        translation_key="engine_status",
+        data_key="engine_status",
+        icon="mdi:engine",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # LOW confidence — unit ambiguous, disabled-by-default.
+    VagSensorDescription(
+        key="trip_avg_aux_consumption_kwh",
+        translation_key="trip_avg_aux_consumption_kwh",
+        data_key="trip_avg_aux_consumption_kwh",
+        native_unit_of_measurement="kWh",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:flash-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        suggested_display_precision=2,
+    ),
+    # LOW confidence — disabled-by-default. ENERGY device_class is invalid
+    # with state_class=measurement on HA 2026.6+, so device_class is dropped
+    # (same pattern as last_charging_session_kwh) while keeping the kWh unit.
+    VagSensorDescription(
+        key="departure_charge_kwh",
+        translation_key="departure_charge_kwh",
+        data_key="departure_charge_kwh",
+        native_unit_of_measurement="kWh",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-clock",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        suggested_display_precision=2,
+    ),
+
+    # v2.15.4 — EU Data Act portal new fields (#521/#522 Scout). EU-Data-Act
+    # dialect only; brand/firmware-restricted at the parser level so vehicles/
+    # channels without the field stay None → no phantom diagnostic entity.
+    VagSensorDescription(
+        key="next_charge_timer_start_at",
+        translation_key="next_charge_timer_start_at",
+        data_key="next_charge_timer_start_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:clock-start",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="next_charge_timer_finish_at",
+        translation_key="next_charge_timer_finish_at",
+        data_key="next_charge_timer_finish_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:clock-end",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="next_charge_target_reachability",
+        translation_key="next_charge_target_reachability",
+        data_key="next_charge_target_reachability",
+        icon="mdi:target",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # v2.15.4 (#537 Scout) — which timer slot (1-15) is the next charging timer.
+    # Bare slot index, low user value → diagnostic NUMBER, disabled-by-default.
+    VagSensorDescription(
+        key="next_charge_timer_number",
+        translation_key="next_charge_timer_number",
+        data_key="next_charge_timer_number",
+        icon="mdi:counter",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # Slope consumption — LOW, unit unconfirmed (dict null), disabled-by-default.
+    VagSensorDescription(
+        key="ascent_slope_consumption",
+        translation_key="ascent_slope_consumption",
+        data_key="ascent_slope_consumption",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:slope-uphill",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        suggested_display_precision=2,
+    ),
+    VagSensorDescription(
+        key="descent_slope_consumption",
+        translation_key="descent_slope_consumption",
+        data_key="descent_slope_consumption",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:slope-downhill",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        suggested_display_precision=2,
+    ),
+    # report_type — metadata, not telemetry. LOW — disabled-by-default.
+    VagSensorDescription(
+        key="report_type",
+        translation_key="report_type",
+        data_key="report_type",
+        icon="mdi:file-document-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # result_app / result_master — delivery/sync result status enums.
+    # Metadata, not telemetry. LOW — disabled-by-default.
+    VagSensorDescription(
+        key="result_app",
+        translation_key="result_app",
+        data_key="result_app",
+        icon="mdi:check-network-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="result_master",
+        translation_key="result_master",
+        data_key="result_master",
+        icon="mdi:check-network-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # v2.15.5 — update_reason: report-trigger reason enum. Metadata, not
+    # telemetry. LOW — disabled-by-default.
+    VagSensorDescription(
+        key="update_reason",
+        translation_key="update_reason",
+        data_key="update_reason",
+        icon="mdi:message-alert-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # ── v2.15.4 (#523) — EU Data Act portal new fields ──────────────────────
+    # start_stop_action — charging-related action string. LOW —
+    # disabled-by-default.
+    VagSensorDescription(
+        key="start_stop_action",
+        translation_key="start_stop_action",
+        data_key="start_stop_action",
+        icon="mdi:play-pause",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # start_stop_modification — start/stop modification detail string. LOW —
+    # disabled-by-default.
+    VagSensorDescription(
+        key="start_stop_modification",
+        translation_key="start_stop_modification",
+        data_key="start_stop_modification",
+        icon="mdi:play-pause",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # ── v2.15.5 (#541) — V2G / bidirectional-charging charge-level limits ────
+    # Upper / lower charge-level limit (percent) the car may bidi-charge within.
+    # LOW — diagnostic, disabled-by-default. NO 'SoC' token in the NAME.
+    VagSensorDescription(
+        key="bidi_max_charge_level_pct",
+        translation_key="bidi_max_charge_level_pct",
+        data_key="bidi_max_charge_level_pct",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-charging-high",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="bidi_min_charge_level_pct",
+        translation_key="bidi_min_charge_level_pct",
+        data_key="bidi_min_charge_level_pct",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-charging-low",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # ── v2.15.5 (#544) — sunroof motor hood 1 POSITION (%; 0=closed). Distinct
+    # from the sunroof_open STATE. LOW — diagnostic, disabled-by-default.
+    VagSensorDescription(
+        key="sunroof_position_pct",
+        translation_key="sunroof_position_pct",
+        data_key="sunroof_position_pct",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:window-shutter-open",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
 )
 
 # Sensor keys that read from coordinator helpers instead of the per-vehicle
@@ -1635,6 +2716,12 @@ _REPORTER_KEYS: frozenset[str] = frozenset({
 # legitimately start as None and populate later, so they should NOT be
 # gated this way.
 _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
+    # b1/A6 — raw-discovery sensor only spawns when the portal actually
+    # delivered unmapped fields (empty dict on every other brand/channel).
+    "raw_api_fields",
+    # b1/C1 — provenance sensor only spawns when a multi-channel merge set
+    # source_channel (None on single-channel entries).
+    "data_source_channel",
     "electric_range_km",
     "combustion_range_km",
     "total_range_km",
@@ -1821,6 +2908,140 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "last_notification_severity",
     "engine_oil_temperature_c",
     "engine_coolant_temperature_c",
+    # v2.15.1 — EU Data Act + BFF wire-key mapping (2.15.0 plan). Every new
+    # sensor is brand/firmware-restricted at the parser level (EU Data Act
+    # portal and/or CARIAD-BFF selectivestatus). Vehicles/channels without the
+    # underlying field stay None so no phantom diagnostic entity surfaces.
+    "charging_scenario",
+    "immediate_charge_action_state",
+    "profile_charge_reason",
+    "charge_session_energy_kwh",
+    "remaining_charge_time_bulk_min",
+    "odometer_state",
+    "instrument_cluster_time",
+    "data_error_detail",
+    # v2.15.2 — EU Data Act portal "charger detail" fields (#513 Scout).
+    "external_power_supply_state",
+    "charging_reason",
+    "charging_error_code",
+    "remaining_time_target_soc",
+    "charge_led_color",
+    "charge_led_pattern",
+    "last_report_id",
+    "climate_energy_consumption_kwh",
+    "residual_energy_consumption_kwh",
+    "last_trip_avg_recuperation_kwh_100km",
+    "lifetime_avg_recuperation_kwh_100km",
+    "dataset_key",
+    "tire_pressure_fl_state",
+    "tire_pressure_fr_state",
+    "tire_pressure_rl_state",
+    "tire_pressure_rr_state",
+    "tire_pressure_fl_errorcode",
+    "tire_pressure_fr_errorcode",
+    "tire_pressure_rl_errorcode",
+    "tire_pressure_rr_errorcode",
+    "lpg_range_km",
+    "engine_status",
+    "trip_avg_aux_consumption_kwh",
+    "departure_charge_kwh",
+    # v2.15.3 — EU Data Act portal new fields (#465/#514/#515/#516). EU-Data-Act
+    # dialect only; vehicles/channels without the field stay None → no phantom.
+    "charge_mode_selection",
+    "max_charge_current_ac",
+    "auto_unlock_charge_port",
+    "charge_bulk_threshold_pct",
+    "charge_rate_unit",
+    "lifetime_trip_distance_km",
+    "lifetime_trip_start_odometer_km",
+    "last_trip_start_odometer_km",
+    "oil_level_liters",
+    "oil_level_additional_pct",
+    "tyre_pressure_diff_fl",
+    "tyre_pressure_diff_fr",
+    "tyre_pressure_diff_rl",
+    "tyre_pressure_diff_rr",
+    "tyre_pressure_diff_spare",
+    "parking_lights_state",
+    "aux_battery_energy_pct",
+    "dashboard_warnings_raw",
+    "climate_error_code",
+    "window_heating_error_code",
+    # v2.15.3 (#517) — consumption / range aggregates (EU-Data-Act dialect) +
+    # deferred energy-content + Skoda trip-cost + oil-level-pct. All
+    # brand/firmware-restricted at the parser level → None on cars/channels
+    # without the field, so no phantom diagnostic entity surfaces.
+    "last_trip_avg_aux_consumption_kwh_100km",
+    "lifetime_avg_aux_consumption_kwh_100km",
+    "lifetime_avg_gas_consumption_kg_100km",
+    "last_trip_avg_gas_consumption_kg_100km",
+    "lifetime_range_gain_km",
+    "last_trip_range_gain_km",
+    "lifetime_zero_emission_km",
+    "last_trip_zero_emission_km",
+    "charger_update_trigger",
+    # v2.15.3 (#518) — EU-Data-Act charging-detail string family. Junk
+    # sentinels dropped to None at the parser → single-port cars never get a
+    # plug2 entity; non-EU-Data-Act channels never ship the keys → no phantom.
+    "active_target_soc",
+    "charge_time_display",
+    "charging_plug1_flap_lock_state",
+    "charging_plug1_flap_state",
+    "charging_plug1_infrastructure_state",
+    "charging_plug1_lock_state",
+    "charging_plug2_connectionstate",
+    "charging_plug2_flap_lock_state",
+    "charging_plug2_flap_state",
+    "charging_plug2_infrastructure_state",
+    "charging_plug2_lock_state",
+    "battery_available_kwh",
+    "battery_cap_kwh",
+    "trip_total_cost",
+    "trip_fuel_cost",
+    "trip_electricity_cost",
+    "trip_cng_cost",
+    "oil_level_pct",
+    # v2.15.4 — EU Data Act portal new fields (#521/#522). EU-Data-Act dialect
+    # only; vehicles/channels without the field stay None → no phantom.
+    "next_charge_timer_start_at",
+    "next_charge_timer_finish_at",
+    "next_charge_target_reachability",
+    # v2.15.4 (#537) — next-charging-timer slot index. EU-Data-Act dialect only;
+    # vehicles/channels without the field stay None → no phantom.
+    "next_charge_timer_number",
+    "ascent_slope_consumption",
+    "descent_slope_consumption",
+    "report_type",
+    "result_app",
+    "result_master",
+    # v2.15.5 — report-trigger reason. EU-Data-Act dialect only; vehicles/
+    # channels without the field stay None → no phantom.
+    "update_reason",
+    # v2.15.4 (#523) — EU Data Act portal new field. EU-Data-Act dialect only;
+    # vehicles/channels without the field stay None → no phantom.
+    "start_stop_action",
+    # v2.15.4 (#528) — EU Data Act portal new fields. EU-Data-Act dialect only;
+    # vehicles/channels without the field stay None → no phantom.
+    "start_stop_modification",
+    "tyre_pressure_actual_fl",
+    "tyre_pressure_actual_fr",
+    # v2.15.4 (#538) — rear + spare ACTUAL and the REQUIRED/target family.
+    # EU-Data-Act dialect only; vehicles/channels without the field stay None.
+    "tyre_pressure_actual_rl",
+    "tyre_pressure_actual_rr",
+    "tyre_pressure_actual_spare",
+    "tyre_pressure_required_fl",
+    "tyre_pressure_required_fr",
+    "tyre_pressure_required_rl",
+    "tyre_pressure_required_rr",
+    "tyre_pressure_required_spare",
+    # v2.15.5 (#541) — V2G / bidirectional-charging charge-level limits.
+    # EU-Data-Act dialect only; vehicles/channels without the field stay None.
+    "bidi_max_charge_level_pct",
+    "bidi_min_charge_level_pct",
+    # v2.15.5 (#544) — sunroof motor hood 1 position. EU-Data-Act dialect only;
+    # vehicles/channels without the field stay None → no phantom.
+    "sunroof_position_pct",
 })
 
 # v1.14.0 (#24) — Trip Statistics is brand-restricted at the API level
@@ -1857,6 +3078,14 @@ async def async_setup_entry(
     # v1.14.0 (#24) — read brand once for trip-stats brand-restriction.
     brand = str(entry.data.get("brand", "")).lower()
     trip_stats_supported = brand in _TRIP_STATS_BRANDS
+    # b3 — "hide entities without data" (default on): don't flood the device
+    # with "unknown" sensors; only spawn data sensors once their value arrives
+    # (the per-id spawner re-evaluates each poll, so late data still appears).
+    from .const import CONF_HIDE_EMPTY_ENTITIES  # noqa: PLC0415
+    hide_empty = bool(entry.options.get(
+        CONF_HIDE_EMPTY_ENTITIES,
+        entry.data.get(CONF_HIDE_EMPTY_ENTITIES, True),
+    ))
 
     def _build_for_vin(vin: str, vehicle: dict) -> list:
         entities: list = []
@@ -1874,8 +3103,10 @@ async def async_setup_entry(
                 # shaped with a ``default_factory=list`` default that yields
                 # ``[]`` on absent data rather than ``None``. Treat both as
                 # "not present" so the entity is skipped at spawn time.
-                if _present is None or (
-                    isinstance(_present, list) and not _present
+                if (
+                    _present is None
+                    or (isinstance(_present, list) and not _present)
+                    or (isinstance(_present, dict) and not _present)
                 ):
                     continue
             if desc.key in _TRIP_STATS_KEYS:
@@ -1885,6 +3116,13 @@ async def async_setup_entry(
                     coordinator.command_capability_supported(vin, "command_trip_stats")
                     is False
                 ):
+                    continue
+            # b3 — hide empty: skip data sensors with no value yet (reporters,
+            # which read coordinator state with data_key="", are exempt). The
+            # per-id spawner re-spawns the sensor when its value first arrives.
+            if hide_empty and desc.key not in _REPORTER_KEYS and desc.data_key:
+                _v = vehicle.get(desc.data_key)
+                if _v is None or (isinstance(_v, (list, dict)) and not _v):
                     continue
             if desc.key in _REPORTER_KEYS:
                 entities.append(ReporterSensor(coordinator, vin, desc))
@@ -1997,6 +3235,22 @@ class VagConnectSensor(VagConnectEntity, SensorEntity):
             modes = self._vehicle.get("available_charge_modes")
             if isinstance(modes, list) and modes:
                 return json_safe_dict({"available_modes": modes})
+        # b1/A6 — raw field discovery: the full {field: value} set as attributes
+        # on the one raw_api_fields diagnostic sensor (state stays the count).
+        if self.entity_description.key == "raw_api_fields":
+            raw = self._vehicle.get("raw_unmapped_fields")
+            if isinstance(raw, dict) and raw:
+                return json_safe_dict({"fields": raw})
+        # v2.15.3 — Skoda trip-cost sensors carry the (dynamic) ISO currency
+        # code as an attribute, since device_class=MONETARY would force a fixed
+        # native currency unit we don't know ahead of time.
+        if self.entity_description.key in (
+            "trip_total_cost", "trip_fuel_cost",
+            "trip_electricity_cost", "trip_cng_cost",
+        ):
+            currency = self._vehicle.get("trip_cost_currency")
+            if isinstance(currency, str) and currency:
+                return json_safe_dict({"currency": currency})
         return None
 
     @property
@@ -2011,6 +3265,10 @@ class VagConnectSensor(VagConnectEntity, SensorEntity):
             if isinstance(val, list) and val:
                 return len(val)
             return None
+        # b1/A6 — raw_api_fields state is the COUNT of unmapped portal fields;
+        # the {field: value} map lives in extra_state_attributes.
+        if self.entity_description.key == "raw_api_fields":
+            return len(val) if isinstance(val, dict) and val else None
         # charging_power_kw + charging_rate_kmh: API omits these when not charging.
         # Return 0 so the entity shows "0 kW / 0 km/h" instead of "unavailable".
         if val is None and self.entity_description.key in _ZERO_WHEN_IDLE:

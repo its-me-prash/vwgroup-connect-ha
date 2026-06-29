@@ -1,5 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) - Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Tests for the v2.14.0 volkswagen.de website-authproxy connector (BETA).
 
 This OPT-IN, read-only channel logs in through the volkswagen.de authproxy

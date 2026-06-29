@@ -1,5 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) - Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Tests for all VAG Connect entity platforms — achieves >95% coverage."""
 from __future__ import annotations
 
@@ -182,7 +182,7 @@ class TestSensor:
         coord = _make_coordinator()
         entry = _make_entry(coord)
         added = []
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             async_setup_entry(MagicMock(), entry, added.append)
         )
         # Should create sensors for EV (has_battery=True)
@@ -211,7 +211,7 @@ class TestSensor:
         entry = _make_entry(coord)
         added = []
         def _collect(entities, **kw): added.extend(entities)
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             async_setup_entry(MagicMock(), entry, _collect)
         )
         keys = {e.entity_description.key for e in added}
@@ -263,7 +263,7 @@ class TestBinarySensor:
         entry = _make_entry(coord)
         added = []
         def _collect(entities, **kw): added.extend(entities)
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             async_setup_entry(MagicMock(), entry, _collect)
         )
         keys = [getattr(e, '_key', '') for e in added]
@@ -294,7 +294,7 @@ class TestLock:
         coord = _make_coordinator()
         vin = list(coord.data.keys())[0]
         lock = VagDoorLock(coord, vin)
-        asyncio.get_event_loop().run_until_complete(lock.async_lock())
+        asyncio.run(lock.async_lock())
         coord.async_lock.assert_called_once_with(vin)
 
     def test_lock_async_unlock(self):
@@ -303,7 +303,7 @@ class TestLock:
         coord = _make_coordinator()
         vin = list(coord.data.keys())[0]
         lock = VagDoorLock(coord, vin)
-        asyncio.get_event_loop().run_until_complete(lock.async_unlock())
+        asyncio.run(lock.async_unlock())
         coord.async_unlock.assert_called_once_with(vin)
 
     def test_lock_unique_id(self):
@@ -330,7 +330,7 @@ class TestSwitch:
         coord = _make_coordinator()
         vin = list(coord.data.keys())[0]
         s = VagLockSwitch(coord, vin)
-        asyncio.get_event_loop().run_until_complete(s.async_turn_on())
+        asyncio.run(s.async_turn_on())
         coord.async_lock.assert_called_once_with(vin)
 
     def test_lock_switch_turn_off(self):
@@ -339,7 +339,7 @@ class TestSwitch:
         coord = _make_coordinator()
         vin = list(coord.data.keys())[0]
         s = VagLockSwitch(coord, vin)
-        asyncio.get_event_loop().run_until_complete(s.async_turn_off())
+        asyncio.run(s.async_turn_off())
         coord.async_unlock.assert_called_once_with(vin)
 
     def test_charging_switch_is_on_when_charging(self):
@@ -386,7 +386,7 @@ class TestSwitch:
         coord = _make_coordinator()
         vin = list(coord.data.keys())[0]
         s = VagDepartureTimerSwitch(coord, vin, 2)
-        asyncio.get_event_loop().run_until_complete(s.async_turn_on())
+        asyncio.run(s.async_turn_on())
         coord.async_set_departure_timer.assert_called_once_with(vin, 2, enabled=True, departure_time=None)
 
     # test_auto_unlock_switch removed in v1.8.0 — VagAutoUnlockSwitch deleted (#60).
@@ -401,7 +401,7 @@ class TestButton:
         coord = _make_coordinator()
         vin = list(coord.data.keys())[0]
         b = VagFlashButton(coord, vin)
-        asyncio.get_event_loop().run_until_complete(b.async_press())
+        asyncio.run(b.async_press())
         coord.async_flash_lights.assert_called_once_with(vin)
 
     def test_refresh_button_press(self):
@@ -410,7 +410,7 @@ class TestButton:
         coord = _make_coordinator()
         vin = list(coord.data.keys())[0]
         b = VagRefreshButton(coord, vin)
-        asyncio.get_event_loop().run_until_complete(b.async_press())
+        asyncio.run(b.async_press())
         coord.async_request_refresh.assert_called_once()
 
     def test_wake_button_press(self):
@@ -419,7 +419,7 @@ class TestButton:
         coord = _make_coordinator()
         vin = list(coord.data.keys())[0]
         b = VagWakeButton(coord, vin)
-        asyncio.get_event_loop().run_until_complete(b.async_press())
+        asyncio.run(b.async_press())
         coord.async_wake_vehicle.assert_called_once_with(vin)
 
     def test_setup_creates_three_buttons_per_vehicle(self):
@@ -429,7 +429,7 @@ class TestButton:
         entry = _make_entry(coord)
         added = []
         def _collect(entities, **kw): added.extend(entities)
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             async_setup_entry(MagicMock(), entry, _collect)
         )
         # 1 vehicle × 3 buttons (flash, refresh, wake) = 3
@@ -463,7 +463,7 @@ class TestNumber:
         vin = list(coord.data.keys())[0]
         desc = VagNumberDescription(key="target_soc", data_key="target_soc")
         n = VagConnectNumber(coord, vin, desc)
-        asyncio.get_event_loop().run_until_complete(n.async_set_native_value(90))
+        asyncio.run(n.async_set_native_value(90))
         coord.async_set_target_soc.assert_called_once_with(vin, 90)
 
     def test_set_clim_temperature(self):
@@ -473,7 +473,7 @@ class TestNumber:
         vin = list(coord.data.keys())[0]
         desc = VagNumberDescription(key="target_temperature", data_key="target_temperature")
         n = VagConnectNumber(coord, vin, desc)
-        asyncio.get_event_loop().run_until_complete(n.async_set_native_value(22.5))
+        asyncio.run(n.async_set_native_value(22.5))
         coord.async_set_climatisation_temperature.assert_called_once_with(vin, 22.5)
 
 
@@ -503,7 +503,7 @@ class TestDeviceTracker:
         entry = _make_entry(coord)
         added = []
         def _collect(entities, **kw): added.extend(entities)
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             async_setup_entry(MagicMock(), entry, _collect)
         )
         assert len(added) == 1
@@ -518,7 +518,7 @@ class TestDeviceTracker:
         entry = _make_entry(coord)
         added = []
         def _collect(entities, **kw): added.extend(entities)
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             async_setup_entry(MagicMock(), entry, _collect)
         )
         assert len(added) == 0
@@ -605,7 +605,7 @@ class TestDiagnostics:
             "spin": "1234",
         }
         entry.options = {}
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             async_get_config_entry_diagnostics(MagicMock(), entry)
         )
         assert result["config"]["password"] == "**REDACTED**"
@@ -622,7 +622,7 @@ class TestDiagnostics:
         entry.runtime_data = coord
         entry.data = {"brand": "audi", "username": "u@a.de", "password": "pw", "spin": ""}
         entry.options = {}
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             async_get_config_entry_diagnostics(MagicMock(), entry)
         )
         # VINs are masked to last 6 chars in diagnostics output
@@ -691,7 +691,7 @@ class TestSwitchExtended:
         coord = _make_coordinator()
         vin = list(coord.data.keys())[0]
         s = VagWindowHeatingSwitch(coord, vin)
-        asyncio.get_event_loop().run_until_complete(s.async_turn_on())
+        asyncio.run(s.async_turn_on())
         coord.async_start_window_heating.assert_called_once_with(vin)
 
     def test_window_heating_turn_off(self):
@@ -700,7 +700,7 @@ class TestSwitchExtended:
         coord = _make_coordinator()
         vin = list(coord.data.keys())[0]
         s = VagWindowHeatingSwitch(coord, vin)
-        asyncio.get_event_loop().run_until_complete(s.async_turn_off())
+        asyncio.run(s.async_turn_off())
         coord.async_stop_window_heating.assert_called_once_with(vin)
 
     def test_window_heating_is_none_without_vehicle(self):
@@ -721,7 +721,7 @@ class TestSwitchExtended:
         entry = _make_entry(coord)
         added = []
         def _collect(entities, **kw): added.extend(entities)
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             async_setup_entry(MagicMock(), entry, _collect)
         )
         keys = {e._key for e in added}
@@ -741,7 +741,7 @@ class TestClimateExtended:
         coord = _make_coordinator()
         vin = list(coord.data.keys())[0]
         c = VagClimate(coord, vin)
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             c.async_set_hvac_mode(HVACMode.HEAT_COOL)
         )
         coord.async_start_climatisation.assert_called_once_with(vin)
@@ -753,7 +753,7 @@ class TestClimateExtended:
         coord = _make_coordinator()
         vin = list(coord.data.keys())[0]
         c = VagClimate(coord, vin)
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             c.async_set_hvac_mode(HVACMode.OFF)
         )
         coord.async_stop_climatisation.assert_called_once_with(vin)
@@ -764,7 +764,7 @@ class TestClimateExtended:
         coord = _make_coordinator()
         vin = list(coord.data.keys())[0]
         c = VagClimate(coord, vin)
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             c.async_set_temperature(temperature=22.5)
         )
         coord.async_set_climatisation_temperature.assert_called_once_with(vin, 22.5)
@@ -793,7 +793,7 @@ class TestClimateExtended:
         entry = _make_entry(coord)
         added = []
         def _collect(entities, **kw): added.extend(entities)
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             async_setup_entry(MagicMock(), entry, _collect)
         )
         assert len(added) == 1
@@ -813,7 +813,7 @@ class TestNumberExtended:
         entry = _make_entry(coord)
         added = []
         def _collect(entities, **kw): added.extend(entities)
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             async_setup_entry(MagicMock(), entry, _collect)
         )
         keys = {e.entity_description.key for e in added}
@@ -847,7 +847,7 @@ class TestConfigFlowExtended:
         flow.context = {"entry_id": "test_entry"}
         flow.hass = MagicMock()
         flow.hass.config_entries.async_get_entry = MagicMock(return_value=None)
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             flow.async_step_reauth({})
         )
         assert result["type"] == "form"
@@ -868,7 +868,7 @@ class TestConfigFlowExtended:
             "custom_components.vag_connect.config_flow._validate_credentials",
             side_effect=ValueError("invalid_credentials"),
         ):
-            result = asyncio.get_event_loop().run_until_complete(
+            result = asyncio.run(
                 flow.async_step_reauth_confirm({"password": "wrong", "spin": ""})
             )
         assert result["type"] == "form"
@@ -886,7 +886,7 @@ class TestConfigFlowExtended:
         }
         flow.hass = MagicMock()
         flow.hass.config_entries.async_get_entry = MagicMock(return_value=entry_mock)
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             flow.async_step_reconfigure(None)
         )
         assert result["type"] == "form"
@@ -940,14 +940,14 @@ class TestCoordinatorActions:
 
     def test_async_set_target_soc_calls_executor(self):
         import asyncio
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             self.coord.async_set_target_soc("VIN123", 90)
         )
         self.coord._cariad_client.command_set_target_soc.assert_awaited()
 
     def test_async_set_climatisation_temperature_calls_executor(self):
         import asyncio
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             self.coord.async_set_climatisation_temperature("VIN123", 22.0)
         )
         self.coord._cariad_client.command_set_climate_temperature.assert_awaited()
@@ -956,7 +956,7 @@ class TestCoordinatorActions:
         import asyncio
         self.coord._was_available = False  # Simulate was offline
         with patch("custom_components.vag_connect.coordinator._LOGGER") as mock_log:
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 self.coord._async_push_update({"VIN123": {}}, success=True)
             )
         mock_log.info.assert_called()
@@ -966,7 +966,7 @@ class TestCoordinatorActions:
         import asyncio
         self.coord._was_available = True
         with patch("custom_components.vag_connect.coordinator._LOGGER") as mock_log:
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 self.coord._async_push_update({}, success=False)
             )
         mock_log.warning.assert_called()
@@ -977,7 +977,7 @@ class TestCoordinatorActions:
         import asyncio
         self.coord._was_available = False  # Already offline
         with patch("custom_components.vag_connect.coordinator._LOGGER") as mock_log:
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 self.coord._async_push_update({}, success=False)
             )
         mock_log.warning.assert_not_called()  # Already logged before, not again
@@ -987,7 +987,7 @@ class TestCoordinatorActions:
         import asyncio
         self.coord.data = None
         # Should not raise
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             self.coord._async_remove_stale_devices({"VIN123"})
         )
 
@@ -996,7 +996,7 @@ class TestCoordinatorActions:
         import asyncio
         self.coord.data = {"VIN123": {}}
         # Should complete without error when no stale VINs
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             self.coord._async_remove_stale_devices({"VIN123"})
         )
         # No assertion needed — just verifying no exception raised
@@ -1011,7 +1011,7 @@ class TestSwitchRemaining:
         coord = _make_coordinator()
         vin = list(coord.data.keys())[0]
         s = VagClimatisationSwitch(coord, vin)
-        asyncio.get_event_loop().run_until_complete(s.async_turn_on())
+        asyncio.run(s.async_turn_on())
         coord.async_start_climatisation.assert_called_once_with(vin)
 
     def test_climatisation_turn_off(self):
@@ -1020,7 +1020,7 @@ class TestSwitchRemaining:
         coord = _make_coordinator()
         vin = list(coord.data.keys())[0]
         s = VagClimatisationSwitch(coord, vin)
-        asyncio.get_event_loop().run_until_complete(s.async_turn_off())
+        asyncio.run(s.async_turn_off())
         coord.async_stop_climatisation.assert_called_once_with(vin)
 
     def test_climatisation_is_none_when_state_none(self):
@@ -1037,7 +1037,7 @@ class TestSwitchRemaining:
         coord = _make_coordinator()
         vin = list(coord.data.keys())[0]
         s = VagChargingSwitch(coord, vin)
-        asyncio.get_event_loop().run_until_complete(s.async_turn_on())
+        asyncio.run(s.async_turn_on())
         coord.async_start_charging.assert_called_once_with(vin)
 
     def test_charging_turn_off(self):
@@ -1046,7 +1046,7 @@ class TestSwitchRemaining:
         coord = _make_coordinator()
         vin = list(coord.data.keys())[0]
         s = VagChargingSwitch(coord, vin)
-        asyncio.get_event_loop().run_until_complete(s.async_turn_off())
+        asyncio.run(s.async_turn_off())
         coord.async_stop_charging.assert_called_once_with(vin)
 
     def test_charging_is_none_when_state_none(self):
@@ -1063,7 +1063,7 @@ class TestSwitchRemaining:
         coord = _make_coordinator()
         vin = list(coord.data.keys())[0]
         s = VagDepartureTimerSwitch(coord, vin, 3)
-        asyncio.get_event_loop().run_until_complete(s.async_turn_off())
+        asyncio.run(s.async_turn_off())
         coord.async_set_departure_timer.assert_called_once_with(
             vin, 3, enabled=False, departure_time=None
         )
@@ -1137,7 +1137,7 @@ class TestRunCommand:
         # forwards the S-PIN.
         import asyncio
         coord, _ = self._make_coord()
-        asyncio.get_event_loop().run_until_complete(coord.async_lock("VIN1"))
+        asyncio.run(coord.async_lock("VIN1"))
         coord._cariad_client.command_lock.assert_awaited_once_with(
             "VIN1", spin="1234",
         )
@@ -1145,55 +1145,55 @@ class TestRunCommand:
     def test_async_unlock_dispatches(self):
         import asyncio
         coord, _ = self._make_coord()
-        asyncio.get_event_loop().run_until_complete(coord.async_unlock("VIN1"))
+        asyncio.run(coord.async_unlock("VIN1"))
         coord._cariad_client.command_unlock.assert_awaited()
 
     def test_async_start_climatisation(self):
         import asyncio
         coord, _ = self._make_coord()
-        asyncio.get_event_loop().run_until_complete(coord.async_start_climatisation("VIN1"))
+        asyncio.run(coord.async_start_climatisation("VIN1"))
         coord._cariad_client.command_start_climate.assert_awaited()
 
     def test_async_stop_climatisation(self):
         import asyncio
         coord, _ = self._make_coord()
-        asyncio.get_event_loop().run_until_complete(coord.async_stop_climatisation("VIN1"))
+        asyncio.run(coord.async_stop_climatisation("VIN1"))
         coord._cariad_client.command_stop_climate.assert_awaited()
 
     def test_async_start_charging(self):
         import asyncio
         coord, _ = self._make_coord()
-        asyncio.get_event_loop().run_until_complete(coord.async_start_charging("VIN1"))
+        asyncio.run(coord.async_start_charging("VIN1"))
         coord._cariad_client.command_start_charging.assert_awaited()
 
     def test_async_stop_charging(self):
         import asyncio
         coord, _ = self._make_coord()
-        asyncio.get_event_loop().run_until_complete(coord.async_stop_charging("VIN1"))
+        asyncio.run(coord.async_stop_charging("VIN1"))
         coord._cariad_client.command_stop_charging.assert_awaited()
 
     def test_async_flash_lights(self):
         import asyncio
         coord, _ = self._make_coord()
-        asyncio.get_event_loop().run_until_complete(coord.async_flash_lights("VIN1"))
+        asyncio.run(coord.async_flash_lights("VIN1"))
         coord._cariad_client.command_flash.assert_awaited()
 
     def test_async_start_window_heating(self):
         import asyncio
         coord, _ = self._make_coord()
-        asyncio.get_event_loop().run_until_complete(coord.async_start_window_heating("VIN1"))
+        asyncio.run(coord.async_start_window_heating("VIN1"))
         coord._cariad_client.command_start_window_heating.assert_awaited()
 
     def test_async_stop_window_heating(self):
         import asyncio
         coord, _ = self._make_coord()
-        asyncio.get_event_loop().run_until_complete(coord.async_stop_window_heating("VIN1"))
+        asyncio.run(coord.async_stop_window_heating("VIN1"))
         coord._cariad_client.command_stop_window_heating.assert_awaited()
 
     def test_async_wake_vehicle(self):
         import asyncio
         coord, _ = self._make_coord()
-        asyncio.get_event_loop().run_until_complete(coord.async_wake_vehicle("VIN1"))
+        asyncio.run(coord.async_wake_vehicle("VIN1"))
         coord._cariad_client.command_wake.assert_awaited()
 
     def test_async_set_max_charge_current_dispatches(self):
@@ -1204,7 +1204,7 @@ class TestRunCommand:
         from unittest.mock import AsyncMock
         coord, _ = self._make_coord()
         coord._cariad_client.command_set_max_charge_current = AsyncMock()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.async_set_max_charge_current("VIN1", 16)
         )
         coord._cariad_client.command_set_max_charge_current.assert_awaited_once_with(
@@ -1216,7 +1216,7 @@ class TestRunCommand:
         coord, _ = self._make_coord()
         coord._cc = None
         coord._started = False
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             coord._async_update_data()
         )
         assert "VIN1" in result
@@ -1229,7 +1229,7 @@ class TestRunCommand:
         coord.hass.async_add_executor_job = AsyncMock(
             side_effect=Exception("network error")
         )
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             coord._async_update_data()
         )
         assert "VIN1" in result  # returns cached data on error
@@ -1291,7 +1291,7 @@ class TestConfigFlowSuccessPaths:
             return_value=None,
         ):
             with patch.object(flow, "async_abort", return_value={"type": "abort"}) as mock_abort:
-                asyncio.get_event_loop().run_until_complete(
+                asyncio.run(
                     flow.async_step_reauth_confirm({"password": "new_pw", "spin": "5678"})
                 )
         flow.hass.config_entries.async_update_entry.assert_called_once()
@@ -1320,7 +1320,7 @@ class TestConfigFlowSuccessPaths:
             return_value=None,
         ):
             with patch.object(flow, "async_abort", return_value={"type": "abort"}) as mock_abort:
-                asyncio.get_event_loop().run_until_complete(
+                asyncio.run(
                     flow.async_step_reconfigure({
                         "brand": "audi", "username": "u@a.de",
                         "password": "new_pw", "spin": "",
@@ -1395,7 +1395,7 @@ class TestDepartureTimerAction:
     def test_set_departure_timer_calls_cariad(self):
         import asyncio
         coord = self._make_coord()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.async_set_departure_timer("VIN1", 1, True, "07:30")
         )
         # v2.0.0 — coordinator now forwards optional ``recurring_on``
@@ -1409,7 +1409,7 @@ class TestDepartureTimerAction:
     def test_set_departure_timer_no_time(self):
         import asyncio
         coord = self._make_coord()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.async_set_departure_timer("VIN1", 2, False, None)
         )
         coord._cariad_client.command_set_departure_timer.assert_awaited_once_with(
@@ -1421,7 +1421,7 @@ class TestDepartureTimerAction:
         """v2.0.0 (Big-Bang) — recurring_on weekday list flows through."""
         import asyncio
         coord = self._make_coord()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.async_set_departure_timer(
                 "VIN1", 3, True, "06:30",
                 recurring_on=["MONDAY", "TUESDAY", "WEDNESDAY"],

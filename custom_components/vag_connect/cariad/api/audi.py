@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Audi EU API client — CARIAD BFF + AZS token for vgql image fetching.
 
 Vehicle data uses the IDK Bearer token against the CARIAD BFF (same as VW EU).
@@ -31,8 +31,12 @@ _LOGGER = logging.getLogger(__name__)
 
 _AZS_TOKEN_URL  = "https://emea.bff.cariad.digital/login/v1/audi/token"
 _GRAPHQL_URL    = "https://app-api.live-my.audi.com/vgql/v1/graphql"
-_APP_VERSION    = "4.31.0"
-_USER_AGENT     = "Android/4.31.0 (Build 800341641.root project 'myaudi_android'.ext.buildTime) Android/13"
+# b13 (RE myAudi dismantle) — bumped to the live build: versionName 5.5.1 +
+# versionCode 800344232 (androguard, verified against the APK manifest). The
+# CARIAD BFF doesn't hard-gate the app version today, but tracking the real
+# build hardens the command path against a future fidelity check.
+_APP_VERSION    = "5.5.1"
+_USER_AGENT     = "Android/5.5.1 (Build 800344232.root project 'myaudi_android'.ext.buildTime) Android/13"
 
 # v1.14.0 (#28) — Audi ICE Remote Engine Start (CARIAD BFF, two-step S-PIN flow).
 # Source: arjenvrh/upstream PR #717 (`audi_services.py`). The path is

@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Tests for v1.20.1 Bug A — BinarySensor LOCK device-class invert (#131).
 
 Closes Chr1sDub's #131 finding: Skoda Octavia iV 2024 zeigte

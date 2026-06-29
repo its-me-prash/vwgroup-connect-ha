@@ -4,31 +4,32 @@
       "user": {
         "title": "Konfigurera VW Group Connect",
         "description": "Anslut ditt fordon till Home Assistant.\n\nVälj ditt märke och ange inloggningsuppgifterna från tillverkarens app.",
+        "menu_options": {
+          "browser_login": "Browser-Login (recommended)",
+          "email_password": "Email + Password (legacy)",
+          "website_authproxy": "Volkswagen.de website (beta — read-only)",
+          "mbb_login": "Volkswagen EU — Varaktig inloggning (MBB, tvåvägs-alfa)"
+        }
+      },
+      "mbb_login": {
+        "title": "Volkswagen EU — Varaktig inloggning (MBB, ALFA)",
+        "description": "**Experimentell, frivillig — endast Volkswagen EU.** En bekräftelse i webbläsaren (inget lösenord lagras i Home Assistant) skapar en varaktig, förnybar token via det äldre MBB-backendet. Till skillnad från den skrivskyddade portalen överlever den omstarter och stöder tvåvägs fjärrlåsning/upplåsning. **Ange ditt VIN** (MBB-token kan inte lista ditt garage själv) och lägg till din S-PIN för att aktivera låsning/upplåsning. På nästa skärm visas en kort kod och en URL att öppna på valfri enhet.",
         "data": {
-          "brand": "Fordonsvarumärke",
-          "username": "E-postadress",
-          "password": "Lösenord",
+          "mbb_vins": "VIN (fordonsidentifieringsnummer)",
           "spin": "S-PIN",
           "scan_interval": "Uppdateringsintervall",
           "force_enable_access": "Tvinga dörrstatus"
         },
         "data_description": {
-          "brand": "Välj ditt märke — myAudi, WeConnect ID, MyŠkoda, SEAT, CUPRA, VW US/CA eller Porsche.",
-          "username": "E-postadress från tillverkarens app.",
-          "password": "Lösenord från appen.",
-          "spin": "Krävs endast för låsning. App → Säkerhet → S-PIN.",
-          "scan_interval": "Hur ofta data hämtas. Standard: 5 min. Minimum: 3 min.",
-          "force_enable_access": "För äldre fordon som inte klarar kapabilitetskontrollen."
-        },
-        "menu_options": {
-          "browser_login": "Browser-Login (recommended)",
-          "email_password": "Email + Password (legacy)",
-          "website_authproxy": "Volkswagen.de website (beta — read-only)"
+          "mbb_vins": "Ditt 17-teckens VIN (på vindrutan / registreringsbeviset). Flera bilar: separera med komma. Krävs — den varaktiga MBB-token fungerar per VIN men kan inte räkna upp ditt garage.",
+          "spin": "Valfri 4-siffrig säkerhets-PIN — krävs för fjärrlåsning/upplåsning.",
+          "scan_interval": "Minuter mellan hämtningar av fordonsdata.",
+          "force_enable_access": "Tvinga fram dörrstatus-entiteter även när fordonet rapporterar att data saknas."
         }
       },
       "website_authproxy": {
         "title": "Volkswagen.de website (BETA, read-only)",
-        "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next.",
+        "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next. **Krav:** ditt Volkswagen ID måste vara fordonets huvudanvändare — bekräfta din identitet en gång på volkswagen.de (myVolkswagen → ditt fordon). Utan detta returnerar webbplatsen inga fordonsdata.",
         "data": {
           "username": "Email Address",
           "password": "Password",
@@ -66,6 +67,7 @@
           "username": "E-postadress",
           "password": "Lösenord",
           "spin": "S-PIN",
+          "country": "Region (endast Volkswagen USA/Kanada)",
           "scan_interval": "Uppdateringsintervall",
           "force_enable_access": "Tvinga dörrstatus"
         }
@@ -88,8 +90,10 @@
           "username": "Email Address",
           "password": "Password",
           "spin": "S-PIN",
+          "country": "Region (endast Volkswagen USA/Kanada)",
           "scan_interval": "Update Interval",
-          "force_enable_access": "Force Door Status"
+          "force_enable_access": "Force Door Status",
+          "enable_mbb_commands": "Aktivera MBB-fjärrkommandon (endast Volkswagen — QR-bekräftelse)"
         },
         "data_description": {
           "brand": "Choose your brand — myAudi, WeConnect ID, MyŠkoda, SEAT, CUPRA, VW US/CA or Porsche.",
@@ -146,6 +150,7 @@
       "email_two_factor_required": "E-post 2FA krävs. Kolla inkorgen (och skräp) efter en 6-siffrig kod, logga sedan in manuellt i appen.",
       "too_many_requests": "Kontot är tillfälligt spärrat. Vänta 15 minuter.",
       "invalid_credentials": "Felaktig e-postadress eller lösenord.",
+      "portal_interaction_required": "EU Data Act-portalen kräver en engångsåtgärd i din webbläsare eller varumärkesapp (t.ex. godkänna villkor, bekräfta samtycke, slutföra onboarding/regionval) innan huvudlös åtkomst fungerar. Detta är INTE ett lösenordsproblem — öppna portalen en gång i en webbläsare, slutför uppmaningen och försök igen.",
       "upstream_unavailable": "VW backend tillfälligt otillgänglig. Detta är ett serverproblem hos VW, INTE ett autentiseringsfel. Vänta 5–15 minuter och försök igen. Konfigurera INTE om integrationen.",
       "brand_not_dag_eligible": "Selected brand does not support browser login. Use the email + password flow instead.",
       "still_waiting_browser": "Still waiting for browser approval. Open the URL above, sign in, confirm the code, then click Submit again."
@@ -153,7 +158,8 @@
     "abort": {
       "already_configured": "Det här kontot är redan konfigurerat.",
       "reauth_successful": "Omautentisering lyckades.",
-      "reconfigure_successful": "Konfigurationen uppdaterades."
+      "reconfigure_successful": "Konfigurationen uppdaterades.",
+      "mbb_not_eligible": "Ditt fordon är inte behörigt för den varaktiga MBB-inloggningen — backend returnerade \"Unknown user\". Det är en nyare ID-/MEB-modell (ID.3/4/5, e-up osv.) som aldrig registrerades i det gamla Car-Net/MBB-systemet, så den varaktiga inloggningen och fjärrkommandona når den inte. Använd EU Data Act-portalkanalen (eller e-post + lösenord-inloggningen) för sådana fordon. MBB-inloggningen är för äldre Car-Net-bilar (de flesta laddhybrid-/förbränningsmodeller)."
     },
     "progress": {
       "awaiting_browser_login": "Open {verification_uri} in any browser, sign in with your Brand ID account, and confirm the code {user_code}.",
@@ -177,7 +183,15 @@
           "wake_delay_seconds": "Wake delay (seconds)",
           "client_id_override": "OAuth client_id override (power users)",
           "eu_data_act_auto_kickoff": "EU Data Act: auto-kickoff Custom Data Request",
-          "enable_data_act_browser": "EU Data Act-portalen: headless-webbläsar-fallback (EXPERIMENTELL)"
+          "enable_data_act_browser": "EU Data Act-portalen: headless-webbläsar-fallback (EXPERIMENTELL)",
+          "supplementary_authproxy": "Lägg till en Volkswagen.de-läskanal (slå samman data)",
+          "hide_empty_entities": "Dölj entiteter utan data",
+          "supplementary_eu_portal": "Lägg till en EU Data Act-portalläskanal",
+          "remove_supplementary_authproxy": "Ta bort vw.de-läskanalen",
+          "remove_supplementary_eu_portal": "Ta bort EU Data Act-portalläskanalen",
+          "abrp_enable": "Aktivera ABRP-telemetri",
+          "abrp_api_key": "ABRP-api_key (utvecklarnyckel)",
+          "abrp_user_token": "ABRP-token (per fordon)"
         },
         "data_description": {
           "scan_interval": "Hur ofta data hämtas (minuter). Minimum: 3.",
@@ -192,9 +206,47 @@
           "wake_delay_seconds": "Seconds to wait between the wake-up POST and the status fetch. The default of 15 seconds is what most brand backends need to ingest the wake-induced data push. Lower values risk reading stale data; higher values stretch the poll cycle without further benefit.",
           "client_id_override": "Power-user escape hatch for when the community spots a fresh OAuth client_id in a new VW Group APK before our daily atlas builder catches it. Paste the full UUID@apps_vw-dilab_com string here and the resolver tries it FIRST on every authenticate, with all the existing client_ids still in the chain as fallback. Leave empty for default behaviour. Format: 8-4-4-4-12 hex digits followed by @apps_vw-dilab_com. Malformed values are silently ignored.",
           "eu_data_act_auto_kickoff": "Only meaningful when the integration is operating in read-only EU Data Act portal mode (live BFF strategies have failed). When ON, the coordinator checks for an active 15-min Custom Data Request per VIN at startup and creates one when none exists. The kickoff implies a 1-month data subscription on your account at the portal, so this is opt-in. The portal accepts AT MOST ONE active custom request per VIN at a time. Off by default.",
-          "enable_data_act_browser": "EXPERIMENTELL: bara meningsfullt när integrationen har fallit tillbaka på EU Data Act-portalen (skrivskyddad). Styr en headless Chromium via det valfria Python-paketet 'playwright' för att automatiskt klicka på portalens dataexport-knapp. Paketet är INTE förinstallerat (det hämtar runt 100 MB Chromium). När det är aktiverat men saknas förklarar en Reparation-avisering hur du installerar det inifrån Home Assistant-containern. Ladda om integrationen efter att du växlat."
+          "enable_data_act_browser": "EXPERIMENTELL: bara meningsfullt när integrationen har fallit tillbaka på EU Data Act-portalen (skrivskyddad). Styr en headless Chromium via det valfria Python-paketet 'playwright' för att automatiskt klicka på portalens dataexport-knapp. Paketet är INTE förinstallerat (det hämtar runt 100 MB Chromium). När det är aktiverat men saknas förklarar en Reparation-avisering hur du installerar det inifrån Home Assistant-containern. Ladda om integrationen efter att du växlat.",
+          "abrp_enable": "Skicka livetelemetri till A Better Routeplanner. Kräver en api_key och en token per fordon. Av = inga utgående anrop.",
+          "abrp_api_key": "En utvecklar-/partnernyckel som du registrerar hos iternio (vi levererar ingen). Identifierar integrationen. Loggas aldrig.",
+          "abrp_user_token": "'Generic'-token från ABRP-appen: Inställningar -> din bil -> Live Data. Loggas aldrig."
+        }
+      },
+      "add_vwde": {
+        "title": "Volkswagen.de website (BETA, read-only)",
+        "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next. **Krav:** ditt Volkswagen ID måste vara fordonets huvudanvändare — bekräfta din identitet en gång på volkswagen.de (myVolkswagen → ditt fordon). Utan detta returnerar webbplatsen inga fordonsdata.",
+        "data": {
+          "username": "Email Address",
+          "password": "Password",
+          "scan_interval": "Update Interval"
+        },
+        "data_description": {
+          "username": "The email of your Volkswagen ID / myVolkswagen account.",
+          "password": "Your Volkswagen ID password.",
+          "scan_interval": "How often data is fetched (minutes). Minimum: 5."
+        }
+      },
+      "add_vwde_otp": {
+        "title": "Email verification code",
+        "description": "A verification code was sent to the email for **{username}**.\n\nEnter the code to finish signing in to the Volkswagen.de website (beta) channel.",
+        "data": {
+          "mfa_code": "Verification Code"
+        },
+        "data_description": {
+          "mfa_code": "Code from your email inbox — valid for a few minutes."
+        }
+      },
+      "add_portal": {
+        "title": "EU Data Act-portal — läskanal",
+        "description": "Logga in på EU Data Act-portalen (e-post + lösenord) för att lägga till SoC, laddning, mätarställning och service, sammanslaget med din primära kanal.",
+        "data": {
+          "username": "E-post",
+          "password": "Lösenord"
         }
       }
+    },
+    "error": {
+      "abrp_credentials_required": "För att aktivera ABRP måste du ange både api_key och fordonstoken."
     }
   },
   "entity": {
@@ -366,6 +418,12 @@
       },
       "api_observer_findings": {
         "name": "API-spanare"
+      },
+      "raw_api_fields": {
+        "name": "Råa API-fält"
+      },
+      "data_source_channel": {
+        "name": "Datakällkanal"
       },
       "error_reporter_count": {
         "name": "Felrapportör"
@@ -651,9 +709,336 @@
       },
       "vehicle_nickname": {
         "name": "Fordonets smeknamn"
+      },
+      "lifetime_avg_speed_kmh": {
+        "name": "Snitthastighet totalt"
+      },
+      "lifetime_travel_time_min": {
+        "name": "Körtid totalt"
+      },
+      "monthly_mileage_km": {
+        "name": "Månadssträcka"
+      },
+      "remaining_charge_time_min": {
+        "name": "Återstående laddtid"
+      },
+      "charging_scenario": {
+        "name": "Laddningsscenario"
+      },
+      "immediate_charge_action_state": {
+        "name": "Omedelbar laddningsåtgärd"
+      },
+      "profile_charge_reason": {
+        "name": "Laddningsorsak"
+      },
+      "charge_session_energy_kwh": {
+        "name": "Laddad energi"
+      },
+      "remaining_charge_time_bulk_min": {
+        "name": "Återstående tid till 80 % (snabbladdning)"
+      },
+      "odometer_state": {
+        "name": "Vägmätarstatus"
+      },
+      "instrument_cluster_time": {
+        "name": "Fordonsklocka"
+      },
+      "data_error_detail": {
+        "name": "Datafel"
+      },
+      "external_power_supply_state": {
+        "name": "Extern strömförsörjning"
+      },
+      "charging_reason": {
+        "name": "Laddningsorsak"
+      },
+      "charging_error_code": {
+        "name": "Laddningsfelkod"
+      },
+      "remaining_time_target_soc": {
+        "name": "Laddningsmål (återstående tid)"
+      },
+      "charge_led_color": {
+        "name": "Laddportens LED-färg"
+      },
+      "charge_led_pattern": {
+        "name": "Laddportens LED-mönster"
+      },
+      "last_report_id": {
+        "name": "Rapport-ID"
+      },
+      "climate_energy_consumption_kwh": {
+        "name": "Klimatets energiförbrukning"
+      },
+      "residual_energy_consumption_kwh": {
+        "name": "Förbrukning fordonsnät"
+      },
+      "last_trip_avg_recuperation_kwh_100km": {
+        "name": "Återvinning resa (snitt)"
+      },
+      "lifetime_avg_recuperation_kwh_100km": {
+        "name": "Total återvinning (snitt)"
+      },
+      "last_trip_avg_aux_consumption_kwh_100km": {
+        "name": "Tillbehörsförbrukning senaste resan (snitt)"
+      },
+      "lifetime_avg_aux_consumption_kwh_100km": {
+        "name": "Tillbehörsförbrukning totalt (snitt)"
+      },
+      "lifetime_avg_gas_consumption_kg_100km": {
+        "name": "Gasförbrukning totalt (snitt)"
+      },
+      "lifetime_range_gain_km": {
+        "name": "Vunnen räckvidd totalt"
+      },
+      "lifetime_zero_emission_km": {
+        "name": "Nollutsläppssträcka totalt"
+      },
+      "last_trip_avg_gas_consumption_kg_100km": {
+        "name": "Gasförbrukning senaste resan (snitt)"
+      },
+      "last_trip_range_gain_km": {
+        "name": "Vunnen räckvidd senaste resan"
+      },
+      "last_trip_zero_emission_km": {
+        "name": "Nollutsläppssträcka senaste resan"
+      },
+      "charger_update_trigger": {
+        "name": "Utlösare laddaruppdatering"
+      },
+      "active_target_soc": {
+        "name": "Aktivt laddmål"
+      },
+      "charge_time_display": {
+        "name": "Laddtidsdetaljer"
+      },
+      "charging_plug1_flap_lock_state": {
+        "name": "Lås laddlucka 1"
+      },
+      "charging_plug1_flap_state": {
+        "name": "Laddlucka 1"
+      },
+      "charging_plug1_infrastructure_state": {
+        "name": "Status laddpunkt 1"
+      },
+      "charging_plug1_lock_state": {
+        "name": "Lås laddkontakt 1"
+      },
+      "charging_plug2_connectionstate": {
+        "name": "Anslutning laddport 2"
+      },
+      "charging_plug2_flap_lock_state": {
+        "name": "Lås laddlucka 2"
+      },
+      "charging_plug2_flap_state": {
+        "name": "Laddlucka 2"
+      },
+      "charging_plug2_infrastructure_state": {
+        "name": "Status laddpunkt 2"
+      },
+      "charging_plug2_lock_state": {
+        "name": "Lås laddkontakt 2"
+      },
+      "battery_available_kwh": {
+        "name": "Tillgänglig batterienergi"
+      },
+      "battery_cap_kwh": {
+        "name": "Batterikapacitet (energi)"
+      },
+      "trip_total_cost": {
+        "name": "Total reskostnad"
+      },
+      "trip_fuel_cost": {
+        "name": "Bränslekostnad resa"
+      },
+      "trip_electricity_cost": {
+        "name": "Elkostnad resa"
+      },
+      "trip_cng_cost": {
+        "name": "Fordonsgaskostnad resa"
+      },
+      "oil_level_pct": {
+        "name": "Oljenivå (procent)"
+      },
+      "dataset_key": {
+        "name": "Datauppsättningsnyckel"
+      },
+      "charge_mode_selection": {
+        "name": "Valt laddningsläge"
+      },
+      "max_charge_current_ac": {
+        "name": "Max AC-laddström"
+      },
+      "auto_unlock_charge_port": {
+        "name": "Lås upp laddluckan automatiskt"
+      },
+      "charge_bulk_threshold_pct": {
+        "name": "Snabbladdningströskel"
+      },
+      "charge_rate_unit": {
+        "name": "Enhet för laddhastighet"
+      },
+      "lifetime_trip_distance_km": {
+        "name": "Långtidsreslängd"
+      },
+      "lifetime_trip_start_odometer_km": {
+        "name": "Mätarställning vid start (långtid)"
+      },
+      "last_trip_start_odometer_km": {
+        "name": "Mätarställning vid senaste resans start"
+      },
+      "oil_level_liters": {
+        "name": "Oljenivå (liter)"
+      },
+      "oil_level_additional_pct": {
+        "name": "Extra oljenivå"
+      },
+      "tyre_pressure_diff_fl": {
+        "name": "Däcktrycksavvikelse vänster fram"
+      },
+      "tyre_pressure_diff_fr": {
+        "name": "Däcktrycksavvikelse höger fram"
+      },
+      "tyre_pressure_diff_rl": {
+        "name": "Däcktrycksavvikelse vänster bak"
+      },
+      "tyre_pressure_diff_rr": {
+        "name": "Däcktrycksavvikelse höger bak"
+      },
+      "tyre_pressure_diff_spare": {
+        "name": "Däcktrycksavvikelse reservhjul"
+      },
+      "tyre_pressure_actual_fl": {
+        "name": "Däcktryck fram vänster"
+      },
+      "tyre_pressure_actual_fr": {
+        "name": "Däcktryck fram höger"
+      },
+      "tyre_pressure_actual_rl": {
+        "name": "Däcktryck bak vänster (faktiskt)"
+      },
+      "tyre_pressure_actual_rr": {
+        "name": "Däcktryck bak höger (faktiskt)"
+      },
+      "tyre_pressure_actual_spare": {
+        "name": "Däcktryck reservhjul (faktiskt)"
+      },
+      "tyre_pressure_required_fl": {
+        "name": "Däcktryck fram vänster (mål)"
+      },
+      "tyre_pressure_required_fr": {
+        "name": "Däcktryck fram höger (mål)"
+      },
+      "tyre_pressure_required_rl": {
+        "name": "Däcktryck bak vänster (mål)"
+      },
+      "tyre_pressure_required_rr": {
+        "name": "Däcktryck bak höger (mål)"
+      },
+      "tyre_pressure_required_spare": {
+        "name": "Däcktryck reservhjul (mål)"
+      },
+      "parking_lights_state": {
+        "name": "Parkeringsljus"
+      },
+      "aux_battery_energy_pct": {
+        "name": "Nivå hjälpbatteri"
+      },
+      "dashboard_warnings_raw": {
+        "name": "Varningslampor (rådata)"
+      },
+      "climate_error_code": {
+        "name": "Felkod klimatanläggning"
+      },
+      "window_heating_error_code": {
+        "name": "Felkod rutvärme"
+      },
+      "lpg_range_km": {
+        "name": "Räckvidd gasol"
+      },
+      "engine_status": {
+        "name": "Motorstatus"
+      },
+      "trip_avg_aux_consumption_kwh": {
+        "name": "Snittförbrukning kringutrustning"
+      },
+      "departure_charge_kwh": {
+        "name": "Laddning till avgång"
+      },
+      "tire_pressure_fl_state": {
+        "name": "Däckstatus vänster fram"
+      },
+      "tire_pressure_fl_errorcode": {
+        "name": "Däckfelkod vänster fram"
+      },
+      "tire_pressure_fr_state": {
+        "name": "Däckstatus höger fram"
+      },
+      "tire_pressure_fr_errorcode": {
+        "name": "Däckfelkod höger fram"
+      },
+      "tire_pressure_rl_state": {
+        "name": "Däckstatus vänster bak"
+      },
+      "tire_pressure_rl_errorcode": {
+        "name": "Däckfelkod vänster bak"
+      },
+      "tire_pressure_rr_state": {
+        "name": "Däckstatus höger bak"
+      },
+      "tire_pressure_rr_errorcode": {
+        "name": "Däckfelkod höger bak"
+      },
+      "next_charge_timer_start_at": {
+        "name": "Nästa laddstart"
+      },
+      "next_charge_timer_finish_at": {
+        "name": "Nästa laddslut"
+      },
+      "next_charge_target_reachability": {
+        "name": "Laddmål nåbart"
+      },
+      "next_charge_timer_number": {
+        "name": "Nästa laddningstimer (nummer)"
+      },
+      "ascent_slope_consumption": {
+        "name": "Lutningsförbrukning (uppför)"
+      },
+      "descent_slope_consumption": {
+        "name": "Lutningsförbrukning (nedför)"
+      },
+      "report_type": {
+        "name": "Rapporttyp"
+      },
+      "result_app": {
+        "name": "Resultat appdata"
+      },
+      "result_master": {
+        "name": "Resultat masterdata"
+      },
+      "update_reason": {
+        "name": "Senaste uppdateringsorsak"
+      },
+      "start_stop_action": {
+        "name": "Laddningsstart/stopp-åtgärd"
+      },
+      "start_stop_modification": {
+        "name": "Start/stopp-ändring"
+      },
+      "bidi_max_charge_level_pct": {
+        "name": "Dubbelriktad laddning max. laddnivå"
+      },
+      "bidi_min_charge_level_pct": {
+        "name": "Dubbelriktad laddning min. laddnivå"
+      },
+      "sunroof_position_pct": {
+        "name": "Soltakets position"
       }
     },
     "binary_sensor": {
+      "mbb_two_way_available": {
+        "name": "MBB tvåvägs tillgänglig"
+      },
       "doors_locked": {
         "name": "Dörrar låsta"
       },
@@ -815,6 +1200,57 @@
       },
       "trunk_open": {
         "name": "Bagagelucka öppen"
+      },
+      "warning_inspection": {
+        "name": "Service krävs"
+      },
+      "parking_brake_engaged": {
+        "name": "Parkeringsbroms"
+      },
+      "parking_light_left": {
+        "name": "Parkeringsljus (vänster)"
+      },
+      "parking_light_right": {
+        "name": "Parkeringsljus (höger)"
+      },
+      "energy_flow_active": {
+        "name": "Energiflöde"
+      },
+      "battery_care_mode_active": {
+        "name": "Batterivårdsläge"
+      },
+      "bonnet_locked": {
+        "name": "Motorhuv låst"
+      },
+      "closures_secured": {
+        "name": "Alla öppningar säkrade"
+      },
+      "service_hatch_open": {
+        "name": "Servicelucka öppen"
+      },
+      "spoiler_open": {
+        "name": "Spoiler utfälld"
+      },
+      "oil_dipstick_active": {
+        "name": "Oljesticka aktiv"
+      },
+      "fuel_level_estimated": {
+        "name": "Bränslenivå uppskattad"
+      },
+      "climatisation_at_unlock": {
+        "name": "Klimatisering vid upplåsning"
+      },
+      "mirror_heating_enabled": {
+        "name": "Spegelvärme"
+      },
+      "climate_zone_front_left_enabled": {
+        "name": "Klimatzon fram vänster"
+      },
+      "climate_zone_front_right_enabled": {
+        "name": "Klimatzon fram höger"
+      },
+      "abrp_data_changed": {
+        "name": "ABRP-data ändrad"
       }
     },
     "switch": {
@@ -996,8 +1432,24 @@
       "title": "EU Data Act-portalsessionen har gått ut – autentisera på nytt"
     },
     "ola_headers_outdated": {
-      "description": "VW Groups backend för onlinetjänster (OLA) har nekat **{count}** förfrågningar i rad för {brand} med HTTP 403 Forbidden.\n\nDet här är **inte** ett problem med föråldrade headers eller en app-version, och det går inte att lösa genom att konfigurera om eller logga in på nytt. VW verkar ha begränsat åtkomsten till onlinetjänsterna för {brand} (och SEAT) på sin sida — den officiella appen använder en separat, fullt betrodd åtkomst som vi inte kan återskapa. En ändring av header eller app-version återställer den inte.\n\nDär det går faller integrationen tillbaka på det skrivskyddade EU Data Act-portalen för de data som fortfarande är tillgängliga. {brand}-data kommer tillbaka av sig själv när VW återställer åtkomsten. Du behöver inte göra något — varningen försvinner automatiskt när förfrågningar lyckas igen.",
-      "title": "{brand}-onlinetjänster blockerade av VW — {count} 403-fel i rad"
+      "description": "VW Groups backend för onlinetjänster (OLA) avvisade **{count}** förfrågningar i rad för {brand} med HTTP 403 Forbidden.\n\nDet här är en **server-sidig låsning från VW** — varken en uppdatering, headerändring eller ny inloggning åtgärdar det. VW kräver nu en Google-signerad enhetsattesterings-token (Firebase App Check / Play Integrity) plus en web-application-firewall-token på SEAT/CUPRA-backenden — den officiella appen skapar dem från ett härdat, Google-signerat bygge, vilket en öppen-källkodsklient inte kan återskapa. Fjärr**kommandon** för {brand} (och SEAT) kommer därför sannolikt inte tillbaka.\n\nFordons**data** kommer fortfarande via det skrivskyddade EU Data Act-portalen där det är tillgängligt — det är vägen framåt för dessa märken. Detta ligger helt hos VW; inget att åtgärda på din sida. (Spåras: #464.)",
+      "title": "{brand}-kommandon blockerade av VW (enhetsattestering) — {count} 403-fel i rad"
+    },
+    "vw_na_data_forbidden": {
+      "title": "Volkswagen US/CA: fordonsdata blockerad (abonnemang)",
+      "description": "Ditt Volkswagen-konto loggade in och ditt garage lästes, men databegärandena per fordon (status, laddning, klimat) avvisas med HTTP 403 Forbidden.\n\nDen vanligaste orsaken är ett **inaktivt Car-Net-/VW Connect-abonnemang** för det här fordonet. Samma data skulle strömma in igen om abonnemanget förnyas.\n\n**Vad du gör:**\n\n1. Öppna den officiella MyVW-appen och kontrollera att ditt Remote Access-/Car-Net-abonnemang är aktivt för den här bilen.\n2. Om det har löpt ut, förnya det via VW och vänta sedan på nästa avläsning.\n\nIntegrationen fortsätter visa den senast cachade datan. Den här varningen försvinner av sig själv så snart en databegäran lyckas igen."
+    },
+    "vw_na_data_forbidden_attestation": {
+      "title": "Volkswagen US/CA: fordonsdata blockerad av VW (enhetsattestering)",
+      "description": "Ditt Volkswagen-konto loggade in och ditt garage lästes, men databegärandena per fordon (status, laddning, klimat) avvisas med HTTP 403 Forbidden, och svaret bär en **enhetsattesterings**-markering.\n\nDet här är en **serversidig låsning från VW**, inte ett abonnemangsproblem och inget som en ny inloggning kan lösa — att förnya Car-Net hjälper alltså inte. VW kräver nu en Google-signerad enhetsattesteringstoken (Firebase App Check / Play Integrity) som den officiella appen skapar från ett härdat bygge, vilket en öppen källkodsklient inte kan återskapa.\n\nIntegrationen fortsätter visa den senast cachade datan. Den här varningen försvinner av sig själv om VW öppnar dataplanet igen."
+    },
+    "supplementary_reauth": {
+      "title": "Volkswagen.de-läskanalen behöver loggas in igen",
+      "description": "Den kompletterande volkswagen.de-läskanalen kunde inte återuppta sin session (Volkswagen vill ha engångskoden via e-post igen). Fordonets huvuddata påverkas inte. Öppna integrationens alternativ och kör \"Lägg till en Volkswagen.de-läskanal\" igen för att återställa de extra vw.de-data."
+    },
+    "meb_commands_unavailable": {
+      "title": "Fjärrkommandon är inte tillgängliga för den här bilen ({brand})",
+      "description": "Du aktiverade MBB-fjärrkommandon när du konfigurerade {brand}, men det här är en bil i MEB-/ID-familjen (ID.3/4/5/7, Enyaq, Born, Q4). VW:s MEB-backend stöder inte den hållbara Car-Net-kommandovägen — den hållbara inloggningen svarade \"Unknown user\" — så lås-, klimat- och laddningskommandon kan inte skickas.\n\nPosten behålls som **skrivskyddad**: fordonsdata kommer fortfarande via EU Data Act-portalen, du ser bara inga kommandoentiteter. Det här är en känd begränsning i VW:s MEB-plattform, inte ett konfigurationsfel — du kan stänga det här meddelandet."
     }
   },
   "services": {
@@ -1092,6 +1544,28 @@
         }
       },
       "name": "Öppna märkets app (djuplänk)"
+    },
+    "abrp_send": {
+      "name": "Skicka telemetri till ABRP",
+      "description": "Bygger och skickar fordonets aktuella telemetri till A Better Routeplanner.",
+      "fields": {
+        "device_id": {
+          "name": "Fordon",
+          "description": "Fordonet som ska laddas upp (eller använd VIN)."
+        },
+        "vin": {
+          "name": "VIN",
+          "description": "Fordonets VIN (alternativ till enhet)."
+        },
+        "api_key": {
+          "name": "Åsidosätt api_key",
+          "description": "Valfritt. Ersätter den lagrade utvecklarnyckeln. Loggas aldrig."
+        },
+        "token": {
+          "name": "Åsidosätt token",
+          "description": "Valfritt. Ersätter den lagrade fordonstoken. Loggas aldrig."
+        }
+      }
     }
   },
   "exceptions": {
@@ -1112,6 +1586,9 @@
     },
     "read_only_mode_active": {
       "message": "Skrivskyddat läge är aktiverat i integrationsalternativen. Inaktivera det under Inställningar → Enheter och tjänster → VW Group Connect → Konfigurera för att skicka fordonskommandon."
+    },
+    "read_only_portal_active": {
+      "message": "Det här fordonet ansluter via VW:s skrivskyddade EU Data Act-portal, så fjärrkommandon (lås, klimat, laddning) är inte tillgängliga för det. Det här är ingen inställning du kan slå av eller på — portalkanalen har ingen kommandoväg."
     }
   },
   "selector": {

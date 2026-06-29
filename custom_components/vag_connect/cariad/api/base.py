@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Base async API client — injected aiohttp session, token management."""
 
 from __future__ import annotations
@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Awaitable
 from contextlib import contextmanager
 from typing import Any, Callable, Iterator
 
@@ -68,6 +69,14 @@ _PROBE_BUDGET_S      = 30
 _PROBE_TOKEN_GUARD   = 50
 _PROBE_CB_THRESHOLD  = 3
 
+# v2.15.0b1 (B4) — account-scoped rate-limit lockout. When a backend hard-limits
+# us (HTTP 430, or 429 still firing after the retry budget is spent), pause ALL
+# requests on this client for a cool-down window instead of hammering. A hammered
+# account can get locked for hours (myskoda #1053 precedent), so the cure must not
+# be more polling. The hold is per-client = per-account (one client per entry).
+_LOCKOUT_429_S = 1800   # 30 min once 429 retries are exhausted
+_LOCKOUT_430_S = 7200   # 2 h on a hard 430 (explicit lockout signal)
+
 
 class _AuthStormSignal(Exception):
     """Internal sentinel — a probe got HTTP 401.
@@ -128,6 +137,34 @@ class CariadBaseClient:
         # wired. Default False → every existing strategy path is untouched.
         self._use_website_proxy: bool = False
         self._website_proxy: Any = None
+        # v2.15.0b1 (C1) — a SUPPLEMENTARY read-only connector armed ALONGSIDE
+        # the primary channel (not via the dispatch above). get_status never
+        # looks at it; only the coordinator's multi-channel merge reads it, so
+        # the primary read + command routing are completely unaffected. None =
+        # the default single-channel behaviour.
+        self._supplementary_authproxy: Any = None
+        # v2.15.0b1 (C1) — DEDICATED aiohttp session for the supplementary
+        # connector. It must NOT share the brand client's session: vw.de and a
+        # cookie-based primary (EU Data Act portal) share the IDP host
+        # (identity.vwgroup.io) AND cookie names (auth0/did/idkit), so a shared
+        # jar would clobber the primary's cookies and fail the resume probe.
+        self._supplementary_session: Any = None
+        # v2.15.0b5 (C1) — set True when the supplementary vw.de session can't
+        # silently resume (login=otp_required) so the coordinator raises a
+        # "re-login" Repair issue. Stays False for transient/other failures.
+        self._supplementary_needs_reauth: bool = False
+        # v2.15.0b8 (C1) — supplementary EU Data Act PORTAL read channel armed
+        # alongside a command-capable primary (e.g. MBB): it fills the reads MBB
+        # can't (SoC/charging/odometer/service). email/pw login → auto-relogin,
+        # no OTP, reliable unattended. Safe on the shared client session because
+        # a non-portal primary (MBB = bearer) holds no IDP cookies to clobber.
+        self._supplementary_eu_portal: Any = None
+        self._supplementary_eu_portal_creds: Any = None
+        # b12 — MBB COMMAND CHANNEL: a second, MBB-primary-configured client held
+        # alongside a read-only primary (portal) so commands route through MBB
+        # while reads stay on the portal. None unless armed. Shares this client's
+        # session (MBB = bearer, no IDP cookies to clobber).
+        self._mbb_command: Any = None
         # When the website-authproxy login surfaces an email-OTP challenge,
         # the code the user enters in the config flow is handed to the
         # connector via this field before authenticate() runs.
@@ -140,6 +177,18 @@ class CariadBaseClient:
         # already-authenticated session resumes WITHOUT re-prompting the OTP.
         # None / empty = no persisted session → normal (OTP-prompting) login.
         self._website_cookies: list[dict[str, Any]] | None = None
+        # v2.15.0 — durable MBB strategy. When the entry was created via the
+        # MBB device-grant login, the registered ``X-Client-Id`` that minted
+        # the durable bearer is threaded here by the coordinator. The MBB
+        # bearer IS ``self._tokens.access_token``; this client id must ride on
+        # every MBB token refresh + VSR read + RLU command (a mismatch 403s).
+        # Empty for every non-MBB entry → no behaviour change.
+        self._mbb_client_id: str = ""
+        # v2.15.0 — user-supplied VIN(s) for the MBB strategy. The fal-scoped
+        # MBB bearer can't list the account garage (usermanagement 403s), so
+        # the config flow lets the user enter their VIN(s) directly; these are
+        # returned by get_vehicles instead of the dead enumeration call.
+        self._mbb_manual_vins: list[str] = []
         self._image_data: dict[str, VehicleImageData] = {}
         self._refresh_lock: asyncio.Lock | None = None
         # Sliding window of token refresh attempt timestamps (monotonic seconds).
@@ -176,6 +225,10 @@ class CariadBaseClient:
         self.last_rate_limit_remaining: int | None = None
         self.last_rate_limit_limit: int | None = None
         self.last_rate_limit_reset_at: str | None = None
+        # v2.15.0b1 (B4) — account-scoped rate-limit lockout deadline
+        # (monotonic). Set on HTTP 430 / 429-exhaustion; checked at the top of
+        # _request so we stop sending until the backend has cooled down.
+        self._rate_limit_locked_until: float | None = None
         # v1.19.2 (#118 eismarkt) — token persistence callback hook.
         # Coordinator wires this to ``TokenStorage.save`` so every
         # successful authenticate() / _refresh_tokens() result is
@@ -453,6 +506,182 @@ class CariadBaseClient:
             strategy="data_act_portal",
         )
 
+    def supplementary_readers(
+        self, vin: str
+    ) -> list[tuple[str, Awaitable[VehicleData | None]]]:
+        """v2.15.0b1 (C1) — read coroutines for every armed SUPPLEMENTARY
+        read-only channel, for the coordinator's multi-channel merge.
+
+        Returns ``[(channel_name, awaitable→VehicleData|None), …]``. Empty when
+        no supplementary channel is armed (the default) — so the coordinator's
+        merge is a no-op and single-channel polling is byte-for-byte unchanged.
+        Isolated from ``get_status``: never affects the primary read or commands.
+        """
+        readers: list[tuple[str, Awaitable[VehicleData | None]]] = []
+        web = getattr(self, "_supplementary_authproxy", None)
+        if web is not None:
+            readers.append(("website_authproxy", self._read_authproxy(web, vin)))
+        portal = getattr(self, "_supplementary_eu_portal", None)
+        if portal is not None:
+            readers.append(("eu_data_act", self._read_eu_portal(portal, vin)))
+        return readers
+
+    async def _read_authproxy(
+        self, connector: Any, vin: str
+    ) -> VehicleData | None:
+        """Read one VIN from a website-authproxy connector with a single
+        re-login retry. Fail-soft: any error returns None so a read-only
+        supplementary channel can never sink the poll (the primary stands)."""
+        try:
+            return await connector.get_vehicle_data(vin)  # type: ignore[no-any-return]
+        except AuthenticationError:
+            try:
+                await connector.refresh()
+                return await connector.get_vehicle_data(vin)  # type: ignore[no-any-return]
+            except Exception:  # noqa: BLE001
+                return None
+        except Exception:  # noqa: BLE001
+            return None
+
+    async def _read_eu_portal(
+        self, connector: Any, vin: str
+    ) -> VehicleData | None:
+        """Read one VIN from the supplementary EU Data Act portal connector,
+        re-logging in (email/pw, no OTP) on a stale session. Fail-soft → None,
+        so a read-only fallback can never sink the poll (the primary stands)."""
+        try:
+            return await connector.get_vehicle_data(vin)  # type: ignore[no-any-return]
+        except AuthenticationError:
+            creds = getattr(self, "_supplementary_eu_portal_creds", None)
+            if not creds:
+                return None
+            try:
+                await connector.login(creds[0], creds[1])
+                return await connector.get_vehicle_data(vin)  # type: ignore[no-any-return]
+            except Exception:  # noqa: BLE001
+                return None
+        except Exception:  # noqa: BLE001
+            return None
+
+    async def arm_supplementary_authproxy(
+        self, cookies: list[dict[str, Any]] | None
+    ) -> bool:
+        """v2.15.0b1 (C1) — arm the SUPPLEMENTARY vw.de read connector from
+        persisted session cookies, ALONGSIDE the primary channel.
+
+        Unlike ``set_website_authproxy_mode`` (which makes vw.de the SOLE
+        channel via the get_status dispatch), this only fills the
+        ``_supplementary_authproxy`` slot that the coordinator merges from — so
+        get_status, the primary read and command routing are never affected.
+        Fail-soft: no/stale cookies or any error leaves the slot None and the
+        primary channel runs unchanged (a fresh OTP login is the OptionsFlow's
+        job, never a mid-setup prompt). Returns True if the channel is live.
+        """
+        if not cookies:
+            return False
+        import aiohttp  # noqa: PLC0415
+
+        from ..auth._website_authproxy import (  # noqa: PLC0415
+            WebsiteAuthProxyConnector,
+        )
+        # Dedicated, isolated session + cookie jar — never the shared brand
+        # session (see the field comment: a shared jar clobbers a cookie-based
+        # primary's IDP cookies and fails the resume probe).
+        await self.close_supplementary()
+        self._supplementary_needs_reauth = False
+        # Match the config-flow login session (TCPConnector ssl=True) so the
+        # resume probe behaves identically to the proven login path.
+        session = aiohttp.ClientSession(
+            connector=aiohttp.TCPConnector(ssl=True),
+            cookie_jar=aiohttp.CookieJar(unsafe=True),
+        )
+        try:
+            connector = WebsiteAuthProxyConnector(
+                session, self._email, self._password, brand=self._brand.name,
+            )
+            connector.import_cookies(cookies)
+            # Resume via the prompt=none SILENT re-authorize (connector.refresh):
+            # a live Auth0 SSO cookie re-mints the portal session WITHOUT ever
+            # touching the OTP path (which only lives on the interactive login).
+            # refresh() raises if the SSO is dead — then it's a genuine re-add,
+            # surfaced as a Repair. It NEVER calls begin_login, so no OTP-email
+            # storm on reload. (Mechanism mirrors the rafaelhutter portal client.)
+            try:
+                await connector.refresh()
+            except Exception as err:  # noqa: BLE001
+                self._supplementary_needs_reauth = True
+                _LOGGER.warning(
+                    "VAG Connect: supplementary vw.de channel could not silently"
+                    " resume (%s) — re-add it from the integration options; the"
+                    " primary channel is unaffected.", type(err).__name__,
+                )
+                await session.close()
+                return False
+            self._supplementary_authproxy = connector
+            self._supplementary_session = session
+            _LOGGER.info(
+                "VAG Connect: supplementary vw.de read channel armed"
+                " (read-only, merged onto the primary)."
+            )
+            return True
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning(
+                "VAG Connect: could not arm supplementary vw.de channel (%s)"
+                " — primary channel unaffected.", type(err).__name__,
+            )
+            self._supplementary_authproxy = None
+            await session.close()
+            return False
+
+    async def arm_supplementary_eu_portal(
+        self, email: str | None, password: str | None
+    ) -> bool:
+        """v2.15.0b8 (C1) — arm the supplementary EU Data Act portal read
+        channel (email/pw login, no OTP → reliable auto-relogin). Skipped when
+        the portal is ALREADY the primary channel (would self-collide on the
+        shared session). Fail-soft: any error leaves the slot None and the
+        primary channel runs unchanged. Returns True if armed."""
+        if not email:
+            return False
+        if getattr(self, "_eu_portal", None) is not None:
+            # portal is already the primary — nothing to supplement
+            return False
+        from ..auth._eu_data_act import EUDataActConnector  # noqa: PLC0415
+        try:
+            connector = EUDataActConnector(self._session, brand=self._brand.name)
+            await connector.login(email, password or "")
+            self._supplementary_eu_portal = connector
+            self._supplementary_eu_portal_creds = (email, password or "")
+            _LOGGER.info(
+                "VAG Connect: supplementary EU Data Act portal read channel"
+                " armed (read-only, merged onto the primary)."
+            )
+            return True
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning(
+                "VAG Connect: could not arm supplementary EU Data Act portal"
+                " (%s) — primary channel unaffected.", type(err).__name__,
+            )
+            self._supplementary_eu_portal = None
+            return False
+
+    async def close_supplementary(self) -> None:
+        """Close the dedicated supplementary session (on unload / re-arm).
+        Idempotent + fail-soft."""
+        sess = getattr(self, "_supplementary_session", None)
+        self._supplementary_session = None
+        self._supplementary_authproxy = None
+        # the portal supplementary shares the client session (no own session to
+        # close) — just drop the connector reference.
+        self._supplementary_eu_portal = None
+        # b12 — the MBB command channel shares this client's session too; drop it.
+        self._mbb_command = None
+        if sess is not None:
+            try:
+                await sess.close()
+            except Exception:  # noqa: BLE001
+                pass
+
     def set_website_authproxy_mode(
         self,
         enabled: bool,
@@ -512,15 +741,17 @@ class CariadBaseClient:
         # begin_login() surfaces "otp_required" → the normal reauth path below.
         if self._website_cookies:
             connector.import_cookies(self._website_cookies)
-            # v2.14.6 — probe a data endpoint with the resumed cookies BEFORE
-            # touching the login flow. A still-valid session lets us adopt it
-            # directly and skip the /app/authproxy/login OAuth dance — which is
-            # the path that redirect-loops (TooManyRedirects) when the persisted
-            # cookies are only partially valid. A dead session (probe False)
-            # falls through to a full begin_login() → OTP, exactly as before.
-            if await connector.session_alive():
+            # b9 — resume via the prompt=none SILENT refresh: it re-mints the
+            # portal session from the Auth0 SSO cookie WITHOUT ever touching the
+            # OTP path. (The old data-endpoint probe was the wrong test — the
+            # portal session token expires ~30 min after login even while the SSO
+            # is still alive, so probing /relations failed and forced a needless
+            # OTP re-login on restart.) Only a genuinely DEAD SSO makes refresh()
+            # raise → then begin_login() does a real, one-time (OTP) re-auth.
+            try:
+                await connector.refresh()
                 result = "ok"
-            else:
+            except Exception:  # noqa: BLE001
                 result = await connector.begin_login()
         else:
             result = await connector.begin_login()
@@ -869,6 +1100,13 @@ class CariadBaseClient:
             return 0
         if self._tokens is None:
             return 0
+        # v2.15.0 — the durable MBB bearer must NEVER be sent to the dead/
+        # attestation-gated CARIAD BFF host. The probe pass has no per-strategy
+        # host routing (it resolves base_url_for_brand → the BFF), so skip it
+        # entirely for MBB entries. The dedicated MBB getters in the brand
+        # client carry the bearer only to the legacy MBB hosts.
+        if self._tokens.strategy == "mbb":
+            return 0
 
         # Rate-limit per VIN — never re-run within _PROBE_INTERVAL_S.
         now = time.monotonic()
@@ -991,6 +1229,28 @@ class CariadBaseClient:
         """Authenticated POST."""
         return await self._request("POST", url, **kwargs)
 
+    def _rate_lockout_remaining(self) -> int:
+        """Seconds left on the account-scoped rate-limit lockout (0 = none).
+
+        Self-clearing: once the deadline passes, the lock is dropped so the
+        next request goes through normally."""
+        if self._rate_limit_locked_until is None:
+            return 0
+        remaining = self._rate_limit_locked_until - time.monotonic()
+        if remaining <= 0:
+            self._rate_limit_locked_until = None
+            return 0
+        return int(remaining)
+
+    def _enter_rate_lockout(self, seconds: int, status: int) -> None:
+        """Pause all requests on this client for ``seconds`` (B4)."""
+        self._rate_limit_locked_until = time.monotonic() + seconds
+        _LOGGER.warning(
+            "Account rate-limit lockout (HTTP %d) on %s — pausing all requests"
+            " for %d min to avoid a multi-hour account lock",
+            status, self._brand.name, seconds // 60,
+        )
+
     async def _request(
         self, method: str, url: str, retry: bool = True, _attempt: int = 0, **kwargs: Any
     ) -> Any:
@@ -1008,12 +1268,26 @@ class CariadBaseClient:
         - Transient network errors (DNS / connection refused / mid-stream
           disconnects / asyncio timeouts) → same backoff as server errors.
           Verified pattern from we_connect_id #166 and myskoda #731.
+        - HTTP 430 / repeated 429 → account-scoped lockout (B4): stop sending
+          on this client for a cool-down window so a rate-limited account does
+          not get hammered into a multi-hour lock.
         """
+        locked = self._rate_lockout_remaining()
+        if locked > 0:
+            raise APIError(
+                429, url,
+                f"rate-limit lockout active — {locked}s remaining (account cooldown)",
+            )
         headers = kwargs.pop("headers", {})
         headers["Authorization"] = f"Bearer {self._access_token}"
         headers["Accept"] = "application/json"
         headers["Content-Type"] = headers.get("Content-Type", "application/json")
-        headers["User-Agent"] = self._brand.user_agent
+        # v2.14.11 — setdefault, not unconditional assignment. The OLA brands
+        # (SEAT/CUPRA) thread a power-user ``user_agent_override`` through
+        # ``seat_cupra.py`` into ``headers`` BEFORE this call; an unconditional
+        # ``=`` here clobbered it, making the OptionsFlow override dead. Now the
+        # caller-supplied UA wins and BrandConfig.user_agent is only the default.
+        headers.setdefault("User-Agent", self._brand.user_agent)
 
         try:
             async with self._session.request(
@@ -1027,6 +1301,12 @@ class CariadBaseClient:
                     _LOGGER.debug("Rate limited (429) — retrying in %ds", wait)
                     await asyncio.sleep(wait)
                     return await self._request(method, url, retry=retry, _attempt=_attempt + 1, **kwargs)
+                if resp.status == 429:
+                    # retries exhausted — back off the whole account (B4)
+                    self._enter_rate_lockout(_LOCKOUT_429_S, 429)
+                if resp.status == 430:
+                    # explicit hard lockout signal — long account-scoped hold (B4)
+                    self._enter_rate_lockout(_LOCKOUT_430_S, 430)
                 if resp.status in (500, 502, 503, 504) and _attempt < 3:
                     wait = (2 ** _attempt) * 3
                     _LOGGER.debug("Server error %d — retrying in %ds", resp.status, wait)
@@ -1090,6 +1370,40 @@ class CariadBaseClient:
                     "Token refresh storm — please reauthenticate"
                 )
             self._refresh_history.append(now)
+
+            # v2.15.0 — durable MBB bearer refresh. The MBB OAuth backend
+            # (mbboauth-1d) refreshes via grant_type=refresh_token with the
+            # registered ``X-Client-Id`` — NOT via self._auth.refresh() (which
+            # routes VW to the dead/attestation-gated CARIAD BFF). This is the
+            # whole point of the MBB recipe: a long-lived, password-free
+            # refresh that survives restarts. On failure the error propagates →
+            # the coordinator surfaces a reauth (the user re-runs the MBB QR).
+            if (
+                self._tokens
+                and self._tokens.strategy == "mbb"
+                and self._tokens.refresh_token
+            ):
+                from ..auth import _mbboauth  # noqa: PLC0415
+
+                mbb_tokens = await _mbboauth.refresh(
+                    self._session,
+                    self._tokens.refresh_token,
+                    client_id=self._mbb_client_id or _mbboauth.MBB_SHARED_CLIENT_ID,
+                )
+                from ..models import TokenSet  # noqa: PLC0415
+
+                self._tokens = TokenSet(
+                    access_token=mbb_tokens.access_token,
+                    refresh_token=mbb_tokens.refresh_token
+                    or self._tokens.refresh_token,
+                    id_token=self._tokens.id_token,
+                    expires_at=mbb_tokens.expires_at,
+                    strategy="mbb",
+                )
+                await self._notify_tokens_changed()
+                self.account_lock_detected = False
+                self._lock_history.clear()
+                return
 
             # v2.13.0 — device-code/QR portal tokens refresh at the IDP token
             # endpoint as a PUBLIC client, NOT via self._auth.refresh() (which

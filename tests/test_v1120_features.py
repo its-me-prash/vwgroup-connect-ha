@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Tests for v1.12.0 — five MINOR features bundled.
 
 Feature scope (each closes or partials a planned issue):
@@ -120,7 +120,7 @@ class TestPerLightSensors:
         coord = MagicMock()
         vehicle = {"lights_individual": {"frontLeft": True, "rearRight": False}}
         entities: list = []
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             _async_setup_light_sensors(coord, "VINX", vehicle, entities)
         )
         assert len(entities) == 2
@@ -136,7 +136,7 @@ class TestPerLightSensors:
         coord = MagicMock()
         vehicle = {"lights_individual": {}}
         entities: list = []
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             _async_setup_light_sensors(coord, "VINX", vehicle, entities)
         )
         assert entities == []
@@ -187,13 +187,13 @@ def _coord_with_vehicle():
 class TestSmartWakeCounter:
     def test_first_wake_sets_count_to_one(self):
         coord = _coord_with_vehicle()
-        asyncio.get_event_loop().run_until_complete(coord.async_wake_vehicle("VINX"))
+        asyncio.run(coord.async_wake_vehicle("VINX"))
         assert coord.vehicles["VINX"]["wake_count_today"] == 1
 
     def test_subsequent_wakes_increment(self):
         coord = _coord_with_vehicle()
         for _ in range(2):
-            asyncio.get_event_loop().run_until_complete(coord.async_wake_vehicle("VINX"))
+            asyncio.run(coord.async_wake_vehicle("VINX"))
             # v1.13.0 (#63) — clear the 5-min cooldown so the loop can
             # advance the budget counter without hitting wake_cooldown_active.
             # v1.25.0 PR-D: state moved to dispatcher
@@ -209,7 +209,7 @@ class TestSmartWakeCounter:
         coord = _coord_with_vehicle()
         # Fill the budget
         for _ in range(_WAKE_BUDGET_PER_DAY):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 coord.async_wake_vehicle("VINX")
             )
             # v1.13.0 (#63) — clear the 5-min cooldown between iterations
@@ -220,7 +220,7 @@ class TestSmartWakeCounter:
                 d._wake_last_at.clear()
         # One more should raise (budget exhausted, not cooldown)
         with pytest.raises(ServiceValidationError):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 coord.async_wake_vehicle("VINX")
             )
 
@@ -231,7 +231,7 @@ class TestSmartWakeCounter:
         yesterday = (datetime.now(tz=timezone.utc) - timedelta(days=1)).date()
         coord._wake_counts = {"VINX": (yesterday, _WAKE_BUDGET_PER_DAY)}
         # Today should reset and proceed
-        asyncio.get_event_loop().run_until_complete(coord.async_wake_vehicle("VINX"))
+        asyncio.run(coord.async_wake_vehicle("VINX"))
         today = datetime.now(tz=timezone.utc).date()
         assert coord._wake_counts["VINX"] == (today, 1)
 
@@ -253,7 +253,7 @@ class TestWriteableMaxChargeCurrent:
 
         client = VWEUClient.__new__(VWEUClient)
         client._post_command = AsyncMock()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_set_max_charge_current("VINX", 16)
         )
         client._post_command.assert_awaited_once_with(
@@ -263,7 +263,7 @@ class TestWriteableMaxChargeCurrent:
     def test_coordinator_async_set_max_charge_current_dispatches(self):
         coord = _coord_with_vehicle()
         coord._cariad_client.command_set_max_charge_current = AsyncMock()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.async_set_max_charge_current("VINX", 16)
         )
         coord._cariad_client.command_set_max_charge_current.assert_awaited_once_with(
@@ -345,7 +345,7 @@ class TestReadOnlyMode:
         entry = MagicMock()
         entry.runtime_data = coord
         added = []
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             lock_setup(MagicMock(), entry, added.append)
         )
         # Lock platform returned early — no entities passed to add
@@ -358,7 +358,7 @@ class TestReadOnlyMode:
         entry = MagicMock()
         entry.runtime_data = coord
         added = []
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             async_setup_entry(MagicMock(), entry, added.append)
         )
         assert added == []
@@ -370,7 +370,7 @@ class TestReadOnlyMode:
         entry = MagicMock()
         entry.runtime_data = coord
         added = []
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             async_setup_entry(MagicMock(), entry, added.append)
         )
         assert added == []
@@ -386,7 +386,47 @@ class TestReadOnlyMode:
         # async_add_entities is normally called with a list — capture it
         def _capture(things):
             added.append(list(things))
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             lock_setup(MagicMock(), entry, _capture)
         )
         assert added and len(added[0]) == 1  # one VagDoorLock for VINX
+
+
+class TestReadOnlyOptionsPrecedence543:
+    """Issue #543 — Options-Flow value must win over initial-config data.
+
+    Initial setup force-sets ``data[read_only]=True`` for some paths; when the
+    user later DISABLES read-only via the Options Flow, the old OR kept
+    returning True (data won) and commands stayed blocked. The documented
+    precedence is options > data > False.
+    """
+
+    @staticmethod
+    def _coord(options, data):
+        from custom_components.vag_connect.coordinator import VagConnectCoordinator
+
+        coord = VagConnectCoordinator.__new__(VagConnectCoordinator)
+        coord.entry = MagicMock()
+        coord.entry.options = options
+        coord.entry.data = data
+        # No portal strategy / MBB channel — exercise the options/data branch.
+        coord._cariad_client = None
+        return coord
+
+    def test_options_false_overrides_data_true(self):
+        """#543 core: data forced True but Options disables → commands allowed."""
+        coord = self._coord({"read_only_mode": False}, {"read_only_mode": True})
+        assert coord.is_read_only() is False
+
+    def test_options_true_wins(self):
+        coord = self._coord({"read_only_mode": True}, {})
+        assert coord.is_read_only() is True
+
+    def test_neither_set_defaults_false(self):
+        coord = self._coord({}, {})
+        assert coord.is_read_only() is False
+
+    def test_data_true_no_options_key_backcompat(self):
+        """Options never set the key → data is the fallback (back-compat)."""
+        coord = self._coord({}, {"read_only_mode": True})
+        assert coord.is_read_only() is True

@@ -41,7 +41,14 @@ from urllib.parse import urljoin, urlparse
 
 from aiohttp import ClientConnectionError, ClientSession, ClientTimeout
 
-from ..exceptions import AuthenticationError
+from ..exceptions import (
+    AuthenticationError,
+    EmailTwoFactorRequiredError,
+    MarketingConsentError,
+    PortalInteractionRequiredError,
+    TermsAndConditionsError,
+    TwoFactorRequiredError,
+)
 from ..models import VehicleData
 
 _LOGGER = logging.getLogger(__name__)
@@ -233,6 +240,173 @@ def _login_error(html: str) -> str | None:
     return str(err) if err else None
 
 
+def _safe_url(url: str) -> str:
+    """Return host+path of *url* with the query string STRIPPED.
+
+    Query strings on the signin-service flow carry ``relayState`` / ``code``
+    / login tokens — never log them. This yields only the part that is safe
+    to log (host + path) so #527 reporters' real failure step can be pinned
+    from a debug log without leaking secrets.
+    """
+    try:
+        p = urlparse(url)
+        return f"{p.netloc}{p.path}"
+    except Exception:  # noqa: BLE001
+        return "<unparseable-url>"
+
+
+# v2.15.4 (#527) — interstitial markers. The portal login lands on the
+# signin-service host (or re-renders the credential page) for MANY reasons
+# besides bad credentials: T&C, marketing consent, 2FA/OTP, onboarding,
+# region selection, soft rate-limit. The historic code classified ALL of
+# these as "check email and password" purely from a URL substring. These
+# markers (URL fragments + templateModel keys/page identifiers) let us raise
+# the SAME typed exceptions the main auth chain (idk.py) already raises, so
+# the coordinator/config_flow's existing branches fire and the user gets an
+# actionable, non-credential message. Substrings mirror idk.py.
+_TC_MARKERS = ("terms-and-conditions", "/u/terms", "termsandconditions")
+_CONSENT_MARKERS = (
+    "consent/marketing", "/u/consent", "marketing-consent", "marketingconsent",
+)
+_EMAIL_2FA_MARKERS = (
+    "/u/email-challenge", "email-otp", "email-code", "send-email-code",
+)
+_2FA_MARKERS = ("/u/mfa", "two-factor", "2fa", "totp", "mfa-challenge")
+_ONBOARDING_MARKERS = (
+    "onboarding", "region-select", "select-region", "country-select",
+    "/u/login/identifier-first",
+)
+_RATELIMIT_MARKERS = ("too-many", "rate-limit", "ratelimit", "throttl")
+
+# v2.15.5 (#527 follow-on) — GENERIC OAuth/IDP consent page. Distinct from the
+# MARKETING-consent interstitial (_CONSENT_MARKERS): this is the standard
+# signin-service grant page the IDP shows AFTER credentials when the OAuth
+# client needs an authorization grant the account has not yet given. Confirmed
+# on v2.15.4 diagnostics (sarahlesage): the portal credential POST lands on
+# ``identity.vwgroup.io/signin-service/v1/consent/users/{uid}/{client}`` with
+# templateModel pageType='consent', status 200 — a generic consent grant, not a
+# marketing opt-in. The user already entered creds + wants the integration
+# authorized, so the official-app behaviour is to ACCEPT the grant. We mirror
+# that (auto-accept in login()); the classifier markers below are the fallback
+# for when auto-accept does not complete the login.
+_GENERIC_CONSENT_MARKERS = ("/signin-service/v1/consent/", "/consent/users/")
+_GENERIC_CONSENT_PAGETYPES = ("consent",)
+
+
+def _is_generic_consent_page(
+    landing_url: str, page_type: str, blob: str
+) -> bool:
+    """True if the landing is the generic IDP/OAuth consent grant page (#527).
+
+    Matches on the signin-service consent URL family, the consent VIN-less
+    ``/consent/users/`` path, OR a templateModel pageType of ``consent``.
+    Deliberately does NOT match the MARKETING-consent interstitial (that is
+    handled by _CONSENT_MARKERS → MarketingConsentError) — the generic grant
+    page is the standard "authorize this client" page, not a marketing opt-in.
+    """
+    url_l = landing_url.lower()
+    if any(m in url_l for m in _GENERIC_CONSENT_MARKERS):
+        return True
+    if page_type and page_type.lower() in _GENERIC_CONSENT_PAGETYPES:
+        return True
+    return any(m in blob for m in _GENERIC_CONSENT_MARKERS)
+
+
+def classify_portal_login_failure(
+    landing_url: str, landing_html: str
+) -> tuple[AuthenticationError | None, dict[str, str]]:
+    """Classify a non-completed portal login landing.
+
+    Returns ``(exc, log_ctx)`` where:
+      * ``exc`` is a TYPED ``AuthenticationError`` subclass to raise, or
+        ``None`` when the landing is a genuine bad-credential re-render
+        (caller raises the credential catch-all).
+      * ``log_ctx`` is a secret-free dict (page-type / error / errorCode
+        keys only — NEVER email/password/tokens/relayState/code) suitable
+        for a DEBUG/WARNING log line.
+
+    Order matters: machine-readable interstitial markers first (so a real
+    "accept the T&C" page never surfaces as "wrong password"), then the
+    templateModel error/errorCode, then the credential fallback.
+    """
+    haystack = f"{landing_url}\n{landing_html}".lower()
+    model = _extract_template_model(landing_html) or {}
+    err = model.get("error")
+    err_code = model.get("errorCode")
+    if isinstance(err, dict):
+        err_code = err_code or err.get("errorCode")
+        err = err.get("text") or err.get("errorCode")
+    page_type = model.get("template") or model.get("templateName") or ""
+
+    log_ctx: dict[str, str] = {}
+    if err:
+        log_ctx["error"] = str(err)[:120]
+    if err_code:
+        log_ctx["errorCode"] = str(err_code)[:120]
+    if page_type:
+        log_ctx["pageType"] = str(page_type)[:120]
+
+    blob = f"{haystack} {str(err_code).lower()} {str(page_type).lower()}"
+
+    # 1. Interstitials we recognise — reuse the main-chain exceptions.
+    if any(m in blob for m in _TC_MARKERS):
+        log_ctx.setdefault("classified", "terms_and_conditions")
+        return TermsAndConditionsError(), log_ctx
+    if any(m in blob for m in _CONSENT_MARKERS):
+        log_ctx.setdefault("classified", "marketing_consent")
+        return MarketingConsentError(), log_ctx
+    # Email-OTP must be checked BEFORE the generic 2FA family (subclass).
+    if any(m in blob for m in _EMAIL_2FA_MARKERS):
+        log_ctx.setdefault("classified", "email_two_factor_required")
+        return EmailTwoFactorRequiredError(), log_ctx
+    if any(m in blob for m in _2FA_MARKERS):
+        log_ctx.setdefault("classified", "two_factor_required")
+        return TwoFactorRequiredError(), log_ctx
+    if any(m in blob for m in _ONBOARDING_MARKERS):
+        log_ctx.setdefault("classified", "portal_interaction_required")
+        return PortalInteractionRequiredError("onboarding / region step"), log_ctx
+    if any(m in blob for m in _RATELIMIT_MARKERS):
+        log_ctx.setdefault("classified", "portal_interaction_required")
+        return PortalInteractionRequiredError("temporary block / rate limit"), log_ctx
+
+    # 1b. Generic OAuth/IDP consent grant page (#527). Checked AFTER the
+    #     marketing-consent markers (so a marketing opt-in still maps to
+    #     MarketingConsentError) but BEFORE the credential fallback so this
+    #     non-credential page never surfaces as "check password". This is the
+    #     classifier-side FALLBACK for when login()'s auto-accept could not
+    #     complete the grant (e.g. the IDP changed the form shape). The user
+    #     then gets the actionable "complete the consent in a browser" message.
+    if _is_generic_consent_page(landing_url, str(page_type), blob):
+        log_ctx.setdefault("classified", "portal_interaction_required")
+        return (
+            PortalInteractionRequiredError("consent / terms acceptance"),
+            log_ctx,
+        )
+
+    # 2. A machine-readable error/errorCode that is NOT one of the known
+    #    bad-credential codes → carry the real reason as a non-credential
+    #    failure (we couldn't prove it's the password).
+    cred_codes = {
+        "login.error.password_invalid",
+        "login.errors.password_invalid",
+        "incorrect_credentials",
+        "invalid_credentials",
+        "log.in.error.wrong.credentials",
+    }
+    err_code_l = str(err_code or "").lower()
+    if err_code and err_code_l not in cred_codes:
+        log_ctx.setdefault("classified", "portal_interaction_required")
+        return (
+            PortalInteractionRequiredError(f"portal error {err_code}"),
+            log_ctx,
+        )
+
+    # 3. Genuine bad-credential re-render (or no machine-readable reason at
+    #    all): let the caller raise the credential catch-all.
+    log_ctx.setdefault("classified", "invalid_credentials")
+    return None, log_ctx
+
+
 # ── Dataset parsing + curated field mapping ────────────────────────────────
 
 # v2.13.0 (P1) — timestamp keys carried alongside a datapoint/report node.
@@ -273,7 +447,117 @@ def _parse_ts(value: Any) -> float | None:
     return None
 
 
-def _walk_fields(payload: Any) -> dict[str, str]:
+# v2.15.0a11 — data-quality hardening (EU Data Act read path).
+# Sentinel markers the portal ships for "no reading": uint16 / int32 / uint32
+# max. A raw 65535 in an SoC/range field is "unknown", not a real value —
+# keeping it poisons HA long-term statistics irreversibly.
+_GLOBAL_SENTINELS: frozenset[float] = frozenset(
+    {65535.0, 2147483647.0, 4294967295.0}
+)
+
+# Field-specific sentinels — TABLE-DRIVEN (case-insensitive substring on the
+# flattened field name) so the rule set stays extensible instead of hardcoded.
+_FIELD_SENTINELS: tuple[tuple[str, frozenset[float]], ...] = (
+    ("remaining_charging_time", frozenset({-1.0})),
+    ("remainingchargingtime", frozenset({-1.0})),
+    ("tyre_pressure_actual", frozenset({0.0, 1.0})),  # 0=unsupported 1=invalid
+    ("tirepressure", frozenset({0.0, 1.0})),
+    # v2.15.3 — pressure DELTA-vs-target family: 0=unsupported 1=invalid,
+    # >1=valid int (mirrors the tyre_pressure_actual rule).
+    ("tyre_pressure_differential", frozenset({0.0, 1.0})),
+    # v2.15.4 (#538) — REQUIRED/target per-wheel pressure family: same dict
+    # convention (0=unsupported 1=invalid, >1=valid int) as the actual family.
+    ("tyre_pressure_required", frozenset({0.0, 1.0})),
+)
+
+# Monotonic fields must never regress: an out-of-order OLDER snapshot must not
+# lower a higher reading — pick the larger numeric value, not just latest-ts.
+_MONOTONIC_HINTS: tuple[str, ...] = (
+    "odometer", "mileage", "kilometre", "kilometer", "total_distance",
+)
+
+# Field names whose VALUE is itself the dataset capture timestamp.
+_CAPTURED_NAME_HINTS: tuple[str, ...] = (
+    "car_captured", "carcaptured", "captured_timestamp", "capturedtimestamp",
+    "captured_time", "capturedtime", "captured_utc",
+)
+
+
+def _num(value: Any) -> float | None:
+    """Coerce a leaf value to float for sentinel/monotonic checks, else None."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value.strip().replace(",", "."))
+        except (ValueError, AttributeError):
+            return None
+    return None
+
+
+def _is_sentinel(name: str, value: Any) -> bool:
+    """True if *value* is a "no reading" sentinel for field *name*."""
+    n = _num(value)
+    if n is None:
+        return False
+    if n in _GLOBAL_SENTINELS:
+        return True
+    low = name.lower()
+    return any(needle in low and n in sents for needle, sents in _FIELD_SENTINELS)
+
+
+def _is_monotonic(name: str) -> bool:
+    low = name.lower()
+    return any(h in low for h in _MONOTONIC_HINTS)
+
+
+def _dataset_captured_ts(payload: Any) -> float | None:
+    """Max capture timestamp across the dataset.
+
+    A leaf whose NAME marks it a capture time and whose VALUE is the timestamp.
+    Used as the default freshness floor for value-fields that carry no sibling
+    timestamp, so even bare ``{soc: 80}`` fields rank by dataset freshness rather
+    than collapsing to ``-inf`` (last-in-array).
+    """
+    best: float | None = None
+
+    def consider(raw: Any) -> None:
+        nonlocal best
+        ts = _parse_ts(raw)
+        if ts is not None and (best is None or ts > best):
+            best = ts
+
+    def scan(node: Any) -> None:
+        if isinstance(node, dict):
+            fname = node.get("dataFieldName") or node.get("name")
+            if (
+                isinstance(fname, str)
+                and "value" in node
+                and any(h in fname.lower() for h in _CAPTURED_NAME_HINTS)
+            ):
+                consider(node.get("value"))
+            for k, val in node.items():
+                if isinstance(k, str) and any(
+                    h in k.lower() for h in _CAPTURED_NAME_HINTS
+                ):
+                    consider(val)
+                if isinstance(val, (dict, list)):
+                    scan(val)
+        elif isinstance(node, list):
+            for item in node:
+                scan(item)
+
+    scan(payload)
+    return best
+
+
+def _walk_fields(
+    payload: Any,
+    _ts_out: dict[str, float] | None = None,
+    _syn_out: dict[str, set[str]] | None = None,
+) -> dict[str, str]:
     """Flatten the EU Data Act dataset into ``{field_name: value}``.
 
     The portal ZIP contains a JSON dataset whose shape varies by firmware
@@ -285,53 +569,179 @@ def _walk_fields(payload: Any) -> dict[str, str]:
     v2.13.0 (P1) — LATEST-WINS. The portal ships an unordered event-log, so
     the same field can appear at several timestamps; the old first-wins
     ``setdefault`` picked an arbitrary (often oldest) value, which is why SoC /
-    odometer jumped around for everyone on the portal. We now keep, per field,
-    the candidate with the highest parsed timestamp (read from a sibling
-    ``_TS_KEYS`` key on the same node); ties / missing timestamps fall back to
-    last-in-array (still better than first). Single-occurrence datasets are
-    unaffected, so existing shape tests stay green.
-    """
-    # name -> (value_str, ts) where ts is float (-inf when unknown)
-    best: dict[str, tuple[str, float]] = {}
+    odometer jumped around for everyone on the portal. We keep, per field, the
+    candidate with the freshest *genuine* per-point timestamp (read from a
+    sibling ``_TS_KEYS`` key on the same node).
 
-    def add(name: Any, value: Any, ts: float | None) -> None:
+    b13 (#465 RaAdNe): VW returns several data points with the SAME logical
+    name (e.g. four ``target_soc`` candidates, two ``soc`` values). We pick by
+    genuine freshness, never by array order: a real per-point timestamp beats the
+    inherited dataset floor, and the strictly-newer of two real timestamps wins.
+    Fields nested inside an array (e.g. inside ``chargingProfiles[]``) no longer
+    collapse onto the bare top-level key. Single-occurrence datasets are
+    unaffected, so existing shape tests stay green.
+
+    v2.15.4 (#529): snapshot COHERENCE. The ZIP is a flat, append-ordered
+    multi-snapshot log; resolving each field independently let soc, odometer and
+    last_seen surface from DIFFERENT snapshots — odometer in particular was
+    lifted by a within-ZIP monotonic MAX from an arbitrary older snapshot while
+    last_seen tracked the newest one, manufacturing a phantom "moved at night".
+    Two changes make every field resolve to its latest available sample, so the
+    surfaced values no longer contradict each other (the odometer is never from
+    an older block than last_seen):
+      1. Drop the odometer/mileage monotonic-MAX. Odometer now resolves to its
+         latest-cct sample like every other field, so it tracks the same latest
+         samples as soc/last_seen instead of a numeric max from an arbitrary
+         older block. The "never goes backwards" guarantee (a11) is NOT lost —
+         it is owned across polls by ``vehicle_cache.reconcile``
+         (MONOTONIC_INCREASING_FIELDS), which rejects a regression vs the last
+         PERSISTED value. That is the right layer: a within-ZIP max conflated
+         genuinely-distinct snapshots; the persisted-value guard does not. (Note
+         the a11 monotonic tests still pass — in each the newer timestamp legit-
+         imately carries the higher reading, which latest-cct selects anyway.)
+      2. On a tie with NO real per-point timestamp on either candidate, take the
+         LAST write, not the first. The portal log is append-ordered, so a later
+         duplicate is the newer sample. This flips the old first-seen tie-break
+         that surfaced the stale earlier value (#529 S5/S6); it only affects the
+         degenerate no-timestamp tie — real #465 payloads carry car_captured_time
+         and resolve by freshness regardless, so #465 stays fixed.
+
+    ``_ts_out`` (optional): if a dict is passed, it is filled with the RESOLVED
+    real per-point capture ts of each surfaced field (only fields whose winning
+    sample carried a genuine ts). #529 step 2 uses this so ``last_seen_at`` is
+    never advanced past the snapshot the surfaced odometer actually came from.
+
+    ``_syn_out`` (optional): if a dict is passed, it is filled with an EXPLICIT,
+    bidirectional synonym map ``{spelling -> {the other spelling(s)}}`` recording,
+    per PHYSICAL data-point node, the bare-leaf and container-qualified spellings
+    we emit for the SAME datum (the v2.15.4 overreport fix below emits BOTH). This
+    is the no-suppression-safe replacement for the old leaf+value heuristic in
+    ``first()``: two synonyms ALWAYS originate from one node, so two distinct nodes
+    that merely share a leaf name (e.g. ``battery_state_report.soc`` vs
+    ``front_left_tyre.soc``) are NEVER synonyms and can never cross-collapse — even
+    if their values happen to be equal.
+    """
+    # name -> (value_str, ts, ts_real); ts_real distinguishes a genuine
+    # per-point timestamp from the inherited dataset-level floor (-inf=unknown).
+    best: dict[str, tuple[str, float, bool]] = {}
+    dataset_ts = _dataset_captured_ts(payload)  # a11: dataset-level freshness floor
+
+    def add(name: Any, value: Any, ts: float | None, ts_real: bool) -> None:
         if not (isinstance(name, str) and name and value is not None):
             return
         if not isinstance(value, (str, int, float, bool)):
             return
+        # NO-SUPPRESSION (hard rule): sentinels ("no reading" / uint-max) must
+        # NOT be dropped from the flattened surface here — that removed the
+        # field from raw_unmapped (Scout) entirely, even for fields we never
+        # consume but whose name merely contains a sentinel needle. We keep the
+        # field Scout-visible; the sentinel VALUE is skipped only at mapping
+        # time in first(), so no sentinel ever lands on a mapped target.
         cand = ts if ts is not None else float("-inf")
+        cand_real = ts_real and ts is not None
         prev = best.get(name)
-        # latest-wins; >= so a later array entry replaces an equal/unknown ts.
-        if prev is None or cand >= prev[1]:
-            best[name] = (str(value), cand)
+        if prev is None:
+            best[name] = (str(value), cand, cand_real)
+            return
+        # #529: ALL fields (incl. monotonic odometer/mileage) resolve by genuine
+        # freshness so they come from the same snapshot. Cross-poll monotonic
+        # protection lives in vehicle_cache.reconcile, not here.
+        prev_real = prev[2]
+        if cand_real and prev_real:
+            # >= not >: a newer real ts wins, AND on an EQUAL real ts (two samples
+            # in the SAME snapshot block, #529 S6) the later-appended one wins —
+            # the log is append-ordered, so last-in-block is the newer reading.
+            if cand >= prev[1]:
+                best[name] = (str(value), cand, True)
+        elif cand_real and not prev_real:
+            best[name] = (str(value), cand, True)  # real beats floor/unknown
+        elif not cand_real and not prev_real:
+            # #529 S5/S6: no real ts on either → append-ordered log ⇒ last wins.
+            best[name] = (str(value), cand, False)
+        # else: incumbent is real and candidate is not → keep the real one.
 
-    def walk(node: Any, prefix: str = "", node_ts: float | None = None) -> None:
+    def walk(
+        node: Any,
+        prefix: str = "",
+        node_ts: float | None = None,
+        node_ts_real: bool = False,
+        in_array: bool = False,
+    ) -> None:
         if isinstance(node, dict):
-            ts = node_ts
+            ts, ts_real = node_ts, node_ts_real
             for tk in _TS_KEYS:
                 if tk in node:
                     parsed = _parse_ts(node[tk])
                     if parsed is not None:
-                        ts = parsed
+                        ts, ts_real = parsed, True  # genuine per-point timestamp
                         break
             # data-point shape: {dataFieldName|name: X, value: Y}
             fname = node.get("dataFieldName") or node.get("name")
             if fname is not None and "value" in node:
-                add(fname, node.get("value"), ts)
+                add(fname, node.get("value"), ts, ts_real)
+                # v2.15.4 overreport fix: a data-point node reached through a
+                # container (e.g. slope_consumption_values.ascent_slope_consumption
+                # .physical_value) carries its full dotted path in ``prefix``. Emit
+                # that CONTAINER-QUALIFIED key IN ADDITION to the bare leaf so (1)
+                # the dotted first() forms actually match in the realistic portal
+                # shape, and (2) ascent vs descent disambiguate — the bare leaf
+                # ``physical_value`` is SHARED by both siblings and latest-wins
+                # would otherwise collapse them to one value. The leftover bare
+                # synonym is reclaimed by first()'s synonym-collapse so it does not
+                # become a new chronic raw_unmapped re-reporter.
+                if prefix and not in_array:
+                    add(prefix, node.get("value"), ts, ts_real)
+                    # Record the bare/qualified pair as EXPLICIT synonyms of each
+                    # other (bidirectional). They come from THIS one physical node,
+                    # so first()'s synonym-collapse is precise: it never touches a
+                    # same-leaf field emitted by a DIFFERENT node.
+                    if _syn_out is not None and isinstance(fname, str):
+                        _syn_out.setdefault(fname, set()).add(prefix)
+                        _syn_out.setdefault(prefix, set()).add(fname)
             for k, val in node.items():
                 if k in ("dataFieldName", "name", "value"):
                     continue
                 key = f"{prefix}.{k}" if prefix else str(k)
                 if isinstance(val, (str, int, float, bool)):
-                    add(key, val, ts)
-                    add(str(k), val, ts)
+                    add(key, val, ts, ts_real)
+                    # b13 (#465): only emit the BARE name outside an array — a
+                    # field inside e.g. chargingProfiles[] must not collapse
+                    # onto the top-level key and clobber the active value.
+                    if not in_array:
+                        add(str(k), val, ts, ts_real)
                 else:
-                    walk(val, key, ts)
+                    walk(val, key, ts, ts_real, in_array)
         elif isinstance(node, list):
+            # v2.15.1 (#465 RaAdNe): the portal ships a flat, ORDERED event-log
+            # where each snapshot's capture time arrives as its OWN data-point
+            # (``dataFieldName: car_captured_time``) rather than a sibling key, so
+            # the per-point ts logic above never fires for it. Carry the running
+            # capture time across the list so every following field inherits its
+            # snapshot's REAL timestamp. Without it, a field repeated across
+            # snapshots (e.g. ``settings.target_soc`` 100 then 80 after battery-care
+            # lowered it) ties on the dataset floor and first-seen wins — surfacing
+            # the stale 100 instead of the current 80 the car/app actually show.
+            run_ts, run_real = node_ts, node_ts_real
             for item in node:
-                walk(item, prefix, node_ts)
+                if isinstance(item, dict):
+                    ifn = item.get("dataFieldName") or item.get("name")
+                    if (
+                        isinstance(ifn, str)
+                        and "value" in item
+                        and any(h in ifn.lower() for h in _CAPTURED_NAME_HINTS)
+                    ):
+                        parsed = _parse_ts(item.get("value"))
+                        if parsed is not None:
+                            run_ts, run_real = parsed, True
+                walk(item, prefix, run_ts, run_real, in_array=True)
 
-    walk(payload)
+    walk(payload, node_ts=dataset_ts)  # a11: bare fields inherit dataset freshness
+    if _ts_out is not None:
+        # Expose only GENUINE (real) per-point capture timestamps; floor/unknown
+        # (-inf) carry no snapshot identity and must not constrain last_seen.
+        for k, (_v, ts_v, ts_real_v) in best.items():
+            if ts_real_v:
+                _ts_out[k] = ts_v
     return {k: v[0] for k, v in best.items()}
 
 
@@ -349,7 +759,130 @@ def _to_int(raw: str | None) -> int | None:
     return int(f) if f is not None else None
 
 
-def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> VehicleData:
+def _dur_to_min(raw: str | None) -> int | None:
+    """Parse a charging/climate duration to whole minutes (v2.15.2, #511 Ra72xx).
+
+    The EU portal sends seconds with a trailing ``s`` (e.g. ``"2400s"`` = 40 min,
+    ``"0s"`` = 0). A bare number is treated as already-minutes (older firmwares),
+    preserving the previous behaviour.
+    """
+    if raw is None:
+        return None
+    s = str(raw).strip().lower()
+    if not s:
+        return None
+    if s.endswith("s"):
+        f = _to_float(s[:-1])
+        return int(f // 60) if f is not None else None
+    f = _to_float(s)
+    return int(f) if f is not None else None
+
+
+def _epoch_or_iso(raw: str | None) -> str | None:
+    """Normalise a capture timestamp to ISO-8601 UTC.
+
+    v2.15.1 — epoch seconds (or milliseconds) → ISO-8601 UTC string; an
+    already-ISO string passes through unchanged. Unparseable → None.
+    """
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    # Numeric → epoch seconds (ms heuristic: > 1e12).
+    try:
+        f = float(s)
+    except (ValueError, TypeError):
+        return s  # non-numeric → assume it's already an ISO/string timestamp
+    from datetime import datetime, timezone  # noqa: PLC0415
+
+    if f > 1e12:
+        f /= 1000.0
+    try:
+        return datetime.fromtimestamp(f, tz=timezone.utc).isoformat()
+    except (ValueError, OSError, OverflowError):
+        return None
+
+
+def _is_miles(unit_raw: str | None) -> bool:
+    """True if a portal distance-unit companion field denotes miles.
+
+    The portal ships either a string (``MILES``/``MILE``/``MI``/``KM``…) or a
+    numeric enum (``0`` = km, ``1`` = miles) — the numeric ``1`` case is a known
+    miles-vs-km pitfall confirmed against real UK/US portal payloads.
+    """
+    if unit_raw is None:
+        return False
+    return str(unit_raw).strip().lower() in ("miles", "mile", "mi", "1")
+
+
+_ENUM_PREFIXES = (
+    "CHARGE_STATE_", "CHARGE_MODE_", "CHARGING_MODE_",
+    "IMMEDIATE_ACTION_STATE_",
+    # v2.15.1 — charge-type / scenario / charge-reason enum families.
+    "CHARGE_TYPE_", "CHARGING_SCENARIO_", "PROFILE_CHARGE_REASON_",
+    # v2.15.3 — charge-settings enum families (#465/#514 settings.* block).
+    # NOTE: the dict enum tokens are MAX_CHARGE_CURRENT_{INVALID,REDUCED,MAXIMUM,
+    # MAX} — the prefix is MAX_CHARGE_CURRENT_ (NOT *_AC_, which is the field
+    # name suffix, not the value prefix).
+    "CHARGE_MODE_SELECTION_", "MAX_CHARGE_CURRENT_", "AUTO_UNLOCK_AC_",
+    "BCAM_ACTIVATION_",
+    # v2.15.4 — next-charging-timer reachability enum family (#521/#522 Scout).
+    # Tokens: TARGET_REACHABILITY_{INVALID,CALCULATING,REACHABLE,NOT_REACHABLE}.
+    # (report_type has no dict-listed values yet — no prefix; _shorten_enum keeps
+    # its raw value until a real sample confirms one.)
+    "TARGET_REACHABILITY_",
+    # v2.15.5 — report-trigger reason enum family (update_reason, many VW-EU
+    # Scouts). Tokens: UPDATE_REASON_{INVALID,CHARGING,CLAMP15_OFF,CLAMP15_ON,
+    # CLIMATISATION,OTHER} — dict-confirmed, so _shorten_enum strips the prefix.
+    "UPDATE_REASON_",
+)
+
+# v2.15.1 — labels appended to ``available_charge_modes`` per truthy
+# charge_mode_selection_options flag. ONE list attribute, no per-flag entity.
+_CHARGE_MODE_SUPPORT_LABELS: tuple[tuple[str, str], ...] = (
+    ("immediate_charging", "IMMEDIATE"),
+    ("timer_charging", "TIMER"),
+    ("timer_charging_climatization", "TIMER_WITH_CLIMATISATION"),
+    ("preferred_charging_times", "PREFERRED_CHARGING_TIMES"),
+    ("only_own_current", "ONLY_OWN_CURRENT"),
+    ("home_storage_charging", "HOME_STORAGE"),
+    ("immediate_discharging", "IMMEDIATE_DISCHARGING"),
+)
+
+
+def _shorten_enum(value: str | None) -> str | None:
+    """Strip a verbose VW protocol prefix from an enum label for display
+    (e.g. ``CHARGE_STATE_CHARGING_HV_BATTERY`` → ``CHARGING_HV_BATTERY``).
+    Already-short / non-prefixed values pass through unchanged."""
+    if not isinstance(value, str):
+        return value
+    up = value.upper()
+    # v2.15.3 — match the LONGEST applicable prefix, not the first listed: the
+    # families overlap (``CHARGE_MODE_`` is a prefix of ``CHARGE_MODE_SELECTION_``)
+    # so first-match would strip too little. Longest-first is order-independent.
+    best = ""
+    for pref in _ENUM_PREFIXES:
+        if up.startswith(pref) and len(value) > len(pref) and len(pref) > len(best):
+            best = pref
+    return value[len(best):] if best else value
+
+
+# b1/A6 — cap raw-discovery fields kept on the diagnostic sensor's attributes,
+# so a pathological payload can't bloat the recorder / state machine.
+_RAW_FIELD_CAP = 250
+
+# b14 — NO field suppression. Policy (Prash): never hide Scout/raw fields; every
+# portal field is surfaced so it can be mapped. (The b10 ``_SCOUT_SKIP_FIELDS`` /
+# ``_is_noise`` filter was removed — we map everything, we don't suppress.)
+
+
+def map_dataset_to_vehicle_data(
+    fields: dict[str, str],
+    d: VehicleData,
+    field_ts: dict[str, float] | None = None,
+    field_syn: dict[str, set[str]] | None = None,
+) -> VehicleData:
     """Map a curated subset of EU Data Act fields onto ``VehicleData``.
 
     v2.12.0 ships the ~15 highest-value fields users care about (odometer,
@@ -358,14 +891,61 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     ``fields`` may carry both the bare name (``soc``) and dotted variants
     (``battery_state_report.soc``); we try both.
     """
+    used: set[str] = set()
+    syn = field_syn or {}
+
     def first(*names: str) -> str | None:
         for n in names:
             if n in fields:
-                return fields[n]
+                val = fields[n]
+                # NO-SUPPRESSION: a sentinel ("no reading") value must never be
+                # assigned to a mapped target, but the field stays Scout-visible.
+                # We skip it WITHOUT marking it used, so it still appears in
+                # raw_unmapped_fields for discovery/mapping later.
+                if _is_sentinel(n, val):
+                    continue
+                used.add(n)
+                # v2.15.4 synonym-collapse (no-suppression-safe): bare / dotted /
+                # container-qualified spellings of the SAME field coexist in
+                # ``fields`` because the walker emits BOTH the bare leaf AND the
+                # full dotted path for a data-point node nested under a container.
+                # Once we consume one spelling, mark every OTHER spelling of the
+                # same datum used so it stops re-surfacing in raw_unmapped_fields.
+                # "Other spellings" = (a) the remaining explicit ``*names`` of this
+                # call, and (b) the matched name's EXPLICIT synonyms — the bare/
+                # qualified twins recorded by _walk_fields for the one physical node
+                # that emitted them. Because a synonym pair always originates from a
+                # SINGLE node, two distinct nodes that merely share a leaf name
+                # (e.g. battery_state_report.soc vs front_left_tyre.soc) are NEVER
+                # synonyms and can never cross-collapse — even with equal values.
+                # ascent/descent slope each carry their OWN container-qualified
+                # synonym, so the shared bare ``physical_value`` is reclaimed by
+                # whichever was matched first without conflating the two values.
+                for other in names:
+                    if other != n and other in fields:
+                        used.add(other)
+                for other in syn.get(n, frozenset()):
+                    if other in fields:
+                        used.add(other)
+                return val
         return None
 
     soc = _to_int(first("battery_state_report.soc", "soc", "stateOfChargeInPercent",
-                        "state_of_charge"))
+                        "state_of_charge",
+                        # b13 (#504) — legacy Car-Net charger dialect: the HV
+                        # battery level IS the traction SoC. Kept LAST so the
+                        # canonical sources win when a car reports both, and
+                        # only the charger-dialect cars (which carry nothing
+                        # else) fall back to it.
+                        "battery_level_HV.value",
+                        "battery_level_HV.battery_level_HV.value",
+                        # v2.15.3 (#517) — charger-dialect alias: dict defines
+                        # hv_soc as "state of charge for the high voltage
+                        # battery" (identical semantic to battery_level_HV).
+                        # LAST fallback only — never out-competes the canonical
+                        # soc/battery_state_report.soc keys; just widens
+                        # coverage for cars that report nothing else.
+                        "hv_soc"))
     if soc is not None:
         d.battery_soc = soc
         d.has_battery = True
@@ -382,9 +962,31 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
             d.electric_range_km = rng
 
     cp = _to_float(first("battery_state_report.charge_power", "charge_power",
-                        "chargePower_kW"))
+                        "chargePower_kW",
+                        # v2.15.3 (#518) — EU-Data-Act dialect alias. Dict
+                        # defines charging_power (UUID 978be4ed) as "Power of
+                        # charging" (type=number, unit=null). Treating it as kW
+                        # is a CONVENTION for a charging-power field (typical
+                        # magnitudes are kW), NOT substantiated by the dict —
+                        # the sibling charge_rate_unit is a distance/time RATE
+                        # unit enum ("Unit of charge rate"), never a power unit.
+                        # LAST fallback only — canonical charge_power keys win
+                        # when a car reports both.
+                        "charging_power"))
     if cp is not None:
         d.charging_power_kw = cp
+
+    # 2.15.1 — the charger dialect reports charged energy
+    # (battery_state_report.charge_energy). The EU data dictionary defines this
+    # as PER-SESSION ("charged energy in kWh, 0..1000, EV must be connected to
+    # charger" — a gauge that reads 0.0 when idle), NOT a lifetime total. So it
+    # belongs on the per-session sensor (charge_session_energy_kwh), not the
+    # lifetime total_charged_energy_kwh. (The CUPRA/SEAT chargeEnergyInKwh field
+    # IS genuinely lifetime and is mapped separately — left untouched.)
+    ce = _to_float(first("battery_state_report.charge_energy", "charge_energy",
+                        "chargedEnergy_kWh"))
+    if ce is not None and ce >= 0:
+        d.charge_session_energy_kwh = ce
 
     tsoc = _to_int(first("settings.target_soc", "target_soc", "targetSOC_pct"))
     if tsoc is not None:
@@ -393,12 +995,14 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     cs = first("charging_state_report.current_charge_state", "current_charge_state",
                "chargingState", "charging_state")
     if cs:
-        d.charging_state = cs
+        # is_charging from the RAW value (logic unchanged); store a shortened
+        # label for display (a13/A4 — strips verbose VW enum prefixes).
         d.is_charging = cs.lower() in ("charging", "chargingacactive", "active")
+        d.charging_state = _shorten_enum(cs)
 
     cmode = first("charging_state_report.charge_mode", "charge_mode")
     if cmode:
-        d.charge_mode = cmode
+        d.charge_mode = _shorten_enum(cmode)
 
     tmin = _to_float(first("min_temperature", "battery_min_temperature"))
     if tmin is not None:
@@ -423,6 +1027,973 @@ def map_dataset_to_vehicle_data(fields: dict[str, str], d: VehicleData) -> Vehic
     ))
     if lifetime is not None:
         d.lifetime_distance_km = lifetime
+
+    # a12 — additional high-confidence portal fields (purely additive; every
+    # existing mapping above is untouched). Names tried defensively via first().
+    # v2.15.4 (#523) — actual_charge_rate (dict UUID 370c2092) has its OWN
+    # unit=null, so the dict does NOT mark it km/h. It is folded into
+    # charging_rate_kmh as the "actual" variant of the same charge-rate family
+    # the canonical `Charge Rate` entry (dict UUID 732b602c, unit=kmPerHour)
+    # already represents — i.e. the km/h rate charging_rate_kmh maps. Added as
+    # the LAST alias so canonical/report-shaped keys still win when both appear.
+    crate = _to_int(first("battery_state_report.charge_rate", "charge_rate",
+                          "chargeRate_kmph", "charging_rate_kmh",
+                          "actual_charge_rate"))
+    if crate is not None:
+        d.charging_rate_kmh = crate
+
+    plug = first("charging_plug1_connectionstate", "plug_connection_state",
+                 "plugConnectionState", "plug_state")
+    if plug is not None:
+        d.plug_state = plug
+        d.plug_connected = str(plug).lower() in ("connected", "plugged", "true", "1")
+
+    # b1/A1 — flat MQB / PHEV schema fields (Golf GTE, Passat GTE, e-Golf, Taigo,
+    # Polo…). `_walk_fields` already emits both flat + dotted; these add the flat
+    # names to the curated map so legacy/PHEV cars get real telemetry over the EU
+    # Data Act portal instead of empty entities. Only unambiguous explicit-field
+    # mappings here — primary/electric range stays for the EV-type detection
+    # (B3) to avoid mislabelling a PHEV's ICE range as electric.
+    # v2.15.3 — tank_current_level is the EU-portal dialect name for the fuel
+    # percent (distinct from fuel_level_current_level already tried first).
+    fuel = _to_int(first("fuel_level_current_level", "tank_current_level",
+                         "fuelLevel_pct", "fuel_level"))
+    if fuel is not None:
+        d.fuel_level = fuel
+
+    v12 = _to_float(first("boardnetBatteryVoltageIndication", "boardnet_battery_voltage"))
+    if v12 is not None:
+        d.voltage_12v = v12
+
+    oil = _to_int(first("oil_level_actual_level", "oilLevel_pct", "oil_level_pct"))
+    if oil is not None:
+        d.oil_level_pct = oil
+
+    # v2.15.4 (#521/#522) — outdoor_temperature is the EU-portal dialect alias
+    # for the same ambient reading (dict: "Current outdoor temperature in °C").
+    # Added LAST so the dK-carrying outside_temperature wins when both appear;
+    # the > 200 guard below already handles dK-vs-°C either way, so the plain-°C
+    # outdoor_temperature sample (e.g. 31.5) passes through untouched.
+    otemp = _to_float(first("outsideTemperatureIndication", "outside_temperature",
+                            "outside_temp", "outdoor_temperature"))
+    if otemp is not None:
+        # flat MQB ships outside temp in deci-Kelvin (e.g. 2981 = 24.95 °C); an
+        # already-°C value (e.g. 17.1) stays as-is — no ambient temp is > 200 °C.
+        d.outside_temp = round(otemp / 10 - 273.15, 1) if otemp > 200 else otemp
+
+    sec_rng = _to_int(first("cruising_range_secondary_engine"))
+    if sec_rng is not None:
+        d.secondary_engine_range_km = sec_rng
+
+    comb_rng = _to_int(first("cruising_range_combined", "totalRange_km"))
+    if comb_rng is not None:
+        d.total_range_km = comb_rng
+
+    insp = _to_int(first("inspectionDistance", "inspection_distance"))
+    if insp is not None and d.service_km is None:
+        d.service_km = insp
+
+    # b5 — flat MQB maintenance intervals + lock + window-heating that the raw
+    # field discovery surfaced in real Golf-class portal payloads. Mapping them
+    # gives the portal channel real service/lock telemetry without the (OTP-bound)
+    # vw.de channel. Values are portal-reported; a negative interval = overdue.
+    # The portal reports these as NEGATIVE remaining-until-due (e.g. -155 =
+    # "due in 155 days", -14900 = "due in 14900 km"); negate so the sensors read
+    # as a positive countdown (a value that goes negative = genuinely overdue).
+    svc_km = _to_int(first("maintenance_interval_distance_until_inspection"))
+    if svc_km is not None and d.service_km is None:
+        d.service_km = -svc_km
+    svc_days = _to_int(first("maintenance_interval__time_until_inspection"))
+    if svc_days is not None and d.service_due_in_days is None:
+        d.service_due_in_days = -svc_days
+    oil_km = _to_int(first("maintenance_interval_distance_until_oil_change"))
+    if oil_km is not None and d.oil_service_km is None:
+        d.oil_service_km = -oil_km
+    oil_days = _to_int(first("maintenance_interval__time_until_oil_change"))
+    if oil_days is not None and d.oil_service_due_in_days is None:
+        d.oil_service_due_in_days = -oil_days
+
+    lock = first("lock_state", "central_lock_state")
+    if lock is not None and d.doors_locked is None:
+        d.doors_locked = str(lock).lower() in ("locked", "safe")
+
+    whf = first("window_heating_state_front")
+    if whf is not None and d.window_heating_front is None:
+        d.window_heating_front = str(whf).lower() in ("on", "active", "true", "1")
+    whr = first("window_heating_state_rear")
+    if whr is not None and d.window_heating_back is None:
+        d.window_heating_back = str(whr).lower() in ("on", "active", "true", "1")
+
+    # ── b10 — portal long-tail (doors/windows/trip/maintenance) ─────────────
+    # Enum families resolved from the official data dictionary:
+    #   lock-state    2=locked / 3=unlocked
+    #   open-state    2=open   / 3=closed   (doors, hood, tailgate)
+    #   window-lifter 2=open   / 3=closed
+    #   0=unsupported, 1=invalid → ignore. position fields are % open (0=closed).
+
+    # doors_locked from the PER-DOOR lock states. This is the authoritative
+    # signal on the portal's payload (the bare `locked` field is absent/stale —
+    # it was wrongly reporting an unlocked car), so it OVERRIDES the block above.
+    _locks = [
+        _to_int(first("locked_state_front_left_door")),
+        _to_int(first("locked_state_front_right_door")),
+        _to_int(first("locked_state__rear_left_door")),   # double underscore in spec
+        _to_int(first("locked_state_rear_right_door")),
+    ]
+    _tail_lock = _to_int(first("locked_state_tailgate"))
+    _lock_vals = [v for v in (*_locks, _tail_lock) if v in (2, 3)]
+    if _lock_vals:
+        d.doors_locked = all(v == 2 for v in _lock_vals)  # any unlocked → False
+    if _tail_lock in (2, 3) and d.trunk_locked is None:
+        d.trunk_locked = _tail_lock == 2
+
+    # open-state → doors_individual (True == OPEN, matching the vw_eu polarity)
+    for _slot, _name in (
+        ("frontLeft", "open_state_front_left_door"),
+        ("frontRight", "open_state_front_right_door"),
+        ("rearLeft", "open_state_rear_left_door"),
+        ("rearRight", "open_state_rear_right_door"),
+    ):
+        _ov = _to_int(first(_name))
+        if _ov in (2, 3):
+            d.doors_individual[_slot] = _ov == 2
+    if d.doors_individual and d.doors_open is None:
+        d.doors_open = any(d.doors_individual.values())
+    _tail_open = _to_int(first("open_state_tailgate"))
+    if _tail_open in (2, 3) and d.trunk_open is None:
+        d.trunk_open = _tail_open == 2
+    _bonnet_open = _to_int(first("open_state_front_engine_bonnet"))
+    if _bonnet_open in (2, 3) and d.hood_open is None:
+        d.hood_open = _bonnet_open == 2
+    # state_of_hood — separate source field, same enum family (dict: unsupported
+    # 0 / invalid 1 / open 2 / closed 3). Fold into hood_open as a fallback when
+    # the open_state_front_engine_bonnet channel is absent.
+    _hood_state = _to_int(first("state_of_hood"))
+    if _hood_state in (2, 3) and d.hood_open is None:
+        d.hood_open = _hood_state == 2
+
+    # window-lifter state → windows_individual (True == CLOSED, per the model
+    # convention) + windows_open aggregate; position is % open.
+    for _slot, _name in (
+        ("frontLeft", "state_front_left_door_window_lifter"),
+        ("frontRight", "state_front_right_door_window_lifter"),
+        ("rearLeft", "state_rear_left_door_window_lifter"),
+        ("rearRight", "state_rear_right_door_window_lifter"),
+    ):
+        _wv = _to_int(first(_name))
+        if _wv in (2, 3):
+            d.windows_individual[_slot] = _wv == 3
+    if d.windows_individual and d.windows_open is None:
+        d.windows_open = any(v is False for v in d.windows_individual.values())
+    for _slot, _name in (
+        ("frontLeft", "position_front_left_door_window_lifter"),
+        ("frontRight", "position_front_right_door_window_lifter"),
+        ("rearLeft", "position_rear_left_door_window_lifter"),
+        ("rearRight", "position_rear_right_door_window_lifter"),
+    ):
+        _pv = _to_int(first(_name))
+        if _pv is not None:
+            d.windows_position[_slot] = _pv
+
+    # trip statistics (short-term → last trip, long-term → lifetime). Units from
+    # the dictionary: mileage km, travel_time min, speed km/h. Consumption fields
+    # (l/1000km, kWh/1000km) are deferred — current values look like sentinels;
+    # they stay Scout-visible for a live A/B before we trust the scale.
+    _st_dist = _to_float(first("short_term_data_mileage"))
+    if _st_dist is not None and d.last_trip_distance_km is None:
+        d.last_trip_distance_km = _st_dist
+    _st_time = _to_int(first("short_term_data_travel_time"))
+    if _st_time is not None and d.last_trip_duration_min is None:
+        d.last_trip_duration_min = _st_time
+    _lt_speed = _to_float(first("long_term_data_average_speed"))
+    if _lt_speed is not None:
+        d.lifetime_avg_speed_kmh = _lt_speed
+    _lt_time = _to_int(first("long_term_data_travel_time"))
+    if _lt_time is not None:
+        d.lifetime_travel_time_min = _lt_time
+
+    # maintenance — warning flags (1 == active) + average monthly mileage
+    _oilw = _to_int(first("maintenance_interval_oil_change_warning"))
+    if _oilw is not None and d.warning_oil is None:
+        d.warning_oil = _oilw == 1
+    _insw = _to_int(first("maintenance_interval_inspection_warning"))
+    if _insw is not None:
+        d.warning_inspection = _insw == 1
+    _mm = _to_int(first("maintenance_interval_monthly_mileage"))
+    if _mm is not None:
+        d.monthly_mileage_km = _mm
+
+    # remaining times (minutes)
+    _rcl = _dur_to_min(first("remaining_climatisation_time", "remaining_climate_time"))
+    if _rcl is not None and d.climate_remaining_time_min is None:
+        d.climate_remaining_time_min = _rcl
+    # v2.15.1 — battery_state_report.remaining_charging_time_complete is the
+    # preferred source; it joins this EXISTING chain ahead of the bare
+    # remaining_charging_time. Single assignment — do not add a second line.
+    _rch = _dur_to_min(first(
+        "battery_state_report.remaining_charging_time_complete",
+        "remaining_charging_time_complete",
+        "remaining_charging_time",
+    ))
+    if _rch is not None and d.remaining_charge_time_min is None:
+        d.remaining_charge_time_min = _rch
+
+    # b1/A2 — distance-unit conversion. UK/US cars report distances in miles
+    # plus a companion unit field; our sensors are km-typed, so convert once
+    # here (km cars hit the no-op branch). Post-process so the individual field
+    # mappings above stay untouched.
+    if _is_miles(first("mileage.unit", "range.unit", "distance_unit", "distanceUnit")):
+        for _attr in ("odometer_km", "range_km", "electric_range_km",
+                      "combustion_range_km", "secondary_engine_range_km",
+                      "total_range_km", "service_km", "oil_service_km",
+                      "monthly_mileage_km", "last_trip_distance_km"):
+            _val = getattr(d, _attr)
+            if _val is not None:
+                setattr(d, _attr, round(_val * 1.60934))
+
+    # ── v2.15.1 — 2.15.0 plan: EU Data Act MAP-INTO-EXISTING + NEW fields ────
+    # All additive and guarded; every existing mapping above is untouched.
+
+    # charge_mode_selection_options (7 bools) → available_charge_modes labels.
+    # Collapses to ONE list attribute (no per-flag entity). De-duplicated.
+    for _opt, _label in _CHARGE_MODE_SUPPORT_LABELS:
+        _mode_flag = first(
+            f"charge_mode_selection_options.{_opt}",
+            f"charge_mode_selection_options_{_opt}",
+            _opt,
+        )
+        if (
+            _mode_flag is not None
+            and str(_mode_flag).lower() in ("true", "1", "set", "on", "yes")
+            and _label not in d.available_charge_modes
+        ):
+            d.available_charge_modes.append(_label)
+
+    # charge_type → charging_type (_shorten_enum, CHARGE_TYPE_ prefix added).
+    _ctype = first("charging_state_report.charge_type", "charge_type", "chargeType")
+    if _ctype is not None:
+        d.charging_type = _shorten_enum(_ctype)
+
+    # charging_mode → charging_preferred_mode (guard is None so a BFF value
+    # is never clobbered).
+    _cmode = first("charging_mode", "chargingMode")
+    if _cmode is not None and d.charging_preferred_mode is None:
+        d.charging_preferred_mode = _shorten_enum(_cmode)
+
+    # battery_care_mode.charge_bcam_threshold → battery_care_target_soc_pct.
+    _bcam = _to_int(first("battery_care_mode.charge_bcam_threshold",
+                          "charge_bcam_threshold"))
+    if _bcam is not None:
+        d.battery_care_target_soc_pct = _bcam
+
+    # energy_contents.{current,maximal}_energy_content.physical_value gated on
+    # the companion value_type being valid.
+    def _value_type_ok(*names: str) -> bool:
+        vt = first(*names)
+        # Companion is consumed (so it leaves raw_unmapped_fields) but only
+        # gates: an explicit "invalid"/"error"/"0" token blocks the value.
+        if vt is None:
+            return True  # no gate present → don't block a real reading
+        return str(vt).strip().lower() not in ("invalid", "error", "0", "false")
+
+    # physical_value is reported in 0.1-kWh units (100 Wh), so divide by 10 to
+    # get kWh — e.g. raw 756 → 75.6 kWh, 461 → 46.1 kWh (#534, ID.4 2024).
+    _cur_kwh = _to_float(first(
+        "energy_contents.current_energy_content.physical_value",
+        "current_energy_content.physical_value",
+    ))
+    if _cur_kwh is not None and _value_type_ok(
+        "energy_contents.current_energy_content.value_type",
+        "current_energy_content.value_type",
+    ):
+        d.battery_available_kwh = _cur_kwh / 10.0
+    _max_kwh = _to_float(first(
+        "energy_contents.maximal_energy_content.physical_value",
+        "maximal_energy_content.physical_value",
+    ))
+    if _max_kwh is not None and _value_type_ok(
+        "energy_contents.maximal_energy_content.value_type",
+        "maximal_energy_content.value_type",
+    ):
+        d.battery_cap_kwh = _max_kwh / 10.0
+
+    # Trip consumption averages (l/1000km → l/100km, kWh/1000km → kWh/100km).
+    # Guard is None so we don't overwrite a value the structured path set.
+    _stf = _to_float(first("short_term_data_average_fuel_consumption"))
+    if _stf is not None and d.last_trip_avg_fuel_consumption_l_100km is None:
+        d.last_trip_avg_fuel_consumption_l_100km = _stf / 10
+    _ste = _to_float(first("short_term_data_average_electr_engine_consumption"))
+    if _ste is not None and d.last_trip_avg_electric_consumption_kwh_100km is None:
+        d.last_trip_avg_electric_consumption_kwh_100km = _ste / 10
+    _ltf = _to_float(first("long_term_data_average_fuel_consumption"))
+    if _ltf is not None and d.lifetime_avg_fuel_consumption_l_100km is None:
+        d.lifetime_avg_fuel_consumption_l_100km = _ltf / 10
+    _lte = _to_float(first("long_term_data_average_electr_engine_consumption"))
+    if _lte is not None and d.lifetime_avg_electric_consumption_kwh_100km is None:
+        d.lifetime_avg_electric_consumption_kwh_100km = _lte / 10
+
+    # v2.15.3 (#517) — auxiliary-consumer + gas consumption averages.
+    # Dict units: aux = "kwH/1000km", gas = "kg/1000km" → /10 for per-100km.
+    _ltaux = _to_float(first("long_term_data_average_aux_consumer_consumption"))
+    if _ltaux is not None and d.lifetime_avg_aux_consumption_kwh_100km is None:
+        d.lifetime_avg_aux_consumption_kwh_100km = _ltaux / 10
+    _staux = _to_float(first("short_term_data_average_aux_consumer_consumption"))
+    if _staux is not None and d.last_trip_avg_aux_consumption_kwh_100km is None:
+        d.last_trip_avg_aux_consumption_kwh_100km = _staux / 10
+    _ltgas = _to_float(first("long_term_data_average_gas_consumption"))
+    if _ltgas is not None and d.lifetime_avg_gas_consumption_kg_100km is None:
+        d.lifetime_avg_gas_consumption_kg_100km = _ltgas / 10
+    _stgas = _to_float(first("short_term_data_average_gas_consumption"))
+    if _stgas is not None and d.last_trip_avg_gas_consumption_kg_100km is None:
+        d.last_trip_avg_gas_consumption_kg_100km = _stgas / 10
+
+    # v2.15.3 (#517) — long-term range-gain + zero-emission distance. Dict unit
+    # for both is "100m" (i.e. 0.1 km steps) → multiply by 0.1 for km.
+    _ltrg = _to_float(first("long_term_data_range_gain_distance"))
+    if _ltrg is not None and d.lifetime_range_gain_km is None:
+        d.lifetime_range_gain_km = _ltrg * 0.1
+    _strg = _to_float(first("short_term_data_range_gain_distance"))
+    if _strg is not None and d.last_trip_range_gain_km is None:
+        d.last_trip_range_gain_km = _strg * 0.1
+    _ltze = _to_float(first("long_term_data_zero_emission_distance"))
+    if _ltze is not None and d.lifetime_zero_emission_km is None:
+        d.lifetime_zero_emission_km = _ltze * 0.1
+    _stze = _to_float(first("short_term_data_zero_emission_distance"))
+    if _stze is not None and d.last_trip_zero_emission_km is None:
+        d.last_trip_zero_emission_km = _stze * 0.1
+
+    # v2.15.3 (#517) — trigger info about the last battery-charger update
+    # (string enum, e.g. "other"). Shorten any verbose prefix. LOW value but
+    # dict-confirmed; disabled-by-default at the entity layer.
+    _bcut = first("last_battery_charger_update_trigger")
+    if _bcut is not None and d.charger_update_trigger is None:
+        d.charger_update_trigger = _shorten_enum(_bcut)
+    # NOTE: scope_potential_total (PPE-only, opaque) and echo (constant
+    # heartbeat token) are intentionally NOT mapped — they stay Scout-visible
+    # in raw_unmapped_fields (no first() call → no false signal).
+
+    # v2.15.5 (#541) — V2G / bidirectional-charging charge-level limits. Dict
+    # type=number, unit=null; description "Additional SOC range for
+    # bidirectional charging" → percent. Upper / lower bidi charge-level limit.
+    # first() drops the uint16 65535 sentinel; container + bare spellings tried.
+    # ONLY these two bidi_* fields were reported (#541) — the rest of the
+    # bidirectional_charging_mode.* family stays Scout-visible.
+    _bidi_max = _to_int(first(
+        "bidirectional_charging_mode.bidi_max_Soc", "bidi_max_Soc"))
+    if _bidi_max is not None and d.bidi_max_charge_level_pct is None:
+        d.bidi_max_charge_level_pct = _bidi_max
+    _bidi_min = _to_int(first(
+        "bidirectional_charging_mode.bidi_min_Soc", "bidi_min_Soc"))
+    if _bidi_min is not None and d.bidi_min_charge_level_pct is None:
+        d.bidi_min_charge_level_pct = _bidi_min
+
+    # v2.15.3 (#518) — EU-Data-Act charging-detail string family. All
+    # dict-confirmed type=string with no enum list in the dictionary (the enum
+    # tokens are only observed from samples: connected/disconnected, locked/
+    # unlocked, initializing/notAvailable, …). We map each via first() with
+    # _shorten_enum() for display consistency and store the lowercased junk
+    # sentinels as None so single-port cars don't get a dead "invalid" entity.
+    # NEVER suppressed at the field layer — two-port cars (plug2) exist and the
+    # field is always defined; only this car's junk samples are skipped.
+    def _charge_str(*names: str) -> str | None:
+        raw = first(*names)
+        if raw is None:
+            return None
+        # junk sentinels for these state strings: no active session / single-
+        # port car / infra not yet up. Skip → field stays None (no phantom
+        # entity) but the raw key is still consumed for discovery hygiene.
+        if str(raw).strip().lower() in (
+            "invalid", "unavailable", "notavailable", "error", "unknown",
+        ):
+            return None
+        return _shorten_enum(raw)
+
+    _atsoc = _charge_str("active_target_soc")
+    if _atsoc is not None and d.active_target_soc is None:
+        d.active_target_soc = _atsoc
+    _ctd = _charge_str("charge_time_display")
+    if _ctd is not None and d.charge_time_display is None:
+        d.charge_time_display = _ctd
+
+    _p1fl = _charge_str("charging_plug1_flap_lock_state")
+    if _p1fl is not None and d.charging_plug1_flap_lock_state is None:
+        d.charging_plug1_flap_lock_state = _p1fl
+    _p1f = _charge_str("charging_plug1_flap_state")
+    if _p1f is not None and d.charging_plug1_flap_state is None:
+        d.charging_plug1_flap_state = _p1f
+    _p1i = _charge_str("charging_plug1_infrastructure_state")
+    if _p1i is not None and d.charging_plug1_infrastructure_state is None:
+        d.charging_plug1_infrastructure_state = _p1i
+    _p1l = _charge_str("charging_plug1_lock_state")
+    if _p1l is not None and d.charging_plug1_lock_state is None:
+        d.charging_plug1_lock_state = _p1l
+
+    _p2c = _charge_str("charging_plug2_connectionstate")
+    if _p2c is not None and d.charging_plug2_connectionstate is None:
+        d.charging_plug2_connectionstate = _p2c
+    _p2fl = _charge_str("charging_plug2_flap_lock_state")
+    if _p2fl is not None and d.charging_plug2_flap_lock_state is None:
+        d.charging_plug2_flap_lock_state = _p2fl
+    _p2f = _charge_str("charging_plug2_flap_state")
+    if _p2f is not None and d.charging_plug2_flap_state is None:
+        d.charging_plug2_flap_state = _p2f
+    _p2i = _charge_str("charging_plug2_infrastructure_state")
+    if _p2i is not None and d.charging_plug2_infrastructure_state is None:
+        d.charging_plug2_infrastructure_state = _p2i
+    _p2l = _charge_str("charging_plug2_lock_state")
+    if _p2l is not None and d.charging_plug2_lock_state is None:
+        d.charging_plug2_lock_state = _p2l
+
+    # parking_light_left / _right → aggregate parking_light + per-side fields.
+    _pll = first("parking_light_left")
+    _plr = first("parking_light_right")
+
+    def _truthy_light(raw: str | None) -> bool | None:
+        if raw is None:
+            return None
+        return str(raw).lower() in ("true", "1", "on")
+
+    _pll_b = _truthy_light(_pll)
+    _plr_b = _truthy_light(_plr)
+    if _pll_b is not None:
+        d.parking_light_left = _pll_b
+    if _plr_b is not None:
+        d.parking_light_right = _plr_b
+    if (_pll_b is not None or _plr_b is not None) and d.parking_light is None:
+        d.parking_light = bool(_pll_b) or bool(_plr_b)
+
+    # Capture timestamp → last_seen_at. epoch-seconds→ISO-8601 UTC; ISO
+    # passthrough. (_dataset_captured_ts already reads these for freshness —
+    # surfacing is additive.)
+    _cap = first(
+        "car_captured_utc_timestamp", "car_captured_time", "instrument_cluster_time",
+    )
+    if _cap is not None and d.last_seen_at is None:
+        cap_iso = _epoch_or_iso(_cap)
+        # #529 step 2: never advance last_seen_at PAST the snapshot the surfaced
+        # odometer actually came from. If the newest snapshot re-reported a
+        # capture time but NOT the odometer, the odometer is genuinely older;
+        # letting last_seen run ahead of it lets HA infer movement ("odometer
+        # changed AND last_seen advanced") that never happened. Cap last_seen to
+        # the odometer's resolved capture ts whenever the latter is older. We
+        # only know the odometer's ts from field_ts (the _walk_fields out-param);
+        # without it we fall back to the raw capture (pre-#529 behaviour).
+        if field_ts and d.odometer_km is not None:
+            odo_ts = next(
+                (field_ts[k] for k in ("mileage.value", "mileage", "odometer",
+                                       "totalMileage") if k in field_ts),
+                None,
+            )
+            cap_ts = _parse_ts(_cap)
+            if odo_ts is not None and cap_ts is not None and odo_ts < cap_ts:
+                capped = _epoch_or_iso(str(odo_ts))
+                if capped is not None:
+                    cap_iso = capped
+        d.last_seen_at = cap_iso
+
+    # parking_brake.is_set → parking_brake_engaged (shared field).
+    _pb = first("parking_brake.is_set", "parking_brake_is_set", "parking_brake")
+    if _pb is not None:
+        d.parking_brake_engaged = str(_pb).lower() in ("true", "1", "set")
+
+    # bare `open` → sunroof: LOW confidence (3 dict definitions). Per the plan,
+    # leave to raw_unmapped_fields until live-test; intentionally NOT mapped.
+
+    # ── EU NEW fields ───────────────────────────────────────────────────────
+    _cscn = first("charging_scenario", "chargingScenario")
+    if _cscn is not None:
+        d.charging_scenario = _shorten_enum(_cscn)
+
+    _icas = first("immediate_charge_action_state", "immediate_action_state")
+    if _icas is not None:
+        d.immediate_charge_action_state = _shorten_enum(_icas)
+
+    _pcr = first("profile_charge_reason", "charge_reason")
+    if _pcr is not None:
+        d.profile_charge_reason = _shorten_enum(_pcr)
+
+    # NOTE: charge_session_energy_kwh is already populated earlier from the real
+    # dict key battery_state_report.charge_energy (with a >=0 guard). The block
+    # that previously sat here used GUESSED names (charge_session_energy /
+    # charge_session_energy_kwh) that never appear in the EU data dictionary, so
+    # it never fired and only risked clobbering the real value — removed.
+
+    _rcb = _dur_to_min(first(
+        "battery_state_report.remaining_charging_time_bulk",
+        "remaining_charging_time_bulk",
+    ))
+    if _rcb is not None:
+        d.remaining_charge_time_bulk_min = _rcb
+
+    _ostate = first("mileage.state")
+    if _ostate is not None:
+        d.odometer_state = _shorten_enum(_ostate)
+
+    _ict = first("instrument_cluster_time")
+    if _ict is not None:
+        d.instrument_cluster_time = _ict
+
+    # data_error_detail — join non-empty of error_code/number/description,
+    # filtering "#0"/"0" "no error" sentinels.
+    _err_parts: list[str] = []
+    for _en in ("error_code", "error_number", "error_description"):
+        _ev = first(_en)
+        if _ev is None:
+            continue
+        _evs = str(_ev).strip()
+        if _evs and _evs not in ("#0", "0"):
+            _err_parts.append(_evs)
+    if _err_parts:
+        d.data_error_detail = " ".join(_err_parts)
+
+    # last_report_id — change-detector metadata. Surfaced as a diagnostic but
+    # NOT consumed: per the b14 no-suppress policy (and the plan's "kept
+    # Scout-visible" note for message_id/dataset_key) it must still appear in
+    # raw_unmapped_fields, so we peek without marking it used.
+    _rid = fields.get("message_id")
+    if _rid is not None:
+        d.last_report_id = _rid
+
+    # Real EU data-dictionary keys (the previous first() names were guessed and
+    # never matched, so these never populated). Dictionary unit is null for both,
+    # so we store the raw numeric value as-is (no scale applied) until a live
+    # payload confirms the unit; comment kept as a flag for that follow-up.
+    _clim_e = _to_float(first(
+        "additional_consumptions.interior_climatization_consumption"))
+    if _clim_e is not None:
+        d.climate_energy_consumption_kwh = _clim_e  # unit unconfirmed (dict: null)
+    _res_e = _to_float(first("additional_consumptions.residual_consumption"))
+    if _res_e is not None:
+        d.residual_energy_consumption_kwh = _res_e  # unit unconfirmed (dict: null)
+
+    _st_rec = _to_float(first("short_term_data_average_recuperation"))
+    if _st_rec is not None:
+        d.last_trip_avg_recuperation_kwh_100km = _st_rec / 10
+    _lt_rec = _to_float(first("long_term_data_average_recuperation"))
+    if _lt_rec is not None:
+        d.lifetime_avg_recuperation_kwh_100km = _lt_rec / 10
+
+    # dataset_key — LOW confidence, disabled-by-default. ZIP-envelope
+    # metadata that the plan flags as possibly redundant with the message_id
+    # change-detector; like last_report_id it is surfaced but NOT consumed, so
+    # the bare key stays Scout-visible (b14 no-suppress policy).
+    _dkey = fields.get("Data.key") or fields.get("dataset_key") or fields.get("key")
+    if _dkey is not None:
+        d.dataset_key = str(_dkey)
+
+    # ── v2.15.2 — EU Data Act portal "charger detail" fields (#513 Scout) ────
+    # All additive, guarded, EU-Data-Act-dialect only.
+    _eps = first("external_power_supply_state")
+    if _eps is not None:
+        d.external_power_supply_state = _shorten_enum(_eps)
+
+    _eflow = first("energy_flow")
+    if _eflow is not None:
+        d.energy_flow_active = str(_eflow).lower() in ("on", "true", "1", "active")
+
+    _creason = first("charging_reason_trigger")
+    if _creason is not None:
+        d.charging_reason = _shorten_enum(_creason)
+
+    # charging_state_error_code — "0"/"0.0"/"#0" are the "no error" sentinels → None.
+    # v2.15.3: normalise numerically so a float-typed "0.0" is also dropped.
+    # v2.15.4 (#521): charging_state_report.error_code is the nested EU-portal
+    # alias for the same code (dict-confirmed type=number) — added so the report-
+    # shaped payload populates the same sensor; sentinel-drop still applies.
+    _cerr = first("charging_state_error_code", "charging_state_report.error_code")
+    if _cerr is not None:
+        _cerrs = str(_cerr).strip()
+        _cerrn = _to_float(_cerrs)
+        if _cerrs and _cerrs != "#0" and _cerrn != 0:
+            d.charging_error_code = _cerrs
+
+    _rtts = first("remaining_charging_time_target_soc")
+    if _rtts is not None:
+        d.remaining_time_target_soc = _rtts
+
+    _led_c = first("led_color")
+    if _led_c is not None:
+        d.charge_led_color = _led_c
+
+    _led_s = first("led_state")
+    if _led_s is not None:
+        d.charge_led_pattern = _led_s
+
+    # ── v2.15.3 — EU Data Act portal new fields (#465/#514/#515/#516) ────────
+    # All additive, guarded, EU-Data-Act-dialect only; mirrors the v2.15.1/2
+    # style (first(), _shorten_enum, _ENUM_PREFIXES, sentinel drops).
+
+    # A. Charging settings (settings.*  +  the singular setting.bcam_activation).
+    _csel = first("settings.charge_mode_selection", "charge_mode_selection")
+    if _csel is not None:
+        d.charge_mode_selection = _shorten_enum(_csel)
+    _mca = first("settings.max_charge_current_ac", "max_charge_current_ac")
+    if _mca is not None:
+        d.max_charge_current_ac = _shorten_enum(_mca)
+    _aua = first("settings.auto_unlock_ac", "auto_unlock_ac")
+    if _aua is not None:
+        d.auto_unlock_charge_port = _shorten_enum(_aua)
+    # setting.bcam_activation (singular) → battery_care_mode_active bool.
+    _bcam_act = first("setting.bcam_activation", "bcam_activation")
+    if _bcam_act is not None:
+        d.battery_care_mode_active = (
+            str(_bcam_act).upper().endswith("ACTIVATED")
+            and "DEACTIVATED" not in str(_bcam_act).upper()
+        )
+    # charge_bulk_threshold (% SoC at which charging slows bulk→trickle).
+    _cbt = _to_int(first("battery_state_report.charge_bulk_threshold",
+                         "charge_bulk_threshold"))
+    if _cbt is not None:
+        d.charge_bulk_threshold_pct = _cbt
+    # charge_rate_unit — LOW, disabled-by-default companion enum for the rate.
+    _cru = first("battery_state_report.charge_rate_unit", "charge_rate_unit")
+    if _cru is not None:
+        d.charge_rate_unit = _shorten_enum(_cru)
+
+    # B. Door / closure SAFE-state (2=safe 3=unsafe — INVERSE polarity of the
+    # locked_state 2=locked/3=unlocked block above; do NOT reuse those helpers).
+    # NOTE (polarity): the 2=safe/3=unsafe mapping is documented in the dict only
+    # for the three door safe_state_* fields (front_right / rear_left /
+    # rear_right). The bonnet + tailgate safe-state polarity is INFERRED from the
+    # same enum family (and from the locked_state block's bonnet entry); if a live
+    # payload shows otherwise these two should be re-verified.
+    _bonnet_lock = _to_int(first("locked_state_front_engine_bonnet"))
+    if _bonnet_lock in (2, 3):
+        d.bonnet_locked = _bonnet_lock == 2
+    # Rolled-up "all present closures safe" aggregate (2=safe). Only dict-confirmed
+    # safe_state_* fields (NO safe_state_front_left_door — it is absent from the
+    # spec; the documented set is front_right/rear_left/rear_right + bonnet/tailgate).
+    _safe_vals = [
+        _to_int(first(_n)) for _n in (
+            "safe_state_front_engine_bonnet",
+            "safe_state_front_right_door",
+            "safe_state_rear_left_door", "safe_state_rear_right_door",
+            "safe_state_tailgate",
+        )
+    ]
+    _safe_present = [v for v in _safe_vals if v in (2, 3)]
+    if _safe_present:
+        d.closures_secured = all(v == 2 for v in _safe_present)
+
+    # state_* closures (2=open 3=closed; 0=unsupported/1=invalid → ignore).
+    _sunroof_vals = [
+        _to_int(first("state_sunroof_motor_hood_1")),
+        _to_int(first("state_sunroof_motor_hood_3")),
+    ]
+    _sunroof_present = [v for v in _sunroof_vals if v in (2, 3)]
+    if _sunroof_present and d.sunroof_open is None:
+        d.sunroof_open = any(v == 2 for v in _sunroof_present)
+    # v2.15.5 (#544) — sunroof motor hood 1 POSITION (%; 0=closed). Distinct
+    # from the open/closed STATE above. Dict type=number, unit "%". first()
+    # drops the uint16 65535 "no reading" sentinel; valid 0-100 survives.
+    _sunroof_pos = _to_int(first("position_sunroof_motor_hood_1"))
+    if _sunroof_pos is not None and d.sunroof_position_pct is None:
+        d.sunroof_position_pct = _sunroof_pos
+    _svc_hatch = _to_int(first("state_service_hatch"))
+    if _svc_hatch in (2, 3):
+        d.service_hatch_open = _svc_hatch == 2
+    _spoiler = _to_int(first("state_spoiler"))
+    if _spoiler in (2, 3):
+        d.spoiler_open = _spoiler == 2
+
+    # C. Trip odometer endpoints (km).
+    _lt_dist = _to_int(first("long_term_data_mileage"))
+    if _lt_dist is not None:
+        d.lifetime_trip_distance_km = _lt_dist
+    _lt_start = _to_int(first("long_term_data_start_mileage"))
+    if _lt_start is not None:
+        d.lifetime_trip_start_odometer_km = _lt_start
+    _st_start = _to_int(first("short_term_data_start_mileage"))
+    if _st_start is not None:
+        d.last_trip_start_odometer_km = _st_start
+
+    # D. Fuel / fluids / SCR.
+    _oil_l = _to_float(first("oil_level_total_max"))
+    if _oil_l is not None:
+        d.oil_level_liters = _oil_l
+    _oil_add = _to_float(first("oil_level_additional_oil_level"))
+    if _oil_add is not None:
+        d.oil_level_additional_pct = _oil_add
+    _oil_dip = _to_int(first("oil_level_dipstick_indicator_function"))
+    if _oil_dip is not None:
+        d.oil_dipstick_active = _oil_dip == 1
+    # scr_range — AdBlue/SCR range (km). Empty string guarded by _to_int.
+    _scr = _to_int(first("scr_range"))
+    if _scr is not None and d.adblue_range_km is None:
+        d.adblue_range_km = _scr
+    # fuel_level__accuracy (double underscore): 0=measured 1=calculated.
+    _fla = _to_int(first("fuel_level__accuracy"))
+    if _fla is not None:
+        d.fuel_level_estimated = _fla == 1
+
+    # E. Tyres — pressure DELTA vs target. The _FIELD_SENTINELS rule drops the
+    # 0/1 (unsupported/invalid) sentinels in first()/_is_sentinel at map time, so
+    # only a genuine >1 reading survives. Map the full corner+spare set defensively.
+    for _attr, _name in (
+        ("tyre_pressure_diff_fl", "tyre_pressure_differential_front_left"),
+        ("tyre_pressure_diff_fr", "tyre_pressure_differential_front_right"),
+        ("tyre_pressure_diff_rl", "tyre_pressure_differential_rear_left"),
+        ("tyre_pressure_diff_rr", "tyre_pressure_differential_rear_right"),
+        ("tyre_pressure_diff_spare", "tyre_pressure_differential_spare_tyre"),
+    ):
+        _tpd = _to_int(first(_name))
+        if _tpd is not None:
+            setattr(d, _attr, _tpd)
+
+    # E'. Tyres — ACTUAL per-wheel pressure (#528 front pair, #538 rear+spare).
+    # Same 0/1 sentinel rule as the diff family (dict: unsupported 0 / invalid 1
+    # / valid int), dropped in first()/_is_sentinel via the
+    # "tyre_pressure_actual" _FIELD_SENTINELS entry, so a surviving value is a
+    # genuine reading. #538 (RichardL6) reported the rear pair + spare.
+    for _attr, _name in (
+        ("tyre_pressure_actual_fl", "tyre_pressure_actual_front_left"),
+        ("tyre_pressure_actual_fr", "tyre_pressure_actual_front_right"),
+        ("tyre_pressure_actual_rl", "tyre_pressure_actual_rear_left"),
+        ("tyre_pressure_actual_rr", "tyre_pressure_actual_rear_right"),
+        ("tyre_pressure_actual_spare", "tyre_pressure_actual_spare_tyre"),
+    ):
+        _tpa = _to_int(first(_name))
+        if _tpa is not None:
+            setattr(d, _attr, _tpa)
+
+    # E''. Tyres — REQUIRED/target per-wheel pressure (#538). Same 0/1 sentinel
+    # rule via the "tyre_pressure_required" _FIELD_SENTINELS entry. Unit
+    # ("10kPA / Bar / PSI/ kPA") is ambiguous → unitless diagnostic, no
+    # device_class, disabled-by-default (mirrors the actual family).
+    for _attr, _name in (
+        ("tyre_pressure_required_fl", "tyre_pressure_required_front_left"),
+        ("tyre_pressure_required_fr", "tyre_pressure_required_front_right"),
+        ("tyre_pressure_required_rl", "tyre_pressure_required_rear_left"),
+        ("tyre_pressure_required_rr", "tyre_pressure_required_rear_right"),
+        ("tyre_pressure_required_spare", "tyre_pressure_required_spare_tyre"),
+    ):
+        _tpr = _to_int(first(_name))
+        if _tpr is not None:
+            setattr(d, _attr, _tpr)
+
+    # F. Lights / energy / misc.
+    # parking_lights (plural enum): 0=unsup 1=invalid 2=off 3=left 4=right 5=both.
+    _plights = _to_int(first("parking_lights"))
+    if _plights is not None and _plights >= 2:
+        d.parking_lights_state = {
+            2: "off", 3: "left", 4: "right", 5: "both",
+        }.get(_plights)
+    # bem_level — auxiliary/12V battery energy management level (%).
+    _bem = _to_int(first("bem_level"))
+    if _bem is not None:
+        d.aux_battery_energy_pct = _bem
+    # active_warnings_in_instrument_cluster_feff_filtered — RAW hex/interpreted
+    # bitmask only. Do NOT attempt an enum decode we can't verify; surface the
+    # raw value as a disabled-by-default diagnostic.
+    _warn = first("active_warnings_in_instrument_cluster_feff_filtered")
+    if _warn is not None:
+        d.dashboard_warnings_raw = str(_warn)
+    # climate_error_code / window_heating_error_code — drop "0"/"#0" like the
+    # existing charging_state_error_code pattern.
+    _clim_err = first("climate_error_code")
+    if _clim_err is not None:
+        _ces = str(_clim_err).strip()
+        if _ces and _ces != "#0" and _to_float(_ces) != 0:
+            d.climate_error_code = _ces
+    _wh_err = first("window_heating_error_code")
+    if _wh_err is not None:
+        _whs = str(_wh_err).strip()
+        if _whs and _whs != "#0" and _to_float(_whs) != 0:
+            d.window_heating_error_code = _whs
+
+    # ── v2.15.4 — EU Data Act portal new fields (#521/#522 Scout) ────────────
+    # All additive, guarded, EU-Data-Act-dialect only; same style as 2.15.1-3.
+
+    # Next-charging-timer info: estimated start/finish are dict-confirmed
+    # type=string ISO timestamps (the service sends UTC) → ISO passthrough via
+    # _epoch_or_iso. target_reachability is a dict-confirmed enum (shortened).
+    _ncs = first(
+        "profile_state_report.next_charging_timer_information.estimated_start_time",
+        "next_charging_timer_information.estimated_start_time",
+        # v2.15.4 overreport fix: bare leaf — the realistic data-point shape emits
+        # the bare key; the leaf name is UNIQUE so this alias is safe. Listed here
+        # so synonym-collapse also reclaims it from raw_unmapped.
+        "estimated_start_time",
+    )
+    if _ncs is not None and d.next_charge_timer_start_at is None:
+        d.next_charge_timer_start_at = _epoch_or_iso(_ncs)
+    _ncf = first(
+        "profile_state_report.next_charging_timer_information.estimated_finish_time",
+        "next_charging_timer_information.estimated_finish_time",
+        "estimated_finish_time",  # v2.15.4: unique bare leaf — safe alias.
+    )
+    if _ncf is not None and d.next_charge_timer_finish_at is None:
+        d.next_charge_timer_finish_at = _epoch_or_iso(_ncf)
+    _ncr = first(
+        "profile_state_report.next_charging_timer_information.target_reachability",
+        "next_charging_timer_information.target_reachability",
+        "target_reachability",  # v2.15.4: unique bare leaf — safe alias.
+    )
+    if _ncr is not None and d.next_charge_target_reachability is None:
+        # Dict tokens (target_reachability desc): TARGET_REACHABILITY_{INVALID,
+        # CALCULATING,REACHABLE,NOT_REACHABLE}. INVALID/CALCULATING mean the
+        # timer is uninitialized/uncomputed — surface them as unknown (None)
+        # instead of a stale literal state. Keep REACHABLE / NOT_REACHABLE.
+        _ncr_short = _shorten_enum(_ncr)
+        if isinstance(_ncr_short, str) and _ncr_short.upper() in (
+            "INVALID", "CALCULATING"
+        ):
+            _ncr_short = None
+        if _ncr_short is not None:
+            d.next_charge_target_reachability = _ncr_short
+    # nextChargingTimer = which timer slot (1-15) is queued next. Dict-confirmed
+    # type=number, unit=null ("Profile1: 1,2,3 ... Profile5: 13,14,15"). A bare
+    # slot index → diagnostic NUMBER. _walk_fields keys data-point nodes by the
+    # BARE dataFieldName (nextChargingTimer) plus a container-qualified twin;
+    # list both the dotted forms and the bare leaf so synonym-collapse reclaims
+    # the qualified twin and the realistic data-point shape resolves.
+    _nctn = first(
+        "profile_state_report.next_charging_timer_information.nextChargingTimer",
+        "next_charging_timer_information.nextChargingTimer",
+        "nextChargingTimer",
+    )
+    if _nctn is not None and d.next_charge_timer_number is None:
+        d.next_charge_timer_number = _to_int(_nctn)
+
+    # Slope consumption (ascent/descent) — dict-confirmed type=number,
+    # unit=null (no scale applied; raw physical_value). Gated on the sibling
+    # value_type being valid, exactly like the energy_contents pattern above.
+    _asc_slope = _to_float(first(
+        "slope_consumption_values.ascent_slope_consumption.physical_value",
+        "ascent_slope_consumption.physical_value",
+    ))
+    if _asc_slope is not None and _value_type_ok(
+        "slope_consumption_values.ascent_slope_consumption.value_type",
+        "ascent_slope_consumption.value_type",
+    ):
+        d.ascent_slope_consumption = _asc_slope
+    _desc_slope = _to_float(first(
+        "slope_consumption_values.descent_slope_consumption.physical_value",
+        "descent_slope_consumption.physical_value",
+    ))
+    if _desc_slope is not None and _value_type_ok(
+        "slope_consumption_values.descent_slope_consumption.value_type",
+        "descent_slope_consumption.value_type",
+    ):
+        d.descent_slope_consumption = _desc_slope
+
+    # report_type — dict-confirmed enum metadata describing which report this
+    # poll's payload is. (The dict lists NO values for report_type, so a token
+    # like "REPORT_TYPE_CONSUMPTION_VALUES" is illustrative/unconfirmed; code
+    # deliberately adds no prefix and passes the raw value through.)
+    # LOW value (metadata, not telemetry) → disabled-by-default diagnostic, but
+    # mapped (never Scout-suppressed). Shortened for display.
+    _rtype = first("report_type")
+    if _rtype is not None and d.report_type is None:
+        d.report_type = _shorten_enum(_rtype)
+
+    # result_app / result_master — generic delivery/sync "result" status enums
+    # for the app-data and master-data channels. The dict lists NO values for
+    # either (type=enum, unit=null), so — like report_type — code adds no
+    # speculative prefix and passes the raw token through _shorten_enum for
+    # display. LOW value (metadata, not telemetry) → disabled-by-default
+    # diagnostic, but mapped (never Scout-suppressed).
+    _rapp = first("result_app")
+    if _rapp is not None and d.result_app is None:
+        d.result_app = _shorten_enum(_rapp)
+    _rmaster = first("result_master")
+    if _rmaster is not None and d.result_master is None:
+        d.result_master = _shorten_enum(_rmaster)
+
+    # v2.15.5 — update_reason: why the report was sent to the backend
+    # (UPDATE_REASON_* enum). dict-confirmed values, so the UPDATE_REASON_
+    # prefix is in _ENUM_PREFIXES and _shorten_enum strips it for display
+    # (UPDATE_REASON_CHARGING → CHARGING). LOW value (metadata, not telemetry)
+    # → disabled-by-default diagnostic, but mapped (never Scout-suppressed).
+    _ureason = first("update_reason")
+    if _ureason is not None and d.update_reason is None:
+        d.update_reason = _shorten_enum(_ureason)
+
+    # ── v2.15.4 (#523) — EU Data Act portal new fields ───────────────────────
+    # All additive, guarded, EU-Data-Act-dialect only.
+    # Climatisation settings — dict type=string, Climatisation cluster. The
+    # values are on/off/enabled-style strings ("Is short conditioning enabled",
+    # "Is glass surface heating active", "Is extended conditioning in front
+    # left/right zone enabled") → coerce to bool. No enum list in the dict, so
+    # accept the common truthy tokens.
+    def _setting_bool(raw: str | None) -> bool | None:
+        # v2.15.4 — dict lists these as string with no enum; map known truthy/
+        # falsy tokens, leave anything unrecognized (e.g. invalid/unsupported) as
+        # None rather than a hard False, until a live payload pins the vocab.
+        if raw is None:
+            return None
+        v = str(raw).strip().lower()
+        if v in ("true", "1", "on", "enabled", "active", "activated", "yes"):
+            return True
+        if v in ("false", "0", "off", "disabled", "inactive", "deactivated", "no"):
+            return False
+        return None
+
+    _cau = _setting_bool(first("setting_climatisation_at_unlock"))
+    if _cau is not None and d.climatisation_at_unlock is None:
+        d.climatisation_at_unlock = _cau
+    _mhe = _setting_bool(first("setting_mirror_heating_enabled"))
+    if _mhe is not None and d.mirror_heating_enabled is None:
+        d.mirror_heating_enabled = _mhe
+    _zfl = _setting_bool(first("setting_zone_enabled_front_left"))
+    if _zfl is not None and d.climate_zone_front_left_enabled is None:
+        d.climate_zone_front_left_enabled = _zfl
+    _zfr = _setting_bool(first("setting_zone_enabled_front_right"))
+    if _zfr is not None and d.climate_zone_front_right_enabled is None:
+        d.climate_zone_front_right_enabled = _zfr
+
+    # start_stop_action — dict type=string, "Indicates the action related to
+    # charging". No dict-listed enum values → no confirmed prefix; _shorten_enum
+    # passes unprefixed values through unchanged (so it is safe to apply).
+    _ssa = first("start_stop_action")
+    if _ssa is not None and d.start_stop_action is None:
+        d.start_stop_action = _shorten_enum(_ssa)
+
+    # start_stop_modification — dict type=string, "Contains the detail related
+    # to start stop modification". Distinct field from start_stop_action; no
+    # dict-listed enum → _shorten_enum passes unprefixed values through.
+    _ssm = first("start_stop_modification")
+    if _ssm is not None and d.start_stop_modification is None:
+        d.start_stop_modification = _shorten_enum(_ssm)
+
+    # b1/B3 — derive drivetrain from the data actually present (fixes the
+    # #37 class: an EV like the e-up! showing only combustion entities, or a
+    # PHEV like the Golf GTE flagged as neither). Additive: only set flags True
+    # on a clear signal; never force False, so other channels can still inform it.
+    has_e = (d.battery_soc is not None or d.electric_range_km is not None
+             or d.charging_state is not None)
+    has_c = d.fuel_level is not None or d.combustion_range_km is not None
+    if has_e:
+        d.has_battery = True
+    if has_c:
+        d.has_combustion = True
+    if has_e and has_c:
+        d.is_hybrid = True
+    elif has_e:
+        d.is_electric = True
+
+    # a12 — surface the long tail: portal fields we did NOT consume this poll.
+    # Debug-only, zero behaviour change. Feeds the Vehicle Data Scout and tells
+    # us exactly which dictionary entries to add next, from REAL payloads —
+    # beats a hand-maintained static dict that silently drops unknown fields.
+    unmapped = sorted(k for k in fields if k not in used)
+    if unmapped:
+        _LOGGER.debug(
+            "EU Data Act: %d unmapped portal field(s): %s",
+            len(unmapped), ", ".join(unmapped[:40]),
+        )
+        # b1/A6 — raw field discovery (same detection, both worlds): expose the
+        # unmapped fields + their REAL values so the user can see everything the
+        # backend sent, on one disabled diagnostic sensor. Capped to keep the
+        # attribute payload sane; the debug log above already records the count.
+        d.raw_unmapped_fields = {
+            k: str(fields[k]) for k in unmapped[:_RAW_FIELD_CAP]
+        }
+        if len(unmapped) > _RAW_FIELD_CAP:
+            _LOGGER.debug(
+                "EU Data Act: raw-discovery capped at %d of %d fields",
+                _RAW_FIELD_CAP, len(unmapped),
+            )
 
     return d
 
@@ -483,6 +2054,74 @@ class EUDataActConnector:
         mid-poll)."""
         self._bearer = token
         self.logged_in = True
+
+    @staticmethod
+    def _is_consent_landing(landing_url: str, landing_html: str) -> bool:
+        """True if the post-credential landing is the generic consent grant page.
+
+        Mirrors the classifier's detection (URL family + templateModel
+        pageType=='consent'), but excludes the MARKETING-consent interstitial:
+        a marketing opt-in is a deliberate user choice we must NOT silently
+        accept, so it stays on the MarketingConsentError path. The generic OAuth
+        grant page (#527) is the only one we auto-accept here.
+        """
+        url_l = landing_url.lower()
+        if any(m in url_l for m in _CONSENT_MARKERS):
+            return False  # marketing opt-in → never auto-accept
+        model = _extract_template_model(landing_html) or {}
+        page_type = str(
+            model.get("template") or model.get("templateName") or ""
+        )
+        blob = f"{url_l}\n{landing_html.lower()}"
+        return _is_generic_consent_page(landing_url, page_type, blob)
+
+    async def _accept_consent_page(
+        self, consent_url: str, consent_html: str
+    ) -> tuple[str, str, int] | None:
+        """Scrape + POST the consent grant form to ACCEPT it (#527, v2.15.5).
+
+        The signin-service consent page is a server-rendered form carrying the
+        same hidden-field machinery as the credential pages (hmac / _csrf /
+        relayState) plus an ``action`` pointing at the accept/grant endpoint.
+        We reuse ``_login_fields`` + ``_resolve_action`` (the helpers the
+        credential steps already use) so the parsing stays in one place.
+
+        Returns the new ``(landing_url, landing_html, status)`` after the
+        accept POST + redirect-follow, or ``None`` when the form could not be
+        parsed (no fields/action) so the caller falls through to the typed
+        non-credential classification (no silent loop — we accept once).
+        """
+        fields, action = _login_fields(consent_html)
+        # Need at least one form anti-CSRF token to POST a valid acceptance;
+        # without one the page is not the expected scrapeable consent form.
+        if not any(k in fields for k in ("hmac", "_csrf", "relayState")):
+            _LOGGER.debug(
+                "EU Data Act portal: consent page at %s carried no form "
+                "fields — cannot auto-accept, leaving to classifier",
+                _safe_url(consent_url),
+            )
+            return None
+        accept_action = _resolve_action(consent_url, action)
+        try:
+            async with self._session.post(
+                accept_action, data=fields,
+                headers={"User-Agent": _USER_AGENT, "Referer": consent_url},
+                allow_redirects=True, timeout=ClientTimeout(total=_TIMEOUT_S),
+            ) as resp:
+                new_landing = str(resp.url)
+                new_html = await resp.text(errors="replace")
+                new_status = resp.status
+        except Exception as exc:  # noqa: BLE001 — best-effort accept
+            _LOGGER.debug(
+                "EU Data Act portal: consent accept POST failed (%s) — "
+                "leaving to classifier", type(exc).__name__,
+            )
+            return None
+        _LOGGER.debug(
+            "EU Data Act portal: consent accepted → landing=%s status=%s",
+            _safe_url(new_landing), new_status,
+        )
+        return new_landing, new_html, new_status
 
     async def login(self, email: str, password: str) -> None:
         """Run the OIDC code-flow login; portal backend sets cookies.
@@ -564,22 +2203,79 @@ class EUDataActConnector:
             landing_html = await resp.text(errors="replace")
             status = resp.status
 
-        if status >= 400:
-            err = _login_error(landing_html)
-            raise AuthenticationError(
-                err or f"EU Data Act portal: login rejected (HTTP {status})"
+        # 3b. (#527, v2.15.5) — generic OAuth/IDP consent grant page. After
+        # correct credentials the IDP can interject a server-rendered consent
+        # page (``/signin-service/v1/consent/users/{uid}/{client}``,
+        # templateModel pageType='consent') asking the account to AUTHORIZE
+        # this OAuth client. This is NOT a marketing opt-in and NOT a bad
+        # password — the user already entered their creds and wants the
+        # integration authorized, so accepting the grant is exactly what the
+        # official app does. We scrape the consent form (hmac/_csrf/relayState
+        # via the same _login_fields helper) and POST to accept it, then let
+        # the portal complete the redirect back to the portal host. Bounded:
+        # accept at most ONCE — if the result is still not a completed landing
+        # we fall through to classify_portal_login_failure (which now also
+        # recognises the consent page as a non-credential PortalInteraction).
+        if self._is_consent_landing(landing, landing_html):
+            _LOGGER.info(
+                "EU Data Act portal: consent grant page at %s — auto-accepting "
+                "(user already authenticated; mirrors official-app behaviour)",
+                _safe_url(landing),
             )
+            accepted = await self._accept_consent_page(landing, landing_html)
+            if accepted is not None:
+                landing, landing_html, status = accepted
+
         # A completed flow lands back on the portal host via
-        # /services/callbacklogin. Bad credentials re-render signin-service.
+        # /services/callbacklogin. Anything else (HTTP >= 400, a
+        # signin-service/'/error' re-render, or an off-host landing) is a
+        # FAILURE — but the failure can be many things besides bad
+        # credentials (#527). v2.15.4: consult the templateModel + known
+        # interstitial markers FIRST and raise the matching TYPED exception
+        # so the callers' existing branches fire; only fall back to the
+        # credential catch-all when there is genuinely no machine-readable
+        # non-credential reason.
         portal_host = urlparse(_PORTAL_BASE).netloc
-        if "signin-service" in landing or "/error" in landing:
-            raise AuthenticationError(
-                "EU Data Act portal: login failed — check email and password"
+        landed_failed = (
+            status >= 400
+            or "signin-service" in landing
+            or "/error" in landing
+            or urlparse(landing).netloc != portal_host
+        )
+        if landed_failed:
+            typed_exc, log_ctx = classify_portal_login_failure(
+                landing, landing_html
             )
-        if urlparse(landing).netloc != portal_host:
-            raise AuthenticationError(
-                f"EU Data Act portal: login did not complete (ended at "
-                f"{landing[:80]})"
+            # Secret-free diagnostics: host+path (query STRIPPED), HTTP
+            # status, and templateModel error/errorCode/page-type keys.
+            # NEVER email/password/tokens/relayState/code/query strings.
+            _LOGGER.warning(
+                "EU Data Act portal: login did not complete — "
+                "landing=%s status=%s ctx=%s",
+                _safe_url(landing), status, log_ctx,
+            )
+            if typed_exc is not None:
+                raise typed_exc
+            # classify_portal_login_failure returned None → it could NOT
+            # find a non-credential reason (a known bad-credential errorCode,
+            # or no machine-readable reason on a signin-service re-render). In
+            # both cases this is the genuine credential failure: raise the
+            # credential catch-all so the user is told to check the password
+            # ONLY here, where we actually believe it.
+            if "signin-service" in landing or "/error" in landing:
+                raise AuthenticationError(
+                    "EU Data Act portal: login failed — check email and password"
+                )
+            # Off-host / HTTP-error landing with no recognisable reason: we
+            # can't prove it's the password, so surface a NON-credential
+            # failure (server-side / unexpected page) rather than blaming
+            # the user's credentials.
+            if status >= 400:
+                raise PortalInteractionRequiredError(
+                    f"login rejected (HTTP {status})"
+                )
+            raise PortalInteractionRequiredError(
+                "login did not complete (unexpected landing page)"
             )
         self.logged_in = True
         _LOGGER.info(
@@ -672,6 +2368,12 @@ class EUDataActConnector:
     async def get_vehicle_data(self, vin: str) -> VehicleData:
         """Fetch the latest dataset for *vin* and map it to VehicleData."""
         d = VehicleData(vin=vin)
+        # v2.15.0a10 (#481-residue) — assume "no data this poll" until the
+        # dataset actually parses (cleared at the success return below). Every
+        # early no-data return keeps this True, so the coordinator carries the
+        # previous good values forward instead of blanking entities on a portal
+        # timeout/outage. A brand-new car (no prior data) still appears.
+        d.no_data = True
         # 1. metadata → identifier. Soft on 404/500: when the continuous
         # data request isn't set up / hasn't propagated yet, the endpoint
         # 404s or 500s. Treat that as "no data yet" — return the bare
@@ -720,18 +2422,35 @@ class EUDataActConnector:
             )
             return d
         files = listing if isinstance(listing, list) else listing.get("files", [])
-        names: list[str] = []
-        for f in files:
+        # (name, delivery_ts) per content file; keep array index as the tie/
+        # fallback order so a listing with no timestamp behaves as before.
+        cands: list[tuple[str, float | None, int]] = []
+        for idx, f in enumerate(files):
             if not isinstance(f, dict):
                 continue
             name = f.get("name")
             if isinstance(name, str) and not name.endswith(_NO_CONTENT_SUFFIX):
-                names.append(name)
-        if not names:
+                # #529 step 4: prefer an explicit delivery timestamp over array
+                # order (the array is NOT guaranteed newest-last). createdOn is
+                # the portal's field (confirmed in the reference reader); accept
+                # a few aliases defensively.
+                dts = None
+                for tk in ("createdOn", "created_on", "createdAt", "creationDate"):
+                    if tk in f:
+                        dts = _parse_ts(f.get(tk))
+                        if dts is not None:
+                            break
+                cands.append((name, dts, idx))
+        if not cands:
             self.last_no_data_reason = "empty"
             _LOGGER.debug("EU Data Act portal: no dataset files for %s yet", vin[-6:])
             return d
-        newest = names[-1]
+        # Newest by delivery ts when present; files without a ts sort below those
+        # with one (-inf), and ties / a fully-tsless listing fall back to array
+        # order (the original names[-1] behaviour).
+        newest = max(
+            cands, key=lambda c: (c[1] if c[1] is not None else float("-inf"), c[2])
+        )[0]
         # 3. download ZIP → JSON. This GET bypasses _get_json, so the Bearer
         # header (v2.13.0) must be merged in separately without clobbering the
         # filename/type headers the download endpoint requires.
@@ -771,7 +2490,9 @@ class EUDataActConnector:
             )
             return d
         payload = _unzip_json(raw, newest)
-        fields = _walk_fields(payload)
+        field_ts: dict[str, float] = {}  # #529: resolved per-field capture ts
+        field_syn: dict[str, set[str]] = {}  # v2.15.4: bare/qualified synonym map
+        fields = _walk_fields(payload, field_ts, field_syn)
         _LOGGER.debug(
             "EU Data Act portal: %s dataset carried %d fields", vin[-6:], len(fields)
         )
@@ -782,8 +2503,9 @@ class EUDataActConnector:
             self.last_no_data_reason = "empty"
             return d
         self.last_no_data_reason = ""
+        d.no_data = False  # real dataset parsed → this is a genuine good poll
         d.connection_state = "online"
-        return map_dataset_to_vehicle_data(fields, d)
+        return map_dataset_to_vehicle_data(fields, d, field_ts, field_syn)
 
     async def get_relation_nickname(self, vin: str) -> str | None:
         """Best-effort vehicle nickname from the relation endpoint."""

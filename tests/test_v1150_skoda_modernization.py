@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Tests for v1.15.0 — Skoda Modernization Bundle.
 
 Five feature groups:
@@ -109,7 +109,7 @@ class TestGetChargingHistoryURL:
         from custom_components.vag_connect.cariad.api.skoda import SkodaClient
         client = SkodaClient.__new__(SkodaClient)
         client._get = AsyncMock(return_value={"periods": []})
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.get_charging_history("VINX")
         )
         client._get.assert_awaited_once_with(
@@ -121,7 +121,7 @@ class TestGetChargingHistoryURL:
         from custom_components.vag_connect.cariad.api.skoda import SkodaClient
         client = SkodaClient.__new__(SkodaClient)
         client._get = AsyncMock(return_value={})
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.get_charging_history("VINX", limit=10)
         )
         params = client._get.await_args.kwargs["params"]
@@ -150,14 +150,14 @@ class TestRefreshChargingHistoryBrandRestriction:
 
     def test_audi_brand_skips(self):
         coord = self._coord(brand="audi")
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.refresh_charging_history("VINX")
         )
         coord._cariad_client.get_charging_history.assert_not_called()
 
     def test_skoda_brand_calls_endpoint_and_merges(self):
         coord = self._coord(brand="skoda")
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.refresh_charging_history("VINX")
         )
         coord._cariad_client.get_charging_history.assert_awaited_once()
@@ -169,7 +169,7 @@ class TestRefreshChargingHistoryBrandRestriction:
     def test_capability_false_skips(self):
         coord = self._coord(brand="skoda")
         coord.command_capability_supported = MagicMock(return_value=False)
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.refresh_charging_history("VINX")
         )
         coord._cariad_client.get_charging_history.assert_not_called()
@@ -179,7 +179,7 @@ class TestRefreshChargingHistoryBrandRestriction:
         coord._charging_history_fetched_at = {
             "VINX": datetime.now(tz=timezone.utc) - timedelta(minutes=30)
         }
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.refresh_charging_history("VINX")
         )
         coord._cariad_client.get_charging_history.assert_not_called()

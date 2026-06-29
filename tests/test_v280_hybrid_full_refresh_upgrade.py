@@ -1,5 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) - Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Tests for the v2.8.0rc2 hybrid_full opportunistic refresh_token upgrade.
 
 Task #59: after hybrid_full succeeds, opportunistically exchange the
@@ -98,7 +98,7 @@ class TestOpportunisticUpgradeBranches:
 
         # Branch 1: exchange returns refresh_token -> use exchanged set.
         import asyncio
-        result = asyncio.new_event_loop().run_until_complete(
+        result = asyncio.run(
             decision(hybrid, AsyncMock(return_value=upgraded))
         )
         assert result.refresh_token == "standard-flow-refresh"
@@ -128,7 +128,7 @@ class TestOpportunisticUpgradeBranches:
         async def boom():
             raise AuthenticationError("HTTP 403 — Play Integrity assertion required")
 
-        result = asyncio.new_event_loop().run_until_complete(
+        result = asyncio.run(
             decision(hybrid, boom)
         )
         assert result is hybrid
@@ -158,7 +158,7 @@ class TestOpportunisticUpgradeBranches:
             id_token="standard-flow-id",
         )
 
-        result = asyncio.new_event_loop().run_until_complete(
+        result = asyncio.run(
             decision(hybrid, AsyncMock(return_value=empty))
         )
         assert result is hybrid

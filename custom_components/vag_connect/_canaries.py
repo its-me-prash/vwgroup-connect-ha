@@ -1,5 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) - Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Provenance canaries for vwgroup-connect-ha.
 
 This module exists solely to plant uniquely-spelled identifier strings
@@ -29,9 +29,10 @@ Each string is constructed to be:
 A GitHub Action runs weekly and queries the GitHub Code Search REST
 API for each canary value. Any hit outside ``its-me-prash/*`` opens
 an issue tagged ``provenance`` with the offending repository, file
-path, and the canary that matched. Apache 2.0 lets others use this
-code as long as the LICENSE and NOTICE files are preserved; the
-canaries make stripping the attribution observable.
+path, and the canary that matched. AGPL-3.0 lets others use this
+code only if they keep their source open under the same license AND
+preserve the LICENSE / NOTICE / ATTRIBUTION files (see ATTRIBUTION.md);
+the canaries make stripping the attribution observable.
 
 ## What this module is NOT
 

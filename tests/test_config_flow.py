@@ -1,5 +1,5 @@
 # Copyright 2026 Prash Balan (@its-me-prash) - Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Tests for VagConnect config flow — setup, reauth, reconfigure."""
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ class TestConfigFlowUser:
         flow.handler = DOMAIN
         flow.flow_id = "test"
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             flow.async_step_user(None)
         )
         assert result["type"] == "menu"
@@ -65,7 +65,7 @@ class TestConfigFlowUser:
         flow.async_set_unique_id = AsyncMock()
         flow._abort_if_unique_id_configured = MagicMock()
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             flow.async_step_email_password(None)
         )
         assert result["type"] == "form"
@@ -87,7 +87,7 @@ class TestConfigFlowUser:
         )
 
         with pytest.raises(Exception, match="already_configured"):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 flow.async_step_email_password({
                     CONF_BRAND: "audi",
                     "username": "test@test.de",
@@ -112,7 +112,7 @@ class TestConfigFlowUser:
             "custom_components.vag_connect.config_flow._validate_credentials",
             side_effect=ValueError("invalid_credentials"),
         ):
-            result = asyncio.get_event_loop().run_until_complete(
+            result = asyncio.run(
                 flow.async_step_email_password({
                     CONF_BRAND: "audi",
                     "username": "test@test.de",
@@ -143,7 +143,7 @@ class TestConfigFlowUser:
             "custom_components.vag_connect.config_flow._validate_credentials",
             side_effect=ValueError("cannot_connect"),
         ):
-            result = asyncio.get_event_loop().run_until_complete(
+            result = asyncio.run(
                 flow.async_step_email_password({
                     CONF_BRAND: "volkswagen",
                     "username": "t@t.de",
@@ -174,7 +174,7 @@ class TestConfigFlowUser:
             return_value=None,
         ):
             with patch.object(flow, "async_create_entry", return_value={"type": "create_entry", "data": {}}) as mock_create:
-                asyncio.get_event_loop().run_until_complete(
+                asyncio.run(
                     flow.async_step_email_password({
                         CONF_BRAND: "audi",
                         "username": "user@audi.de",
@@ -222,7 +222,7 @@ class TestOptionsFlow:
         entry = MagicMock()
         entry.data = {CONF_SCAN_INTERVAL: 5, CONF_SPIN: ""}
         flow = VagConnectOptionsFlow(entry)
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             flow.async_step_init(None)
         )
         assert result["type"] == "form"
@@ -236,7 +236,7 @@ class TestOptionsFlow:
         entry.data = {CONF_SCAN_INTERVAL: 5, CONF_SPIN: ""}
         flow = VagConnectOptionsFlow(entry)
         with patch.object(flow, "async_create_entry", return_value={"type": "create_entry"}) as mock_save:
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 flow.async_step_init({CONF_SCAN_INTERVAL: 15, CONF_SPIN: "9999"})
             )
         mock_save.assert_called_once_with(title="", data={CONF_SCAN_INTERVAL: 15, CONF_SPIN: "9999"})
@@ -260,6 +260,6 @@ class TestValidateCredentials:
 
         with patch.object(CariadClientFactory, "create", return_value=mock_client),              patch("homeassistant.helpers.aiohttp_client.async_get_clientsession", return_value=MagicMock()):
             with pytest.raises(ValueError, match="invalid_credentials"):
-                asyncio.get_event_loop().run_until_complete(
+                asyncio.run(
                     _validate_credentials(hass, "audi", "u@t.de", "wrongpass")
                 )

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 """Semantic diff between two jadx-decompiled APK versions — Phase A.3.
 
 Targeted analysis instead of naive ``diff -r`` (which produces too

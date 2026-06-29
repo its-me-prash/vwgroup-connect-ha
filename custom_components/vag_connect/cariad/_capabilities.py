@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Capability-ID Mapping per Brand — Single Source of Truth.
 
 v1.13.0 (#56 Phase 3) — when an HA platform's ``async_setup_entry``
@@ -245,6 +245,20 @@ DECLARED_CAPABILITIES: dict[str, dict[str, bool]] = {
         "ola_push": False,
         "fcm_push": True,
         "dag_login": True,
+    },
+    "bentley": {
+        # v2.14.11 — Bentley runs on the Audi CARIAD-BFF (shared IDK client +
+        # tenant), so its backend capability surface mirrors Audi. Wired
+        # read-only for now (two-way is live-test gated); the BACKEND supports
+        # these. dag_login False — Bentley is not in DAG_ENABLED_BRANDS.
+        "auxiliary_heating": True,
+        "charging": True,
+        "climatisation": True,
+        "trip_statistics": True,
+        "brake_service": True,
+        "ola_push": False,
+        "fcm_push": True,
+        "dag_login": False,
     },
     "volkswagen": {
         "auxiliary_heating": True,

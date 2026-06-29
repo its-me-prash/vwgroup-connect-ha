@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Tests for v1.21.0 — Audi/VW MBB legacy-path migration (Phase 1).
 
 Closes 8+ user-reported 404s for Audi A4 B9 / Q5 2021 / VW Golf 7

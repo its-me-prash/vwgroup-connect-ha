@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """v2.2.0 — Skoda Scout-Report #220 (Daniel Walter, 2026-05-16) wiring.
 
 Two new fields landed mid-May 2026 on the Skoda mysmob backend:

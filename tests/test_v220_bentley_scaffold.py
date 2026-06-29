@@ -1,22 +1,27 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
-"""v2.2.0 Phase 4 PR #16/20 — Bentley brand-adapter scaffold.
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
+"""Bentley brand-adapter — v2.2.0 scaffold, ACTIVATED v2.14.11.
 
-Sister-PR to PR #15 (Lamborghini Unica). Same pattern, same beta-gate
-enforcement, same VWEUClient inheritance rationale.
+The 2026-06-18 app-atlas resolved the former placeholders from
+``uk.co.bentley.mybentley``: the production IDK client_id (``idkClientIDLive``
+in the app's url-configuration.json) is byte-identical to Audi's primary, and
+the redirect_uri is ``mybentleyapp:///``. Bentley is now wired into BRANDS +
+factory + config-flow (login + read). Two-way stays live-test gated (the
+qmauth gates in idk.py still exclude "bentley").
 
-Cross-luxury parity test ensures the two scaffolds stay shape-aligned:
-both should inherit from VWEUClient, both should use the Cariad-BFF
-host, both should keep PLACEHOLDER client_ids, both must remain
-factory-rejected until tester validation.
-
-"Two roads diverged in a wood, and I took the one beta-gated."
-— Robert Frost, paraphrased for VAG-luxury onboarding
+This test pins the ACTIVATED contract (was: scaffold-not-wired).
 """
 
 from __future__ import annotations
 
 import pytest
+
+# Audi primary client_id — Bentley runs on the same IDK client/tenant.
+_AUDI_PRIMARY = "09b6cbec-cd19-4589-82fd-363dfa8c24da@apps_vw-dilab_com"
+
+_EXISTING_BRANDS = [
+    "volkswagen", "audi", "skoda", "seat", "cupra", "volkswagen_na", "porsche",
+]
 
 
 class TestBentleyClientImports:
@@ -31,16 +36,12 @@ class TestBentleyClientImports:
         from custom_components.vag_connect.cariad.api.bentley import (
             BentleyClient,
         )
-        from custom_components.vag_connect.cariad.api.vw_eu import (
-            VWEUClient,
-        )
+        from custom_components.vag_connect.cariad.api.vw_eu import VWEUClient
 
         assert issubclass(BentleyClient, VWEUClient)
 
     def test_brand_bentley_config_importable(self) -> None:
-        from custom_components.vag_connect.cariad.models import (
-            BRAND_BENTLEY,
-        )
+        from custom_components.vag_connect.cariad.models import BRAND_BENTLEY
 
         assert BRAND_BENTLEY is not None
         assert BRAND_BENTLEY.name == "bentley"
@@ -48,75 +49,70 @@ class TestBentleyClientImports:
 
 class TestBrandBentleyConfig:
     def test_api_base_is_cariad_bff(self) -> None:
-        from custom_components.vag_connect.cariad.models import (
-            BRAND_BENTLEY,
-        )
+        from custom_components.vag_connect.cariad.models import BRAND_BENTLEY
 
         assert BRAND_BENTLEY.api_base == "https://emea.bff.cariad.digital"
 
-    def test_client_id_is_placeholder(self) -> None:
+    def test_client_id_is_audi_primary(self) -> None:
+        """Atlas: Bentley's idkClientIDLive == Audi primary (shared tenant)."""
         from custom_components.vag_connect.cariad.models import (
+            BRAND_AUDI,
             BRAND_BENTLEY,
         )
 
-        assert "PLACEHOLDER" in BRAND_BENTLEY.client_id
+        assert BRAND_BENTLEY.client_id == _AUDI_PRIMARY
+        assert BRAND_BENTLEY.client_id == BRAND_AUDI.client_id
+        assert "PLACEHOLDER" not in BRAND_BENTLEY.client_id
 
-    def test_redirect_uri_uses_mybentley_scheme(self) -> None:
-        from custom_components.vag_connect.cariad.models import (
-            BRAND_BENTLEY,
-        )
+    def test_redirect_uri_is_atlas_value(self) -> None:
+        from custom_components.vag_connect.cariad.models import BRAND_BENTLEY
 
-        assert BRAND_BENTLEY.redirect_uri.startswith("mybentley://")
+        # Atlas (classes5.dex): mybentleyapp:/// — the old scaffold value
+        # mybentley://oauth-callback was wrong and would fail redirect match.
+        assert BRAND_BENTLEY.redirect_uri == "mybentleyapp:///"
 
     def test_user_agent_mentions_mybentley(self) -> None:
-        from custom_components.vag_connect.cariad.models import (
-            BRAND_BENTLEY,
-        )
+        from custom_components.vag_connect.cariad.models import BRAND_BENTLEY
 
         assert "Bentley" in BRAND_BENTLEY.user_agent
 
     def test_scope_includes_baseline_claims(self) -> None:
-        from custom_components.vag_connect.cariad.models import (
-            BRAND_BENTLEY,
-        )
+        from custom_components.vag_connect.cariad.models import BRAND_BENTLEY
 
         for required in ("openid", "profile", "vin"):
             assert required in BRAND_BENTLEY.scope
 
 
-class TestFactoryNotWiredYet:
-    """Beta-gate: factory MUST reject "bentley" until tester validates."""
+class TestBentleyWired:
+    """v2.14.11 — Bentley is now wired (was: factory-rejected)."""
 
-    def test_factory_rejects_bentley(self) -> None:
+    def test_brands_registry_contains_bentley(self) -> None:
+        from custom_components.vag_connect.cariad.models import BRANDS
+
+        assert "bentley" in BRANDS
+
+    def test_factory_resolves_bentley(self) -> None:
+        from custom_components.vag_connect.cariad.api.bentley import (
+            BentleyClient,
+        )
         from custom_components.vag_connect.cariad.api.factory import (
             CariadClientFactory,
         )
 
-        with pytest.raises(ValueError, match="bentley"):
-            CariadClientFactory.create(
-                brand="bentley",
-                session=None,  # type: ignore[arg-type]
-                email="x",
-                password="x",
-            )
-
-    def test_brands_registry_does_not_contain_bentley(self) -> None:
-        from custom_components.vag_connect.cariad.models import BRANDS
-
-        assert "bentley" not in BRANDS
+        client = CariadClientFactory.create(
+            brand="bentley",
+            session=None,  # type: ignore[arg-type]
+            email="x",
+            password="x",
+        )
+        assert isinstance(client, BentleyClient)
 
 
-class TestScaffoldDoesNotBreakExistingBrands:
-    """Phantom-protection — new BRAND_BENTLEY export must not perturb
-    any existing brand client."""
+class TestActivationDoesNotBreakExistingBrands:
+    """New wiring must not perturb any existing brand client."""
 
-    @pytest.mark.parametrize(
-        "brand", ["volkswagen", "audi", "skoda", "seat", "cupra",
-                  "volkswagen_na", "porsche"]
-    )
-    def test_existing_brands_still_factory_resolvable(
-        self, brand: str
-    ) -> None:
+    @pytest.mark.parametrize("brand", _EXISTING_BRANDS)
+    def test_existing_brands_still_factory_resolvable(self, brand: str) -> None:
         from custom_components.vag_connect.cariad.api.factory import (
             CariadClientFactory,
         )
@@ -130,55 +126,25 @@ class TestScaffoldDoesNotBreakExistingBrands:
         assert client is not None
 
 
-class TestLuxuryParityWithLambo:
-    """The Bentley scaffold should be shape-aligned with the Lambo
-    scaffold (PR #15) — both inherit from VWEUClient, both use
-    Cariad-BFF, both stay PLACEHOLDER until tester validation. Any
-    divergence in the scaffold pattern would indicate a contributor
-    is treating them differently for no good reason."""
+class TestLamboStillNotWired:
+    """Lamborghini, unlike Bentley, is NOT activatable — it uses an
+    SDP-proxy MBB flow, not the IDK/Cariad-BFF path. It must stay
+    factory-rejected and out of the BRANDS registry."""
 
-    def test_both_luxury_brands_inherit_vw_eu(self) -> None:
-        from custom_components.vag_connect.cariad.api.bentley import (
-            BentleyClient,
-        )
-        from custom_components.vag_connect.cariad.api.lambo import (
-            LamboClient,
-        )
-        from custom_components.vag_connect.cariad.api.vw_eu import (
-            VWEUClient,
-        )
+    def test_lambo_not_in_brands(self) -> None:
+        from custom_components.vag_connect.cariad.models import BRANDS
 
-        assert issubclass(LamboClient, VWEUClient)
-        assert issubclass(BentleyClient, VWEUClient)
+        assert "lambo" not in BRANDS
 
-    def test_both_luxury_brands_use_cariad_bff(self) -> None:
-        from custom_components.vag_connect.cariad.models import (
-            BRAND_BENTLEY,
-            BRAND_LAMBO,
-        )
-
-        assert BRAND_LAMBO.api_base == BRAND_BENTLEY.api_base
-        assert BRAND_LAMBO.api_base == "https://emea.bff.cariad.digital"
-
-    def test_both_luxury_brands_kept_placeholder(self) -> None:
-        from custom_components.vag_connect.cariad.models import (
-            BRAND_BENTLEY,
-            BRAND_LAMBO,
-        )
-
-        assert "PLACEHOLDER" in BRAND_LAMBO.client_id
-        assert "PLACEHOLDER" in BRAND_BENTLEY.client_id
-
-    def test_both_luxury_brands_factory_rejected(self) -> None:
+    def test_factory_rejects_lambo(self) -> None:
         from custom_components.vag_connect.cariad.api.factory import (
             CariadClientFactory,
         )
 
-        for brand in ("lambo", "bentley"):
-            with pytest.raises(ValueError, match=brand):
-                CariadClientFactory.create(
-                    brand=brand,
-                    session=None,  # type: ignore[arg-type]
-                    email="x",
-                    password="x",
-                )
+        with pytest.raises(ValueError, match="lambo"):
+            CariadClientFactory.create(
+                brand="lambo",
+                session=None,  # type: ignore[arg-type]
+                email="x",
+                password="x",
+            )

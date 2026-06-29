@@ -1,27 +1,23 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
-"""Bentley My Bentley API client — Cariad-BFF backend (scaffold).
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
+"""Bentley My Bentley API client — Cariad-BFF backend.
 
-**BETA — TESTER VALIDATION PENDING.** This module ships as scaffolding
-only. The class compiles, imports cleanly, and inherits the full
-VWEUClient feature set, but the OAuth ``client_id`` and ``redirect_uri``
-in ``BRAND_BENTLEY`` (``cariad/models.py``) are PLACEHOLDERS that need
-a tester with a My Bentley app install to confirm via mitmproxy /
-Charles inspection of the production login flow.
+v2.14.11 — ACTIVATED (login + read). The 2026-06-18 app-atlas resolved the
+former placeholders from ``uk.co.bentley.mybentley``: the production IDK
+client_id (``idkClientIDLive`` in the app's ``url-configuration.json``) is
+byte-identical to Audi's primary, and the redirect_uri is ``mybentleyapp:///``
+(both now set in ``BRAND_BENTLEY``). Wired into ``CariadClientFactory``,
+``BRANDS`` and the config-flow UI.
 
-Sister-PR to PR #15 (Lamborghini Unica scaffold) — identical pattern
-because both luxury brands share the Cariad-BFF backend with VW EU
-+ Audi. The only per-brand delta is the OAuth client_id +
-redirect_uri + UA header.
+Bentley runs on the Audi IDK client + tenant (Bentley = Audi platform), so
+the data path inherits unchanged from ``VWEUClient``.
 
-Until tester confirms values:
-- The class is NOT wired into ``CariadClientFactory``
-- The brand is NOT exposed in the config-flow UI
-- A power-user / tester can manually instantiate ``BentleyClient(...)``
-  in a debug-script to exercise the IDK login and report back
-
-"Two roads diverged in a wood, and I took the one beta-gated."
-— Robert Frost, paraphrased for VAG-luxury onboarding
+**Two-way is still live-test gated:** the qmauth/CARIAD assertion headers are
+gated to audi/volkswagen in ``idk.py``, so Bentley's classic token exchange
+degrades to the read-only data_act_portal until a tester with a real My
+Bentley account confirms the Audi qmauth secret is accepted for client
+09b6cbec under the bentleyid tenant. At that point ``"bentley"`` is added to
+those gates to unlock commands.
 """
 
 from __future__ import annotations
@@ -48,8 +44,8 @@ class BentleyClient(VWEUClient):
     endpoint — vehicle images come from the standard Cariad-BFF
     image endpoint. So we don't need a separate token exchange.
 
-    v2.2.0 PR #16/20 — scaffold. Activation requires tester to
-    confirm ``BRAND_BENTLEY.client_id`` + ``redirect_uri``.
+    v2.14.11 — activated (login + read). ``BRAND_BENTLEY.client_id`` +
+    ``redirect_uri`` are atlas-confirmed; two-way is live-test gated.
     """
 
     def __init__(
@@ -68,7 +64,7 @@ class BentleyClient(VWEUClient):
             self, session, BRAND_BENTLEY, email, password, spin
         )
         _LOGGER.info(
-            "Bentley client instantiated (BETA scaffold — client_id is "
-            "placeholder until tester validation). Brand: %s",
+            "Bentley client instantiated (Audi IDK tenant; read-only until "
+            "two-way live-test). Brand: %s",
             BRAND_BENTLEY.name,
         )

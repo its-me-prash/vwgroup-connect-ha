@@ -1,5 +1,5 @@
-# Copyright 2026 Prash Balan (@its-me-prash) — Apache License 2.0
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Tests for v1.17.1 — Bruno Quick-Wins Bundle.
 
 Six feature groups (all SEAT/CUPRA OLA additions from
@@ -48,7 +48,7 @@ def _client():
 class TestPostWithAbFallback:
     def test_primary_success_no_fallback(self):
         client = _client()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client._post_with_ab_fallback(
                 primary_url="P", primary_json={"a": 1},
                 fallback_url="F", fallback_json={"b": 2},
@@ -63,7 +63,7 @@ class TestPostWithAbFallback:
         from custom_components.vag_connect.cariad.exceptions import APIError
         client = _client()
         client._post = AsyncMock(side_effect=[APIError(404, "P", ""), None])
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client._post_with_ab_fallback(
                 primary_url="P", primary_json=None,
                 fallback_url="F", fallback_json={"action": "start"},
@@ -79,7 +79,7 @@ class TestPostWithAbFallback:
         client = _client()
         client._post = AsyncMock(side_effect=APIError(403, "P", "spin_error"))
         with pytest.raises(APIError) as exc:
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 client._post_with_ab_fallback(
                     primary_url="P", primary_json={},
                     fallback_url="F", fallback_json={},
@@ -98,7 +98,7 @@ class TestPostWithAbFallback:
 class TestWindowHeatingAB:
     def test_start_uses_bruno_path_first(self):
         client = _client()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_start_window_heating("VINX")
         )
         url = client._post.await_args.args[0]
@@ -106,7 +106,7 @@ class TestWindowHeatingAB:
 
     def test_stop_uses_bruno_path_first(self):
         client = _client()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_stop_window_heating("VINX")
         )
         url = client._post.await_args.args[0]
@@ -121,7 +121,7 @@ class TestWindowHeatingAB:
 class TestVentilation:
     def test_start_url(self):
         client = _client()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_start_ventilation("VINX")
         )
         client._post.assert_awaited_once_with(
@@ -131,7 +131,7 @@ class TestVentilation:
 
     def test_stop_url(self):
         client = _client()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_stop_ventilation("VINX")
         )
         client._post.assert_awaited_once_with(
@@ -151,7 +151,7 @@ class TestAuxHeating:
         client = _client()
         client._spin = ""
         with pytest.raises(SpinError):
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 client.command_start_aux_heating("VINX")
             )
 
@@ -159,7 +159,7 @@ class TestAuxHeating:
         client = _client()
         client._spin = "1234"
         client._get_sec_token = AsyncMock(return_value="SECTOK")
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_start_aux_heating("VINX")
         )
         # Primary call: Bruno URL with SecToken
@@ -174,7 +174,7 @@ class TestAuxHeating:
         client._spin = "1234"
         client._get_sec_token = AsyncMock(return_value="SECTOK")
         client._post = AsyncMock(side_effect=[APIError(404, "P", ""), None])
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_start_aux_heating("VINX")
         )
         # Two calls: Bruno path, then pycupra path
@@ -184,7 +184,7 @@ class TestAuxHeating:
 
     def test_stop_no_sectoken(self):
         client = _client()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_stop_aux_heating("VINX")
         )
         # No SecToken header on stop (Bruno seq 30 confirmed)
@@ -203,7 +203,7 @@ class TestBatteryCare:
         from custom_components.vag_connect.cariad.exceptions import APIError
         client = _client()
         client._get = AsyncMock(side_effect=APIError(404, "U", ""))
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_battery_care("VINX")
         )
         assert result == {}
@@ -211,7 +211,7 @@ class TestBatteryCare:
     def test_get_battery_care_returns_dict(self):
         client = _client()
         client._get = AsyncMock(return_value={"enabled": True})
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_battery_care("VINX")
         )
         assert result == {"enabled": True}
@@ -219,7 +219,7 @@ class TestBatteryCare:
     def test_get_battery_care_target_returns_dict(self):
         client = _client()
         client._get = AsyncMock(return_value={"targetSocPercentage": 80})
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_battery_care_target("VINX")
         )
         assert result["targetSocPercentage"] == 80
@@ -245,14 +245,14 @@ class TestRefreshBatteryCareBrandRestriction:
 
     def test_audi_brand_skips(self):
         coord = self._coord(brand="audi")
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.refresh_battery_care("VINX")
         )
         coord._cariad_client.get_battery_care.assert_not_called()
 
     def test_cupra_brand_calls_and_merges(self):
         coord = self._coord(brand="cupra")
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             coord.refresh_battery_care("VINX")
         )
         v = coord.vehicles["VINX"]
@@ -269,7 +269,7 @@ class TestCapabilitiesAB:
     def test_plural_path_success_no_fallback(self):
         client = _client()
         client._get = AsyncMock(return_value={"capabilities": []})
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_capabilities("VINX")
         )
         assert result == {"capabilities": []}
@@ -284,7 +284,7 @@ class TestCapabilitiesAB:
             APIError(404, "P", ""),  # plural fails
             {"capabilities": [{"id": "x"}]},  # singular succeeds
         ])
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             client.get_capabilities("VINX")
         )
         assert result == {"capabilities": [{"id": "x"}]}
@@ -302,7 +302,7 @@ class TestCapabilitiesAB:
 class TestChargingActionsAB:
     def test_start_uses_newer_path_first(self):
         client = _client()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_start_charging("VINX")
         )
         url = client._post.await_args.args[0]
@@ -312,7 +312,7 @@ class TestChargingActionsAB:
 
     def test_stop_uses_newer_path_first(self):
         client = _client()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_stop_charging("VINX")
         )
         url = client._post.await_args.args[0]
@@ -328,7 +328,7 @@ class TestSendDestination:
     def test_url_and_body_shape(self):
         client = _client()
         client._request = AsyncMock(return_value=None)
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             client.command_send_destination(
                 "VINX",
                 latitude=47.39,
