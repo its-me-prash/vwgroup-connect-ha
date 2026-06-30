@@ -773,6 +773,9 @@
       "residual_energy_consumption_kwh": {
         "name": "Consumo de la red de a bordo"
       },
+      "battery_climatization_energy_kwh": {
+        "name": "Energía climatización batería"
+      },
       "last_trip_avg_recuperation_kwh_100km": {
         "name": "Recuperación del trayecto (prom.)"
       },

@@ -773,6 +773,9 @@
       "residual_energy_consumption_kwh": {
         "name": "Verbruik boordnet"
       },
+      "battery_climatization_energy_kwh": {
+        "name": "Energie accuklimatisering"
+      },
       "last_trip_avg_recuperation_kwh_100km": {
         "name": "Recuperatie rit (gem.)"
       },

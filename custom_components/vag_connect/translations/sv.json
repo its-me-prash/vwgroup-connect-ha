@@ -773,6 +773,9 @@
       "residual_energy_consumption_kwh": {
         "name": "Förbrukning fordonsnät"
       },
+      "battery_climatization_energy_kwh": {
+        "name": "Energi batteriklimatisering"
+      },
       "last_trip_avg_recuperation_kwh_100km": {
         "name": "Återvinning resa (snitt)"
       },

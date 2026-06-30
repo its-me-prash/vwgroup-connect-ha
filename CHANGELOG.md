@@ -42,7 +42,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Fixed
 
+- **Electric and combustion ranges were swapped on plug-in hybrids (#555, #565).** On PHEVs like the Passat GTE 1.4 eHybrid and the Tiguan eHybrid, the "electric range" sensor showed the petrol range and the combustion sensor showed the electric one — battery and fuel levels read fine, only the two ranges were flipped. Turns out on these cars the *primary* engine is the combustion one (the opposite of an ID.x, where the primary engine is electric), and we were mapping the two ranges by position. Now we work out which range is which from the engine type, so electric and combustion line up with the VW app again. Pure EVs are unaffected. Thanks to the reporters of #555 and #565 for the clear write-ups.
 - **VW EU login that ended in "check email and password" after a correct password (#527).** On accounts where VW shows a one-time consent/authorization page, the integration tried to accept it but submitted the form the wrong way, so VW rejected it with a blank `400` and login never finished. Two things were off: the consent form posts back to its own URL with the query string attached (where the security tokens live) and we were stripping that query off; and the form lists each granted scope as its own field, which we were collapsing down to one and dropping a required scope. Both are fixed now, so the consent step completes on its own and login goes through. Huge thanks to **@RaimondB**, who reproduced it offline, root-caused both defects, and verified the fix end-to-end on his own car. 🙏
+
+### Added
+
+- **New "Battery climate energy use" sensor.** Picks up the battery-climatisation (thermal-management) energy your car already reports on the EU Data Act portal — handy for the e-cars that pre-heat or cool the battery. It's a diagnostic sensor, off by default, so flip it on under the device if you want it.
 
 ## [2.15.6] - 2026-06-27
 

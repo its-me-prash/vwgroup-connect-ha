@@ -114,6 +114,63 @@ class TestDrivetrainDetection:
         assert d.is_electric is False and d.has_battery is False
 
 
+class TestPhevRangeSwap:
+    """b14 (#555 Passat GTE 1.4 eHybrid / #565 Tiguan eHybrid) — on an MQB PHEV
+    the PRIMARY engine is combustion and the SECONDARY is electric, so the flat
+    cruising_range_primary/secondary fields must NOT be mapped position-blindly
+    (old code put the 380 km combustion range on electric_range_km)."""
+
+    def test_phev_combustion_primary_swaps_ranges(self) -> None:
+        # #555: VW app shows electric 20 km / combustion 380 km. The portal
+        # carries primary=380 (combustion) + secondary=20 (electric) + a fuel
+        # reading => combustion-primary PHEV. electric_range_km must get the
+        # SECONDARY (20), combustion the PRIMARY (380).
+        d = _map({
+            "soc": "57",
+            "fuel_level_current_level": "59",
+            "cruising_range_primary_engine": "380",
+            "cruising_range_secondary_engine": "20",
+            "cruising_range_combined": "400",
+        })
+        assert d.electric_range_km == 20
+        assert d.combustion_range_km == 380
+        assert d.secondary_engine_range_km == 20  # generic sensor still populated
+        assert d.total_range_km == 400  # sum unchanged
+
+    def test_phev_explicit_combustion_engine_type(self) -> None:
+        # A top-level engine_type naming a combustion fuel forces the swap even
+        # without a fuel-level field present.
+        d = _map({
+            "engine_type": "ENGINE_TYPE_PETROL_GASOLINE",
+            "cruising_range_primary_engine": "380",
+            "cruising_range_secondary_engine": "20",
+        })
+        assert d.electric_range_km == 20
+        assert d.combustion_range_km == 380
+
+    def test_bev_electric_primary_unchanged(self) -> None:
+        # Pure BEV: one electric engine, no fuel, no secondary range.
+        # electric_range_km keeps the PRIMARY value exactly as before.
+        d = _map({"soc": "80", "cruising_range_primary_engine": "120"})
+        assert d.electric_range_km == 120
+        assert d.combustion_range_km is None
+
+    def test_bev_bare_range_still_electric(self) -> None:
+        # BEV reporting the bare ``range`` spelling: electric_range_km still
+        # falls back to range_km (legacy behaviour preserved).
+        d = _map({"soc": "80", "range": "300"})
+        assert d.range_km == 300
+        assert d.electric_range_km == 300
+
+    def test_bev_explicit_electric_engine_type(self) -> None:
+        d = _map({
+            "engine_type": "ENGINE_TYPE_TYPE_IS_ELECTRIC",
+            "cruising_range_primary_engine": "300",
+        })
+        assert d.electric_range_km == 300
+        assert d.combustion_range_km is None
+
+
 class TestEnumShorten:
     """b1/A4 — strip verbose VW enum prefixes for display."""
 

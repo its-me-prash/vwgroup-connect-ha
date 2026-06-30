@@ -1002,6 +1002,68 @@ def map_dataset_to_vehicle_data(
     if odo is not None:
         d.odometer_km = odo
 
+    # ── b14 (#555 Passat GTE 1.4 eHybrid / #565 Tiguan eHybrid) ─────────────
+    # PHEV electric/combustion range disambiguation.
+    #
+    # The portal ships TWO standalone range fields, primary + secondary, with no
+    # companion engine_type on those flat fields themselves. The old code blindly
+    # mapped cruising_range_primary_engine -> electric_range_km. That assumption
+    # ("primary == electric") holds for BEVs (ID.x: a single electric engine) but
+    # is INVERTED on MQB PHEVs (Passat/Tiguan GTE), where the PRIMARY engine is
+    # the COMBUSTION engine and the SECONDARY engine is electric — so the VW app
+    # shows electric 20 km / combustion 380 km while we showed them swapped.
+    #
+    # Grounded signal (eu_data_dictionary): the engine_type enum tokens are
+    # ENGINE_TYPE_TYPE_IS_ELECTRIC vs ENGINE_TYPE_PETROL_GASOLINE /
+    # _PETROL_DIESEL / _GAS_CNG / _GAS_LPG / _TYPE_IS_GAS / _TYPE_IS_PETROL. A
+    # top-level engine_type, when present, names the PRIMARY engine's fuel type;
+    # an explicit combustion token there proves a combustion-primary PHEV.
+    #
+    # We pick the orientation from the SAFEST grounded rule, in order:
+    #   1. explicit top-level engine_type names the primary engine's fuel:
+    #        electric token  -> primary is electric  (BEV / electric-primary)
+    #        combustion token -> primary is combustion (PHEV)
+    #   2. no usable engine_type, but BOTH a secondary range AND a fuel reading
+    #      exist -> it's a PHEV with a combustion primary (a pure BEV has no fuel
+    #      and no secondary range), so primary == combustion.
+    #   3. otherwise default to the historical primary == electric (BEV-safe:
+    #      pure electrics with only one range keep electric_range_km exactly as
+    #      before).
+    et_raw = first("engine_type", "battery_state_report.cruising_ranges.0.engine_type")
+    et = (et_raw or "").upper()
+    primary_raw = _to_int(first("cruising_range_primary_engine", "primaryEngineRange"))
+    secondary_raw = _to_int(first("cruising_range_secondary_engine"))
+    has_fuel = (
+        first("fuel_level_current_level", "tank_current_level",
+              "fuelLevel_pct", "fuel_level") is not None
+    )
+    _ELECTRIC_TOKENS = ("ELECTRIC",)
+    _COMBUSTION_TOKENS = ("PETROL", "GASOLINE", "DIESEL", "_GAS", "CNG", "LPG")
+    if any(t in et for t in _ELECTRIC_TOKENS):
+        primary_is_combustion = False
+    elif any(t in et for t in _COMBUSTION_TOKENS):
+        primary_is_combustion = True
+    else:
+        # No usable engine_type: a secondary range + a fuel reading => PHEV with
+        # a combustion primary engine. (A pure BEV reports neither.)
+        primary_is_combustion = secondary_raw is not None and has_fuel
+
+    if primary_is_combustion:
+        # PHEV, combustion-primary: primary range is combustion, secondary is
+        # electric (this is the #555/#565 swap fix).
+        if primary_raw is not None and d.combustion_range_km is None:
+            d.combustion_range_km = primary_raw
+        if secondary_raw is not None and d.electric_range_km is None:
+            d.electric_range_km = secondary_raw
+    else:
+        # BEV / electric-primary (UNCHANGED behaviour): primary range is the
+        # electric range, secondary (if any) stays on its own sensor below.
+        if primary_raw is not None and d.electric_range_km is None:
+            d.electric_range_km = primary_raw
+
+    # range_km — the headline "range" sensor. Keep the legacy ordering (the bare
+    # ``range``/total spellings first, then the primary engine range) untouched
+    # so the existing range_km behaviour is preserved for every car.
     rng = _to_int(first("range", "cruising_range_primary_engine",
                         "totalRange_km", "primaryEngineRange"))
     if rng is not None:
@@ -1613,6 +1675,16 @@ def map_dataset_to_vehicle_data(
     _res_e = _to_float(first("additional_consumptions.residual_consumption"))
     if _res_e is not None:
         d.residual_energy_consumption_kwh = _res_e  # unit unconfirmed (dict: null)
+    # v2.15.7 (#547-#581 Scout) — battery-climatization energy. Dict UUID
+    # 482e54c4 (type=number, unit=null, cluster "Climatisation and Heating"):
+    # "Energy consumption for battery climtization for a given driving mode
+    # (non-comfort-related)". Sibling of the interior/residual consumption keys
+    # above; stored raw (no scale) until a live payload confirms the unit.
+    _bat_clim_e = _to_float(first(
+        "additional_consumptions.battery_climatization_consumption",
+        "battery_climatization_consumption"))
+    if _bat_clim_e is not None:
+        d.battery_climatization_energy_kwh = _bat_clim_e  # unit unconfirmed (dict: null)
 
     _st_rec = _to_float(first("short_term_data_average_recuperation"))
     if _st_rec is not None:

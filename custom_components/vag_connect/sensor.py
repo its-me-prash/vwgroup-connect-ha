@@ -1827,6 +1827,16 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         suggested_display_precision=2,
     ),
     VagSensorDescription(
+        key="battery_climatization_energy_kwh",
+        translation_key="battery_climatization_energy_kwh",
+        data_key="battery_climatization_energy_kwh",
+        native_unit_of_measurement="kWh",
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon="mdi:battery-heart-variant",
+        suggested_display_precision=2,
+    ),
+    VagSensorDescription(
         key="last_trip_avg_recuperation_kwh_100km",
         translation_key="last_trip_avg_recuperation_kwh_100km",
         data_key="last_trip_avg_recuperation_kwh_100km",
@@ -2930,6 +2940,9 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "last_report_id",
     "climate_energy_consumption_kwh",
     "residual_energy_consumption_kwh",
+    # v2.15.7 (#547-#581 Scout) — battery-climatization energy. EU-Data-Act
+    # dialect only; vehicles/channels without the field stay None → no phantom.
+    "battery_climatization_energy_kwh",
     "last_trip_avg_recuperation_kwh_100km",
     "lifetime_avg_recuperation_kwh_100km",
     "dataset_key",

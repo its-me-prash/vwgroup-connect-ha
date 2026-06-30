@@ -1399,6 +1399,9 @@ class VehicleData:
     climate_energy_consumption_kwh: float | None = None
     # On-board electronics / residual consumption (kWh). TOTAL_INCREASING.
     residual_energy_consumption_kwh: float | None = None
+    # Battery climatisation (thermal management) energy consumed (kWh).
+    # TOTAL_INCREASING. Diagnostic, disabled-by-default.
+    battery_climatization_energy_kwh: float | None = None
     # Recuperated energy per 100 km (last trip / lifetime). kWh/100 km.
     last_trip_avg_recuperation_kwh_100km: float | None = None
     lifetime_avg_recuperation_kwh_100km: float | None = None
