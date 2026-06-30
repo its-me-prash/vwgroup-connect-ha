@@ -611,6 +611,13 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # Same content as chargingStatus.value.chargeMode, just exposed
             # at the brand level too. Don't recurse — already covered above.
             "charging.chargeMode",
+            # v2.15.8 (#583 audi) — chargeMode sub-job gained its own pending
+            # ``requests`` queue (sibling of chargingSettings.requests /
+            # chargingStatus.requests). Now CONSUMED by the parser into
+            # ``charging_mode_pending`` (count). Register the 3-segment leaf
+            # explicitly — the 2-segment ``charging.chargeMode`` block above
+            # does NOT cover the equal-depth-matched ``.requests`` child.
+            "charging.chargeMode.requests",
             "charging.plugStatus", "charging.plugStatus.value",
             "charging.plugStatus.value.plugConnectionState",
             "charging.plugStatus.value.plugLockState",

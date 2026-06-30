@@ -296,6 +296,9 @@
       "charging_status_pending": {
         "name": "Charging Commands Pending"
       },
+      "charging_mode_pending": {
+        "name": "Charge Mode Changes Pending"
+      },
       "climatisation_status_pending": {
         "name": "Climate Commands Pending"
       },

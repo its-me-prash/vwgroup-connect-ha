@@ -662,6 +662,9 @@
       "charging_status_pending": {
         "name": "Příkazy nabíjení čekají"
       },
+      "charging_mode_pending": {
+        "name": "Změny režimu nabíjení čekají"
+      },
       "climate_remaining_time_min": {
         "name": "Klimatizace – zbývající čas"
       },

@@ -244,6 +244,21 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # v2.15.8 — Cariad scout #583 (Audi): third charging-side *_pending
+    # sibling — counts queued chargeMode change requests
+    # (``charging.chargeMode.requests``). 0 = idle, >0 = a chargeMode
+    # change (manual <-> timer) is queued at the gateway. Disabled by
+    # default — power-user opt-in. Phantom-protected (None when leaf absent).
+    VagSensorDescription(
+        key="charging_mode_pending",
+        translation_key="charging_mode_pending",
+        data_key="charging_mode_pending",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:tune-variant",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     # v2.2.3 — Cariad scout #272 (VW EU arvcer 2026-05-23): third
     # *_pending sibling — counts queued start/stop_climatisation
     # commands. No ``condition`` filter (every brand with climatisation

@@ -662,6 +662,9 @@
       "charging_status_pending": {
         "name": "Laddkommandon väntar"
       },
+      "charging_mode_pending": {
+        "name": "Laddlägesändringar väntar"
+      },
       "climate_remaining_time_min": {
         "name": "Klimat – återstående tid"
       },

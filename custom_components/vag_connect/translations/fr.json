@@ -662,6 +662,9 @@
       "charging_status_pending": {
         "name": "Commandes de charge en attente"
       },
+      "charging_mode_pending": {
+        "name": "Changements de mode de charge en attente"
+      },
       "climate_remaining_time_min": {
         "name": "Climatisation – temps restant"
       },

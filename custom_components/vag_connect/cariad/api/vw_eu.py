@@ -2422,6 +2422,16 @@ class VWEUClient(CariadBaseClient):
         if isinstance(status_pending, list):
             d.charging_status_pending = len(status_pending)
 
+        # v2.15.8 — scout #583 (Audi): third charging-side ``.requests``
+        # sibling — ``charging.chargeMode.requests``. The chargeMode sub-job
+        # gained its own pending-requests queue (mirror of chargingSettings /
+        # chargingStatus): queued chargeMode-change POSTs (manual <-> timer).
+        # Same ``[1 items]`` list shape — surfaced as a count so users can
+        # verify a chargeMode change actually queued. None when leaf absent.
+        mode_pending = v(raw, "charging", "chargeMode", "requests")
+        if isinstance(mode_pending, list):
+            d.charging_mode_pending = len(mode_pending)
+
         # v2.3.0 — scout #264 (Audi moltke69 2026-05-19) — route-aware
         # smart charging fields. The Cariad-BFF backend ships a
         # navigation-aware SoC target (e.g. "charge until you have

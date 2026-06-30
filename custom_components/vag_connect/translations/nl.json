@@ -662,6 +662,9 @@
       "charging_status_pending": {
         "name": "Laadopdrachten in behandeling"
       },
+      "charging_mode_pending": {
+        "name": "Laadmoduswijzigingen in behandeling"
+      },
       "climate_remaining_time_min": {
         "name": "Klimaat resterende tijd"
       },

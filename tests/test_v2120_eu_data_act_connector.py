@@ -36,7 +36,10 @@ from custom_components.vag_connect.cariad.auth._eu_data_act import (
     _walk_fields,
     map_dataset_to_vehicle_data,
 )
-from custom_components.vag_connect.cariad.exceptions import AuthenticationError
+from custom_components.vag_connect.cariad.exceptions import (
+    AuthenticationError,
+    UpstreamUnavailableError,
+)
 from custom_components.vag_connect.cariad.models import VehicleData
 
 
@@ -344,6 +347,78 @@ async def test_login_full_flow_mocked() -> None:
     assert "?" not in cred_post["url"]
     assert cred_post["data"]["hmac"] == "fresh_pw_hmac"
     assert cred_post["data"]["password"] == "secret"
+
+
+@pytest.mark.asyncio
+async def test_login_timeout_is_transient_not_reported() -> None:
+    """#576/#578 — a TimeoutError raised during login surfaces as the typed
+    transient ``UpstreamUnavailableError`` (backend temporarily unavailable),
+    NOT a raw TimeoutError and NOT an AuthenticationError.
+
+    A raw TimeoutError used to propagate out of get_status into the Error
+    Reporter; the coordinator only de-escalates the typed transient class.
+    The transient class is also NOT an AuthenticationError, so it does not
+    trigger a pointless re-login/reauth.
+    """
+    class _TimeoutSession:
+        def get(self, url: str, **kw: Any) -> _FakeResp:
+            # The authorize GET (or any login round-trip) times out.
+            raise TimeoutError("portal slow")
+
+        def post(self, url: str, **kw: Any) -> _FakeResp:  # pragma: no cover
+            raise AssertionError("should never reach the POST steps")
+
+    conn = EUDataActConnector(_TimeoutSession())  # type: ignore[arg-type]
+    with pytest.raises(UpstreamUnavailableError):
+        await conn.login("user@example.com", "secret")
+    # Belt-and-braces: it must NOT be classified as an auth failure.
+    assert not issubclass(UpstreamUnavailableError, AuthenticationError)
+
+
+@pytest.mark.asyncio
+async def test_login_bad_password_still_raises_auth_error() -> None:
+    """A genuine credential failure is NOT swallowed by the transient wrap:
+    a signin-service '/error' re-render still raises AuthenticationError.
+
+    Guards against the catch broadening to eat real auth failures (#576/#578
+    must convert ONLY connection/timeouts, never wrong-password).
+    """
+    class _BadPwSession:
+        def __init__(self) -> None:
+            self.posts: list[dict[str, Any]] = []
+
+        def get(self, url: str, **kw: Any) -> _FakeResp:
+            if url.endswith("/") and "drivesomethinggreater" in url:
+                return _FakeResp(url, text="<html>portal</html>")
+            if "authorize" in url:
+                return _FakeResp(
+                    "https://identity.vwgroup.io/signin-service/v1/CLIENT/"
+                    "login/identifier",
+                    text=_SIGNIN_HTML,
+                )
+            raise AssertionError(f"unmatched GET {url}")
+
+        def post(self, url: str, **kw: Any) -> _FakeResp:
+            self.posts.append({"url": url})
+            if url.endswith("/login/identifier"):
+                return _FakeResp(
+                    "https://identity.vwgroup.io/signin-service/v1/CLIENT/"
+                    "login/authenticate?relayState=rs1",
+                    text=_PASSWORD_HTML,
+                )
+            if "/login/authenticate" in url:
+                # Wrong password → IDP re-renders the signin-service /error page.
+                return _FakeResp(
+                    "https://identity.vwgroup.io/signin-service/v1/CLIENT/"
+                    "login/authenticate/error",
+                    status=200, text="<html>login error</html>",
+                )
+            raise AssertionError(f"unmatched POST {url}")
+
+    conn = EUDataActConnector(_BadPwSession())  # type: ignore[arg-type]
+    with pytest.raises(AuthenticationError):
+        await conn.login("user@example.com", "wrong-password")
+    assert conn.logged_in is False
 
 
 @pytest.mark.asyncio

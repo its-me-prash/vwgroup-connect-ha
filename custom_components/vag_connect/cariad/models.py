@@ -437,6 +437,12 @@ class VehicleData:
     # (i.e. queued ``start_charging`` / ``stop_charging`` commands).
     # Same int-count diagnostic, same None semantics.
     charging_status_pending: int | None = None
+    # v2.15.8 — Cariad scout #583 (Audi): third charging-side *.requests
+    # sibling — ``charging.chargeMode.requests`` counts queued chargeMode
+    # change requests (e.g. a putChargeMode POST switching preferred mode
+    # manual <-> timer). Same ``[1 items]`` shape as the chargingSettings /
+    # chargingStatus queues. Int-count diagnostic, None when leaf absent.
+    charging_mode_pending: int | None = None
     # v2.2.3 — Cariad scout #272 (VW EU arvcer 2026-05-23): third
     # member of the *.requests family — counts queued
     # ``start_climatisation`` / ``stop_climatisation`` commands at the

@@ -662,6 +662,9 @@
       "charging_status_pending": {
         "name": "Polecenia ładowania oczekują"
       },
+      "charging_mode_pending": {
+        "name": "Zmiany trybu ładowania oczekują"
+      },
       "climate_remaining_time_min": {
         "name": "Klimatyzacja – pozostały czas"
       },

@@ -48,6 +48,7 @@ from ..exceptions import (
     PortalInteractionRequiredError,
     TermsAndConditionsError,
     TwoFactorRequiredError,
+    UpstreamUnavailableError,
 )
 from ..models import VehicleData
 
@@ -2263,6 +2264,29 @@ class EUDataActConnector:
 
     async def login(self, email: str, password: str) -> None:
         """Run the OIDC code-flow login; portal backend sets cookies.
+
+        v2.15.8 (#576/#578) — a transport-level timeout/disconnect during the
+        login HTTP round-trips (the priming GET, the authorize GET, the
+        identifier/credential POSTs) is a portal hiccup, NOT a credential
+        failure. A raw ``TimeoutError``/``ClientConnectionError`` here used to
+        propagate out of ``get_status`` and land in the Error Reporter as if it
+        were our bug. We now re-raise it as ``UpstreamUnavailableError`` — the
+        same typed "backend temporarily unavailable" the coordinator already
+        treats as a transient no-data poll (and explicitly does NOT escalate to
+        the Reporter; #438/#465). Genuine auth failures (bad password,
+        consent-required, attestation, 4xx) are raised INSIDE ``_login_impl`` as
+        ``AuthenticationError`` / ``PortalInteractionRequiredError`` subclasses,
+        which are NOT caught here, so they surface unchanged.
+        """
+        try:
+            await self._login_impl(email, password)
+        except (TimeoutError, ClientConnectionError) as exc:
+            # ONLY connection/timeouts map to transient. asyncio.TimeoutError is
+            # an alias of the builtin TimeoutError on py3.11+, so it is covered.
+            raise UpstreamUnavailableError(504, brand=self._state) from exc
+
+    async def _login_impl(self, email: str, password: str) -> None:
+        """OIDC code-flow login worker (see ``login`` for the transient wrap).
 
         v2.13.0 — in device-code Bearer mode (``self._bearer`` set) this is a
         no-op: the device-grant already minted the token, so there is no SPA

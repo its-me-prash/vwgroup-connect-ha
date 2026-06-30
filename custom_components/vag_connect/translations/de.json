@@ -662,6 +662,9 @@
       "charging_status_pending": {
         "name": "Ladebefehle ausstehend"
       },
+      "charging_mode_pending": {
+        "name": "Lademodus-Änderungen ausstehend"
+      },
       "climate_remaining_time_min": {
         "name": "Klima-Restzeit"
       },

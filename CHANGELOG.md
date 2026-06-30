@@ -38,6 +38,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.8] - unreleased
+
+### Added
+
+- **New "Charge Mode Changes Pending" sensor for Audi/VW (#583).** The portal now ships a little queue counter for charge-mode switches (e.g. flipping between manual and timer charging), right next to the charging-settings and charging-commands queues we already track. It's a diagnostic sensor, off by default — flip it on if you want to confirm a charge-mode change actually went through.
+
+### Fixed
+
+- **VW EU portal login that timed out got reported as an error (#576, #578).** When the EU Data Act portal was briefly slow or unreachable during sign-in, the timeout bubbled all the way up and showed up in the Error Reporter as if the integration had broken — same as the "backend temporarily unavailable" hiccups we already shrug off everywhere else. Now a connection drop or timeout during login is treated as exactly that: a transient blip, skipped for this poll, no error logged, no re-login churn. A genuinely wrong password (or a consent/2FA prompt) still surfaces normally, so nothing real gets swallowed.
+
 ## [2.15.7] - 2026-06-30
 
 ### Fixed
