@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.7] - unreleased
+
+### Fixed
+
+- **VW EU login that ended in "check email and password" after a correct password (#527).** On accounts where VW shows a one-time consent/authorization page, the integration tried to accept it but submitted the form the wrong way, so VW rejected it with a blank `400` and login never finished. Two things were off: the consent form posts back to its own URL with the query string attached (where the security tokens live) and we were stripping that query off; and the form lists each granted scope as its own field, which we were collapsing down to one and dropping a required scope. Both are fixed now, so the consent step completes on its own and login goes through. Huge thanks to **@RaimondB**, who reproduced it offline, root-caused both defects, and verified the fix end-to-end on his own car. 🙏
+
 ## [2.15.6] - 2026-06-27
 
 ### Fixed

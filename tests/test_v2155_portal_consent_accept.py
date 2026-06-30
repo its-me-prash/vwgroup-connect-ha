@@ -57,14 +57,21 @@ _PASSWORD_HTML = (
 )
 
 # A scrapeable generic-consent grant page: server-rendered <form> with the
-# accept action + hidden anti-CSRF fields (mirrors the credential pages).
+# accept action + hidden anti-CSRF fields + the consentedScopes the grant
+# endpoint validates (v2.15.7 — the gate keys on _csrf OR consentedScopes).
+# This fixture keeps an explicit action so this file's session routing (which
+# matches "/consent/" in the POST URL) stays intact; the EMPTY-action real
+# form is covered separately in test_v2157_portal_consent_action.py.
 _CONSENT_FORM_HTML = (
     '<script>window._IDK = {templateModel: {"template":"consent",'
     '"hmac":"consent_hmac","relayState":"rs1"}, csrf_token: "csrf3"};</script>'
     '<form action="/signin-service/v1/consent/users/UID/CLIENT">'
-    '<input type="hidden" name="hmac" value="consent_hmac">'
     '<input type="hidden" name="_csrf" value="csrf3">'
     '<input type="hidden" name="relayState" value="rs1">'
+    '<input type="hidden" name="consentedScopes" value="profile">'
+    '<input type="hidden" name="consentedScopes" value="cars">'
+    '<button type="submit">Allow</button>'
+    '<button type="submit" name="cancel" value="true">Cancel</button>'
     '</form>'
 )
 # A consent page with NO usable form fields → auto-accept must bail out.

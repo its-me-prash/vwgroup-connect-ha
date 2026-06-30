@@ -231,6 +231,54 @@ def _resolve_action(base_url: str, action: str | None) -> str:
     return resolved.replace("/login/login/", "/login/")
 
 
+def _consent_form_fields(html: str) -> tuple[list[tuple[str, str]], str | None]:
+    """Parse the consent grant <form> into ORDERED (name, value) pairs.
+
+    Unlike ``_login_fields`` (dict-based — fine for credential steps), the
+    consent form emits ``consentedScopes`` ONCE PER granted scope
+    (``<input name=consentedScopes value=profile>``,
+    ``<input name=consentedScopes value=cars>``). A dict would keep only the
+    last and silently drop the mandatory ``profile`` scope → the grant
+    endpoint rejects it. So we keep a list and PRESERVE repeats (RaimondB's
+    root-cause for #527). Buttons (the Allow button has no name; Cancel is
+    ``name='cancel' value='true'``) are excluded so the payload is the hidden
+    inputs ONLY. Returns ``(pairs, form_action)`` where ``form_action`` is the
+    raw form ``action`` (typically EMPTY on the consent page — meaning POST
+    back to the current URL, query intact).
+    """
+
+    class _P(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__()
+            self.action: str | None = None
+            self.pairs: list[tuple[str, str]] = []
+            self._in = False
+            self._done = False
+
+        def handle_starttag(
+            self, tag: str, attrs: list[tuple[str, str | None]]
+        ) -> None:
+            if self._done:
+                return
+            a = dict(attrs)
+            if tag == "form" and self.action is None:
+                self.action = a.get("action")
+                self._in = True
+            elif tag == "input" and self._in:
+                name = a.get("name")
+                if name:
+                    self.pairs.append((name, a.get("value") or ""))
+
+        def handle_endtag(self, tag: str) -> None:
+            if tag == "form" and self._in:
+                self._in = False
+                self._done = True
+
+    parser = _P()
+    parser.feed(html)
+    return parser.pairs, parser.action
+
+
 def _login_error(html: str) -> str | None:
     """Return a human-readable login error from the page, if present."""
     model = _extract_template_model(html)
@@ -2078,33 +2126,51 @@ class EUDataActConnector:
     async def _accept_consent_page(
         self, consent_url: str, consent_html: str
     ) -> tuple[str, str, int] | None:
-        """Scrape + POST the consent grant form to ACCEPT it (#527, v2.15.5).
+        """Scrape + POST the consent grant form to ACCEPT it (#527).
 
-        The signin-service consent page is a server-rendered form carrying the
-        same hidden-field machinery as the credential pages (hmac / _csrf /
-        relayState) plus an ``action`` pointing at the accept/grant endpoint.
-        We reuse ``_login_fields`` + ``_resolve_action`` (the helpers the
-        credential steps already use) so the parsing stays in one place.
+        v2.15.7 — REWRITTEN per RaimondB's verified end-to-end diagnosis:
+
+        1. The consent <form> action is EMPTY → the browser POSTs back to the
+           CURRENT consent URL **including its query string** (hmac /
+           relayState / callback / scopes), which the grant endpoint validates.
+           ``_resolve_action`` would ``split('?', 1)[0]`` and discard the query
+           (correct for the credential step, FATAL here → HTTP 400
+           generalErrorBranded). So we ``urljoin`` against the FULL consent URL
+           and, when the action is empty, POST straight back to ``consent_url``
+           with the query intact.
+        2. The form emits ``consentedScopes`` ONCE PER granted scope. A
+           dict-based parse keeps only the last → drops mandatory ``profile``.
+           ``_consent_form_fields`` returns an ordered list of pairs so the
+           repeats survive (aiohttp form-encodes a list of tuples preserving
+           every entry). It also means we do NOT inject the templateModel hmac
+           that ``_login_fields`` would — the consent form has no hmac BODY
+           field (hmac is the query param).
+        3. The Allow button has NO name; Cancel is ``name='cancel'
+           value='true'``. Buttons are excluded by the parser, so the accept
+           payload is the hidden inputs ONLY.
 
         Returns the new ``(landing_url, landing_html, status)`` after the
         accept POST + redirect-follow, or ``None`` when the form could not be
-        parsed (no fields/action) so the caller falls through to the typed
+        parsed (no usable fields) so the caller falls through to the typed
         non-credential classification (no silent loop — we accept once).
         """
-        fields, action = _login_fields(consent_html)
-        # Need at least one form anti-CSRF token to POST a valid acceptance;
-        # without one the page is not the expected scrapeable consent form.
-        if not any(k in fields for k in ("hmac", "_csrf", "relayState")):
+        pairs, action = _consent_form_fields(consent_html)
+        # Gate on the consent form's own anti-CSRF / scope fields. RaimondB's
+        # form carried ``_csrf``; some variants carry ``consentedScopes``.
+        names = {n for n, _ in pairs}
+        if not ({"_csrf", "consentedScopes"} & names):
             _LOGGER.debug(
                 "EU Data Act portal: consent page at %s carried no form "
                 "fields — cannot auto-accept, leaving to classifier",
                 _safe_url(consent_url),
             )
             return None
-        accept_action = _resolve_action(consent_url, action)
+        # Empty action ⇒ POST to the FULL consent URL incl. query. Do NOT use
+        # _resolve_action (it strips the query → 400 generalErrorBranded).
+        accept_action = urljoin(consent_url, action) if action else consent_url
         try:
             async with self._session.post(
-                accept_action, data=fields,
+                accept_action, data=pairs,
                 headers={"User-Agent": _USER_AGENT, "Referer": consent_url},
                 allow_redirects=True, timeout=ClientTimeout(total=_TIMEOUT_S),
             ) as resp:
