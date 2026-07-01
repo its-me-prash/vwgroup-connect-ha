@@ -90,6 +90,8 @@ A few things are **structural** — they come from how Volkswagen's backends wor
 - **CUPRA / SEAT remote commands are blocked by VW.** Online-services (OLA) access for these brands was revoked server-side in 2026 (HTTP 403); a re-login or app-version bump won't restore it. Data still flows via the EU Data Act portal. ([#464](https://github.com/its-me-prash/vwgroup-connect-ha/issues/464))
 - **EU Data Act portal data is thin and varies by car.** VW publishes only a slice of fields today (often odometer + lock + charging, sometimes much more). It widens over time as VW expands the portal ahead of the Sept-2026 deadline — fields that read `unknown` today may fill in on their own, no change needed. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465))
 
+> **Where we stand.** Under the EU Data Act (Regulation 2023/2854), your car's data is *yours*. Running this integration on your own hardware is *you* accessing *your own* data (Article 4) — owed at the same quality the manufacturer serves itself, in real time where technically feasible. VW's read-only, hours-stale portal falls short of that today. This integration is deliberately **channel-agnostic**: the moment VW gives owners a real-time, control-capable interface — as the Data Act requires, and as some manufacturers already offer their owners — we'll support it here, for free, for everyone. We back your right to real-time access to your own car.
+
 ---
 
 ## Install
