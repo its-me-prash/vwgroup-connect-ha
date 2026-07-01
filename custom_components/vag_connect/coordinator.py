@@ -1399,6 +1399,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         # (above) and recovers on the next poll.
                         from .cariad.exceptions import (  # noqa: PLC0415
                             APIError,
+                            AuthenticationError,
                             UpstreamUnavailableError,
                         )
                         is_transient_upstream = isinstance(
@@ -1407,7 +1408,27 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                             isinstance(result, APIError)
                             and getattr(result, "status", 0) >= 500
                         )
-                        if not is_transient_upstream:
+                        # v2.15.9 (#596) — a user-actionable auth-interaction
+                        # (T&C / marketing-consent / 2FA / portal-interaction)
+                        # re-hit on EVERY poll (the portal re-login walks into
+                        # the same consent wall) used to fire record_error once
+                        # per VIN per poll, flooding the Error Reporter (~20x).
+                        # These already surface as a fixable Repair issue at
+                        # setup (raise_issue_auth_required), and the OUTER
+                        # poll-loop handler already de-escalates the same family
+                        # (isinstance(err, AuthenticationError) → reauth, no
+                        # record_error). The per-VIN handler was missing that
+                        # guard. All five interaction classes subclass
+                        # AuthenticationError, so one isinstance covers them.
+                        # It is NOT a bug and NOT actionable by us — only by the
+                        # user, via the Repair — so it must NOT be error-reported.
+                        # Genuine failures (data-plane 403/500, parse errors,
+                        # unexpected exceptions) are none of these types and
+                        # still fall through to record_error below.
+                        is_auth_interaction = isinstance(
+                            result, AuthenticationError
+                        )
+                        if not is_transient_upstream and not is_auth_interaction:
                             try:
                                 record_error(
                                     self.error_buffer,

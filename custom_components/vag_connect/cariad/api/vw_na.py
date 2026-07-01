@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 from typing import Any
 
-from aiohttp import ClientSession
+from aiohttp import ClientConnectionError, ClientSession
 
 from .._util import mask_vin as _mask_vin
 from .._util import safe_float, safe_int
@@ -25,6 +25,7 @@ from ..exceptions import (
     APIError,
     CommandFailureReason,
     TokenExpiredError,
+    UpstreamUnavailableError,
     classify_command_failure,
 )
 from ..auth.idk import IDKAuth
@@ -1569,18 +1570,37 @@ class VWNAClient:
                 "User-Agent":    BRAND_VW_NA.user_agent,
                 "Accept":        "application/json",
             })
-        async with self._session.request(
-            method, url, headers=headers, timeout=ClientTimeout(total=30), **kwargs
-        ) as resp:
-            if resp.status == 401 and retry and not _carnet_auth:
-                await self._refresh()
-                return await self._request(method, url, retry=False, **kwargs)
-            if resp.status == 204:
-                return {}
-            if resp.status not in (200, 202, 207):
-                body = await resp.text()
-                raise APIError(resp.status, url, body)
-            return await resp.json()
+        # v2.15.9 (#593) — a transport-level timeout/disconnect during the HTTP
+        # round-trip is a backend hiccup, NOT our bug. A raw
+        # ``ClientConnectorError``/``TimeoutError`` here used to propagate out of
+        # ``get_status`` and land in the Error Reporter (per-VIN poll failure) as
+        # if the integration had broken. Re-raise it as
+        # ``UpstreamUnavailableError`` — the same typed "backend temporarily
+        # unavailable" the coordinator already de-escalates to a transient
+        # no-data poll and explicitly does NOT error-report (#438/#465), exactly
+        # mirroring the v2.15.8 EU-login fix (#576/#578). Only connection/timeout
+        # errors are mapped; genuine HTTP responses (4xx/5xx, incl. auth 401 and
+        # data-plane 403) still flow through the status checks below → real
+        # ``APIError``s are raised and reported as before. ``ClientConnectorError``
+        # is a subclass of ``ClientConnectionError``, so it is covered.
+        try:
+            async with self._session.request(
+                method, url, headers=headers, timeout=ClientTimeout(total=30),
+                **kwargs,
+            ) as resp:
+                if resp.status == 401 and retry and not _carnet_auth:
+                    await self._refresh()
+                    return await self._request(method, url, retry=False, **kwargs)
+                if resp.status == 204:
+                    return {}
+                if resp.status not in (200, 202, 207):
+                    body = await resp.text()
+                    raise APIError(resp.status, url, body)
+                return await resp.json()
+        except (TimeoutError, ClientConnectionError) as exc:
+            # asyncio.TimeoutError aliases the builtin TimeoutError on py3.11+,
+            # so an aiohttp total-timeout is covered here too.
+            raise UpstreamUnavailableError(504, brand=BRAND_VW_NA.name) from exc
 
     async def _refresh(self) -> None:
         if self._tokens and self._tokens.refresh_token:
