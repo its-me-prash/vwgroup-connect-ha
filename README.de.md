@@ -90,6 +90,8 @@ Ein paar Dinge sind **strukturell** — sie kommen daher, wie Volkswagens Backen
 - **CUPRA-/SEAT-Fernbefehle werden von VW blockiert.** Der Online-Services-Zugriff (OLA) für diese Marken wurde 2026 serverseitig entzogen (HTTP 403); ein erneutes Login oder ein App-Versions-Bump stellt ihn nicht wieder her. Daten fliessen weiterhin über das EU-Data-Act-Portal. ([#464](https://github.com/its-me-prash/vwgroup-connect-ha/issues/464))
 - **Die EU-Data-Act-Portaldaten sind dünn und variieren je nach Auto.** VW veröffentlicht heute nur einen Ausschnitt der Felder (oft Kilometerstand + Verriegelung + Laden, manchmal deutlich mehr). Er weitet sich mit der Zeit, während VW das Portal vor der Frist im September 2026 ausbaut — Felder, die heute `unknown` zeigen, füllen sich womöglich von selbst, ohne Änderung. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465))
 
+> **Wo wir stehen.** Nach dem EU Data Act (Verordnung (EU) 2023/2854) gehören die Daten deines Autos *dir*. Diese Integration auf deiner eigenen Hardware zu betreiben heisst, dass *du* auf *deine eigenen* Daten zugreifst (Artikel 4) — geschuldet in derselben Qualität, in der der Hersteller sie sich selbst liefert, in Echtzeit, wo technisch machbar. VWs schreibgeschütztes, stundenlang veraltetes Portal wird dem heute nicht gerecht. Diese Integration ist bewusst **kanalunabhängig**: In dem Moment, in dem VW den Besitzern eine echtzeitfähige, steuerbare Schnittstelle gibt — wie es der Data Act verlangt und wie es manche Hersteller ihren Besitzern schon heute bieten — unterstützen wir sie hier, kostenlos, für alle. Wir stehen hinter deinem Recht auf Echtzeit-Zugriff auf dein eigenes Auto.
+
 ---
 
 ## Installation

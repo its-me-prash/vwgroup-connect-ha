@@ -90,6 +90,8 @@ Några saker är **strukturella** — de kommer från hur Volkswagens backendar 
 - **CUPRA / SEAT-fjärrkommandon är blockerade av VW.** Åtkomsten till online-tjänster (OLA) för dessa varumärken återkallades på serversidan 2026 (HTTP 403); en ny inloggning eller en uppdaterad app-version återställer den inte. Data flödar fortfarande via EU Data Act-portalen. ([#464](https://github.com/its-me-prash/vwgroup-connect-ha/issues/464))
 - **EU Data Act-portalens data är tunn och varierar mellan bilar.** VW publicerar i dag bara en del av fälten (ofta vägmätare + lås + laddning, ibland mycket mer). Den breddas över tid när VW utökar portalen inför deadline i september 2026 — fält som i dag visar `unknown` kan fyllas i av sig själva, utan att något behöver ändras. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465))
 
+> **Så här ligger det till.** Enligt EU Data Act (Förordning (EU) 2023/2854) är din bils data *din*. Att köra den här integrationen på din egen hårdvara är *du* som kommer åt *dina egna* data (Artikel 4) — som du har rätt till i samma kvalitet som tillverkaren själv får, i realtid där det är tekniskt möjligt. VW:s skrivskyddade, timmar-gamla portal når inte upp till det i dag. Den här integrationen är medvetet **kanaloberoende**: i samma stund som VW ger ägarna ett gränssnitt i realtid med styrmöjligheter — som Data Act kräver, och som vissa tillverkare redan erbjuder sina ägare — stödjer vi det här, gratis, för alla. Vi står bakom din rätt till realtidsåtkomst till din egen bil.
+
 ---
 
 ## Installation

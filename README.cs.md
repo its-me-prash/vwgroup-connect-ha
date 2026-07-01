@@ -90,6 +90,8 @@ Pár věcí je **strukturálních** — vyplývají z toho, jak fungují backend
 - **Vzdálené příkazy CUPRA / SEAT jsou blokované VW.** Přístup k online službám (OLA) pro tyto značky byl v roce 2026 zrušen na straně serveru (HTTP 403); opětovné přihlášení ani aktualizace verze aplikace ho neobnoví. Data stále tečou přes portál EU Data Act. ([#464](https://github.com/its-me-prash/vwgroup-connect-ha/issues/464))
 - **Data z portálu EU Data Act jsou skoupá a liší se vozidlo od vozidla.** VW dnes publikuje jen výsek polí (často tachometr + zamčení + nabíjení, někdy mnohem víc). Postupně se to rozšiřuje, jak VW rozšiřuje portál před zářijovým termínem 2026 — pole, která dnes čtou `unknown`, se mohou sama vyplnit, bez jakékoliv změny. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465))
 
+> **Jak to vidíme my.** Podle EU Data Act (Regulation (EU) 2023/2854) jsou data vašeho auta *vaše*. Provozovat tuto integraci na vlastním hardwaru znamená, že *vy* přistupujete ke *svým vlastním* datům (Článek 4) — a náleží vám ve stejné kvalitě, v jaké je výrobce poskytuje sám sobě, v reálném čase tam, kde je to technicky proveditelné. Portál VW, dnes jen pro čtení a zpožděný o hodiny, tomu zatím nestačí. Tato integrace je záměrně **nezávislá na kanálu**: v okamžiku, kdy VW dá majitelům skutečné rozhraní v reálném čase, schopné ovládání — jak Data Act vyžaduje a jak někteří výrobci svým majitelům už nabízejí — podpoříme ho i tady, zdarma, pro všechny. Stojíme za vaším právem na přístup k datům vlastního auta v reálném čase.
+
 ---
 
 ## Instalace

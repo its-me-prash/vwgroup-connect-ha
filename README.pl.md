@@ -90,6 +90,8 @@ Kilka rzeczy jest **strukturalnych** — wynikają one z działania backendów V
 - **Zdalne polecenia CUPRA / SEAT są zablokowane przez VW.** Dostęp do usług online (OLA) dla tych marek został cofnięty po stronie serwera w 2026 (HTTP 403); ponowne logowanie ani aktualizacja wersji aplikacji go nie przywróci. Dane nadal płyną przez portal EU Data Act. ([#464](https://github.com/its-me-prash/vwgroup-connect-ha/issues/464))
 - **Dane z portalu EU Data Act są skąpe i różnią się w zależności od samochodu.** VW publikuje dziś tylko wycinek pól (często przebieg + blokada + ładowanie, czasem znacznie więcej). Z czasem się to rozszerza, gdy VW poszerza zakres portalu przed terminem we wrześniu 2026 — pola, które dziś pokazują `unknown`, mogą wypełnić się same, bez żadnych zmian. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465))
 
+> **Jak się sprawy mają.** Zgodnie z EU Data Act (Rozporządzenie (EU) 2023/2854) dane Twojego samochodu należą *do Ciebie*. Uruchomienie tej integracji na własnym sprzęcie to *Ty* uzyskujący dostęp *do własnych* danych (Artykuł 4) — należnych w tej samej jakości, w jakiej producent udostępnia je sobie samemu, w czasie rzeczywistym tam, gdzie jest to technicznie wykonalne. Dzisiejszy portal VW — tylko do odczytu i przestarzały o godziny — nie spełnia tego wymogu. Ta integracja jest celowo **niezależna od kanału**: w chwili, gdy VW da właścicielom interfejs działający w czasie rzeczywistym i umożliwiający sterowanie — czego wymaga Data Act i co część producentów już oferuje swoim właścicielom — będziemy go tu wspierać, za darmo, dla wszystkich. Popieramy Twoje prawo do dostępu do własnego samochodu w czasie rzeczywistym.
+
 ---
 
 ## Instalacja

@@ -90,6 +90,8 @@ Een paar dingen zijn **structureel** — ze komen voort uit hoe Volkswagens back
 - **CUPRA / SEAT-commando's op afstand worden door VW geblokkeerd.** De online-services-toegang (OLA) voor deze merken is in 2026 server-side ingetrokken (HTTP 403); opnieuw inloggen of een app-versie-bump herstelt dit niet. Data blijft stromen via het EU Data Act-portaal. ([#464](https://github.com/its-me-prash/vwgroup-connect-ha/issues/464))
 - **De data van het EU Data Act-portaal is mager en verschilt per auto.** VW publiceert vandaag slechts een deel van de velden (vaak kilometerstand + vergrendeling + laden, soms veel meer). Het wordt na verloop van tijd ruimer naarmate VW het portaal uitbreidt richting de deadline van september 2026 — velden die vandaag `unknown` tonen, kunnen vanzelf invullen, zonder dat er iets hoeft te veranderen. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465))
 
+> **Waar we staan.** Onder de EU Data Act (Verordening (EU) 2023/2854) is de data van je auto *van jou*. Deze integratie op je eigen hardware draaien is *jij* die *je eigen* data raadpleegt (Artikel 4) — waar je recht op hebt in dezelfde kwaliteit als de fabrikant zichzelf bedient, in real time waar dat technisch haalbaar is. VW's alleen-lezen portaal, dat uren achterloopt, schiet daar vandaag tekort in. Deze integratie is bewust **kanaal-agnostisch**: op het moment dat VW eigenaren een real-time, bedienbare interface geeft — zoals de Data Act vereist, en zoals sommige fabrikanten hun eigenaren al bieden — ondersteunen we die hier, gratis, voor iedereen. Wij staan achter jouw recht op real-time toegang tot je eigen auto.
+
 ---
 
 ## Installeren
