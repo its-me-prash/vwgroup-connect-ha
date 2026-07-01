@@ -11,7 +11,7 @@ jobs:
     name: Lint & Validate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Python 3.12 einrichten
         uses: actions/setup-python@v6
@@ -91,7 +91,7 @@ jobs:
     name: Unit Tests + Coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Python 3.12 einrichten
         uses: actions/setup-python@v6
@@ -150,17 +150,17 @@ jobs:
     name: HA Hassfest
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       # SHA-pinned per supply-chain-hardening (v1.24.1, 2026-05-08).
       # home-assistant/actions has no semver tags — pin to commit SHA.
       # Bump manually when upstream announces breaking changes.
-      - uses: "home-assistant/actions/hassfest@e91ad1948e57189485b9c1ad608af0c303946f89"
+      - uses: "home-assistant/actions/hassfest@f4ca6f671bd429efb108c0f2fa0ae8af0215986c"
 
   hacs:
     name: HACS Validation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       # Tag-pinned per supply-chain-hardening (v1.24.1, 2026-05-08).
       # hacs/action ships dated tags (e.g. 22.5.0). Bump on hacs releases.
       - uses: hacs/action@22.5.0
