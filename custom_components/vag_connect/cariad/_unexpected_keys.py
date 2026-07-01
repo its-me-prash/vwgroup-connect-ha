@@ -917,6 +917,19 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             "vehicleHealthInspection.maintenanceStatus.error.*",
             "departureProfiles.departureProfilesStatus.error",
             "departureProfiles.departureProfilesStatus.error.*",
+            # v2.15.9 — scout #598 (@zapadee, audi selectivestatus) —
+            # the ONE sub-block the v2.2.0 Phase-7 error rollout missed:
+            # ``userCapabilities.capabilitiesStatus`` also gets the
+            # Bad-Gateway ``.error`` envelope (6-key CARIAD BFF error
+            # contract: message/errorTimeStamp/info/code/group/retry)
+            # when the capabilities subsystem times out upstream. Same
+            # shape as every other ``*.error`` sibling above. Pure
+            # transient-error wrapper, no standalone user value → the
+            # parser (which reads ``capabilitiesStatus.value``) ignores
+            # it cleanly; we register the wrapper + ``.error.*`` wildcard
+            # to silence the Scout. No sensor, no code change.
+            "userCapabilities.capabilitiesStatus.error",
+            "userCapabilities.capabilitiesStatus.error.*",
             # v2.2.3 — scout #273 (VW EU gudden 2026-05-23): readiness
             # endpoint's defensive ``.error`` envelope (Cariad-BFF
             # "endpoint hat einen Fehler"-wrapper pattern, same shape
