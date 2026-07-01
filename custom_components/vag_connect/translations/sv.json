@@ -1337,7 +1337,15 @@
     },
     "select": {
       "charge_mode_select": {
-        "name": "Laddningsläge"
+        "name": "Laddningsläge",
+        "state": {
+          "manual": "Manuell",
+          "timer": "Timer",
+          "preferred_charging_times": "Föredragna laddningstider",
+          "only_own_current": "Endast egen el",
+          "immediate_discharging": "Ladda ur nu",
+          "timer_charging_climatization": "Tidsstyrd laddning med klimatanläggning"
+        }
       }
     },
     "time": {

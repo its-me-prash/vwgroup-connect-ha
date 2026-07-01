@@ -1337,7 +1337,15 @@
     },
     "select": {
       "charge_mode_select": {
-        "name": "Režim nabíjení"
+        "name": "Režim nabíjení",
+        "state": {
+          "manual": "Ruční",
+          "timer": "Časovač",
+          "preferred_charging_times": "Preferované časy nabíjení",
+          "only_own_current": "Pouze vlastní energie",
+          "immediate_discharging": "Vybít nyní",
+          "timer_charging_climatization": "Časované nabíjení s klimatizací"
+        }
       }
     },
     "time": {

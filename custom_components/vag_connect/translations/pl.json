@@ -1337,7 +1337,15 @@
     },
     "select": {
       "charge_mode_select": {
-        "name": "Tryb ładowania"
+        "name": "Tryb ładowania",
+        "state": {
+          "manual": "Ręczny",
+          "timer": "Harmonogram",
+          "preferred_charging_times": "Preferowane godziny ładowania",
+          "only_own_current": "Tylko własna energia",
+          "immediate_discharging": "Rozładuj teraz",
+          "timer_charging_climatization": "Ładowanie z harmonogramem i klimatyzacją"
+        }
       }
     },
     "time": {

@@ -1337,7 +1337,15 @@
     },
     "select": {
       "charge_mode_select": {
-        "name": "Laadmodus"
+        "name": "Laadmodus",
+        "state": {
+          "manual": "Handmatig",
+          "timer": "Timer",
+          "preferred_charging_times": "Voorkeurslaadtijden",
+          "only_own_current": "Alleen eigen stroom",
+          "immediate_discharging": "Nu ontladen",
+          "timer_charging_climatization": "Getimed laden met klimaatregeling"
+        }
       }
     },
     "time": {

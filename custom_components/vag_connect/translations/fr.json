@@ -1337,7 +1337,15 @@
     },
     "select": {
       "charge_mode_select": {
-        "name": "Mode de charge"
+        "name": "Mode de charge",
+        "state": {
+          "manual": "Manuel",
+          "timer": "Minuterie",
+          "preferred_charging_times": "Heures de charge préférées",
+          "only_own_current": "Autoconsommation uniquement",
+          "immediate_discharging": "Décharger maintenant",
+          "timer_charging_climatization": "Charge programmée avec climatisation"
+        }
       }
     },
     "time": {

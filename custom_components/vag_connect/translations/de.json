@@ -1337,7 +1337,15 @@
     },
     "select": {
       "charge_mode_select": {
-        "name": "Lademodus"
+        "name": "Lademodus",
+        "state": {
+          "manual": "Manuell",
+          "timer": "Timer",
+          "preferred_charging_times": "Bevorzugte Ladezeiten",
+          "only_own_current": "Nur Eigenstrom",
+          "immediate_discharging": "Sofort entladen",
+          "timer_charging_climatization": "Timer-Laden mit Klimatisierung"
+        }
       }
     },
     "time": {
