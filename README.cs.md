@@ -36,7 +36,7 @@
 > Obrovský dík komunitám **Home Assistant UK** a **HA Ideas, Projects and Solutions**
 > za upozornění — zejména **Si Gregory**, **Ben Johnson** a **Evets David**.
 >
-> A zvláštní pozdrav patří **Jordanu Waelesovi**, jehož komentář `show_vag()` je teď oficiálně
+> A zvláštní pozdrav pro **Jordan Waeles**, jehož komentář `show_vag()` je teď oficiálně
 > podporovaný easter egg v této integraci (služba `vag_connect.show_vag`, viz CHANGELOG v2.2.3).
 
 ---
