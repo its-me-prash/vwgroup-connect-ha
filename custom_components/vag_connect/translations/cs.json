@@ -677,6 +677,12 @@
       "climate_zone_front_right": {
         "name": "Klimatická zóna vpředu vpravo"
       },
+      "climate_zone_rear_left": {
+        "name": "Klimatická zóna vzadu vlevo"
+      },
+      "climate_zone_rear_right": {
+        "name": "Klimatická zóna vzadu vpravo"
+      },
       "climatisation_settings_pending": {
         "name": "Nastavení klimatizace čeká"
       },

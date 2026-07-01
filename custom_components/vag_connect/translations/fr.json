@@ -677,6 +677,12 @@
       "climate_zone_front_right": {
         "name": "Zone climatique avant droite"
       },
+      "climate_zone_rear_left": {
+        "name": "Zone climatique arrière gauche"
+      },
+      "climate_zone_rear_right": {
+        "name": "Zone climatique arrière droite"
+      },
       "climatisation_settings_pending": {
         "name": "Réglages de climatisation en attente"
       },

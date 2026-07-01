@@ -677,6 +677,12 @@
       "climate_zone_front_right": {
         "name": "Klimaatzone rechtsvoor"
       },
+      "climate_zone_rear_left": {
+        "name": "Klimaatzone linksachter"
+      },
+      "climate_zone_rear_right": {
+        "name": "Klimaatzone rechtsachter"
+      },
       "climatisation_settings_pending": {
         "name": "Klimaatinstellingen in behandeling"
       },

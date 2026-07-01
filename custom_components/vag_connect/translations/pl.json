@@ -677,6 +677,12 @@
       "climate_zone_front_right": {
         "name": "Strefa klimatyzacji przód prawa"
       },
+      "climate_zone_rear_left": {
+        "name": "Strefa klimatyzacji tył lewa"
+      },
+      "climate_zone_rear_right": {
+        "name": "Strefa klimatyzacji tył prawa"
+      },
       "climatisation_settings_pending": {
         "name": "Ustawienia klimatyzacji oczekują"
       },

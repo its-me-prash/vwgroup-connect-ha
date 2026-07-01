@@ -677,6 +677,12 @@
       "climate_zone_front_right": {
         "name": "Klimatzon fram höger"
       },
+      "climate_zone_rear_left": {
+        "name": "Klimatzon bak vänster"
+      },
+      "climate_zone_rear_right": {
+        "name": "Klimatzon bak höger"
+      },
       "climatisation_settings_pending": {
         "name": "Klimatinställningar väntar"
       },

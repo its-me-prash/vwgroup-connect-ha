@@ -466,6 +466,14 @@ class VehicleData:
     climate_without_external_power: bool | None = None
     climate_zone_front_left: bool | None = None
     climate_zone_front_right: bool | None = None
+    # v2.15.9 (#597 audi Scout) — selectivestatus rear-zone enable flags.
+    # ``climatisation.climatisationSettings.value.zoneRearLeftEnabled`` /
+    # ``zoneRearRightEnabled`` (dict setting_zone_enabled_rear_left /
+    # _rear_right, type=string on/off). Rear-zone-capable cars only →
+    # phantom-protected. Distinct dialect from the EU-Data-Act
+    # ``climate_zone_front_*_enabled`` fields further below.
+    climate_zone_rear_left: bool | None = None
+    climate_zone_rear_right: bool | None = None
     # CARIAD-BFF climatisation: remaining-time-to-target.
     climate_remaining_time_min: int | None = None
     # CARIAD-BFF readiness: connection diagnostics. Already partly

@@ -3229,6 +3229,16 @@ class VWEUClient(CariadBaseClient):
         zfr = v(raw, "climatisation", "climatisationSettings", "value", "zoneFrontRightEnabled")
         if isinstance(zfr, bool):
             d.climate_zone_front_right = zfr
+        # v2.15.9 (#597 audi Scout) — rear-zone enable siblings. Same
+        # selectivestatus climatisationSettings.value.* namespace as the
+        # front zones. Rear-zone-capable cars only → field stays None on
+        # others (phantom-protected in binary_sensor.py).
+        zrl = v(raw, "climatisation", "climatisationSettings", "value", "zoneRearLeftEnabled")
+        if isinstance(zrl, bool):
+            d.climate_zone_rear_left = zrl
+        zrr = v(raw, "climatisation", "climatisationSettings", "value", "zoneRearRightEnabled")
+        if isinstance(zrr, bool):
+            d.climate_zone_rear_right = zrr
         # Climatisation: ETA in minutes from current to target temperature.
         crt = v(raw, "climatisation", "climatisationStatus", "value", "remainingClimatisationTime_min")
         if isinstance(crt, (int, float)):

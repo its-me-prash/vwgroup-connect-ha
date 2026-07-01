@@ -85,6 +85,23 @@ BINARY_DESCRIPTIONS: tuple[VagBinarySensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # v2.15.9 (#597 audi Scout) — selectivestatus rear-zone enable flags.
+    VagBinarySensorDescription(
+        key="climate_zone_rear_left",
+        translation_key="climate_zone_rear_left",
+        data_key="climate_zone_rear_left",
+        icon="mdi:car-seat",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagBinarySensorDescription(
+        key="climate_zone_rear_right",
+        translation_key="climate_zone_rear_right",
+        data_key="climate_zone_rear_right",
+        icon="mdi:car-seat",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     VagBinarySensorDescription(
         key="connection_active",
         translation_key="connection_active",
@@ -844,6 +861,11 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "mirror_heating_enabled",
     "climate_zone_front_left_enabled",
     "climate_zone_front_right_enabled",
+    # v2.15.9 (#597 audi Scout) — selectivestatus rear-zone enable flags.
+    # Rear-zone climate is option-dependent; cars without it leave the
+    # field None → no phantom binary sensor surfaces.
+    "climate_zone_rear_left",
+    "climate_zone_rear_right",
 })
 
 

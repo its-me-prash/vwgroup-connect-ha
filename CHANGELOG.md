@@ -40,6 +40,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [2.15.9] - unreleased
 
+### Added
+
+- **Rear climate-zone on/off sensors for Audi (#597).** Cars with a rear climate zone now expose whether the rear-left and rear-right zones are switched on, matching the front-zone sensors we already had. They're diagnostic and off by default — turn them on if you want them. Cars without a rear zone won't get an empty entity. Thanks to @kaledii for the report.
+
 ### Fixed
 
 - **Charging-mode dropdown was stuck in German for everyone (#589).** The `Charging Mode` select baked the German option labels ("Manuell", "Bevorzugte Ladezeiten", …) straight into the entity, so a UK user (or anyone not on German) saw German verbatim — Home Assistant had nothing it could translate. The options are now stable canonical keys that HA localises per your language, with proper translations shipped for all 8 supported languages; the current value localises too, no matter which spelling the car's backend sends back. This is a display/localisation change only — it doesn't touch how a mode is sent, so command behaviour is unchanged on the brands that support switching it. Thanks to @ColinSainsbury for reporting.
