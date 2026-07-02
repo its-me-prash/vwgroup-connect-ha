@@ -1,7 +1,7 @@
 # App Atlas — Audi (myAudi)
 
 > **Auto-generated** by `.github/workflows/app-atlas-builder.yml` ·
-> Last refreshed: 2026-06-30
+> Last refreshed: 2026-07-02
 
 ## Identity
 
@@ -22,10 +22,10 @@
 
 | | |
 |---|---|
-| Latest version-name | `5.5.1` |
+| Latest version-name | `5.6.0` |
 | Source that responded | `apkmirror` |
 | Previously cached version | `5.5.1` |
-| Changed since last run? | No |
+| Changed since last run? | **YES** |
 
 ## Discovered via APK extraction (Phase A.2)
 
