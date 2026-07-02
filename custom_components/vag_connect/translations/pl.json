@@ -1352,6 +1352,13 @@
           "immediate_discharging": "Rozładuj teraz",
           "timer_charging_climatization": "Ładowanie z harmonogramem i klimatyzacją"
         }
+      },
+      "skoda_charge_current_select": {
+        "name": "Maks. prąd ładowania",
+        "state": {
+          "maximum": "Maksymalny",
+          "reduced": "Zmniejszony"
+        }
       }
     },
     "time": {

@@ -1352,6 +1352,13 @@
           "immediate_discharging": "Ladda ur nu",
           "timer_charging_climatization": "Tidsstyrd laddning med klimatanläggning"
         }
+      },
+      "skoda_charge_current_select": {
+        "name": "Max. laddström",
+        "state": {
+          "maximum": "Maximal",
+          "reduced": "Reducerad"
+        }
       }
     },
     "time": {

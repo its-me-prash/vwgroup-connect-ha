@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.10] - unreleased
+
+### Added
+
+- **Set the AC charging current on Škoda.** Škoda EVs now get a "Max. Charging Current" dropdown so you can switch the car between drawing the full AC current and a reduced rate — handy if you want to go easy on a shared or older circuit. It reads back the car's current setting and is translated into all 8 supported languages. Only Škoda cars with a battery get it.
+
 ## [2.15.9] - 2026-07-02
 
 ### Added

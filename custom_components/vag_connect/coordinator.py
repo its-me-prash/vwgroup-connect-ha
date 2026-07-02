@@ -350,16 +350,39 @@ def _parse_charging_profiles(resp: Any) -> dict[str, Any]:
         out["charging_profiles_count"] = len(flat_profiles)
 
     current = resp.get("currentVehiclePositionProfile")
+    active_name: str | None = None
     if isinstance(current, dict):
         name = current.get("name")
         if isinstance(name, str):
             out["active_charging_profile_name"] = name
+            active_name = name
         target = current.get("targetStateOfChargeInPercent")
         if isinstance(target, (int, float)):
             out["active_charging_profile_target_soc_pct"] = int(target)
         nxt = current.get("nextChargingTime")
         if isinstance(nxt, str) and nxt:
             out["next_charging_time"] = nxt
+
+    # v2.15.10 — expose a top-level ``max_charging_current`` so the Skoda
+    # charge-current select can read the current MAXIMUM/REDUCED state
+    # without walking the nested ``charging_profiles`` list. The value is
+    # only nested per-profile in the API (settings.maxChargingCurrent), so
+    # we resolve the *active* profile: prefer the one whose name matches
+    # ``currentVehiclePositionProfile.name``; else, if there's exactly one
+    # profile, use it. Ambiguous multi-profile cases leave the field unset.
+    flat = out.get("charging_profiles")
+    if isinstance(flat, list) and flat:
+        chosen: dict[str, Any] | None = None
+        if active_name is not None:
+            chosen = next(
+                (p for p in flat if p.get("name") == active_name), None
+            )
+        if chosen is None and len(flat) == 1:
+            chosen = flat[0]
+        if isinstance(chosen, dict):
+            mcc = chosen.get("max_charging_current")
+            if isinstance(mcc, str) and mcc:
+                out["max_charging_current"] = mcc
     return out
 
 

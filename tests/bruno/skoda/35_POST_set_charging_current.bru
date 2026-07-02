@@ -1,0 +1,49 @@
+meta {
+  name: POST set charging current (max AC current)
+  type: http
+  seq: 35
+}
+
+post {
+  url: {{base_url}}/api/v1/charging/{{vin}}/set-charging-current
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "maxChargingCurrent": "REDUCED"
+  }
+}
+
+docs {
+  Sets the AC max charging current. Skoda exposes this as a two-value
+  enum (MAXIMUM | REDUCED), NOT an integer amperage. No S-PIN required
+  on Skoda mysmob — auth is bearer-only.
+
+  Grounding:
+    * endpoint — _private/research-archive/VAG_GROUP_ECOSYSTEM.md:260
+      (mysmob POST command block, sibling of set-charge-limit).
+    * enum     — the read side settings.maxChargingCurrent = "MAXIMUM"
+      | "REDUCED" parsed by SkodaClient.get_charging_profiles
+      (skoda.py). Same enum echoed back on write.
+
+  Implementation: SkodaClient.command_update_charging_settings() in
+  custom_components/vag_connect/cariad/api/skoda.py — dispatched by
+  coordinator.async_update_charging_settings (brand-polymorphic, the
+  same path SEAT/CUPRA uses via maxChargeCurrentAC on its own OLA
+  endpoint).
+
+  Backs the select.<vin>_skoda_charge_current_select entity
+  (v2.15.10). Read state comes from the top-level max_charging_current
+  field derived from the active charging profile.
+}

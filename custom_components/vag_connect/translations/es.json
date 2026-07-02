@@ -1352,6 +1352,13 @@
           "immediate_discharging": "Descargar ahora",
           "timer_charging_climatization": "Carga programada con climatización"
         }
+      },
+      "skoda_charge_current_select": {
+        "name": "Corriente máx. de carga",
+        "state": {
+          "maximum": "Máxima",
+          "reduced": "Reducida"
+        }
       }
     },
     "time": {

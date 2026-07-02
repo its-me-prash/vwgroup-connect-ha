@@ -71,6 +71,40 @@ _CANONICAL_TO_API: dict[str, str] = {
 }
 
 
+# ── v2.15.10 — Skoda max-charging-current select ─────────────────────────
+#
+# Skoda's charging plan exposes AC max current as a two-value enum
+# (``MAXIMUM`` | ``REDUCED``) rather than an integer amperage. This is
+# grounded in the read side (``get_charging_profiles`` →
+# ``settings.maxChargingCurrent``) and the write side (POST
+# /api/v1/charging/{vin}/set-charging-current). We surface it as canonical
+# snake_case option keys so HA localises them via the entity ``state`` map.
+_SKODA_CURRENT_OPTIONS: list[str] = ["maximum", "reduced"]
+
+# Raw API enum (``MAXIMUM``/``REDUCED``) → canonical key. Normalised by
+# casefold before lookup so we tolerate either casing.
+_SKODA_CURRENT_RAW_TO_CANONICAL: dict[str, str] = {
+    "maximum": "maximum",
+    "reduced": "reduced",
+}
+
+# Canonical key → API enum token sent on write.
+_SKODA_CURRENT_CANONICAL_TO_API: dict[str, str] = {
+    "maximum": "MAXIMUM",
+    "reduced": "REDUCED",
+}
+
+
+def _normalise_skoda_current(raw: object) -> str | None:
+    """Map a raw Skoda ``maxChargingCurrent`` value to a canonical key."""
+    if raw is None:
+        return None
+    key = str(raw).strip().casefold()
+    if not key:
+        return None
+    return _SKODA_CURRENT_RAW_TO_CANONICAL.get(key)
+
+
 def _normalise_raw_mode(raw: object) -> str | None:
     """Map any raw API charge-mode value to a canonical option key.
 
@@ -95,10 +129,18 @@ async def async_setup_entry(
     """Set up charge-mode selects. v1.25.0 PR-C: dynamic listener spawn."""
     coordinator: VagConnectCoordinator = entry.runtime_data
 
+    from .const import CONF_BRAND  # noqa: PLC0415
+
+    is_skoda = str(entry.data.get(CONF_BRAND, "")).lower() == "skoda"
+
     def _build_for_vin(vin: str, vehicle: dict) -> list:
+        entities: list = []
         if vehicle.get("has_battery"):
-            return [VagChargeModeSelect(coordinator, vin)]
-        return []
+            entities.append(VagChargeModeSelect(coordinator, vin))
+            # v2.15.10 — Skoda-only max-charging-current select (enum plane).
+            if is_skoda:
+                entities.append(VagSkodaChargeCurrentSelect(coordinator, vin))
+        return entities
 
     register_dynamic_spawner(entry, coordinator, async_add_entities, _build_for_vin)
 
@@ -133,3 +175,37 @@ class VagChargeModeSelect(VagConnectEntity, SelectEntity):
         """Set the charging mode — maps canonical key back to the API token."""
         api_token = _CANONICAL_TO_API.get(option, option)
         await self.coordinator.async_set_charge_mode(self._vin, api_token)
+
+
+class VagSkodaChargeCurrentSelect(VagConnectEntity, SelectEntity):
+    """Skoda AC max-charging-current select (``maximum`` / ``reduced``).
+
+    v2.15.10 — Skoda exposes AC current as a two-value enum instead of an
+    integer amperage. Read from ``max_charging_current`` (populated by the
+    charging-profiles parser); written via
+    ``async_update_charging_settings`` which dispatches the brand-polymorphic
+    ``command_update_charging_settings`` to the Skoda client
+    (POST /api/v1/charging/{vin}/set-charging-current).
+    """
+
+    _attr_translation_key = "skoda_charge_current_select"
+    _attr_icon = "mdi:current-ac"
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_options = list(_SKODA_CURRENT_OPTIONS)
+
+    def __init__(self, coordinator: VagConnectCoordinator, vin: str) -> None:
+        super().__init__(coordinator, vin, "skoda_charge_current_select")
+
+    @property
+    def current_option(self) -> str | None:
+        """Return the current max-charging-current as a canonical key."""
+        return _normalise_skoda_current(self._vehicle.get("max_charging_current"))
+
+    async def async_select_option(self, option: str) -> None:
+        """Set AC max charging current — maps canonical key to API enum."""
+        api_token = _SKODA_CURRENT_CANONICAL_TO_API.get(option)
+        if api_token is None:
+            return
+        await self.coordinator.async_update_charging_settings(
+            self._vin, max_charge_current=api_token
+        )

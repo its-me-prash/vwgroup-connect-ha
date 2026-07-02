@@ -1352,6 +1352,13 @@
           "immediate_discharging": "Nu ontladen",
           "timer_charging_climatization": "Getimed laden met klimaatregeling"
         }
+      },
+      "skoda_charge_current_select": {
+        "name": "Max. laadstroom",
+        "state": {
+          "maximum": "Maximaal",
+          "reduced": "Gereduceerd"
+        }
       }
     },
     "time": {

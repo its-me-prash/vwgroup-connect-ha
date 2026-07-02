@@ -1522,6 +1522,40 @@ class SkodaClient(CariadBaseClient):
             json={"targetStateOfChargeInPercent": target},
         )
 
+    async def command_update_charging_settings(
+        self,
+        vin: str,
+        target_soc: int | None = None,
+        max_charge_current: str | None = None,
+        auto_unlock_charge: bool | None = None,  # noqa: ARG002
+    ) -> None:
+        """v2.15.10 — Skoda settable max charging current (MAXIMUM/REDUCED).
+
+        Mirrors the brand-polymorphic ``command_update_charging_settings``
+        contract that ``coordinator.async_update_charging_settings`` already
+        dispatches (see SeatCupraClient for the OLA sibling). Only the
+        ``max_charge_current`` field is wired for Skoda here; the endpoint
+        and the ``MAXIMUM``/``REDUCED`` enum are grounded in the mysmob
+        contract (POST /api/v1/charging/{vin}/set-charging-current) and the
+        read-side ``settings.maxChargingCurrent`` shape used by
+        ``get_charging_profiles``.
+
+        ``target_soc`` is intentionally routed through the dedicated
+        ``set-charge-limit`` endpoint (``command_set_target_soc``) — the
+        combined update-settings body is SEAT/CUPRA-only, so when a caller
+        passes ``target_soc`` here we forward it to the grounded per-field
+        endpoint rather than guessing a combined Skoda body.
+        ``auto_unlock_charge`` has its own Skoda endpoint too and is not
+        wired through this method.
+        """
+        if target_soc is not None:
+            await self.command_set_target_soc(vin, int(target_soc))
+        if max_charge_current is not None:
+            await self._post(
+                f"{_BASE}/api/v1/charging/{vin}/set-charging-current",
+                json={"maxChargingCurrent": str(max_charge_current)},
+            )
+
     async def command_set_climate_temperature(self, vin: str, temp_c: float) -> None:
         await self._post(
             f"{_BASE}/api/v2/air-conditioning/{vin}/settings/target-temperature",

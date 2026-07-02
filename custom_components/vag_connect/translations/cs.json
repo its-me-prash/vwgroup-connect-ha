@@ -1352,6 +1352,13 @@
           "immediate_discharging": "Vybít nyní",
           "timer_charging_climatization": "Časované nabíjení s klimatizací"
         }
+      },
+      "skoda_charge_current_select": {
+        "name": "Max. nabíjecí proud",
+        "state": {
+          "maximum": "Maximální",
+          "reduced": "Snížený"
+        }
       }
     },
     "time": {

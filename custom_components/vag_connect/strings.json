@@ -1352,6 +1352,13 @@
           "immediate_discharging": "Discharge now",
           "timer_charging_climatization": "Timer charging with climate control"
         }
+      },
+      "skoda_charge_current_select": {
+        "name": "Max. Charging Current",
+        "state": {
+          "maximum": "Maximum",
+          "reduced": "Reduced"
+        }
       }
     },
     "time": {

@@ -1352,6 +1352,13 @@
           "immediate_discharging": "Sofort entladen",
           "timer_charging_climatization": "Timer-Laden mit Klimatisierung"
         }
+      },
+      "skoda_charge_current_select": {
+        "name": "Max. Ladestrom",
+        "state": {
+          "maximum": "Maximum",
+          "reduced": "Reduziert"
+        }
       }
     },
     "time": {
