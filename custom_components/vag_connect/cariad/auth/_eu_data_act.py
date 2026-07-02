@@ -1644,6 +1644,18 @@ def map_dataset_to_vehicle_data(
     if _ict is not None:
         d.instrument_cluster_time = _ict
 
+    # #604 Scout — battery_level_HV.state: dict-confirmed enum ("The enum value
+    # of battery level HV state"); dict lists NO value tokens, so it's LOW
+    # confidence (ships disabled-by-default) and _shorten_enum passes any
+    # unknown-prefix value through unchanged. Distinct from battery_level_HV.value
+    # (the charger-dialect SoC fallback above) — this is the report's own status
+    # flag. Doubled-key form (battery_level_HV.battery_level_HV.state) mirrors the
+    # dict's nested variant, same as the .value block.
+    _hvbs = first("battery_level_HV.state",
+                  "battery_level_HV.battery_level_HV.state")
+    if _hvbs is not None:
+        d.hv_battery_state = _shorten_enum(_hvbs)
+
     # data_error_detail — join non-empty of error_code/number/description,
     # filtering "#0"/"0" "no error" sentinels.
     _err_parts: list[str] = []

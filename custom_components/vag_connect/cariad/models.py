@@ -1404,6 +1404,9 @@ class VehicleData:
     odometer_state: str | None = None
     # In-vehicle instrument-cluster clock (timestamp). Diagnostic.
     instrument_cluster_time: str | None = None
+    # HV-battery status flag (battery_level_HV.state enum). #604 Scout — dict
+    # lists no value tokens → LOW confidence, disabled-by-default. Diagnostic.
+    hv_battery_state: str | None = None
     # Joined non-empty data-error fields (error_code/number/description),
     # sentinels "#0"/"0" filtered. Diagnostic.
     data_error_detail: str | None = None

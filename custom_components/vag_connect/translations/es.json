@@ -752,6 +752,9 @@
       "instrument_cluster_time": {
         "name": "Reloj del vehículo"
       },
+      "hv_battery_state": {
+        "name": "Estado de la batería AT"
+      },
       "data_error_detail": {
         "name": "Error de datos"
       },

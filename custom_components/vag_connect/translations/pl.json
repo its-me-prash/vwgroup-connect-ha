@@ -752,6 +752,9 @@
       "instrument_cluster_time": {
         "name": "Zegar pojazdu"
       },
+      "hv_battery_state": {
+        "name": "Stan akumulatora WN"
+      },
       "data_error_detail": {
         "name": "Błąd danych"
       },

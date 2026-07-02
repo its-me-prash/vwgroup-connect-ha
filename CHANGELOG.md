@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.15.11] - unreleased
+
+### Added
+
+- **HV battery status sensor.** EU Data Act cars that report a high-voltage battery status flag now get a diagnostic sensor for it, separate from the state-of-charge reading. It's off by default and translated into all 8 supported languages — turn it on if you want it. Thanks to the reporter for surfacing the field.
+
 ## [2.15.10] - 2026-07-02
 
 ### Added

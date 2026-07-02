@@ -752,6 +752,9 @@
       "instrument_cluster_time": {
         "name": "Fordonsklocka"
       },
+      "hv_battery_state": {
+        "name": "HV-batteristatus"
+      },
       "data_error_detail": {
         "name": "Datafel"
       },

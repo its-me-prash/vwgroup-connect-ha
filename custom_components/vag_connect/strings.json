@@ -752,6 +752,9 @@
       "instrument_cluster_time": {
         "name": "Vehicle clock"
       },
+      "hv_battery_state": {
+        "name": "HV battery status"
+      },
       "data_error_detail": {
         "name": "Data error"
       },

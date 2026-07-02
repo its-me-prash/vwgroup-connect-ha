@@ -1756,6 +1756,16 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:clock-outline",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # #604 Scout — HV-battery status flag (battery_level_HV.state enum). Dict
+    # lists no value tokens → LOW confidence, disabled-by-default.
+    VagSensorDescription(
+        key="hv_battery_state",
+        translation_key="hv_battery_state",
+        data_key="hv_battery_state",
+        icon="mdi:battery-heart-variant",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     VagSensorDescription(
         key="data_error_detail",
         translation_key="data_error_detail",
@@ -2944,6 +2954,7 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "remaining_charge_time_bulk_min",
     "odometer_state",
     "instrument_cluster_time",
+    "hv_battery_state",
     "data_error_detail",
     # v2.15.2 — EU Data Act portal "charger detail" fields (#513 Scout).
     "external_power_supply_state",

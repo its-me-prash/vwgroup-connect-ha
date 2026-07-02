@@ -752,6 +752,9 @@
       "instrument_cluster_time": {
         "name": "Hodiny vozidla"
       },
+      "hv_battery_state": {
+        "name": "Stav VN baterie"
+      },
       "data_error_detail": {
         "name": "Chyba dat"
       },

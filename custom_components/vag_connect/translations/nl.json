@@ -752,6 +752,9 @@
       "instrument_cluster_time": {
         "name": "Voertuigklok"
       },
+      "hv_battery_state": {
+        "name": "HV-accustatus"
+      },
       "data_error_detail": {
         "name": "Datafout"
       },
