@@ -1611,11 +1611,19 @@ def map_dataset_to_vehicle_data(
     # leave to raw_unmapped_fields until live-test; intentionally NOT mapped.
 
     # ── EU NEW fields ───────────────────────────────────────────────────────
-    _cscn = first("charging_scenario", "chargingScenario")
+    # #609 (CUPRA Tavascan) — the dict's CANONICAL name for these two enums is
+    # the report-qualified form (dict UUIDs 0ba7abe4 / 1581d30c:
+    # charging_state_report.charging_scenario / .immediate_action_state), so a
+    # car that ships the flat dict-name key surfaced it unmapped. Add the dotted
+    # alias FIRST (mirrors the charge_mode pattern above) so both the report-
+    # shaped and bare-leaf spellings resolve onto the same existing entity.
+    _cscn = first("charging_state_report.charging_scenario",
+                  "charging_scenario", "chargingScenario")
     if _cscn is not None:
         d.charging_scenario = _shorten_enum(_cscn)
 
-    _icas = first("immediate_charge_action_state", "immediate_action_state")
+    _icas = first("charging_state_report.immediate_action_state",
+                  "immediate_charge_action_state", "immediate_action_state")
     if _icas is not None:
         d.immediate_charge_action_state = _shorten_enum(_icas)
 

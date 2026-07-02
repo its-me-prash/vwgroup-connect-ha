@@ -44,6 +44,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 - **HV battery status sensor.** EU Data Act cars that report a high-voltage battery status flag now get a diagnostic sensor for it, separate from the state-of-charge reading. It's off by default and translated into all 8 supported languages — turn it on if you want it. Thanks to the reporter for surfacing the field.
 
+### Fixed
+
+- **Charging-scenario and immediate-action sensors on more cars.** Some EU Data Act vehicles send these two charging status readings under a slightly different name than others, so they were showing up empty. They now fill in either way. Thanks to the CUPRA Tavascan reporter.
+
 ## [2.15.10] - 2026-07-02
 
 ### Added
