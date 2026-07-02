@@ -42,6 +42,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Added
 
+- **Live push updates — experimental opt-in BETA (Audi, VW, Škoda, CUPRA, SEAT).** Instead of only polling on a timer, the integration can now listen for the car's own push notifications and refresh the moment something changes — a lock/unlock, charging kicking in, climate switching over. It's off by default; flip it on per brand in the integration options if you want to try it. Heads up: it's genuinely experimental and still needs testers with a live car to confirm it works end-to-end on each brand, so expect rough edges. If it can't connect it quietly backs off and falls back to normal polling — no log spam.
 - **Set the AC charging current on Škoda.** Škoda EVs now get a "Max. Charging Current" dropdown so you can switch the car between drawing the full AC current and a reduced rate — handy if you want to go easy on a shared or older circuit. It reads back the car's current setting and is translated into all 8 supported languages. Only Škoda cars with a battery get it.
 
 ## [2.15.9] - 2026-07-02

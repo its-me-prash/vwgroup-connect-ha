@@ -2,14 +2,14 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # ╔════════════════════════════════════════════════════════════════════╗
-# ║ SCAFFOLDING — NOT WIRED INTO PRODUCTION CALL PATHS                ║
-# ║ Foundation built v1.18.0; OptionsFlow toggle exists but           ║
-# ║ Coordinator does NOT instantiate SkodaPushManager.start() yet.    ║
-# ║ Live activation requires community Skoda Connect+ tester for      ║
-# ║ FCM-Project-ID + TOTP scheme + broker auth verification.          ║
-# ║ See ROADMAP "Push Bundle Phase 2" + #57 Phase 2.                  ║
+# ║ BETA — opt-in, live-test-gated (v2.15.10)                         ║
+# ║ Real aiomqtt MQTTv5 connect + FCM-derived TOTP auth + subscribe + ║
+# ║ decode is wired (grounded in skodaconnect/myskoda). Live-test gate:║
+# ║ needs a Skoda Connect owner to confirm the broker still accepts   ║
+# ║ the totp_v1 scheme + FCM project 678067506455 at deploy time      ║
+# ║ (Cariad rotates). Fail-soft: wrong creds/timeout trip the breaker.║
 # ╚════════════════════════════════════════════════════════════════════╝
-"""Skoda mysmob MQTT push manager (v1.18.0 foundation).
+"""Skoda mysmob MQTT push manager (BETA).
 
 Subscribes to ``mqtt.messagehub.de:8883`` (TLS, MQTTv5) for the user's
 ``{user_id}/{vin}/+/+`` topic pattern. Each backend event triggers a
@@ -34,27 +34,32 @@ Three coupled pieces:
    ``on_event`` callback. The coordinator decides what to refresh
    (typically a single ``get_status`` for the affected VIN).
 
-### Foundation status
+### BETA status (v2.15.10)
 
-This module is **scaffolding** in v1.18.0. The class structure,
-state machine, and lifecycle hooks are complete and tested with
-mocked aiomqtt. The actual ``aiomqtt`` and ``firebase-messaging``
-imports are **lazy** (deferred to ``start()``) so:
+Real connect path is wired, grounded verbatim in
+``skodaconnect/myskoda`` ``mqtt.py`` + ``const.py`` +
+``models/event/base.py``:
 
-- Users who don't enable push pay no install cost
-- HACS install doesn't fail on environments without the wheels
-- Tests can run without the network deps installed
+- ``aiomqtt.Client`` MQTTv5, TLS, ``identifier`` = two UUIDs joined
+  by ``#``, ``keepalive=60``.
+- Auth: paho ``username_pw_set(user_id, oauth_access_token)`` +
+  MQTTv5 CONNECT ``UserProperty`` = ``auth_method=totp_v1`` +
+  ``auth_credentials=<TOTP>`` where TOTP is HOTP-SHA256 keyed by the
+  SHA-256 of the FCM token (``_generate_totp`` verbatim). We pass a
+  fresh ``Properties(PacketTypes.CONNECT)`` via the aiomqtt
+  ``properties=`` constructor kwarg (public API, ``aiomqtt>=2.0``) —
+  built fresh per connect so the TOTP is current.
+- Catch-all subscribe ``{user_id}/{vin}/#`` per VIN (covers the
+  two-level ``service-event/vehicle-status/odometer`` topics that a
+  ``+/+`` filter would miss).
+- Decode: ``topic.split("/", maxsplit=3)`` -> vin + category,
+  ``json.loads(payload)`` -> ``PushUpdateEvent`` (any event triggers
+  a coordinator refresh).
 
-Live activation (sending real MQTT messages) requires:
-
-- A Skoda owner with active Connect subscription (live tester)
-- Verified FCM project ID (Skoda rotates these — current key in
-  ``_FCM_PROJECT_ID`` may be stale by deploy time)
-- Confirmed MQTT broker still accepts our TOTP scheme
-
-These can only be validated end-to-end against the live backend.
-v1.18.x patches will activate the path once a community tester
-confirms.
+Live-test gate (needs a Skoda Connect owner): confirm the broker
+still accepts the ``totp_v1`` scheme + FCM project ``678067506455``
+at deploy time (Cariad rotates), and that FCM registration via
+``firebase-messaging`` yields a broker-accepted token.
 
 ### References
 
@@ -74,22 +79,38 @@ confirms.
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
+import json
 import logging
+import struct
+import time
+import uuid
+from datetime import datetime, timezone
 from typing import Any
 
-from .base import PushManager, PushManagerState, PushEventCallback
+from .base import (
+    PushManager,
+    PushManagerState,
+    PushEventCallback,
+    PushUpdateEvent,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 # Skoda mysmob MQTT broker (verified from myskoda const.py).
 _BROKER_HOST = "mqtt.messagehub.de"
 _BROKER_PORT = 8883
+_MQTT_KEEPALIVE = 60
 
-# Firebase project ID for the Skoda Android app's FCM registration.
-# This is the Android google-services.json sender_id — public per the
-# myskoda repo. Cariad rotates these periodically; live tester needs
-# to confirm validity at activation time.
+# Firebase project for the Skoda Android app's FCM registration —
+# VERIFIED against the raw APK + myskoda const.py. Public
+# google-services.json values (no secrets). Cariad rotates these; a
+# live tester confirms validity at activation time.
 _FCM_PROJECT_ID = "678067506455"
+_FCM_SENDER_ID = "678067506455"
+_FCM_API_KEY = "AIzaSyBlJdDfVR6ltRhKpA87F3SmCe2hHqhyEd8"
+_FCM_APP_ID = "1:678067506455:android:4afca86c91d6d4c235bb52"
 _FCM_PACKAGE = "cz.skodaauto.myskoda"
 
 # v2.2.0 Phase 5a PR #18/20: backoff constants moved to ``base.py``
@@ -141,6 +162,11 @@ class SkodaPushManager(PushManager):
         self._vins = list(vins)
         self._loop_task: asyncio.Task | None = None
         self._stop_event: asyncio.Event = asyncio.Event()
+        # FCM client + persisted creds (the FCM token is the TOTP
+        # secret material — NEVER logged). Registered lazily on connect.
+        self._fcm_client: Any = None
+        self._fcm_credentials: dict[str, Any] | None = None
+        self._fcm_token: str | None = None
         # v2.2.0 Phase 5a PR #18/20: backoff state moved to PushManager
         # base ``__init__`` (set by ``super().__init__(on_event)`` above).
 
@@ -277,37 +303,204 @@ class SkodaPushManager(PushManager):
     async def _connect_and_listen(self) -> None:
         """One connect + receive cycle. Raises on disconnect.
 
-        v1.18.0 foundation: this is a STUB. The real implementation
-        will use ``aiomqtt.Client`` + ``firebase_messaging.FcmClient``
-        (lazy-imported). Live activation requires a community tester
-        to validate the FCM key + TOTP scheme against the production
-        backend.
+        Grounded verbatim in ``skodaconnect/myskoda`` ``mqtt.py``:
 
-        For now, this raises ``NotImplementedError`` after a brief
-        sleep so the reconnect-backoff state machine can be tested.
+        1. Register (or restore) an FCM token — it is the TOTP secret.
+        2. Refresh the OAuth access token (MQTT password).
+        3. Build a fresh ``Properties(PacketTypes.CONNECT)`` carrying
+           the ``totp_v1`` UserProperties, keyed on the current FCM
+           token (TOTP rotates every 30s).
+        4. Open ``aiomqtt.Client(..., properties=props)`` MQTTv5/TLS.
+        5. Subscribe ``{user_id}/{vin}/#`` per VIN.
+        6. ``async for message in client.messages`` -> decode -> emit.
+
+        Any broker/connection error propagates to ``_run_loop`` which
+        records the strike, advances backoff, and retries (refreshing
+        both OAuth + FCM tokens on the next attempt).
         """
-        # Refresh access token before connect (mandatory per myskoda
-        # PR #566 — broker auth uses the OAuth token directly).
-        token = await self._access_token_provider()  # noqa: F841 — used in real impl
-        self._state = PushManagerState.CONNECTED
-        # v2.2.0 PR #12/20 — successful connect resets the breaker.
-        # Idempotent: no-op when strike_count is already 0.
-        self._record_success()
-        _LOGGER.info(
-            "Skoda push: foundation stub — live activation pending. "
-            "Topics that WOULD be subscribed: %s",
-            [f"***{self._user_id[-6:]}/***{vin[-6:]}/+/+" for vin in self._vins],
+        import aiomqtt  # noqa: PLC0415
+        from paho.mqtt.packettypes import PacketTypes  # noqa: PLC0415
+        from paho.mqtt.properties import Properties  # noqa: PLC0415
+
+        # (1) FCM token = TOTP secret material.
+        fcm_token = await self._register_fcm_token()
+        # (2) OAuth token = MQTT password. Fresh every connect.
+        password = await self._access_token_provider()
+        if not password:
+            raise RuntimeError("Skoda push: access_token_provider returned empty")
+
+        # (3) MQTTv5 CONNECT properties with the TOTP UserProperties.
+        props = Properties(PacketTypes.CONNECT)
+        props.UserProperty = [
+            ("auth_method", "totp_v1"),
+            ("auth_credentials", self._generate_totp(fcm_token)),
+        ]
+
+        ssl_context = self._build_ssl_context()
+
+        # (4) Fresh client per connect so ``properties=`` carries the
+        # current TOTP (public aiomqtt constructor API, >=2.0).
+        client = aiomqtt.Client(
+            hostname=_BROKER_HOST,
+            port=_BROKER_PORT,
+            identifier=f"{uuid.uuid4()}#{uuid.uuid4()}",
+            logger=_LOGGER,
+            tls_context=ssl_context,
+            keepalive=_MQTT_KEEPALIVE,
+            protocol=aiomqtt.ProtocolVersion.V5,
+            username=self._user_id or "android-app",
+            password=password,
+            properties=props,
         )
-        # In live activation: aiomqtt.Client(host=_BROKER_HOST, ...) +
-        # subscribe loop + on_message → self.emit(PushUpdateEvent).
-        # For now: sleep until stopped so coordinator state machine
-        # can exercise the lifecycle without network I/O.
-        try:
-            await self._stop_event.wait()
-        except asyncio.CancelledError:
-            raise
-        # Normal exit — no reconnect needed.
+
+        async with client:
+            self._fcm_client = client
+            # (5) Catch-all subscribe per VIN. ``#`` (not ``+/+``) so we
+            # don't miss two-level service topics like
+            # ``service-event/vehicle-status/odometer``.
+            for vin in self._vins:
+                await client.subscribe(f"{self._user_id}/{vin}/#")
+            self._state = PushManagerState.CONNECTED
+            self._record_success()
+            self._reset_backoff()
+            _LOGGER.info(
+                "Skoda push: connected + subscribed for %d VIN(s) "
+                "(user ***%s)",
+                len(self._vins),
+                self._user_id[-6:],
+            )
+            # (6) Receive loop.
+            async for message in client.messages:
+                event = self._decode_mqtt_message(
+                    str(message.topic), message.payload
+                )
+                if event is not None:
+                    await self.emit(event)
+
+        # Clean exit (context manager closed) — treated as a disconnect
+        # by the outer loop unless we were told to stop.
+        self._fcm_client = None
         self._state = PushManagerState.STOPPED
+
+    def _build_ssl_context(self) -> Any:
+        """Pre-built TLS context (avoids paho's blocking ``tls_set``).
+
+        Matches myskoda ``_create_ssl_context``.
+        """
+        import ssl  # noqa: PLC0415
+
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        context.load_default_certs()
+        return context
+
+    async def _register_fcm_token(self) -> str:
+        """Register (or restore) the FCM token used as the TOTP secret.
+
+        Uses the verified Skoda Firebase creds. The token dict is
+        cached in-memory + refreshed via the credentials-updated
+        callback (in HA this maps to a ``Store``).
+        """
+        if self._fcm_token:
+            return self._fcm_token
+        from firebase_messaging import (  # noqa: PLC0415
+            FcmPushClient,
+            FcmRegisterConfig,
+        )
+
+        fcm_config = FcmRegisterConfig(
+            _FCM_PROJECT_ID,
+            _FCM_APP_ID,
+            _FCM_API_KEY,
+            _FCM_SENDER_ID,
+        )
+        # Skoda push arrives over MQTT, not FCM — so we register only
+        # to obtain the token (the TOTP secret) and don't start the
+        # FCM receive loop. A no-op callback satisfies the ctor.
+        client = FcmPushClient(
+            lambda *_a, **_k: None,
+            fcm_config,
+            self._fcm_credentials,
+            self._on_fcm_credentials_updated,
+        )
+        token = str(await client.checkin_or_register())
+        self._fcm_token = token
+        return token
+
+    def _on_fcm_credentials_updated(self, creds: dict[str, Any]) -> None:
+        """firebase-messaging credentials-rotation callback."""
+        self._fcm_credentials = creds
+
+    @staticmethod
+    def _generate_totp(fcm_token: str) -> str:
+        """Generate the broker TOTP — VERBATIM from myskoda ``mqtt.py``.
+
+        RFC-4226 HOTP over a 30s time-step, but keyed by the SHA-256 of
+        the FCM token (NOT a standard shared secret), HMAC-SHA256,
+        6-digit zero-padded.
+        """
+        key = hashlib.sha256(fcm_token.encode("utf-8")).digest()
+        time_step = struct.pack(">Q", int(time.time()) // 30)
+        mac = hmac.new(key, time_step, hashlib.sha256).digest()
+        offset = mac[-1] & 0x0F
+        code = (
+            ((mac[offset] & 0x7F) << 24)
+            | ((mac[offset + 1] & 0xFF) << 16)
+            | ((mac[offset + 2] & 0xFF) << 8)
+            | (mac[offset + 3] & 0xFF)
+        )
+        return str(code % (10**6)).zfill(6)
+
+    @staticmethod
+    def _decode_mqtt_message(
+        topic: str, payload: Any
+    ) -> PushUpdateEvent | None:
+        """Decode an MQTT message into a ``PushUpdateEvent``.
+
+        Grounded in myskoda ``BaseEvent.from_mqtt_message``:
+        ``topic.split("/", maxsplit=3)`` -> user_id, vin, category, tail
+        (the tail absorbs one- or two-level service topics).
+        ``json.loads(payload)`` for the body. Empty payloads dropped.
+        Any decode error returns ``None`` (never crashes the loop).
+        """
+        try:
+            if payload is None:
+                return None
+            if isinstance(payload, (bytes, bytearray)):
+                if len(payload) == 0:
+                    return None
+                payload_str = payload.decode("utf-8", errors="replace")
+            else:
+                payload_str = str(payload)
+            if not payload_str:
+                return None
+            parts = topic.split("/", maxsplit=3)
+            if len(parts) < 4:
+                return None
+            _user_id, vin, category, tail = parts
+            body: dict[str, Any] = {}
+            try:
+                parsed = json.loads(payload_str)
+                if isinstance(parsed, dict):
+                    body = parsed
+            except (ValueError, TypeError):
+                body = {}
+            # Prefer the vin from the payload data when present, else
+            # the topic segment.
+            data = body.get("data") if isinstance(body.get("data"), dict) else {}
+            vin = (data.get("vin") if isinstance(data, dict) else None) or vin
+            timestamp = body.get("timestamp")
+            if not isinstance(timestamp, str) or not timestamp:
+                timestamp = datetime.now(tz=timezone.utc).isoformat()
+            return PushUpdateEvent(
+                vin=vin,
+                event_type=category,
+                topic=f"{category}/{tail}",
+                timestamp=timestamp,
+                raw_payload=body or None,
+            )
+        except Exception:  # noqa: BLE001 - decode must never crash the loop
+            _LOGGER.debug("Skoda push: undecodable MQTT message", exc_info=True)
+            return None
 
     # v2.2.0 Phase 5a PR #18/20: ``_advance_backoff`` + ``_reset_backoff``
     # moved to ``PushManager`` base class. Inherited via ``super``.

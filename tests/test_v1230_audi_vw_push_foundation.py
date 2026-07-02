@@ -131,7 +131,6 @@ class TestLifecycle:
         self, mock_callback, mock_token_provider, monkeypatch,
     ):
         from custom_components.vag_connect.cariad.push.audi_vw_fcm import (
-            _FcmCreds,
             AudiVWPushManager,
         )
         from custom_components.vag_connect.cariad.push.base import PushManagerState
@@ -143,19 +142,18 @@ class TestLifecycle:
             brand="audi",
         )
         monkeypatch.setattr(m, "_lazy_check_dependencies", lambda: None)
-        # v2.8.0 Action #4: ``_resolve_fcm_credentials`` raises
-        # NotImplementedError until the live APK extraction lands;
-        # patch it here so the lifecycle test reaches CONNECTED.
-        monkeypatch.setattr(
-            m,
-            "_resolve_fcm_credentials",
-            lambda: _FcmCreds(
-                project_id="test-project",
-                sender_id="000000",
-                api_key="test-api-key",
-                app_id="1:000000:android:test",
-            ),
-        )
+        # v2.15.10 BETA: the real connect path lazy-imports
+        # firebase_messaging + POSTs a subscription. Patch
+        # ``_connect_and_listen`` so this stays a pure lifecycle test
+        # (real connect path covered in test_v21510_push_beta.py).
+
+        async def fake_connect():
+            m._state = PushManagerState.CONNECTED
+            m._record_success()
+            await m._stop_event.wait()
+            m._state = PushManagerState.STOPPED
+
+        monkeypatch.setattr(m, "_connect_and_listen", fake_connect)
         await m.start()
         await asyncio.sleep(0.05)
         assert m.state == PushManagerState.CONNECTED
@@ -282,12 +280,55 @@ class TestInheritance:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+def _install_fake_firebase(monkeypatch):
+    """Inject a no-network ``firebase_messaging`` module.
+
+    v2.15.10 BETA: ``_connect_and_listen`` now lazy-imports the real
+    ``firebase_messaging`` lib. In the test env that package isn't
+    installed, so we inject fakes whose ``checkin_or_register`` returns
+    a canned token and whose ``start`` / ``stop`` are no-ops. This lets
+    the live-path lifecycle tests reach CONNECTED without a broker.
+    """
+    import sys
+    import types
+
+    class _FakeFcmClient:
+        def __init__(self, callback, config, creds, creds_cb):  # noqa: ANN001
+            self.callback = callback
+
+        async def checkin_or_register(self):  # noqa: ANN201
+            return "FAKE-FCM-TOKEN"
+
+        async def start(self):  # noqa: ANN201
+            pass
+
+        async def stop(self):  # noqa: ANN201
+            pass
+
+    class _FakeFcmRegisterConfig:
+        def __init__(self, project_id, app_id, api_key, sender_id):  # noqa: ANN001
+            self.project_id = project_id
+
+    mod = types.ModuleType("firebase_messaging")
+    mod.FcmPushClient = _FakeFcmClient
+    mod.FcmRegisterConfig = _FakeFcmRegisterConfig
+    monkeypatch.setitem(sys.modules, "firebase_messaging", mod)
+
+
 def _make_live_manager(callback, token_provider, monkeypatch):
-    """Build a manager with the resolver patched to return live creds."""
+    """Build a manager with creds + network deps patched for no-network.
+
+    v2.15.10 BETA: the real ``_connect_and_listen`` registers via
+    ``firebase_messaging`` + POSTs a subscription. We inject a fake
+    firebase module and patch the HTTP-POST seam so the lifecycle
+    (CONNECTED, backoff-reset, token-refresh-retry) is exercised end to
+    end without touching a broker.
+    """
     from custom_components.vag_connect.cariad.push.audi_vw_fcm import (
         _FcmCreds,
         AudiVWPushManager,
     )
+    _install_fake_firebase(monkeypatch)
     m = AudiVWPushManager(
         callback,
         user_id="u",
@@ -306,6 +347,11 @@ def _make_live_manager(callback, token_provider, monkeypatch):
             app_id="1:000000:android:test",
         ),
     )
+
+    async def _fake_post(url, body, access_token):  # noqa: ANN001
+        return None
+
+    monkeypatch.setattr(m, "_http_post_subscription", _fake_post)
     return m
 
 

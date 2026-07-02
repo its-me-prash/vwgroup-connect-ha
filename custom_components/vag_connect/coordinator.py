@@ -1782,11 +1782,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         - CUPRA/SEAT → ``CONF_ENABLE_PUSH_FCM``
         - Audi/VW EU → ``CONF_ENABLE_PUSH_AUDI_VW``
 
-        All three push manager implementations are currently SCAFFOLDING
-        (stub ``_connect_and_listen``) — wiring the lifecycle now means
-        the moment a tester confirms FCM keys / MQTT broker auth the
-        live activation lands behind a single inner-method change with
-        zero coordinator-side refactor.
+        All three push managers now have their real ``_connect_and_listen``
+        wired (opt-in BETA, default-off toggles). Škoda MQTT + CUPRA/SEAT
+        FCM are grounded against upstream (myskoda / pycupra); Audi/VW EU
+        ships GATED (subscription host/path/body unverified off-device) with
+        a runtime warning. Live activation is confirmed per-brand by a tester
+        with a real car; the circuit-breaker keeps a wrong body inert.
         """
         options = dict(getattr(self.entry, "options", {}) or {})
         brand = self.entry.data.get(CONF_BRAND, "")

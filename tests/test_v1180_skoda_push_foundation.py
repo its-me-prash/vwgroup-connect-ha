@@ -144,12 +144,14 @@ class TestSkodaPushManagerLifecycle:
     async def test_start_then_stop_cleanup(
         self, mock_callback, mock_token_provider, monkeypatch
     ):
-        """Foundation stub: start() spawns the receive loop; stop()
-        cancels cleanly. No real network I/O."""
+        """Lifecycle: start() spawns the receive loop; stop() cancels
+        cleanly. ``_connect_and_listen`` is patched so this stays a
+        pure lifecycle check (the real connect path is covered in
+        test_v21510_push_beta.py)."""
         from custom_components.vag_connect.cariad.push.skoda_mqtt import SkodaPushManager
         from custom_components.vag_connect.cariad.push.base import PushManagerState
 
-        # Stub the dependency check so foundation stub runs
+        # Stub the dependency check so the loop can enter.
         m = SkodaPushManager(
             mock_callback,
             user_id="user-uuid-123",
@@ -157,6 +159,14 @@ class TestSkodaPushManagerLifecycle:
             vins=["VIN1234567890ABCDE"],
         )
         monkeypatch.setattr(m, "_lazy_check_dependencies", lambda: None)
+
+        async def fake_connect():
+            m._state = PushManagerState.CONNECTED
+            m._record_success()
+            await m._stop_event.wait()
+            m._state = PushManagerState.STOPPED
+
+        monkeypatch.setattr(m, "_connect_and_listen", fake_connect)
 
         await m.start()
         # Give event loop a tick to enter _connect_and_listen

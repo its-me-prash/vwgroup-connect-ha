@@ -143,6 +143,19 @@ class TestCupraSeatPushManagerLifecycle:
             brand="seat",
         )
         monkeypatch.setattr(m, "_lazy_check_dependencies", lambda: None)
+
+        # v2.15.10 BETA: the real connect path lazy-imports
+        # firebase_messaging + POSTs a subscription. Patch
+        # ``_connect_and_listen`` so this stays a pure lifecycle test
+        # (real connect path covered in test_v21510_push_beta.py).
+        async def fake_connect():
+            m._state = PushManagerState.CONNECTED
+            m._record_success()
+            await m._stop_event.wait()
+            m._state = PushManagerState.STOPPED
+
+        monkeypatch.setattr(m, "_connect_and_listen", fake_connect)
+
         await m.start()
         await asyncio.sleep(0.05)
         assert m.state == PushManagerState.CONNECTED

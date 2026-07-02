@@ -2,15 +2,17 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # ╔════════════════════════════════════════════════════════════════════╗
-# ║ LIVE (BETA) v2.8.0 Action #4                                      ║
-# ║ Decode + HA-bus emission paths are wired into the coordinator.    ║
-# ║ Live FCM subscription stays gated behind a NotImplementedError    ║
-# ║ inside ``_resolve_fcm_credentials`` until the Cariad Firebase     ║
-# ║ sender_id / api_key / app_id are recovered from a live APK        ║
-# ║ (tracked as task #40 follow-up). When the credentials land, drop  ║
-# ║ them into the resolver and the receive loop wakes up.             ║
+# ║ BETA — opt-in, live-test-gated (v2.15.10)                         ║
+# ║ Real FCM register + subscribe + receive is wired. Firebase creds  ║
+# ║ are verified per-brand (audi + volkswagen are SEPARATE Firebase   ║
+# ║ projects). The notification-SUBSCRIPTION endpoint host/path/body  ║
+# ║ for the Audi/VW app-BFF is UNVERIFIED off-device (no upstream lib  ║
+# ║ exposes it) — we ship the pycupra ``/v2/subscriptions`` body shape ║
+# ║ against the OLA-style host as a GATED placeholder + log a one-time ║
+# ║ warning. A live mitmproxy capture of myAudi/WeConnect must confirm ║
+# ║ the real host+path before this is anything but experimental.      ║
 # ╚════════════════════════════════════════════════════════════════════╝
-"""Audi/VW Cariad-BFF Firebase Cloud Messaging push manager (v1.23.0 foundation).
+"""Audi/VW Cariad-BFF Firebase Cloud Messaging push manager (BETA).
 
 User-suggested feature 2026-05-07: "weil ich auf der app push nachrichten
 bekomme, könnte man das doch auch auf der integration als feedback nehmen?"
@@ -31,10 +33,14 @@ Three pieces (analog to v1.18.0 Skoda MQTT + v1.19.0 CUPRA/SEAT FCM):
    with the Cariad Firebase project, persists credentials via HA
    ``Store`` helper, listens for push notifications.
 
-2. **Cariad notification subscription** — POST FCM token to Cariad's
-   notification-registration endpoint (TBD live-test, expected at
-   ``mal-1a.prd.ece.vwg-connect.com/api/notification/...``). Reference:
-   upstream for the endpoint pattern.
+2. **Notification subscription** — POST the FCM token to the app-BFF
+   subscription endpoint. GATED/UNVERIFIED for Audi/VW: no upstream lib
+   exposes their push-subscription endpoint, so we reuse the pycupra
+   ``/v2/subscriptions`` body shape as a best-effort and emit a one-time
+   runtime warning. (An earlier ``mal-1a.prd.ece.vwg-connect.com`` guess
+   was fabricated — it has no notification path in any source.) A live
+   mitmproxy capture must confirm the real host/path/body before this
+   leaves BETA.
 
 3. **Coordinator callback** — each push event decoded into
    ``PushUpdateEvent`` and forwarded via ``on_event`` callback. The
@@ -46,27 +52,33 @@ Three pieces (analog to v1.18.0 Skoda MQTT + v1.19.0 CUPRA/SEAT FCM):
 
 ### Brand scope
 
-Both `audi` and `volkswagen` brands. They share the Cariad-BFF
-backend so the FCM channel is unified — single `AudiVWPushManager`
-instance handles both. Per-VIN routing happens via the FCM message
-payload's `vin` field.
+Both `audi` and `volkswagen` brands — but they are on **SEPARATE
+Firebase projects** (myAudi = ``onetouch-169db``; VW We Connect ID =
+``gcp-project-we-connect-id``), NOT a shared Cariad project. The
+credential resolver therefore branches on ``self._brand``. One
+``AudiVWPushManager`` instance still handles a single-brand entry.
+Per-VIN routing is supplied from subscription context (the FCM
+``data`` dict does not always carry a ``vin`` — see ``_decode``).
 
-### Foundation status (v1.23.0)
+### BETA status (v2.15.10)
 
-This module mirrors ``skoda_mqtt.py`` + ``cupra_seat_fcm.py`` —
-class structure, state machine, lifecycle hooks complete. Live FCM
-connection code is **lazy-imported** + stubbed.
+Real FCM register (``firebase-messaging``) + notification subscribe
++ receive loop are wired. Verified per-brand Firebase creds are
+baked in (independently confirmed against the raw APKs). What is
+NOT verified off-device:
 
-Live activation requires:
-- Audi/VW owner with active Connect+ subscription (live tester)
-- Verified Cariad Firebase project ID + sender_id
-- Confirmed notification-subscription endpoint URL (upstream
-  reference, may have changed)
-- Verified push-event payload schema
+- The Audi/VW app-BFF notification-subscription **host + path**.
+  No upstream library exposes a VW/Audi push-subscription endpoint
+  (checked WeConnect-python, CarConnectivity-volkswagen, ioBroker —
+  ioBroker implements it only for Skoda). We ship the pycupra
+  ``/v2/subscriptions`` body shape as a GATED placeholder and log a
+  one-time warning; a live mitmproxy capture must confirm the real
+  host/path/body before this is trustworthy.
+- The exact Audi/VW ``type`` string vocabulary (CUPRA's kebab-case
+  ``vehicle-access-*`` / ``charging-*`` values are the template).
 
-These can only be validated end-to-end against the live backend.
-v1.23.x patches will activate the path once a community tester
-confirms.
+Live activation confirmation requires an Audi/VW owner with an
+active Connect+ subscription running a capture.
 
 ### References
 
@@ -102,22 +114,54 @@ from .base import (
 
 _LOGGER = logging.getLogger(__name__)
 
-# Cariad FCM project — Firebase project ID used by myAudi/WeConnect
-# mobile apps. Public sender_id from Android google-services.json
-# (TBD live-test verification — placeholder pending tester).
-_CARIAD_FCM_PROJECT_ID = "<pending-tester>"
-_CARIAD_FCM_SENDER_ID = "<pending-tester>"
-_CARIAD_FCM_API_KEY = "<pending-tester>"
+@dataclass(frozen=True)
+class _FcmCreds:
+    """Resolved per-brand FCM credentials (verified against the APKs)."""
 
-# Notification-subscription endpoint base. Same MBB setter base
-# we use elsewhere (verified mal-1a.prd.ece.vwg-connect.com pattern).
-_CARIAD_NOTIFICATION_BASE = "https://mal-1a.prd.ece.vwg-connect.com"
-_CARIAD_NOTIFICATION_PATH = "/api/notification/v1/subscriptions"
+    project_id: str
+    sender_id: str
+    api_key: str
+    app_id: str
 
-# v2.8.0 Action #4: top-level keys we treat as "this is the Cariad
-# event shape". Used by ``_decode_fcm_payload`` to classify which
-# subtype we're looking at without needing an explicit ``type``
-# field (the live myAudi push payloads do not always carry one).
+
+# Per-brand Firebase creds — VERIFIED against the raw APKs. myAudi and
+# VW We Connect ID are SEPARATE Firebase projects (NOT a shared Cariad
+# project, NOT the legacy com.vw.carnet.release project). Public
+# Android google-services.json values — no secrets.
+_BRAND_FCM: dict[str, _FcmCreds] = {
+    "audi": _FcmCreds(
+        project_id="onetouch-169db",
+        sender_id="254788998682",
+        api_key="AIzaSyBVo1tiqGH1g2BOaOEvPS3XcWvoQrvMkBY",
+        app_id="1:254788998682:android:fec5c470993c39fe",
+    ),
+    "volkswagen": _FcmCreds(
+        project_id="gcp-project-we-connect-id",
+        sender_id="992914193347",
+        api_key="AIzaSyDC9d-LOI0LLK-9p0zhDNT2tJPYTjk5c2E",
+        app_id="1:992914193347:android:c08d27281d231559bddb76",
+    ),
+}
+
+# Notification-subscription endpoint.
+#
+# GATED / UNVERIFIED — there is NO VW/Audi push-subscription endpoint in
+# any upstream library (WeConnect-python, CarConnectivity-volkswagen,
+# ioBroker all lack it; ioBroker implements notification-subscribe only
+# for Skoda). The legacy ``mal-1a.prd.ece.vwg-connect.com/api/
+# notification/...`` literal that earlier scaffolding asserted as
+# "verified" is fabricated — it carries only vehicle-data / auth paths,
+# never a notification path. Until a live mitmproxy capture of the
+# myAudi / WeConnect app confirms the real host + path, we borrow the
+# pycupra OLA subscription host/path shape as a best-effort placeholder
+# and emit a one-time GATED warning before POSTing.
+_SUBSCRIPTION_BASE = "https://ola.prod.code.seat.cloud.vwgroup.com"
+_SUBSCRIPTION_PATH = "/v2/subscriptions"
+
+# v2.8.0 legacy state-key shape. Kept ONLY as a tolerant fallback for
+# older captures / synthetic payloads. The GROUNDED discriminator is
+# the single kebab-case string ``data["type"]`` (pycupra
+# ``vehicle.py::onNotification``) handled first in ``_decode_fcm_payload``.
 _KNOWN_EVENT_KEYS: tuple[str, ...] = (
     "lockState",
     "chargingState",
@@ -127,23 +171,6 @@ _KNOWN_EVENT_KEYS: tuple[str, ...] = (
 
 # v2.2.0 Phase 5a PR #18/20: backoff constants moved to ``base.py``
 # (``PUSH_INITIAL_BACKOFF_S`` etc.). Shared across all push managers.
-
-
-@dataclass(frozen=True)
-class _FcmCreds:
-    """Resolved Cariad FCM credentials.
-
-    Populated by ``AudiVWPushManager._resolve_fcm_credentials`` once
-    the live APK extraction of the Cariad ``google-services.json``
-    blob completes. Until then the resolver raises
-    ``NotImplementedError`` and the receive loop surfaces UNAVAILABLE
-    (same path as a missing pip dep).
-    """
-
-    project_id: str
-    sender_id: str
-    api_key: str
-    app_id: str
 
 
 class AudiVWPushManager(PushManager):
@@ -160,9 +187,9 @@ class AudiVWPushManager(PushManager):
 
     Idempotent ``start()`` and ``stop()``.
 
-    Brand-scope: both ``audi`` and ``volkswagen`` share the Cariad-BFF
-    backend → single manager handles both. Per-VIN routing via FCM
-    message payload's ``vin`` field.
+    Brand-scope: ``audi`` and ``volkswagen`` are on SEPARATE Firebase
+    projects (resolver branches on ``self._brand``). Per-VIN routing is
+    supplied from subscription context, not the FCM payload.
     """
 
     def __init__(
@@ -199,6 +226,20 @@ class AudiVWPushManager(PushManager):
         self._brand = brand
         self._loop_task: asyncio.Task | None = None
         self._stop_event: asyncio.Event = asyncio.Event()
+        # Live FCM client handle (firebase_messaging.FcmPushClient),
+        # created inside ``_connect_and_listen`` once creds resolve.
+        self._fcm_client: Any = None
+        # Event loop captured at connect time so the SYNC firebase
+        # callback can schedule the async handler safely.
+        self._loop: asyncio.AbstractEventLoop | None = None
+        # Persisted FCM credential dict (checkin/registration state),
+        # so a restart re-uses the same FCM token instead of churning
+        # a new device registration. In HA this would be backed by the
+        # ``Store`` helper; kept in-memory here + refreshed via the
+        # credentials-updated callback.
+        self._fcm_credentials: dict[str, Any] | None = None
+        # One-time GATED-endpoint warning latch.
+        self._subscription_warned = False
         # v2.2.0 Phase 5a PR #18/20: backoff state moved to PushManager
         # base ``__init__`` (set by ``super().__init__(on_event)`` above).
 
@@ -321,88 +362,191 @@ class AudiVWPushManager(PushManager):
                     break
 
     async def _connect_and_listen(self) -> None:
-        """One FCM register + Cariad subscribe + receive cycle.
+        """One FCM register + subscribe + receive cycle.
 
-        v2.8.0 Action #4: the receive-loop infrastructure is wired,
-        but the live FCM register is gated behind a credential
-        resolver. When ``_resolve_fcm_credentials`` raises
-        ``NotImplementedError`` we surface UNAVAILABLE (same path as
-        a missing pip dep). Once credentials land in the resolver,
-        the lazy-import + register + subscribe path lights up.
+        Steps (all grounded in pycupra ``firebase.py`` + the upstream
+        ``firebase-messaging`` API):
 
-        On a transient HTTP-401 from the subscription POST, the
-        outer ``_run_loop`` catches the raised RuntimeError, refreshes
-        the access token via the provider, and retries on the next
-        backoff cycle.
+        1. Refresh the OAuth token (bearer for the subscription POST).
+        2. Resolve verified per-brand Firebase creds.
+        3. ``FcmPushClient(callback, FcmRegisterConfig(...), creds, ...)``
+           then ``await checkin_or_register()`` -> FCM token.
+        4. POST the token to the (GATED) notification-subscription
+           endpoint per-VIN via ``_post_cariad_subscription``.
+        5. ``await client.start()`` — the lib delivers pushes to
+           ``self._handle_fcm_message`` via the callback bridge.
+        6. Park on ``_stop_event``; on stop, ``await client.stop()``.
+
+        On any failure the outer ``_run_loop`` records the strike,
+        advances backoff, refreshes the token, and retries.
         """
+        self._loop = asyncio.get_running_loop()
         token = await self._access_token_provider()
         if not token:
             raise RuntimeError(
                 "Audi/VW push: access_token_provider returned empty"
             )
-        try:
-            creds = self._resolve_fcm_credentials()
-        except NotImplementedError as err:
-            _LOGGER.info(
-                "Audi/VW push (brand=%s): credentials pending (%s). "
-                "Staying UNAVAILABLE until task #40 follow-up lands.",
-                self._brand,
-                err,
-            )
-            # Surface UNAVAILABLE so observers (system_health) see the
-            # right state before the outer loop catches the re-raise.
-            self._state = PushManagerState.UNAVAILABLE
-            # Re-raise so the outer ``_run_loop`` records the strike +
-            # advances the backoff + checks the circuit-breaker through
-            # the single shared failure path. The breaker eventually
-            # trips and the outer loop exits, stopping log-spam.
-            raise RuntimeError(
-                "Audi/VW push: credentials not yet available"
-            ) from err
-        # Credentials available: proceed to the live subscription path.
-        # CONNECTED state is set before the network call so observers
-        # don't see a STARTING-stuck status if the subscription POST
-        # itself blocks. Reset breaker + backoff on success.
+        creds = self._resolve_fcm_credentials()
+
+        # Lazy import — kept out of module import so non-opted-in users
+        # never pay the cost and HACS install can't fail on the wheel.
+        from firebase_messaging import (  # noqa: PLC0415
+            FcmPushClient,
+            FcmRegisterConfig,
+        )
+
+        fcm_config = FcmRegisterConfig(
+            creds.project_id,
+            creds.app_id,
+            creds.api_key,
+            creds.sender_id,
+        )
+        client = FcmPushClient(
+            self._on_fcm_notification,
+            fcm_config,
+            self._fcm_credentials,
+            self._on_fcm_credentials_updated,
+        )
+        self._fcm_client = client
+        fcm_token = await client.checkin_or_register()
+
+        # Register the FCM token for push delivery, once per VIN.
+        for vin in self._vins:
+            await self._post_cariad_subscription(vin, fcm_token, token, creds)
+
+        await client.start()
+
+        # Connected: reset breaker + backoff, publish CONNECTED before
+        # parking so observers don't see a STARTING-stuck status.
         self._state = PushManagerState.CONNECTED
         self._record_success()
         self._reset_backoff()
         _LOGGER.info(
-            "Audi/VW push (brand=%s): live subscription primed for "
+            "Audi/VW push (brand=%s): live FCM receive loop up for "
             "%d VIN(s) (project=%s)",
             self._brand,
             len(self._vins),
             creds.project_id,
         )
-        # The actual ``firebase_messaging`` register + ``await client.
-        # start(callback=self._handle_fcm_message)`` calls land in the
-        # same patch that drops the real credentials. The decode + emit
-        # paths exercised by the unit tests are reachable today via
-        # ``_handle_fcm_message``.
         try:
             await self._stop_event.wait()
         except asyncio.CancelledError:
             raise
+        finally:
+            try:
+                await client.stop()
+            except Exception:  # noqa: BLE001
+                pass
+            self._fcm_client = None
         self._state = PushManagerState.STOPPED
 
     def _resolve_fcm_credentials(self) -> _FcmCreds:
-        """Resolve Cariad FCM project credentials.
+        """Resolve the verified per-brand Firebase credentials.
 
-        v2.8.0 Action #4 status: the literal values live in the
-        Audi 5.5.0 + Volkswagen 3.61.0 APK ``google-services.json``
-        resource. They are NOT present in our existing smali
-        extractions under ``_private/`` (those carry only X-headers +
-        OAuth client IDs). A live APK pull is required to recover
-        ``sender_id`` + ``api_key`` + ``app_id``. Tracked as task #40
-        follow-up.
-
-        When that extraction lands, replace the ``raise`` below with
-        a populated ``_FcmCreds`` literal and the receive loop comes
-        alive.
+        Audi and VW-EU are SEPARATE Firebase projects — this branches
+        on ``self._brand``. Values are verified against the raw APKs.
         """
-        raise NotImplementedError(
-            "Sender ID extraction requires live APK reverse "
-            "engineering, see task #40 follow-up"
+        creds = _BRAND_FCM.get(self._brand)
+        if creds is None:  # pragma: no cover — brand validated in __init__
+            raise RuntimeError(
+                f"Audi/VW push: no FCM creds for brand {self._brand!r}"
+            )
+        return creds
+
+    async def _post_cariad_subscription(
+        self,
+        vin: str,
+        fcm_token: str,
+        access_token: str,
+        creds: _FcmCreds,
+    ) -> None:
+        """POST the FCM token to the notification-subscription endpoint.
+
+        GATED / UNVERIFIED — see the module banner. No upstream library
+        exposes the Audi/VW app-BFF push-subscription endpoint, so we
+        borrow the pycupra OLA ``/v2/subscriptions`` body shape as a
+        best-effort placeholder and warn once. The body is the pycupra
+        GROUNDED shape: ``deviceId`` (GCM app_id), ``locale``,
+        ``services`` (charging + climatisation booleans), ``token``
+        (the FCM push token), ``userId``, ``vin`` — per-VIN, not bulk.
+
+        A live mitmproxy capture must confirm the real host + path +
+        body before this can be trusted. Failures fail-soft: they
+        propagate to ``_run_loop`` which trips the breaker after 3
+        strikes rather than spamming.
+        """
+        if not self._subscription_warned:
+            self._subscription_warned = True
+            _LOGGER.warning(
+                "Audi/VW push (brand=%s): the notification-subscription "
+                "endpoint is UNVERIFIED off-device — using the pycupra "
+                "/v2/subscriptions body shape as a GATED placeholder. "
+                "Push may not activate until a live capture confirms the "
+                "real Audi/VW host+path. This is experimental BETA.",
+                self._brand,
+            )
+        url = f"{_SUBSCRIPTION_BASE}{_SUBSCRIPTION_PATH}"
+        body = {
+            "deviceId": creds.app_id,
+            "locale": "en_GB",
+            "services": {"charging": True, "climatisation": True},
+            "token": fcm_token,
+            "userId": self._user_id,
+            "vin": vin,
+        }
+        await self._http_post_subscription(url, body, access_token)
+
+    async def _http_post_subscription(
+        self, url: str, body: dict[str, Any], access_token: str
+    ) -> None:
+        """Issue the bearer-authenticated subscription POST.
+
+        Split out so tests can patch a single seam without a live
+        aiohttp session. Uses HA's shared client session when running
+        inside HA; here we lazy-import aiohttp so the module has no
+        hard import-time dependency on it.
+        """
+        import aiohttp  # noqa: PLC0415
+
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=body, headers=headers) as resp:
+                if resp.status >= 400:
+                    raise RuntimeError(
+                        f"Audi/VW push: subscription POST returned "
+                        f"HTTP {resp.status}"
+                    )
+
+    def _on_fcm_notification(
+        self, notification: Any, persistent_id: Any = None, obj: Any = None
+    ) -> None:
+        """firebase-messaging callback bridge (SYNC).
+
+        The upstream ``firebase-messaging`` lib calls the callback
+        SYNCHRONOUSLY with ``(notification_dict, persistent_id, obj)``
+        — it does NOT await coroutine callbacks. So this is a plain
+        function that schedules the async ``_handle_fcm_message`` on
+        the loop captured at connect time. ``persistent_id`` is
+        available for dedup if a future revision needs it.
+        """
+        loop = self._loop
+        if loop is None or loop.is_closed():  # pragma: no cover - defensive
+            return
+        loop.call_soon_threadsafe(
+            lambda: loop.create_task(self._handle_fcm_message(notification))
         )
+
+    def _on_fcm_credentials_updated(self, creds: dict[str, Any]) -> None:
+        """firebase-messaging credentials-rotation callback.
+
+        Called when the lib re-registers / rotates the FCM token. We
+        cache it in-memory so the next reconnect re-uses it. In HA this
+        is where a ``Store.async_save`` would persist across restarts.
+        """
+        self._fcm_credentials = creds
 
     async def _handle_fcm_message(self, raw: Any) -> None:
         """FCM ``on_message`` entrypoint.
@@ -416,24 +560,41 @@ class AudiVWPushManager(PushManager):
         Wrapped: a malformed payload causes a debug log and no
         emission, never a crash of the receive loop.
         """
-        event = self._decode_fcm_payload(raw)
+        event = self._decode_fcm_payload(raw, default_vin=self._default_vin())
         if event is None:
             return
         await self.emit(event)
 
+    def _default_vin(self) -> str | None:
+        """VIN to attribute a payload to when the FCM data carries none.
+
+        GROUND-A: the Cariad/CUPRA FCM ``data`` dict does NOT carry a
+        ``vin`` — routing comes from subscription context. When exactly
+        one VIN is subscribed we can attribute unambiguously; with
+        several we can't and fall back to None (the decode then drops
+        VIN-less payloads). A future revision can key the FCM client
+        per-VIN to make this exact.
+        """
+        return self._vins[0] if len(self._vins) == 1 else None
+
     @staticmethod
-    def _decode_fcm_payload(raw: Any) -> PushUpdateEvent | None:
-        """Decode a Cariad FCM ``data`` dict into a ``PushUpdateEvent``.
+    def _decode_fcm_payload(
+        raw: Any, default_vin: str | None = None
+    ) -> PushUpdateEvent | None:
+        """Decode a Cariad/CUPRA FCM ``data`` dict into a ``PushUpdateEvent``.
 
-        The receive loop sees one of two shapes depending on how the
-        ``firebase_messaging`` lib hands the message off:
+        The GROUNDED shape (pycupra ``vehicle.py::onNotification``) is a
+        single kebab-case string discriminator ``data["type"]`` (e.g.
+        ``vehicle-access-locked-successful``, ``charging-status-changed``)
+        with no ``vin`` in the data dict — VIN comes from subscription
+        context (``default_vin``). That path is tried first.
 
-        - Plain ``dict`` with the Cariad payload as top-level keys
-        - Wrapped dict with the payload nested under ``"data"``
+        As a tolerant fallback we also accept the legacy state-key shape
+        (``lockState`` / ``chargingState`` / ``climateState`` /
+        ``alarmType``) with an in-payload ``vin`` — used for older
+        captures + synthetic tests.
 
-        Both are accepted. Anything that doesn't look like a Cariad
-        event (missing ``vin``, no known event-key, not a dict at
-        all) returns ``None`` so the caller skips it without raising.
+        Anything else returns ``None`` so the caller skips it.
         """
         if not isinstance(raw, dict):
             _LOGGER.debug(
@@ -447,7 +608,34 @@ class AudiVWPushManager(PushManager):
             data = raw["data"]
         else:
             data = raw
-        vin = data.get("vin") or raw.get("vin")
+
+        # GROUNDED primary: single kebab-case ``type`` string.
+        ev_type = data.get("type")
+        if isinstance(ev_type, str) and ev_type:
+            vin = data.get("vin") or raw.get("vin") or default_vin
+            if not isinstance(vin, str) or not vin:
+                _LOGGER.debug(
+                    "Audi/VW push: 'type'=%s but no vin (payload or "
+                    "subscription context); discarding",
+                    ev_type,
+                )
+                return None
+            topic = (
+                data.get("topic") or raw.get("topic") or f"cariad/{ev_type}"
+            )
+            timestamp = data.get("timestamp") or raw.get("timestamp")
+            if not isinstance(timestamp, str) or not timestamp:
+                timestamp = datetime.now(tz=timezone.utc).isoformat()
+            return PushUpdateEvent(
+                vin=vin,
+                event_type=ev_type,
+                topic=str(topic),
+                timestamp=timestamp,
+                raw_payload=dict(data),
+            )
+
+        # Legacy fallback: state-key shape with in-payload vin.
+        vin = data.get("vin") or raw.get("vin") or default_vin
         if not isinstance(vin, str) or not vin:
             _LOGGER.debug(
                 "Audi/VW push: discarding FCM payload, no vin field",

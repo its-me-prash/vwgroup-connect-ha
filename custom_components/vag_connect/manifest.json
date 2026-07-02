@@ -14,6 +14,9 @@
     "custom_components.vag_connect"
   ],
   "quality_scale": "platinum",
-  "requirements": [],
+  "requirements": [
+    "firebase-messaging>=0.4.0",
+    "aiomqtt>=2.0.0"
+  ],
   "version": "2.15.9"
 }
