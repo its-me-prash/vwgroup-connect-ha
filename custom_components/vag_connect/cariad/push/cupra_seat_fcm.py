@@ -4,7 +4,7 @@
 # ╔════════════════════════════════════════════════════════════════════╗
 # ║ BETA — opt-in, live-test-gated (v2.15.10)                         ║
 # ║ Real FCM register + OLA /v2/subscriptions + receive is wired,     ║
-# ║ grounded verbatim in WulfgarW/pycupra. CUPRA + SEAT share one     ║
+# ║ grounded verbatim in the pycupra lib. CUPRA + SEAT share one      ║
 # ║ Firebase project (ola-apps-prod) with per-brand app_id. Live-test ║
 # ║ gate: needs a MyCupra/MySeat owner to confirm the creds + body    ║
 # ║ against the production backend. Fail-soft via the circuit-breaker.║
@@ -32,7 +32,7 @@ Two pieces:
 
 ### BETA status (v2.15.10)
 
-Real path is wired, grounded verbatim in ``WulfgarW/pycupra``
+Real path is wired, grounded verbatim in the ``pycupra`` lib
 (``firebase.py``, ``connection.py::subscribe`` L2073-2086,
 ``const.py`` L231-236, ``vehicle.py::onNotification``):
 
