@@ -1670,6 +1670,10 @@ class VehicleData:
     # open/closed STATE in sunroof_open). dict-confirmed type=number, unit "%"
     # (0 = closed). LOW — disabled-by-default diagnostic sensor.
     sunroof_position_pct: int | None = None
+    # ── v2.15.11 (#614) — spoiler POSITION in % (distinct from the open/closed
+    # STATE in spoiler_open). dict-confirmed type=number, unit "%" (0 = closed),
+    # mirrors sunroof_position_pct. LOW — disabled-by-default diagnostic sensor.
+    spoiler_position_pct: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to plain dict for coordinator.vehicles storage."""

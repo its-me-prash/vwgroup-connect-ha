@@ -43,6 +43,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ### Added
 
 - **HV battery status sensor.** EU Data Act cars that report a high-voltage battery status flag now get a diagnostic sensor for it, separate from the state-of-charge reading. It's off by default and translated into all 8 supported languages — turn it on if you want it. Thanks to the reporter for surfacing the field.
+- **Spoiler position sensor (#614).** On cars with a movable spoiler, the actual spoiler position as a percentage now shows up as a diagnostic sensor, alongside the open/closed state we already had — same as we did for the sunroof. It's off by default and translated into all 8 supported languages.
 
 ### Fixed
 

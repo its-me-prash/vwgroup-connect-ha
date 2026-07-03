@@ -1048,6 +1048,9 @@
       },
       "sunroof_position_pct": {
         "name": "Pozycja dachu przesuwnego"
+      },
+      "spoiler_position_pct": {
+        "name": "Pozycja spojlera"
       }
     },
     "binary_sensor": {

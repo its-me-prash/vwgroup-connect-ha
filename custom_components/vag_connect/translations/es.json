@@ -1048,6 +1048,9 @@
       },
       "sunroof_position_pct": {
         "name": "Posición del techo solar"
+      },
+      "spoiler_position_pct": {
+        "name": "Posición del alerón"
       }
     },
     "binary_sensor": {

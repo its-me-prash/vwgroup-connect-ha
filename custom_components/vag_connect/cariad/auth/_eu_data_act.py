@@ -1836,6 +1836,13 @@ def map_dataset_to_vehicle_data(
     _spoiler = _to_int(first("state_spoiler"))
     if _spoiler in (2, 3):
         d.spoiler_open = _spoiler == 2
+    # v2.15.11 (#614) — spoiler POSITION (%; 0=closed). Distinct from the
+    # open/closed STATE above. Dict type=number, unit "%". first() drops the
+    # uint16 65535 "no reading" sentinel; a valid 0-100 survives. Mirrors the
+    # sunroof_position_pct parse.
+    _spoiler_pos = _to_int(first("position_spoiler"))
+    if _spoiler_pos is not None and d.spoiler_position_pct is None:
+        d.spoiler_position_pct = _spoiler_pos
 
     # C. Trip odometer endpoints (km).
     _lt_dist = _to_int(first("long_term_data_mileage"))

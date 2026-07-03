@@ -1048,6 +1048,9 @@
       },
       "sunroof_position_pct": {
         "name": "Position du toit ouvrant"
+      },
+      "spoiler_position_pct": {
+        "name": "Position de l'aileron"
       }
     },
     "binary_sensor": {
