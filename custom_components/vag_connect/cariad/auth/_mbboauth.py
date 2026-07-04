@@ -31,6 +31,7 @@ real token exchange against their account.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import time
@@ -67,6 +68,15 @@ MBB_SHARED_CLIENT_ID = "9523ee15-f6e0-4eb9-9907-59d058d7e16e"
 _MBB_SCOPE = "sc2:fal"
 _TIMEOUT = ClientTimeout(total=20)
 _UA = "okhttp/3.14.9"
+
+# v2.15.12 (#584) — the MBB backend intermittently returns a transient
+# 5xx (observed live: ``500 IllegalStateException``) on the token exchange.
+# A single 500 used to be an instant hard AuthenticationError that also cost a
+# refresh-storm slot. Retry a small, bounded number of times with a short
+# exponential backoff before surfacing the error verbatim (same envelope as
+# today). Bounded so a genuinely-down backend still fails fast.
+_TOKEN_5XX_MAX_ATTEMPTS = 3
+_TOKEN_5XX_BASE_BACKOFF_S = 1.0
 
 
 @dataclass
@@ -117,24 +127,43 @@ def _parse_token_payload(payload: dict[str, Any]) -> MbbTokenSet:
 async def _post_token(
     session: ClientSession, data: dict[str, str], client_id: str
 ) -> MbbTokenSet:
-    try:
-        async with session.post(
-            MBB_TOKEN_URL, data=data, headers=_headers(client_id), timeout=_TIMEOUT
-        ) as resp:
-            body = await resp.text()
-            if resp.status != 200:
-                raise AuthenticationError(
-                    f"MBB token exchange HTTP {resp.status}: {body[:400]}"
-                )
-            try:
-                payload = json.loads(body)
-            except ValueError as exc:
-                raise AuthenticationError(
-                    f"MBB token response not JSON: {body[:120]}"
-                ) from exc
-            return _parse_token_payload(payload)
-    except ClientError as exc:
-        raise AuthenticationError(f"MBB token exchange failed: {exc}") from exc
+    # v2.15.12 (#584) — bounded retry/backoff on a TRANSIENT MBB 5xx before
+    # surfacing the error verbatim. A ClientError (network) and any non-5xx
+    # status still fail immediately with the exact same error envelope as before.
+    last_exc: AuthenticationError | None = None
+    for attempt in range(_TOKEN_5XX_MAX_ATTEMPTS):
+        try:
+            async with session.post(
+                MBB_TOKEN_URL, data=data, headers=_headers(client_id),
+                timeout=_TIMEOUT,
+            ) as resp:
+                body = await resp.text()
+                if 500 <= resp.status < 600:
+                    last_exc = AuthenticationError(
+                        f"MBB token exchange HTTP {resp.status}: {body[:400]}"
+                    )
+                    if attempt + 1 < _TOKEN_5XX_MAX_ATTEMPTS:
+                        await asyncio.sleep(
+                            _TOKEN_5XX_BASE_BACKOFF_S * (2 ** attempt)
+                        )
+                        continue
+                    raise last_exc
+                if resp.status != 200:
+                    raise AuthenticationError(
+                        f"MBB token exchange HTTP {resp.status}: {body[:400]}"
+                    )
+                try:
+                    payload = json.loads(body)
+                except ValueError as exc:
+                    raise AuthenticationError(
+                        f"MBB token response not JSON: {body[:120]}"
+                    ) from exc
+                return _parse_token_payload(payload)
+        except ClientError as exc:
+            raise AuthenticationError(f"MBB token exchange failed: {exc}") from exc
+    # Unreachable in practice (the loop either returns or raises), but keep a
+    # definite terminal raise so the type-checker sees a non-None return path.
+    raise last_exc or AuthenticationError("MBB token exchange failed")
 
 
 async def exchange_id_token(

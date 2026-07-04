@@ -195,6 +195,15 @@ class CariadBaseClient:
         # Pruned to the last `_REFRESH_WINDOW_S` on every refresh attempt.
         # Prevents the spiral documented in myskoda #976 / volkswagencarnet #683.
         self._refresh_history: list[float] = []
+        # v2.15.12 (#584) — SEPARATE storm budget for refreshes triggered by a
+        # remote COMMAND (MBB lock/unlock/climate/charge). A failing command
+        # (e.g. the MBB token exchange 500 or a data-plane 401) used to spend
+        # slots of the shared ``_refresh_history`` above, so three failed button
+        # presses could exhaust the budget and make the DATA-READ poll trip the
+        # storm guard → every entity went unavailable. Commands now bill their
+        # refreshes here, so a command failure can never knock the reads (and
+        # thus the whole integration) offline. Reads keep ``_refresh_history``.
+        self._cmd_refresh_history: list[float] = []
         # v2.9.0 - VW account-lock detection sliding window. Tuples of
         # (monotonic_seconds, http_status). Coordinator drains via
         # ``self.account_lock_signal`` to decide whether to raise the
@@ -1339,7 +1348,7 @@ class CariadBaseClient:
                 )
             raise APIError(0, url, f"transient: {type(err).__name__}: {err}") from err
 
-    async def _refresh_tokens(self) -> None:
+    async def _refresh_tokens(self, *, for_command: bool = False) -> None:
         """Attempt token refresh; fall back to full re-login.
 
         Uses a lock to prevent concurrent refresh attempts from racing.
@@ -1351,25 +1360,36 @@ class CariadBaseClient:
         the HA reauth flow — the user gets a UI prompt instead of a slowly
         rate-limited account. Patterns from myskoda #976 and
         volkswagencarnet #683.
+
+        v2.15.12 (#584): ``for_command=True`` bills the attempt against the
+        SEPARATE ``_cmd_refresh_history`` budget. A failing remote command must
+        never spend the data-plane's refresh budget, otherwise a few failed
+        button presses trip the storm guard for the READ poll and take every
+        entity offline. Command storms still raise (bounded, own budget) but
+        stay contained to the service call.
         """
         if self._refresh_lock is None:
             self._refresh_lock = asyncio.Lock()
         async with self._refresh_lock:
             now = time.monotonic()
             cutoff = now - _REFRESH_WINDOW_S
-            self._refresh_history = [t for t in self._refresh_history if t > cutoff]
-            if len(self._refresh_history) >= _REFRESH_MAX_PER_HOUR:
+            history = (
+                self._cmd_refresh_history if for_command else self._refresh_history
+            )
+            history[:] = [t for t in history if t > cutoff]
+            if len(history) >= _REFRESH_MAX_PER_HOUR:
                 _LOGGER.error(
-                    "Token refresh storm: %d attempts in last %ds for %s — pausing"
-                    " to prevent IP ban; please reauthenticate from the UI",
-                    len(self._refresh_history),
+                    "Token refresh storm: %d attempts in last %ds for %s (%s) —"
+                    " pausing to prevent IP ban; please reauthenticate from the UI",
+                    len(history),
                     _REFRESH_WINDOW_S,
                     self._brand.name,
+                    "command" if for_command else "data",
                 )
                 raise AuthenticationError(
                     "Token refresh storm — please reauthenticate"
                 )
-            self._refresh_history.append(now)
+            history.append(now)
 
             # v2.15.0 — durable MBB bearer refresh. The MBB OAuth backend
             # (mbboauth-1d) refreshes via grant_type=refresh_token with the
