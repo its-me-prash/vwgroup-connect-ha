@@ -2033,6 +2033,19 @@ class VWEUClient(CariadBaseClient):
         contrast to engine remote start which uses the separate
         ``/vehicle/v1/engine/{VIN}/...`` two-step S-PIN flow).
         """
+        # v2.15.12 (#584 follow-up) — on a legacy MBB-primary entry
+        # ``self._access_token`` is the MBB bearer, which the CARIAD BFF
+        # below rejects with "400 missing or invalid auth header". There is
+        # no verified MBB aux-heating (rheating) route yet, so rather than
+        # leak the wrong bearer to the wrong backend, fail cleanly with a
+        # clear message. (Non-MBB entries fall through to the BFF as before.)
+        if self._mbb_command_target() is not None:
+            raise VehicleCommandError(
+                "command_start_aux_heating",
+                "remote auxiliary heating is not available on the legacy "
+                "Car-Net two-way path yet — this vehicle uses MBB, which has "
+                "no verified aux-heating command",
+            )
         kelvin = round(float(target_c) + 273.15, 2)
         await self._post_command(
             vin,
@@ -2051,6 +2064,15 @@ class VWEUClient(CariadBaseClient):
         minimal ``{"command": "stop"}`` payload. No S-PIN, no SecToken,
         v2 fallback on 404 via ``_post_command``.
         """
+        # v2.15.12 (#584 follow-up) — same MBB-primary guard as start: don't
+        # leak the MBB bearer to the CARIAD BFF; fail cleanly instead.
+        if self._mbb_command_target() is not None:
+            raise VehicleCommandError(
+                "command_stop_aux_heating",
+                "remote auxiliary heating is not available on the legacy "
+                "Car-Net two-way path yet — this vehicle uses MBB, which has "
+                "no verified aux-heating command",
+            )
         await self._post_command(
             vin,
             "auxiliary-heating/stop",

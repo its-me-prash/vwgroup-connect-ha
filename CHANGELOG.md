@@ -43,6 +43,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ### Fixed
 
 - **A failed MBB command no longer knocks all your sensors offline (#584).** On the legacy Car-Net two-way alpha, reads and commands run through the same connection and shared one token-refresh budget. So when VW's backend kept 500ing a lock/climate command, the retries burned through that budget, tripped the "too many refreshes — pause" guard, and that guard then also blocked the normal data poll — every entity went unavailable with a red exclamation mark until a restart. Now a command failure stays contained to that command: it can't exhaust the poll's refresh budget or drag your reads down with it. On top of that, a transient MBB 5xx from VW is retried with a short backoff instead of failing instantly. Reads keep flowing even when a command can't get through. Thanks to CyberChris for the clean repro and logs.
+- **Aux-heating (Standheizung) now fails cleanly on legacy Car-Net cars instead of leaking the wrong credentials (#584).** On an MBB car the engine pre-heater command was sending the MBB token to VW's newer backend, which rejected it with a `400 missing auth header`. There's no verified MBB route for the pre-heater yet, so rather than send the wrong credentials it now returns a clear "not available on the legacy two-way path yet" message. Non-MBB cars (the newer portal + Audi) are unaffected. Wiring up real MBB aux-heating is a separate future item.
 
 ## [2.15.11] - 2026-07-03
 
