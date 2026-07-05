@@ -44,6 +44,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 - **Service & oil-change now also show an absolute due-date on EU Data Act cars, not just "in N days."** The portal path already gave you the "next service in 155 days" counter, but the companion "due on <date>" sensors (`service_due_at` / `oil_service_at`) stayed empty on EU-Data-Act vehicles — they only filled in on the brand-native paths. Now the portal path feeds them too, so a dashboard can show the actual date. (No new entities — it populates the sensors that were already there.)
 
+### Fixed
+
+- **The optional volkswagen.de read channel no longer quietly drops its session between polls.** That channel's sign-in lapses roughly 30 minutes after login and normal data reads don't keep it alive, while the poll runs every 15 minutes — so on a slow cycle the session could die silently, and the next read would fail (sometimes forcing a re-login with a fresh email code) with nothing to tell you why. The integration now proactively refreshes that session at the start of each cycle, well inside the expiry window, so it stays alive. Best-effort — a failed refresh just falls back to the existing on-demand re-login. (No effect unless you enabled the volkswagen.de channel.)
+
 ## [2.15.12] - 2026-07-04
 
 ### Fixed

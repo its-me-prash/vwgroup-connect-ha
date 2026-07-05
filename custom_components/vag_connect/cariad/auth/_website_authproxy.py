@@ -38,6 +38,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import time
 from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlparse
 
@@ -111,6 +112,18 @@ _RETRY_DELAYS = (3.0, 6.0)
 # 412 Precondition Failed / 428 Precondition Required (the proxy's own
 # "your session is no longer valid" signal). Treat all four as "re-login".
 _AUTH_FAIL_STATUSES = frozenset({401, 403, 412, 428})
+
+# v2.15.13 — PROACTIVE session-roll debounce. The vw.de authproxy session's
+# downstream tokens expire ~30 min after the last login (our own
+# ``sessionTimeout=1800``) and are NOT renewed by data reads, and the identity
+# SSO behind the silent refresh lapses if it isn't exercised. The poll cadence
+# is ~15 min, so on a slow/aliased cycle the SSO can die between polls; the NEXT
+# read then eats a guaranteed auth-fail, and if the identity twin also lapsed it
+# forces a full re-OTP (re-add). Rolling the session PROACTIVELY each cycle —
+# well inside the 30-min window — keeps it alive; the debounce stops a multi-VIN
+# poll from re-rolling within the same cycle. (This is a silent-degradation bug:
+# the user just sees stale data on our #1 read-path hedge and files no issue.)
+_PROACTIVE_ROLL_INTERVAL_S = 600.0
 
 # v2.14.9 — cookie persistence spans BOTH hosts: the portal session cookies on
 # www.volkswagen.de AND the ``auth0`` SSO cookie on identity.vwgroup.io. The
@@ -308,6 +321,9 @@ class WebsiteAuthProxyConnector:
         # The email-challenge page HTML — parsed in submit_otp for its hidden
         # form fields (_csrf / relayState / hmac), same as the password step.
         self._otp_html: str | None = None
+        # v2.15.13 — monotonic clock of the last PROACTIVE session roll (see
+        # maybe_roll). 0.0 = never → the first poll always rolls.
+        self._last_roll: float = 0.0
 
     # ── login ──────────────────────────────────────────────────────────────
 
@@ -591,6 +607,35 @@ class WebsiteAuthProxyConnector:
         raise AuthenticationError(
             f"Website authproxy: refresh did not land on the portal ({landed[:80]})"
         )
+
+    async def maybe_roll(self, *, force: bool = False) -> None:
+        """v2.15.13 — PROACTIVELY roll the SSO session before it silently lapses.
+
+        Called at the top of each poll cycle's authproxy reads. Debounced to
+        ``_PROACTIVE_ROLL_INTERVAL_S`` so a multi-VIN poll rolls at most once per
+        window. Best-effort: a failed roll NEVER breaks the poll — the reactive
+        ``refresh()`` inside ``get_status``/``get_vehicles`` remains the safety
+        net. See ``_PROACTIVE_ROLL_INTERVAL_S`` for why this exists (silent SSO
+        death on our #1 read-path hedge). No-op until the first successful login
+        (``logged_in``) so we never roll a session that was never established.
+        """
+        if not self.logged_in:
+            return
+        now = time.monotonic()
+        if not force and (now - self._last_roll) < _PROACTIVE_ROLL_INTERVAL_S:
+            return
+        self._last_roll = now
+        try:
+            await self.refresh()
+        except Exception:  # noqa: BLE001
+            # A proactive roll is opportunistic: if it fails (transient network,
+            # or a genuinely-dead SSO), swallow it and let the subsequent read's
+            # reactive refresh()/re-login handle it. Never propagate from here.
+            _LOGGER.debug(
+                "Website authproxy: proactive session roll skipped (will rely on"
+                " the reactive path this cycle)",
+                exc_info=True,
+            )
 
     def _finalise_login(self, landed_url: str) -> None:
         """Mark logged-in iff we ended back on the volkswagen.de host."""

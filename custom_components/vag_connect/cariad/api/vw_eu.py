@@ -147,6 +147,9 @@ class VWEUClient(CariadBaseClient):
         # portal below; dormant (proxy is None) for every other entry.
         web = getattr(self, "_website_proxy", None)
         if web is not None:
+            # v2.15.13 — proactively roll the SSO before it silently lapses
+            # (debounced; never raises). Keeps our #1 read-path hedge alive.
+            await web.maybe_roll()
             try:
                 web_vins: list[str] = await web.list_vehicle_vins()
             except AuthenticationError:
@@ -428,6 +431,9 @@ class VWEUClient(CariadBaseClient):
         # Dormant (proxy is None) for every other entry.
         web = getattr(self, "_website_proxy", None)
         if web is not None:
+            # v2.15.13 — proactively roll the SSO before it silently lapses
+            # (debounced to once per ~10 min; best-effort, never raises).
+            await web.maybe_roll()
             try:
                 web_data: VehicleData = await web.get_vehicle_data(vin)
             except AuthenticationError:
