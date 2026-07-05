@@ -470,6 +470,15 @@
       "climate_running_requests_count": {
         "name": "Climate Requests Pending"
       },
+      "active_warning_lights_count": {
+        "name": "Active Warning Lights"
+      },
+      "last_lock_action": {
+        "name": "Last Lock Action"
+      },
+      "last_lock_action_at": {
+        "name": "Last Lock Action Time"
+      },
       "maintenance_report_captured_at": {
         "name": "Maintenance Report Updated"
       },

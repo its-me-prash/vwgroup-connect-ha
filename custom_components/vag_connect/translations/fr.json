@@ -464,6 +464,15 @@
       "climate_running_requests_count": {
         "name": "Requêtes climat en attente"
       },
+      "active_warning_lights_count": {
+        "name": "Témoins d'alerte actifs"
+      },
+      "last_lock_action": {
+        "name": "Dernière action de verrouillage"
+      },
+      "last_lock_action_at": {
+        "name": "Heure du dernier verrouillage"
+      },
       "maintenance_report_captured_at": {
         "name": "Rapport entretien mis à jour"
       },

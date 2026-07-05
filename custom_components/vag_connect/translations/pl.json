@@ -464,6 +464,15 @@
       "climate_running_requests_count": {
         "name": "Oczekujące żądania klimatyzacji"
       },
+      "active_warning_lights_count": {
+        "name": "Aktywne kontrolki ostrzegawcze"
+      },
+      "last_lock_action": {
+        "name": "Ostatnia akcja blokady"
+      },
+      "last_lock_action_at": {
+        "name": "Czas ostatniej blokady"
+      },
       "maintenance_report_captured_at": {
         "name": "Raport serwisowy zaktualizowany"
       },

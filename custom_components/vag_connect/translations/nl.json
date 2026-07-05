@@ -464,6 +464,15 @@
       "climate_running_requests_count": {
         "name": "Klimaatverzoeken in behandeling"
       },
+      "active_warning_lights_count": {
+        "name": "Actieve waarschuwingslampjes"
+      },
+      "last_lock_action": {
+        "name": "Laatste vergrendelingsactie"
+      },
+      "last_lock_action_at": {
+        "name": "Tijd laatste vergrendeling"
+      },
       "maintenance_report_captured_at": {
         "name": "Onderhoudsrapport bijgewerkt"
       },

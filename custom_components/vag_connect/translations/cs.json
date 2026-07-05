@@ -464,6 +464,15 @@
       "climate_running_requests_count": {
         "name": "Čekající klima-požadavky"
       },
+      "active_warning_lights_count": {
+        "name": "Aktivní výstražné kontrolky"
+      },
+      "last_lock_action": {
+        "name": "Poslední akce zamčení"
+      },
+      "last_lock_action_at": {
+        "name": "Čas poslední akce zamčení"
+      },
       "maintenance_report_captured_at": {
         "name": "Servisní zpráva aktualizována"
       },

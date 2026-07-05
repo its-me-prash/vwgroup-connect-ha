@@ -464,6 +464,15 @@
       "climate_running_requests_count": {
         "name": "Väntande klimatförfrågningar"
       },
+      "active_warning_lights_count": {
+        "name": "Aktiva varningslampor"
+      },
+      "last_lock_action": {
+        "name": "Senaste låsåtgärd"
+      },
+      "last_lock_action_at": {
+        "name": "Tid för senaste låsåtgärd"
+      },
       "maintenance_report_captured_at": {
         "name": "Serviceapport uppdaterad"
       },

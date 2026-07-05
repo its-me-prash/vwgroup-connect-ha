@@ -1675,6 +1675,24 @@ class VehicleData:
     # mirrors sunroof_position_pct. LOW — disabled-by-default diagnostic sensor.
     spoiler_position_pct: int | None = None
 
+    # ── v2.16.0 — volkswagen.de authproxy live-status read-path (BETA) ────────
+    # Written by auth/_website_authproxy.py only (opt-in, read-only channel).
+    # All three back disabled-by-default sensors — the underlying endpoints are
+    # unvalidated live (warninglights/last + transactionhistory), so users opt
+    # in to test. Endpoint recipe cross-checked against rafaelhutter/
+    # ha-volkswagen-connect (MIT); parsers are our own.
+    #
+    # Count of currently-active dashboard warning lights (0 = all OK). Distinct
+    # from the aggregate ``warning_count`` other channels populate. sensor
+    # (MEASUREMENT), diagnostic.
+    active_warning_lights_count: int | None = None
+    # Last CONFIRMED remote lock/unlock COMMAND (not a live lock state — that's
+    # attestation-gated). "lock" / "unlock". sensor (enum), diagnostic.
+    last_lock_action: str | None = None
+    # ISO timestamp of that last lock/unlock command. sensor (TIMESTAMP),
+    # diagnostic.
+    last_lock_action_at: Any | None = None
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to plain dict for coordinator.vehicles storage."""
         from dataclasses import asdict  # noqa: PLC0415

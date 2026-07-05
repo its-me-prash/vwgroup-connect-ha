@@ -38,15 +38,20 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
-## [2.15.13] - unreleased
+## [2.16.0] - unreleased
 
 ### Added
 
 - **Service & oil-change now also show an absolute due-date on EU Data Act cars, not just "in N days."** The portal path already gave you the "next service in 155 days" counter, but the companion "due on <date>" sensors (`service_due_at` / `oil_service_at`) stayed empty on EU-Data-Act vehicles — they only filled in on the brand-native paths. Now the portal path feeds them too, so a dashboard can show the actual date. (No new entities — it populates the sensors that were already there.)
+- **volkswagen.de channel: two new read signals + the car's nickname & plate (beta).** If you use the opt-in volkswagen.de read channel, it now also reports the **number of active dashboard warning lights** and your **last confirmed remote lock/unlock action + time**, and surfaces the vehicle's nickname and licence plate. These ship **disabled by default** — they're beta, hitting live endpoints we haven't broadly validated yet, so enable them if you'd like to help test — and they fail soft: if VW's backend doesn't answer, the sensors just stay "unknown" and never hold up the rest of your data. Want to help validate the channel? See #632.
 
 ### Fixed
 
 - **The optional volkswagen.de read channel no longer quietly drops its session between polls.** That channel's sign-in lapses roughly 30 minutes after login and normal data reads don't keep it alive, while the poll runs every 15 minutes — so on a slow cycle the session could die silently, and the next read would fail (sometimes forcing a re-login with a fresh email code) with nothing to tell you why. The integration now proactively refreshes that session at the start of each cycle, well inside the expiry window, so it stays alive. Best-effort — a failed refresh just falls back to the existing on-demand re-login. (No effect unless you enabled the volkswagen.de channel.)
+
+### Thanks 🙏
+
+None of this happens without the people who file Vehicle Data Scout reports, open issues, send diagnostics + logs, and test on real cars — you're the reason the field coverage and reliability keep improving. Thanks to everyone who fed into this stretch of releases, including @brokkolo @MBrunk85 @PascalFlierman @normand198 @JosefAuer84 @jebeke65 @oh-supra @kotipalvelu @Carbolithos @jwmaas @saxmanio85 @danst0 @StefanSch84 @ravest @bachjessen @VanHynten @daydy16 @tsvyatkov @gudden @jamiegt10 for the recent field-Scout reports, and @CyberChris79 + @Ra72xx for the diagnostics and repros that drove the MBB command-cascade and the duration-parsing fixes. The full roster of everyone who's ever reported here lives in [CONTRIBUTORS.md](CONTRIBUTORS.md).
 
 ## [2.15.12] - 2026-07-04
 

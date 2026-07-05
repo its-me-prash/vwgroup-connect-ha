@@ -1249,6 +1249,37 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:calendar-refresh",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # ── v2.16.0 — volkswagen.de authproxy live-status read-path (BETA) ────────
+    # All three disabled-by-default: the underlying live endpoints
+    # (warninglights/last + transactionhistory) are unvalidated, so the user
+    # opts in to test. Only the authproxy channel populates these fields, so
+    # every other brand/entry leaves them None (phantom-protected below).
+    VagSensorDescription(
+        key="active_warning_lights_count",
+        translation_key="active_warning_lights_count",
+        data_key="active_warning_lights_count",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:car-light-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="last_lock_action",
+        translation_key="last_lock_action",
+        data_key="last_lock_action",
+        icon="mdi:car-key",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="last_lock_action_at",
+        translation_key="last_lock_action_at",
+        data_key="last_lock_action_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     # v2.8.0 quick win C — brake-service due timestamps + preferred-
     # workshop. The parser populates these only when the brand backend
     # actually ships them. Listed in _DATA_PRESENT_REQUIRED below so
@@ -2904,6 +2935,13 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # leave warning_count/warning_messages at None.
     "warning_count",
     "warning_messages",
+    # v2.16.0 — volkswagen.de authproxy live-status read-path (BETA, opt-in).
+    # Only the website-authproxy channel populates these; every other brand/
+    # entry leaves them None so no phantom entity surfaces. (license_plate +
+    # vehicle_nickname are already covered by this set above.)
+    "active_warning_lights_count",
+    "last_lock_action",
+    "last_lock_action_at",
     # v2.10.0 - real-time charge rate, Audi-only firmware exposes it.
     "actual_charge_rate_kw",
     "next_charging_timer_id",
@@ -3305,6 +3343,14 @@ class VagConnectSensor(VagConnectEntity, SensorEntity):
             currency = self._vehicle.get("trip_cost_currency")
             if isinstance(currency, str) and currency:
                 return json_safe_dict({"currency": currency})
+        # v2.16.0 — surface the lock/unlock command timestamp as an attribute on
+        # the last_lock_action sensor (state stays the "lock"/"unlock" string,
+        # same pattern as service_due_in_days above). The dedicated
+        # last_lock_action_at TIMESTAMP sensor still exists for graphing.
+        if self.entity_description.key == "last_lock_action":
+            ts = self._vehicle.get("last_lock_action_at")
+            if isinstance(ts, str) and ts:
+                return json_safe_dict({"last_lock_action_at": ts})
         return None
 
     @property
