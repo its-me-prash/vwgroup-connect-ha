@@ -328,8 +328,12 @@ class WebsiteAuthProxyConnector:
         # form fields (_csrf / relayState / hmac), same as the password step.
         self._otp_html: str | None = None
         # v2.15.13 — monotonic clock of the last PROACTIVE session roll (see
-        # maybe_roll). 0.0 = never → the first poll always rolls.
-        self._last_roll: float = 0.0
+        # maybe_roll). -inf = never → the first poll ALWAYS rolls, regardless of
+        # the process's absolute time.monotonic() value. (0.0 was wrong: on a
+        # freshly-booted host time.monotonic() can be < the debounce interval,
+        # so 0.0 would wrongly debounce the very first roll — CI caught this on a
+        # fresh runner where the tests passed on a long-uptime dev box.)
+        self._last_roll: float = float("-inf")
 
     # ── login ──────────────────────────────────────────────────────────────
 

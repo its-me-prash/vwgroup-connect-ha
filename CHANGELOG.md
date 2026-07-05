@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.16.1] - unreleased
+
+### Fixed
+
+- **volkswagen.de proactive session-roll: the first roll no longer gets wrongly skipped on a freshly-booted host.** The debounce used `0.0` as the "never rolled yet" marker, but `time.monotonic()` can be a small number right after boot — so on a fresh start the very first proactive roll could be debounced away. Uses a proper `-inf` marker now, so the first roll always fires regardless of uptime. (CI caught this on a fresh runner; no user-visible impact, but the guard now behaves as intended.)
+
 ## [2.16.0] - 2026-07-05
 
 ### Added
