@@ -205,6 +205,23 @@ class TestB5MaintenanceLock:
         assert d.service_due_in_days == 155
         assert d.oil_service_km == 1700
         assert d.oil_service_due_in_days == 17
+        # v2.15.13 — the portal path now ALSO feeds the DATE sensors
+        # (service_due_at / oil_service_at) with the same raw int day-offset;
+        # sensor.py converts int→date.today()+N. Before, portal users only got
+        # the int-day counters and the "due on <date>" sensors stayed empty.
+        assert d.service_due_at == 155
+        assert d.oil_service_at == 17
+
+    def test_maintenance_due_date_not_clobbered_if_already_set(self) -> None:
+        # If a brand-native parser already set service_due_at, the portal
+        # reader must not overwrite it (is-None guard).
+        pre = VehicleData(vin="X")
+        pre.service_due_at = "2026-09-01"
+        d = map_dataset_to_vehicle_data(
+            {"maintenance_interval__time_until_inspection": "-155"}, pre,
+        )
+        assert d.service_due_at == "2026-09-01"
+        assert d.service_due_in_days == 155
 
     def test_lock_state(self) -> None:
         assert _map({"lock_state": "locked"}).doors_locked is True

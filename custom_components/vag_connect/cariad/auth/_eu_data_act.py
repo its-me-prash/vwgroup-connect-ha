@@ -1215,14 +1215,26 @@ def map_dataset_to_vehicle_data(
     if svc_km is not None and d.service_km is None:
         d.service_km = -svc_km
     svc_days = _to_int(first("maintenance_interval__time_until_inspection"))
-    if svc_days is not None and d.service_due_in_days is None:
-        d.service_due_in_days = -svc_days
+    if svc_days is not None:
+        if d.service_due_in_days is None:
+            d.service_due_in_days = -svc_days
+        # v2.15.13 — also feed the existing DATE sensor (``service_due_at``)
+        # on the EU-Data-Act path. Until now the portal reader set only the
+        # int day-counter, so portal users saw "in N days" but the absolute
+        # "due on <date>" sensor stayed empty (brand-native paths populate it,
+        # the portal path didn't). Store the raw int day-offset; sensor.py
+        # native_value converts int→``date.today()+N`` (local midnight).
+        if d.service_due_at is None:
+            d.service_due_at = -svc_days
     oil_km = _to_int(first("maintenance_interval_distance_until_oil_change"))
     if oil_km is not None and d.oil_service_km is None:
         d.oil_service_km = -oil_km
     oil_days = _to_int(first("maintenance_interval__time_until_oil_change"))
-    if oil_days is not None and d.oil_service_due_in_days is None:
-        d.oil_service_due_in_days = -oil_days
+    if oil_days is not None:
+        if d.oil_service_due_in_days is None:
+            d.oil_service_due_in_days = -oil_days
+        if d.oil_service_at is None:
+            d.oil_service_at = -oil_days
 
     lock = first("lock_state", "central_lock_state")
     if lock is not None and d.doors_locked is None:
