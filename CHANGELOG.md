@@ -38,11 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
-## [2.16.1] - unreleased
+## [2.16.1] - 2026-07-05
 
 ### Fixed
 
 - **volkswagen.de proactive session-roll: the first roll no longer gets wrongly skipped on a freshly-booted host.** The debounce used `0.0` as the "never rolled yet" marker, but `time.monotonic()` can be a small number right after boot — so on a fresh start the very first proactive roll could be debounced away. Uses a proper `-inf` marker now, so the first roll always fires regardless of uptime. (CI caught this on a fresh runner; no user-visible impact, but the guard now behaves as intended.)
+- **LICENSE is detected as AGPL-3.0 again (HACS validation).** The LICENSE file carried a short custom copyright/intro header above the licence text, which made GitHub's licence detector report "Other" and failed HACS's licence check. The canonical AGPL-3.0-or-later text now stands alone in LICENSE (so it's correctly detected), and the copyright notice + the AGPL §7 attribution/naming terms moved to a new NOTICE file (pointing at the existing ATTRIBUTION.md). **No change to the licence itself** — same AGPL-3.0-or-later, same attribution requirements.
 
 ## [2.16.0] - 2026-07-05
 
