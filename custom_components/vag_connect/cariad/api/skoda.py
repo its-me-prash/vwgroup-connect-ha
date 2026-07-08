@@ -31,6 +31,61 @@ _LOGGER = logging.getLogger(__name__)
 _BASE = "https://mysmob.api.connect.skoda-auto.cz"
 
 
+def parse_skoda_warning_lights(lights: Any) -> dict[str, Any]:
+    """Reduce a Škoda health `warningLights` list to warning flags.
+
+    #649 (source-verified against MySkoda "Vehicle Health Report"):
+    the health endpoint returns ONE entry per monitored category
+    (ENGINE/BRAKES/TYRE/…) whether or not a defect exists — a healthy
+    car still has a full list, each entry with an EMPTY `defects` array.
+    So "list is non-empty" does NOT mean "something is wrong". A category
+    counts as a real warning only when its own `defects` list is
+    non-empty. `warning_active`/`warning_count` therefore key off the set
+    of *defective* categories, not the raw list length. An all-good car
+    (every `defects` empty) yields all-False, matching the app's
+    "All good" state.
+
+    Returns a dict of the fields to assign onto VehicleData; empty dict
+    when there's nothing usable to parse.
+    """
+    if not isinstance(lights, list) or not lights:
+        return {}
+    warning_messages: list[str] = []
+    defective_categories: set[str] = set()
+    for light in lights:
+        if not isinstance(light, dict):
+            continue
+        cat = str(light.get("category", "")).upper()
+        defects = light.get("defects") or []
+        if not isinstance(defects, list) or not defects:
+            # Category present but healthy — no defect. Do NOT flag.
+            continue
+        if cat:
+            defective_categories.add(cat)
+        for defect in defects:
+            if isinstance(defect, dict):
+                text = defect.get("text") or ""
+                if isinstance(text, str) and text:
+                    warning_messages.append(text)
+    result: dict[str, Any] = {
+        "warning_active": bool(defective_categories),
+        "warning_count": len(defective_categories),
+        "warning_engine": "ENGINE" in defective_categories,
+        "warning_brakes": (
+            "BRAKES" in defective_categories or "BRAKE" in defective_categories
+        ),
+        "warning_tyre": (
+            "TYRE" in defective_categories or "TIRE" in defective_categories
+        ),
+        "warning_oil": (
+            "OIL" in defective_categories or "FLUID" in defective_categories
+        ),
+    }
+    if warning_messages:
+        result["warning_messages"] = " | ".join(warning_messages[:5])
+    return result
+
+
 class SkodaClient(CariadBaseClient):
     """Škoda API client."""
 
@@ -1365,32 +1420,21 @@ class SkodaClient(CariadBaseClient):
         # {"capturedAt":"...","mileageInKm":12345,
         #  "warningLights":[{"category":"ENGINE","defects":[{"text":...,
         #    "priority":"HIGH","icon":"..."}]}, ...]}
-        # Each defect lifts to a per-category boolean; concatenated
-        # defect text feeds the cross-brand warning_messages field.
+        # #649: the list carries one entry per monitored category even
+        # when the car is healthy (empty `defects`), so a warning counts
+        # only where its own `defects` list is non-empty. See
+        # parse_skoda_warning_lights.
         if isinstance(health_v1, dict):
-            lights = health_v1.get("warningLights")
-            if isinstance(lights, list) and lights:
-                warning_messages: list[str] = []
-                categories_seen: set[str] = set()
-                for light in lights:
-                    if not isinstance(light, dict):
-                        continue
-                    cat = str(light.get("category", "")).upper()
-                    if cat:
-                        categories_seen.add(cat)
-                    for defect in (light.get("defects") or []):
-                        if isinstance(defect, dict):
-                            text = defect.get("text") or ""
-                            if isinstance(text, str) and text:
-                                warning_messages.append(text)
-                d.warning_active = bool(lights)
-                d.warning_count = len(lights)
-                d.warning_engine = "ENGINE" in categories_seen
-                d.warning_brakes = "BRAKES" in categories_seen or "BRAKE" in categories_seen
-                d.warning_tyre = "TYRE" in categories_seen or "TIRE" in categories_seen
-                d.warning_oil = "OIL" in categories_seen or "FLUID" in categories_seen
-                if warning_messages:
-                    d.warning_messages = " | ".join(warning_messages[:5])
+            warn = parse_skoda_warning_lights(health_v1.get("warningLights"))
+            if warn:
+                d.warning_active = warn["warning_active"]
+                d.warning_count = warn["warning_count"]
+                d.warning_engine = warn["warning_engine"]
+                d.warning_brakes = warn["warning_brakes"]
+                d.warning_tyre = warn["warning_tyre"]
+                d.warning_oil = warn["warning_oil"]
+                if "warning_messages" in warn:
+                    d.warning_messages = warn["warning_messages"]
 
         if isinstance(driving_score, dict):
             # v2.11.0 (myskoda source-verified): the top-level `score`

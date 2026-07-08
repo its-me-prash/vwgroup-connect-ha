@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.16.2] - unreleased
+
+### Fixed
+
+- **Škoda: warning lights no longer read "Problem" on a perfectly healthy car (#649).** Škoda's health endpoint always sends one entry per monitored category (engine, brakes, tyres, oil…) even when nothing's wrong — a healthy category just comes back with an empty defect list. We were treating "the list has entries" as "something's wrong", so on every Škoda all the warning sensors flipped to Problem while the MySkoda app calmly showed "All good". Now a category only counts as a warning when it actually carries a defect, so an all-clear car reads all-clear. Thanks @divanguz-alt for the report and the spot-on root-cause.
+
 ## [2.16.1] - 2026-07-05
 
 ### Fixed
