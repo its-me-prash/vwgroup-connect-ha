@@ -127,6 +127,35 @@ def build_vehicle_images_url(vin: str) -> str:
     )
 
 
+def build_usercapabilities_url(vin: str) -> str:
+    """Per-vehicle capability list (``usercapabilities``). Realm ``vw-de``.
+
+    v2.16.2 (rafaelhutter v0.5.20 parity — GAP 4.1) — the myVolkswagen web app
+    reads the enabled-capabilities set for a car at
+    ``application/json;version=3`` (see ``build_usercapabilities_accept``);
+    the caller must send that Accept. Endpoint/Accept-version cross-checked
+    against rafaelhutter/ha-volkswagen-connect (MIT) website_portal.py:22; the
+    URL builder + parser here are our own. Additive read-only metadata — nothing
+    in the poll path consumes it yet, so activating capability gating on a
+    sole-vw.de entry stays a maintainer decision (it can hide entities).
+    """
+    return build_authproxy_url(
+        f"vehicles/{vin}/usercapabilities",
+        realm=_REALM_WECONNECT,
+        resource_host=_HOST_VCF_LIVE,
+        gdc=_GDC_WCAR,
+    )
+
+
+def build_usercapabilities_accept() -> str:
+    """The versioned Accept the usercapabilities endpoint requires.
+
+    Kept as a named helper (not an inline literal) so the one place that
+    encodes the ``version=3`` contract is testable and reusable.
+    """
+    return "application/json;version=3"
+
+
 # ── relations (VIN + mbbUserId discovery) ─────────────────────────────────────
 @dataclass
 class AuthproxyRelation:
@@ -386,3 +415,46 @@ def primary_image_url(images: list[AuthproxyImage]) -> str | None:
         if (img.view_direction or "").lower() == "front":
             return img.url
     return images[0].url if images else None
+
+
+# ── usercapabilities (GAP 4.1, additive read-only metadata) ───────────────────
+def parse_usercapabilities(raw: Any) -> set[str]:
+    """Parse a ``usercapabilities`` body into the set of enabled capability ids.
+
+    v2.16.2 (rafaelhutter v0.5.20 parity — GAP 4.1). The WeConnect capabilities
+    surface is a ``{"capabilities": [{"id": "...", "status": [...]}...]}`` list;
+    a capability counts as ENABLED when it carries no blocking ``status`` codes
+    (an empty/absent ``status`` = available). Tolerates a bare list body and a
+    flat ``["id", ...]`` list. Pure + defensive: a non-dict/parse-miss yields an
+    empty set — never raises. Nothing in the poll path consumes this yet (see
+    the connector docstring); it exists so the endpoint has read parity and is
+    unit-testable without flipping capability gating on any live entry.
+    """
+    caps: Any
+    if isinstance(raw, dict):
+        caps = raw.get("capabilities")
+    elif isinstance(raw, list):
+        caps = raw
+    else:
+        return set()
+    if not isinstance(caps, list):
+        return set()
+    enabled: set[str] = set()
+    for cap in caps:
+        if isinstance(cap, str):
+            cid = _s(cap)
+            if cid:
+                enabled.add(cid)
+            continue
+        if not isinstance(cap, dict):
+            continue
+        cid = _s(cap.get("id"))
+        if not cid:
+            continue
+        status = cap.get("status")
+        # A capability with any status code(s) is disabled/degraded for this
+        # user (the web app greys it out); no status = available.
+        if isinstance(status, list) and status:
+            continue
+        enabled.add(cid)
+    return enabled

@@ -1028,6 +1028,34 @@ class WebsiteAuthProxyConnector:
         body = await self._get_json(build_relation_detail_url(vin), soft=True)
         return parse_relation_detail(body) if body is not None else None
 
+    async def get_capabilities(self, vin: str) -> set[str]:
+        """Enabled WeConnect capability ids for *vin* (``usercapabilities``).
+
+        v2.16.2 (rafaelhutter v0.5.20 parity — GAP 4.1). Additive, read-only,
+        fail-soft: any 4xx / parse-miss returns an empty set (a transient 5xx is
+        retried inside ``_get_json(soft=True)``); a genuine 401/403/412/428 still
+        propagates so the caller re-logs in. Sends the versioned
+        ``application/json;version=3`` Accept the endpoint requires. Deliberately
+        NOT called from ``get_vehicle_data``/the poll path: our capability filter
+        is best-effort metadata, and auto-gating a sole-vw.de entry on it could
+        hide entities — so wiring it into the entity filter stays a maintainer
+        decision. Exposed here for read parity + explicit opt-in use.
+        """
+        from .._authproxy import (  # noqa: PLC0415
+            build_usercapabilities_accept,
+            build_usercapabilities_url,
+            parse_usercapabilities,
+        )
+
+        body = await self._get_json(
+            build_usercapabilities_url(vin),
+            accept=build_usercapabilities_accept(),
+            soft=True,
+        )
+        if body is None:
+            return set()
+        return parse_usercapabilities(body)
+
     async def get_exterior_images(self, vin: str) -> list[AuthproxyImage]:
         """Exterior render URLs ({url, angle, viewDirection}) for *vin*."""
         from .._authproxy import (  # noqa: PLC0415

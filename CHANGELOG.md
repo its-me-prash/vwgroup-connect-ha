@@ -46,6 +46,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Fixed
 
+- **VW: your car stays alive when the EU Data Act portal has a bad moment.** If you've got a VW EU car set up with the volkswagen.de website channel as a backup on top of the EU Data Act portal, and the portal times out for a poll, we now fall back to the website data for that cycle instead of freezing the entity on its last-known values. Before, a portal hiccup would quietly leave you looking at stale numbers even though volkswagen.de had fresh ones sitting right there. Single-source setups are completely unchanged. And if the website session itself has actually expired, you get a proper re-login prompt rather than silent staleness.
+
 - **Škoda: warning lights no longer read "Problem" on a perfectly healthy car (#649).** Škoda's health endpoint always sends one entry per monitored category (engine, brakes, tyres, oil…) even when nothing's wrong — a healthy category just comes back with an empty defect list. We were treating "the list has entries" as "something's wrong", so on every Škoda all the warning sensors flipped to Problem while the MySkoda app calmly showed "All good". Now a category only counts as a warning when it actually carries a defect, so an all-clear car reads all-clear. Thanks @divanguz-alt for the report and the spot-on root-cause.
 
 ### Thanks 🙏
