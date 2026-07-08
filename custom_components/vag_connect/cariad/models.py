@@ -1284,6 +1284,11 @@ class VehicleData:
     # to a select. Field stays None for non-heat-pump cars.
     heater_source: str | None = None
 
+    # v2.16.2 (#671 audi Q6 Scout) — climatisation mode readback
+    # (``climatisationSettings.value.climatisationMode``, "comfort" in the
+    # wild). Read-only diagnostic; None for cars that don't ship it.
+    climate_mode: str | None = None
+
     # v1.14.0 (#24) — Trip Statistics from CARIAD-BFF
     # ``GET /vehicle/v1/vehicles/{vin}/tripstatistics?type={shortTerm|longTerm}``.
     # Both endpoints return ``{tripDataList: {tripData: [...]}}``; we sort

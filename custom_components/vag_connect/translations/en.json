@@ -833,6 +833,9 @@
       "report_trigger": {
         "name": "Report trigger"
       },
+      "climate_mode": {
+        "name": "Climate mode"
+      },
       "active_target_soc": {
         "name": "Active charge target"
       },

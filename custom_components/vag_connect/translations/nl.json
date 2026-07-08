@@ -833,6 +833,9 @@
       "report_trigger": {
         "name": "Rapport-trigger"
       },
+      "climate_mode": {
+        "name": "Klimaatmodus"
+      },
       "active_target_soc": {
         "name": "Actief laaddoel"
       },

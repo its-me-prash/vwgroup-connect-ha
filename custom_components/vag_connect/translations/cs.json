@@ -833,6 +833,9 @@
       "report_trigger": {
         "name": "Spouštěč hlášení"
       },
+      "climate_mode": {
+        "name": "Režim klimatizace"
+      },
       "active_target_soc": {
         "name": "Aktivní cíl nabíjení"
       },

@@ -833,6 +833,9 @@
       "report_trigger": {
         "name": "Rapportutlösare"
       },
+      "climate_mode": {
+        "name": "Klimatläge"
+      },
       "active_target_soc": {
         "name": "Aktivt laddmål"
       },

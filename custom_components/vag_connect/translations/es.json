@@ -833,6 +833,9 @@
       "report_trigger": {
         "name": "Disparador de informe"
       },
+      "climate_mode": {
+        "name": "Modo de climatización"
+      },
       "active_target_soc": {
         "name": "Objetivo de carga activo"
       },

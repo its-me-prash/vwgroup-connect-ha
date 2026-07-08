@@ -833,6 +833,9 @@
       "report_trigger": {
         "name": "Report-Auslöser"
       },
+      "climate_mode": {
+        "name": "Klimamodus"
+      },
       "active_target_soc": {
         "name": "Aktives Ladeziel"
       },

@@ -833,6 +833,9 @@
       "report_trigger": {
         "name": "Wyzwalacz raportu"
       },
+      "climate_mode": {
+        "name": "Tryb klimatyzacji"
+      },
       "active_target_soc": {
         "name": "Aktywny cel ładowania"
       },

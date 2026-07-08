@@ -43,6 +43,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ### Added
 
 - **New diagnostic sensor: what triggered the last EU Data Act delivery (#636).** On EU Data Act cars there's now a "report trigger" sensor that tells you what kicked off the most recent data report — e.g. a remote request you made, or the car reporting on its own. It ships **disabled by default** (it's diagnostic detail most people won't need), so turn it on if you're curious. Thanks for the field spot.
+- **New diagnostic sensor: which climate mode your car is set to (#671).** Audi and other CARIAD EU cars report a `climatisationMode` setting — "comfort" in the wild — that we already used when *sending* a climate command but never read *back*. There's now a "climate mode" sensor showing the current value. Like the trigger sensor above, it's **disabled by default** and only shows up on cars that actually send the field. Thanks @tsvyatkov for the Scout report.
 
 ### Fixed
 
@@ -52,7 +53,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Thanks 🙏
 
-This release came straight from your field reports. Special thanks to @divanguz-alt (Škoda warning root-cause, #649) and @chrischtili (the `trigger_type` field, #636). And to everyone who filed a Vehicle Data Scout report or bug this cycle — @bachjessen @BalooDK @Drachendiadem @fesch89 @fugazzy @gr6803 @heikone @IanNorthern @janez78 @joostbouten @kaufmannralf @KratosLionXD @Lagaff86 @littlecake @LouisFk @MaFi1504 @Manuel-Hanak @MaTi8383 @MichaelNeys @moltke69 @NevelSavage @Ola-Skallberg @PollenNor @Raymondgijzen @roeleert @Sacha72 @sebastianedse @sotiropoulos123 @Svenruotsi @tolnaiz @torstentosh @wfa001 — even the reports that turn out already-covered help confirm the field mapping is holding up. The full roster of everyone who's ever reported here is in [CONTRIBUTORS.md](CONTRIBUTORS.md).
+This release came straight from your field reports. Special thanks to @divanguz-alt (Škoda warning root-cause, #649), @chrischtili (the `trigger_type` field, #636) and @tsvyatkov (the `climatisationMode` field, #671). And to everyone who filed a Vehicle Data Scout report or bug this cycle — @bachjessen @BalooDK @datenhamster @Drachendiadem @fesch89 @fugazzy @gr6803 @heikone @IanNorthern @janez78 @joostbouten @kaufmannralf @KratosLionXD @Lagaff86 @littlecake @LouisFk @MaFi1504 @Manuel-Hanak @MaTi8383 @MichaelNeys @moltke69 @NevelSavage @Ola-Skallberg @PollenNor @Raymondgijzen @roeleert @Sacha72 @sebastianedse @sotiropoulos123 @Svenruotsi @tolnaiz @torstentosh @wfa001 — even the reports that turn out already-covered help confirm the field mapping is holding up. The full roster of everyone who's ever reported here is in [CONTRIBUTORS.md](CONTRIBUTORS.md).
 
 ## [2.16.1] - 2026-07-05
 

@@ -3296,6 +3296,13 @@ class VWEUClient(CariadBaseClient):
         zrr = v(raw, "climatisation", "climatisationSettings", "value", "zoneRearRightEnabled")
         if isinstance(zrr, bool):
             d.climate_zone_rear_right = zrr
+        # v2.16.2 (#671 audi Q6 Scout) — climatisation MODE readback
+        # ("comfort" in the wild). Same climatisationSettings.value.*
+        # namespace. Read-only diagnostic; data-present gated so cars that
+        # omit it never get a phantom "unknown" entity.
+        cmode = v(raw, "climatisation", "climatisationSettings", "value", "climatisationMode")
+        if isinstance(cmode, str) and cmode:
+            d.climate_mode = cmode
         # Climatisation: ETA in minutes from current to target temperature.
         crt = v(raw, "climatisation", "climatisationStatus", "value", "remainingClimatisationTime_min")
         if isinstance(crt, (int, float)):

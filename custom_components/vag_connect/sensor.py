@@ -2312,6 +2312,17 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # v2.16.2 (#671 audi Q6 Scout) — climatisationSettings.value.climatisationMode
+    # readback (e.g. "comfort"). Diagnostic, disabled-by-default. Data-present
+    # gated so cars that don't ship it never get a phantom "unknown" entity.
+    VagSensorDescription(
+        key="climate_mode",
+        translation_key="climate_mode",
+        data_key="climate_mode",
+        icon="mdi:air-conditioner",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
 
     # v2.15.3 (#518) — EU-Data-Act charging-detail string family. All LOW,
     # diagnostic, disabled-by-default. Data-present gated (see
@@ -2971,6 +2982,9 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "last_alarm_at",
     # v2.0.0 (Big-Bang) — heaterSource (issue #163, ID.x heat-pump only).
     "heater_source",
+    # v2.16.2 (#671) — climatisationMode readback (data-present gated so
+    # cars that don't ship the field never get a phantom "unknown" entity).
+    "climate_mode",
     # v2.1.0 — Skoda climate-ready-at (Scout #186/#188). Field is
     # only populated during active climate run; gating prevents a
     # phantom "unknown" entity for non-Skoda + idle climates.
