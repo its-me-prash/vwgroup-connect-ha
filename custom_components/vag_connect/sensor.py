@@ -2302,6 +2302,16 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # v2.16.2 (#636) — report-delivery trigger enum (ROA/ICL/USM/…). LOW,
+    # disabled-by-default. NOT electric-only (applies to all EU-Data-Act cars).
+    VagSensorDescription(
+        key="report_trigger",
+        translation_key="report_trigger",
+        data_key="report_trigger",
+        icon="mdi:motion-sensor",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
 
     # v2.15.3 (#518) — EU-Data-Act charging-detail string family. All LOW,
     # diagnostic, disabled-by-default. Data-present gated (see
@@ -3069,6 +3079,9 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "lifetime_zero_emission_km",
     "last_trip_zero_emission_km",
     "charger_update_trigger",
+    # v2.16.2 (#636) — report-delivery trigger. EU-Data-Act dialect only;
+    # non-EU-Data-Act channels never ship trigger_type → stays None → no phantom.
+    "report_trigger",
     # v2.15.3 (#518) — EU-Data-Act charging-detail string family. Junk
     # sentinels dropped to None at the parser → single-port cars never get a
     # plug2 entity; non-EU-Data-Act channels never ship the keys → no phantom.

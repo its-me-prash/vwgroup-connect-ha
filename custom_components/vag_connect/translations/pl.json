@@ -830,6 +830,9 @@
       "charger_update_trigger": {
         "name": "Wyzwalacz aktualizacji ładowarki"
       },
+      "report_trigger": {
+        "name": "Wyzwalacz raportu"
+      },
       "active_target_soc": {
         "name": "Aktywny cel ładowania"
       },

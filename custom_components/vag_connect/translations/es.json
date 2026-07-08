@@ -830,6 +830,9 @@
       "charger_update_trigger": {
         "name": "Disparador actualización cargador"
       },
+      "report_trigger": {
+        "name": "Disparador de informe"
+      },
       "active_target_soc": {
         "name": "Objetivo de carga activo"
       },

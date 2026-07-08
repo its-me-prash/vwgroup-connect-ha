@@ -1491,6 +1491,12 @@ def map_dataset_to_vehicle_data(
     _bcut = first("last_battery_charger_update_trigger")
     if _bcut is not None and d.charger_update_trigger is None:
         d.charger_update_trigger = _shorten_enum(_bcut)
+    # v2.16.2 (#636) — report-delivery trigger enum (ROA/ICL/USM/ICL_REMOTE/
+    # ROA_REMOTE, "Trigger of the call service"). dict-confirmed, LOW; fail-soft
+    # (only mapped when first() finds it), disabled-by-default at the entity.
+    _trig = first("trigger_type")
+    if _trig is not None and d.report_trigger is None:
+        d.report_trigger = _shorten_enum(_trig)
     # NOTE: scope_potential_total (PPE-only, opaque) and echo (constant
     # heartbeat token) are intentionally NOT mapped — they stay Scout-visible
     # in raw_unmapped_fields (no first() call → no false signal).

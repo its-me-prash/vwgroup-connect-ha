@@ -830,6 +830,9 @@
       "charger_update_trigger": {
         "name": "Auslöser Ladegerät-Update"
       },
+      "report_trigger": {
+        "name": "Report-Auslöser"
+      },
       "active_target_soc": {
         "name": "Aktives Ladeziel"
       },

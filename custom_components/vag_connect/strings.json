@@ -959,6 +959,9 @@
       "charger_update_trigger": {
         "name": "Charger update trigger"
       },
+      "report_trigger": {
+        "name": "Report trigger"
+      },
       "active_target_soc": {
         "name": "Active charge target"
       },

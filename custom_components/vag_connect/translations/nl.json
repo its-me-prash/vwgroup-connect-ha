@@ -830,6 +830,9 @@
       "charger_update_trigger": {
         "name": "Trigger lader-update"
       },
+      "report_trigger": {
+        "name": "Rapport-trigger"
+      },
       "active_target_soc": {
         "name": "Actief laaddoel"
       },

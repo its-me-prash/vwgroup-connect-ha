@@ -830,6 +830,9 @@
       "charger_update_trigger": {
         "name": "Spouštěč aktualizace nabíječky"
       },
+      "report_trigger": {
+        "name": "Spouštěč hlášení"
+      },
       "active_target_soc": {
         "name": "Aktivní cíl nabíjení"
       },

@@ -1550,6 +1550,10 @@ class VehicleData:
     # Trigger info about the last battery-charger update (string, e.g. "other").
     # LOW — disabled-by-default. sensor, diagnostic.
     charger_update_trigger: str | None = None
+    # v2.16.2 (#636) — report-delivery trigger enum (ROA/ICL/USM/ICL_REMOTE/
+    # ROA_REMOTE, "Trigger of the call service"). LOW — disabled-by-default.
+    # sensor, diagnostic. Applies to all EU-Data-Act cars (not electric-only).
+    report_trigger: str | None = None
 
     # v2.15.3 (#518) — EU-Data-Act charging-detail string family. All
     # dict-confirmed type=string (no enum list in the dict). LOW —

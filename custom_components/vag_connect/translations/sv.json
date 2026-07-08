@@ -830,6 +830,9 @@
       "charger_update_trigger": {
         "name": "Utlösare laddaruppdatering"
       },
+      "report_trigger": {
+        "name": "Rapportutlösare"
+      },
       "active_target_soc": {
         "name": "Aktivt laddmål"
       },

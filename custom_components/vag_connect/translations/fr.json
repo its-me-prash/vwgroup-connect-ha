@@ -830,6 +830,9 @@
       "charger_update_trigger": {
         "name": "Déclencheur mise à jour chargeur"
       },
+      "report_trigger": {
+        "name": "Déclencheur de rapport"
+      },
       "active_target_soc": {
         "name": "Objectif de charge actif"
       },
