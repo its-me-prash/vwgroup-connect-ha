@@ -24,6 +24,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding on this rep
 - @caraar12345
 - @Carbolithos
 - @Chr1sDub
+- @chrischtili
 - @christianmhz
 - @clipse2004
 - @ColinSainsbury
@@ -37,7 +38,9 @@ Everyone below has reported an issue or a Vehicle Data Scout finding on this rep
 - @DeruytterA
 - @detlefh68
 - @digitaldex
+- @divanguz-alt
 - @DnnsJp74
+- @Drachendiadem
 - @drakarr1
 - @durcak
 - @EcksteinU
@@ -45,7 +48,9 @@ Everyone below has reported an issue or a Vehicle Data Scout finding on this rep
 - @eismarkt
 - @ErikSiemens
 - @Exilim77
+- @fesch89
 - @Fredi69
+- @fugazzy
 - @gardineroliver-maker
 - @GeraldMalits
 - @Gerhard2808
@@ -53,17 +58,21 @@ Everyone below has reported an issue or a Vehicle Data Scout finding on this rep
 - @gleeballs
 - @gnusd
 - @goncal
+- @gr6803
 - @gudden
 - @HaaseJ64
 - @heidle78
+- @heikone
 - @hnnweb
 - @horztisgreat34
 - @hSoubry
+- @IanNorthern
 - @ichwars
 - @icornish72
 - @indigomejor
 - @j4x5mgq94b-commits
 - @jamiegt10
+- @janez78
 - @jebeke65
 - @jefft4
 - @joostbouten
@@ -72,6 +81,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding on this rep
 - @jwaeles
 - @jwmaas
 - @kaledii
+- @kaufmannralf
 - @Killerrio
 - @Kilowatt-W
 - @KimmoT727
@@ -79,15 +89,22 @@ Everyone below has reported an issue or a Vehicle Data Scout finding on this rep
 - @KnappeP
 - @kocher
 - @kotipalvelu
+- @KratosLionXD
 - @kriswillems2490
 - @krojidlo
 - @KrzysztofKazubski
+- @Lagaff86
 - @larrybarry3003
+- @littlecake
+- @LouisFk
 - @Lukas2069
 - @m3gg3
+- @MaFi1504
 - @manentw
+- @Manuel-Hanak
 - @martijnve
 - @MathiasOxy
+- @MaTi8383
 - @Mattheisen87
 - @matthias0304
 - @mattt3
@@ -96,6 +113,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding on this rep
 - @mdresen
 - @Mettchen
 - @mheimlich
+- @MichaelNeys
 - @MichaR2112
 - @microcens
 - @migendi
@@ -109,11 +127,14 @@ Everyone below has reported an issue or a Vehicle Data Scout finding on this rep
 - @nekas123
 - @neoscaler
 - @neumanntv
+- @NevelSavage
 - @normand198
 - @oh-supra
+- @Ola-Skallberg
 - @PascalFlierman
 - @Phoenix-DH
 - @PoliMalo
+- @PollenNor
 - @PoPcornKRISs
 - @pugnoxi
 - @r1150gs
@@ -122,32 +143,42 @@ Everyone below has reported an issue or a Vehicle Data Scout finding on this rep
 - @Ragithubma02
 - @RaimondB
 - @ravest
+- @Raymondgijzen
 - @rborkenhagen
 - @RichardL6
 - @Richardvp73
+- @Rizencip
 - @rkozlik
 - @rmalbrecht
 - @Roald1H
 - @roberttco
 - @rocksandclouds
+- @roeleert
+- @Sacha72
 - @Sahiyandev
 - @saxmanio85
+- @sebastianedse
 - @shaarkys
 - @skornehl
 - @SniperWCW
+- @sotiropoulos123
 - @Spartacus68
 - @StefanBW1984
 - @StefanSch84
 - @steven-r
 - @StevenLies
+- @Svenruotsi
 - @telekom-theinze
 - @Thatshoulddo
 - @thomas6779
 - @thomasgaisboeck
 - @THP2410
+- @tolnaiz
+- @torstentosh
 - @tritanium73
 - @tsvyatkov
 - @VanHynten
+- @wfa001
 - @whaak58
 - @zapadee
 - @zarengagmbh
@@ -155,4 +186,4 @@ Everyone below has reported an issue or a Vehicle Data Scout finding on this rep
 
 ---
 
-_Maintainer: @its-me-prash. Want to help test the two-way (MBB) or the volkswagen.de read channel? See the open "testers wanted" issues._
+_Maintainer: @its-me-prash. Want to help test the two-way (MBB), the volkswagen.de read channel, or a brand we can't reach? See the open "testers wanted" issues._
