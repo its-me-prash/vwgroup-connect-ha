@@ -44,6 +44,11 @@ def _vw_client():
     client = VWEUClient.__new__(VWEUClient)
     # _parse_status accesses _vehicle_metadata.
     client._vehicle_metadata = {}
+    # v2.15.12 (#584 follow-up) — command_start/stop_aux_heating now consult
+    # _mbb_command_target() (which reads self._tokens) to avoid leaking an MBB
+    # bearer to the CARIAD BFF. A real client always has _tokens; this bare
+    # __new__ mock is a non-MBB (BFF) entry, so give it a None token set.
+    client._tokens = None
     return client
 
 

@@ -464,6 +464,15 @@
       "climate_running_requests_count": {
         "name": "Väntande klimatförfrågningar"
       },
+      "active_warning_lights_count": {
+        "name": "Aktiva varningslampor"
+      },
+      "last_lock_action": {
+        "name": "Senaste låsåtgärd"
+      },
+      "last_lock_action_at": {
+        "name": "Tid för senaste låsåtgärd"
+      },
       "maintenance_report_captured_at": {
         "name": "Serviceapport uppdaterad"
       },
@@ -821,6 +830,12 @@
       "charger_update_trigger": {
         "name": "Utlösare laddaruppdatering"
       },
+      "report_trigger": {
+        "name": "Rapportutlösare"
+      },
+      "climate_mode": {
+        "name": "Klimatläge"
+      },
       "active_target_soc": {
         "name": "Aktivt laddmål"
       },
@@ -1048,6 +1063,9 @@
       },
       "sunroof_position_pct": {
         "name": "Soltakets position"
+      },
+      "spoiler_position_pct": {
+        "name": "Spoilerposition"
       }
     },
     "binary_sensor": {

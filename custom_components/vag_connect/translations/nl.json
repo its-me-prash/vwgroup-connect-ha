@@ -464,6 +464,15 @@
       "climate_running_requests_count": {
         "name": "Klimaatverzoeken in behandeling"
       },
+      "active_warning_lights_count": {
+        "name": "Actieve waarschuwingslampjes"
+      },
+      "last_lock_action": {
+        "name": "Laatste vergrendelingsactie"
+      },
+      "last_lock_action_at": {
+        "name": "Tijd laatste vergrendeling"
+      },
       "maintenance_report_captured_at": {
         "name": "Onderhoudsrapport bijgewerkt"
       },
@@ -821,6 +830,12 @@
       "charger_update_trigger": {
         "name": "Trigger lader-update"
       },
+      "report_trigger": {
+        "name": "Rapport-trigger"
+      },
+      "climate_mode": {
+        "name": "Klimaatmodus"
+      },
       "active_target_soc": {
         "name": "Actief laaddoel"
       },
@@ -1048,6 +1063,9 @@
       },
       "sunroof_position_pct": {
         "name": "Schuifdakpositie"
+      },
+      "spoiler_position_pct": {
+        "name": "Spoilerpositie"
       }
     },
     "binary_sensor": {

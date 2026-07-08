@@ -470,6 +470,15 @@
       "climate_running_requests_count": {
         "name": "Klima-Anfragen offen"
       },
+      "active_warning_lights_count": {
+        "name": "Aktive Warnleuchten"
+      },
+      "last_lock_action": {
+        "name": "Letzte Verriegelungsaktion"
+      },
+      "last_lock_action_at": {
+        "name": "Zeitpunkt letzte Verriegelung"
+      },
       "maintenance_report_captured_at": {
         "name": "Wartungs-Report aktualisiert"
       },
@@ -821,6 +830,12 @@
       "charger_update_trigger": {
         "name": "Auslöser Ladegerät-Update"
       },
+      "report_trigger": {
+        "name": "Report-Auslöser"
+      },
+      "climate_mode": {
+        "name": "Klimamodus"
+      },
       "active_target_soc": {
         "name": "Aktives Ladeziel"
       },
@@ -1048,6 +1063,9 @@
       },
       "sunroof_position_pct": {
         "name": "Schiebedach-Position"
+      },
+      "spoiler_position_pct": {
+        "name": "Spoiler-Position"
       }
     },
     "binary_sensor": {

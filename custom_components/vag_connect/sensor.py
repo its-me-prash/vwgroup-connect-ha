@@ -1249,6 +1249,37 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:calendar-refresh",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # ── v2.16.0 — volkswagen.de authproxy live-status read-path (BETA) ────────
+    # All three disabled-by-default: the underlying live endpoints
+    # (warninglights/last + transactionhistory) are unvalidated, so the user
+    # opts in to test. Only the authproxy channel populates these fields, so
+    # every other brand/entry leaves them None (phantom-protected below).
+    VagSensorDescription(
+        key="active_warning_lights_count",
+        translation_key="active_warning_lights_count",
+        data_key="active_warning_lights_count",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:car-light-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="last_lock_action",
+        translation_key="last_lock_action",
+        data_key="last_lock_action",
+        icon="mdi:car-key",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="last_lock_action_at",
+        translation_key="last_lock_action_at",
+        data_key="last_lock_action_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     # v2.8.0 quick win C — brake-service due timestamps + preferred-
     # workshop. The parser populates these only when the brand backend
     # actually ships them. Listed in _DATA_PRESENT_REQUIRED below so
@@ -2271,6 +2302,27 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # v2.16.2 (#636) — report-delivery trigger enum (ROA/ICL/USM/…). LOW,
+    # disabled-by-default. NOT electric-only (applies to all EU-Data-Act cars).
+    VagSensorDescription(
+        key="report_trigger",
+        translation_key="report_trigger",
+        data_key="report_trigger",
+        icon="mdi:motion-sensor",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # v2.16.2 (#671 audi Q6 Scout) — climatisationSettings.value.climatisationMode
+    # readback (e.g. "comfort"). Diagnostic, disabled-by-default. Data-present
+    # gated so cars that don't ship it never get a phantom "unknown" entity.
+    VagSensorDescription(
+        key="climate_mode",
+        translation_key="climate_mode",
+        data_key="climate_mode",
+        icon="mdi:air-conditioner",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
 
     # v2.15.3 (#518) — EU-Data-Act charging-detail string family. All LOW,
     # diagnostic, disabled-by-default. Data-present gated (see
@@ -2734,6 +2786,18 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # ── v2.15.11 (#614) — spoiler POSITION (%; 0=closed). Distinct from the
+    # spoiler_open STATE. LOW — diagnostic, disabled-by-default.
+    VagSensorDescription(
+        key="spoiler_position_pct",
+        translation_key="spoiler_position_pct",
+        data_key="spoiler_position_pct",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:airplane-landing",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
 )
 
 # Sensor keys that read from coordinator helpers instead of the per-vehicle
@@ -2892,6 +2956,13 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # leave warning_count/warning_messages at None.
     "warning_count",
     "warning_messages",
+    # v2.16.0 — volkswagen.de authproxy live-status read-path (BETA, opt-in).
+    # Only the website-authproxy channel populates these; every other brand/
+    # entry leaves them None so no phantom entity surfaces. (license_plate +
+    # vehicle_nickname are already covered by this set above.)
+    "active_warning_lights_count",
+    "last_lock_action",
+    "last_lock_action_at",
     # v2.10.0 - real-time charge rate, Audi-only firmware exposes it.
     "actual_charge_rate_kw",
     "next_charging_timer_id",
@@ -2911,6 +2982,9 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "last_alarm_at",
     # v2.0.0 (Big-Bang) — heaterSource (issue #163, ID.x heat-pump only).
     "heater_source",
+    # v2.16.2 (#671) — climatisationMode readback (data-present gated so
+    # cars that don't ship the field never get a phantom "unknown" entity).
+    "climate_mode",
     # v2.1.0 — Skoda climate-ready-at (Scout #186/#188). Field is
     # only populated during active climate run; gating prevents a
     # phantom "unknown" entity for non-Skoda + idle climates.
@@ -3019,6 +3093,9 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "lifetime_zero_emission_km",
     "last_trip_zero_emission_km",
     "charger_update_trigger",
+    # v2.16.2 (#636) — report-delivery trigger. EU-Data-Act dialect only;
+    # non-EU-Data-Act channels never ship trigger_type → stays None → no phantom.
+    "report_trigger",
     # v2.15.3 (#518) — EU-Data-Act charging-detail string family. Junk
     # sentinels dropped to None at the parser → single-port cars never get a
     # plug2 entity; non-EU-Data-Act channels never ship the keys → no phantom.
@@ -3081,6 +3158,9 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # v2.15.5 (#544) — sunroof motor hood 1 position. EU-Data-Act dialect only;
     # vehicles/channels without the field stay None → no phantom.
     "sunroof_position_pct",
+    # v2.15.11 (#614) — spoiler position. EU-Data-Act dialect only; vehicles/
+    # channels without the field stay None → no phantom.
+    "spoiler_position_pct",
 })
 
 # v1.14.0 (#24) — Trip Statistics is brand-restricted at the API level
@@ -3290,6 +3370,14 @@ class VagConnectSensor(VagConnectEntity, SensorEntity):
             currency = self._vehicle.get("trip_cost_currency")
             if isinstance(currency, str) and currency:
                 return json_safe_dict({"currency": currency})
+        # v2.16.0 — surface the lock/unlock command timestamp as an attribute on
+        # the last_lock_action sensor (state stays the "lock"/"unlock" string,
+        # same pattern as service_due_in_days above). The dedicated
+        # last_lock_action_at TIMESTAMP sensor still exists for graphing.
+        if self.entity_description.key == "last_lock_action":
+            ts = self._vehicle.get("last_lock_action_at")
+            if isinstance(ts, str) and ts:
+                return json_safe_dict({"last_lock_action_at": ts})
         return None
 
     @property

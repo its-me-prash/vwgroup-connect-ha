@@ -30,14 +30,20 @@ changes behaviour for any other mode/brand.
 We reuse the Auth0 form/cookie/MFA mechanics from ``idk.py`` and the
 form-field/parse helpers from ``_eu_data_act.py`` rather than re-deriving
 them. Endpoint paths and response field names were cross-checked against the
-community VW website-portal connector (rafaelhutter/ha-volkswagen-connect);
-the parser below is our own.
+community VW website-portal connector (rafaelhutter/ha-volkswagen-connect,
+MIT); the parser below is our own. v2.16.0 extends that cross-check to the
+live-status read recipe: the shared ``traceId`` + ``Accept-Language: de-DE``
+headers, the ``gdc=myvw-wcar-prod`` + ``resourceHost=myvw-vcf-prod`` query
+pair, the ``len(warningLights)`` warning-count, and the ``transactionhistory``
+``remotelockunlock`` + ``actionSuccess`` newest-first lock/unlock logic.
 """
 from __future__ import annotations
 
 import asyncio
 import logging
 import re
+import time
+import uuid
 from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlparse
 
@@ -51,6 +57,7 @@ from ._eu_data_act import _login_fields, _login_error, _resolve_action
 if TYPE_CHECKING:
     from .._authproxy import (
         AuthproxyImage,
+        AuthproxyRelation,
         AuthproxyRelations,
         AuthproxyVehicleInfo,
     )
@@ -111,6 +118,18 @@ _RETRY_DELAYS = (3.0, 6.0)
 # 412 Precondition Failed / 428 Precondition Required (the proxy's own
 # "your session is no longer valid" signal). Treat all four as "re-login".
 _AUTH_FAIL_STATUSES = frozenset({401, 403, 412, 428})
+
+# v2.15.13 — PROACTIVE session-roll debounce. The vw.de authproxy session's
+# downstream tokens expire ~30 min after the last login (our own
+# ``sessionTimeout=1800``) and are NOT renewed by data reads, and the identity
+# SSO behind the silent refresh lapses if it isn't exercised. The poll cadence
+# is ~15 min, so on a slow/aliased cycle the SSO can die between polls; the NEXT
+# read then eats a guaranteed auth-fail, and if the identity twin also lapsed it
+# forces a full re-OTP (re-add). Rolling the session PROACTIVELY each cycle —
+# well inside the 30-min window — keeps it alive; the debounce stops a multi-VIN
+# poll from re-rolling within the same cycle. (This is a silent-degradation bug:
+# the user just sees stale data on our #1 read-path hedge and files no issue.)
+_PROACTIVE_ROLL_INTERVAL_S = 600.0
 
 # v2.14.9 — cookie persistence spans BOTH hosts: the portal session cookies on
 # www.volkswagen.de AND the ``auth0`` SSO cookie on identity.vwgroup.io. The
@@ -308,6 +327,13 @@ class WebsiteAuthProxyConnector:
         # The email-challenge page HTML — parsed in submit_otp for its hidden
         # form fields (_csrf / relayState / hmac), same as the password step.
         self._otp_html: str | None = None
+        # v2.15.13 — monotonic clock of the last PROACTIVE session roll (see
+        # maybe_roll). -inf = never → the first poll ALWAYS rolls, regardless of
+        # the process's absolute time.monotonic() value. (0.0 was wrong: on a
+        # freshly-booted host time.monotonic() can be < the debounce interval,
+        # so 0.0 would wrongly debounce the very first roll — CI caught this on a
+        # fresh runner where the tests passed on a long-uptime dev box.)
+        self._last_roll: float = float("-inf")
 
     # ── login ──────────────────────────────────────────────────────────────
 
@@ -333,6 +359,12 @@ class WebsiteAuthProxyConnector:
         headers = {
             "User-Agent": _USER_AGENT,
             "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
+            # Per-request trace id. The myVolkswagen web app sends one on every
+            # authproxy read, and some live-status endpoints (warninglights/last)
+            # 400 without it. Harmless on the endpoints that ignore it, so it goes
+            # on unconditionally. (Header recipe cross-checked against
+            # rafaelhutter/ha-volkswagen-connect (MIT) website_portal.py:283.)
+            "traceId": uuid.uuid4().hex,
         }
         # Double-submit CSRF: echo the csrf_token cookie into the header on every
         # request, or the authproxy rejects reads (the reads silently returned
@@ -591,6 +623,35 @@ class WebsiteAuthProxyConnector:
         raise AuthenticationError(
             f"Website authproxy: refresh did not land on the portal ({landed[:80]})"
         )
+
+    async def maybe_roll(self, *, force: bool = False) -> None:
+        """v2.15.13 — PROACTIVELY roll the SSO session before it silently lapses.
+
+        Called at the top of each poll cycle's authproxy reads. Debounced to
+        ``_PROACTIVE_ROLL_INTERVAL_S`` so a multi-VIN poll rolls at most once per
+        window. Best-effort: a failed roll NEVER breaks the poll — the reactive
+        ``refresh()`` inside ``get_status``/``get_vehicles`` remains the safety
+        net. See ``_PROACTIVE_ROLL_INTERVAL_S`` for why this exists (silent SSO
+        death on our #1 read-path hedge). No-op until the first successful login
+        (``logged_in``) so we never roll a session that was never established.
+        """
+        if not self.logged_in:
+            return
+        now = time.monotonic()
+        if not force and (now - self._last_roll) < _PROACTIVE_ROLL_INTERVAL_S:
+            return
+        self._last_roll = now
+        try:
+            await self.refresh()
+        except Exception:  # noqa: BLE001
+            # A proactive roll is opportunistic: if it fails (transient network,
+            # or a genuinely-dead SSO), swallow it and let the subsequent read's
+            # reactive refresh()/re-login handle it. Never propagate from here.
+            _LOGGER.debug(
+                "Website authproxy: proactive session roll skipped (will rely on"
+                " the reactive path this cycle)",
+                exc_info=True,
+            )
 
     def _finalise_login(self, landed_url: str) -> None:
         """Mark logged-in iff we ended back on the volkswagen.de host."""
@@ -900,6 +961,101 @@ class WebsiteAuthProxyConnector:
             info = parse_vehicle_data(data, info)
         return info
 
+    async def get_warning_lights(self, vin: str) -> int | None:
+        """Count of currently-active dashboard warning lights for *vin*.
+
+        BETA, fail-soft: any 4xx / parse-miss / empty body returns None (a
+        transient 5xx is retried inside ``_get_json(soft=True)``). An empty
+        ``warningLights`` list is a valid "all OK ⇒ 0" reading (not None). A
+        genuine 401/403/412/428 still propagates so the caller re-logs in.
+        ``Accept-Language: de-DE`` is load-bearing here (the endpoint 400s
+        without a language) — sent by ``_headers()`` on every read.
+        """
+        from .._authproxy import (  # noqa: PLC0415
+            build_warninglights_url,
+            parse_warning_lights,
+        )
+
+        body = await self._get_json(
+            build_warninglights_url(vin), accept="*/*", soft=True
+        )
+        if body is None:
+            return None
+        count = parse_warning_lights(body)
+        _LOGGER.debug(
+            "Website authproxy warninglights %s → %s active", vin[-6:], count
+        )
+        return count
+
+    async def get_last_lock_action(self, vin: str) -> tuple[str, str | None] | None:
+        """Last confirmed remote lock/unlock command for *vin*.
+
+        Returns ``(action, iso_timestamp_or_None)`` where action is
+        ``"lock"``/``"unlock"`` — the newest ``actionSuccess`` command, else
+        the newest overall. BETA, fail-soft: any 4xx / parse-miss / no lock
+        message returns None (401/403/412/428 still propagates). This is the
+        command HISTORY, not a live lock state (that's attestation-gated).
+        """
+        from .._authproxy import (  # noqa: PLC0415
+            build_transactionhistory_url,
+            parse_lock_history,
+        )
+
+        body = await self._get_json(
+            build_transactionhistory_url(vin), accept="*/*", soft=True
+        )
+        if body is None:
+            return None
+        result = parse_lock_history(body)
+        if result is not None:
+            _LOGGER.debug(
+                "Website authproxy lock history %s → last %s @ %s",
+                vin[-6:], result[0], result[1],
+            )
+        return result
+
+    async def get_relation_detail(self, vin: str) -> AuthproxyRelation | None:
+        """Per-VIN relation detail (nickname + plate) via the SINGULAR endpoint.
+
+        Fallback for accounts whose LIST relations omit nickname/plate — the
+        common path threads both from ``get_relations()`` already. Fail-soft.
+        """
+        from .._authproxy import (  # noqa: PLC0415
+            build_relation_detail_url,
+            parse_relation_detail,
+        )
+
+        body = await self._get_json(build_relation_detail_url(vin), soft=True)
+        return parse_relation_detail(body) if body is not None else None
+
+    async def get_capabilities(self, vin: str) -> set[str]:
+        """Enabled WeConnect capability ids for *vin* (``usercapabilities``).
+
+        v2.16.2 (rafaelhutter v0.5.20 parity — GAP 4.1). Additive, read-only,
+        fail-soft: any 4xx / parse-miss returns an empty set (a transient 5xx is
+        retried inside ``_get_json(soft=True)``); a genuine 401/403/412/428 still
+        propagates so the caller re-logs in. Sends the versioned
+        ``application/json;version=3`` Accept the endpoint requires. Deliberately
+        NOT called from ``get_vehicle_data``/the poll path: our capability filter
+        is best-effort metadata, and auto-gating a sole-vw.de entry on it could
+        hide entities — so wiring it into the entity filter stays a maintainer
+        decision. Exposed here for read parity + explicit opt-in use.
+        """
+        from .._authproxy import (  # noqa: PLC0415
+            build_usercapabilities_accept,
+            build_usercapabilities_url,
+            parse_usercapabilities,
+        )
+
+        body = await self._get_json(
+            build_usercapabilities_url(vin),
+            accept=build_usercapabilities_accept(),
+            soft=True,
+        )
+        if body is None:
+            return set()
+        return parse_usercapabilities(body)
+
     async def get_exterior_images(self, vin: str) -> list[AuthproxyImage]:
         """Exterior render URLs ({url, angle, viewDirection}) for *vin*."""
         from .._authproxy import (  # noqa: PLC0415
@@ -911,12 +1067,20 @@ class WebsiteAuthProxyConnector:
         return parse_vehicle_images(body) if body is not None else []
 
     async def get_vehicle_data(self, vin: str) -> VehicleData:
-        """Fetch charging + maintenance for *vin* and map to ``VehicleData``.
+        """Fetch charging + maintenance + live-status for *vin* → ``VehicleData``.
 
-        Both reads are ``soft`` — a transient backend hiccup on either one
-        leaves the corresponding fields unset instead of failing the whole
-        poll. A real 401/403 propagates so the caller re-logs in. The vehicle
-        is marked online once any data block parsed successfully.
+        Every read is ``soft`` / fail-soft — a transient backend hiccup or a
+        parse-miss on any one leaves the corresponding fields unset instead of
+        failing the whole poll. A real 401/403/412/428 propagates so the caller
+        re-logs in. The vehicle is marked online once any data block parsed
+        successfully.
+
+        v2.16.0 (BETA, opt-in) — three additive read-path fields, all
+        disabled-by-default at the sensor layer (unvalidated live endpoints):
+          * ``active_warning_lights_count`` ← warninglights/last count
+          * ``last_lock_action`` / ``last_lock_action_at`` ← transactionhistory
+          * ``vehicle_nickname`` / ``license_plate`` ← relations parse
+        Each is wrapped so its own failure can never break the poll.
         """
         d = VehicleData(vin=vin)
         got_data = False
@@ -938,6 +1102,60 @@ class WebsiteAuthProxyConnector:
         if isinstance(maintenance, dict):
             map_maintenance_to_vehicle_data(maintenance, d)
             got_data = True
+
+        # v2.16.0 — active dashboard warning-lights count (BETA, fail-soft).
+        try:
+            count = await self.get_warning_lights(vin)
+            if count is not None:
+                d.active_warning_lights_count = count
+                got_data = True
+        except AuthenticationError:
+            raise
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug(
+                "Website authproxy warninglights read skipped for %s", vin[-6:],
+                exc_info=True,
+            )
+
+        # v2.16.0 — last confirmed remote lock/unlock command (BETA, fail-soft).
+        try:
+            lock = await self.get_last_lock_action(vin)
+            if lock is not None:
+                d.last_lock_action, d.last_lock_action_at = lock
+                got_data = True
+        except AuthenticationError:
+            raise
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug(
+                "Website authproxy lock-history read skipped for %s", vin[-6:],
+                exc_info=True,
+            )
+
+        # v2.16.0 — nickname + licence plate from the relations LIST parse
+        # (already parsed in _authproxy.py). Best-effort: a miss leaves both
+        # fields None. Falls back to the singular per-VIN relation detail only
+        # if the list omits this VIN.
+        try:
+            rels = await self.get_relations()
+            match = None
+            if rels is not None:
+                match = next(
+                    (v for v in rels.vehicles if v.vin == vin), None
+                )
+            if match is None:
+                match = await self.get_relation_detail(vin)
+            if match is not None:
+                if match.nickname:
+                    d.vehicle_nickname = match.nickname
+                if match.license_plate:
+                    d.license_plate = match.license_plate
+        except AuthenticationError:
+            raise
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug(
+                "Website authproxy relation enrich skipped for %s", vin[-6:],
+                exc_info=True,
+            )
 
         if got_data:
             d.connection_state = "online"

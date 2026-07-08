@@ -464,6 +464,15 @@
       "climate_running_requests_count": {
         "name": "Oczekujące żądania klimatyzacji"
       },
+      "active_warning_lights_count": {
+        "name": "Aktywne kontrolki ostrzegawcze"
+      },
+      "last_lock_action": {
+        "name": "Ostatnia akcja blokady"
+      },
+      "last_lock_action_at": {
+        "name": "Czas ostatniej blokady"
+      },
       "maintenance_report_captured_at": {
         "name": "Raport serwisowy zaktualizowany"
       },
@@ -821,6 +830,12 @@
       "charger_update_trigger": {
         "name": "Wyzwalacz aktualizacji ładowarki"
       },
+      "report_trigger": {
+        "name": "Wyzwalacz raportu"
+      },
+      "climate_mode": {
+        "name": "Tryb klimatyzacji"
+      },
       "active_target_soc": {
         "name": "Aktywny cel ładowania"
       },
@@ -1048,6 +1063,9 @@
       },
       "sunroof_position_pct": {
         "name": "Pozycja dachu przesuwnego"
+      },
+      "spoiler_position_pct": {
+        "name": "Pozycja spojlera"
       }
     },
     "binary_sensor": {

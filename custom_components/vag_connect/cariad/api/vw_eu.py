@@ -147,6 +147,9 @@ class VWEUClient(CariadBaseClient):
         # portal below; dormant (proxy is None) for every other entry.
         web = getattr(self, "_website_proxy", None)
         if web is not None:
+            # v2.15.13 — proactively roll the SSO before it silently lapses
+            # (debounced; never raises). Keeps our #1 read-path hedge alive.
+            await web.maybe_roll()
             try:
                 web_vins: list[str] = await web.list_vehicle_vins()
             except AuthenticationError:
@@ -428,6 +431,9 @@ class VWEUClient(CariadBaseClient):
         # Dormant (proxy is None) for every other entry.
         web = getattr(self, "_website_proxy", None)
         if web is not None:
+            # v2.15.13 — proactively roll the SSO before it silently lapses
+            # (debounced to once per ~10 min; best-effort, never raises).
+            await web.maybe_roll()
             try:
                 web_data: VehicleData = await web.get_vehicle_data(vin)
             except AuthenticationError:
@@ -1203,7 +1209,7 @@ class VWEUClient(CariadBaseClient):
             headers.update(extra)
         return headers
 
-    async def _mbb_ensure_fresh(self) -> None:
+    async def _mbb_ensure_fresh(self, *, for_command: bool = False) -> None:
         """b11 — PROACTIVELY refresh the durable MBB bearer before it expires.
 
         The key MBB reads (operationList, VSR) run with ``_retry=False`` so a
@@ -1213,12 +1219,17 @@ class VWEUClient(CariadBaseClient):
         the 60s expiry skew, refresh it now via the durable MBB branch. (The
         operationList comment used to assume a "scheduled refresh" that never
         existed — this is it.) No-op for non-MBB strategies and fresh tokens.
+
+        v2.15.12 (#584): ``for_command`` bills the refresh against the command
+        storm budget so a command can't drain the data-plane's.
         """
         tok = self._tokens
         if tok and tok.strategy == "mbb" and tok.needs_refresh():
-            await self._refresh_tokens()
+            await self._refresh_tokens(for_command=for_command)
 
-    async def _mbb_get(self, url: str, *, _retry: bool = True) -> dict[str, Any]:
+    async def _mbb_get(
+        self, url: str, *, _retry: bool = True, for_command: bool = False
+    ) -> dict[str, Any]:
         """GET an MBB endpoint with the MBB bearer + registered X-Client-Id.
 
         Pre-flight refreshes the bearer if it's expiring (``_mbb_ensure_fresh``).
@@ -1226,13 +1237,18 @@ class VWEUClient(CariadBaseClient):
         branch and retry. These requests bypass ``base._request`` (the usual
         401→refresh trigger). The storm guard in ``_refresh_tokens`` bounds
         retries; ``_retry=False`` on the second attempt prevents recursion.
+
+        v2.15.12 (#584): ``for_command`` routes any triggered refresh to the
+        command storm budget (used by the command legs that GET via MBB).
         """
-        await self._mbb_ensure_fresh()
+        await self._mbb_ensure_fresh(for_command=for_command)
         async with self._session.get(url, headers=self._mbb_headers()) as resp:
             text = await resp.text()
             if resp.status == 401 and _retry:
-                await self._refresh_tokens()
-                return await self._mbb_get(url, _retry=False)
+                await self._refresh_tokens(for_command=for_command)
+                return await self._mbb_get(
+                    url, _retry=False, for_command=for_command
+                )
             if resp.status >= 400:
                 raise APIError(resp.status, url, body=text)
             if not text:
@@ -1244,19 +1260,23 @@ class VWEUClient(CariadBaseClient):
             return loaded if isinstance(loaded, dict) else {}
 
     async def _mbb_post_json(
-        self, url: str, body: dict[str, Any], *, _retry: bool = True
+        self, url: str, body: dict[str, Any], *, _retry: bool = True,
+        for_command: bool = False,
     ) -> dict[str, Any]:
         """POST a JSON body to an MBB endpoint (leg-2 SPIN completion).
 
-        Refreshes once on a 401 and retries (see ``_mbb_get``).
+        Refreshes once on a 401 and retries (see ``_mbb_get``). v2.15.12 (#584):
+        ``for_command`` bills any triggered refresh to the command storm budget.
         """
-        await self._mbb_ensure_fresh()
+        await self._mbb_ensure_fresh(for_command=for_command)
         headers = self._mbb_headers({"Content-Type": "application/json"})
         async with self._session.post(url, json=body, headers=headers) as resp:
             text = await resp.text()
             if resp.status == 401 and _retry:
-                await self._refresh_tokens()
-                return await self._mbb_post_json(url, body, _retry=False)
+                await self._refresh_tokens(for_command=for_command)
+                return await self._mbb_post_json(
+                    url, body, _retry=False, for_command=for_command
+                )
             if resp.status >= 400:
                 raise APIError(resp.status, url, body=text)
             if not text:
@@ -1268,7 +1288,8 @@ class VWEUClient(CariadBaseClient):
             return loaded if isinstance(loaded, dict) else {}
 
     async def _mbb_post_rlu(
-        self, url: str, sec_token: str, *, _retry: bool = True
+        self, url: str, sec_token: str, *, _retry: bool = True,
+        for_command: bool = False,
     ) -> dict[str, Any]:
         """POST the RLU lock/unlock action — EMPTY body, x-securityToken header.
 
@@ -1281,7 +1302,7 @@ class VWEUClient(CariadBaseClient):
         """
         from .._mbb import MBB_RLU_CONTENT_TYPE  # noqa: PLC0415
 
-        await self._mbb_ensure_fresh()
+        await self._mbb_ensure_fresh(for_command=for_command)
         headers = self._mbb_headers({
             "Content-Type": MBB_RLU_CONTENT_TYPE,
             "x-securityToken": sec_token,
@@ -1289,8 +1310,10 @@ class VWEUClient(CariadBaseClient):
         async with self._session.post(url, data=None, headers=headers) as resp:
             text = await resp.text()
             if resp.status == 401 and _retry:
-                await self._refresh_tokens()
-                return await self._mbb_post_rlu(url, sec_token, _retry=False)
+                await self._refresh_tokens(for_command=for_command)
+                return await self._mbb_post_rlu(
+                    url, sec_token, _retry=False, for_command=for_command
+                )
             if resp.status >= 400:
                 raise APIError(resp.status, url, body=text)
             if not text:
@@ -1402,7 +1425,7 @@ class VWEUClient(CariadBaseClient):
         return []
 
     async def _get_mbb_operationlist(
-        self, vin: str,
+        self, vin: str, *, for_command: bool = False,
     ) -> "MbbOperationList | None":
         """Fetch + cache the per-VIN MBB operationList (service directory).
 
@@ -1410,6 +1433,9 @@ class VWEUClient(CariadBaseClient):
         is on the setter host (mal-1a, ``/api`` prefix). Returns a parsed
         ``MbbOperationList`` or None on failure (caller treats None as
         "unknown" — it does NOT block the read).
+
+        v2.15.12 (#584): ``for_command`` bills any proactive refresh triggered
+        here to the command budget when this is fetched as a command pre-flight.
         """
         from .._mbb import (  # noqa: PLC0415
             MBB_SETTER_BASE,
@@ -1435,7 +1461,9 @@ class VWEUClient(CariadBaseClient):
             # is instead kept fresh PROACTIVELY by _mbb_ensure_fresh() inside
             # _mbb_get (refresh within the 60s expiry skew), so a genuine expiry
             # no longer leaves every read 401-ing until restart.
-            resp = await self._mbb_get(url, _retry=False)
+            resp = await self._mbb_get(
+                url, _retry=False, for_command=for_command
+            )
         except APIError as err:
             _LOGGER.warning(
                 "MBB operationList ***%s → HTTP %s: %s",
@@ -1621,7 +1649,8 @@ class VWEUClient(CariadBaseClient):
 
         # Leg 1 — challenge
         ch_resp = await self._mbb_get(
-            build_mbb_spin_challenge_url(setter, vin, lock=lock)
+            build_mbb_spin_challenge_url(setter, vin, lock=lock),
+            for_command=True,
         )
         level1, challenge, remaining = parse_mbb_spin_challenge(ch_resp)
         if not level1 or not challenge:
@@ -1637,6 +1666,7 @@ class VWEUClient(CariadBaseClient):
         comp_resp = await self._mbb_post_json(
             build_mbb_spin_completed_url(setter),
             build_mbb_completed_body(level1, challenge, spin_hash),
+            for_command=True,
         )
         sec_token = parse_mbb_completed_token(comp_resp)
         if not sec_token:
@@ -1645,6 +1675,7 @@ class VWEUClient(CariadBaseClient):
         # Leg 3 — the action (empty body) + poll
         action_resp = await self._mbb_post_rlu(
             build_mbb_rlu_action_url(setter, vin, lock=lock), sec_token,
+            for_command=True,
         )
         request_id = parse_mbb_rlu_request_id(action_resp)
         _LOGGER.info(
@@ -1667,7 +1698,7 @@ class VWEUClient(CariadBaseClient):
         for _ in range(15):
             await asyncio.sleep(3)
             try:
-                resp = await self._mbb_get(url)
+                resp = await self._mbb_get(url, for_command=True)
             except Exception:  # noqa: BLE001
                 continue
             status = parse_mbb_rlu_status(resp)
@@ -1685,11 +1716,12 @@ class VWEUClient(CariadBaseClient):
 
     async def _mbb_post_action(
         self, url: str, sec_token: str, body: str | None, content_type: str,
-        *, _retry: bool = True,
+        *, _retry: bool = True, for_command: bool = False,
     ) -> dict[str, Any]:
         """POST an MBB write-command action (XML body) with the level-2
-        x-securityToken + the vendor content-type. Refresh-once on 401."""
-        await self._mbb_ensure_fresh()
+        x-securityToken + the vendor content-type. Refresh-once on 401.
+        v2.15.12 (#584): ``for_command`` bills refreshes to the command budget."""
+        await self._mbb_ensure_fresh(for_command=for_command)
         headers = self._mbb_headers({
             "Content-Type": content_type,
             "x-securityToken": sec_token,
@@ -1698,9 +1730,10 @@ class VWEUClient(CariadBaseClient):
         async with self._session.post(url, data=data, headers=headers) as resp:
             text = await resp.text()
             if resp.status == 401 and _retry:
-                await self._refresh_tokens()
+                await self._refresh_tokens(for_command=for_command)
                 return await self._mbb_post_action(
-                    url, sec_token, body, content_type, _retry=False)
+                    url, sec_token, body, content_type, _retry=False,
+                    for_command=for_command)
             if resp.status >= 400:
                 raise APIError(resp.status, url, body=text)
             if not text:
@@ -1747,7 +1780,7 @@ class VWEUClient(CariadBaseClient):
         validate_spin_format(pin)
 
         # operationList → per-service host (generic) + granted gate
-        oplist = await self._get_mbb_operationlist(vin)
+        oplist = await self._get_mbb_operationlist(vin, for_command=True)
         country = self._mbb_country_from_id_token() or "DE"
         base = mbb_service_base(
             oplist, spec.service_id, brand=self._brand.name,
@@ -1766,7 +1799,8 @@ class VWEUClient(CariadBaseClient):
         setter = MBB_SETTER_BASE
         # Leg 1 — operation-specific SecToken challenge
         ch = await self._mbb_get(
-            build_mbb_op_auth_url(setter, vin, spec.service_id, spec.operation_id))
+            build_mbb_op_auth_url(setter, vin, spec.service_id, spec.operation_id),
+            for_command=True)
         level1, challenge, remaining = parse_mbb_spin_challenge(ch)
         if not level1 or not challenge:
             raise VehicleCommandError(command_name, "SecToken challenge missing")
@@ -1777,7 +1811,8 @@ class VWEUClient(CariadBaseClient):
         # Leg 2 — submit hashed S-PIN
         comp = await self._mbb_post_json(
             build_mbb_spin_completed_url(setter),
-            build_mbb_completed_body(level1, challenge, compute_spin_hash(pin, challenge)))
+            build_mbb_completed_body(level1, challenge, compute_spin_hash(pin, challenge)),
+            for_command=True)
         sec = parse_mbb_completed_token(comp)
         if not sec:
             raise VehicleCommandError(command_name, "SecToken completion returned no token")
@@ -1785,7 +1820,7 @@ class VWEUClient(CariadBaseClient):
         url = build_mbb_action_url(base, spec.action_subpath)
         resp = await self._mbb_post_action(
             url, sec, body_override if body_override is not None else spec.body,
-            spec.content_type)
+            spec.content_type, for_command=True)
         request_id = parse_mbb_action_request_id(resp)
         # NOTE: we deliberately do NOT poll for confirmation on the climater/
         # charger/timer actions. The action fires correctly above, but their
@@ -2004,6 +2039,19 @@ class VWEUClient(CariadBaseClient):
         contrast to engine remote start which uses the separate
         ``/vehicle/v1/engine/{VIN}/...`` two-step S-PIN flow).
         """
+        # v2.15.12 (#584 follow-up) — on a legacy MBB-primary entry
+        # ``self._access_token`` is the MBB bearer, which the CARIAD BFF
+        # below rejects with "400 missing or invalid auth header". There is
+        # no verified MBB aux-heating (rheating) route yet, so rather than
+        # leak the wrong bearer to the wrong backend, fail cleanly with a
+        # clear message. (Non-MBB entries fall through to the BFF as before.)
+        if self._mbb_command_target() is not None:
+            raise VehicleCommandError(
+                "command_start_aux_heating",
+                "remote auxiliary heating is not available on the legacy "
+                "Car-Net two-way path yet — this vehicle uses MBB, which has "
+                "no verified aux-heating command",
+            )
         kelvin = round(float(target_c) + 273.15, 2)
         await self._post_command(
             vin,
@@ -2022,6 +2070,15 @@ class VWEUClient(CariadBaseClient):
         minimal ``{"command": "stop"}`` payload. No S-PIN, no SecToken,
         v2 fallback on 404 via ``_post_command``.
         """
+        # v2.15.12 (#584 follow-up) — same MBB-primary guard as start: don't
+        # leak the MBB bearer to the CARIAD BFF; fail cleanly instead.
+        if self._mbb_command_target() is not None:
+            raise VehicleCommandError(
+                "command_stop_aux_heating",
+                "remote auxiliary heating is not available on the legacy "
+                "Car-Net two-way path yet — this vehicle uses MBB, which has "
+                "no verified aux-heating command",
+            )
         await self._post_command(
             vin,
             "auxiliary-heating/stop",
@@ -3239,6 +3296,13 @@ class VWEUClient(CariadBaseClient):
         zrr = v(raw, "climatisation", "climatisationSettings", "value", "zoneRearRightEnabled")
         if isinstance(zrr, bool):
             d.climate_zone_rear_right = zrr
+        # v2.16.2 (#671 audi Q6 Scout) — climatisation MODE readback
+        # ("comfort" in the wild). Same climatisationSettings.value.*
+        # namespace. Read-only diagnostic; data-present gated so cars that
+        # omit it never get a phantom "unknown" entity.
+        cmode = v(raw, "climatisation", "climatisationSettings", "value", "climatisationMode")
+        if isinstance(cmode, str) and cmode:
+            d.climate_mode = cmode
         # Climatisation: ETA in minutes from current to target temperature.
         crt = v(raw, "climatisation", "climatisationStatus", "value", "remainingClimatisationTime_min")
         if isinstance(crt, (int, float)):

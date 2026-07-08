@@ -1338,6 +1338,50 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             )
             return primary
 
+    async def _revive_from_supplementary(
+        self, vin: str, empty_primary: VehicleData
+    ) -> VehicleData | None:
+        """v2.16.2 (rafaelhutter v0.5.20 parity — GAP 2.1) — when the PRIMARY
+        channel returned ``no_data`` (e.g. EU Data Act portal outage), try to
+        keep the entry live from a SUPPLEMENTARY read-only channel (e.g. vw.de
+        authproxy) instead of dropping straight to stale-cache.
+
+        Runs the same C1 gap-fill merge as :meth:`_merge_supplementary` but over
+        the *empty* primary, then returns the merged snapshot ONLY if a
+        supplementary channel actually contributed live data. In that case the
+        stale ``no_data`` flag is cleared so the merged result flows through the
+        normal success path. Returns ``None`` when no supplementary channel is
+        armed or all of them failed/were empty — the caller then keeps the
+        previous good data visible exactly as before.
+
+        This does NOT alter source-priority in the healthy case: it only fires
+        when the primary carries nothing, so it is pure gap-fill with no channel
+        outranked. Single-channel entries have no suppliers → returns ``None`` →
+        behaviour is byte-for-byte unchanged. Fail-soft: any error → ``None``.
+        """
+        try:
+            merged = await self._merge_supplementary(vin, empty_primary)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "GAP-2.1 supplementary revive failed for %s: %s",
+                mask_vin(vin), err,
+            )
+            return None
+        # A supplementary channel contributed IFF the merge added a
+        # provenance contributor beyond the (empty) primary. The empty
+        # primary is never a contributor (all fields at construction
+        # default), so any non-None source_channel means live data arrived.
+        if merged is empty_primary or not getattr(merged, "source_channel", None):
+            return None
+        # Live supplementary data arrived — this is no longer a no-data poll.
+        merged.no_data = False
+        _LOGGER.debug(
+            "GAP-2.1 %s: primary no_data but supplementary channel(s) %s "
+            "served live data — keeping entry live.",
+            mask_vin(vin), merged.source_channel,
+        )
+        return merged
+
     async def _poll_loop(self) -> None:
         """Background polling loop — runs independently of HA scheduler.
 
@@ -1476,19 +1520,44 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         # counter + last-good timestamp. A VIN we've never seen
                         # falls through so a brand-new car still appears.
                         if getattr(result, "no_data", False) and self.vehicles.get(vin):
-                            old = self.vehicles.get(vin, {})
-                            old["_poll_failed"] = True
-                            fresh[vin] = old
-                            self.vehicle_success[vin] = False
-                            self.vehicle_failure_count[vin] = (
-                                self.vehicle_failure_count.get(vin, 0) + 1
+                            # v2.16.2 (rafaelhutter v0.5.20 parity — GAP 2.1) —
+                            # RESILIENCE: an EU-DA-primary outage must NOT hide a
+                            # healthy vw.de (or other) SUPPLEMENTARY channel. His
+                            # website_portal keeps serving when EU-DA fails
+                            # (coordinator.py:163-179); we mirror that with our
+                            # OWN code. Before falling back to "old but visible"
+                            # stale-cache, attempt the supplementary merge onto
+                            # this empty primary. If a supplementary channel is
+                            # armed AND actually returned live data, that merged
+                            # snapshot flows through the normal success path
+                            # below (fresh + last-good + counter reset). This
+                            # does NOT change source-priority in the healthy
+                            # case: the primary is empty here, so nothing higher
+                            # trust is overridden — it is pure gap-fill. Single-
+                            # channel entries have no suppliers → merge is a
+                            # no-op → the stale-cache path is byte-for-byte
+                            # unchanged.
+                            revived = await self._revive_from_supplementary(
+                                vin, result
                             )
-                            continue
-                        # v2.15.0b1 (C1) — multi-channel merge: union any armed
-                        # supplementary read-only channel (e.g. vw.de authproxy)
-                        # onto the primary snapshot before storing. No-op for
-                        # single-channel entries → returns result unchanged.
-                        result = await self._merge_supplementary(vin, result)
+                            if revived is not None:
+                                result = revived
+                            else:
+                                old = self.vehicles.get(vin, {})
+                                old["_poll_failed"] = True
+                                fresh[vin] = old
+                                self.vehicle_success[vin] = False
+                                self.vehicle_failure_count[vin] = (
+                                    self.vehicle_failure_count.get(vin, 0) + 1
+                                )
+                                continue
+                        else:
+                            # v2.15.0b1 (C1) — multi-channel merge: union any
+                            # armed supplementary read-only channel (e.g. vw.de
+                            # authproxy) onto the primary snapshot before
+                            # storing. No-op for single-channel entries →
+                            # returns result unchanged.
+                            result = await self._merge_supplementary(vin, result)
                         # v1.10.1 (#58 Phase 2) — wrap to_dict + _enrich
                         # in their own try/except. A single VehicleData
                         # field with an unexpected type used to crash

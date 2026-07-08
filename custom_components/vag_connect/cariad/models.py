@@ -1284,6 +1284,11 @@ class VehicleData:
     # to a select. Field stays None for non-heat-pump cars.
     heater_source: str | None = None
 
+    # v2.16.2 (#671 audi Q6 Scout) — climatisation mode readback
+    # (``climatisationSettings.value.climatisationMode``, "comfort" in the
+    # wild). Read-only diagnostic; None for cars that don't ship it.
+    climate_mode: str | None = None
+
     # v1.14.0 (#24) — Trip Statistics from CARIAD-BFF
     # ``GET /vehicle/v1/vehicles/{vin}/tripstatistics?type={shortTerm|longTerm}``.
     # Both endpoints return ``{tripDataList: {tripData: [...]}}``; we sort
@@ -1550,6 +1555,10 @@ class VehicleData:
     # Trigger info about the last battery-charger update (string, e.g. "other").
     # LOW — disabled-by-default. sensor, diagnostic.
     charger_update_trigger: str | None = None
+    # v2.16.2 (#636) — report-delivery trigger enum (ROA/ICL/USM/ICL_REMOTE/
+    # ROA_REMOTE, "Trigger of the call service"). LOW — disabled-by-default.
+    # sensor, diagnostic. Applies to all EU-Data-Act cars (not electric-only).
+    report_trigger: str | None = None
 
     # v2.15.3 (#518) — EU-Data-Act charging-detail string family. All
     # dict-confirmed type=string (no enum list in the dict). LOW —
@@ -1670,6 +1679,28 @@ class VehicleData:
     # open/closed STATE in sunroof_open). dict-confirmed type=number, unit "%"
     # (0 = closed). LOW — disabled-by-default diagnostic sensor.
     sunroof_position_pct: int | None = None
+    # ── v2.15.11 (#614) — spoiler POSITION in % (distinct from the open/closed
+    # STATE in spoiler_open). dict-confirmed type=number, unit "%" (0 = closed),
+    # mirrors sunroof_position_pct. LOW — disabled-by-default diagnostic sensor.
+    spoiler_position_pct: int | None = None
+
+    # ── v2.16.0 — volkswagen.de authproxy live-status read-path (BETA) ────────
+    # Written by auth/_website_authproxy.py only (opt-in, read-only channel).
+    # All three back disabled-by-default sensors — the underlying endpoints are
+    # unvalidated live (warninglights/last + transactionhistory), so users opt
+    # in to test. Endpoint recipe cross-checked against rafaelhutter/
+    # ha-volkswagen-connect (MIT); parsers are our own.
+    #
+    # Count of currently-active dashboard warning lights (0 = all OK). Distinct
+    # from the aggregate ``warning_count`` other channels populate. sensor
+    # (MEASUREMENT), diagnostic.
+    active_warning_lights_count: int | None = None
+    # Last CONFIRMED remote lock/unlock COMMAND (not a live lock state — that's
+    # attestation-gated). "lock" / "unlock". sensor (enum), diagnostic.
+    last_lock_action: str | None = None
+    # ISO timestamp of that last lock/unlock command. sensor (TIMESTAMP),
+    # diagnostic.
+    last_lock_action_at: Any | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to plain dict for coordinator.vehicles storage."""

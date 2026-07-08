@@ -27,21 +27,80 @@ from typing import Any
 
 _AUTHPROXY_BASE = "https://www.volkswagen.de/app/authproxy"
 _REALM_VWDE = "vw-de"
+# The live-status endpoints (warninglights / transactionhistory / charging /
+# maintenance) route through the WeConnect vehicle backend, a DIFFERENT
+# function-access-group than the vehicle-file reads. Endpoint/param recipe
+# cross-checked against rafaelhutter/ha-volkswagen-connect (MIT)
+# website_portal.py:390,416; the parser below is our own.
+_REALM_WECONNECT = "vwag-weconnect"
 
 # Backend ``resourceHost`` ids the authproxy routes to (observed in captures).
 _HOST_VUM = "myvw-vum-prod"
 _HOST_VCF = "cwat-group-vehicle-file-service-prod"
 _HOST_VILMA = "myvw-vilma-proxy-prod"
+# Live-status endpoints pair a ``gdc`` (global-data-centre) id with a DIFFERENT
+# VCF host than the static vehicle-file reads use above. Cross-checked against
+# rafaelhutter website_portal.py:328,391,417 (MIT); our own builders below.
+_HOST_VCF_LIVE = "myvw-vcf-prod"
+_GDC_WCAR = "myvw-wcar-prod"
 
 
 def build_authproxy_url(
-    path: str, *, realm: str = _REALM_VWDE, resource_host: str | None = None
+    path: str,
+    *,
+    realm: str = _REALM_VWDE,
+    resource_host: str | None = None,
+    gdc: str | None = None,
 ) -> str:
-    """Assemble a ``/app/authproxy/{realm}/proxy/{path}`` URL."""
+    """Assemble a ``/app/authproxy/{realm}/proxy/{path}`` URL.
+
+    ``gdc`` + ``resource_host`` become query params (``gdc`` first, matching
+    the order the myVolkswagen web app sends). Either may be omitted.
+    """
     url = f"{_AUTHPROXY_BASE}/{realm}/proxy/{path.lstrip('/')}"
+    params = []
+    if gdc:
+        params.append(f"gdc={gdc}")
     if resource_host:
-        url += f"?resourceHost={resource_host}"
+        params.append(f"resourceHost={resource_host}")
+    if params:
+        url += "?" + "&".join(params)
     return url
+
+
+def build_warninglights_url(vin: str) -> str:
+    """Active dashboard warning-lights list (``warninglights/last``).
+
+    Realm is the WeConnect vehicle backend, NOT ``vw-de``. Carries both
+    ``gdc`` + the live VCF host, matching the myVolkswagen web app.
+    """
+    return build_authproxy_url(
+        f"vehicles/{vin}/warninglights/last",
+        realm=_REALM_WECONNECT,
+        resource_host=_HOST_VCF_LIVE,
+        gdc=_GDC_WCAR,
+    )
+
+
+def build_transactionhistory_url(vin: str) -> str:
+    """Remote-command history (lock/unlock lives here). Realm ``vw-de``."""
+    return build_authproxy_url(
+        f"vehicles/{vin}/transactionhistory",
+        resource_host=_HOST_VCF_LIVE,
+        gdc=_GDC_WCAR,
+    )
+
+
+def build_relation_detail_url(vin: str) -> str:
+    """Per-VIN relation detail — ``{"relation": {...}}`` (nickname + plate).
+
+    The singular counterpart to :func:`build_relations_url`. Only needed if
+    the LIST endpoint ever omits nickname/plate for an account; the list
+    parse already surfaces both field names for the common case.
+    """
+    return build_authproxy_url(
+        f"v2/users/me/relations/{vin}", resource_host=_HOST_VUM
+    )
 
 
 def build_relations_url() -> str:
@@ -66,6 +125,35 @@ def build_vehicle_images_url(vin: str) -> str:
     return build_authproxy_url(
         f"vehicleimages/exterior/{vin}", resource_host=_HOST_VILMA
     )
+
+
+def build_usercapabilities_url(vin: str) -> str:
+    """Per-vehicle capability list (``usercapabilities``). Realm ``vw-de``.
+
+    v2.16.2 (rafaelhutter v0.5.20 parity — GAP 4.1) — the myVolkswagen web app
+    reads the enabled-capabilities set for a car at
+    ``application/json;version=3`` (see ``build_usercapabilities_accept``);
+    the caller must send that Accept. Endpoint/Accept-version cross-checked
+    against rafaelhutter/ha-volkswagen-connect (MIT) website_portal.py:22; the
+    URL builder + parser here are our own. Additive read-only metadata — nothing
+    in the poll path consumes it yet, so activating capability gating on a
+    sole-vw.de entry stays a maintainer decision (it can hide entities).
+    """
+    return build_authproxy_url(
+        f"vehicles/{vin}/usercapabilities",
+        realm=_REALM_WECONNECT,
+        resource_host=_HOST_VCF_LIVE,
+        gdc=_GDC_WCAR,
+    )
+
+
+def build_usercapabilities_accept() -> str:
+    """The versioned Accept the usercapabilities endpoint requires.
+
+    Kept as a named helper (not an inline literal) so the one place that
+    encodes the ``version=3`` contract is testable and reusable.
+    """
+    return "application/json;version=3"
 
 
 # ── relations (VIN + mbbUserId discovery) ─────────────────────────────────────
@@ -148,6 +236,100 @@ def parse_relations(raw: Any) -> AuthproxyRelations | None:
             )
         )
     return out
+
+
+def parse_relation_detail(raw: Any) -> AuthproxyRelation | None:
+    """Parse the SINGULAR ``/relations/{vin}`` body → one :class:`AuthproxyRelation`.
+
+    Shape is ``{"relation": {...}}`` (competitor website_portal.py:493), the same
+    per-vehicle relation object the list endpoint nests under ``relations[*]`` —
+    so we reuse the identical ``vehicleNickname`` / ``licensePlate`` field names.
+    Returns None when the body isn't a dict with a relation object carrying a VIN.
+    """
+    if not isinstance(raw, dict):
+        return None
+    rel = raw.get("relation")
+    if not isinstance(rel, dict):
+        return None
+    raw_veh = rel.get("vehicle")
+    veh: dict[str, Any] = raw_veh if isinstance(raw_veh, dict) else {}
+    vin = _s(veh.get("vin"))
+    if not vin:
+        return None
+    tags = rel.get("tags")
+    return AuthproxyRelation(
+        vin=vin,
+        nickname=_s(rel.get("vehicleNickname")),
+        license_plate=_s(rel.get("licensePlate")),
+        role=_s(rel.get("role")),
+        role_status=_s(rel.get("roleStatus")),
+        enrollment_status=_s(rel.get("enrollmentStatus")),
+        primary_car=rel.get("primaryCar") is True,
+        mod_backend=_s(veh.get("modBackend")),
+        relation_id=_s(rel.get("relationId")),
+        euda_scoped=isinstance(tags, list) and "EUDA_SCOPED" in tags,
+    )
+
+
+# ── live-status parsers (warning lights + lock history) ───────────────────────
+def parse_warning_lights(raw: Any) -> int | None:
+    """Count of currently-active dashboard warning lights.
+
+    ``warninglights/last`` → ``body.data.warningLights`` is a JSON list; an
+    EMPTY list is a valid "all OK ⇒ 0" reading, so only a missing/non-list
+    node returns None. Logic mirrors competitor website_portal.py:398-403 (MIT);
+    parser is our own.
+    """
+    if not isinstance(raw, dict):
+        return None
+    data = raw.get("data")
+    if not isinstance(data, dict):
+        return None
+    lights = data.get("warningLights")
+    if not isinstance(lights, list):
+        return None
+    return len(lights)
+
+
+def parse_lock_history(raw: Any) -> tuple[str, str | None] | None:
+    """Last confirmed remote lock/unlock command from the transaction log.
+
+    NOT a live lock sensor — the live door/lock state sits behind the
+    attestation-secured tier. This surfaces the newest ``remotelockunlock``
+    command instead. Filter/sort/prefer-success logic cross-checked against
+    competitor website_portal.py:424-443 (MIT); parser is our own:
+
+    * keep messages with ``category == "remotelockunlock"`` and
+      ``action in {"lock", "unlock"}``
+    * sort ascending by ISO ``timestamp`` string
+    * prefer the newest with ``actionSuccess`` truthy, else the newest overall
+    * return ``(action, timestamp_or_None)`` — None when no lock message exists.
+    """
+    if not isinstance(raw, dict):
+        return None
+    data = raw.get("data")
+    if not isinstance(data, dict):
+        return None
+    messages = data.get("messages")
+    if not isinstance(messages, list):
+        return None
+    locks = [
+        m
+        for m in messages
+        if isinstance(m, dict)
+        and m.get("category") == "remotelockunlock"
+        and m.get("action") in ("lock", "unlock")
+    ]
+    if not locks:
+        return None
+    locks.sort(key=lambda m: m.get("timestamp") or "")
+    confirmed = [m for m in locks if m.get("actionSuccess")]
+    chosen = (confirmed or locks)[-1]
+    action = _s(chosen.get("action"))
+    if not action:
+        return None
+    ts = _s(chosen.get("timestamp"))
+    return action, ts
 
 
 # ── master data (details + data) ──────────────────────────────────────────────
@@ -233,3 +415,46 @@ def primary_image_url(images: list[AuthproxyImage]) -> str | None:
         if (img.view_direction or "").lower() == "front":
             return img.url
     return images[0].url if images else None
+
+
+# ── usercapabilities (GAP 4.1, additive read-only metadata) ───────────────────
+def parse_usercapabilities(raw: Any) -> set[str]:
+    """Parse a ``usercapabilities`` body into the set of enabled capability ids.
+
+    v2.16.2 (rafaelhutter v0.5.20 parity — GAP 4.1). The WeConnect capabilities
+    surface is a ``{"capabilities": [{"id": "...", "status": [...]}...]}`` list;
+    a capability counts as ENABLED when it carries no blocking ``status`` codes
+    (an empty/absent ``status`` = available). Tolerates a bare list body and a
+    flat ``["id", ...]`` list. Pure + defensive: a non-dict/parse-miss yields an
+    empty set — never raises. Nothing in the poll path consumes this yet (see
+    the connector docstring); it exists so the endpoint has read parity and is
+    unit-testable without flipping capability gating on any live entry.
+    """
+    caps: Any
+    if isinstance(raw, dict):
+        caps = raw.get("capabilities")
+    elif isinstance(raw, list):
+        caps = raw
+    else:
+        return set()
+    if not isinstance(caps, list):
+        return set()
+    enabled: set[str] = set()
+    for cap in caps:
+        if isinstance(cap, str):
+            cid = _s(cap)
+            if cid:
+                enabled.add(cid)
+            continue
+        if not isinstance(cap, dict):
+            continue
+        cid = _s(cap.get("id"))
+        if not cid:
+            continue
+        status = cap.get("status")
+        # A capability with any status code(s) is disabled/degraded for this
+        # user (the web app greys it out); no status = available.
+        if isinstance(status, list) and status:
+            continue
+        enabled.add(cid)
+    return enabled

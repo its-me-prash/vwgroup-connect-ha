@@ -1215,14 +1215,26 @@ def map_dataset_to_vehicle_data(
     if svc_km is not None and d.service_km is None:
         d.service_km = -svc_km
     svc_days = _to_int(first("maintenance_interval__time_until_inspection"))
-    if svc_days is not None and d.service_due_in_days is None:
-        d.service_due_in_days = -svc_days
+    if svc_days is not None:
+        if d.service_due_in_days is None:
+            d.service_due_in_days = -svc_days
+        # v2.15.13 — also feed the existing DATE sensor (``service_due_at``)
+        # on the EU-Data-Act path. Until now the portal reader set only the
+        # int day-counter, so portal users saw "in N days" but the absolute
+        # "due on <date>" sensor stayed empty (brand-native paths populate it,
+        # the portal path didn't). Store the raw int day-offset; sensor.py
+        # native_value converts int→``date.today()+N`` (local midnight).
+        if d.service_due_at is None:
+            d.service_due_at = -svc_days
     oil_km = _to_int(first("maintenance_interval_distance_until_oil_change"))
     if oil_km is not None and d.oil_service_km is None:
         d.oil_service_km = -oil_km
     oil_days = _to_int(first("maintenance_interval__time_until_oil_change"))
-    if oil_days is not None and d.oil_service_due_in_days is None:
-        d.oil_service_due_in_days = -oil_days
+    if oil_days is not None:
+        if d.oil_service_due_in_days is None:
+            d.oil_service_due_in_days = -oil_days
+        if d.oil_service_at is None:
+            d.oil_service_at = -oil_days
 
     lock = first("lock_state", "central_lock_state")
     if lock is not None and d.doors_locked is None:
@@ -1479,6 +1491,12 @@ def map_dataset_to_vehicle_data(
     _bcut = first("last_battery_charger_update_trigger")
     if _bcut is not None and d.charger_update_trigger is None:
         d.charger_update_trigger = _shorten_enum(_bcut)
+    # v2.16.2 (#636) — report-delivery trigger enum (ROA/ICL/USM/ICL_REMOTE/
+    # ROA_REMOTE, "Trigger of the call service"). dict-confirmed, LOW; fail-soft
+    # (only mapped when first() finds it), disabled-by-default at the entity.
+    _trig = first("trigger_type")
+    if _trig is not None and d.report_trigger is None:
+        d.report_trigger = _shorten_enum(_trig)
     # NOTE: scope_potential_total (PPE-only, opaque) and echo (constant
     # heartbeat token) are intentionally NOT mapped — they stay Scout-visible
     # in raw_unmapped_fields (no first() call → no false signal).
@@ -1836,6 +1854,13 @@ def map_dataset_to_vehicle_data(
     _spoiler = _to_int(first("state_spoiler"))
     if _spoiler in (2, 3):
         d.spoiler_open = _spoiler == 2
+    # v2.15.11 (#614) — spoiler POSITION (%; 0=closed). Distinct from the
+    # open/closed STATE above. Dict type=number, unit "%". first() drops the
+    # uint16 65535 "no reading" sentinel; a valid 0-100 survives. Mirrors the
+    # sunroof_position_pct parse.
+    _spoiler_pos = _to_int(first("position_spoiler"))
+    if _spoiler_pos is not None and d.spoiler_position_pct is None:
+        d.spoiler_position_pct = _spoiler_pos
 
     # C. Trip odometer endpoints (km).
     _lt_dist = _to_int(first("long_term_data_mileage"))

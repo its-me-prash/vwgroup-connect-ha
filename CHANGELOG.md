@@ -38,11 +38,58 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
-## [2.15.11] - unreleased
+## [2.16.2] - 2026-07-08
+
+### Added
+
+- **New diagnostic sensor: what triggered the last EU Data Act delivery (#636).** On EU Data Act cars there's now a "report trigger" sensor that tells you what kicked off the most recent data report — e.g. a remote request you made, or the car reporting on its own. It ships **disabled by default** (it's diagnostic detail most people won't need), so turn it on if you're curious. Thanks for the field spot.
+- **New diagnostic sensor: which climate mode your car is set to (#671).** Audi and other CARIAD EU cars report a `climatisationMode` setting — "comfort" in the wild — that we already used when *sending* a climate command but never read *back*. There's now a "climate mode" sensor showing the current value. Like the trigger sensor above, it's **disabled by default** and only shows up on cars that actually send the field. Thanks @tsvyatkov for the Scout report.
+
+### Fixed
+
+- **VW: your car stays alive when the EU Data Act portal has a bad moment.** If you've got a VW EU car set up with the volkswagen.de website channel as a backup on top of the EU Data Act portal, and the portal times out for a poll, we now fall back to the website data for that cycle instead of freezing the entity on its last-known values. Before, a portal hiccup would quietly leave you looking at stale numbers even though volkswagen.de had fresh ones sitting right there. Single-source setups are completely unchanged. And if the website session itself has actually expired, you get a proper re-login prompt rather than silent staleness.
+
+- **Škoda: warning lights no longer read "Problem" on a perfectly healthy car (#649).** Škoda's health endpoint always sends one entry per monitored category (engine, brakes, tyres, oil…) even when nothing's wrong — a healthy category just comes back with an empty defect list. We were treating "the list has entries" as "something's wrong", so on every Škoda all the warning sensors flipped to Problem while the MySkoda app calmly showed "All good". Now a category only counts as a warning when it actually carries a defect, so an all-clear car reads all-clear. Thanks @divanguz-alt for the report and the spot-on root-cause.
+
+### Thanks 🙏
+
+This release came straight from your field reports. Special thanks to @divanguz-alt (Škoda warning root-cause, #649), @chrischtili (the `trigger_type` field, #636) and @tsvyatkov (the `climatisationMode` field, #671). And to everyone who filed a Vehicle Data Scout report or bug this cycle — @bachjessen @BalooDK @datenhamster @Drachendiadem @fesch89 @fugazzy @gr6803 @heikone @IanNorthern @janez78 @joostbouten @kaufmannralf @KratosLionXD @Lagaff86 @littlecake @LouisFk @MaFi1504 @Manuel-Hanak @MaTi8383 @MichaelNeys @moltke69 @NevelSavage @Ola-Skallberg @PollenNor @Raymondgijzen @roeleert @Sacha72 @sebastianedse @sotiropoulos123 @Svenruotsi @tolnaiz @torstentosh @wfa001 — even the reports that turn out already-covered help confirm the field mapping is holding up. The full roster of everyone who's ever reported here is in [CONTRIBUTORS.md](CONTRIBUTORS.md).
+
+## [2.16.1] - 2026-07-05
+
+### Fixed
+
+- **volkswagen.de proactive session-roll: the first roll no longer gets wrongly skipped on a freshly-booted host.** The debounce used `0.0` as the "never rolled yet" marker, but `time.monotonic()` can be a small number right after boot — so on a fresh start the very first proactive roll could be debounced away. Uses a proper `-inf` marker now, so the first roll always fires regardless of uptime. (CI caught this on a fresh runner; no user-visible impact, but the guard now behaves as intended.)
+- **LICENSE is detected as AGPL-3.0 again (HACS validation).** The LICENSE file carried a short custom copyright/intro header above the licence text, which made GitHub's licence detector report "Other" and failed HACS's licence check. The canonical AGPL-3.0-or-later text now stands alone in LICENSE (so it's correctly detected), and the copyright notice + the AGPL §7 attribution/naming terms moved to a new NOTICE file (pointing at the existing ATTRIBUTION.md). **No change to the licence itself** — same AGPL-3.0-or-later, same attribution requirements.
+
+## [2.16.0] - 2026-07-05
+
+### Added
+
+- **Service & oil-change now also show an absolute due-date on EU Data Act cars, not just "in N days."** The portal path already gave you the "next service in 155 days" counter, but the companion "due on <date>" sensors (`service_due_at` / `oil_service_at`) stayed empty on EU-Data-Act vehicles — they only filled in on the brand-native paths. Now the portal path feeds them too, so a dashboard can show the actual date. (No new entities — it populates the sensors that were already there.)
+- **volkswagen.de channel: two new read signals + the car's nickname & plate (beta).** If you use the opt-in volkswagen.de read channel, it now also reports the **number of active dashboard warning lights** and your **last confirmed remote lock/unlock action + time**, and surfaces the vehicle's nickname and licence plate. These ship **disabled by default** — they're beta, hitting live endpoints we haven't broadly validated yet, so enable them if you'd like to help test — and they fail soft: if VW's backend doesn't answer, the sensors just stay "unknown" and never hold up the rest of your data. Want to help validate the channel? See #632.
+
+### Fixed
+
+- **The optional volkswagen.de read channel no longer quietly drops its session between polls.** That channel's sign-in lapses roughly 30 minutes after login and normal data reads don't keep it alive, while the poll runs every 15 minutes — so on a slow cycle the session could die silently, and the next read would fail (sometimes forcing a re-login with a fresh email code) with nothing to tell you why. The integration now proactively refreshes that session at the start of each cycle, well inside the expiry window, so it stays alive. Best-effort — a failed refresh just falls back to the existing on-demand re-login. (No effect unless you enabled the volkswagen.de channel.)
+
+### Thanks 🙏
+
+None of this happens without the people who file Vehicle Data Scout reports, open issues, send diagnostics + logs, and test on real cars — you're the reason the field coverage and reliability keep improving. Thanks to everyone who fed into this stretch of releases, including @brokkolo @MBrunk85 @PascalFlierman @normand198 @JosefAuer84 @jebeke65 @oh-supra @kotipalvelu @Carbolithos @jwmaas @saxmanio85 @danst0 @StefanSch84 @ravest @bachjessen @VanHynten @daydy16 @tsvyatkov @gudden @jamiegt10 for the recent field-Scout reports, and @CyberChris79 + @Ra72xx for the diagnostics and repros that drove the MBB command-cascade and the duration-parsing fixes. The full roster of everyone who's ever reported here lives in [CONTRIBUTORS.md](CONTRIBUTORS.md).
+
+## [2.15.12] - 2026-07-04
+
+### Fixed
+
+- **A failed MBB command no longer knocks all your sensors offline (#584).** On the legacy Car-Net two-way alpha, reads and commands run through the same connection and shared one token-refresh budget. So when VW's backend kept 500ing a lock/climate command, the retries burned through that budget, tripped the "too many refreshes — pause" guard, and that guard then also blocked the normal data poll — every entity went unavailable with a red exclamation mark until a restart. Now a command failure stays contained to that command: it can't exhaust the poll's refresh budget or drag your reads down with it. On top of that, a transient MBB 5xx from VW is retried with a short backoff instead of failing instantly. Reads keep flowing even when a command can't get through. Thanks to CyberChris for the clean repro and logs.
+- **Aux-heating (Standheizung) now fails cleanly on legacy Car-Net cars instead of leaking the wrong credentials (#584).** On an MBB car the engine pre-heater command was sending the MBB token to VW's newer backend, which rejected it with a `400 missing auth header`. There's no verified MBB route for the pre-heater yet, so rather than send the wrong credentials it now returns a clear "not available on the legacy two-way path yet" message. Non-MBB cars (the newer portal + Audi) are unaffected. Wiring up real MBB aux-heating is a separate future item.
+
+## [2.15.11] - 2026-07-03
 
 ### Added
 
 - **HV battery status sensor.** EU Data Act cars that report a high-voltage battery status flag now get a diagnostic sensor for it, separate from the state-of-charge reading. It's off by default and translated into all 8 supported languages — turn it on if you want it. Thanks to the reporter for surfacing the field.
+- **Spoiler position sensor (#614).** On cars with a movable spoiler, the actual spoiler position as a percentage now shows up as a diagnostic sensor, alongside the open/closed state we already had — same as we did for the sunroof. It's off by default and translated into all 8 supported languages.
 
 ### Fixed
 

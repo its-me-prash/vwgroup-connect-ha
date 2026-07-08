@@ -464,6 +464,15 @@
       "climate_running_requests_count": {
         "name": "Solicitudes climatización pendientes"
       },
+      "active_warning_lights_count": {
+        "name": "Testigos de advertencia activos"
+      },
+      "last_lock_action": {
+        "name": "Última acción de bloqueo"
+      },
+      "last_lock_action_at": {
+        "name": "Hora del último bloqueo"
+      },
       "maintenance_report_captured_at": {
         "name": "Informe mantenimiento actualizado"
       },
@@ -821,6 +830,12 @@
       "charger_update_trigger": {
         "name": "Disparador actualización cargador"
       },
+      "report_trigger": {
+        "name": "Disparador de informe"
+      },
+      "climate_mode": {
+        "name": "Modo de climatización"
+      },
       "active_target_soc": {
         "name": "Objetivo de carga activo"
       },
@@ -1048,6 +1063,9 @@
       },
       "sunroof_position_pct": {
         "name": "Posición del techo solar"
+      },
+      "spoiler_position_pct": {
+        "name": "Posición del alerón"
       }
     },
     "binary_sensor": {

@@ -183,6 +183,179 @@ class TestConnectorReadMethods:
         assert ap.primary_image_url(imgs) == "https://m/Front_Center.png"
 
 
+_WARNINGLIGHTS_TWO = {
+    "data": {
+        "warningLights": [
+            {"category": "engine", "text": "Motorkontrollleuchte"},
+            {"category": "tyre", "text": "Reifendruck"},
+        ]
+    }
+}
+_WARNINGLIGHTS_EMPTY = {"data": {"warningLights": []}}
+
+_TRANSACTIONS = {
+    "data": {
+        "messages": [
+            {
+                "category": "remotelockunlock",
+                "action": "lock",
+                "actionSuccess": True,
+                "timestamp": "2026-06-20T08:00:00Z",
+            },
+            {
+                "category": "remotehonkandflash",
+                "action": "honk",
+                "actionSuccess": True,
+                "timestamp": "2026-06-21T09:00:00Z",
+            },
+            {
+                "category": "remotelockunlock",
+                "action": "unlock",
+                "actionSuccess": True,
+                "timestamp": "2026-06-22T10:30:00Z",
+            },
+            {
+                # newest lock/unlock overall, but FAILED — must be skipped in
+                # favour of the newest successful one above.
+                "category": "remotelockunlock",
+                "action": "lock",
+                "actionSuccess": False,
+                "timestamp": "2026-06-23T11:00:00Z",
+            },
+        ]
+    }
+}
+
+_RELATION_DETAIL = {
+    "relation": {
+        "vehicleNickname": "Golf GTE",
+        "licensePlate": "AG412994",
+        "role": "PRIMARY_USER",
+        "primaryCar": True,
+        "vehicle": {"vin": _VIN, "modBackend": "MBB"},
+    }
+}
+
+
+class TestWarningLights:
+    def test_counts_active_lights(self) -> None:
+        assert ap.parse_warning_lights(_WARNINGLIGHTS_TWO) == 2
+
+    def test_empty_list_is_zero_not_none(self) -> None:
+        assert ap.parse_warning_lights(_WARNINGLIGHTS_EMPTY) == 0
+
+    def test_missing_or_non_list_is_none(self) -> None:
+        assert ap.parse_warning_lights({"data": {}}) is None
+        assert ap.parse_warning_lights({"data": {"warningLights": "x"}}) is None
+        assert ap.parse_warning_lights(None) is None
+        assert ap.parse_warning_lights({}) is None
+
+
+class TestLockHistory:
+    def test_prefers_newest_successful_lock_action(self) -> None:
+        result = ap.parse_lock_history(_TRANSACTIONS)
+        assert result is not None
+        action, ts = result
+        # newest successful remotelockunlock = the unlock @ 10:30 (the 11:00
+        # lock FAILED; the honk is a different category).
+        assert action == "unlock"
+        assert ts == "2026-06-22T10:30:00Z"
+
+    def test_falls_back_to_newest_when_none_successful(self) -> None:
+        raw = {"data": {"messages": [
+            {"category": "remotelockunlock", "action": "lock",
+             "actionSuccess": False, "timestamp": "2026-06-01T00:00:00Z"},
+            {"category": "remotelockunlock", "action": "unlock",
+             "actionSuccess": False, "timestamp": "2026-06-02T00:00:00Z"},
+        ]}}
+        result = ap.parse_lock_history(raw)
+        assert result == ("unlock", "2026-06-02T00:00:00Z")
+
+    def test_no_lock_messages_is_none(self) -> None:
+        raw = {"data": {"messages": [
+            {"category": "remotehonkandflash", "action": "honk"},
+        ]}}
+        assert ap.parse_lock_history(raw) is None
+        assert ap.parse_lock_history({"data": {}}) is None
+        assert ap.parse_lock_history(None) is None
+
+    def test_action_without_timestamp_returns_none_time(self) -> None:
+        raw = {"data": {"messages": [
+            {"category": "remotelockunlock", "action": "lock",
+             "actionSuccess": True},
+        ]}}
+        assert ap.parse_lock_history(raw) == ("lock", None)
+
+
+class TestRelationDetail:
+    def test_singular_relation_yields_nickname_and_plate(self) -> None:
+        rel = ap.parse_relation_detail(_RELATION_DETAIL)
+        assert rel is not None
+        assert rel.vin == _VIN
+        assert rel.nickname == "Golf GTE"
+        assert rel.license_plate == "AG412994"
+        assert rel.mod_backend == "MBB"
+
+    def test_non_dict_or_missing_relation_is_none(self) -> None:
+        assert ap.parse_relation_detail(None) is None
+        assert ap.parse_relation_detail({}) is None
+        assert ap.parse_relation_detail({"relation": {"vehicle": {}}}) is None
+
+
+class TestLiveStatusUrlBuilders:
+    def test_warninglights_url_realm_and_params(self) -> None:
+        u = ap.build_warninglights_url(_VIN)
+        assert f"/vwag-weconnect/proxy/vehicles/{_VIN}/warninglights/last" in u
+        assert "gdc=myvw-wcar-prod" in u
+        assert "resourceHost=myvw-vcf-prod" in u
+
+    def test_transactionhistory_url_realm_and_params(self) -> None:
+        u = ap.build_transactionhistory_url(_VIN)
+        assert f"/vw-de/proxy/vehicles/{_VIN}/transactionhistory" in u
+        assert "gdc=myvw-wcar-prod" in u
+        assert "resourceHost=myvw-vcf-prod" in u
+
+    def test_relation_detail_url(self) -> None:
+        u = ap.build_relation_detail_url(_VIN)
+        assert u.endswith(
+            f"/vw-de/proxy/v2/users/me/relations/{_VIN}?resourceHost=myvw-vum-prod"
+        )
+
+
+class TestConnectorLiveStatusReads:
+    """The v2.16.0 fail-soft transport methods over the pure parsers."""
+
+    def test_get_warning_lights_returns_count(self) -> None:
+        c = _conn()
+        c._get_json = AsyncMock(return_value=_WARNINGLIGHTS_TWO)  # type: ignore[method-assign]
+        assert asyncio.run(c.get_warning_lights(_VIN)) == 2
+
+    def test_get_warning_lights_none_when_no_body(self) -> None:
+        c = _conn()
+        c._get_json = AsyncMock(return_value=None)  # type: ignore[method-assign]
+        assert asyncio.run(c.get_warning_lights(_VIN)) is None
+
+    def test_get_last_lock_action_returns_action_and_time(self) -> None:
+        c = _conn()
+        c._get_json = AsyncMock(return_value=_TRANSACTIONS)  # type: ignore[method-assign]
+        assert asyncio.run(c.get_last_lock_action(_VIN)) == (
+            "unlock", "2026-06-22T10:30:00Z"
+        )
+
+    def test_get_last_lock_action_none_when_no_body(self) -> None:
+        c = _conn()
+        c._get_json = AsyncMock(return_value=None)  # type: ignore[method-assign]
+        assert asyncio.run(c.get_last_lock_action(_VIN)) is None
+
+    def test_get_relation_detail_threads_nickname_plate(self) -> None:
+        c = _conn()
+        c._get_json = AsyncMock(return_value=_RELATION_DETAIL)  # type: ignore[method-assign]
+        rel = asyncio.run(c.get_relation_detail(_VIN))
+        assert rel is not None
+        assert rel.nickname == "Golf GTE"
+        assert rel.license_plate == "AG412994"
+
+
 class TestMaintenanceRealShape:
     """Locks in the REAL authproxy maintenance body (live-captured, Golf GTE):
     flat fields directly under ``data`` (NOT wrapped in maintenanceStatus.value)."""
