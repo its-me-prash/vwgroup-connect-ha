@@ -1,6 +1,6 @@
 # App Atlas — Cross-Brand Summary
 
-> Auto-generated · Last refreshed: 2026-07-03 06:52 UTC
+> Auto-generated · Last refreshed: 2026-07-09 07:26 UTC
 
 | Brand | Android package | Latest version | Source | Expected backend | OLA enforced? |
 |---|---|---|---|---|---|
@@ -8,7 +8,7 @@
 | **CUPRA** | `com.cupra.mycupra` | `2.18.1` | `uptodown` | `ola` |  |
 | **Volkswagen EU (We Connect ID)** | `com.volkswagen.weconnect` | `(fetch failed)` | `—` | `cariad_bff` |  |
 | **Audi (myAudi)** | `de.myaudi.mobile.assistant` | `5.6.0` | `apkmirror` | `cariad_bff` |  |
-| **Škoda (MyŠkoda)** | `cz.skodaauto.myskoda` | `8.13.0` | `uptodown` | `mysmob` |  |
+| **Škoda (MyŠkoda)** | `cz.skodaauto.myskoda` | `8.14.0` | `uptodown` | `mysmob` |  |
 | **Volkswagen US/CA (myVW)** | `com.vw.carnet.release` | `2026.5.27-9076` | `apkmirror` | `con_veh_net` |  |
 | **Porsche (My Porsche)** | `com.porsche.one` | `12.24.27` | `apkmirror` | `ppa` |  |
 
