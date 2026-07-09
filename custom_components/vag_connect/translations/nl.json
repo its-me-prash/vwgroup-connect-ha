@@ -1425,7 +1425,7 @@
   "issues": {
     "two_factor_required": {
       "title": "Tweestapsverificatie vereist — {brand}",
-      "description": "1. Open de **{brand}-app**\n2. Meld u handmatig aan\n3. Bevestig de e-mailcode\n4. Start Home Assistant opnieuw"
+      "description": "Je {brand}-account ({username}) vereist een e-mailverificatiecode.\n\n**Eenmalige oplossing:**\n1. Open de **{brand}-app** op je telefoon\n2. Log handmatig in\n3. Bevestig de code die per e-mail is verstuurd\n4. Herstart Home Assistant\n\nNa deze eenmalige stap bewaart de integratie het login-token — je hoeft dit niet te herhalen."
     },
     "email_two_factor_required": {
       "title": "E-mail 2FA — controleer je inbox",
@@ -1433,19 +1433,19 @@
     },
     "terms_and_conditions": {
       "title": "Gebruiksvoorwaarden accepteren — {brand}",
-      "description": "1. Open de {brand}-app\n2. Accepteer de voorwaarden\n3. Start Home Assistant opnieuw"
+      "description": "Er zijn nieuwe gebruiksvoorwaarden voor {brand} ({username}).\n\n1. Open de {brand}-app\n2. Log in en accepteer de voorwaarden\n3. Herstart Home Assistant"
     },
     "marketing_consent": {
       "title": "Toestemming vereist — {brand}",
-      "description": "App → Profiel → Toestemmingen → bevestigen → HA herstarten."
+      "description": "Er is een nieuwe privacytoestemming vereist voor {brand} ({username}).\n\nOpen de app → Profiel → Toestemmingen → bevestigen → HA herstarten."
     },
     "too_many_requests": {
       "title": "Account tijdelijk geblokkeerd — {brand}",
-      "description": "**Wacht 15 minuten** en start Home Assistant opnieuw."
+      "description": "Het {brand}-account ({username}) is tijdelijk geblokkeerd wegens te veel verzoeken.\n\n**Wacht 15 minuten** en herstart Home Assistant.\nTip: verhoog het bijwerkinterval naar minimaal 15 minuten."
     },
     "auth_failed": {
       "title": "Aanmelden mislukt — {brand}",
-      "description": "Instellingen → Apparaten en diensten → VW Group Connect → ⋮ → Opnieuw configureren."
+      "description": "De verbinding met {brand} ({username}) is mislukt.\n\nInstellingen → Apparaten en diensten → VW Group Connect → ⋮ → Opnieuw configureren."
     },
     "vehicle_data_scout_findings": {
       "title": "API-waarnemer — {count} nieuw(e) veld(en) bij {brand}",

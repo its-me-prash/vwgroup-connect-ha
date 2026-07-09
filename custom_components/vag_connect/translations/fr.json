@@ -1441,11 +1441,11 @@
     },
     "too_many_requests": {
       "title": "Compte suspendu temporairement — {brand}",
-      "description": "**Attendez 15 minutes** et redémarrez Home Assistant."
+      "description": "Le compte {brand} ({username}) est temporairement suspendu en raison d'un trop grand nombre de requêtes.\n\nVeuillez **attendre 15 minutes** puis redémarrer Home Assistant.\nAstuce : augmentez l'intervalle de mise à jour à au moins 15 minutes."
     },
     "auth_failed": {
       "title": "Connexion échouée — {brand}",
-      "description": "Paramètres → Appareils et services → VW Group Connect → ⋮ → Reconfigurer."
+      "description": "La connexion à {brand} ({username}) a échoué.\n\nParamètres → Appareils et services → VW Group Connect → ⋮ → Reconfigurer."
     },
     "vehicle_data_scout_findings": {
       "title": "Observateur d'API — {count} nouveau(x) champ(s) sur {brand}",

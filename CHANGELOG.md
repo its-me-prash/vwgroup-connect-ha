@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.16.4] - unreleased
+
+### Fixed
+
+- **Repair prompts show correctly in six more languages.** Several of the integration's repair messages (two-factor needed, terms & conditions, marketing consent, rate-limited, auth failed) were missing the `{brand}` / `{username}` placeholders in the Czech, Spanish, French, Dutch, Polish and Swedish translations — so Home Assistant logged translation-validation warnings and could blank those messages out. All six now match the English source, with the account name and brand back where they belong. Thanks @shaarkys, whose debug log surfaced the Czech warnings.
+
 ## [2.16.3] - 2026-07-09
 
 ### Fixed

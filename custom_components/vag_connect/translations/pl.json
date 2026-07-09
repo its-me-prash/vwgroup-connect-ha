@@ -1425,7 +1425,7 @@
   "issues": {
     "two_factor_required": {
       "title": "Wymagane uwierzytelnianie dwuskładnikowe — {brand}",
-      "description": "1. Otwórz aplikację **{brand}**\n2. Zaloguj się ręcznie\n3. Potwierdź kod e-mail\n4. Uruchom ponownie Home Assistant"
+      "description": "Twoje konto {brand} ({username}) wymaga kodu weryfikacyjnego z e-maila.\n\n**Jednorazowa naprawa:**\n1. Otwórz aplikację **{brand}** na telefonie\n2. Zaloguj się ręcznie\n3. Potwierdź kod przesłany e-mailem\n4. Uruchom ponownie Home Assistant\n\nPo tym jednorazowym kroku integracja zapisze token logowania — nie będziesz musiał tego powtarzać."
     },
     "email_two_factor_required": {
       "title": "2FA przez e-mail — sprawdź skrzynkę",
@@ -1433,19 +1433,19 @@
     },
     "terms_and_conditions": {
       "title": "Akceptacja warunków — {brand}",
-      "description": "1. Otwórz aplikację\n2. Zaakceptuj warunki\n3. Uruchom ponownie Home Assistant"
+      "description": "Pojawiły się nowe warunki użytkowania dla {brand} ({username}).\n\n1. Otwórz aplikację {brand}\n2. Zaloguj się i zaakceptuj warunki\n3. Uruchom ponownie Home Assistant"
     },
     "marketing_consent": {
       "title": "Wymagana zgoda — {brand}",
-      "description": "Aplikacja → Profil → Zgody → potwierdź → uruchom ponownie HA."
+      "description": "Wymagana jest nowa zgoda dotycząca prywatności dla {brand} ({username}).\n\nAplikacja → Profil → Zgody → potwierdź → uruchom ponownie HA."
     },
     "too_many_requests": {
       "title": "Konto tymczasowo zablokowane — {brand}",
-      "description": "**Poczekaj 15 minut** i uruchom ponownie Home Assistant."
+      "description": "Konto {brand} ({username}) zostało tymczasowo zablokowane z powodu zbyt wielu żądań.\n\n**Poczekaj 15 minut** i uruchom ponownie Home Assistant.\nWskazówka: zwiększ interwał aktualizacji do co najmniej 15 minut."
     },
     "auth_failed": {
       "title": "Logowanie nieudane — {brand}",
-      "description": "Ustawienia → Urządzenia i usługi → VW Group Connect → ⋮ → Skonfiguruj ponownie."
+      "description": "Połączenie z {brand} ({username}) nie powiodło się.\n\nUstawienia → Urządzenia i usługi → VW Group Connect → ⋮ → Skonfiguruj ponownie."
     },
     "vehicle_data_scout_findings": {
       "title": "Obserwator API — {count} nowe pole(a) w {brand}",

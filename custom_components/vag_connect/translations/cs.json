@@ -1425,7 +1425,7 @@
   "issues": {
     "two_factor_required": {
       "title": "Vyžadováno dvoufázové ověření — {brand}",
-      "description": "1. Otevřete aplikaci **{brand}**\n2. Přihlaste se ručně\n3. Potvrďte kód z e-mailu\n4. Restartujte Home Assistant"
+      "description": "Váš účet {brand} ({username}) vyžaduje e-mailový ověřovací kód.\n\n**Jednorázová oprava:**\n1. Otevřete v telefonu aplikaci **{brand}**\n2. Přihlaste se ručně\n3. Potvrďte kód zaslaný e-mailem\n4. Restartujte Home Assistant\n\nPo tomto jednorázovém kroku si integrace uloží přihlašovací token — už to nebudete muset opakovat."
     },
     "email_two_factor_required": {
       "title": "E-mailové 2FA — zkontrolujte schránku",
@@ -1433,19 +1433,19 @@
     },
     "terms_and_conditions": {
       "title": "Přijmout podmínky — {brand}",
-      "description": "1. Otevřete aplikaci\n2. Přijměte podmínky\n3. Restartujte Home Assistant"
+      "description": "Pro účet {brand} ({username}) jsou nové obchodní podmínky.\n\n1. Otevřete aplikaci {brand}\n2. Přihlaste se a přijměte podmínky\n3. Restartujte Home Assistant"
     },
     "marketing_consent": {
       "title": "Vyžadován souhlas — {brand}",
-      "description": "Aplikace → Profil → Souhlasy → potvrdit → restartovat HA."
+      "description": "Pro účet {brand} ({username}) je vyžadován nový souhlas se zpracováním údajů.\n\nAplikace → Profil → Souhlasy → potvrdit → restartovat HA."
     },
     "too_many_requests": {
       "title": "Účet dočasně zablokován — {brand}",
-      "description": "**Počkejte 15 minut** a restartujte Home Assistant."
+      "description": "Účet {brand} ({username}) je dočasně zablokován kvůli příliš mnoha požadavkům.\n\n**Počkejte 15 minut** a restartujte Home Assistant.\nTip: Zvyšte interval aktualizace alespoň na 15 minut."
     },
     "auth_failed": {
       "title": "Přihlášení selhalo — {brand}",
-      "description": "Nastavení → Zařízení a služby → VW Group Connect → ⋮ → Znovu nakonfigurovat."
+      "description": "Připojení k účtu {brand} ({username}) selhalo.\n\nNastavení → Zařízení a služby → VW Group Connect → ⋮ → Znovu nakonfigurovat."
     },
     "vehicle_data_scout_findings": {
       "title": "Pozorovatel API — {count} nových polí v {brand}",

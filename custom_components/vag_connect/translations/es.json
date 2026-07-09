@@ -1425,7 +1425,7 @@
   "issues": {
     "two_factor_required": {
       "title": "Autenticación de dos factores — {brand}",
-      "description": "1. Abre la app **{brand}**\n2. Inicia sesión manualmente\n3. Confirma el código de correo\n4. Reinicia Home Assistant"
+      "description": "Tu cuenta de {brand} ({username}) requiere un código de verificación por correo.\n\n**Solución única:**\n1. Abre la **app de {brand}** en tu teléfono\n2. Inicia sesión manualmente\n3. Confirma el código enviado por correo\n4. Reinicia Home Assistant\n\nTras este paso único, la integración guarda el token de inicio de sesión — no tendrás que repetirlo."
     },
     "email_two_factor_required": {
       "title": "2FA por email — revisa tu bandeja",
@@ -1433,19 +1433,19 @@
     },
     "terms_and_conditions": {
       "title": "Aceptar términos — {brand}",
-      "description": "1. Abre la app\n2. Acepta los términos\n3. Reinicia Home Assistant"
+      "description": "Hay nuevos términos y condiciones para {brand} ({username}).\n\n1. Abre la app de {brand}\n2. Inicia sesión y acepta los términos\n3. Reinicia Home Assistant"
     },
     "marketing_consent": {
       "title": "Consentimiento requerido — {brand}",
-      "description": "App → Perfil → Consentimientos → confirmar → reiniciar HA."
+      "description": "Se requiere un nuevo consentimiento de privacidad para {brand} ({username}).\n\nAbre la app → Perfil → Consentimientos → confirmar → reiniciar HA."
     },
     "too_many_requests": {
       "title": "Cuenta suspendida temporalmente — {brand}",
-      "description": "**Espera 15 minutos** y reinicia Home Assistant."
+      "description": "La cuenta de {brand} ({username}) está suspendida temporalmente por demasiadas solicitudes.\n\n**Espera 15 minutos** y reinicia Home Assistant.\nConsejo: aumenta el intervalo de actualización a al menos 15 minutos."
     },
     "auth_failed": {
       "title": "Autenticación fallida — {brand}",
-      "description": "Ajustes → Dispositivos y servicios → VW Group Connect → ⋮ → Reconfigurar."
+      "description": "La conexión con {brand} ({username}) ha fallado.\n\nAjustes → Dispositivos y servicios → VW Group Connect → ⋮ → Reconfigurar."
     },
     "vehicle_data_scout_findings": {
       "title": "Observador de API — {count} campo(s) nuevo(s) en {brand}",

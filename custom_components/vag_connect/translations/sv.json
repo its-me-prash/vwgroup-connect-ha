@@ -1425,7 +1425,7 @@
   "issues": {
     "two_factor_required": {
       "title": "Tvåfaktorsautentisering krävs — {brand}",
-      "description": "1. Öppna **{brand}-appen**\n2. Logga in manuellt\n3. Bekräfta e-postkoden\n4. Starta om Home Assistant"
+      "description": "Ditt {brand}-konto ({username}) kräver en e-postbekräftelsekod.\n\n**Engångsfix:**\n1. Öppna **{brand}-appen** på din telefon\n2. Logga in manuellt\n3. Bekräfta koden som skickats via e-post\n4. Starta om Home Assistant\n\nEfter det här engångssteget sparar integrationen inloggningstoken — du behöver inte upprepa det här."
     },
     "email_two_factor_required": {
       "title": "E-post 2FA — kolla din inkorg",
@@ -1433,19 +1433,19 @@
     },
     "terms_and_conditions": {
       "title": "Acceptera villkor — {brand}",
-      "description": "1. Öppna appen\n2. Acceptera villkoren\n3. Starta om Home Assistant"
+      "description": "Det finns nya användarvillkor för {brand} ({username}).\n\n1. Öppna {brand}-appen\n2. Logga in och acceptera villkoren\n3. Starta om Home Assistant"
     },
     "marketing_consent": {
       "title": "Samtycke krävs — {brand}",
-      "description": "App → Profil → Samtycken → bekräfta → starta om HA."
+      "description": "Ett nytt dataskyddssamtycke krävs för {brand} ({username}).\n\nÖppna appen → Profil → Samtycken → bekräfta → starta om Home Assistant."
     },
     "too_many_requests": {
       "title": "Kontot är tillfälligt spärrat — {brand}",
-      "description": "**Vänta 15 minuter** och starta om Home Assistant."
+      "description": "Kontot {brand} ({username}) är tillfälligt spärrat på grund av för många förfrågningar.\n\n**Vänta 15 minuter** och starta om Home Assistant.\nTips: Öka uppdateringsintervallet till minst 15 minuter."
     },
     "auth_failed": {
       "title": "Inloggning misslyckades — {brand}",
-      "description": "Inställningar → Enheter och tjänster → VW Group Connect → ⋮ → Omkonfigurera."
+      "description": "Anslutningen till {brand} ({username}) misslyckades.\n\nInställningar → Enheter och tjänster → VW Group Connect → ⋮ → Omkonfigurera."
     },
     "vehicle_data_scout_findings": {
       "title": "API-spanare — {count} nytt fält på {brand}",
