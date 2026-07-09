@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.17.0] - unreleased
+
+### Added
+
+- **Škoda now reports its heater source too (#682).** Škoda EVs expose a `heaterSource` value on the climate endpoint (e.g. "AUTOMATIC") — the same signal VW, Audi, SEAT and CUPRA already surface. It now feeds Škoda's **heater source** sensor as well (electric cars, where the field is present). Thanks @ra666ack for the Scout report.
+
 ## [2.16.4] - 2026-07-09
 
 ### Fixed

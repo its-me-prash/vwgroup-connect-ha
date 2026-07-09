@@ -856,6 +856,13 @@ class SkodaClient(CariadBaseClient):
             wh_en = v(ac, "windowHeatingEnabled")
             if isinstance(wh_en, bool):
                 d.window_heating_enabled = wh_en
+            # v2.17.0 (#682 skoda Scout, ra666ack) — heaterSource on the
+            # air-conditioning endpoint ("AUTOMATIC" in the wild). Cross-brand
+            # alias to the existing heater_source sensor (VW/Audi/SEAT already
+            # map it). Free enum string — defensive guard for null/older firmware.
+            heater_src = v(ac, "heaterSource")
+            if isinstance(heater_src, str) and heater_src:
+                d.heater_source = heater_src
             # v2.2.0 (scout #220 — Daniel Walter 2026-05-16) — Skoda mysmob
             # exposes a new boolean ``airConditioningWithoutExternalPower``
             # on the air-conditioning endpoint indicating whether climate

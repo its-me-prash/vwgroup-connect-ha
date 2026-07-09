@@ -191,6 +191,10 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # climatisation can run from the HV battery alone (without
             # being plugged into a charger). Wired as binary_sensor.
             "airConditioningWithoutExternalPower",
+            # v2.17.0 (#682, ra666ack Scout 2026-07-09) — heaterSource enum
+            # ("AUTOMATIC") on air-conditioning. Cross-brand alias, parsed in
+            # skoda.py → the existing heater_source sensor.
+            "heaterSource",
             # v2.4.2 (#302, Scout-Report 2026-05-27) — RETRO-SILENCER ADD.
             # Field is ALREADY PARSED at skoda.py:586 since v2.1.0
             # (``estimatedDateTimeToReachTargetTemperature`` → ``d.climate_ready_at``
