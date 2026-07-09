@@ -1238,6 +1238,10 @@ class CariadBaseClient:
         """Authenticated POST."""
         return await self._request("POST", url, **kwargs)
 
+    async def _put(self, url: str, **kwargs: Any) -> Any:
+        """Authenticated PUT — auto-refreshes token on 401 like _post."""
+        return await self._request("PUT", url, **kwargs)
+
     def _rate_lockout_remaining(self) -> int:
         """Seconds left on the account-scoped rate-limit lockout (0 = none).
 

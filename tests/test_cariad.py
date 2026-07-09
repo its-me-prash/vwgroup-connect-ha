@@ -4586,14 +4586,21 @@ class TestVWEUv1v2Fallback:
         assert client._supports_v2_paths("VIN_AUDI")
 
     def test_subsequent_calls_skip_v1(self):
-        """Once v2 is recorded for a VIN, all subsequent calls go to v2."""
+        """Once v2 is recorded for a VIN, all subsequent calls go to v2.
+
+        Uses command_set_target_soc (a _post_command consumer). NOTE: since
+        v2.16.3 (#666) command_set_climate_temperature deliberately does NOT
+        use _post_command — it PUTs the v1 climate-settings path directly and
+        bypasses the shared v2 flag, so it is intentionally not a valid probe
+        for this behaviour (see test_v2163_climate_temp_put_666.py).
+        """
         import asyncio
         from unittest.mock import AsyncMock
         client = self._client()
         client._v2_command_paths = {"VIN_AUDI": True}
         client._post = AsyncMock(return_value=None)
         asyncio.run(
-            client.command_set_climate_temperature("VIN_AUDI", 21.0)
+            client.command_set_target_soc("VIN_AUDI", 80)
         )
         assert client._post.call_count == 1
         assert "/vehicle/v2/" in client._post.call_args[0][0]

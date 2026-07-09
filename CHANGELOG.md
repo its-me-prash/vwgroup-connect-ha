@@ -38,6 +38,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.16.3] - 2026-07-09
+
+### Fixed
+
+- **Setting the climate temperature works again on Audi Q4/Q6 e-tron and other PPE cars (#666).** The "set target temperature" action was going out as the wrong kind of request — a POST carrying the *read*-side field name (`targetTemperature_C`) — where VW's backend actually expects a **PUT** with `targetTemperature` + a unit. On the stricter PPE/MEB Audis the gateway answered that with a **404**, so every temperature change failed with an "unexpected error" (older models were more forgiving, which is why this went unnoticed). It now sends the correct PUT + body, keeps the old request as a fallback so nothing that worked before can break, and if a vehicle genuinely doesn't expose a standalone temperature-set it now says so cleanly instead of dumping a 404 traceback. The verb + field were cross-checked against four independent VW/Audi CARIAD clients.
+
+### Thanks 🙏
+
+Huge thanks to @torstentosh for the pin-sharp debug log + diagnostics that made this a five-minute root-cause instead of a guessing game. Exactly the kind of report that makes a fix like this possible.
+
 ## [2.16.2] - 2026-07-08
 
 ### Added

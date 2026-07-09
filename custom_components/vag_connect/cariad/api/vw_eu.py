@@ -1944,10 +1944,56 @@ class VWEUClient(CariadBaseClient):
         )
 
     async def command_set_climate_temperature(self, vin: str, temp_c: float) -> None:
-        """Set pre-conditioning temperature. v1 → v2 fallback on 404."""
-        await self._post_command(
-            vin, "climatisation/settings", json={"targetTemperature_C": temp_c},
-        )
+        """Set pre-conditioning temperature on the CARIAD BFF.
+
+        v2.16.3 (#666) — the climatisation/settings write is a **PUT** with
+        body ``{targetTemperature, targetTemperatureUnit:"celsius"}``, verified
+        across four independent BFF-native clients (CarConnectivity audi/vw,
+        volkswagencarnet, WeConnect-python). ``targetTemperature_C`` is the
+        *read*-side field name — reusing it as the write field, plus POSTing a
+        PUT-only route, made the gateway answer **404** (not a clean 405),
+        which broke temperature-set — most visibly on the stricter PPE/MEB
+        Audis (Q4/Q6 e-tron), where torstentosh's Q4 404'd on every attempt.
+
+        Primary = the grounded PUT + correct body on the v1 path (competitors
+        only ever use v1 for climate; the shared v2-path flag is deliberately
+        bypassed so a VIN marked v2 by some *other* endpoint doesn't skip the
+        working v1 climate route). Fallback = the legacy POST+``_C`` shape, so
+        any car that somehow accepted the old form can't regress. If both
+        return 404 the write genuinely isn't provisioned for this vehicle →
+        a clean VehicleCommandError instead of a raw 404 traceback.
+        """
+        base = self._base_for_vin(vin)
+        put_url = f"{base}/vehicle/v1/vehicles/{vin}/climatisation/settings"
+        try:
+            await self._put(
+                put_url,
+                json={
+                    "targetTemperature": temp_c,
+                    "targetTemperatureUnit": "celsius",
+                },
+            )
+            return
+        except APIError as err:
+            if getattr(err, "status", 0) not in (404, 405):
+                raise
+        # PUT route unavailable — try the legacy POST + _C shape so a car that
+        # accepted the old form does not regress.
+        try:
+            await self._post_command(
+                vin, "climatisation/settings", json={"targetTemperature_C": temp_c},
+            )
+        except APIError as err:
+            if getattr(err, "status", 0) != 404:
+                raise
+            raise VehicleCommandError(
+                "set_climate_temperature",
+                "climate temperature can't be set on this vehicle via the "
+                "current API (both the PUT and the legacy POST returned 404). "
+                "On PPE/MEB Audis (Q4/Q6 e-tron) a standalone temperature-set "
+                "may not be exposed — set it in the app, or start "
+                "pre-conditioning instead.",
+            ) from err
 
     async def command_set_charge_mode(self, vin: str, mode: str) -> None:
         """Set charging mode — MANUAL, TIMER, PREFERRED_CHARGING_TIMES.
