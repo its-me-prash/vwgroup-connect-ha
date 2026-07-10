@@ -80,7 +80,7 @@ _BRAND_OPTIONS: list[SelectOptionDict] = [
     SelectOptionDict(value="seat",          label="SEAT"),
     SelectOptionDict(value="cupra",         label="CUPRA"),
     SelectOptionDict(value="volkswagen_na", label="Volkswagen US / CA"),
-    SelectOptionDict(value="porsche",       label="Porsche (My Porsche)"),
+    SelectOptionDict(value="porsche",       label="Porsche (My Porsche) — experimental, login may fail"),
     # v2.14.11 — Bentley (login+read; Audi IDK tenant). Two-way live-test gated.
     SelectOptionDict(value="bentley",       label="Bentley (My Bentley)"),
 ]

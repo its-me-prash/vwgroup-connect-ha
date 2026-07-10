@@ -48,6 +48,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 - **The "open the brand app" button now uses each app's real link (#666).** Several brands' deep-link schemes were launcher guesses (`wecharge://`, `myseat://`, `mycupra://`, `myporsche://`, `vwapp://`) that didn't match the app; corrected to the schemes the shipping apps actually register (`weconnect://`, `seat://`, `cupra://`, `porsche-app://`, `myvw://`). Audi and Škoda were already correct.
 
+### Changed
+
+- **Porsche is now flagged experimental — its login may fail (#666).** The fresh app teardown showed Porsche moved from the old My-Porsche (Auth0) app to **Porsche One**, which uses a completely different login (PingFederate device-grant). Our current Porsche login targets the retired Auth0 app, so it's expected to fail on current accounts. Rather than quietly advertise it as working, Porsche is now labelled experimental in the brand picker. The rebuild path is documented and confirmed feasible — it just needs a Porsche owner to help verify it end-to-end before it's switched back on. (Testers with a Porsche account welcome.)
+
 ### Added
 
 - **Audi Car-Net owners can now enable the two-way command channel too — experimental (#666).** The legacy command path (lock/climate/charge over the older Car-Net backend) was Volkswagen-only; it's now offered for Audi as well, since the underlying command catalog is identical and the brand routing is handled. This is **experimental** and applies only to older legacy Car-Net Audis (not the newer MEB/PPE e-tron generation) — it hasn't been confirmed end-to-end on a real car yet, so treat it as opt-in testing.

@@ -1,10 +1,31 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Porsche Connect Auth0 authentication.
+"""Porsche Connect authentication — EXPERIMENTAL / superseded stack.
 
-Auth flow based on CJNE/pyporscheconnectapi (Apache-2.0).
-Clean-room reimplementation using aiohttp instead of httpx.
-Source: https://github.com/CJNE/pyporscheconnectapi
+⚠️ v2.17.1 (#666 fresh APK sweep): this module targets the OLD My-Porsche
+**Auth0** stack (identity.porsche.com /authorize + /oauth/token, hardcoded
+Auth0 client XhygisuebbrqQ80byOuU5VncxLIm8E6H, my-porsche-app://auth0/callback).
+The live app is **Porsche One** (com.porsche.one 12.24.27), whose auth is
+**PingFederate**, not Auth0 — so this password flow is expected to fail on
+current accounts. Porsche is marked experimental in the brand picker until
+this is rebuilt.
+
+REBUILD RECIPE (DEX-grounded, feasible off-device — verified in the sweep:
+zero client_secret, NO Play-Integrity/AppCheck/captcha on the auth path,
+first-class RFC-8628 device grant):
+  1. clientId at runtime: GET /v1/mobile/clientId (no hardcoded Auth0 client).
+  2. OIDC discovery: GET https://identity.porsche.com/.well-known/openid-configuration
+     → device_authorization_endpoint + token_endpoint (PingFederate).
+  3. Device authorization (RFC 8628): POST device_authorization_endpoint with
+     client_id + scope="openid profile email ssodb mbb offline_access" →
+     device_code/user_code/verification_uri (device.identity.porsche.com/activate).
+  4. Poll token_endpoint (grant_type=urn:ietf:params:oauth:grant-type:device_code).
+  Commands then run against api.ppa.porsche.com/app/connect/*.
+Needs a Porsche One owner to verify end-to-end before it's un-flagged — the
+rewrite is otherwise ready to build (self-contained; won't touch the shared
+device-grant used by the 4 working VW-Group brands).
+
+Old flow based on CJNE/pyporscheconnectapi (Apache-2.0), aiohttp reimpl.
 """
 
 from __future__ import annotations
