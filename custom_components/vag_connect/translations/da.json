@@ -1,0 +1,1674 @@
+{
+  "config": {
+    "step": {
+      "reauth_confirm": {
+        "title": "Log ind igen — {brand}",
+        "description": "Sessionen for **{username}** er udløbet.\n\nIndtast venligst din adgangskode igen.",
+        "data": {
+          "password": "Adgangskode",
+          "spin": "S-PIN"
+        }
+      },
+      "reconfigure": {
+        "title": "Konfigurer VW Group Connect igen",
+        "description": "Skift loginoplysninger eller indstillinger uden at fjerne integrationen.",
+        "data": {
+          "brand": "Køretøjsmærke",
+          "username": "E-mailadresse",
+          "password": "Adgangskode",
+          "spin": "S-PIN",
+          "country": "Region (kun Volkswagen USA/Canada)",
+          "scan_interval": "Opdateringsinterval",
+          "force_enable_access": "Gennemtving dørstatus"
+        }
+      },
+      "mfa": {
+        "title": "To-faktor-bekræftelse",
+        "description": "En bekræftelseskode er sendt til **{username}**.\n\nIndtast koden fra din e-mail eller authenticator-app.",
+        "data": {
+          "mfa_code": "Bekræftelseskode"
+        },
+        "data_description": {
+          "mfa_code": "6-cifret kode — gyldig i et par minutter."
+        }
+      },
+      "email_password": {
+        "title": "Log ind med e-mail + adgangskode (ældre metode)",
+        "description": "Forbind dit køretøj til Home Assistant.\n\nVælg dit mærke, og indtast loginoplysningerne fra din producents app.",
+        "data": {
+          "brand": "Køretøjsmærke",
+          "username": "E-mailadresse",
+          "password": "Adgangskode",
+          "spin": "S-PIN",
+          "country": "Region (kun Volkswagen USA/Canada)",
+          "scan_interval": "Opdateringsinterval",
+          "force_enable_access": "Gennemtving dørstatus",
+          "enable_mbb_commands": "Aktivér MBB-fjernkommandoer (kun Volkswagen — tilføjer en QR-bekræftelse)"
+        },
+        "data_description": {
+          "brand": "Vælg dit mærke — myAudi, WeConnect ID, MyŠkoda, SEAT, CUPRA, VW US/CA eller Porsche.",
+          "username": "E-mailadresse fra producentens app.",
+          "password": "Adgangskode fra appen.",
+          "spin": "Kræves kun til låsning. App → Sikkerhed → S-PIN.",
+          "scan_interval": "Hvor ofte data hentes. Standard: 5 min. Minimum: 3 min.",
+          "force_enable_access": "Til ældre køretøjer, der ikke består kapacitetstjekket."
+        }
+      },
+      "user": {
+        "title": "Opsæt VW Group Connect",
+        "description": "Hvordan vil du logge ind?\n\n**Browser-login (anbefalet)** — åbn en URL på din telefon eller bærbare, log ind på din Brand ID-konto, og godkend enheden. Ingen adgangskode gemmes nogensinde i Home Assistant. Tilgængelig for Audi, Škoda, SEAT og CUPRA.\n\n**E-mail + adgangskode (ældre metode)** — indtast dine Brand ID-loginoplysninger direkte. Kræves for Volkswagen EU og Porsche.",
+        "menu_options": {
+          "browser_login": "Browser-login (anbefalet)",
+          "email_password": "E-mail + adgangskode (ældre metode)",
+          "website_authproxy": "Volkswagen.de-websted (beta — skrivebeskyttet)",
+          "mbb_login": "Volkswagen EU — vedvarende login (MBB, to-vejs alfa)"
+        }
+      },
+      "mbb_login": {
+        "title": "Volkswagen EU — vedvarende login (MBB, ALFA)",
+        "description": "**Eksperimentel, tilvalg — kun Volkswagen EU.** En browser-bekræftelse (ingen adgangskode gemt i Home Assistant) udsteder et vedvarende, fornyeligt token via det ældre MBB-backend. Modsat det skrivebeskyttede portal overlever dette genstarter og understøtter to-vejs fjernlåsning/-oplåsning. **Indtast dit VIN** (MBB-tokenet kan ikke selv liste din garage), og tilføj din S-PIN for at aktivere låsning/oplåsning. På næste skærm ser du en kort kode og en URL, du kan åbne på en hvilken som helst enhed.",
+        "data": {
+          "mbb_vins": "VIN (stelnummer)",
+          "spin": "S-PIN",
+          "scan_interval": "Opdateringsinterval",
+          "force_enable_access": "Gennemtving dørstatus"
+        },
+        "data_description": {
+          "mbb_vins": "Dit 17-tegns VIN (på forruden / i registreringsattesten). Flere biler: adskil med komma. Påkrævet — det vedvarende MBB-token virker pr. VIN, men kan ikke opremse din garage.",
+          "spin": "Valgfri 4-cifret sikkerheds-PIN — kræves til fjernlåsning/-oplåsning.",
+          "scan_interval": "Minutter mellem hver hentning af køretøjsdata.",
+          "force_enable_access": "Gennemtving dørstatus-entiteter, selv når køretøjet melder dataene som manglende."
+        }
+      },
+      "website_authproxy": {
+        "title": "Volkswagen.de-websted (BETA, skrivebeskyttet)",
+        "description": "**Eksperimentel, tilvalg.** Læser din Volkswagen via login på volkswagen.de i stedet for app-backendet. Kun Volkswagen, skrivebeskyttet (ingen fjernkommandoer). Log ind med din Volkswagen ID-e-mail og adgangskode. Hvis din konto bruger e-mailbekræftelse, bliver du bedt om koden i næste trin. **Forudsætning:** din Volkswagen ID skal være køretøjets primære bruger — bekræft din identitet én gang på volkswagen.de (myVolkswagen → dit køretøj → “Bekræft identitet”). Uden dette returnerer webstedet ingen køretøjsdata.",
+        "data": {
+          "username": "E-mailadresse",
+          "password": "Adgangskode",
+          "scan_interval": "Opdateringsinterval"
+        },
+        "data_description": {
+          "username": "E-mailen til din Volkswagen ID- / myVolkswagen-konto.",
+          "password": "Din Volkswagen ID-adgangskode.",
+          "scan_interval": "Hvor ofte data hentes (minutter). Minimum: 5."
+        }
+      },
+      "website_authproxy_otp": {
+        "title": "E-mailbekræftelseskode",
+        "description": "En bekræftelseskode blev sendt til e-mailen for **{username}**.\n\nIndtast koden for at fuldføre login på Volkswagen.de-webstedskanalen (beta).",
+        "data": {
+          "mfa_code": "Bekræftelseskode"
+        },
+        "data_description": {
+          "mfa_code": "Kode fra din e-mailindbakke — gyldig i et par minutter."
+        }
+      },
+      "browser_login": {
+        "title": "Browser-login — vælg dit mærke",
+        "description": "Vælg mærket på det køretøj, du vil forbinde. På næste skærm ser du en kort kode og en URL, du kan besøge på en hvilken som helst enhed med en browser.",
+        "data": {
+          "brand": "Køretøjsmærke",
+          "spin": "S-PIN",
+          "scan_interval": "Opdateringsinterval",
+          "force_enable_access": "Gennemtving dørstatus"
+        },
+        "data_description": {
+          "brand": "Kun mærker med understøttelse af browser-login vises. Brug 'E-mail + adgangskode' til Volkswagen EU og Porsche.",
+          "force_enable_access": "Gennemtving dørstatus-entiteter, selv når køretøjet melder dataene som manglende.",
+          "scan_interval": "Minutter mellem hver hentning af køretøjsdata.",
+          "spin": "Valgfri 4-cifret sikkerheds-PIN til fjernhandlinger (lås, lås op, klima)."
+        }
+      },
+      "browser_login_pending": {
+        "title": "Anmoder om loginkode…",
+        "description": "Beder IDP'en om en engangs-enhedskode."
+      },
+      "browser_login_approve": {
+        "title": "Godkend i din browser",
+        "description": "Scan QR-koden med din telefon, eller åbn URL'en på en hvilken som helst enhed. Log ind på din Brand ID-konto, hvis du bliver bedt om det, bekræft koden, sæt derefter flueben i feltet nedenfor, og klik på Send.",
+        "data": {
+          "qr_code": "Scan med telefonkameraet for at åbne loginsiden",
+          "verification_url": "Eller åbn denne URL i en hvilken som helst browser",
+          "user_code": "Kode, der skal bekræftes i browseren",
+          "approved_in_browser": "Jeg har godkendt i browseren"
+        },
+        "data_description": {
+          "qr_code": "Ret telefonkameraet mod QR-koden. Loginsiden åbnes i telefonens browser med koden nedenfor udfyldt på forhånd.",
+          "verification_url": "Hvis du ikke kan scanne: kopiér dette link, åbn det på en hvilken som helst enhed, og log ind på din Brand ID-konto.",
+          "user_code": "Efter login skal du bekræfte denne kode i browseren for at godkende Home Assistant.",
+          "approved_in_browser": "Lad fluebenet stå. Klik først på Send, når du har logget ind og bekræftet koden i browseren."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Forbindelsen mislykkedes. Tjek loginoplysninger og internetforbindelse.",
+      "unknown": "Ukendt fejl. Tjek venligst logfilerne.",
+      "terms_and_conditions": "Vilkår og betingelser skal accepteres. Log ind i appen én gang, og bekræft.",
+      "marketing_consent": "Nyt privatlivssamtykke er påkrævet. Åbn appen: Profil → Samtykker.",
+      "two_factor_required": "To-faktor-godkendelse er påkrævet. Log ind manuelt i appen, og bekræft e-mailkoden.",
+      "email_two_factor_required": "E-mail-2FA er påkrævet. Tjek din indbakke (og spam) for en 6-cifret kode fra VAG IDP, og log derefter ind manuelt i mærke-appen én gang.",
+      "too_many_requests": "Konto midlertidigt spærret (for mange loginforsøg). Vent venligst 15 minutter.",
+      "invalid_credentials": "E-mailadresse eller adgangskode er forkert.",
+      "upstream_unavailable": "VW-backendet er midlertidigt utilgængeligt. Dette er et serverproblem hos VW, IKKE et problem med loginoplysninger. Vent venligst 5-15 minutter, og prøv igen. Konfigurer IKKE integrationen igen.",
+      "brand_not_dag_eligible": "Det valgte mærke understøtter ikke browser-login. Brug flowet med e-mail + adgangskode i stedet.",
+      "portal_interaction_required": "EU Data Act-portalen kræver en engangshandling i din browser eller mærke-app (f.eks. accepter vilkår, bekræft samtykke, fuldfør onboarding/regionsvalg), før headless-adgang virker. Dette er IKKE et problem med forkert adgangskode — åbn portalen én gang i en browser, fuldfør anmodningen, og prøv igen.",
+      "still_waiting_browser": "Venter stadig på browser-godkendelse. Åbn URL'en ovenfor, log ind, bekræft koden, og klik på Send igen."
+    },
+    "abort": {
+      "already_configured": "Denne konto er allerede konfigureret.",
+      "reauth_successful": "Fornyet login lykkedes.",
+      "reconfigure_successful": "Konfigurationen blev opdateret.",
+      "mbb_not_eligible": "Dit køretøj er ikke egnet til det vedvarende MBB-login — backendet returnerede \"Unknown user\". Det betyder, at det er en nyere ID/MEB-model (ID.3/4/5, e-up osv.), der aldrig blev registreret i det ældre Car-Net/MBB-system, så det vedvarende login + fjernkommandoerne kan ikke nå det. Brug EU Data Act-portalkanalen (eller login med e-mail + adgangskode) til disse køretøjer i stedet. MBB-loginet er til ældre Car-Net-biler (de fleste PHEV-/forbrændingsmodeller)."
+    },
+    "progress": {
+      "awaiting_browser_login": "Åbn {verification_uri} i en hvilken som helst browser, log ind med din Brand ID-konto, og bekræft koden {user_code}.",
+      "requesting_device_code": "Anmoder om en engangs-loginkode fra IDP'en…"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "VW Group Connect — indstillinger",
+        "data": {
+          "scan_interval": "Opdateringsinterval",
+          "spin": "S-PIN",
+          "enable_reverse_geocoding": "Omvendt geokodning (parkeringsadresse)",
+          "read_only_mode": "Skrivebeskyttet tilstand",
+          "force_ppe_climate": "Audi PPE/PPC-klimaformat (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
+          "enable_push_mqtt": "Skoda push-opdateringer (MQTT, EKSPERIMENTEL)",
+          "enable_push_fcm": "CUPRA/SEAT push-opdateringer (FCM, EKSPERIMENTEL)",
+          "enable_push_audi_vw": "Audi/VW push-opdateringer (Cariad FCM, Live (beta))",
+          "wake_before_poll": "Aktiv opvækning af køretøj før statushentning",
+          "wake_delay_seconds": "Opvækningsforsinkelse (sekunder)",
+          "client_id_override": "Tilsidesættelse af OAuth client_id (avancerede brugere)",
+          "eu_data_act_auto_kickoff": "EU Data Act: opret automatisk Custom Data Request",
+          "enable_data_act_browser": "EU Data Act-portal: headless-browser-fallback (EKSPERIMENTEL)",
+          "supplementary_authproxy": "Tilføj en Volkswagen.de-læsekanal (flet ekstra data)",
+          "hide_empty_entities": "Skjul entiteter uden data",
+          "supplementary_eu_portal": "Tilføj en EU Data Act-portallæsekanal",
+          "remove_supplementary_authproxy": "Fjern vw.de-læsekanalen",
+          "remove_supplementary_eu_portal": "Fjern EU Data Act-portallæsekanalen",
+          "abrp_enable": "Aktivér ABRP-telemetri-push",
+          "abrp_api_key": "ABRP api_key (udviklernøgle)",
+          "abrp_user_token": "ABRP-token (pr. køretøj)"
+        },
+        "data_description": {
+          "scan_interval": "Hvor ofte data hentes (minutter). Minimum: 3.",
+          "spin": "S-PIN til dørlåsning. App → Sikkerhed → S-PIN.",
+          "enable_reverse_geocoding": "Sender parkerings-GPS til OpenStreetMap Nominatim for at finde gade/by. Slået fra som standard af hensyn til privatliv.",
+          "read_only_mode": "Når aktiveret, oprettes kun statussensorer — ingen kontakter, knapper, låse, klima eller skydere, der sender kommandoer. Nyttigt, hvis du vil have køretøjstelemetri uden nogen risiko for utilsigtet aktivering. Genindlæs integrationen efter ændring.",
+          "force_ppe_climate": "Kun Audi. Gennemtvinger det nye PPE/PPC-format (climatisationMode obligatorisk, targetTemperature udeladt) ved klimastart. Aktivér kun, hvis du ejer en Q6 e-tron, A6 e-tron, RS e-tron GT Facelift eller A3 2024+ PHEV — ellers returnerer klimastart 400. Genindlæs integrationen efter ændring.",
+          "enable_push_mqtt": "EKSPERIMENTEL: Kun Skoda. Aktiverer realtids-MQTT-push fra Skoda mysmob-backendet (kræver Python-pakkerne aiomqtt + firebase-messaging — pt. importeret dovent, ikke forudinstalleret). Grundlagsfase i v1.18.0; live-aktivering afventer validering fra community-testere. Hvis push ikke er tilgængelig, falder integrationen stille tilbage til polling. Genindlæs integrationen efter ændring.",
+          "enable_push_fcm": "EKSPERIMENTEL: Kun CUPRA/SEAT. Aktiverer realtids-push via Firebase Cloud Messaging fra OLA-backendet (kræver Python-pakken firebase-messaging — samme dovne import som Skoda MQTT-kontakten i v1.18.0). Grundlagsfase i v1.19.0; live-aktivering afventer validering fra community-testere. Hvis push ikke er tilgængelig, falder integrationen stille tilbage til polling. Genindlæs integrationen efter ændring.",
+          "enable_push_audi_vw": "Live (beta): Kun Audi/VW. Aktiverer realtids-push-notifikationer fra Cariad FCM-kanalen (den samme som myAudi/WeConnect-mobilapperne bruger, dækker resultater af lås/oplåsning, ladestatus, klima, alarm). Afkodede hændelser affyres på Home Assistant-hændelsesbussen som ``vag_connect_push_event`` og udløser en genopfriskning af koordinatoren. Kræver Python-pakken firebase-messaging (samme dovne import som Skoda MQTT + CUPRA/SEAT FCM). Live-aktivering siden v2.8.0 (Action #4); credential-resolveren er stadig tester-begrænset, indtil opfølgning på opgave #40 lander Cariad Firebase sender_id. Hvis push ikke er tilgængelig, falder integrationen stille tilbage til polling. Genindlæs integrationen efter ændring.",
+          "wake_before_poll": "Når aktiveret, sender integrationen en opvæknings-POST til køretøjet, før status hentes, for ethvert VIN, der var OFFLINE ved forrige polling. Bilen modtager en opvækning på serversiden og pusher friske data, hvorefter integrationen venter opvækningsforsinkelsen af, før status læses. Lukker hullet med 'alle sensorer ukendt for parkerede biler', men koster ét ekstra API-kald pr. offline-VIN pr. pollingcyklus. Slået fra som standard. Genindlæs integrationen efter ændring.",
+          "wake_delay_seconds": "Sekunder, der ventes mellem opvæknings-POST'en og statushentningen. Standarden på 15 sekunder er, hvad de fleste mærke-backends har brug for til at optage den opvækningsudløste datapush. Lavere værdier risikerer at læse forældede data; højere værdier strækker pollingcyklussen uden yderligere gevinst.",
+          "client_id_override": "Nødudgang for avancerede brugere, når fællesskabet opdager et nyt OAuth client_id i en ny VW Group-APK, før vores daglige atlas-builder fanger det. Indsæt hele UUID@apps_vw-dilab_com-strengen her, så prøver resolveren den FØRST ved hver godkendelse, med alle eksisterende client_ids stadig i kæden som fallback. Lad stå tom for standardadfærd. Format: 8-4-4-4-12 hex-cifre efterfulgt af @apps_vw-dilab_com. Fejlformaterede værdier ignoreres i stilhed.",
+          "eu_data_act_auto_kickoff": "Kun relevant, når integrationen kører i skrivebeskyttet EU Data Act-portaltilstand (live BFF-strategier er slået fejl). Når SLÅET TIL tjekker koordinatoren ved opstart for en aktiv 15-min Custom Data Request pr. VIN og opretter en, hvis der ikke findes nogen. Oprettelsen medfører et 1-måneds dataabonnement på din konto hos portalen, så dette er et tilvalg. Portalen accepterer HØJST ÉN aktiv custom-anmodning pr. VIN ad gangen. Slået fra som standard.",
+          "enable_data_act_browser": "EKSPERIMENTEL: kun relevant, når integrationen er faldet tilbage til EU Data Act-portalen (skrivebeskyttet). Styrer en headless Chromium via den valgfri Python-pakke 'playwright' for automatisk at klikke på portalens dataeksportknap. Pakken er IKKE forudinstalleret (den henter omkring 100 MB Chromium). Når aktiveret men manglende, fortæller en Reparation-sag dig, hvordan du installerer den inde fra Home Assistant-containeren. Genindlæs integrationen efter ændring.",
+          "abrp_enable": "Send live-telemetri til A Better Routeplanner. Kræver både en api_key og et token pr. køretøj nedenfor. Fra = ingen udgående kald.",
+          "abrp_api_key": "En udvikler-/partnernøgle, du registrerer hos iternio (vi leverer ikke en). Identificerer integrationen. Logges aldrig.",
+          "abrp_user_token": "'Generic'-tokenet fra ABRP-appen: Indstillinger -> din bil -> Live Data. Logges aldrig."
+        }
+      },
+      "add_vwde": {
+        "title": "Volkswagen.de-websted (BETA, skrivebeskyttet)",
+        "description": "**Eksperimentel, tilvalg.** Læser din Volkswagen via login på volkswagen.de i stedet for app-backendet. Kun Volkswagen, skrivebeskyttet (ingen fjernkommandoer). Log ind med din Volkswagen ID-e-mail og adgangskode. Hvis din konto bruger e-mailbekræftelse, bliver du bedt om koden i næste trin. **Forudsætning:** din Volkswagen ID skal være køretøjets primære bruger — bekræft din identitet én gang på volkswagen.de (myVolkswagen → dit køretøj → “Bekræft identitet”). Uden dette returnerer webstedet ingen køretøjsdata.",
+        "data": {
+          "username": "E-mailadresse",
+          "password": "Adgangskode",
+          "scan_interval": "Opdateringsinterval"
+        },
+        "data_description": {
+          "username": "E-mailen til din Volkswagen ID- / myVolkswagen-konto.",
+          "password": "Din Volkswagen ID-adgangskode.",
+          "scan_interval": "Hvor ofte data hentes (minutter). Minimum: 5."
+        }
+      },
+      "add_vwde_otp": {
+        "title": "E-mailbekræftelseskode",
+        "description": "En bekræftelseskode blev sendt til e-mailen for **{username}**.\n\nIndtast koden for at fuldføre login på Volkswagen.de-webstedskanalen (beta).",
+        "data": {
+          "mfa_code": "Bekræftelseskode"
+        },
+        "data_description": {
+          "mfa_code": "Kode fra din e-mailindbakke — gyldig i et par minutter."
+        }
+      },
+      "add_portal": {
+        "title": "EU Data Act-portal — læsekanal",
+        "description": "Log ind på EU Data Act-portalen (e-mail + adgangskode) for at tilføje aflæsninger af SoC, opladning, kilometerstand og service, flettet ind på din primære kanal.",
+        "data": {
+          "username": "E-mail",
+          "password": "Adgangskode"
+        }
+      }
+    },
+    "error": {
+      "abrp_credentials_required": "For at aktivere ABRP skal du indtaste både api_key og tokenet pr. køretøj."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "fuel_level": {
+        "name": "Brændstofniveau"
+      },
+      "battery_soc": {
+        "name": "Batteriniveau"
+      },
+      "range_km": {
+        "name": "Rækkevidde"
+      },
+      "electric_range_km": {
+        "name": "Elektrisk rækkevidde"
+      },
+      "combustion_range_km": {
+        "name": "Brændstofrækkevidde"
+      },
+      "total_range_km": {
+        "name": "Samlet rækkevidde"
+      },
+      "odometer_km": {
+        "name": "Kilometerstand"
+      },
+      "charging_state": {
+        "name": "Ladestatus"
+      },
+      "plug_state": {
+        "name": "Ladeport"
+      },
+      "target_soc": {
+        "name": "Lademål"
+      },
+      "charging_power_kw": {
+        "name": "Ladeeffekt"
+      },
+      "charging_rate_kmh": {
+        "name": "Ladehastighed"
+      },
+      "charge_complete_eta": {
+        "name": "Opladning færdig kl."
+      },
+      "charging_type": {
+        "name": "Ladetype"
+      },
+      "climatisation_state": {
+        "name": "Klimaanlæg"
+      },
+      "auxiliary_heating_status": {
+        "name": "Status for parkeringsvarmer"
+      },
+      "auxiliary_heating_remaining_min": {
+        "name": "Parkeringsvarmer forventet tid"
+      },
+      "target_temperature": {
+        "name": "Måltemperatur"
+      },
+      "outside_temp": {
+        "name": "Udetemperatur"
+      },
+      "service_km": {
+        "name": "Næste service"
+      },
+      "service_due_at": {
+        "name": "Servicedato"
+      },
+      "service_due_in_days": {
+        "name": "Service om"
+      },
+      "oil_service_km": {
+        "name": "Næste olieskift"
+      },
+      "oil_service_at": {
+        "name": "Olieskiftdato"
+      },
+      "oil_service_due_in_days": {
+        "name": "Olieskift om"
+      },
+      "lights_count": {
+        "name": "Lys tændt (antal)"
+      },
+      "max_charge_current_a": {
+        "name": "Maks. ladestrøm"
+      },
+      "vehicle_state": {
+        "name": "Køretøjsstatus"
+      },
+      "connection_state": {
+        "name": "Forbindelsesstatus"
+      },
+      "parking_address": {
+        "name": "Parkeret ved"
+      },
+      "parking_city": {
+        "name": "Parkeret i"
+      },
+      "battery_temp": {
+        "name": "Batteritemperatur"
+      },
+      "voltage_12v": {
+        "name": "12V-batteri"
+      },
+      "wake_count_today": {
+        "name": "Opvækninger i dag"
+      },
+      "last_trip_distance_km": {
+        "name": "Seneste tur — distance"
+      },
+      "last_trip_avg_speed_kmh": {
+        "name": "Seneste tur — gennemsnitshastighed"
+      },
+      "last_trip_avg_fuel_consumption_l_100km": {
+        "name": "Seneste tur — gennemsnitligt brændstofforbrug"
+      },
+      "last_trip_avg_electric_consumption_kwh_100km": {
+        "name": "Seneste tur — gennemsnitligt strømforbrug"
+      },
+      "software_version": {
+        "name": "Softwareversion"
+      },
+      "total_charged_energy_kwh": {
+        "name": "Samlet opladet energi"
+      },
+      "last_charging_session_kwh": {
+        "name": "Seneste ladesession — energi"
+      },
+      "last_charging_session_duration_min": {
+        "name": "Seneste ladesession — varighed"
+      },
+      "last_charging_session_start": {
+        "name": "Seneste ladesession — start"
+      },
+      "last_charging_session_current_type": {
+        "name": "Seneste ladesession — strømtype"
+      },
+      "last_charging_power_curve_points": {
+        "name": "Seneste ladesession — effektkurvepunkter"
+      },
+      "active_charging_profile_name": {
+        "name": "Aktiv ladeprofil"
+      },
+      "active_charging_profile_target_soc_pct": {
+        "name": "Aktiv profil — lademål"
+      },
+      "next_charging_time": {
+        "name": "Næste ladetidspunkt"
+      },
+      "charging_profiles_count": {
+        "name": "Antal ladeprofiler"
+      },
+      "battery_care_target_soc_pct": {
+        "name": "Batteripleje — lademål"
+      },
+      "driving_score": {
+        "name": "Kørescore"
+      },
+      "driving_score_class": {
+        "name": "Kørescoreklasse"
+      },
+      "departure_timer_1_time": {
+        "name": "Afgangstimer 1"
+      },
+      "departure_timer_2_time": {
+        "name": "Afgangstimer 2"
+      },
+      "departure_timer_3_time": {
+        "name": "Afgangstimer 3"
+      },
+      "last_updated_at": {
+        "name": "Seneste opdatering"
+      },
+      "adblue_range_km": {
+        "name": "AdBlue-rækkevidde"
+      },
+      "api_observer_findings": {
+        "name": "Køretøjsdata-spejder"
+      },
+      "raw_api_fields": {
+        "name": "Rå API-felter"
+      },
+      "data_source_channel": {
+        "name": "Datakildekanal"
+      },
+      "error_reporter_count": {
+        "name": "Fejlrapportør"
+      },
+      "requests_remaining_today": {
+        "name": "Resterende API-anmodninger"
+      },
+      "license_plate": {
+        "name": "Nummerplade"
+      },
+      "equipment_count": {
+        "name": "Antal udstyr"
+      },
+      "secondary_engine_range_km": {
+        "name": "Sekundær motor rækkevidde"
+      },
+      "secondary_engine_type": {
+        "name": "Sekundær motortype"
+      },
+      "secondary_engine_fuel_level_pct": {
+        "name": "Sekundær motor brændstofniveau"
+      },
+      "subscription_expiry_at": {
+        "name": "Abonnement udløber"
+      },
+      "subscription_days_remaining": {
+        "name": "Resterende abonnementsdage"
+      },
+      "battery_temp_max": {
+        "name": "Batteritemperatur (maks.)"
+      },
+      "departure_timer_enabled_count": {
+        "name": "Afgangstimere aktiveret"
+      },
+      "fuel_tank_capacity_liters": {
+        "name": "Tankkapacitet"
+      },
+      "climate_running_requests_count": {
+        "name": "Klimaanmodninger afventende"
+      },
+      "active_warning_lights_count": {
+        "name": "Aktive advarselslamper"
+      },
+      "last_lock_action": {
+        "name": "Seneste låsehandling"
+      },
+      "last_lock_action_at": {
+        "name": "Tidspunkt for seneste låsehandling"
+      },
+      "maintenance_report_captured_at": {
+        "name": "Vedligeholdelsesrapport opdateret"
+      },
+      "brake_fluid_change_due_at": {
+        "name": "Bremsevæskeskift forfalder"
+      },
+      "brake_pads_front_inspection_due_at": {
+        "name": "Bremseklodser for eftersyn forfalder"
+      },
+      "brake_pads_rear_inspection_due_at": {
+        "name": "Bremseklodser bag eftersyn forfalder"
+      },
+      "preferred_workshop_name": {
+        "name": "Foretrukket værksted"
+      },
+      "preferred_workshop_address": {
+        "name": "Foretrukket værksted adresse"
+      },
+      "preferred_workshop_phone": {
+        "name": "Foretrukket værksted telefon"
+      },
+      "primary_engine_fuel_level_pct": {
+        "name": "Primær motor brændstofniveau"
+      },
+      "car_type": {
+        "name": "Biltype"
+      },
+      "climate_timer_enabled_count": {
+        "name": "Klimatimere aktiveret"
+      },
+      "primary_engine_type": {
+        "name": "Primær motortype"
+      },
+      "steering_wheel_position": {
+        "name": "Ratposition"
+      },
+      "primary_engine_soc_pct": {
+        "name": "12V-batteriopladning"
+      },
+      "next_charging_timer_id": {
+        "name": "Næste timer (ID)"
+      },
+      "next_charging_timer_target_soc_reachable": {
+        "name": "Næste timer — lademål opnåeligt"
+      },
+      "capabilities_count": {
+        "name": "Antal funktioner"
+      },
+      "tire_pressure_front_left_bar": {
+        "name": "Dæktryk for venstre"
+      },
+      "tire_pressure_front_right_bar": {
+        "name": "Dæktryk for højre"
+      },
+      "tire_pressure_rear_left_bar": {
+        "name": "Dæktryk bag venstre"
+      },
+      "tire_pressure_rear_right_bar": {
+        "name": "Dæktryk bag højre"
+      },
+      "lifetime_distance_km": {
+        "name": "Distance i alt"
+      },
+      "lifetime_avg_fuel_consumption_l_100km": {
+        "name": "Gennemsnitligt brændstofforbrug (i alt)"
+      },
+      "lifetime_avg_electric_consumption_kwh_100km": {
+        "name": "Gennemsnitligt strømforbrug (i alt)"
+      },
+      "last_alarm_at": {
+        "name": "Seneste alarm"
+      },
+      "heater_source": {
+        "name": "Varmekilde"
+      },
+      "climate_ready_at": {
+        "name": "Klima klar kl."
+      },
+      "warning_messages": {
+        "name": "Køretøjsadvarsler"
+      },
+      "adblue_level_pct": {
+        "name": "AdBlue-niveau"
+      },
+      "cng_level_pct": {
+        "name": "CNG-tankniveau"
+      },
+      "cng_range_km": {
+        "name": "CNG-rækkevidde"
+      },
+      "primary_engine_range_km": {
+        "name": "Primær motor rækkevidde"
+      },
+      "charging_preferred_mode": {
+        "name": "Foretrukken ladetilstand"
+      },
+      "pending_action_id": {
+        "name": "Afventende handling-ID"
+      },
+      "pending_action_type": {
+        "name": "Afventende handlingstype"
+      },
+      "pending_action_status": {
+        "name": "Afventende handlingsstatus"
+      },
+      "refuel_trip_distance_km": {
+        "name": "Distance siden tankning"
+      },
+      "refuel_trip_duration_min": {
+        "name": "Køretid siden tankning"
+      },
+      "refuel_trip_avg_speed_kmh": {
+        "name": "Gennemsnitshastighed siden tankning"
+      },
+      "refuel_trip_avg_fuel_consumption_l_100km": {
+        "name": "Gennemsnitligt brændstof siden tankning"
+      },
+      "refuel_trip_avg_electric_consumption_kwh_100km": {
+        "name": "Gennemsnitlig energi siden tankning"
+      },
+      "refuel_trip_total_fuel_consumption_l": {
+        "name": "Samlet brændstof siden tankning"
+      },
+      "refuel_trip_total_electric_consumption_kwh": {
+        "name": "Samlet energi siden opladning"
+      },
+      "refuel_trip_recuperation_kwh": {
+        "name": "Rekuperation siden opladning"
+      },
+      "refuel_trip_timestamp": {
+        "name": "Tankningscyklus startet"
+      },
+      "actual_charge_rate_kw": {
+        "name": "Faktisk ladehastighed"
+      },
+      "hv_battery_min_temperature_c": {
+        "name": "HV-batteritemperatur (min.)"
+      },
+      "hv_battery_max_temperature_c": {
+        "name": "HV-batteritemperatur (maks.)"
+      },
+      "charge_max_ac_setting": {
+        "name": "Maks. AC-strøm (indstilling)"
+      },
+      "charge_max_ac_ampere": {
+        "name": "Maks. AC-strøm (leverbar)"
+      },
+      "auto_release_ac_connector_state": {
+        "name": "Status for automatisk frigivelse af stik"
+      },
+      "active_ventilation_state": {
+        "name": "Aktiv ventilation"
+      },
+      "active_ventilation_remaining_time_min": {
+        "name": "Aktiv ventilation resterende"
+      },
+      "connection_state_battery_power_level": {
+        "name": "12V-batteri effektniveau"
+      },
+      "last_trip_total_fuel_consumption_l": {
+        "name": "Seneste tur brændstof i alt"
+      },
+      "last_trip_total_electric_consumption_kwh": {
+        "name": "Seneste tur energi i alt"
+      },
+      "notifications_count": {
+        "name": "Antal notifikationer"
+      },
+      "last_notification_subject": {
+        "name": "Seneste notifikation emne"
+      },
+      "last_notification_severity": {
+        "name": "Seneste notifikation alvorsgrad"
+      },
+      "engine_oil_temperature_c": {
+        "name": "Motoroliens temperatur"
+      },
+      "engine_coolant_temperature_c": {
+        "name": "Kølevæsketemperatur"
+      },
+      "last_trip_reset_at": {
+        "name": "Seneste turnulstilling"
+      },
+      "battery_temp_c": {
+        "name": "Batteritemperatur"
+      },
+      "charging_settings_pending": {
+        "name": "Ladeindstillinger afventende"
+      },
+      "charging_status_pending": {
+        "name": "Ladekommandoer afventende"
+      },
+      "charging_mode_pending": {
+        "name": "Ladetilstandsændringer afventende"
+      },
+      "climate_remaining_time_min": {
+        "name": "Klima forventet tid"
+      },
+      "climate_without_external_power": {
+        "name": "Klima uden ekstern strøm"
+      },
+      "climate_zone_front_left": {
+        "name": "Klimazone for venstre"
+      },
+      "climate_zone_front_right": {
+        "name": "Klimazone for højre"
+      },
+      "climate_zone_rear_left": {
+        "name": "Klimazone bag venstre"
+      },
+      "climate_zone_rear_right": {
+        "name": "Klimazone bag højre"
+      },
+      "climatisation_settings_pending": {
+        "name": "Klimaindstillinger afventende"
+      },
+      "climatisation_status_pending": {
+        "name": "Klimakommandoer afventende"
+      },
+      "connection_active": {
+        "name": "Forbindelse aktiv"
+      },
+      "connection_battery_power_level": {
+        "name": "Batteriniveau (forbindelse)"
+      },
+      "daily_power_budget_warning": {
+        "name": "Advarsel: dagligt strømbudget"
+      },
+      "insufficient_battery_level_warning": {
+        "name": "Advarsel: for lavt batteriniveau"
+      },
+      "nav_target_soc_pct": {
+        "name": "Lademål (navigation)"
+      },
+      "parking_map_url_dark": {
+        "name": "Parkeringskort-URL (mørk)"
+      },
+      "parking_map_url_light": {
+        "name": "Parkeringskort-URL (lys)"
+      },
+      "plug_led_color": {
+        "name": "Stik-LED-farve"
+      },
+      "remaining_charge_time_nav_min": {
+        "name": "Resterende ladetid (navigation)"
+      },
+      "vehicle_nickname": {
+        "name": "Køretøjets kaldenavn"
+      },
+      "lifetime_avg_speed_kmh": {
+        "name": "Gennemsnitshastighed (i alt)"
+      },
+      "lifetime_travel_time_min": {
+        "name": "Køretid (i alt)"
+      },
+      "monthly_mileage_km": {
+        "name": "Månedlig kilometerkørsel"
+      },
+      "remaining_charge_time_min": {
+        "name": "Resterende ladetid"
+      },
+      "charging_scenario": {
+        "name": "Ladescenarie"
+      },
+      "immediate_charge_action_state": {
+        "name": "Status for øjeblikkelig opladning"
+      },
+      "profile_charge_reason": {
+        "name": "Ladegrund"
+      },
+      "charge_session_energy_kwh": {
+        "name": "Opladet energi"
+      },
+      "remaining_charge_time_bulk_min": {
+        "name": "Resterende tid til 80 % (bulk)"
+      },
+      "odometer_state": {
+        "name": "Kilometerstand-status"
+      },
+      "instrument_cluster_time": {
+        "name": "Køretøjsur"
+      },
+      "hv_battery_state": {
+        "name": "HV-batteristatus"
+      },
+      "data_error_detail": {
+        "name": "Datafejl"
+      },
+      "external_power_supply_state": {
+        "name": "Ekstern strømforsyning"
+      },
+      "charging_reason": {
+        "name": "Ladegrund"
+      },
+      "charging_error_code": {
+        "name": "Ladefejlkode"
+      },
+      "remaining_time_target_soc": {
+        "name": "Resterende tid til lademål"
+      },
+      "charge_led_color": {
+        "name": "Ladeport-LED-farve"
+      },
+      "charge_led_pattern": {
+        "name": "Ladeport-LED-mønster"
+      },
+      "last_report_id": {
+        "name": "Rapport-ID"
+      },
+      "climate_energy_consumption_kwh": {
+        "name": "Klima-energiforbrug"
+      },
+      "residual_energy_consumption_kwh": {
+        "name": "Forbrug fra elektronik ombord"
+      },
+      "battery_climatization_energy_kwh": {
+        "name": "Energi til batteriklimatisering"
+      },
+      "last_trip_avg_recuperation_kwh_100km": {
+        "name": "Turrekuperation (gns.)"
+      },
+      "lifetime_avg_recuperation_kwh_100km": {
+        "name": "Rekuperation i alt (gns.)"
+      },
+      "last_trip_avg_aux_consumption_kwh_100km": {
+        "name": "Seneste tur hjælpeforbrug (gns.)"
+      },
+      "lifetime_avg_aux_consumption_kwh_100km": {
+        "name": "Hjælpeforbrug i alt (gns.)"
+      },
+      "lifetime_avg_gas_consumption_kg_100km": {
+        "name": "Gasforbrug i alt (gns.)"
+      },
+      "lifetime_range_gain_km": {
+        "name": "Rækkeviddegevinst i alt"
+      },
+      "lifetime_zero_emission_km": {
+        "name": "Nulemissionsdistance i alt"
+      },
+      "last_trip_avg_gas_consumption_kg_100km": {
+        "name": "Seneste tur gasforbrug (gns.)"
+      },
+      "last_trip_range_gain_km": {
+        "name": "Seneste tur rækkeviddegevinst"
+      },
+      "last_trip_zero_emission_km": {
+        "name": "Seneste tur nulemissionsdistance"
+      },
+      "charger_update_trigger": {
+        "name": "Udløser for laderopdatering"
+      },
+      "report_trigger": {
+        "name": "Rapportudløser"
+      },
+      "climate_mode": {
+        "name": "Klimatilstand"
+      },
+      "active_target_soc": {
+        "name": "Aktivt lademål"
+      },
+      "charge_time_display": {
+        "name": "Ladetidsdetaljer"
+      },
+      "charging_plug1_flap_lock_state": {
+        "name": "Ladeport 1 lugelås"
+      },
+      "charging_plug1_flap_state": {
+        "name": "Ladeport 1 luge"
+      },
+      "charging_plug1_infrastructure_state": {
+        "name": "Ladeport 1 stationsstatus"
+      },
+      "charging_plug1_lock_state": {
+        "name": "Ladeport 1 stiklås"
+      },
+      "charging_plug2_connectionstate": {
+        "name": "Ladeport 2 forbindelse"
+      },
+      "charging_plug2_flap_lock_state": {
+        "name": "Ladeport 2 lugelås"
+      },
+      "charging_plug2_flap_state": {
+        "name": "Ladeport 2 luge"
+      },
+      "charging_plug2_infrastructure_state": {
+        "name": "Ladeport 2 stationsstatus"
+      },
+      "charging_plug2_lock_state": {
+        "name": "Ladeport 2 stiklås"
+      },
+      "battery_available_kwh": {
+        "name": "Tilgængelig batterienergi"
+      },
+      "battery_cap_kwh": {
+        "name": "Batterikapacitet (energi)"
+      },
+      "trip_total_cost": {
+        "name": "Turomkostninger i alt"
+      },
+      "trip_fuel_cost": {
+        "name": "Turomkostninger brændstof"
+      },
+      "trip_electricity_cost": {
+        "name": "Turomkostninger el"
+      },
+      "trip_cng_cost": {
+        "name": "Turomkostninger CNG"
+      },
+      "oil_level_pct": {
+        "name": "Olieniveau (procent)"
+      },
+      "dataset_key": {
+        "name": "Datasætnøgle"
+      },
+      "charge_mode_selection": {
+        "name": "Valgt ladetilstand"
+      },
+      "max_charge_current_ac": {
+        "name": "Maks. AC-ladestrøm"
+      },
+      "auto_unlock_charge_port": {
+        "name": "Lås ladeport op automatisk"
+      },
+      "charge_bulk_threshold_pct": {
+        "name": "Grænse for hurtigopladning"
+      },
+      "charge_rate_unit": {
+        "name": "Enhed for ladehastighed"
+      },
+      "lifetime_trip_distance_km": {
+        "name": "Langtidsturdistance"
+      },
+      "lifetime_trip_start_odometer_km": {
+        "name": "Langtidstur start-kilometerstand"
+      },
+      "last_trip_start_odometer_km": {
+        "name": "Seneste tur start-kilometerstand"
+      },
+      "oil_level_liters": {
+        "name": "Olieniveau (liter)"
+      },
+      "oil_level_additional_pct": {
+        "name": "Ekstra olieniveau"
+      },
+      "tyre_pressure_diff_fl": {
+        "name": "Dæktryksafvigelse for venstre"
+      },
+      "tyre_pressure_diff_fr": {
+        "name": "Dæktryksafvigelse for højre"
+      },
+      "tyre_pressure_diff_rl": {
+        "name": "Dæktryksafvigelse bag venstre"
+      },
+      "tyre_pressure_diff_rr": {
+        "name": "Dæktryksafvigelse bag højre"
+      },
+      "tyre_pressure_diff_spare": {
+        "name": "Dæktryksafvigelse reservehjul"
+      },
+      "tyre_pressure_actual_fl": {
+        "name": "Dæktryk for venstre"
+      },
+      "tyre_pressure_actual_fr": {
+        "name": "Dæktryk for højre"
+      },
+      "tyre_pressure_actual_rl": {
+        "name": "Dæktryk bag venstre (faktisk)"
+      },
+      "tyre_pressure_actual_rr": {
+        "name": "Dæktryk bag højre (faktisk)"
+      },
+      "tyre_pressure_actual_spare": {
+        "name": "Dæktryk reservehjul (faktisk)"
+      },
+      "tyre_pressure_required_fl": {
+        "name": "Dæktryk for venstre (mål)"
+      },
+      "tyre_pressure_required_fr": {
+        "name": "Dæktryk for højre (mål)"
+      },
+      "tyre_pressure_required_rl": {
+        "name": "Dæktryk bag venstre (mål)"
+      },
+      "tyre_pressure_required_rr": {
+        "name": "Dæktryk bag højre (mål)"
+      },
+      "tyre_pressure_required_spare": {
+        "name": "Dæktryk reservehjul (mål)"
+      },
+      "parking_lights_state": {
+        "name": "Parkeringslys"
+      },
+      "aux_battery_energy_pct": {
+        "name": "Hjælpebatteriniveau"
+      },
+      "dashboard_warnings_raw": {
+        "name": "Instrumentbrætadvarsler (rå)"
+      },
+      "climate_error_code": {
+        "name": "Klimafejlkode"
+      },
+      "window_heating_error_code": {
+        "name": "Rudevarme-fejlkode"
+      },
+      "lpg_range_km": {
+        "name": "LPG-rækkevidde"
+      },
+      "engine_status": {
+        "name": "Motorstatus"
+      },
+      "trip_avg_aux_consumption_kwh": {
+        "name": "Gns. hjælpeforbrug"
+      },
+      "departure_charge_kwh": {
+        "name": "Opladning til afgang"
+      },
+      "tire_pressure_fl_state": {
+        "name": "Dækstatus for venstre"
+      },
+      "tire_pressure_fl_errorcode": {
+        "name": "Dækfejlkode for venstre"
+      },
+      "tire_pressure_fr_state": {
+        "name": "Dækstatus for højre"
+      },
+      "tire_pressure_fr_errorcode": {
+        "name": "Dækfejlkode for højre"
+      },
+      "tire_pressure_rl_state": {
+        "name": "Dækstatus bag venstre"
+      },
+      "tire_pressure_rl_errorcode": {
+        "name": "Dækfejlkode bag venstre"
+      },
+      "tire_pressure_rr_state": {
+        "name": "Dækstatus bag højre"
+      },
+      "tire_pressure_rr_errorcode": {
+        "name": "Dækfejlkode bag højre"
+      },
+      "next_charge_timer_start_at": {
+        "name": "Næste ladestart"
+      },
+      "next_charge_timer_finish_at": {
+        "name": "Næste ladeslutning"
+      },
+      "next_charge_target_reachability": {
+        "name": "Lademål opnåeligt"
+      },
+      "next_charge_timer_number": {
+        "name": "Næste ladetimer-nummer"
+      },
+      "ascent_slope_consumption": {
+        "name": "Hældningsforbrug (opad)"
+      },
+      "descent_slope_consumption": {
+        "name": "Hældningsforbrug (nedad)"
+      },
+      "report_type": {
+        "name": "Rapporttype"
+      },
+      "result_app": {
+        "name": "App-dataresultat"
+      },
+      "result_master": {
+        "name": "Stamdataresultat"
+      },
+      "update_reason": {
+        "name": "Grund til seneste opdatering"
+      },
+      "start_stop_action": {
+        "name": "Lade-start/stop-handling"
+      },
+      "start_stop_modification": {
+        "name": "Start/stop-ændring"
+      },
+      "bidi_max_charge_level_pct": {
+        "name": "Bidirektionel opladning maks. ladeniveau"
+      },
+      "bidi_min_charge_level_pct": {
+        "name": "Bidirektionel opladning min. ladeniveau"
+      },
+      "sunroof_position_pct": {
+        "name": "Soltagsposition"
+      },
+      "spoiler_position_pct": {
+        "name": "Spoilerposition"
+      },
+      "cabin_temp": {
+        "name": "Kabinetemperatur"
+      },
+      "charge_target_time": {
+        "name": "Lademål-tidspunkt"
+      },
+      "max_number_users": {
+        "name": "Maks. antal brugere"
+      }
+    },
+    "binary_sensor": {
+      "mbb_two_way_available": {
+        "name": "MBB to-vejs tilgængelig"
+      },
+      "doors_locked": {
+        "name": "Døre låst"
+      },
+      "doors_open": {
+        "name": "Døre åbne"
+      },
+      "windows_open": {
+        "name": "Vinduer åbne"
+      },
+      "plug_connected": {
+        "name": "Ladekabel tilsluttet"
+      },
+      "is_charging": {
+        "name": "Oplader i øjeblikket"
+      },
+      "climatisation_active": {
+        "name": "Klimaanlæg aktivt"
+      },
+      "is_driving": {
+        "name": "På vejen"
+      },
+      "is_online": {
+        "name": "Køretøj tilgængeligt"
+      },
+      "connector_locked": {
+        "name": "Ladekabel låst"
+      },
+      "trunk_locked": {
+        "name": "Bagagerum låst"
+      },
+      "sunroof_open": {
+        "name": "Soltag åbent"
+      },
+      "window_heating_front": {
+        "name": "Forrudevarme"
+      },
+      "window_heating_back": {
+        "name": "Bagrudevarme"
+      },
+      "lights_on": {
+        "name": "Lys tændt"
+      },
+      "warning_active": {
+        "name": "Advarsel aktiv"
+      },
+      "warning_engine": {
+        "name": "Motoradvarsel"
+      },
+      "warning_oil": {
+        "name": "Olieniveauadvarsel"
+      },
+      "warning_tyre": {
+        "name": "Dæktryksadvarsel"
+      },
+      "warning_brakes": {
+        "name": "Bremseadvarsel"
+      },
+      "oil_level_warning": {
+        "name": "Olieniveau"
+      },
+      "warning_12v_low": {
+        "name": "12V-batteri lavt"
+      },
+      "ota_update_available": {
+        "name": "Softwareopdatering tilgængelig"
+      },
+      "battery_care_enabled": {
+        "name": "Batteripleje aktiv"
+      },
+      "auto_unlock_when_charged": {
+        "name": "Lås op automatisk når opladet"
+      },
+      "climate_at_unlock": {
+        "name": "Klima ved oplåsning"
+      },
+      "window_heating_enabled": {
+        "name": "Rudevarme aktiveret"
+      },
+      "air_conditioning_without_external_power": {
+        "name": "AC uden ekstern strøm"
+      },
+      "subscription_active": {
+        "name": "Abonnement aktivt"
+      },
+      "ignition_on": {
+        "name": "Tænding"
+      },
+      "daily_power_budget_available": {
+        "name": "Dagligt strømbudget tilgængeligt"
+      },
+      "vehicle_at_saved_location": {
+        "name": "På gemt placering"
+      },
+      "battery_protection_limit_on": {
+        "name": "12V-batteribeskyttelse"
+      },
+      "tire_pressure_warning": {
+        "name": "Dæktryksadvarsel"
+      },
+      "departure_timer_1_enabled": {
+        "name": "Afgangstimer 1 aktiveret"
+      },
+      "departure_timer_2_enabled": {
+        "name": "Afgangstimer 2 aktiveret"
+      },
+      "departure_timer_3_enabled": {
+        "name": "Afgangstimer 3 aktiveret"
+      },
+      "alarm_active": {
+        "name": "Alarm aktiv"
+      },
+      "siren_active": {
+        "name": "Sirene aktiv"
+      },
+      "camping_mode": {
+        "name": "Camping-tilstand"
+      },
+      "seat_heating": {
+        "name": "Sædevarme"
+      },
+      "parking_light": {
+        "name": "Parkeringslys"
+      },
+      "external_power": {
+        "name": "Ekstern strøm tilgængelig"
+      },
+      "battery_care": {
+        "name": "Batteriplejetilstand"
+      },
+      "energy_flow": {
+        "name": "Energistrøm aktiv"
+      },
+      "area_alarm": {
+        "name": "Geofence-alarm"
+      },
+      "auto_release_ac_connector": {
+        "name": "Automatisk frigivelse af AC-stik"
+      },
+      "optimised_battery_use": {
+        "name": "Optimeret batteribrug"
+      },
+      "sunroof_rear_closed": {
+        "name": "Bagerste soltag"
+      },
+      "roof_cover_closed": {
+        "name": "Kaleche"
+      },
+      "permission_is_owner": {
+        "name": "Konto er primær ejer"
+      },
+      "permission_can_command": {
+        "name": "Konto kan sende kommandoer"
+      },
+      "external_power_available": {
+        "name": "Ekstern strøm tilgængelig"
+      },
+      "hood_open": {
+        "name": "Motorhjelm åben"
+      },
+      "trunk_open": {
+        "name": "Bagagerum åbent"
+      },
+      "warning_inspection": {
+        "name": "Eftersyn forfalder"
+      },
+      "parking_brake_engaged": {
+        "name": "Håndbremse"
+      },
+      "parking_light_left": {
+        "name": "Parkeringslys (venstre)"
+      },
+      "parking_light_right": {
+        "name": "Parkeringslys (højre)"
+      },
+      "energy_flow_active": {
+        "name": "Energistrøm"
+      },
+      "battery_care_mode_active": {
+        "name": "Batteriplejetilstand"
+      },
+      "bonnet_locked": {
+        "name": "Motorhjelm låst"
+      },
+      "closures_secured": {
+        "name": "Alle lukninger sikret"
+      },
+      "service_hatch_open": {
+        "name": "Servicelåge åben"
+      },
+      "spoiler_open": {
+        "name": "Spoiler udfoldet"
+      },
+      "oil_dipstick_active": {
+        "name": "Oliepind aktiv"
+      },
+      "fuel_level_estimated": {
+        "name": "Brændstofniveau estimeret"
+      },
+      "climatisation_at_unlock": {
+        "name": "Klimatisering ved oplåsning"
+      },
+      "mirror_heating_enabled": {
+        "name": "Spejlvarme"
+      },
+      "climate_zone_front_left_enabled": {
+        "name": "Klimazone for venstre"
+      },
+      "climate_zone_front_right_enabled": {
+        "name": "Klimazone for højre"
+      },
+      "abrp_data_changed": {
+        "name": "ABRP-data ændret"
+      }
+    },
+    "switch": {
+      "lock_switch": {
+        "name": "Centrallås"
+      },
+      "climatisation_switch": {
+        "name": "Klimaanlæg"
+      },
+      "charging_switch": {
+        "name": "Opladning"
+      },
+      "window_heating_switch": {
+        "name": "Rudevarme"
+      },
+      "ventilation_switch": {
+        "name": "Kabineventilation"
+      },
+      "aux_heating_switch": {
+        "name": "Parkeringsvarmer"
+      },
+      "departure_timer_1_switch": {
+        "name": "Afgangstimer 1"
+      },
+      "departure_timer_2_switch": {
+        "name": "Afgangstimer 2"
+      },
+      "departure_timer_3_switch": {
+        "name": "Afgangstimer 3"
+      }
+    },
+    "number": {
+      "target_soc_number": {
+        "name": "Lademål"
+      },
+      "climate_temp_number": {
+        "name": "Ønsket temperatur"
+      },
+      "target_soc": {
+        "name": "Lademål"
+      },
+      "target_temperature": {
+        "name": "Ønsket temperatur"
+      },
+      "min_soc": {
+        "name": "Minimum ladeniveau (hybrid)"
+      },
+      "max_charge_current": {
+        "name": "Maks. ladestrøm"
+      },
+      "auxheat_duration": {
+        "name": "Parkeringsvarmer varighed"
+      },
+      "auxheat_target_temp": {
+        "name": "Parkeringsvarmer måltemperatur"
+      }
+    },
+    "button": {
+      "flash_button": {
+        "name": "Blink med forlygterne"
+      },
+      "refresh_button": {
+        "name": "Opdater data"
+      },
+      "wake_button": {
+        "name": "Væk bilen"
+      },
+      "data_act_request_button": {
+        "name": "Opret EU Data Act-dataanmodning"
+      }
+    },
+    "climate": {
+      "climate": {
+        "name": "Klimaanlæg"
+      }
+    },
+    "device_tracker": {
+      "position": {
+        "name": "Placering"
+      }
+    },
+    "select": {
+      "charge_mode_select": {
+        "name": "Ladetilstand",
+        "state": {
+          "manual": "Manuel",
+          "timer": "Timer",
+          "preferred_charging_times": "Foretrukne ladetidspunkter",
+          "only_own_current": "Kun egen strøm",
+          "immediate_discharging": "Aflad nu",
+          "timer_charging_climatization": "Timer-opladning med klimaanlæg"
+        }
+      },
+      "skoda_charge_current_select": {
+        "name": "Maks. ladestrøm",
+        "state": {
+          "maximum": "Maksimum",
+          "reduced": "Reduceret"
+        }
+      }
+    },
+    "time": {
+      "departure_timer_1_time_set": {
+        "name": "Afgangstimer 1 — tidspunkt"
+      },
+      "departure_timer_2_time_set": {
+        "name": "Afgangstimer 2 — tidspunkt"
+      },
+      "departure_timer_3_time_set": {
+        "name": "Afgangstimer 3 — tidspunkt"
+      }
+    },
+    "image": {
+      "render_icon": {
+        "name": "3/4-visning ikon"
+      },
+      "render_small": {
+        "name": "3/4-visning lille"
+      },
+      "render_medium": {
+        "name": "3/4-visning mellem"
+      },
+      "render_side_sm": {
+        "name": "Sideprofil lille"
+      },
+      "render_side_lg": {
+        "name": "Sideprofil stor"
+      },
+      "render_angle_hd": {
+        "name": "3/4-visning HD"
+      },
+      "render_angle_lg": {
+        "name": "3/4-visning stor"
+      }
+    },
+    "lock": {
+      "door_lock": {
+        "name": "Centrallås"
+      }
+    }
+  },
+  "issues": {
+    "two_factor_required": {
+      "title": "To-faktor-godkendelse påkrævet — {brand}",
+      "description": "Din {brand}-konto ({username}) kræver en e-mailbekræftelseskode.\n\n**Engangsløsning:**\n1. Åbn **{brand}-appen** på din telefon\n2. Log ind manuelt\n3. Bekræft koden, der er sendt via e-mail\n4. Genstart Home Assistant\n\nEfter dette engangstrin gemmer integrationen logintokenet — du behøver ikke gentage dette."
+    },
+    "email_two_factor_required": {
+      "title": "E-mail-2FA — tjek din indbakke",
+      "description": "Din {brand}-konto ({username}) kræver en **e-mailbekræftelseskode**.\n\n**Engangsløsning:**\n1. **Tjek din e-mailindbakke** (og spammappen) for en 6-cifret kode fra VAG IDP\n2. Åbn **{brand}-appen** på din telefon\n3. Log ind manuelt, og indtast koden\n4. Genstart Home Assistant\n\nEfter dette engangstrin gemmer integrationen logintokenet — du behøver ikke gentage dette."
+    },
+    "terms_and_conditions": {
+      "title": "Accepter vilkår og betingelser — {brand}",
+      "description": "Der er nye vilkår og betingelser for {brand} ({username}).\n\n1. Åbn {brand}-appen\n2. Log ind, og accepter vilkårene\n3. Genstart Home Assistant"
+    },
+    "marketing_consent": {
+      "title": "Samtykke påkrævet — {brand}",
+      "description": "Et nyt privatlivssamtykke er påkrævet for {brand} ({username}).\n\nÅbn appen → Profil → Samtykker → bekræft → genstart HA."
+    },
+    "too_many_requests": {
+      "title": "Konto midlertidigt spærret — {brand}",
+      "description": "{brand}-kontoen ({username}) er midlertidigt spærret på grund af for mange anmodninger.\n\n**Vent venligst 15 minutter**, og genstart Home Assistant.\nTip: Øg opdateringsintervallet til mindst 15 minutter."
+    },
+    "auth_failed": {
+      "title": "Godkendelse mislykkedes — {brand}",
+      "description": "Forbindelsen til {brand} ({username}) mislykkedes.\n\nIndstillinger → Enheder & tjenester → VW Group Connect → ⋮ → Konfigurer igen."
+    },
+    "vehicle_data_scout_findings": {
+      "title": "Køretøjsdata-spejder — {count} nyt/nye felt(er) på {brand}",
+      "description": "Køretøjsdata-spejderen registrerede **{count}** nyt/nye felt(er) i {brand}-API-svaret, som VW Group Connect endnu ikke læser.\n\nDet betyder som regel, at dit køretøj har en funktion eller firmwareversion, som vi ikke har kortlagt — din hjælp ville lære integrationen at understøtte den.\n\n**Rapport med ét klik:**\n📤 Klik på **Læs mere** nedenfor for at åbne en forududfyldt GitHub-sag.\n\n**Til Facebook / forum:** åbn Indstillinger → Enheder → VW Group Connect → Diagnostik → Download — indsæt den maskerede rapport.\n\n_Privatliv: VIN'er maskeres, GPS afrundes til 1 decimal, bruger-ID'er/JWT'er/e-mails fjernes. Der sendes intet automatisk._"
+    },
+    "error_reporter_findings": {
+      "title": "Fejlrapportør — {count} nylig(e) fejl på {brand}",
+      "description": "Fejlrapportøren opfangede **{count}** nylig(e) integrationsfejl for {brand}.\n\nAt rapportere dem hjælper os med at finde fejl, der kun optræder på bestemte køretøjer eller firmwareversioner.\n\n**Rapport med ét klik:**\n📤 Klik på **Læs mere** nedenfor for at åbne en forududfyldt GitHub-sag.\n\n**Til Facebook / forum:** åbn Indstillinger → Enheder → VW Group Connect → Diagnostik → Download — rapporten er inkluderet med VIN'er og tokens maskeret.\n\n_Privatliv: VIN'er maskeres, Bearer/JWT/UUID/e-mail-tokens fjernes fra beskeder og tracebacks. Ingen loginoplysninger er inkluderet._"
+    },
+    "quota_low": {
+      "title": "API-kvote lav — {remaining} anmodninger tilbage i dag",
+      "description": "Din VAG-konto nærmer sig den daglige grænse for API-anmodninger ({remaining} af {limit} tilbage, {pct}%).\n\nFor at beskytte mod kvotespærring (producentens backend kan blødt spærre kontoen, når den daglige grænse nås) kan du overveje at:\n\n1. **Øge opdateringsintervallet** — Indstillinger → Enheder & tjenester → VW Group Connect → Konfigurer → Opdateringsinterval (typisk 5-10 min lige nu)\n2. **Reducere andre VAG-integrationer**, der kører på den samme konto (hver tæller mod den samme kvote)\n3. **Vente på daglig nulstilling** — normalt omkring midnat i producentens hjemmetidszone\n\nDenne advarsel forsvinder automatisk, når det resterende antal kommer sig."
+    },
+    "quota_critical": {
+      "title": "API-kvote KRITISK — {remaining} anmodninger tilbage i dag",
+      "description": "Din VAG-konto har færre end 25 API-anmodninger tilbage i dag ({remaining} af {limit}, {pct}%). Producentens backend kan blødt spærre kontoen, hvis du opbruger budgettet.\n\n**Øjeblikkelig handling:**\n1. **Pause polling** — Indstillinger → Enheder & tjenester → VW Group Connect → Konfigurer → Opdateringsinterval → sæt til 30 min eller højere\n2. Undgå manuelle opdateringer / opvækninger af køretøjet, indtil budgettet nulstilles\n\nDenne advarsel forsvinder automatisk, når det resterende antal kommer sig."
+    },
+    "account_locked": {
+      "title": "{brand}-kontoen ser ud til at være midlertidigt låst",
+      "description": "Mærke-backendet har returneret **3 låseklasse-godkendelsessvar** i de sidste 30 minutter (senest HTTP {last_status}). Det betyder typisk, at VW midlertidigt har blokeret den underliggende mærkekonto efter for mange mislykkede token-fornyelsesforsøg.\n\nLåsen ophæves normalt inden for **et par timer op til 24 timer**. Integrationen er holdt op med at prøve igen, så låsevinduet ikke forlænges.\n\n**Mens du venter**:\n\n1. **Log ikke** gentagne gange ind/ud af producentappen — det forlænger låsen.\n2. Vent mindst 1-2 timer, og åbn derefter den officielle producentapp på din telefon. Hvis appen logger dig rent ind, har backendet låst din konto op.\n3. Når den er låst op, hæv `scan_interval` i Indstillinger → Enheder & tjenester → VW Group Connect → Konfigurer til 15-30 minutter for at reducere fremtidigt pres.\n4. Valgfrit: aktivér den skrivebeskyttede EU Data Act-portaltilstand via OptionsFlow for at holde nogle data i gang under fremtidige hændelser.\n\nDenne advarsel forsvinder automatisk, første gang den næste token-fornyelse lykkes."
+    },
+    "data_act_no_data": {
+      "title": "EU Data Act-portal: ingen køretøjsdata endnu ({brand})",
+      "description": "EU Data Act-portalen loggede ind for {brand}, men returnerer endnu ingen køretøjsdata.\n\nSædvanlige årsager:\n\n1. **Et nedbrud på VW's side.** VW rapporterede et nedbrud på EU Data Act-portalen på tværs af alle mærker fra sidst i maj 2026 (deres meddelelse: dataudtræksinfrastrukturen svigtede under belastning). Så længe det varer, returnerer portalen tomme data for alle værktøjer, ikke kun denne integration, og den er kommet sig mærke for mærke.\n2. **Ingen dataanmodning opsat.** Portalen leverer først, når du opretter en *løbende* dataanmodning for din bil.\n3. **Bilen har ikke sendt noget nyt.** Et nyt datasæt udgives først, efter bilen er blevet kørt, opladet eller låst/låst op.\n\n**Hurtigste tjek:** åbn `eu-data-act.drivesomethinggreater.com` i en browser, og log ind. Hvis du heller ikke ser data for din bil dér, er det VW's side — der er intet, denne integration kan gøre, før VW genopretter det. Hvis der ikke er nogen dataanmodning, så opret en løbende (15-minutters), sæt flueben ved alle dataklynger, og kør eller væk derefter bilen og vent en time eller to.\n\nDette er den skrivebeskyttede portal-beta — advarslen forsvinder af sig selv, når der kommer data."
+    },
+    "data_act_browser_missing": {
+      "description": "Du aktiverede headless-browser-fallbacken til EU Data Act-portalen, men Python-pakken `playwright` er ikke installeret i din Home Assistant-container.\n\n**Sådan installeres den:** åbn HA-containerens shell (Add-ons → Terminal & SSH, eller `docker exec` til en manuel installation), og kør:\n\n```\npip install playwright\nplaywright install chromium\n```\n\nChromium-downloadet er stort (omkring 100 MB), hvilket er grunden til, at denne afhængighed er et tilvalg i stedet for at være bundtet med integrationen. Efter installationen skal du genstarte Home Assistant.\n\nAlternativt kan du deaktivere kontakten under Indstillinger → Enheder & tjenester → VW Group Connect → Konfigurer → 'EU Data Act-portal: headless-browser-fallback'.",
+      "title": "EU Data Act-portal: valgfri 'playwright'-pakke mangler"
+    },
+    "data_act_session_expired": {
+      "description": "{brand}-portalen på `eu-data-act.drivesomethinggreater.com` returnerede HTTP 401 til et Custom Data Request-API-kald, hvilket betyder, at sessions-cookies er udløbet. Portalen understøtter ikke token-fornyelse i baggrunden, så Home Assistant kan ikke genoprette dette automatisk.\n\n**Hvad skal du gøre:** Indstillinger → Enheder & tjenester → VW Group Connect → 3-prikkers-menu → Konfigurer igen → indtast dine loginoplysninger igen. Den næste opsætningscyklus genåbner portalsessionen, og integrationen genoptager polling af den aktive Custom Data Request.\n\nDenne advarsel forsvinder automatisk, så snart det næste portal-API-kald lykkes.",
+      "title": "EU Data Act-portalsession udløbet - log ind igen"
+    },
+    "ola_headers_outdated": {
+      "description": "VW Groups online-services-backend (OLA) afviste **{count}** anmodninger i træk for {brand} med HTTP 403 Forbidden.\n\nDette er en **spærring på serversiden fra VW**, ikke noget en opdatering, headerændring eller nyt login kan rette. VW kræver nu et Google-signeret enhedsattesterings-token (Firebase App Check / Play Integrity) plus et web application firewall-token på SEAT/CUPRA-backendet — den officielle app udsteder disse fra en hærdet, Google-signeret build, som en open source-klient ikke kan genskabe. Så fjern**kommandoer** for {brand} (og SEAT) vender sandsynligvis ikke tilbage.\n\nKøretøjs**data** flyder stadig gennem den skrivebeskyttede EU Data Act-portal, hvor det er muligt — det er vejen frem for disse mærker. Dette ligger helt hos VW; der er intet at rette i din ende. (Spores: #464.)",
+      "title": "{brand}-kommandoer blokeret af VW (enhedsattestering) — {count} på hinanden følgende 403-fejl"
+    },
+    "vw_na_data_forbidden": {
+      "title": "Volkswagen USA/CA: køretøjsdata blokeret (abonnement)",
+      "description": "Din Volkswagen-konto loggede ind, og din garage blev læst, men de køretøjsspecifikke dataanmodninger (status, opladning, klima) afvises med HTTP 403 Forbidden.\n\nDen mest almindelige årsag er et **inaktivt Car-Net / VW Connect-abonnement** på dette køretøj. De samme data ville flyde igen, hvis abonnementet fornyes.\n\n**Hvad skal du gøre:**\n\n1. Åbn den officielle MyVW-app, og bekræft, at dit Remote Access / Car-Net-abonnement er aktivt for denne bil.\n2. Hvis det er udløbet, forny det via VW, og vent derefter på næste polling.\n\nIntegrationen bliver ved med at vise de senest cachede data. Denne advarsel forsvinder af sig selv i det øjeblik, en dataanmodning lykkes igen."
+    },
+    "vw_na_data_forbidden_attestation": {
+      "title": "Volkswagen USA/CA: køretøjsdata blokeret af VW (enhedsattestering)",
+      "description": "Din Volkswagen-konto loggede ind, og din garage blev læst, men de køretøjsspecifikke dataanmodninger (status, opladning, klima) afvises med HTTP 403 Forbidden, og svaret bærer en **enhedsattesterings**-markør.\n\nDette er en **spærring på serversiden fra VW**, ikke et abonnementsproblem og ikke noget, et nyt login kan rette — så en fornyelse af Car-Net hjælper ikke. VW kræver nu et Google-signeret enhedsattesterings-token (Firebase App Check / Play Integrity), som den officielle app udsteder fra en hærdet build, og som en open source-klient ikke kan genskabe.\n\nIntegrationen bliver ved med at vise de senest cachede data. Denne advarsel forsvinder af sig selv, hvis VW genåbner dataplanet."
+    },
+    "supplementary_reauth": {
+      "title": "Volkswagen.de-læsekanal kræver nyt login",
+      "description": "Den supplerende volkswagen.de-læsekanal kunne ikke genoptage sin session (Volkswagen vil have e-mail-engangskoden igen). Dit køretøjs hoveddata er upåvirket. For at genoprette de ekstra vw.de-data skal du åbne denne integrations indstillinger og køre \"Tilføj en Volkswagen.de-læsekanal\" igen."
+    },
+    "meb_commands_unavailable": {
+      "title": "Fjernkommandoer er ikke tilgængelige for denne bil ({brand})",
+      "description": "Du aktiverede MBB-fjernkommandoer, da du opsatte {brand}, men dette er en MEB / ID-familie-bil (ID.3/4/5/7, Enyaq, Born, Q4). VW's MEB-backend understøtter ikke den vedvarende Car-Net-kommandosti — det vedvarende login svarede \"Unknown user\" — så lås-, klima- og ladekommandoer kan ikke sendes.\n\nPosten blev holdt **skrivebeskyttet**: køretøjsdata flyder stadig gennem EU Data Act-portalen, du ser bare ingen kommando-entiteter. Dette er en kendt begrænsning ved VW's MEB-platform, ikke en opsætningsfejl — du kan afvise denne meddelelse."
+    }
+  },
+  "services": {
+    "start_climate_control": {
+      "name": "Start klimastyring (udvidet)",
+      "description": "Start forkonditionering med individuelle sædevarmere, rudevarme, klimatilstand og adfærd ved oplåsning. Gælder kun for Audi og VW EU (CARIAD BFF). Andre mærker falder igennem til den grundlæggende `start_climatisation`-tjeneste. Alle payload-felter undtagen `device_id` er valgfrie - udeladte felter beholder mærkets standard.",
+      "fields": {
+        "device_id": {
+          "name": "Køretøj",
+          "description": "Køretøj, der modtager forkonditioneringskommandoen."
+        },
+        "temp_c": {
+          "name": "Måltemperatur (C)",
+          "description": "Kabinens måltemperatur i grader Celsius (15 til 30, trin 0,5)."
+        },
+        "glass_heating": {
+          "name": "Rudevarme",
+          "description": "Aktivér forrude- og bagrudevarme sammen med kabinens forkonditionering."
+        },
+        "seat_fl": {
+          "name": "Sædevarme for venstre",
+          "description": "Aktivér sædevarme på det forreste venstre sæde."
+        },
+        "seat_fr": {
+          "name": "Sædevarme for højre",
+          "description": "Aktivér sædevarme på det forreste højre sæde."
+        },
+        "seat_rl": {
+          "name": "Sædevarme bag venstre",
+          "description": "Aktivér sædevarme på det bageste venstre sæde."
+        },
+        "seat_rr": {
+          "name": "Sædevarme bag højre",
+          "description": "Aktivér sædevarme på det bageste højre sæde."
+        },
+        "climatisation_at_unlock": {
+          "name": "Fortsæt klima ved oplåsning",
+          "description": "Hold forkonditioneringen kørende, efter køretøjet er låst op."
+        },
+        "climatisation_mode": {
+          "name": "Klimatiseringstilstand",
+          "description": "Comfort (fuld effekt) eller economy (reduceret effekt, længere driftstid)."
+        }
+      }
+    },
+    "update_charging_settings": {
+      "name": "Opdater ladeindstillinger (SEAT/CUPRA)",
+      "description": "Opdater SEAT/CUPRA-ladeplanen i ét kald. Sætter enhver kombination af mål-ladeniveau, maksimal AC-ladestrøm og flaget lås-op-automatisk-når-opladet. Andre mærker afvises på koordinatorens dispatch-niveau.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN på det køretøj, der skal opdateres."
+        },
+        "target_soc": {
+          "name": "Mål-ladeniveau (%)",
+          "description": "Mål-ladeniveau mellem 20 og 100 procent."
+        },
+        "max_charge_current": {
+          "name": "Maksimal AC-ladestrøm",
+          "description": "Backend-enum, maximum eller reduced."
+        },
+        "auto_unlock_charge": {
+          "name": "Lås stik op automatisk når fuldt opladet",
+          "description": "Når sand, låser stikket sig selv op, når opladningen er fuldført."
+        }
+      }
+    },
+    "execute_vehicle_action": {
+      "name": "Udfør køretøjshandling",
+      "description": "Samlet tjeneste, der udsender en køretøjshandling valgt fra en rulleliste. Svarer til at kalde den enkeltstående tjeneste med samme navn, men er lettere at finde i Home Assistants Lovelace-tjenestevælger. Alle eksisterende enkeltstående tjenester (vag_connect.lock, vag_connect.start_climatisation osv.) fungerer uændret videre.",
+      "fields": {
+        "device_id": {
+          "name": "Køretøj",
+          "description": "Køretøjsenheden, der skal handles på."
+        },
+        "action": {
+          "name": "Handling",
+          "description": "Hvilken handling der skal udsendes."
+        }
+      }
+    },
+    "open_app": {
+      "description": "Affyrer hændelsen `vag_connect_open_app` på HA-hændelsesbussen med payload-felterne `vin`, `brand`, `deeplink_url` og `action`, så et Lovelace-kort kan åbne mærkets native mobilapp (myAudi, WeConnect, MyŠkoda, MySEAT, MyCUPRA, My Porsche eller VW US) på den kaldende enhed. Integrationen kan ikke selv åbne URL'er på en telefon; dashboard-kortet er ansvarligt for at navigere `window.location.href = deeplink_url` på iOS / Android.",
+      "fields": {
+        "action": {
+          "description": "Valgfrit stisegment, der føjes til deeplinket, så mærke-appen ruter direkte til en sektion. Standarden `open` åbner appen på dens startskærm.",
+          "name": "App-handling"
+        },
+        "vin": {
+          "description": "VIN på det køretøj, hvis mærke-app skal åbnes.",
+          "name": "VIN"
+        }
+      },
+      "name": "Åbn native mærke-app (deeplink)"
+    },
+    "abrp_send": {
+      "name": "Send telemetri til ABRP",
+      "description": "Byg og send køretøjets aktuelle telemetri til A Better Routeplanner.",
+      "fields": {
+        "device_id": {
+          "name": "Køretøj",
+          "description": "Køretøjet, der skal uploades (eller brug vin)."
+        },
+        "vin": {
+          "name": "VIN",
+          "description": "VIN på køretøjet (alternativ til enhed)."
+        },
+        "api_key": {
+          "name": "api_key-tilsidesættelse",
+          "description": "Valgfrit. Tilsidesætter den gemte udviklernøgle. Logges aldrig."
+        },
+        "token": {
+          "name": "token-tilsidesættelse",
+          "description": "Valgfrit. Tilsidesætter det gemte token pr. køretøj. Logges aldrig."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "vehicle_not_found": {
+      "message": "Køretøj med VIN {vin} blev ikke fundet. Tjek, at integrationen er startet."
+    },
+    "spin_required": {
+      "message": "S-PIN er påkrævet til denne handling. Konfigurer den under Indstillinger → Enheder & tjenester → VW Group Connect → Konfigurer."
+    },
+    "feature_not_supported": {
+      "message": "Funktionen {feature} understøttes ikke af dit køretøj eller den aktuelle API-klient. Handlingen blev ikke sendt."
+    },
+    "wake_budget_exhausted": {
+      "message": "Dagligt opvækningsbudget opbrugt ({count}/{budget}). For at beskytte 12V-batteriet sendes der ingen yderligere opvækningsanmodninger før midnat UTC. Se sensor.wake_count_today."
+    },
+    "wake_cooldown_active": {
+      "message": "Opvækningsafkøling aktiv ({remaining_s}s tilbage). For at beskytte 12V-batteriet er opvækninger begrænset til én hvert {cooldown_min}. minut pr. køretøj."
+    },
+    "read_only_mode_active": {
+      "message": "Skrivebeskyttet tilstand er aktiveret i integrationsindstillingerne. Deaktiver den under Indstillinger → Enheder & tjenester → VW Group Connect → Konfigurer, hvis du vil sende køretøjskommandoer."
+    },
+    "read_only_portal_active": {
+      "message": "Dette køretøj forbindes gennem VW's skrivebeskyttede EU Data Act-portal, så fjernkommandoer (lås, klima, opladning) er ikke tilgængelige for det. Dette er ikke en indstilling, du kan slå til/fra — portalkanalen har ingen kommandosti."
+    }
+  },
+  "selector": {
+    "execute_vehicle_action_options": {
+      "options": {
+        "lock": "Lås",
+        "unlock": "Lås op",
+        "start_climatisation": "Start klimatisering",
+        "stop_climatisation": "Stop klimatisering",
+        "start_charging": "Start opladning",
+        "stop_charging": "Stop opladning",
+        "flash_lights": "Blink med lygterne",
+        "start_window_heating": "Start rudevarme",
+        "stop_window_heating": "Stop rudevarme",
+        "wake_vehicle": "Væk køretøj",
+        "start_aux_heating": "Start parkeringsvarmer",
+        "stop_aux_heating": "Stop parkeringsvarmer",
+        "start_ventilation": "Start ventilation",
+        "stop_ventilation": "Stop ventilation"
+      }
+    }
+  }
+}

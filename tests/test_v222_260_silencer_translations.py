@@ -44,7 +44,7 @@ import pytest
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _COMPONENT_ROOT = _REPO_ROOT / "custom_components" / "vag_connect"
 _TRANSLATIONS = _COMPONENT_ROOT / "translations"
-_LANGS = ["en", "de", "es", "fr", "nl", "pl", "cs", "sv"]
+_LANGS = ["en", "de", "es", "fr", "nl", "pl", "cs", "sv", "it", "nb", "da", "fi"]
 _ENTITY_KINDS = ("sensor", "binary_sensor", "switch", "number", "select", "button")
 
 

@@ -1,0 +1,1674 @@
+{
+  "config": {
+    "step": {
+      "reauth_confirm": {
+        "title": "Kirjaudu uudelleen — {brand}",
+        "description": "Käyttäjän **{username}** istunto on vanhentunut.\n\nAnna salasanasi uudelleen.",
+        "data": {
+          "password": "Salasana",
+          "spin": "S-PIN"
+        }
+      },
+      "reconfigure": {
+        "title": "Määritä VW Group Connect uudelleen",
+        "description": "Vaihda kirjautumistiedot tai asetukset poistamatta integraatiota.",
+        "data": {
+          "brand": "Ajoneuvon merkki",
+          "username": "Sähköpostiosoite",
+          "password": "Salasana",
+          "spin": "S-PIN",
+          "country": "Alue (vain Volkswagen US/Kanada)",
+          "scan_interval": "Päivitysväli",
+          "force_enable_access": "Pakota ovien tila"
+        }
+      },
+      "mfa": {
+        "title": "Kaksivaiheinen vahvistus",
+        "description": "Vahvistuskoodi on lähetetty osoitteeseen **{username}**.\n\nSyötä koodi sähköpostistasi tai todennussovelluksestasi.",
+        "data": {
+          "mfa_code": "Vahvistuskoodi"
+        },
+        "data_description": {
+          "mfa_code": "6-numeroinen koodi — voimassa muutaman minuutin."
+        }
+      },
+      "email_password": {
+        "title": "Kirjaudu sähköpostilla + salasanalla (vanha tapa)",
+        "description": "Yhdistä ajoneuvosi Home Assistantiin.\n\nValitse merkkisi ja syötä valmistajan sovelluksen kirjautumistiedot.",
+        "data": {
+          "brand": "Ajoneuvon merkki",
+          "username": "Sähköpostiosoite",
+          "password": "Salasana",
+          "spin": "S-PIN",
+          "country": "Alue (vain Volkswagen US/Kanada)",
+          "scan_interval": "Päivitysväli",
+          "force_enable_access": "Pakota ovien tila",
+          "enable_mbb_commands": "Ota käyttöön MBB-etäkomennot (vain Volkswagen — lisää QR-vahvistuksen)"
+        },
+        "data_description": {
+          "brand": "Valitse merkkisi — myAudi, WeConnect ID, MyŠkoda, SEAT, CUPRA, VW US/CA tai Porsche.",
+          "username": "Valmistajan sovelluksen sähköpostiosoite.",
+          "password": "Sovelluksen salasana.",
+          "spin": "Tarvitaan vain lukitsemiseen. Sovellus → Turvallisuus → S-PIN.",
+          "scan_interval": "Kuinka usein tietoja haetaan. Oletus: 5 min. Vähintään: 3 min.",
+          "force_enable_access": "Vanhemmille ajoneuvoille, jotka eivät läpäise ominaisuustarkistusta."
+        }
+      },
+      "user": {
+        "title": "Määritä VW Group Connect",
+        "description": "Miten haluat kirjautua?\n\n**Selainkirjautuminen (suositeltu)** — avaa URL-osoite puhelimellasi tai kannettavallasi, kirjaudu Brand ID -tiliisi ja hyväksy laite. Salasanaa ei koskaan tallenneta Home Assistantiin. Saatavilla merkeille Audi, Škoda, SEAT ja CUPRA.\n\n**Sähköposti + salasana (vanha tapa)** — syötä Brand ID -kirjautumistietosi suoraan. Vaaditaan Volkswagen EU:lle ja Porschelle.",
+        "menu_options": {
+          "browser_login": "Selainkirjautuminen (suositeltu)",
+          "email_password": "Sähköposti + salasana (vanha tapa)",
+          "website_authproxy": "Volkswagen.de-verkkosivusto (beta — vain luku)",
+          "mbb_login": "Volkswagen EU — pysyvä kirjautuminen (MBB, kaksisuuntainen alfa)"
+        }
+      },
+      "mbb_login": {
+        "title": "Volkswagen EU — pysyvä kirjautuminen (MBB, ALFA)",
+        "description": "**Kokeellinen, valinnainen — vain Volkswagen EU.** Selainvahvistus (salasanaa ei tallenneta Home Assistantiin) luo pysyvän, päivitettävän tunnisteen vanhan MBB-taustajärjestelmän kautta. Toisin kuin vain lukemiseen tarkoitettu portaali, tämä kestää uudelleenkäynnistykset ja tukee kaksisuuntaista etälukitusta/-avausta. **Syötä VIN-numerosi** (MBB-tunniste ei voi itse listata autotalliasi), ja lisää S-PIN mahdollistaaksesi lukituksen/avauksen. Seuraavalla näytöllä näet lyhyen koodin ja URL-osoitteen, jonka voit avata millä tahansa laitteella.",
+        "data": {
+          "mbb_vins": "VIN (ajoneuvon valmistenumero)",
+          "spin": "S-PIN",
+          "scan_interval": "Päivitysväli",
+          "force_enable_access": "Pakota ovien tila"
+        },
+        "data_description": {
+          "mbb_vins": "17-merkkinen VIN-numerosi (tuulilasissa / rekisteriotteessa). Useita autoja: erota pilkulla. Pakollinen — pysyvä MBB-tunniste toimii VIN-kohtaisesti mutta ei voi luetella autotalliasi.",
+          "spin": "Valinnainen 4-numeroinen turva-PIN — vaaditaan etälukitukseen/-avaukseen.",
+          "scan_interval": "Minuutteja ajoneuvon tietojen kyselyjen välillä.",
+          "force_enable_access": "Pakota ovien tilan entiteetit, vaikka ajoneuvo ilmoittaisi tiedon puuttuvan."
+        }
+      },
+      "website_authproxy": {
+        "title": "Volkswagen.de-verkkosivusto (BETA, vain luku)",
+        "description": "**Kokeellinen, valinnainen.** Lukee Volkswageniasi volkswagen.de-verkkosivuston kirjautumisen kautta sovelluksen taustajärjestelmän sijaan. Vain Volkswagen, vain luku (ei etäkomentoja). Kirjaudu Volkswagen ID -sähköpostillasi ja salasanallasi. Jos tilisi käyttää sähköpostivahvistusta, sinulta kysytään koodi seuraavaksi. **Edellytys:** Volkswagen ID:si on oltava ajoneuvon ensisijainen käyttäjä — vahvista henkilöllisyytesi kerran osoitteessa volkswagen.de (myVolkswagen → ajoneuvosi → ”Vahvista henkilöllisyys”). Ilman tätä verkkosivusto ei palauta ajoneuvon tietoja.",
+        "data": {
+          "username": "Sähköpostiosoite",
+          "password": "Salasana",
+          "scan_interval": "Päivitysväli"
+        },
+        "data_description": {
+          "username": "Volkswagen ID- / myVolkswagen-tilisi sähköposti.",
+          "password": "Volkswagen ID -salasanasi.",
+          "scan_interval": "Kuinka usein tietoja haetaan (minuutteja). Vähintään: 5."
+        }
+      },
+      "website_authproxy_otp": {
+        "title": "Sähköpostin vahvistuskoodi",
+        "description": "Vahvistuskoodi lähetettiin käyttäjän **{username}** sähköpostiin.\n\nSyötä koodi viimeistelläksesi kirjautumisen Volkswagen.de-verkkosivustokanavaan (beta).",
+        "data": {
+          "mfa_code": "Vahvistuskoodi"
+        },
+        "data_description": {
+          "mfa_code": "Koodi sähköpostilaatikostasi — voimassa muutaman minuutin."
+        }
+      },
+      "browser_login": {
+        "title": "Selainkirjautuminen — valitse merkkisi",
+        "description": "Valitse yhdistettävän ajoneuvon merkki. Seuraavalla näytöllä näet lyhyen koodin ja URL-osoitteen, jonka voit avata millä tahansa selaimella varustetulla laitteella.",
+        "data": {
+          "brand": "Ajoneuvon merkki",
+          "spin": "S-PIN",
+          "scan_interval": "Päivitysväli",
+          "force_enable_access": "Pakota ovien tila"
+        },
+        "data_description": {
+          "brand": "Vain selainkirjautumista tukevat merkit näytetään. Käytä 'Sähköposti + salasana' Volkswagen EU:lle ja Porschelle.",
+          "force_enable_access": "Pakota ovien tilan entiteetit, vaikka ajoneuvo ilmoittaisi tiedon puuttuvan.",
+          "scan_interval": "Minuutteja ajoneuvon tietojen kyselyjen välillä.",
+          "spin": "Valinnainen 4-numeroinen turva-PIN etätoiminnoille (lukitus, avaus, ilmastointi)."
+        }
+      },
+      "browser_login_pending": {
+        "title": "Pyydetään kirjautumiskoodia…",
+        "description": "Pyydetään IDP:ltä kertakäyttöistä laitekoodia."
+      },
+      "browser_login_approve": {
+        "title": "Hyväksy selaimessasi",
+        "description": "Skannaa QR-koodi puhelimellasi tai avaa URL-osoite millä tahansa laitteella. Kirjaudu Brand ID -tiliisi pyydettäessä, vahvista koodi, rastita sitten alla oleva ruutu ja napsauta Lähetä.",
+        "data": {
+          "qr_code": "Skannaa puhelimen kameralla avataksesi kirjautumissivun",
+          "verification_url": "Tai avaa tämä URL-osoite millä tahansa selaimella",
+          "user_code": "Selaimessa vahvistettava koodi",
+          "approved_in_browser": "Olen hyväksynyt selaimessa"
+        },
+        "data_description": {
+          "qr_code": "Suuntaa puhelimesi kamera QR-koodiin. Kirjautumissivu avautuu puhelimesi selaimeen alla oleva koodi valmiiksi täytettynä.",
+          "verification_url": "Jos et voi skannata: kopioi tämä linkki, avaa se millä tahansa laitteella ja kirjaudu Brand ID -tiliisi.",
+          "user_code": "Kirjautumisen jälkeen vahvista tämä koodi selaimessa hyväksyäksesi Home Assistantin.",
+          "approved_in_browser": "Jätä rastitetuksi. Napsauta Lähetä vasta, kun olet kirjautunut sisään ja vahvistanut koodin selaimessa."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Yhteys epäonnistui. Tarkista kirjautumistiedot ja internetyhteys.",
+      "unknown": "Tuntematon virhe. Tarkista lokit.",
+      "terms_and_conditions": "Käyttöehdot on hyväksyttävä. Kirjaudu sovellukseen kerran ja vahvista.",
+      "marketing_consent": "Uusi tietosuojasuostumus vaaditaan. Avaa sovellus: Profiili → Suostumukset.",
+      "two_factor_required": "Kaksivaiheinen todennus vaaditaan. Kirjaudu manuaalisesti sovellukseen ja vahvista sähköpostikoodi.",
+      "email_two_factor_required": "Sähköpostin 2FA vaaditaan. Tarkista postilaatikkosi (ja roskaposti) 6-numeroisen VAG IDP -koodin varalta, kirjaudu sitten manuaalisesti merkin sovellukseen kerran.",
+      "too_many_requests": "Tili tilapäisesti jäädytetty (liikaa kirjautumisyrityksiä). Odota 15 minuuttia.",
+      "invalid_credentials": "Sähköpostiosoite tai salasana väärin.",
+      "upstream_unavailable": "VW-taustajärjestelmä tilapäisesti tavoittamattomissa. Tämä on palvelinpuolen ongelma VW:llä, EI kirjautumistieto-ongelma. Odota 5–15 minuuttia ja yritä uudelleen. ÄLÄ määritä integraatiota uudelleen.",
+      "brand_not_dag_eligible": "Valittu merkki ei tue selainkirjautumista. Käytä sen sijaan sähköposti + salasana -kirjautumista.",
+      "portal_interaction_required": "EU Data Act -portaali vaatii kertaluonteisen toimenpiteen selaimessasi tai merkin sovelluksessa (esim. käyttöehtojen hyväksyminen, suostumuksen vahvistaminen, käyttöönoton/alueen valinnan viimeistely) ennen kuin selaimeton pääsy toimii. Tämä EI ole väärän salasanan ongelma — avaa portaali kerran selaimessa, suorita kehote loppuun ja yritä sitten uudelleen.",
+      "still_waiting_browser": "Odotetaan yhä selaimen hyväksyntää. Avaa yllä oleva URL-osoite, kirjaudu sisään, vahvista koodi ja napsauta sitten Lähetä uudelleen."
+    },
+    "abort": {
+      "already_configured": "Tämä tili on jo määritetty.",
+      "reauth_successful": "Uudelleenkirjautuminen onnistui.",
+      "reconfigure_successful": "Määritys päivitetty onnistuneesti.",
+      "mbb_not_eligible": "Ajoneuvosi ei sovellu pysyvään MBB-kirjautumiseen — taustajärjestelmä palautti ”Unknown user”. Tämä tarkoittaa, että se on uudempi ID- / MEB-malli (ID.3/4/5, e-up jne.), jota ei koskaan liitetty vanhaan Car-Net/MBB-järjestelmään, joten pysyvä kirjautuminen + etäkomennot eivät tavoita sitä. Käytä näille ajoneuvoille EU Data Act -portaalikanavaa (tai sähköposti + salasana -kirjautumista) sen sijaan. MBB-kirjautuminen on tarkoitettu vanhemmille Car-Net-autoille (useimmat PHEV- / polttomoottorimallit)."
+    },
+    "progress": {
+      "awaiting_browser_login": "Avaa {verification_uri} millä tahansa selaimella, kirjaudu Brand ID -tiliisi ja vahvista koodi {user_code}.",
+      "requesting_device_code": "Pyydetään IDP:ltä kertakäyttöistä kirjautumiskoodia…"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "VW Group Connect — asetukset",
+        "data": {
+          "scan_interval": "Päivitysväli",
+          "spin": "S-PIN",
+          "enable_reverse_geocoding": "Käänteinen geokoodaus (pysäköintiosoite)",
+          "read_only_mode": "Vain luku -tila",
+          "force_ppe_climate": "Audi PPE/PPC -ilmastoinnin runko (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
+          "enable_push_mqtt": "Skoda push-päivitykset (MQTT, KOKEELLINEN)",
+          "enable_push_fcm": "CUPRA/SEAT push-päivitykset (FCM, KOKEELLINEN)",
+          "enable_push_audi_vw": "Audi/VW push-päivitykset (Cariad FCM, live (beta))",
+          "wake_before_poll": "Aktiivinen ajoneuvon herätys ennen tilakyselyä",
+          "wake_delay_seconds": "Herätysviive (sekuntia)",
+          "client_id_override": "OAuth client_id -ohitus (tehokäyttäjät)",
+          "eu_data_act_auto_kickoff": "EU Data Act: luo mukautettu datapyyntö automaattisesti",
+          "enable_data_act_browser": "EU Data Act -portaali: selaimeton varajärjestelmä (KOKEELLINEN)",
+          "supplementary_authproxy": "Lisää Volkswagen.de-lukukanava (yhdistä lisätietoja)",
+          "hide_empty_entities": "Piilota entiteetit ilman tietoja",
+          "supplementary_eu_portal": "Lisää EU Data Act -portaalin lukukanava",
+          "remove_supplementary_authproxy": "Poista vw.de-lukukanava",
+          "remove_supplementary_eu_portal": "Poista EU Data Act -portaalin lukukanava",
+          "abrp_enable": "Ota käyttöön ABRP-telemetrian lähetys",
+          "abrp_api_key": "ABRP api_key (kehittäjäavain)",
+          "abrp_user_token": "ABRP-tunniste (ajoneuvokohtainen)"
+        },
+        "data_description": {
+          "scan_interval": "Kuinka usein tietoja haetaan (minuutteja). Vähintään: 3.",
+          "spin": "S-PIN ovien lukitsemiseen. Sovellus → Turvallisuus → S-PIN.",
+          "enable_reverse_geocoding": "Lähettää pysäköinnin GPS-sijainnin OpenStreetMap Nominatimille kadun/kaupungin selvittämiseksi. Oletuksena pois päältä yksityisyyden vuoksi.",
+          "read_only_mode": "Käytössä ollessaan vain tilanantureita luodaan — ei kytkimiä, painikkeita, lukkoja, ilmastointia tai liukusäätimiä, jotka lähettävät komentoja. Hyödyllinen, jos haluat ajoneuvon telemetrian ilman tahattoman toiminnan riskiä. Lataa integraatio uudelleen vaihdon jälkeen.",
+          "force_ppe_climate": "Vain Audi. Pakottaa uuden PPE/PPC-rungon muodon (climatisationMode pakollinen, targetTemperature jätetty pois) ilmastoinnin käynnistyksessä. Ota käyttöön vain, jos omistat Q6 e-tronin, A6 e-tronin, RS e-tron GT Faceliftin tai A3 2024+ PHEV:n — muutoin ilmastoinnin käynnistys palauttaa 400. Lataa integraatio uudelleen vaihdon jälkeen.",
+          "enable_push_mqtt": "KOKEELLINEN: vain Skoda. Ottaa käyttöön reaaliaikaiset MQTT-push-päivitykset Skodan mysmob-taustajärjestelmästä (vaatii aiomqtt + firebase-messaging Python-paketit — tällä hetkellä lazy-imported, ei esiasennettu). Perustusvaihe versiossa v1.18.0; live-aktivointi odottaa yhteisötestaajien validointia. Jos push ei ole saatavilla, integraatio palautuu hiljaisesti kyselyyn. Lataa integraatio uudelleen vaihdon jälkeen.",
+          "enable_push_fcm": "KOKEELLINEN: vain CUPRA/SEAT. Ottaa käyttöön reaaliaikaisen Firebase Cloud Messaging -pushin OLA-taustajärjestelmästä (vaatii firebase-messaging Python-paketin — sama lazy-import kuin v1.18.0 Skoda MQTT -kytkimessä). Perustusvaihe versiossa v1.19.0; live-aktivointi odottaa yhteisötestaajien validointia. Jos push ei ole saatavilla, integraatio palautuu hiljaisesti kyselyyn. Lataa integraatio uudelleen vaihdon jälkeen.",
+          "enable_push_audi_vw": "Live (beta): vain Audi/VW. Ottaa käyttöön reaaliaikaiset push-ilmoitukset Cariad FCM -kanavasta (sama, jota myAudi/WeConnect-mobiilisovellukset käyttävät, kattaa lukituksen/avauksen tulokset, latauksen tilan, ilmastoinnin, hälytyksen). Puretut tapahtumat lähetetään Home Assistantin tapahtumaväylälle nimellä ``vag_connect_push_event`` ja ne käynnistävät koordinaattorin päivityksen. Vaatii firebase-messaging Python-paketin (sama lazy-import kuin Skoda MQTT + CUPRA/SEAT FCM). Live-aktivointi versiosta v2.8.0 alkaen (toimenpide #4); tunnisteiden selvitin on yhä testaajarajattu, kunnes tehtävän #40 jatkotoimi tuo Cariad Firebase sender_id:n. Jos push ei ole saatavilla, integraatio palautuu hiljaisesti kyselyyn. Lataa integraatio uudelleen vaihdon jälkeen.",
+          "wake_before_poll": "Käytössä ollessaan integraatio lähettää herätys-POSTin ajoneuvolle ennen tilan hakemista jokaiselle VIN-numerolle, joka oli OFFLINE edellisessä kyselyssä. Auto saa palvelinpuolen herätyksen ja pushaa tuoreet tiedot, minkä jälkeen integraatio odottaa herätysviiveen ennen tilan lukemista. Sulkee 'kaikki anturit tuntemattomia pysäköidyillä autoilla' -aukon, mutta maksaa yhden ylimääräisen API-kutsun offline-VIN-numeroa kohti kyselysyklissä. Oletuksena pois päältä. Lataa integraatio uudelleen vaihdon jälkeen.",
+          "wake_delay_seconds": "Sekunteja odotusta herätys-POSTin ja tilan haun välillä. Oletusarvo 15 sekuntia on se, mitä useimmat merkkien taustajärjestelmät tarvitsevat herätyksen aiheuttaman datapushin käsittelyyn. Matalammat arvot riskeeraavat vanhentuneen datan lukemisen; korkeammat venyttävät kyselysykliä ilman lisähyötyä.",
+          "client_id_override": "Tehokäyttäjän varauloskäynti, kun yhteisö havaitsee tuoreen OAuth client_id:n uudessa VW Group -APK:ssa ennen kuin päivittäinen atlas-rakentajamme sen huomaa. Liitä tähän täysi UUID@apps_vw-dilab_com -merkkijono, niin selvitin kokeilee sitä ENSIN jokaisessa todennuksessa, kaikki olemassa olevat client_id:t yhä varajärjestelmänä ketjussa. Jätä tyhjäksi oletuskäytökselle. Muoto: 8-4-4-4-12 heksadesimaalimerkkiä, joita seuraa @apps_vw-dilab_com. Virheelliset arvot ohitetaan hiljaisesti.",
+          "eu_data_act_auto_kickoff": "Merkityksellinen vain, kun integraatio toimii vain lukemiseen tarkoitetussa EU Data Act -portaalitilassa (live-BFF-strategiat ovat epäonnistuneet). Käytössä ollessaan koordinaattori tarkistaa käynnistyksessä, onko VIN-kohtaisesti aktiivinen 15 minuutin mukautettu datapyyntö, ja luo sellaisen jos yhtään ei ole. Aloitus tarkoittaa 1 kuukauden datatilausta tilillesi portaalissa, joten tämä on valinnainen. Portaali hyväksyy KORKEINTAAN YHDEN aktiivisen mukautetun pyynnön VIN-numeroa kohti kerrallaan. Oletuksena pois päältä.",
+          "enable_data_act_browser": "KOKEELLINEN: merkityksellinen vain, kun integraatio on palautunut EU Data Act -portaaliin (vain luku). Ohjaa selaimetonta Chromiumia valinnaisen 'playwright' Python-paketin kautta napsauttaakseen portaalin datanvientipainiketta automaattisesti. Pakettia EI ole esiasennettu (se lataa noin 100 Mt Chromiumia). Kun se on käytössä mutta puuttuu, korjaustapahtuma kertoo sinulle, miten se asennetaan Home Assistant -kontista käsin. Lataa integraatio uudelleen vaihdon jälkeen.",
+          "abrp_enable": "Lähetä live-telemetriaa A Better Routeplannerille. Tarvitsee sekä api_keyn että ajoneuvokohtaisen tunnisteen alla. Pois = ei lähteviä kutsuja.",
+          "abrp_api_key": "Kehittäjä-/kumppaniavain, jonka rekisteröit iterniolla (emme toimita sellaista). Tunnistaa integraation. Ei koskaan lokiin.",
+          "abrp_user_token": "'Generic'-tunniste ABRP-sovelluksesta: Asetukset -> autosi -> Live Data. Ei koskaan lokiin."
+        }
+      },
+      "add_vwde": {
+        "title": "Volkswagen.de-verkkosivusto (BETA, vain luku)",
+        "description": "**Kokeellinen, valinnainen.** Lukee Volkswageniasi volkswagen.de-verkkosivuston kirjautumisen kautta sovelluksen taustajärjestelmän sijaan. Vain Volkswagen, vain luku (ei etäkomentoja). Kirjaudu Volkswagen ID -sähköpostillasi ja salasanallasi. Jos tilisi käyttää sähköpostivahvistusta, sinulta kysytään koodi seuraavaksi. **Edellytys:** Volkswagen ID:si on oltava ajoneuvon ensisijainen käyttäjä — vahvista henkilöllisyytesi kerran osoitteessa volkswagen.de (myVolkswagen → ajoneuvosi → ”Vahvista henkilöllisyys”). Ilman tätä verkkosivusto ei palauta ajoneuvon tietoja.",
+        "data": {
+          "username": "Sähköpostiosoite",
+          "password": "Salasana",
+          "scan_interval": "Päivitysväli"
+        },
+        "data_description": {
+          "username": "Volkswagen ID- / myVolkswagen-tilisi sähköposti.",
+          "password": "Volkswagen ID -salasanasi.",
+          "scan_interval": "Kuinka usein tietoja haetaan (minuutteja). Vähintään: 5."
+        }
+      },
+      "add_vwde_otp": {
+        "title": "Sähköpostin vahvistuskoodi",
+        "description": "Vahvistuskoodi lähetettiin käyttäjän **{username}** sähköpostiin.\n\nSyötä koodi viimeistelläksesi kirjautumisen Volkswagen.de-verkkosivustokanavaan (beta).",
+        "data": {
+          "mfa_code": "Vahvistuskoodi"
+        },
+        "data_description": {
+          "mfa_code": "Koodi sähköpostilaatikostasi — voimassa muutaman minuutin."
+        }
+      },
+      "add_portal": {
+        "title": "EU Data Act -portaali — lukukanava",
+        "description": "Kirjaudu EU Data Act -portaaliin (sähköposti + salasana) lisätäksesi SoC-, lataus-, matkamittari- ja huoltolukemat, jotka yhdistetään ensisijaiseen kanavaasi.",
+        "data": {
+          "username": "Sähköposti",
+          "password": "Salasana"
+        }
+      }
+    },
+    "error": {
+      "abrp_credentials_required": "ABRP:n käyttöönotto edellyttää sekä api_keyn että ajoneuvokohtaisen tunnisteen syöttämistä."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "fuel_level": {
+        "name": "Polttoaineen taso"
+      },
+      "battery_soc": {
+        "name": "Akun varaus"
+      },
+      "range_km": {
+        "name": "Toimintamatka"
+      },
+      "electric_range_km": {
+        "name": "Sähköinen toimintamatka"
+      },
+      "combustion_range_km": {
+        "name": "Polttoaineen toimintamatka"
+      },
+      "total_range_km": {
+        "name": "Kokonaistoimintamatka"
+      },
+      "odometer_km": {
+        "name": "Matkamittari"
+      },
+      "charging_state": {
+        "name": "Latauksen tila"
+      },
+      "plug_state": {
+        "name": "Latausportti"
+      },
+      "target_soc": {
+        "name": "Lataustavoite"
+      },
+      "charging_power_kw": {
+        "name": "Latausteho"
+      },
+      "charging_rate_kmh": {
+        "name": "Latausnopeus"
+      },
+      "charge_complete_eta": {
+        "name": "Lataus valmis"
+      },
+      "charging_type": {
+        "name": "Lataustyyppi"
+      },
+      "climatisation_state": {
+        "name": "Ilmastointi"
+      },
+      "auxiliary_heating_status": {
+        "name": "Lisälämmittimen tila"
+      },
+      "auxiliary_heating_remaining_min": {
+        "name": "Lisälämmittimen arvioitu valmistuminen"
+      },
+      "target_temperature": {
+        "name": "Tavoitelämpötila"
+      },
+      "outside_temp": {
+        "name": "Ulkolämpötila"
+      },
+      "service_km": {
+        "name": "Seuraava huolto"
+      },
+      "service_due_at": {
+        "name": "Huoltopäivä"
+      },
+      "service_due_in_days": {
+        "name": "Huolto ajassa"
+      },
+      "oil_service_km": {
+        "name": "Seuraava öljynvaihto"
+      },
+      "oil_service_at": {
+        "name": "Öljynvaihdon päivä"
+      },
+      "oil_service_due_in_days": {
+        "name": "Öljynvaihto ajassa"
+      },
+      "lights_count": {
+        "name": "Valot päällä (määrä)"
+      },
+      "max_charge_current_a": {
+        "name": "Suurin latausvirta"
+      },
+      "vehicle_state": {
+        "name": "Ajoneuvon tila"
+      },
+      "connection_state": {
+        "name": "Yhteyden tila"
+      },
+      "parking_address": {
+        "name": "Pysäköity osoitteessa"
+      },
+      "parking_city": {
+        "name": "Pysäköity paikassa"
+      },
+      "battery_temp": {
+        "name": "Akun lämpötila"
+      },
+      "voltage_12v": {
+        "name": "12 V:n akku"
+      },
+      "wake_count_today": {
+        "name": "Herätykset tänään"
+      },
+      "last_trip_distance_km": {
+        "name": "Viimeisen matkan pituus"
+      },
+      "last_trip_avg_speed_kmh": {
+        "name": "Viimeisen matkan keskinopeus"
+      },
+      "last_trip_avg_fuel_consumption_l_100km": {
+        "name": "Viimeisen matkan keskimääräinen polttoaineenkulutus"
+      },
+      "last_trip_avg_electric_consumption_kwh_100km": {
+        "name": "Viimeisen matkan keskimääräinen sähkönkulutus"
+      },
+      "software_version": {
+        "name": "Ohjelmistoversio"
+      },
+      "total_charged_energy_kwh": {
+        "name": "Ladattu energia yhteensä"
+      },
+      "last_charging_session_kwh": {
+        "name": "Viimeisen lataustapahtuman energia"
+      },
+      "last_charging_session_duration_min": {
+        "name": "Viimeisen lataustapahtuman kesto"
+      },
+      "last_charging_session_start": {
+        "name": "Viimeisen lataustapahtuman alku"
+      },
+      "last_charging_session_current_type": {
+        "name": "Viimeisen lataustapahtuman virtatyyppi"
+      },
+      "last_charging_power_curve_points": {
+        "name": "Viimeisen lataustapahtuman tehokäyrän pisteet"
+      },
+      "active_charging_profile_name": {
+        "name": "Aktiivinen latausprofiili"
+      },
+      "active_charging_profile_target_soc_pct": {
+        "name": "Aktiivinen profiili — lataustavoite"
+      },
+      "next_charging_time": {
+        "name": "Seuraava latausaika"
+      },
+      "charging_profiles_count": {
+        "name": "Latausprofiilien määrä"
+      },
+      "battery_care_target_soc_pct": {
+        "name": "Akkusuoja — lataustavoite"
+      },
+      "driving_score": {
+        "name": "Ajopisteet"
+      },
+      "driving_score_class": {
+        "name": "Ajopisteluokka"
+      },
+      "departure_timer_1_time": {
+        "name": "Lähtöajastin 1"
+      },
+      "departure_timer_2_time": {
+        "name": "Lähtöajastin 2"
+      },
+      "departure_timer_3_time": {
+        "name": "Lähtöajastin 3"
+      },
+      "last_updated_at": {
+        "name": "Viimeisin päivitys"
+      },
+      "adblue_range_km": {
+        "name": "AdBlue-toimintamatka"
+      },
+      "api_observer_findings": {
+        "name": "Ajoneuvon dataluotain"
+      },
+      "raw_api_fields": {
+        "name": "Raa'at API-kentät"
+      },
+      "data_source_channel": {
+        "name": "Datalähdekanava"
+      },
+      "error_reporter_count": {
+        "name": "Virheraportoija"
+      },
+      "requests_remaining_today": {
+        "name": "API-pyyntöjä jäljellä"
+      },
+      "license_plate": {
+        "name": "Rekisterikilpi"
+      },
+      "equipment_count": {
+        "name": "Varusteiden määrä"
+      },
+      "secondary_engine_range_km": {
+        "name": "Toissijaisen moottorin toimintamatka"
+      },
+      "secondary_engine_type": {
+        "name": "Toissijaisen moottorin tyyppi"
+      },
+      "secondary_engine_fuel_level_pct": {
+        "name": "Toissijaisen moottorin polttoainetaso"
+      },
+      "subscription_expiry_at": {
+        "name": "Tilaus päättyy"
+      },
+      "subscription_days_remaining": {
+        "name": "Tilausta jäljellä (päiviä)"
+      },
+      "battery_temp_max": {
+        "name": "Akun lämpötila (maks.)"
+      },
+      "departure_timer_enabled_count": {
+        "name": "Lähtöajastimia käytössä"
+      },
+      "fuel_tank_capacity_liters": {
+        "name": "Polttoainesäiliön tilavuus"
+      },
+      "climate_running_requests_count": {
+        "name": "Ilmastointipyyntöjä odottamassa"
+      },
+      "active_warning_lights_count": {
+        "name": "Aktiiviset varoitusvalot"
+      },
+      "last_lock_action": {
+        "name": "Viimeisin lukitustoiminto"
+      },
+      "last_lock_action_at": {
+        "name": "Viimeisimmän lukitustoiminnon aika"
+      },
+      "maintenance_report_captured_at": {
+        "name": "Huoltoraportti päivitetty"
+      },
+      "brake_fluid_change_due_at": {
+        "name": "Jarrunesteen vaihto erääntyy"
+      },
+      "brake_pads_front_inspection_due_at": {
+        "name": "Etujarrupalojen tarkastus erääntyy"
+      },
+      "brake_pads_rear_inspection_due_at": {
+        "name": "Takajarrupalojen tarkastus erääntyy"
+      },
+      "preferred_workshop_name": {
+        "name": "Ensisijainen korjaamo"
+      },
+      "preferred_workshop_address": {
+        "name": "Ensisijaisen korjaamon osoite"
+      },
+      "preferred_workshop_phone": {
+        "name": "Ensisijaisen korjaamon puhelin"
+      },
+      "primary_engine_fuel_level_pct": {
+        "name": "Ensisijaisen moottorin polttoainetaso"
+      },
+      "car_type": {
+        "name": "Auton tyyppi"
+      },
+      "climate_timer_enabled_count": {
+        "name": "Ilmastointiajastimia käytössä"
+      },
+      "primary_engine_type": {
+        "name": "Ensisijaisen moottorin tyyppi"
+      },
+      "steering_wheel_position": {
+        "name": "Ohjauspyörän sijainti"
+      },
+      "primary_engine_soc_pct": {
+        "name": "12 V:n akun varaus"
+      },
+      "next_charging_timer_id": {
+        "name": "Seuraava ajastin (ID)"
+      },
+      "next_charging_timer_target_soc_reachable": {
+        "name": "Seuraava ajastin — lataustavoite saavutettavissa"
+      },
+      "capabilities_count": {
+        "name": "Ominaisuuksien määrä"
+      },
+      "tire_pressure_front_left_bar": {
+        "name": "Rengaspaine vasen etu"
+      },
+      "tire_pressure_front_right_bar": {
+        "name": "Rengaspaine oikea etu"
+      },
+      "tire_pressure_rear_left_bar": {
+        "name": "Rengaspaine vasen taka"
+      },
+      "tire_pressure_rear_right_bar": {
+        "name": "Rengaspaine oikea taka"
+      },
+      "lifetime_distance_km": {
+        "name": "Käyttöiän matka"
+      },
+      "lifetime_avg_fuel_consumption_l_100km": {
+        "name": "Käyttöiän keskimääräinen polttoaineenkulutus"
+      },
+      "lifetime_avg_electric_consumption_kwh_100km": {
+        "name": "Käyttöiän keskimääräinen sähkönkulutus"
+      },
+      "last_alarm_at": {
+        "name": "Viimeisin hälytys"
+      },
+      "heater_source": {
+        "name": "Lämmittimen lähde"
+      },
+      "climate_ready_at": {
+        "name": "Ilmastointi valmis"
+      },
+      "warning_messages": {
+        "name": "Ajoneuvon varoitusviestit"
+      },
+      "adblue_level_pct": {
+        "name": "AdBlue-taso"
+      },
+      "cng_level_pct": {
+        "name": "CNG-säiliön taso"
+      },
+      "cng_range_km": {
+        "name": "CNG-toimintamatka"
+      },
+      "primary_engine_range_km": {
+        "name": "Ensisijaisen moottorin toimintamatka"
+      },
+      "charging_preferred_mode": {
+        "name": "Ensisijainen lataustapa"
+      },
+      "pending_action_id": {
+        "name": "Odottavan toiminnon ID"
+      },
+      "pending_action_type": {
+        "name": "Odottavan toiminnon tyyppi"
+      },
+      "pending_action_status": {
+        "name": "Odottavan toiminnon tila"
+      },
+      "refuel_trip_distance_km": {
+        "name": "Matka tankkauksen jälkeen"
+      },
+      "refuel_trip_duration_min": {
+        "name": "Ajoaika tankkauksen jälkeen"
+      },
+      "refuel_trip_avg_speed_kmh": {
+        "name": "Keskinopeus tankkauksen jälkeen"
+      },
+      "refuel_trip_avg_fuel_consumption_l_100km": {
+        "name": "Keskim. polttoaine tankkauksen jälkeen"
+      },
+      "refuel_trip_avg_electric_consumption_kwh_100km": {
+        "name": "Keskim. energia tankkauksen jälkeen"
+      },
+      "refuel_trip_total_fuel_consumption_l": {
+        "name": "Polttoaine yhteensä tankkauksen jälkeen"
+      },
+      "refuel_trip_total_electric_consumption_kwh": {
+        "name": "Energia yhteensä latauksen jälkeen"
+      },
+      "refuel_trip_recuperation_kwh": {
+        "name": "Talteenotto latauksen jälkeen"
+      },
+      "refuel_trip_timestamp": {
+        "name": "Tankkaussykli alkoi"
+      },
+      "actual_charge_rate_kw": {
+        "name": "Todellinen latausnopeus"
+      },
+      "hv_battery_min_temperature_c": {
+        "name": "HV-akun lämpötila (min.)"
+      },
+      "hv_battery_max_temperature_c": {
+        "name": "HV-akun lämpötila (maks.)"
+      },
+      "charge_max_ac_setting": {
+        "name": "Suurin AC-virta (asetus)"
+      },
+      "charge_max_ac_ampere": {
+        "name": "Suurin AC-virta (toimitettavissa)"
+      },
+      "auto_release_ac_connector_state": {
+        "name": "Automaattisen vapautuksen liittimen tila"
+      },
+      "active_ventilation_state": {
+        "name": "Aktiivinen tuuletus"
+      },
+      "active_ventilation_remaining_time_min": {
+        "name": "Aktiivista tuuletusta jäljellä"
+      },
+      "connection_state_battery_power_level": {
+        "name": "12 V:n akun tehotaso"
+      },
+      "last_trip_total_fuel_consumption_l": {
+        "name": "Viimeisen matkan polttoaine yhteensä"
+      },
+      "last_trip_total_electric_consumption_kwh": {
+        "name": "Viimeisen matkan energia yhteensä"
+      },
+      "notifications_count": {
+        "name": "Ilmoitusten määrä"
+      },
+      "last_notification_subject": {
+        "name": "Viimeisen ilmoituksen aihe"
+      },
+      "last_notification_severity": {
+        "name": "Viimeisen ilmoituksen vakavuus"
+      },
+      "engine_oil_temperature_c": {
+        "name": "Moottoriöljyn lämpötila"
+      },
+      "engine_coolant_temperature_c": {
+        "name": "Jäähdytysnesteen lämpötila"
+      },
+      "last_trip_reset_at": {
+        "name": "Viimeisen matkan nollaus"
+      },
+      "battery_temp_c": {
+        "name": "Akun lämpötila"
+      },
+      "charging_settings_pending": {
+        "name": "Latausasetukset odottamassa"
+      },
+      "charging_status_pending": {
+        "name": "Latauskomennot odottamassa"
+      },
+      "charging_mode_pending": {
+        "name": "Lataustavan muutokset odottamassa"
+      },
+      "climate_remaining_time_min": {
+        "name": "Ilmastoinnin arvioitu valmistuminen"
+      },
+      "climate_without_external_power": {
+        "name": "Ilmastointi ilman ulkoista virtaa"
+      },
+      "climate_zone_front_left": {
+        "name": "Ilmastointivyöhyke vasen etu"
+      },
+      "climate_zone_front_right": {
+        "name": "Ilmastointivyöhyke oikea etu"
+      },
+      "climate_zone_rear_left": {
+        "name": "Ilmastointivyöhyke vasen taka"
+      },
+      "climate_zone_rear_right": {
+        "name": "Ilmastointivyöhyke oikea taka"
+      },
+      "climatisation_settings_pending": {
+        "name": "Ilmastointiasetukset odottamassa"
+      },
+      "climatisation_status_pending": {
+        "name": "Ilmastointikomennot odottamassa"
+      },
+      "connection_active": {
+        "name": "Yhteys aktiivinen"
+      },
+      "connection_battery_power_level": {
+        "name": "Akun tehotaso (yhteys)"
+      },
+      "daily_power_budget_warning": {
+        "name": "Päivittäisen tehobudjetin varoitus"
+      },
+      "insufficient_battery_level_warning": {
+        "name": "Riittämättömän akkutason varoitus"
+      },
+      "nav_target_soc_pct": {
+        "name": "Navigoinnin lataustavoite"
+      },
+      "parking_map_url_dark": {
+        "name": "Pysäköintikartan URL (tumma)"
+      },
+      "parking_map_url_light": {
+        "name": "Pysäköintikartan URL (vaalea)"
+      },
+      "plug_led_color": {
+        "name": "Pistokkeen LED-väri"
+      },
+      "remaining_charge_time_nav_min": {
+        "name": "Navigoinnin arvioitu latausaika"
+      },
+      "vehicle_nickname": {
+        "name": "Ajoneuvon lempinimi"
+      },
+      "lifetime_avg_speed_kmh": {
+        "name": "Käyttöiän keskinopeus"
+      },
+      "lifetime_travel_time_min": {
+        "name": "Käyttöiän ajoaika"
+      },
+      "monthly_mileage_km": {
+        "name": "Kuukausittainen ajokilometrit"
+      },
+      "remaining_charge_time_min": {
+        "name": "Jäljellä oleva latausaika"
+      },
+      "charging_scenario": {
+        "name": "Latausskenaario"
+      },
+      "immediate_charge_action_state": {
+        "name": "Välittömän latauksen tila"
+      },
+      "profile_charge_reason": {
+        "name": "Latauksen syy"
+      },
+      "charge_session_energy_kwh": {
+        "name": "Ladattu energia"
+      },
+      "remaining_charge_time_bulk_min": {
+        "name": "Jäljellä aikaa 80 %:iin (bulkki)"
+      },
+      "odometer_state": {
+        "name": "Matkamittarin tila"
+      },
+      "instrument_cluster_time": {
+        "name": "Ajoneuvon kello"
+      },
+      "hv_battery_state": {
+        "name": "HV-akun tila"
+      },
+      "data_error_detail": {
+        "name": "Datavirhe"
+      },
+      "external_power_supply_state": {
+        "name": "Ulkoinen virtalähde"
+      },
+      "charging_reason": {
+        "name": "Latauksen syy"
+      },
+      "charging_error_code": {
+        "name": "Latauksen virhekoodi"
+      },
+      "remaining_time_target_soc": {
+        "name": "Jäljellä olevan ajan lataustavoite"
+      },
+      "charge_led_color": {
+        "name": "Latausportin LED-väri"
+      },
+      "charge_led_pattern": {
+        "name": "Latausportin LED-kuvio"
+      },
+      "last_report_id": {
+        "name": "Raportin ID"
+      },
+      "climate_energy_consumption_kwh": {
+        "name": "Ilmastoinnin energiankäyttö"
+      },
+      "residual_energy_consumption_kwh": {
+        "name": "Ajoneuvoelektroniikan kulutus"
+      },
+      "battery_climatization_energy_kwh": {
+        "name": "Akun ilmastoinnin energiankäyttö"
+      },
+      "last_trip_avg_recuperation_kwh_100km": {
+        "name": "Matkan talteenotto (keskim.)"
+      },
+      "lifetime_avg_recuperation_kwh_100km": {
+        "name": "Käyttöiän talteenotto (keskim.)"
+      },
+      "last_trip_avg_aux_consumption_kwh_100km": {
+        "name": "Viimeisen matkan lisäkulutus (keskim.)"
+      },
+      "lifetime_avg_aux_consumption_kwh_100km": {
+        "name": "Käyttöiän lisäkulutus (keskim.)"
+      },
+      "lifetime_avg_gas_consumption_kg_100km": {
+        "name": "Käyttöiän kaasunkulutus (keskim.)"
+      },
+      "lifetime_range_gain_km": {
+        "name": "Käyttöiän toimintamatkan lisäys"
+      },
+      "lifetime_zero_emission_km": {
+        "name": "Käyttöiän päästötön matka"
+      },
+      "last_trip_avg_gas_consumption_kg_100km": {
+        "name": "Viimeisen matkan kaasunkulutus (keskim.)"
+      },
+      "last_trip_range_gain_km": {
+        "name": "Viimeisen matkan toimintamatkan lisäys"
+      },
+      "last_trip_zero_emission_km": {
+        "name": "Viimeisen matkan päästötön matka"
+      },
+      "charger_update_trigger": {
+        "name": "Laturin päivityksen laukaisin"
+      },
+      "report_trigger": {
+        "name": "Raportin laukaisin"
+      },
+      "climate_mode": {
+        "name": "Ilmastointitila"
+      },
+      "active_target_soc": {
+        "name": "Aktiivinen lataustavoite"
+      },
+      "charge_time_display": {
+        "name": "Latausajan tiedot"
+      },
+      "charging_plug1_flap_lock_state": {
+        "name": "Latausportin 1 luukun lukitus"
+      },
+      "charging_plug1_flap_state": {
+        "name": "Latausportin 1 luukku"
+      },
+      "charging_plug1_infrastructure_state": {
+        "name": "Latausportin 1 aseman tila"
+      },
+      "charging_plug1_lock_state": {
+        "name": "Latausportin 1 pistokkeen lukitus"
+      },
+      "charging_plug2_connectionstate": {
+        "name": "Latausportin 2 yhteys"
+      },
+      "charging_plug2_flap_lock_state": {
+        "name": "Latausportin 2 luukun lukitus"
+      },
+      "charging_plug2_flap_state": {
+        "name": "Latausportin 2 luukku"
+      },
+      "charging_plug2_infrastructure_state": {
+        "name": "Latausportin 2 aseman tila"
+      },
+      "charging_plug2_lock_state": {
+        "name": "Latausportin 2 pistokkeen lukitus"
+      },
+      "battery_available_kwh": {
+        "name": "Akkuenergiaa käytettävissä"
+      },
+      "battery_cap_kwh": {
+        "name": "Akun kapasiteetti (energia)"
+      },
+      "trip_total_cost": {
+        "name": "Matkan kokonaiskustannus"
+      },
+      "trip_fuel_cost": {
+        "name": "Matkan polttoainekustannus"
+      },
+      "trip_electricity_cost": {
+        "name": "Matkan sähkökustannus"
+      },
+      "trip_cng_cost": {
+        "name": "Matkan CNG-kustannus"
+      },
+      "oil_level_pct": {
+        "name": "Öljytaso (prosenttia)"
+      },
+      "dataset_key": {
+        "name": "Tietojoukon avain"
+      },
+      "charge_mode_selection": {
+        "name": "Valittu lataustapa"
+      },
+      "max_charge_current_ac": {
+        "name": "Suurin AC-latausvirta"
+      },
+      "auto_unlock_charge_port": {
+        "name": "Avaa latausportti automaattisesti"
+      },
+      "charge_bulk_threshold_pct": {
+        "name": "Pikalatauksen kynnys"
+      },
+      "charge_rate_unit": {
+        "name": "Latausnopeuden yksikkö"
+      },
+      "lifetime_trip_distance_km": {
+        "name": "Pitkän aikavälin matkan pituus"
+      },
+      "lifetime_trip_start_odometer_km": {
+        "name": "Pitkän aikavälin matkan alun matkamittari"
+      },
+      "last_trip_start_odometer_km": {
+        "name": "Viimeisen matkan alun matkamittari"
+      },
+      "oil_level_liters": {
+        "name": "Öljytaso (litraa)"
+      },
+      "oil_level_additional_pct": {
+        "name": "Lisäöljytaso"
+      },
+      "tyre_pressure_diff_fl": {
+        "name": "Rengaspaineen poikkeama vasen etu"
+      },
+      "tyre_pressure_diff_fr": {
+        "name": "Rengaspaineen poikkeama oikea etu"
+      },
+      "tyre_pressure_diff_rl": {
+        "name": "Rengaspaineen poikkeama vasen taka"
+      },
+      "tyre_pressure_diff_rr": {
+        "name": "Rengaspaineen poikkeama oikea taka"
+      },
+      "tyre_pressure_diff_spare": {
+        "name": "Rengaspaineen poikkeama vararengas"
+      },
+      "tyre_pressure_actual_fl": {
+        "name": "Rengaspaine vasen etu"
+      },
+      "tyre_pressure_actual_fr": {
+        "name": "Rengaspaine oikea etu"
+      },
+      "tyre_pressure_actual_rl": {
+        "name": "Rengaspaine vasen taka (todellinen)"
+      },
+      "tyre_pressure_actual_rr": {
+        "name": "Rengaspaine oikea taka (todellinen)"
+      },
+      "tyre_pressure_actual_spare": {
+        "name": "Rengaspaine vararengas (todellinen)"
+      },
+      "tyre_pressure_required_fl": {
+        "name": "Rengaspaine vasen etu (tavoite)"
+      },
+      "tyre_pressure_required_fr": {
+        "name": "Rengaspaine oikea etu (tavoite)"
+      },
+      "tyre_pressure_required_rl": {
+        "name": "Rengaspaine vasen taka (tavoite)"
+      },
+      "tyre_pressure_required_rr": {
+        "name": "Rengaspaine oikea taka (tavoite)"
+      },
+      "tyre_pressure_required_spare": {
+        "name": "Rengaspaine vararengas (tavoite)"
+      },
+      "parking_lights_state": {
+        "name": "Seisontavalot"
+      },
+      "aux_battery_energy_pct": {
+        "name": "Lisäakun taso"
+      },
+      "dashboard_warnings_raw": {
+        "name": "Mittariston varoitukset (raakadata)"
+      },
+      "climate_error_code": {
+        "name": "Ilmastoinnin virhekoodi"
+      },
+      "window_heating_error_code": {
+        "name": "Ikkunanlämmityksen virhekoodi"
+      },
+      "lpg_range_km": {
+        "name": "LPG-toimintamatka"
+      },
+      "engine_status": {
+        "name": "Moottorin tila"
+      },
+      "trip_avg_aux_consumption_kwh": {
+        "name": "Keskim. lisäkulutus"
+      },
+      "departure_charge_kwh": {
+        "name": "Lataus lähtöön mennessä"
+      },
+      "tire_pressure_fl_state": {
+        "name": "Renkaan tila vasen etu"
+      },
+      "tire_pressure_fl_errorcode": {
+        "name": "Renkaan virhekoodi vasen etu"
+      },
+      "tire_pressure_fr_state": {
+        "name": "Renkaan tila oikea etu"
+      },
+      "tire_pressure_fr_errorcode": {
+        "name": "Renkaan virhekoodi oikea etu"
+      },
+      "tire_pressure_rl_state": {
+        "name": "Renkaan tila vasen taka"
+      },
+      "tire_pressure_rl_errorcode": {
+        "name": "Renkaan virhekoodi vasen taka"
+      },
+      "tire_pressure_rr_state": {
+        "name": "Renkaan tila oikea taka"
+      },
+      "tire_pressure_rr_errorcode": {
+        "name": "Renkaan virhekoodi oikea taka"
+      },
+      "next_charge_timer_start_at": {
+        "name": "Seuraava latauksen alku"
+      },
+      "next_charge_timer_finish_at": {
+        "name": "Seuraava latauksen loppu"
+      },
+      "next_charge_target_reachability": {
+        "name": "Lataustavoitteen saavutettavuus"
+      },
+      "next_charge_timer_number": {
+        "name": "Seuraavan latausajastimen numero"
+      },
+      "ascent_slope_consumption": {
+        "name": "Rinnekulutus (ylämäki)"
+      },
+      "descent_slope_consumption": {
+        "name": "Rinnekulutus (alamäki)"
+      },
+      "report_type": {
+        "name": "Raportin tyyppi"
+      },
+      "result_app": {
+        "name": "Sovellusdatan tulos"
+      },
+      "result_master": {
+        "name": "Perustietojen tulos"
+      },
+      "update_reason": {
+        "name": "Viimeisimmän päivityksen syy"
+      },
+      "start_stop_action": {
+        "name": "Latauksen käynnistys/pysäytys-toiminto"
+      },
+      "start_stop_modification": {
+        "name": "Käynnistys/pysäytys-muutos"
+      },
+      "bidi_max_charge_level_pct": {
+        "name": "Kaksisuuntaisen latauksen enimmäisvaraus"
+      },
+      "bidi_min_charge_level_pct": {
+        "name": "Kaksisuuntaisen latauksen vähimmäisvaraus"
+      },
+      "sunroof_position_pct": {
+        "name": "Kattoluukun asento"
+      },
+      "spoiler_position_pct": {
+        "name": "Takasiiven asento"
+      },
+      "cabin_temp": {
+        "name": "Sisätilan lämpötila"
+      },
+      "charge_target_time": {
+        "name": "Lataustavoitteen aika"
+      },
+      "max_number_users": {
+        "name": "Käyttäjien enimmäismäärä"
+      }
+    },
+    "binary_sensor": {
+      "mbb_two_way_available": {
+        "name": "MBB-kaksisuuntainen käytettävissä"
+      },
+      "doors_locked": {
+        "name": "Ovet lukittu"
+      },
+      "doors_open": {
+        "name": "Ovet auki"
+      },
+      "windows_open": {
+        "name": "Ikkunat auki"
+      },
+      "plug_connected": {
+        "name": "Latauskaapeli kytketty"
+      },
+      "is_charging": {
+        "name": "Latautuu parhaillaan"
+      },
+      "climatisation_active": {
+        "name": "Ilmastointi aktiivinen"
+      },
+      "is_driving": {
+        "name": "Liikkeellä"
+      },
+      "is_online": {
+        "name": "Ajoneuvo tavoitettavissa"
+      },
+      "connector_locked": {
+        "name": "Latauskaapeli lukittu"
+      },
+      "trunk_locked": {
+        "name": "Tavaratila lukittu"
+      },
+      "sunroof_open": {
+        "name": "Kattoluukku auki"
+      },
+      "window_heating_front": {
+        "name": "Etuikkunan lämmitys"
+      },
+      "window_heating_back": {
+        "name": "Takaikkunan lämmitys"
+      },
+      "lights_on": {
+        "name": "Valot päällä"
+      },
+      "warning_active": {
+        "name": "Varoitus aktiivinen"
+      },
+      "warning_engine": {
+        "name": "Moottorivaroitus"
+      },
+      "warning_oil": {
+        "name": "Öljytason varoitus"
+      },
+      "warning_tyre": {
+        "name": "Rengaspaineen varoitus"
+      },
+      "warning_brakes": {
+        "name": "Jarruvaroitus"
+      },
+      "oil_level_warning": {
+        "name": "Öljytaso"
+      },
+      "warning_12v_low": {
+        "name": "12 V:n akku vähissä"
+      },
+      "ota_update_available": {
+        "name": "Ohjelmistopäivitys saatavilla"
+      },
+      "battery_care_enabled": {
+        "name": "Akkusuoja aktiivinen"
+      },
+      "auto_unlock_when_charged": {
+        "name": "Automaattinen avaus ladattaessa"
+      },
+      "climate_at_unlock": {
+        "name": "Ilmastointi avattaessa"
+      },
+      "window_heating_enabled": {
+        "name": "Ikkunanlämmitys käytössä"
+      },
+      "air_conditioning_without_external_power": {
+        "name": "Ilmastointi ilman ulkoista virtaa"
+      },
+      "subscription_active": {
+        "name": "Tilaus aktiivinen"
+      },
+      "ignition_on": {
+        "name": "Virta"
+      },
+      "daily_power_budget_available": {
+        "name": "Päivittäinen tehobudjetti käytettävissä"
+      },
+      "vehicle_at_saved_location": {
+        "name": "Tallennetussa sijainnissa"
+      },
+      "battery_protection_limit_on": {
+        "name": "12 V:n akun suoja"
+      },
+      "tire_pressure_warning": {
+        "name": "Rengaspaineen varoitus"
+      },
+      "departure_timer_1_enabled": {
+        "name": "Lähtöajastin 1 käytössä"
+      },
+      "departure_timer_2_enabled": {
+        "name": "Lähtöajastin 2 käytössä"
+      },
+      "departure_timer_3_enabled": {
+        "name": "Lähtöajastin 3 käytössä"
+      },
+      "alarm_active": {
+        "name": "Hälytys aktiivinen"
+      },
+      "siren_active": {
+        "name": "Sireeni aktiivinen"
+      },
+      "camping_mode": {
+        "name": "Retkeilytila"
+      },
+      "seat_heating": {
+        "name": "Istuinlämmitys"
+      },
+      "parking_light": {
+        "name": "Seisontavalo"
+      },
+      "external_power": {
+        "name": "Ulkoinen virta käytettävissä"
+      },
+      "battery_care": {
+        "name": "Akkusuojatila"
+      },
+      "energy_flow": {
+        "name": "Energiavirta aktiivinen"
+      },
+      "area_alarm": {
+        "name": "Geoaita-hälytys"
+      },
+      "auto_release_ac_connector": {
+        "name": "AC-liittimen automaattinen vapautus"
+      },
+      "optimised_battery_use": {
+        "name": "Optimoitu akun käyttö"
+      },
+      "sunroof_rear_closed": {
+        "name": "Takakattoluukku"
+      },
+      "roof_cover_closed": {
+        "name": "Kattopeite"
+      },
+      "permission_is_owner": {
+        "name": "Tili on ensisijainen omistaja"
+      },
+      "permission_can_command": {
+        "name": "Tili voi lähettää komentoja"
+      },
+      "external_power_available": {
+        "name": "Ulkoinen virta käytettävissä"
+      },
+      "hood_open": {
+        "name": "Konepelti auki"
+      },
+      "trunk_open": {
+        "name": "Tavaratila auki"
+      },
+      "warning_inspection": {
+        "name": "Katsastus erääntyy"
+      },
+      "parking_brake_engaged": {
+        "name": "Seisontajarru"
+      },
+      "parking_light_left": {
+        "name": "Seisontavalo (vasen)"
+      },
+      "parking_light_right": {
+        "name": "Seisontavalo (oikea)"
+      },
+      "energy_flow_active": {
+        "name": "Energiavirta"
+      },
+      "battery_care_mode_active": {
+        "name": "Akkusuojatila"
+      },
+      "bonnet_locked": {
+        "name": "Konepelti lukittu"
+      },
+      "closures_secured": {
+        "name": "Kaikki aukot suojattu"
+      },
+      "service_hatch_open": {
+        "name": "Huoltoluukku auki"
+      },
+      "spoiler_open": {
+        "name": "Takasiipi ojennettuna"
+      },
+      "oil_dipstick_active": {
+        "name": "Öljyn mittatikku aktiivinen"
+      },
+      "fuel_level_estimated": {
+        "name": "Polttoainetaso arvioitu"
+      },
+      "climatisation_at_unlock": {
+        "name": "Ilmastointi avattaessa"
+      },
+      "mirror_heating_enabled": {
+        "name": "Peililämmitys"
+      },
+      "climate_zone_front_left_enabled": {
+        "name": "Ilmastointivyöhyke vasen etu"
+      },
+      "climate_zone_front_right_enabled": {
+        "name": "Ilmastointivyöhyke oikea etu"
+      },
+      "abrp_data_changed": {
+        "name": "ABRP-tiedot muuttuivat"
+      }
+    },
+    "switch": {
+      "lock_switch": {
+        "name": "Keskuslukitus"
+      },
+      "climatisation_switch": {
+        "name": "Ilmastointi"
+      },
+      "charging_switch": {
+        "name": "Lataus"
+      },
+      "window_heating_switch": {
+        "name": "Ikkunanlämmitys"
+      },
+      "ventilation_switch": {
+        "name": "Sisätilan tuuletus"
+      },
+      "aux_heating_switch": {
+        "name": "Lisälämmitin"
+      },
+      "departure_timer_1_switch": {
+        "name": "Lähtöajastin 1"
+      },
+      "departure_timer_2_switch": {
+        "name": "Lähtöajastin 2"
+      },
+      "departure_timer_3_switch": {
+        "name": "Lähtöajastin 3"
+      }
+    },
+    "number": {
+      "target_soc_number": {
+        "name": "Lataustavoite"
+      },
+      "climate_temp_number": {
+        "name": "Haluttu lämpötila"
+      },
+      "target_soc": {
+        "name": "Lataustavoite"
+      },
+      "target_temperature": {
+        "name": "Haluttu lämpötila"
+      },
+      "min_soc": {
+        "name": "Vähimmäisvaraus (hybridi)"
+      },
+      "max_charge_current": {
+        "name": "Suurin latausvirta"
+      },
+      "auxheat_duration": {
+        "name": "Lisälämmittimen kesto"
+      },
+      "auxheat_target_temp": {
+        "name": "Lisälämmittimen tavoitelämpötila"
+      }
+    },
+    "button": {
+      "flash_button": {
+        "name": "Vilkuta ajovaloja"
+      },
+      "refresh_button": {
+        "name": "Päivitä tiedot"
+      },
+      "wake_button": {
+        "name": "Herätä auto"
+      },
+      "data_act_request_button": {
+        "name": "Luo EU Data Act -datapyyntö"
+      }
+    },
+    "climate": {
+      "climate": {
+        "name": "Ilmastointi"
+      }
+    },
+    "device_tracker": {
+      "position": {
+        "name": "Sijainti"
+      }
+    },
+    "select": {
+      "charge_mode_select": {
+        "name": "Lataustapa",
+        "state": {
+          "manual": "Manuaalinen",
+          "timer": "Ajastin",
+          "preferred_charging_times": "Ensisijaiset latausajat",
+          "only_own_current": "Vain oma sähkö",
+          "immediate_discharging": "Pura nyt",
+          "timer_charging_climatization": "Ajastettu lataus ilmastoinnilla"
+        }
+      },
+      "skoda_charge_current_select": {
+        "name": "Suurin latausvirta",
+        "state": {
+          "maximum": "Maksimi",
+          "reduced": "Alennettu"
+        }
+      }
+    },
+    "time": {
+      "departure_timer_1_time_set": {
+        "name": "Lähtöajastin 1 — aika"
+      },
+      "departure_timer_2_time_set": {
+        "name": "Lähtöajastin 2 — aika"
+      },
+      "departure_timer_3_time_set": {
+        "name": "Lähtöajastin 3 — aika"
+      }
+    },
+    "image": {
+      "render_icon": {
+        "name": "3/4-näkymän kuvake"
+      },
+      "render_small": {
+        "name": "3/4-näkymä pieni"
+      },
+      "render_medium": {
+        "name": "3/4-näkymä keskikoko"
+      },
+      "render_side_sm": {
+        "name": "Sivuprofiili pieni"
+      },
+      "render_side_lg": {
+        "name": "Sivuprofiili suuri"
+      },
+      "render_angle_hd": {
+        "name": "3/4-näkymä HD"
+      },
+      "render_angle_lg": {
+        "name": "3/4-näkymä suuri"
+      }
+    },
+    "lock": {
+      "door_lock": {
+        "name": "Keskuslukitus"
+      }
+    }
+  },
+  "issues": {
+    "two_factor_required": {
+      "title": "Kaksivaiheinen todennus vaaditaan — {brand}",
+      "description": "{brand}-tilisi ({username}) vaatii sähköpostivahvistuskoodin.\n\n**Kertaluonteinen korjaus:**\n1. Avaa **{brand}-sovellus** puhelimessasi\n2. Kirjaudu manuaalisesti sisään\n3. Vahvista sähköpostitse lähetetty koodi\n4. Käynnistä Home Assistant uudelleen\n\nTämän kertaluonteisen vaiheen jälkeen integraatio tallentaa kirjautumistunnisteen — sinun ei tarvitse toistaa tätä."
+    },
+    "email_two_factor_required": {
+      "title": "Sähköpostin 2FA — tarkista postilaatikkosi",
+      "description": "{brand}-tilisi ({username}) vaatii **sähköpostivahvistuskoodin**.\n\n**Kertaluonteinen korjaus:**\n1. **Tarkista sähköpostilaatikkosi** (ja roskapostikansio) 6-numeroisen VAG IDP -koodin varalta\n2. Avaa **{brand}-sovellus** puhelimessasi\n3. Kirjaudu manuaalisesti sisään ja syötä koodi\n4. Käynnistä Home Assistant uudelleen\n\nTämän kertaluonteisen vaiheen jälkeen integraatio tallentaa kirjautumistunnisteen — sinun ei tarvitse toistaa tätä."
+    },
+    "terms_and_conditions": {
+      "title": "Hyväksy käyttöehdot — {brand}",
+      "description": "{brand}:lle ({username}) on uudet käyttöehdot.\n\n1. Avaa {brand}-sovellus\n2. Kirjaudu sisään ja hyväksy ehdot\n3. Käynnistä Home Assistant uudelleen"
+    },
+    "marketing_consent": {
+      "title": "Suostumus vaaditaan — {brand}",
+      "description": "{brand}:lle ({username}) vaaditaan uusi tietosuojasuostumus.\n\nAvaa sovellus → Profiili → Suostumukset → vahvista → käynnistä HA uudelleen."
+    },
+    "too_many_requests": {
+      "title": "Tili tilapäisesti jäädytetty — {brand}",
+      "description": "{brand}-tili ({username}) on tilapäisesti jäädytetty liian monien pyyntöjen vuoksi.\n\n**Odota 15 minuuttia** ja käynnistä Home Assistant uudelleen.\nVinkki: kasvata päivitysväli vähintään 15 minuuttiin."
+    },
+    "auth_failed": {
+      "title": "Todennus epäonnistui — {brand}",
+      "description": "Yhteys merkkiin {brand} ({username}) epäonnistui.\n\nAsetukset → Laitteet ja palvelut → VW Group Connect → ⋮ → Määritä uudelleen."
+    },
+    "vehicle_data_scout_findings": {
+      "title": "Ajoneuvon dataluotain — {count} uutta kenttää merkille {brand}",
+      "description": "Ajoneuvon dataluotain havaitsi **{count}** uutta kenttää {brand}-API-vastauksessa, joita VW Group Connect ei vielä lue.\n\nTämä tarkoittaa yleensä, että ajoneuvossasi on ominaisuus tai laiteohjelmistoversio, jota emme ole kartoittaneet — apusi opettaisi integraation tukemaan sitä.\n\n**1-klikkauksen raportti:**\n📤 Napsauta alla **Lue lisää** avataksesi valmiiksi täytetyn GitHub-issuen.\n\n**Facebookia / foorumia varten:** avaa Asetukset → Laitteet → VW Group Connect → Diagnostiikka → Lataa — liitä peitetty raportti.\n\n_Yksityisyys: VIN-numerot peitetty, GPS pyöristetty 1 desimaaliin, käyttäjätunnukset/JWT:t/sähköpostit poistettu. Mitään ei lähetetä automaattisesti._"
+    },
+    "error_reporter_findings": {
+      "title": "Virheraportoija — {count} tuoretta virhettä merkillä {brand}",
+      "description": "Virheraportoija tallensi **{count}** tuoretta integraatiovirhettä merkille {brand}.\n\nNiiden raportointi auttaa meitä löytämään virheitä, jotka näkyvät vain tietyillä ajoneuvoilla tai laiteohjelmistoversioilla.\n\n**1-klikkauksen raportti:**\n📤 Napsauta alla **Lue lisää** avataksesi valmiiksi täytetyn GitHub-issuen.\n\n**Facebookia / foorumia varten:** avaa Asetukset → Laitteet → VW Group Connect → Diagnostiikka → Lataa — raportti sisältyy, VIN-numerot ja tunnisteet peitettynä.\n\n_Yksityisyys: VIN-numerot peitetty, Bearer/JWT/UUID/sähköpostitunnisteet poistettu viesteistä ja jäljityksistä. Kirjautumistietoja ei sisälly._"
+    },
+    "quota_low": {
+      "title": "API-kiintiö vähissä — {remaining} pyyntöä jäljellä tänään",
+      "description": "VAG-tilisi lähestyy päivittäistä API-pyyntörajaa ({remaining}/{limit} jäljellä, {pct} %).\n\nSuojautuaksesi kiintiölukolta (valmistajan taustajärjestelmä voi pehmeästi jäädyttää tilin, kun päiväraja saavutetaan), harkitse:\n\n1. **Kasvata päivitysväliä** — Asetukset → Laitteet ja palvelut → VW Group Connect → Määritä → Päivitysväli (tyypillisesti nyt 5–10 min)\n2. **Vähennä muita VAG-integraatioita**, jotka toimivat samalla tilillä (jokainen lasketaan samaan kiintiöön)\n3. **Odota päivittäistä nollausta** — yleensä keskiyön aikaan valmistajan kotiaikavyöhykkeellä\n\nTämä varoitus poistuu automaattisesti, kun jäljellä oleva määrä palautuu."
+    },
+    "quota_critical": {
+      "title": "API-kiintiö KRIITTINEN — {remaining} pyyntöä jäljellä tänään",
+      "description": "VAG-tililläsi on alle 25 API-pyyntöä jäljellä tänään ({remaining}/{limit}, {pct} %). Valmistajan taustajärjestelmä voi pehmeästi jäädyttää tilin, jos käytät budjetin loppuun.\n\n**Välitön toimenpide:**\n1. **Keskeytä kysely** — Asetukset → Laitteet ja palvelut → VW Group Connect → Määritä → Päivitysväli → aseta 30 min tai suuremmaksi\n2. Vältä manuaalisia päivityksiä / ajoneuvon herätyksiä, kunnes budjetti nollautuu\n\nTämä varoitus poistuu automaattisesti, kun jäljellä oleva määrä palautuu."
+    },
+    "account_locked": {
+      "title": "{brand}-tili näyttää olevan tilapäisesti lukittu",
+      "description": "Merkin taustajärjestelmä on palauttanut **3 lukitusluokan todennusvastausta** viimeisten 30 minuutin aikana (viimeisimpänä HTTP {last_status}). Tämä tarkoittaa tyypillisesti, että VW on tilapäisesti estänyt taustalla olevan merkkitilin liian monien epäonnistuneiden tunnisteen päivitysyritysten jälkeen.\n\nLukitus poistuu yleensä **muutamasta tunnista 24 tuntiin**. Integraatio on lopettanut yrittämisen, jotta lukitusikkuna ei pitene.\n\n**Odottaessasi**:\n\n1. **Älä** kirjaudu valmistajan sovellukseen sisään/ulos toistuvasti — se pidentää lukitusta.\n2. Odota vähintään 1–2 tuntia, avaa sitten virallinen valmistajan sovellus puhelimessasi. Jos sovellus kirjaa sinut sisään puhtaasti, taustajärjestelmä on avannut tilisi lukituksen.\n3. Kun lukitus on avattu, nosta `scan_interval` kohdassa Asetukset → Laitteet ja palvelut → VW Group Connect → Määritä 15–30 minuuttiin vähentääksesi tulevaa painetta.\n4. Valinnainen: ota käyttöön vain lukemiseen tarkoitettu EU Data Act -portaalitila OptionsFlow'n kautta pitääksesi jonkin verran dataa liikkeessä tulevien häiriöiden aikana.\n\nTämä varoitus poistuu automaattisesti ensimmäisellä kerralla, kun seuraava tunnisteen päivitys onnistuu."
+    },
+    "data_act_no_data": {
+      "title": "EU Data Act -portaali: ei vielä ajoneuvon tietoja ({brand})",
+      "description": "EU Data Act -portaali kirjasi sisään merkin {brand}, mutta ei vielä palauta ajoneuvon tietoja.\n\nTavalliset syyt:\n\n1. **VW:n puolen häiriö.** VW ilmoitti kaikkia merkkejä koskevasta EU Data Act -portaalin häiriöstä touko-2026 lopulta (heidän ilmoituksensa: datanpoiminta-infrastruktuuri kaatui kuormituksen alla). Sen ajan portaali palauttaa tyhjää dataa jokaiselle työkalulle, ei vain tälle integraatiolle, ja se on toipunut merkki kerrallaan.\n2. **Datapyyntöä ei ole määritetty.** Portaali toimittaa vasta, kun luot autollesi *jatkuvan* datapyynnön.\n3. **Auto ei ole lähettänyt mitään uutta.** Tuore tietojoukko julkaistaan vasta, kun autolla on ajettu, sitä on ladattu tai lukittu/avattu.\n\n**Nopein tarkistus:** avaa `eu-data-act.drivesomethinggreater.com` selaimessa ja kirjaudu sisään. Jos et näe autollesi dataa sielläkään, kyse on VW:n puolesta — integraatio ei voi tehdä mitään, ennen kuin VW palauttaa sen. Jos datapyyntöä ei ole, luo jatkuva (15 minuutin) pyyntö, rastita kaikki dataklusterit, aja tai herätä sitten auto ja odota tunti tai kaksi.\n\nTämä on vain lukemiseen tarkoitettu portaalibeta — varoitus poistuu itsestään, kun dataa saapuu."
+    },
+    "data_act_browser_missing": {
+      "description": "Otit käyttöön selaimettoman varajärjestelmän EU Data Act -portaalille, mutta `playwright` Python-pakettia ei ole asennettu Home Assistant -kontissasi.\n\n**Asennus:** avaa HA-kontin komentokehote (Lisäosat → Terminal & SSH, tai `docker exec` manuaaliseen asennukseen) ja suorita:\n\n```\npip install playwright\nplaywright install chromium\n```\n\nChromium-lataus on suuri (noin 100 Mt), minkä vuoksi tämä riippuvuus on valinnainen sen sijaan, että se olisi niputettu integraation kanssa. Asennuksen jälkeen käynnistä Home Assistant uudelleen.\n\nVaihtoehtoisesti poista kytkin käytöstä kohdassa Asetukset → Laitteet ja palvelut → VW Group Connect → Määritä → 'EU Data Act -portaali: selaimeton varajärjestelmä'.",
+      "title": "EU Data Act -portaali: valinnainen 'playwright'-paketti puuttuu"
+    },
+    "data_act_session_expired": {
+      "description": "{brand}-portaali osoitteessa `eu-data-act.drivesomethinggreater.com` palautti HTTP 401 mukautetun datapyynnön API-kutsuun, mikä tarkoittaa, että istuntoevästeet ovat vanhentuneet. Portaali ei tue taustalla tapahtuvaa tunnisteen päivitystä, joten Home Assistant ei voi palauttaa tätä automaattisesti.\n\n**Mitä tehdä:** Asetukset → Laitteet ja palvelut → VW Group Connect → kolmen pisteen valikko → Määritä uudelleen → syötä kirjautumistietosi uudelleen. Seuraava määrityssykli avaa portaali-istunnon uudelleen ja integraatio jatkaa aktiivisen mukautetun datapyynnön kyselyä.\n\nTämä varoitus poistuu automaattisesti heti, kun seuraava portaalin API-kutsu onnistuu.",
+      "title": "EU Data Act -portaalin istunto vanhentunut - kirjaudu uudelleen"
+    },
+    "ola_headers_outdated": {
+      "description": "VW Groupin verkkopalveluiden taustajärjestelmä (OLA) hylkäsi **{count}** pyyntöä peräkkäin merkille {brand} HTTP 403 Forbidden -virheellä.\n\nTämä on **VW:n palvelinpuolen lukitus**, ei mikään mitä päivitys, otsakemuutos tai uudelleenkirjautuminen voisi korjata. VW vaatii nyt Googlen allekirjoittaman laitetodennustunnisteen (Firebase App Check / Play Integrity) sekä verkkosovelluspalomuurin tunnisteen SEAT/CUPRA-taustajärjestelmässä — virallinen sovellus luo nämä koventeetusta, Googlen allekirjoittamasta koontiversiosta, mitä avoimen lähdekoodin asiakas ei voi jäljitellä. Joten etä**komennot** merkille {brand} (ja SEAT) eivät todennäköisesti palaa.\n\nAjoneuvon **tiedot** kulkevat yhä vain lukemiseen tarkoitetun EU Data Act -portaalin kautta siellä missä saatavilla — se on etenemistie näille merkeille. Tämä on täysin VW:n puolella; sinun puolellasi ei ole mitään korjattavaa. (Seurataan: #464.)",
+      "title": "{brand}-komennot estetty VW:n toimesta (laitetodennus) — {count} peräkkäistä 403-virhettä"
+    },
+    "vw_na_data_forbidden": {
+      "title": "Volkswagen US/CA: ajoneuvon tiedot estetty (tilaus)",
+      "description": "Volkswagen-tilisi kirjautui sisään ja autotallisi luettiin, mutta ajoneuvokohtaiset datapyynnöt (tila, lataus, ilmastointi) hylätään HTTP 403 Forbidden -virheellä.\n\nYleisin syy on tämän ajoneuvon **passiivinen Car-Net / VW Connect -tilaus**. Samat tiedot kulkisivat taas, jos tilaus uusitaan.\n\n**Mitä tehdä:**\n\n1. Avaa virallinen MyVW-sovellus ja vahvista, että Remote Access / Car-Net -tilauksesi on aktiivinen tälle autolle.\n2. Jos se on rauennut, uusi se VW:n kautta ja odota sitten seuraavaa kyselyä.\n\nIntegraatio näyttää edelleen viimeksi välimuistiin tallentamansa tiedot. Tämä varoitus poistuu itsestään heti, kun datapyyntö onnistuu jälleen."
+    },
+    "vw_na_data_forbidden_attestation": {
+      "title": "Volkswagen US/CA: ajoneuvon tiedot estetty VW:n toimesta (laitetodennus)",
+      "description": "Volkswagen-tilisi kirjautui sisään ja autotallisi luettiin, mutta ajoneuvokohtaiset datapyynnöt (tila, lataus, ilmastointi) hylätään HTTP 403 Forbidden -virheellä, ja vastaus sisältää **laitetodennus**merkinnän.\n\nTämä on **VW:n palvelinpuolen lukitus**, ei tilausongelma eikä mitään mitä uudelleenkirjautuminen voisi korjata — joten Car-Netin uusiminen ei auta. VW vaatii nyt Googlen allekirjoittaman laitetodennustunnisteen (Firebase App Check / Play Integrity), jonka virallinen sovellus luo koventeetusta koontiversiosta ja jota avoimen lähdekoodin asiakas ei voi jäljitellä.\n\nIntegraatio näyttää edelleen viimeksi välimuistiin tallentamansa tiedot. Tämä varoitus poistuu itsestään, jos VW avaa datatason uudelleen."
+    },
+    "supplementary_reauth": {
+      "title": "Volkswagen.de-lukukanava vaatii uudelleenkirjautumisen",
+      "description": "Täydentävä volkswagen.de-lukukanava ei voinut jatkaa istuntoaan (Volkswagen haluaa sähköpostin kertakäyttökoodin uudelleen). Ajoneuvosi päätiedot eivät ole vaikutuksen alaisia. Palauttaaksesi ylimääräiset vw.de-tiedot avaa tämän integraation asetukset ja suorita uudelleen \"Lisää Volkswagen.de-lukukanava\"."
+    },
+    "meb_commands_unavailable": {
+      "title": "Etäkomennot eivät ole käytettävissä tälle autolle ({brand})",
+      "description": "Otit MBB-etäkomennot käyttöön määrittäessäsi merkkiä {brand}, mutta tämä on MEB- / ID-perheen auto (ID.3/4/5/7, Enyaq, Born, Q4). VW:n MEB-taustajärjestelmä ei tue pysyvää Car-Net-komentopolkua — pysyvä kirjautuminen vastasi \"Unknown user\" — joten lukitus-, ilmastointi- ja latauskomentoja ei voi lähettää.\n\nMerkintä säilytettiin **vain luku -tilassa**: ajoneuvon tiedot kulkevat edelleen EU Data Act -portaalin kautta, et vain näe komentoentiteettejä. Tämä on VW:n MEB-alustan tunnettu rajoitus, ei määritysvirhe — voit ohittaa tämän ilmoituksen."
+    }
+  },
+  "services": {
+    "start_climate_control": {
+      "name": "Käynnistä ilmastoinnin ohjaus (laaja)",
+      "description": "Käynnistää esilämmityksen/-jäähdytyksen yksittäisillä istuinlämmittimillä, lasinlämmityksellä, ilmastointitilalla ja avaustoiminnalla. Koskee vain Audia ja VW EU:ta (CARIAD BFF). Muut merkit putoavat perus-`start_climatisation`-palveluun. Kaikki hyötykuorman kentät paitsi `device_id` ovat valinnaisia - pois jätetyt kentät säilyttävät merkin oletusarvon.",
+      "fields": {
+        "device_id": {
+          "name": "Ajoneuvo",
+          "description": "Ajoneuvo, joka vastaanottaa esilämmitys-/-jäähdytyskomennon."
+        },
+        "temp_c": {
+          "name": "Tavoitelämpötila (C)",
+          "description": "Sisätilan tavoitelämpötila celsiusasteina (15–30, askel 0,5)."
+        },
+        "glass_heating": {
+          "name": "Lasinlämmitys",
+          "description": "Ota tuulilasin ja takaikkunan lämmitys käyttöön sisätilan esilämmityksen/-jäähdytyksen ohella."
+        },
+        "seat_fl": {
+          "name": "Vasemman etuistuimen lämmitys",
+          "description": "Ota istuinlämmitys käyttöön vasemmalla etuistuimella."
+        },
+        "seat_fr": {
+          "name": "Oikean etuistuimen lämmitys",
+          "description": "Ota istuinlämmitys käyttöön oikealla etuistuimella."
+        },
+        "seat_rl": {
+          "name": "Vasemman takaistuimen lämmitys",
+          "description": "Ota istuinlämmitys käyttöön vasemmalla takaistuimella."
+        },
+        "seat_rr": {
+          "name": "Oikean takaistuimen lämmitys",
+          "description": "Ota istuinlämmitys käyttöön oikealla takaistuimella."
+        },
+        "climatisation_at_unlock": {
+          "name": "Jatka ilmastointia avattaessa",
+          "description": "Pidä esilämmitys/-jäähdytys käynnissä ajoneuvon avaamisen jälkeen."
+        },
+        "climatisation_mode": {
+          "name": "Ilmastointitila",
+          "description": "Comfort (täysi teho) tai economy (alennettu teho, pidempi kesto)."
+        }
+      }
+    },
+    "update_charging_settings": {
+      "name": "Päivitä latausasetukset (SEAT/CUPRA)",
+      "description": "Päivittää SEAT/CUPRA-lataussuunnitelman yhdellä kutsulla. Asettaa minkä tahansa yhdistelmän tavoitevarauksesta, suurimmasta AC-latausvirrasta ja automaattinen-avaus-ladattaessa-lipusta. Muut merkit hylätään koordinaattorin lähetystasolla.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "Päivitettävän ajoneuvon VIN."
+        },
+        "target_soc": {
+          "name": "Tavoitevaraus (%)",
+          "description": "Tavoitevaraus 20–100 prosentin välillä."
+        },
+        "max_charge_current": {
+          "name": "Suurin AC-latausvirta",
+          "description": "Taustajärjestelmän enum, maximum tai reduced."
+        },
+        "auto_unlock_charge": {
+          "name": "Avaa pistoke automaattisesti täyteen ladattaessa",
+          "description": "Kun tosi, liitin avautuu itse latauksen valmistuttua."
+        }
+      }
+    },
+    "execute_vehicle_action": {
+      "name": "Suorita ajoneuvon toiminto",
+      "description": "Yhtenäinen palvelu, joka lähettää alasvetovalikosta valitun ajoneuvon toiminnon. Vastaa saman nimisen toimintokohtaisen palvelun kutsumista, mutta on helpompi löytää Home Assistantin Lovelace-palveluvalitsimesta. Kaikki olemassa olevat toimintokohtaiset palvelut (vag_connect.lock, vag_connect.start_climatisation jne.) toimivat muuttumattomina edelleen.",
+      "fields": {
+        "device_id": {
+          "name": "Ajoneuvo",
+          "description": "Ajoneuvolaite, jolla toimitaan."
+        },
+        "action": {
+          "name": "Toiminto",
+          "description": "Mikä toiminto lähetetään."
+        }
+      }
+    },
+    "open_app": {
+      "description": "Lähettää `vag_connect_open_app`-tapahtuman HA:n tapahtumaväylälle hyötykuormakentillä `vin`, `brand`, `deeplink_url` ja `action`, jotta Lovelace-kortti voi avata merkin natiivin mobiilisovelluksen (myAudi, WeConnect, MyŠkoda, MySEAT, MyCUPRA, My Porsche tai VW US) kutsuvalla laitteella. Integraatio ei voi itse avata URL-osoitteita puhelimessa; hallintapaneelin kortti vastaa navigoinnista `window.location.href = deeplink_url` iOS:ssä / Androidissa.",
+      "fields": {
+        "action": {
+          "description": "Valinnainen polkuosa, joka liitetään syvälinkkiin, jotta merkin sovellus ohjautuu suoraan tiettyyn osioon. Oletus `open` avaa sovelluksen aloitusnäytölle.",
+          "name": "Sovellustoiminto"
+        },
+        "vin": {
+          "description": "Sen ajoneuvon VIN, jonka merkkisovellus tulisi avata.",
+          "name": "VIN"
+        }
+      },
+      "name": "Avaa natiivi merkkisovellus (syvälinkki)"
+    },
+    "abrp_send": {
+      "name": "Lähetä telemetria ABRP:lle",
+      "description": "Rakentaa ja lähettää ajoneuvon nykyisen telemetrian A Better Routeplannerille.",
+      "fields": {
+        "device_id": {
+          "name": "Ajoneuvo",
+          "description": "Ladattava ajoneuvo (tai käytä VIN:iä)."
+        },
+        "vin": {
+          "name": "VIN",
+          "description": "Ajoneuvon VIN (vaihtoehto laitteelle)."
+        },
+        "api_key": {
+          "name": "api_key-ohitus",
+          "description": "Valinnainen. Ohittaa tallennetun kehittäjäavaimen. Ei koskaan lokiin."
+        },
+        "token": {
+          "name": "tunnisteen ohitus",
+          "description": "Valinnainen. Ohittaa tallennetun ajoneuvokohtaisen tunnisteen. Ei koskaan lokiin."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "vehicle_not_found": {
+      "message": "Ajoneuvoa, jonka VIN on {vin}, ei löytynyt. Tarkista, että integraatio on käynnistetty."
+    },
+    "spin_required": {
+      "message": "S-PIN vaaditaan tähän toimintoon. Määritä se kohdassa Asetukset → Laitteet ja palvelut → VW Group Connect → Määritä."
+    },
+    "feature_not_supported": {
+      "message": "Ajoneuvosi tai nykyinen API-asiakas ei tue ominaisuutta {feature}. Toimintoa ei lähetetty."
+    },
+    "wake_budget_exhausted": {
+      "message": "Päivittäinen herätysbudjetti käytetty ({count}/{budget}). 12 V:n akun suojaamiseksi lisää herätyspyyntöjä ei lähetetä ennen keskiyötä UTC. Katso sensor.wake_count_today."
+    },
+    "wake_cooldown_active": {
+      "message": "Herätyksen jäähtymisaika aktiivinen ({remaining_s}s jäljellä). 12 V:n akun suojaamiseksi herätykset on rajoitettu yhteen joka {cooldown_min} minuutti ajoneuvoa kohti."
+    },
+    "read_only_mode_active": {
+      "message": "Vain luku -tila on käytössä integraation asetuksissa. Poista se käytöstä kohdassa Asetukset → Laitteet ja palvelut → VW Group Connect → Määritä, jos haluat lähettää ajoneuvokomentoja."
+    },
+    "read_only_portal_active": {
+      "message": "Tämä ajoneuvo on yhdistetty VW:n vain lukemiseen tarkoitetun EU Data Act -portaalin kautta, joten etäkomennot (lukitus, ilmastointi, lataus) eivät ole sille käytettävissä. Tämä ei ole asetus, jonka voit vaihtaa — portaalikanavalla ei ole komentopolkua."
+    }
+  },
+  "selector": {
+    "execute_vehicle_action_options": {
+      "options": {
+        "lock": "Lukitse",
+        "unlock": "Avaa lukitus",
+        "start_climatisation": "Käynnistä ilmastointi",
+        "stop_climatisation": "Pysäytä ilmastointi",
+        "start_charging": "Käynnistä lataus",
+        "stop_charging": "Pysäytä lataus",
+        "flash_lights": "Vilkuta valoja",
+        "start_window_heating": "Käynnistä ikkunanlämmitys",
+        "stop_window_heating": "Pysäytä ikkunanlämmitys",
+        "wake_vehicle": "Herätä ajoneuvo",
+        "start_aux_heating": "Käynnistä lisälämmitin",
+        "stop_aux_heating": "Pysäytä lisälämmitin",
+        "start_ventilation": "Käynnistä tuuletus",
+        "stop_ventilation": "Pysäytä tuuletus"
+      }
+    }
+  }
+}

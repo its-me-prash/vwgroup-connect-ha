@@ -132,7 +132,7 @@ class TestAllTranslationsHaveNewKey:
         here = Path(__file__).resolve().parent.parent
         translations_dir = here / "custom_components" / "vag_connect" / "translations"
         missing = []
-        for lang in ("cs", "de", "en", "es", "fr", "nl", "pl", "sv"):
+        for lang in ("cs", "de", "en", "es", "fr", "nl", "pl", "sv", "it", "nb", "da", "fi"):
             data = json.loads((translations_dir / f"{lang}.json").read_text(encoding="utf-8"))
             errors = data["config"]["error"]
             if "upstream_unavailable" not in errors:

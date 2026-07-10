@@ -39,7 +39,7 @@ _COORDINATOR_PY = _COMPONENT / "coordinator.py"
 _FACTORY_PY = _COMPONENT / "cariad" / "api" / "factory.py"
 _STRINGS_JSON = _COMPONENT / "strings.json"
 _TRANSLATIONS = _COMPONENT / "translations"
-_LANGS = ["en", "de", "es", "fr", "nl", "pl", "cs", "sv"]
+_LANGS = ["en", "de", "es", "fr", "nl", "pl", "cs", "sv", "it", "nb", "da", "fi"]
 
 
 def _load(path: Path) -> dict:
