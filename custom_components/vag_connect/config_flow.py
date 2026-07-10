@@ -1424,7 +1424,14 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             else:
                 new_unique_id = f"{brand}_{username}"
                 await self.async_set_unique_id(new_unique_id)
-                self._abort_if_unique_id_configured(updates={"entry_id": entry.entry_id})
+                # v2.17.1 (#584) — abort ONLY if the account was changed to one
+                # that already has its own entry. Reconfiguring the SAME account
+                # must update in place; the old `_abort_if_unique_id_configured(
+                # updates=...)` matched the very entry being reconfigured and
+                # aborted with "already configured", making Reconfigure (and the
+                # MBB toggle it surfaces) unreachable for existing users.
+                if new_unique_id != entry.unique_id:
+                    self._abort_if_unique_id_configured()
 
                 self.hass.config_entries.async_update_entry(
                     entry,
