@@ -840,9 +840,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             _LOGGER.info("VAG Connect: setup complete — %d vehicle(s)", found)
 
             # v2.10.5 — EU Data Act portal Custom Data Request first-time
-            # kickoff. Only fires when (a) the user opted in via the
-            # OptionsFlow toggle CONF_EU_DATA_ACT_AUTO_KICKOFF and (b) we
-            # actually authenticated via the data_act_portal strategy.
+            # kickoff. Fires unless (a) the user turned OFF the OptionsFlow
+            # toggle CONF_EU_DATA_ACT_AUTO_KICKOFF (v2.17.1: default ON) and
+            # only when (b) we actually authenticated via a portal strategy.
             # Best-effort: any failure is debug-logged and never blocks
             # setup. Session-expiry surfaces a Repairs issue.
             try:
@@ -1004,15 +1004,20 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             "failure counts cleared. Next poll should recover."
         )
 
-    async def _ensure_data_act_custom_request_kickoff(self) -> None:
+    async def _ensure_data_act_custom_request_kickoff(
+        self, *, force: bool = False
+    ) -> None:
         """v2.10.5 - check + first-time kickoff for the EU Data Act
         portal's 15-min Custom Data Request per VIN.
 
         No-op unless ALL three conditions hold:
 
         1. ``CONF_EU_DATA_ACT_AUTO_KICKOFF`` is True in entry.options
-           (default False - the user has to opt in because the kickoff
-           starts a 1-month data subscription on their account).
+           (v2.17.1: default True — the integration can't receive data in
+           portal mode without a request, so we provision one unless the
+           user explicitly turned auto-kickoff off) OR ``force`` is set
+           (the user pressed the manual "create data request" button, an
+           explicit intent that bypasses the toggle).
         2. The active auth strategy is ``"data_act_portal"`` (the
            coordinator only knows how to consume the portal's ZIP
            dumps in that mode; for the live BFF strategies there is
@@ -1043,7 +1048,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # entities. We ship the only provisioner that CAN create it, so we do,
         # unless the user explicitly turned it off. A one-time notification
         # tells them a request was created (see _notify_data_act_kickoff).
-        if not self.entry.options.get(
+        if not force and not self.entry.options.get(
             CONF_EU_DATA_ACT_AUTO_KICKOFF,
             self.entry.data.get(CONF_EU_DATA_ACT_AUTO_KICKOFF, True),
         ):
@@ -1160,7 +1165,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         allows at most one active request per VIN anyway)."""
         import time  # noqa: PLC0415
         now = time.monotonic()
-        if now - getattr(self, "_last_runtime_kickoff", 0.0) < 6 * 3600:
+        # None sentinel = never fired → always allow the first runtime kickoff.
+        # (Comparing against 0.0 would suppress it for the host's first 6 h of
+        # uptime, because monotonic() starts near 0 on a fresh boot.)
+        last = getattr(self, "_last_runtime_kickoff", None)
+        if last is not None and now - last < 6 * 3600:
             return
         self._last_runtime_kickoff = now
         try:
@@ -1172,9 +1181,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
     async def async_create_data_act_request(self) -> None:
         """User-triggered (button): (re)create/refresh the EU-Data-Act
-        continuous data request now, bypassing the runtime rate-limit."""
-        self._last_runtime_kickoff = 0.0  # let the manual press through
-        await self._ensure_data_act_custom_request_kickoff()
+        continuous data request now. Runs even when automatic provisioning
+        is turned off — pressing the button is explicit intent (``force``)."""
+        import time  # noqa: PLC0415
+        # Rate-limit the runtime auto-path after a manual press (a request
+        # now exists), but the create itself always runs via force=True.
+        self._last_runtime_kickoff = time.monotonic()
+        await self._ensure_data_act_custom_request_kickoff(force=True)
         await self.async_request_refresh()
 
     def _raise_data_act_session_expired_repair(self) -> None:
