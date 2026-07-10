@@ -45,9 +45,12 @@ MBB endpoints — skip the dead Cariad-BFF call.
 - `command_lock` / `command_unlock` MBB with the S-PIN secure-token flow
   (3-leg rolesrights handshake + RLU action — builders/hash/parsers below,
   HTTP orchestration in `api/vw_eu.py` under the `mbb` auth strategy).
-  NOTE: the RLU action + rolesrights paths use the SETTER host under the
-  `/api` prefix and carry NO brand/country segment (DEX-confirmed) — unlike
-  the `/fs-car/...{Brand}/{country}...` VSR read paths above.
+  NOTE (corrected v2.17.1, #666, from Audi 5.5.1 DEX): only the S-PIN
+  rolesrights handshake (legs 1-2: security-pin-auth-requested/-completed)
+  uses the SETTER host under the `/api` prefix. The RLU ACTION + its status
+  poll (leg 3) use the homeRegion READ base under
+  `/fs-car/bs/rlu/v1/{Brand}/{country}/vehicles/{vin}/...` — the same shape as
+  the VSR read paths above (the whole `fs-car` `bs/*` catalog is uniform).
 
 ### Phase 3+ (future releases)
 
@@ -477,17 +480,36 @@ def build_mbb_op_auth_url(
     )
 
 
-def build_mbb_rlu_action_url(setter_base: str, vin: str, *, lock: bool) -> str:
-    """POST URL for leg 3 — the actual lock/unlock action (no brand/country)."""
+def build_mbb_rlu_action_url(
+    read_base: str, brand: str, country: str, vin: str, *, lock: bool
+) -> str:
+    """POST URL for leg 3 — the actual lock/unlock action.
+
+    v2.17.1 (#666) — DEX ground truth (Audi 5.5.1 dex_out): the whole legacy
+    ``fs-car`` ``bs/*`` service catalog (rlu / climatisation / batterycharge /
+    vsr / …) uses the SAME shape on the homeRegion **read base** —
+    ``{readBase}/fs-car/bs/rlu/v1/{Brand}/{country}/vehicles/{vin}/{lock|unlock}``.
+    The previous ``{setter}/api/bs/rlu/v1/vehicles/{vin}/…`` (no brand/country,
+    setter host, /api prefix) was wrong on all three counts and 404s on a real
+    MBB car. Only the S-PIN rolesrights handshake (legs 1-2) lives on the setter
+    ``/api`` host — the action itself does not.
+    """
+    seg = mbb_brand_segment(brand)
     tail = "lock" if lock else "unlock"
-    return f"{setter_base}/api/bs/rlu/v1/vehicles/{vin.upper()}/{tail}"
-
-
-def build_mbb_rlu_status_url(setter_base: str, vin: str, request_id: str) -> str:
-    """GET URL to poll the RLU action's request status."""
     return (
-        f"{setter_base}/api/bs/rlu/v1/vehicles/{vin.upper()}/requests/"
-        f"{request_id}/status"
+        f"{read_base}/fs-car/bs/rlu/v1/{seg}/{country}/vehicles/"
+        f"{vin.upper()}/{tail}"
+    )
+
+
+def build_mbb_rlu_status_url(
+    read_base: str, brand: str, country: str, vin: str, request_id: str
+) -> str:
+    """GET URL to poll the RLU action's request status (same fs-car read base)."""
+    seg = mbb_brand_segment(brand)
+    return (
+        f"{read_base}/fs-car/bs/rlu/v1/{seg}/{country}/vehicles/"
+        f"{vin.upper()}/requests/{request_id}/status"
     )
 
 

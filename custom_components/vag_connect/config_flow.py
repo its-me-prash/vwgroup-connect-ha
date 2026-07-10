@@ -282,9 +282,10 @@ def _credentials_schema(
     schema.update({
         vol.Optional(CONF_SCAN_INTERVAL, default=scan_interval): _INTERVAL_SELECTOR,
         vol.Optional(CONF_FORCE_ACCESS, default=force_access): _BOOL_SELECTOR,
-        # b12 — Volkswagen only: after the portal login, add a durable-MBB
-        # command channel (extra QR confirm) so this read-only portal entry
-        # also gets remote lock/climate/charge. Ignored for non-VW brands.
+        # b12 — VW + Audi: after the portal login, add a durable-MBB command
+        # channel (extra QR confirm) so this read-only portal entry also gets
+        # remote lock/climate/charge. Ignored for other brands. Audi is
+        # EXPERIMENTAL (legacy Car-Net only, unverified end-to-end — #666).
         vol.Optional("enable_mbb_commands", default=enable_mbb_commands): _BOOL_SELECTOR,
     })
     return vol.Schema(schema)
@@ -433,19 +434,23 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 portal_data = self._build_entry_data(
                     brand, username, password, user_input,
                 )
-                # b12 — Volkswagen + "enable MBB commands": the portal validated
+                # b12 — VW/Audi + "enable MBB commands": the portal validated
                 # above (reads); now chain to the MBB QR so the finish creates a
                 # portal-primary entry WITH a durable-MBB command channel on top.
-                # Non-VW or unticked → plain portal entry, exactly as before.
+                # Other brands or unticked → plain portal entry, exactly as before.
+                # v2.17.1 (#666) — Audi Car-Net added: the legacy bs/* command
+                # catalog was extracted from the Audi DEX and the brand segment
+                # maps ('audi'→'Audi'), so Audi is wire-viable. EXPERIMENTAL —
+                # only legacy Car-Net Audis (pre-MEB) and unverified end-to-end.
                 if (
                     user_input.get("enable_mbb_commands")
-                    and brand == "volkswagen"
+                    and brand in ("volkswagen", "audi")
                 ):
                     self._pending_portal_data = portal_data
                     self._pending_portal_title = f"{BRANDS[brand]} — {username}"
                     self._dag_mbb = True
                     self._dag_mbb_command = True
-                    self._dag_brand = "volkswagen"
+                    self._dag_brand = brand
                     self._dag_user_input = dict(user_input)
                     self._dag_request_task = None
                     self._dag_poll_task = None

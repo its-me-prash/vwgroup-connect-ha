@@ -43,6 +43,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ### Fixed
 
 - **"Configure your S-PIN" no longer appears when your S-PIN is already correct (#666).** On a setup that pairs EU-Data-Act reads with the legacy two-way command channel, the command connector grabbed your S-PIN once when it started up — so an S-PIN you added or changed *later* through the integration's Options never reached it, and every lock/climate/charge command failed asking you to configure a PIN you'd already configured. The connector now reads the S-PIN Options-first at start-up **and** picks up a changed PIN live, without a restart. Thanks @torstentosh for the report and the testing.
+- **Legacy Car-Net remote lock/unlock now targets the correct backend URL (#666).** The MBB lock/unlock request was being sent to the wrong host and path shape (it dropped the brand/country and used the setter host), so on a real Car-Net car it would have 404'd. Corrected to the verified `{Brand}/{country}` form on the vehicle's home-region host — the same shape our other Car-Net calls already use. Grounded against the myAudi/We-Connect app internals.
+
+### Added
+
+- **Audi Car-Net owners can now enable the two-way command channel too — experimental (#666).** The legacy command path (lock/climate/charge over the older Car-Net backend) was Volkswagen-only; it's now offered for Audi as well, since the underlying command catalog is identical and the brand routing is handled. This is **experimental** and applies only to older legacy Car-Net Audis (not the newer MEB/PPE e-tron generation) — it hasn't been confirmed end-to-end on a real car yet, so treat it as opt-in testing.
 
 ## [2.17.0] - 2026-07-10
 

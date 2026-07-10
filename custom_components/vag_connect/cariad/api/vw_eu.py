@@ -600,10 +600,14 @@ class VWEUClient(CariadBaseClient):
         if self._tokens and self._tokens.strategy == "mbb":
             return False
         try:
-            # VWEUClient is hardcoded to VW EU (MBB is VW-only); no brand kwarg.
             cmd = VWEUClient(
                 self._session, self._email, self._password, spin or self._spin,
             )
+            # v2.17.1 (#666) — inherit the PRIMARY's brand so the MBB URL
+            # {Brand}/{country} segment is correct for Audi Car-Net as well as
+            # VW (the legacy fs-car bs/* catalog was extracted from the Audi
+            # DEX; both share the mbboauth/mal-1a hosts). VW→VW is a no-op.
+            cmd._brand = self._brand
             cmd.set_persisted_tokens(tokens)
             cmd._mbb_client_id = client_id or ""
             cmd._mbb_manual_vins = list(vins or [])
@@ -1647,6 +1651,26 @@ class VWEUClient(CariadBaseClient):
 
         setter = MBB_SETTER_BASE
 
+        # v2.17.1 (#666) — leg 3 (the RLU action + its status poll) uses the
+        # homeRegion READ base under /fs-car/bs/rlu/v1/{Brand}/{country}/…,
+        # NOT the setter host. Resolve it up-front, mirroring the VSR path.
+        # Legs 1-2 (the S-PIN rolesrights handshake) stay on the setter /api.
+        from .._mbb import MBB_DEFAULT_READ_BASE  # noqa: PLC0415
+        from .._home_region import resolve_home_region  # noqa: PLC0415
+        try:
+            read_base = await resolve_home_region(
+                self, vin, cache=self._home_region_cache,
+            )
+        except Exception:  # noqa: BLE001
+            read_base = MBB_DEFAULT_READ_BASE
+        if "cariad.digital" in read_base or "bff.cariad" in read_base:
+            read_base = MBB_DEFAULT_READ_BASE
+        brand_name = self._brand.name
+        if self._tokens and self._tokens.strategy == "mbb":
+            country = self._mbb_country_from_id_token() or "DE"
+        else:
+            country = "DE"
+
         # Leg 1 — challenge
         ch_resp = await self._mbb_get(
             build_mbb_spin_challenge_url(setter, vin, lock=lock),
@@ -1674,7 +1698,10 @@ class VWEUClient(CariadBaseClient):
 
         # Leg 3 — the action (empty body) + poll
         action_resp = await self._mbb_post_rlu(
-            build_mbb_rlu_action_url(setter, vin, lock=lock), sec_token,
+            build_mbb_rlu_action_url(
+                read_base, brand_name, country, vin, lock=lock,
+            ),
+            sec_token,
             for_command=True,
         )
         request_id = parse_mbb_rlu_request_id(action_resp)
@@ -1683,10 +1710,13 @@ class VWEUClient(CariadBaseClient):
             verb, vin[-6:], request_id or "(none)",
         )
         if request_id:
-            await self._poll_mbb_rlu(setter, vin, request_id, verb)
+            await self._poll_mbb_rlu(
+                read_base, brand_name, country, vin, request_id, verb,
+            )
 
     async def _poll_mbb_rlu(
-        self, setter: str, vin: str, request_id: str, verb: str,
+        self, read_base: str, brand: str, country: str, vin: str,
+        request_id: str, verb: str,
     ) -> None:
         """Poll the RLU request status until success/fail or timeout (~45s)."""
         from .._mbb import (  # noqa: PLC0415
@@ -1694,7 +1724,7 @@ class VWEUClient(CariadBaseClient):
             parse_mbb_rlu_status,
         )
 
-        url = build_mbb_rlu_status_url(setter, vin, request_id)
+        url = build_mbb_rlu_status_url(read_base, brand, country, vin, request_id)
         for _ in range(15):
             await asyncio.sleep(3)
             try:

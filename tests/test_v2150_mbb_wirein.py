@@ -134,22 +134,36 @@ class TestRluUrlBuilders:
             "security-pin-auth-completed"
         )
 
-    def test_action_lock_is_path_tail_no_brand_country(self) -> None:
-        url = _mbb.build_mbb_rlu_action_url(self.SET, self.VIN, lock=True)
-        assert url == f"{self.SET}/api/bs/rlu/v1/vehicles/{self.VIN.upper()}/lock"
-        # The deprecated /{brand}/{country}/.../actions form must NOT appear.
-        assert "/actions" not in url
-        assert "/VW/" not in url
+    # v2.17.1 (#666) — DEX ground truth (Audi 5.5.1): the RLU action + status
+    # use the fs-car read base + {Brand}/{country}, NOT /api on the setter.
+    READ = "https://msg.volkswagen.de"
 
-    def test_action_unlock(self) -> None:
-        url = _mbb.build_mbb_rlu_action_url(self.SET, self.VIN, lock=False)
+    def test_action_lock_uses_fs_car_read_base_brand_country(self) -> None:
+        url = _mbb.build_mbb_rlu_action_url(
+            self.READ, "audi", "DE", self.VIN, lock=True
+        )
+        assert url == (
+            f"{self.READ}/fs-car/bs/rlu/v1/Audi/DE/vehicles/"
+            f"{self.VIN.upper()}/lock"
+        )
+        # the old wrong shapes must be gone
+        assert "/api/bs/rlu" not in url
+        assert "/vehicles/" in url and "/Audi/DE/" in url
+
+    def test_action_unlock_maps_brand_and_country(self) -> None:
+        url = _mbb.build_mbb_rlu_action_url(
+            self.READ, "volkswagen", "CH", self.VIN, lock=False
+        )
         assert url.endswith("/unlock")
+        assert "/fs-car/bs/rlu/v1/VW/CH/" in url
 
     def test_status_url(self) -> None:
-        url = _mbb.build_mbb_rlu_status_url(self.SET, self.VIN, "REQ-1")
+        url = _mbb.build_mbb_rlu_status_url(
+            self.READ, "audi", "DE", self.VIN, "REQ-1"
+        )
         assert url == (
-            f"{self.SET}/api/bs/rlu/v1/vehicles/{self.VIN.upper()}/requests/"
-            "REQ-1/status"
+            f"{self.READ}/fs-car/bs/rlu/v1/Audi/DE/vehicles/"
+            f"{self.VIN.upper()}/requests/REQ-1/status"
         )
 
     def test_content_type_is_remote_lock_unlock_vendor(self) -> None:
