@@ -21,9 +21,17 @@ first-class RFC-8628 device grant):
      device_code/user_code/verification_uri (device.identity.porsche.com/activate).
   4. Poll token_endpoint (grant_type=urn:ietf:params:oauth:grant-type:device_code).
   Commands then run against api.ppa.porsche.com/app/connect/*.
-Needs a Porsche One owner to verify end-to-end before it's un-flagged — the
-rewrite is otherwise ready to build (self-contained; won't touch the shared
-device-grant used by the 4 working VW-Group brands).
+
+v2.17.2 — the recipe above is now IMPLEMENTED as ``PorscheOneDeviceAuth``
+(below): OIDC-discovery-driven device grant + token poll + refresh, unit-tested
+against mocked endpoints. Two gates remain before Porsche can be un-flagged, and
+both need a Porsche One owner: (a) end-to-end verification against the live
+PingFederate tenant (the clientId host + exact discovery shape can't be probed
+off a real account), and (b) wiring the interactive user-code/QR step into the
+config flow (the current ``PorscheClient`` still drives the legacy Auth0
+``PorscheAuth`` password flow — swapping it in is deliberately deferred so this
+release ships no unverified auth path). Self-contained: touches neither the old
+Auth0 flow nor the shared device-grant used by the 4 working VW-Group brands.
 
 Old flow based on CJNE/pyporscheconnectapi (Apache-2.0), aiohttp reimpl.
 """
@@ -212,3 +220,190 @@ class PorscheAuth:
         params = parse_qs(query)
         codes = params.get("code")
         return codes[0] if codes else None
+
+
+# ── Porsche One — PingFederate RFC-8628 device grant (v2.17.2) ────────────────
+# DEX-grounded from the com.porsche.one 12.24.27 sweep. Public client, no
+# secret / captcha / Play-Integrity on the auth path. See the module docstring
+# for the two remaining live-gates (end-to-end verify + config-flow QR wiring).
+
+_PF_DISCOVERY_URL = "https://identity.porsche.com/.well-known/openid-configuration"
+# clientId is fetched at runtime (no hardcoded Auth0 client). Host is the
+# Porsche mobile API; kept as a constant so it's correctable once verified
+# against a real Porsche One account.
+_PF_CLIENT_ID_URL = "https://api.ppa.porsche.com/v1/mobile/clientId"
+_PF_DEVICE_SCOPE = "openid profile email ssodb mbb offline_access"
+_PF_DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
+_PORSCHE_ONE_UA = "PorscheOne/12.24.27 (Android)"
+
+
+class PorscheOneDeviceAuth:
+    """Porsche One (com.porsche.one) PingFederate RFC-8628 device grant.
+
+    Interactive: :meth:`request_device_code` returns a ``user_code`` +
+    ``verification_uri`` the owner approves in a browser, then
+    :meth:`poll_once` is called until it returns a :class:`TokenSet`.
+
+    EXPERIMENTAL / not yet wired — implemented per the DEX-grounded recipe and
+    unit-tested against mocked endpoints, but not verified end-to-end (needs a
+    Porsche One owner). Self-contained: does not touch the legacy Auth0
+    :class:`PorscheAuth` nor the shared VW-Group device grant.
+    """
+
+    def __init__(
+        self,
+        session: ClientSession,
+        *,
+        client_id_url: str = _PF_CLIENT_ID_URL,
+        discovery_url: str = _PF_DISCOVERY_URL,
+    ) -> None:
+        self._session = session
+        self._client_id_url = client_id_url
+        self._discovery_url = discovery_url
+        self._client_id: str = ""
+        self._device_endpoint: str = ""
+        self._token_endpoint: str = ""
+
+    async def prepare(self) -> None:
+        """Fetch the runtime client_id + resolve the PingFederate device /
+        token endpoints via OIDC discovery. Idempotent."""
+        if not self._client_id:
+            self._client_id = await self._fetch_client_id()
+        if not (self._device_endpoint and self._token_endpoint):
+            await self._discover()
+
+    async def _fetch_client_id(self) -> str:
+        async with self._session.get(
+            self._client_id_url,
+            timeout=_AUTH_TIMEOUT,
+            headers={"User-Agent": _PORSCHE_ONE_UA, "Accept": "application/json"},
+        ) as resp:
+            if resp.status != 200:
+                raise AuthenticationError(
+                    f"Porsche One clientId fetch failed ({resp.status})"
+                )
+            data = await resp.json()
+        # Accept a bare string or a {"clientId": "..."} envelope.
+        client_id = data if isinstance(data, str) else (
+            data.get("clientId") or data.get("client_id") or ""
+        )
+        if not client_id:
+            raise AuthenticationError("Porsche One clientId missing in response")
+        return client_id
+
+    async def _discover(self) -> None:
+        async with self._session.get(
+            self._discovery_url,
+            timeout=_AUTH_TIMEOUT,
+            headers={"User-Agent": _PORSCHE_ONE_UA, "Accept": "application/json"},
+        ) as resp:
+            if resp.status != 200:
+                raise AuthenticationError(
+                    f"Porsche One OIDC discovery failed ({resp.status})"
+                )
+            doc = await resp.json()
+        device = doc.get("device_authorization_endpoint")
+        token = doc.get("token_endpoint")
+        if not device or not token:
+            raise AuthenticationError(
+                "Porsche One discovery missing device/token endpoint"
+            )
+        self._device_endpoint = device
+        self._token_endpoint = token
+
+    async def request_device_code(self) -> dict[str, object]:
+        """RFC 8628 §3.1 — start device authorization. Returns the device_code,
+        user_code, verification_uri(_complete), poll interval and expiry."""
+        await self.prepare()
+        async with self._session.post(
+            self._device_endpoint,
+            timeout=_AUTH_TIMEOUT,
+            data={"client_id": self._client_id, "scope": _PF_DEVICE_SCOPE},
+            headers={
+                "User-Agent": _PORSCHE_ONE_UA,
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Accept": "application/json",
+            },
+        ) as resp:
+            if resp.status != 200:
+                body = await resp.text()
+                raise AuthenticationError(
+                    f"Porsche One device authorization failed "
+                    f"({resp.status}): {body[:200]}"
+                )
+            data = await resp.json()
+        if "device_code" not in data or "user_code" not in data:
+            raise AuthenticationError(
+                "Porsche One device authorization response incomplete"
+            )
+        return {
+            "device_code": data["device_code"],
+            "user_code": data["user_code"],
+            "verification_uri": data.get("verification_uri", ""),
+            "verification_uri_complete": data.get("verification_uri_complete", ""),
+            "interval": int(data.get("interval", 5)),
+            "expires_in": int(data.get("expires_in", 600)),
+        }
+
+    async def poll_once(self, device_code: str) -> TokenSet | None:
+        """RFC 8628 §3.4 — one token poll. Returns a TokenSet once the user has
+        approved; ``None`` while still pending (``authorization_pending`` /
+        ``slow_down``); raises AuthenticationError on a terminal error
+        (``access_denied`` / ``expired_token``)."""
+        await self.prepare()
+        async with self._session.post(
+            self._token_endpoint,
+            timeout=_AUTH_TIMEOUT,
+            data={
+                "grant_type": _PF_DEVICE_GRANT,
+                "client_id": self._client_id,
+                "device_code": device_code,
+            },
+            headers={
+                "User-Agent": _PORSCHE_ONE_UA,
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Accept": "application/json",
+            },
+        ) as resp:
+            data = await resp.json()
+            if resp.status == 200:
+                return TokenSet(
+                    access_token=data["access_token"],
+                    refresh_token=data.get("refresh_token", ""),
+                    id_token=data.get("id_token", ""),
+                )
+            error = str(data.get("error", ""))
+        if error in ("authorization_pending", "slow_down"):
+            return None
+        raise AuthenticationError(f"Porsche One device grant rejected: {error}")
+
+    async def refresh(self, refresh_token: str) -> TokenSet:
+        """Refresh via the PingFederate token endpoint."""
+        await self.prepare()
+        async with self._session.post(
+            self._token_endpoint,
+            timeout=_AUTH_TIMEOUT,
+            data={
+                "grant_type": "refresh_token",
+                "client_id": self._client_id,
+                "refresh_token": refresh_token,
+            },
+            headers={
+                "User-Agent": _PORSCHE_ONE_UA,
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Accept": "application/json",
+            },
+        ) as resp:
+            if resp.status == 401:
+                raise TokenExpiredError("Porsche One refresh token expired")
+            if resp.status != 200:
+                body = await resp.text()
+                raise AuthenticationError(
+                    f"Porsche One refresh failed ({resp.status}): {body[:200]}"
+                )
+            data = await resp.json()
+        return TokenSet(
+            access_token=data["access_token"],
+            refresh_token=data.get("refresh_token", refresh_token),
+            id_token=data.get("id_token", ""),
+        )
