@@ -261,14 +261,17 @@ BRANDS = {
 # reports. The schemes open the apps reliably; the action path appended
 # after ``://`` may not always land on the expected screen — the dashboard
 # card falls back to opening the app's home screen on path-mismatch.
+# v2.17.1 (#666 fresh APK sweep) — schemes corrected from the shipping DEX.
+# The old values (wecharge/myseat/mycupra/myporsche/vwapp) were launcher
+# guesses that don't match each app's registered deep-link scheme.
 DEEPLINK_SCHEMES: dict[str, str] = {
-    "audi":          "myaudi://",          # launcher metadata: My Audi
-    "volkswagen":    "wecharge://",        # WeConnect ID Charge component (VW)
-    "skoda":         "myskoda://",         # launcher metadata: MySkoda
-    "seat":          "myseat://",          # launcher metadata: MySEAT
-    "cupra":         "mycupra://",         # launcher metadata: My Cupra
-    "porsche":       "myporsche://",       # My Porsche app
-    "volkswagen_na": "vwapp://",           # VW US Car-Net
+    "audi":          "myaudi://",          # DEX: myAudi 5.5.1
+    "volkswagen":    "weconnect://",       # DEX: We Connect 4.0.3 (was wecharge://)
+    "skoda":         "myskoda://",         # DEX: MySkoda 8.14.0
+    "seat":          "seat://",            # DEX: My SEAT 2.19.1 (was myseat://)
+    "cupra":         "cupra://",           # DEX: My CUPRA 2.18.1 (was mycupra://)
+    "porsche":       "porsche-app://",     # DEX: Porsche One 12.24.27 (was myporsche://)
+    "volkswagen_na": "myvw://",            # DEX: myVW 2026.5.27 (was vwapp://)
 }
 
 # Polling interval limits
