@@ -1066,6 +1066,15 @@
       },
       "spoiler_position_pct": {
         "name": "Pozycja spojlera"
+      },
+      "cabin_temp": {
+        "name": "Temperatura w kabinie"
+      },
+      "charge_target_time": {
+        "name": "Docelowy czas ładowania"
+      },
+      "max_number_users": {
+        "name": "Maks. liczba użytkowników"
       }
     },
     "binary_sensor": {

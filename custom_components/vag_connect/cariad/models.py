@@ -588,6 +588,11 @@ class VehicleData:
     climatisation_active: bool | None = None
     target_temperature: float | None = None
     outside_temp: float | None = None
+    # v2.17.1 (Scout #701, VW ID.7) — EU-portal `in_cabin_temperature.
+    # temperature`: current interior °C. No brand's status endpoint
+    # exposed a cabin reading before; portal-only. Brand-restricted via
+    # _DATA_PRESENT_REQUIRED in sensor.py so non-portal cars stay None.
+    cabin_temp: float | None = None
     # v2.1.0 — Skoda climate-ready-at (closes Scout #186 + #188).
     # ISO-8601 timestamp when the cabin is expected to reach
     # ``target_temperature``. Only populated during active climate
@@ -964,6 +969,15 @@ class VehicleData:
     # conversion. Power-users monitoring thermal balance during
     # charging want both extremes.
     battery_temp_max: float | None = None
+
+    # v2.17.1 (Scout #701, VW ID.7) — EU-portal battery/account extras.
+    # `battery_state_report.charge_target_time`: ISO-8601 timestamp the
+    # pack is expected to reach its charge target (charging analog of
+    # ``climatisation_ready_at``). ``max_number_users``: seat/account
+    # capacity of the vehicle profile (diagnostic). Both portal-only,
+    # brand-restricted via _DATA_PRESENT_REQUIRED in sensor.py.
+    charge_target_time: str | None = None
+    max_number_users: int | None = None
 
     # v2.2.0 Phase 7 PR #2 — tier-B diagnostics from scout-audit.
     # Two VW EU + Audi fields that we already PARSE (timers list,

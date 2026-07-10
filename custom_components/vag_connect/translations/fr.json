@@ -1066,6 +1066,15 @@
       },
       "spoiler_position_pct": {
         "name": "Position de l'aileron"
+      },
+      "cabin_temp": {
+        "name": "Température de l'habitacle"
+      },
+      "charge_target_time": {
+        "name": "Heure cible de charge"
+      },
+      "max_number_users": {
+        "name": "Nombre maximal d'utilisateurs"
       }
     },
     "binary_sensor": {

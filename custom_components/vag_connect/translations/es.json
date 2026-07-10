@@ -1066,6 +1066,15 @@
       },
       "spoiler_position_pct": {
         "name": "Posición del alerón"
+      },
+      "cabin_temp": {
+        "name": "Temperatura del habitáculo"
+      },
+      "charge_target_time": {
+        "name": "Hora objetivo de carga"
+      },
+      "max_number_users": {
+        "name": "Número máximo de usuarios"
       }
     },
     "binary_sensor": {

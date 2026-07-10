@@ -1066,6 +1066,15 @@
       },
       "spoiler_position_pct": {
         "name": "Poloha spoileru"
+      },
+      "cabin_temp": {
+        "name": "Teplota v kabině"
+      },
+      "charge_target_time": {
+        "name": "Čas dosažení cíle nabíjení"
+      },
+      "max_number_users": {
+        "name": "Maximální počet uživatelů"
       }
     },
     "binary_sensor": {

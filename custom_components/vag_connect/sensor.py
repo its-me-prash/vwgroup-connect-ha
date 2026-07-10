@@ -431,6 +431,17 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:thermometer",
     ),
+    # v2.17.1 (Scout #701, VW ID.7) — EU-portal interior temperature.
+    # Brand-restricted via _DATA_PRESENT_REQUIRED (portal-only field).
+    VagSensorDescription(
+        key="cabin_temp",
+        translation_key="cabin_temp",
+        data_key="cabin_temp",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:home-thermometer",
+    ),
 
     VagSensorDescription(
         key="service_km",
@@ -1171,6 +1182,24 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:battery-heart-variant",
         entity_category=EntityCategory.DIAGNOSTIC,
         suggested_display_precision=1,
+    ),
+    # v2.17.1 (Scout #701, VW ID.7) — EU-portal charge-target time
+    # (ISO ts) + vehicle-profile user capacity. Both portal-only,
+    # brand-restricted via _DATA_PRESENT_REQUIRED. Diagnostic category.
+    VagSensorDescription(
+        key="charge_target_time",
+        translation_key="charge_target_time",
+        data_key="charge_target_time",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:battery-clock",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="max_number_users",
+        translation_key="max_number_users",
+        data_key="max_number_users",
+        icon="mdi:account-multiple",
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     # v2.2.0 Phase 7 PR #2 — VW EU + Audi aggregate count of enabled
     # departure timers (0-3). Saves users the templating effort of
@@ -2818,6 +2847,12 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # b1/A6 — raw-discovery sensor only spawns when the portal actually
     # delivered unmapped fields (empty dict on every other brand/channel).
     "raw_api_fields",
+    # v2.17.1 (Scout #701, VW ID.7) — EU-portal-only interior temp,
+    # HV-battery-derived charge-target time + profile user capacity.
+    # Non-portal cars leave these None → no phantom entity.
+    "cabin_temp",
+    "charge_target_time",
+    "max_number_users",
     # b1/C1 — provenance sensor only spawns when a multi-channel merge set
     # source_channel (None on single-channel entries).
     "data_source_channel",

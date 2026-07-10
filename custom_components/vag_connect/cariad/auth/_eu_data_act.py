@@ -1192,6 +1192,43 @@ def map_dataset_to_vehicle_data(
         # already-°C value (e.g. 17.1) stays as-is — no ambient temp is > 200 °C.
         d.outside_temp = round(otemp / 10 - 273.15, 1) if otemp > 200 else otemp
 
+    # v2.17.1 (Scout #701, VW ID.7) — EU-portal HV-battery + cabin temps.
+    # `hvbatterytemperature.{min,max}_temperature` feed the same
+    # battery_temp (min) / battery_temp_max (max) sensors the CARIAD-BFF
+    # fills from temperatureHvBattery{Min,Max}_K, so portal-only cars get
+    # them too. Same >200 deci-Kelvin guard as the ambient reading; only
+    # fill when the BFF channel hasn't already provided a value.
+    hv_min = _to_float(first("hvbatterytemperature.min_temperature"))
+    if hv_min is not None and d.battery_temp is None:
+        d.battery_temp = round(hv_min / 10 - 273.15, 1) if hv_min > 200 else hv_min
+    hv_max = _to_float(first("hvbatterytemperature.max_temperature"))
+    if hv_max is not None and d.battery_temp_max is None:
+        d.battery_temp_max = round(hv_max / 10 - 273.15, 1) if hv_max > 200 else hv_max
+
+    # `in_cabin_temperature.temperature` — current interior °C. The
+    # companion `measurement_state` flags validity; skip an explicitly
+    # invalid reading but accept when the flag is absent (not all reports
+    # carry it). Same dK guard.
+    cabin_state = first("in_cabin_temperature.measurement_state")
+    cabin_t = _to_float(first("in_cabin_temperature.temperature"))
+    if cabin_t is not None and (
+        cabin_state is None
+        or str(cabin_state).lower()
+        not in ("invalid", "error", "measurement_invalid", "not_available")
+    ):
+        d.cabin_temp = round(cabin_t / 10 - 273.15, 1) if cabin_t > 200 else cabin_t
+
+    # `battery_state_report.charge_target_time` — ISO-8601 ts the pack
+    # reaches its charge target (charging analog of climatisation_ready_at).
+    ctt = first("battery_state_report.charge_target_time", "charge_target_time")
+    if isinstance(ctt, str) and ctt.strip():
+        d.charge_target_time = ctt.strip()
+
+    # `max_number_users` — vehicle-profile seat/account capacity (diagnostic).
+    mnu = _to_int(first("max_number_users"))
+    if mnu is not None:
+        d.max_number_users = mnu
+
     sec_rng = _to_int(first("cruising_range_secondary_engine"))
     if sec_rng is not None:
         d.secondary_engine_range_km = sec_rng

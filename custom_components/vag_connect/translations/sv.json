@@ -1066,6 +1066,15 @@
       },
       "spoiler_position_pct": {
         "name": "Spoilerposition"
+      },
+      "cabin_temp": {
+        "name": "Kupétemperatur"
+      },
+      "charge_target_time": {
+        "name": "Tidpunkt för laddningsmål"
+      },
+      "max_number_users": {
+        "name": "Max antal användare"
       }
     },
     "binary_sensor": {

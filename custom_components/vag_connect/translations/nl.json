@@ -1066,6 +1066,15 @@
       },
       "spoiler_position_pct": {
         "name": "Spoilerpositie"
+      },
+      "cabin_temp": {
+        "name": "Interieurtemperatuur"
+      },
+      "charge_target_time": {
+        "name": "Streeftijd laden"
+      },
+      "max_number_users": {
+        "name": "Max. aantal gebruikers"
       }
     },
     "binary_sensor": {
