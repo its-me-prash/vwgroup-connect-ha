@@ -38,7 +38,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
-## [2.17.1] - unreleased
+## [2.17.1] - 2026-07-10
 
 ### Fixed
 
@@ -57,6 +57,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 - **The EU Data Act data request is now set up for you automatically — no more "device with empty entities" (#584).** In portal mode the integration can only receive data once there's an *active continuous data request* on the VW EU Data Act portal. Until now you had to create that request yourself on the portal website first — and if you didn't (or it lapsed), you got a device full of empty entities and reasonably assumed the integration was broken. Now it **creates the request for you automatically** and, if data stops arriving, **re-provisions it on the fly** — so "no data coming in" self-heals. A one-time notification tells you when a request was created. You can turn automatic provisioning off under Configure, or trigger it yourself with the new **"Create EU Data Act data request"** button. (We're the only VW-EU Home Assistant integration that can create the request for you — the others require you to do it by hand.)
 - **Audi Car-Net owners can now enable the two-way command channel too — experimental (#666).** The legacy command path (lock/climate/charge over the older Car-Net backend) was Volkswagen-only; it's now offered for Audi as well, since the underlying command catalog is identical and the brand routing is handled. This is **experimental** and applies only to older legacy Car-Net Audis (not the newer MEB/PPE e-tron generation) — it hasn't been confirmed end-to-end on a real car yet, so treat it as opt-in testing.
+- **New sensors for EU-portal cars: cabin temperature, HV-battery min/max temperature, charge-target time and profile user count.** The latest round of Vehicle Data Scout reports (a VW ID.7 among them) carried a handful of signals we didn't map yet. If your car sends them in its portal data, they now appear as sensors. Everything else in those reports was already covered.
 
 ## [2.17.0] - 2026-07-10
 
