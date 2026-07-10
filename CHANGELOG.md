@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.17.1] - unreleased
+
+### Fixed
+
+- **"Configure your S-PIN" no longer appears when your S-PIN is already correct (#666).** On a setup that pairs EU-Data-Act reads with the legacy two-way command channel, the command connector grabbed your S-PIN once when it started up — so an S-PIN you added or changed *later* through the integration's Options never reached it, and every lock/climate/charge command failed asking you to configure a PIN you'd already configured. The connector now reads the S-PIN Options-first at start-up **and** picks up a changed PIN live, without a restart. Thanks @torstentosh for the report and the testing.
+
 ## [2.17.0] - 2026-07-10
 
 ### Added

@@ -887,5 +887,10 @@ async def _async_update_listener(
             _LOGGER.debug(
                 "VAG Connect: settings applied live (no restart needed)"
             )
+            # v2.17.x (#666) — push a later-edited S-PIN into an already-armed
+            # MBB command connector so it takes effect without a restart.
+            refresh_spin = getattr(coordinator, "_refresh_mbb_command_spin", None)
+            if callable(refresh_spin):
+                refresh_spin()
             # Trigger one immediate refresh so users see the effect
             await coordinator.async_request_refresh()

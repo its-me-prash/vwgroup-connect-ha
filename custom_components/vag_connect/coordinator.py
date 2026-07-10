@@ -1277,7 +1277,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     cmd_tokens,
                     data.get(CONF_MBB_COMMAND_CLIENT_ID, ""),
                     list(vins),
-                    data.get(CONF_SPIN, ""),
+                    # v2.17.x (#666) — options-first so an S-PIN added later via
+                    # Options (lands in entry.options) is captured at arm time,
+                    # not just one set in the initial config data.
+                    self._spin_from_entry(),
                 ))
                 if armed:
                     # persist the rotated MBB bearer (durable refresh survives
@@ -3831,6 +3834,21 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         if isinstance(data, dict):
             return str(data.get(CONF_SPIN) or "")
         return ""
+
+    def _refresh_mbb_command_spin(self) -> None:
+        """Push the current (options-first) S-PIN into an already-armed MBB
+        command connector so an S-PIN added or changed via Options takes effect
+        without a restart (#666). Fail-soft: no-op if nothing is armed.
+
+        Without this, the connector captured its S-PIN once at arm time, so a
+        later Options edit was invisible until a reload and the user got the
+        'configure your S-PIN' error even though they had configured it.
+        """
+        client = getattr(self, "_cariad_client", None)
+        target = getattr(client, "_mbb_command_target", None)
+        cmd = target() if callable(target) else None
+        if cmd is not None:
+            cmd._spin = self._spin_from_entry()
 
     def _ensure_dispatcher(self) -> Any:  # CommandDispatcher (avoid TYPE_CHECKING import)
         """Return ``self._dispatcher``, lazily creating one if missing.
