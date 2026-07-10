@@ -1350,6 +1350,9 @@
       },
       "wake_button": {
         "name": "Väck fordonet"
+      },
+      "data_act_request_button": {
+        "name": "Skapa EU Data Act-databegäran"
       }
     },
     "climate": {

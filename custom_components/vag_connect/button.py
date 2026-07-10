@@ -4,6 +4,7 @@
 
 from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -40,6 +41,11 @@ async def async_setup_entry(
         # Refresh button never gates — coordinator-level operation.
         entities.append(VagRefreshButton(coordinator, vin))
         if read_only:
+            # v2.17.1 — portal (read-only) entries expose a button to create or
+            # refresh the EU-Data-Act continuous data request on demand, so a
+            # user whose portal has no active request can fix "no data" from
+            # inside Home Assistant instead of the portal UI.
+            entities.append(VagDataActRequestButton(coordinator, vin))
             return entities
         if coordinator.command_capability_supported(vin, "command_flash") is not False:
             entities.append(VagFlashButton(coordinator, vin))
@@ -91,3 +97,17 @@ class VagWakeButton(VagConnectEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         await self.coordinator.async_wake_vehicle(self._vin)
+
+
+class VagDataActRequestButton(VagConnectEntity, ButtonEntity):
+    """Create/refresh the EU Data Act continuous data request on the portal."""
+
+    _attr_translation_key = "data_act_request_button"
+    _attr_icon = "mdi:cloud-sync"
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, coordinator: VagConnectCoordinator, vin: str) -> None:
+        super().__init__(coordinator, vin, "data_act_request_button")
+
+    async def async_press(self) -> None:
+        await self.coordinator.async_create_data_act_request()

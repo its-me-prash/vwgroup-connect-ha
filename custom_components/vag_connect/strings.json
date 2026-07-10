@@ -1350,6 +1350,9 @@
       },
       "wake_button": {
         "name": "Wake Up Car"
+      },
+      "data_act_request_button": {
+        "name": "Create EU Data Act data request"
       }
     },
     "climate": {

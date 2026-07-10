@@ -1036,9 +1036,16 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             CONF_SUPPLEMENTARY_EU_PORTAL,
         )
 
+        # v2.17.1 — default ON. The integration is useless in portal mode
+        # without an active Custom Data Request, and competitor integrations
+        # (mikrohard/TommiG1) simply refuse to install without one — so a user
+        # who installs us but hasn't set one up manually just gets empty
+        # entities. We ship the only provisioner that CAN create it, so we do,
+        # unless the user explicitly turned it off. A one-time notification
+        # tells them a request was created (see _notify_data_act_kickoff).
         if not self.entry.options.get(
             CONF_EU_DATA_ACT_AUTO_KICKOFF,
-            self.entry.data.get(CONF_EU_DATA_ACT_AUTO_KICKOFF, False),
+            self.entry.data.get(CONF_EU_DATA_ACT_AUTO_KICKOFF, True),
         ):
             return
 
@@ -1100,6 +1107,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 if new_id:
                     new_map[vin] = new_id
                     changed = True
+                    _LOGGER.info(
+                        "Data Act: created a continuous 15-min Custom Data "
+                        "Request for VIN %s (Identifier=%s...) so data can flow.",
+                        mask_vin(vin), new_id[:8],
+                    )
+                    self._notify_data_act_kickoff(vin)
             except DataActSessionExpiredError:
                 self._raise_data_act_session_expired_repair()
                 return  # stop processing further VINs this cycle
@@ -1114,6 +1127,55 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 self.entry,
                 options={**self.entry.options, CONF_DATA_ACT_IDENTIFIERS: new_map},
             )
+
+    def _notify_data_act_kickoff(self, vin: str) -> None:
+        """One-time transparency notice that we created a portal data request."""
+        try:
+            from homeassistant.components import (  # noqa: PLC0415
+                persistent_notification,
+            )
+            persistent_notification.async_create(
+                self.hass,
+                (
+                    "VAG Connect enabled a **continuous 15-minute data request** "
+                    "on your VW Group EU Data Act portal account so the "
+                    "integration can receive data. The first delivery can take "
+                    "15–60 minutes. You can turn automatic provisioning off under "
+                    "the integration's **Configure → EU Data Act auto-kickoff**."
+                ),
+                title="VAG Connect: data request created",
+                notification_id=f"vag_connect_dataact_kickoff_{vin[-6:]}",
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
+    async def _maybe_runtime_data_act_kickoff(self) -> None:
+        """Re-provision the portal Custom Data Request at RUNTIME when a poll
+        came back ``no_request`` (no active request on the portal).
+
+        The startup kickoff handles the common case; this catches a request
+        that never existed or disappeared while the integration is running, so
+        "no data comes in" self-heals instead of sitting on empty entities.
+        Rate-limited to once per 6 h so we never hammer the portal (which
+        allows at most one active request per VIN anyway)."""
+        import time  # noqa: PLC0415
+        now = time.monotonic()
+        if now - getattr(self, "_last_runtime_kickoff", 0.0) < 6 * 3600:
+            return
+        self._last_runtime_kickoff = now
+        try:
+            await self._ensure_data_act_custom_request_kickoff()
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug(
+                "Data Act runtime kickoff raised — non-fatal", exc_info=True,
+            )
+
+    async def async_create_data_act_request(self) -> None:
+        """User-triggered (button): (re)create/refresh the EU-Data-Act
+        continuous data request now, bypassing the runtime rate-limit."""
+        self._last_runtime_kickoff = 0.0  # let the manual press through
+        await self._ensure_data_act_custom_request_kickoff()
+        await self.async_request_refresh()
 
     def _raise_data_act_session_expired_repair(self) -> None:
         """v2.10.5 - open a Repairs issue when the portal session
@@ -1513,6 +1575,16 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                             except Exception:  # noqa: BLE001
                                 pass
                     elif isinstance(result, VehicleData):
+                        # v2.17.1 — on a portal no-data poll, make sure a
+                        # continuous data request actually EXISTS on the portal
+                        # and (re)provision it if not, so "no data comes in"
+                        # self-heals instead of sitting on empty entities. Safe
+                        # on transient outages too: it's rate-limited (6 h) and a
+                        # no-op when a request already exists (it's just adopted,
+                        # never duplicated), and it respects the auto-kickoff
+                        # toggle + portal-strategy gate inside the helper.
+                        if getattr(result, "no_data", False):
+                            await self._maybe_runtime_data_act_kickoff()
                         # v2.15.0a10 (#481-residue) — a no-data poll (e.g. EU
                         # Data Act portal timeout/outage) returns a bare
                         # VehicleData carrying only the VIN. If we already hold

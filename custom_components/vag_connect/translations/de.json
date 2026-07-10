@@ -1350,6 +1350,9 @@
       },
       "wake_button": {
         "name": "Auto aufwecken"
+      },
+      "data_act_request_button": {
+        "name": "EU-Data-Act-Datenanfrage erstellen"
       }
     },
     "climate": {
