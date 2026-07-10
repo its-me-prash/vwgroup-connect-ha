@@ -112,6 +112,11 @@ def classify_command_failure(exc: BaseException) -> CommandFailureReason:
     If the body has none of these markers we fall back to the
     HTTP-status-only classification.
     """
+    # v2.17.1 (#666) — a locally-raised SpinError (our own guard, e.g. an MBB
+    # lock/climate/charge command issued with no S-PIN configured) is a clean
+    # "S-PIN required", not an UNKNOWN crash that bubbles as a raw traceback.
+    if isinstance(exc, SpinError):
+        return CommandFailureReason.SPIN_REQUIRED
     if not isinstance(exc, APIError):
         return CommandFailureReason.UNKNOWN
 
@@ -150,6 +155,14 @@ def classify_command_failure(exc: BaseException) -> CommandFailureReason:
         or "appcheck" in body
         or "play integrity" in body
         or "play_integrity" in body
+        # v2.17.1 (#666 sweep) — SEAT/CUPRA's wall is AWS WAF, a different
+        # SDK challenge but the same "device-attestation, not a subscription
+        # problem" class. Classify it here so a WAF block gets the right
+        # message instead of a phantom-renewal one.
+        or "x-amzn-waf-action" in body
+        or "aws-waf-token" in body
+        or "aws-waf" in body
+        or "waftokenunavailable" in body
     ):
         return CommandFailureReason.ATTESTATION_LOCKED
 
