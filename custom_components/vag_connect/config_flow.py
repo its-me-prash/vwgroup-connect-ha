@@ -71,6 +71,16 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+
+def _brand_label(brand: str) -> str:
+    """Display label for a brand, safe for brands offered in the picker but
+    absent from the ``BRANDS`` map — e.g. Bentley, which rides the Audi IDK
+    tenant and is deliberately kept out of ``BRANDS`` (which is parity-locked
+    to DEEPLINK_SCHEMES + capabilities). Falls back to a title-cased name so
+    entry-title formatting never KeyErrors."""
+    return BRANDS.get(brand, brand.replace("_", " ").title())
+
+
 # ── Brand selector options with icons ────────────────────────────────────────
 # HA renders these as a visual select list (not a plain dropdown)
 _BRAND_OPTIONS: list[SelectOptionDict] = [
@@ -343,6 +353,10 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         self._dag_mbb_command: bool = False
         self._pending_portal_data: dict[str, Any] = {}
         self._pending_portal_title: str = ""
+        # v2.17.2 (#666) — set when the MBB command channel is being added to an
+        # EXISTING entry via Reconfigure. The QR finish/approve steps then UPDATE
+        # this entry in place instead of creating a new one.
+        self._mbb_reconfigure_entry_id: str | None = None
         # v2.14.0 — website-authproxy (opt-in beta) pending state between the
         # credentials step and the email-OTP step. The connector + its session
         # are held open across the two-step OTP exchange so the cookie jar
@@ -447,7 +461,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     and brand in ("volkswagen", "audi")
                 ):
                     self._pending_portal_data = portal_data
-                    self._pending_portal_title = f"{BRANDS[brand]} — {username}"
+                    self._pending_portal_title = f"{_brand_label(brand)} — {username}"
                     self._dag_mbb = True
                     self._dag_mbb_command = True
                     self._dag_brand = brand
@@ -465,7 +479,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     self._dag_error = ""
                     return await self.async_step_browser_login_pending()
                 return self.async_create_entry(
-                    title=f"{BRANDS[brand]} — {username}",
+                    title=f"{_brand_label(brand)} — {username}",
                     data=portal_data,
                 )
 
@@ -974,7 +988,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                         # raises a clear "commands unavailable on this MEB/ID
                         # car" repair instead of silently missing the command
                         # entities the user ticked the box for.
-                        return self.async_create_entry(
+                        return await self._create_or_update_portal_entry(
                             title=self._pending_portal_title,
                             data={**self._pending_portal_data,
                                   CONF_MEB_COMMANDS_UNAVAILABLE: True},
@@ -1220,6 +1234,24 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 # assigned to a ClientSession-typed attribute.
                 setattr(self, "_dag_session", None)
 
+    async def _create_or_update_portal_entry(
+        self, *, title: str, data: dict[str, Any]
+    ) -> config_entries.ConfigFlowResult:
+        """Finalize a portal(+MBB) entry. When the MBB command channel was
+        added to an EXISTING entry via Reconfigure (``_mbb_reconfigure_entry_id``),
+        update that entry in place + reload; otherwise create a new entry."""
+        if self._mbb_reconfigure_entry_id:
+            entry = self.hass.config_entries.async_get_entry(
+                self._mbb_reconfigure_entry_id
+            )
+            if entry is not None:
+                self.hass.config_entries.async_update_entry(
+                    entry, title=title, data=data
+                )
+                await self.hass.config_entries.async_reload(entry.entry_id)
+                return self.async_abort(reason="reconfigure_successful")
+        return self.async_create_entry(title=title, data=data)
+
     async def async_step_browser_login_finish(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
@@ -1254,7 +1286,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 # (MEB/ID car): keep the read-only portal entry and flag it so
                 # the coordinator surfaces a clear "commands unavailable" repair.
                 entry_data[CONF_MEB_COMMANDS_UNAVAILABLE] = True
-            return self.async_create_entry(
+            return await self._create_or_update_portal_entry(
                 title=self._pending_portal_title, data=entry_data,
             )
 
@@ -1312,7 +1344,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             "strategy": "device_grant",
         }
         return self.async_create_entry(
-            title=f"{BRANDS[self._dag_brand]} — {self._dag_user_id[:8]}…",
+            title=f"{_brand_label(self._dag_brand)} — {self._dag_user_id[:8]}…",
             data=entry_data,
         )
 
@@ -1337,7 +1369,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 errors["base"] = _map_error(str(err))
             else:
                 return self.async_create_entry(
-                    title=f"{BRANDS[self._pending_brand]} — {self._pending_username}",
+                    title=f"{_brand_label(self._pending_brand)} — {self._pending_username}",
                     data=self._pending_entry_data,
                 )
 
@@ -1433,11 +1465,51 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 if new_unique_id != entry.unique_id:
                     self._abort_if_unique_id_configured()
 
+                # v2.17.2 — MERGE, don't replace: a credential update must keep
+                # everything the base builder doesn't own — the durable-MBB
+                # command channel, supplementary-portal creds, DAG tokens. The
+                # old code passed only base fields, silently wiping an existing
+                # two-way channel on every Reconfigure.
+                merged = {
+                    **entry.data,
+                    **self._build_entry_data(brand, username, password, user_input),
+                }
+
+                # v2.17.2 (#666) — enable the durable-MBB command channel on an
+                # EXISTING portal entry via Reconfigure (VW/Audi, and only when
+                # it isn't already on). Mirrors the initial email_password MBB
+                # chain; the QR finish/approve steps update THIS entry in place
+                # (see _mbb_reconfigure_entry_id + _create_or_update_portal_entry).
+                if (
+                    user_input.get("enable_mbb_commands")
+                    and brand in ("volkswagen", "audi")
+                    and not entry.data.get(CONF_MBB_COMMAND_CHANNEL)
+                ):
+                    self._mbb_reconfigure_entry_id = entry.entry_id
+                    self._pending_portal_data = merged
+                    self._pending_portal_title = f"{_brand_label(brand)} — {username}"
+                    self._dag_mbb = True
+                    self._dag_mbb_command = True
+                    self._dag_brand = brand
+                    self._dag_user_input = dict(user_input)
+                    self._dag_request_task = None
+                    self._dag_poll_task = None
+                    self._dag_user_code = ""
+                    self._dag_verification_uri = ""
+                    self._dag_device_code = ""
+                    self._dag_tokens = None
+                    self._dag_mbb_tokens = None
+                    self._dag_mbb_client_id = ""
+                    self._dag_mbb_ineligible = False
+                    self._dag_user_id = ""
+                    self._dag_error = ""
+                    return await self.async_step_browser_login_pending()
+
                 self.hass.config_entries.async_update_entry(
                     entry,
-                    title=f"{BRANDS[brand]} — {username}",
+                    title=f"{_brand_label(brand)} — {username}",
                     unique_id=new_unique_id,
-                    data=self._build_entry_data(brand, username, password, user_input),
+                    data=merged,
                 )
                 await self.hass.config_entries.async_reload(entry.entry_id)
                 return self.async_abort(reason="reconfigure_successful")
