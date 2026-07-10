@@ -4561,7 +4561,7 @@ class TestVWEUv1v2Fallback:
         client = self._client()
         client._post = AsyncMock(return_value=None)
         asyncio.run(
-            client.command_set_target_soc("VIN1", 80)
+            client._post_command("VIN1", "charging/settings", json={"targetSOC_pct": 80})
         )
         assert client._post.call_count == 1
         assert "/vehicle/v1/" in client._post.call_args[0][0]
@@ -4578,7 +4578,7 @@ class TestVWEUv1v2Fallback:
             None,
         ])
         asyncio.run(
-            client.command_set_target_soc("VIN_AUDI", 80)
+            client._post_command("VIN_AUDI", "charging/settings", json={"targetSOC_pct": 80})
         )
         assert client._post.call_count == 2
         assert "/vehicle/v1/" in client._post.call_args_list[0][0][0]
@@ -4586,13 +4586,13 @@ class TestVWEUv1v2Fallback:
         assert client._supports_v2_paths("VIN_AUDI")
 
     def test_subsequent_calls_skip_v1(self):
-        """Once v2 is recorded for a VIN, all subsequent calls go to v2.
+        """Once v2 is recorded for a VIN, all subsequent _post_command calls go to v2.
 
-        Uses command_set_target_soc (a _post_command consumer). NOTE: since
-        v2.16.3 (#666) command_set_climate_temperature deliberately does NOT
-        use _post_command — it PUTs the v1 climate-settings path directly and
-        bypasses the shared v2 flag, so it is intentionally not a valid probe
-        for this behaviour (see test_v2163_climate_temp_put_666.py).
+        Probes _post_command directly. NOTE: since v2.16.3/v2.17.0 (#666) the
+        settings writers (climate temp + the charging setters) PUT the v1 path
+        via _settings_put_with_fallback and deliberately bypass this shared v2
+        flag, so they are intentionally not valid probes for this behaviour
+        (see test_v2163_climate_temp_put_666.py + test_v2170_charging_put_666.py).
         """
         import asyncio
         from unittest.mock import AsyncMock
@@ -4600,7 +4600,7 @@ class TestVWEUv1v2Fallback:
         client._v2_command_paths = {"VIN_AUDI": True}
         client._post = AsyncMock(return_value=None)
         asyncio.run(
-            client.command_set_target_soc("VIN_AUDI", 80)
+            client._post_command("VIN_AUDI", "charging/settings", json={"targetSOC_pct": 80})
         )
         assert client._post.call_count == 1
         assert "/vehicle/v2/" in client._post.call_args[0][0]
@@ -4615,7 +4615,7 @@ class TestVWEUv1v2Fallback:
         client._post = AsyncMock(side_effect=APIError(500, "/v1/...", "Server Error"))
         with pytest.raises(APIError):
             asyncio.run(
-                client.command_set_target_soc("VIN1", 80)
+                client._post_command("VIN1", "charging/settings", json={"targetSOC_pct": 80})
             )
         assert client._post.call_count == 1  # no v2 retry
         assert not client._supports_v2_paths("VIN1")
@@ -4629,7 +4629,7 @@ class TestVWEUv1v2Fallback:
         # VIN_A: v1 works
         client._post = AsyncMock(return_value=None)
         asyncio.run(
-            client.command_set_target_soc("VIN_A", 80)
+            client._post_command("VIN_A", "charging/settings", json={"targetSOC_pct": 80})
         )
         # VIN_B: v1 404 → v2
         client._post = AsyncMock(side_effect=[
@@ -4637,7 +4637,7 @@ class TestVWEUv1v2Fallback:
             None,
         ])
         asyncio.run(
-            client.command_set_target_soc("VIN_B", 80)
+            client._post_command("VIN_B", "charging/settings", json={"targetSOC_pct": 80})
         )
         # VIN_A still on v1 path, VIN_B on v2
         assert not client._supports_v2_paths("VIN_A")

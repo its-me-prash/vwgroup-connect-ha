@@ -1930,8 +1930,56 @@ class VWEUClient(CariadBaseClient):
                 vin, fallback_suffix, json=fallback_payload,
             )
 
+    async def _settings_put_with_fallback(
+        self,
+        vin: str,
+        path_suffix: str,
+        put_body: dict[str, Any],
+        post_body: dict[str, Any],
+        command_name: str,
+    ) -> None:
+        """PUT a ``.../settings`` write (v1) with a legacy-POST fallback.
+
+        v2.16.3/v2.17.0 (#666) — the CARIAD BFF exposes climatisation/settings
+        and charging/settings as **PUT** (verified across four BFF-native
+        clients: CarConnectivity audi/vw, volkswagencarnet, WeConnect-python).
+        We historically POSTed them, which the gateway answers with **404**
+        (not a clean 405) on the stricter PPE/MEB platform — that broke both
+        climate temp-set and charge-target on Q4/Q6 e-tron (torstentosh, #666).
+
+        Primary = PUT the v1 path directly (bypasses the shared v2-path flag,
+        since every source uses v1 for these writes). Fallback = the legacy
+        POST body via ``_post_command`` so any car that accepted the old form
+        can't regress. If both return 404 the write isn't provisioned for this
+        vehicle → a clean VehicleCommandError, not a raw 404 traceback.
+        """
+        base = self._base_for_vin(vin)
+        put_url = f"{base}/vehicle/v1/vehicles/{vin}/{path_suffix}"
+        try:
+            await self._put(put_url, json=put_body)
+            return
+        except APIError as err:
+            if getattr(err, "status", 0) not in (404, 405):
+                raise
+        try:
+            await self._post_command(vin, path_suffix, json=post_body)
+        except APIError as err:
+            if getattr(err, "status", 0) != 404:
+                raise
+            raise VehicleCommandError(
+                command_name,
+                f"the '{path_suffix}' write isn't available on this vehicle "
+                "via the current API (both PUT and the legacy POST returned "
+                "404). On PPE/MEB vehicles (e.g. Q4/Q6 e-tron) some settings "
+                "writes aren't exposed — use the official app instead.",
+            ) from err
+
     async def command_set_target_soc(self, vin: str, target: int) -> None:
-        """Set charge target SoC. Tries v1 first, falls back to v2 on 404."""
+        """Set charge target SoC.
+
+        v2.17.0 (#666) — charging/settings is a PUT (was POST → 404 on the
+        PPE Q4; torstentosh's charge-target 404). MBB legacy path unchanged.
+        """
         _tgt = self._mbb_command_target()
         if _tgt is not None:
             from .._mbb import build_mbb_charger_settings_body  # noqa: PLC0415
@@ -1939,8 +1987,11 @@ class VWEUClient(CariadBaseClient):
                 vin, "charge_target_soc",
                 body_override=build_mbb_charger_settings_body(target))
             return
-        await self._post_command(
-            vin, "charging/settings", json={"targetSOC_pct": target},
+        await self._settings_put_with_fallback(
+            vin, "charging/settings",
+            put_body={"targetSOC_pct": target},
+            post_body={"targetSOC_pct": target},
+            command_name="set_target_soc",
         )
 
     async def command_set_climate_temperature(self, vin: str, temp_c: float) -> None:
@@ -1963,51 +2014,38 @@ class VWEUClient(CariadBaseClient):
         return 404 the write genuinely isn't provisioned for this vehicle →
         a clean VehicleCommandError instead of a raw 404 traceback.
         """
-        base = self._base_for_vin(vin)
-        put_url = f"{base}/vehicle/v1/vehicles/{vin}/climatisation/settings"
-        try:
-            await self._put(
-                put_url,
-                json={
-                    "targetTemperature": temp_c,
-                    "targetTemperatureUnit": "celsius",
-                },
-            )
-            return
-        except APIError as err:
-            if getattr(err, "status", 0) not in (404, 405):
-                raise
-        # PUT route unavailable — try the legacy POST + _C shape so a car that
-        # accepted the old form does not regress.
-        try:
-            await self._post_command(
-                vin, "climatisation/settings", json={"targetTemperature_C": temp_c},
-            )
-        except APIError as err:
-            if getattr(err, "status", 0) != 404:
-                raise
-            raise VehicleCommandError(
-                "set_climate_temperature",
-                "climate temperature can't be set on this vehicle via the "
-                "current API (both the PUT and the legacy POST returned 404). "
-                "On PPE/MEB Audis (Q4/Q6 e-tron) a standalone temperature-set "
-                "may not be exposed — set it in the app, or start "
-                "pre-conditioning instead.",
-            ) from err
+        await self._settings_put_with_fallback(
+            vin, "climatisation/settings",
+            put_body={
+                "targetTemperature": temp_c,
+                "targetTemperatureUnit": "celsius",
+            },
+            post_body={"targetTemperature_C": temp_c},
+            command_name="set_climate_temperature",
+        )
 
     async def command_set_charge_mode(self, vin: str, mode: str) -> None:
         """Set charging mode — MANUAL, TIMER, PREFERRED_CHARGING_TIMES.
 
-        v1 → v2 fallback on 404.
+        v2.17.0 (#666) — charging/settings is a PUT (was POST → 404 on PPE).
         """
-        await self._post_command(
-            vin, "charging/settings", json={"chargeMode": mode.upper()},
+        await self._settings_put_with_fallback(
+            vin, "charging/settings",
+            put_body={"chargeMode": mode.upper()},
+            post_body={"chargeMode": mode.upper()},
+            command_name="set_charge_mode",
         )
 
     async def command_set_min_soc(self, vin: str, min_soc: int) -> None:
-        """Set minimum SoC for PHEV (0–100%). v1 → v2 fallback on 404."""
-        await self._post_command(
-            vin, "charging/settings", json={"minChargeLimit_pct": min_soc},
+        """Set minimum SoC for PHEV (0–100%).
+
+        v2.17.0 (#666) — charging/settings is a PUT (was POST → 404 on PPE).
+        """
+        await self._settings_put_with_fallback(
+            vin, "charging/settings",
+            put_body={"minChargeLimit_pct": min_soc},
+            post_body={"minChargeLimit_pct": min_soc},
+            command_name="set_min_soc",
         )
 
     async def command_set_max_charge_current(self, vin: str, ampere: int) -> None:
@@ -2030,9 +2068,14 @@ class VWEUClient(CariadBaseClient):
         write, the response goes through the standard
         ``classify_command_failure`` pipeline and surfaces as
         ``ServiceValidationError`` with the actual reason.
+
+        v2.17.0 (#666) — charging/settings is a PUT (was POST → 404 on PPE).
         """
-        await self._post_command(
-            vin, "charging/settings", json={"maxChargeCurrentAC_A": int(ampere)},
+        await self._settings_put_with_fallback(
+            vin, "charging/settings",
+            put_body={"maxChargeCurrentAC_A": int(ampere)},
+            post_body={"maxChargeCurrentAC_A": int(ampere)},
+            command_name="set_max_charge_current",
         )
 
     async def command_start_window_heating(self, vin: str) -> None:

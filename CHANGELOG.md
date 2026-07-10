@@ -44,6 +44,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 - **Škoda now reports its heater source too (#682).** Škoda EVs expose a `heaterSource` value on the climate endpoint (e.g. "AUTOMATIC") — the same signal VW, Audi, SEAT and CUPRA already surface. It now feeds Škoda's **heater source** sensor as well (electric cars, where the field is present). Thanks @ra666ack for the Scout report.
 
+### Fixed
+
+- **Charging settings (target %, charge mode, min charge, max AC current) work on PPE Audis again (#666).** Same root cause as the v2.16.3 climate-temperature fix: these were sent as a POST where VW's backend expects a **PUT**, so on the stricter PPE/MEB Audis (Q4/Q6 e-tron) every charging-settings change came back **404** — @torstentosh confirmed the charge-target still 404'd on 2.16.3 right after the climate fix started working. All four charging setters now use the correct PUT (through a shared helper that also covers climate), keep the old POST as a no-regression fallback, and surface a clean error instead of a raw 404 traceback if a vehicle genuinely doesn't expose the write. The legacy MBB two-way charge path is unchanged.
+
 ## [2.16.4] - 2026-07-09
 
 ### Fixed

@@ -252,13 +252,20 @@ class TestWriteableMaxChargeCurrent:
         from custom_components.vag_connect.cariad.api.vw_eu import VWEUClient
 
         client = VWEUClient.__new__(VWEUClient)
+        client._vehicle_bases = {}
+        client._put = AsyncMock(return_value=None)
         client._post_command = AsyncMock()
         asyncio.run(
             client.command_set_max_charge_current("VINX", 16)
         )
-        client._post_command.assert_awaited_once_with(
-            "VINX", "charging/settings", json={"maxChargeCurrentAC_A": 16},
+        # v2.17.0 (#666) — charging/settings is a PUT, not a POST. The legacy
+        # POST body is only the no-regression fallback (not hit on success).
+        client._put.assert_awaited_once()
+        assert client._put.await_args.args[0].endswith(
+            "/vehicle/v1/vehicles/VINX/charging/settings"
         )
+        assert client._put.await_args.kwargs["json"] == {"maxChargeCurrentAC_A": 16}
+        client._post_command.assert_not_called()
 
     def test_coordinator_async_set_max_charge_current_dispatches(self):
         coord = _coord_with_vehicle()
