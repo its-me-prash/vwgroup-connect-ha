@@ -1037,8 +1037,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         )
 
         # v2.17.1 — default ON. The integration is useless in portal mode
-        # without an active Custom Data Request, and competitor integrations
-        # (mikrohard/TommiG1) simply refuse to install without one — so a user
+        # without an active Custom Data Request, and the other community
+        # EU-Data-Act readers simply refuse to install without one — so a user
         # who installs us but hasn't set one up manually just gets empty
         # entities. We ship the only provisioner that CAN create it, so we do,
         # unless the user explicitly turned it off. A one-time notification

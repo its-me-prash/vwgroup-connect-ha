@@ -39,12 +39,12 @@ findings must credit this project as the origin of the discovery.
 We independently re-implement — never copy — from these projects; endpoint
 shapes and flows were cross-checked against their sources for grounding:
 
-- **CJNE/pyporscheconnectapi** (Apache-2.0) — original Porsche Connect auth flow.
-- **mikrohard/hass-vw-eu-data-act** and **TommiG1/HA_VAG-EU-Data-Act** — EU-Data-Act
+- **pyporscheconnectapi** (Apache-2.0) — original Porsche Connect auth flow.
+- **hass-vw-eu-data-act** and **HA_VAG-EU-Data-Act** — community EU-Data-Act
   portal readers; their read-only design + issue history informed our
   auto-provisioning approach (we create the data request they require by hand).
-- **tillsteinbach/WeConnect-python**, **CarConnectivity-connector-audi/-volkswagen/-seatcupra**,
-  **robinostlund/volkswagencarnet**, **WulfgarW/pycupra**, **evcc** — CARIAD-BFF /
+- **WeConnect-python**, **CarConnectivity-connector-audi/-volkswagen/-seatcupra**,
+  **volkswagencarnet**, **pycupra**, **evcc** — CARIAD-BFF /
   MBB / OLA endpoint + `client_id` grounding.
 
 ## 3. Name / trademark
