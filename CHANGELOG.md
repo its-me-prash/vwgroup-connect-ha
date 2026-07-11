@@ -38,6 +38,25 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.17.2] - 2026-07-11
+
+### Added
+
+- **The integration now speaks four more languages: Italian, Norwegian (Bokmål), Danish and Finnish.** Full UI translations plus a translated README for each — twelve languages in total now.
+- **You can switch on the two-way command channel for an existing VW or Audi account without deleting and re-adding it.** Open Settings → Devices & Services → Reconfigure and tick "enable MBB commands" — the QR confirmation runs and the command channel is attached to your existing entry (so your entity IDs, automations and dashboards stay intact). Still **experimental** and legacy Car-Net only, exactly as at first setup.
+
+### Fixed
+
+- **Reconfigure no longer wipes an existing command channel.** Updating your password (or any other setting) through Reconfigure used to silently drop a durable-MBB two-way channel you'd set up — you'd have had to add it again. Reconfigure now merges your changes on top of what's already there instead of replacing everything.
+- **The manual "Create EU Data Act data request" button now works even if you turned automatic provisioning off.** Pressing it is an explicit request, so it now always creates the data request rather than doing nothing.
+- **"No data → self-heal" now kicks in right away instead of waiting for the host's first six hours of uptime.** A clock comparison meant the runtime re-provisioning could stay dormant on a freshly booted Home Assistant; it now fires on the first cycle that needs it.
+- **Bentley setup and reconfigure no longer crash** when building the entry title (Bentley isn't in the internal brand-name table — it now falls back to a plain label instead of erroring).
+- **Lock / climate / charge toggles no longer snap back after you press them.** The control flipped to the new state immediately, but the very next data poll overwrote it with the car's still-pre-command state, so it looked like the command hadn't worked until you hit refresh. The optimistic state is now held until the car's backend actually reports the change (or a couple of minutes pass). Thanks @torstentosh for pinning this down on a PPE Q4 e-tron.
+
+### Changed
+
+- **Porsche login rebuild — groundwork only, nothing changes for users yet.** The experimental Porsche path targets the retired My-Porsche (Auth0) app; the live app is Porsche One (PingFederate device login). This release adds that device-login implementation (unit-tested against mocked endpoints) so the rewrite is ready, but it is **not wired in** and still needs a Porsche One owner to verify it end-to-end before Porsche can be switched back on. Porsche stays flagged experimental.
+
 ## [2.17.1] - 2026-07-10
 
 ### Fixed
