@@ -4,38 +4,38 @@
     "seat": {
       "last_version_name": "2.19.1",
       "last_source": "uptodown",
-      "last_checked_at": "2026-07-09T07:26:10.183232+00:00"
+      "last_checked_at": "2026-07-11T06:05:00.322268+00:00"
     },
     "cupra": {
       "last_version_name": "2.18.1",
       "last_source": "uptodown",
-      "last_checked_at": "2026-07-09T07:26:10.787684+00:00"
+      "last_checked_at": "2026-07-11T06:05:00.731827+00:00"
     },
     "volkswagen": {
       "last_version_name": null,
       "last_source": null,
-      "last_checked_at": "2026-07-09T07:26:11.161443+00:00"
+      "last_checked_at": "2026-07-11T06:05:01.031293+00:00"
     },
     "audi": {
       "last_version_name": "5.6.0",
       "last_source": "apkmirror",
-      "last_checked_at": "2026-07-09T07:26:11.951718+00:00"
+      "last_checked_at": "2026-07-11T06:05:01.456832+00:00"
     },
     "skoda": {
       "last_version_name": "8.14.0",
       "last_source": "uptodown",
-      "last_checked_at": "2026-07-09T07:26:14.693316+00:00"
+      "last_checked_at": "2026-07-11T06:05:01.900504+00:00"
     },
     "volkswagen_na": {
       "last_version_name": "2026.5.27-9076",
       "last_source": "apkmirror",
-      "last_checked_at": "2026-07-09T07:26:15.194736+00:00"
+      "last_checked_at": "2026-07-11T06:05:02.432567+00:00"
     },
     "porsche": {
       "last_version_name": "12.24.27",
       "last_source": "apkmirror",
-      "last_checked_at": "2026-07-09T07:26:15.511385+00:00"
+      "last_checked_at": "2026-07-11T06:05:02.826561+00:00"
     }
   },
-  "_last_updated": "2026-07-09T07:26:15.511541+00:00"
+  "_last_updated": "2026-07-11T06:05:02.826730+00:00"
 }
