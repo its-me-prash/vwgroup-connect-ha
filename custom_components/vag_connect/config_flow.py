@@ -1462,18 +1462,19 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 # updates=...)` matched the very entry being reconfigured and
                 # aborted with "already configured", making Reconfigure (and the
                 # MBB toggle it surfaces) unreachable for existing users.
-                if new_unique_id != entry.unique_id:
+                account_changed = new_unique_id != entry.unique_id
+                if account_changed:
                     self._abort_if_unique_id_configured()
 
-                # v2.17.2 — MERGE, don't replace: a credential update must keep
-                # everything the base builder doesn't own — the durable-MBB
-                # command channel, supplementary-portal creds, DAG tokens. The
+                base = self._build_entry_data(brand, username, password, user_input)
+                # v2.17.2 — for the SAME account, MERGE so a credential update
+                # keeps everything the base builder doesn't own: the durable-MBB
+                # command channel, supplementary-portal creds, DAG tokens (the
                 # old code passed only base fields, silently wiping an existing
-                # two-way channel on every Reconfigure.
-                merged = {
-                    **entry.data,
-                    **self._build_entry_data(brand, username, password, user_input),
-                }
+                # two-way channel on every Reconfigure). For a DIFFERENT account
+                # (unique_id changed) do a clean rebuild — carrying the previous
+                # account's brand-specific tokens forward would be wrong.
+                merged = base if account_changed else {**entry.data, **base}
 
                 # v2.17.2 (#666) — enable the durable-MBB command channel on an
                 # EXISTING portal entry via Reconfigure (VW/Audi, and only when

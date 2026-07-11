@@ -125,6 +125,36 @@ def test_reconfigure_preserves_existing_mbb_channel():
     assert new_data[CONF_PASSWORD] == "newpass"
 
 
+def test_reconfigure_account_change_drops_stale_tokens():
+    # switching to a DIFFERENT account (unique_id changes) must NOT carry the
+    # previous account's brand-specific tokens forward — clean rebuild.
+    entry = MagicMock()
+    entry.entry_id = "eid"
+    entry.unique_id = "volkswagen_old@vw.de"
+    entry.data = {
+        CONF_BRAND: "volkswagen",
+        CONF_USERNAME: "old@vw.de",
+        CONF_MBB_COMMAND_CHANNEL: True,
+        CONF_MBB_COMMAND_TOKENS: {"access_token": "STALE"},
+    }
+    flow = _reconfigure_flow(entry)
+    with patch(
+        "custom_components.vag_connect.config_flow._validate_credentials",
+        return_value=None,
+    ):
+        asyncio.run(flow.async_step_reconfigure({
+            CONF_BRAND: "volkswagen",
+            CONF_USERNAME: "new@vw.de",  # different account → unique_id changes
+            CONF_PASSWORD: "pw",
+            CONF_SPIN: "",
+        }))
+    flow.hass.config_entries.async_update_entry.assert_called_once()
+    new_data = flow.hass.config_entries.async_update_entry.call_args[1]["data"]
+    assert CONF_MBB_COMMAND_CHANNEL not in new_data
+    assert CONF_MBB_COMMAND_TOKENS not in new_data
+    assert new_data[CONF_USERNAME] == "new@vw.de"
+
+
 def test_reconfigure_enable_mbb_routes_into_qr_chain():
     entry = MagicMock()
     entry.entry_id = "eid"
