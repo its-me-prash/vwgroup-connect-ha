@@ -53,6 +53,12 @@ from .cariad.models import VehicleData
 
 _LOGGER = logging.getLogger(__name__)
 
+# v2.17.2 (#666) — how long an optimistically-set command value is held across
+# polls before the backend state is trusted again. Long enough to cover a
+# couple of poll cycles (VW reflects a command in ~10-60 s), short enough that a
+# command that silently didn't take effect self-corrects within a few minutes.
+_OPTIMISTIC_HOLD_SECONDS = 150.0
+
 # Minimum interval enforced by Audi/VW connector (Sekunden)
 _CC_MIN_INTERVAL_S = 180
 
@@ -461,6 +467,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # Thread-safe dict for vehicle data
         self.vehicles: dict[str, Any] = {}
         self._vehicles_lock = threading.Lock()
+        # v2.17.2 (#666) — optimistic-command hold: {vin: {key: (value, expiry)}}.
+        # Keeps an optimistically-set value in place across polls until the
+        # backend confirms it or the window elapses, so a command's UI effect
+        # doesn't snap back for the ~10-60 s VW takes to reflect it.
+        self._optimistic_hold: dict[str, dict[str, tuple[Any, float]]] = {}
 
         # Per-VIN poll success tracking — entities use this for availability
         # so a single failing vehicle doesn't blank out the others.
@@ -814,7 +825,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     if isinstance(result, VehicleData):
                         data = result.to_dict()
                         data["_client"] = self._cariad_client
-                        self.vehicles[vin] = await self._enrich(data)
+                        self.vehicles[vin] = self._apply_optimistic_hold(
+                            vin, await self._enrich(data)
+                        )
                         if hasattr(self, "vehicle_success"):
                             self.vehicle_success[vin] = True
 
@@ -3506,7 +3519,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     if isinstance(result, VehicleData):
                         data = result.to_dict()
                         data["_client"] = self._cariad_client
-                        self.vehicles[vin] = await self._enrich(data)
+                        self.vehicles[vin] = self._apply_optimistic_hold(
+                            vin, await self._enrich(data)
+                        )
             # v2.14.3 — a mid-poll 401 may have silently re-logged the
             # website-authproxy session (rotating its cookie jar). Persist the
             # fresh cookies so the next restart keeps skipping the OTP prompt.
@@ -4210,6 +4225,16 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             for key, value in fields.items():
                 previous[key] = current.get(key)
                 current[key] = value
+        # v2.17.2 (#666) — hold these values across the next few polls so a
+        # slow backend reflecting the command doesn't snap the UI back.
+        import time  # noqa: PLC0415
+        expiry = time.monotonic() + _OPTIMISTIC_HOLD_SECONDS
+        hold_root = getattr(self, "_optimistic_hold", None)
+        if hold_root is None:
+            hold_root = self._optimistic_hold = {}
+        holds = hold_root.setdefault(vin, {})
+        for key, value in fields.items():
+            holds[key] = (value, expiry)
         # Push the optimistic snapshot to HA so entities update now.
         try:
             self.async_set_updated_data(dict(self.vehicles))
@@ -4230,10 +4255,48 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 return
             for key, value in previous.items():
                 current[key] = value
+        # Command failed → drop the hold so the backend state takes over at once.
+        hold_root = getattr(self, "_optimistic_hold", None)
+        if hold_root:
+            holds = hold_root.get(vin)
+            if holds:
+                for key in previous:
+                    holds.pop(key, None)
+                if not holds:
+                    hold_root.pop(vin, None)
         try:
             self.async_set_updated_data(dict(self.vehicles))
         except Exception:  # noqa: BLE001
             pass
+
+    def _apply_optimistic_hold(
+        self, vin: str, fresh: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Reconcile a freshly-polled vehicle dict with any optimistic holds.
+
+        For each held key: drop the hold once the window elapses OR the backend
+        value matches the optimistic one (confirmed); otherwise keep the
+        optimistic value in ``fresh`` so a command's effect doesn't snap back
+        while VW's backend catches up (#666). Mutates + returns ``fresh``."""
+        hold_root = getattr(self, "_optimistic_hold", None)
+        if not hold_root:
+            return fresh
+        holds = hold_root.get(vin)
+        if not holds:
+            return fresh
+        import time  # noqa: PLC0415
+        now = time.monotonic()
+        for key in list(holds):
+            value, expiry = holds[key]
+            if now >= expiry:
+                del holds[key]                     # window elapsed → trust backend
+            elif key in fresh and fresh[key] == value:
+                del holds[key]                     # backend caught up → confirmed
+            else:
+                fresh[key] = value                 # still pending → hold optimistic
+        if not holds:
+            hold_root.pop(vin, None)
+        return fresh
 
     async def _cariad_cmd_optimistic(
         self,
