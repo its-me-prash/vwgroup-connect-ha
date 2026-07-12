@@ -156,7 +156,7 @@ def test_curated_mapping_populates_high_value_fields() -> None:
         "battery_state_report.soc": "82",
         "mileage.value": "18842",
         "range": "54",
-        "battery_state_report.charge_power": "7.4",
+        "battery_state_report.charge_power": "74",  # 0.1-kW units (#717) → 7.4 kW
         "settings.target_soc": "80",
         "charging_state_report.current_charge_state": "charging",
         "charging_state_report.charge_mode": "manual",

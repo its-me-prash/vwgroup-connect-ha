@@ -16,7 +16,8 @@ def _map(fields: dict[str, str]) -> VehicleData:
 
 class TestNewMappings:
     def test_charge_rate(self) -> None:
-        assert _map({"battery_state_report.charge_rate": "12"}).charging_rate_kmh == 12
+        # 0.1-resolution portal value (#717) → /10: raw 120 → 12 km/h.
+        assert _map({"battery_state_report.charge_rate": "120"}).charging_rate_kmh == 12
 
     def test_plug_state_connected(self) -> None:
         d = _map({"charging_plug1_connectionstate": "connected"})

@@ -334,7 +334,9 @@ def test_alias_actual_charge_rate_to_charging_rate_kmh() -> None:
 
 
 def test_alias_canonical_charge_rate_wins_over_actual() -> None:
-    d = _map({"battery_state_report.charge_rate": "7", "actual_charge_rate": "11"})
+    # canonical battery_state_report.charge_rate is 0.1-resolution (#717) → /10;
+    # raw 70 → 7 km/h. It still WINS over the (unscaled) actual_charge_rate alias.
+    d = _map({"battery_state_report.charge_rate": "70", "actual_charge_rate": "11"})
     assert d.charging_rate_kmh == 7
 
 
