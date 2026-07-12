@@ -38,6 +38,17 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.17.3] - 2026-07-13
+
+### Fixed
+
+- **VW EU passenger cars get their data flowing again.** The EU Data Act portal changed the format it expects for a data request, so the request the integration creates for you was being silently rejected — and status could stay "unavailable" with no obvious reason. It now sends what the portal expects, so the feed provisions correctly. This affects every VW EU car that reads over the portal.
+- **Charging power and charge rate no longer read ten times too high** on EU Data Act cars. The portal reports these in tenths, so e.g. a real 7.4 kW showed up as 74 kW; they're now scaled correctly.
+- **The diagnostics download no longer contains your account ID or VIN in the raw-fields section.** Those values are redacted now, while the field names stay visible so nothing is hidden.
+- **Combustion VW (North America) cars are no longer wrongly told they need a subscription.** The "not entitled" check keyed off the EV-only charge/climate reads, which legitimately don't apply to a petrol car; it now keys off the main vehicle-status read instead.
+- **The vw.de companion channel works on Car-Net (MBB) cars again** and stops forcing a repeated re-login. It was pinned to the wrong data-centre id for MBB cars, and it treated a "no data yet" reply as if your login had failed.
+- **Clearer errors when a command can't run on a Car-Net (MBB) car.** Honk & Flash now tells you it isn't available on that channel instead of a misleading "GPS position needed"; a rejected Security PIN now says exactly that — check your S-PIN — instead of looking like an expired subscription; and remote wake explains that VW doesn't permit it on that channel. Thanks to the live diagnostic that pinned all three down.
+
 ## [2.17.2] - 2026-07-11
 
 ### Added
