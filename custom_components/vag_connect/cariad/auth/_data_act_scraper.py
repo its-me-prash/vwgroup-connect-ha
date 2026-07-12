@@ -77,6 +77,7 @@ import io
 import json
 import logging
 import time
+import uuid
 import zipfile
 from typing import TYPE_CHECKING, Any
 
@@ -896,7 +897,14 @@ class DataActScraper:
             async with self._session.get(
                 url,
                 timeout=ClientTimeout(total=20),
-                headers={"Accept": "application/json"},
+                headers={
+                    "Accept": "application/json",
+                    # v2.17.x — the euda-apim layer now rejects requests without
+                    # a traceId (the portal's newer API contract; verified live
+                    # 2026-07-12 — the sibling relations endpoint 400s
+                    # "Required request header 'traceId' not present" without it).
+                    "traceId": uuid.uuid4().hex,
+                },
             ) as resp:
                 if resp.status == 401:
                     raise DataActSessionExpiredError(
@@ -977,6 +985,12 @@ class DataActScraper:
             "Name": name,
             "Identifier": identifier,
             "Frequency": "15mins",
+            # v2.17.x — the portal now REQUIRES a Duration field; without it the
+            # POST 400s "Invalid Duration: None. Allowed values are
+            # ['No Expiry', 'One Month'] or upcoming dates …" (verified live
+            # 2026-07-12). "One Month" matches the 31-day StartDate/EndDate
+            # window below; the coordinator re-adopts/re-kicks each cycle.
+            "Duration": "One Month",
             "StartDate": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "EndDate": end.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "DataClusters": clusters,
@@ -994,6 +1008,9 @@ class DataActScraper:
                     "Content-Type": "application/json",
                     "CSRF-Token": csrf,
                     "X-CSRF-Token": csrf,  # belt and braces
+                    # Required by the euda-apim layer (see metadata GET above);
+                    # without it the POST 503s at the AEM edge.
+                    "traceId": uuid.uuid4().hex,
                 },
             ) as resp:
                 if resp.status == 401:
@@ -1002,9 +1019,14 @@ class DataActScraper:
                     )
                 if resp.status not in (200, 201, 202):
                     body_text = await resp.text(errors="replace")
-                    _LOGGER.info(
-                        "kickoff_custom_data_request HTTP %s for VIN %s: %s",
-                        resp.status, _mask_vin(vin), body_text[:200],
+                    # WARNING, not INFO: a non-2xx here means the portal rejected
+                    # the request (e.g. a changed request format) → the car gets
+                    # NO data feed, silently. It must be visible so the next
+                    # portal-side format change doesn't go unnoticed for months.
+                    _LOGGER.warning(
+                        "kickoff_custom_data_request HTTP %s for VIN %s — no data "
+                        "feed will start until this is resolved: %s",
+                        resp.status, _mask_vin(vin), body_text[:300],
                     )
                     return None
         except DataActSessionExpiredError:

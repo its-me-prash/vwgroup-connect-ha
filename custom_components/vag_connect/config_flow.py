@@ -1794,15 +1794,19 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                 # BFF strategies exhausted). When True, the coordinator
                 # checks at startup whether an active 15-min Custom
                 # Request exists for each VIN and creates one when
-                # none does. The portal kickoff implies a 1-month
-                # subscription on the user's account, so this is
-                # opt-in - the user has to flip it explicitly.
+                # none does — without it a VW EU car shows NO data.
+                # DEFAULT ON, matching the runtime default in
+                # coordinator._ensure_data_act_custom_request_kickoff
+                # (v2.17.1). It MUST stay True here: rendering the toggle
+                # default-False meant a user who merely opened + saved
+                # Configure (e.g. to set the S-PIN) silently persisted
+                # auto_kickoff=False and killed their own portal feed.
                 vol.Optional(
                     CONF_EU_DATA_ACT_AUTO_KICKOFF,
                     default=current_options.get(
                         CONF_EU_DATA_ACT_AUTO_KICKOFF,
                         current_data.get(
-                            CONF_EU_DATA_ACT_AUTO_KICKOFF, False,
+                            CONF_EU_DATA_ACT_AUTO_KICKOFF, True,
                         ),
                     ),
                 ): _BOOL_SELECTOR,
