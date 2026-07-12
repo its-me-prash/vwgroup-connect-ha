@@ -175,3 +175,24 @@ class TestGetStatusTriage:
 
         assert client.vw_na_data_forbidden is False
         assert client.vw_na_data_forbidden_reason == ""
+
+    @pytest.mark.asyncio
+    async def test_659_combustion_ev_403_with_rvs_ok_not_forbidden(self, caplog):
+        """#659 — a COMBUSTION VW NA car: RVS 200 (entitled) but the EV-only
+        charge/climate summaries 403. The verdict keys off RVS only, so this must
+        NOT surface the entitlement Repair (previously the EV 403s falsely did)."""
+        client = _client()
+
+        async def _get_side(url: str, *a, **k):  # noqa: ANN002, ANN003
+            if "/rvs/" in url:
+                return {"powerStatus": {}}  # primary read entitled
+            raise _api_error(403, _ENTITLEMENT_BODY)  # EV summaries forbidden
+
+        client._get = AsyncMock(side_effect=_get_side)  # type: ignore[method-assign]
+        client.get_subscription_privileges = AsyncMock(return_value={})  # type: ignore[method-assign]
+
+        await client.get_status(_SECRET_VIN)
+
+        assert client.vw_na_data_forbidden is False
+        assert client.vw_na_data_forbidden_reason == ""
+        _assert_no_secret_leak(caplog)
