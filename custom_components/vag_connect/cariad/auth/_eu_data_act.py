@@ -2197,8 +2197,17 @@ def map_dataset_to_vehicle_data(
         # unmapped fields + their REAL values so the user can see everything the
         # backend sent, on one disabled diagnostic sensor. Capped to keep the
         # attribute payload sane; the debug log above already records the count.
+        # PRIVACY (#718 et al.): the portal dataset carries the account UUID
+        # (user_id) and the VIN as data fields. They are NOT suppressed from
+        # discovery — the field NAMES stay so the Scout still surfaces them — but
+        # their VALUES are redacted here, because this diagnostic attribute
+        # otherwise exposes the REAL account UUID + full VIN (the Scout issue
+        # itself already masks both). Match on the leaf name so both the bare
+        # (`vin`) and container-qualified (`eu_data_act.vin`) spellings redact.
         d.raw_unmapped_fields = {
-            k: str(fields[k]) for k in unmapped[:_RAW_FIELD_CAP]
+            k: ("<redacted>" if k.rsplit(".", 1)[-1] in ("user_id", "vin")
+                else str(fields[k]))
+            for k in unmapped[:_RAW_FIELD_CAP]
         }
         if len(unmapped) > _RAW_FIELD_CAP:
             _LOGGER.debug(
