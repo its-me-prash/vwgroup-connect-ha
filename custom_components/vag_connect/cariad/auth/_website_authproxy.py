@@ -114,10 +114,16 @@ _TIMEOUT_S = 60
 _RETRIABLE_STATUSES = frozenset({500, 502, 503, 504})
 _RETRY_DELAYS = (3.0, 6.0)
 
-# A stale authproxy session answers data calls with 401/403, but ALSO with
-# 412 Precondition Failed / 428 Precondition Required (the proxy's own
-# "your session is no longer valid" signal). Treat all four as "re-login".
-_AUTH_FAIL_STATUSES = frozenset({401, 403, 412, 428})
+# A stale authproxy session answers data calls with 401/403 (and 428
+# Precondition Required) — treat those as "re-login". NOT 412 Precondition
+# Failed: verified live 2026-07-12 that 412 is a per-VEHICLE precondition — an
+# MBB/Car-Net car queried with the WeConnect ``gdc`` 412s while the session is
+# still fully valid (relations returns 200). Treating 412 as an auth failure
+# re-logged in on every poll → email-OTP thrash + silent no-data for MBB cars.
+# 412 now degrades to "no data this poll" (see ``_get_json``), and the optional
+# live-status reads pass ``optional=True`` so a car that simply doesn't serve a
+# given read (401/403) can't force a re-login loop either.
+_AUTH_FAIL_STATUSES = frozenset({401, 403, 428})
 
 # v2.15.13 — PROACTIVE session-roll debounce. The vw.de authproxy session's
 # downstream tokens expire ~30 min after the last login (our own
@@ -334,6 +340,12 @@ class WebsiteAuthProxyConnector:
         # so 0.0 would wrongly debounce the very first roll — CI caught this on a
         # fresh runner where the tests passed on a long-uptime dev box.)
         self._last_roll: float = float("-inf")
+        # Per-VIN platform backend ("MBB"/"MEB"/…) learned from the relations
+        # parse, so the live-status reads pick the right ``gdc`` — an MBB car
+        # uses a different global-data-centre than a WeConnect car, and the
+        # wrong gdc makes every read 412. Empty string = "known, no backend
+        # field" (→ WeConnect default) so it isn't re-probed every read.
+        self._vin_backend: dict[str, str] = {}
 
     # ── login ──────────────────────────────────────────────────────────────
 
@@ -854,6 +866,7 @@ class WebsiteAuthProxyConnector:
         *,
         accept: str = "application/json",
         soft: bool = False,
+        optional: bool = False,
     ) -> Any:
         """GET a reverse-proxy endpoint and parse JSON.
 
@@ -861,9 +874,16 @@ class WebsiteAuthProxyConnector:
         ``user-id: __userId__`` placeholder the authproxy substitutes for the
         signed-in user's real id. On ``soft=True`` a transient 5xx returns
         ``None`` (after a short backoff) instead of raising — so a flaky
-        backend just means "no data this poll" rather than a dead session. A
-        401/403 always raises ``AuthenticationError`` so the caller can
-        re-login. (Backoff pattern mirrors the EU Data Act connector.)
+        backend just means "no data this poll" rather than a dead session.
+
+        A 401/403 normally raises ``AuthenticationError`` so the caller can
+        re-login — EXCEPT on an ``optional=True`` read, where a 4xx means "this
+        car doesn't serve this endpoint" (not a dead session) and returns
+        ``None``. 412 Precondition Failed always degrades to ``None`` (it is a
+        per-vehicle precondition, e.g. the wrong-platform gdc, never a dead
+        session). Session validity is decided by the core reads (relations /
+        charging / maintenance), which keep raising on a genuine 401/403.
+        (Backoff pattern mirrors the EU Data Act connector.)
         """
         headers = self._headers({
             "Accept": accept,
@@ -876,7 +896,22 @@ class WebsiteAuthProxyConnector:
                 headers=headers,
                 timeout=ClientTimeout(total=_TIMEOUT_S),
             ) as resp:
+                if resp.status == 412:
+                    # Per-vehicle precondition (e.g. an MBB car queried with the
+                    # WeConnect gdc) — never a dead session → no data this poll.
+                    _LOGGER.debug(
+                        "Website authproxy GET %s → 412 precondition "
+                        "(no data this poll)", url,
+                    )
+                    return None
                 if resp.status in _AUTH_FAIL_STATUSES:
+                    if optional:
+                        _LOGGER.debug(
+                            "Website authproxy GET %s → HTTP %s (optional read "
+                            "unavailable for this car — not a session failure)",
+                            url, resp.status,
+                        )
+                        return None
                     raise AuthenticationError(
                         f"Website authproxy GET {url} → HTTP {resp.status}"
                     )
@@ -889,6 +924,10 @@ class WebsiteAuthProxyConnector:
                         await asyncio.sleep(_RETRY_DELAYS[attempt])
                         continue
                     if soft:
+                        _LOGGER.debug(
+                            "Website authproxy GET %s → HTTP %s "
+                            "(soft; no data this poll)", url, resp.status,
+                        )
                         return None
                     raise AuthenticationError(
                         f"Website authproxy GET {url} → HTTP {resp.status}"
@@ -936,11 +975,45 @@ class WebsiteAuthProxyConnector:
         ``modBackend`` (MBB vs MEB) so a future combined entry can self-discover
         VINs + user-id from the portal session instead of hard-coding them.
         Returns ``None`` on a transient backend hiccup (401/403 still raises).
+        Also caches each VIN's platform backend for the live-status gdc pick.
         """
         from .._authproxy import parse_relations  # noqa: PLC0415
 
         body = await self._get_json(f"{_SITE_BASE}{_RELATIONS_PATH}", soft=True)
-        return parse_relations(body) if body is not None else None
+        rels = parse_relations(body) if body is not None else None
+        if rels is not None:
+            for v in rels.vehicles:
+                # Empty string = "seen, no backend field" → WeConnect default,
+                # and marks the VIN cached so _ensure_backend won't re-probe.
+                self._vin_backend[v.vin] = v.mod_backend or ""
+        return rels
+
+    def _gdc(self, vin: str) -> str:
+        """The live-status ``gdc`` for *vin* from its cached platform backend."""
+        from .._authproxy import gdc_for_backend  # noqa: PLC0415
+
+        return gdc_for_backend(self._vin_backend.get(vin))
+
+    async def _ensure_backend(self, vin: str) -> None:
+        """Resolve *vin*'s platform (MBB/MEB) once so ``_gdc`` picks right.
+
+        The live-status reads need the correct global-data-centre id (an MBB car
+        uses a different gdc than a WeConnect car — the wrong one 412s). We learn
+        the platform from the relations parse; fetch it once and cache it. A
+        genuine 401/403 still propagates (dead session → re-login); any other
+        hiccup is swallowed and leaves the WeConnect default in place.
+        """
+        if vin in self._vin_backend:
+            return
+        try:
+            await self.get_relations()
+        except AuthenticationError:
+            raise
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug(
+                "Website authproxy: platform probe skipped for %s", vin[-6:],
+                exc_info=True,
+            )
 
     async def get_master_data(self, vin: str) -> AuthproxyVehicleInfo:
         """Market model name / engine / year / colour (text + code) for *vin*."""
@@ -964,10 +1037,12 @@ class WebsiteAuthProxyConnector:
     async def get_warning_lights(self, vin: str) -> int | None:
         """Count of currently-active dashboard warning lights for *vin*.
 
-        BETA, fail-soft: any 4xx / parse-miss / empty body returns None (a
-        transient 5xx is retried inside ``_get_json(soft=True)``). An empty
-        ``warningLights`` list is a valid "all OK ⇒ 0" reading (not None). A
-        genuine 401/403/412/428 still propagates so the caller re-logs in.
+        BETA, fail-soft + OPTIONAL: any 4xx (incl. 401/403/412 — e.g. a car that
+        doesn't serve this read) / parse-miss / empty body returns None; a
+        transient 5xx is retried inside ``_get_json``. An empty ``warningLights``
+        list is a valid "all OK ⇒ 0" reading (not None). This read never forces a
+        re-login (see ``optional`` in ``_get_json``) — session validity is gated
+        by the core reads. Uses the car's platform ``gdc`` (MBB vs WeConnect).
         ``Accept-Language: de-DE`` is load-bearing here (the endpoint 400s
         without a language) — sent by ``_headers()`` on every read.
         """
@@ -976,8 +1051,10 @@ class WebsiteAuthProxyConnector:
             parse_warning_lights,
         )
 
+        await self._ensure_backend(vin)
         body = await self._get_json(
-            build_warninglights_url(vin), accept="*/*", soft=True
+            build_warninglights_url(vin, self._gdc(vin)),
+            accept="*/*", soft=True, optional=True,
         )
         if body is None:
             return None
@@ -992,17 +1069,20 @@ class WebsiteAuthProxyConnector:
 
         Returns ``(action, iso_timestamp_or_None)`` where action is
         ``"lock"``/``"unlock"`` — the newest ``actionSuccess`` command, else
-        the newest overall. BETA, fail-soft: any 4xx / parse-miss / no lock
-        message returns None (401/403/412/428 still propagates). This is the
-        command HISTORY, not a live lock state (that's attestation-gated).
+        the newest overall. BETA, fail-soft + OPTIONAL: any 4xx / parse-miss / no
+        lock message returns None and never forces a re-login (an MBB car
+        401/403s here). This is the command HISTORY, not a live lock state
+        (that's attestation-gated). Uses the car's platform ``gdc``.
         """
         from .._authproxy import (  # noqa: PLC0415
             build_transactionhistory_url,
             parse_lock_history,
         )
 
+        await self._ensure_backend(vin)
         body = await self._get_json(
-            build_transactionhistory_url(vin), accept="*/*", soft=True
+            build_transactionhistory_url(vin, self._gdc(vin)),
+            accept="*/*", soft=True, optional=True,
         )
         if body is None:
             return None
@@ -1033,8 +1113,9 @@ class WebsiteAuthProxyConnector:
 
         v2.16.2 (rafaelhutter v0.5.20 parity — GAP 4.1). Additive, read-only,
         fail-soft: any 4xx / parse-miss returns an empty set (a transient 5xx is
-        retried inside ``_get_json(soft=True)``); a genuine 401/403/412/428 still
-        propagates so the caller re-logs in. Sends the versioned
+        retried inside ``_get_json``); OPTIONAL — never forces a re-login (an MBB
+        car 401/403s here), session validity is gated by the core reads. Sends
+        the car's platform ``gdc`` and the versioned
         ``application/json;version=3`` Accept the endpoint requires. Deliberately
         NOT called from ``get_vehicle_data``/the poll path: our capability filter
         is best-effort metadata, and auto-gating a sole-vw.de entry on it could
@@ -1047,10 +1128,11 @@ class WebsiteAuthProxyConnector:
             parse_usercapabilities,
         )
 
+        await self._ensure_backend(vin)
         body = await self._get_json(
-            build_usercapabilities_url(vin),
+            build_usercapabilities_url(vin, self._gdc(vin)),
             accept=build_usercapabilities_accept(),
-            soft=True,
+            soft=True, optional=True,
         )
         if body is None:
             return set()
@@ -1071,8 +1153,10 @@ class WebsiteAuthProxyConnector:
 
         Every read is ``soft`` / fail-soft — a transient backend hiccup or a
         parse-miss on any one leaves the corresponding fields unset instead of
-        failing the whole poll. A real 401/403/412/428 propagates so the caller
-        re-logs in. The vehicle is marked online once any data block parsed
+        failing the whole poll. A real 401/403 on the CORE reads (the relations
+        preflight / charging / maintenance) propagates so the caller re-logs in;
+        the optional live-status reads and any 412 precondition degrade to
+        no-data instead. The vehicle is marked online once any data block parsed
         successfully.
 
         v2.16.0 (BETA, opt-in) — three additive read-path fields, all
@@ -1084,6 +1168,21 @@ class WebsiteAuthProxyConnector:
         """
         d = VehicleData(vin=vin)
         got_data = False
+
+        # Resolve the car's platform (MBB/MEB) up front so the live-status reads
+        # below pick the correct gdc, and reuse the parsed relations for the
+        # nickname/plate enrich at the end (one relations fetch, not two). A
+        # genuine 401/403 here propagates (dead session → re-login).
+        rels: AuthproxyRelations | None = None
+        try:
+            rels = await self.get_relations()  # also populates self._vin_backend
+        except AuthenticationError:
+            raise
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug(
+                "Website authproxy relations preflight skipped for %s", vin[-6:],
+                exc_info=True,
+            )
 
         charging = await self._get_json(
             f"{_SITE_BASE}{_CHARGING_PATH.format(vin=vin)}",
@@ -1132,11 +1231,10 @@ class WebsiteAuthProxyConnector:
             )
 
         # v2.16.0 — nickname + licence plate from the relations LIST parse
-        # (already parsed in _authproxy.py). Best-effort: a miss leaves both
-        # fields None. Falls back to the singular per-VIN relation detail only
-        # if the list omits this VIN.
+        # (fetched up front above — reused here, no second round-trip). A miss
+        # leaves both fields None; falls back to the singular per-VIN relation
+        # detail only if the list omits this VIN.
         try:
-            rels = await self.get_relations()
             match = None
             if rels is not None:
                 match = next(
