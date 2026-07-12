@@ -163,12 +163,27 @@ class _StatusResp:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("status", [412, 428])
-async def test_get_json_412_428_raise_auth_error(status: int) -> None:
-    """A stale authproxy session answers 412/428 (not 401) — treat as re-login."""
+async def test_get_json_428_raises_auth_error() -> None:
+    """A stale authproxy session answers 428 Precondition Required → re-login."""
     class _S:
         def get(self, *_a: Any, **_k: Any) -> _StatusResp:
-            return _StatusResp(status)
+            return _StatusResp(428)
 
     with pytest.raises(AuthenticationError):
         await _conn(_S())._get_json("https://www.volkswagen.de/app/authproxy/x")
+
+
+@pytest.mark.asyncio
+async def test_get_json_412_degrades_to_none_not_relogin() -> None:
+    """412 is a per-VEHICLE precondition (e.g. the wrong-platform gdc on an MBB
+    car), NOT a dead session — verified live 2026-07-12 (relations 200 while
+    every read 412'd). It now degrades to None instead of raising, so it can't
+    force a re-login / email-OTP loop while the session is still valid. This
+    holds even in the non-soft path (412 is never a session signal).
+    """
+    class _S:
+        def get(self, *_a: Any, **_k: Any) -> _StatusResp:
+            return _StatusResp(412)
+
+    result = await _conn(_S())._get_json("https://www.volkswagen.de/app/authproxy/x")
+    assert result is None

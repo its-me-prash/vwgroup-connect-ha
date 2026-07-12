@@ -42,7 +42,21 @@ _HOST_VILMA = "myvw-vilma-proxy-prod"
 # VCF host than the static vehicle-file reads use above. Cross-checked against
 # rafaelhutter website_portal.py:328,391,417 (MIT); our own builders below.
 _HOST_VCF_LIVE = "myvw-vcf-prod"
-_GDC_WCAR = "myvw-wcar-prod"
+_GDC_WCAR = "myvw-wcar-prod"  # WeConnect / MEB (ID.x) global-data-centre
+_GDC_MBB = "myvw-mbb-prod"  # legacy MBB / Car-Net global-data-centre
+
+
+def gdc_for_backend(mod_backend: str | None) -> str:
+    """Map a vehicle's ``modBackend`` (from relations) to its live-status gdc.
+
+    The myVolkswagen web app sends ``gdc=myvw-mbb-prod`` for legacy MBB/Car-Net
+    cars and ``gdc=myvw-wcar-prod`` for WeConnect (MEB/ID.x) cars. Sending the
+    WeConnect gdc to an MBB car makes every live-status read return HTTP 412
+    Precondition Failed (verified live 2026-07-12 on an MBB Golf GTE — the web
+    app itself calls ``…/tripdata/cyclic/last?gdc=myvw-mbb-prod``). Unknown /
+    missing backend falls back to the WeConnect gdc (the historical default).
+    """
+    return _GDC_MBB if (mod_backend or "").strip().upper() == "MBB" else _GDC_WCAR
 
 
 def build_authproxy_url(
@@ -68,26 +82,32 @@ def build_authproxy_url(
     return url
 
 
-def build_warninglights_url(vin: str) -> str:
+def build_warninglights_url(vin: str, gdc: str | None = None) -> str:
     """Active dashboard warning-lights list (``warninglights/last``).
 
     Realm is the WeConnect vehicle backend, NOT ``vw-de``. Carries both
-    ``gdc`` + the live VCF host, matching the myVolkswagen web app.
+    ``gdc`` + the live VCF host, matching the myVolkswagen web app. ``gdc``
+    selects the global-data-centre per car platform (see
+    :func:`gdc_for_backend`); None keeps the historical WeConnect default.
     """
     return build_authproxy_url(
         f"vehicles/{vin}/warninglights/last",
         realm=_REALM_WECONNECT,
         resource_host=_HOST_VCF_LIVE,
-        gdc=_GDC_WCAR,
+        gdc=gdc or _GDC_WCAR,
     )
 
 
-def build_transactionhistory_url(vin: str) -> str:
-    """Remote-command history (lock/unlock lives here). Realm ``vw-de``."""
+def build_transactionhistory_url(vin: str, gdc: str | None = None) -> str:
+    """Remote-command history (lock/unlock lives here). Realm ``vw-de``.
+
+    ``gdc`` selects the global-data-centre per car platform (see
+    :func:`gdc_for_backend`); None keeps the historical WeConnect default.
+    """
     return build_authproxy_url(
         f"vehicles/{vin}/transactionhistory",
         resource_host=_HOST_VCF_LIVE,
-        gdc=_GDC_WCAR,
+        gdc=gdc or _GDC_WCAR,
     )
 
 
@@ -127,7 +147,7 @@ def build_vehicle_images_url(vin: str) -> str:
     )
 
 
-def build_usercapabilities_url(vin: str) -> str:
+def build_usercapabilities_url(vin: str, gdc: str | None = None) -> str:
     """Per-vehicle capability list (``usercapabilities``). Realm ``vw-de``.
 
     v2.16.2 (rafaelhutter v0.5.20 parity — GAP 4.1) — the myVolkswagen web app
@@ -143,7 +163,7 @@ def build_usercapabilities_url(vin: str) -> str:
         f"vehicles/{vin}/usercapabilities",
         realm=_REALM_WECONNECT,
         resource_host=_HOST_VCF_LIVE,
-        gdc=_GDC_WCAR,
+        gdc=gdc or _GDC_WCAR,
     )
 
 
