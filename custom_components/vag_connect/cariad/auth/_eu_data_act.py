@@ -1072,20 +1072,20 @@ def map_dataset_to_vehicle_data(
         if d.electric_range_km is None:
             d.electric_range_km = rng
 
-    cp = _to_float(first("battery_state_report.charge_power", "charge_power",
-                        "chargePower_kW",
-                        # v2.15.3 (#518) — EU-Data-Act dialect alias. Dict
-                        # defines charging_power (UUID 978be4ed) as "Power of
-                        # charging" (type=number, unit=null). Treating it as kW
-                        # is a CONVENTION for a charging-power field (typical
-                        # magnitudes are kW), NOT substantiated by the dict —
-                        # the sibling charge_rate_unit is a distance/time RATE
-                        # unit enum ("Unit of charge rate"), never a power unit.
-                        # LAST fallback only — canonical charge_power keys win
-                        # when a car reports both.
-                        "charging_power"))
-    if cp is not None:
-        d.charging_power_kw = cp
+    # #717 — battery_state_report.charge_power / charge_power are RAW
+    # 0.1-kW-resolution portal values (EU data dict UUID 44ed0d61: "actual charge
+    # power … range 0..500 with a resolution of 0,1 kW"; the reporter saw 65 →
+    # 6.5 kW), so they scale /10 — the same deci-unit handling the temps + kWh
+    # fields below already get. The chargePower_kW / charging_power aliases carry
+    # kW already (chargePower_kW by name; charging_power UUID 978be4ed treated as
+    # kW by convention — #518), so they stay UNSCALED.
+    cp_deci = _to_float(first("battery_state_report.charge_power", "charge_power"))
+    if cp_deci is not None:
+        d.charging_power_kw = round(cp_deci / 10.0, 1)
+    else:
+        cp_kw = _to_float(first("chargePower_kW", "charging_power"))
+        if cp_kw is not None:
+            d.charging_power_kw = cp_kw
 
     # 2.15.1 — the charger dialect reports charged energy
     # (battery_state_report.charge_energy). The EU data dictionary defines this
@@ -1147,11 +1147,19 @@ def map_dataset_to_vehicle_data(
     # the canonical `Charge Rate` entry (dict UUID 732b602c, unit=kmPerHour)
     # already represents — i.e. the km/h rate charging_rate_kmh maps. Added as
     # the LAST alias so canonical/report-shaped keys still win when both appear.
-    crate = _to_int(first("battery_state_report.charge_rate", "charge_rate",
-                          "chargeRate_kmph", "charging_rate_kmh",
-                          "actual_charge_rate"))
-    if crate is not None:
-        d.charging_rate_kmh = crate
+    # #717 — battery_state_report.charge_rate / charge_rate are RAW
+    # 0.1-resolution portal values (dict UUID 0c60a14f: "actual rate … range
+    # 0..3000 with a resolution of 0,1"; reporter saw 149 → 14.9), so /10. The
+    # chargeRate_kmph / charging_rate_kmh / actual_charge_rate aliases already
+    # carry the real km/h value and stay UNSCALED.
+    crate_deci = _to_float(first("battery_state_report.charge_rate", "charge_rate"))
+    if crate_deci is not None:
+        d.charging_rate_kmh = round(crate_deci / 10.0, 1)
+    else:
+        crate = _to_int(first("chargeRate_kmph", "charging_rate_kmh",
+                              "actual_charge_rate"))
+        if crate is not None:
+            d.charging_rate_kmh = crate
 
     plug = first("charging_plug1_connectionstate", "plug_connection_state",
                  "plugConnectionState", "plug_state")
@@ -2189,8 +2197,17 @@ def map_dataset_to_vehicle_data(
         # unmapped fields + their REAL values so the user can see everything the
         # backend sent, on one disabled diagnostic sensor. Capped to keep the
         # attribute payload sane; the debug log above already records the count.
+        # PRIVACY (#718 et al.): the portal dataset carries the account UUID
+        # (user_id) and the VIN as data fields. They are NOT suppressed from
+        # discovery — the field NAMES stay so the Scout still surfaces them — but
+        # their VALUES are redacted here, because this diagnostic attribute
+        # otherwise exposes the REAL account UUID + full VIN (the Scout issue
+        # itself already masks both). Match on the leaf name so both the bare
+        # (`vin`) and container-qualified (`eu_data_act.vin`) spellings redact.
         d.raw_unmapped_fields = {
-            k: str(fields[k]) for k in unmapped[:_RAW_FIELD_CAP]
+            k: ("<redacted>" if k.rsplit(".", 1)[-1] in ("user_id", "vin")
+                else str(fields[k]))
+            for k in unmapped[:_RAW_FIELD_CAP]
         }
         if len(unmapped) > _RAW_FIELD_CAP:
             _LOGGER.debug(

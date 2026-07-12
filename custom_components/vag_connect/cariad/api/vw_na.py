@@ -742,15 +742,21 @@ class VWNAClient:
         # PRIVACY: every value below is a fixed label, a class name, or a
         # numeric HTTP status. No UUID / VIN / body fragment / token is ever
         # built into these strings (matches the shape-only log above).
+        # #659 — the entitlement/forbidden verdict keys ONLY off the primary RVS
+        # read (vehicle_raw). On a COMBUSTION VW NA car the EV-only charge +
+        # climate summaries legitimately 403 (USER_NOT_AUTHORIZED) while RVS 200s
+        # — counting those as data-403s falsely tripped the "renew subscription"
+        # Repair. RVS 200 already proves entitlement; RVS 403 is the real signal.
         data_403s = [
-            r for r in (vehicle_raw, charge, climate)
+            r for r in (vehicle_raw,)
             if isinstance(r, APIError) and getattr(r, "status", None) == 403
         ]
         if data_403s:
             data_class = _classify_data_403(data_403s[0])
             _LOGGER.debug(
-                "VW NA data 403 classified as %s (%d/3 reads 403)",
-                data_class, len(data_403s),
+                "VW NA data 403 classified as %s (primary RVS read forbidden; "
+                "benign EV-summary 403s on combustion cars are ignored)",
+                data_class,
             )
             # Privileges shape/status as the entitlement discriminator —
             # value-safe: only the dict-ness, an active bool, a count int, or
