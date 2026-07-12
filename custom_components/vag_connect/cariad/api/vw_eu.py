@@ -874,6 +874,23 @@ class VWEUClient(CariadBaseClient):
         (vs. only the honk variant) is the one detail not provable from the
         static strings. The bare-body-then-position retry covers both cases.
         """
+        # v2.17.3 — MBB gate (the footgun this fixes): command_flash was the
+        # ONE write command missing the ``_mbb_command_target()`` guard that
+        # command_lock/unlock/wake/start_climate all have. On a legacy Car-Net
+        # (MBB) car the read-only primary bearer was POSTed to the CARIAD BFF
+        # honkandflash endpoint, which answered ``400 {"info":"missing or
+        # invalid auth header"}`` — and the retry branch below then masked it
+        # as a bogus "requires userPosition / no GPS" message. There is no MBB
+        # remote-honk-flash service wired, so surface an honest, actionable
+        # error instead of leaking the bearer to the dead BFF host.
+        if self._mbb_command_target() is not None:
+            raise VehicleCommandError(
+                "flash",
+                "Honk & Flash isn't available on the MBB command channel — it "
+                "needs the CARIAD BFF, which legacy Car-Net (MBB) cars don't "
+                "have. Lock, unlock, climate and charge commands still work "
+                "over MBB.",
+            )
         body: dict[str, Any] = {"mode": "FLASH_ONLY", "duration": 10}
         try:
             await self._post_command(vin, "honkandflash", json=body)
@@ -1024,7 +1041,28 @@ class VWEUClient(CariadBaseClient):
         # wrapper-404 fallback path (non-mbb entries on older MIB3 cars) keeps
         # its original ``self._post`` behaviour.
         if self._tokens and self._tokens.strategy == "mbb":
-            await self._mbb_post_json(url, {})
+            try:
+                await self._mbb_post_json(url, {})
+            except APIError as exc:
+                # v2.17.3 — the durable-MBB grant carries commands (RLU /
+                # climate / charge via SecToken) but NOT the VSR data-refresh
+                # plane: the VSR ``requests`` POST 403s with
+                # ``VSR.security.9007 / systemId 'XID_APP_VW'``. That's a
+                # structural scope gap for this token, not a transient error and
+                # not a subscription lapse — surface it honestly instead of a
+                # raw 403 traceback that reads as "unexpected exception".
+                b = (exc.body or "").lower()
+                if exc.status == 403 and (
+                    "xid_app_vw" in b or "security.9007" in b
+                ):
+                    raise VehicleCommandError(
+                        "wake",
+                        "Remote wake isn't permitted for this car's MBB grant — "
+                        "VW's status-refresh plane (VSR) is closed to this "
+                        "token. The car still updates on its normal poll / push "
+                        "cycle.",
+                    ) from exc
+                raise
         else:
             await self._post(url, json={})
 
@@ -1687,11 +1725,25 @@ class VWEUClient(CariadBaseClient):
 
         # Leg 2 — submit hashed SPIN, get the level-2 security token
         spin_hash = compute_spin_hash(pin, challenge)
-        comp_resp = await self._mbb_post_json(
-            build_mbb_spin_completed_url(setter),
-            build_mbb_completed_body(level1, challenge, spin_hash),
-            for_command=True,
-        )
+        try:
+            comp_resp = await self._mbb_post_json(
+                build_mbb_spin_completed_url(setter),
+                build_mbb_completed_body(level1, challenge, spin_hash),
+                for_command=True,
+            )
+        except APIError as exc:
+            # v2.17.3 — the backend rejected the S-PIN hash. Legs 1-2 of the
+            # rolesrights handshake DID run (so the MBB grant permits the
+            # operation), the PIN VALUE is simply wrong. Surface an actionable
+            # SpinError instead of a raw 403 traceback — and note the lockout so
+            # the user doesn't keep burning their remaining tries.
+            if exc.status == 403 and "invalidsecuritypin" in (exc.body or "").lower():
+                raise SpinError(
+                    "The Security PIN was rejected by VW — double-check your "
+                    "S-PIN in the We Connect / Car-Net app. After 3 wrong "
+                    "attempts the PIN locks for a while."
+                ) from exc
+            raise
         sec_token = parse_mbb_completed_token(comp_resp)
         if not sec_token:
             raise VehicleCommandError(verb, "MBB SPIN completion returned no token")

@@ -129,6 +129,13 @@ def classify_command_failure(exc: BaseException) -> CommandFailureReason:
         return CommandFailureReason.MISSING_CAPABILITY
     if "spin_error" in body or "spinstate" in body:
         return CommandFailureReason.SPIN_REQUIRED
+    # v2.17.3 — the classic Car-Net MBB rolesrights reply for a wrong S-PIN
+    # (``mbbc.rolesandrights.invalidSecurityPin``). Without this marker it fell
+    # through to the bare ``status == 403`` → NOT_ENTITLED branch, which wrongly
+    # flags the account as unentitled and sends the user chasing a phantom
+    # subscription renewal. It's just a wrong PIN — actionable, non-hiding.
+    if "invalidsecuritypin" in body or "invalid security pin" in body:
+        return CommandFailureReason.SPIN_REQUIRED
     if "subscription" in body and ("expired" in body or "lapsed" in body):
         return CommandFailureReason.SUBSCRIPTION_EXPIRED
     if (
