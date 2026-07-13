@@ -38,6 +38,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.17.4] - 2026-07-13
+
+### Fixed
+
+- **Electric VW ID.3 / ID.4 / ID.5 / ID.7 (and other MEB cars) show their driving range again over the EU Data Act portal.** These cars report the range in an anonymous field that only an internal id distinguishes, so the integration couldn't recognise it and the range stayed empty; it now resolves it correctly.
+- **A bogus "service due in ~2.1 billion km" reading is gone.** A specific "no value" marker the service countdown sends slipped through the filter and got flipped into a huge positive distance; it's now dropped like the other no-reading markers.
+- **No more pointless re-login loop when the data portal is briefly busy.** A "429 too many requests" or a "400 not ready yet" while fetching your data used to look like a failed login and kicked off a re-authentication loop; those are now treated as "no data this poll" and the next poll just tries again.
+
 ## [2.17.3] - 2026-07-13
 
 ### Fixed
