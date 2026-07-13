@@ -112,7 +112,13 @@ _TIMEOUT_S = 60
 # this poll" (the data_act_no_data notice already explains the outage) instead
 # of raising AuthenticationError and triggering pointless re-login churn + a
 # stream of error reports. 401/403 still mean a genuinely expired session.
-_TRANSIENT_STATUSES = (404, 410, 500, 502, 503, 504)
+# v2.17.4 — 400/429 on the SOFT data-polling GETs (datadelivery list/download,
+# metadata) are a provisioning-window / soft-throttle transient, NOT an auth
+# failure. Without them a soft 400 fell through to raise AuthenticationError →
+# a pointless re-login loop (the churn v2.12.4 fixed for 5xx). They return "no
+# data this poll"; kept OUT of _RETRIABLE_STATUSES so we don't hammer the portal
+# (one quiet skip, no backoff-retry). Hard (soft=False) calls still raise on 400.
+_TRANSIENT_STATUSES = (400, 404, 410, 429, 500, 502, 503, 504)
 # v2.13.1 — of those, only the genuinely transient server errors are worth
 # retrying with backoff; 404/410 ("data request not provisioned yet") are a
 # stable state and return "no data" immediately, so we don't add latency to
@@ -500,8 +506,12 @@ def _parse_ts(value: Any) -> float | None:
 # Sentinel markers the portal ships for "no reading": uint16 / int32 / uint32
 # max. A raw 65535 in an SoC/range field is "unknown", not a real value —
 # keeping it poisons HA long-term statistics irreversibly.
+# v2.17.4 — plus INT32_MIN (-2147483648): a distinct signed "no reading" nonsense
+# the maintenance/service COUNTDOWN ships. It MUST drop here, BEFORE the sign
+# transform that negates a negative countdown — else -2147483648 negates into a
+# spurious +2,147,483,648 km service_km/oil_service_km leak (TommiG1 #39).
 _GLOBAL_SENTINELS: frozenset[float] = frozenset(
-    {65535.0, 2147483647.0, 4294967295.0}
+    {-2147483648.0, 65535.0, 2147483647.0, 4294967295.0}
 )
 
 # Field-specific sentinels — TABLE-DRIVEN (case-insensitive substring on the
@@ -529,6 +539,20 @@ _MONOTONIC_HINTS: tuple[str, ...] = (
 _CAPTURED_NAME_HINTS: tuple[str, ...] = (
     "car_captured", "carcaptured", "captured_timestamp", "capturedtimestamp",
     "captured_time", "capturedtime", "captured_utc",
+)
+
+# v2.17.4 — MEB/ID.x ships some data-points (notably the primary electric range,
+# EU dict UUID 0ca40e18 "Value of the primary range") under a GENERIC
+# ``dataFieldName`` ("value"/"unit"/…) that only the per-point ``key`` UUID
+# disambiguates. Four dict entries share the name "value", so name-keying
+# collapses them onto one last-wins field and the range is lost on ID.3/4/5/7.
+# The flattener additionally keys such points by their ``key`` UUID so first()
+# can resolve them by UUID. Generic set mirrors the reference impl's own list.
+_GENERIC_FIELD_NAMES: frozenset[str] = frozenset(
+    {"value", "unit", "state", "timestamp", "is_set", "type"}
+)
+_UUID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE
 )
 
 
@@ -728,6 +752,19 @@ def _walk_fields(
             fname = node.get("dataFieldName") or node.get("name")
             if fname is not None and "value" in node:
                 add(fname, node.get("value"), ts, ts_real)
+                # v2.17.4 — when the leaf name is a GENERIC token, also key by the
+                # per-point ``key`` UUID so points that collide on a bare name
+                # (many "value" points on MEB/ID.x) don't collapse and first()
+                # can resolve them by UUID (e.g. 0ca40e18 → primary range). The
+                # UUID key is lowercased to match the dictionary + mapping forms.
+                pkey = node.get("key")
+                if (
+                    isinstance(fname, str)
+                    and fname.strip().lower() in _GENERIC_FIELD_NAMES
+                    and isinstance(pkey, str)
+                    and _UUID_RE.match(pkey.strip())
+                ):
+                    add(pkey.strip().lower(), node.get("value"), ts, ts_real)
                 # v2.15.4 overreport fix: a data-point node reached through a
                 # container (e.g. slope_consumption_values.ascent_slope_consumption
                 # .physical_value) carries its full dotted path in ``prefix``. Emit
@@ -1032,7 +1069,13 @@ def map_dataset_to_vehicle_data(
     #      before).
     et_raw = first("engine_type", "battery_state_report.cruising_ranges.0.engine_type")
     et = (et_raw or "").upper()
-    primary_raw = _to_int(first("cruising_range_primary_engine", "primaryEngineRange"))
+    primary_raw = _to_int(first(
+        "cruising_range_primary_engine", "primaryEngineRange",
+        # v2.17.4 — MEB/ID.x ships the primary range as a UUID-only "value" point.
+        # The engine-type logic below still routes it correctly (electric on a
+        # BEV, combustion on a PHEV), so wiring it here needs no orientation care.
+        "0ca40e18-0564-3eda-bcc0-7aee9ef44f04",
+    ))
     secondary_raw = _to_int(first("cruising_range_secondary_engine"))
     has_fuel = (
         first("fuel_level_current_level", "tank_current_level",
@@ -1066,7 +1109,8 @@ def map_dataset_to_vehicle_data(
     # ``range``/total spellings first, then the primary engine range) untouched
     # so the existing range_km behaviour is preserved for every car.
     rng = _to_int(first("range", "cruising_range_primary_engine",
-                        "totalRange_km", "primaryEngineRange"))
+                        "totalRange_km", "primaryEngineRange",
+                        "0ca40e18-0564-3eda-bcc0-7aee9ef44f04"))
     if rng is not None:
         d.range_km = rng
         if d.electric_range_km is None:
