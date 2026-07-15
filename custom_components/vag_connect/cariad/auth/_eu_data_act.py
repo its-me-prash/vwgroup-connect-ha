@@ -547,12 +547,18 @@ _CAPTURED_NAME_HINTS: tuple[str, ...] = (
 # disambiguates. Four dict entries share the name "value", so name-keying
 # collapses them onto one last-wins field and the range is lost on ID.3/4/5/7.
 # The flattener additionally keys such points by their ``key`` UUID so first()
-# can resolve them by UUID. Generic set mirrors the reference impl's own list.
+# can resolve them by UUID.
 _GENERIC_FIELD_NAMES: frozenset[str] = frozenset(
     {"value", "unit", "state", "timestamp", "is_set", "type"}
 )
-_UUID_RE = re.compile(
-    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE
+# v2.17.5 — ONLY alias the UUIDs we actually MAP. The 2.17.4 blanket alias
+# emitted an ``eu_data_act.<uuid>`` key for EVERY generic-named point, which
+# flooded the Vehicle Data Scout with dozens of unmapped timestamp/state UUID
+# names per car ("46 new fields"). We now alias solely these known-mapped UUIDs;
+# every other generic point keeps only its bare name + value (still Scout-visible,
+# so discovery is unaffected) and no longer spams unmapped UUID rows.
+_MAPPED_UUIDS: frozenset[str] = frozenset(
+    {"0ca40e18-0564-3eda-bcc0-7aee9ef44f04"}  # primary range (electric on BEV / combustion on PHEV)
 )
 
 
@@ -752,17 +758,19 @@ def _walk_fields(
             fname = node.get("dataFieldName") or node.get("name")
             if fname is not None and "value" in node:
                 add(fname, node.get("value"), ts, ts_real)
-                # v2.17.4 — when the leaf name is a GENERIC token, also key by the
-                # per-point ``key`` UUID so points that collide on a bare name
-                # (many "value" points on MEB/ID.x) don't collapse and first()
-                # can resolve them by UUID (e.g. 0ca40e18 → primary range). The
-                # UUID key is lowercased to match the dictionary + mapping forms.
+                # v2.17.4/v2.17.5 — when the leaf name is a GENERIC token, also key
+                # by the per-point ``key`` UUID so points that collide on a bare
+                # name (many "value" points on MEB/ID.x) don't collapse and first()
+                # can resolve them by UUID (e.g. 0ca40e18 → primary range). Only
+                # UUIDs we actually MAP are aliased (_MAPPED_UUIDS) — aliasing every
+                # generic point flooded the Scout with unmapped UUID rows (2.17.4
+                # regression). Lowercased to match the dictionary + mapping forms.
                 pkey = node.get("key")
                 if (
                     isinstance(fname, str)
                     and fname.strip().lower() in _GENERIC_FIELD_NAMES
                     and isinstance(pkey, str)
-                    and _UUID_RE.match(pkey.strip())
+                    and pkey.strip().lower() in _MAPPED_UUIDS
                 ):
                     add(pkey.strip().lower(), node.get("value"), ts, ts_real)
                 # v2.15.4 overreport fix: a data-point node reached through a

@@ -88,6 +88,30 @@ def test_well_named_field_with_uuid_key_gets_no_alias() -> None:
     assert _RANGE_UUID not in fields
 
 
+def test_unmapped_generic_uuid_emits_no_alias_no_scout_flood() -> None:
+    """v2.17.5 regression guard: the 2.17.4 blanket alias emitted an
+    ``eu_data_act.<uuid>`` key for EVERY generic-named point, flooding the
+    Vehicle Data Scout with dozens of unmapped timestamp/state UUID rows per car.
+    Only UUIDs we actually MAP are aliased now; every other generic point keeps
+    only its bare name (still Scout-visible) and emits NO UUID row."""
+    fields = _walk_fields(
+        {
+            "data": [
+                # unmapped generic "timestamp"/"state" points carrying real UUIDs
+                {"dataFieldName": "timestamp", "key": "067f539c-85fe-3067-9c29-d63e177e3712", "value": "2026-07-15T10:42:52Z"},
+                {"dataFieldName": "state", "key": "0718582b-7259-3c9a-818a-ea848a7365a8", "value": "VALID"},
+                # the ONE mapped UUID still gets its alias
+                {"dataFieldName": "value", "key": _RANGE_UUID, "value": "300"},
+            ]
+        }
+    )
+    # only the mapped range UUID surfaced — no unmapped-UUID flood
+    uuid_keys = [k for k in fields if k.count("-") == 4 and len(k) == 36]
+    assert uuid_keys == [_RANGE_UUID]
+    # the bare generic names stay Scout-visible (no suppression)
+    assert "state" in fields
+
+
 # ── #3 INT32_MIN sentinel ────────────────────────────────────────────────────
 
 def test_int32_min_is_a_global_sentinel() -> None:
