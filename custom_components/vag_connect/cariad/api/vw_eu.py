@@ -2660,6 +2660,16 @@ class VWEUClient(CariadBaseClient):
         if isinstance(mode_pending, list):
             d.charging_mode_pending = len(mode_pending)
 
+        # v2.17.5 — fourth *.requests sibling: batteryChargingCare.
+        # chargingCareSettings.requests counts queued battery-care changes
+        # (we already parse batteryCareMode/batteryCareTargetSoc from this
+        # container). Same [N items] count diagnostic; None when leaf absent.
+        care_pending = v(
+            raw, "batteryChargingCare", "chargingCareSettings", "requests"
+        )
+        if isinstance(care_pending, list):
+            d.charging_care_pending = len(care_pending)
+
         # v2.3.0 — scout #264 (Audi moltke69 2026-05-19) — route-aware
         # smart charging fields. The Cariad-BFF backend ships a
         # navigation-aware SoC target (e.g. "charge until you have
@@ -2775,10 +2785,20 @@ class VWEUClient(CariadBaseClient):
         # than expanded.
 
         plug_state = v(raw, "charging", "plugStatus", "value", "plugConnectionState")
-        d.plug_state = plug_state
         # v2.0.1 (#131 follow-up) — defensive parsing.
         if isinstance(plug_state, str):
             d.plug_connected = plug_state.upper() == "CONNECTED"
+            # v2.17.5 (#770) — don't surface the CARIAD 'invalid'/'unsupported'
+            # sentinel as a raw plug-state text sensor (the boolean above is
+            # already safe via the positive == CONNECTED test). Mirror the
+            # climatisation 'invalid' handling and keep the text state unknown.
+            d.plug_state = (
+                None
+                if plug_state.upper() in ("INVALID", "UNSUPPORTED")
+                else plug_state
+            )
+        else:
+            d.plug_state = plug_state
         # v2.0.1 (#131 follow-up) — defensive parsing.
         plug_lock = v(raw, "charging", "plugStatus", "value", "plugLockState")
         if isinstance(plug_lock, str):

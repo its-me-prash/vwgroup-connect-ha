@@ -674,6 +674,9 @@
       "charging_mode_pending": {
         "name": "Lataustavan muutokset odottamassa"
       },
+      "charging_care_pending": {
+        "name": "Akkusuojan muutokset odottamassa"
+      },
       "climate_remaining_time_min": {
         "name": "Ilmastoinnin arvioitu valmistuminen"
       },
@@ -1290,6 +1293,21 @@
       },
       "climate_zone_front_right_enabled": {
         "name": "Ilmastointivyöhyke oikea etu"
+      },
+      "mirror_heating_active": {
+        "name": "Peililämmitys aktiivinen"
+      },
+      "climate_zone_active_front_left": {
+        "name": "Ilmastointivyöhyke vasen etu aktiivinen"
+      },
+      "climate_zone_active_front_right": {
+        "name": "Ilmastointivyöhyke oikea etu aktiivinen"
+      },
+      "climate_zone_active_rear_left": {
+        "name": "Ilmastointivyöhyke vasen taka aktiivinen"
+      },
+      "climate_zone_active_rear_right": {
+        "name": "Ilmastointivyöhyke oikea taka aktiivinen"
       },
       "abrp_data_changed": {
         "name": "ABRP-tiedot muuttuivat"

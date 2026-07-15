@@ -674,6 +674,9 @@
       "charging_mode_pending": {
         "name": "Charge Mode Changes Pending"
       },
+      "charging_care_pending": {
+        "name": "Battery Care Changes Pending"
+      },
       "climate_remaining_time_min": {
         "name": "Climate ETA"
       },
@@ -1290,6 +1293,21 @@
       },
       "climate_zone_front_right_enabled": {
         "name": "Climate zone front-right"
+      },
+      "mirror_heating_active": {
+        "name": "Mirror heating active"
+      },
+      "climate_zone_active_front_left": {
+        "name": "Climate zone front-left active"
+      },
+      "climate_zone_active_front_right": {
+        "name": "Climate zone front-right active"
+      },
+      "climate_zone_active_rear_left": {
+        "name": "Climate zone rear-left active"
+      },
+      "climate_zone_active_rear_right": {
+        "name": "Climate zone rear-right active"
       },
       "abrp_data_changed": {
         "name": "ABRP Data Changed"

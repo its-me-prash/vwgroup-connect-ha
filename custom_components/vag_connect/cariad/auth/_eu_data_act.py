@@ -547,12 +547,18 @@ _CAPTURED_NAME_HINTS: tuple[str, ...] = (
 # disambiguates. Four dict entries share the name "value", so name-keying
 # collapses them onto one last-wins field and the range is lost on ID.3/4/5/7.
 # The flattener additionally keys such points by their ``key`` UUID so first()
-# can resolve them by UUID. Generic set mirrors the reference impl's own list.
+# can resolve them by UUID.
 _GENERIC_FIELD_NAMES: frozenset[str] = frozenset(
     {"value", "unit", "state", "timestamp", "is_set", "type"}
 )
-_UUID_RE = re.compile(
-    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE
+# v2.17.5 — ONLY alias the UUIDs we actually MAP. The 2.17.4 blanket alias
+# emitted an ``eu_data_act.<uuid>`` key for EVERY generic-named point, which
+# flooded the Vehicle Data Scout with dozens of unmapped timestamp/state UUID
+# names per car ("46 new fields"). We now alias solely these known-mapped UUIDs;
+# every other generic point keeps only its bare name + value (still Scout-visible,
+# so discovery is unaffected) and no longer spams unmapped UUID rows.
+_MAPPED_UUIDS: frozenset[str] = frozenset(
+    {"0ca40e18-0564-3eda-bcc0-7aee9ef44f04"}  # primary range (electric on BEV / combustion on PHEV)
 )
 
 
@@ -752,17 +758,19 @@ def _walk_fields(
             fname = node.get("dataFieldName") or node.get("name")
             if fname is not None and "value" in node:
                 add(fname, node.get("value"), ts, ts_real)
-                # v2.17.4 — when the leaf name is a GENERIC token, also key by the
-                # per-point ``key`` UUID so points that collide on a bare name
-                # (many "value" points on MEB/ID.x) don't collapse and first()
-                # can resolve them by UUID (e.g. 0ca40e18 → primary range). The
-                # UUID key is lowercased to match the dictionary + mapping forms.
+                # v2.17.4/v2.17.5 — when the leaf name is a GENERIC token, also key
+                # by the per-point ``key`` UUID so points that collide on a bare
+                # name (many "value" points on MEB/ID.x) don't collapse and first()
+                # can resolve them by UUID (e.g. 0ca40e18 → primary range). Only
+                # UUIDs we actually MAP are aliased (_MAPPED_UUIDS) — aliasing every
+                # generic point flooded the Scout with unmapped UUID rows (2.17.4
+                # regression). Lowercased to match the dictionary + mapping forms.
                 pkey = node.get("key")
                 if (
                     isinstance(fname, str)
                     and fname.strip().lower() in _GENERIC_FIELD_NAMES
                     and isinstance(pkey, str)
-                    and _UUID_RE.match(pkey.strip())
+                    and pkey.strip().lower() in _MAPPED_UUIDS
                 ):
                     add(pkey.strip().lower(), node.get("value"), ts, ts_real)
                 # v2.15.4 overreport fix: a data-point node reached through a
@@ -1166,7 +1174,10 @@ def map_dataset_to_vehicle_data(
     if tmax is not None:
         d.hv_battery_max_temperature_c = tmax
 
-    locked = first("locked", "doors_locked", "doorLockStatus")
+    # v2.17.5 — qualified door-lock fields win over the bare ``locked`` leaf: a
+    # ``trunk.locked`` container ALSO emits a bare ``locked`` (cross-container
+    # collision) that would otherwise mis-set doors_locked from the trunk state.
+    locked = first("doors_locked", "doorLockStatus", "locked")
     if locked is not None:
         d.doors_locked = str(locked).lower() in ("true", "locked", "1")
 
@@ -1358,6 +1369,11 @@ def map_dataset_to_vehicle_data(
         d.doors_locked = all(v == 2 for v in _lock_vals)  # any unlocked → False
     if _tail_lock in (2, 3) and d.trunk_locked is None:
         d.trunk_locked = _tail_lock == 2
+    # v2.17.5 — the boolean ``trunk.locked`` dialect (dotted spelling so it never
+    # collides with the door's bare ``locked``). "true" = trunk locked.
+    _trunk_l = first("trunk.locked", "trunk_locked")
+    if _trunk_l is not None and d.trunk_locked is None:
+        d.trunk_locked = str(_trunk_l).strip().lower() in ("true", "locked", "1")
 
     # open-state → doors_individual (True == OPEN, matching the vw_eu polarity)
     for _slot, _name in (
@@ -1677,6 +1693,12 @@ def map_dataset_to_vehicle_data(
         d.parking_light_left = _pll_b
     if _plr_b is not None:
         d.parking_light_right = _plr_b
+    # v2.17.5 — parkinglightstate.is_set: some dialects send only this flag and
+    # not the per-side lights above (mirrors the parking_brake.is_set precedent).
+    # "true"/"set" = a parking light is on.
+    _pls = first("parkinglightstate.is_set", "parkinglightstate_is_set")
+    if _pls is not None and d.parking_light is None:
+        d.parking_light = str(_pls).strip().lower() in ("true", "1", "set")
     if (_pll_b is not None or _plr_b is not None) and d.parking_light is None:
         d.parking_light = bool(_pll_b) or bool(_plr_b)
 
@@ -1934,7 +1956,12 @@ def map_dataset_to_vehicle_data(
     # v2.15.5 (#544) — sunroof motor hood 1 POSITION (%; 0=closed). Distinct
     # from the open/closed STATE above. Dict type=number, unit "%". first()
     # drops the uint16 65535 "no reading" sentinel; valid 0-100 survives.
-    _sunroof_pos = _to_int(first("position_sunroof_motor_hood_1"))
+    # v2.17.5 — hood_3 is the same sunroof-position % on cars that report only
+    # that slot (we already merge hood_3 STATE into sunroof_open above), so fold
+    # it in as a fallback rather than leaving the position sensor empty.
+    _sunroof_pos = _to_int(first(
+        "position_sunroof_motor_hood_1", "position_sunroof_motor_hood_3",
+    ))
     if _sunroof_pos is not None and d.sunroof_position_pct is None:
         d.sunroof_position_pct = _sunroof_pos
     _svc_hatch = _to_int(first("state_service_hatch"))
@@ -1972,6 +1999,13 @@ def map_dataset_to_vehicle_data(
     _oil_dip = _to_int(first("oil_level_dipstick_indicator_function"))
     if _oil_dip is not None:
         d.oil_dipstick_active = _oil_dip == 1
+    # v2.17.5 — oil_level_min_warning (dict 6933): a boolean LOW-oil-level lamp
+    # (0=OK, 1=low). Distinct from the oil-CHANGE service lamp (warning_oil).
+    # Feeds the existing oil_level_warning binary_sensor, until now only BFF-fed,
+    # so VW combustion cars on the portal get oil-level-warning coverage too.
+    _oil_w = first("oil_level_min_warning")
+    if _oil_w is not None and d.oil_level_warning is None:
+        d.oil_level_warning = str(_oil_w).strip().lower() in ("1", "true")
     # scr_range — AdBlue/SCR range (km). Empty string guarded by _to_int.
     _scr = _to_int(first("scr_range"))
     if _scr is not None and d.adblue_range_km is None:
@@ -2196,6 +2230,32 @@ def map_dataset_to_vehicle_data(
     _zfr = _setting_bool(first("setting_zone_enabled_front_right"))
     if _zfr is not None and d.climate_zone_front_right_enabled is None:
         d.climate_zone_front_right_enabled = _zfr
+    # v2.17.5 — the portal ships rear zones too (setting_zone_enabled_rear_*) but
+    # only the front pair was aliased. Rear targets the BFF-shared
+    # climate_zone_rear_left/right attrs (there is no _enabled twin for rear).
+    _zrl = _setting_bool(first("setting_zone_enabled_rear_left"))
+    if _zrl is not None and d.climate_zone_rear_left is None:
+        d.climate_zone_rear_left = _zrl
+    _zrr = _setting_bool(first("setting_zone_enabled_rear_right"))
+    if _zrr is not None and d.climate_zone_rear_right is None:
+        d.climate_zone_rear_right = _zrr
+    # v2.17.5 — LIVE 'active' status twins of the *_enabled settings above
+    # (state_mirror_heating_active / state_zone_active_*). active != enabled.
+    _mha = _setting_bool(first("state_mirror_heating_active"))
+    if _mha is not None and d.mirror_heating_active is None:
+        d.mirror_heating_active = _mha
+    _zafl = _setting_bool(first("state_zone_active_front_left"))
+    if _zafl is not None and d.climate_zone_active_front_left is None:
+        d.climate_zone_active_front_left = _zafl
+    _zafr = _setting_bool(first("state_zone_active_front_right"))
+    if _zafr is not None and d.climate_zone_active_front_right is None:
+        d.climate_zone_active_front_right = _zafr
+    _zarl = _setting_bool(first("state_zone_active_rear_left"))
+    if _zarl is not None and d.climate_zone_active_rear_left is None:
+        d.climate_zone_active_rear_left = _zarl
+    _zarr = _setting_bool(first("state_zone_active_rear_right"))
+    if _zarr is not None and d.climate_zone_active_rear_right is None:
+        d.climate_zone_active_rear_right = _zarr
 
     # start_stop_action — dict type=string, "Indicates the action related to
     # charging". No dict-listed enum values → no confirmed prefix; _shorten_enum

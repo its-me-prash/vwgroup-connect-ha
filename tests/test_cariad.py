@@ -622,6 +622,26 @@ class TestVWEUStatusParsing:
         assert result.plug_state == "CONNECTED"
         assert result.connector_locked is True
 
+    def test_ev_plug_invalid_sentinel_stripped(self):
+        # v2.17.5 (#770) — a CARIAD 'invalid' plugConnectionState must NOT surface
+        # as a raw text state; the boolean stays safely False (positive test).
+        client = self._client()
+        payload = self._ev_payload()
+        payload["charging"]["plugStatus"]["value"]["plugConnectionState"] = "invalid"
+        result = client._parse_status("VIN1", payload, {})
+        assert result.plug_connected is False
+        assert result.plug_state is None
+
+    def test_ev_battery_care_pending_count(self):
+        # v2.17.5 — batteryChargingCare.chargingCareSettings.requests → count
+        client = self._client()
+        payload = self._ev_payload()
+        payload["batteryChargingCare"] = {
+            "chargingCareSettings": {"requests": [{"id": "a"}, {"id": "b"}]}
+        }
+        result = client._parse_status("VIN1", payload, {})
+        assert result.charging_care_pending == 2
+
     def test_ev_doors_locked(self):
         client = self._client()
         result = client._parse_status("VIN1", self._ev_payload(), {})

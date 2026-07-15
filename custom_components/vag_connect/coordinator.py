@@ -36,6 +36,7 @@ from .const import (
     CONF_READ_ONLY,
     CONF_SCAN_INTERVAL,
     CONF_SPIN,
+    CONF_SPIN_BY_VIN,
     CONF_USERNAME,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
@@ -3548,13 +3549,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # hit the 403 with ``spinState=DEFINED`` — that's then a clear
         # signal to configure the S-PIN, not an integration bug.
         brand = self.entry.data.get(CONF_BRAND, "").lower()
-        options = getattr(self.entry, "options", None) or {}
-        data = getattr(self.entry, "data", None) or {}
-        spin = ""
-        if isinstance(options, dict):
-            spin = str(options.get(CONF_SPIN) or "")
-        if not spin and isinstance(data, dict):
-            spin = str(data.get(CONF_SPIN) or "")
+        spin = self._spin_from_entry(vin)  # #759 — per-VIN override, else shared
         if brand in ("seat", "cupra") and not spin:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
@@ -3570,16 +3565,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         )
 
     async def async_unlock(self, vin: str) -> None:
-        # Prefer options (Options Flow) over data (initial config). Use real
-        # dict semantics so MagicMock values in tests don't accidentally pass
-        # the truthiness check.
-        options = getattr(self.entry, "options", None) or {}
-        data = getattr(self.entry, "data", None) or {}
-        spin = ""
-        if isinstance(options, dict):
-            spin = str(options.get(CONF_SPIN) or "")
-        if not spin and isinstance(data, dict):
-            spin = str(data.get(CONF_SPIN) or "")
+        # v2.17.5 (#759) — per-VIN S-PIN override, else the shared per-entry
+        # S-PIN (Options over Data). Same result as before for single-S-PIN setups.
+        spin = self._spin_from_entry(vin)
         if not spin:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
@@ -3866,7 +3854,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # the SEAT/CUPRA path so VW/Audi users without S-PIN configured
         # can still use the engine pre-heater.
         if not cariad_brand:
-            spin = self._spin_from_entry()
+            spin = self._spin_from_entry(vin)  # #759 per-VIN
             if not spin:
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
@@ -3923,10 +3911,21 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             **address_fields,
         )
 
-    def _spin_from_entry(self) -> str:
-        """Return the configured S-PIN preferring Options over Data."""
+    def _spin_from_entry(self, vin: str | None = None) -> str:
+        """Return the configured S-PIN, preferring Options over Data.
+
+        v2.17.5 (#759) — when *vin* is given and a per-VIN override exists in
+        ``CONF_SPIN_BY_VIN``, that wins; otherwise the shared per-entry S-PIN is
+        returned (so single-S-PIN setups behave exactly as before).
+        """
         options = getattr(self.entry, "options", None) or {}
         data = getattr(self.entry, "data", None) or {}
+        if vin and isinstance(options, dict):
+            by_vin = options.get(CONF_SPIN_BY_VIN)
+            if isinstance(by_vin, dict):
+                per = str(by_vin.get(vin) or "")
+                if per:
+                    return per
         if isinstance(options, dict):
             spin = str(options.get(CONF_SPIN) or "")
             if spin:

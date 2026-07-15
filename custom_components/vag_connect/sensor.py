@@ -259,6 +259,20 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # v2.17.5 — fourth charging-side *_pending sibling — counts queued
+    # battery-care setting changes (``batteryChargingCare
+    # .chargingCareSettings.requests``). 0 = idle, >0 = queued at the gateway.
+    # Disabled by default — power-user opt-in. None when leaf absent.
+    VagSensorDescription(
+        key="charging_care_pending",
+        translation_key="charging_care_pending",
+        data_key="charging_care_pending",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-heart-variant",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     # v2.2.3 — Cariad scout #272 (VW EU arvcer 2026-05-23): third
     # *_pending sibling — counts queued start/stop_climatisation
     # commands. No ``condition`` filter (every brand with climatisation
