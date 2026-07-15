@@ -38,6 +38,23 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.17.5] - 2026-07-13
+
+### Fixed
+
+- **No more "30 / 46 / 55 new field(s)" Scout reports full of cryptic ids.** A change in 2.17.4 accidentally surfaced every internal id-only data-point as its own "new field", so cars started filing huge Scout reports. Those ids are handled internally again; only genuinely new, readable fields are reported now.
+- **The charging plug no longer shows a raw "invalid" state.** When the car reports an "invalid"/"unsupported" plug state, the text sensor now stays unknown instead of showing the raw marker (the plugged-in yes/no was already correct).
+- **Boot/trunk lock is read correctly on cars that report it in a compact form** — and it no longer accidentally drives the *doors* locked state.
+
+### Added
+
+- **More coverage over the EU Data Act portal, reusing existing sensors:** oil low-level warning (petrol cars), rear climate-zone on/off, and sunroof position on cars that report it in a second slot.
+- **Live "currently active" sensors** for mirror heating and each climate zone (front/rear, left/right) — the live-status companions to the existing on/off settings. Diagnostic, off by default.
+- **"Battery Care Changes Pending"** diagnostic sensor.
+- **Parking-light coverage** for cars that report it as a single flag.
+- **A different S-PIN per vehicle (#759).** If the cars on your account each have their own S-PIN, you can now set a per-vehicle S-PIN under Settings → the integration → Configure. Leave a vehicle blank to keep using the shared S-PIN.
+- All new entities are translated in 12 languages.
+
 ## [2.17.4] - 2026-07-13
 
 ### Fixed
