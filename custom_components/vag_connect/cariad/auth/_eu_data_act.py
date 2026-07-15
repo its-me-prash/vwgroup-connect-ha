@@ -1942,7 +1942,12 @@ def map_dataset_to_vehicle_data(
     # v2.15.5 (#544) — sunroof motor hood 1 POSITION (%; 0=closed). Distinct
     # from the open/closed STATE above. Dict type=number, unit "%". first()
     # drops the uint16 65535 "no reading" sentinel; valid 0-100 survives.
-    _sunroof_pos = _to_int(first("position_sunroof_motor_hood_1"))
+    # v2.17.5 — hood_3 is the same sunroof-position % on cars that report only
+    # that slot (we already merge hood_3 STATE into sunroof_open above), so fold
+    # it in as a fallback rather than leaving the position sensor empty.
+    _sunroof_pos = _to_int(first(
+        "position_sunroof_motor_hood_1", "position_sunroof_motor_hood_3",
+    ))
     if _sunroof_pos is not None and d.sunroof_position_pct is None:
         d.sunroof_position_pct = _sunroof_pos
     _svc_hatch = _to_int(first("state_service_hatch"))
@@ -1980,6 +1985,13 @@ def map_dataset_to_vehicle_data(
     _oil_dip = _to_int(first("oil_level_dipstick_indicator_function"))
     if _oil_dip is not None:
         d.oil_dipstick_active = _oil_dip == 1
+    # v2.17.5 — oil_level_min_warning (dict 6933): a boolean LOW-oil-level lamp
+    # (0=OK, 1=low). Distinct from the oil-CHANGE service lamp (warning_oil).
+    # Feeds the existing oil_level_warning binary_sensor, until now only BFF-fed,
+    # so VW combustion cars on the portal get oil-level-warning coverage too.
+    _oil_w = first("oil_level_min_warning")
+    if _oil_w is not None and d.oil_level_warning is None:
+        d.oil_level_warning = str(_oil_w).strip().lower() in ("1", "true")
     # scr_range — AdBlue/SCR range (km). Empty string guarded by _to_int.
     _scr = _to_int(first("scr_range"))
     if _scr is not None and d.adblue_range_km is None:
@@ -2204,6 +2216,15 @@ def map_dataset_to_vehicle_data(
     _zfr = _setting_bool(first("setting_zone_enabled_front_right"))
     if _zfr is not None and d.climate_zone_front_right_enabled is None:
         d.climate_zone_front_right_enabled = _zfr
+    # v2.17.5 — the portal ships rear zones too (setting_zone_enabled_rear_*) but
+    # only the front pair was aliased. Rear targets the BFF-shared
+    # climate_zone_rear_left/right attrs (there is no _enabled twin for rear).
+    _zrl = _setting_bool(first("setting_zone_enabled_rear_left"))
+    if _zrl is not None and d.climate_zone_rear_left is None:
+        d.climate_zone_rear_left = _zrl
+    _zrr = _setting_bool(first("setting_zone_enabled_rear_right"))
+    if _zrr is not None and d.climate_zone_rear_right is None:
+        d.climate_zone_rear_right = _zrr
 
     # start_stop_action — dict type=string, "Indicates the action related to
     # charging". No dict-listed enum values → no confirmed prefix; _shorten_enum

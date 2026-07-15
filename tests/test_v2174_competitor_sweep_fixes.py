@@ -147,3 +147,34 @@ def test_400_429_not_aggressively_retried() -> None:
     assert 400 not in _RETRIABLE_STATUSES
     assert 429 not in _RETRIABLE_STATUSES
     assert 500 in _RETRIABLE_STATUSES  # 5xx still backs off + retries
+
+
+# ── v2.17.5 portal-coverage aliases (verified-real gaps from the full sweep) ──
+
+def test_v2175_oil_low_level_warning_alias() -> None:
+    # oil_level_min_warning (0=OK, 1=low) → existing oil_level_warning sensor
+    assert map_dataset_to_vehicle_data(
+        {"oil_level_min_warning": "1"}, VehicleData(vin="X")
+    ).oil_level_warning is True
+    assert map_dataset_to_vehicle_data(
+        {"oil_level_min_warning": "0"}, VehicleData(vin="X")
+    ).oil_level_warning is False
+
+
+def test_v2175_sunroof_hood3_position_fallback() -> None:
+    d = map_dataset_to_vehicle_data(
+        {"position_sunroof_motor_hood_3": "40"}, VehicleData(vin="X")
+    )
+    assert d.sunroof_position_pct == 40
+
+
+def test_v2175_rear_climate_zones_aliased() -> None:
+    d = map_dataset_to_vehicle_data(
+        {
+            "setting_zone_enabled_rear_left": "true",
+            "setting_zone_enabled_rear_right": "false",
+        },
+        VehicleData(vin="X"),
+    )
+    assert d.climate_zone_rear_left is True
+    assert d.climate_zone_rear_right is False
