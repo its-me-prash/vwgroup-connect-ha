@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from custom_components.vag_connect.const import CONF_SPIN
+from custom_components.vag_connect.const import CONF_SPIN, CONF_SPIN_BY_VIN
 
 
 def _coord(options=None, data=None):
@@ -35,6 +35,24 @@ class TestSpinFromEntry:
 
     def test_empty(self):
         assert _coord()._spin_from_entry() == ""
+
+    # ── v2.17.5 (#759) per-VIN S-PIN overrides ──────────────────────────────
+    def test_per_vin_override_wins(self):
+        c = _coord(options={CONF_SPIN: "1111", CONF_SPIN_BY_VIN: {"VINA": "2222"}})
+        assert c._spin_from_entry("VINA") == "2222"  # per-VIN override wins
+        assert c._spin_from_entry("VINB") == "1111"  # unlisted VIN → shared
+        assert c._spin_from_entry() == "1111"         # no VIN → shared
+
+    def test_per_vin_empty_falls_back_to_shared(self):
+        c = _coord(options={CONF_SPIN: "1111", CONF_SPIN_BY_VIN: {"VINA": ""}})
+        assert c._spin_from_entry("VINA") == "1111"
+
+    def test_no_by_vin_setup_unchanged_with_vin_arg(self):
+        # existing single-S-PIN setups: passing a VIN must not change the result
+        c = _coord(options={CONF_SPIN: "1111"})
+        assert c._spin_from_entry("ANYVIN") == "1111"
+        c2 = _coord(options={}, data={CONF_SPIN: "3333"})
+        assert c2._spin_from_entry("ANYVIN") == "3333"
 
 
 class TestRefreshMbbSpin:

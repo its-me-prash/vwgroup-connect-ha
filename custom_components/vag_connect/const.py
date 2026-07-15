@@ -9,6 +9,10 @@ CONF_BRAND                    = "brand"
 CONF_USERNAME                 = "username"
 CONF_PASSWORD                 = "password"
 CONF_SPIN                     = "spin"
+# v2.17.5 (#759) — optional per-VIN S-PIN overrides: {vin: spin}. When a
+# vehicle has no entry here the shared CONF_SPIN is used, so existing
+# single-S-PIN setups are unchanged. Set via the Options flow.
+CONF_SPIN_BY_VIN              = "spin_by_vin"
 # v2.15.1 (#503) — Volkswagen US/Canada region selector. VWNorthAmericaClient
 # picks the right MYVW client_id + b-h-s.spr.{us|ca}00 host from this value.
 # Only consumed by the volkswagen_na brand; every other brand ignores it.

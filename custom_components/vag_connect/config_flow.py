@@ -56,6 +56,7 @@ from .const import (
     CONF_READ_ONLY,
     CONF_SCAN_INTERVAL,
     CONF_SPIN,
+    CONF_SPIN_BY_VIN,
     CONF_HIDE_EMPTY_ENTITIES,
     CONF_SUPPLEMENTARY_AUTHPROXY,
     CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES,
@@ -1605,6 +1606,17 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
         # Only persist / branch when the submit validated cleanly. On an
         # error we fall through to re-show the form (with ``errors``) below.
         if user_input is not None and not errors:
+            # v2.17.5 (#759) — fold the per-VIN S-PIN fields into one
+            # CONF_SPIN_BY_VIN dict and drop the transient per-field keys so they
+            # never persist as standalone options. Empty fields = shared S-PIN.
+            _by_vin: dict[str, str] = {}
+            for _k in list(user_input.keys()):
+                if _k.startswith(f"{CONF_SPIN_BY_VIN}_"):
+                    _val = str(user_input.pop(_k) or "").strip()
+                    if _val:
+                        _by_vin[_k[len(CONF_SPIN_BY_VIN) + 1:]] = _val
+            if _by_vin:
+                user_input[CONF_SPIN_BY_VIN] = _by_vin
             # b1/C1 — if the user ticked "add vw.de read channel", branch into
             # the login sub-flow; the remaining options are saved when it
             # completes. Default-False so untouched submits behave exactly as
@@ -1882,6 +1894,21 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
             schema[vol.Optional(
                 "remove_supplementary_eu_portal", default=False,
             )] = _BOOL_SELECTOR
+        # v2.17.5 (#759) — one optional S-PIN field per known VIN, shown only
+        # when the account has more than one vehicle (each may carry its own
+        # S-PIN). Empty leaves that vehicle on the shared CONF_SPIN above; values
+        # are folded into CONF_SPIN_BY_VIN on submit.
+        _coord = getattr(self._config_entry, "runtime_data", None)
+        _vehicles = getattr(_coord, "vehicles", None)
+        _cur_by_vin = current_options.get(CONF_SPIN_BY_VIN)
+        if not isinstance(_cur_by_vin, dict):
+            _cur_by_vin = {}
+        if isinstance(_vehicles, dict) and len(_vehicles) > 1:
+            for _vin in _vehicles:
+                schema[vol.Optional(
+                    f"{CONF_SPIN_BY_VIN}_{_vin}",
+                    default=str(_cur_by_vin.get(_vin, "")),
+                )] = _SPIN_SELECTOR
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(schema),
