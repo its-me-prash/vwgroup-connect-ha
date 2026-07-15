@@ -2660,6 +2660,16 @@ class VWEUClient(CariadBaseClient):
         if isinstance(mode_pending, list):
             d.charging_mode_pending = len(mode_pending)
 
+        # v2.17.5 — fourth *.requests sibling: batteryChargingCare.
+        # chargingCareSettings.requests counts queued battery-care changes
+        # (we already parse batteryCareMode/batteryCareTargetSoc from this
+        # container). Same [N items] count diagnostic; None when leaf absent.
+        care_pending = v(
+            raw, "batteryChargingCare", "chargingCareSettings", "requests"
+        )
+        if isinstance(care_pending, list):
+            d.charging_care_pending = len(care_pending)
+
         # v2.3.0 — scout #264 (Audi moltke69 2026-05-19) — route-aware
         # smart charging fields. The Cariad-BFF backend ships a
         # navigation-aware SoC target (e.g. "charge until you have

@@ -749,6 +749,48 @@ _NEW_BINARY: tuple[VagBinarySensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # v2.17.5 — LIVE 'active' status twins (state_*_active) of the enabled
+    # settings above. Diagnostic, disabled-by-default.
+    VagBinarySensorDescription(
+        key="mirror_heating_active",
+        translation_key="mirror_heating_active",
+        data_key="mirror_heating_active",
+        icon="mdi:mirror",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagBinarySensorDescription(
+        key="climate_zone_active_front_left",
+        translation_key="climate_zone_active_front_left",
+        data_key="climate_zone_active_front_left",
+        icon="mdi:thermostat",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagBinarySensorDescription(
+        key="climate_zone_active_front_right",
+        translation_key="climate_zone_active_front_right",
+        data_key="climate_zone_active_front_right",
+        icon="mdi:thermostat",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagBinarySensorDescription(
+        key="climate_zone_active_rear_left",
+        translation_key="climate_zone_active_rear_left",
+        data_key="climate_zone_active_rear_left",
+        icon="mdi:thermostat",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagBinarySensorDescription(
+        key="climate_zone_active_rear_right",
+        translation_key="climate_zone_active_rear_right",
+        data_key="climate_zone_active_rear_right",
+        icon="mdi:thermostat",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
 )
 BINARY_DESCRIPTIONS = BINARY_DESCRIPTIONS + _NEW_BINARY
 

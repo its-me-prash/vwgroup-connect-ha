@@ -674,6 +674,9 @@
       "charging_mode_pending": {
         "name": "Změny režimu nabíjení čekají"
       },
+      "charging_care_pending": {
+        "name": "Změny péče o baterii čekají"
+      },
       "climate_remaining_time_min": {
         "name": "Klimatizace – zbývající čas"
       },
@@ -1290,6 +1293,21 @@
       },
       "climate_zone_front_right_enabled": {
         "name": "Klimatická zóna vpředu vpravo"
+      },
+      "mirror_heating_active": {
+        "name": "Vyhřívání zrcátek aktivní"
+      },
+      "climate_zone_active_front_left": {
+        "name": "Klimatická zóna vpředu vlevo aktivní"
+      },
+      "climate_zone_active_front_right": {
+        "name": "Klimatická zóna vpředu vpravo aktivní"
+      },
+      "climate_zone_active_rear_left": {
+        "name": "Klimatická zóna vzadu vlevo aktivní"
+      },
+      "climate_zone_active_rear_right": {
+        "name": "Klimatická zóna vzadu vpravo aktivní"
       },
       "abrp_data_changed": {
         "name": "Data ABRP změněna"

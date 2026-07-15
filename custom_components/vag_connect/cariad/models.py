@@ -437,6 +437,10 @@ class VehicleData:
     # (i.e. queued ``start_charging`` / ``stop_charging`` commands).
     # Same int-count diagnostic, same None semantics.
     charging_status_pending: int | None = None
+    # v2.17.5 — fourth *.requests sibling: ``batteryChargingCare
+    # .chargingCareSettings.requests`` counts queued battery-care changes.
+    # Same int-count diagnostic, same None semantics. sensor, diagnostic.
+    charging_care_pending: int | None = None
     # v2.15.8 — Cariad scout #583 (Audi): third charging-side *.requests
     # sibling — ``charging.chargeMode.requests`` counts queued chargeMode
     # change requests (e.g. a putChargeMode POST switching preferred mode
@@ -1650,6 +1654,15 @@ class VehicleData:
     # front_left / _front_right). binary_sensor, diagnostic.
     climate_zone_front_left_enabled: bool | None = None
     climate_zone_front_right_enabled: bool | None = None
+    # v2.17.5 — glass/mirror heating currently ACTIVE (state_mirror_heating_
+    # active) — distinct from the *enabled* setting above. binary_sensor, diag.
+    mirror_heating_active: bool | None = None
+    # v2.17.5 — extended conditioning currently ACTIVE per zone (state_zone_
+    # active_*) — the live status twin of the *_enabled settings. binary, diag.
+    climate_zone_active_front_left: bool | None = None
+    climate_zone_active_front_right: bool | None = None
+    climate_zone_active_rear_left: bool | None = None
+    climate_zone_active_rear_right: bool | None = None
     # Charging-related action (start_stop_action — dict type=string, no enum
     # list; _shorten_enum passes unprefixed values through). LOW —
     # disabled-by-default. sensor, diagnostic.

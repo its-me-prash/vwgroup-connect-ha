@@ -178,3 +178,38 @@ def test_v2175_rear_climate_zones_aliased() -> None:
     )
     assert d.climate_zone_rear_left is True
     assert d.climate_zone_rear_right is False
+
+
+def test_v2175_live_active_climate_and_mirror() -> None:
+    d = map_dataset_to_vehicle_data(
+        {
+            "state_mirror_heating_active": "true",
+            "state_zone_active_front_left": "true",
+            "state_zone_active_front_right": "false",
+            "state_zone_active_rear_left": "true",
+            "state_zone_active_rear_right": "false",
+        },
+        VehicleData(vin="X"),
+    )
+    assert d.mirror_heating_active is True
+    assert d.climate_zone_active_front_left is True
+    assert d.climate_zone_active_front_right is False
+    assert d.climate_zone_active_rear_left is True
+    assert d.climate_zone_active_rear_right is False
+
+
+def test_v2175_parkinglightstate_is_set() -> None:
+    assert map_dataset_to_vehicle_data(
+        {"parkinglightstate.is_set": "true"}, VehicleData(vin="X")
+    ).parking_light is True
+
+
+def test_v2175_trunk_locked_dotted_and_no_doors_collision() -> None:
+    # trunk.locked → trunk_locked; and a QUALIFIED door field wins over the
+    # trunk's bare 'locked' leaf (the cross-container collision fix).
+    d = map_dataset_to_vehicle_data(
+        {"trunk.locked": "true", "doorLockStatus": "unlocked", "locked": "true"},
+        VehicleData(vin="X"),
+    )
+    assert d.trunk_locked is True
+    assert d.doors_locked is False

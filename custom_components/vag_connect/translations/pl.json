@@ -674,6 +674,9 @@
       "charging_mode_pending": {
         "name": "Zmiany trybu ładowania oczekują"
       },
+      "charging_care_pending": {
+        "name": "Zmiany ochrony baterii oczekują"
+      },
       "climate_remaining_time_min": {
         "name": "Klimatyzacja – pozostały czas"
       },
@@ -1290,6 +1293,21 @@
       },
       "climate_zone_front_right_enabled": {
         "name": "Strefa klimatyczna przód prawa"
+      },
+      "mirror_heating_active": {
+        "name": "Podgrzewanie lusterek aktywne"
+      },
+      "climate_zone_active_front_left": {
+        "name": "Strefa klimatyczna przód lewa aktywna"
+      },
+      "climate_zone_active_front_right": {
+        "name": "Strefa klimatyczna przód prawa aktywna"
+      },
+      "climate_zone_active_rear_left": {
+        "name": "Strefa klimatyczna tył lewa aktywna"
+      },
+      "climate_zone_active_rear_right": {
+        "name": "Strefa klimatyczna tył prawa aktywna"
       },
       "abrp_data_changed": {
         "name": "Dane ABRP zmienione"
