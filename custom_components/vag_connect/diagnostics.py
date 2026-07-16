@@ -34,10 +34,13 @@ from .cariad._error_reporter import serialise_for_diagnostics
 from .cariad._unexpected_keys import _JWT_RE, _UUID_RE, _VIN_RE
 from .cariad._util import mask_vin
 from .const import (
+    CONF_ABRP_API_KEY,
+    CONF_ABRP_USER_TOKEN,
     CONF_BRAND,
     CONF_ENABLE_REVERSE_GEOCODING,
     CONF_PASSWORD,
     CONF_SPIN,
+    CONF_SPIN_BY_VIN,
     CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES,
     CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD,
     CONF_SUPPLEMENTARY_EU_PORTAL_USERNAME,
@@ -48,6 +51,16 @@ from .coordinator import VagConnectCoordinator
 _REDACT_KEYS = frozenset({
     CONF_PASSWORD,
     CONF_SPIN,
+    # v2.17.6 — the per-VIN S-PIN map (#759, shipped 2.17.5) is a
+    # {VIN: S-PIN} dict. Without this it fell through to the generic dict
+    # branch and got walked, emitting a real VIN as the key and the S-PIN
+    # as a plaintext value into every diagnostics download — the same class
+    # of leak the b11 note below documents fixing. Redact the whole map.
+    CONF_SPIN_BY_VIN,
+    # v2.17.6 — both ABRP credentials leaked in plaintext, despite the
+    # options help text promising "Never logged".
+    CONF_ABRP_API_KEY,
+    CONF_ABRP_USER_TOKEN,
     CONF_USERNAME,
     "vin",
     "address",
