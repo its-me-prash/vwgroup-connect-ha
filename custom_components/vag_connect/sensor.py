@@ -1080,10 +1080,14 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         entity_registry_enabled_default=False,
     ),
-    # b1/C1 — data provenance. Shows which channel(s) produced the snapshot
-    # (e.g. "eu_data_act+mbb") once the multi-channel merge runs. Gated on
-    # data-present so single-channel entries (source_channel=None) never get a
-    # phantom; only a merged poll spawns it.
+    # b1/C1 — data provenance. Shows which channel(s) produced the snapshot,
+    # e.g. "eu_data_act+mbb" when several contributed, or the single channel's
+    # name when one did.
+    # v2.17.6 (B2) — this used to appear only on multi-channel entries, because
+    # a car with no supplementary channel skipped the merge and so had no
+    # provenance at all. Every snapshot is attributed now, so the sensor answers
+    # "where is this car's data from" for everyone. Still gated on data-present,
+    # so a car that produced nothing yet doesn't get a phantom.
     VagSensorDescription(
         key="data_source_channel",
         translation_key="data_source_channel",

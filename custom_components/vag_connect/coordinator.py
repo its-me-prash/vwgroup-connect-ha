@@ -1435,13 +1435,19 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         supplementary channel is armed, so single-channel polling is untouched.
         Fail-soft: any merge error keeps the primary — a read-only fallback must
         never sink the poll, and command routing is never touched."""
+        from .cariad._channel_merge import annotate_provenance  # noqa: PLC0415
+
         client = self._cariad_client
         readers = getattr(client, "supplementary_readers", None)
         if readers is None:
-            return primary
+            return annotate_provenance(self._primary_channel_name(), primary)
         suppliers = readers(vin)
         if not suppliers:
-            return primary
+            # v2.17.6 (B2) — no supplementary channel to union, but the reading
+            # still has an origin. Record it so a single-channel car can name
+            # its source like everyone else; nothing else about the snapshot is
+            # touched.
+            return annotate_provenance(self._primary_channel_name(), primary)
         from .cariad._channel_merge import gather_and_merge  # noqa: PLC0415
         try:
             return await gather_and_merge(
@@ -1452,7 +1458,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 "C1 supplementary merge failed for %s — keeping primary: %s",
                 mask_vin(vin), err,
             )
-            return primary
+            # Still attribute what we did get — losing provenance exactly when
+            # a channel misbehaves is when it's most worth having.
+            return annotate_provenance(self._primary_channel_name(), primary)
 
     async def _revive_from_supplementary(
         self, vin: str, empty_primary: VehicleData

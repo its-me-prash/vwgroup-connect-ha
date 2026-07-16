@@ -126,6 +126,37 @@ def merge_channels(
     return merged
 
 
+def annotate_provenance(channel: str, data: "VehicleData") -> "VehicleData":
+    """Record single-channel provenance on *data*, in place.
+
+    v2.17.6 (B2) — a car with no supplementary channel never reaches
+    :func:`merge_channels`, so it had no provenance at all: its entities could
+    not say where their values came from, which is exactly the common case.
+
+    This applies the same "does this field carry a value" rule as the merge and
+    nothing else. It deliberately does NOT route the snapshot through
+    ``merge_channels``: that would also re-derive the drivetrain flags
+    (:func:`_merge_drivetrain`), silently changing EV/PHEV classification for
+    every single-channel car — a different change wearing this one's clothes.
+    """
+    from .models import VehicleData  # noqa: PLC0415
+
+    ref = VehicleData(vin=data.vin)
+    defaults = {f.name: getattr(ref, f.name) for f in fields(ref)}
+
+    sources: dict[str, str] = {}
+    for f in fields(data):
+        if f.name in _SKIP_FIELDS:
+            continue
+        if not bool(getattr(data, f.name) == defaults[f.name]):
+            sources[f.name] = channel
+
+    data.field_sources = sources
+    if sources:
+        data.source_channel = channel
+    return data
+
+
 def _merge_drivetrain(
     merged: "VehicleData", sources: list[tuple[str, "VehicleData"]]
 ) -> None:
