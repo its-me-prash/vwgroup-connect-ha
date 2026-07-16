@@ -1118,18 +1118,6 @@ class VagDoorSensor(VagConnectEntity, BinarySensorEntity):
         return bool(val) if val is not None else None
 
 
-async def _async_setup_door_sensors(
-    coordinator: VagConnectCoordinator,
-    vin: str,
-    vehicle: dict,
-    entities: list,
-) -> None:
-    """Legt individuelle Tür-Sensoren an basierend auf Fahrzeug-Doors-Dict."""
-    doors = vehicle.get("doors_individual", {})
-    for door_id in doors:
-        entities.append(VagDoorSensor(coordinator, vin, door_id))
-
-
 # v1.8.9 (Session 3C) — per-window binary sensors.
 # Layout mirrors ``_DOOR_NAMES``; populated by SEAT/CUPRA OLA paths
 # (``status.windows.{position}``). State convention: ``True`` means
@@ -1169,19 +1157,6 @@ class VagWindowSensor(VagConnectEntity, BinarySensorEntity):
         # Stored value: True == closed. is_on for WINDOW device_class
         # means "open detected" — invert.
         return (not val) if val is not None else None
-
-
-async def _async_setup_window_sensors(
-    coordinator: VagConnectCoordinator,
-    vin: str,
-    vehicle: dict,
-    entities: list,
-) -> None:
-    """Legt individuelle Fenster-Sensoren an, wenn die Fahrzeug-Antwort
-    sie liefert. Heute: SEAT/CUPRA OLA. Andere Marken: leer → keine Entities."""
-    windows = vehicle.get("windows_individual", {})
-    for window_id in windows:
-        entities.append(VagWindowSensor(coordinator, vin, window_id))
 
 
 # v1.12.0 (#91 leftover) — per-light binary sensors. Mirror the
@@ -1227,8 +1202,8 @@ async def _async_setup_light_sensors(
 ) -> None:
     """Create per-light binary sensors based on ``lights_individual`` dict.
 
-    Empty dict → no entities. Same phantom-protection pattern as
-    ``_async_setup_door_sensors`` / ``_async_setup_window_sensors``.
+    Empty dict → no entities, so a car that never reports individual
+    lights doesn't grow phantom ones.
     """
     lights = vehicle.get("lights_individual", {})
     for light_id in lights:

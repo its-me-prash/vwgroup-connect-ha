@@ -408,14 +408,3 @@ def ensure_error_reporter_issue(
         },
         learn_more_url=url,
     )
-
-
-def clear_reporter_issues(hass: HomeAssistant, entry_id: str) -> None:
-    """Drop both reporter issues for one entry.
-
-    Called when the user removes the integration or hits "Reset" on the
-    sensors. Cheap to call defensively — ``async_delete_issue`` is a
-    no-op if the issue doesn't exist.
-    """
-    ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_{ISSUE_ID_UNEXPECTED_KEYS}")
-    ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_{ISSUE_ID_ERROR_REPORTER}")
