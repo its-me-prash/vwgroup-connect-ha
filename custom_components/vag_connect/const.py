@@ -99,13 +99,6 @@ CONF_ENABLE_PUSH_AUDI_VW      = "enable_push_audi_vw"
 # string ("2.17.0") or full User-Agent string per RFC 7231.
 CONF_OLA_APP_VERSION_OVERRIDE = "ola_app_version_override"
 CONF_OLA_USER_AGENT_OVERRIDE  = "ola_user_agent_override"
-# v2.8.0 (Action #5) — preferred auth strategy pin. Set via the
-# Repair-flow guided action when a DAG-eligible brand (Audi/Skoda/SEAT/
-# CUPRA) silently degrades to hybrid_full. Recording the preference in
-# entry.options lets future polls honour the user's choice instead of
-# repeatedly retrying DAG. Values: "data_act_portal" (forces read-only
-# Data Act portal mode), "" / absent (default — resolver picks).
-CONF_PREFERRED_AUTH_STRATEGY  = "preferred_auth_strategy"
 # v2.8.0 Action #3 - EU Data Act portal scraper headless-browser
 # fallback. Off by default because the playwright dependency is heavy
 # (around 100 MB Chromium download) and most users will get usable
