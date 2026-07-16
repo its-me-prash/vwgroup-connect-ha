@@ -1,8 +1,8 @@
 # Contributors & Reporters
 
-VW Group Connect is made better by the people who take the time to file field-Scout reports, open issues, send diagnostics and logs, and test on real cars. This integration would be far poorer without them. **Thank you** 🙏
+VW Group Connect is made better by the people who take the time to file field-Scout reports, open issues, send diagnostics and logs, request features, join the discussions, and test on real cars. This integration would be far poorer without them. **Thank you** 🙏
 
-Everyone below has reported an issue or a Vehicle Data Scout finding on this repository (auto-compiled from the issue tracker; alphabetical, bots excluded). If you've contributed and aren't listed, that's an oversight — please open an issue and we'll fix it.
+Everyone below has reported an issue or a Vehicle Data Scout finding, requested a feature, or taken part in a discussion on this repository (auto-compiled; alphabetical, bots excluded). If you've contributed and aren't listed, that's an oversight — please open an issue and we'll fix it.
 
 - @3D-DIYde
 - @abb0r
@@ -24,6 +24,8 @@ Everyone below has reported an issue or a Vehicle Data Scout finding on this rep
 - @bmwpower530d
 - @Brinki99
 - @brokkolo
+- @bufferoverflow1337
+- @Bugi66
 - @cafarre
 - @Canaillee
 - @caraar12345
@@ -31,12 +33,16 @@ Everyone below has reported an issue or a Vehicle Data Scout finding on this rep
 - @Chr1sDub
 - @Chrischan20
 - @chrischtili
+- @ChrisPolewiak
+- @christiankrauss77
 - @christianmhz
+- @ChristophCaina
 - @clipse2004
 - @ColinSainsbury
 - @Cruiser1989
 - @crusader85
 - @CyberChris79
+- @dako0815
 - @danst0
 - @dardares
 - @datenhamster
@@ -50,11 +56,13 @@ Everyone below has reported an issue or a Vehicle Data Scout finding on this rep
 - @DnnsJp74
 - @Drachendiadem
 - @drakarr1
+- @Drew-Pinion
 - @durcak
 - @DvdEndeHA
 - @EcksteinU
 - @Eisbaer2
 - @eismarkt
+- @emanuelsilvapt
 - @emw1956
 - @ErikSiemens
 - @ErnstRoca
@@ -62,6 +70,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding on this rep
 - @FaffeF
 - @fajabird
 - @fesch89
+- @fightboy89
 - @Flux1959
 - @Fredi69
 - @fugazzy
@@ -71,14 +80,17 @@ Everyone below has reported an issue or a Vehicle Data Scout finding on this rep
 - @GitHobi
 - @GiuseppeAlbano
 - @gleeballs
+- @gmhome001
 - @gnusd
 - @goncal
 - @gr6803
 - @gudden
 - @HaaseJ64
 - @hajooh
+- @Hansibal
 - @heidle78
 - @heikone
+- @heyensh-sys
 - @hjg6969-cmd
 - @hnnweb
 - @hodgsonk-oss
@@ -91,9 +103,12 @@ Everyone below has reported an issue or a Vehicle Data Scout finding on this rep
 - @j4x5mgq94b-commits
 - @jamiegt10
 - @janez78
+- @jangoetz
 - @jebeke65
 - @jebissell
 - @jefft4
+- @JoeriGert
+- @jojoac
 - @joostbouten
 - @JosefAuer84
 - @juluga
@@ -105,6 +120,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding on this rep
 - @Killerrio
 - @Kilowatt-W
 - @KimmoT727
+- @kitkat270
 - @knalp
 - @KnappeP
 - @kocher
@@ -116,14 +132,19 @@ Everyone below has reported an issue or a Vehicle Data Scout finding on this rep
 - @KurtRam
 - @Lagaff86
 - @larrybarry3003
+- @liborcicvarek
 - @littlecake
 - @LouisFk
+- @loungelizard2018
 - @lubonodoro
 - @Lukas2069
 - @m3gg3
+- @Macy65
 - @MaFi1504
+- @majko188
 - @manentw
 - @Manuel-Hanak
+- @markaragnos81
 - @martijnve
 - @mathep34
 - @MathiasOxy
@@ -135,6 +156,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding on this rep
 - @MBrunk85
 - @McCloud65
 - @mdresen
+- @Mech0z
 - @Mettchen
 - @mheimlich
 - @mhorsche
@@ -148,12 +170,14 @@ Everyone below has reported an issue or a Vehicle Data Scout finding on this rep
 - @Mocron
 - @moltke69
 - @mortenbroesby
+- @Motii08
 - @munoze03
 - @mvanrijsten
 - @MZimmermannR
 - @nekas123
 - @neoscaler
 - @neumanntv
+- @Neumaz
 - @NevelSavage
 - @normand198
 - @nullkommaneun
@@ -161,12 +185,16 @@ Everyone below has reported an issue or a Vehicle Data Scout finding on this rep
 - @oh-supra
 - @Ola-Skallberg
 - @PascalFlierman
+- @petermnt
 - @pgmad
 - @Phoenix-DH
+- @Plexiblue4
 - @PoliMalo
 - @PollenNor
 - @PoPcornKRISs
 - @pugnoxi
+- @Quinnetou
+- @R000795
 - @r1150gs
 - @ra666ack
 - @Ra72xx
@@ -200,24 +228,34 @@ Everyone below has reported an issue or a Vehicle Data Scout finding on this rep
 - @StefanSch84
 - @steven-r
 - @StevenLies
+- @stingyraccoon
 - @Svenruotsi
+- @SvenSegers
 - @telekom-theinze
 - @Thatshoulddo
+- @thcherry
+- @thgroener
 - @thomas6779
 - @thomasgaisboeck
+- @thomasscherm
 - @THP2410
+- @tmh88
+- @toglo
 - @tolnaiz
 - @torstentosh
 - @tritanium73
 - @triumfas
 - @tsvyatkov
+- @vacuum007
 - @VanHynten
+- @vogesr
 - @wfa001
 - @whaak58
 - @Winbergarnas
 - @zapadee
 - @zarengagmbh
 - @zopyx
+- @Zwergnase94
 
 ---
 

@@ -52,8 +52,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **Live "currently active" sensors** for mirror heating and each climate zone (front/rear, left/right) — the live-status companions to the existing on/off settings. Diagnostic, off by default.
 - **"Battery Care Changes Pending"** diagnostic sensor.
 - **Parking-light coverage** for cars that report it as a single flag.
-- **A different S-PIN per vehicle (#759).** If the cars on your account each have their own S-PIN, you can now set a per-vehicle S-PIN under Settings → the integration → Configure. Leave a vehicle blank to keep using the shared S-PIN.
+- **A different S-PIN per vehicle (#759).** If the cars on your account each have their own S-PIN, you can now set a per-vehicle S-PIN under Settings → the integration → Configure. Leave a vehicle blank to keep using the shared S-PIN. Thanks **@ChristophCaina** for the request.
 - All new entities are translated in 12 languages.
+
+### Thanks
+
+Every fix and field above started with someone filing a report, a request or a diagnostic. Special thanks to **@ChristophCaina** for the per-vehicle S-PIN request, and to everyone whose Vehicle Data Scout reports surfaced the new portal fields and flagged the field-list flood. The full roll of reporters, feature-requesters, testers and discussion contributors is in [CONTRIBUTORS.md](CONTRIBUTORS.md) — thank you, all of you. 🙏
 
 ## [2.17.4] - 2026-07-13
 
@@ -62,6 +66,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **Electric VW ID.3 / ID.4 / ID.5 / ID.7 (and other MEB cars) show their driving range again over the EU Data Act portal.** These cars report the range in an anonymous field that only an internal id distinguishes, so the integration couldn't recognise it and the range stayed empty; it now resolves it correctly.
 - **A bogus "service due in ~2.1 billion km" reading is gone.** A specific "no value" marker the service countdown sends slipped through the filter and got flipped into a huge positive distance; it's now dropped like the other no-reading markers.
 - **No more pointless re-login loop when the data portal is briefly busy.** A "429 too many requests" or a "400 not ready yet" while fetching your data used to look like a failed login and kicked off a re-authentication loop; those are now treated as "no data this poll" and the next poll just tries again.
+
+### Thanks
+
+These EU Data Act read-path fixes (MEB/ID.x range, the "no reading" unit markers, transient-status handling) came out of benchmarking portal data quality across the wider EU Data Act community — thank you to everyone sharing real field data and edge cases, and to the reporters who flagged the missing ID.x range. 🙏
 
 ## [2.17.3] - 2026-07-13
 
@@ -73,6 +81,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **Combustion VW (North America) cars are no longer wrongly told they need a subscription.** The "not entitled" check keyed off the EV-only charge/climate reads, which legitimately don't apply to a petrol car; it now keys off the main vehicle-status read instead.
 - **The vw.de companion channel works on Car-Net (MBB) cars again** and stops forcing a repeated re-login. It was pinned to the wrong data-centre id for MBB cars, and it treated a "no data yet" reply as if your login had failed.
 - **Clearer errors when a command can't run on a Car-Net (MBB) car.** Honk & Flash now tells you it isn't available on that channel instead of a misleading "GPS position needed"; a rejected Security PIN now says exactly that — check your S-PIN — instead of looking like an expired subscription; and remote wake explains that VW doesn't permit it on that channel. Thanks to the live diagnostic that pinned all three down.
+
+### Thanks
+
+These fixes exist because people filed clear reports and ran real cars: **@SparkyDan555** (charge power/rate reading 10× too high), **@Rizencip** and **@shaunadam** (combustion VW North America), **@dazj1990** (the VW EU portal feed going quiet), and **@torstentosh** and **@Mattheisen87** (the MBB command diagnostics). 🙏
 
 ## [2.17.2] - 2026-07-11
 
