@@ -90,7 +90,7 @@ Kilka rzeczy jest **strukturalnych** — wynikają one z działania backendów V
 - **Zdalne polecenia CUPRA / SEAT są zablokowane przez VW.** Dostęp do usług online (OLA) dla tych marek został cofnięty po stronie serwera w 2026 (HTTP 403); ponowne logowanie ani aktualizacja wersji aplikacji go nie przywróci. Dane nadal płyną przez portal EU Data Act. ([#464](https://github.com/its-me-prash/vwgroup-connect-ha/issues/464))
 - **Dane z portalu EU Data Act są skąpe i różnią się w zależności od samochodu.** VW publikuje dziś tylko wycinek pól (często przebieg + blokada + ładowanie, czasem znacznie więcej). Z czasem się to rozszerza, gdy VW poszerza zakres portalu przed terminem we wrześniu 2026 — pola, które dziś pokazują `unknown`, mogą wypełnić się same, bez żadnych zmian. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465))
 
-> **Jak się sprawy mają.** Zgodnie z EU Data Act (Rozporządzenie (EU) 2023/2854) dane Twojego samochodu należą *do Ciebie*. Uruchomienie tej integracji na własnym sprzęcie to *Ty* uzyskujący dostęp *do własnych* danych (Artykuł 4) — należnych w tej samej jakości, w jakiej producent udostępnia je sobie samemu, w czasie rzeczywistym tam, gdzie jest to technicznie wykonalne. Dzisiejszy portal VW — tylko do odczytu i przestarzały o godziny — nie spełnia tego wymogu. Ta integracja jest celowo **niezależna od kanału**: w chwili, gdy VW da właścicielom interfejs działający w czasie rzeczywistym i umożliwiający sterowanie — czego wymaga Data Act i co część producentów już oferuje swoim właścicielom — będziemy go tu wspierać, za darmo, dla wszystkich. Popieramy Twoje prawo do dostępu do własnego samochodu w czasie rzeczywistym.
+> **Jak się sprawy mają.** Zgodnie z EU Data Act (Rozporządzenie (UE) 2023/2854) dane Twojego samochodu należą *do Ciebie*. Uruchomienie tej integracji na własnym sprzęcie to *Ty* uzyskujący dostęp *do własnych* danych (Artykuł 4) — należnych w tej samej jakości, w jakiej producent udostępnia je sobie samemu, w czasie rzeczywistym tam, gdzie jest to technicznie wykonalne. Dzisiejszy portal VW — tylko do odczytu i przestarzały o godziny — nie spełnia tego wymogu. Ta integracja jest celowo **niezależna od kanału**: w chwili, gdy VW da właścicielom interfejs działający w czasie rzeczywistym i umożliwiający sterowanie — czego wymaga Data Act i co część producentów już oferuje swoim właścicielom — będziemy go tu wspierać, za darmo, dla wszystkich. Popieramy Twoje prawo do dostępu do własnego samochodu w czasie rzeczywistym.
 
 ---
 
@@ -111,14 +111,14 @@ Kilka rzeczy jest **strukturalnych** — wynikają one z działania backendów V
 
 Pierwszy ekran integracji oferuje **dwie** metody logowania. Wybierz tę, którą obsługuje Twoja marka:
 
-- **Przeglądarka / device-code (bez hasła)** — *Audi · Škoda · SEAT · CUPRA.* Zaloguj się na telefonie lub laptopie i zatwierdź urządzenie; żadne hasło nie jest przechowywane w Home Assistant (zachowywany jest prawdziwy token odświeżania). Ten krok oferuje również opcjonalne pola **S-PIN**, interwału skanowania i wymuszania dostępu.
-- **Portal — e-mail + hasło** — *Volkswagen EU · Porsche.* Wprowadź dane logowania swojej marki. Ten krok udostępnia wybór marki (Volkswagen EU, Porsche i pozostałe marki na e-mail/hasło), e-mail, hasło, opcjonalny **S-PIN**, interwał skanowania, wymuszanie dostępu oraz przełącznik **„enable MBB commands"** (który ma efekt tylko dla Volkswagen EU — zobacz [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)). Dla **Volkswagen US/Kanada** pojawia się tutaj **selektor kraju (US vs CA)** — renderuje się **wyłącznie** dla tej marki i nie jest używany przez żadną inną.
+- **Przeglądarka / device-code (bez hasła)** — *Audi · Škoda · SEAT · CUPRA.* Zaloguj się na telefonie lub laptopie i zatwierdź urządzenie; żadne hasło nie jest przechowywane w Home Assistant (zachowywany jest prawdziwy token odświeżania). Ten krok oferuje również opcjonalny **S-PIN** oraz interwał skanowania.
+- **Portal — e-mail + hasło** — *Volkswagen EU · Porsche.* Wprowadź dane logowania swojej marki. Ten krok udostępnia wybór marki (Volkswagen EU, Porsche i pozostałe marki na e-mail/hasło), e-mail, hasło, opcjonalny **S-PIN**, interwał skanowania oraz przełącznik **„enable MBB commands"** (który ma efekt tylko dla Volkswagen EU — zobacz [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)). Dla **Volkswagen US/Kanada** pojawia się tutaj **selektor kraju (US vs CA)** — renderuje się **wyłącznie** dla tej marki i nie jest używany przez żadną inną.
 
 > **Portal EU Data Act nie jest trzecim przyciskiem logowania.** To strategia tylko do odczytu, na którą koordynator automatycznie się przełącza, i którą dodatkowo można *dodać* jako uzupełniający kanał odczytu z **Konfiguruj → Opcje**. To samo dotyczy kanału webowego `volkswagen.de` (opcjonalny, dostępny tylko w Opcjach uzupełniający kanał odczytu).
 
 ### Pole S-PIN — kiedy jest potrzebne
 
-**S-PIN** to PIN bezpieczeństwa aplikacji Twojej marki. Jest opcjonalny w formularzu i wymagany tylko dla niektórych działań: jest potrzebny do **odczytów danych i poleceń VW US/Kanada** oraz do wrażliwych pod względem bezpieczeństwa zdalnych poleceń na markach, które gatują je za S-PIN-em. Zostaw puste, jeśli Twój samochód o niego nie prosi.
+**S-PIN** to PIN bezpieczeństwa aplikacji Twojej marki. Jest opcjonalny w formularzu i wymagany tylko dla niektórych działań: jest potrzebny do **odczytów danych i poleceń VW US/Kanada** oraz do wrażliwych pod względem bezpieczeństwa zdalnych poleceń w markach, które zabezpieczają je S-PIN-em. Zostaw puste, jeśli Twój samochód o niego nie prosi.
 
 ---
 
@@ -129,12 +129,12 @@ Dla Volkswagen EU **samo zalogowanie nie wystarczy** — VW przesyła dane pojaz
 1. **Dodaj integrację:** wybierz **Portal (e-mail + hasło)** i wskaż **Volkswagen EU**, następnie zaloguj się.
 2. **Wykonaj jednorazowe monity na portalu VW.** Otwórz portal danych VW raz w przeglądarce lub aplikacji marki i dokończ to, o co prosi: **zaakceptuj warunki, potwierdź zgodę, zakończ onboarding / wybór regionu.** Dostęp bezgłowy nie przejdzie przez te kroki — to przypadek `portal_interaction_required` ([#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527)).
 3. **Udziel zgody na udostępnianie danych.** Na portalu ustaw **„Use of non-personal data" = Granted** (zgoda na udostępnianie danych w ramach EU Data Act).
-4. **Włącz ciągłe żądanie danych** dla konkretnego samochodu. Bez tego portal zwraca *no data request* dla danego VIN, a pojazd pojawia się bez odczytów.
+4. **Nie szukaj przełącznika „ciągłego żądania danych" — takiego nie ma.** Integracja sama tworzy takie żądanie dla każdego samochodu. Rejestruje przy tym miesięczną subskrypcję na Twoim koncie VW, która jest **bezpłatna**. Bez żądania portal nie zwraca nic dla danego VIN, a pojazd pojawia się bez odczytów.
 5. **Poczekaj, aż samochód wyśle migawkę.** Nawet po wykonaniu wszystkich powyższych kroków propagacja zajmuje czas. Samochód może przez jakiś czas pokazywać **`offline` / `unknown` — często aż do następnej jazdy lub wybudzenia, do ~24 godz.** — zanim sensory się wypełnią. To normalne.
 
 Portal początkowo udostępnia tylko **wycinek pól**, a ten wycinek **z czasem się poszerza**, gdy VW rozszerza zakres portalu przed terminem we wrześniu 2026 — pola, które dziś pokazują `unknown`, mogą wypełnić się same. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465) · [#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527) · [#567](https://github.com/its-me-prash/vwgroup-connect-ha/issues/567))
 
-> **Opcjonalnie:** przełącznik Opcji **`eu_data_act_auto_kickoff`** może automatycznie utworzyć dla Ciebie 15-minutowe Custom Data Request. Jest opcjonalny, ponieważ jego utworzenie oznacza **miesięczną subskrypcję na Twoim koncie VW**, więc integracja nie zrobi tego bez Twojej zgody.
+> To właśnie przełącznik Opcji **`eu_data_act_auto_kickoff`** tworzy owo 15-minutowe Custom Data Request i jest **domyślnie włączony** — w trybie portalowym bez niego nie ma danych. Wyłącz go tylko wtedy, gdy wolisz zarządzać żądaniem samodzielnie.
 
 ---
 
@@ -176,7 +176,7 @@ Możesz też wywołać usługę **`vag_connect.abrp_send`** bezpośrednio (skier
 ## Opcje (Konfiguruj)
 
 W **Ustawienia → Urządzenia i usługi → VW Group Connect → Konfiguruj** możesz dostosować:
-interwał skanowania, S-PIN, geokodowanie odwrotne, **tryb tylko do odczytu**, wymuszenie klimatyzacji PPE (Audi), przełączniki push (MQTT/FCM/Audi-VW), **awaryjny tryb przeglądarki EU Data Act** (Playwright / ~100 MB Chromium, opcjonalny), **wybudzanie przed odpytaniem** + opóźnienie wybudzania, nadpisanie client-id, **`eu_data_act_auto_kickoff`**, ukrywanie pustych encji (domyślnie włączone), **ABRP** (włączenie + api_key + token użytkownika, walidowane jako para), a także **dodawanie / usuwanie** uzupełniających kanałów odczytu `volkswagen.de` i portalu EU Data Act.
+interwał skanowania, S-PIN (a także osobny S-PIN dla każdego pojazdu, gdy na koncie jest więcej niż jeden samochód), geokodowanie odwrotne, **tryb tylko do odczytu**, wymuszenie klimatyzacji PPE (Audi), przełączniki push (MQTT/FCM/Audi-VW), nadpisanie client-id, **`eu_data_act_auto_kickoff`** (domyślnie włączone), ukrywanie pustych encji (domyślnie włączone), **ABRP** (włączenie + api_key + token użytkownika, walidowane jako para), a także **dodawanie / usuwanie** uzupełniających kanałów odczytu `volkswagen.de` i portalu EU Data Act.
 
 ---
 

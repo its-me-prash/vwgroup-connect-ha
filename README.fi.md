@@ -111,8 +111,8 @@ Muutamat asiat ovat **rakenteellisia** — ne johtuvat siitä, miten Volkswageni
 
 Integraation ensimmäinen näyttö tarjoaa **kaksi** kirjautumistapaa. Valitse se, jota merkkisi tukee:
 
-- **Selain / laitekoodi (salasanaton)** — *Audi · Škoda · SEAT · CUPRA.* Kirjaudu puhelimellasi tai kannettavallasi ja hyväksy laite; salasanaa ei tallenneta Home Assistantiin (se säilyttää aidon päivitystunnisteen). Tässä vaiheessa tarjotaan myös valinnaiset kentät **S-PIN**, skannausväli ja pakota-pääsy.
-- **Portaali — sähköposti + salasana** — *Volkswagen EU · Porsche.* Syötä merkin kirjautumistietosi. Tämä vaihe paljastaa merkkivalitsimen (Volkswagen EU, Porsche ja muut sähköposti/salasana-merkit), sähköpostin, salasanan, valinnaisen **S-PIN**:in, skannausvälin, pakota-pääsyn ja **"ota käyttöön MBB-komennot"** -kytkimen (jolla on vaikutusta vain Volkswagen EU:hun — katso [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)). **Volkswagen US/Kanadalle** tässä ilmestyy **maavalitsin (US vs. CA)** — se näkyy **vain** kyseiselle merkille eikä mikään muu käytä sitä.
+- **Selain / laitekoodi (salasanaton)** — *Audi · Škoda · SEAT · CUPRA.* Kirjaudu puhelimellasi tai kannettavallasi ja hyväksy laite; salasanaa ei tallenneta Home Assistantiin (se säilyttää aidon päivitystunnisteen). Tässä vaiheessa tarjotaan myös valinnainen **S-PIN** ja skannausväli.
+- **Portaali — sähköposti + salasana** — *Volkswagen EU · Porsche.* Syötä merkin kirjautumistietosi. Tämä vaihe paljastaa merkkivalitsimen (Volkswagen EU, Porsche ja muut sähköposti/salasana-merkit), sähköpostin, salasanan, valinnaisen **S-PIN**:in, skannausvälin ja **"ota käyttöön MBB-komennot"** -kytkimen (jolla on vaikutusta vain Volkswagen EU:hun — katso [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)). **Volkswagen US/Kanadalle** tässä ilmestyy **maavalitsin (US vs. CA)** — se näkyy **vain** kyseiselle merkille eikä mikään muu käytä sitä.
 
 > **EU Data Act -portaali ei ole kolmas kirjautumispainike.** Se on vain lukemiseen tarkoitettu strategia, johon koordinaattori automaattisesti palautuu, ja sen voi lisäksi *lisätä* täydentäväksi lukukanavaksi kohdasta **Määritä → Asetukset**. Sama pätee `volkswagen.de`-verkkokanavaan (valinnainen, vain asetuksista saatava täydentävä lukukanava).
 
@@ -129,12 +129,12 @@ Volkswagen EU:lla **kirjautuminen ei riitä** — VW streamaa ajoneuvon dataa va
 1. **Lisää integraatio:** valitse **Portaali (sähköposti + salasana)** ja valitse **Volkswagen EU**, kirjaudu sitten sisään.
 2. **Suorita mahdollinen kertaluonteinen kehote VW:n portaalissa.** Avaa VW:n dataportaali kerran selaimessa tai merkin sovelluksessa ja suorita loppuun, mitä se pyytää: **hyväksy ehdot, vahvista suostumus, viimeistele käyttöönotto / alueen valinta.** Selaimeton pääsy ei pääse näiden ohi — tämä on `portal_interaction_required`-tapaus ([#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527)).
 3. **Myönnä datan jakamisen suostumus.** Aseta portaalissa **"Ei-henkilökohtaisen datan käyttö" = Myönnetty** (EU Data Act -datan jakamisen suostumus).
-4. **Ota käyttöön jatkuva datapyyntö** kyseiselle autolle. Ilman sitä portaali palauttaa *ei datapyyntöä* kyseiselle VIN:ille ja ajoneuvo ilmestyy ilman lukemia.
+4. **Älä etsi "jatkuvan datapyynnön" kytkintä — sellaista ei ole.** Integraatio luo kyseisen pyynnön jokaiselle autolle itse. Se rekisteröi VW-tilillesi 1 kuukauden tilauksen, joka on **ilmainen**. Ilman pyyntöä portaali ei palauta kyseiselle VIN:ille mitään ja auto ilmestyy ilman lukemia.
 5. **Odota, että auto pushaa tilannekuvan.** Jopa kaiken yllä olevan jälkeen leviäminen vie aikaa. Auto voi lukea **`offline` / `unknown` jonkin aikaa — usein seuraavaan ajoon tai heräämiseen asti, jopa ~24 h** — ennen kuin anturit täyttyvät. Tämä on normaalia.
 
 Portaali tarjoaa aluksi vain **siivun kentistä**, ja tämä siivu **laajenee ajan myötä**, kun VW laajentaa portaalin kattavuutta ennen syyskuun 2026 määräaikaa — kentät, jotka lukevat tänään `unknown`, saattavat täyttyä itsestään. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465) · [#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527) · [#567](https://github.com/its-me-prash/vwgroup-connect-ha/issues/567))
 
-> **Valinnainen:** asetuskytkin **`eu_data_act_auto_kickoff`** voi luoda 15 minuutin mukautetun datapyynnön puolestasi automaattisesti. Se on valinnainen, koska sen luominen tarkoittaa **1 kuukauden tilausta VW-tililläsi**, joten integraatio ei tee sitä ilman lupaasi.
+> Asetuskytkin **`eu_data_act_auto_kickoff`** on se, joka luo tuon 15 minuutin mukautetun datapyynnön, ja se on **oletuksena päällä** — portaalitilassa ilman sitä ei tule dataa. Kytke se pois vain, jos haluat mieluummin hallita pyyntöä itse.
 
 ---
 
@@ -156,7 +156,7 @@ Integraatio toimittaa **20+ palvelukutsua** (`vag_connect.*`), monet niistä mer
 
 ## ABRP (A Better Routeplanner) -live-telemetria
 
-Voit pushata autosi live-datan **[A Better Routeplanner](https://abetterrouteplanner.com/)**iin, jotta se suunnittelee reitin todellisen latauksesi mukaan. Se on **valinnainen ja oletuksena pois päältä** — mitään ei lähde verkostasi ennen kuin kytket sen päälle ja lähetys tosiasiassa suoritetaan.
+Voit pushata autosi live-datan **[A Better Routeplanner](https://abetterrouteplanner.com/)**iin, jotta se suunnittelee reitin todellisen varaustilasi mukaan. Se on **valinnainen ja oletuksena pois päältä** — mitään ei lähde verkostasi ennen kuin kytket sen päälle ja lähetys tosiasiassa suoritetaan.
 
 **1. Hanki kaksi kirjautumistietoa.**
 
@@ -167,16 +167,16 @@ Voit pushata autosi live-datan **[A Better Routeplanner](https://abetterroutepla
 
 **3. Automatisoi lähetys.** Tuo mukana tuleva sinihahmo **"ABRP — upload telemetry on data change"** (`blueprints/automation/vag_connect/abrp_upload_on_data_change.yaml`), valitse ajoneuvosi ja sen **ABRP data changed** -anturi, ja olet valmis. Sinihahmo lataa vain, kun on aidosti uusi tilannekuva (*ABRP data changed* -binäärianturi on idempotentti laukaisin — se nollautuu jokaisen onnistuneen lähetyksen jälkeen, joten samaa tilannekuvaa ei koskaan lähetetä kahdesti).
 
-Voit myös kutsua palvelua **`vag_connect.abrp_send`** suoraan (kohdista laitteeseen tai VIN:iin; api_key/token tulevat asetuksista, ellet välitä niitä sisäisesti).
+Voit myös kutsua palvelua **`vag_connect.abrp_send`** suoraan (kohdista laitteeseen tai VIN:iin; api_key/token tulevat asetuksista, ellet anna niitä suoraan kutsussa).
 
-> 🔒 **Yksityisyys:** telemetria sisältää GPS:n. Se lähtee verkostasi vain, kun `abrp_send` suoritetaan (eli kun *sinä* laukaiset sen / otat sinihahmon käyttöön). Mitä lähetämme: latauksen tila, latausstatus, GPS, kulkusuunta, energia + kapasiteetti, arvioitu toimintamatka, ympäristön + akun lämpötila, matkamittari. Mitä tarkoituksella **emme** lähetä: mitään, mitä emme voi mitata luotettavasti (nopeus, HV-paketin jännite/virta, kunnon tila) — jätetty pois pikemminkin kuin arvattu.
+> 🔒 **Yksityisyys:** telemetria sisältää GPS:n. Se lähtee verkostasi vain, kun `abrp_send` suoritetaan (eli kun *sinä* laukaiset sen / otat sinihahmon käyttöön). Mitä lähetämme: akun varaustila, latauksen tila, GPS, kulkusuunta, energia + kapasiteetti, arvioitu toimintamatka, ympäristön + akun lämpötila, matkamittari. Mitä tarkoituksella **emme** lähetä: mitään, mitä emme voi mitata luotettavasti (nopeus, HV-paketin jännite/virta, kunnon tila) — jätetty pois pikemminkin kuin arvattu.
 
 ---
 
 ## Asetukset (Määritä)
 
 Kohdasta **Asetukset → Laitteet ja palvelut → VW Group Connect → Määritä** voit säätää:
-skannausväliä, S-PIN:iä, käänteistä geokoodausta, **vain luku -tilaa**, pakota PPE-ilmastointi (Audi), push-kytkimet (MQTT/FCM/Audi-VW), **EU Data Act -selainvarajärjestelmä** (Playwright / ~100 Mt Chromium, valinnainen), **herätä-ennen-kyselyä** + herätysviive, client-id-ohitus, **`eu_data_act_auto_kickoff`**, piilota tyhjät entiteetit (oletuksena päällä), **ABRP** (käyttöönotto + api_key + käyttäjätunniste, validoitu parina), sekä `volkswagen.de`- ja EU Data Act -portaalin täydentävien lukukanavien **lisääminen / poistaminen**.
+skannausväliä, S-PIN:iä (sekä ajoneuvokohtaista S-PIN:iä, kun tilillä on useampi kuin yksi auto), käänteistä geokoodausta, **vain luku -tilaa**, pakota PPE-ilmastointi (Audi), push-kytkimet (MQTT/FCM/Audi-VW), client-id-ohitus, **`eu_data_act_auto_kickoff`** (oletuksena päällä), piilota tyhjät entiteetit (oletuksena päällä), **ABRP** (käyttöönotto + api_key + käyttäjätunniste, validoitu parina), sekä `volkswagen.de`- ja EU Data Act -portaalin täydentävien lukukanavien **lisääminen / poistaminen**.
 
 ---
 

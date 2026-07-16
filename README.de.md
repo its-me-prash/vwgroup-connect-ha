@@ -111,8 +111,8 @@ Ein paar Dinge sind **strukturell** — sie kommen daher, wie Volkswagens Backen
 
 Der erste Bildschirm der Integration bietet **zwei** Login-Methoden. Wähle die, die deine Marke unterstützt:
 
-- **Browser / Device-Code (passwortlos)** — *Audi · Škoda · SEAT · CUPRA.* Melde dich auf deinem Handy oder Laptop an und bestätige das Gerät; kein Passwort wird in Home Assistant gespeichert (es behält ein echtes Refresh-Token). Dieser Schritt bietet zusätzlich die optionalen Felder **S-PIN**, Scan-Intervall und Force-Access.
-- **Portal — E-Mail + Passwort** — *Volkswagen EU · Porsche.* Gib dein Marken-Login ein. Dieser Schritt zeigt einen Markenwähler (Volkswagen EU, Porsche und die anderen E-Mail/Passwort-Marken), E-Mail, Passwort, optionale **S-PIN**, Scan-Intervall, Force-Access und einen **„MBB-Befehle aktivieren"**-Schalter (der nur bei Volkswagen EU wirkt — siehe [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)). Für **Volkswagen US/Kanada** erscheint hier ein **Länderwähler (US vs. CA)** — er wird **nur** für diese Marke angezeigt und von keiner anderen genutzt.
+- **Browser / Device-Code (passwortlos)** — *Audi · Škoda · SEAT · CUPRA.* Melde dich auf deinem Handy oder Laptop an und bestätige das Gerät; kein Passwort wird in Home Assistant gespeichert (es behält ein echtes Refresh-Token). Dieser Schritt bietet zusätzlich die optionale **S-PIN** und das Scan-Intervall.
+- **Portal — E-Mail + Passwort** — *Volkswagen EU · Porsche.* Gib dein Marken-Login ein. Dieser Schritt zeigt einen Markenwähler (Volkswagen EU, Porsche und die anderen E-Mail/Passwort-Marken), E-Mail, Passwort, optionale **S-PIN**, Scan-Intervall und einen **„MBB-Befehle aktivieren"**-Schalter (der nur bei Volkswagen EU wirkt — siehe [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)). Für **Volkswagen US/Kanada** erscheint hier ein **Länderwähler (US vs. CA)** — er wird **nur** für diese Marke angezeigt und von keiner anderen genutzt.
 
 > Das **EU-Data-Act-Portal ist kein dritter Login-Button.** Es ist die schreibgeschützte Strategie, auf die der Koordinator automatisch zurückfällt, und es kann zusätzlich als ergänzender Lesekanal über **Konfigurieren → Optionen** *hinzugefügt* werden. Dasselbe gilt für den `volkswagen.de`-Webkanal (ein optionaler, nur über die Optionen verfügbarer ergänzender Lesekanal).
 
@@ -129,12 +129,12 @@ Bei Volkswagen EU reicht **Einloggen nicht** — VW streamt Fahrzeugdaten erst, 
 1. **Integration hinzufügen:** Wähle **Portal (E-Mail + Passwort)** und **Volkswagen EU**, dann einloggen.
 2. **Erledige eine etwaige einmalige Abfrage auf VWs Portal.** Öffne das VW-Datenportal einmal im Browser oder in der Marken-App und schliess ab, was es verlangt: **Bedingungen akzeptieren, Einwilligung bestätigen, Onboarding / Regionsauswahl abschliessen.** Headless-Zugriff kommt an diesen nicht vorbei — das ist der Fall `portal_interaction_required` ([#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527)).
 3. **Datenfreigabe-Einwilligung erteilen.** Setze im Portal **„Nutzung nicht-personenbezogener Daten" = Erteilt** (die EU-Data-Act-Datenfreigabe-Einwilligung).
-4. **Aktiviere die kontinuierliche Datenanfrage** für das jeweilige Auto. Ohne sie liefert das Portal *keine Datenanfrage* für diese VIN, und das Fahrzeug erscheint ohne Messwerte.
+4. **Such nicht nach einem Schalter für die „kontinuierliche Datenanfrage" — den gibt es nicht.** Die Integration legt diese Anfrage für jedes Auto selbst an. Sie registriert dafür ein 1-Monats-Abo auf deinem VW-Konto, das **kostenlos** ist. Ohne Anfrage liefert das Portal für diese VIN nichts, und das Fahrzeug erscheint ohne Messwerte.
 5. **Warte, bis das Auto einen Snapshot pusht.** Selbst nach all dem braucht die Propagierung Zeit. Das Auto kann **eine Weile `offline` / `unknown` anzeigen — oft bis zur nächsten Fahrt oder zum nächsten Aufwachen, bis zu ~24 h** — bevor sich die Sensoren füllen. Das ist normal.
 
 Das Portal liefert anfangs nur einen **Ausschnitt der Felder**, und dieser Ausschnitt **weitet sich mit der Zeit**, während VW die Portalabdeckung vor der Frist im September 2026 ausbaut — Felder, die heute `unknown` zeigen, füllen sich womöglich von selbst. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465) · [#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527) · [#567](https://github.com/its-me-prash/vwgroup-connect-ha/issues/567))
 
-> **Optional:** Der Optionen-Schalter **`eu_data_act_auto_kickoff`** kann die 15-Minuten-Custom-Data-Request automatisch für dich anlegen. Er ist Opt-in, weil das Anlegen ein **1-Monats-Abo auf deinem VW-Konto** bedeutet — also macht die Integration es nicht ohne dein Okay.
+> Der Optionen-Schalter **`eu_data_act_auto_kickoff`** ist das, was die 15-Minuten-Custom-Data-Request anlegt, und er ist **standardmässig an** — im Portal-Modus gibt es ohne sie keine Daten. Schalte ihn nur aus, wenn du die Anfrage lieber selbst verwalten willst.
 
 ---
 
@@ -176,7 +176,7 @@ Du kannst auch den Service **`vag_connect.abrp_send`** direkt aufrufen (auf ein 
 ## Optionen (Konfigurieren)
 
 Unter **Einstellungen → Geräte & Dienste → VW Group Connect → Konfigurieren** kannst du anpassen:
-Scan-Intervall, S-PIN, Reverse-Geocoding, **Schreibgeschützter-Modus**, PPE-Klima erzwingen (Audi), Push-Schalter (MQTT/FCM/Audi-VW), **EU-Data-Act-Browser-Fallback** (Playwright / ~100 MB Chromium, Opt-in), Client-ID-Override, **`eu_data_act_auto_kickoff`**, leere Entitäten ausblenden (standardmässig an), **ABRP** (aktivieren + api_key + User-Token, als Paar validiert), sowie die ergänzenden Lesekanäle `volkswagen.de` und EU-Data-Act-Portal **hinzufügen / entfernen**.
+Scan-Intervall, S-PIN (plus eine S-PIN pro Fahrzeug, wenn im Konto mehr als ein Auto hängt), Reverse-Geocoding, **Schreibgeschützter-Modus**, PPE-Klima erzwingen (Audi), Push-Schalter (MQTT/FCM/Audi-VW), Client-ID-Override, **`eu_data_act_auto_kickoff`** (standardmässig an), leere Entitäten ausblenden (standardmässig an), **ABRP** (aktivieren + api_key + User-Token, als Paar validiert), sowie die ergänzenden Lesekanäle `volkswagen.de` und EU-Data-Act-Portal **hinzufügen / entfernen**.
 
 ---
 

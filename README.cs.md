@@ -111,8 +111,8 @@ Pár věcí je **strukturálních** — vyplývají z toho, jak fungují backend
 
 První obrazovka integrace nabízí **dvě** metody přihlášení. Vyberte tu, kterou vaše značka podporuje:
 
-- **Prohlížeč / device-code (bezheslové)** — *Audi · Škoda · SEAT · CUPRA.* Přihlaste se na telefonu nebo notebooku a schvalte zařízení; v Home Assistant se neukládá žádné heslo (uchovává se skutečný obnovovací token). V tomto kroku se nabízí i volitelný **S-PIN**, interval skenování a pole pro vynucený přístup.
-- **Portál — e-mail + heslo** — *Volkswagen EU · Porsche.* Zadejte přihlášení své značky. Tento krok zpřístupní výběr značky (Volkswagen EU, Porsche a ostatní značky s e-mailem/heslem), e-mail, heslo, volitelný **S-PIN**, interval skenování, vynucený přístup a přepínač **„enable MBB commands"** (který má účinek pouze na Volkswagen EU — viz [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)). Pro **Volkswagen US/Kanada** se zde objeví **volič země (US vs CA)** — vykreslí se **pouze** pro tuto značku a žádná jiná ho nepoužívá.
+- **Prohlížeč / device-code (bezheslové)** — *Audi · Škoda · SEAT · CUPRA.* Přihlaste se na telefonu nebo notebooku a schvalte zařízení; v Home Assistant se neukládá žádné heslo (uchovává se skutečný obnovovací token). V tomto kroku se nabízí i volitelný **S-PIN** a interval skenování.
+- **Portál — e-mail + heslo** — *Volkswagen EU · Porsche.* Zadejte přihlášení své značky. Tento krok zpřístupní výběr značky (Volkswagen EU, Porsche a ostatní značky s e-mailem/heslem), e-mail, heslo, volitelný **S-PIN**, interval skenování a přepínač **„enable MBB commands"** (který má účinek pouze na Volkswagen EU — viz [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)). Pro **Volkswagen US/Kanada** se zde objeví **volič země (US vs CA)** — vykreslí se **pouze** pro tuto značku a žádná jiná ho nepoužívá.
 
 > **Portál EU Data Act není třetí přihlašovací tlačítko.** Je to strategie jen pro čtení, na kterou se koordinátor automaticky přepne jako na záložní, a navíc ji lze *přidat* jako doplňkový čtecí kanál z **Konfigurovat → Možnosti**. Totéž platí pro webový kanál `volkswagen.de` (volitelný doplňkový čtecí kanál dostupný jen v Možnostech).
 
@@ -129,12 +129,12 @@ U Volkswagen EU **samotné přihlášení nestačí** — VW začne streamovat v
 1. **Přidejte integraci:** zvolte **Portál (e-mail + heslo)** a vyberte **Volkswagen EU**, pak se přihlaste.
 2. **Dokončete jakoukoliv jednorázovou výzvu na portálu VW.** Otevřete datový portál VW jednou v prohlížeči nebo v aplikaci značky a dokončete vše, co po vás chce: **přijměte podmínky, potvrďte souhlas, dokončete onboarding / výběr regionu.** Bezobslužný přístup přes tyto kroky neprojde — jde o případ `portal_interaction_required` ([#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527)).
 3. **Udělte souhlas se sdílením dat.** Na portálu nastavte **„Use of non-personal data" = Granted** (souhlas se sdílením dat dle EU Data Act).
-4. **Zapněte průběžný požadavek na data** pro konkrétní auto. Bez něj portál pro dané VIN vrátí *no data request* a vozidlo se objeví bez údajů.
+4. **Nehledejte přepínač „průběžný požadavek na data" — žádný tam není.** Integrace si tento požadavek pro každé auto vytvoří sama. Zaregistruje na vašem účtu VW měsíční předplatné, které je **zdarma**. Bez požadavku portál pro dané VIN nevrátí nic a vozidlo se objeví bez údajů.
 5. **Počkejte, až auto odešle snímek.** I po všem výše uvedeném trvá propagace nějakou dobu. Auto může **chvíli číst `offline` / `unknown` — často až do další jízdy nebo probuzení, klidně ~24 h** — než se senzory naplní. To je normální.
 
 Portál zpočátku poskytuje jen **výsek polí** a tento výsek se **postupně rozšiřuje**, jak VW rozšiřuje pokrytí portálu před zářijovým termínem 2026 — pole, která dnes čtou `unknown`, se mohou sama vyplnit. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465) · [#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527) · [#567](https://github.com/its-me-prash/vwgroup-connect-ha/issues/567))
 
-> **Volitelné:** přepínač v Možnostech **`eu_data_act_auto_kickoff`** může za vás automaticky vytvořit 15minutový Custom Data Request. Je volitelný, protože jeho vytvoření znamená **měsíční předplatné na vašem účtu VW**, takže to integrace neudělá bez vašeho svolení.
+> Ten 15minutový Custom Data Request vytváří přepínač v Možnostech **`eu_data_act_auto_kickoff`** a je **ve výchozím stavu zapnutý** — v režimu portálu bez něj žádná data nejsou. Vypněte ho jen tehdy, pokud si chcete požadavek spravovat sami.
 
 ---
 
@@ -158,7 +158,7 @@ Integrace přináší **20+ volání služeb** (`vag_connect.*`), z nichž mnoh�
 
 Živá data svého auta můžete posílat do **[A Better Routeplanner](https://abetterrouteplanner.com/)**, aby plánoval podle vašeho skutečného stavu nabití. Je to **volitelné a ve výchozím stavu vypnuté** — z vaší sítě nic neodejde, dokud to nezapnete a dokud se skutečně nespustí nahrání.
 
-**1. Získejte dvě přihlašovací údaje.**
+**1. Získejte dva přihlašovací údaje.**
 
 - **`token`** (na vozidlo) — otevřete aplikaci ABRP → **Settings → vaše auto → Live Data → „Generic" / jiné auto** a zkopírujte token, který zobrazí.
 - **`api_key`** (vývojářský klíč) — jde o partnerský/vývojářský klíč vydaný **iternio**, *ne* o něco, co vydá aplikace. Vyžádejte si ho od iternio (jejich formulář pro žádost o vývojářský/API klíč). **Záměrně žádný klíč nedodáváme** — natvrdo zadrátovat klíč, který nevlastníme, by bylo vydávání se za někoho jiného a zapeklo by nevlastněné tajemství do veřejného repozitáře. Vložte svůj vlastní.
@@ -176,7 +176,7 @@ Můžete také volat službu **`vag_connect.abrp_send`** přímo (cíleně na za
 ## Možnosti (Konfigurovat)
 
 Z **Nastavení → Zařízení a služby → VW Group Connect → Konfigurovat** můžete upravit:
-interval skenování, S-PIN, zpětné geokódování, **režim jen pro čtení**, vynucenou klimatizaci PPE (Audi), přepínače push (MQTT/FCM/Audi-VW), **záložní prohlížeč EU Data Act** (Playwright / ~100 MB Chromium, volitelné), přepsání client-id, **`eu_data_act_auto_kickoff`**, skrytí prázdných entit (výchozí zapnuto), **ABRP** (zapnutí + api_key + uživatelský token, validováno jako pár), plus **přidání / odebrání** doplňkových čtecích kanálů `volkswagen.de` a portálu EU Data Act.
+interval skenování, S-PIN (a k tomu S-PIN pro jednotlivá vozidla, pokud je na účtu víc než jedno auto), zpětné geokódování, **režim jen pro čtení**, vynucenou klimatizaci PPE (Audi), přepínače push (MQTT/FCM/Audi-VW), přepsání client-id, **`eu_data_act_auto_kickoff`** (výchozí zapnuto), skrytí prázdných entit (výchozí zapnuto), **ABRP** (zapnutí + api_key + uživatelský token, validováno jako pár), plus **přidání / odebrání** doplňkových čtecích kanálů `volkswagen.de` a portálu EU Data Act.
 
 ---
 
