@@ -3956,8 +3956,18 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         """
         options = getattr(self.entry, "options", None) or {}
         data = getattr(self.entry, "data", None) or {}
-        if vin and isinstance(options, dict):
-            by_vin = options.get(CONF_SPIN_BY_VIN)
+        if vin:
+            # v2.17.6 — read options THEN data, mirroring the shared S-PIN
+            # below. The options update-listener folds options into entry.data
+            # and blanks entry.options (__init__.py), so entry.options is empty
+            # by the time we read: the original options-only lookup never found
+            # the map and every car silently fell back to the shared S-PIN —
+            # i.e. #759 never actually took effect.
+            by_vin: Any = None
+            if isinstance(options, dict):
+                by_vin = options.get(CONF_SPIN_BY_VIN)
+            if not isinstance(by_vin, dict) and isinstance(data, dict):
+                by_vin = data.get(CONF_SPIN_BY_VIN)
             if isinstance(by_vin, dict):
                 per = str(by_vin.get(vin) or "")
                 if per:
