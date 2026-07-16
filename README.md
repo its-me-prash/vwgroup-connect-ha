@@ -129,12 +129,12 @@ For Volkswagen EU, **logging in is not enough** — VW only streams vehicle data
 1. **Add the integration:** choose **Portal (email + password)** and pick **Volkswagen EU**, then log in.
 2. **Complete any one-time prompt on VW's portal.** Open the VW data portal once in a browser or the brand app and finish whatever it asks: **accept terms, confirm consent, finish onboarding / region selection.** Headless access can't get past these — this is the `portal_interaction_required` case ([#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527)).
 3. **Grant data-sharing consent.** On the portal, set **"Use of non-personal data" = Granted** (the EU Data Act data-sharing consent).
-4. **Enable the continuous data request** for the specific car. Without it, the portal returns *no data request* for that VIN and the vehicle shows up with no readings.
+4. **Don't go looking for a "continuous data request" switch — there isn't one.** The integration creates that request for each car itself. It registers a 1-month subscription on your VW account, which is **free**. Without a request the portal returns nothing for that VIN and the car shows up with no readings.
 5. **Wait for the car to push a snapshot.** Even after all of the above, propagation takes time. The car can read **`offline` / `unknown` for a while — often until its next drive or wake, up to ~24 h** — before sensors populate. This is normal.
 
 The portal initially serves only a **slice of fields**, and that slice **widens over time** as VW expands portal coverage ahead of the Sept-2026 deadline — fields that read `unknown` today may fill in on their own. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465) · [#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527) · [#567](https://github.com/its-me-prash/vwgroup-connect-ha/issues/567))
 
-> **Optional:** the Options toggle **`eu_data_act_auto_kickoff`** can auto-create the 15-minute Custom Data Request for you. It's opt-in because creating it implies a **1-month subscription on your VW account**, so the integration won't do it without your say-so.
+> The Options toggle **`eu_data_act_auto_kickoff`** is what creates that 15-minute Custom Data Request, and it's **on by default** — in portal mode there's no data without one. Turn it off only if you'd rather manage the request yourself.
 
 ---
 
