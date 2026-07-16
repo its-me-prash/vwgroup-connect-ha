@@ -1960,7 +1960,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         a runtime warning. Live activation is confirmed per-brand by a tester
         with a real car; the circuit-breaker keeps a wrong body inert.
         """
-        options = dict(getattr(self.entry, "options", {}) or {})
+        # v2.17.6 — data THEN options, mirroring the merge the update-listener
+        # itself performs. The listener folds options into entry.data and blanks
+        # entry.options (__init__.py), so reading options alone meant all three
+        # toggles were permanently False and no push manager could ever start:
+        # the feature was unreachable from the UI for as long as it has shipped.
+        options = {
+            **dict(getattr(self.entry, "data", {}) or {}),
+            **dict(getattr(self.entry, "options", {}) or {}),
+        }
         brand = self.entry.data.get(CONF_BRAND, "")
         client = self._cariad_client
         if client is None:
