@@ -160,8 +160,28 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
         return VehicleImageFetcher.best_url(image_urls) if image_urls else None
 
     @property
+    def _field_source(self) -> str | None:
+        """Which read channel produced THIS entity's value.
+
+        v2.17.6 (B1) — a car can be read over several channels at once and no
+        channel is complete, so on a Golf GTE the fuel level and the SoC
+        legitimately come from different places. ``source_channel`` only says
+        which channels fed the car; the per-field map says which one produced
+        this particular reading. ``None`` when the field carries no value or
+        the entity isn't backed by a data_key.
+        """
+        key = getattr(self.entity_description, "data_key", None)
+        if not key:
+            return None
+        sources = self._vehicle.get("field_sources")
+        if not isinstance(sources, dict):
+            return None
+        source = sources.get(key)
+        return source if isinstance(source, str) else None
+
+    @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
-        """Surface ``image_url`` so Custom Lovelace Cards can read it.
+        """Surface ``image_url`` + the reading's ``source``.
 
         v1.25.0 PR-F (Audit Agent E #5 win): Cards like Ultra-Vehicle-Card,
         vehicle-info-card, mushroom-template-card consume an ``image_url``
@@ -169,15 +189,26 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
         adding it here, every entity (sensor, binary_sensor, switch, etc.)
         becomes a valid source for those cards.
 
+        v2.17.6 (B1) — ``source`` names the read channel this value came from,
+        so "where is this number from" is answerable per entity instead of only
+        per car, and templates/automations can key on it.
+
         Subclasses can override + call ``super().extra_state_attributes``
         to merge in their own attributes.
         """
-        vehicle = self._vehicle
-        image_urls: dict = vehicle.get("image_urls") or {}
-        if not image_urls:
-            return None
-        url = VehicleImageFetcher.best_url(image_urls)
-        return {"image_url": url} if url else None
+        attrs: dict[str, Any] = {}
+
+        image_urls: dict = self._vehicle.get("image_urls") or {}
+        if image_urls:
+            url = VehicleImageFetcher.best_url(image_urls)
+            if url:
+                attrs["image_url"] = url
+
+        source = self._field_source
+        if source:
+            attrs["source"] = source
+
+        return attrs or None
 
 
 # v1.25.0 PR-C — Listener-Pattern helper. Adopts the volkswagencarnet
