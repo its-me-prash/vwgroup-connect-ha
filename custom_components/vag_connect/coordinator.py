@@ -816,21 +816,38 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 return_exceptions=True,
             )
 
+            # v2.17.6 (A1) — merge + enrich BEFORE taking the lock, then only
+            # assign while holding it.
+            #
+            # Two reasons. (1) This path never merged at all: the poll loop
+            # unions the armed supplementary channels onto the primary, this
+            # one stored the raw primary, so the first snapshot after every
+            # setup/restart was primary-only and supplementary fields stayed
+            # blank until the first poll tick. (2) ``_vehicles_lock`` is a
+            # threading.Lock, and awaiting while holding one parks the whole
+            # event loop for any other task that tries to acquire it — the
+            # merge does network I/O, so it must not run inside.
+            prepared: list[tuple[str, dict[str, Any] | None, bool]] = []
+            for vin, result in zip(vins, results):
+                if isinstance(result, Exception):
+                    _LOGGER.warning("Could not fetch status for %s: %s", mask_vin(vin), result)
+                    prepared.append((vin, None, True))
+                    continue
+                if isinstance(result, VehicleData):
+                    merged = await self._merge_supplementary(vin, result)
+                    data = merged.to_dict()
+                    data["_client"] = self._cariad_client
+                    prepared.append((vin, await self._enrich(data), False))
+
             with self._vehicles_lock:
-                for vin, result in zip(vins, results):
-                    if isinstance(result, Exception):
-                        _LOGGER.warning("Could not fetch status for %s: %s", mask_vin(vin), result)
+                for vin, prepared_data, failed in prepared:
+                    if failed or prepared_data is None:
                         if hasattr(self, "vehicle_success"):
                             self.vehicle_success[vin] = False
                         continue
-                    if isinstance(result, VehicleData):
-                        data = result.to_dict()
-                        data["_client"] = self._cariad_client
-                        self.vehicles[vin] = self._apply_optimistic_hold(
-                            vin, await self._enrich(data)
-                        )
-                        if hasattr(self, "vehicle_success"):
-                            self.vehicle_success[vin] = True
+                    self.vehicles[vin] = self._apply_optimistic_hold(vin, prepared_data)
+                    if hasattr(self, "vehicle_success"):
+                        self.vehicle_success[vin] = True
 
             # Best-effort capabilities prefetch — never blocks setup.
             # Result lives in self.vehicle_capabilities for entity platforms
@@ -3563,17 +3580,27 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 *[self._cariad_client.get_status(vin) for vin in vins],
                 return_exceptions=True,
             )
+            # v2.17.6 (A1) — same shape as the setup fetch: merge + enrich
+            # outside the lock, assign inside.
+            #
+            # This path runs on every async_request_refresh(), i.e. after every
+            # command. It stored the raw primary, so locking the car made its
+            # supplementary fields (vw.de odometer, portal SoC, …) blank out
+            # until the next poll tick — data we already had, thrown away.
+            refreshed: list[tuple[str, dict[str, Any]]] = []
+            for vin, result in zip(vins, results):
+                if isinstance(result, Exception):
+                    _LOGGER.debug("Refresh failed for %s: %s", mask_vin(vin), result)
+                    continue
+                if isinstance(result, VehicleData):
+                    merged = await self._merge_supplementary(vin, result)
+                    data = merged.to_dict()
+                    data["_client"] = self._cariad_client
+                    refreshed.append((vin, await self._enrich(data)))
+
             with self._vehicles_lock:
-                for vin, result in zip(vins, results):
-                    if isinstance(result, Exception):
-                        _LOGGER.debug("Refresh failed for %s: %s", mask_vin(vin), result)
-                        continue
-                    if isinstance(result, VehicleData):
-                        data = result.to_dict()
-                        data["_client"] = self._cariad_client
-                        self.vehicles[vin] = self._apply_optimistic_hold(
-                            vin, await self._enrich(data)
-                        )
+                for vin, data in refreshed:
+                    self.vehicles[vin] = self._apply_optimistic_hold(vin, data)
             # v2.14.3 — a mid-poll 401 may have silently re-logged the
             # website-authproxy session (rotating its cookie jar). Persist the
             # fresh cookies so the next restart keeps skipping the OTP prompt.
