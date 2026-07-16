@@ -206,8 +206,18 @@ class VagConnectNumber(VagConnectEntity, NumberEntity):
         # restarts. Fall back to the spec defaults when the user has
         # not changed the slider yet.
         if key in self._AUXHEAT_DEFAULTS:
-            options = getattr(self.coordinator.entry, "options", None) or {}
-            val = options.get(self.entity_description.data_key) if isinstance(options, dict) else None
+            # v2.17.6 — options THEN data. The setter below writes to
+            # entry.options, but the update-listener folds options into
+            # entry.data and blanks entry.options (__init__.py), so an
+            # options-only read never saw the stored value and the slider
+            # snapped straight back to the spec default.
+            entry = self.coordinator.entry
+            options = getattr(entry, "options", None) or {}
+            data = getattr(entry, "data", None) or {}
+            dkey = self.entity_description.data_key
+            val = options.get(dkey) if isinstance(options, dict) else None
+            if val is None and isinstance(data, dict):
+                val = data.get(dkey)
             try:
                 return float(val) if val is not None else self._AUXHEAT_DEFAULTS[key]
             except (TypeError, ValueError):

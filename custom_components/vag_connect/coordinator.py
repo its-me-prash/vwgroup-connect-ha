@@ -1101,8 +1101,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         brand = self.entry.data[CONF_BRAND]
         scraper = DataActScraper(session, brand_name=brand)
 
+        # v2.17.6 — options THEN data. The write below lands in entry.options,
+        # but the update-listener immediately folds options into entry.data and
+        # blanks entry.options (__init__.py), so an options-only read never
+        # found the cached map and every setup re-probed the portal for
+        # identifiers it had already resolved.
         existing_map = dict(
-            self.entry.options.get(CONF_DATA_ACT_IDENTIFIERS) or {}
+            self.entry.options.get(CONF_DATA_ACT_IDENTIFIERS)
+            or self.entry.data.get(CONF_DATA_ACT_IDENTIFIERS)
+            or {}
         )
         new_map = dict(existing_map)
         changed = False
