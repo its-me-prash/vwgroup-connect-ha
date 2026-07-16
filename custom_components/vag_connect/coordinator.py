@@ -2183,6 +2183,42 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         """Return True if the CARIAD polling loop is active."""
         return self._started
 
+    def _push_managers(self) -> dict[str, Any]:
+        """Return the live push managers, keyed by channel name."""
+        return {
+            name: mgr
+            for name, mgr in (
+                ("skoda_mqtt", getattr(self, "_skoda_push", None)),
+                ("cupra_seat_fcm", getattr(self, "_cupra_seat_push", None)),
+                ("audi_vw_fcm", getattr(self, "_audi_vw_push", None)),
+            )
+            if mgr is not None
+        }
+
+    @property
+    def push_states(self) -> dict[str, str]:
+        """Per-channel push lifecycle state, for diagnostics.
+
+        v2.17.6 (#747) — the managers have carried a diagnostics-shaped
+        ``state`` since v2.2.0, but nothing ever exported it.
+        """
+        return {name: str(mgr.state) for name, mgr in self._push_managers().items()}
+
+    @property
+    def cloud_push_active(self) -> bool:
+        """Return True when at least one push channel is actually connected.
+
+        v2.17.6 (#747) — diagnostics used to report ``is_active`` under this
+        name, which is the *polling loop* flag: it read true on every setup,
+        including entries with all three push toggles off.
+        """
+        from .cariad.push.base import PushManagerState  # noqa: PLC0415
+
+        return any(
+            mgr.state is PushManagerState.CONNECTED
+            for mgr in self._push_managers().values()
+        )
+
     def is_vehicle_available(self, vin: str) -> bool:
         """Return True if *vin* should be reported available to entities.
 
