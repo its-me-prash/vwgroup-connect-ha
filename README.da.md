@@ -176,7 +176,7 @@ Du kan også kalde tjenesten **`vag_connect.abrp_send`** direkte (målret en enh
 ## Indstillinger (Konfigurer)
 
 Under **Indstillinger → Enheder & tjenester → VW Group Connect → Konfigurer** kan du justere:
-scanningsinterval, S-PIN, omvendt geokodning, **skrivebeskyttet tilstand**, gennemtving PPE-klima (Audi), push-kontakter (MQTT/FCM/Audi-VW), **EU Data Act-browser-fallback** (Playwright / ~100 MB Chromium, tilvalg), **wake-before-poll** + opvækningsforsinkelse, client-id-tilsidesættelse, **`eu_data_act_auto_kickoff`**, skjul-tomme-entiteter (slået til som standard), **ABRP** (aktivér + api_key + bruger-token, valideret som et par), plus **tilføj / fjern** de supplerende læsekanaler `volkswagen.de` og EU Data Act-portalen.
+scanningsinterval, S-PIN, omvendt geokodning, **skrivebeskyttet tilstand**, gennemtving PPE-klima (Audi), push-kontakter (MQTT/FCM/Audi-VW), **EU Data Act-browser-fallback** (Playwright / ~100 MB Chromium, tilvalg), client-id-tilsidesættelse, **`eu_data_act_auto_kickoff`**, skjul-tomme-entiteter (slået til som standard), **ABRP** (aktivér + api_key + bruger-token, valideret som et par), plus **tilføj / fjern** de supplerende læsekanaler `volkswagen.de` og EU Data Act-portalen.
 
 ---
 

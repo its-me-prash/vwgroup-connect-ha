@@ -39,9 +39,6 @@ from .const import (
     CONF_COUNTRY,
     CONF_ENABLE_DATA_ACT_BROWSER,
     CONF_EU_DATA_ACT_AUTO_KICKOFF,
-    CONF_WAKE_BEFORE_POLL,
-    CONF_WAKE_DELAY_SECONDS,
-    DEFAULT_WAKE_DELAY_SECONDS,
     CONF_ENABLE_PUSH_AUDI_VW,
     CONF_ENABLE_PUSH_FCM,
     CONF_ENABLE_PUSH_MQTT,
@@ -1757,34 +1754,6 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                         current_data.get(CONF_ENABLE_DATA_ACT_BROWSER, False),
                     ),
                 ): _BOOL_SELECTOR,
-                # v2.10.0 - active vehicle wake-up before status poll.
-                # Sends a wake POST for any VIN that was OFFLINE on the
-                # previous poll, waits CONF_WAKE_DELAY_SECONDS, then
-                # fetches status. Trade-off: one extra API call per
-                # offline VIN per poll cycle (counts against the daily
-                # quota) in exchange for fresh data on parked cars.
-                vol.Optional(
-                    CONF_WAKE_BEFORE_POLL,
-                    default=current_options.get(
-                        CONF_WAKE_BEFORE_POLL,
-                        current_data.get(CONF_WAKE_BEFORE_POLL, False),
-                    ),
-                ): _BOOL_SELECTOR,
-                vol.Optional(
-                    CONF_WAKE_DELAY_SECONDS,
-                    default=current_options.get(
-                        CONF_WAKE_DELAY_SECONDS,
-                        current_data.get(
-                            CONF_WAKE_DELAY_SECONDS, DEFAULT_WAKE_DELAY_SECONDS,
-                        ),
-                    ),
-                ): NumberSelector(
-                    NumberSelectorConfig(
-                        min=5, max=60, step=1,
-                        unit_of_measurement="s",
-                        mode=NumberSelectorMode.SLIDER,
-                    )
-                ),
                 # v2.10.4 - OAuth client_id override. Power-user escape
                 # hatch for when the community spots a fresh client_id
                 # in a new APK before our daily atlas builder catches

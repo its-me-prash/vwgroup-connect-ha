@@ -3538,52 +3538,6 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 return dict(self.vehicles)
         try:
             vins = list(self.vehicles.keys())
-            # v2.10.0 — opt-in active wakeup before status poll. Mirrors
-            # the pattern in audi_connect_ha v2.1.0 where the integration
-            # POSTs to ``cariad/vehicle/v1/vehicles/{vin}/vehiclewakeup``
-            # before fetching status, then sleeps ``wake_delay_seconds``
-            # to give the backend time to ingest the wake-pushed data
-            # before the read endpoint serves it. Closes the offline-car
-            # null-cascade reports (#306 DanielBie, #322 roberttco) for
-            # users who accept the additional 1 API call per poll.
-            from .const import (  # noqa: PLC0415
-                CONF_WAKE_BEFORE_POLL,
-                CONF_WAKE_DELAY_SECONDS,
-                DEFAULT_WAKE_DELAY_SECONDS,
-            )
-            if self.entry.options.get(CONF_WAKE_BEFORE_POLL, False):
-                wake_delay = float(
-                    self.entry.options.get(
-                        CONF_WAKE_DELAY_SECONDS, DEFAULT_WAKE_DELAY_SECONDS
-                    )
-                )
-                # Only wake VINs that were OFFLINE on the previous
-                # poll. Online cars do not need a wake-up and the extra
-                # API call would consume budget for no benefit.
-                offline_vins = [
-                    vin for vin in vins
-                    if (self.vehicles.get(vin) or {}).get("vehicle_state") == "OFFLINE"
-                    or (self.vehicles.get(vin) or {}).get("is_online") is False
-                ]
-                if offline_vins:
-                    _LOGGER.debug(
-                        "Active wake-up enabled: waking %d offline VIN(s) then sleeping %.1fs",
-                        len(offline_vins), wake_delay,
-                    )
-                    wake_results = await asyncio.gather(
-                        *[self._cariad_client.command_wake(vin) for vin in offline_vins],
-                        return_exceptions=True,
-                    )
-                    # Wake-failures are non-fatal: log + continue to the
-                    # normal status fetch. The car may still respond
-                    # with cached data even if wake failed.
-                    for vin, result in zip(offline_vins, wake_results):
-                        if isinstance(result, Exception):
-                            _LOGGER.debug(
-                                "Wake-up failed for %s (continuing with regular poll): %s",
-                                mask_vin(vin), result,
-                            )
-                    await asyncio.sleep(wake_delay)
             results = await asyncio.gather(
                 *[self._cariad_client.get_status(vin) for vin in vins],
                 return_exceptions=True,

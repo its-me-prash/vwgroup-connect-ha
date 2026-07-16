@@ -176,7 +176,7 @@ Puoi anche chiamare direttamente il servizio **`vag_connect.abrp_send`** (punta 
 ## Opzioni (Configura)
 
 Da **Impostazioni → Dispositivi e servizi → VW Group Connect → Configura** puoi regolare:
-intervallo di scansione, S-PIN, geocodifica inversa, **modalità sola lettura**, forza clima PPE (Audi), opzioni push (MQTT/FCM/Audi-VW), **fallback browser EU Data Act** (Playwright / ~100 MB Chromium, opt-in), **wake-before-poll** + ritardo di risveglio, override client-id, **`eu_data_act_auto_kickoff`**, nascondi entità vuote (attivo per impostazione predefinita), **ABRP** (abilita + api_key + token utente, validati come coppia), oltre ad **aggiungere / rimuovere** i canali di lettura supplementari `volkswagen.de` e portale EU Data Act.
+intervallo di scansione, S-PIN, geocodifica inversa, **modalità sola lettura**, forza clima PPE (Audi), opzioni push (MQTT/FCM/Audi-VW), **fallback browser EU Data Act** (Playwright / ~100 MB Chromium, opt-in), override client-id, **`eu_data_act_auto_kickoff`**, nascondi entità vuote (attivo per impostazione predefinita), **ABRP** (abilita + api_key + token utente, validati come coppia), oltre ad **aggiungere / rimuovere** i canali di lettura supplementari `volkswagen.de` e portale EU Data Act.
 
 ---
 

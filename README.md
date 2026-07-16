@@ -176,7 +176,7 @@ You can also call the **`vag_connect.abrp_send`** service directly (target a dev
 ## Options (Configure)
 
 From **Settings → Devices & Services → VW Group Connect → Configure** you can adjust:
-scan interval, S-PIN, reverse-geocoding, **read-only mode**, force PPE climate (Audi), push toggles (MQTT/FCM/Audi-VW), **EU Data Act browser fallback** (Playwright / ~100 MB Chromium, opt-in), **wake-before-poll** + wake delay, client-id override, **`eu_data_act_auto_kickoff`**, hide-empty-entities (default on), **ABRP** (enable + api_key + user token, validated as a pair), plus **add / remove** the `volkswagen.de` and EU Data Act portal supplementary read channels.
+scan interval, S-PIN, reverse-geocoding, **read-only mode**, force PPE climate (Audi), push toggles (MQTT/FCM/Audi-VW), **EU Data Act browser fallback** (Playwright / ~100 MB Chromium, opt-in), client-id override, **`eu_data_act_auto_kickoff`**, hide-empty-entities (default on), **ABRP** (enable + api_key + user token, validated as a pair), plus **add / remove** the `volkswagen.de` and EU Data Act portal supplementary read channels.
 
 ---
 

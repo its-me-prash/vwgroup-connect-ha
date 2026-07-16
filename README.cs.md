@@ -176,7 +176,7 @@ Můžete také volat službu **`vag_connect.abrp_send`** přímo (cíleně na za
 ## Možnosti (Konfigurovat)
 
 Z **Nastavení → Zařízení a služby → VW Group Connect → Konfigurovat** můžete upravit:
-interval skenování, S-PIN, zpětné geokódování, **režim jen pro čtení**, vynucenou klimatizaci PPE (Audi), přepínače push (MQTT/FCM/Audi-VW), **záložní prohlížeč EU Data Act** (Playwright / ~100 MB Chromium, volitelné), **wake-before-poll** + prodlevu probuzení, přepsání client-id, **`eu_data_act_auto_kickoff`**, skrytí prázdných entit (výchozí zapnuto), **ABRP** (zapnutí + api_key + uživatelský token, validováno jako pár), plus **přidání / odebrání** doplňkových čtecích kanálů `volkswagen.de` a portálu EU Data Act.
+interval skenování, S-PIN, zpětné geokódování, **režim jen pro čtení**, vynucenou klimatizaci PPE (Audi), přepínače push (MQTT/FCM/Audi-VW), **záložní prohlížeč EU Data Act** (Playwright / ~100 MB Chromium, volitelné), přepsání client-id, **`eu_data_act_auto_kickoff`**, skrytí prázdných entit (výchozí zapnuto), **ABRP** (zapnutí + api_key + uživatelský token, validováno jako pár), plus **přidání / odebrání** doplňkových čtecích kanálů `volkswagen.de` a portálu EU Data Act.
 
 ---
 

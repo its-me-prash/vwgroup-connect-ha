@@ -35,7 +35,7 @@ delta is small but the new module signals intent.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -83,14 +83,3 @@ class CommandDispatcher:
         lock = self._command_locks.get((vin, command_class))
         return bool(lock and lock.locked())
 
-    def record_wake(self, vin: str) -> None:
-        """Stamp the last-wake timestamp for cooldown tracking."""
-        self._wake_last_at[vin] = datetime.now(tz=timezone.utc)
-
-    def seconds_since_last_wake(self, vin: str) -> float | None:
-        """Return seconds since last wake for ``vin``, or None if never woken."""
-        last = self._wake_last_at.get(vin)
-        if last is None:
-            return None
-        delta = datetime.now(tz=timezone.utc) - last
-        return delta.total_seconds()
