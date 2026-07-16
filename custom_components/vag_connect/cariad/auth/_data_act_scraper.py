@@ -37,11 +37,13 @@ Route B - Headless browser
     a human would. Playwright is an OPTIONAL dependency: it is NOT
     listed in ``manifest.json`` (that would force every HA user to
     install around 100 MB of Chromium just to set up the integration).
-    Instead it is lazy-imported only when the user explicitly enables
-    the ``CONF_ENABLE_DATA_ACT_BROWSER`` OptionsFlow toggle. If the
-    toggle is enabled but the package is missing, the integration
-    surfaces a clear repair issue telling the user to ``pip install
-    playwright`` from inside their HA container.
+    Instead it is lazy-imported only when ``enable_browser_fallback``
+    is set on the scraper.
+
+    v2.17.6 — nothing sets it today: the OptionsFlow toggle that was
+    meant to drive it never had a reader and has been removed, and the
+    only caller that forwarded the flag is itself unreachable. The
+    fallback is therefore dormant rather than merely off.
 
 ## Polling cadence and wake-state requirement
 
@@ -275,9 +277,8 @@ class DataActScraper:
                 format.
             enable_browser_fallback: If True, ``fetch_vehicle_zip``
                 will fall back to a headless browser when the JSON
-                API returns no zip. Driven by the OptionsFlow toggle
-                ``CONF_ENABLE_DATA_ACT_BROWSER``. Off by default
-                because the playwright dependency is heavy.
+                API returns no zip. Nothing sets it today (v2.17.6) —
+                see the class docstring.
         """
         self._session = session
         self._brand_name = brand_name

@@ -37,13 +37,11 @@ from .const import (
     CONF_BRAND,
     CONF_CLIENT_ID_OVERRIDE,
     CONF_COUNTRY,
-    CONF_ENABLE_DATA_ACT_BROWSER,
     CONF_EU_DATA_ACT_AUTO_KICKOFF,
     CONF_ENABLE_PUSH_AUDI_VW,
     CONF_ENABLE_PUSH_FCM,
     CONF_ENABLE_PUSH_MQTT,
     CONF_ENABLE_REVERSE_GEOCODING,
-    CONF_FORCE_ACCESS,
     CONF_FORCE_PPE_CLIMATE,
     CONF_MBB_COMMAND_CHANNEL,
     CONF_MEB_COMMANDS_UNAVAILABLE,
@@ -266,7 +264,6 @@ def _credentials_schema(
     username: str = "",
     scan_interval: int = DEFAULT_SCAN_INTERVAL,
     spin: str = "",
-    force_access: bool = False,
     enable_mbb_commands: bool = False,
     country: str = "us",
 ) -> vol.Schema:
@@ -289,7 +286,6 @@ def _credentials_schema(
         schema[vol.Optional(CONF_COUNTRY, default=country)] = _COUNTRY_SELECTOR
     schema.update({
         vol.Optional(CONF_SCAN_INTERVAL, default=scan_interval): _INTERVAL_SELECTOR,
-        vol.Optional(CONF_FORCE_ACCESS, default=force_access): _BOOL_SELECTOR,
         # b12 — VW + Audi: after the portal login, add a durable-MBB command
         # channel (extra QR confirm) so this read-only portal entry also gets
         # remote lock/climate/charge. Ignored for other brands. Audi is
@@ -501,7 +497,6 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     suggested.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
                 ),
                 spin=suggested.get(CONF_SPIN, ""),
-                force_access=bool(suggested.get(CONF_FORCE_ACCESS, False)),
                 enable_mbb_commands=bool(
                     suggested.get("enable_mbb_commands", False)
                 ),
@@ -773,10 +768,6 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     CONF_SCAN_INTERVAL,
                     default=int(suggested.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)),
                 ): _INTERVAL_SELECTOR,
-                vol.Optional(
-                    CONF_FORCE_ACCESS,
-                    default=bool(suggested.get(CONF_FORCE_ACCESS, False)),
-                ): _BOOL_SELECTOR,
             }),
         )
 
@@ -841,10 +832,6 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     CONF_SCAN_INTERVAL,
                     default=int(suggested.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)),
                 ): _INTERVAL_SELECTOR,
-                vol.Optional(
-                    CONF_FORCE_ACCESS,
-                    default=bool(suggested.get(CONF_FORCE_ACCESS, False)),
-                ): _BOOL_SELECTOR,
             }),
             errors=errors,
         )
@@ -1521,7 +1508,6 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 username=current.get(CONF_USERNAME, ""),
                 scan_interval=current.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
                 spin=current.get(CONF_SPIN, ""),
-                force_access=current.get(CONF_FORCE_ACCESS, False),
                 country=current.get(CONF_COUNTRY, "us"),
             ),
             errors=errors,
@@ -1549,7 +1535,6 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 int(user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)),
                 MIN_SCAN_INTERVAL,
             ),
-            CONF_FORCE_ACCESS:  user_input.get(CONF_FORCE_ACCESS, False),
         }
         # v2.15.5 — the US/Canada region picker is ONLY meaningful for the
         # volkswagen_na brand (it selects the MYVW client_id + API host).
@@ -1736,22 +1721,6 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                     default=current_options.get(
                         CONF_ENABLE_PUSH_AUDI_VW,
                         current_data.get(CONF_ENABLE_PUSH_AUDI_VW, False),
-                    ),
-                ): _BOOL_SELECTOR,
-                # v2.8.0 Action #3 - opt-in toggle for the EU Data Act
-                # portal headless-browser fallback. Off by default
-                # because the playwright dependency is heavy (around
-                # 100 MB Chromium). Only meaningful when the active
-                # auth strategy is data_act_portal (i.e. the BFF + IDK
-                # chain have both failed and the integration has fallen
-                # back to the read-only portal). If True but playwright
-                # is not installed, the coordinator surfaces a Repair
-                # issue with installation instructions.
-                vol.Optional(
-                    CONF_ENABLE_DATA_ACT_BROWSER,
-                    default=current_options.get(
-                        CONF_ENABLE_DATA_ACT_BROWSER,
-                        current_data.get(CONF_ENABLE_DATA_ACT_BROWSER, False),
                     ),
                 ): _BOOL_SELECTOR,
                 # v2.10.4 - OAuth client_id override. Power-user escape

@@ -17,14 +17,12 @@
         "data": {
           "mbb_vins": "VIN (voertuigidentificatienummer)",
           "spin": "S-PIN",
-          "scan_interval": "Bijwerkinterval",
-          "force_enable_access": "Deurstatus forceren"
+          "scan_interval": "Bijwerkinterval"
         },
         "data_description": {
           "mbb_vins": "Je 17-cijferige VIN (op de voorruit / het kentekenbewijs). Meerdere auto's: scheiden met een komma. Verplicht — het duurzame MBB-token werkt per VIN maar kan je garage niet opsommen.",
           "spin": "Optionele 4-cijferige beveiligings-PIN — vereist voor vergrendelen/ontgrendelen op afstand.",
-          "scan_interval": "Minuten tussen het ophalen van voertuiggegevens.",
-          "force_enable_access": "Forceer deurstatus-entiteiten ook wanneer het voertuig de gegevens als ontbrekend meldt."
+          "scan_interval": "Minuten tussen het ophalen van voertuiggegevens."
         }
       },
       "website_authproxy": {
@@ -68,8 +66,7 @@
           "password": "Wachtwoord",
           "spin": "S-PIN",
           "country": "Regio (alleen Volkswagen VS/Canada)",
-          "scan_interval": "Update-interval",
-          "force_enable_access": "Deurstatus forceren"
+          "scan_interval": "Update-interval"
         }
       },
       "mfa": {
@@ -92,7 +89,6 @@
           "spin": "S-PIN",
           "country": "Regio (alleen Volkswagen VS/Canada)",
           "scan_interval": "Update Interval",
-          "force_enable_access": "Force Door Status",
           "enable_mbb_commands": "MBB-afstandsbediening inschakelen (alleen Volkswagen — extra QR-bevestiging)"
         },
         "data_description": {
@@ -100,8 +96,7 @@
           "username": "Email address from the manufacturer app.",
           "password": "Password from the app.",
           "spin": "Only needed for locking. App → Security → S-PIN.",
-          "scan_interval": "How often data is fetched. Default: 5 min. Minimum: 3 min.",
-          "force_enable_access": "For older vehicles that fail the capability check."
+          "scan_interval": "How often data is fetched. Default: 5 min. Minimum: 3 min."
         }
       },
       "browser_login": {
@@ -110,12 +105,10 @@
         "data": {
           "brand": "Vehicle Brand",
           "spin": "S-PIN",
-          "scan_interval": "Update Interval",
-          "force_enable_access": "Force Door Status"
+          "scan_interval": "Update Interval"
         },
         "data_description": {
           "brand": "Alleen merken met browser-login-ondersteuning worden getoond. Gebruik 'E-mail + wachtwoord' voor Volkswagen EU en Porsche.",
-          "force_enable_access": "Forceer deurstatus-entiteiten, ook als het voertuig de gegevens als ontbrekend meldt.",
           "scan_interval": "Minuten tussen de gegevensopvragingen van het voertuig.",
           "spin": "Optionele 4-cijferige beveiligings-PIN voor acties op afstand (vergrendelen, ontgrendelen, klimaat)."
         }
@@ -181,7 +174,6 @@
           "enable_push_audi_vw": "Audi/VW push updates (Cariad FCM, EXPERIMENTAL)",
           "client_id_override": "OAuth client_id override (power users)",
           "eu_data_act_auto_kickoff": "EU Data Act: auto-kickoff Custom Data Request",
-          "enable_data_act_browser": "EU Data Act-portaal: headless-browser-fallback (EXPERIMENTEEL)",
           "supplementary_authproxy": "Volkswagen.de-leeskanaal toevoegen (gegevens samenvoegen)",
           "hide_empty_entities": "Entiteiten zonder gegevens verbergen",
           "supplementary_eu_portal": "EU Data Act-portaal-leeskanaal toevoegen",
@@ -202,7 +194,6 @@
           "enable_push_audi_vw": "EXPERIMENTAL: Audi/VW only. Enables real-time push notifications from Cariad FCM channel (same one myAudi/WeConnect mobile apps use — covers lock/unlock results, charging-state, climate, alarm). Requires firebase-messaging Python package (same as Skoda MQTT + CUPRA/SEAT FCM). Foundation phase in v1.23.0; live activation pending community-tester validation. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling.",
           "client_id_override": "Power-user escape hatch for when the community spots a fresh OAuth client_id in a new VW Group APK before our daily atlas builder catches it. Paste the full UUID@apps_vw-dilab_com string here and the resolver tries it FIRST on every authenticate, with all the existing client_ids still in the chain as fallback. Leave empty for default behaviour. Format: 8-4-4-4-12 hex digits followed by @apps_vw-dilab_com. Malformed values are silently ignored.",
           "eu_data_act_auto_kickoff": "Only meaningful when the integration is operating in read-only EU Data Act portal mode (live BFF strategies have failed). When ON, the coordinator checks for an active 15-min Custom Data Request per VIN at startup and creates one when none exists. The kickoff implies a 1-month data subscription on your account at the portal, so this is opt-in. The portal accepts AT MOST ONE active custom request per VIN at a time. Off by default.",
-          "enable_data_act_browser": "EXPERIMENTEEL: alleen zinvol wanneer de integratie is teruggevallen op het EU Data Act-portaal (alleen-lezen). Stuurt een headless Chromium aan via het optionele Python-pakket 'playwright' om de data-exportknop van het portaal automatisch te klikken. Het pakket is NIET voorgeïnstalleerd (het haalt ongeveer 100 MB Chromium op). Wanneer ingeschakeld maar ontbrekend, legt een Reparatie-melding uit hoe je het installeert in de Home Assistant-container. Herlaad de integratie na het omschakelen.",
           "abrp_enable": "Live telemetrie naar A Better Routeplanner sturen. Vereist een api_key en een token per voertuig. Uit = geen uitgaande oproepen.",
           "abrp_api_key": "Een ontwikkelaars-/partnersleutel die je bij iternio registreert (wij leveren er geen). Identificeert de integratie. Wordt nooit gelogd.",
           "abrp_user_token": "Het 'Generic'-token uit de ABRP-app: Instellingen -> je auto -> Live Data. Wordt nooit gelogd."

@@ -18,8 +18,7 @@
           "password": "Passord",
           "spin": "S-PIN",
           "country": "Region (kun Volkswagen US/Canada)",
-          "scan_interval": "Oppdateringsintervall",
-          "force_enable_access": "Tving dørstatus"
+          "scan_interval": "Oppdateringsintervall"
         }
       },
       "mfa": {
@@ -42,7 +41,6 @@
           "spin": "S-PIN",
           "country": "Region (kun Volkswagen US/Canada)",
           "scan_interval": "Oppdateringsintervall",
-          "force_enable_access": "Tving dørstatus",
           "enable_mbb_commands": "Aktiver MBB-fjernkommandoer (kun Volkswagen — legger til en QR-bekreftelse)"
         },
         "data_description": {
@@ -50,8 +48,7 @@
           "username": "E-postadresse fra produsentens app.",
           "password": "Passord fra appen.",
           "spin": "Kreves kun for låsing. App → Sikkerhet → S-PIN.",
-          "scan_interval": "Hvor ofte data hentes. Standard: 5 min. Minimum: 3 min.",
-          "force_enable_access": "For eldre kjøretøy som ikke består funksjonssjekken."
+          "scan_interval": "Hvor ofte data hentes. Standard: 5 min. Minimum: 3 min."
         }
       },
       "user": {
@@ -70,14 +67,12 @@
         "data": {
           "mbb_vins": "VIN (kjøretøyidentifikasjonsnummer)",
           "spin": "S-PIN",
-          "scan_interval": "Oppdateringsintervall",
-          "force_enable_access": "Tving dørstatus"
+          "scan_interval": "Oppdateringsintervall"
         },
         "data_description": {
           "mbb_vins": "Din 17-tegns VIN (på frontruten / vognkortet). Flere biler: skill med komma. Kreves — det varige MBB-tokenet fungerer per VIN, men kan ikke liste opp garasjen din.",
           "spin": "Valgfri 4-sifret sikkerhets-PIN — kreves for fjernlåsing/-opplåsing.",
-          "scan_interval": "Minutter mellom hver henting av kjøretøydata.",
-          "force_enable_access": "Tving frem dørstatus-entiteter selv når kjøretøyet melder at dataene mangler."
+          "scan_interval": "Minutter mellom hver henting av kjøretøydata."
         }
       },
       "website_authproxy": {
@@ -110,12 +105,10 @@
         "data": {
           "brand": "Kjøretøymerke",
           "spin": "S-PIN",
-          "scan_interval": "Oppdateringsintervall",
-          "force_enable_access": "Tving dørstatus"
+          "scan_interval": "Oppdateringsintervall"
         },
         "data_description": {
           "brand": "Kun merker med støtte for nettleserpålogging vises. Bruk «E-post + passord» for Volkswagen EU og Porsche.",
-          "force_enable_access": "Tving frem dørstatus-entiteter selv når kjøretøyet melder at dataene mangler.",
           "scan_interval": "Minutter mellom hver henting av kjøretøydata.",
           "spin": "Valgfri 4-sifret sikkerhets-PIN for fjernhandlinger (låsing, opplåsing, klima)."
         }
@@ -181,7 +174,6 @@
           "enable_push_audi_vw": "Audi/VW push-oppdateringer (Cariad FCM, Live (beta))",
           "client_id_override": "Overstyring av OAuth client_id (avanserte brukere)",
           "eu_data_act_auto_kickoff": "EU Data Act: opprett Custom Data Request automatisk",
-          "enable_data_act_browser": "EU Data Act-portal: reserveløsning med nettleser uten grensesnitt (EKSPERIMENTELL)",
           "supplementary_authproxy": "Legg til en Volkswagen.de-lesekanal (slå sammen ekstra data)",
           "hide_empty_entities": "Skjul entiteter uten data",
           "supplementary_eu_portal": "Legg til en EU Data Act-portallesekanal",
@@ -202,7 +194,6 @@
           "enable_push_audi_vw": "Live (beta): Kun for Audi/VW. Aktiverer sanntids push-varsler fra Cariad FCM-kanalen (den samme myAudi/WeConnect-mobilappene bruker, dekker resultater av låsing/opplåsing, ladetilstand, klima, alarm). Dekodede hendelser sendes på Home Assistants hendelsesbuss som ``vag_connect_push_event`` og utløser en oppdatering fra koordinatoren. Krever Python-pakken firebase-messaging (samme lazy-import som Skoda MQTT + CUPRA/SEAT FCM). Live-aktivering siden v2.8.0 (Action #4); credential-resolveren er fortsatt testerbegrenset frem til oppfølgingen i oppgave #40 leverer Cariad Firebase sender_id. Hvis push er utilgjengelig, faller integrasjonen stille tilbake til polling. Last inn integrasjonen på nytt etter endring.",
           "client_id_override": "Nødløsning for avanserte brukere for når fellesskapet oppdager en fersk OAuth client_id i en ny VW Group-APK før vår daglige atlas-bygger fanger den opp. Lim inn hele UUID@apps_vw-dilab_com-strengen her, så prøver resolveren den FØRST ved hver autentisering, med alle eksisterende client_ids fortsatt i kjeden som reserve. La stå tom for standardoppførsel. Format: 8-4-4-4-12 heksadesimale sifre etterfulgt av @apps_vw-dilab_com. Feilformaterte verdier ignoreres stille.",
           "eu_data_act_auto_kickoff": "Bare relevant når integrasjonen kjører i skrivebeskyttet EU Data Act-portalmodus (live BFF-strategier har feilet). Når PÅ sjekker koordinatoren etter en aktiv 15-minutters Custom Data Request per VIN ved oppstart og oppretter en hvis ingen finnes. Oppstarten innebærer et 1-måneds dataabonnement på kontoen din i portalen, så dette er valgfritt. Portalen godtar HØYST ÉN aktiv custom request per VIN om gangen. Av som standard.",
-          "enable_data_act_browser": "EKSPERIMENTELL: bare relevant når integrasjonen har falt tilbake til EU Data Act-portalen (skrivebeskyttet). Styrer en Chromium uten grensesnitt via den valgfrie Python-pakken «playwright» for å klikke portalens dataeksportknapp automatisk. Pakken er IKKE forhåndsinstallert (den laster ned rundt 100 MB Chromium). Når aktivert men manglende, forteller en Reparasjon-sak deg hvordan du installerer den inne fra Home Assistant-containeren. Last inn integrasjonen på nytt etter endring.",
           "abrp_enable": "Send sanntidstelemetri til A Better Routeplanner. Trenger både en api_key og et token per kjøretøy nedenfor. Av = ingen utgående kall.",
           "abrp_api_key": "En utvikler-/partnernøkkel du registrerer hos iternio (vi leverer ingen). Identifiserer integrasjonen. Logges aldri.",
           "abrp_user_token": "«Generic»-tokenet fra ABRP-appen: Innstillinger -> bilen din -> Live Data. Logges aldri."
