@@ -1039,7 +1039,14 @@ def map_dataset_to_vehicle_data(
                         # LAST fallback only — never out-competes the canonical
                         # soc/battery_state_report.soc keys; just widens
                         # coverage for cars that report nothing else.
-                        "hv_soc"))
+                        "hv_soc",
+                        # v2.17.6 (#702) — Touareg-era legacy Car-Net export.
+                        # These cars ship a flat {dataFieldName, value} dataset
+                        # whose names are fully qualified (RBC.*/RTS.*/RDT.*),
+                        # with no bare-leaf twin, so none of the keys above ever
+                        # match and the car reads as "no data at all". LAST, for
+                        # the same reason as the charger-dialect aliases.
+                        "RBC.vehicleStates.[0].soc"))
     if soc is not None:
         d.battery_soc = soc
         d.has_battery = True
@@ -1163,7 +1170,21 @@ def map_dataset_to_vehicle_data(
         d.is_charging = cs.lower() in ("charging", "chargingacactive", "active")
         d.charging_state = _shorten_enum(cs)
 
-    cmode = first("charging_state_report.charge_mode", "charge_mode")
+    else:
+        # v2.17.6 (#702) — the Touareg-era legacy export reports charging as a
+        # BOOLEAN, not the VW state enum. It deliberately does NOT ride the
+        # ``cs`` lookup above: "true" is not in that enum tuple, so a charging
+        # car would come out as NOT charging. Only consulted when the canonical
+        # state is absent, so nothing changes for cars that ship both.
+        _legacy_chg = first("RBC.vehicleStates.[0].charging")
+        if _legacy_chg is not None:
+            d.is_charging = str(_legacy_chg).strip().lower() in ("true", "1")
+
+    cmode = first("charging_state_report.charge_mode", "charge_mode",
+                  # v2.17.6 (#702) — Touareg-era legacy export (e.g.
+                  # TIMER_BASED_CHARGING). Enum-shaped like the canonical
+                  # sources, so it can share this lookup; LAST as always.
+                  "RBC.chargerSettings.[0].chargeModeSelection.value")
     if cmode:
         d.charge_mode = _shorten_enum(cmode)
 
@@ -1267,6 +1288,32 @@ def map_dataset_to_vehicle_data(
     hv_max = _to_float(first("hvbatterytemperature.max_temperature"))
     if hv_max is not None and d.battery_temp_max is None:
         d.battery_temp_max = round(hv_max / 10 - 273.15, 1) if hv_max > 200 else hv_max
+
+    # v2.17.6 (#702) — Touareg-era legacy Car-Net export: climate target temp,
+    # also deci-Kelvin (2930 = 19.85 °C), with the same measurement-state
+    # companion as the in-cabin reading below. Same >200 dK guard, so a plain-°C
+    # dialect would pass through untouched.
+    _legacy_tt_state = first("RPC.climaterSettings.[0].targetTemperatureMeasurementState")
+    _legacy_tt = _to_float(first("RPC.climaterSettings.[0].targetTemperature"))
+    if (
+        _legacy_tt is not None
+        and d.target_temperature is None
+        and (
+            _legacy_tt_state is None
+            or str(_legacy_tt_state).lower()
+            not in ("invalid", "error", "measurement_invalid", "not_available")
+        )
+    ):
+        d.target_temperature = (
+            round(_legacy_tt / 10 - 273.15, 1) if _legacy_tt > 200 else _legacy_tt
+        )
+
+    # v2.17.6 (#702) — Touareg-era legacy export: the charger's picked AC
+    # current limit in amperes. It sits under ``chargerSettings``, so it is the
+    # *setting* twin (what the user chose), not the live deliverable amperage.
+    _legacy_mca = _to_int(first("RBC.chargerSettings.[0].maxChargeCurrentAmpere"))
+    if _legacy_mca is not None and d.charge_max_ac_setting is None:
+        d.charge_max_ac_setting = _legacy_mca
 
     # `in_cabin_temperature.temperature` — current interior °C. The
     # companion `measurement_state` flags validity; skip an explicitly
