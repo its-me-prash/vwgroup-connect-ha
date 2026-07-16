@@ -3752,6 +3752,32 @@ class VagConnectCoordinator(DataUpdateCoordinator):
     async def async_set_target_soc(self, vin: str, target: int) -> None:
         await self._cariad_cmd(vin, "command_set_target_soc", target=target)
 
+    async def async_set_battery_care(self, vin: str, enabled: bool) -> None:
+        """v2.17.6 — toggle battery-care (preservation) mode.
+
+        The read side has shipped since v2.10.0 (``refresh_battery_care``
+        fills ``battery_care_enabled`` + ``battery_care_target_soc_pct``) and
+        the brand client has had the command just as long — nothing was ever
+        wired between them, so the state was visible but not settable.
+        """
+        await self._cariad_cmd_optimistic(
+            vin, "command_set_battery_care",
+            optimistic={"battery_care_enabled": enabled},
+            enabled=enabled,
+        )
+
+    async def async_set_battery_care_target(self, vin: str, target_pct: int) -> None:
+        """v2.17.6 — set the battery-care top-charge target in percent.
+
+        Not clamped here: the backend enforces 50-100 and rejects anything
+        else, and a silent clamp would hide that constraint from the user.
+        """
+        await self._cariad_cmd_optimistic(
+            vin, "command_set_battery_care_target",
+            optimistic={"battery_care_target_soc_pct": target_pct},
+            target_pct=target_pct,
+        )
+
     async def async_set_climatisation_temperature(self, vin: str, temp_c: float) -> None:
         await self._cariad_cmd(vin, "command_set_climate_temperature", temp_c=temp_c)
 
@@ -4393,6 +4419,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         "command_set_charge_mode": "charging",
         "command_set_min_soc": "charging",
         "command_set_max_charge_current": "charging",
+        # v2.17.6 — battery care caps the top of the charge, so it shares the
+        # charging lock: firing it against an in-flight target-SoC change would
+        # have the two settings racing on the same backend object.
+        "command_set_battery_care": "charging",
+        "command_set_battery_care_target": "charging",
         "command_start_window_heating": "window_heating",
         "command_stop_window_heating": "window_heating",
         "command_flash": "flash",

@@ -1327,6 +1327,9 @@
       },
       "departure_timer_3_switch": {
         "name": "Departure Timer 3"
+      },
+      "battery_care_switch": {
+        "name": "Battery care"
       }
     },
     "number": {
@@ -1353,6 +1356,9 @@
       },
       "auxheat_target_temp": {
         "name": "Auxiliary Heating Target Temperature"
+      },
+      "battery_care_target": {
+        "name": "Battery care target"
       }
     },
     "button": {

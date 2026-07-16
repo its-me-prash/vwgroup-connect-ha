@@ -28,7 +28,7 @@ from .entity_base import VagConnectEntity, register_dynamic_spawner
 @dataclass(frozen=True)
 class VagNumberDescription(NumberEntityDescription):
     data_key: str = ""
-    condition: str | None = None  # "electric" | None
+    condition: str | None = None  # "electric" | "auxheat" | "battery_care" | None
 
 
 NUMBER_DESCRIPTIONS: tuple[VagNumberDescription, ...] = (
@@ -45,6 +45,23 @@ NUMBER_DESCRIPTIONS: tuple[VagNumberDescription, ...] = (
         icon="mdi:battery-charging-high",
         entity_category=EntityCategory.CONFIG,
         condition="electric",
+    ),
+    # v2.17.6 — battery-care top-charge target. Backend accepts 50-100 and
+    # rejects the rest; the slider mirrors that rather than letting the user
+    # pick a value the car will refuse.
+    VagNumberDescription(
+        key="battery_care_target",
+        translation_key="battery_care_target",
+        data_key="battery_care_target_soc_pct",
+        native_unit_of_measurement=PERCENTAGE,
+        device_class=NumberDeviceClass.BATTERY,
+        native_min_value=50,
+        native_max_value=100,
+        native_step=5,
+        mode=NumberMode.SLIDER,
+        icon="mdi:battery-heart-variant",
+        entity_category=EntityCategory.CONFIG,
+        condition="battery_care",
     ),
     VagNumberDescription(
         key="target_temperature",
@@ -174,6 +191,15 @@ async def async_setup_entry(
                 continue
             if desc.condition == "auxheat" and not auxheat_supported_brand:
                 continue
+            # v2.17.6 — gate on the READ having produced a value rather than on
+            # the brand: every client inherits the command stub from the base
+            # class, so a capability/hasattr check can't tell us who really has
+            # the feature. A car that reports a care target has it.
+            if (
+                desc.condition == "battery_care"
+                and vehicle.get("battery_care_target_soc_pct") is None
+            ):
+                continue
             cmd_id = _CMD_ID.get(desc.key)
             if cmd_id and coordinator.command_capability_supported(vin, cmd_id) is False:
                 continue
@@ -233,6 +259,8 @@ class VagConnectNumber(VagConnectEntity, NumberEntity):
         key = self.entity_description.key
         if key == "target_soc":
             await self.coordinator.async_set_target_soc(self._vin, int(value))
+        elif key == "battery_care_target":
+            await self.coordinator.async_set_battery_care_target(self._vin, int(value))
         elif key == "target_temperature":
             await self.coordinator.async_set_climatisation_temperature(self._vin, value)
         elif key == "min_soc":
