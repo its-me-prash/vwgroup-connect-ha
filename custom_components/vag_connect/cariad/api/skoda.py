@@ -799,6 +799,16 @@ class SkodaClient(CariadBaseClient):
             settings = charging.get("settings", {})
             d.target_soc = v(settings, "targetStateOfChargeInPercent")
             d.auto_unlock_charge = v(settings, "autoUnlockPlugWhenChargedAC") == "ON"
+            # v2.17.6 (Scout #781) — Skoda spells the AC current limit
+            # ``maxChargeCurrentAcAmpere`` (integer amps): a third spelling
+            # beside CUPRA/SEAT's ``maxChargeCurrentAcInAmperes`` and the
+            # official dictionary's enum-only ``settings.max_charge_current_ac``.
+            # sensor.max_charge_current is device_class=current (numeric A), so
+            # only a number is accepted — an enum string here would break entity
+            # rendering the way it did on CUPRA in #392.
+            _mca = v(settings, "maxChargeCurrentAcAmpere")
+            if isinstance(_mca, (int, float)) and not isinstance(_mca, bool):
+                d.max_charge_current = float(_mca)
             # v1.26.0 Welle-6 (#173, scouts #143/#133) — cross-brand alias.
             # Skoda's autoUnlockPlugWhenCharged or AC-suffix variant.
             au_raw = v(settings, "autoUnlockPlugWhenCharged") or v(settings, "autoUnlockPlugWhenChargedAC")
