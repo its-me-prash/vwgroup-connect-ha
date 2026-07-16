@@ -1397,6 +1397,13 @@ class VehicleData:
     # (e.g. "eu_data_act+mbb"); None for a single-channel poll. Surfaced as a
     # diagnostic attribute so users/maintainers can see where data came from.
     source_channel: str | None = None
+    # v2.17.6 (A2) — per-FIELD provenance: {field_name: channel} for every
+    # field that actually carries a value, recorded by the channel-merge layer.
+    # ``source_channel`` answers "which channels fed this car"; this answers
+    # "where did THIS reading come from", which is what an entity needs to
+    # expose its own source. Never merged itself (see _channel_merge
+    # ``_SKIP_FIELDS``) — each merge rebuilds it from the snapshots it saw.
+    field_sources: dict[str, str] = field(default_factory=dict)
     # v2.15.0b1 (A6) — raw field discovery: portal fields the curated parser
     # did not map, kept as {field_name: value} so the user can see every value
     # the backend sent (surfaced as attributes on ONE disabled diagnostic

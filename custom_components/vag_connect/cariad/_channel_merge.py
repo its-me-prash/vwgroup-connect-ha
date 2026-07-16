@@ -42,8 +42,8 @@ _LOGGER = logging.getLogger(__name__)
 
 # Identity / bookkeeping fields the merge must never touch.
 _SKIP_FIELDS = frozenset(
-    {"vin", "source_channel", "no_data", "has_battery", "has_combustion",
-     "is_electric", "is_hybrid"}
+    {"vin", "source_channel", "field_sources", "no_data", "has_battery",
+     "has_combustion", "is_electric", "is_hybrid"}
 )
 
 
@@ -74,13 +74,17 @@ def merge_channels(
     def _unset(name: str, value: object) -> bool:
         return bool(value == defaults[name])
 
-    # Seed contributors if the base carries any real value.
+    # v2.17.6 (A2) — per-field provenance, rebuilt from scratch on every merge.
+    field_sources: dict[str, str] = {}
+
+    # Seed contributors + provenance from the base. Every field the base
+    # actually carries is attributed to the base channel.
     for f in fields(merged):
         if f.name in _SKIP_FIELDS:
             continue
         if not _unset(f.name, getattr(merged, f.name)):
             contributors.add(base_name)
-            break
+            field_sources[f.name] = base_name
 
     for name, vd in sources[1:]:
         if vd.vin and base.vin and vd.vin != base.vin:
@@ -98,6 +102,8 @@ def merge_channels(
                     # mutation of either object would corrupt the other.
                     setattr(merged, f.name, copy.deepcopy(new))
                     contributors.add(name)
+                    # This channel filled the gap, so it owns the reading.
+                    field_sources[f.name] = name
 
     _merge_drivetrain(merged, sources)
 
@@ -108,6 +114,11 @@ def merge_channels(
         merged.source_channel = "+".join(sorted(contributors))
     elif contributors:
         merged.source_channel = next(iter(contributors))
+
+    # v2.17.6 (A2) — per-field provenance. Unlike source_channel this is set
+    # even for a single-channel merge, so an entity can always answer "where
+    # did my value come from" rather than only on multi-channel entries.
+    merged.field_sources = field_sources
 
     # ``merged`` is fully independent: base was deep-copied (above) and every
     # gap-filled value was deep-copied on assignment, so no mutable field is
