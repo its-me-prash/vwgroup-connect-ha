@@ -42,7 +42,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Fixed
 
-- **A handful of Vehicle Data Scout reports that wouldn't go away — none of them real gaps.** Aux-heating (Standheizung) started turning up in a second spot on Audis, and the climate-timer's error wrapper read as an unknown field (#752, #785, #789); Škoda's AC charge-current-in-amps was already being read but was never ticked off the catalogue (#781, #795); and on the EU Data Act feed the raw oil-level status is recognised now (#794). The catalogue simply hadn't been told about these — so the Scout stops flagging them. (The rest of the open Scout reports were account/envelope metadata, or fields we already read, and are being closed as triaged.)
+- **A handful of Vehicle Data Scout reports that wouldn't go away — none of them real gaps.** Aux-heating (Standheizung) started turning up in a second spot on Audis, and the climate-timer's error wrapper read as an unknown field (#752, #785, #789); Škoda's AC charge-current-in-amps was already being read but was never ticked off the catalogue (#781, #795); and on the EU Data Act feed the raw oil-level status is recognised now (#794). The catalogue simply hadn't been told about these — so the Scout stops flagging them.
+- **The portal Scout stops crying wolf on account/envelope metadata.** The EU Data Act feed repeats your account id, VIN, poll/message timestamps and a pile of per-export UUIDs on every single poll — none of it mappable vehicle data. These used to stay visible on principle; they're now dropped from the Scout/diagnostic surface (anything with a real, vehicle-specific field name still shows up), which clears a long tail of pure-repetition "N new fields" reports (#747, #782, #804 and a dozen more like them).
 
 ## [2.18.0] - 2026-07-17
 

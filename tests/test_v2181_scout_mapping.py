@@ -67,3 +67,41 @@ def test_v2181_oil_level_status_does_not_clobber_existing() -> None:
     d.oil_level_status = "ok"
     map_dataset_to_vehicle_data({"oil_level_status": "minWarning"}, d)
     assert d.oil_level_status == "ok"  # canonical/earlier value wins
+
+
+def test_v2181_envelope_metadata_dropped_from_raw_unmapped() -> None:
+    # Prash's carve-out (2026-07-17): account id / VIN / envelope timestamps /
+    # generic per-point names / per-export UUIDs repeat every poll and are
+    # dropped from the raw/Scout surface. A real field name still surfaces.
+    d = VehicleData(vin="X")
+    map_dataset_to_vehicle_data(
+        {
+            "user_id": "00000000-1111-2222-3333-444455556666",
+            "vin": "WVWZZZ1KZAW000000",
+            "timestamp": "1",
+            "echo": "x",
+            "message_id": "m",
+            "067f539c-85fe-3067-9c29-d63e177e3712": "1",  # per-export point UUID
+            "real_new_telemetry": "42",
+        },
+        d,
+    )
+    raw = d.raw_unmapped_fields or {}
+    for k in (
+        "user_id",
+        "vin",
+        "timestamp",
+        "echo",
+        "message_id",
+        "067f539c-85fe-3067-9c29-d63e177e3712",
+    ):
+        assert k not in raw, k
+    assert "real_new_telemetry" in raw  # real name still surfaces
+
+
+def test_v2181_ambiguous_open_stays_visible() -> None:
+    # The bare ``open`` boolean is deliberately NOT silenced — ambiguous meaning,
+    # so no-suppression still holds for it (#794/#807 stay open until it's known).
+    d = VehicleData(vin="X")
+    map_dataset_to_vehicle_data({"open": "true"}, d)
+    assert "open" in (d.raw_unmapped_fields or {})

@@ -20,7 +20,12 @@ def _map(fields: dict[str, str]) -> VehicleData:
     return map_dataset_to_vehicle_data(fields, VehicleData(vin="X"))
 
 
-def test_718_user_id_and_vin_values_redacted_names_kept() -> None:
+def test_718_user_id_and_vin_dropped_real_field_kept() -> None:
+    # v2.18.1 — Prash's ruling (2026-07-17): account id + VIN are pure identity
+    # metadata, the ONE carve-out from no-suppression. They are now DROPPED from
+    # the raw/Scout surface entirely (stronger than the old value-redaction), so
+    # they stop flooding the Scout on every poll. A genuine telemetry field with
+    # a real name still surfaces with its real value for discovery.
     d = _map(
         {
             "user_id": "00000000-1111-2222-3333-444455556666",
@@ -29,10 +34,7 @@ def test_718_user_id_and_vin_values_redacted_names_kept() -> None:
         }
     )
     raw = d.raw_unmapped_fields or {}
-    # NAMES stay (not suppressed → the Scout still surfaces them)
-    assert "user_id" in raw and "eu_data_act.vin" in raw
-    # ...but the real account UUID + VIN values are redacted
-    assert raw["user_id"] == "<redacted>"
-    assert raw["eu_data_act.vin"] == "<redacted>"
+    assert "user_id" not in raw
+    assert "eu_data_act.vin" not in raw
     # a genuine unmapped telemetry field keeps its real value for discovery
     assert raw["some_new_telemetry_field"] == "42"

@@ -237,11 +237,12 @@ class TestEUNewFields:
         d = _map({"error_code": "#0", "error_number": "0"})
         assert d.data_error_detail is None
 
-    def test_last_report_id_surfaced_and_scout_visible(self) -> None:
+    def test_last_report_id_mapped_message_id_suppressed(self) -> None:
         d = _map({"message_id": "rep-123"})
         assert d.last_report_id == "rep-123"
-        # b14 no-suppress: still visible in raw_unmapped_fields
-        assert "message_id" in d.raw_unmapped_fields
+        # v2.18.1 — message_id is envelope metadata: consumed into last_report_id
+        # and dropped from the raw/Scout surface (carve-out from no-suppression).
+        assert "message_id" not in d.raw_unmapped_fields
 
     def test_climate_and_residual_energy(self) -> None:
         # Real EU data-dictionary keys (the earlier guessed names never matched).
@@ -260,11 +261,12 @@ class TestEUNewFields:
         assert d.last_trip_avg_recuperation_kwh_100km == 2.2
         assert d.lifetime_avg_recuperation_kwh_100km == 1.8
 
-    def test_dataset_key_low_confidence_surfaced_and_scout_visible(self) -> None:
+    def test_dataset_key_mapped_key_suppressed(self) -> None:
         d = _map({"key": "abc-key"})
         assert d.dataset_key == "abc-key"
-        # LOW-confidence metadata stays Scout-visible (b14 no-suppress)
-        assert "key" in d.raw_unmapped_fields
+        # v2.18.1 — the generic ``key`` leaf is envelope metadata: consumed into
+        # dataset_key and dropped from the raw/Scout surface (carve-out).
+        assert "key" not in d.raw_unmapped_fields
 
     def test_bare_open_not_mapped_to_sunroof(self) -> None:
         # plan §5 LOW: leave bare `open` to raw_unmapped_fields until live-test

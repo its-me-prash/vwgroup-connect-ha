@@ -142,15 +142,19 @@ def test_remaining_times() -> None:
 
 # ── b14: NO suppression — every unmapped field surfaces in the Scout ─────────
 
-def test_nothing_is_suppressed_from_raw_unmapped() -> None:
-    # Policy: never hide Scout/raw fields. Anything not mapped this poll — even
-    # plumbing/metadata — must still appear so it can be learned + mapped later.
+def test_envelope_suppressed_real_fields_kept_in_raw_unmapped() -> None:
+    # v2.18.1 — the no-suppression rule now has ONE carve-out (Prash 2026-07-17):
+    # pure envelope/identity/generic metadata (echo, key, message_id, …) repeats
+    # on every poll and is dropped. Everything with a real, vehicle-specific name
+    # still surfaces so it can be learned + mapped later.
     d = _map({
         "echo": "echo", "key": "abc", "message_id": "m1",
         "some_brand_new_field": "42",
     })
-    for k in ("echo", "key", "message_id", "some_brand_new_field"):
-        assert k in d.raw_unmapped_fields
+    raw = d.raw_unmapped_fields
+    for k in ("echo", "key", "message_id"):
+        assert k not in raw
+    assert "some_brand_new_field" in raw
 
 
 # ── dictionary name index (fixes the #500 "Spec field" column) ────────────────

@@ -213,15 +213,16 @@ def test_error_codes_zero_sentinel_dropped() -> None:
 
 # ── No-suppress policy: skipped vendor-internal fields stay Scout-visible ─────
 
-def test_skipped_fields_stay_scout_visible() -> None:
+def test_vendor_field_visible_echo_envelope_suppressed() -> None:
     d = _map({
         "scope_potential_total": "0",
         "echo": "echo",
         "charge_mode_selection": "CHARGE_MODE_SELECTION_IMMEDIATECHARGING",
     })
-    # vendor-internal / plumbing fields are NOT mapped → must surface as raw
+    # a real vendor-internal field (real name) is NOT mapped → must surface as raw
     assert "scope_potential_total" in d.raw_unmapped_fields
-    assert "echo" in d.raw_unmapped_fields
+    # v2.18.1 — ``echo`` is envelope metadata → dropped (carve-out from no-suppress)
+    assert "echo" not in d.raw_unmapped_fields
     # a mapped field must NOT leak into the unmapped set
     assert "charge_mode_selection" not in d.raw_unmapped_fields
 
