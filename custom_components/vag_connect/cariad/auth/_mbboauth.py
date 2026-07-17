@@ -190,10 +190,29 @@ async def refresh(
     *,
     client_id: str = MBB_SHARED_CLIENT_ID,
 ) -> MbbTokenSet:
-    """Refresh an MBB bearer using its refresh_token (the durable path)."""
+    """Refresh an MBB bearer using its refresh_token (the durable path).
+
+    v2.18.0 (#584) — this used to send the value as ``token`` and omit the
+    scope, i.e. it inherited the shape of the ``id_token`` grant above (where
+    ``token`` is genuinely correct) instead of its own. The backend then got a
+    ``grant_type=refresh_token`` with no ``refresh_token`` in it and crashed
+    with ``500 IllegalStateException`` rather than answering cleanly — which is
+    why MBB died an hour after every setup and never once refreshed, and why
+    the v2.15.12 5xx retry didn't help: it re-sent a malformed request three
+    times.
+
+    The shape below is what our own recorded request has said all along
+    (``tests/bruno/mbb_legacy/02_POST_token_refresh.bru``): grant_type,
+    refresh_token, scope. Every other refresh path in the codebase already
+    sends ``refresh_token``; this was the only one that didn't.
+    """
     if not refresh_token:
         raise AuthenticationError("MBB refresh requires a non-empty refresh_token")
-    data = {"grant_type": "refresh_token", "token": refresh_token}
+    data = {
+        "grant_type": "refresh_token",
+        "refresh_token": refresh_token,
+        "scope": _MBB_SCOPE,
+    }
     return await _post_token(session, data, client_id)
 
 
