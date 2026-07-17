@@ -390,8 +390,7 @@ class VagRenderImageEntity(VagConnectEntity, ImageEntity):
                 pass
         return self._attr_image_url if isinstance(self._attr_image_url, str) else None
 
-    @property
-    def extra_state_attributes(self) -> dict:
+    def _platform_attributes(self) -> dict:
         """Full metadata for Lovelace and automations."""
         vehicle = self._vehicle
         image_urls: dict[str, str] = vehicle.get("image_urls") or {}
@@ -479,8 +478,7 @@ class VagSkodaWidgetImageEntity(VagConnectEntity, ImageEntity):
             else None
         )
 
-    @property
-    def extra_state_attributes(self) -> dict:
+    def _platform_attributes(self) -> dict:
         """Skoda widget metadata for Lovelace use."""
         vehicle = self._vehicle
         url = vehicle.get("render_url")

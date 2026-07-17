@@ -3327,8 +3327,7 @@ class VagConnectSensor(VagConnectEntity, SensorEntity):
         if description.suggested_display_precision is not None:
             self._attr_suggested_display_precision = description.suggested_display_precision
 
-    @property
-    def extra_state_attributes(self) -> dict[str, Any] | None:
+    def _platform_attributes(self) -> dict[str, Any] | None:
         """v1.14.0 (#24) — Surface ``recent_trips`` (last 5 short-term
         trips) on the ``last_trip_distance_km`` sensor.
 
@@ -3534,8 +3533,7 @@ class ReporterSensor(VagConnectSensor):
             ) else 0
         return None
 
-    @property
-    def extra_state_attributes(self) -> dict[str, Any] | None:
+    def _platform_attributes(self) -> dict[str, Any] | None:
         """Surface a tiny preview so the entity card is informative.
 
         Privacy: every value here has already passed through

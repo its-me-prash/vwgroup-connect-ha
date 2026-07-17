@@ -1015,8 +1015,7 @@ class VagConnectBinarySensor(VagConnectEntity, BinarySensorEntity):
             return not bool(val)
         return bool(val)
 
-    @property
-    def extra_state_attributes(self) -> dict[str, Any] | None:
+    def _platform_attributes(self) -> dict[str, Any] | None:
         """v1.15.0 — surface OTA release-notes URL on the update sensor.
 
         Pattern from the Trip-Stats `recent_trips` attrs in v1.14.0:
@@ -1074,8 +1073,7 @@ class VagAbrpDataChangedSensor(VagConnectEntity, BinarySensorEntity):
             return True
         return current != last
 
-    @property
-    def extra_state_attributes(self) -> dict[str, Any] | None:
+    def _platform_attributes(self) -> dict[str, Any] | None:
         last = self.coordinator.abrp_last_sent_fingerprint.get(self._vin)
         attrs: dict[str, Any] = {
             "last_upload_recorded": last is not None,

@@ -109,8 +109,7 @@ class VagConnectTracker(VagConnectEntity, TrackerEntity):
     def location_accuracy(self) -> int:
         return 10  # metres — typical car-GPS accuracy spec
 
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
+    def _platform_attributes(self) -> dict[str, Any]:
         """Surface address + state info for richer Map-tooltip.
 
         v1.25.0 PR-C: was empty pre-fix. Custom Lovelace cards
