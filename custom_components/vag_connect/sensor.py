@@ -682,9 +682,17 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
     # X-RateLimit-Remaining response header when the backend sends it
     # (most VAG endpoints do; older firmwares omit). Community research:
     # MyCupra/MySeat ~1500 calls/day, OLA + mysmob behave similarly.
-    # Sensor stays "unknown" if backend never sends the header (gated
-    # via ``_DATA_PRESENT_REQUIRED`` to avoid phantom 0 on first poll
-    # before any header has been observed).
+    #
+    # No phantom 0 on a header-less backend: the value stays None and the
+    # ``hide_empty`` gate (default on) skips the sensor at spawn time — see
+    # the spawn loop below. This trio is deliberately NOT in
+    # ``_DATA_PRESENT_REQUIRED``, despite an earlier comment here claiming so.
+    # That set is for fields a given car's API will never publish (brand or
+    # capability); a rate-limit header is transport metadata that can show up
+    # on the first response that carries it, which is precisely the "starts as
+    # None and populates later" case the set's own docstring says not to gate.
+    # With hide_empty off the user has asked to see everything, unknowns
+    # included, so there is nothing to protect them from here.
     VagSensorDescription(
         key="requests_remaining_today",
         translation_key="requests_remaining_today",
