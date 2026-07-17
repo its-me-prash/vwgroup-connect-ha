@@ -3265,7 +3265,16 @@ class VWEUClient(CariadBaseClient):
                     status_raw = status_raw.get("value") or status_raw.get("status")
                 if not isinstance(status_raw, str):
                     continue
-                is_closed = status_raw.lower() == "closed"
+                # Only a real open/closed status is meaningful. Option-dependent
+                # roof parts on a car without one report a non-open/closed
+                # sentinel (e.g. "unsupported"/"invalid"); treating that as
+                # "not closed" wrote False and rendered the entity as 'open'.
+                # Leave the descriptor None so the phantom-entity guard
+                # (_DATA_PRESENT_REQUIRED) suppresses it instead.
+                status_l = status_raw.lower()
+                if status_l not in ("open", "closed"):
+                    continue
+                is_closed = status_l == "closed"
                 if "sunroofrear" in name_l.replace("_", "") or name_l == "sun_roof_rear":
                     if d.sunroof_rear_closed is None:
                         d.sunroof_rear_closed = is_closed
@@ -3425,11 +3434,24 @@ class VWEUClient(CariadBaseClient):
             d.windows_open = any(
                 safe_get(w, "status[0].value") == "open" for w in windows
             )
-            d.windows_individual = {
-                str(name): safe_get(w, "status[0].value") == "open"
-                for w in windows
-                if (name := w.get("name")) is not None
-            }
+            # windows_individual follows the documented ``True == closed``
+            # convention — the same one the EU-Data-Act portal parser and
+            # ``VagWindowSensor`` (which inverts) already use. Storing
+            # ``status == "open"`` here (True == open) was the lone outlier and
+            # made every *closed* window render as *open* on Audi / VW-EU cars.
+            # Only entries with a real open/closed status are stored; a
+            # non-open/closed sentinel (an option-dependent roof on a car
+            # without one) is skipped so it can't surface as a phantom window.
+            windows_individual: dict[str, bool] = {}
+            for w in windows:
+                name = w.get("name")
+                if name is None:
+                    continue
+                st = safe_get(w, "status[0].value")
+                if not isinstance(st, str) or st.lower() not in ("open", "closed"):
+                    continue
+                windows_individual[str(name)] = st.lower() == "closed"
+            d.windows_individual = windows_individual
         elif overall == "SAFE":
             d.windows_open = False
 

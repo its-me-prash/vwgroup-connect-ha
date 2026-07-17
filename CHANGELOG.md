@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [Unreleased]
+
+### Fixed
+
+- **Closed windows and roof no longer show as "open" on Audi / VW-EU cars.** Every window read over the CARIAD channel — plus the rear sunroof and roof cover — reported *open* while the car was shut, even though the aggregate "windows open" sensor correctly said closed. Two causes, both in the CARIAD parser: (1) `windows_individual` stored `True == open`, the lone violation of the `True == closed` convention that the EU-Data-Act portal parser and `VagWindowSensor` (which inverts) already follow — so every closed window was flipped to open; (2) option-dependent roof parts on a car without an opening roof report a non-open/closed sentinel status, which was written as `False` ("not closed → open") instead of leaving the descriptor `None`, defeating the phantom-entity guard. The parser now follows the documented `True == closed` convention and skips sentinel statuses, so shut windows read *closed* and non-existent roofs don't surface at all. Verified on a real PPE Audi Q6. Note for maintainer: `doors_individual` carries the opposite convention (`True == open`, per `VagDoorSensor`), and `seat_cupra.py` stores doors as `True == closed` — a likely-latent SEAT/CUPRA door inversion, left untouched here as it can't be verified on hardware.
+
 ## [2.18.0] - 2026-07-17
 
 ### Fixed
