@@ -3304,6 +3304,21 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # MyŠkoda app, software update, retrofit).
         vin = data.get("vin")
         if isinstance(vin, str) and vin:
+            # v2.19.0 — rich device model from the vgql image fetch. The
+            # userVehicles GraphQL (already fetched for render images) returns
+            # ``media.longName`` ("Audi S6 Avant TDI quattro tiptronic") +
+            # ``core.modelYear`` — far richer than the garage nickname a portal-
+            # only car falls back to. Prefer it whenever available (zero extra
+            # auth: it rides the image fetch that already ran).
+            _img_map = getattr(self._cariad_client, "_image_data", None)
+            if isinstance(_img_map, dict):
+                _vimg = _img_map.get(vin)
+                _long = getattr(_vimg, "long_name", None) if _vimg else None
+                _iyear = getattr(_vimg, "model_year", None) if _vimg else None
+                if isinstance(_long, str) and _long.strip():
+                    data["model"] = _long.strip()
+                if _iyear and not data.get("model_year"):
+                    data["model_year"] = _iyear
             static = getattr(self, "vehicle_static_info", {}).get(vin)
             if isinstance(static, dict):
                 info = static.get("info") or {}
