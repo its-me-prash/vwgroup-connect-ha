@@ -94,13 +94,14 @@ def test_all_charger_detail_fields_together() -> None:
     assert d.charge_led_pattern == "pulse"
 
 
-def test_echo_stays_unmapped_scout_visible() -> None:
-    # No-suppress policy: plumbing fields like ``echo`` must surface in the
-    # Scout's raw_unmapped_fields so they can be learned + mapped later.
+def test_echo_envelope_suppressed_mapped_field_not_in_raw() -> None:
+    # v2.18.1 — ``echo`` is request-envelope metadata: dropped from the raw/Scout
+    # surface (carve-out from no-suppression). The mapped field must also not leak
+    # into the unmapped set.
     d = _map_flatlog(
         ("external_power_supply_state", "available"),
         ("echo", "echo"),
     )
-    assert "echo" in d.raw_unmapped_fields
+    assert "echo" not in d.raw_unmapped_fields
     # the mapped field must NOT leak into the unmapped set
     assert "external_power_supply_state" not in d.raw_unmapped_fields

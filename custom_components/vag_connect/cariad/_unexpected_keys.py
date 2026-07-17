@@ -144,6 +144,11 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             "settings.batteryCareModeTargetValueInPercent",
             "settings.chargingCareMode",
             "settings.maxChargeCurrentAc",
+            # v2.18.1 — Scout #781/#795 (@DvorakMartin1 Škoda). The integer-amps
+            # spelling ``maxChargeCurrentAcAmpere`` is READ by the parser
+            # (skoda.py ``_mca = v(settings, "maxChargeCurrentAcAmpere")``) but
+            # EXPECTED_KEYS was never updated — classic silencer-lag-behind-parser.
+            "settings.maxChargeCurrentAcAmpere",
             "settings.preferredChargeMode",
         },
         "air-conditioning": {
@@ -891,6 +896,33 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # v2.18.0 — Scout #801: now CONSUMED into climatisation_timers_pending.
             # 3-seg path, not covered by the 2-seg climatisationTimers.* wildcard.
             "climatisationTimers.climatisationTimersStatus.requests",
+            # v2.18.1 — Scouts #752 (@heyensh-sys) + #785 (@GiuseppeAlbano) +
+            # #789 (@Lagaff86), all audi selectivestatus. Two new shapes the
+            # backend rolled out:
+            #  · Aux-heating (Standheizung) now ALSO ships nested under the
+            #    climatisation / climatisationTimers jobs. The parser already
+            #    reads the TOP-LEVEL ``auxiliaryHeating`` job into
+            #    ``sensor.auxiliary_heating_status`` (v2.8.0), so this nested
+            #    copy is a secondary source — register the containers so the
+            #    Scout stops firing; drill the nested value into the sensor
+            #    once a real payload confirms the child field names (same
+            #    interim-silencer approach as activeVentilation/batterySupport).
+            #  · ``climatisationTimersStatus`` gained the standard 6-key
+            #    CARIAD-BFF ``.error`` envelope — the ONE sibling the v2.2.0
+            #    Phase-7 error rollout missed (same class as #598). Pure
+            #    transient-error wrapper, no user value → silence.
+            "climatisation.auxiliaryHeatingStatus",
+            "climatisation.auxiliaryHeatingStatus.value",
+            "climatisation.auxiliaryHeatingStatus.value.*",
+            "climatisation.auxiliaryHeatingStatus.error",
+            "climatisation.auxiliaryHeatingStatus.error.*",
+            "climatisationTimers.auxiliaryHeatingTimersStatus",
+            "climatisationTimers.auxiliaryHeatingTimersStatus.value",
+            "climatisationTimers.auxiliaryHeatingTimersStatus.value.*",
+            "climatisationTimers.auxiliaryHeatingTimersStatus.error",
+            "climatisationTimers.auxiliaryHeatingTimersStatus.error.*",
+            "climatisationTimers.climatisationTimersStatus.error",
+            "climatisationTimers.climatisationTimersStatus.error.*",
             # v2.2.0 Phase 7 PR #5 (#245 Scout 2026-05-11/12/13) —
             # Systemic Cariad-BFF rollout: jeder ``<block>.{xxxStatus}``
             # bekommt jetzt einen ``.error`` container (6 keys —

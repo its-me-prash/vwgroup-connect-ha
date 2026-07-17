@@ -973,6 +973,32 @@ _RAW_FIELD_CAP = 250
 # b14 — NO field suppression. Policy (Prash): never hide Scout/raw fields; every
 # portal field is surfaced so it can be mapped. (The b10 ``_SCOUT_SKIP_FIELDS`` /
 # ``_is_noise`` filter was removed — we map everything, we don't suppress.)
+#
+# v2.18.1 — the ONE carve-out (Prash's ruling 2026-07-17): pure ENVELOPE /
+# IDENTITY metadata is not vehicle data and not mappable — the account id, the
+# VIN, poll/message envelope timestamps, the generic per-point names the export
+# reuses on every datum (state / value / unit / key), and the raw per-export
+# point UUIDs (whose real meaning is recovered via the Data Dictionary join, not
+# the Scout). They repeat on every poll and would otherwise flood the Scout
+# forever, so they ARE dropped from the raw/Scout surface. Anything with a real,
+# vehicle-specific field name still surfaces — the no-suppression rule holds for
+# everything except this metadata repetition.
+_ENVELOPE_NOISE_LEAVES: frozenset[str] = frozenset({
+    "user_id", "userid", "vin", "timestamp", "timestamputc",
+    "echo", "message_id", "state", "value", "unit", "key",
+})
+_ENVELOPE_UUID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+)
+
+
+def _is_envelope_noise(key: str) -> bool:
+    """True for account / VIN / envelope-timestamp / generic-name / point-UUID
+    keys — the v2.18.1 carve-out from the no-suppression rule (see comment
+    above). Matched on the leaf so bare and container-qualified spellings both
+    catch (``vin`` and ``eu_data_act.vin``; ``Data.key`` → ``key``)."""
+    leaf = key.rsplit(".", 1)[-1].strip().lower()
+    return leaf in _ENVELOPE_NOISE_LEAVES or bool(_ENVELOPE_UUID_RE.match(leaf))
 
 
 def map_dataset_to_vehicle_data(
@@ -2092,6 +2118,14 @@ def map_dataset_to_vehicle_data(
     _oil_w = first("oil_level_min_warning")
     if _oil_w is not None and d.oil_level_warning is None:
         d.oil_level_warning = str(_oil_w).strip().lower() in ("1", "true")
+    # v2.18.1 — Scout #794 (@loungelizard2018): the raw oil-level STATUS string
+    # the 15-min feed ships (e.g. "ok"/"minWarning"). pct/warning/liters are read
+    # above; map the raw enum into the existing diagnostic ``oil_level_status``
+    # field so it is CONSUMED, not surfaced as an unmapped Scout row. Raw string
+    # only — no guessing the enum→warning semantics (warning is fed separately).
+    _oil_s = first("oil_level_status")
+    if _oil_s is not None and d.oil_level_status is None:
+        d.oil_level_status = str(_oil_s).strip()
     # scr_range — AdBlue/SCR range (km). Empty string guarded by _to_int.
     _scr = _to_int(first("scr_range"))
     if _scr is not None and d.adblue_range_km is None:
@@ -2377,7 +2411,11 @@ def map_dataset_to_vehicle_data(
     # Debug-only, zero behaviour change. Feeds the Vehicle Data Scout and tells
     # us exactly which dictionary entries to add next, from REAL payloads —
     # beats a hand-maintained static dict that silently drops unknown fields.
-    unmapped = sorted(k for k in fields if k not in used)
+    # v2.18.1 carve-out: drop envelope/identity/UUID repetition (see
+    # _is_envelope_noise) — everything with a real field name still surfaces.
+    unmapped = sorted(
+        k for k in fields if k not in used and not _is_envelope_noise(k)
+    )
     if unmapped:
         _LOGGER.debug(
             "EU Data Act: %d unmapped portal field(s): %s",

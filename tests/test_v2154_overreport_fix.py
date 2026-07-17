@@ -174,22 +174,13 @@ def test_overreporters_gone_from_raw_unmapped() -> None:
 
 
 def test_raw_unmapped_is_only_intended_metadata() -> None:
-    """raw_unmapped must shrink to ONLY the intentionally-unmapped (no-suppress)
-    metadata — vin/user_id/state/timestamp/value/message_id/Data.key
-    + the charger-dialect/door leaves that were never in scope (and unmapped
-    before the fix too). No telemetry field re-surfaces. (v2.15.5: update_reason
-    is now mapped, so it no longer appears here.)"""
+    """v2.18.1 — envelope/identity/UUID metadata (vin / user_id / state /
+    timestamp / value / message_id / Data.key / …) is now the carve-out from
+    no-suppression and is dropped from the raw/Scout surface. What remains is only
+    the real, still-unmapped telemetry the Scout is meant to surface for future
+    mapping."""
     raw = _map().raw_unmapped_fields
     intended = {
-        "Data.key",
-        "key",
-        "vin",
-        "user_id",
-        "state",
-        "dataPoints.state",
-        "timestamp",
-        "value",
-        "message_id",
         "battery_level_HV",
         "open",
     }
