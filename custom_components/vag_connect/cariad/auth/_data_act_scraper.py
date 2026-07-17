@@ -108,6 +108,11 @@ _EUDA_APIM = "/proxy_api/euda-apim"
 _CUSTOM_REQUEST_POST_PATH = _EUDA_APIM + "/datarequest/vehicles/{vin}/requests/partial"
 _CUSTOM_REQUEST_META_PATH = _EUDA_APIM + "/datarequest/vehicles/{vin}/metadata/partial"
 _ALL_REQUEST_META_PATH = _EUDA_APIM + "/datarequest/vehicles/{vin}/metadata/all"
+# v2.18.0 (Phase C) — the ONE-TIME / historical export. Proven from a real
+# Audi trace 2026-07-17: clicking the portal's one-time-download button POSTs
+# here (NOT to requests/partial), with a much simpler body — Frequency null,
+# no Identifier, no Duration, DataClusters null. See kickoff_historical_export.
+_ALL_REQUEST_POST_PATH = _EUDA_APIM + "/datarequest/vehicles/{vin}/requests/all"
 _DATASET_LIST_PATH = (
     _EUDA_APIM + "/datadelivery/vehicles/{vin}/{identifier}/list"
 )
@@ -923,6 +928,82 @@ class DataActScraper:
             _mask_vin(vin), identifier[:8], duration_days,
         )
         return identifier
+
+    async def kickoff_historical_export(self, vin: str) -> bool:
+        """Create a ONE-TIME historical export for ``vin`` (Phase C).
+
+        The 15-min feed (kickoff_custom_data_request) gives live telemetry; this
+        is the other request type — a one-time snapshot of the full config set
+        (departure timers, charge profiles, climate settings) in the legacy
+        Car-Net dialect. The portal generates the ZIP asynchronously (like the
+        feed, up to ~24h), after which it is picked up via metadata/all +
+        datadelivery.
+
+        Body + endpoint are mirrored EXACTLY from a real Audi trace
+        (2026-07-17): POST requests/all with Frequency/EndDate/DataClusters/
+        EmailFrequency all null and no Identifier/Duration — a much simpler
+        shape than the 15-min kickoff above. Returns True on a 2xx.
+        """
+        from aiohttp import ClientTimeout  # noqa: PLC0415
+        from datetime import datetime, timezone  # noqa: PLC0415
+
+        csrf = await self._fetch_csrf_token()
+        if not csrf:
+            _LOGGER.debug("kickoff_historical_export: no CSRF token - aborting")
+            return False
+
+        # The browser sends millisecond precision (…:46.111Z); match it.
+        now = datetime.now(timezone.utc)
+        start = now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
+        body: dict[str, Any] = {
+            "Name": "Request File",
+            "Frequency": None,
+            "StartDate": start,
+            "EndDate": None,
+            "DataClusters": None,
+            "EmailFrequency": None,
+        }
+        url = _PORTAL_BASE + _ALL_REQUEST_POST_PATH.format(vin=vin)
+        try:
+            async with self._session.post(
+                url,
+                json=body,
+                timeout=ClientTimeout(total=30),
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    # Origin is what the browser sends on this POST; CSRF/traceId
+                    # are carried defensively (the requests/partial POST proves
+                    # the AEM edge accepts them).
+                    "Origin": _PORTAL_BASE,
+                    "CSRF-Token": csrf,
+                    "X-CSRF-Token": csrf,
+                    "traceId": uuid.uuid4().hex,
+                },
+            ) as resp:
+                if resp.status == 401:
+                    raise DataActSessionExpiredError(
+                        "requests/all returned 401 - portal session expired"
+                    )
+                if resp.status not in (200, 201, 202):
+                    body_text = await resp.text(errors="replace")
+                    _LOGGER.warning(
+                        "kickoff_historical_export HTTP %s for VIN %s: %s",
+                        resp.status, _mask_vin(vin), body_text[:300],
+                    )
+                    return False
+        except DataActSessionExpiredError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.debug("kickoff_historical_export failed: %s", exc)
+            return False
+
+        _LOGGER.info(
+            "EU Data Act one-time historical export requested for VIN %s "
+            "— the portal will generate the ZIP asynchronously",
+            _mask_vin(vin),
+        )
+        return True
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
