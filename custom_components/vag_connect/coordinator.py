@@ -3597,7 +3597,18 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             )
         # v1.11.1 (3B-Part-3) — optimistic UI: assume the lock will succeed
         # so the HA card flips to "locked" immediately. Reverts on failure.
-        cmd_kwargs = {"spin": spin} if (brand in ("audi", "volkswagen") and spin) else {}
+        #
+        # v2.18.0 (#759) — seat/cupra added: their command_lock now takes a spin
+        # (mirroring their command_unlock, which always has). Before this, the
+        # per-VIN S-PIN was resolved and presence-checked above, then dropped
+        # here, so seat/cupra lock silently used the shared PIN. The brands
+        # whose command_lock does NOT accept spin (skoda lock needs none;
+        # porsche/vw_na) are correctly excluded — passing it would TypeError.
+        cmd_kwargs = (
+            {"spin": spin}
+            if (brand in ("audi", "volkswagen", "seat", "cupra") and spin)
+            else {}
+        )
         await self._cariad_cmd_optimistic(
             vin, "command_lock",
             optimistic={"doors_locked": True},
