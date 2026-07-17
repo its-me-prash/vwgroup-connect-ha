@@ -118,9 +118,11 @@ _DATASET_LIST_PATH = (
 )
 _CSRF_TOKEN_PATH = "/libs/granite/csrf/token.json"
 
-# Canonical Data Clusters per portal UI as of 2026-06-03. Ordering and
-# spelling matter; the portal's React validator compares against this
-# exact set when the user picks "All Data".
+# Canonical Data Clusters, spelled as the portal UI sends them. The SET matters
+# (the six exact strings); the ORDER does NOT — a real portal-UI trace
+# (2026-07-17) sent the same six in a different order (Warning Lights 4th, not
+# 6th) and it was accepted. An earlier comment here claimed "ordering matters";
+# that was wrong. Spelling is still exact.
 _DEFAULT_DATA_CLUSTERS = (
     "All Data",
     "Charging",
