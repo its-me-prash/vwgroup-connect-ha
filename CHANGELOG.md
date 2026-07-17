@@ -38,6 +38,36 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.17.6] - 2026-07-17
+
+### Fixed
+
+- **Three things that shipped but never actually worked.** The per-vehicle S-PIN from 2.17.5 always fell back to the shared one, and opening Options even wrote blanks over what you'd saved. The push toggles (Škoda MQTT, CUPRA/SEAT and Audi/VW notifications) could never switch on, so nobody has ever had that feature. The aux-heating sliders snapped back to their default the moment you set them. All three read a setting from a place it never lands.
+- **Your data stops disappearing after a command.** If your car is read over more than one channel, locking it — or restarting Home Assistant — used to blank out everything the second channel contributed until the next poll. Those readings are kept now.
+- **Touareg-era cars (2021) read their data at last.** They ship the old Car-Net export format, which we didn't recognise at all — so a car with a perfectly good charge level in the payload showed up completely empty and wasn't even detected as a hybrid.
+- **Scout reports stop crying wolf.** Twelve reports arrived in a day and not one contained a field we don't already read — our own catalogue simply hadn't been told. The rear climate zones, the climate mode, the battery-care error notice and the capture timestamp are all recognised now.
+- **A failing button gives you an error instead of a crash report.** Pressing e.g. Wake on a car that refuses it produced "Unexpected exception" and a Python traceback; you now get what the car actually said.
+- **Diagnostics tells the truth about push.** It reported push as active on every setup, including ones with all push toggles off.
+- **The portal is no longer re-probed on every restart**, and Škoda's AC charge-current limit is read.
+
+### Added
+
+- **Battery care is settable, not just visible.** A switch and a target slider — the reading has been there since 2.10.0, the control never was. Appears only on cars whose backend actually reports it.
+- **Every reading tells you where it came from.** Each entity carries a `source` attribute naming its read channel, and the data-source sensor now works for single-channel cars too — on a Golf GTE the fuel level and the charge level genuinely come from different places.
+- Both new controls are translated in 12 languages.
+
+### Removed
+
+- **Three settings that did nothing.** Wake-before-poll (and its delay slider), force-access, and the EU Data Act browser fallback. None of them had ever been wired to anything — ticking them changed nothing.
+
+### Docs
+
+- **The README was sending people to look for a switch that doesn't exist.** It told you to enable a "continuous data request" in the VW portal; the integration creates that itself. It also called the auto-kickoff opt-in and promised we "won't do it without your say-so" — it has been on by default since 2.17.1, and the 1-month subscription it registers is free. Corrected in all 12 languages, along with two translation errors found on the way.
+
+### Thanks
+
+**@ChristophCaina** asked for the per-vehicle S-PIN — sorry it took a second pass to make it real. **@shaunadam** turned on raw logging and sent the log that showed us the traceback. **Bugi66**'s export is why Touareg-era cars work, and **Mech0z** is why the README stopped lying. **@DvorakMartin1** surfaced Škoda's charge-current limit, **@thcherry**'s diagnostics caught the push mislabel, and **@Motii08** offered to charge their car for us. Thanks also to **@neuhausf**, **@dlupsa**, **@fefe-home**, **@jandebeule**, **@alexthegalex13**, **@YouriJansen**, **@GiuseppeAlbano** and **@Lagaff86**, whose Scout reports showed our catalogue was the thing that was out of date. The full roll is in [CONTRIBUTORS.md](CONTRIBUTORS.md) — thank you, all of you. 🙏
+
 ## [2.17.5] - 2026-07-13
 
 ### Fixed
