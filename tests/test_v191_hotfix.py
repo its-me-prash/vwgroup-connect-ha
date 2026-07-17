@@ -286,10 +286,17 @@ class TestClassifyAndAutoRecord:
         )
         coord.record_command_success = MagicMock()
 
-        with pytest.raises(APIError):
+        # v2.17.6 (#659) — a backend refusal now surfaces as a
+        # HomeAssistantError so HA renders it instead of showing the user a
+        # traceback. The APIError is kept as __cause__; the classification
+        # this test exists for is unchanged.
+        from homeassistant.exceptions import HomeAssistantError  # noqa: PLC0415
+
+        with pytest.raises(HomeAssistantError) as _ei:
             asyncio.run(
                 coord._cariad_cmd("VINA", "command_lock")
             )
+        assert isinstance(_ei.value.__cause__, APIError)
 
         # The classification must have routed to SPIN_REQUIRED.
         coord.record_command_failure.assert_called_once()

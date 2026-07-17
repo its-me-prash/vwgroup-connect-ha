@@ -265,6 +265,8 @@ class TestOptimisticLock:
         assert coord.vehicles["VINX"]["doors_locked"] is False
 
     def test_lock_failure_reverts_optimistic_state(self):
+        from homeassistant.exceptions import HomeAssistantError
+
         from custom_components.vag_connect.cariad.exceptions import APIError
 
         coord = _make_coord_with_vehicle()
@@ -273,7 +275,10 @@ class TestOptimisticLock:
         )
         # Before: doors_locked=False
         assert coord.vehicles["VINX"]["doors_locked"] is False
-        with pytest.raises(APIError):
+        # v2.17.6 (#659) — a backend refusal now reaches the user as a
+        # HomeAssistantError instead of a raw APIError traceback. The revert
+        # below is what this test is actually about and is unchanged.
+        with pytest.raises(HomeAssistantError):
             asyncio.run(coord.async_lock("VINX"))
         # Reverted after failure
         assert coord.vehicles["VINX"]["doors_locked"] is False
@@ -309,6 +314,8 @@ class TestOptimisticCharging:
         assert coord.vehicles["VINX"]["charging_state"] == "CHARGING"
 
     def test_stop_charging_reverts_on_failure(self):
+        from homeassistant.exceptions import HomeAssistantError
+
         from custom_components.vag_connect.cariad.exceptions import APIError
 
         coord = _make_coord_with_vehicle()
@@ -317,7 +324,9 @@ class TestOptimisticCharging:
         coord._cariad_client.command_stop_charging = AsyncMock(
             side_effect=APIError(403, "/x", "not_entitled"),
         )
-        with pytest.raises(APIError):
+        # v2.17.6 (#659) — see the lock test above: the type changed, the
+        # revert this test exists for did not.
+        with pytest.raises(HomeAssistantError):
             asyncio.run(
                 coord.async_stop_charging("VINX")
             )

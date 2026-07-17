@@ -4525,7 +4525,26 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             except Exception:  # noqa: BLE001
                 pass
             _LOGGER.error("VAG Connect: %s(%s) failed: %s", method, mask_vin(vin), err)
-            raise
+            # v2.17.6 (#659) — surface the failure instead of letting the raw
+            # APIError escape. HA doesn't know our exception types, so it logged
+            # "Unexpected exception" and showed the user a Python traceback for
+            # pressing a button; a reporter's log caught it verbatim. We already
+            # classified the failure one line up — the least we can do is say so.
+            #
+            # Deliberately narrow. Only a backend REFUSAL becomes a user-facing
+            # error:
+            # - HomeAssistantError subclasses (our own pre-flight guards) already
+            #   render cleanly and carry a translation key — pass them through.
+            # - APIError is the car saying no. That belongs in front of the user.
+            # - Anything else is OUR bug (a TypeError, a bad assumption). Those
+            #   must keep bubbling as a traceback: wrapping them would disguise
+            #   a programming error as a normal command failure and we'd never
+            #   hear about it.
+            from .cariad.exceptions import APIError  # noqa: PLC0415
+
+            if isinstance(err, HomeAssistantError) or not isinstance(err, APIError):
+                raise
+            raise HomeAssistantError(str(err)) from err
 
     async def async_set_charge_mode(self, vin: str, mode: str) -> None:
         """Set charging mode (MANUAL / TIMER / PREFERRED_CHARGING_TIMES)."""
