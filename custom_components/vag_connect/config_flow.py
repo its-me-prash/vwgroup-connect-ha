@@ -1461,15 +1461,26 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 # account's brand-specific tokens forward would be wrong.
                 merged = base if account_changed else {**entry.data, **base}
 
-                # v2.17.2 (#666) — enable the durable-MBB command channel on an
-                # EXISTING portal entry via Reconfigure (VW/Audi, and only when
-                # it isn't already on). Mirrors the initial email_password MBB
-                # chain; the QR finish/approve steps update THIS entry in place
-                # (see _mbb_reconfigure_entry_id + _create_or_update_portal_entry).
+                # v2.17.2 (#666) — arm the durable-MBB command channel on an
+                # EXISTING portal entry via Reconfigure (VW/Audi). Mirrors the
+                # initial email_password MBB chain; the QR finish/approve steps
+                # update THIS entry in place (see _mbb_reconfigure_entry_id +
+                # _create_or_update_portal_entry).
+                #
+                # v2.18.0 (#584) — this used to also require the channel NOT to
+                # be on already, which turned re-approval into a dead end: the
+                # one moment you need to re-run the QR flow is when the channel
+                # is armed but its tokens are gone, and that was the exact case
+                # the guard excluded. Ticking the box did nothing, and the only
+                # escape was delete + re-add — which renames every entity and
+                # takes the user's dashboards and automations with it.
+                #
+                # So a ticked box now always offers the approval, and submitting
+                # Reconfigure with MBB on means "re-approve". Reconfigure already
+                # demands the password, so this is not a surprise step.
                 if (
                     user_input.get("enable_mbb_commands")
                     and brand in ("volkswagen", "audi")
-                    and not entry.data.get(CONF_MBB_COMMAND_CHANNEL)
                 ):
                     self._mbb_reconfigure_entry_id = entry.entry_id
                     self._pending_portal_data = merged
@@ -1508,6 +1519,16 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 username=current.get(CONF_USERNAME, ""),
                 scan_interval=current.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
                 spin=current.get(CONF_SPIN, ""),
+                # v2.18.0 (#584) — this argument was simply not passed, so the
+                # box fell back to its `False` default and rendered unticked for
+                # everyone, including users whose MBB channel was on. It read as
+                # "MBB is off" while the code believed it was on, and the two
+                # disagreeing is what made the dead end above inescapable: the
+                # form told you to tick a box that was already effectively set.
+                # Note the schema field is named enable_mbb_commands but the
+                # stored key is CONF_MBB_COMMAND_CHANNEL — they are not the same
+                # string, which is how this stayed invisible.
+                enable_mbb_commands=bool(current.get(CONF_MBB_COMMAND_CHANNEL, False)),
                 country=current.get(CONF_COUNTRY, "us"),
             ),
             errors=errors,

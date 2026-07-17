@@ -44,12 +44,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 - **Three things that shipped but never actually worked.** The per-vehicle S-PIN from 2.17.5 always fell back to the shared one, and opening Options even wrote blanks over what you'd saved. The push toggles (Škoda MQTT, CUPRA/SEAT and Audi/VW notifications) could never switch on, so nobody has ever had that feature. The aux-heating sliders snapped back to their default the moment you set them. All three read a setting from a place it never lands.
 - **Your data stops disappearing after a command.** If your car is read over more than one channel, locking it — or restarting Home Assistant — used to blank out everything the second channel contributed until the next poll. Those readings are kept now.
-- **Touareg-era cars (2021) read their data at last.** They ship the old Car-Net export format, which we didn't recognise at all — so a car with a perfectly good charge level in the payload showed up completely empty and wasn't even detected as a hybrid.
 - **Scout reports stop crying wolf.** Twelve reports arrived in a day and not one contained a field we don't already read — our own catalogue simply hadn't been told. The rear climate zones, the climate mode, the battery-care error notice and the capture timestamp are all recognised now.
 - **A failing button gives you an error instead of a crash report.** Pressing e.g. Wake on a car that refuses it produced "Unexpected exception" and a Python traceback; you now get what the car actually said.
 - **Diagnostics tells the truth about push.** It reported push as active on every setup, including ones with all push toggles off.
 - **The portal is no longer re-probed on every restart**, and Škoda's AC charge-current limit is read.
-- **MBB logins died after about an hour, for everyone, always.** The refresh sent your token under the wrong name, so the server got a refresh request with nothing to refresh and crashed on it. It has never once worked. Needs confirming on a real car — there's no way it could regress, but we'd like to hear it.
+- **MBB commands died after about an hour, for everyone, always.** The refresh sent your token under the wrong name, so the server got a refresh request with nothing to refresh and crashed on it — a 500, which looked like a VW hiccup and got blamed on one twice. It had never once worked. **@Mattheisen87** proved it: four days without the token expiry moving a single second, on a 60-minute token.
+- **And once MBB was on, there was no way back to the approval.** The re-approval was gated off the moment the channel was armed — precisely the state you're in when you need it — and the checkbox showed unticked no matter what was stored, so it looked off while the code thought it was on. The only escape was deleting the integration and re-adding it, which renames every entity and takes your dashboards with it. Both fixed; re-run Reconfigure with the box ticked to re-approve.
 - **The app watcher opened a pull request every single day** announcing version changes that weren't there — it was comparing the file, and the file always carries the time it last looked. It also never managed to check Volkswagen at all: the mirrors it asked don't carry the app, so it recorded "checked" and learned nothing, for months. It asks Google Play first now, which is where the apps actually come from.
 
 ### Added
@@ -57,6 +57,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **Battery care is settable, not just visible.** A switch and a target slider — the reading has been there since 2.10.0, the control never was. Appears only on cars whose backend actually reports it.
 - **Every reading tells you where it came from.** Each entity carries a `source` attribute naming its read channel, and the data-source sensor now works for single-channel cars too — on a Golf GTE the fuel level and the charge level genuinely come from different places.
 - Both new controls are translated in 12 languages.
+- **Groundwork for Touareg-era cars (2021), which this release does _not_ yet fix.** Those cars ship the old Car-Net export format and we now understand it — charge level, charge mode, current limit, target temperature. But understanding it changes nothing on its own: the portal offers those cars only a one-time export, we only ever create and read the continuous 15-minute feed, and so we never actually fetch a payload for the mapping to work on. Reading one-time exports is the missing piece and it isn't built. #702 stays open.
 
 ### Removed
 

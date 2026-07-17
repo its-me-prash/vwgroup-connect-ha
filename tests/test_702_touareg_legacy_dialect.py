@@ -21,6 +21,25 @@ aliases can't simply ride the existing lookups:
 
 Canonical sources must always win; the legacy aliases only widen coverage for
 cars that carry nothing else.
+
+SCOPE — read this before believing #702 is fixed. Every test here hands a dict
+straight to the mapper. That proves the mapping is right; it proves nothing
+about whether such a payload ever reaches us, and it does not.
+
+The mapper's only production caller is the tail of
+``EUDataActConnector.get_vehicle_data``, and that function opens by reading
+``/datarequest/vehicles/{vin}/metadata/partial`` — the *continuous* 15-minute
+feed. No identifier there means it returns ``no_data=True`` and stops, long
+before the mapper. The listing and the download both hardcode ``type=partial``;
+``get_active_custom_request_identifier`` only accepts a descriptor whose
+``Frequency`` is ``15mins``; and the one endpoint that could enumerate a
+one-time export (``_ALL_REQUEST_META_PATH``, ``metadata/all``) is defined and
+never called.
+
+The reporter's Touareg is offered *only* a one-time export — he said so in the
+thread. So for the car this file is named after, the code above makes exactly
+one HTTP call and bails. These aliases are groundwork; the fetch is the
+missing piece, and until it exists, #702 stays open.
 """
 from __future__ import annotations
 
