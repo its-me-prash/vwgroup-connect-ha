@@ -1666,6 +1666,9 @@
     },
     "read_only_portal_active": {
       "message": "Ten pojazd łączy się przez tylko-do-odczytu portal EU Data Act firmy VW, więc polecenia zdalne (zamykanie, klimatyzacja, ładowanie) nie są dla niego dostępne. To nie jest ustawienie, które możesz przełączyć — kanał portalu nie ma żadnej ścieżki poleceń."
+    },
+    "historical_portal_not_ready": {
+      "message": "Portal EU Data Act nie jest jeszcze gotowy. Poczekaj, aż integracja wykona jedno odpytanie po konfiguracji, a następnie ponów eksport historyczny."
     }
   },
   "selector": {

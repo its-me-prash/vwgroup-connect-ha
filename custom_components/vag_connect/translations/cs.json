@@ -1666,6 +1666,9 @@
     },
     "read_only_portal_active": {
       "message": "Toto vozidlo se připojuje přes portál EU Data Act od VW určený jen pro čtení, takže vzdálené příkazy (zamykání, klimatizace, nabíjení) pro něj nejsou dostupné. Není to nastavení, které byste mohli přepnout — kanál portálu nemá žádnou cestu pro příkazy."
+    },
+    "historical_portal_not_ready": {
+      "message": "Portál EU Data Act ještě není připraven. Počkejte, až integrace po nastavení jednou provede dotaz, a poté zkuste historický export znovu."
     }
   },
   "selector": {

@@ -1666,6 +1666,9 @@
     },
     "read_only_portal_active": {
       "message": "Ce véhicule est connecté via le portail EU Data Act en lecture seule de VW, les commandes à distance (verrouillage, climatisation, charge) ne sont donc pas disponibles pour lui. Ce n'est pas une option que tu peux activer ou désactiver — le canal du portail n'a aucune voie de commande."
+    },
+    "historical_portal_not_ready": {
+      "message": "Le portail EU Data Act n'est pas encore prêt. Attendez que l'intégration ait interrogé une fois après la configuration, puis réessayez l'export historique."
     }
   },
   "selector": {

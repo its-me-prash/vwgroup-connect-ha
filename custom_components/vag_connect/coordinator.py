@@ -1192,6 +1192,75 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         except Exception:  # noqa: BLE001
             pass
 
+    async def async_request_historical_export(self, vin: str) -> bool:
+        """Phase C — ask the portal for a ONE-TIME historical export of *vin*.
+
+        Distinct from the 15-min feed: this is a config snapshot (timers, charge
+        profiles, climate settings) in the legacy Car-Net dialect. The portal
+        builds the ZIP asynchronously (observed ~30 min, up to 24h). Once ready,
+        ``async_import_historical_export`` fetches + merges it. Returns True when
+        the request was accepted.
+        """
+        from homeassistant.helpers.aiohttp_client import (  # noqa: PLC0415
+            async_get_clientsession,
+        )
+
+        from .cariad.auth._data_act_scraper import (  # noqa: PLC0415
+            DataActScraper,
+            DataActSessionExpiredError,
+        )
+
+        session = async_get_clientsession(self.hass)
+        scraper = DataActScraper(session, brand_name=self.entry.data[CONF_BRAND])
+        try:
+            return await scraper.kickoff_historical_export(vin)
+        except DataActSessionExpiredError:
+            self._raise_data_act_session_expired_repair()
+            return False
+
+    async def async_import_historical_export(self, vin: str) -> bool:
+        """Phase C — fetch a READY one-time export for *vin* and merge its config
+        fields into the live snapshot.
+
+        Gap-fill only: a field is taken from the historical export ONLY where the
+        live snapshot has none, so live telemetry (SoC, charging state, the
+        drivetrain flags) is never overwritten by the older config dump — this is
+        also why the legacy dialect's missing-combustion evidence can't flip a
+        live PHEV to electric. Returns True if anything merged, False if the ZIP
+        isn't ready yet (the portal generates it asynchronously).
+        """
+        portal = getattr(self._cariad_client, "_eu_portal", None)
+        if portal is None or not hasattr(portal, "get_vehicle_data"):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="historical_portal_not_ready",
+            )
+        historical = await portal.get_vehicle_data(vin, request_type="all")
+        if getattr(historical, "no_data", True):
+            return False
+        hist = historical.to_dict()
+        merged_any = False
+        with self._vehicles_lock:
+            current = self.vehicles.get(vin)
+            if not isinstance(current, dict):
+                # A portal-only car we had nothing for yet — take the snapshot.
+                self.vehicles[vin] = hist
+                merged_any = True
+            else:
+                for key, val in hist.items():
+                    if val is None:
+                        continue
+                    if current.get(key) is None:  # never clobber a live value
+                        current[key] = val
+                        merged_any = True
+        if merged_any:
+            self.async_set_updated_data(dict(self.vehicles))
+            _LOGGER.info(
+                "EU Data Act: merged one-time historical export config fields "
+                "for VIN %s", mask_vin(vin),
+            )
+        return merged_any
+
     async def _maybe_runtime_data_act_kickoff(self) -> None:
         """Re-provision the portal Custom Data Request at RUNTIME when a poll
         came back ``no_request`` (no active request on the portal).

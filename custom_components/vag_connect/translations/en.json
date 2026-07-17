@@ -1666,6 +1666,9 @@
     },
     "read_only_portal_active": {
       "message": "This vehicle connects through VW's read-only EU Data Act portal, so remote commands (lock, climate, charging) aren't available for it. This isn't a setting you can toggle — the portal channel has no command path."
+    },
+    "historical_portal_not_ready": {
+      "message": "The EU Data Act portal isn't ready yet. Wait until the integration has polled once after setup, then try requesting/importing the historical export again."
     }
   },
   "selector": {

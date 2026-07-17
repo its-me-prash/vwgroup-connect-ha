@@ -1666,6 +1666,9 @@
     },
     "read_only_portal_active": {
       "message": "Dette køretøj forbindes gennem VW's skrivebeskyttede EU Data Act-portal, så fjernkommandoer (lås, klima, opladning) er ikke tilgængelige for det. Dette er ikke en indstilling, du kan slå til/fra — portalkanalen har ingen kommandosti."
+    },
+    "historical_portal_not_ready": {
+      "message": "EU Data Act-portalen er ikke klar endnu. Vent, til integrationen har hentet data én gang efter opsætning, og prøv derefter det historiske eksport igen."
     }
   },
   "selector": {

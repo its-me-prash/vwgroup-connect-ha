@@ -1686,6 +1686,9 @@
     },
     "read_only_portal_active": {
       "message": "Dieses Fahrzeug ist über VWs schreibgeschütztes EU-Data-Act-Portal angebunden, deshalb sind Fernbefehle (Verriegeln, Klima, Laden) dafür nicht verfügbar. Das ist keine Einstellung, die du umschalten kannst — der Portal-Kanal hat keinen Befehlsweg."
+    },
+    "historical_portal_not_ready": {
+      "message": "Das EU-Data-Act-Portal ist noch nicht bereit. Warte, bis die Integration nach der Einrichtung einmal abgefragt hat, und versuche den Verlaufsexport dann erneut."
     }
   }
 }

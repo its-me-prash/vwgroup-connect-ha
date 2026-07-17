@@ -1666,6 +1666,9 @@
     },
     "read_only_portal_active": {
       "message": "Dit voertuig maakt verbinding via VW's alleen-lezen EU Data Act-portaal, dus commando's op afstand (vergrendelen, klimaat, laden) zijn er niet voor beschikbaar. Dit is geen instelling die je kunt aan- of uitzetten — het portaalkanaal heeft geen commandopad."
+    },
+    "historical_portal_not_ready": {
+      "message": "Het EU Data Act-portaal is nog niet gereed. Wacht tot de integratie na de installatie één keer heeft opgehaald en probeer de historische export dan opnieuw."
     }
   },
   "selector": {

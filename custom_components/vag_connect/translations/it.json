@@ -1666,6 +1666,9 @@
     },
     "read_only_portal_active": {
       "message": "Questo veicolo si collega tramite il portale EU Data Act di VW in sola lettura, quindi i comandi remoti (chiusura, clima, ricarica) non sono disponibili per esso. Non è un'impostazione che puoi cambiare — il canale del portale non ha alcun percorso per i comandi."
+    },
+    "historical_portal_not_ready": {
+      "message": "Il portale EU Data Act non è ancora pronto. Attendi che l'integrazione abbia effettuato un'interrogazione dopo la configurazione, poi riprova l'esportazione storica."
     }
   },
   "selector": {
