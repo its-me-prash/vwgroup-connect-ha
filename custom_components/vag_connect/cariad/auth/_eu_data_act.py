@@ -94,6 +94,10 @@ _EUDA_BRANDS: dict[str, dict[str, str]] = {
 _VEHICLES_PATH = "/proxy_api/consent/me/vehicles"
 _RELATION_PATH = "/proxy_api/vum/v2/users/me/relations/{vin}"
 _METADATA_PATH = "/proxy_api/euda-apim/datarequest/vehicles/{vin}/metadata/partial"
+# v2.18.0 (Phase C) — the one-time historical export's metadata endpoint. The
+# read path is otherwise identical to the 15-min feed's; only the metadata path
+# and the ``type`` header differ (all vs partial). Proven from a real trace.
+_ALL_METADATA_PATH = "/proxy_api/euda-apim/datarequest/vehicles/{vin}/metadata/all"
 _LIST_PATH = "/proxy_api/euda-apim/datadelivery/vehicles/{vin}/{identifier}/list"
 _DOWNLOAD_PATH = (
     "/proxy_api/euda-apim/datadelivery/vehicles/{vin}/{identifier}/download"
@@ -2799,8 +2803,20 @@ class EUDataActConnector:
         walk(payload)
         return vins
 
-    async def get_vehicle_data(self, vin: str) -> VehicleData:
-        """Fetch the latest dataset for *vin* and map it to VehicleData."""
+    async def get_vehicle_data(
+        self, vin: str, request_type: str = "partial"
+    ) -> VehicleData:
+        """Fetch the latest dataset for *vin* and map it to VehicleData.
+
+        v2.18.0 (Phase C) — ``request_type`` selects the portal request family:
+        ``"partial"`` is the 15-min live feed (the default, the coordinator's
+        poll); ``"all"`` is the one-time historical export (config snapshot in
+        the legacy Car-Net dialect). The two differ only in the metadata path
+        and the ``type`` header sent to the datadelivery list/download — the
+        parse is shared, since ``map_dataset_to_vehicle_data`` handles both
+        dialects. Contract verified against real portal traces (2026-07-17).
+        """
+        meta_path = _ALL_METADATA_PATH if request_type == "all" else _METADATA_PATH
         d = VehicleData(vin=vin)
         # v2.15.0a10 (#481-residue) — assume "no data this poll" until the
         # dataset actually parses (cleared at the success return below). Every
@@ -2815,7 +2831,7 @@ class EUDataActConnector:
         # once the portal request goes active, instead of erroring every
         # poll (#393, #424).
         meta = await self._get_json(
-            f"{_PORTAL_BASE}{_METADATA_PATH.format(vin=vin)}", soft=True,
+            f"{_PORTAL_BASE}{meta_path.format(vin=vin)}", soft=True,
         )
         identifier = ""
         if isinstance(meta, dict):
@@ -2843,7 +2859,7 @@ class EUDataActConnector:
         # A genuine 401/403 still raises (→ session-expired path).
         listing = await self._get_json(
             f"{_PORTAL_BASE}{_LIST_PATH.format(vin=vin, identifier=identifier)}",
-            headers={"type": "partial"},
+            headers={"type": request_type},
             soft=True,
         )
         if listing is None:
@@ -2888,7 +2904,7 @@ class EUDataActConnector:
         # 3. download ZIP → JSON. This GET bypasses _get_json, so the Bearer
         # header (v2.13.0) must be merged in separately without clobbering the
         # filename/type headers the download endpoint requires.
-        dl_headers = {"filename": newest, "type": "partial"}
+        dl_headers = {"filename": newest, "type": request_type}
         if self._bearer:
             dl_headers["Authorization"] = f"Bearer {self._bearer}"
         try:
