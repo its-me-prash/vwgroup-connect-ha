@@ -238,8 +238,13 @@ class VagConnectNumber(VagConnectEntity, NumberEntity):
             # options-only read never saw the stored value and the slider
             # snapped straight back to the spec default.
             entry = self.coordinator.entry
-            options = getattr(entry, "options", None) or {}
-            data = getattr(entry, "data", None) or {}
+            # v2.18.0 (#806, lucson) — entry.data/.options are MappingProxyType,
+            # not dict, so the isinstance(..., dict) checks below silently failed
+            # on every real HA instance and this always returned the default.
+            # Normalise to a real dict once; keep the isinstance guards as a
+            # belt against a None/odd entry.
+            options = dict(getattr(entry, "options", None) or {})
+            data = dict(getattr(entry, "data", None) or {})
             dkey = self.entity_description.data_key
             val = options.get(dkey) if isinstance(options, dict) else None
             if val is None and isinstance(data, dict):

@@ -3435,8 +3435,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         """Return True if the user explicitly opted into reverse geocoding."""
         # Use direct comparison to True so MagicMock entries in tests don't
         # accidentally evaluate as truthy and trigger an HTTP call.
-        options = getattr(self.entry, "options", None) or {}
-        data = getattr(self.entry, "data", None) or {}
+        options = dict(getattr(self.entry, "options", None) or {})
+        data = dict(getattr(self.entry, "data", None) or {})
         return (
             options.get(CONF_ENABLE_REVERSE_GEOCODING, False) is True
             or data.get(CONF_ENABLE_REVERSE_GEOCODING, False) is True
@@ -3644,8 +3644,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         cmd_kwargs: dict[str, Any] = {}
         brand = str(self.entry.data.get(CONF_BRAND, "")).lower()
         if brand in ("audi", "volkswagen"):
-            options = getattr(self.entry, "options", None) or {}
-            data = getattr(self.entry, "data", None) or {}
+            options = dict(getattr(self.entry, "options", None) or {})
+            data = dict(getattr(self.entry, "data", None) or {})
             ppe_mode = False
             if isinstance(options, dict):
                 ppe_mode = bool(options.get(CONF_FORCE_PPE_CLIMATE, False))
@@ -3940,7 +3940,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             await self._cariad_cmd(vin, "command_start_aux_heating", spin=spin)
             return
 
-        options = getattr(self.entry, "options", None) or {}
+        options = dict(getattr(self.entry, "options", None) or {})
         if duration_min is None:
             opt_dur = options.get("auxheat_duration") if isinstance(options, dict) else None
             try:
@@ -3994,16 +3994,25 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         v2.17.5 (#759) — when *vin* is given and a per-VIN override exists in
         ``CONF_SPIN_BY_VIN``, that wins; otherwise the shared per-entry S-PIN is
         returned (so single-S-PIN setups behave exactly as before).
+
+        v2.18.0 (#806, found by lucson) — the real reason every S-PIN command
+        used to fail with ``spin_required``: ``entry.data`` and ``entry.options``
+        are handed out by HA as ``MappingProxyType``, which is NOT a ``dict``
+        subclass. The guards below gated every lookup on ``isinstance(..., dict)``,
+        which is False for a real config entry, so this returned ``""`` on every
+        live install — the S-PIN was stored fine, but never read back. The tests
+        faked plain dicts, so it looked verified. Normalising to a real dict at
+        the top (above) fixes it; the ``dict`` guards below now hold for the
+        top-level maps, and ``by_vin`` is a genuine nested dict so its guard was
+        always correct. This was NOT a 2.17.5 regression — the guard predates it.
         """
-        options = getattr(self.entry, "options", None) or {}
-        data = getattr(self.entry, "data", None) or {}
+        options = dict(getattr(self.entry, "options", None) or {})
+        data = dict(getattr(self.entry, "data", None) or {})
         if vin:
-            # v2.18.0 — read options THEN data, mirroring the shared S-PIN
-            # below. The options update-listener folds options into entry.data
-            # and blanks entry.options (__init__.py), so entry.options is empty
-            # by the time we read: the original options-only lookup never found
-            # the map and every car silently fell back to the shared S-PIN —
-            # i.e. #759 never actually took effect.
+            # Read options THEN data: the options update-listener folds options
+            # into entry.data and blanks entry.options (__init__.py), so the map
+            # lives in data by read time. (Even with options preserved, the old
+            # code could never have found it — see the MappingProxyType note.)
             by_vin: Any = None
             if isinstance(options, dict):
                 by_vin = options.get(CONF_SPIN_BY_VIN)
@@ -4153,8 +4162,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 and getattr(client, "_mbb_command", None) is not None
             ):
                 return True
-        options = getattr(self.entry, "options", None) or {}
-        data = getattr(self.entry, "data", None) or {}
+        options = dict(getattr(self.entry, "options", None) or {})
+        data = dict(getattr(self.entry, "data", None) or {})
         # #543 — honour the documented precedence: an explicit Options-Flow
         # value (True OR False) wins over the initial config ``data``. The old
         # OR collapsed both to True, so disabling read-only in the Options Flow
@@ -4211,7 +4220,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         )
 
         opts = getattr(self.entry, "options", None) or {}
-        data = getattr(self.entry, "data", None) or {}
+        data = dict(getattr(self.entry, "data", None) or {})
 
         resolved_key = api_key or opts.get(CONF_ABRP_API_KEY) or data.get(
             CONF_ABRP_API_KEY
