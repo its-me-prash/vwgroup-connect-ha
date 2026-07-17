@@ -99,6 +99,57 @@ _APKCOMBO_VERSION_REGEXES = [
 ]
 
 
+# v2.18.0 — Google Play, the authoritative source. The store page exposes the
+# version to an anonymous request, so this needs NO account and no token in CI.
+# It matters: the mirrors had never once resolved Volkswagen (the cache carried
+# last_version_name=null, last_source=null while the watcher dutifully recorded
+# that it had looked, every day) — and VW is the largest brand we serve. Play
+# answers 4.1.1 for it, matching what a real download yields.
+_PLAY_BASE = "https://play.google.com/store/apps/details?id={pkg}&hl=en&gl=US"
+
+# The version sits in the page's embedded JSON callback data. Google reshuffles
+# that markup periodically, hence the mirrors stay wired below as a fallback
+# rather than being deleted.
+#
+# TRAP — do not "fix" a missing brand by matching `]]],"<version>",null`. That
+# shape is all over the page and looks like the jackpot, but it's review
+# metadata: Play records which app version each reviewer was running. Matching
+# it yields ~20 hits per page, mostly ancient, and would have the atlas report
+# some random reviewer's version as current. The bracket form below is the
+# actual version field — it agrees with the mirrors on all five brands that
+# publish one (seat 2.19.1, audi 5.6.0, skoda 8.14.0, vw 4.1.1, cupra 2.19.1).
+#
+# VW-NA and Porsche simply don't expose a version on their store listing at
+# all — not "Varies with device", just absent. They fall through to the mirrors,
+# which is the reason the mirrors are still wired up.
+_PLAY_VERSION_REGEXES = [
+    re.compile(r'\[\[\["(\d+\.\d+(?:\.\d+)?(?:[-.]\w+)?)"\]\]'),
+    re.compile(r'"softwareVersion"\s*:\s*"(\d+\.\d+(?:\.\d+)?(?:[-.]\w+)?)"'),
+]
+
+
+def _try_google_play(package_id: str) -> str | None:
+    url = _PLAY_BASE.format(pkg=package_id)
+    try:
+        body = _fetch(url)
+    except urllib.error.HTTPError as exc:
+        _LOGGER.debug("Google Play %s → HTTP %s", url, exc.code)
+        return None
+    except Exception as exc:  # noqa: BLE001
+        _LOGGER.debug("Google Play %s → %s", url, exc)
+        return None
+    # "Varies with device" is Play's answer for staged/dynamic rollouts. It is
+    # not a version — fall through to the mirrors rather than record it.
+    if "Varies with device" in body:
+        _LOGGER.debug("Google Play %s → 'Varies with device'", package_id)
+        return None
+    for regex in _PLAY_VERSION_REGEXES:
+        m = regex.search(body)
+        if m:
+            return m.group(1)
+    return None
+
+
 def _try_apkmirror(slug: str) -> str | None:
     url = f"{_APKMIRROR_BASE}{slug}/"
     try:
@@ -154,13 +205,24 @@ def scrape_version(brand: str, sources: dict[str, str | None]) -> tuple[str | No
     """Multi-source fallback scrape.
 
     Returns (version, source_name) — source_name is one of
-    ``"apkmirror"``, ``"uptodown"``, ``"apkcombo"``, or ``None``.
-    Tries each configured source in order; returns on first success.
+    ``"google_play"``, ``"apkmirror"``, ``"uptodown"``, ``"apkcombo"``, or
+    ``None``. Tries each configured source in order; returns on first success.
 
-    Adding a 4th source: implement ``_try_<name>(slug) -> str | None``
+    Google Play goes first: it's the publisher's own listing, so it can't lag
+    behind or mis-attribute the way a mirror can, and it needs no account. The
+    mirrors stay wired behind it for the days Play reshuffles its markup or
+    answers "Varies with device".
+
+    Adding another source: implement ``_try_<name>(slug) -> str | None``
     + add an ``if <name>_slug := sources.get("<name>_slug")`` branch
     below.
     """
+    package_id = sources.get("package_id")
+    if package_id:
+        v = _try_google_play(package_id)
+        if v:
+            return v, "google_play"
+
     apkmirror_slug = sources.get("apkmirror_slug")
     if apkmirror_slug:
         v = _try_apkmirror(apkmirror_slug)
@@ -428,7 +490,13 @@ def main(argv: list[str] | None = None) -> int:
             _LOGGER.error("Unknown brand %r — check config.json", brand)
             continue
         brand_cfg = config["brands"][brand]
-        sources = brand_cfg.get("sources", {})
+        # `package_id` sits beside `sources` in the config, but Google Play is
+        # keyed by it — fold it in so the resolver sees one flat dict. A brand
+        # carrying only a package_id is now pollable, where before it counted
+        # as having "no sources".
+        sources = dict(brand_cfg.get("sources", {}))
+        if pkg := brand_cfg.get("package_id"):
+            sources["package_id"] = pkg
         if not sources:
             _LOGGER.warning("Brand %s has no sources configured — skipping", brand)
             results[brand] = None

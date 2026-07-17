@@ -109,9 +109,11 @@ class TestBuildScript:
         assert src.startswith("#!/usr/bin/env python3") or "if __name__ == " in src
 
     def test_multi_source_scraper_present(self) -> None:
-        """Phase A.1: scrape_version walks apkmirror → uptodown → apkcombo fallback."""
+        """scrape_version walks google_play → apkmirror → uptodown → apkcombo."""
         src = _SCRIPT_PATH.read_text(encoding="utf-8")
         assert "def scrape_version(" in src
+        # v2.18.0 — Google Play (the publisher's own listing) leads.
+        assert "_try_google_play" in src
         assert "_try_apkmirror" in src
         assert "_try_uptodown" in src
         # v2.4.2+ — APKCombo as 3rd-tier fallback (added for VW EU coverage).
