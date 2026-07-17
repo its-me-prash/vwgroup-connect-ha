@@ -1330,6 +1330,19 @@ def map_dataset_to_vehicle_data(
     if _legacy_min is not None and d.min_soc is None:
         d.min_soc = _legacy_min
 
+    # v2.18.0 (Phase C) — climatise-without-HV-power config flag. Official
+    # dictionary: "regulating the temperature is allowed without a power
+    # source." The RPC and RDT copies carry the same value; take whichever is
+    # present.
+    _legacy_cwhv = first(
+        "RPC.climaterSettings.[0].climatisationWithoutHVPower",
+        "RDT.timerBasicSettings.[0].climatisationWithoutHVPower",
+    )
+    if _legacy_cwhv is not None and d.climatisation_without_hv_power is None:
+        d.climatisation_without_hv_power = (
+            str(_legacy_cwhv).strip().lower() in ("true", "1")
+        )
+
     # `in_cabin_temperature.temperature` — current interior °C. The
     # companion `measurement_state` flags validity; skip an explicitly
     # invalid reading but accept when the flag is absent (not all reports

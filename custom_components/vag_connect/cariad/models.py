@@ -598,6 +598,12 @@ class VehicleData:
     # Access block: parser-miss must NOT default to "climate off".
     climatisation_active: bool | None = None
     target_temperature: float | None = None
+    # v2.18.0 (Phase C) — one-time historical export config flag
+    # (RPC/RDT.climatisationWithoutHVPower). Official meaning: temperature
+    # regulation is allowed without an external power source, i.e. pre-climate
+    # may draw from the drive battery rather than requiring the car to be
+    # plugged in. Config, not telemetry.
+    climatisation_without_hv_power: bool | None = None
     outside_temp: float | None = None
     # v2.17.1 (Scout #701, VW ID.7) — EU-portal `in_cabin_temperature.
     # temperature`: current interior °C. No brand's status endpoint

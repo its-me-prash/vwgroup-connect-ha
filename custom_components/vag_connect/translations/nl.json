@@ -1304,6 +1304,9 @@
       },
       "abrp_data_changed": {
         "name": "ABRP-gegevens gewijzigd"
+      },
+      "climatisation_without_hv_power": {
+        "name": "Klimaatregeling zonder externe stroom"
       }
     },
     "switch": {

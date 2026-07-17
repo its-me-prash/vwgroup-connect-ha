@@ -725,6 +725,16 @@ _NEW_BINARY: tuple[VagBinarySensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # v2.18.0 (Phase C) — one-time historical export config flag: may the car
+    # pre-climate off its own drive battery (no external power needed)?
+    VagBinarySensorDescription(
+        key="climatisation_without_hv_power",
+        translation_key="climatisation_without_hv_power",
+        data_key="climatisation_without_hv_power",
+        icon="mdi:car-battery",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     VagBinarySensorDescription(
         key="mirror_heating_enabled",
         translation_key="mirror_heating_enabled",

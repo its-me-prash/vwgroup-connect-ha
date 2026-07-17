@@ -1304,6 +1304,9 @@
       },
       "abrp_data_changed": {
         "name": "ABRP-Daten geändert"
+      },
+      "climatisation_without_hv_power": {
+        "name": "Klimatisierung ohne Netzstrom"
       }
     },
     "switch": {

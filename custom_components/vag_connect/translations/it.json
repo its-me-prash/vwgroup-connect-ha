@@ -1304,6 +1304,9 @@
       },
       "abrp_data_changed": {
         "name": "Dati ABRP cambiati"
+      },
+      "climatisation_without_hv_power": {
+        "name": "Climatizzazione senza alimentazione esterna"
       }
     },
     "switch": {

@@ -1,0 +1,31 @@
+{
+  "_about": "Field catalogue for the EU Data Act portal's ONE-TIME / historical export (the legacy Car-Net RBC/RTS/RDT/RPC dialect). Descriptions are the official ones from the portal operator's public Data Dictionary V4.0 (Historical Data), joined by data-point UUID against a real export. The raw dictionary PDF is intentionally NOT committed (it is the portal operator's copyrighted document; this repo is public). This catalogue is the machine-usable extract: it lets a scout report on a legacy field carry its real name instead of showing up as 'new'. Field paths are index-normalised ([*]). 'mapped_to' names the VehicleData attribute when we already map it.",
+  "_source": "SVK EU Data Act — List of Historical Data, V4.0 (public portal download), UUID-joined against a real GTE export 2026-07-17.",
+  "fields": {
+    "RBC.vehicleStates.[*].soc": {"official": "State of charge", "unit": "integer", "mapped_to": "battery_soc"},
+    "RBC.vehicleStates.[*].charging": {"official": "Charging flag", "unit": "boolean", "mapped_to": "is_charging"},
+    "RBC.vehicleStates.[*].chargedCycle": {"official": "Boolean flag (charged-cycle marker)", "unit": "boolean", "mapped_to": null},
+    "RBC.chargerSettings.[*].maxChargeCurrentAmpere": {"official": "Maximum allowed amperage", "unit": "integer", "mapped_to": "charge_max_ac_setting"},
+    "RDT.timerBasicSettings.[*].chargeMinLimit": {"official": "Minimum charge level", "unit": "numeric", "mapped_to": "min_soc"},
+    "RDT.timerBasicSettings.[*].targetTemperature": {"official": "Target temperature", "unit": "numeric (deci-Kelvin)", "mapped_to": "target_temperature"},
+    "RDT.timerBasicSettings.[*].climatisationWithoutHVPower": {"official": "Flag whether regulating the temperature is allowed without a power source", "unit": "boolean", "mapped_to": "climatisation_without_hv_power"},
+    "RPC.climaterSettings.[*].climatisationWithoutHVPower": {"official": "Flag whether regulating the temperature is allowed without a power source", "unit": "boolean", "mapped_to": "climatisation_without_hv_power"},
+    "RPC.climaterSettings.[*].targetTemperature": {"official": "Target temperature in vehicle", "unit": "numeric (deci-Kelvin)", "mapped_to": "target_temperature"},
+    "RPC.climaterSettings.[*].targetTemperatureMeasurementState": {"official": "Target temperature measurement state (enum, e.g. VALID)", "unit": "string", "mapped_to": "target_temperature (validity gate)"},
+    "RDT.timerBackendSettings.[*].connectPlugTimerNotifyMinutes": {"official": "Time span until departure to notify if vehicle is connected", "unit": "numeric (minutes)", "mapped_to": null},
+    "RDT.timerBackendSettings.[*].departReminderTimerNotifyMinutes": {"official": "Time span for notification of scheduled departure time", "unit": "numeric (minutes)", "mapped_to": null},
+    "RDT.timerProfileElements.[*].profileName": {"official": "Name of profile", "unit": "string", "mapped_to": null, "note": "per-profile list (up to 10) — belongs in an attribute, not one entity each"},
+    "RDT.timerProfileElements.[*].profileID": {"official": "Profile id", "unit": "numeric", "mapped_to": null, "note": "per-profile list"},
+    "RDT.timerProfileElements.[*].targetChargeLevel": {"official": "Target level of charge", "unit": "numeric", "mapped_to": null, "note": "per-profile list"},
+    "RDT.timerProfileElements.[*].chargeMaxCurrent": {"official": "Max allowed amperage of the power source to be drawn", "unit": "numeric", "mapped_to": null, "note": "per-profile list"},
+    "RDT.timerProfileElements.[*].nightRateActive": {"official": "Flag whether night-time power should be used", "unit": "boolean", "mapped_to": null, "note": "per-profile list"},
+    "RDT.timerElements.[*].profileID": {"official": "Id of the associated profile", "unit": "numeric", "mapped_to": null, "note": "per-timer list (up to 3)"},
+    "RDT.timerElements.[*].timerID": {"official": "Timer id", "unit": "numeric", "mapped_to": null, "note": "per-timer list"},
+    "RDT.timerElements.[*].timerFequency": {"official": "Frequency of the timer (sic — the portal spells it 'Fequency')", "unit": "string", "mapped_to": null, "note": "per-timer list"},
+    "RDT.timerElements.[*].timerProgrammedStatus": {"official": "Status of programmed timers", "unit": "string", "mapped_to": null, "note": "per-timer list"},
+    "RDT.timerStatusData.[*].instrumentClusterTime": {"official": "Current time displayed in the vehicle", "unit": "timestamp", "mapped_to": null, "note": "per-timer list"},
+    "RDT.timerStatusData.[*].timerExpiredStatus": {"official": "Expired means a timer has started its actions", "unit": "string", "mapped_to": null, "note": "per-timer list"},
+    "RDT.timerStatusData.[*].timerID": {"official": "Timer id", "unit": "numeric", "mapped_to": null, "note": "per-timer list"},
+    "RTS.tripData.[*].mileage": {"official": "Per-trip distance", "unit": "numeric (km)", "mapped_to": null, "note": "logbook — 727 anonymous trip distances, no timestamps; aggregate, don't spawn one entity each"}
+  }
+}

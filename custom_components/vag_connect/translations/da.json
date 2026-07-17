@@ -1304,6 +1304,9 @@
       },
       "abrp_data_changed": {
         "name": "ABRP-data ændret"
+      },
+      "climatisation_without_hv_power": {
+        "name": "Klimaanlæg uden ekstern strøm"
       }
     },
     "switch": {

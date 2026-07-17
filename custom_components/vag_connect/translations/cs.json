@@ -1304,6 +1304,9 @@
       },
       "abrp_data_changed": {
         "name": "Data ABRP změněna"
+      },
+      "climatisation_without_hv_power": {
+        "name": "Klimatizace bez externího napájení"
       }
     },
     "switch": {

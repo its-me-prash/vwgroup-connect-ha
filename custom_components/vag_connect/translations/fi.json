@@ -1304,6 +1304,9 @@
       },
       "abrp_data_changed": {
         "name": "ABRP-tiedot muuttuivat"
+      },
+      "climatisation_without_hv_power": {
+        "name": "Ilmastointi ilman ulkoista virtaa"
       }
     },
     "switch": {

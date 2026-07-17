@@ -119,6 +119,21 @@ def test_phasec_legacy_min_charge_limit_maps_to_min_soc() -> None:
     assert d.min_soc == 50
 
 
+def test_phasec_climatisation_without_hv_power() -> None:
+    # Phase C — the one-time export's "may pre-climate off the drive battery"
+    # flag. Both the RPC and RDT copies carry it; either populates the field.
+    assert (
+        _map({"RPC.climaterSettings.[0].climatisationWithoutHVPower": "true"})
+        .climatisation_without_hv_power
+        is True
+    )
+    assert (
+        _map({"RDT.timerBasicSettings.[0].climatisationWithoutHVPower": "false"})
+        .climatisation_without_hv_power
+        is False
+    )
+
+
 def test_phasec_min_soc_canonical_wins() -> None:
     # A modern-feed value must not be overwritten by the legacy alias.
     from custom_components.vag_connect.cariad.auth._eu_data_act import (
