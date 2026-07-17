@@ -38,7 +38,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
-## [2.17.6] - 2026-07-17
+## [2.18.0] - 2026-07-17
 
 ### Fixed
 

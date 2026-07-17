@@ -163,7 +163,7 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
     def _field_source(self) -> str | None:
         """Which read channel produced THIS entity's value.
 
-        v2.17.6 (B1) — a car can be read over several channels at once and no
+        v2.18.0 (B1) — a car can be read over several channels at once and no
         channel is complete, so on a Golf GTE the fuel level and the SoC
         legitimately come from different places. ``source_channel`` only says
         which channels fed the car; the per-field map says which one produced
@@ -189,7 +189,7 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
         adding it here, every entity (sensor, binary_sensor, switch, etc.)
         becomes a valid source for those cards.
 
-        v2.17.6 (B1) — ``source`` names the read channel this value came from,
+        v2.18.0 (B1) — ``source`` names the read channel this value came from,
         so "where is this number from" is answerable per entity instead of only
         per car, and templates/automations can key on it.
 

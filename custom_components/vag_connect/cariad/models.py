@@ -1397,7 +1397,7 @@ class VehicleData:
     # (e.g. "eu_data_act+mbb"); None for a single-channel poll. Surfaced as a
     # diagnostic attribute so users/maintainers can see where data came from.
     source_channel: str | None = None
-    # v2.17.6 (A2) — per-FIELD provenance: {field_name: channel} for every
+    # v2.18.0 (A2) — per-FIELD provenance: {field_name: channel} for every
     # field that actually carries a value, recorded by the channel-merge layer.
     # ``source_channel`` answers "which channels fed this car"; this answers
     # "where did THIS reading come from", which is what an entity needs to

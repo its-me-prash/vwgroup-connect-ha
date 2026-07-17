@@ -44,7 +44,7 @@ _RAW_TO_CANONICAL: dict[str, str] = {
     "manual": "manual",
     # timer
     "timer": "timer",
-    # v2.17.6 (#702) — Touareg-era legacy Car-Net spells the same timer mode
+    # v2.18.0 (#702) — Touareg-era legacy Car-Net spells the same timer mode
     # TIMER_BASED_CHARGING. Read-side alias only; the write tokens below are
     # untouched, so nothing changes for cars that can actually set the mode.
     "timerbasedcharging": "timer",

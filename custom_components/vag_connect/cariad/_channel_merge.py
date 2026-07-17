@@ -74,7 +74,7 @@ def merge_channels(
     def _unset(name: str, value: object) -> bool:
         return bool(value == defaults[name])
 
-    # v2.17.6 (A2) — per-field provenance, rebuilt from scratch on every merge.
+    # v2.18.0 (A2) — per-field provenance, rebuilt from scratch on every merge.
     field_sources: dict[str, str] = {}
 
     # Seed contributors + provenance from the base. Every field the base
@@ -115,7 +115,7 @@ def merge_channels(
     elif contributors:
         merged.source_channel = next(iter(contributors))
 
-    # v2.17.6 (A2) — per-field provenance. Unlike source_channel this is set
+    # v2.18.0 (A2) — per-field provenance. Unlike source_channel this is set
     # even for a single-channel merge, so an entity can always answer "where
     # did my value come from" rather than only on multi-channel entries.
     merged.field_sources = field_sources
@@ -129,7 +129,7 @@ def merge_channels(
 def annotate_provenance(channel: str, data: "VehicleData") -> "VehicleData":
     """Record single-channel provenance on *data*, in place.
 
-    v2.17.6 (B2) — a car with no supplementary channel never reaches
+    v2.18.0 (B2) — a car with no supplementary channel never reaches
     :func:`merge_channels`, so it had no provenance at all: its entities could
     not say where their values came from, which is exactly the common case.
 

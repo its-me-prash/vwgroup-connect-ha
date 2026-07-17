@@ -46,7 +46,7 @@ async def async_setup_entry(
             if _supported(vin, "command_set_departure_timer"):
                 for timer_id in (1, 2, 3):
                     entities.append(VagDepartureTimerSwitch(coordinator, vin, timer_id))
-            # v2.17.6 — gate on the READ actually having produced a value, not
+            # v2.18.0 — gate on the READ actually having produced a value, not
             # on the client having the method: every brand inherits the command
             # stub from the base client, so hasattr() is true even where it
             # raises NotImplementedError. A car that reports battery-care state
@@ -133,7 +133,7 @@ class VagChargingSwitch(VagConnectEntity, SwitchEntity):
 class VagBatteryCareSwitch(VagConnectEntity, SwitchEntity):
     """Battery-care (preservation) mode on/off.
 
-    v2.17.6 — caps the top of the charge to spare the HV battery. The state
+    v2.18.0 — caps the top of the charge to spare the HV battery. The state
     has been readable since v2.10.0; this makes it settable.
     """
 

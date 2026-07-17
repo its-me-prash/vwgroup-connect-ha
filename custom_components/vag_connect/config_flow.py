@@ -1838,7 +1838,7 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
         # are folded into CONF_SPIN_BY_VIN on submit.
         _coord = getattr(self._config_entry, "runtime_data", None)
         _vehicles = getattr(_coord, "vehicles", None)
-        # v2.17.6 — options THEN data, like every other field above. The update
+        # v2.18.0 — options THEN data, like every other field above. The update
         # listener folds options into entry.data and blanks entry.options, so an
         # options-only read showed these fields blank even after they were set,
         # and submitting the form then wrote the blanks back over the saved map.

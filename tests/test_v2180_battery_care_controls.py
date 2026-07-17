@@ -1,6 +1,6 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""v2.17.6 — battery care is settable, not just readable.
+"""v2.18.0 — battery care is settable, not just readable.
 
 The read side shipped in v2.10.0 (`refresh_battery_care` fills
 `battery_care_enabled` + `battery_care_target_soc_pct`) and the SEAT/CUPRA

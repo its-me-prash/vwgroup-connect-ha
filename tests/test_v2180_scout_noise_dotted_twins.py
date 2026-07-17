@@ -1,6 +1,6 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""v2.17.6 — a mapped field must not re-surface as a "new field" forever.
+"""v2.18.0 — a mapped field must not re-surface as a "new field" forever.
 
 The walker emits BOTH spellings of a nested field: the bare leaf and the
 dotted path. `first()` reclaims every spelling it was *told about* — so a

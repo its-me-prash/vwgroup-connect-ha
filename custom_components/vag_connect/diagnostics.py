@@ -51,13 +51,13 @@ from .coordinator import VagConnectCoordinator
 _REDACT_KEYS = frozenset({
     CONF_PASSWORD,
     CONF_SPIN,
-    # v2.17.6 — the per-VIN S-PIN map (#759, shipped 2.17.5) is a
+    # v2.18.0 — the per-VIN S-PIN map (#759, shipped 2.17.5) is a
     # {VIN: S-PIN} dict. Without this it fell through to the generic dict
     # branch and got walked, emitting a real VIN as the key and the S-PIN
     # as a plaintext value into every diagnostics download — the same class
     # of leak the b11 note below documents fixing. Redact the whole map.
     CONF_SPIN_BY_VIN,
-    # v2.17.6 — both ABRP credentials leaked in plaintext, despite the
+    # v2.18.0 — both ABRP credentials leaked in plaintext, despite the
     # options help text promising "Never logged".
     CONF_ABRP_API_KEY,
     CONF_ABRP_USER_TOKEN,

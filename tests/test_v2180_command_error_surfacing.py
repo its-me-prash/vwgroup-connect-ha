@@ -1,6 +1,6 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""v2.17.6 (#659) — a failing command must not hand the user a traceback.
+"""v2.18.0 (#659) — a failing command must not hand the user a traceback.
 
 The dispatcher classified the failure, logged it, and then re-raised the raw
 APIError. Home Assistant doesn't know that type, so pressing the wake button

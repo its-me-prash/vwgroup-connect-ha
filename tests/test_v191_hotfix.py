@@ -286,7 +286,7 @@ class TestClassifyAndAutoRecord:
         )
         coord.record_command_success = MagicMock()
 
-        # v2.17.6 (#659) — a backend refusal now surfaces as a
+        # v2.18.0 (#659) — a backend refusal now surfaces as a
         # HomeAssistantError so HA renders it instead of showing the user a
         # traceback. The APIError is kept as __cause__; the classification
         # this test exists for is unchanged.

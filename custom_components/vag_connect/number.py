@@ -46,7 +46,7 @@ NUMBER_DESCRIPTIONS: tuple[VagNumberDescription, ...] = (
         entity_category=EntityCategory.CONFIG,
         condition="electric",
     ),
-    # v2.17.6 — battery-care top-charge target. Backend accepts 50-100 and
+    # v2.18.0 — battery-care top-charge target. Backend accepts 50-100 and
     # rejects the rest; the slider mirrors that rather than letting the user
     # pick a value the car will refuse.
     VagNumberDescription(
@@ -191,7 +191,7 @@ async def async_setup_entry(
                 continue
             if desc.condition == "auxheat" and not auxheat_supported_brand:
                 continue
-            # v2.17.6 — gate on the READ having produced a value rather than on
+            # v2.18.0 — gate on the READ having produced a value rather than on
             # the brand: every client inherits the command stub from the base
             # class, so a capability/hasattr check can't tell us who really has
             # the feature. A car that reports a care target has it.
@@ -232,7 +232,7 @@ class VagConnectNumber(VagConnectEntity, NumberEntity):
         # restarts. Fall back to the spec defaults when the user has
         # not changed the slider yet.
         if key in self._AUXHEAT_DEFAULTS:
-            # v2.17.6 — options THEN data. The setter below writes to
+            # v2.18.0 — options THEN data. The setter below writes to
             # entry.options, but the update-listener folds options into
             # entry.data and blanks entry.options (__init__.py), so an
             # options-only read never saw the stored value and the slider

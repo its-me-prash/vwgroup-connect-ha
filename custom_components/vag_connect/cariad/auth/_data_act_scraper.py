@@ -40,7 +40,7 @@ Route B - Headless browser
     Instead it is lazy-imported only when ``enable_browser_fallback``
     is set on the scraper.
 
-    v2.17.6 — nothing sets it today: the OptionsFlow toggle that was
+    v2.18.0 — nothing sets it today: the OptionsFlow toggle that was
     meant to drive it never had a reader and has been removed, and the
     only caller that forwarded the flag is itself unreachable. The
     fallback is therefore dormant rather than merely off.
@@ -246,7 +246,7 @@ class DataActScraper:
                 format.
             enable_browser_fallback: If True, ``fetch_vehicle_zip``
                 will fall back to a headless browser when the JSON
-                API returns no zip. Nothing sets it today (v2.17.6) —
+                API returns no zip. Nothing sets it today (v2.18.0) —
                 see the class docstring.
         """
         self._session = session

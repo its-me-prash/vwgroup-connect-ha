@@ -816,7 +816,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 return_exceptions=True,
             )
 
-            # v2.17.6 (A1) — merge + enrich BEFORE taking the lock, then only
+            # v2.18.0 (A1) — merge + enrich BEFORE taking the lock, then only
             # assign while holding it.
             #
             # Two reasons. (1) This path never merged at all: the poll loop
@@ -1118,7 +1118,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         brand = self.entry.data[CONF_BRAND]
         scraper = DataActScraper(session, brand_name=brand)
 
-        # v2.17.6 — options THEN data. The write below lands in entry.options,
+        # v2.18.0 — options THEN data. The write below lands in entry.options,
         # but the update-listener immediately folds options into entry.data and
         # blanks entry.options (__init__.py), so an options-only read never
         # found the cached map and every setup re-probed the portal for
@@ -1443,7 +1443,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             return annotate_provenance(self._primary_channel_name(), primary)
         suppliers = readers(vin)
         if not suppliers:
-            # v2.17.6 (B2) — no supplementary channel to union, but the reading
+            # v2.18.0 (B2) — no supplementary channel to union, but the reading
             # still has an origin. Record it so a single-channel car can name
             # its source like everyone else; nothing else about the snapshot is
             # touched.
@@ -1992,7 +1992,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         a runtime warning. Live activation is confirmed per-brand by a tester
         with a real car; the circuit-breaker keeps a wrong body inert.
         """
-        # v2.17.6 — data THEN options, mirroring the merge the update-listener
+        # v2.18.0 — data THEN options, mirroring the merge the update-listener
         # itself performs. The listener folds options into entry.data and blanks
         # entry.options (__init__.py), so reading options alone meant all three
         # toggles were permanently False and no push manager could ever start:
@@ -2239,7 +2239,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
     def push_states(self) -> dict[str, str]:
         """Per-channel push lifecycle state, for diagnostics.
 
-        v2.17.6 (#747) — the managers have carried a diagnostics-shaped
+        v2.18.0 (#747) — the managers have carried a diagnostics-shaped
         ``state`` since v2.2.0, but nothing ever exported it.
         """
         return {name: str(mgr.state) for name, mgr in self._push_managers().items()}
@@ -2248,7 +2248,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
     def cloud_push_active(self) -> bool:
         """Return True when at least one push channel is actually connected.
 
-        v2.17.6 (#747) — diagnostics used to report ``is_active`` under this
+        v2.18.0 (#747) — diagnostics used to report ``is_active`` under this
         name, which is the *polling loop* flag: it read true on every setup,
         including entries with all three push toggles off.
         """
@@ -3542,7 +3542,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 *[self._cariad_client.get_status(vin) for vin in vins],
                 return_exceptions=True,
             )
-            # v2.17.6 (A1) — same shape as the setup fetch: merge + enrich
+            # v2.18.0 (A1) — same shape as the setup fetch: merge + enrich
             # outside the lock, assign inside.
             #
             # This path runs on every async_request_refresh(), i.e. after every
@@ -3753,7 +3753,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         await self._cariad_cmd(vin, "command_set_target_soc", target=target)
 
     async def async_set_battery_care(self, vin: str, enabled: bool) -> None:
-        """v2.17.6 — toggle battery-care (preservation) mode.
+        """v2.18.0 — toggle battery-care (preservation) mode.
 
         The read side has shipped since v2.10.0 (``refresh_battery_care``
         fills ``battery_care_enabled`` + ``battery_care_target_soc_pct``) and
@@ -3767,7 +3767,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         )
 
     async def async_set_battery_care_target(self, vin: str, target_pct: int) -> None:
-        """v2.17.6 — set the battery-care top-charge target in percent.
+        """v2.18.0 — set the battery-care top-charge target in percent.
 
         Not clamped here: the backend enforces 50-100 and rejects anything
         else, and a silent clamp would hide that constraint from the user.
@@ -3987,7 +3987,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         options = getattr(self.entry, "options", None) or {}
         data = getattr(self.entry, "data", None) or {}
         if vin:
-            # v2.17.6 — read options THEN data, mirroring the shared S-PIN
+            # v2.18.0 — read options THEN data, mirroring the shared S-PIN
             # below. The options update-listener folds options into entry.data
             # and blanks entry.options (__init__.py), so entry.options is empty
             # by the time we read: the original options-only lookup never found
@@ -4419,7 +4419,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         "command_set_charge_mode": "charging",
         "command_set_min_soc": "charging",
         "command_set_max_charge_current": "charging",
-        # v2.17.6 — battery care caps the top of the charge, so it shares the
+        # v2.18.0 — battery care caps the top of the charge, so it shares the
         # charging lock: firing it against an in-flight target-SoC change would
         # have the two settings racing on the same backend object.
         "command_set_battery_care": "charging",
@@ -4525,7 +4525,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             except Exception:  # noqa: BLE001
                 pass
             _LOGGER.error("VAG Connect: %s(%s) failed: %s", method, mask_vin(vin), err)
-            # v2.17.6 (#659) — surface the failure instead of letting the raw
+            # v2.18.0 (#659) — surface the failure instead of letting the raw
             # APIError escape. HA doesn't know our exception types, so it logged
             # "Unexpected exception" and showed the user a Python traceback for
             # pressing a button; a reporter's log caught it verbatim. We already

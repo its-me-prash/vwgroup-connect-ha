@@ -1083,7 +1083,7 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
     # b1/C1 — data provenance. Shows which channel(s) produced the snapshot,
     # e.g. "eu_data_act+mbb" when several contributed, or the single channel's
     # name when one did.
-    # v2.17.6 (B2) — this used to appear only on multi-channel entries, because
+    # v2.18.0 (B2) — this used to appear only on multi-channel entries, because
     # a car with no supplementary channel skipped the merge and so had no
     # provenance at all. Every snapshot is attributed now, so the sensor answers
     # "where is this car's data from" for everyone. Still gated on data-present,

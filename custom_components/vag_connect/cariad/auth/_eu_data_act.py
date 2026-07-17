@@ -1040,7 +1040,7 @@ def map_dataset_to_vehicle_data(
                         # soc/battery_state_report.soc keys; just widens
                         # coverage for cars that report nothing else.
                         "hv_soc",
-                        # v2.17.6 (#702) — Touareg-era legacy Car-Net export.
+                        # v2.18.0 (#702) — Touareg-era legacy Car-Net export.
                         # These cars ship a flat {dataFieldName, value} dataset
                         # whose names are fully qualified (RBC.*/RTS.*/RDT.*),
                         # with no bare-leaf twin, so none of the keys above ever
@@ -1171,7 +1171,7 @@ def map_dataset_to_vehicle_data(
         d.charging_state = _shorten_enum(cs)
 
     else:
-        # v2.17.6 (#702) — the Touareg-era legacy export reports charging as a
+        # v2.18.0 (#702) — the Touareg-era legacy export reports charging as a
         # BOOLEAN, not the VW state enum. It deliberately does NOT ride the
         # ``cs`` lookup above: "true" is not in that enum tuple, so a charging
         # car would come out as NOT charging. Only consulted when the canonical
@@ -1181,7 +1181,7 @@ def map_dataset_to_vehicle_data(
             d.is_charging = str(_legacy_chg).strip().lower() in ("true", "1")
 
     cmode = first("charging_state_report.charge_mode", "charge_mode",
-                  # v2.17.6 (#702) — Touareg-era legacy export (e.g.
+                  # v2.18.0 (#702) — Touareg-era legacy export (e.g.
                   # TIMER_BASED_CHARGING). Enum-shaped like the canonical
                   # sources, so it can share this lookup; LAST as always.
                   "RBC.chargerSettings.[0].chargeModeSelection.value")
@@ -1289,7 +1289,7 @@ def map_dataset_to_vehicle_data(
     if hv_max is not None and d.battery_temp_max is None:
         d.battery_temp_max = round(hv_max / 10 - 273.15, 1) if hv_max > 200 else hv_max
 
-    # v2.17.6 (#702) — Touareg-era legacy Car-Net export: climate target temp,
+    # v2.18.0 (#702) — Touareg-era legacy Car-Net export: climate target temp,
     # also deci-Kelvin (2930 = 19.85 °C), with the same measurement-state
     # companion as the in-cabin reading below. Same >200 dK guard, so a plain-°C
     # dialect would pass through untouched.
@@ -1308,7 +1308,7 @@ def map_dataset_to_vehicle_data(
             round(_legacy_tt / 10 - 273.15, 1) if _legacy_tt > 200 else _legacy_tt
         )
 
-    # v2.17.6 (#702) — Touareg-era legacy export: the charger's picked AC
+    # v2.18.0 (#702) — Touareg-era legacy export: the charger's picked AC
     # current limit in amperes. It sits under ``chargerSettings``, so it is the
     # *setting* twin (what the user chose), not the live deliverable amperage.
     _legacy_mca = _to_int(first("RBC.chargerSettings.[0].maxChargeCurrentAmpere"))
@@ -1752,7 +1752,7 @@ def map_dataset_to_vehicle_data(
     # Capture timestamp → last_seen_at. epoch-seconds→ISO-8601 UTC; ISO
     # passthrough. (_dataset_captured_ts already reads these for freshness —
     # surfacing is additive.)
-    # v2.17.6 — the dotted spellings are listed alongside the bare ones. The
+    # v2.18.0 — the dotted spellings are listed alongside the bare ones. The
     # walker emits BOTH for a nested field, and first() only reclaims the
     # spellings it was told about: with bare-only names the dotted twin was
     # never marked used, so it resurfaced as a "new field" on every single

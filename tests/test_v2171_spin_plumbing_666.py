@@ -47,7 +47,7 @@ class TestSpinFromEntry:
         c = _coord(options={CONF_SPIN: "1111", CONF_SPIN_BY_VIN: {"VINA": ""}})
         assert c._spin_from_entry("VINA") == "1111"
 
-    # ── v2.17.6 — the entry state production actually produces ───────────
+    # ── v2.18.0 — the entry state production actually produces ───────────
     # The options update-listener folds options into entry.data and blanks
     # entry.options (__init__.py), so a saved per-VIN map lives in DATA. The
     # 2.17.5 tests only ever passed options={...} — a state that never exists
