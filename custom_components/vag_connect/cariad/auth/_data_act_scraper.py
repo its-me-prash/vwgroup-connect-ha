@@ -703,24 +703,58 @@ class DataActScraper:
         """Return a fresh CSRF token, or None if the portal did not
         deliver one. CSRF expires per-session so callers re-fetch
         before every POST that needs it.
+
+        v2.18.0 (#709) — every failure here used to return a bare None, and
+        the caller logged "no CSRF token - aborting" with no reason. That made
+        the whole kickoff undiagnosable: a reporter hands us a debug log and it
+        says the token is missing, without saying whether the portal answered
+        403 (session gone), 404 (the path moved), timed out, or simply started
+        naming the token something else. No CSRF means no data request, which
+        means no data at all — so this is the one failure we most need to be
+        able to read, and it was the one that told us the least.
+
+        Worth knowing: _CSRF_TOKEN_PATH is an Adobe AEM endpoint
+        (/libs/granite/...). The portal is AEM-backed, so if VW ever moves off
+        it or renames the field, this goes silent for every single user at once
+        — and the log below is what would tell us which of those it was.
         """
         from aiohttp import ClientTimeout  # noqa: PLC0415
 
+        url = _PORTAL_BASE + _CSRF_TOKEN_PATH
         try:
             async with self._session.get(
-                _PORTAL_BASE + _CSRF_TOKEN_PATH,
+                url,
                 timeout=ClientTimeout(total=10),
                 headers={"Accept": "application/json"},
             ) as resp:
                 if resp.status != 200:
+                    _LOGGER.debug(
+                        "CSRF token fetch: %s returned HTTP %s (portal session "
+                        "expired, or the endpoint moved)",
+                        _CSRF_TOKEN_PATH, resp.status,
+                    )
                     return None
                 data = await resp.json(content_type=None)
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.debug(
+                "CSRF token fetch: %s raised %s: %s",
+                _CSRF_TOKEN_PATH, type(exc).__name__, exc,
+            )
             return None
         if isinstance(data, dict):
             token = data.get("token") or data.get("csrfToken")
             if isinstance(token, str) and token:
                 return token
+            _LOGGER.debug(
+                "CSRF token fetch: HTTP 200 but no usable token in the "
+                "response. Keys present: %s",
+                sorted(data)[:12],
+            )
+            return None
+        _LOGGER.debug(
+            "CSRF token fetch: HTTP 200 but the body is %s, not an object",
+            type(data).__name__,
+        )
         return None
 
     async def get_active_custom_request_identifier(
