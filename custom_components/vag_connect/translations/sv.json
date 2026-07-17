@@ -1065,6 +1065,12 @@
       },
       "max_number_users": {
         "name": "Max antal användare"
+      },
+      "charging_profiles_pending": {
+        "name": "Laddningsprofiländringar väntar"
+      },
+      "climatisation_timers_pending": {
+        "name": "Klimattimerändringar väntar"
       }
     },
     "binary_sensor": {

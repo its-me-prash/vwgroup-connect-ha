@@ -1065,6 +1065,12 @@
       },
       "max_number_users": {
         "name": "Max. aantal gebruikers"
+      },
+      "charging_profiles_pending": {
+        "name": "Laadprofiel wijzigingen in behandeling"
+      },
+      "climatisation_timers_pending": {
+        "name": "Klimaattimer wijzigingen in behandeling"
       }
     },
     "binary_sensor": {

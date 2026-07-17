@@ -1065,6 +1065,12 @@
       },
       "max_number_users": {
         "name": "Número máximo de usuarios"
+      },
+      "charging_profiles_pending": {
+        "name": "Cambios de perfil de carga pendientes"
+      },
+      "climatisation_timers_pending": {
+        "name": "Cambios de temporizador de clima pendientes"
       }
     },
     "binary_sensor": {

@@ -441,6 +441,13 @@ class VehicleData:
     # .chargingCareSettings.requests`` counts queued battery-care changes.
     # Same int-count diagnostic, same None semantics. sensor, diagnostic.
     charging_care_pending: int | None = None
+    # v2.18.0 — Scout #799 (Audi): ``automation.chargingProfiles.requests``
+    # counts queued charge-PROFILE changes. Same int-count diagnostic.
+    charging_profiles_pending: int | None = None
+    # v2.18.0 — Scout #801 (Audi): ``climatisationTimers
+    # .climatisationTimersStatus.requests`` counts queued climate-TIMER
+    # schedule changes (distinct from climatisation start/stop). Same diag.
+    climatisation_timers_pending: int | None = None
     # v2.15.8 — Cariad scout #583 (Audi): third charging-side *.requests
     # sibling — ``charging.chargeMode.requests`` counts queued chargeMode
     # change requests (e.g. a putChargeMode POST switching preferred mode

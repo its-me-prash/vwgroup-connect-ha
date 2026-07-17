@@ -885,6 +885,12 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             "automation.climatisationTimer.value.*",
             "automation.chargingProfiles.value",
             "automation.chargingProfiles.value.*",
+            # v2.18.0 — Scout #799: now CONSUMED into charging_profiles_pending
+            # (vw_eu.py). 3-seg path, not covered by automation.chargingProfiles.*
+            "automation.chargingProfiles.requests",
+            # v2.18.0 — Scout #801: now CONSUMED into climatisation_timers_pending.
+            # 3-seg path, not covered by the 2-seg climatisationTimers.* wildcard.
+            "climatisationTimers.climatisationTimersStatus.requests",
             # v2.2.0 Phase 7 PR #5 (#245 Scout 2026-05-11/12/13) —
             # Systemic Cariad-BFF rollout: jeder ``<block>.{xxxStatus}``
             # bekommt jetzt einen ``.error`` container (6 keys —

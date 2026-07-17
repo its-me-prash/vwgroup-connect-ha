@@ -1065,6 +1065,12 @@
       },
       "max_number_users": {
         "name": "Maks. liczba użytkowników"
+      },
+      "charging_profiles_pending": {
+        "name": "Zmiany profilu ładowania oczekują"
+      },
+      "climatisation_timers_pending": {
+        "name": "Zmiany timera klimatyzacji oczekują"
       }
     },
     "binary_sensor": {

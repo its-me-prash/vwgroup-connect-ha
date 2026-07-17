@@ -1065,6 +1065,12 @@
       },
       "max_number_users": {
         "name": "Numero massimo di utenti"
+      },
+      "charging_profiles_pending": {
+        "name": "Modifiche profilo di ricarica in sospeso"
+      },
+      "climatisation_timers_pending": {
+        "name": "Modifiche timer clima in sospeso"
       }
     },
     "binary_sensor": {

@@ -1065,6 +1065,12 @@
       },
       "max_number_users": {
         "name": "Käyttäjien enimmäismäärä"
+      },
+      "charging_profiles_pending": {
+        "name": "Latausprofiilin muutokset odottamassa"
+      },
+      "climatisation_timers_pending": {
+        "name": "Ilmastointiajastimen muutokset odottamassa"
       }
     },
     "binary_sensor": {

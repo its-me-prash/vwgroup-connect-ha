@@ -1065,6 +1065,12 @@
       },
       "max_number_users": {
         "name": "Maks. antall brukere"
+      },
+      "charging_profiles_pending": {
+        "name": "Endringer av ladeprofil ventende"
+      },
+      "climatisation_timers_pending": {
+        "name": "Endringer av klimatimer ventende"
       }
     },
     "binary_sensor": {

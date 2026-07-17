@@ -273,6 +273,29 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # v2.18.0 — Scout #799: queued charge-PROFILE changes
+    # (``automation.chargingProfiles.requests``). Same *_pending diagnostic.
+    VagSensorDescription(
+        key="charging_profiles_pending",
+        translation_key="charging_profiles_pending",
+        data_key="charging_profiles_pending",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:playlist-edit",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # v2.18.0 — Scout #801: queued climate-TIMER schedule changes
+    # (``climatisationTimers.climatisationTimersStatus.requests``).
+    VagSensorDescription(
+        key="climatisation_timers_pending",
+        translation_key="climatisation_timers_pending",
+        data_key="climatisation_timers_pending",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:timer-cog-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     # v2.2.3 — Cariad scout #272 (VW EU arvcer 2026-05-23): third
     # *_pending sibling — counts queued start/stop_climatisation
     # commands. No ``condition`` filter (every brand with climatisation

@@ -642,6 +642,34 @@ class TestVWEUStatusParsing:
         result = client._parse_status("VIN1", payload, {})
         assert result.charging_care_pending == 2
 
+    def test_ev_charging_profiles_pending_count(self):
+        # v2.18.0 (Scout #799) — automation.chargingProfiles.requests → count
+        client = self._client()
+        payload = self._ev_payload()
+        payload["automation"] = {
+            "chargingProfiles": {"requests": [{"id": "a"}, {"id": "b"}, {"id": "c"}]}
+        }
+        result = client._parse_status("VIN1", payload, {})
+        assert result.charging_profiles_pending == 3
+        # absent → None (no phantom)
+        assert client._parse_status(
+            "VIN1", self._ev_payload(), {}
+        ).charging_profiles_pending is None
+
+    def test_ev_climatisation_timers_pending_count(self):
+        # v2.18.0 (Scout #801) — climatisationTimers.climatisationTimersStatus
+        # .requests → count (distinct from climatisation start/stop)
+        client = self._client()
+        payload = self._ev_payload()
+        payload["climatisationTimers"] = {
+            "climatisationTimersStatus": {"requests": [{"id": "x"}]}
+        }
+        result = client._parse_status("VIN1", payload, {})
+        assert result.climatisation_timers_pending == 1
+        assert client._parse_status(
+            "VIN1", self._ev_payload(), {}
+        ).climatisation_timers_pending is None
+
     def test_ev_doors_locked(self):
         client = self._client()
         result = client._parse_status("VIN1", self._ev_payload(), {})

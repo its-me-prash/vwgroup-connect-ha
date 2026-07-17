@@ -1065,6 +1065,12 @@
       },
       "max_number_users": {
         "name": "Maximální počet uživatelů"
+      },
+      "charging_profiles_pending": {
+        "name": "Změny profilu nabíjení čekají"
+      },
+      "climatisation_timers_pending": {
+        "name": "Změny časovače klimatizace čekají"
       }
     },
     "binary_sensor": {
