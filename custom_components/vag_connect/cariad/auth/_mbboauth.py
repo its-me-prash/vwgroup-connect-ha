@@ -192,19 +192,27 @@ async def refresh(
 ) -> MbbTokenSet:
     """Refresh an MBB bearer using its refresh_token (the durable path).
 
-    v2.18.0 (#584) — this used to send the value as ``token`` and omit the
-    scope, i.e. it inherited the shape of the ``id_token`` grant above (where
-    ``token`` is genuinely correct) instead of its own. The backend then got a
-    ``grant_type=refresh_token`` with no ``refresh_token`` in it and crashed
-    with ``500 IllegalStateException`` rather than answering cleanly — which is
-    why MBB died an hour after every setup and never once refreshed, and why
-    the v2.15.12 5xx retry didn't help: it re-sent a malformed request three
-    times.
+    v2.18.0 (#584) — this used to send ``{grant_type: refresh_token,
+    token: <RT>}``: it inherited the shape of the ``id_token`` grant above
+    (where ``token`` is correct) instead of its own, so the request carried
+    NO ``refresh_token`` parameter at all and no scope. That is a genuinely
+    malformed refresh — a ``grant_type=refresh_token`` with nothing to refresh
+    — and it is the leading explanation for the ``500 IllegalStateException``
+    that @Mattheisen87 saw on every refresh (his token expiry sat frozen for
+    four days on a 60-minute token, so the refresh never once succeeded, and
+    the v2.15.12 5xx retry couldn't help — it re-sent the same body three
+    times). But leading explanation is not proof: the shape below is
+    spec-conformant and matches what evcc sends and what every other refresh
+    path in this codebase already sends (idk / device-grant / porsche), yet a
+    500 is a server-side crash we cannot fully attribute from the outside.
+    This needs one real MBB round-trip to confirm it actually clears the 500.
 
-    The shape below is what our own recorded request has said all along
-    (``tests/bruno/mbb_legacy/02_POST_token_refresh.bru``): grant_type,
-    refresh_token, scope. Every other refresh path in the codebase already
-    sends ``refresh_token``; this was the only one that didn't.
+    Note on ``tests/bruno/mbb_legacy/02_POST_token_refresh.bru``: it is a
+    hand-authored reference, not a capture, and its own note records that BOTH
+    ``token`` and ``refresh_token`` have been reported working upstream. So it
+    documents the request shape we send; it does not by itself prove the field
+    name was the fault. The parity argument (evcc + our other paths) is the
+    real reason to prefer ``refresh_token``.
     """
     if not refresh_token:
         raise AuthenticationError("MBB refresh requires a non-empty refresh_token")

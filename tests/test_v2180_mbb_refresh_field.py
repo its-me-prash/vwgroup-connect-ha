@@ -1,27 +1,31 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""#584 — the MBB refresh sent the token under the wrong field name.
+"""#584 — the MBB refresh sent a malformed body: no refresh_token parameter.
 
-`refresh()` inherited the shape of `exchange_id_token()`, where putting the
-value in `token` is genuinely correct (that's the classic MBB id_token grant).
-The refresh grant needs `refresh_token`, and it needs the scope, which was
-dropped in the same copy.
+`refresh()` inherited the shape of `exchange_id_token()` and sent
+`{grant_type: refresh_token, token: <RT>}` — the value under `token`, no
+`refresh_token` parameter at all, no scope. For a refresh grant that is
+malformed: the request says "refresh" and carries nothing to refresh with.
+@Mattheisen87's diagnostics show the result — a 500 IllegalStateException on
+every refresh, expiry frozen four days on a 60-minute token, i.e. it never
+once succeeded.
 
-So the backend received `grant_type=refresh_token` with no refresh_token in
-it and crashed server-side — HTTP 500 IllegalStateException instead of a
-clean 401. MBB therefore died about an hour after every setup and never once
-refreshed, and the v2.15.12 5xx retry couldn't help: it re-sent a
-deterministically malformed request three times and gave up.
+What these tests DO establish: the request we now send is spec-conformant —
+grant_type + refresh_token + scope — matching evcc and every other refresh
+path in this codebase (idk / device-grant / porsche). That is the real reason
+to prefer `refresh_token`.
 
-Our own recorded request has had the right shape all along —
-`tests/bruno/mbb_legacy/02_POST_token_refresh.bru` sends grant_type +
-refresh_token + scope, and its note even predicted this exact ambiguity.
-Every other refresh path in the codebase already sends `refresh_token`; this
-was the only one that didn't.
+What they do NOT establish, and must not be read as: that the field name was
+provably the cause of the 500. A 500 is a server-side crash we can't attribute
+from the outside, and the .bru's own note records that BOTH `token` and
+`refresh_token` have been reported working upstream — so the .bru is a
+hand-authored reference, not a capture, and it does not by itself convict the
+field name. An earlier version of this file called it "a capture of the real
+request" and "the source of truth"; that was wrong on both counts.
 
-LIVE-GATED: verified against our recorded request and the surrounding code,
-NOT against a live MBB round-trip. The current path has a 0% success rate, so
-there is nothing to regress — but a reporter still has to confirm the fix.
+LIVE-GATED: the fix makes the request well-formed and standard; whether that
+clears @Mattheisen87's 500 needs one real MBB round-trip to confirm. The
+current path has a 0% success rate, so there is nothing to regress.
 """
 from __future__ import annotations
 
@@ -89,9 +93,13 @@ async def test_id_token_exchange_keeps_its_own_shape() -> None:
     assert body["scope"] == "sc2:fal"
 
 
-def test_matches_our_recorded_request() -> None:
-    # The Bruno collection is the source of truth here: it's a capture of the
-    # real request. If someone changes the field names again, this fails.
+def test_matches_the_bru_reference_shape() -> None:
+    # The .bru is a hand-authored reference, NOT a capture (its own docs block
+    # ends "zu erstellen v1.27" — to be created — and its note says both field
+    # names have been reported working). So this pins that our request agrees
+    # with the reference's documented shape; it is not evidence that the field
+    # name was the fault. That case rests on standards-conformance + parity with
+    # evcc and our other refresh paths, asserted in the tests above.
     import pathlib
 
     bru = pathlib.Path("tests/bruno/mbb_legacy/02_POST_token_refresh.bru").read_text(
