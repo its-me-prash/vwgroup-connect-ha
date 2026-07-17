@@ -13,6 +13,7 @@ from .skoda import SkodaClient
 from .seat_cupra import SeatCupraClient
 from .porsche import PorscheClient
 from .vw_na import VWNAClient
+from .audi_na import AudiNAClient
 from .bentley import BentleyClient
 
 
@@ -39,6 +40,8 @@ class CariadClientFactory:
           seat          — SEAT (OLA server)
           cupra         — CUPRA (OLA server)
           volkswagen_na — VW North America (US/CA, b-h-s.spr.{cc}00.p.con-veh.net)
+          audi_na       — Audi North America (US/CA, shared VW-Group NA backend;
+                          SCAFFOLD — client_id pending the US myAudi APK sweep)
           porsche       — Porsche Connect (Auth0, api.ppa.porsche.com)
           bentley       — Bentley (My Bentley, Audi IDK client/tenant; read-only)
 
@@ -62,6 +65,10 @@ class CariadClientFactory:
             )
         if lower == "volkswagen_na":
             return VWNAClient(session, email, password, spin, country=country)
+        if lower == "audi_na":
+            # v2.18.2 — Audi US/CA on the shared VW-Group NA backend (subclass of
+            # VWNAClient). SWEEP-GATED: myAudi NA client_id pending (see audi_na.py).
+            return AudiNAClient(session, email, password, spin, country=country)
         if lower == "porsche":
             return PorscheClient(session, email, password, spin)
         if lower == "bentley":
@@ -70,5 +77,6 @@ class CariadClientFactory:
             return BentleyClient(session, email, password, spin)
         raise ValueError(
             f"Unknown brand '{brand}'. Supported: "
-            "volkswagen, audi, skoda, seat, cupra, volkswagen_na, porsche, bentley"
+            "volkswagen, audi, skoda, seat, cupra, volkswagen_na, audi_na, "
+            "porsche, bentley"
         )

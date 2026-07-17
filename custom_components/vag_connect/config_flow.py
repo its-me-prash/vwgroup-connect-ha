@@ -86,6 +86,7 @@ _BRAND_OPTIONS: list[SelectOptionDict] = [
     SelectOptionDict(value="seat",          label="SEAT"),
     SelectOptionDict(value="cupra",         label="CUPRA"),
     SelectOptionDict(value="volkswagen_na", label="Volkswagen US / CA"),
+    SelectOptionDict(value="audi_na",       label="Audi US / CA (experimental)"),
     SelectOptionDict(value="porsche",       label="Porsche (My Porsche) — experimental, login may fail"),
     # v2.14.11 — Bentley (login+read; Audi IDK tenant). Two-way live-test gated.
     SelectOptionDict(value="bentley",       label="Bentley (My Bentley)"),
@@ -282,7 +283,7 @@ def _credentials_schema(
     # the first render (brand unknown) it stays hidden; if a VW-NA login fails,
     # the form re-renders with brand=volkswagen_na and the picker appears so the
     # user can switch us↔ca. Every other brand never sees it.
-    if brand.lower() == "volkswagen_na":
+    if brand.lower() in ("volkswagen_na", "audi_na"):
         schema[vol.Optional(CONF_COUNTRY, default=country)] = _COUNTRY_SELECTOR
     schema.update({
         vol.Optional(CONF_SCAN_INTERVAL, default=scan_interval): _INTERVAL_SELECTOR,

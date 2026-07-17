@@ -94,6 +94,34 @@ BRAND_AUDI = BrandConfig(
     android_package_name="de.myaudi.mobile.assistant",
 )
 
+# v2.18.2 — Audi North America (myAudi US / CA). LIVE-VERIFIED from the US market
+# config (content.app.my.audi.com/service/mobileapp/configurations/market/US/en)
+# + the NA OIDC discovery doc, cross-checked against the DE control. Key finding:
+# US Audi is the EU-Audi CARIAD-BFF architecture, NA REGION — NOT the VW-NA
+# con-veh backend. One global app (de.myaudi.mobile.assistant), region-switched at
+# runtime. Auth: authorize at identity.na.vwgroup.io, token at na.bff.cariad.digital.
+#
+# DATA-PLANE CAVEAT: na.bff.cariad.digital is the same CARIAD-BFF product as EU
+# Audi → the same Play-Integrity / x-qmauth attestation wall (#503/#464/#526).
+# Off-device vehicle reads will very likely 403, same as EU Audi — and the US has
+# NO EU-Data-Act portal fallback. So this is a LOGIN FOUNDATION; live data needs a
+# data path (device-grant-data or a US portal) that does not exist yet.
+BRAND_AUDI_NA = BrandConfig(
+    name="audi_na",
+    # LIVE (Android) client from the US market config — apps_vw-dilab_com family,
+    # NOT a *_MYVW/_MYAUDI_ANDROID id. Sandbox variant:
+    # d8ef5ed0-2fd5-4afe-9ffb-018da6b76724@apps_vw-dilab_com.
+    client_id="7c6b4634-f0c5-488b-a78f-b1a65414fb90@apps_vw-dilab_com",
+    redirect_uri="myaudi:///",
+    user_agent="Android/5.5.1 (Build 800344232.root project 'myaudi_android'.ext.buildTime) Android/13",
+    api_base="https://na.bff.cariad.digital",
+    scope=(
+        "address profile badge birthdate birthplace nationalIdentifier nationality "
+        "profession email vin phone nickname name picture mbb gallery openid"
+    ),
+    android_package_name="de.myaudi.mobile.assistant",
+)
+
 BRAND_SKODA = BrandConfig(
     name="skoda",
     client_id="7f045eee-7003-4379-9968-9355ed2adb06@apps_vw-dilab_com",

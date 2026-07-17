@@ -209,6 +209,7 @@ BRANDS = {
     "seat":           "SEAT",
     "cupra":          "CUPRA",
     "volkswagen_na":  "Volkswagen US/CA",
+    "audi_na":        "Audi US/CA",
     "porsche":        "Porsche (My Porsche)",
 }
 
@@ -240,6 +241,7 @@ DEEPLINK_SCHEMES: dict[str, str] = {
     "cupra":         "cupra://",           # DEX: My CUPRA 2.18.1 (was mycupra://)
     "porsche":       "porsche-app://",     # DEX: Porsche One 12.24.27 (was myporsche://)
     "volkswagen_na": "myvw://",            # DEX: myVW 2026.5.27 (was vwapp://)
+    "audi_na":       "myaudi://",          # US Audi = same global myAudi app
 }
 
 # Polling interval limits

@@ -44,6 +44,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 - **Trunk, engine hood and sunroof open-state can read from the newer portal feed too (#794, #807).** Some cars send openings in a compact form where the trunk, the hood, the sunroof, every door and every window all share one generic `open` flag — told apart only by a hidden dictionary ID — so on its own the flag was meaningless (which is why the Scout kept surfacing a bare `open`). We now decode that ID against the official data dictionary and route trunk / hood / front-sunroof to their existing sensors. (Per-door and per-window openings share the same shape but are position-indexed — a follow-up; and real-feed confirmation is still pending, so treat it as best-effort.)
 
+### Added
+
+- **Audi US / CA groundwork (experimental).** myAudi in North America runs on the same CARIAD backend as Europe, just the North-American region — so there's now an "Audi US / CA" brand wired to the real NA endpoints (host, identity provider and the live app client). Heads-up: it's a login foundation, not a working data feed yet — North-American Audi data sits behind the same attestation wall as EU Audi, with no EU Data Act portal to fall back on, so vehicle reads won't come through until that path opens. Wired and ready for a US Audi tester.
+
 ## [2.18.1] - 2026-07-17
 
 ### Fixed
