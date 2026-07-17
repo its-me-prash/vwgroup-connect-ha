@@ -553,7 +553,10 @@ _CAPTURED_NAME_HINTS: tuple[str, ...] = (
 # The flattener additionally keys such points by their ``key`` UUID so first()
 # can resolve them by UUID.
 _GENERIC_FIELD_NAMES: frozenset[str] = frozenset(
-    {"value", "unit", "state", "timestamp", "is_set", "type"}
+    # v2.18.2 — "open" added: the feed ships opening states as a generic ``open``
+    # boolean point carrying its dictionary UUID in ``key`` (like the range point),
+    # so it must count as generic for the UUID-alias below to disambiguate it.
+    {"value", "unit", "state", "timestamp", "is_set", "type", "open"}
 )
 # v2.17.5 — ONLY alias the UUIDs we actually MAP. The 2.17.4 blanket alias
 # emitted an ``eu_data_act.<uuid>`` key for EVERY generic-named point, which
@@ -561,9 +564,18 @@ _GENERIC_FIELD_NAMES: frozenset[str] = frozenset(
 # names per car ("46 new fields"). We now alias solely these known-mapped UUIDs;
 # every other generic point keeps only its bare name + value (still Scout-visible,
 # so discovery is unaffected) and no longer spams unmapped UUID rows.
-_MAPPED_UUIDS: frozenset[str] = frozenset(
-    {"0ca40e18-0564-3eda-bcc0-7aee9ef44f04"}  # primary range (electric on BEV / combustion on PHEV)
-)
+_MAPPED_UUIDS: frozenset[str] = frozenset({
+    "0ca40e18-0564-3eda-bcc0-7aee9ef44f04",  # primary range (electric on BEV / combustion on PHEV)
+    # v2.18.2 (#794/#807) — single-boolean opening states. The feed encodes them
+    # UUID-keyed under a generic ``open`` leaf; ~10 opening UUIDs share that leaf,
+    # so the bare name collides and is meaningless without the UUID. Alias the
+    # ones that fold cleanly into an existing single entity (trunk / engine hood /
+    # front sunroof). Windows & doors are per-position (dict key ``[*]``) → later.
+    "25ed3407-82de-353e-9f3e-f37952731932",  # trunk.open
+    "8540dd41-556c-3e41-aea9-3e28f8d80a2a",  # enginehood.open
+    "3d219e22-1311-3112-a9cc-f8db86a69a9f",  # sunrooffront.open
+    "f5fa6f61-ea56-3be8-97e6-acc8543cc49e",  # "open" — sun roof opening status
+})
 
 
 def _num(value: Any) -> float | None:
@@ -1500,6 +1512,28 @@ def map_dataset_to_vehicle_data(
     _hood_state = _to_int(first("state_of_hood"))
     if _hood_state in (2, 3) and d.hood_open is None:
         d.hood_open = _hood_state == 2
+
+    # v2.18.2 (#794/#807) — UUID-keyed opening fallbacks. The 15-min feed can
+    # ship an opening state as a generic ``open`` boolean point carrying its
+    # dictionary ``key`` UUID instead of the descriptive ``open_state_*`` enum
+    # above; the flattener aliases those by UUID (see _MAPPED_UUIDS). Fold the
+    # single-boolean openings into the existing entities only when the enum path
+    # didn't fire. Booleans → no 0/1 sentinel rule.
+    if d.trunk_open is None:
+        _t_uuid = first("25ed3407-82de-353e-9f3e-f37952731932")  # trunk.open
+        if _t_uuid is not None:
+            d.trunk_open = str(_t_uuid).strip().lower() in ("true", "1")
+    if d.hood_open is None:
+        _h_uuid = first("8540dd41-556c-3e41-aea9-3e28f8d80a2a")  # enginehood.open
+        if _h_uuid is not None:
+            d.hood_open = str(_h_uuid).strip().lower() in ("true", "1")
+    if d.sunroof_open is None:
+        _sr_uuid = first(
+            "3d219e22-1311-3112-a9cc-f8db86a69a9f",  # sunrooffront.open
+            "f5fa6f61-ea56-3be8-97e6-acc8543cc49e",  # "open" — sun roof opening status
+        )
+        if _sr_uuid is not None:
+            d.sunroof_open = str(_sr_uuid).strip().lower() in ("true", "1")
 
     # window-lifter state → windows_individual (True == CLOSED, per the model
     # convention) + windows_open aggregate; position is % open.
