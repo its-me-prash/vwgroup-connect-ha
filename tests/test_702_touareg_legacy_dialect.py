@@ -110,6 +110,27 @@ def test_702_legacy_charge_mode() -> None:
     assert d.charge_mode is not None
 
 
+def test_phasec_legacy_min_charge_limit_maps_to_min_soc() -> None:
+    # Phase C groundwork — the one-time export's departure-timer minimum charge
+    # limit is the same value the modern feed calls minChargeLimit_pct (min_soc),
+    # so it lights up the EXISTING sensor. Verified against Prash's real GTE
+    # export (chargeMinLimit = 50).
+    d = _map({"RDT.timerBasicSettings.[0].chargeMinLimit": "50"})
+    assert d.min_soc == 50
+
+
+def test_phasec_min_soc_canonical_wins() -> None:
+    # A modern-feed value must not be overwritten by the legacy alias.
+    from custom_components.vag_connect.cariad.auth._eu_data_act import (
+        map_dataset_to_vehicle_data,
+    )
+
+    d = VehicleData(vin="X")
+    d.min_soc = 80
+    map_dataset_to_vehicle_data({"RDT.timerBasicSettings.[0].chargeMinLimit": "50"}, d)
+    assert d.min_soc == 80
+
+
 def test_702_trip_mileage_never_becomes_odometer() -> None:
     # RTS.tripData.[N].mileage is PER-TRIP distance, not the odometer. The
     # dialect ships ~228 of them; promoting one would invent a bogus reading.

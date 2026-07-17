@@ -1315,6 +1315,17 @@ def map_dataset_to_vehicle_data(
     if _legacy_mca is not None and d.charge_max_ac_setting is None:
         d.charge_max_ac_setting = _legacy_mca
 
+    # v2.18.0 (Phase C groundwork) — the legacy one-time export carries the
+    # departure-timer minimum charge limit under ``RDT.timerBasicSettings
+    # .[0].chargeMinLimit`` (a %). It is the same value the modern feed calls
+    # ``charging.chargingSettings.value.minChargeLimit_pct`` (parsed into
+    # ``min_soc`` in vw_eu.py), so this lights up the EXISTING min_soc sensor
+    # for a car we only have a one-time export for — no new surface. Canonical
+    # (modern feed) wins; this is the fallback.
+    _legacy_min = _to_int(first("RDT.timerBasicSettings.[0].chargeMinLimit"))
+    if _legacy_min is not None and d.min_soc is None:
+        d.min_soc = _legacy_min
+
     # `in_cabin_temperature.temperature` — current interior °C. The
     # companion `measurement_state` flags validity; skip an explicitly
     # invalid reading but accept when the flag is absent (not all reports
