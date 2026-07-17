@@ -12,6 +12,7 @@ Thread safety:
 """
 
 import asyncio
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import logging
@@ -3917,20 +3918,25 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         v2.17.5 (#759) — when *vin* is given and a per-VIN override exists in
         ``CONF_SPIN_BY_VIN``, that wins; otherwise the shared per-entry S-PIN is
         returned (so single-S-PIN setups behave exactly as before).
+
+        The mapping checks below test against ``Mapping``, not ``dict``: HA hands
+        out ``ConfigEntry.data``/``.options`` as ``MappingProxyType``, which is a
+        ``Mapping`` but *not* a ``dict`` subclass. Testing for ``dict`` silently
+        discarded every configured S-PIN.
         """
         options = getattr(self.entry, "options", None) or {}
         data = getattr(self.entry, "data", None) or {}
-        if vin and isinstance(options, dict):
+        if vin and isinstance(options, Mapping):
             by_vin = options.get(CONF_SPIN_BY_VIN)
-            if isinstance(by_vin, dict):
+            if isinstance(by_vin, Mapping):
                 per = str(by_vin.get(vin) or "")
                 if per:
                     return per
-        if isinstance(options, dict):
+        if isinstance(options, Mapping):
             spin = str(options.get(CONF_SPIN) or "")
             if spin:
                 return spin
-        if isinstance(data, dict):
+        if isinstance(data, Mapping):
             return str(data.get(CONF_SPIN) or "")
         return ""
 

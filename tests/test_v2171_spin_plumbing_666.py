@@ -10,6 +10,7 @@ arm resolves options-first, and an Options edit refreshes the live connector.
 """
 from __future__ import annotations
 
+from types import MappingProxyType
 from unittest.mock import MagicMock
 
 from custom_components.vag_connect.const import CONF_SPIN, CONF_SPIN_BY_VIN
@@ -19,8 +20,11 @@ def _coord(options=None, data=None):
     from custom_components.vag_connect.coordinator import VagConnectCoordinator
     c = VagConnectCoordinator.__new__(VagConnectCoordinator)
     c.entry = MagicMock()
-    c.entry.options = options if options is not None else {}
-    c.entry.data = data if data is not None else {}
+    # HA exposes ConfigEntry.data/.options as MappingProxyType, never as a plain
+    # dict. Faking them as dicts here hid a bug where the lookup tested
+    # `isinstance(..., dict)` and silently dropped every configured S-PIN.
+    c.entry.options = MappingProxyType(options if options is not None else {})
+    c.entry.data = MappingProxyType(data if data is not None else {})
     return c
 
 
@@ -53,6 +57,43 @@ class TestSpinFromEntry:
         assert c._spin_from_entry("ANYVIN") == "1111"
         c2 = _coord(options={}, data={CONF_SPIN: "3333"})
         assert c2._spin_from_entry("ANYVIN") == "3333"
+
+
+class TestSpinMappingProxyRegression:
+    """The config entry hands out MappingProxyType, not dict.
+
+    `isinstance(MappingProxyType({...}), dict)` is False, so a lookup gated on
+    `isinstance(..., dict)` returns "" for every real-world entry and the user
+    gets `spin_required` despite a correctly stored S-PIN. These tests pin the
+    runtime type explicitly so the guard cannot regress to `dict`.
+    """
+
+    def test_spin_in_data_survives_mappingproxy(self):
+        c = _coord(options={}, data={CONF_SPIN: "1111", "username": "a@b.c"})
+        assert isinstance(c.entry.data, MappingProxyType)
+        assert not isinstance(c.entry.data, dict)  # the trap
+        assert c._spin_from_entry() == "1111"
+
+    def test_spin_in_nonempty_options_survives_mappingproxy(self):
+        # a non-empty options mapping stays a MappingProxyType (an empty one is
+        # falsy and gets replaced by a real dict via `or {}`, masking the bug)
+        c = _coord(options={CONF_SPIN: "9999", "scan_interval": 300},
+                   data={CONF_SPIN: "1111"})
+        assert c._spin_from_entry() == "9999"
+
+    def test_per_vin_override_survives_mappingproxy(self):
+        c = _coord(options={CONF_SPIN: "1111", CONF_SPIN_BY_VIN: {"VINA": "2222"}})
+        assert c._spin_from_entry("VINA") == "2222"
+
+    def test_refresh_mbb_pushes_real_spin_not_empty(self):
+        c = _coord(options={}, data={CONF_SPIN: "1234"})
+        cmd = MagicMock()
+        cmd._spin = "0000"
+        client = MagicMock()
+        client._mbb_command_target = lambda: cmd
+        c._cariad_client = client
+        c._refresh_mbb_command_spin()
+        assert cmd._spin == "1234"  # not "" — #666's symptom
 
 
 class TestRefreshMbbSpin:

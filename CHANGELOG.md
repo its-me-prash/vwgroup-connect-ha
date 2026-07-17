@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [Unreleased]
+
+### Fixed
+
+- **Your S-PIN is used again.** Every S-PIN-gated action (lock/unlock, auxiliary heating, …) failed with "configure your S-PIN" even when the S-PIN was configured correctly — on every install, whether the PIN was set during setup or later under Configure. The stored PIN was read back through a type check that never matched, so the integration behaved as if no PIN had been set. Storing the PIN was never the problem; reading it back was. Thanks **@torstentosh** for the original report (#666).
+
 ## [2.17.5] - 2026-07-13
 
 ### Fixed
