@@ -38,10 +38,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
-## [2.18.2] - 2026-07-17
+## [2.19.0] - 2026-07-18
 
 ### Fixed
 
+- **Your car's model + year now show properly on the device page.** Instead of a bare "VAG Vehicle", the device model reads like "S6 Avant TDI quattro tiptronic (2021)" — the redundant leading brand is stripped (the manufacturer field already shows it) and the model year is appended. Cars with no model name at all fall back to a clean brand label rather than "VAG Vehicle", and the VIN stays the device serial number.
 - **Trunk, engine hood and sunroof open-state can read from the newer portal feed too (#794, #807).** Some cars send openings in a compact form where the trunk, the hood, the sunroof, every door and every window all share one generic `open` flag — told apart only by a hidden dictionary ID — so on its own the flag was meaningless (which is why the Scout kept surfacing a bare `open`). We now decode that ID against the official data dictionary and route trunk / hood / front-sunroof to their existing sensors. (Per-door and per-window openings share the same shape but are position-indexed — a follow-up; and real-feed confirmation is still pending, so treat it as best-effort.)
 
 ### Added

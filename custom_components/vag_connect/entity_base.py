@@ -131,17 +131,33 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
         # culprit was ``hacs.json`` ``zip_release: true``, NOT these
         # DeviceInfo fields. Verified safe under HA 2026.x core via CI
         # Hassfest + HACS Validation since v1.27.0.
+        # v2.18.2 — device model string. CARIAD often returns the model with a
+        # redundant leading brand ("Audi S6 Avant …") while ``manufacturer`` is
+        # already the brand, so strip that prefix, then append the model year →
+        # "S6 Avant TDI quattro tiptronic (2021)". Year is null-guarded (a missing
+        # year must NOT render "(None)"). ``serial_number`` stays the VIN.
+        _model_raw = (vehicle.get("model") or "").strip()
+        if _model_raw and _model_raw.lower().startswith(brand.lower() + " "):
+            _model_raw = _model_raw[len(brand) + 1:].strip()
+        _year = vehicle.get("model_year")
+        if _model_raw:
+            _model_str = f"{_model_raw} ({_year})" if _year else _model_raw
+        else:
+            # No model name available (e.g. a VW-EU portal-only car, whose feed
+            # carries no model field at all) — fall back to a clean brand label
+            # rather than the generic "VAG Vehicle".
+            _model_str = (
+                brand.replace("_", " ").title() if brand and brand != "vag"
+                else "VAG Vehicle"
+            )
+
         return DeviceInfo(
             identifiers={(DOMAIN, self._vin)},
             name=name,
-            model=vehicle.get("model") or "VAG Vehicle",
+            model=_model_str,
             manufacturer=brand.title(),
             serial_number=self._vin,
-            hw_version=(
-                str(vehicle.get("model_year"))
-                if vehicle.get("model_year")
-                else None
-            ),
+            hw_version=(str(_year) if _year else None),
             sw_version=vehicle.get("firmware_version"),
             configuration_url=self._BRAND_PORTAL.get(brand.lower()),
             suggested_area="Garage",

@@ -18,5 +18,5 @@
     "firebase-messaging>=0.4.0",
     "aiomqtt>=2.0.0"
   ],
-  "version": "2.18.2"
+  "version": "2.19.0"
 }
