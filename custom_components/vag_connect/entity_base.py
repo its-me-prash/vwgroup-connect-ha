@@ -160,8 +160,46 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
         return VehicleImageFetcher.best_url(image_urls) if image_urls else None
 
     @property
+    def _field_source(self) -> str | None:
+        """Which read channel produced THIS entity's value.
+
+        v2.18.0 (B1) — a car can be read over several channels at once and no
+        channel is complete, so on a Golf GTE the fuel level and the SoC
+        legitimately come from different places. ``source_channel`` only says
+        which channels fed the car; the per-field map says which one produced
+        this particular reading. ``None`` when the field carries no value or
+        the entity isn't backed by a data_key.
+
+        ``entity_description`` is read defensively because not every entity has
+        one: HA's ``Entity`` does not define it at class level, and our image
+        entities never assign it. This used to reach straight through it, which
+        was survivable only while the platform overrides shadowed this property
+        away — the moment the base actually ran for every entity, it became an
+        AttributeError on the image platform. The existing widget-image test
+        caught exactly that.
+        """
+        desc = getattr(self, "entity_description", None)
+        key = getattr(desc, "data_key", None) if desc is not None else None
+        if not key:
+            return None
+        sources = self._vehicle.get("field_sources")
+        if not isinstance(sources, dict):
+            return None
+        source = sources.get(key)
+        return source if isinstance(source, str) else None
+
+    def _platform_attributes(self) -> dict[str, Any] | None:
+        """Per-platform attributes, merged into ``extra_state_attributes``.
+
+        Platforms override THIS, not ``extra_state_attributes``. That is the
+        whole point of it existing — see the note there.
+        """
+        return None
+
+    @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
-        """Surface ``image_url`` so Custom Lovelace Cards can read it.
+        """Surface ``image_url`` + the reading's ``source``, plus the
+        platform's own attributes from ``_platform_attributes``.
 
         v1.25.0 PR-F (Audit Agent E #5 win): Cards like Ultra-Vehicle-Card,
         vehicle-info-card, mushroom-template-card consume an ``image_url``
@@ -169,15 +207,41 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
         adding it here, every entity (sensor, binary_sensor, switch, etc.)
         becomes a valid source for those cards.
 
-        Subclasses can override + call ``super().extra_state_attributes``
-        to merge in their own attributes.
+        v2.18.0 (B1) — ``source`` names the read channel this value came from,
+        so "where is this number from" is answerable per entity instead of only
+        per car, and templates/automations can key on it.
+
+        v2.18.0 — this used to say "subclasses can override + call
+        ``super().extra_state_attributes`` to merge in their own attributes",
+        and not one of the seven subclasses that override it ever did. Python
+        does not warn about that: the subclass property simply wins the MRO and
+        the base never runs. So sensors, binary_sensors, device_tracker and the
+        image entities — which is to say nearly every entity we create — got
+        neither ``image_url`` nor ``source``. ``image_url`` had been dead that
+        way since v1.25.0, under a docstring claiming the opposite, and
+        ``source`` was born dead in this very release.
+
+        Hence the inversion: the base owns the property and calls a hook.
+        A platform can no longer shadow the shared attributes by forgetting to
+        call ``super()``, because there is nothing left to forget.
         """
-        vehicle = self._vehicle
-        image_urls: dict = vehicle.get("image_urls") or {}
-        if not image_urls:
-            return None
-        url = VehicleImageFetcher.best_url(image_urls)
-        return {"image_url": url} if url else None
+        attrs: dict[str, Any] = {}
+
+        image_urls: dict = self._vehicle.get("image_urls") or {}
+        if image_urls:
+            url = VehicleImageFetcher.best_url(image_urls)
+            if url:
+                attrs["image_url"] = url
+
+        source = self._field_source
+        if source:
+            attrs["source"] = source
+
+        own = self._platform_attributes()
+        if own:
+            attrs.update(own)
+
+        return attrs or None
 
 
 # v1.25.0 PR-C — Listener-Pattern helper. Adopts the volkswagencarnet

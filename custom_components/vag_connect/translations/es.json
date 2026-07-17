@@ -17,14 +17,12 @@
         "data": {
           "mbb_vins": "VIN (número de identificación del vehículo)",
           "spin": "S-PIN",
-          "scan_interval": "Intervalo de actualización",
-          "force_enable_access": "Forzar estado de puertas"
+          "scan_interval": "Intervalo de actualización"
         },
         "data_description": {
           "mbb_vins": "Tu VIN de 17 caracteres (en el parabrisas / permiso de circulación). Varios coches: sepáralos con una coma. Obligatorio — el token MBB duradero funciona por VIN pero no puede enumerar tu garaje.",
           "spin": "PIN de seguridad de 4 dígitos opcional — necesario para el bloqueo/desbloqueo remoto.",
-          "scan_interval": "Minutos entre las consultas de datos del vehículo.",
-          "force_enable_access": "Forzar las entidades de estado de puertas aunque el vehículo informe que el dato falta."
+          "scan_interval": "Minutos entre las consultas de datos del vehículo."
         }
       },
       "website_authproxy": {
@@ -68,8 +66,7 @@
           "password": "Contraseña",
           "spin": "S-PIN",
           "country": "Región (solo Volkswagen EE. UU./Canadá)",
-          "scan_interval": "Intervalo de actualización",
-          "force_enable_access": "Forzar estado de puertas"
+          "scan_interval": "Intervalo de actualización"
         }
       },
       "mfa": {
@@ -92,7 +89,6 @@
           "spin": "S-PIN",
           "country": "Región (solo Volkswagen EE. UU./Canadá)",
           "scan_interval": "Update Interval",
-          "force_enable_access": "Force Door Status",
           "enable_mbb_commands": "Activar comandos remotos MBB (solo Volkswagen — confirmación QR)"
         },
         "data_description": {
@@ -100,8 +96,7 @@
           "username": "Email address from the manufacturer app.",
           "password": "Password from the app.",
           "spin": "Only needed for locking. App → Security → S-PIN.",
-          "scan_interval": "How often data is fetched. Default: 5 min. Minimum: 3 min.",
-          "force_enable_access": "For older vehicles that fail the capability check."
+          "scan_interval": "How often data is fetched. Default: 5 min. Minimum: 3 min."
         }
       },
       "browser_login": {
@@ -110,12 +105,10 @@
         "data": {
           "brand": "Vehicle Brand",
           "spin": "S-PIN",
-          "scan_interval": "Update Interval",
-          "force_enable_access": "Force Door Status"
+          "scan_interval": "Update Interval"
         },
         "data_description": {
           "brand": "Solo se muestran las marcas compatibles con el inicio de sesión por navegador. Usa 'Correo electrónico + contraseña' para Volkswagen EU y Porsche.",
-          "force_enable_access": "Forzar las entidades de estado de las puertas aunque el vehículo informe de que faltan los datos.",
           "scan_interval": "Minutos entre cada consulta de datos del vehículo.",
           "spin": "PIN de seguridad de 4 dígitos opcional para acciones remotas (bloquear, desbloquear, climatización)."
         }
@@ -179,11 +172,8 @@
           "enable_push_mqtt": "Skoda push updates (MQTT, EXPERIMENTAL)",
           "enable_push_fcm": "CUPRA/SEAT push updates (FCM, EXPERIMENTAL)",
           "enable_push_audi_vw": "Audi/VW push updates (Cariad FCM, EXPERIMENTAL)",
-          "wake_before_poll": "Active vehicle wake-up before status poll",
-          "wake_delay_seconds": "Wake delay (seconds)",
           "client_id_override": "OAuth client_id override (power users)",
           "eu_data_act_auto_kickoff": "EU Data Act: auto-kickoff Custom Data Request",
-          "enable_data_act_browser": "Portal EU Data Act: alternativa con navegador headless (EXPERIMENTAL)",
           "supplementary_authproxy": "Añadir un canal de lectura Volkswagen.de (combinar datos)",
           "hide_empty_entities": "Ocultar entidades sin datos",
           "supplementary_eu_portal": "Añadir un canal de lectura del portal EU Data Act",
@@ -202,11 +192,8 @@
           "enable_push_mqtt": "EXPERIMENTAL: Skoda-only. Enables real-time MQTT push from Skoda mysmob backend (requires aiomqtt + firebase-messaging Python packages — currently lazy-imported, not pre-installed). Foundation phase in v1.18.0; live activation pending community-tester validation. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling.",
           "enable_push_fcm": "EXPERIMENTAL: CUPRA/SEAT only. Enables real-time Firebase Cloud Messaging push from OLA backend (requires firebase-messaging Python package — same lazy-import as v1.18.0 Skoda MQTT toggle). Foundation phase in v1.19.0; live activation pending community-tester validation. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling.",
           "enable_push_audi_vw": "EXPERIMENTAL: Audi/VW only. Enables real-time push notifications from Cariad FCM channel (same one myAudi/WeConnect mobile apps use — covers lock/unlock results, charging-state, climate, alarm). Requires firebase-messaging Python package (same as Skoda MQTT + CUPRA/SEAT FCM). Foundation phase in v1.23.0; live activation pending community-tester validation. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling.",
-          "wake_before_poll": "When enabled, the integration sends a wake POST to the vehicle before fetching status for any VIN that was OFFLINE on the previous poll. The car receives a server-side wake-up and pushes fresh data, then the integration waits the wake delay before the status read. Closes the 'all sensors unknown for parked cars' gap but costs one extra API call per offline VIN per poll cycle. Off by default. Reload the integration after toggling.",
-          "wake_delay_seconds": "Seconds to wait between the wake-up POST and the status fetch. The default of 15 seconds is what most brand backends need to ingest the wake-induced data push. Lower values risk reading stale data; higher values stretch the poll cycle without further benefit.",
           "client_id_override": "Power-user escape hatch for when the community spots a fresh OAuth client_id in a new VW Group APK before our daily atlas builder catches it. Paste the full UUID@apps_vw-dilab_com string here and the resolver tries it FIRST on every authenticate, with all the existing client_ids still in the chain as fallback. Leave empty for default behaviour. Format: 8-4-4-4-12 hex digits followed by @apps_vw-dilab_com. Malformed values are silently ignored.",
           "eu_data_act_auto_kickoff": "Only meaningful when the integration is operating in read-only EU Data Act portal mode (live BFF strategies have failed). When ON, the coordinator checks for an active 15-min Custom Data Request per VIN at startup and creates one when none exists. The kickoff implies a 1-month data subscription on your account at the portal, so this is opt-in. The portal accepts AT MOST ONE active custom request per VIN at a time. Off by default.",
-          "enable_data_act_browser": "EXPERIMENTAL: solo tiene sentido cuando la integración ha recurrido al portal EU Data Act (solo lectura). Controla un Chromium headless mediante el paquete de Python opcional 'playwright' para pulsar automáticamente el botón de exportación de datos del portal. El paquete NO viene preinstalado (descarga unos 100 MB de Chromium). Si está activado pero falta, un aviso de Reparación te explica cómo instalarlo desde dentro del contenedor de Home Assistant. Recarga la integración después de cambiar la opción.",
           "abrp_enable": "Enviar telemetría en vivo a A Better Routeplanner. Requiere una api_key y un token por vehículo. Desactivado = sin llamadas salientes.",
           "abrp_api_key": "Una clave de desarrollador/socio que registras en iternio (no incluimos ninguna). Identifica la integración. Nunca se registra.",
           "abrp_user_token": "El token 'Generic' de la app ABRP: Ajustes -> tu coche -> Live Data. Nunca se registra."
@@ -1078,6 +1065,12 @@
       },
       "max_number_users": {
         "name": "Número máximo de usuarios"
+      },
+      "charging_profiles_pending": {
+        "name": "Cambios de perfil de carga pendientes"
+      },
+      "climatisation_timers_pending": {
+        "name": "Cambios de temporizador de clima pendientes"
       }
     },
     "binary_sensor": {
@@ -1311,6 +1304,9 @@
       },
       "abrp_data_changed": {
         "name": "Datos de ABRP cambiados"
+      },
+      "climatisation_without_hv_power": {
+        "name": "Climatización sin corriente externa"
       }
     },
     "switch": {
@@ -1340,6 +1336,9 @@
       },
       "departure_timer_3_switch": {
         "name": "Temporizador de salida 3"
+      },
+      "battery_care_switch": {
+        "name": "Cuidado de la batería"
       }
     },
     "number": {
@@ -1366,6 +1365,9 @@
       },
       "auxheat_target_temp": {
         "name": "Auxiliary Heating Target Temperature"
+      },
+      "battery_care_target": {
+        "name": "Objetivo de cuidado"
       }
     },
     "button": {
@@ -1667,6 +1669,9 @@
     },
     "read_only_portal_active": {
       "message": "Este vehículo se conecta a través del portal de solo lectura EU Data Act de VW, por lo que los comandos remotos (bloqueo, climatización, carga) no están disponibles para él. No es un ajuste que puedas cambiar — el canal del portal no tiene ninguna vía de comandos."
+    },
+    "historical_portal_not_ready": {
+      "message": "El portal de la Ley de Datos de la UE aún no está listo. Espera a que la integración haya consultado una vez tras la configuración e inténtalo de nuevo."
     }
   },
   "selector": {

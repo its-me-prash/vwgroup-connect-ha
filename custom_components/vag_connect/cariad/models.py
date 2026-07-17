@@ -441,6 +441,13 @@ class VehicleData:
     # .chargingCareSettings.requests`` counts queued battery-care changes.
     # Same int-count diagnostic, same None semantics. sensor, diagnostic.
     charging_care_pending: int | None = None
+    # v2.18.0 — Scout #799 (Audi): ``automation.chargingProfiles.requests``
+    # counts queued charge-PROFILE changes. Same int-count diagnostic.
+    charging_profiles_pending: int | None = None
+    # v2.18.0 — Scout #801 (Audi): ``climatisationTimers
+    # .climatisationTimersStatus.requests`` counts queued climate-TIMER
+    # schedule changes (distinct from climatisation start/stop). Same diag.
+    climatisation_timers_pending: int | None = None
     # v2.15.8 — Cariad scout #583 (Audi): third charging-side *.requests
     # sibling — ``charging.chargeMode.requests`` counts queued chargeMode
     # change requests (e.g. a putChargeMode POST switching preferred mode
@@ -591,6 +598,12 @@ class VehicleData:
     # Access block: parser-miss must NOT default to "climate off".
     climatisation_active: bool | None = None
     target_temperature: float | None = None
+    # v2.18.0 (Phase C) — one-time historical export config flag
+    # (RPC/RDT.climatisationWithoutHVPower). Official meaning: temperature
+    # regulation is allowed without an external power source, i.e. pre-climate
+    # may draw from the drive battery rather than requiring the car to be
+    # plugged in. Config, not telemetry.
+    climatisation_without_hv_power: bool | None = None
     outside_temp: float | None = None
     # v2.17.1 (Scout #701, VW ID.7) — EU-portal `in_cabin_temperature.
     # temperature`: current interior °C. No brand's status endpoint
@@ -1397,6 +1410,13 @@ class VehicleData:
     # (e.g. "eu_data_act+mbb"); None for a single-channel poll. Surfaced as a
     # diagnostic attribute so users/maintainers can see where data came from.
     source_channel: str | None = None
+    # v2.18.0 (A2) — per-FIELD provenance: {field_name: channel} for every
+    # field that actually carries a value, recorded by the channel-merge layer.
+    # ``source_channel`` answers "which channels fed this car"; this answers
+    # "where did THIS reading come from", which is what an entity needs to
+    # expose its own source. Never merged itself (see _channel_merge
+    # ``_SKIP_FIELDS``) — each merge rebuilds it from the snapshots it saw.
+    field_sources: dict[str, str] = field(default_factory=dict)
     # v2.15.0b1 (A6) — raw field discovery: portal fields the curated parser
     # did not map, kept as {field_name: value} so the user can see every value
     # the backend sent (surfaced as attributes on ONE disabled diagnostic

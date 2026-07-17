@@ -111,8 +111,8 @@ Algunas cosas son **estructurales** — provienen de cómo funcionan los backend
 
 La primera pantalla de la integración ofrece **dos** métodos de inicio de sesión. Elige el que admita tu marca:
 
-- **Navegador / código de dispositivo (sin contraseña)** — *Audi · Škoda · SEAT · CUPRA.* Inicia sesión en tu teléfono o portátil y aprueba el dispositivo; no se almacena ninguna contraseña en Home Assistant (conserva un token de actualización real). Este paso también ofrece los campos opcionales de **S-PIN**, intervalo de escaneo y forzar acceso.
-- **Portal — email + contraseña** — *Volkswagen EU · Porsche.* Introduce el inicio de sesión de tu marca. Este paso expone un selector de marca (Volkswagen EU, Porsche y las demás marcas de email/contraseña), email, contraseña, **S-PIN** opcional, intervalo de escaneo, forzar acceso y un interruptor **"habilitar comandos MBB"** (que solo tiene efecto en Volkswagen EU — ver [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)). Para **Volkswagen EE. UU./Canadá** aparece aquí un **selector de país (EE. UU. vs CA)** — se muestra **únicamente** para esa marca y ninguna otra lo usa.
+- **Navegador / código de dispositivo (sin contraseña)** — *Audi · Škoda · SEAT · CUPRA.* Inicia sesión en tu teléfono o portátil y aprueba el dispositivo; no se almacena ninguna contraseña en Home Assistant (conserva un token de actualización real). Este paso también ofrece los campos opcionales de **S-PIN** e intervalo de escaneo.
+- **Portal — email + contraseña** — *Volkswagen EU · Porsche.* Introduce el inicio de sesión de tu marca. Este paso expone un selector de marca (Volkswagen EU, Porsche y las demás marcas de email/contraseña), email, contraseña, **S-PIN** opcional, intervalo de escaneo y un interruptor **"habilitar comandos MBB"** (que solo tiene efecto en Volkswagen EU — ver [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)). Para **Volkswagen EE. UU./Canadá** aparece aquí un **selector de país (EE. UU. vs CA)** — se muestra **únicamente** para esa marca y ninguna otra lo usa.
 
 > El **portal de la EU Data Act no es un tercer botón de inicio de sesión.** Es la estrategia de solo lectura a la que el coordinador conmuta automáticamente, y además puede *añadirse* como canal de lectura suplementario desde **Configurar → Opciones**. Lo mismo aplica al canal web `volkswagen.de` (un canal de lectura suplementario opcional, solo desde Opciones).
 
@@ -129,12 +129,12 @@ Para Volkswagen EU, **iniciar sesión no basta** — VW solo transmite datos del
 1. **Añade la integración:** elige **Portal (email + contraseña)** y selecciona **Volkswagen EU**, luego inicia sesión.
 2. **Completa cualquier solicitud puntual en el portal de VW.** Abre el portal de datos de VW una vez en un navegador o en la app de la marca y termina lo que te pida: **acepta los términos, confirma el consentimiento, finaliza el onboarding / selección de región.** El acceso sin interfaz no puede superar estos pasos — este es el caso `portal_interaction_required` ([#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527)).
 3. **Concede el consentimiento de compartición de datos.** En el portal, establece **"Uso de datos no personales" = Concedido** (el consentimiento de compartición de datos de la EU Data Act).
-4. **Habilita la solicitud continua de datos** para ese coche en concreto. Sin ella, el portal devuelve *ninguna solicitud de datos* para ese VIN y el vehículo aparece sin lecturas.
+4. **No busques un interruptor de "solicitud continua de datos" — no existe.** La integración crea esa solicitud para cada coche por su cuenta. Registra una suscripción de 1 mes en tu cuenta de VW, que es **gratuita**. Sin una solicitud, el portal no devuelve nada para ese VIN y el vehículo aparece sin lecturas.
 5. **Espera a que el coche envíe una instantánea.** Incluso después de todo lo anterior, la propagación lleva tiempo. El coche puede leer **`offline` / `unknown` durante un rato — a menudo hasta su próximo trayecto o despertar, hasta ~24 h** — antes de que se rellenen los sensores. Esto es normal.
 
 El portal sirve inicialmente solo una **porción de campos**, y esa porción **se amplía con el tiempo** a medida que VW expande la cobertura del portal de cara a la fecha límite de septiembre de 2026 — campos que hoy aparecen como `unknown` pueden rellenarse por sí solos. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465) · [#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527) · [#567](https://github.com/its-me-prash/vwgroup-connect-ha/issues/567))
 
-> **Opcional:** el interruptor de Opciones **`eu_data_act_auto_kickoff`** puede crear automáticamente por ti la Solicitud de Datos Personalizada de 15 minutos. Es opcional porque crearla implica una **suscripción de 1 mes en tu cuenta de VW**, así que la integración no lo hará sin tu permiso.
+> El interruptor de Opciones **`eu_data_act_auto_kickoff`** es el que crea esa Solicitud de Datos Personalizada de 15 minutos, y está **activado por defecto** — en modo portal no hay datos sin ella. Desactívalo solo si prefieres gestionar la solicitud por tu cuenta.
 
 ---
 
@@ -176,7 +176,7 @@ También puedes llamar directamente al servicio **`vag_connect.abrp_send`** (apu
 ## Opciones (Configurar)
 
 Desde **Ajustes → Dispositivos y servicios → VW Group Connect → Configurar** puedes ajustar:
-intervalo de escaneo, S-PIN, geocodificación inversa, **modo de solo lectura**, forzar climatización PPE (Audi), interruptores de push (MQTT/FCM/Audi-VW), **conmutación de navegador para la EU Data Act** (Playwright / ~100 MB de Chromium, opcional), **despertar antes de sondear** + retardo de despertar, anulación de client-id, **`eu_data_act_auto_kickoff`**, ocultar entidades vacías (activado por defecto), **ABRP** (habilitar + api_key + token de usuario, validados como un par), además de **añadir / eliminar** los canales de lectura suplementarios `volkswagen.de` y del portal de la EU Data Act.
+intervalo de escaneo, S-PIN (más un S-PIN por vehículo cuando la cuenta tiene más de un coche), geocodificación inversa, **modo de solo lectura**, forzar climatización PPE (Audi), interruptores de push (MQTT/FCM/Audi-VW), anulación de client-id, **`eu_data_act_auto_kickoff`** (activado por defecto), ocultar entidades vacías (activado por defecto), **ABRP** (habilitar + api_key + token de usuario, validados como un par), además de **añadir / eliminar** los canales de lectura suplementarios `volkswagen.de` y del portal de la EU Data Act.
 
 ---
 

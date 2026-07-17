@@ -816,21 +816,38 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 return_exceptions=True,
             )
 
+            # v2.18.0 (A1) — merge + enrich BEFORE taking the lock, then only
+            # assign while holding it.
+            #
+            # Two reasons. (1) This path never merged at all: the poll loop
+            # unions the armed supplementary channels onto the primary, this
+            # one stored the raw primary, so the first snapshot after every
+            # setup/restart was primary-only and supplementary fields stayed
+            # blank until the first poll tick. (2) ``_vehicles_lock`` is a
+            # threading.Lock, and awaiting while holding one parks the whole
+            # event loop for any other task that tries to acquire it — the
+            # merge does network I/O, so it must not run inside.
+            prepared: list[tuple[str, dict[str, Any] | None, bool]] = []
+            for vin, result in zip(vins, results):
+                if isinstance(result, Exception):
+                    _LOGGER.warning("Could not fetch status for %s: %s", mask_vin(vin), result)
+                    prepared.append((vin, None, True))
+                    continue
+                if isinstance(result, VehicleData):
+                    merged = await self._merge_supplementary(vin, result)
+                    data = merged.to_dict()
+                    data["_client"] = self._cariad_client
+                    prepared.append((vin, await self._enrich(data), False))
+
             with self._vehicles_lock:
-                for vin, result in zip(vins, results):
-                    if isinstance(result, Exception):
-                        _LOGGER.warning("Could not fetch status for %s: %s", mask_vin(vin), result)
+                for vin, prepared_data, failed in prepared:
+                    if failed or prepared_data is None:
                         if hasattr(self, "vehicle_success"):
                             self.vehicle_success[vin] = False
                         continue
-                    if isinstance(result, VehicleData):
-                        data = result.to_dict()
-                        data["_client"] = self._cariad_client
-                        self.vehicles[vin] = self._apply_optimistic_hold(
-                            vin, await self._enrich(data)
-                        )
-                        if hasattr(self, "vehicle_success"):
-                            self.vehicle_success[vin] = True
+                    self.vehicles[vin] = self._apply_optimistic_hold(vin, prepared_data)
+                    if hasattr(self, "vehicle_success"):
+                        self.vehicle_success[vin] = True
 
             # Best-effort capabilities prefetch — never blocks setup.
             # Result lives in self.vehicle_capabilities for entity platforms
@@ -1101,8 +1118,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         brand = self.entry.data[CONF_BRAND]
         scraper = DataActScraper(session, brand_name=brand)
 
+        # v2.18.0 — options THEN data. The write below lands in entry.options,
+        # but the update-listener immediately folds options into entry.data and
+        # blanks entry.options (__init__.py), so an options-only read never
+        # found the cached map and every setup re-probed the portal for
+        # identifiers it had already resolved.
         existing_map = dict(
-            self.entry.options.get(CONF_DATA_ACT_IDENTIFIERS) or {}
+            self.entry.options.get(CONF_DATA_ACT_IDENTIFIERS)
+            or self.entry.data.get(CONF_DATA_ACT_IDENTIFIERS)
+            or {}
         )
         new_map = dict(existing_map)
         changed = False
@@ -1167,6 +1191,75 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             )
         except Exception:  # noqa: BLE001
             pass
+
+    async def async_request_historical_export(self, vin: str) -> bool:
+        """Phase C — ask the portal for a ONE-TIME historical export of *vin*.
+
+        Distinct from the 15-min feed: this is a config snapshot (timers, charge
+        profiles, climate settings) in the legacy Car-Net dialect. The portal
+        builds the ZIP asynchronously (observed ~30 min, up to 24h). Once ready,
+        ``async_import_historical_export`` fetches + merges it. Returns True when
+        the request was accepted.
+        """
+        from homeassistant.helpers.aiohttp_client import (  # noqa: PLC0415
+            async_get_clientsession,
+        )
+
+        from .cariad.auth._data_act_scraper import (  # noqa: PLC0415
+            DataActScraper,
+            DataActSessionExpiredError,
+        )
+
+        session = async_get_clientsession(self.hass)
+        scraper = DataActScraper(session, brand_name=self.entry.data[CONF_BRAND])
+        try:
+            return await scraper.kickoff_historical_export(vin)
+        except DataActSessionExpiredError:
+            self._raise_data_act_session_expired_repair()
+            return False
+
+    async def async_import_historical_export(self, vin: str) -> bool:
+        """Phase C — fetch a READY one-time export for *vin* and merge its config
+        fields into the live snapshot.
+
+        Gap-fill only: a field is taken from the historical export ONLY where the
+        live snapshot has none, so live telemetry (SoC, charging state, the
+        drivetrain flags) is never overwritten by the older config dump — this is
+        also why the legacy dialect's missing-combustion evidence can't flip a
+        live PHEV to electric. Returns True if anything merged, False if the ZIP
+        isn't ready yet (the portal generates it asynchronously).
+        """
+        portal = getattr(self._cariad_client, "_eu_portal", None)
+        if portal is None or not hasattr(portal, "get_vehicle_data"):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="historical_portal_not_ready",
+            )
+        historical = await portal.get_vehicle_data(vin, request_type="all")
+        if getattr(historical, "no_data", True):
+            return False
+        hist = historical.to_dict()
+        merged_any = False
+        with self._vehicles_lock:
+            current = self.vehicles.get(vin)
+            if not isinstance(current, dict):
+                # A portal-only car we had nothing for yet — take the snapshot.
+                self.vehicles[vin] = hist
+                merged_any = True
+            else:
+                for key, val in hist.items():
+                    if val is None:
+                        continue
+                    if current.get(key) is None:  # never clobber a live value
+                        current[key] = val
+                        merged_any = True
+        if merged_any:
+            self.async_set_updated_data(dict(self.vehicles))
+            _LOGGER.info(
+                "EU Data Act: merged one-time historical export config fields "
+                "for VIN %s", mask_vin(vin),
+            )
+        return merged_any
 
     async def _maybe_runtime_data_act_kickoff(self) -> None:
         """Re-provision the portal Custom Data Request at RUNTIME when a poll
@@ -1411,13 +1504,19 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         supplementary channel is armed, so single-channel polling is untouched.
         Fail-soft: any merge error keeps the primary — a read-only fallback must
         never sink the poll, and command routing is never touched."""
+        from .cariad._channel_merge import annotate_provenance  # noqa: PLC0415
+
         client = self._cariad_client
         readers = getattr(client, "supplementary_readers", None)
         if readers is None:
-            return primary
+            return annotate_provenance(self._primary_channel_name(), primary)
         suppliers = readers(vin)
         if not suppliers:
-            return primary
+            # v2.18.0 (B2) — no supplementary channel to union, but the reading
+            # still has an origin. Record it so a single-channel car can name
+            # its source like everyone else; nothing else about the snapshot is
+            # touched.
+            return annotate_provenance(self._primary_channel_name(), primary)
         from .cariad._channel_merge import gather_and_merge  # noqa: PLC0415
         try:
             return await gather_and_merge(
@@ -1428,7 +1527,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 "C1 supplementary merge failed for %s — keeping primary: %s",
                 mask_vin(vin), err,
             )
-            return primary
+            # Still attribute what we did get — losing provenance exactly when
+            # a channel misbehaves is when it's most worth having.
+            return annotate_provenance(self._primary_channel_name(), primary)
 
     async def _revive_from_supplementary(
         self, vin: str, empty_primary: VehicleData
@@ -1960,7 +2061,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         a runtime warning. Live activation is confirmed per-brand by a tester
         with a real car; the circuit-breaker keeps a wrong body inert.
         """
-        options = dict(getattr(self.entry, "options", {}) or {})
+        # v2.18.0 — data THEN options, mirroring the merge the update-listener
+        # itself performs. The listener folds options into entry.data and blanks
+        # entry.options (__init__.py), so reading options alone meant all three
+        # toggles were permanently False and no push manager could ever start:
+        # the feature was unreachable from the UI for as long as it has shipped.
+        options = {
+            **dict(getattr(self.entry, "data", {}) or {}),
+            **dict(getattr(self.entry, "options", {}) or {}),
+        }
         brand = self.entry.data.get(CONF_BRAND, "")
         client = self._cariad_client
         if client is None:
@@ -2182,6 +2291,42 @@ class VagConnectCoordinator(DataUpdateCoordinator):
     def is_active(self) -> bool:
         """Return True if the CARIAD polling loop is active."""
         return self._started
+
+    def _push_managers(self) -> dict[str, Any]:
+        """Return the live push managers, keyed by channel name."""
+        return {
+            name: mgr
+            for name, mgr in (
+                ("skoda_mqtt", getattr(self, "_skoda_push", None)),
+                ("cupra_seat_fcm", getattr(self, "_cupra_seat_push", None)),
+                ("audi_vw_fcm", getattr(self, "_audi_vw_push", None)),
+            )
+            if mgr is not None
+        }
+
+    @property
+    def push_states(self) -> dict[str, str]:
+        """Per-channel push lifecycle state, for diagnostics.
+
+        v2.18.0 (#747) — the managers have carried a diagnostics-shaped
+        ``state`` since v2.2.0, but nothing ever exported it.
+        """
+        return {name: str(mgr.state) for name, mgr in self._push_managers().items()}
+
+    @property
+    def cloud_push_active(self) -> bool:
+        """Return True when at least one push channel is actually connected.
+
+        v2.18.0 (#747) — diagnostics used to report ``is_active`` under this
+        name, which is the *polling loop* flag: it read true on every setup,
+        including entries with all three push toggles off.
+        """
+        from .cariad.push.base import PushManagerState  # noqa: PLC0415
+
+        return any(
+            mgr.state is PushManagerState.CONNECTED
+            for mgr in self._push_managers().values()
+        )
 
     def is_vehicle_available(self, vin: str) -> bool:
         """Return True if *vin* should be reported available to entities.
@@ -3359,8 +3504,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         """Return True if the user explicitly opted into reverse geocoding."""
         # Use direct comparison to True so MagicMock entries in tests don't
         # accidentally evaluate as truthy and trigger an HTTP call.
-        options = getattr(self.entry, "options", None) or {}
-        data = getattr(self.entry, "data", None) or {}
+        options = dict(getattr(self.entry, "options", None) or {})
+        data = dict(getattr(self.entry, "data", None) or {})
         return (
             options.get(CONF_ENABLE_REVERSE_GEOCODING, False) is True
             or data.get(CONF_ENABLE_REVERSE_GEOCODING, False) is True
@@ -3462,67 +3607,31 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 return dict(self.vehicles)
         try:
             vins = list(self.vehicles.keys())
-            # v2.10.0 — opt-in active wakeup before status poll. Mirrors
-            # the pattern in audi_connect_ha v2.1.0 where the integration
-            # POSTs to ``cariad/vehicle/v1/vehicles/{vin}/vehiclewakeup``
-            # before fetching status, then sleeps ``wake_delay_seconds``
-            # to give the backend time to ingest the wake-pushed data
-            # before the read endpoint serves it. Closes the offline-car
-            # null-cascade reports (#306 DanielBie, #322 roberttco) for
-            # users who accept the additional 1 API call per poll.
-            from .const import (  # noqa: PLC0415
-                CONF_WAKE_BEFORE_POLL,
-                CONF_WAKE_DELAY_SECONDS,
-                DEFAULT_WAKE_DELAY_SECONDS,
-            )
-            if self.entry.options.get(CONF_WAKE_BEFORE_POLL, False):
-                wake_delay = float(
-                    self.entry.options.get(
-                        CONF_WAKE_DELAY_SECONDS, DEFAULT_WAKE_DELAY_SECONDS
-                    )
-                )
-                # Only wake VINs that were OFFLINE on the previous
-                # poll. Online cars do not need a wake-up and the extra
-                # API call would consume budget for no benefit.
-                offline_vins = [
-                    vin for vin in vins
-                    if (self.vehicles.get(vin) or {}).get("vehicle_state") == "OFFLINE"
-                    or (self.vehicles.get(vin) or {}).get("is_online") is False
-                ]
-                if offline_vins:
-                    _LOGGER.debug(
-                        "Active wake-up enabled: waking %d offline VIN(s) then sleeping %.1fs",
-                        len(offline_vins), wake_delay,
-                    )
-                    wake_results = await asyncio.gather(
-                        *[self._cariad_client.command_wake(vin) for vin in offline_vins],
-                        return_exceptions=True,
-                    )
-                    # Wake-failures are non-fatal: log + continue to the
-                    # normal status fetch. The car may still respond
-                    # with cached data even if wake failed.
-                    for vin, result in zip(offline_vins, wake_results):
-                        if isinstance(result, Exception):
-                            _LOGGER.debug(
-                                "Wake-up failed for %s (continuing with regular poll): %s",
-                                mask_vin(vin), result,
-                            )
-                    await asyncio.sleep(wake_delay)
             results = await asyncio.gather(
                 *[self._cariad_client.get_status(vin) for vin in vins],
                 return_exceptions=True,
             )
+            # v2.18.0 (A1) — same shape as the setup fetch: merge + enrich
+            # outside the lock, assign inside.
+            #
+            # This path runs on every async_request_refresh(), i.e. after every
+            # command. It stored the raw primary, so locking the car made its
+            # supplementary fields (vw.de odometer, portal SoC, …) blank out
+            # until the next poll tick — data we already had, thrown away.
+            refreshed: list[tuple[str, dict[str, Any]]] = []
+            for vin, result in zip(vins, results):
+                if isinstance(result, Exception):
+                    _LOGGER.debug("Refresh failed for %s: %s", mask_vin(vin), result)
+                    continue
+                if isinstance(result, VehicleData):
+                    merged = await self._merge_supplementary(vin, result)
+                    data = merged.to_dict()
+                    data["_client"] = self._cariad_client
+                    refreshed.append((vin, await self._enrich(data)))
+
             with self._vehicles_lock:
-                for vin, result in zip(vins, results):
-                    if isinstance(result, Exception):
-                        _LOGGER.debug("Refresh failed for %s: %s", mask_vin(vin), result)
-                        continue
-                    if isinstance(result, VehicleData):
-                        data = result.to_dict()
-                        data["_client"] = self._cariad_client
-                        self.vehicles[vin] = self._apply_optimistic_hold(
-                            vin, await self._enrich(data)
-                        )
+                for vin, data in refreshed:
+                    self.vehicles[vin] = self._apply_optimistic_hold(vin, data)
             # v2.14.3 — a mid-poll 401 may have silently re-logged the
             # website-authproxy session (rotating its cookie jar). Persist the
             # fresh cookies so the next restart keeps skipping the OTP prompt.
@@ -3557,7 +3666,18 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             )
         # v1.11.1 (3B-Part-3) — optimistic UI: assume the lock will succeed
         # so the HA card flips to "locked" immediately. Reverts on failure.
-        cmd_kwargs = {"spin": spin} if (brand in ("audi", "volkswagen") and spin) else {}
+        #
+        # v2.18.0 (#759) — seat/cupra added: their command_lock now takes a spin
+        # (mirroring their command_unlock, which always has). Before this, the
+        # per-VIN S-PIN was resolved and presence-checked above, then dropped
+        # here, so seat/cupra lock silently used the shared PIN. The brands
+        # whose command_lock does NOT accept spin (skoda lock needs none;
+        # porsche/vw_na) are correctly excluded — passing it would TypeError.
+        cmd_kwargs = (
+            {"spin": spin}
+            if (brand in ("audi", "volkswagen", "seat", "cupra") and spin)
+            else {}
+        )
         await self._cariad_cmd_optimistic(
             vin, "command_lock",
             optimistic={"doors_locked": True},
@@ -3593,8 +3713,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         cmd_kwargs: dict[str, Any] = {}
         brand = str(self.entry.data.get(CONF_BRAND, "")).lower()
         if brand in ("audi", "volkswagen"):
-            options = getattr(self.entry, "options", None) or {}
-            data = getattr(self.entry, "data", None) or {}
+            options = dict(getattr(self.entry, "options", None) or {})
+            data = dict(getattr(self.entry, "data", None) or {})
             ppe_mode = False
             if isinstance(options, dict):
                 ppe_mode = bool(options.get(CONF_FORCE_PPE_CLIMATE, False))
@@ -3711,6 +3831,32 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
     async def async_set_target_soc(self, vin: str, target: int) -> None:
         await self._cariad_cmd(vin, "command_set_target_soc", target=target)
+
+    async def async_set_battery_care(self, vin: str, enabled: bool) -> None:
+        """v2.18.0 — toggle battery-care (preservation) mode.
+
+        The read side has shipped since v2.10.0 (``refresh_battery_care``
+        fills ``battery_care_enabled`` + ``battery_care_target_soc_pct``) and
+        the brand client has had the command just as long — nothing was ever
+        wired between them, so the state was visible but not settable.
+        """
+        await self._cariad_cmd_optimistic(
+            vin, "command_set_battery_care",
+            optimistic={"battery_care_enabled": enabled},
+            enabled=enabled,
+        )
+
+    async def async_set_battery_care_target(self, vin: str, target_pct: int) -> None:
+        """v2.18.0 — set the battery-care top-charge target in percent.
+
+        Not clamped here: the backend enforces 50-100 and rejects anything
+        else, and a silent clamp would hide that constraint from the user.
+        """
+        await self._cariad_cmd_optimistic(
+            vin, "command_set_battery_care_target",
+            optimistic={"battery_care_target_soc_pct": target_pct},
+            target_pct=target_pct,
+        )
 
     async def async_set_climatisation_temperature(self, vin: str, temp_c: float) -> None:
         await self._cariad_cmd(vin, "command_set_climate_temperature", temp_c=temp_c)
@@ -3863,7 +4009,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             await self._cariad_cmd(vin, "command_start_aux_heating", spin=spin)
             return
 
-        options = getattr(self.entry, "options", None) or {}
+        options = dict(getattr(self.entry, "options", None) or {})
         if duration_min is None:
             opt_dur = options.get("auxheat_duration") if isinstance(options, dict) else None
             try:
@@ -3917,11 +4063,30 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         v2.17.5 (#759) — when *vin* is given and a per-VIN override exists in
         ``CONF_SPIN_BY_VIN``, that wins; otherwise the shared per-entry S-PIN is
         returned (so single-S-PIN setups behave exactly as before).
+
+        v2.18.0 (#806, found by lucson) — the real reason every S-PIN command
+        used to fail with ``spin_required``: ``entry.data`` and ``entry.options``
+        are handed out by HA as ``MappingProxyType``, which is NOT a ``dict``
+        subclass. The guards below gated every lookup on ``isinstance(..., dict)``,
+        which is False for a real config entry, so this returned ``""`` on every
+        live install — the S-PIN was stored fine, but never read back. The tests
+        faked plain dicts, so it looked verified. Normalising to a real dict at
+        the top (above) fixes it; the ``dict`` guards below now hold for the
+        top-level maps, and ``by_vin`` is a genuine nested dict so its guard was
+        always correct. This was NOT a 2.17.5 regression — the guard predates it.
         """
-        options = getattr(self.entry, "options", None) or {}
-        data = getattr(self.entry, "data", None) or {}
-        if vin and isinstance(options, dict):
-            by_vin = options.get(CONF_SPIN_BY_VIN)
+        options = dict(getattr(self.entry, "options", None) or {})
+        data = dict(getattr(self.entry, "data", None) or {})
+        if vin:
+            # Read options THEN data: the options update-listener folds options
+            # into entry.data and blanks entry.options (__init__.py), so the map
+            # lives in data by read time. (Even with options preserved, the old
+            # code could never have found it — see the MappingProxyType note.)
+            by_vin: Any = None
+            if isinstance(options, dict):
+                by_vin = options.get(CONF_SPIN_BY_VIN)
+            if not isinstance(by_vin, dict) and isinstance(data, dict):
+                by_vin = data.get(CONF_SPIN_BY_VIN)
             if isinstance(by_vin, dict):
                 per = str(by_vin.get(vin) or "")
                 if per:
@@ -4066,8 +4231,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 and getattr(client, "_mbb_command", None) is not None
             ):
                 return True
-        options = getattr(self.entry, "options", None) or {}
-        data = getattr(self.entry, "data", None) or {}
+        options = dict(getattr(self.entry, "options", None) or {})
+        data = dict(getattr(self.entry, "data", None) or {})
         # #543 — honour the documented precedence: an explicit Options-Flow
         # value (True OR False) wins over the initial config ``data``. The old
         # OR collapsed both to True, so disabling read-only in the Options Flow
@@ -4124,7 +4289,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         )
 
         opts = getattr(self.entry, "options", None) or {}
-        data = getattr(self.entry, "data", None) or {}
+        data = dict(getattr(self.entry, "data", None) or {})
 
         resolved_key = api_key or opts.get(CONF_ABRP_API_KEY) or data.get(
             CONF_ABRP_API_KEY
@@ -4343,6 +4508,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         "command_set_charge_mode": "charging",
         "command_set_min_soc": "charging",
         "command_set_max_charge_current": "charging",
+        # v2.18.0 — battery care caps the top of the charge, so it shares the
+        # charging lock: firing it against an in-flight target-SoC change would
+        # have the two settings racing on the same backend object.
+        "command_set_battery_care": "charging",
+        "command_set_battery_care_target": "charging",
         "command_start_window_heating": "window_heating",
         "command_stop_window_heating": "window_heating",
         "command_flash": "flash",
@@ -4444,7 +4614,26 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             except Exception:  # noqa: BLE001
                 pass
             _LOGGER.error("VAG Connect: %s(%s) failed: %s", method, mask_vin(vin), err)
-            raise
+            # v2.18.0 (#659) — surface the failure instead of letting the raw
+            # APIError escape. HA doesn't know our exception types, so it logged
+            # "Unexpected exception" and showed the user a Python traceback for
+            # pressing a button; a reporter's log caught it verbatim. We already
+            # classified the failure one line up — the least we can do is say so.
+            #
+            # Deliberately narrow. Only a backend REFUSAL becomes a user-facing
+            # error:
+            # - HomeAssistantError subclasses (our own pre-flight guards) already
+            #   render cleanly and carry a translation key — pass them through.
+            # - APIError is the car saying no. That belongs in front of the user.
+            # - Anything else is OUR bug (a TypeError, a bad assumption). Those
+            #   must keep bubbling as a traceback: wrapping them would disguise
+            #   a programming error as a normal command failure and we'd never
+            #   hear about it.
+            from .cariad.exceptions import APIError  # noqa: PLC0415
+
+            if isinstance(err, HomeAssistantError) or not isinstance(err, APIError):
+                raise
+            raise HomeAssistantError(str(err)) from err
 
     async def async_set_charge_mode(self, vin: str, mode: str) -> None:
         """Set charging mode (MANUAL / TIMER / PREFERRED_CHARGING_TIMES)."""

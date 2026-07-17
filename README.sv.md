@@ -103,7 +103,7 @@ Några saker är **strukturella** — de kommer från hur Volkswagens backendar 
 3. Starta om Home Assistant.
 4. Gå till **Inställningar → Enheter och tjänster → Lägg till integration → VW Group Connect** och följ inloggningsflödet.
 
-<sup>Nyligen sammanfogad i HACS standard — om den inte går att söka fram än, ge HACS-indexet lite tid att uppdatera, eller lägg till `its-me-prash/vwgroup-connect-ha` som ett anpassat repository under tiden.</sup>
+<sup>Nyligen upptagen i HACS standard — om den inte går att söka fram än, ge HACS-indexet lite tid att uppdatera, eller lägg till `its-me-prash/vwgroup-connect-ha` som ett anpassat repository under tiden.</sup>
 
 **Lägsta Home Assistant: `2024.4.0`.**
 
@@ -111,8 +111,8 @@ Några saker är **strukturella** — de kommer från hur Volkswagens backendar 
 
 Integrationens första skärm erbjuder **två** inloggningsmetoder. Välj den som ditt varumärke stöder:
 
-- **Webbläsare / enhetskod (lösenordsfri)** — *Audi · Škoda · SEAT · CUPRA.* Logga in på din telefon eller laptop och godkänn enheten; inget lösenord lagras i Home Assistant (den behåller en riktig refresh-token). Det här steget erbjuder också de valfria fälten **S-PIN**, skanningsintervall och force-access.
-- **Portal — e-post + lösenord** — *Volkswagen EU · Porsche.* Ange din varumärkesinloggning. Det här steget visar en varumärkesväljare (Volkswagen EU, Porsche och de andra e-post/lösenord-varumärkena), e-post, lösenord, valfri **S-PIN**, skanningsintervall, force-access och en växel för **"aktivera MBB-kommandon"** (som bara har effekt på Volkswagen EU — se [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)). För **Volkswagen US/Kanada** dyker en **landväljare (US vs CA)** upp här — den visas **endast** för det varumärket och används inte av något annat.
+- **Webbläsare / enhetskod (lösenordsfri)** — *Audi · Škoda · SEAT · CUPRA.* Logga in på din telefon eller laptop och godkänn enheten; inget lösenord lagras i Home Assistant (den behåller en riktig refresh-token). Det här steget erbjuder också de valfria fälten **S-PIN** och skanningsintervall.
+- **Portal — e-post + lösenord** — *Volkswagen EU · Porsche.* Ange din varumärkesinloggning. Det här steget visar en varumärkesväljare (Volkswagen EU, Porsche och de andra e-post/lösenord-varumärkena), e-post, lösenord, valfri **S-PIN**, skanningsintervall och en växel för **"aktivera MBB-kommandon"** (som bara har effekt på Volkswagen EU — se [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)). För **Volkswagen US/Kanada** dyker en **landväljare (US vs CA)** upp här — den visas **endast** för det varumärket och används inte av något annat.
 
 > **EU Data Act-portalen är inte en tredje inloggningsknapp.** Det är den skrivskyddade strategin som koordinatorn automatiskt faller tillbaka till, och den kan dessutom *läggas till* som en kompletterande läskanal från **Konfigurera → Alternativ**. Samma gäller `volkswagen.de`-webbkanalen (en valbar, enbart i Alternativ tillgänglig, kompletterande läskanal).
 
@@ -129,12 +129,12 @@ För Volkswagen EU är **det inte nog att logga in** — VW strömmar bara fordo
 1. **Lägg till integrationen:** välj **Portal (e-post + lösenord)** och välj **Volkswagen EU**, logga sedan in.
 2. **Slutför eventuell engångsuppmaning i VW:s portal.** Öppna VW-dataportalen en gång i en webbläsare eller varumärkesappen och slutför det den ber om: **acceptera villkor, bekräfta samtycke, slutför onboarding / regionval.** Headless-åtkomst kan inte ta sig förbi dessa — detta är fallet `portal_interaction_required` ([#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527)).
 3. **Bevilja samtycke till datadelning.** I portalen, ställ in **"Use of non-personal data" = Granted** (EU Data Acts samtycke till datadelning).
-4. **Aktivera den kontinuerliga databegäran** för den specifika bilen. Utan den returnerar portalen *no data request* för det VIN-numret och fordonet dyker upp utan avläsningar.
+4. **Leta inte efter någon växel för "kontinuerlig databegäran" — det finns ingen.** Integrationen skapar den begäran åt varje bil själv. Den registrerar en 1-månadsprenumeration på ditt VW-konto, och den är **gratis**. Utan en begäran returnerar portalen ingenting för det VIN-numret och bilen dyker upp utan avläsningar.
 5. **Vänta på att bilen skickar en ögonblicksbild.** Även efter allt ovanstående tar spridningen tid. Bilen kan visa **`offline` / `unknown` ett tag — ofta tills nästa körning eller väckning, upp till ~24 h** — innan sensorerna fylls i. Detta är normalt.
 
 Portalen levererar inledningsvis bara en **del av fälten**, och den delen **breddas över tid** när VW utökar portaltäckningen inför deadline i september 2026 — fält som i dag visar `unknown` kan fyllas i av sig själva. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465) · [#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527) · [#567](https://github.com/its-me-prash/vwgroup-connect-ha/issues/567))
 
-> **Valfritt:** växeln **`eu_data_act_auto_kickoff`** i Alternativ kan automatiskt skapa den 15-minuters Custom Data Request åt dig. Den är valbar eftersom att skapa den innebär en **1-månadsprenumeration på ditt VW-konto**, så integrationen gör det inte utan ditt godkännande.
+> Det är växeln **`eu_data_act_auto_kickoff`** i Alternativ som skapar den där 15-minuters Custom Data Request, och den är **på som standard** — i portalläge finns det inga data utan en. Stäng bara av den om du hellre vill hantera begäran själv.
 
 ---
 
@@ -176,7 +176,7 @@ Du kan också anropa tjänsten **`vag_connect.abrp_send`** direkt (rikta mot en 
 ## Alternativ (Konfigurera)
 
 Från **Inställningar → Enheter och tjänster → VW Group Connect → Konfigurera** kan du justera:
-skanningsintervall, S-PIN, omvänd geokodning, **skrivskyddat läge**, tvinga PPE-klimat (Audi), push-växlar (MQTT/FCM/Audi-VW), **EU Data Act-webbläsarreserv** (Playwright / ~100 MB Chromium, valbar), **wake-before-poll** + väckningsfördröjning, åsidosättning av client-id, **`eu_data_act_auto_kickoff`**, dölj-tomma-entiteter (på som standard), **ABRP** (aktivera + api_key + användartoken, valideras som ett par), plus **lägg till / ta bort** de kompletterande läskanalerna `volkswagen.de` och EU Data Act-portalen.
+skanningsintervall, S-PIN (plus en S-PIN per fordon när kontot har mer än en bil), omvänd geokodning, **skrivskyddat läge**, tvinga PPE-klimat (Audi), push-växlar (MQTT/FCM/Audi-VW), åsidosättning av client-id, **`eu_data_act_auto_kickoff`** (på som standard), dölj-tomma-entiteter (på som standard), **ABRP** (aktivera + api_key + användartoken, valideras som ett par), plus **lägg till / ta bort** de kompletterande läskanalerna `volkswagen.de` och EU Data Act-portalen.
 
 ---
 

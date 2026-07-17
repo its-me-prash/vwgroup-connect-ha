@@ -186,6 +186,34 @@ wake_vehicle:
       selector:
         text:
 
+request_historical_export:
+  name: Einmaligen Verlaufsexport anfordern
+  description: >-
+    Fordert beim EU-Data-Act-Portal einen einmaligen Verlaufsexport an
+    (Konfigurations-Snapshot: Timer, Ladeprofile, Klimaeinstellungen). Das
+    Portal erstellt die ZIP asynchron (~30 Min, bis zu 24 h). Danach mit
+    "Verlaufsexport übernehmen" abholen. Nur für Portal-/EU-Data-Act-Fahrzeuge.
+  fields:
+    vin:
+      name: VIN
+      required: true
+      selector:
+        text:
+
+import_historical_export:
+  name: Verlaufsexport übernehmen
+  description: >-
+    Holt einen bereitstehenden einmaligen Verlaufsexport ab und ergänzt dessen
+    Konfigurationsfelder im Live-Datensatz (nur Lücken füllen — Live-Telemetrie
+    wird nie überschrieben). Vorher "Einmaligen Verlaufsexport anfordern" und
+    einige Minuten warten, bis die Datei bereit ist.
+  fields:
+    vin:
+      name: VIN
+      required: true
+      selector:
+        text:
+
 set_target_soc:
   name: Ladeziel setzen
   description: Setzt das Ladeziel des Fahrzeugs in Prozent.

@@ -18,8 +18,7 @@
           "password": "Salasana",
           "spin": "S-PIN",
           "country": "Alue (vain Volkswagen US/Kanada)",
-          "scan_interval": "Päivitysväli",
-          "force_enable_access": "Pakota ovien tila"
+          "scan_interval": "Päivitysväli"
         }
       },
       "mfa": {
@@ -42,7 +41,6 @@
           "spin": "S-PIN",
           "country": "Alue (vain Volkswagen US/Kanada)",
           "scan_interval": "Päivitysväli",
-          "force_enable_access": "Pakota ovien tila",
           "enable_mbb_commands": "Ota käyttöön MBB-etäkomennot (vain Volkswagen — lisää QR-vahvistuksen)"
         },
         "data_description": {
@@ -50,8 +48,7 @@
           "username": "Valmistajan sovelluksen sähköpostiosoite.",
           "password": "Sovelluksen salasana.",
           "spin": "Tarvitaan vain lukitsemiseen. Sovellus → Turvallisuus → S-PIN.",
-          "scan_interval": "Kuinka usein tietoja haetaan. Oletus: 5 min. Vähintään: 3 min.",
-          "force_enable_access": "Vanhemmille ajoneuvoille, jotka eivät läpäise ominaisuustarkistusta."
+          "scan_interval": "Kuinka usein tietoja haetaan. Oletus: 5 min. Vähintään: 3 min."
         }
       },
       "user": {
@@ -70,14 +67,12 @@
         "data": {
           "mbb_vins": "VIN (ajoneuvon valmistenumero)",
           "spin": "S-PIN",
-          "scan_interval": "Päivitysväli",
-          "force_enable_access": "Pakota ovien tila"
+          "scan_interval": "Päivitysväli"
         },
         "data_description": {
           "mbb_vins": "17-merkkinen VIN-numerosi (tuulilasissa / rekisteriotteessa). Useita autoja: erota pilkulla. Pakollinen — pysyvä MBB-tunniste toimii VIN-kohtaisesti mutta ei voi luetella autotalliasi.",
           "spin": "Valinnainen 4-numeroinen turva-PIN — vaaditaan etälukitukseen/-avaukseen.",
-          "scan_interval": "Minuutteja ajoneuvon tietojen kyselyjen välillä.",
-          "force_enable_access": "Pakota ovien tilan entiteetit, vaikka ajoneuvo ilmoittaisi tiedon puuttuvan."
+          "scan_interval": "Minuutteja ajoneuvon tietojen kyselyjen välillä."
         }
       },
       "website_authproxy": {
@@ -110,12 +105,10 @@
         "data": {
           "brand": "Ajoneuvon merkki",
           "spin": "S-PIN",
-          "scan_interval": "Päivitysväli",
-          "force_enable_access": "Pakota ovien tila"
+          "scan_interval": "Päivitysväli"
         },
         "data_description": {
           "brand": "Vain selainkirjautumista tukevat merkit näytetään. Käytä 'Sähköposti + salasana' Volkswagen EU:lle ja Porschelle.",
-          "force_enable_access": "Pakota ovien tilan entiteetit, vaikka ajoneuvo ilmoittaisi tiedon puuttuvan.",
           "scan_interval": "Minuutteja ajoneuvon tietojen kyselyjen välillä.",
           "spin": "Valinnainen 4-numeroinen turva-PIN etätoiminnoille (lukitus, avaus, ilmastointi)."
         }
@@ -179,11 +172,8 @@
           "enable_push_mqtt": "Skoda push-päivitykset (MQTT, KOKEELLINEN)",
           "enable_push_fcm": "CUPRA/SEAT push-päivitykset (FCM, KOKEELLINEN)",
           "enable_push_audi_vw": "Audi/VW push-päivitykset (Cariad FCM, live (beta))",
-          "wake_before_poll": "Aktiivinen ajoneuvon herätys ennen tilakyselyä",
-          "wake_delay_seconds": "Herätysviive (sekuntia)",
           "client_id_override": "OAuth client_id -ohitus (tehokäyttäjät)",
           "eu_data_act_auto_kickoff": "EU Data Act: luo mukautettu datapyyntö automaattisesti",
-          "enable_data_act_browser": "EU Data Act -portaali: selaimeton varajärjestelmä (KOKEELLINEN)",
           "supplementary_authproxy": "Lisää Volkswagen.de-lukukanava (yhdistä lisätietoja)",
           "hide_empty_entities": "Piilota entiteetit ilman tietoja",
           "supplementary_eu_portal": "Lisää EU Data Act -portaalin lukukanava",
@@ -202,11 +192,8 @@
           "enable_push_mqtt": "KOKEELLINEN: vain Skoda. Ottaa käyttöön reaaliaikaiset MQTT-push-päivitykset Skodan mysmob-taustajärjestelmästä (vaatii aiomqtt + firebase-messaging Python-paketit — tällä hetkellä lazy-imported, ei esiasennettu). Perustusvaihe versiossa v1.18.0; live-aktivointi odottaa yhteisötestaajien validointia. Jos push ei ole saatavilla, integraatio palautuu hiljaisesti kyselyyn. Lataa integraatio uudelleen vaihdon jälkeen.",
           "enable_push_fcm": "KOKEELLINEN: vain CUPRA/SEAT. Ottaa käyttöön reaaliaikaisen Firebase Cloud Messaging -pushin OLA-taustajärjestelmästä (vaatii firebase-messaging Python-paketin — sama lazy-import kuin v1.18.0 Skoda MQTT -kytkimessä). Perustusvaihe versiossa v1.19.0; live-aktivointi odottaa yhteisötestaajien validointia. Jos push ei ole saatavilla, integraatio palautuu hiljaisesti kyselyyn. Lataa integraatio uudelleen vaihdon jälkeen.",
           "enable_push_audi_vw": "Live (beta): vain Audi/VW. Ottaa käyttöön reaaliaikaiset push-ilmoitukset Cariad FCM -kanavasta (sama, jota myAudi/WeConnect-mobiilisovellukset käyttävät, kattaa lukituksen/avauksen tulokset, latauksen tilan, ilmastoinnin, hälytyksen). Puretut tapahtumat lähetetään Home Assistantin tapahtumaväylälle nimellä ``vag_connect_push_event`` ja ne käynnistävät koordinaattorin päivityksen. Vaatii firebase-messaging Python-paketin (sama lazy-import kuin Skoda MQTT + CUPRA/SEAT FCM). Live-aktivointi versiosta v2.8.0 alkaen (toimenpide #4); tunnisteiden selvitin on yhä testaajarajattu, kunnes tehtävän #40 jatkotoimi tuo Cariad Firebase sender_id:n. Jos push ei ole saatavilla, integraatio palautuu hiljaisesti kyselyyn. Lataa integraatio uudelleen vaihdon jälkeen.",
-          "wake_before_poll": "Käytössä ollessaan integraatio lähettää herätys-POSTin ajoneuvolle ennen tilan hakemista jokaiselle VIN-numerolle, joka oli OFFLINE edellisessä kyselyssä. Auto saa palvelinpuolen herätyksen ja pushaa tuoreet tiedot, minkä jälkeen integraatio odottaa herätysviiveen ennen tilan lukemista. Sulkee 'kaikki anturit tuntemattomia pysäköidyillä autoilla' -aukon, mutta maksaa yhden ylimääräisen API-kutsun offline-VIN-numeroa kohti kyselysyklissä. Oletuksena pois päältä. Lataa integraatio uudelleen vaihdon jälkeen.",
-          "wake_delay_seconds": "Sekunteja odotusta herätys-POSTin ja tilan haun välillä. Oletusarvo 15 sekuntia on se, mitä useimmat merkkien taustajärjestelmät tarvitsevat herätyksen aiheuttaman datapushin käsittelyyn. Matalammat arvot riskeeraavat vanhentuneen datan lukemisen; korkeammat venyttävät kyselysykliä ilman lisähyötyä.",
           "client_id_override": "Tehokäyttäjän varauloskäynti, kun yhteisö havaitsee tuoreen OAuth client_id:n uudessa VW Group -APK:ssa ennen kuin päivittäinen atlas-rakentajamme sen huomaa. Liitä tähän täysi UUID@apps_vw-dilab_com -merkkijono, niin selvitin kokeilee sitä ENSIN jokaisessa todennuksessa, kaikki olemassa olevat client_id:t yhä varajärjestelmänä ketjussa. Jätä tyhjäksi oletuskäytökselle. Muoto: 8-4-4-4-12 heksadesimaalimerkkiä, joita seuraa @apps_vw-dilab_com. Virheelliset arvot ohitetaan hiljaisesti.",
           "eu_data_act_auto_kickoff": "Merkityksellinen vain, kun integraatio toimii vain lukemiseen tarkoitetussa EU Data Act -portaalitilassa (live-BFF-strategiat ovat epäonnistuneet). Käytössä ollessaan koordinaattori tarkistaa käynnistyksessä, onko VIN-kohtaisesti aktiivinen 15 minuutin mukautettu datapyyntö, ja luo sellaisen jos yhtään ei ole. Aloitus tarkoittaa 1 kuukauden datatilausta tilillesi portaalissa, joten tämä on valinnainen. Portaali hyväksyy KORKEINTAAN YHDEN aktiivisen mukautetun pyynnön VIN-numeroa kohti kerrallaan. Oletuksena pois päältä.",
-          "enable_data_act_browser": "KOKEELLINEN: merkityksellinen vain, kun integraatio on palautunut EU Data Act -portaaliin (vain luku). Ohjaa selaimetonta Chromiumia valinnaisen 'playwright' Python-paketin kautta napsauttaakseen portaalin datanvientipainiketta automaattisesti. Pakettia EI ole esiasennettu (se lataa noin 100 Mt Chromiumia). Kun se on käytössä mutta puuttuu, korjaustapahtuma kertoo sinulle, miten se asennetaan Home Assistant -kontista käsin. Lataa integraatio uudelleen vaihdon jälkeen.",
           "abrp_enable": "Lähetä live-telemetriaa A Better Routeplannerille. Tarvitsee sekä api_keyn että ajoneuvokohtaisen tunnisteen alla. Pois = ei lähteviä kutsuja.",
           "abrp_api_key": "Kehittäjä-/kumppaniavain, jonka rekisteröit iterniolla (emme toimita sellaista). Tunnistaa integraation. Ei koskaan lokiin.",
           "abrp_user_token": "'Generic'-tunniste ABRP-sovelluksesta: Asetukset -> autosi -> Live Data. Ei koskaan lokiin."
@@ -1078,6 +1065,12 @@
       },
       "max_number_users": {
         "name": "Käyttäjien enimmäismäärä"
+      },
+      "charging_profiles_pending": {
+        "name": "Latausprofiilin muutokset odottamassa"
+      },
+      "climatisation_timers_pending": {
+        "name": "Ilmastointiajastimen muutokset odottamassa"
       }
     },
     "binary_sensor": {
@@ -1311,6 +1304,9 @@
       },
       "abrp_data_changed": {
         "name": "ABRP-tiedot muuttuivat"
+      },
+      "climatisation_without_hv_power": {
+        "name": "Ilmastointi ilman ulkoista virtaa"
       }
     },
     "switch": {
@@ -1340,6 +1336,9 @@
       },
       "departure_timer_3_switch": {
         "name": "Lähtöajastin 3"
+      },
+      "battery_care_switch": {
+        "name": "Akun hoito"
       }
     },
     "number": {
@@ -1366,6 +1365,9 @@
       },
       "auxheat_target_temp": {
         "name": "Lisälämmittimen tavoitelämpötila"
+      },
+      "battery_care_target": {
+        "name": "Akun hoidon tavoite"
       }
     },
     "button": {
@@ -1667,6 +1669,9 @@
     },
     "read_only_portal_active": {
       "message": "Tämä ajoneuvo on yhdistetty VW:n vain lukemiseen tarkoitetun EU Data Act -portaalin kautta, joten etäkomennot (lukitus, ilmastointi, lataus) eivät ole sille käytettävissä. Tämä ei ole asetus, jonka voit vaihtaa — portaalikanavalla ei ole komentopolkua."
+    },
+    "historical_portal_not_ready": {
+      "message": "EU:n datasäädösportaali ei ole vielä valmis. Odota, kunnes integraatio on hakenut tiedot kerran käyttöönoton jälkeen, ja yritä sitten uudelleen."
     }
   },
   "selector": {

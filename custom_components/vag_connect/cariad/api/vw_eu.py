@@ -2670,6 +2670,20 @@ class VWEUClient(CariadBaseClient):
         if isinstance(care_pending, list):
             d.charging_care_pending = len(care_pending)
 
+        # v2.18.0 — Scout #799: queued charge-PROFILE changes. Same [N items]
+        # count diagnostic as the *_pending family; None when the leaf is absent.
+        profiles_pending = v(raw, "automation", "chargingProfiles", "requests")
+        if isinstance(profiles_pending, list):
+            d.charging_profiles_pending = len(profiles_pending)
+
+        # v2.18.0 — Scout #801: queued climate-TIMER schedule changes (distinct
+        # from climatisation start/stop, which is climatisationStatus.requests).
+        timers_pending = v(
+            raw, "climatisationTimers", "climatisationTimersStatus", "requests"
+        )
+        if isinstance(timers_pending, list):
+            d.climatisation_timers_pending = len(timers_pending)
+
         # v2.3.0 — scout #264 (Audi moltke69 2026-05-19) — route-aware
         # smart charging fields. The Cariad-BFF backend ships a
         # navigation-aware SoC target (e.g. "charge until you have

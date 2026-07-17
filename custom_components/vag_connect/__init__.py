@@ -360,6 +360,18 @@ def _register_services(hass: HomeAssistant) -> None:
             call.data["vin"], float(call.data["temperature"])
         )
 
+    async def _handle_request_historical_export(call: ServiceCall) -> None:
+        # Phase C — portal read op, so _coord (not _coord_writeable): the cars
+        # that have this export are exactly the read-only portal ones.
+        await _coord(call.data["vin"]).async_request_historical_export(
+            call.data["vin"]
+        )
+
+    async def _handle_import_historical_export(call: ServiceCall) -> None:
+        await _coord(call.data["vin"]).async_import_historical_export(
+            call.data["vin"]
+        )
+
     async def _handle_set_departure_timer(call: ServiceCall) -> None:
         # v2.0.0 (Big-Bang) — accept optional ``recurring_on`` weekday
         # list (e.g. ``["MONDAY","TUESDAY","FRIDAY"]``). Forwarded to
@@ -557,6 +569,8 @@ def _register_services(hass: HomeAssistant) -> None:
         ("stop_window_heating",            _handle_stop_window,         SERVICE_VIN_SCHEMA),
         ("wake_vehicle",                   _handle_wake,                SERVICE_VIN_SCHEMA),
         ("flash_lights",                   _handle_flash,               SERVICE_VIN_SCHEMA),
+        ("request_historical_export",      _handle_request_historical_export, SERVICE_VIN_SCHEMA),
+        ("import_historical_export",       _handle_import_historical_export,  SERVICE_VIN_SCHEMA),
         ("refresh_vehicle",                _handle_refresh,             vol.Schema({})),
         # v1.13.0 (#63 Phase 3) — explicit semantic-clear alias.
         ("refresh_cloud_cache",            _handle_refresh_cloud_cache, vol.Schema({})),

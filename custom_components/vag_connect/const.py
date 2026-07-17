@@ -34,7 +34,6 @@ CONF_MBB_COMMAND_TOKENS       = "mbb_command_tokens"       # dag-shaped dict (st
 CONF_MBB_COMMAND_CLIENT_ID    = "mbb_command_client_id"    # registered X-Client-Id
 CONF_MEB_COMMANDS_UNAVAILABLE = "meb_commands_unavailable"  # bool: MEB/ID car, commands requested but impossible
 CONF_SCAN_INTERVAL            = "scan_interval"
-CONF_FORCE_ACCESS             = "force_enable_access"
 CONF_ENABLE_REVERSE_GEOCODING = "enable_reverse_geocoding"
 # v1.12.0 (#63) — Read-only mode. When True, the integration creates
 # only status sensors + binary sensors (read-only), no switches/buttons/
@@ -99,42 +98,6 @@ CONF_ENABLE_PUSH_AUDI_VW      = "enable_push_audi_vw"
 # string ("2.17.0") or full User-Agent string per RFC 7231.
 CONF_OLA_APP_VERSION_OVERRIDE = "ola_app_version_override"
 CONF_OLA_USER_AGENT_OVERRIDE  = "ola_user_agent_override"
-# v2.8.0 (Action #5) — preferred auth strategy pin. Set via the
-# Repair-flow guided action when a DAG-eligible brand (Audi/Skoda/SEAT/
-# CUPRA) silently degrades to hybrid_full. Recording the preference in
-# entry.options lets future polls honour the user's choice instead of
-# repeatedly retrying DAG. Values: "data_act_portal" (forces read-only
-# Data Act portal mode), "" / absent (default — resolver picks).
-CONF_PREFERRED_AUTH_STRATEGY  = "preferred_auth_strategy"
-# v2.8.0 Action #3 - EU Data Act portal scraper headless-browser
-# fallback. Off by default because the playwright dependency is heavy
-# (around 100 MB Chromium download) and most users will get usable
-# data from the JSON probe in Route A once a credentialed tester
-# completes v2.8.1 endpoint discovery. When True AND the active auth
-# strategy is data_act_portal AND playwright is installed, the
-# coordinator drives a headless browser to click the portal's "Get
-# customised data" button. If True but playwright is missing, the
-# coordinator surfaces a Repair issue telling the user how to
-# install the package inside their HA container.
-CONF_ENABLE_DATA_ACT_BROWSER  = "enable_data_act_browser"
-
-# v2.10.0 - Active vehicle wake-up before status poll. Pattern ported
-# from the audi_connect_ha v2.1.0 modernization round, observed on
-# their commit history but implemented independently here. When True,
-# the coordinator POSTs to the brand's wake-vehicle endpoint for any
-# VIN that was OFFLINE on the previous poll cycle, sleeps
-# CONF_WAKE_DELAY_SECONDS, then runs the regular status fetch. Closes
-# the offline-car null-cascade reports (#306 DanielBie SEAT/CUPRA,
-# #322 roberttco VW NA) for users who accept the extra API call per
-# poll. Off by default because every wake costs one budget unit and
-# users with already-online cars get no benefit.
-CONF_WAKE_BEFORE_POLL         = "wake_before_poll"
-# Seconds to wait between the wake POST and the status fetch. 15 s is
-# the empirical default observed across the ecosystem; too low and the
-# backend serves stale data because the wake-induced push has not
-# arrived yet, too high and the user's poll cycle stretches unhelpfully.
-CONF_WAKE_DELAY_SECONDS       = "wake_delay_seconds"
-DEFAULT_WAKE_DELAY_SECONDS    = 15
 
 # v2.10.4 - User-supplied OAuth client_id override. Lets a user paste
 # a freshly extracted client_id (e.g. from a new APK the community
@@ -152,10 +115,11 @@ CONF_CLIENT_ID_OVERRIDE       = "client_id_override"
 # When ON and the integration is operating in read-only data_act_portal
 # mode, the coordinator checks for an active 15-min Custom Data Request
 # at startup and kicks one off when none exists. The portal accepts
-# exactly one custom request per VIN at a time and the kickoff implies
-# a 1-month subscription on the user's account, so this stays OFF by
-# default; the user has to flip it explicitly. Persisted Identifier
-# per VIN lives under CONF_DATA_ACT_IDENTIFIERS in entry.options.
+# exactly one custom request per VIN at a time.
+# v2.17.1 — defaults to ON: portal mode delivers no data at all without a
+# request, so opting in by hand was a trap. The kickoff registers a 1-month
+# subscription on the user's account, which is free.
+# The resolved per-VIN Identifier is persisted under CONF_DATA_ACT_IDENTIFIERS.
 CONF_EU_DATA_ACT_AUTO_KICKOFF = "eu_data_act_auto_kickoff"
 CONF_DATA_ACT_IDENTIFIERS     = "data_act_identifiers"
 

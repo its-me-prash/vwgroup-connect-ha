@@ -18,8 +18,7 @@
           "password": "Adgangskode",
           "spin": "S-PIN",
           "country": "Region (kun Volkswagen USA/Canada)",
-          "scan_interval": "Opdateringsinterval",
-          "force_enable_access": "Gennemtving dørstatus"
+          "scan_interval": "Opdateringsinterval"
         }
       },
       "mfa": {
@@ -42,7 +41,6 @@
           "spin": "S-PIN",
           "country": "Region (kun Volkswagen USA/Canada)",
           "scan_interval": "Opdateringsinterval",
-          "force_enable_access": "Gennemtving dørstatus",
           "enable_mbb_commands": "Aktivér MBB-fjernkommandoer (kun Volkswagen — tilføjer en QR-bekræftelse)"
         },
         "data_description": {
@@ -50,8 +48,7 @@
           "username": "E-mailadresse fra producentens app.",
           "password": "Adgangskode fra appen.",
           "spin": "Kræves kun til låsning. App → Sikkerhed → S-PIN.",
-          "scan_interval": "Hvor ofte data hentes. Standard: 5 min. Minimum: 3 min.",
-          "force_enable_access": "Til ældre køretøjer, der ikke består kapacitetstjekket."
+          "scan_interval": "Hvor ofte data hentes. Standard: 5 min. Minimum: 3 min."
         }
       },
       "user": {
@@ -70,14 +67,12 @@
         "data": {
           "mbb_vins": "VIN (stelnummer)",
           "spin": "S-PIN",
-          "scan_interval": "Opdateringsinterval",
-          "force_enable_access": "Gennemtving dørstatus"
+          "scan_interval": "Opdateringsinterval"
         },
         "data_description": {
           "mbb_vins": "Dit 17-tegns VIN (på forruden / i registreringsattesten). Flere biler: adskil med komma. Påkrævet — det vedvarende MBB-token virker pr. VIN, men kan ikke opremse din garage.",
           "spin": "Valgfri 4-cifret sikkerheds-PIN — kræves til fjernlåsning/-oplåsning.",
-          "scan_interval": "Minutter mellem hver hentning af køretøjsdata.",
-          "force_enable_access": "Gennemtving dørstatus-entiteter, selv når køretøjet melder dataene som manglende."
+          "scan_interval": "Minutter mellem hver hentning af køretøjsdata."
         }
       },
       "website_authproxy": {
@@ -110,12 +105,10 @@
         "data": {
           "brand": "Køretøjsmærke",
           "spin": "S-PIN",
-          "scan_interval": "Opdateringsinterval",
-          "force_enable_access": "Gennemtving dørstatus"
+          "scan_interval": "Opdateringsinterval"
         },
         "data_description": {
           "brand": "Kun mærker med understøttelse af browser-login vises. Brug 'E-mail + adgangskode' til Volkswagen EU og Porsche.",
-          "force_enable_access": "Gennemtving dørstatus-entiteter, selv når køretøjet melder dataene som manglende.",
           "scan_interval": "Minutter mellem hver hentning af køretøjsdata.",
           "spin": "Valgfri 4-cifret sikkerheds-PIN til fjernhandlinger (lås, lås op, klima)."
         }
@@ -179,11 +172,8 @@
           "enable_push_mqtt": "Skoda push-opdateringer (MQTT, EKSPERIMENTEL)",
           "enable_push_fcm": "CUPRA/SEAT push-opdateringer (FCM, EKSPERIMENTEL)",
           "enable_push_audi_vw": "Audi/VW push-opdateringer (Cariad FCM, Live (beta))",
-          "wake_before_poll": "Aktiv opvækning af køretøj før statushentning",
-          "wake_delay_seconds": "Opvækningsforsinkelse (sekunder)",
           "client_id_override": "Tilsidesættelse af OAuth client_id (avancerede brugere)",
           "eu_data_act_auto_kickoff": "EU Data Act: opret automatisk Custom Data Request",
-          "enable_data_act_browser": "EU Data Act-portal: headless-browser-fallback (EKSPERIMENTEL)",
           "supplementary_authproxy": "Tilføj en Volkswagen.de-læsekanal (flet ekstra data)",
           "hide_empty_entities": "Skjul entiteter uden data",
           "supplementary_eu_portal": "Tilføj en EU Data Act-portallæsekanal",
@@ -202,11 +192,8 @@
           "enable_push_mqtt": "EKSPERIMENTEL: Kun Skoda. Aktiverer realtids-MQTT-push fra Skoda mysmob-backendet (kræver Python-pakkerne aiomqtt + firebase-messaging — pt. importeret dovent, ikke forudinstalleret). Grundlagsfase i v1.18.0; live-aktivering afventer validering fra community-testere. Hvis push ikke er tilgængelig, falder integrationen stille tilbage til polling. Genindlæs integrationen efter ændring.",
           "enable_push_fcm": "EKSPERIMENTEL: Kun CUPRA/SEAT. Aktiverer realtids-push via Firebase Cloud Messaging fra OLA-backendet (kræver Python-pakken firebase-messaging — samme dovne import som Skoda MQTT-kontakten i v1.18.0). Grundlagsfase i v1.19.0; live-aktivering afventer validering fra community-testere. Hvis push ikke er tilgængelig, falder integrationen stille tilbage til polling. Genindlæs integrationen efter ændring.",
           "enable_push_audi_vw": "Live (beta): Kun Audi/VW. Aktiverer realtids-push-notifikationer fra Cariad FCM-kanalen (den samme som myAudi/WeConnect-mobilapperne bruger, dækker resultater af lås/oplåsning, ladestatus, klima, alarm). Afkodede hændelser affyres på Home Assistant-hændelsesbussen som ``vag_connect_push_event`` og udløser en genopfriskning af koordinatoren. Kræver Python-pakken firebase-messaging (samme dovne import som Skoda MQTT + CUPRA/SEAT FCM). Live-aktivering siden v2.8.0 (Action #4); credential-resolveren er stadig tester-begrænset, indtil opfølgning på opgave #40 lander Cariad Firebase sender_id. Hvis push ikke er tilgængelig, falder integrationen stille tilbage til polling. Genindlæs integrationen efter ændring.",
-          "wake_before_poll": "Når aktiveret, sender integrationen en opvæknings-POST til køretøjet, før status hentes, for ethvert VIN, der var OFFLINE ved forrige polling. Bilen modtager en opvækning på serversiden og pusher friske data, hvorefter integrationen venter opvækningsforsinkelsen af, før status læses. Lukker hullet med 'alle sensorer ukendt for parkerede biler', men koster ét ekstra API-kald pr. offline-VIN pr. pollingcyklus. Slået fra som standard. Genindlæs integrationen efter ændring.",
-          "wake_delay_seconds": "Sekunder, der ventes mellem opvæknings-POST'en og statushentningen. Standarden på 15 sekunder er, hvad de fleste mærke-backends har brug for til at optage den opvækningsudløste datapush. Lavere værdier risikerer at læse forældede data; højere værdier strækker pollingcyklussen uden yderligere gevinst.",
           "client_id_override": "Nødudgang for avancerede brugere, når fællesskabet opdager et nyt OAuth client_id i en ny VW Group-APK, før vores daglige atlas-builder fanger det. Indsæt hele UUID@apps_vw-dilab_com-strengen her, så prøver resolveren den FØRST ved hver godkendelse, med alle eksisterende client_ids stadig i kæden som fallback. Lad stå tom for standardadfærd. Format: 8-4-4-4-12 hex-cifre efterfulgt af @apps_vw-dilab_com. Fejlformaterede værdier ignoreres i stilhed.",
           "eu_data_act_auto_kickoff": "Kun relevant, når integrationen kører i skrivebeskyttet EU Data Act-portaltilstand (live BFF-strategier er slået fejl). Når SLÅET TIL tjekker koordinatoren ved opstart for en aktiv 15-min Custom Data Request pr. VIN og opretter en, hvis der ikke findes nogen. Oprettelsen medfører et 1-måneds dataabonnement på din konto hos portalen, så dette er et tilvalg. Portalen accepterer HØJST ÉN aktiv custom-anmodning pr. VIN ad gangen. Slået fra som standard.",
-          "enable_data_act_browser": "EKSPERIMENTEL: kun relevant, når integrationen er faldet tilbage til EU Data Act-portalen (skrivebeskyttet). Styrer en headless Chromium via den valgfri Python-pakke 'playwright' for automatisk at klikke på portalens dataeksportknap. Pakken er IKKE forudinstalleret (den henter omkring 100 MB Chromium). Når aktiveret men manglende, fortæller en Reparation-sag dig, hvordan du installerer den inde fra Home Assistant-containeren. Genindlæs integrationen efter ændring.",
           "abrp_enable": "Send live-telemetri til A Better Routeplanner. Kræver både en api_key og et token pr. køretøj nedenfor. Fra = ingen udgående kald.",
           "abrp_api_key": "En udvikler-/partnernøgle, du registrerer hos iternio (vi leverer ikke en). Identificerer integrationen. Logges aldrig.",
           "abrp_user_token": "'Generic'-tokenet fra ABRP-appen: Indstillinger -> din bil -> Live Data. Logges aldrig."
@@ -1078,6 +1065,12 @@
       },
       "max_number_users": {
         "name": "Maks. antal brugere"
+      },
+      "charging_profiles_pending": {
+        "name": "Ladeprofilændringer afventende"
+      },
+      "climatisation_timers_pending": {
+        "name": "Klimatimerændringer afventende"
       }
     },
     "binary_sensor": {
@@ -1311,6 +1304,9 @@
       },
       "abrp_data_changed": {
         "name": "ABRP-data ændret"
+      },
+      "climatisation_without_hv_power": {
+        "name": "Klimaanlæg uden ekstern strøm"
       }
     },
     "switch": {
@@ -1340,6 +1336,9 @@
       },
       "departure_timer_3_switch": {
         "name": "Afgangstimer 3"
+      },
+      "battery_care_switch": {
+        "name": "Batteripleje"
       }
     },
     "number": {
@@ -1366,6 +1365,9 @@
       },
       "auxheat_target_temp": {
         "name": "Parkeringsvarmer måltemperatur"
+      },
+      "battery_care_target": {
+        "name": "Mål for batteripleje"
       }
     },
     "button": {
@@ -1667,6 +1669,9 @@
     },
     "read_only_portal_active": {
       "message": "Dette køretøj forbindes gennem VW's skrivebeskyttede EU Data Act-portal, så fjernkommandoer (lås, klima, opladning) er ikke tilgængelige for det. Dette er ikke en indstilling, du kan slå til/fra — portalkanalen har ingen kommandosti."
+    },
+    "historical_portal_not_ready": {
+      "message": "EU Data Act-portalen er ikke klar endnu. Vent, til integrationen har hentet data én gang efter opsætning, og prøv derefter det historiske eksport igen."
     }
   },
   "selector": {

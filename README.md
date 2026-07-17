@@ -111,8 +111,8 @@ A few things are **structural** — they come from how Volkswagen's backends wor
 
 The integration's first screen offers **two** login methods. Pick the one your brand supports:
 
-- **Browser / device-code (passwordless)** — *Audi · Škoda · SEAT · CUPRA.* Sign in on your phone or laptop and approve the device; no password is stored in Home Assistant (it keeps a real refresh token). This step also offers the optional **S-PIN**, scan interval and force-access fields.
-- **Portal — email + password** — *Volkswagen EU · Porsche.* Enter your brand login. This step exposes a brand picker (Volkswagen EU, Porsche, and the other email/password brands), email, password, optional **S-PIN**, scan interval, force-access, and an **"enable MBB commands"** toggle (which only has an effect on Volkswagen EU — see [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)). For **Volkswagen US/Canada** a **country selector (US vs CA)** appears here — it renders **only** for that brand and is not used by any other.
+- **Browser / device-code (passwordless)** — *Audi · Škoda · SEAT · CUPRA.* Sign in on your phone or laptop and approve the device; no password is stored in Home Assistant (it keeps a real refresh token). This step also offers the optional **S-PIN** and scan interval.
+- **Portal — email + password** — *Volkswagen EU · Porsche.* Enter your brand login. This step exposes a brand picker (Volkswagen EU, Porsche, and the other email/password brands), email, password, optional **S-PIN**, scan interval, and an **"enable MBB commands"** toggle (which only has an effect on Volkswagen EU — see [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)). For **Volkswagen US/Canada** a **country selector (US vs CA)** appears here — it renders **only** for that brand and is not used by any other.
 
 > The **EU Data Act portal is not a third login button.** It's the read-only strategy the coordinator automatically falls back to, and it can additionally be *added* as a supplementary read channel from **Configure → Options**. The same is true of the `volkswagen.de` web channel (an opt-in Options-only supplementary read channel).
 
@@ -129,12 +129,12 @@ For Volkswagen EU, **logging in is not enough** — VW only streams vehicle data
 1. **Add the integration:** choose **Portal (email + password)** and pick **Volkswagen EU**, then log in.
 2. **Complete any one-time prompt on VW's portal.** Open the VW data portal once in a browser or the brand app and finish whatever it asks: **accept terms, confirm consent, finish onboarding / region selection.** Headless access can't get past these — this is the `portal_interaction_required` case ([#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527)).
 3. **Grant data-sharing consent.** On the portal, set **"Use of non-personal data" = Granted** (the EU Data Act data-sharing consent).
-4. **Enable the continuous data request** for the specific car. Without it, the portal returns *no data request* for that VIN and the vehicle shows up with no readings.
+4. **Don't go looking for a "continuous data request" switch — there isn't one.** The integration creates that request for each car itself. It registers a 1-month subscription on your VW account, which is **free**. Without a request the portal returns nothing for that VIN and the car shows up with no readings.
 5. **Wait for the car to push a snapshot.** Even after all of the above, propagation takes time. The car can read **`offline` / `unknown` for a while — often until its next drive or wake, up to ~24 h** — before sensors populate. This is normal.
 
 The portal initially serves only a **slice of fields**, and that slice **widens over time** as VW expands portal coverage ahead of the Sept-2026 deadline — fields that read `unknown` today may fill in on their own. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465) · [#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527) · [#567](https://github.com/its-me-prash/vwgroup-connect-ha/issues/567))
 
-> **Optional:** the Options toggle **`eu_data_act_auto_kickoff`** can auto-create the 15-minute Custom Data Request for you. It's opt-in because creating it implies a **1-month subscription on your VW account**, so the integration won't do it without your say-so.
+> The Options toggle **`eu_data_act_auto_kickoff`** is what creates that 15-minute Custom Data Request, and it's **on by default** — in portal mode there's no data without one. Turn it off only if you'd rather manage the request yourself.
 
 ---
 
@@ -176,7 +176,7 @@ You can also call the **`vag_connect.abrp_send`** service directly (target a dev
 ## Options (Configure)
 
 From **Settings → Devices & Services → VW Group Connect → Configure** you can adjust:
-scan interval, S-PIN, reverse-geocoding, **read-only mode**, force PPE climate (Audi), push toggles (MQTT/FCM/Audi-VW), **EU Data Act browser fallback** (Playwright / ~100 MB Chromium, opt-in), **wake-before-poll** + wake delay, client-id override, **`eu_data_act_auto_kickoff`**, hide-empty-entities (default on), **ABRP** (enable + api_key + user token, validated as a pair), plus **add / remove** the `volkswagen.de` and EU Data Act portal supplementary read channels.
+scan interval, S-PIN (plus a per-vehicle S-PIN when the account has more than one car), reverse-geocoding, **read-only mode**, force PPE climate (Audi), push toggles (MQTT/FCM/Audi-VW), client-id override, **`eu_data_act_auto_kickoff`** (on by default), hide-empty-entities (default on), **ABRP** (enable + api_key + user token, validated as a pair), plus **add / remove** the `volkswagen.de` and EU Data Act portal supplementary read channels.
 
 ---
 

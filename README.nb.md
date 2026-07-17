@@ -90,7 +90,7 @@ Noen få ting er **strukturelle** — de kommer av hvordan Volkswagens baksystem
 - **CUPRA- / SEAT-fjernkommandoer er blokkert av VW.** Tilgang til nettjenester (OLA) for disse merkene ble trukket tilbake på serversiden i 2026 (HTTP 403); en ny innlogging eller en oppdatert app-versjon gjenoppretter det ikke. Data flyter fortsatt via EU Data Act-portalen. ([#464](https://github.com/its-me-prash/vwgroup-connect-ha/issues/464))
 - **EU Data Act-portaldata er tynne og varierer fra bil til bil.** VW publiserer bare et utsnitt av felter i dag (ofte kilometerstand + låsing + lading, noen ganger mye mer). Det utvides over tid etter hvert som VW bygger ut portalen frem mot fristen i september 2026 — felter som i dag viser `unknown`, kan fylle seg av seg selv, uten endring. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465))
 
-> **Hvor vi står.** Under EU Data Act (Forordning (EU) 2023/2854) er bilens data *dine*. Å kjøre denne integrasjonen på din egen maskinvare er *deg* som får tilgang til *dine egne* data (Artikkel 4) — skyldig i samme kvalitet som produsenten leverer til seg selv, i sanntid der det er teknisk mulig. VWs skrivebeskyttede, timevis utdaterte portal lever ikke opp til dette i dag. Denne integrasjonen er bevisst **kanaluavhengig**: i det øyeblikket VW gir eiere et sanntids, styringsdyktig grensesnitt — slik Data Act krever, og slik noen produsenter allerede tilbyr eierne sine — vil vi støtte det her, gratis, for alle. Vi står bak din rett til sanntidstilgang til din egen bil.
+> **Hvor vi står.** Under EU Data Act (Forordning (EU) 2023/2854) er bilens data *dine*. Å kjøre denne integrasjonen på din egen maskinvare er *deg* som får tilgang til *dine egne* data (Artikkel 4) — som du har krav på i samme kvalitet som produsenten leverer til seg selv, i sanntid der det er teknisk mulig. VWs skrivebeskyttede, timevis utdaterte portal lever ikke opp til dette i dag. Denne integrasjonen er bevisst **kanaluavhengig**: i det øyeblikket VW gir eiere et sanntids, styringsdyktig grensesnitt — slik Data Act krever, og slik noen produsenter allerede tilbyr eierne sine — vil vi støtte det her, gratis, for alle. Vi står bak din rett til sanntidstilgang til din egen bil.
 
 ---
 
@@ -111,8 +111,8 @@ Noen få ting er **strukturelle** — de kommer av hvordan Volkswagens baksystem
 
 Integrasjonens første skjermbilde tilbyr **to** påloggingsmetoder. Velg den merket ditt støtter:
 
-- **Nettleser / enhetskode (passordløs)** — *Audi · Škoda · SEAT · CUPRA.* Logg inn på telefonen eller den bærbare PC-en din og godkjenn enheten; ingen passord lagres i Home Assistant (den beholder et ekte refresh-token). Dette steget tilbyr også de valgfrie feltene **S-PIN**, skanneintervall og tving-tilgang.
-- **Portal — e-post + passord** — *Volkswagen EU · Porsche.* Skriv inn merkepåloggingen din. Dette steget viser en merkevelger (Volkswagen EU, Porsche og de andre e-post/passord-merkene), e-post, passord, valgfri **S-PIN**, skanneintervall, tving-tilgang, og en **«aktiver MBB-kommandoer»**-bryter (som bare har en effekt på Volkswagen EU — se [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)). For **Volkswagen US/Canada** dukker en **landvelger (US vs. CA)** opp her — den vises **kun** for det merket og brukes ikke av noe annet.
+- **Nettleser / enhetskode (passordløs)** — *Audi · Škoda · SEAT · CUPRA.* Logg inn på telefonen eller den bærbare PC-en din og godkjenn enheten; ingen passord lagres i Home Assistant (den beholder et ekte refresh-token). Dette steget tilbyr også de valgfrie feltene **S-PIN** og skanneintervall.
+- **Portal — e-post + passord** — *Volkswagen EU · Porsche.* Skriv inn merkepåloggingen din. Dette steget viser en merkevelger (Volkswagen EU, Porsche og de andre e-post/passord-merkene), e-post, passord, valgfri **S-PIN**, skanneintervall, og en **«aktiver MBB-kommandoer»**-bryter (som bare har en effekt på Volkswagen EU — se [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)). For **Volkswagen US/Canada** dukker en **landvelger (US vs. CA)** opp her — den vises **kun** for det merket og brukes ikke av noe annet.
 
 > **EU Data Act-portalen er ikke en tredje påloggingsknapp.** Det er den skrivebeskyttede strategien koordinatoren automatisk faller tilbake til, og den kan i tillegg *legges til* som en supplerende lesekanal fra **Konfigurer → Alternativer**. Det samme gjelder `volkswagen.de`-webkanalen (en valgfri supplerende lesekanal kun tilgjengelig fra Alternativer).
 
@@ -129,12 +129,12 @@ For Volkswagen EU er **det ikke nok å logge inn** — VW streamer kjøretøydat
 1. **Legg til integrasjonen:** velg **Portal (e-post + passord)** og velg **Volkswagen EU**, og logg deretter inn.
 2. **Fullfør enhver engangsoppgave på VWs portal.** Åpne VWs dataportal én gang i en nettleser eller merkeappen og fullfør det den ber om: **godta vilkår, bekreft samtykke, fullfør onboarding / regionvalg.** Tilgang uten nettleser kommer ikke forbi disse — dette er tilfellet `portal_interaction_required` ([#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527)).
 3. **Gi samtykke til datadeling.** I portalen setter du **«Bruk av ikke-personlige data» = Innvilget** (EU Data Act-samtykket til datadeling).
-4. **Aktiver den kontinuerlige dataforespørselen** for den aktuelle bilen. Uten den returnerer portalen *ingen dataforespørsel* for den VIN-en, og kjøretøyet dukker opp uten avlesninger.
+4. **Ikke let etter en bryter for «kontinuerlig dataforespørsel» — den finnes ikke.** Integrasjonen oppretter den forespørselen for hver bil selv. Den registrerer et 1-måneds abonnement på VW-kontoen din, som er **gratis**. Uten en forespørsel returnerer portalen ingenting for den VIN-en, og bilen dukker opp uten avlesninger.
 5. **Vent på at bilen pusher et øyeblikksbilde.** Selv etter alt det ovenfor tar propageringen tid. Bilen kan vise **`offline` / `unknown` en stund — ofte til neste kjøretur eller vekking, opptil ~24 t** — før sensorene fylles. Dette er normalt.
 
 Portalen leverer i utgangspunktet bare et **utsnitt av felter**, og det utsnittet **utvides over tid** etter hvert som VW bygger ut portaldekningen frem mot fristen i september 2026 — felter som i dag viser `unknown`, kan fylle seg av seg selv. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465) · [#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527) · [#567](https://github.com/its-me-prash/vwgroup-connect-ha/issues/567))
 
-> **Valgfritt:** Alternativer-bryteren **`eu_data_act_auto_kickoff`** kan opprette 15-minutters Custom Data Request automatisk for deg. Den er valgfri fordi å opprette den innebærer et **1-måneds abonnement på VW-kontoen din**, så integrasjonen gjør det ikke uten din tillatelse.
+> Alternativer-bryteren **`eu_data_act_auto_kickoff`** er den som oppretter denne 15-minutters Custom Data Request, og den er **på som standard** — i portalmodus finnes det ingen data uten en. Slå den av bare hvis du heller vil håndtere forespørselen selv.
 
 ---
 
@@ -176,7 +176,7 @@ Du kan også kalle **`vag_connect.abrp_send`**-tjenesten direkte (rett mot en en
 ## Alternativer (Konfigurer)
 
 Fra **Innstillinger → Enheter og tjenester → VW Group Connect → Konfigurer** kan du justere:
-skanneintervall, S-PIN, omvendt geokoding, **skrivebeskyttet modus**, tving PPE-klima (Audi), push-brytere (MQTT/FCM/Audi-VW), **EU Data Act-nettleserreserveløsning** (Playwright / ~100 MB Chromium, valgfri), **wake-before-poll** + vekkeforsinkelse, client-id-overstyring, **`eu_data_act_auto_kickoff`**, skjul-tomme-entiteter (på som standard), **ABRP** (aktiver + api_key + brukertoken, validert som et par), pluss **legg til / fjern** de supplerende lesekanalene `volkswagen.de` og EU Data Act-portal.
+skanneintervall, S-PIN (pluss en S-PIN per kjøretøy når kontoen har mer enn én bil), omvendt geokoding, **skrivebeskyttet modus**, tving PPE-klima (Audi), push-brytere (MQTT/FCM/Audi-VW), client-id-overstyring, **`eu_data_act_auto_kickoff`** (på som standard), skjul-tomme-entiteter (på som standard), **ABRP** (aktiver + api_key + brukertoken, validert som et par), pluss **legg til / fjern** de supplerende lesekanalene `volkswagen.de` og EU Data Act-portal.
 
 ---
 

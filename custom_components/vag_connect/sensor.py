@@ -273,6 +273,29 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # v2.18.0 — Scout #799: queued charge-PROFILE changes
+    # (``automation.chargingProfiles.requests``). Same *_pending diagnostic.
+    VagSensorDescription(
+        key="charging_profiles_pending",
+        translation_key="charging_profiles_pending",
+        data_key="charging_profiles_pending",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:playlist-edit",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # v2.18.0 — Scout #801: queued climate-TIMER schedule changes
+    # (``climatisationTimers.climatisationTimersStatus.requests``).
+    VagSensorDescription(
+        key="climatisation_timers_pending",
+        translation_key="climatisation_timers_pending",
+        data_key="climatisation_timers_pending",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:timer-cog-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     # v2.2.3 — Cariad scout #272 (VW EU arvcer 2026-05-23): third
     # *_pending sibling — counts queued start/stop_climatisation
     # commands. No ``condition`` filter (every brand with climatisation
@@ -682,9 +705,17 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
     # X-RateLimit-Remaining response header when the backend sends it
     # (most VAG endpoints do; older firmwares omit). Community research:
     # MyCupra/MySeat ~1500 calls/day, OLA + mysmob behave similarly.
-    # Sensor stays "unknown" if backend never sends the header (gated
-    # via ``_DATA_PRESENT_REQUIRED`` to avoid phantom 0 on first poll
-    # before any header has been observed).
+    #
+    # No phantom 0 on a header-less backend: the value stays None and the
+    # ``hide_empty`` gate (default on) skips the sensor at spawn time — see
+    # the spawn loop below. This trio is deliberately NOT in
+    # ``_DATA_PRESENT_REQUIRED``, despite an earlier comment here claiming so.
+    # That set is for fields a given car's API will never publish (brand or
+    # capability); a rate-limit header is transport metadata that can show up
+    # on the first response that carries it, which is precisely the "starts as
+    # None and populates later" case the set's own docstring says not to gate.
+    # With hide_empty off the user has asked to see everything, unknowns
+    # included, so there is nothing to protect them from here.
     VagSensorDescription(
         key="requests_remaining_today",
         translation_key="requests_remaining_today",
@@ -1080,10 +1111,14 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         entity_registry_enabled_default=False,
     ),
-    # b1/C1 — data provenance. Shows which channel(s) produced the snapshot
-    # (e.g. "eu_data_act+mbb") once the multi-channel merge runs. Gated on
-    # data-present so single-channel entries (source_channel=None) never get a
-    # phantom; only a merged poll spawns it.
+    # b1/C1 — data provenance. Shows which channel(s) produced the snapshot,
+    # e.g. "eu_data_act+mbb" when several contributed, or the single channel's
+    # name when one did.
+    # v2.18.0 (B2) — this used to appear only on multi-channel entries, because
+    # a car with no supplementary channel skipped the merge and so had no
+    # provenance at all. Every snapshot is attributed now, so the sensor answers
+    # "where is this car's data from" for everyone. Still gated on data-present,
+    # so a car that produced nothing yet doesn't get a phantom.
     VagSensorDescription(
         key="data_source_channel",
         translation_key="data_source_channel",
@@ -3323,8 +3358,7 @@ class VagConnectSensor(VagConnectEntity, SensorEntity):
         if description.suggested_display_precision is not None:
             self._attr_suggested_display_precision = description.suggested_display_precision
 
-    @property
-    def extra_state_attributes(self) -> dict[str, Any] | None:
+    def _platform_attributes(self) -> dict[str, Any] | None:
         """v1.14.0 (#24) — Surface ``recent_trips`` (last 5 short-term
         trips) on the ``last_trip_distance_km`` sensor.
 
@@ -3530,8 +3564,7 @@ class ReporterSensor(VagConnectSensor):
             ) else 0
         return None
 
-    @property
-    def extra_state_attributes(self) -> dict[str, Any] | None:
+    def _platform_attributes(self) -> dict[str, Any] | None:
         """Surface a tiny preview so the entity card is informative.
 
         Privacy: every value here has already passed through

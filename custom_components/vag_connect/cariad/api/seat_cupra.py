@@ -2419,9 +2419,17 @@ class SeatCupraClient(CariadBaseClient):
             raise SpinError("S-PIN verify returned no securityToken.")
         return str(token)
 
-    async def command_lock(self, vin: str) -> None:
-        """Lock the vehicle. Requires a verified S-PIN SecToken."""
-        token = await self._get_sec_token(self._spin)
+    async def command_lock(self, vin: str, spin: str = "") -> None:
+        """Lock the vehicle. Requires a verified S-PIN SecToken.
+
+        v2.18.0 (#759) — accept a per-VIN S-PIN, exactly as ``command_unlock``
+        below already does. Before this, lock ignored the argument and always
+        used ``self._spin`` (the shared entry PIN captured at client build), so
+        a two-car SEAT/CUPRA account with different S-PINs would unlock the
+        right car but fail to lock it. ``spin or self._spin`` keeps single-PIN
+        setups byte-identical.
+        """
+        token = await self._get_sec_token(spin or self._spin)
         # Empty body is intentional — pycupra/OLA expect no payload here,
         # only the SecToken header. _request adds the Authorization +
         # Content-Type headers automatically.

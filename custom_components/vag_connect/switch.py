@@ -46,6 +46,13 @@ async def async_setup_entry(
             if _supported(vin, "command_set_departure_timer"):
                 for timer_id in (1, 2, 3):
                     entities.append(VagDepartureTimerSwitch(coordinator, vin, timer_id))
+            # v2.18.0 — gate on the READ actually having produced a value, not
+            # on the client having the method: every brand inherits the command
+            # stub from the base client, so hasattr() is true even where it
+            # raises NotImplementedError. A car that reports battery-care state
+            # is a car whose backend has the feature.
+            if vehicle.get("battery_care_enabled") is not None:
+                entities.append(VagBatteryCareSwitch(coordinator, vin))
         return entities
 
     register_dynamic_spawner(entry, coordinator, async_add_entities, _build_for_vin)
@@ -121,6 +128,32 @@ class VagChargingSwitch(VagConnectEntity, SwitchEntity):
 
     async def async_turn_off(self, **kwargs: object) -> None:
         await self.coordinator.async_stop_charging(self._vin)
+
+
+class VagBatteryCareSwitch(VagConnectEntity, SwitchEntity):
+    """Battery-care (preservation) mode on/off.
+
+    v2.18.0 — caps the top of the charge to spare the HV battery. The state
+    has been readable since v2.10.0; this makes it settable.
+    """
+
+    _attr_translation_key = "battery_care_switch"
+    _attr_icon = "mdi:battery-heart-variant"
+    _command_id = "command_set_battery_care"
+
+    def __init__(self, coordinator: VagConnectCoordinator, vin: str) -> None:
+        super().__init__(coordinator, vin, "battery_care_switch")
+
+    @property
+    def is_on(self) -> bool | None:
+        val = self._vehicle.get("battery_care_enabled")
+        return bool(val) if val is not None else None
+
+    async def async_turn_on(self, **kwargs: object) -> None:
+        await self.coordinator.async_set_battery_care(self._vin, True)
+
+    async def async_turn_off(self, **kwargs: object) -> None:
+        await self.coordinator.async_set_battery_care(self._vin, False)
 
 
 class VagWindowHeatingSwitch(VagConnectEntity, SwitchEntity):

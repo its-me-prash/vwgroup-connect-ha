@@ -38,6 +38,42 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.18.0] - 2026-07-17
+
+### Fixed
+
+- **Settings you'd saved were being read back empty — the big one, found by @lucson (#806).** Home Assistant hands the integration your saved configuration as a read-only mapping, not a plain dictionary, and a type check deep in the read was written for the wrong one. So it came back empty on every real install, no matter that you'd saved it correctly. This is why S-PIN commands told you to "configure your S-PIN" when you already had (that whole #666 saga), why the aux-heating sliders snapped back to their default, why turning read-only mode on could be silently ignored, and why the PPE climate flag did nothing. The tests had faked the saved config as a plain dictionary, so it looked verified for as long as it shipped. All four now read what you actually set.
+- **Two settings that shipped but never switched on.** The push toggles (Škoda MQTT, CUPRA/SEAT and Audi/VW notifications) and the saved per-vehicle S-PIN map were read from an area Home Assistant blanks on save, and opening Options even wrote blanks back over the map. Nobody has ever had working push; the per-vehicle S-PIN (#759) is now read from where it lands, and Options stops clobbering it.
+- **Your data stops disappearing after a command.** If your car is read over more than one channel, locking it — or restarting Home Assistant — used to blank out everything the second channel contributed until the next poll. Those readings are kept now.
+- **Scout reports stop crying wolf.** A day's worth of reports arrived and almost none contained a field we don't already read — our own catalogue simply hadn't been told. The rear climate zones, the climate mode, the battery-care error notice and the capture timestamp are all recognised now, plus two new "changes pending" counters (queued charging-profile and climate-timer edits) that a couple of Audis surfaced (#799, #801).
+- **A failing button gives you an error instead of a crash report.** Pressing e.g. Wake on a car that refuses it produced "Unexpected exception" and a Python traceback; you now get what the car actually said.
+- **Diagnostics tells the truth about push.** It reported push as active on every setup, including ones with all push toggles off.
+- **The portal is no longer re-probed on every restart**, and Škoda's AC charge-current limit is read.
+- **A failed portal data-request now says why it failed (#709).** When the portal's security-token fetch fell over, the log said only "no CSRF token — aborting", which made a stuck feed impossible to diagnose (a 403, a 404, a timeout and a renamed field all looked identical). It now names the status or the reason — never the token value.
+- **MBB commands died after about an hour (#584).** The refresh request was malformed — it announced `grant_type=refresh_token` but carried no refresh token in it, just an empty scope and the value under the wrong field. **@Mattheisen87**'s diagnostics show the result: a 500 error on every refresh and a token expiry frozen for four days on a 60-minute token, so it never once succeeded — and the 500 (rather than a clean rejection) is why it kept looking like a passing VW hiccup. The request is now well-formed and standard; whether that fully clears the 500 wants confirming on a real car, so if you run MBB, please shout.
+- **And once MBB was on, there was no way back to the approval (#584).** The re-approval was gated off the moment the channel was armed — precisely the state you're in when you need it — and the checkbox showed unticked no matter what was stored, so it looked off while the code thought it was on. The only escape was deleting the integration and re-adding it, which renames every entity and takes your dashboards with it. Both fixed; re-run Reconfigure with the box ticked to re-approve.
+- **The app watcher opened a pull request every single day (#727)** announcing version changes that weren't there — it was comparing the file, and the file always carries the time it last looked. It also never managed to check Volkswagen at all: the mirrors it asked don't carry the app, so it recorded "checked" and learned nothing, for months. It asks Google Play first now, which is where the apps actually come from.
+
+### Added
+
+- **Battery care is settable, not just visible.** A switch and a target slider — the reading has been there since 2.10.0, the control never was. Appears only on cars whose backend actually reports it.
+- **Every reading tells you where it came from.** Each entity carries a `source` attribute naming its read channel, and the data-source sensor now works for single-channel cars too — on a Golf GTE the fuel level and the charge level genuinely come from different places.
+- Both new controls are translated in 12 languages.
+- **One-time historical export from the EU Data Act portal (Phase C, opt-in).** The portal offers a second kind of data pull besides the 15-minute feed: a one-time snapshot of your car's full configuration — departure timers, charge profiles, climate settings, the charge floor — in the older Car-Net format. Two new services: `request_historical_export` asks the portal to build it (it takes roughly half an hour), and `import_historical_export` fetches the ready file and folds its settings into your car's data. It only ever fills gaps — your live readings are never overwritten, so a hybrid can't get mislabelled electric by the older dump. This is wired end-to-end (the request, download and parse are all built from real portal traces) but the very last step, confirming a freshly-built export flows all the way through on a live account, still wants a real round-trip — so treat it as a beta.
+- **Groundwork for Touareg-era cars (2021), which this release does _not_ yet fix.** Those cars ship the old Car-Net export format and we now understand it — charge level, charge mode, current limit, target temperature. But understanding it changes nothing on its own: the portal offers those cars only a one-time export, we only ever create and read the continuous 15-minute feed, and so we never actually fetch a payload for the mapping to work on. Reading one-time exports is the missing piece and it isn't built. #702 stays open.
+
+### Removed
+
+- **Three settings that did nothing.** Wake-before-poll (and its delay slider), force-access, and the EU Data Act browser fallback. None of them had ever been wired to anything — ticking them changed nothing.
+
+### Docs
+
+- **The README was sending people to look for a switch that doesn't exist.** It told you to enable a "continuous data request" in the VW portal; the integration creates that itself. It also called the auto-kickoff opt-in and promised we "won't do it without your say-so" — it has been on by default since 2.17.1, and the 1-month subscription it registers is free. Corrected in all 12 languages, along with two translation errors found on the way.
+
+### Thanks
+
+**@lucson** found the config-entry type bug and sent a fix for it — the reason so many "I saved it but it does nothing" reports never resolved. **@ChristophCaina** asked for the per-vehicle S-PIN, and **@Mattheisen87** put a real car on the MBB channel and pinned down both of its failures. **@shaunadam** turned on raw logging and sent the log that showed us the traceback. **Bugi66**'s export is what makes the Touareg-era format work possible (the reading itself is still to come), and **Mech0z** is why the README stopped lying. **@DvorakMartin1** surfaced Škoda's charge-current limit, **@thcherry**'s diagnostics caught the push mislabel, and **@Motii08** offered to charge their car for us. Thanks also to **@neuhausf**, **@dlupsa**, **@fefe-home**, **@jandebeule**, **@alexthegalex13**, **@YouriJansen**, **@GiuseppeAlbano** and **@Lagaff86**, whose Scout reports showed our catalogue was the thing that was out of date. The full roll is in [CONTRIBUTORS.md](CONTRIBUTORS.md) — thank you, all of you. 🙏
+
 ## [2.17.5] - 2026-07-13
 
 ### Fixed

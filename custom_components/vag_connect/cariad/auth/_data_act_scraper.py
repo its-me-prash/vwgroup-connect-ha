@@ -37,11 +37,13 @@ Route B - Headless browser
     a human would. Playwright is an OPTIONAL dependency: it is NOT
     listed in ``manifest.json`` (that would force every HA user to
     install around 100 MB of Chromium just to set up the integration).
-    Instead it is lazy-imported only when the user explicitly enables
-    the ``CONF_ENABLE_DATA_ACT_BROWSER`` OptionsFlow toggle. If the
-    toggle is enabled but the package is missing, the integration
-    surfaces a clear repair issue telling the user to ``pip install
-    playwright`` from inside their HA container.
+    Instead it is lazy-imported only when ``enable_browser_fallback``
+    is set on the scraper.
+
+    v2.18.0 — nothing sets it today: the OptionsFlow toggle that was
+    meant to drive it never had a reader and has been removed, and the
+    only caller that forwarded the flag is itself unreachable. The
+    fallback is therefore dormant rather than merely off.
 
 ## Polling cadence and wake-state requirement
 
@@ -96,37 +98,6 @@ _LOGGER = logging.getLogger(__name__)
 # in tests without spinning up the auth strategy).
 _PORTAL_BASE = "https://eu-data-act.drivesomethinggreater.com"
 
-# v2.10.2 — Usership Verification endpoints. The EU Data Act portal
-# requires every signed-in user to declare once per VIN that they
-# are the owner / legitimate user of the vehicle AND that they are
-# an EU resident. Without this declaration the portal refuses to
-# accept data requests for that VIN. See docs/EU_DATA_ACT_PORTAL.md
-# for the full live trace that backs these paths.
-_PORTAL_VEHICLE_DETAILS_PATH = "/{lang}/{country}/user/details.html"
-_PORTAL_VERIFICATION_FORM_PATH = (
-    "/{lang}/{country}/user/details/usership-verification-form.html"
-)
-_PORTAL_DATA_REQUEST_PATH = (
-    "/{lang}/{country}/user/details/request-eu-data-act-data.html"
-)
-
-# Verification-state machine values returned by check_verification_state.
-VERIFICATION_VERIFIED = "verified"            # user has already declared
-VERIFICATION_NEEDS_DECLARATION = "needs_declaration"  # banner present
-VERIFICATION_UNKNOWN = "unknown"              # could not determine
-
-# Marker strings observed on the portal HTML. Captured 2026-06-03.
-_VERIFIED_MARKERS = (
-    "Sie haben Ihre EU Data Act Berechtigung erfolgreich nachgewiesen",
-    "EU Data Act usership verified",
-    "Rolle gemäß EU Data Act nachgewiesen",
-)
-_NEEDS_VERIFICATION_MARKERS = (
-    "EU Data Act Berechtigung nicht nachgewiesen",
-    "Berechtigung nachweisen",
-    "EU Data Act usership not yet verified",
-)
-
 # v2.10.5 — verified live-trace endpoints captured 2026-06-03.
 # Custom Data Request lives under /proxy_api/euda-apim/ on the portal
 # host. The "Frequency=15mins" + "Duration=1 month" combo is the only
@@ -137,14 +108,21 @@ _EUDA_APIM = "/proxy_api/euda-apim"
 _CUSTOM_REQUEST_POST_PATH = _EUDA_APIM + "/datarequest/vehicles/{vin}/requests/partial"
 _CUSTOM_REQUEST_META_PATH = _EUDA_APIM + "/datarequest/vehicles/{vin}/metadata/partial"
 _ALL_REQUEST_META_PATH = _EUDA_APIM + "/datarequest/vehicles/{vin}/metadata/all"
+# v2.18.0 (Phase C) — the ONE-TIME / historical export. Proven from a real
+# Audi trace 2026-07-17: clicking the portal's one-time-download button POSTs
+# here (NOT to requests/partial), with a much simpler body — Frequency null,
+# no Identifier, no Duration, DataClusters null. See kickoff_historical_export.
+_ALL_REQUEST_POST_PATH = _EUDA_APIM + "/datarequest/vehicles/{vin}/requests/all"
 _DATASET_LIST_PATH = (
     _EUDA_APIM + "/datadelivery/vehicles/{vin}/{identifier}/list"
 )
 _CSRF_TOKEN_PATH = "/libs/granite/csrf/token.json"
 
-# Canonical Data Clusters per portal UI as of 2026-06-03. Ordering and
-# spelling matter; the portal's React validator compares against this
-# exact set when the user picks "All Data".
+# Canonical Data Clusters, spelled as the portal UI sends them. The SET matters
+# (the six exact strings); the ORDER does NOT — a real portal-UI trace
+# (2026-07-17) sent the same six in a different order (Warning Lights 4th, not
+# 6th) and it was accepted. An earlier comment here claimed "ordering matters";
+# that was wrong. Spelling is still exact.
 _DEFAULT_DATA_CLUSTERS = (
     "All Data",
     "Charging",
@@ -275,9 +253,8 @@ class DataActScraper:
                 format.
             enable_browser_fallback: If True, ``fetch_vehicle_zip``
                 will fall back to a headless browser when the JSON
-                API returns no zip. Driven by the OptionsFlow toggle
-                ``CONF_ENABLE_DATA_ACT_BROWSER``. Off by default
-                because the playwright dependency is heavy.
+                API returns no zip. Nothing sets it today (v2.18.0) —
+                see the class docstring.
         """
         self._session = session
         self._brand_name = brand_name
@@ -727,152 +704,64 @@ class DataActScraper:
 
     # ── v2.10.2 Phase B: usership verification ───────────────────────────────
 
-    async def check_verification_state(self, vin: str) -> str:
-        """Probe the portal for whether ``vin`` has the EU Data Act
-        usership declaration on file.
-
-        Returns one of ``VERIFICATION_VERIFIED`` /
-        ``VERIFICATION_NEEDS_DECLARATION`` / ``VERIFICATION_UNKNOWN``.
-        Network failures or unexpected HTML always degrade to
-        ``UNKNOWN`` so the caller never blocks on a transient error.
-        """
-        from aiohttp import ClientTimeout  # noqa: PLC0415
-
-        url = _PORTAL_BASE + _PORTAL_VEHICLE_DETAILS_PATH.format(
-            lang=self._language, country=self._country
-        )
-        try:
-            async with self._session.get(
-                url, params={"vin": vin},
-                timeout=ClientTimeout(total=20),
-                allow_redirects=True,
-            ) as resp:
-                if resp.status != 200:
-                    return VERIFICATION_UNKNOWN
-                html = await resp.text(errors="replace")
-        except Exception:  # noqa: BLE001
-            return VERIFICATION_UNKNOWN
-
-        # Verified markers win over needs-verification because the
-        # success banner sometimes ships alongside historical CTA
-        # strings still in the DOM.
-        if any(m in html for m in _VERIFIED_MARKERS):
-            return VERIFICATION_VERIFIED
-        if any(m in html for m in _NEEDS_VERIFICATION_MARKERS):
-            return VERIFICATION_NEEDS_DECLARATION
-        return VERIFICATION_UNKNOWN
-
-    async def submit_usership_verification(
-        self,
-        vin: str,
-        *,
-        role: str = "owner",
-    ) -> bool:
-        """Submit the one-time EU Data Act usership-declaration form.
-
-        DOES NOT call itself unless the OptionsFlow toggle
-        ``CONF_DATA_ACT_AUTO_VERIFY`` is True AND the user has
-        affirmed ownership + EU residency for ALL VINs in the config
-        flow. The caller is responsible for that gating; this method
-        is the mechanical form-submitter only.
-
-        Args:
-            vin: vehicle identification number to declare on.
-            role: ``owner`` (default) submits the
-                "Ich bin der Eigentümer des Fahrzeugs" radio. Other
-                accepted values map to the portal's enum:
-                ``owner`` / ``user`` (übertragenes Nutzungsrecht) /
-                ``service`` (Dienstleistung) / ``none``.
-
-        Returns True when the portal acknowledges the declaration,
-        False on any error. The live trace 2026-06-03 captured a
-        quirk where the first POST is silently dropped and a second
-        identical POST goes through; we handle that by retrying once
-        on a non-success response.
-        """
-        from aiohttp import ClientTimeout  # noqa: PLC0415
-
-        url = _PORTAL_BASE + _PORTAL_VERIFICATION_FORM_PATH.format(
-            lang=self._language, country=self._country
-        )
-        # Step 1: GET the form so we can pick up any CSRF / form-state
-        # hidden fields the portal may set per-VIN. We do not parse
-        # the HTML in detail because the form field names live in the
-        # remote React component bundle; instead we send the canonical
-        # field set from the live trace and let the portal-side
-        # JavaScript-equivalent handler resolve it.
-        try:
-            async with self._session.get(
-                url, params={"vin": vin},
-                timeout=ClientTimeout(total=20),
-                allow_redirects=True,
-            ) as resp:
-                if resp.status != 200:
-                    _LOGGER.debug(
-                        "Verification form GET HTTP %s for VIN %s",
-                        resp.status, _mask_vin(vin),
-                    )
-                    return False
-                # Discard the body - cookies are already set on the
-                # session by aiohttp.
-                await resp.read()
-        except Exception as exc:  # noqa: BLE001
-            _LOGGER.debug("Verification GET failed: %s", exc)
-            return False
-
-        form_body = {
-            "vin": vin,
-            "role": role,
-            "confirmation": "yes",  # the "Ja" radio - default is "no"
-        }
-        for attempt in (1, 2):
-            try:
-                async with self._session.post(
-                    url, params={"vin": vin},
-                    data=form_body,
-                    timeout=ClientTimeout(total=30),
-                    allow_redirects=True,
-                ) as resp:
-                    body = await resp.text(errors="replace")
-                    if resp.status == 200 and any(
-                        m in body for m in _VERIFIED_MARKERS
-                    ):
-                        _LOGGER.info(
-                            "EU Data Act usership declared for VIN %s "
-                            "(attempt %d, role=%s)",
-                            _mask_vin(vin), attempt, role,
-                        )
-                        return True
-            except Exception as exc:  # noqa: BLE001
-                _LOGGER.debug(
-                    "Verification POST attempt %d failed: %s", attempt, exc
-                )
-        return False
-
     # ── v2.10.5 Phase C: Custom Data Request (live-trace based) ──────────────
 
     async def _fetch_csrf_token(self) -> str | None:
         """Return a fresh CSRF token, or None if the portal did not
         deliver one. CSRF expires per-session so callers re-fetch
         before every POST that needs it.
+
+        v2.18.0 (#709) — every failure here used to return a bare None, and
+        the caller logged "no CSRF token - aborting" with no reason. That made
+        the whole kickoff undiagnosable: a reporter hands us a debug log and it
+        says the token is missing, without saying whether the portal answered
+        403 (session gone), 404 (the path moved), timed out, or simply started
+        naming the token something else. No CSRF means no data request, which
+        means no data at all — so this is the one failure we most need to be
+        able to read, and it was the one that told us the least.
+
+        Worth knowing: _CSRF_TOKEN_PATH is an Adobe AEM endpoint
+        (/libs/granite/...). The portal is AEM-backed, so if VW ever moves off
+        it or renames the field, this goes silent for every single user at once
+        — and the log below is what would tell us which of those it was.
         """
         from aiohttp import ClientTimeout  # noqa: PLC0415
 
+        url = _PORTAL_BASE + _CSRF_TOKEN_PATH
         try:
             async with self._session.get(
-                _PORTAL_BASE + _CSRF_TOKEN_PATH,
+                url,
                 timeout=ClientTimeout(total=10),
                 headers={"Accept": "application/json"},
             ) as resp:
                 if resp.status != 200:
+                    _LOGGER.debug(
+                        "CSRF token fetch: %s returned HTTP %s (portal session "
+                        "expired, or the endpoint moved)",
+                        _CSRF_TOKEN_PATH, resp.status,
+                    )
                     return None
                 data = await resp.json(content_type=None)
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.debug(
+                "CSRF token fetch: %s raised %s: %s",
+                _CSRF_TOKEN_PATH, type(exc).__name__, exc,
+            )
             return None
         if isinstance(data, dict):
             token = data.get("token") or data.get("csrfToken")
             if isinstance(token, str) and token:
                 return token
+            _LOGGER.debug(
+                "CSRF token fetch: HTTP 200 but no usable token in the "
+                "response. Keys present: %s",
+                sorted(data)[:12],
+            )
+            return None
+        _LOGGER.debug(
+            "CSRF token fetch: HTTP 200 but the body is %s, not an object",
+            type(data).__name__,
+        )
         return None
 
     async def get_active_custom_request_identifier(
@@ -1042,58 +931,81 @@ class DataActScraper:
         )
         return identifier
 
-    async def check_dataset_ready(
-        self,
-        vin: str,
-        identifier: str,
-    ) -> list[str] | None:
-        """Return list of ZIP download URLs for the given Identifier,
-        or None when the dataset is not yet ready.
+    async def kickoff_historical_export(self, vin: str) -> bool:
+        """Create a ONE-TIME historical export for ``vin`` (Phase C).
 
-        Per live trace: 404 or 500 means "still being collected"
-        (can take up to 24h). 200 means ready and the response body
-        carries the file list + download URLs.
+        The 15-min feed (kickoff_custom_data_request) gives live telemetry; this
+        is the other request type — a one-time snapshot of the full config set
+        (departure timers, charge profiles, climate settings) in the legacy
+        Car-Net dialect. The portal generates the ZIP asynchronously (like the
+        feed, up to ~24h), after which it is picked up via metadata/all +
+        datadelivery.
 
-        Raises ``DataActSessionExpiredError`` on 401.
+        Body + endpoint are mirrored EXACTLY from a real Audi trace
+        (2026-07-17): POST requests/all with Frequency/EndDate/DataClusters/
+        EmailFrequency all null and no Identifier/Duration — a much simpler
+        shape than the 15-min kickoff above. Returns True on a 2xx.
         """
         from aiohttp import ClientTimeout  # noqa: PLC0415
+        from datetime import datetime, timezone  # noqa: PLC0415
 
-        url = _PORTAL_BASE + _DATASET_LIST_PATH.format(
-            vin=vin, identifier=identifier
-        )
+        csrf = await self._fetch_csrf_token()
+        if not csrf:
+            _LOGGER.debug("kickoff_historical_export: no CSRF token - aborting")
+            return False
+
+        # The browser sends millisecond precision (…:46.111Z); match it.
+        now = datetime.now(timezone.utc)
+        start = now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
+        body: dict[str, Any] = {
+            "Name": "Request File",
+            "Frequency": None,
+            "StartDate": start,
+            "EndDate": None,
+            "DataClusters": None,
+            "EmailFrequency": None,
+        }
+        url = _PORTAL_BASE + _ALL_REQUEST_POST_PATH.format(vin=vin)
         try:
-            async with self._session.get(
+            async with self._session.post(
                 url,
+                json=body,
                 timeout=ClientTimeout(total=30),
-                headers={"Accept": "application/json"},
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    # Origin is what the browser sends on this POST; CSRF/traceId
+                    # are carried defensively (the requests/partial POST proves
+                    # the AEM edge accepts them).
+                    "Origin": _PORTAL_BASE,
+                    "CSRF-Token": csrf,
+                    "X-CSRF-Token": csrf,
+                    "traceId": uuid.uuid4().hex,
+                },
             ) as resp:
                 if resp.status == 401:
                     raise DataActSessionExpiredError(
-                        "datadelivery/list returned 401 - portal session expired"
+                        "requests/all returned 401 - portal session expired"
                     )
-                if resp.status in (404, 500):
-                    return None  # not ready yet, keep polling
-                if resp.status != 200:
-                    _LOGGER.debug(
-                        "datadelivery/list HTTP %s for VIN %s",
-                        resp.status, _mask_vin(vin),
+                if resp.status not in (200, 201, 202):
+                    body_text = await resp.text(errors="replace")
+                    _LOGGER.warning(
+                        "kickoff_historical_export HTTP %s for VIN %s: %s",
+                        resp.status, _mask_vin(vin), body_text[:300],
                     )
-                    return None
-                payload = await resp.json(content_type=None)
+                    return False
         except DataActSessionExpiredError:
             raise
         except Exception as exc:  # noqa: BLE001
-            _LOGGER.debug("datadelivery/list fetch failed: %s", exc)
-            return None
+            _LOGGER.debug("kickoff_historical_export failed: %s", exc)
+            return False
 
-        urls = _extract_download_urls(payload)
-        if urls:
-            _LOGGER.info(
-                "EU Data Act dataset READY for VIN %s (Identifier=%s..., "
-                "%d file(s) available for 24h)",
-                _mask_vin(vin), identifier[:8], len(urls),
-            )
-        return urls or None
+        _LOGGER.info(
+            "EU Data Act one-time historical export requested for VIN %s "
+            "— the portal will generate the ZIP asynchronously",
+            _mask_vin(vin),
+        )
+        return True
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────

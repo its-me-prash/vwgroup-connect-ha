@@ -37,16 +37,11 @@ from .const import (
     CONF_BRAND,
     CONF_CLIENT_ID_OVERRIDE,
     CONF_COUNTRY,
-    CONF_ENABLE_DATA_ACT_BROWSER,
     CONF_EU_DATA_ACT_AUTO_KICKOFF,
-    CONF_WAKE_BEFORE_POLL,
-    CONF_WAKE_DELAY_SECONDS,
-    DEFAULT_WAKE_DELAY_SECONDS,
     CONF_ENABLE_PUSH_AUDI_VW,
     CONF_ENABLE_PUSH_FCM,
     CONF_ENABLE_PUSH_MQTT,
     CONF_ENABLE_REVERSE_GEOCODING,
-    CONF_FORCE_ACCESS,
     CONF_FORCE_PPE_CLIMATE,
     CONF_MBB_COMMAND_CHANNEL,
     CONF_MEB_COMMANDS_UNAVAILABLE,
@@ -269,7 +264,6 @@ def _credentials_schema(
     username: str = "",
     scan_interval: int = DEFAULT_SCAN_INTERVAL,
     spin: str = "",
-    force_access: bool = False,
     enable_mbb_commands: bool = False,
     country: str = "us",
 ) -> vol.Schema:
@@ -292,7 +286,6 @@ def _credentials_schema(
         schema[vol.Optional(CONF_COUNTRY, default=country)] = _COUNTRY_SELECTOR
     schema.update({
         vol.Optional(CONF_SCAN_INTERVAL, default=scan_interval): _INTERVAL_SELECTOR,
-        vol.Optional(CONF_FORCE_ACCESS, default=force_access): _BOOL_SELECTOR,
         # b12 — VW + Audi: after the portal login, add a durable-MBB command
         # channel (extra QR confirm) so this read-only portal entry also gets
         # remote lock/climate/charge. Ignored for other brands. Audi is
@@ -504,7 +497,6 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     suggested.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
                 ),
                 spin=suggested.get(CONF_SPIN, ""),
-                force_access=bool(suggested.get(CONF_FORCE_ACCESS, False)),
                 enable_mbb_commands=bool(
                     suggested.get("enable_mbb_commands", False)
                 ),
@@ -776,10 +768,6 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     CONF_SCAN_INTERVAL,
                     default=int(suggested.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)),
                 ): _INTERVAL_SELECTOR,
-                vol.Optional(
-                    CONF_FORCE_ACCESS,
-                    default=bool(suggested.get(CONF_FORCE_ACCESS, False)),
-                ): _BOOL_SELECTOR,
             }),
         )
 
@@ -844,10 +832,6 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     CONF_SCAN_INTERVAL,
                     default=int(suggested.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)),
                 ): _INTERVAL_SELECTOR,
-                vol.Optional(
-                    CONF_FORCE_ACCESS,
-                    default=bool(suggested.get(CONF_FORCE_ACCESS, False)),
-                ): _BOOL_SELECTOR,
             }),
             errors=errors,
         )
@@ -1477,15 +1461,26 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 # account's brand-specific tokens forward would be wrong.
                 merged = base if account_changed else {**entry.data, **base}
 
-                # v2.17.2 (#666) — enable the durable-MBB command channel on an
-                # EXISTING portal entry via Reconfigure (VW/Audi, and only when
-                # it isn't already on). Mirrors the initial email_password MBB
-                # chain; the QR finish/approve steps update THIS entry in place
-                # (see _mbb_reconfigure_entry_id + _create_or_update_portal_entry).
+                # v2.17.2 (#666) — arm the durable-MBB command channel on an
+                # EXISTING portal entry via Reconfigure (VW/Audi). Mirrors the
+                # initial email_password MBB chain; the QR finish/approve steps
+                # update THIS entry in place (see _mbb_reconfigure_entry_id +
+                # _create_or_update_portal_entry).
+                #
+                # v2.18.0 (#584) — this used to also require the channel NOT to
+                # be on already, which turned re-approval into a dead end: the
+                # one moment you need to re-run the QR flow is when the channel
+                # is armed but its tokens are gone, and that was the exact case
+                # the guard excluded. Ticking the box did nothing, and the only
+                # escape was delete + re-add — which renames every entity and
+                # takes the user's dashboards and automations with it.
+                #
+                # So a ticked box now always offers the approval, and submitting
+                # Reconfigure with MBB on means "re-approve". Reconfigure already
+                # demands the password, so this is not a surprise step.
                 if (
                     user_input.get("enable_mbb_commands")
                     and brand in ("volkswagen", "audi")
-                    and not entry.data.get(CONF_MBB_COMMAND_CHANNEL)
                 ):
                     self._mbb_reconfigure_entry_id = entry.entry_id
                     self._pending_portal_data = merged
@@ -1524,7 +1519,16 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 username=current.get(CONF_USERNAME, ""),
                 scan_interval=current.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
                 spin=current.get(CONF_SPIN, ""),
-                force_access=current.get(CONF_FORCE_ACCESS, False),
+                # v2.18.0 (#584) — this argument was simply not passed, so the
+                # box fell back to its `False` default and rendered unticked for
+                # everyone, including users whose MBB channel was on. It read as
+                # "MBB is off" while the code believed it was on, and the two
+                # disagreeing is what made the dead end above inescapable: the
+                # form told you to tick a box that was already effectively set.
+                # Note the schema field is named enable_mbb_commands but the
+                # stored key is CONF_MBB_COMMAND_CHANNEL — they are not the same
+                # string, which is how this stayed invisible.
+                enable_mbb_commands=bool(current.get(CONF_MBB_COMMAND_CHANNEL, False)),
                 country=current.get(CONF_COUNTRY, "us"),
             ),
             errors=errors,
@@ -1552,7 +1556,6 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 int(user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)),
                 MIN_SCAN_INTERVAL,
             ),
-            CONF_FORCE_ACCESS:  user_input.get(CONF_FORCE_ACCESS, False),
         }
         # v2.15.5 — the US/Canada region picker is ONLY meaningful for the
         # volkswagen_na brand (it selects the MYVW client_id + API host).
@@ -1741,50 +1744,6 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                         current_data.get(CONF_ENABLE_PUSH_AUDI_VW, False),
                     ),
                 ): _BOOL_SELECTOR,
-                # v2.8.0 Action #3 - opt-in toggle for the EU Data Act
-                # portal headless-browser fallback. Off by default
-                # because the playwright dependency is heavy (around
-                # 100 MB Chromium). Only meaningful when the active
-                # auth strategy is data_act_portal (i.e. the BFF + IDK
-                # chain have both failed and the integration has fallen
-                # back to the read-only portal). If True but playwright
-                # is not installed, the coordinator surfaces a Repair
-                # issue with installation instructions.
-                vol.Optional(
-                    CONF_ENABLE_DATA_ACT_BROWSER,
-                    default=current_options.get(
-                        CONF_ENABLE_DATA_ACT_BROWSER,
-                        current_data.get(CONF_ENABLE_DATA_ACT_BROWSER, False),
-                    ),
-                ): _BOOL_SELECTOR,
-                # v2.10.0 - active vehicle wake-up before status poll.
-                # Sends a wake POST for any VIN that was OFFLINE on the
-                # previous poll, waits CONF_WAKE_DELAY_SECONDS, then
-                # fetches status. Trade-off: one extra API call per
-                # offline VIN per poll cycle (counts against the daily
-                # quota) in exchange for fresh data on parked cars.
-                vol.Optional(
-                    CONF_WAKE_BEFORE_POLL,
-                    default=current_options.get(
-                        CONF_WAKE_BEFORE_POLL,
-                        current_data.get(CONF_WAKE_BEFORE_POLL, False),
-                    ),
-                ): _BOOL_SELECTOR,
-                vol.Optional(
-                    CONF_WAKE_DELAY_SECONDS,
-                    default=current_options.get(
-                        CONF_WAKE_DELAY_SECONDS,
-                        current_data.get(
-                            CONF_WAKE_DELAY_SECONDS, DEFAULT_WAKE_DELAY_SECONDS,
-                        ),
-                    ),
-                ): NumberSelector(
-                    NumberSelectorConfig(
-                        min=5, max=60, step=1,
-                        unit_of_measurement="s",
-                        mode=NumberSelectorMode.SLIDER,
-                    )
-                ),
                 # v2.10.4 - OAuth client_id override. Power-user escape
                 # hatch for when the community spots a fresh client_id
                 # in a new APK before our daily atlas builder catches
@@ -1900,7 +1859,13 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
         # are folded into CONF_SPIN_BY_VIN on submit.
         _coord = getattr(self._config_entry, "runtime_data", None)
         _vehicles = getattr(_coord, "vehicles", None)
-        _cur_by_vin = current_options.get(CONF_SPIN_BY_VIN)
+        # v2.18.0 — options THEN data, like every other field above. The update
+        # listener folds options into entry.data and blanks entry.options, so an
+        # options-only read showed these fields blank even after they were set,
+        # and submitting the form then wrote the blanks back over the saved map.
+        _cur_by_vin = current_options.get(
+            CONF_SPIN_BY_VIN, current_data.get(CONF_SPIN_BY_VIN)
+        )
         if not isinstance(_cur_by_vin, dict):
             _cur_by_vin = {}
         if isinstance(_vehicles, dict) and len(_vehicles) > 1:

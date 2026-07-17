@@ -10,6 +10,7 @@ arm resolves options-first, and an Options edit refreshes the live connector.
 """
 from __future__ import annotations
 
+from types import MappingProxyType
 from unittest.mock import MagicMock
 
 from custom_components.vag_connect.const import CONF_SPIN, CONF_SPIN_BY_VIN
@@ -19,8 +20,13 @@ def _coord(options=None, data=None):
     from custom_components.vag_connect.coordinator import VagConnectCoordinator
     c = VagConnectCoordinator.__new__(VagConnectCoordinator)
     c.entry = MagicMock()
-    c.entry.options = options if options is not None else {}
-    c.entry.data = data if data is not None else {}
+    # v2.18.0 (#806, lucson) — wrap in MappingProxyType, the type HA actually
+    # hands out. Faking these as plain dicts is exactly what hid the bug: plain
+    # dicts pass isinstance(..., dict) and MappingProxyType does not, so the
+    # suite exercised a type that never occurs at runtime and stayed green while
+    # every S-PIN command failed in the field.
+    c.entry.options = MappingProxyType(options if options is not None else {})
+    c.entry.data = MappingProxyType(data if data is not None else {})
     return c
 
 
@@ -45,6 +51,34 @@ class TestSpinFromEntry:
 
     def test_per_vin_empty_falls_back_to_shared(self):
         c = _coord(options={CONF_SPIN: "1111", CONF_SPIN_BY_VIN: {"VINA": ""}})
+        assert c._spin_from_entry("VINA") == "1111"
+
+    # ── v2.18.0 — the entry state production actually produces ───────────
+    # The options update-listener folds options into entry.data and blanks
+    # entry.options (__init__.py), so a saved per-VIN map lives in DATA. The
+    # 2.17.5 tests only ever passed options={...} — a state that never exists
+    # at runtime — which is why nobody noticed the per-VIN lookup had no data
+    # fallback and every car silently used the shared S-PIN instead.
+    def test_per_vin_read_from_data_once_listener_folded_options_in(self):
+        c = _coord(
+            options={},
+            data={CONF_SPIN: "1111", CONF_SPIN_BY_VIN: {"VINA": "2222"}},
+        )
+        assert c._spin_from_entry("VINA") == "2222"
+        assert c._spin_from_entry("VINB") == "1111"
+
+    def test_per_vin_options_still_win_over_data(self):
+        c = _coord(
+            options={CONF_SPIN_BY_VIN: {"VINA": "2222"}},
+            data={CONF_SPIN: "1111", CONF_SPIN_BY_VIN: {"VINA": "3333"}},
+        )
+        assert c._spin_from_entry("VINA") == "2222"
+
+    def test_per_vin_empty_in_data_falls_back_to_shared(self):
+        c = _coord(
+            options={},
+            data={CONF_SPIN: "1111", CONF_SPIN_BY_VIN: {"VINA": ""}},
+        )
         assert c._spin_from_entry("VINA") == "1111"
 
     def test_no_by_vin_setup_unchanged_with_vin_arg(self):

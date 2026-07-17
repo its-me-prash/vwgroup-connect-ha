@@ -18,8 +18,7 @@
           "password": "Password",
           "spin": "S-PIN",
           "country": "Regione (solo Volkswagen USA/Canada)",
-          "scan_interval": "Intervallo di aggiornamento",
-          "force_enable_access": "Forza stato porte"
+          "scan_interval": "Intervallo di aggiornamento"
         }
       },
       "mfa": {
@@ -42,7 +41,6 @@
           "spin": "S-PIN",
           "country": "Regione (solo Volkswagen USA/Canada)",
           "scan_interval": "Intervallo di aggiornamento",
-          "force_enable_access": "Forza stato porte",
           "enable_mbb_commands": "Abilita i comandi remoti MBB (solo Volkswagen — aggiunge una conferma QR)"
         },
         "data_description": {
@@ -50,8 +48,7 @@
           "username": "Indirizzo email dell'app del produttore.",
           "password": "Password dell'app.",
           "spin": "Necessario solo per la chiusura centralizzata. App → Sicurezza → S-PIN.",
-          "scan_interval": "Con quale frequenza vengono recuperati i dati. Predefinito: 5 min. Minimo: 3 min.",
-          "force_enable_access": "Per veicoli più vecchi che non superano il controllo delle capacità."
+          "scan_interval": "Con quale frequenza vengono recuperati i dati. Predefinito: 5 min. Minimo: 3 min."
         }
       },
       "user": {
@@ -70,14 +67,12 @@
         "data": {
           "mbb_vins": "VIN (numero di identificazione del veicolo)",
           "spin": "S-PIN",
-          "scan_interval": "Intervallo di aggiornamento",
-          "force_enable_access": "Forza stato porte"
+          "scan_interval": "Intervallo di aggiornamento"
         },
         "data_description": {
           "mbb_vins": "Il tuo VIN di 17 caratteri (sul parabrezza / libretto di circolazione). Più auto: separale con una virgola. Obbligatorio — il token duraturo MBB funziona per singolo VIN ma non può enumerare il tuo garage.",
           "spin": "PIN di sicurezza opzionale a 4 cifre — necessario per la chiusura/apertura remota.",
-          "scan_interval": "Minuti tra un'interrogazione dei dati del veicolo e l'altra.",
-          "force_enable_access": "Forza le entità dello stato porte anche quando il veicolo segnala il dato mancante."
+          "scan_interval": "Minuti tra un'interrogazione dei dati del veicolo e l'altra."
         }
       },
       "website_authproxy": {
@@ -110,12 +105,10 @@
         "data": {
           "brand": "Marca del veicolo",
           "spin": "S-PIN",
-          "scan_interval": "Intervallo di aggiornamento",
-          "force_enable_access": "Forza stato porte"
+          "scan_interval": "Intervallo di aggiornamento"
         },
         "data_description": {
           "brand": "Sono elencate solo le marche che supportano il login via browser. Usa 'Email + password' per Volkswagen EU e Porsche.",
-          "force_enable_access": "Forza le entità dello stato porte anche quando il veicolo segnala il dato mancante.",
           "scan_interval": "Minuti tra un'interrogazione dei dati del veicolo e l'altra.",
           "spin": "PIN di sicurezza opzionale a 4 cifre per le azioni remote (chiusura, apertura, clima)."
         }
@@ -179,11 +172,8 @@
           "enable_push_mqtt": "Aggiornamenti push Skoda (MQTT, SPERIMENTALE)",
           "enable_push_fcm": "Aggiornamenti push CUPRA/SEAT (FCM, SPERIMENTALE)",
           "enable_push_audi_vw": "Aggiornamenti push Audi/VW (Cariad FCM, Live (beta))",
-          "wake_before_poll": "Risveglio attivo del veicolo prima dell'interrogazione dello stato",
-          "wake_delay_seconds": "Ritardo di risveglio (secondi)",
           "client_id_override": "Override OAuth client_id (utenti esperti)",
           "eu_data_act_auto_kickoff": "EU Data Act: avvio automatico della Custom Data Request",
-          "enable_data_act_browser": "Portale EU Data Act: fallback con browser headless (SPERIMENTALE)",
           "supplementary_authproxy": "Aggiungi un canale di lettura Volkswagen.de (unisci dati extra)",
           "hide_empty_entities": "Nascondi le entità senza dati",
           "supplementary_eu_portal": "Aggiungi un canale di lettura del portale EU Data Act",
@@ -202,11 +192,8 @@
           "enable_push_mqtt": "SPERIMENTALE: solo per Skoda. Abilita il push MQTT in tempo reale dal backend Skoda mysmob (richiede i pacchetti Python aiomqtt + firebase-messaging — attualmente importati in lazy, non preinstallati). Fase di fondamenta in v1.18.0; l'attivazione live è in attesa della validazione dei tester della community. Se il push non è disponibile, l'integrazione ripiega silenziosamente sul polling. Ricarica l'integrazione dopo aver modificato l'impostazione.",
           "enable_push_fcm": "SPERIMENTALE: solo CUPRA/SEAT. Abilita il push in tempo reale via Firebase Cloud Messaging dal backend OLA (richiede il pacchetto Python firebase-messaging — stesso lazy-import del toggle MQTT Skoda della v1.18.0). Fase di fondamenta in v1.19.0; l'attivazione live è in attesa della validazione dei tester della community. Se il push non è disponibile, l'integrazione ripiega silenziosamente sul polling. Ricarica l'integrazione dopo aver modificato l'impostazione.",
           "enable_push_audi_vw": "Live (beta): solo Audi/VW. Abilita le notifiche push in tempo reale dal canale Cariad FCM (lo stesso usato dalle app mobili myAudi/WeConnect, copre gli esiti di chiusura/apertura, lo stato di ricarica, il clima, l'allarme). Gli eventi decodificati vengono emessi sul bus eventi di Home Assistant come ``vag_connect_push_event`` e attivano un aggiornamento del coordinatore. Richiede il pacchetto Python firebase-messaging (stesso lazy-import di Skoda MQTT + CUPRA/SEAT FCM). Attivazione live dalla v2.8.0 (Action #4); il resolver delle credenziali è ancora limitato ai tester finché il follow-up del task #40 non aggiungerà il sender_id Firebase di Cariad. Se il push non è disponibile, l'integrazione ripiega silenziosamente sul polling. Ricarica l'integrazione dopo aver modificato l'impostazione.",
-          "wake_before_poll": "Quando abilitata, l'integrazione invia un POST di risveglio al veicolo prima di recuperare lo stato per ogni VIN che era OFFLINE all'interrogazione precedente. L'auto riceve un risveglio lato server e invia dati aggiornati, poi l'integrazione attende il ritardo di risveglio prima della lettura dello stato. Colma la lacuna 'tutti i sensori sconosciuti per le auto parcheggiate' ma costa una chiamata API in più per ogni VIN offline a ogni ciclo di polling. Disattivato per impostazione predefinita. Ricarica l'integrazione dopo aver modificato l'impostazione.",
-          "wake_delay_seconds": "Secondi da attendere tra il POST di risveglio e il recupero dello stato. Il valore predefinito di 15 secondi è quello di cui la maggior parte dei backend delle marche ha bisogno per acquisire il push di dati indotto dal risveglio. Valori più bassi rischiano di leggere dati obsoleti; valori più alti allungano il ciclo di polling senza ulteriori vantaggi.",
           "client_id_override": "Via di fuga per utenti esperti quando la community individua un OAuth client_id nuovo in un nuovo APK del gruppo VW prima che il nostro atlas builder giornaliero lo intercetti. Incolla qui la stringa UUID@apps_vw-dilab_com completa e il resolver la proverà PER PRIMA a ogni autenticazione, con tutti i client_id esistenti ancora nella catena come fallback. Lascia vuoto per il comportamento predefinito. Formato: 8-4-4-4-12 cifre esadecimali seguite da @apps_vw-dilab_com. I valori malformati vengono ignorati silenziosamente.",
           "eu_data_act_auto_kickoff": "Ha senso solo quando l'integrazione opera in modalità portale EU Data Act in sola lettura (le strategie BFF live hanno fallito). Quando è ATTIVO, il coordinatore verifica all'avvio la presenza di una Custom Data Request attiva a 15 minuti per ogni VIN e ne crea una quando non ne esiste alcuna. L'avvio implica un abbonamento ai dati di 1 mese sul tuo account nel portale, quindi è opt-in. Il portale accetta AL MASSIMO UNA custom request attiva per VIN alla volta. Disattivato per impostazione predefinita.",
-          "enable_data_act_browser": "SPERIMENTALE: ha senso solo quando l'integrazione è ripiegata sul portale EU Data Act (sola lettura). Pilota un Chromium headless tramite il pacchetto Python opzionale 'playwright' per cliccare automaticamente il pulsante di esportazione dati del portale. Il pacchetto NON è preinstallato (scarica circa 100 MB di Chromium). Quando è abilitato ma assente, un problema di Riparazione ti spiega come installarlo dall'interno del container di Home Assistant. Ricarica l'integrazione dopo aver modificato l'impostazione.",
           "abrp_enable": "Invia telemetria in tempo reale ad A Better Routeplanner. Richiede sia una api_key sia un token per veicolo qui sotto. Disattivato = nessuna chiamata in uscita.",
           "abrp_api_key": "Una chiave sviluppatore/partner che registri presso iternio (non ne forniamo una). Identifica l'integrazione. Mai registrata nei log.",
           "abrp_user_token": "Il token 'Generic' dell'app ABRP: Impostazioni -> la tua auto -> Live Data. Mai registrato nei log."
@@ -1078,6 +1065,12 @@
       },
       "max_number_users": {
         "name": "Numero massimo di utenti"
+      },
+      "charging_profiles_pending": {
+        "name": "Modifiche profilo di ricarica in sospeso"
+      },
+      "climatisation_timers_pending": {
+        "name": "Modifiche timer clima in sospeso"
       }
     },
     "binary_sensor": {
@@ -1311,6 +1304,9 @@
       },
       "abrp_data_changed": {
         "name": "Dati ABRP cambiati"
+      },
+      "climatisation_without_hv_power": {
+        "name": "Climatizzazione senza alimentazione esterna"
       }
     },
     "switch": {
@@ -1340,6 +1336,9 @@
       },
       "departure_timer_3_switch": {
         "name": "Timer di partenza 3"
+      },
+      "battery_care_switch": {
+        "name": "Cura della batteria"
       }
     },
     "number": {
@@ -1366,6 +1365,9 @@
       },
       "auxheat_target_temp": {
         "name": "Temperatura obiettivo riscaldamento ausiliario"
+      },
+      "battery_care_target": {
+        "name": "Obiettivo cura batteria"
       }
     },
     "button": {
@@ -1667,6 +1669,9 @@
     },
     "read_only_portal_active": {
       "message": "Questo veicolo si collega tramite il portale EU Data Act di VW in sola lettura, quindi i comandi remoti (chiusura, clima, ricarica) non sono disponibili per esso. Non è un'impostazione che puoi cambiare — il canale del portale non ha alcun percorso per i comandi."
+    },
+    "historical_portal_not_ready": {
+      "message": "Il portale EU Data Act non è ancora pronto. Attendi che l'integrazione abbia effettuato un'interrogazione dopo la configurazione, poi riprova l'esportazione storica."
     }
   },
   "selector": {

@@ -28,7 +28,7 @@ from .entity_base import VagConnectEntity, register_dynamic_spawner
 @dataclass(frozen=True)
 class VagNumberDescription(NumberEntityDescription):
     data_key: str = ""
-    condition: str | None = None  # "electric" | None
+    condition: str | None = None  # "electric" | "auxheat" | "battery_care" | None
 
 
 NUMBER_DESCRIPTIONS: tuple[VagNumberDescription, ...] = (
@@ -45,6 +45,23 @@ NUMBER_DESCRIPTIONS: tuple[VagNumberDescription, ...] = (
         icon="mdi:battery-charging-high",
         entity_category=EntityCategory.CONFIG,
         condition="electric",
+    ),
+    # v2.18.0 — battery-care top-charge target. Backend accepts 50-100 and
+    # rejects the rest; the slider mirrors that rather than letting the user
+    # pick a value the car will refuse.
+    VagNumberDescription(
+        key="battery_care_target",
+        translation_key="battery_care_target",
+        data_key="battery_care_target_soc_pct",
+        native_unit_of_measurement=PERCENTAGE,
+        device_class=NumberDeviceClass.BATTERY,
+        native_min_value=50,
+        native_max_value=100,
+        native_step=5,
+        mode=NumberMode.SLIDER,
+        icon="mdi:battery-heart-variant",
+        entity_category=EntityCategory.CONFIG,
+        condition="battery_care",
     ),
     VagNumberDescription(
         key="target_temperature",
@@ -174,6 +191,15 @@ async def async_setup_entry(
                 continue
             if desc.condition == "auxheat" and not auxheat_supported_brand:
                 continue
+            # v2.18.0 — gate on the READ having produced a value rather than on
+            # the brand: every client inherits the command stub from the base
+            # class, so a capability/hasattr check can't tell us who really has
+            # the feature. A car that reports a care target has it.
+            if (
+                desc.condition == "battery_care"
+                and vehicle.get("battery_care_target_soc_pct") is None
+            ):
+                continue
             cmd_id = _CMD_ID.get(desc.key)
             if cmd_id and coordinator.command_capability_supported(vin, cmd_id) is False:
                 continue
@@ -206,8 +232,23 @@ class VagConnectNumber(VagConnectEntity, NumberEntity):
         # restarts. Fall back to the spec defaults when the user has
         # not changed the slider yet.
         if key in self._AUXHEAT_DEFAULTS:
-            options = getattr(self.coordinator.entry, "options", None) or {}
-            val = options.get(self.entity_description.data_key) if isinstance(options, dict) else None
+            # v2.18.0 — options THEN data. The setter below writes to
+            # entry.options, but the update-listener folds options into
+            # entry.data and blanks entry.options (__init__.py), so an
+            # options-only read never saw the stored value and the slider
+            # snapped straight back to the spec default.
+            entry = self.coordinator.entry
+            # v2.18.0 (#806, lucson) — entry.data/.options are MappingProxyType,
+            # not dict, so the isinstance(..., dict) checks below silently failed
+            # on every real HA instance and this always returned the default.
+            # Normalise to a real dict once; keep the isinstance guards as a
+            # belt against a None/odd entry.
+            options = dict(getattr(entry, "options", None) or {})
+            data = dict(getattr(entry, "data", None) or {})
+            dkey = self.entity_description.data_key
+            val = options.get(dkey) if isinstance(options, dict) else None
+            if val is None and isinstance(data, dict):
+                val = data.get(dkey)
             try:
                 return float(val) if val is not None else self._AUXHEAT_DEFAULTS[key]
             except (TypeError, ValueError):
@@ -223,6 +264,8 @@ class VagConnectNumber(VagConnectEntity, NumberEntity):
         key = self.entity_description.key
         if key == "target_soc":
             await self.coordinator.async_set_target_soc(self._vin, int(value))
+        elif key == "battery_care_target":
+            await self.coordinator.async_set_battery_care_target(self._vin, int(value))
         elif key == "target_temperature":
             await self.coordinator.async_set_climatisation_temperature(self._vin, value)
         elif key == "min_soc":

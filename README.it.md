@@ -111,8 +111,8 @@ Alcune cose sono **strutturali** — derivano da come funzionano i backend di Vo
 
 La prima schermata dell'integrazione offre **due** metodi di login. Scegli quello che la tua marca supporta:
 
-- **Browser / device-code (senza password)** — *Audi · Škoda · SEAT · CUPRA.* Accedi sul telefono o sul laptop e approva il dispositivo; nessuna password viene salvata in Home Assistant (mantiene un vero refresh token). Questo passaggio offre anche i campi opzionali **S-PIN**, intervallo di scansione e force-access.
-- **Portale — email + password** — *Volkswagen EU · Porsche.* Inserisci il login della tua marca. Questo passaggio espone un selettore di marca (Volkswagen EU, Porsche e le altre marche email/password), email, password, **S-PIN** opzionale, intervallo di scansione, force-access e un'opzione **"abilita i comandi MBB"** (che ha effetto solo su Volkswagen EU — vedi [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)). Per **Volkswagen US/Canada** qui appare un **selettore di paese (US vs CA)** — viene visualizzato **solo** per quella marca e non è usato da nessun'altra.
+- **Browser / device-code (senza password)** — *Audi · Škoda · SEAT · CUPRA.* Accedi sul telefono o sul laptop e approva il dispositivo; nessuna password viene salvata in Home Assistant (mantiene un vero refresh token). Questo passaggio offre anche i campi opzionali **S-PIN** e intervallo di scansione.
+- **Portale — email + password** — *Volkswagen EU · Porsche.* Inserisci il login della tua marca. Questo passaggio espone un selettore di marca (Volkswagen EU, Porsche e le altre marche email/password), email, password, **S-PIN** opzionale, intervallo di scansione e un'opzione **"abilita i comandi MBB"** (che ha effetto solo su Volkswagen EU — vedi [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)). Per **Volkswagen US/Canada** qui appare un **selettore di paese (US vs CA)** — viene visualizzato **solo** per quella marca e non è usato da nessun'altra.
 
 > Il **portale EU Data Act non è un terzo pulsante di login.** È la strategia in sola lettura su cui il coordinatore ripiega automaticamente, e può inoltre essere *aggiunto* come canale di lettura supplementare da **Configura → Opzioni**. Lo stesso vale per il canale web `volkswagen.de` (un canale di lettura supplementare opt-in, disponibile solo dalle Opzioni).
 
@@ -129,12 +129,12 @@ Per Volkswagen EU, **accedere non basta** — VW trasmette i dati del veicolo so
 1. **Aggiungi l'integrazione:** scegli **Portale (email + password)** e seleziona **Volkswagen EU**, poi accedi.
 2. **Completa qualsiasi richiesta una tantum sul portale di VW.** Apri il portale dati di VW una volta in un browser o nell'app della marca e completa ciò che chiede: **accetta i termini, conferma il consenso, completa l'onboarding / la selezione della regione.** L'accesso headless non può superare questi passaggi — è il caso `portal_interaction_required` ([#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527)).
 3. **Concedi il consenso alla condivisione dei dati.** Sul portale, imposta **"Uso di dati non personali" = Concesso** (il consenso alla condivisione dei dati dell'EU Data Act).
-4. **Abilita la richiesta di dati continua** per l'auto specifica. Senza di essa, il portale restituisce *nessuna richiesta dati* per quel VIN e il veicolo compare senza letture.
+4. **Non cercare un interruttore per la "richiesta dati continua" — non esiste.** È l'integrazione stessa a creare quella richiesta per ogni auto. Registra sul tuo account VW un abbonamento di 1 mese, che è **gratuito**. Senza una richiesta, il portale non restituisce nulla per quel VIN e il veicolo compare senza letture.
 5. **Attendi che l'auto invii uno snapshot.** Anche dopo tutto quanto sopra, la propagazione richiede tempo. L'auto può leggere **`offline` / `unknown` per un po' — spesso fino alla sua prossima guida o al prossimo risveglio, fino a ~24 h** — prima che i sensori si popolino. È normale.
 
 Il portale inizialmente serve solo una **fetta di campi**, e quella fetta **si amplia nel tempo** man mano che VW espande la copertura del portale in vista della scadenza di settembre 2026 — i campi che oggi leggono `unknown` potrebbero riempirsi da soli. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465) · [#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527) · [#567](https://github.com/its-me-prash/vwgroup-connect-ha/issues/567))
 
-> **Facoltativo:** l'opzione **`eu_data_act_auto_kickoff`** può creare automaticamente per te la Custom Data Request a 15 minuti. È opt-in perché crearla implica un **abbonamento di 1 mese sul tuo account VW**, quindi l'integrazione non lo farà senza il tuo consenso.
+> È l'opzione **`eu_data_act_auto_kickoff`** a creare quella Custom Data Request a 15 minuti, ed è **attiva per impostazione predefinita** — in modalità portale senza di essa non ci sono dati. Disattivala solo se preferisci gestire la richiesta per conto tuo.
 
 ---
 
@@ -176,7 +176,7 @@ Puoi anche chiamare direttamente il servizio **`vag_connect.abrp_send`** (punta 
 ## Opzioni (Configura)
 
 Da **Impostazioni → Dispositivi e servizi → VW Group Connect → Configura** puoi regolare:
-intervallo di scansione, S-PIN, geocodifica inversa, **modalità sola lettura**, forza clima PPE (Audi), opzioni push (MQTT/FCM/Audi-VW), **fallback browser EU Data Act** (Playwright / ~100 MB Chromium, opt-in), **wake-before-poll** + ritardo di risveglio, override client-id, **`eu_data_act_auto_kickoff`**, nascondi entità vuote (attivo per impostazione predefinita), **ABRP** (abilita + api_key + token utente, validati come coppia), oltre ad **aggiungere / rimuovere** i canali di lettura supplementari `volkswagen.de` e portale EU Data Act.
+intervallo di scansione, S-PIN (più un S-PIN per veicolo quando l'account ha più di un'auto), geocodifica inversa, **modalità sola lettura**, forza clima PPE (Audi), opzioni push (MQTT/FCM/Audi-VW), override client-id, **`eu_data_act_auto_kickoff`** (attivo per impostazione predefinita), nascondi entità vuote (attivo per impostazione predefinita), **ABRP** (abilita + api_key + token utente, validati come coppia), oltre ad **aggiungere / rimuovere** i canali di lettura supplementari `volkswagen.de` e portale EU Data Act.
 
 ---
 

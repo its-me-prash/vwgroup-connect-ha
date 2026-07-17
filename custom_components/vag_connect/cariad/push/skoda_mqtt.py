@@ -25,9 +25,24 @@ Three coupled pieces:
 
 2. **TOTP credential** — Skoda's MQTT broker requires a TOTP HOTP
    value derived from a Firebase Cloud Messaging token registered
-   against ``cz.skodaauto.myskoda``. The FCM token is registered
-   via ``firebase-messaging`` lib at startup and persisted across
-   restarts via HA's ``Store`` helper.
+   against ``cz.skodaauto.myskoda``. The FCM token is obtained via
+   ``firebase-messaging`` at startup and held in memory only — there
+   is NO persistence, so every restart registers a fresh token.
+   (An earlier version of this docstring claimed the token was
+   "persisted across restarts via HA's ``Store`` helper". There is no
+   Store anywhere in this package; the claim was false.)
+
+   LIVE-GATED, and worse than merely unvalidated: upstream myskoda
+   abandoned exactly this ``firebase-messaging`` high-level
+   registration path in their PR #584 (2026-06-05) because Skoda's
+   Firebase project stopped minting usable tokens for it, and switched
+   to an emulated Android-native ``register3`` flow. Our creds are
+   copied from myskoda's pre-#584 values, not independently reverse-
+   engineered, so this token acquisition is very likely already broken
+   on the live broker. Rewriting it to the #584 flow is a real task,
+   but it needs a live Skoda tester and tracks a moving app-version
+   fingerprint — do not treat "the code is here" as "the channel
+   works".
 
 3. **Coordinator callback** — each MQTT message is decoded into a
    ``PushUpdateEvent`` and forwarded to the coordinator via the
@@ -162,8 +177,9 @@ class SkodaPushManager(PushManager):
         self._vins = list(vins)
         self._loop_task: asyncio.Task | None = None
         self._stop_event: asyncio.Event = asyncio.Event()
-        # FCM client + persisted creds (the FCM token is the TOTP
-        # secret material — NEVER logged). Registered lazily on connect.
+        # FCM client + in-memory creds (the FCM token is the TOTP secret
+        # material — NEVER logged). Registered lazily on connect; not
+        # persisted, so a restart re-registers.
         self._fcm_client: Any = None
         self._fcm_credentials: dict[str, Any] | None = None
         self._fcm_token: str | None = None
@@ -394,11 +410,15 @@ class SkodaPushManager(PushManager):
         return context
 
     async def _register_fcm_token(self) -> str:
-        """Register (or restore) the FCM token used as the TOTP secret.
+        """Register the FCM token used as the TOTP secret.
 
-        Uses the verified Skoda Firebase creds. The token dict is
-        cached in-memory + refreshed via the credentials-updated
-        callback (in HA this maps to a ``Store``).
+        The creds are copied from myskoda's pre-#584 values (NOT
+        independently verified), and this ``checkin_or_register`` path is
+        the one myskoda abandoned in #584 — see the module docstring. The
+        token is cached in memory only and refreshed via the
+        credentials-updated callback; it is NOT persisted, so a restart
+        re-registers. (An earlier docstring said "in HA this maps to a
+        ``Store``" — there is no Store.)
         """
         if self._fcm_token:
             return self._fcm_token
