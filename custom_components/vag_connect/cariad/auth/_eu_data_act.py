@@ -2092,6 +2092,14 @@ def map_dataset_to_vehicle_data(
     _oil_w = first("oil_level_min_warning")
     if _oil_w is not None and d.oil_level_warning is None:
         d.oil_level_warning = str(_oil_w).strip().lower() in ("1", "true")
+    # v2.18.1 — Scout #794 (@loungelizard2018): the raw oil-level STATUS string
+    # the 15-min feed ships (e.g. "ok"/"minWarning"). pct/warning/liters are read
+    # above; map the raw enum into the existing diagnostic ``oil_level_status``
+    # field so it is CONSUMED, not surfaced as an unmapped Scout row. Raw string
+    # only — no guessing the enum→warning semantics (warning is fed separately).
+    _oil_s = first("oil_level_status")
+    if _oil_s is not None and d.oil_level_status is None:
+        d.oil_level_status = str(_oil_s).strip()
     # scr_range — AdBlue/SCR range (km). Empty string guarded by _to_int.
     _scr = _to_int(first("scr_range"))
     if _scr is not None and d.adblue_range_km is None:

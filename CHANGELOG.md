@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.18.1] - 2026-07-17
+
+### Fixed
+
+- **A handful of Vehicle Data Scout reports that wouldn't go away — none of them real gaps.** Aux-heating (Standheizung) started turning up in a second spot on Audis, and the climate-timer's error wrapper read as an unknown field (#752, #785, #789); Škoda's AC charge-current-in-amps was already being read but was never ticked off the catalogue (#781, #795); and on the EU Data Act feed the raw oil-level status is recognised now (#794). The catalogue simply hadn't been told about these — so the Scout stops flagging them. (The rest of the open Scout reports were account/envelope metadata, or fields we already read, and are being closed as triaged.)
+
 ## [2.18.0] - 2026-07-17
 
 ### Fixed
