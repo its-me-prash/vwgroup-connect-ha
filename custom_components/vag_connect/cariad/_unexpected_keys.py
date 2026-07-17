@@ -822,6 +822,15 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # Older firmwares wrap fields in error objects when the
             # backend can't compute them. Defensive registration.
             "charging.chargeMode.error",
+            # v2.17.6 (#785 + #789) — the same Bad-Gateway envelope, now on
+            # the battery-care settings. Two Audi owners filed it as "new
+            # fields"; the samples say what it is outright: message "Bad
+            # Gateway", code 4001, errorTimeStamp. It's the backend telling
+            # us it couldn't compute the value, not a new API surface.
+            "batteryChargingCare.chargingCareSettings.error",
+            "batteryChargingCare.chargingCareSettings.error.*",
+            "charging.chargingCareSettings.error",
+            "charging.chargingCareSettings.error.*",
             # v2.8.2 (#384 moltke69 2026-06-02) — same .error envelope
             # one level deeper for vehicleHealthWarnings.warningLights.
             # Cariad BFF wraps the warningLights value in an error
@@ -1032,6 +1041,15 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             "climatisation.climatisationSettings.value.windowHeatingEnabled",
             "climatisation.climatisationSettings.value.zoneFrontLeftEnabled",
             "climatisation.climatisationSettings.value.zoneFrontRightEnabled",
+            # v2.17.6 — the rear pair and the mode were never added next to
+            # their front twins, so five separate Audi owners filed the same
+            # three fields in one day. The command side has read all three
+            # since v2.10.0 (vw_eu.py builds climatisationMode +
+            # zoneFrontLeftEnabled into the PPE climate body) — this is our
+            # catalogue lagging the parser, not a new API surface.
+            "climatisation.climatisationSettings.value.zoneRearLeftEnabled",
+            "climatisation.climatisationSettings.value.zoneRearRightEnabled",
+            "climatisation.climatisationSettings.value.climatisationMode",
             # temperatureBatteryStatus Min + Max fields (parser already
             # reads temperatureHvBatteryMin_K for battery_temp sensor;
             # Max variant is new from #111)

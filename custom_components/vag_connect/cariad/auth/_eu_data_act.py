@@ -1752,8 +1752,17 @@ def map_dataset_to_vehicle_data(
     # Capture timestamp → last_seen_at. epoch-seconds→ISO-8601 UTC; ISO
     # passthrough. (_dataset_captured_ts already reads these for freshness —
     # surfacing is additive.)
+    # v2.17.6 — the dotted spellings are listed alongside the bare ones. The
+    # walker emits BOTH for a nested field, and first() only reclaims the
+    # spellings it was told about: with bare-only names the dotted twin was
+    # never marked used, so it resurfaced as a "new field" on every single
+    # poll. That is what put profile_state_report.car_captured_time in front
+    # of a reporter (#790) for a field we have read since v2.15.1.
     _cap = first(
         "car_captured_utc_timestamp", "car_captured_time", "instrument_cluster_time",
+        "profile_state_report.car_captured_utc_timestamp",
+        "profile_state_report.car_captured_time",
+        "profile_state_report.instrument_cluster_time",
     )
     if _cap is not None and d.last_seen_at is None:
         cap_iso = _epoch_or_iso(_cap)
@@ -1824,7 +1833,9 @@ def map_dataset_to_vehicle_data(
     if _ostate is not None:
         d.odometer_state = _shorten_enum(_ostate)
 
-    _ict = first("instrument_cluster_time")
+    _ict = first(
+        "instrument_cluster_time", "profile_state_report.instrument_cluster_time",
+    )
     if _ict is not None:
         d.instrument_cluster_time = _ict
 
