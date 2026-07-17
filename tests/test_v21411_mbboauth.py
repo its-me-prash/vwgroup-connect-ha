@@ -88,10 +88,18 @@ async def test_default_client_is_shared_mbb_uuid() -> None:
 
 @pytest.mark.asyncio
 async def test_refresh_uses_refresh_grant() -> None:
+    # v2.18.0 (#584) — this assertion used to demand the value under `token`,
+    # which is what the code did and what the backend choked on: it answered
+    # 500 IllegalStateException to every refresh we ever sent, for everyone.
+    # The test was written against the code instead of against our own recorded
+    # request (tests/bruno/mbb_legacy/02_POST_token_refresh.bru), so the wrong
+    # field name looked verified for months.
     sess = _FakeSession(_FakeResp(200, _GOOD))
     await _mbboauth.refresh(sess, "RT.yyy", client_id="CID")  # type: ignore[arg-type]
     assert sess.calls[0]["data"]["grant_type"] == "refresh_token"
-    assert sess.calls[0]["data"]["token"] == "RT.yyy"
+    assert sess.calls[0]["data"]["refresh_token"] == "RT.yyy"
+    assert sess.calls[0]["data"]["scope"] == "sc2:fal"
+    assert "token" not in sess.calls[0]["data"]
 
 
 @pytest.mark.asyncio
