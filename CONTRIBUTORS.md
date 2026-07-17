@@ -142,6 +142,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding, requested 
 - @LouisFk
 - @loungelizard2018
 - @lubonodoro
+- @lucson
 - @Lukas2069
 - @m3gg3
 - @Macy65
