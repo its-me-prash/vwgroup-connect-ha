@@ -49,6 +49,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **A failing button gives you an error instead of a crash report.** Pressing e.g. Wake on a car that refuses it produced "Unexpected exception" and a Python traceback; you now get what the car actually said.
 - **Diagnostics tells the truth about push.** It reported push as active on every setup, including ones with all push toggles off.
 - **The portal is no longer re-probed on every restart**, and Škoda's AC charge-current limit is read.
+- **MBB logins died after about an hour, for everyone, always.** The refresh sent your token under the wrong name, so the server got a refresh request with nothing to refresh and crashed on it. It has never once worked. Needs confirming on a real car — there's no way it could regress, but we'd like to hear it.
+- **The app watcher opened a pull request every single day** announcing version changes that weren't there — it was comparing the file, and the file always carries the time it last looked. It also never managed to check Volkswagen at all: the mirrors it asked don't carry the app, so it recorded "checked" and learned nothing, for months. It asks Google Play first now, which is where the apps actually come from.
 
 ### Added
 
