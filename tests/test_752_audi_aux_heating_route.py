@@ -57,3 +57,11 @@ def test_stop_one_word_path_empty_body() -> None:
     url = client._post.call_args[0][0]
     assert "/vehicle/v1/vehicles/VINX/auxiliaryheating/stop" in url
     assert client._post.call_args.kwargs["json"] == {}
+
+
+def test_lowercase_vin_is_uppercased_in_bff_path() -> None:
+    # audit hardening — a mixed-case VIN (e.g. manual MBB entry) must not 404.
+    client = _client()
+    asyncio.run(client.command_start_aux_heating("wauzzz1kz", duration_min=30))
+    url = client._post.call_args[0][0]
+    assert "/vehicles/WAUZZZ1KZ/auxiliaryheating/start" in url

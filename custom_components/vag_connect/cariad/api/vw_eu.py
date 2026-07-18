@@ -1951,6 +1951,12 @@ class VWEUClient(CariadBaseClient):
         Other 4xx/5xx errors propagate as-is — this only handles the
         version-mismatch case.
         """
+        # audit hardening — normalise the VIN to upper-case before it enters the
+        # BFF path. The CARIAD garage returns upper VINs, but a manually-entered
+        # MBB VIN (or a mixed-case portal VIN) would otherwise 404; this also
+        # keys the HomeRegion lookup consistently. (All fallback-path commands
+        # route through here, so one normalisation covers every BFF command.)
+        vin = vin.upper()
         # v2.1.0 — per-VIN base URL via HomeRegion lookup.
         base = self._base_for_vin(vin)
         if self._supports_v2_paths(vin):
