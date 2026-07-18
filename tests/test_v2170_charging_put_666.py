@@ -56,7 +56,11 @@ class TestChargingSettersUsePut:
         c._put = AsyncMock(return_value=None)
         c._post_command = AsyncMock()
         asyncio.run(c.command_set_charge_mode("VINX", "timer"))
-        assert c._put.await_args.kwargs["json"] == {"chargeMode": "TIMER"}
+        # #752 audit — own route charging/mode + preferredChargeMode lowerCamel.
+        assert c._put.await_args.args[0].endswith(
+            "/vehicle/v1/vehicles/VINX/charging/mode"
+        )
+        assert c._put.await_args.kwargs["json"] == {"preferredChargeMode": "timer"}
 
     def test_min_soc_puts(self):
         c = _client()

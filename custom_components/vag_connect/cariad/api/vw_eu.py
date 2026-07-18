@@ -2129,14 +2129,27 @@ class VWEUClient(CariadBaseClient):
         )
 
     async def command_set_charge_mode(self, vin: str, mode: str) -> None:
-        """Set charging mode — MANUAL, TIMER, PREFERRED_CHARGING_TIMES.
+        """Set the preferred charging mode.
 
-        v2.17.0 (#666) — charging/settings is a PUT (was POST → 404 on PPE).
+        v2.19.1 (#752 audit) — charge mode has its OWN CARIAD BFF route
+        ``charging/mode`` with body ``{"preferredChargeMode": <lowerCamel>}``,
+        NOT ``charging/settings`` with a ``chargeMode`` field. That key is unknown
+        on the settings route, so the setter 400'd / silently no-op'd (the same
+        class as the auxiliaryheating spelling bug). The write value is
+        lower-camelCase — a working myAudi client sends "manual"/"timer", and the
+        multi-word modes follow the same camelCase the read side already aliases
+        (e.g. preferredChargingTimes) — even though the READ enum is UPPER_SNAKE.
+        (The exotic modes beyond manual/timer are best-effort until live-confirmed.)
         """
+        _parts = [p for p in str(mode).strip().lower().split("_") if p]
+        _mode = (
+            _parts[0] + "".join(p.capitalize() for p in _parts[1:])
+            if _parts else ""
+        )
         await self._settings_put_with_fallback(
-            vin, "charging/settings",
-            put_body={"chargeMode": mode.upper()},
-            post_body={"chargeMode": mode.upper()},
+            vin, "charging/mode",
+            put_body={"preferredChargeMode": _mode},
+            post_body={"preferredChargeMode": _mode},
             command_name="set_charge_mode",
         )
 
