@@ -179,6 +179,8 @@
           "supplementary_eu_portal": "Aggiungi un canale di lettura del portale EU Data Act",
           "remove_supplementary_authproxy": "Rimuovi il canale di lettura vw.de",
           "remove_supplementary_eu_portal": "Rimuovi il canale di lettura del portale EU Data Act",
+          "supplementary_tibber": "Aggiungi un canale di lettura Tibber (dati di ricarica dell'auto elettrica)",
+          "remove_supplementary_tibber": "Rimuovi il canale di lettura Tibber",
           "abrp_enable": "Abilita l'invio di telemetria ad ABRP",
           "abrp_api_key": "ABRP api_key (chiave sviluppatore)",
           "abrp_user_token": "Token ABRP (per veicolo)"
@@ -229,6 +231,21 @@
         "data": {
           "username": "Email",
           "password": "Password"
+        }
+      },
+      "add_tibber": {
+        "title": "Tibber — canale di lettura per auto elettriche (OAuth2)",
+        "description": "Aggiunge i dati di ricarica della tua auto elettrica dalla Data API ufficiale di Tibber come sorgente in sola lettura e a priorità più bassa — colma soltanto le lacune lasciate vuote dai canali propri della tua auto e non sovrascrive mai dati più recenti. Configurazione una tantum:\n\n1. Apri {manage_url} e crea un client OAuth2.\n2. Imposta il suo redirect URI esattamente su `{redirect_uri}`.\n3. Concedi gli scope di lettura (user, homes, vehicles).\n4. Incolla qui sotto il client ID e il client secret.\n\nSola lettura — Tibber non può inviare comandi alla tua auto. La tua auto deve già essere associata nell'app Tibber.",
+        "data": {
+          "tibber_client_id": "Client ID Tibber",
+          "tibber_client_secret": "Client secret Tibber"
+        }
+      },
+      "tibber_authorize": {
+        "title": "Tibber — autorizza l'accesso",
+        "description": "Apri questo URL in un browser, accedi a Tibber e consenti l'accesso:\n\n{authorize_url}\n\nDopo aver consentito l'accesso, il browser viene reindirizzato a una pagina my.home-assistant.io. Copia l'indirizzo COMPLETO dalla barra degli indirizzi (contiene ?code=…) e incollalo qui sotto.",
+        "data": {
+          "tibber_auth_response": "URL di reindirizzamento (o il codice)"
         }
       }
     },

@@ -58,6 +58,8 @@ from .const import (
     CONF_SUPPLEMENTARY_EU_PORTAL,
     CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD,
     CONF_SUPPLEMENTARY_EU_PORTAL_USERNAME,
+    CONF_SUPPLEMENTARY_TIBBER,
+    CONF_SUPPLEMENTARY_TIBBER_TOKENS,
     CONF_WEBSITE_AUTHPROXY,
     CONF_WEBSITE_COOKIES,
     DEFAULT_SCAN_INTERVAL,
@@ -86,6 +88,7 @@ _BRAND_OPTIONS: list[SelectOptionDict] = [
     SelectOptionDict(value="seat",          label="SEAT"),
     SelectOptionDict(value="cupra",         label="CUPRA"),
     SelectOptionDict(value="volkswagen_na", label="Volkswagen US / CA"),
+    SelectOptionDict(value="audi_na",       label="Audi US / CA (experimental)"),
     SelectOptionDict(value="porsche",       label="Porsche (My Porsche) — experimental, login may fail"),
     # v2.14.11 — Bentley (login+read; Audi IDK tenant). Two-way live-test gated.
     SelectOptionDict(value="bentley",       label="Bentley (My Bentley)"),
@@ -282,7 +285,7 @@ def _credentials_schema(
     # the first render (brand unknown) it stays hidden; if a VW-NA login fails,
     # the form re-renders with brand=volkswagen_na and the picker appears so the
     # user can switch us↔ca. Every other brand never sees it.
-    if brand.lower() == "volkswagen_na":
+    if brand.lower() in ("volkswagen_na", "audi_na"):
         schema[vol.Optional(CONF_COUNTRY, default=country)] = _COUNTRY_SELECTOR
     schema.update({
         vol.Optional(CONF_SCAN_INTERVAL, default=scan_interval): _INTERVAL_SELECTOR,
@@ -1130,12 +1133,18 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 )
             else:
                 from .cariad.models import BRANDS as BRAND_CONFIGS  # noqa: PLC0415
+                from .cariad.auth._device_grant import dag_idp_urls  # noqa: PLC0415
 
                 brand_cfg = BRAND_CONFIGS[self._dag_brand]
+                # v2.19.0 — Audi US/CA drives the flow against the NA IDP; every
+                # other DAG brand keeps the EU IDP (defaults).
+                _dev_auth_url, _tok_url = dag_idp_urls(self._dag_brand)
                 self._dag_client = DeviceAuthorizationGrant(
                     self._dag_session,
                     brand_cfg.client_id,
                     scope=brand_cfg.scope,
+                    device_auth_url=_dev_auth_url,
+                    token_url=_tok_url,
                 )
             code = await self._dag_client.request_device_code()
             self._dag_device_code = code.device_code
@@ -1575,6 +1584,18 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
 
 # ── Options Flow ──────────────────────────────────────────────────────────────
 
+# ── v2.19.0: Tibber Data-API OAuth2 (auth-code + PKCE) config-flow constants ─
+_TIBBER_REDIRECT_URI = "https://my.home-assistant.io/redirect/oauth"
+
+
+def _tibber_pkce_challenge(verifier: str) -> str:
+    """S256 PKCE challenge (base64url, no padding) for a code verifier."""
+    import base64  # noqa: PLC0415
+    import hashlib  # noqa: PLC0415
+    digest = hashlib.sha256(verifier.encode("ascii")).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+
+
 class VagConnectOptionsFlow(config_entries.OptionsFlow):
     """Scan interval + S-PIN without full reconfigure."""
 
@@ -1588,6 +1609,12 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
         self._ovw_pending_options: dict[str, Any] = {}
         # b8/C1 — state for the "add EU Data Act portal read channel" sub-flow.
         self._oportal_pending_options: dict[str, Any] = {}
+        # v2.19.0 — state for the "add Tibber read channel" OAuth2 sub-flow.
+        self._otib_pending_options: dict[str, Any] = {}
+        self._otib_client_id: str = ""
+        self._otib_client_secret: str = ""
+        self._otib_verifier: str = ""
+        self._otib_state: str = ""
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -1632,6 +1659,12 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
             if user_input.pop(CONF_SUPPLEMENTARY_EU_PORTAL, False):
                 self._oportal_pending_options = dict(user_input)
                 return await self.async_step_add_portal()
+            # v2.19.0 — add Tibber as a supplementary read channel (OAuth2 auth-
+            # code+PKCE). Branches into the two-step client-id → authorize sub-
+            # flow; the remaining options are saved when it completes.
+            if user_input.pop(CONF_SUPPLEMENTARY_TIBBER, False):
+                self._otib_pending_options = dict(user_input)
+                return await self.async_step_add_tibber()
             # b11 — OFF-switch for the supplementary channels. Without this a
             # channel could only ever be ADDED (the toggles above route on True),
             # so a stuck/dead/redundant supplementary kept failing every restart
@@ -1639,7 +1672,8 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
             # entry.data + reloads. Shown in the schema only when it's active.
             remove_web = user_input.pop("remove_supplementary_authproxy", False)
             remove_portal = user_input.pop("remove_supplementary_eu_portal", False)
-            if remove_web or remove_portal:
+            remove_tibber = user_input.pop("remove_supplementary_tibber", False)
+            if remove_web or remove_portal or remove_tibber:
                 new_data = {**self._config_entry.data}
                 if remove_web:
                     new_data.pop(CONF_SUPPLEMENTARY_AUTHPROXY, None)
@@ -1648,6 +1682,9 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                     new_data.pop(CONF_SUPPLEMENTARY_EU_PORTAL, None)
                     new_data.pop(CONF_SUPPLEMENTARY_EU_PORTAL_USERNAME, None)
                     new_data.pop(CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD, None)
+                if remove_tibber:
+                    new_data.pop(CONF_SUPPLEMENTARY_TIBBER, None)
+                    new_data.pop(CONF_SUPPLEMENTARY_TIBBER_TOKENS, None)
                 self.hass.config_entries.async_update_entry(
                     self._config_entry, data=new_data,
                 )
@@ -1841,6 +1878,14 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                     CONF_SUPPLEMENTARY_EU_PORTAL,
                     default=False,
                 ): _BOOL_SELECTOR,
+                # v2.19.0 — opt-in: add Tibber (OAuth2) as a supplementary
+                # read-only EV source, merged onto the primary as the LOWEST-
+                # trust gap-fill. Ticking it routes to the Tibber OAuth sub-flow;
+                # default False = no change.
+                vol.Optional(
+                    CONF_SUPPLEMENTARY_TIBBER,
+                    default=False,
+                ): _BOOL_SELECTOR,
         }
         # b11 — only surface a remove-toggle for a channel that's actually
         # active, so a stuck/redundant supplementary can be turned off (and the
@@ -1852,6 +1897,10 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
         if current_data.get(CONF_SUPPLEMENTARY_EU_PORTAL):
             schema[vol.Optional(
                 "remove_supplementary_eu_portal", default=False,
+            )] = _BOOL_SELECTOR
+        if current_data.get(CONF_SUPPLEMENTARY_TIBBER):
+            schema[vol.Optional(
+                "remove_supplementary_tibber", default=False,
             )] = _BOOL_SELECTOR
         # v2.17.5 (#759) — one optional S-PIN field per known VIN, shown only
         # when the account has more than one vehicle (each may carry its own
@@ -1975,6 +2024,171 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                 await session.close()
             except Exception:  # noqa: BLE001
                 pass
+
+    # ── v2.19.0: supplementary Tibber Data-API read-channel sub-flow ────────
+
+    async def async_step_add_tibber(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Step 1 of the Tibber OAuth2 (auth-code+PKCE) sub-flow: collect the
+        user's own Data-API client (id + secret, created at
+        data-api.tibber.com/clients/manage). We then build the authorize URL and
+        move to the code-paste step. Read-only — Tibber has no vehicle commands.
+        """
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            client_id = str(user_input.get("tibber_client_id", "")).strip()
+            client_secret = str(
+                user_input.get("tibber_client_secret", "")
+            ).strip()
+            if not client_id or not client_secret:
+                errors["base"] = "invalid_credentials"
+            else:
+                import secrets  # noqa: PLC0415
+                self._otib_client_id = client_id
+                self._otib_client_secret = client_secret
+                # RFC 7636: verifier is 43-128 unreserved chars (token_urlsafe
+                # yields A-Za-z0-9-_, all valid); state guards against CSRF.
+                self._otib_verifier = secrets.token_urlsafe(48)
+                self._otib_state = secrets.token_urlsafe(16)
+                return await self.async_step_tibber_authorize()
+        return self.async_show_form(
+            step_id="add_tibber",
+            data_schema=vol.Schema({
+                vol.Required("tibber_client_id"): _USERNAME_SELECTOR,
+                vol.Required("tibber_client_secret"): _PASSWORD_SELECTOR,
+            }),
+            errors=errors,
+            description_placeholders={
+                "manage_url": "https://data-api.tibber.com/clients/manage",
+                "redirect_uri": _TIBBER_REDIRECT_URI,
+            },
+        )
+
+    async def async_step_tibber_authorize(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Step 2: the user opens the authorize URL, grants access, and pastes
+        back the redirected URL (or the bare code). We exchange it for tokens
+        (PKCE) and store them as the supplementary Tibber channel in entry.data.
+        """
+        errors: dict[str, str] = {}
+        authorize_url = self._otib_authorize_url()
+        if user_input is not None:
+            try:
+                code = self._otib_extract_code(
+                    str(user_input.get("tibber_auth_response", "")).strip()
+                )
+                tokens = await self._otib_exchange_code(code)
+            except ValueError as err:
+                errors["base"] = _map_error(str(err))
+            else:
+                self.hass.config_entries.async_update_entry(
+                    self._config_entry,
+                    data={
+                        **self._config_entry.data,
+                        CONF_SUPPLEMENTARY_TIBBER: True,
+                        CONF_SUPPLEMENTARY_TIBBER_TOKENS: tokens,
+                    },
+                )
+                self.hass.async_create_task(
+                    self.hass.config_entries.async_reload(
+                        self._config_entry.entry_id
+                    )
+                )
+                return self.async_create_entry(
+                    title="", data=self._otib_pending_options
+                )
+        return self.async_show_form(
+            step_id="tibber_authorize",
+            data_schema=vol.Schema({
+                vol.Required("tibber_auth_response"): _USERNAME_SELECTOR,
+            }),
+            errors=errors,
+            description_placeholders={"authorize_url": authorize_url},
+        )
+
+    def _otib_authorize_url(self) -> str:
+        """Build the Tibber authorize URL with PKCE (S256) + CSRF state."""
+        from urllib.parse import urlencode  # noqa: PLC0415
+        from .cariad._tibber_source import (  # noqa: PLC0415
+            TIBBER_AUTHORIZE_URL,
+            TIBBER_SCOPES,
+        )
+        params = {
+            "response_type": "code",
+            "client_id": self._otib_client_id,
+            "redirect_uri": _TIBBER_REDIRECT_URI,
+            "scope": TIBBER_SCOPES,
+            "state": self._otib_state,
+            "code_challenge": _tibber_pkce_challenge(self._otib_verifier),
+            "code_challenge_method": "S256",
+        }
+        return f"{TIBBER_AUTHORIZE_URL}?{urlencode(params)}"
+
+    def _otib_extract_code(self, raw: str) -> str:
+        """Pull the auth code out of a pasted redirect URL (or accept a bare
+        code), verifying the CSRF state when present. Raises ValueError on a
+        missing code or a state mismatch."""
+        if not raw:
+            raise ValueError("invalid_credentials")
+        code = raw
+        if "code=" in raw or raw.lower().startswith("http"):
+            from urllib.parse import parse_qs, urlparse  # noqa: PLC0415
+            q = parse_qs(urlparse(raw).query)
+            code = (q.get("code") or [""])[0].strip()
+            st = (q.get("state") or [""])[0].strip()
+            if self._otib_state and st and st != self._otib_state:
+                raise ValueError("invalid_credentials")
+        if not code:
+            raise ValueError("invalid_credentials")
+        return code
+
+    async def _otib_exchange_code(self, code: str) -> dict[str, str]:
+        """Exchange the auth code for the OAuth2 token bundle (PKCE). Raises
+        ValueError(code) on failure so _map_error renders a localised message.
+        The tokens are never logged."""
+        import aiohttp  # noqa: PLC0415
+
+        from .cariad._tibber_source import TIBBER_TOKEN_URL  # noqa: PLC0415
+        session = aiohttp.ClientSession()
+        try:
+            payload = {
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": _TIBBER_REDIRECT_URI,
+                "client_id": self._otib_client_id,
+                "client_secret": self._otib_client_secret,
+                "code_verifier": self._otib_verifier,
+            }
+            async with session.post(
+                TIBBER_TOKEN_URL, data=payload,
+                timeout=aiohttp.ClientTimeout(total=20),
+            ) as resp:
+                if resp.status == 429:
+                    raise ValueError("too_many_requests")
+                body = await resp.json(content_type=None)
+                if resp.status != 200:
+                    raise ValueError("invalid_credentials")
+        except ValueError:
+            raise
+        except Exception as err:  # noqa: BLE001
+            raise ValueError("cannot_connect") from err
+        finally:
+            try:
+                await session.close()
+            except Exception:  # noqa: BLE001
+                pass
+        at = body.get("access_token") if isinstance(body, dict) else None
+        rt = body.get("refresh_token") if isinstance(body, dict) else None
+        if not at:
+            raise ValueError("invalid_credentials")
+        return {
+            "access_token": str(at),
+            "refresh_token": str(rt or ""),
+            "client_id": self._otib_client_id,
+            "client_secret": self._otib_client_secret,
+        }
 
     # ── b1/C1: supplementary vw.de read-channel sub-flow ────────────────────
 

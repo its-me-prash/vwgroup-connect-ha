@@ -147,6 +147,7 @@ query GET_USER_VEHICLES {
     nickname
     vehicle {
       brand { name }
+      core { modelYear }
       media {
         shortName
         longName
@@ -183,6 +184,7 @@ class VehicleImageData:
     long_name: str | None = None        # e.g. "Audi Q4 50 e-tron quattro"
     exterior_color: str | None = None
     nickname: str | None = None         # User-set nickname in app
+    model_year: int | None = None       # e.g. 2021 (vehicle.core.modelYear)
 
 
 class VehicleImageFetcher:
@@ -290,7 +292,17 @@ class VehicleImageFetcher:
                     continue
                 vehicle = v.get("vehicle") or {}
                 media   = vehicle.get("media") or {}
+                core    = vehicle.get("core") or {}
                 pictures = vehicle.get("renderPictures") or []
+
+                # v2.19.0 — model year (vehicle.core.modelYear) for the rich
+                # "<model> (<year>)" device name. Coerce str/int defensively.
+                _my_raw = core.get("modelYear")
+                _model_year: int | None = None
+                if isinstance(_my_raw, int):
+                    _model_year = _my_raw
+                elif isinstance(_my_raw, str) and _my_raw.strip().isdigit():
+                    _model_year = int(_my_raw.strip())
 
                 urls: dict[str, str] = {}
                 for pic in pictures:
@@ -306,6 +318,7 @@ class VehicleImageFetcher:
                     long_name=media.get("longName"),
                     exterior_color=media.get("exteriorColor"),
                     nickname=v.get("nickname"),
+                    model_year=_model_year,
                 )
                 _LOGGER.debug(
                     "GraphQL images for %s (%s): %d mediaTypes",

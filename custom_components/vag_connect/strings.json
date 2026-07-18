@@ -179,6 +179,8 @@
           "supplementary_eu_portal": "Add an EU Data Act portal read channel",
           "remove_supplementary_authproxy": "Remove the vw.de read channel",
           "remove_supplementary_eu_portal": "Remove the EU Data Act portal read channel",
+          "supplementary_tibber": "Add a Tibber read channel (EV charge data)",
+          "remove_supplementary_tibber": "Remove the Tibber read channel",
           "abrp_enable": "Enable ABRP telemetry push",
           "abrp_api_key": "ABRP api_key (developer key)",
           "abrp_user_token": "ABRP token (per vehicle)"
@@ -229,6 +231,21 @@
         "data": {
           "username": "Email",
           "password": "Password"
+        }
+      },
+      "add_tibber": {
+        "title": "Tibber — EV read channel (OAuth2)",
+        "description": "Add your EV's charge data from Tibber's official Data API as a read-only, lowest-priority source — it only fills gaps your car's own channels leave empty and never overwrites fresher data. One-time setup:\n\n1. Open {manage_url} and create an OAuth2 client.\n2. Set its redirect URI to exactly `{redirect_uri}`.\n3. Grant the read scopes (user, homes, vehicles).\n4. Paste the client ID and client secret below.\n\nRead-only — Tibber cannot command your car. Your car must already be paired in the Tibber app.",
+        "data": {
+          "tibber_client_id": "Tibber client ID",
+          "tibber_client_secret": "Tibber client secret"
+        }
+      },
+      "tibber_authorize": {
+        "title": "Tibber — authorize access",
+        "description": "Open this URL in a browser, sign in to Tibber and allow access:\n\n{authorize_url}\n\nAfter you allow access your browser is redirected to a my.home-assistant.io page. Copy the FULL address from the address bar (it contains `?code=…`) and paste it below.",
+        "data": {
+          "tibber_auth_response": "Redirected URL (or the code)"
         }
       }
     },

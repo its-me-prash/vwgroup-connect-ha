@@ -39,6 +39,12 @@ _REQUEST_TIMEOUT = 60
 _REFRESH_MAX_PER_HOUR = 3
 _REFRESH_WINDOW_S = 3600
 
+# v2.19.0 (C1) — the supplementary Tibber source sweeps ALL paired cars in one
+# fetch, but the coordinator asks per-VIN; cache the sweep for a poll so a
+# multi-car account triggers one fetch, not one per VIN. A little below the
+# default ~60s poll so it still refreshes every scheduled poll.
+_TIBBER_CACHE_TTL_S = 45.0
+
 # v2.9.0 - VW account-lock detection. After the 2026-05-31 ecosystem-
 # wide VW Auth chaos, oliverrahner (volkswagencarnet#332) and others
 # reported their underlying brand account getting locked for ~24h
@@ -160,6 +166,15 @@ class CariadBaseClient:
         # a non-portal primary (MBB = bearer) holds no IDP cookies to clobber.
         self._supplementary_eu_portal: Any = None
         self._supplementary_eu_portal_creds: Any = None
+        # v2.19.0 (C1) — supplementary TIBBER read channel (OAuth2, read-only).
+        # Shares this client's session (Bearer on a different host, no IDP
+        # cookies to clobber), like the portal supplementary. fetch_vehicles()
+        # returns ALL paired cars at once, so a per-poll TTL cache + lock
+        # collapses the per-VIN fan-out into ONE sweep. None until armed.
+        self._supplementary_tibber: Any = None
+        self._tibber_cache: dict[str, VehicleData] = {}
+        self._tibber_cache_at: float = 0.0
+        self._tibber_lock: asyncio.Lock | None = None
         # b12 — MBB COMMAND CHANNEL: a second, MBB-primary-configured client held
         # alongside a read-only primary (portal) so commands route through MBB
         # while reads stay on the portal. None unless armed. Shares this client's
@@ -473,6 +488,11 @@ class CariadBaseClient:
         portal = getattr(self, "_supplementary_eu_portal", None)
         if portal is not None:
             readers.append(("eu_data_act", self._read_eu_portal(portal, vin)))
+        # v2.19.0 — Tibber LAST = lowest trust: it only fills a field that the
+        # primary AND every higher supplementary left at its default.
+        tib = getattr(self, "_supplementary_tibber", None)
+        if tib is not None:
+            readers.append(("tibber", self._read_tibber(vin)))
         return readers
 
     async def _read_authproxy(
@@ -614,6 +634,68 @@ class CariadBaseClient:
             self._supplementary_eu_portal = None
             return False
 
+    async def arm_supplementary_tibber(self, tokens: Any) -> bool:
+        """v2.19.0 (C1) — arm the supplementary Tibber Data-API read channel
+        (OAuth2, read-only). Fills EV SoC / target-SoC / range / plug / charging
+        that the first-party channels leave empty, as the LOWEST-trust gap-fill.
+        Shares this client's session (Bearer on a different host). Fail-soft: any
+        error leaves the slot None and the primary channel runs unchanged.
+        Returns True if armed. The token bundle is never logged."""
+        if not isinstance(tokens, dict):
+            return False
+        access = str(tokens.get("access_token") or "")
+        refresh = str(tokens.get("refresh_token") or "")
+        if not access and not refresh:
+            return False
+        from .._tibber_source import TibberDataSource  # noqa: PLC0415
+        try:
+            source = TibberDataSource(
+                self._session,
+                access_token=access,
+                refresh_token=refresh,
+                client_id=str(tokens.get("client_id") or ""),
+                client_secret=str(tokens.get("client_secret") or ""),
+            )
+            self._supplementary_tibber = source
+            self._tibber_cache = {}
+            self._tibber_cache_at = 0.0
+            _LOGGER.info(
+                "VAG Connect: supplementary Tibber read channel armed"
+                " (read-only, lowest-trust gap-fill onto the primary)."
+            )
+            return True
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning(
+                "VAG Connect: could not arm supplementary Tibber channel (%s)"
+                " — primary channel unaffected.", type(err).__name__,
+            )
+            self._supplementary_tibber = None
+            return False
+
+    async def _read_tibber(self, vin: str) -> VehicleData | None:
+        """v2.19.0 (C1) — serve ONE VIN's sparse Tibber data. fetch_vehicles()
+        sweeps every paired car, so cache the whole sweep for the poll and serve
+        per-VIN from it (the coordinator loops VINs serially within a poll). The
+        lock coalesces the rare poll/command-refresh overlap into a single sweep.
+        Fail-soft → None; a read-only fallback must never sink the poll."""
+        source = getattr(self, "_supplementary_tibber", None)
+        if source is None:
+            return None
+        if self._tibber_lock is None:
+            self._tibber_lock = asyncio.Lock()
+        try:
+            async with self._tibber_lock:
+                now = time.monotonic()
+                if (
+                    not self._tibber_cache
+                    or (now - self._tibber_cache_at) > _TIBBER_CACHE_TTL_S
+                ):
+                    self._tibber_cache = await source.fetch_vehicles()
+                    self._tibber_cache_at = now
+            return self._tibber_cache.get(vin.upper())
+        except Exception:  # noqa: BLE001
+            return None
+
     async def close_supplementary(self) -> None:
         """Close the dedicated supplementary session (on unload / re-arm).
         Idempotent + fail-soft."""
@@ -625,6 +707,10 @@ class CariadBaseClient:
         self._supplementary_eu_portal = None
         # b12 — the MBB command channel shares this client's session too; drop it.
         self._mbb_command = None
+        # v2.19.0 — Tibber shares this client's session too; drop it + its cache.
+        self._supplementary_tibber = None
+        self._tibber_cache = {}
+        self._tibber_cache_at = 0.0
         if sess is not None:
             try:
                 await sess.close()

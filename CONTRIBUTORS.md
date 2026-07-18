@@ -28,6 +28,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding, requested 
 - @bufferoverflow1337
 - @Bugi66
 - @cafarre
+- @cafemonkey
 - @Canaillee
 - @caraar12345
 - @Carbolithos
@@ -86,6 +87,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding, requested 
 - @gleeballs
 - @gmhome001
 - @gnusd
+- @gomble
 - @goncal
 - @gr6803
 - @gudden

@@ -38,6 +38,23 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.19.0] - 2026-07-18
+
+### Fixed
+
+- **Your car's model + year now show properly on the device page.** Instead of a bare "VAG Vehicle", the device model reads like "S6 Avant TDI quattro tiptronic (2021)" — the redundant leading brand is stripped (the manufacturer field already shows it) and the model year is appended. Cars with no model name at all fall back to a clean brand label rather than "VAG Vehicle", and the VIN stays the device serial number.
+- **Trunk, engine hood and sunroof open-state can read from the newer portal feed too (#794, #807).** Some cars send openings in a compact form where the trunk, the hood, the sunroof, every door and every window all share one generic `open` flag — told apart only by a hidden dictionary ID — so on its own the flag was meaningless (which is why the Scout kept surfacing a bare `open`). We now decode that ID against the official data dictionary and route trunk / hood / front-sunroof to their existing sensors. (Per-door and per-window openings share the same shape but are position-indexed — a follow-up; and real-feed confirmation is still pending, so treat it as best-effort.)
+- **A brief DNS/network hiccup no longer files a spurious error report (#814).** When your Home Assistant box momentarily can't reach the VW backend (a DNS timeout), the integration already retries and recovers on its own — but that self-healing blip was still being escalated to the Error Reporter, which auto-files a GitHub issue. Those transient network errors are now recognised and logged quietly instead of raised.
+
+### Added
+
+- **Audi US / CA groundwork (experimental).** myAudi in North America runs on the same CARIAD backend as Europe, just the North-American region — so there's now an "Audi US / CA" brand wired to the real NA endpoints (host, identity provider and the live app client), with device-code (QR) login. Heads-up: it's a login foundation — whether North-American Audi vehicle data comes through off-device still needs a real US Audi tester to confirm, so treat it as experimental until then.
+- **Tibber can now fill in your EV's charge data (EU, opt-in).** If you're a Tibber customer with your car paired, you can add Tibber as an extra read channel in the integration options — it reads state of charge, target SoC, range and plug/charging status from Tibber's official Data API and folds them in as a *lowest-priority* source: only filling gaps your car's own channels left empty, never overwriting fresher data. Read-only (Tibber can't command the car). One-time setup: create your own OAuth2 client on the Tibber developer portal, authorize once, and the integration keeps the token refreshed from there. Because Tibber only updates while the car is connected/charging, its readings are treated as the least-trusted source, and every field it contributes is attributed to the `tibber` channel.
+
+### Thanks
+
+Thanks to **@gomble**, whose error report showed the integration was filing a GitHub issue over a brief DNS blip that fixes itself (#814). **@loungelizard2018** and **@cafemonkey**'s Scout reports are what surfaced the packed opening states we now decode (#794, #807). The full roll of reporters, requesters and testers is in [CONTRIBUTORS.md](CONTRIBUTORS.md) — thank you. 🙏
+
 ## [2.18.1] - 2026-07-17
 
 ### Fixed

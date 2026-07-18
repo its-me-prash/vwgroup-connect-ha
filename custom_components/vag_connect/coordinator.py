@@ -54,6 +54,35 @@ from .cariad.models import VehicleData
 
 _LOGGER = logging.getLogger(__name__)
 
+
+def _is_selfhealing_poll_error(err: object) -> bool:
+    """True for a poll error that must NOT be escalated to the public Error
+    Reporter, because it self-heals and is not our bug:
+
+    - a transient VW-backend 5xx (``UpstreamUnavailableError`` or an ``APIError``
+      with ``status >= 500``), or
+    - a status-0 transient NETWORK error — DNS timeout / connection refused /
+      mid-stream disconnect — which ``base._request`` tags ``"transient:"`` in the
+      ``APIError`` body AFTER exhausting its own retries. (#814 was exactly a
+      "Timeout while contacting DNS servers" on a user's Home Assistant host.)
+
+    Auth-interaction errors are de-escalated separately (they trigger reauth).
+    """
+    from .cariad.exceptions import APIError, UpstreamUnavailableError  # noqa: PLC0415
+
+    if isinstance(err, UpstreamUnavailableError):
+        return True
+    if isinstance(err, APIError):
+        status = getattr(err, "status", 0)
+        if status >= 500:
+            return True
+        body = getattr(err, "body", None)
+        if status == 0 and isinstance(body, str) and body.lstrip().startswith(
+            "transient:"
+        ):
+            return True
+    return False
+
 # v2.17.2 (#666) — how long an optimistically-set command value is held across
 # polls before the backend state is trusted again. Long enough to cover a
 # couple of poll cycles (VW reflects a command in ~10-60 s), short enough that a
@@ -1383,6 +1412,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             CONF_SUPPLEMENTARY_EU_PORTAL,
             CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD,
             CONF_SUPPLEMENTARY_EU_PORTAL_USERNAME,
+            CONF_SUPPLEMENTARY_TIBBER,
+            CONF_SUPPLEMENTARY_TIBBER_TOKENS,
         )
         data = self.entry.data
         client = self._cariad_client
@@ -1428,6 +1459,25 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             except Exception as err:  # noqa: BLE001
                 _LOGGER.warning(
                     "VAG Connect: supplementary portal arming failed (%s)"
+                    " — primary channel unaffected.", type(err).__name__,
+                )
+
+        # ── v2.19.0: TIBBER supplementary (OAuth2, read-only gap-fill) ──────
+        arm_tibber = getattr(client, "arm_supplementary_tibber", None)
+        if data.get(CONF_SUPPLEMENTARY_TIBBER) and arm_tibber is not None:
+            try:
+                armed = bool(
+                    await arm_tibber(data.get(CONF_SUPPLEMENTARY_TIBBER_TOKENS))
+                )
+                if armed:
+                    # the OAuth2 refresh token rotates in place — persist it back
+                    # to entry.data so a restart never replays a consumed token.
+                    src = getattr(client, "_supplementary_tibber", None)
+                    if src is not None:
+                        src.on_tokens_changed = self._persist_tibber_tokens
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning(
+                    "VAG Connect: supplementary Tibber arming failed (%s)"
                     " — primary channel unaffected.", type(err).__name__,
                 )
 
@@ -1492,6 +1542,29 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         "id_token": tokens.id_token,
                         "expires_at": tokens.expires_at,
                         "strategy": "mbb",
+                    },
+                },
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
+    async def _persist_tibber_tokens(self, tokens: Any) -> None:
+        """v2.19.0 — write the Tibber channel's rotated OAuth2 bundle back to
+        entry.data[CONF_SUPPLEMENTARY_TIBBER_TOKENS] so the durable refresh
+        survives a restart. Fail-soft. The bundle is never logged."""
+        from .const import CONF_SUPPLEMENTARY_TIBBER_TOKENS  # noqa: PLC0415
+        if not isinstance(tokens, dict):
+            return
+        try:
+            self.hass.config_entries.async_update_entry(
+                self.entry,
+                data={
+                    **self.entry.data,
+                    CONF_SUPPLEMENTARY_TIBBER_TOKENS: {
+                        "access_token": tokens.get("access_token", ""),
+                        "refresh_token": tokens.get("refresh_token", ""),
+                        "client_id": tokens.get("client_id", ""),
+                        "client_secret": tokens.get("client_secret", ""),
                     },
                 },
             )
@@ -1658,16 +1731,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         # outage. The vehicle still keeps its last-known data
                         # (above) and recovers on the next poll.
                         from .cariad.exceptions import (  # noqa: PLC0415
-                            APIError,
                             AuthenticationError,
-                            UpstreamUnavailableError,
                         )
-                        is_transient_upstream = isinstance(
-                            result, UpstreamUnavailableError
-                        ) or (
-                            isinstance(result, APIError)
-                            and getattr(result, "status", 0) >= 500
-                        )
+                        # v2.19.0 (#814) — de-escalate self-healing errors (5xx
+                        # AND status-0 transient network/DNS errors) from the
+                        # public Error Reporter; see _is_selfhealing_poll_error.
+                        is_transient_upstream = _is_selfhealing_poll_error(result)
                         # v2.15.9 (#596) — a user-actionable auth-interaction
                         # (T&C / marketing-consent / 2FA / portal-interaction)
                         # re-hit on EVERY poll (the portal re-login walks into
@@ -1967,9 +2036,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 # Auth failure that survived the client's refresh-then-relogin
                 # fallback means the credentials are stale. Trigger HA reauth.
                 from .cariad.exceptions import (  # noqa: PLC0415
-                    APIError,
                     AuthenticationError,
-                    UpstreamUnavailableError,
                 )
                 if isinstance(err, AuthenticationError):
                     self._trigger_reauth(str(err) or type(err).__name__)
@@ -1981,9 +2048,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 # server-side outage symptom, not our bug, and escalating it
                 # spammed #435-#439. Entities stay available via the
                 # failure-tolerance window below.
-                is_transient_upstream = isinstance(err, UpstreamUnavailableError) or (
-                    isinstance(err, APIError) and getattr(err, "status", 0) >= 500
-                )
+                # v2.19.0 (#814) — de-escalate self-healing errors (5xx AND
+                # status-0 transient network/DNS errors) from the public Error
+                # Reporter; see _is_selfhealing_poll_error.
+                is_transient_upstream = _is_selfhealing_poll_error(err)
                 if is_transient_upstream:
                     _LOGGER.warning(
                         "VAG Connect: VW backend temporarily unavailable — %s", err
@@ -3304,6 +3372,21 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # MyŠkoda app, software update, retrofit).
         vin = data.get("vin")
         if isinstance(vin, str) and vin:
+            # v2.19.0 — rich device model from the vgql image fetch. The
+            # userVehicles GraphQL (already fetched for render images) returns
+            # ``media.longName`` ("Audi S6 Avant TDI quattro tiptronic") +
+            # ``core.modelYear`` — far richer than the garage nickname a portal-
+            # only car falls back to. Prefer it whenever available (zero extra
+            # auth: it rides the image fetch that already ran).
+            _img_map = getattr(self._cariad_client, "_image_data", None)
+            if isinstance(_img_map, dict):
+                _vimg = _img_map.get(vin)
+                _long = getattr(_vimg, "long_name", None) if _vimg else None
+                _iyear = getattr(_vimg, "model_year", None) if _vimg else None
+                if isinstance(_long, str) and _long.strip():
+                    data["model"] = _long.strip()
+                if _iyear and not data.get("model_year"):
+                    data["model_year"] = _iyear
             static = getattr(self, "vehicle_static_info", {}).get(vin)
             if isinstance(static, dict):
                 info = static.get("info") or {}
