@@ -1399,10 +1399,14 @@ def map_dataset_to_vehicle_data(
             str(_legacy_cwhv).strip().lower() in ("true", "1")
         )
 
-    # `in_cabin_temperature.temperature` — current interior °C. The
-    # companion `measurement_state` flags validity; skip an explicitly
-    # invalid reading but accept when the flag is absent (not all reports
-    # carry it). Same dK guard.
+    # `in_cabin_temperature.temperature` — current interior temperature. The
+    # companion `measurement_state` flags validity; skip an explicitly invalid
+    # reading but accept when the flag is absent (not all reports carry it).
+    # ENCODING (EU-DA data dict 74039fb6): raw 0..1460 = 0.1 °C with a -46
+    # offset (0->-46 °C, 1460->100 °C), so °C = raw*0.1 - 46; raw 1461..2513 is
+    # the 0.25 °F alternative (1461->-51 °F), converted to °C. The old
+    # deci-Kelvin formula was wrong — it returned ~-205 °C for a normal 22 °C
+    # cabin (whose encoded raw is 680).
     cabin_state = first("in_cabin_temperature.measurement_state")
     cabin_t = _to_float(first("in_cabin_temperature.temperature"))
     if cabin_t is not None and (
@@ -1410,7 +1414,11 @@ def map_dataset_to_vehicle_data(
         or str(cabin_state).lower()
         not in ("invalid", "error", "measurement_invalid", "not_available")
     ):
-        d.cabin_temp = round(cabin_t / 10 - 273.15, 1) if cabin_t > 200 else cabin_t
+        if cabin_t <= 1460:
+            d.cabin_temp = round(cabin_t * 0.1 - 46.0, 1)
+        else:
+            _cf = ((cabin_t - 1461) * 0.25 - 51.0 - 32.0) * 5.0 / 9.0
+            d.cabin_temp = round(_cf, 1)
 
     # `battery_state_report.charge_target_time` — ISO-8601 ts the pack
     # reaches its charge target (charging analog of climatisation_ready_at).
