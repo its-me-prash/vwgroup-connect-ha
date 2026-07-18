@@ -164,6 +164,16 @@ CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD = "supplementary_eu_portal_password"
 # the OptionsFlow "add vw.de read channel" step; read by the coordinator to arm
 # the client's _supplementary_authproxy connector at setup.
 CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES = "supplementary_authproxy_cookies"
+# v2.19.0 (C1) — supplementary TIBBER read channel (OAuth2 auth-code+PKCE against
+# the Tibber Data API). A licensed, brand-agnostic EV telemetry source (SoC /
+# target SoC / range / plug + charging status) merged onto the primary as the
+# LOWEST-trust gap-fill: it only fills fields the first-party channels left empty
+# and never overwrites fresher data. Read-only — Tibber exposes no vehicle
+# commands. The token bundle {access_token, refresh_token, client_id,
+# client_secret} is one dict; the refresh token rotates in place and is persisted
+# back here. SECURITY: the token bundle is never logged.
+CONF_SUPPLEMENTARY_TIBBER        = "supplementary_tibber"
+CONF_SUPPLEMENTARY_TIBBER_TOKENS = "supplementary_tibber_tokens"
 
 # v2.15.0b3 — "hide entities without data" (default ON). When enabled, data
 # sensors / binary sensors whose value hasn't arrived are not created, so a

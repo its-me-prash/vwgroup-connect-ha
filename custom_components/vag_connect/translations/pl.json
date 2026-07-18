@@ -179,6 +179,8 @@
           "supplementary_eu_portal": "Dodaj kanał odczytu portalu EU Data Act",
           "remove_supplementary_authproxy": "Usuń kanał odczytu vw.de",
           "remove_supplementary_eu_portal": "Usuń kanał odczytu portalu EU Data Act",
+          "supplementary_tibber": "Dodaj kanał odczytu Tibber (dane ładowania EV)",
+          "remove_supplementary_tibber": "Usuń kanał odczytu Tibber",
           "abrp_enable": "Włącz wysyłanie telemetrii ABRP",
           "abrp_api_key": "api_key ABRP (klucz dewelopera)",
           "abrp_user_token": "Token ABRP (na pojazd)"
@@ -229,6 +231,21 @@
         "data": {
           "username": "E-mail",
           "password": "Hasło"
+        }
+      },
+      "add_tibber": {
+        "title": "Tibber — kanał odczytu EV (OAuth2)",
+        "description": "Dodaj dane ładowania swojego EV z oficjalnego Data API Tibbera jako źródło tylko do odczytu o najniższym priorytecie — uzupełnia jedynie luki, które własne kanały auta pozostawiają puste, i nigdy nie nadpisuje świeższych danych. Konfiguracja jednorazowa:\n\n1. Otwórz {manage_url} i utwórz klienta OAuth2.\n2. Ustaw jego redirect URI dokładnie na `{redirect_uri}`.\n3. Przyznaj zakresy odczytu (user, homes, vehicles).\n4. Wklej poniżej client ID i client secret.\n\nTylko do odczytu — Tibber nie może wydawać poleceń Twojemu autu. Twoje auto musi być już sparowane w aplikacji Tibber.",
+        "data": {
+          "tibber_client_id": "Tibber client ID",
+          "tibber_client_secret": "Tibber client secret"
+        }
+      },
+      "tibber_authorize": {
+        "title": "Tibber — autoryzuj dostęp",
+        "description": "Otwórz ten adres URL w przeglądarce, zaloguj się do Tibbera i zezwól na dostęp:\n\n{authorize_url}\n\nPo udzieleniu dostępu przeglądarka przekieruje Cię na stronę my.home-assistant.io. Skopiuj CAŁY adres z paska adresu (zawiera ?code=…) i wklej go poniżej.",
+        "data": {
+          "tibber_auth_response": "Adres przekierowania (lub sam kod)"
         }
       }
     },

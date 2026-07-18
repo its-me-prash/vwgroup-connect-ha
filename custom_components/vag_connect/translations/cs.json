@@ -179,6 +179,8 @@
           "supplementary_eu_portal": "Přidat čtecí kanál portálu EU Data Act",
           "remove_supplementary_authproxy": "Odebrat čtecí kanál vw.de",
           "remove_supplementary_eu_portal": "Odebrat čtecí kanál portálu EU Data Act",
+          "supplementary_tibber": "Přidat čtecí kanál Tibber (data o nabíjení elektromobilu)",
+          "remove_supplementary_tibber": "Odebrat čtecí kanál Tibber",
           "abrp_enable": "Povolit odesílání telemetrie ABRP",
           "abrp_api_key": "api_key ABRP (vývojářský klíč)",
           "abrp_user_token": "Token ABRP (pro vozidlo)"
@@ -229,6 +231,21 @@
         "data": {
           "username": "E-mail",
           "password": "Heslo"
+        }
+      },
+      "add_tibber": {
+        "title": "Tibber — čtecí kanál pro elektromobil (OAuth2)",
+        "description": "Přidej data o nabíjení svého elektromobilu z oficiálního Data API Tibberu jako zdroj jen pro čtení s nejnižší prioritou — pouze doplňuje mezery, které vlastní kanály tvého vozu nechají prázdné, a nikdy nepřepisuje čerstvější data. Jednorázové nastavení:\n\n1. Otevři {manage_url} a vytvoř OAuth2 klienta.\n2. Nastav jeho redirect URI přesně na `{redirect_uri}`.\n3. Uděl oprávnění pro čtení (user, homes, vehicles).\n4. Níže vlož client ID a client secret.\n\nJen pro čtení — Tibber tvé auto ovládat nemůže. Tvé auto už musí být spárované v aplikaci Tibber.",
+        "data": {
+          "tibber_client_id": "Client ID Tibberu",
+          "tibber_client_secret": "Client secret Tibberu"
+        }
+      },
+      "tibber_authorize": {
+        "title": "Tibber — autorizace přístupu",
+        "description": "Otevři tuto URL v prohlížeči, přihlas se k Tibberu a povol přístup:\n\n{authorize_url}\n\nJakmile přístup povolíš, prohlížeč tě přesměruje na stránku my.home-assistant.io. Zkopíruj CELOU adresu z adresního řádku (obsahuje ?code=…) a vlož ji níže.",
+        "data": {
+          "tibber_auth_response": "Přesměrovaná URL (nebo kód)"
         }
       }
     },

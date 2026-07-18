@@ -44,6 +44,7 @@ GPS / odometer / climate / charge-power(kW) are NOT exposed by Tibber (any surfa
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from aiohttp import ClientSession, ClientTimeout
@@ -209,6 +210,12 @@ class TibberDataSource:
         self._refresh_token = refresh_token
         self._client_id = client_id
         self._client_secret = client_secret
+        # Set by the coordinator at arm time: awaited with the rotated bundle
+        # after every successful refresh so entry.data keeps the live refresh
+        # token (Tibber rotates it) and a restart never replays a consumed one.
+        self.on_tokens_changed: (
+            Callable[[dict[str, str]], Awaitable[None]] | None
+        ) = None
 
     @property
     def refresh_token(self) -> str:
@@ -245,6 +252,19 @@ class TibberDataSource:
         rt = body.get("refresh_token")
         if isinstance(rt, str) and rt:
             self._refresh_token = rt
+        # Persist the rotated bundle (the coordinator wires this to entry.data)
+        # so a restart doesn't replay a consumed refresh token. Fail-soft — a
+        # persistence hiccup must never break the read.
+        if self.on_tokens_changed is not None:
+            try:
+                await self.on_tokens_changed({
+                    "access_token": self._access_token,
+                    "refresh_token": self._refresh_token,
+                    "client_id": self._client_id,
+                    "client_secret": self._client_secret,
+                })
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug("Tibber token-persist hook failed: %s", err)
         return True
 
     async def _get(self, path: str, *, _retried: bool = False) -> Any:

@@ -179,6 +179,8 @@
           "supplementary_eu_portal": "Lisää EU Data Act -portaalin lukukanava",
           "remove_supplementary_authproxy": "Poista vw.de-lukukanava",
           "remove_supplementary_eu_portal": "Poista EU Data Act -portaalin lukukanava",
+          "supplementary_tibber": "Lisää Tibber-lukukanava (sähköauton lataustiedot)",
+          "remove_supplementary_tibber": "Poista Tibber-lukukanava",
           "abrp_enable": "Ota käyttöön ABRP-telemetrian lähetys",
           "abrp_api_key": "ABRP api_key (kehittäjäavain)",
           "abrp_user_token": "ABRP-tunniste (ajoneuvokohtainen)"
@@ -229,6 +231,21 @@
         "data": {
           "username": "Sähköposti",
           "password": "Salasana"
+        }
+      },
+      "add_tibber": {
+        "title": "Tibber — sähköauton lukukanava (OAuth2)",
+        "description": "Lisää sähköautosi lataustiedot Tibberin virallisesta Data API:sta vain luku -lähteenä, jolla on matalin prioriteetti — se täyttää vain aukot, jotka auton omat kanavat jättävät tyhjiksi, eikä koskaan korvaa tuoreempaa dataa. Kertaluonteinen käyttöönotto:\n\n1. Avaa {manage_url} ja luo OAuth2-asiakas.\n2. Aseta sen uudelleenohjaus-URI:ksi täsmälleen `{redirect_uri}`.\n3. Myönnä lukuoikeudet (user, homes, vehicles).\n4. Liitä asiakastunnus (client ID) ja asiakassalaisuus (client secret) alle.\n\nVain luku — Tibber ei voi ohjata autoasi. Autosi on jo oltava paritettuna Tibber-sovelluksessa.",
+        "data": {
+          "tibber_client_id": "Tibberin asiakastunnus (client ID)",
+          "tibber_client_secret": "Tibberin asiakassalaisuus (client secret)"
+        }
+      },
+      "tibber_authorize": {
+        "title": "Tibber — valtuuta pääsy",
+        "description": "Avaa tämä URL-osoite selaimessa, kirjaudu Tibberiin ja salli pääsy:\n\n{authorize_url}\n\nKun sallit pääsyn, selaimesi ohjataan my.home-assistant.io-sivulle. Kopioi KOKO osoite osoiterivistä (se sisältää ?code=…) ja liitä se alle.",
+        "data": {
+          "tibber_auth_response": "Uudelleenohjattu URL-osoite (tai koodi)"
         }
       }
     },

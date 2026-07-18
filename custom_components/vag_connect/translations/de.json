@@ -179,6 +179,8 @@
           "supplementary_eu_portal": "EU-Data-Act-Portal-Lesekanal hinzufügen",
           "remove_supplementary_authproxy": "vw.de-Lesekanal entfernen",
           "remove_supplementary_eu_portal": "EU-Data-Act-Portal-Lesekanal entfernen",
+          "supplementary_tibber": "Tibber-Lesekanal hinzufügen (E-Auto-Ladedaten)",
+          "remove_supplementary_tibber": "Tibber-Lesekanal entfernen",
           "abrp_enable": "ABRP-Telemetrie senden",
           "abrp_api_key": "ABRP-api_key (Entwicklerschlüssel)",
           "abrp_user_token": "ABRP-Token (pro Fahrzeug)"
@@ -229,6 +231,21 @@
         "data": {
           "username": "E-Mail",
           "password": "Passwort"
+        }
+      },
+      "add_tibber": {
+        "title": "Tibber — E-Auto-Lesekanal (OAuth2)",
+        "description": "Fügt die Ladedaten deines E-Autos aus Tibbers offizieller Data-API als nur-lesende Quelle mit niedrigster Priorität hinzu — sie füllt nur Lücken, die die eigenen Kanäle deines Autos leer lassen, und überschreibt nie aktuellere Daten. Einmalige Einrichtung:\n\n1. Öffne {manage_url} und erstelle einen OAuth2-Client.\n2. Setze dessen Redirect-URI exakt auf `{redirect_uri}`.\n3. Erteile die Lese-Scopes (user, homes, vehicles).\n4. Füge unten die Client-ID und das Client-Secret ein.\n\nNur Lesen — Tibber kann dein Auto nicht steuern. Dein Auto muss bereits in der Tibber-App gekoppelt sein.",
+        "data": {
+          "tibber_client_id": "Tibber Client-ID",
+          "tibber_client_secret": "Tibber Client-Secret"
+        }
+      },
+      "tibber_authorize": {
+        "title": "Tibber — Zugriff autorisieren",
+        "description": "Öffne diese URL in einem Browser, melde dich bei Tibber an und erlaube den Zugriff:\n\n{authorize_url}\n\nNach der Freigabe wird dein Browser auf eine my.home-assistant.io-Seite weitergeleitet. Kopiere die VOLLSTÄNDIGE Adresse aus der Adresszeile (sie enthält ?code=…) und füge sie unten ein.",
+        "data": {
+          "tibber_auth_response": "Weitergeleitete URL (oder der Code)"
         }
       }
     },

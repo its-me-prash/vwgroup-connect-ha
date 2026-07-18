@@ -179,6 +179,8 @@
           "supplementary_eu_portal": "Tilføj en EU Data Act-portallæsekanal",
           "remove_supplementary_authproxy": "Fjern vw.de-læsekanalen",
           "remove_supplementary_eu_portal": "Fjern EU Data Act-portallæsekanalen",
+          "supplementary_tibber": "Tilføj en Tibber-læsekanal (elbilens ladedata)",
+          "remove_supplementary_tibber": "Fjern Tibber-læsekanalen",
           "abrp_enable": "Aktivér ABRP-telemetri-push",
           "abrp_api_key": "ABRP api_key (udviklernøgle)",
           "abrp_user_token": "ABRP-token (pr. køretøj)"
@@ -229,6 +231,21 @@
         "data": {
           "username": "E-mail",
           "password": "Adgangskode"
+        }
+      },
+      "add_tibber": {
+        "title": "Tibber — elbil-læsekanal (OAuth2)",
+        "description": "Tilføj din elbils ladedata fra Tibbers officielle Data API som en skrivebeskyttet kilde med lavest prioritet — den udfylder kun de huller, din bils egne kanaler efterlader tomme, og overskriver aldrig friskere data. Engangsopsætning:\n\n1. Åbn {manage_url}, og opret en OAuth2-klient.\n2. Sæt dens redirect-URI til præcis `{redirect_uri}`.\n3. Tildel læse-scopes (user, homes, vehicles).\n4. Indsæt client ID og client secret nedenfor.\n\nSkrivebeskyttet — Tibber kan ikke sende kommandoer til din bil. Din bil skal allerede være parret i Tibber-appen.",
+        "data": {
+          "tibber_client_id": "Tibber client ID",
+          "tibber_client_secret": "Tibber client secret"
+        }
+      },
+      "tibber_authorize": {
+        "title": "Tibber — godkend adgang",
+        "description": "Åbn denne URL i en browser, log ind på Tibber, og tillad adgang:\n\n{authorize_url}\n\nNår du har tilladt adgang, bliver din browser omdirigeret til en my.home-assistant.io-side. Kopiér HELE adressen fra adresselinjen (den indeholder ?code=…), og indsæt den nedenfor.",
+        "data": {
+          "tibber_auth_response": "Omdirigeret URL (eller koden)"
         }
       }
     },

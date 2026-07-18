@@ -179,6 +179,8 @@
           "supplementary_eu_portal": "EU Data Act-portaal-leeskanaal toevoegen",
           "remove_supplementary_authproxy": "vw.de-leeskanaal verwijderen",
           "remove_supplementary_eu_portal": "EU Data Act-portaal-leeskanaal verwijderen",
+          "supplementary_tibber": "Tibber-leeskanaal toevoegen (EV-laadgegevens)",
+          "remove_supplementary_tibber": "Tibber-leeskanaal verwijderen",
           "abrp_enable": "ABRP-telemetrie verzenden inschakelen",
           "abrp_api_key": "ABRP-api_key (ontwikkelaarssleutel)",
           "abrp_user_token": "ABRP-token (per voertuig)"
@@ -229,6 +231,21 @@
         "data": {
           "username": "E-mail",
           "password": "Wachtwoord"
+        }
+      },
+      "add_tibber": {
+        "title": "Tibber — EV-leeskanaal (OAuth2)",
+        "description": "Voeg de laadgegevens van je EV toe via de officiële Data API van Tibber, als alleen-lezen bron met de laagste prioriteit — die vult alleen gaten die de eigen kanalen van je auto leeg laten en overschrijft nooit versere gegevens. Eenmalige instelling:\n\n1. Open {manage_url} en maak een OAuth2-client aan.\n2. Stel de redirect-URI exact in op `{redirect_uri}`.\n3. Geef de lees-scopes vrij (user, homes, vehicles).\n4. Plak hieronder de client ID en de client secret.\n\nAlleen-lezen — Tibber kan je auto niet aansturen. Je auto moet al gekoppeld zijn in de Tibber-app.",
+        "data": {
+          "tibber_client_id": "Tibber client ID",
+          "tibber_client_secret": "Tibber client secret"
+        }
+      },
+      "tibber_authorize": {
+        "title": "Tibber — toegang autoriseren",
+        "description": "Open deze URL in een browser, log in bij Tibber en sta toegang toe:\n\n{authorize_url}\n\nNadat je toegang hebt toegestaan, wordt je browser doorgestuurd naar een my.home-assistant.io-pagina. Kopieer het VOLLEDIGE adres uit de adresbalk (het bevat ?code=…) en plak het hieronder.",
+        "data": {
+          "tibber_auth_response": "Doorgestuurde URL (of de code)"
         }
       }
     },

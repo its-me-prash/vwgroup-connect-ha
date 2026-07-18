@@ -179,6 +179,8 @@
           "supplementary_eu_portal": "Añadir un canal de lectura del portal EU Data Act",
           "remove_supplementary_authproxy": "Eliminar el canal de lectura vw.de",
           "remove_supplementary_eu_portal": "Eliminar el canal de lectura del portal EU Data Act",
+          "supplementary_tibber": "Añadir un canal de lectura Tibber (datos de carga del vehículo eléctrico)",
+          "remove_supplementary_tibber": "Eliminar el canal de lectura Tibber",
           "abrp_enable": "Activar envío de telemetría a ABRP",
           "abrp_api_key": "api_key de ABRP (clave de desarrollador)",
           "abrp_user_token": "Token de ABRP (por vehículo)"
@@ -229,6 +231,21 @@
         "data": {
           "username": "Correo",
           "password": "Contraseña"
+        }
+      },
+      "add_tibber": {
+        "title": "Tibber — canal de lectura del vehículo eléctrico (OAuth2)",
+        "description": "Añade los datos de carga de tu vehículo eléctrico desde la API de datos oficial de Tibber como fuente de solo lectura y de menor prioridad: solo rellena los huecos que dejan vacíos los canales propios de tu coche y nunca sobrescribe datos más recientes. Configuración única:\n\n1. Abre {manage_url} y crea un cliente OAuth2.\n2. Establece su URI de redirección exactamente como `{redirect_uri}`.\n3. Concede los permisos de lectura (user, homes, vehicles).\n4. Pega el ID de cliente y el secreto de cliente abajo.\n\nSolo lectura — Tibber no puede enviar comandos a tu coche. Tu coche ya debe estar vinculado en la app de Tibber.",
+        "data": {
+          "tibber_client_id": "ID de cliente de Tibber",
+          "tibber_client_secret": "Secreto de cliente de Tibber"
+        }
+      },
+      "tibber_authorize": {
+        "title": "Tibber — autorizar acceso",
+        "description": "Abre esta URL en un navegador, inicia sesión en Tibber y permite el acceso:\n\n{authorize_url}\n\nTras permitir el acceso, tu navegador se redirige a una página de my.home-assistant.io. Copia la dirección COMPLETA de la barra de direcciones (contiene ?code=…) y pégala abajo.",
+        "data": {
+          "tibber_auth_response": "URL de redirección (o el código)"
         }
       }
     },

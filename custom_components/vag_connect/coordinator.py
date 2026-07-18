@@ -1412,6 +1412,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             CONF_SUPPLEMENTARY_EU_PORTAL,
             CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD,
             CONF_SUPPLEMENTARY_EU_PORTAL_USERNAME,
+            CONF_SUPPLEMENTARY_TIBBER,
+            CONF_SUPPLEMENTARY_TIBBER_TOKENS,
         )
         data = self.entry.data
         client = self._cariad_client
@@ -1457,6 +1459,25 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             except Exception as err:  # noqa: BLE001
                 _LOGGER.warning(
                     "VAG Connect: supplementary portal arming failed (%s)"
+                    " — primary channel unaffected.", type(err).__name__,
+                )
+
+        # ── v2.19.0: TIBBER supplementary (OAuth2, read-only gap-fill) ──────
+        arm_tibber = getattr(client, "arm_supplementary_tibber", None)
+        if data.get(CONF_SUPPLEMENTARY_TIBBER) and arm_tibber is not None:
+            try:
+                armed = bool(
+                    await arm_tibber(data.get(CONF_SUPPLEMENTARY_TIBBER_TOKENS))
+                )
+                if armed:
+                    # the OAuth2 refresh token rotates in place — persist it back
+                    # to entry.data so a restart never replays a consumed token.
+                    src = getattr(client, "_supplementary_tibber", None)
+                    if src is not None:
+                        src.on_tokens_changed = self._persist_tibber_tokens
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning(
+                    "VAG Connect: supplementary Tibber arming failed (%s)"
                     " — primary channel unaffected.", type(err).__name__,
                 )
 
@@ -1521,6 +1542,29 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         "id_token": tokens.id_token,
                         "expires_at": tokens.expires_at,
                         "strategy": "mbb",
+                    },
+                },
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
+    async def _persist_tibber_tokens(self, tokens: Any) -> None:
+        """v2.19.0 — write the Tibber channel's rotated OAuth2 bundle back to
+        entry.data[CONF_SUPPLEMENTARY_TIBBER_TOKENS] so the durable refresh
+        survives a restart. Fail-soft. The bundle is never logged."""
+        from .const import CONF_SUPPLEMENTARY_TIBBER_TOKENS  # noqa: PLC0415
+        if not isinstance(tokens, dict):
+            return
+        try:
+            self.hass.config_entries.async_update_entry(
+                self.entry,
+                data={
+                    **self.entry.data,
+                    CONF_SUPPLEMENTARY_TIBBER_TOKENS: {
+                        "access_token": tokens.get("access_token", ""),
+                        "refresh_token": tokens.get("refresh_token", ""),
+                        "client_id": tokens.get("client_id", ""),
+                        "client_secret": tokens.get("client_secret", ""),
                     },
                 },
             )
