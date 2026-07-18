@@ -108,6 +108,13 @@ _USER_AGENT = (
     "(KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
 )
 _NO_CONTENT_SUFFIX = "_no_content_found.zip"
+
+# Junk sentinels the portal uses for state STRINGS (no active session / single-
+# port car / infra not up / no reading). Any of these means "no value" → the
+# field stays None instead of surfacing the literal token as a phantom reading.
+_CHARGE_STATE_JUNK = frozenset(
+    {"invalid", "unavailable", "notavailable", "error", "unknown"}
+)
 _TIMEOUT_S = 60
 # v2.12.4 (#428/#429/#430/#431) — statuses that mean "the portal is having a
 # bad moment", not "your session is dead". During the VW-side all-brands
@@ -1211,9 +1218,16 @@ def map_dataset_to_vehicle_data(
     cs = first("charging_state_report.current_charge_state", "current_charge_state",
                "chargingState", "charging_state")
     if cs:
-        # is_charging from the RAW value (logic unchanged); store a shortened
-        # label for display (a13/A4 — strips verbose VW enum prefixes).
-        d.is_charging = cs.lower() in ("charging", "chargingacactive", "active")
+        # is_charging from the RAW value; store a shortened label for display
+        # (a13/A4 — strips verbose VW enum prefixes). #764 — the portal one-time
+        # export reports the active state as ``chargingHvBattery`` (Motii08's Leon
+        # VZ e-Hybrid, confirmed charging: SoC 50 %, power 1.9 kW, 230 min left);
+        # ``chargingDcActive`` is the DC counterpart of the AC state already here.
+        # Without these the charging binary_sensor read OFF while actively charging.
+        d.is_charging = cs.lower() in (
+            "charging", "chargingacactive", "chargingdcactive",
+            "charginghvbattery", "active",
+        )
         d.charging_state = _shorten_enum(cs)
 
     else:
@@ -1642,9 +1656,15 @@ def map_dataset_to_vehicle_data(
         d.charging_type = _shorten_enum(_ctype)
 
     # charging_mode → charging_preferred_mode (guard is None so a BFF value
-    # is never clobbered).
+    # is never clobbered). #764 — drop the portal 'invalid'/etc. junk sentinels
+    # the same way the plug-state strings do, so the literal 'invalid' never
+    # surfaces as the preferred charging mode.
     _cmode = first("charging_mode", "chargingMode")
-    if _cmode is not None and d.charging_preferred_mode is None:
+    if (
+        _cmode is not None
+        and d.charging_preferred_mode is None
+        and str(_cmode).strip().lower() not in _CHARGE_STATE_JUNK
+    ):
         d.charging_preferred_mode = _shorten_enum(_cmode)
 
     # battery_care_mode.charge_bcam_threshold → battery_care_target_soc_pct.
@@ -1772,12 +1792,10 @@ def map_dataset_to_vehicle_data(
         raw = first(*names)
         if raw is None:
             return None
-        # junk sentinels for these state strings: no active session / single-
-        # port car / infra not yet up. Skip → field stays None (no phantom
+        # junk sentinels for these state strings (no active session / single-
+        # port car / infra not yet up). Skip → field stays None (no phantom
         # entity) but the raw key is still consumed for discovery hygiene.
-        if str(raw).strip().lower() in (
-            "invalid", "unavailable", "notavailable", "error", "unknown",
-        ):
+        if str(raw).strip().lower() in _CHARGE_STATE_JUNK:
             return None
         return _shorten_enum(raw)
 
@@ -2128,15 +2146,18 @@ def map_dataset_to_vehicle_data(
     if _spoiler_pos is not None and d.spoiler_position_pct is None:
         d.spoiler_position_pct = _spoiler_pos
 
-    # C. Trip odometer endpoints (km).
+    # C. Trip odometer endpoints (km). #764 — guard >= 0: a distance/odometer is
+    # never negative, and the lifetime fields use -1 as a "not set yet" sentinel
+    # (Motii08's long_term_data_start_mileage=-1 leaked -1 km onto the start
+    # odometer). Skip negatives so the sentinel never surfaces.
     _lt_dist = _to_int(first("long_term_data_mileage"))
-    if _lt_dist is not None:
+    if _lt_dist is not None and _lt_dist >= 0:
         d.lifetime_trip_distance_km = _lt_dist
     _lt_start = _to_int(first("long_term_data_start_mileage"))
-    if _lt_start is not None:
+    if _lt_start is not None and _lt_start >= 0:
         d.lifetime_trip_start_odometer_km = _lt_start
     _st_start = _to_int(first("short_term_data_start_mileage"))
-    if _st_start is not None:
+    if _st_start is not None and _st_start >= 0:
         d.last_trip_start_odometer_km = _st_start
 
     # D. Fuel / fluids / SCR.
