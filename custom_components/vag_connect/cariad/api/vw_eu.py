@@ -2186,29 +2186,22 @@ class VWEUClient(CariadBaseClient):
     async def command_start_aux_heating(
         self,
         vin: str,
-        spin: str = "",  # noqa: ARG002 - kept for signature parity with SEAT/CUPRA
+        spin: str = "",
         duration_min: int = 30,
-        target_c: float = 21.0,
+        target_c: float = 21.0,  # noqa: ARG002 - pre-heater takes no target temp
     ) -> None:
         """Start engine pre-heater (Audi + VW EU CARIAD-BFF).
 
-        Endpoint: ``POST /vehicle/v1/vehicles/{vin}/auxiliary-heating/start``
-        with v2 fallback via ``_post_command`` on 404.
-
-        Payload shape (from upstream APK research, CARIAD vocabulary):
-            {
-                "command": "start",
-                "duration_in_min": <int>,
-                "target_temperature_in_kelvin": <float>,
-            }
-        Target temperature is sent in Kelvin (Celsius + 273.15) to match
-        every other CARIAD climate endpoint that takes Kelvin on the wire.
-
-        ``spin`` parameter is accepted for signature parity with the
-        SEAT/CUPRA OLA path but ignored here: VW EU + Audi do not gate
-        the engine pre-heater behind SecToken on this surface (in
-        contrast to engine remote start which uses the separate
-        ``/vehicle/v1/engine/{VIN}/...`` two-step S-PIN flow).
+        Endpoint: ``POST /vehicle/v1/vehicles/{vin}/auxiliaryheating/start``
+        — one word, matching the CARIAD read field ``auxiliaryHeating``. The
+        earlier hyphenated ``auxiliary-heating`` (tried on v1 AND v2) 404'd for
+        every Audi (#752). Body is the minimal
+        ``{"duration_min": <int>, "spin": <S-PIN>}`` the myAudi backend accepts
+        (community-verified against a working client) — the old
+        ``{command, duration_in_min, target_temperature_in_kelvin}`` was an
+        unverified APK-research guess, and the pre-heater request carries no
+        target temperature (``target_c`` kept for signature parity, unused). The
+        S-PIN is sent when configured.
         """
         # v2.15.12 (#584 follow-up) — on a legacy MBB-primary entry
         # ``self._access_token`` is the MBB bearer, which the CARIAD BFF
@@ -2223,22 +2216,17 @@ class VWEUClient(CariadBaseClient):
                 "Car-Net two-way path yet — this vehicle uses MBB, which has "
                 "no verified aux-heating command",
             )
-        kelvin = round(float(target_c) + 273.15, 2)
-        await self._post_command(
-            vin,
-            "auxiliary-heating/start",
-            json={
-                "command": "start",
-                "duration_in_min": int(duration_min),
-                "target_temperature_in_kelvin": kelvin,
-            },
-        )
+        _pin = spin or self._spin
+        body: dict[str, Any] = {"duration_min": int(duration_min)}
+        if _pin:
+            body["spin"] = _pin
+        await self._post_command(vin, "auxiliaryheating/start", json=body)
 
     async def command_stop_aux_heating(self, vin: str) -> None:
         """Stop engine pre-heater (Audi + VW EU CARIAD-BFF).
 
-        ``POST /vehicle/v1/vehicles/{vin}/auxiliary-heating/stop`` with the
-        minimal ``{"command": "stop"}`` payload. No S-PIN, no SecToken,
+        ``POST /vehicle/v1/vehicles/{vin}/auxiliaryheating/stop`` (one word,
+        #752) with an empty body — matching a working myAudi client's stop.
         v2 fallback on 404 via ``_post_command``.
         """
         # v2.15.12 (#584 follow-up) — same MBB-primary guard as start: don't
@@ -2250,11 +2238,7 @@ class VWEUClient(CariadBaseClient):
                 "Car-Net two-way path yet — this vehicle uses MBB, which has "
                 "no verified aux-heating command",
             )
-        await self._post_command(
-            vin,
-            "auxiliary-heating/stop",
-            json={"command": "stop"},
-        )
+        await self._post_command(vin, "auxiliaryheating/stop", json={})
 
     async def command_set_departure_timer(
         self,
