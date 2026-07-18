@@ -317,4 +317,17 @@ DECLARED_CAPABILITIES: dict[str, dict[str, bool]] = {
         "fcm_push": False,
         "dag_login": False,
     },
+    # v2.19.0 — Audi US/CA login foundation (CARIAD-BFF NA). Declared
+    # CONSERVATIVELY: the data plane is attestation-gated / live-unconfirmed, so
+    # we don't claim charging/climatisation reads until a US tester confirms them
+    # (avoids a false drift signal). dag_login IS wired (Prash's clean auth).
+    "audi_na": {
+        "charging": False,
+        "climatisation": False,
+        "trip_statistics": False,
+        "brake_service": False,
+        "ola_push": False,
+        "fcm_push": False,
+        "dag_login": True,
+    },
 }

@@ -81,7 +81,11 @@ def test_is_portal_dag_eligible():
 def test_dag_enabled_brands_unchanged():
     """The BFF DAG set must NOT gain volkswagen (would route to the dead BFF)."""
     dg = _load_dg()
-    assert dg.DAG_ENABLED_BRANDS == frozenset({"audi", "skoda", "seat", "cupra"})
+    # v2.19.0 — audi_na (Audi US/CA, NA IDP) is a deliberate addition; the guard
+    # that matters is that volkswagen never joins (routes to the dead EU BFF).
+    assert dg.DAG_ENABLED_BRANDS == frozenset(
+        {"audi", "skoda", "seat", "cupra", "audi_na"}
+    )
     assert "volkswagen" not in dg.DAG_ENABLED_BRANDS
 
 

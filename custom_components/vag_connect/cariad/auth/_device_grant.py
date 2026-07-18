@@ -134,6 +134,8 @@ class DeviceAuthorizationGrant:
         *,
         scope: str = "openid profile",
         strategy: str = "device_grant",
+        device_auth_url: str = _IDP_DEVICE_AUTH_URL,
+        token_url: str = _IDP_TOKEN_URL,
     ) -> None:
         """Initialise with the brand-specific OAuth client_id + scope.
 
@@ -151,6 +153,10 @@ class DeviceAuthorizationGrant:
         self._session = session
         self._client_id = client_id
         self._scope = scope
+        # v2.19.0 — per-instance IDP URLs so a non-EU region (Audi US/CA on
+        # identity.na.vwgroup.io) can drive the same flow. Default = EU IDP.
+        self._device_auth_url = device_auth_url
+        self._token_url = token_url
         # v2.13.0 — the strategy tag this grant stamps onto its TokenSet.
         # ``device_grant`` = normal CARIAD-BFF brands (Audi/Škoda/SEAT/CUPRA).
         # ``device_grant_portal`` = the EU-Data-Act PORTAL clients (VW EU +
@@ -175,7 +181,7 @@ class DeviceAuthorizationGrant:
 
         try:
             async with self._session.post(
-                _IDP_DEVICE_AUTH_URL,
+                self._device_auth_url,
                 data={"client_id": self._client_id, "scope": self._scope},
                 headers={
                     "Content-Type": "application/x-www-form-urlencoded",
@@ -262,7 +268,7 @@ class DeviceAuthorizationGrant:
 
             try:
                 async with self._session.post(
-                    _IDP_TOKEN_URL,
+                    self._token_url,
                     data={
                         "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
                         "device_code": device_code,
@@ -372,7 +378,7 @@ class DeviceAuthorizationGrant:
         }
         try:
             async with self._session.post(
-                _IDP_TOKEN_URL,
+                self._token_url,
                 data=data,
                 timeout=ClientTimeout(total=_REQUEST_TIMEOUT_S),
             ) as resp:
@@ -455,7 +461,28 @@ class DeviceAuthorizationGrant:
 # client is still not whitelisted either way.)
 #
 # Update when VW expands the whitelist.
-DAG_ENABLED_BRANDS = frozenset({"audi", "skoda", "seat", "cupra"})
+DAG_ENABLED_BRANDS = frozenset({"audi", "skoda", "seat", "cupra", "audi_na"})
+
+# v2.19.0 — Audi US/CA (audi_na) drives the SAME RFC-8628 flow against the NA IDP
+# instead of the EU one (endpoints mirror EU on identity.na.vwgroup.io, from the
+# live US myAudi market-config / NA OIDC discovery). LIVE-GATED / UNCONFIRMED,
+# needs a real US-Audi tester: (1) whether the NA IDP exposes
+# /oidc/v1/device_authorization at all, (2) whether client 7c6b4634 is
+# device-code-capable, (3) whether a device-grant token then reads na.bff.
+# NOTE: the community "Audi Connect" project reads NA Audi data via the
+# PASSWORD/authorization-code path (no attestation on the reads); this DAG path
+# is the preferred clean-auth alternative — wired here, but its read-capability
+# on NA is the open question the password path does not have.
+_NA_IDP_DEVICE_AUTH_URL = "https://identity.na.vwgroup.io/oidc/v1/device_authorization"
+_NA_IDP_TOKEN_URL = "https://identity.na.vwgroup.io/oidc/v1/token"
+
+
+def dag_idp_urls(brand: str) -> tuple[str, str]:
+    """(device_auth_url, token_url) for a DAG brand — NA IDP for Audi US/CA,
+    the EU IDP for everyone else."""
+    if brand.lower() == "audi_na":
+        return _NA_IDP_DEVICE_AUTH_URL, _NA_IDP_TOKEN_URL
+    return _IDP_DEVICE_AUTH_URL, _IDP_TOKEN_URL
 
 # v2.9.0 - provenance canary, see ``_canaries.py``. Module-level
 # constant so any port of the DAG browser-login flow in this file

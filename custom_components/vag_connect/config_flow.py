@@ -1131,12 +1131,18 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 )
             else:
                 from .cariad.models import BRANDS as BRAND_CONFIGS  # noqa: PLC0415
+                from .cariad.auth._device_grant import dag_idp_urls  # noqa: PLC0415
 
                 brand_cfg = BRAND_CONFIGS[self._dag_brand]
+                # v2.19.0 — Audi US/CA drives the flow against the NA IDP; every
+                # other DAG brand keeps the EU IDP (defaults).
+                _dev_auth_url, _tok_url = dag_idp_urls(self._dag_brand)
                 self._dag_client = DeviceAuthorizationGrant(
                     self._dag_session,
                     brand_cfg.client_id,
                     scope=brand_cfg.scope,
+                    device_auth_url=_dev_auth_url,
+                    token_url=_tok_url,
                 )
             code = await self._dag_client.request_device_code()
             self._dag_device_code = code.device_code

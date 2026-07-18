@@ -296,6 +296,7 @@ BRANDS: dict[str, BrandConfig] = {
     "seat":          BRAND_SEAT,
     "cupra":         BRAND_CUPRA,
     "volkswagen_na": BRAND_VW_NA_MODEL,
+    "audi_na":       BRAND_AUDI_NA,
     "porsche":       BRAND_PORSCHE,
     # v2.14.11 — Bentley wired (login+read; runs on the Audi IDK client/tenant).
     "bentley":       BRAND_BENTLEY,

@@ -37,6 +37,8 @@ class TestModels:
             "volkswagen_na", "porsche",
             # v2.14.11 — Bentley wired (Audi IDK tenant; login+read).
             "bentley",
+            # v2.19.0 — Audi US/CA (CARIAD-BFF NA login foundation).
+            "audi_na",
         }
 
     def test_brand_vw_client_id(self):

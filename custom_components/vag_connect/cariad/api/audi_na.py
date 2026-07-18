@@ -23,14 +23,20 @@ as ``AudiClient`` mirrors ``VWEUClient``:
   attestation wall blocks the token exchange / reads.
 ════════════════════════════════════════════════════════════════════════════
 
-AUTH MODE: Prash's preference is DAG (device-code) login for cleanliness. The base
-CARIAD client already carries a device-grant strategy (``base.py``
-``device_grant_portal`` / ``auth/_device_grant.py``), BUT it hardcodes the EU IDP
-device_authorization endpoint and — per the MBB findings — device-grant delivers
-login + license + commands, NOT data reads. So the foundation authenticates via
-the CONFIRMED IDK-PKCE flow (straight from the NA discovery doc); the DAG upgrade
-is gated on a live probe of ``identity.na.vwgroup.io/oidc/v1/device_authorization``
-(existence unconfirmed) and would still not unlock the attestation-walled reads.
+AUTH MODE — DAG is now WIRED (Prash's preferred clean auth): ``audi_na`` is in
+``DAG_ENABLED_BRANDS`` and the browser-login flow drives RFC-8628 against the NA
+IDP via ``dag_idp_urls`` + the per-instance URL overrides on
+``DeviceAuthorizationGrant``. This client also carries the IDK-PKCE (password)
+path as a fallback.
+
+READ-PATH — corrected understanding: a community HA Audi-NA reference reads NA
+vehicle data via the PASSWORD / authorization-code IDK bearer against
+``na.bff.cariad.digital`` with NO attestation on the reads — the Play-Integrity
+wall sits on the device-grant / registration flow, not the authcode read. So NA
+reads may well work. The open, LIVE-GATED questions (a real US-Audi tester settles
+all three): does the NA IDP expose ``/oidc/v1/device_authorization``, is client
+7c6b4634 device-code-capable, and does a device-grant token (vs the password one)
+read ``na.bff``.
 
 Country: only the US market-config is live-verified. CA is accepted for interface
 parity but currently reuses the US brand — a CA-specific market-config sweep
