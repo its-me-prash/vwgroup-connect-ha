@@ -58,17 +58,23 @@ from __future__ import annotations
 # CI diff: https://github.com/upstream/cc-connector-
 # seatcupra/blob/main/src/carconnectivity_connectors/seatcupra/auth/
 # my_cupra_session.py
+#
+# v2.19.1 bump (2026-07-19, #779 rmalbrecht — Cupra Born OLA 403 persistent):
+# both brands raised to 2.19.1, the current Play-Store myCUPRA / mySEAT app
+# version (app-atlas-verified: docs/research/app-atlas/{cupra,seat}.md). The OLA
+# backend keeps rejecting the older header values with 403 regardless of token
+# validity, so the previous versions were moved into the fallback chain below.
 _OLA_HEADERS_BY_BRAND: dict[str, dict[str, str]] = {
     "seat": {
         "app-market": "android",
         "app-brand": "seat",
-        "app-version": "2.17.0",
+        "app-version": "2.19.1",
         "origin": "app",
     },
     "cupra": {
         "app-market": "android",
         "app-brand": "cupra",
-        "app-version": "2.15.0",
+        "app-version": "2.19.1",
         "origin": "app",
     },
 }
@@ -84,13 +90,21 @@ _OLA_HEADERS_BY_BRAND: dict[str, dict[str, str]] = {
 # Keep last 2-3 fallbacks; older than that is dead weight.
 _OLA_HEADERS_BY_BRAND_FALLBACK: dict[str, list[dict[str, str]]] = {
     "seat": [
-        # Older app-version known to have worked before 2026-05-20
-        # enforcement (we never had to specify these before).
-        # No fallbacks yet — primary is the first known-good.
+        # Previous primary (pre-2026-07-19), kept for the retry layer.
+        {
+            "app-market": "android",
+            "app-brand": "seat",
+            "app-version": "2.17.0",
+            "origin": "app",
+        },
     ],
     "cupra": [
-        # Same — pre-2026-05-20 no fallbacks existed; primary is
-        # first known-good after enforcement started.
+        {
+            "app-market": "android",
+            "app-brand": "cupra",
+            "app-version": "2.15.0",
+            "origin": "app",
+        },
     ],
 }
 
