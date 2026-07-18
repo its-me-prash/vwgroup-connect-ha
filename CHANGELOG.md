@@ -51,6 +51,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **Audi US / CA groundwork (experimental).** myAudi in North America runs on the same CARIAD backend as Europe, just the North-American region — so there's now an "Audi US / CA" brand wired to the real NA endpoints (host, identity provider and the live app client), with device-code (QR) login. Heads-up: it's a login foundation — whether North-American Audi vehicle data comes through off-device still needs a real US Audi tester to confirm, so treat it as experimental until then.
 - **Tibber can now fill in your EV's charge data (EU, opt-in).** If you're a Tibber customer with your car paired, you can add Tibber as an extra read channel in the integration options — it reads state of charge, target SoC, range and plug/charging status from Tibber's official Data API and folds them in as a *lowest-priority* source: only filling gaps your car's own channels left empty, never overwriting fresher data. Read-only (Tibber can't command the car). One-time setup: create your own OAuth2 client on the Tibber developer portal, authorize once, and the integration keeps the token refreshed from there. Because Tibber only updates while the car is connected/charging, its readings are treated as the least-trusted source, and every field it contributes is attributed to the `tibber` channel.
 
+### Thanks
+
+Thanks to **@gomble**, whose error report showed the integration was filing a GitHub issue over a brief DNS blip that fixes itself (#814). **@loungelizard2018** and **@cafemonkey**'s Scout reports are what surfaced the packed opening states we now decode (#794, #807). The full roll of reporters, requesters and testers is in [CONTRIBUTORS.md](CONTRIBUTORS.md) — thank you. 🙏
+
 ## [2.18.1] - 2026-07-17
 
 ### Fixed
