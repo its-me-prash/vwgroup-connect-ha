@@ -766,7 +766,14 @@ class VWEUClient(CariadBaseClient):
         """
         body: dict[str, Any] = {}
         if temp_c is not None:
-            body["targetTemperatureInCelsius"] = float(temp_c)
+            # #752 audit — the CARIAD climatisation/start action takes
+            # targetTemperature + targetTemperatureUnit (as our own simpler
+            # climate paths at command_start_climate + command_set_climate_
+            # temperature already do), NOT targetTemperatureInCelsius, which the
+            # backend silently ignores → the target temp was never applied on
+            # rich climate start.
+            body["targetTemperature"] = float(temp_c)
+            body["targetTemperatureUnit"] = "celsius"
         if glass_heating is not None:
             body["windowHeatingEnabled"] = bool(glass_heating)
         if any(s is not None for s in (seat_fl, seat_fr, seat_rl, seat_rr)):
@@ -783,7 +790,11 @@ class VWEUClient(CariadBaseClient):
                 bool(seat_rr) if seat_rr is not None else False
             )
         if climatisation_at_unlock is not None:
-            body["climatisationAtUnlock"] = bool(climatisation_at_unlock)
+            # #752 audit — CARIAD spells this key with a 'z'
+            # (climatiZationAtUnlock), even though the rest of the body uses 's'
+            # (climatisationMode / climatisationWithoutExternalPower). The 's'
+            # variant is silently dropped, so the at-unlock toggle was a no-op.
+            body["climatizationAtUnlock"] = bool(climatisation_at_unlock)
         if climatisation_mode is not None:
             body["climatisationMode"] = str(climatisation_mode)
         url = f"{self._base_for_vin(vin)}/vehicle/v1/vehicles/{vin}/climatisation/start"
@@ -977,7 +988,12 @@ class VWEUClient(CariadBaseClient):
 
         # Step 2: try Cariad-BFF (existing v1→v2 fallback)
         try:
-            await self._post_command(vin, "vehicleWakeup", json={})
+            # #752 audit — the BFF resource is all-lowercase 'vehiclewakeup'
+            # (the reference client's proven spelling; the CARIAD BFF is
+            # case-sensitive, cf. the auxiliaryheating fix). camelCase
+            # 'vehicleWakeup' risks a 404 our wrapper mis-reads as "MBB-backed",
+            # wrongly routing every CARIAD car's wake through the legacy stack.
+            await self._post_command(vin, "vehiclewakeup", json={})
             # Success — mark VIN as Cariad-backed if not already
             if cached_backend != "cariad":
                 self._mbb_backend_cache.set(vin, "cariad")

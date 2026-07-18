@@ -60,7 +60,7 @@ class TestRichClimateBody:
         url = call.args[0]
         body = call.kwargs["json"]
         assert url.endswith("/vehicle/v1/vehicles/VINX/climatisation/start")
-        assert body == {"targetTemperatureInCelsius": 21.5}
+        assert body == {"targetTemperature": 21.5, "targetTemperatureUnit": "celsius"}
 
     def test_glass_heating_only(self):
         call = self._run(glass_heating=True)
@@ -68,7 +68,7 @@ class TestRichClimateBody:
 
     def test_climatisation_at_unlock_only(self):
         call = self._run(climatisation_at_unlock=True)
-        assert call.kwargs["json"] == {"climatisationAtUnlock": True}
+        assert call.kwargs["json"] == {"climatizationAtUnlock": True}
 
     def test_climatisation_mode_only(self):
         call = self._run(climatisation_mode="economy")
@@ -87,13 +87,14 @@ class TestRichClimateBody:
         )
         body = call.kwargs["json"]
         assert body == {
-            "targetTemperatureInCelsius": 22.0,
+            "targetTemperature": 22.0,
+            "targetTemperatureUnit": "celsius",
             "windowHeatingEnabled": True,
             "zoneFrontLeftEnabled": True,
             "zoneFrontRightEnabled": True,
             "zoneRearLeftEnabled": False,
             "zoneRearRightEnabled": False,
-            "climatisationAtUnlock": False,
+            "climatizationAtUnlock": False,
             "climatisationMode": "comfort",
         }
 
@@ -166,7 +167,7 @@ class TestSeatGrouping:
         assert "zoneFrontRightEnabled" not in body
         assert "zoneRearLeftEnabled" not in body
         assert "zoneRearRightEnabled" not in body
-        assert body == {"targetTemperatureInCelsius": 20.0}
+        assert body == {"targetTemperature": 20.0, "targetTemperatureUnit": "celsius"}
 
 
 # ---------------------------------------------------------------------------
