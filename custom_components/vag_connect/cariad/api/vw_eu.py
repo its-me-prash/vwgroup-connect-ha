@@ -98,6 +98,61 @@ def _find_flat(node: Any, key: str) -> Any:
     return None
 
 
+# ── v2.19.1 (audit) — BFF command completion poll ──────────────────────────
+# The CARIAD BFF 202-accepts a command, then runs it asynchronously against the
+# vehicle. Without confirming, we report success on accept — so a command the
+# vehicle later REJECTS looks successful (the #666 optimistic snap-back). We
+# poll .../pendingrequests to a terminal status. Bounded so a slow backend can't
+# hang the command; raises ONLY on an explicit failure for the matching id.
+_BFF_CONFIRM_ATTEMPTS = 10
+_BFF_CONFIRM_SLEEP_S = 3.0
+_BFF_FAIL_STATES = frozenset(
+    {"failed", "fail", "unsuccessful", "error", "errored", "rejected"}
+)
+_BFF_OK_STATES = frozenset(
+    {"successful", "succeeded", "success", "completed", "done", "finished"}
+)
+
+
+def _bff_request_id(resp: Any) -> str | None:
+    """Extract the async request id from a BFF 202 command response."""
+    if not isinstance(resp, dict):
+        return None
+    data = resp.get("data")
+    candidates = [data] if isinstance(data, dict) else []
+    candidates.append(resp)
+    for obj in candidates:
+        for key in ("requestID", "requestId", "id"):
+            val = obj.get(key)
+            if isinstance(val, str) and val.strip():
+                return val.strip()
+    return None
+
+
+def _bff_status_for(pend: Any, request_id: str) -> str | None:
+    """Find the status of ``request_id`` in a pendingrequests response.
+
+    Returns the raw status string, or ``None`` when the request isn't listed
+    (not started yet / already cleared / unexpected shape)."""
+    items: list[Any] = []
+    if isinstance(pend, dict):
+        for key in ("data", "requests", "pendingrequests", "pendingRequests"):
+            val = pend.get(key)
+            if isinstance(val, list):
+                items = val
+                break
+    elif isinstance(pend, list):
+        items = pend
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        rid = it.get("id") or it.get("requestID") or it.get("requestId")
+        if rid is not None and str(rid) == str(request_id):
+            st = it.get("status") or it.get("state")
+            return str(st) if st is not None else None
+    return None
+
+
 class VWEUClient(CariadBaseClient):
     """VW EU / WeConnect client — emea.bff.cariad.digital.
 
@@ -1976,22 +2031,62 @@ class VWEUClient(CariadBaseClient):
         # v2.1.0 — per-VIN base URL via HomeRegion lookup.
         base = self._base_for_vin(vin)
         if self._supports_v2_paths(vin):
-            return await self._post(
+            resp = await self._post(
                 f"{base}/vehicle/v2/vehicles/{vin}/{path_suffix}", **kwargs,
             )
-        try:
-            return await self._post(
-                f"{base}/vehicle/v1/vehicles/{vin}/{path_suffix}", **kwargs,
-            )
-        except APIError as err:
-            if getattr(err, "status", 0) != 404:
-                raise
-            # v1 said the resource doesn't exist — try v2 once
-            result = await self._post(
-                f"{base}/vehicle/v2/vehicles/{vin}/{path_suffix}", **kwargs,
-            )
-            self._mark_v2_active(vin)
-            return result
+        else:
+            try:
+                resp = await self._post(
+                    f"{base}/vehicle/v1/vehicles/{vin}/{path_suffix}", **kwargs,
+                )
+            except APIError as err:
+                if getattr(err, "status", 0) != 404:
+                    raise
+                # v1 said the resource doesn't exist — try v2 once
+                resp = await self._post(
+                    f"{base}/vehicle/v2/vehicles/{vin}/{path_suffix}", **kwargs,
+                )
+                self._mark_v2_active(vin)
+        # v2.19.1 (audit) — confirm the accepted command actually ran at the
+        # vehicle (best-effort; only raises on an explicit rejection).
+        await self._await_bff_command(vin, base, resp)
+        return resp
+
+    async def _await_bff_command(self, vin: str, base: str, resp: Any) -> None:
+        """Confirm a just-accepted BFF command via the pendingrequests poll.
+
+        The BFF 202-accepts, then runs the command asynchronously. We poll the
+        matching request to a terminal status and raise VehicleCommandError on an
+        explicit failure so the coordinator's optimistic revert fires. SAFE /
+        best-effort: raises ONLY on an explicit failure for the matching request
+        id; on no request id, a poll error, an unexpected shape, or a timeout
+        without a terminal status it returns silently — never worse than the old
+        fire-and-forget behaviour."""
+        request_id = _bff_request_id(resp)
+        if not request_id:
+            return
+        for _ in range(_BFF_CONFIRM_ATTEMPTS):
+            await asyncio.sleep(_BFF_CONFIRM_SLEEP_S)
+            try:
+                pend = await self._get(
+                    f"{base}/vehicle/v1/vehicles/{vin}/pendingrequests"
+                )
+            except Exception:  # noqa: BLE001
+                return  # poll unavailable → keep the old (accept) behaviour
+            status = _bff_status_for(pend, request_id)
+            if status is None:
+                continue  # not listed yet / unknown → keep polling
+            low = status.strip().lower()
+            if low in _BFF_FAIL_STATES:
+                raise VehicleCommandError(
+                    "command",
+                    "the vehicle did not carry out the command "
+                    f"(status: {status})",
+                )
+            if low in _BFF_OK_STATES:
+                return
+            # any other value = still in progress → keep polling within the bound
+        return  # bound reached without a terminal status → accept (optimistic)
 
     async def _post_command_with_fallback_paths(
         self,
