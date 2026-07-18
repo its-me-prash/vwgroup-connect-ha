@@ -186,6 +186,47 @@ class TestEnrich:
         result = asyncio.run(coord._enrich(data))
         assert result["vehicle_state"] == "DRIVING"
 
+    def test_model_from_vgql_long_name(self):
+        """The rich longName wins for the device model."""
+        import asyncio
+        from custom_components.vag_connect.cariad.api.graphql import (
+            VehicleImageData,
+        )
+        coord = self._make_coord()
+        coord._cariad_client._image_data = {
+            "V1": VehicleImageData(
+                vin="V1", image_urls={},
+                long_name="Audi S6 Avant TDI quattro tiptronic",
+                short_name="S6 Avant", model_year=2021,
+            )
+        }
+        result = asyncio.run(
+            coord._enrich({"vin": "V1", "latitude": None, "longitude": None})
+        )
+        assert result["model"] == "Audi S6 Avant TDI quattro tiptronic"
+        assert result["model_year"] == 2021
+
+    def test_model_falls_back_to_short_name_when_long_null(self):
+        """#764 — the Audi S6 Avant returns core.modelYear + media.shortName
+        but a NULL media.longName; the model must fall back to shortName
+        instead of going empty (which showed the bare brand on the device)."""
+        import asyncio
+        from custom_components.vag_connect.cariad.api.graphql import (
+            VehicleImageData,
+        )
+        coord = self._make_coord()
+        coord._cariad_client._image_data = {
+            "V1": VehicleImageData(
+                vin="V1", image_urls={},
+                long_name=None, short_name="S6 Avant", model_year=2021,
+            )
+        }
+        result = asyncio.run(
+            coord._enrich({"vin": "V1", "latitude": None, "longitude": None})
+        )
+        assert result["model"] == "S6 Avant"
+        assert result["model_year"] == 2021
+
     def test_geocoding_off_by_default(self):
         """v1.8.0: reverse geocoding is opt-in. Without explicit opt-in,
         the geocoder must NOT be called even when GPS is available (#60)."""
