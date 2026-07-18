@@ -1,14 +1,14 @@
 # App Atlas — Cross-Brand Summary
 
-> Auto-generated · Last refreshed: 2026-07-13 06:42 UTC
+> Auto-generated · Last refreshed: 2026-07-18 05:55 UTC
 
 | Brand | Android package | Latest version | Source | Expected backend | OLA enforced? |
 |---|---|---|---|---|---|
-| **SEAT** | `com.seat.myseat.ola` | `2.19.1` | `uptodown` | `ola` |  |
-| **CUPRA** | `com.cupra.mycupra` | `2.18.1` | `uptodown` | `ola` |  |
-| **Volkswagen EU (We Connect ID)** | `com.volkswagen.weconnect` | `(fetch failed)` | `—` | `cariad_bff` |  |
-| **Audi (myAudi)** | `de.myaudi.mobile.assistant` | `5.6.0` | `apkmirror` | `cariad_bff` |  |
-| **Škoda (MyŠkoda)** | `cz.skodaauto.myskoda` | `8.14.0` | `uptodown` | `mysmob` |  |
+| **SEAT** | `com.seat.myseat.ola` | `2.19.1` | `google_play` | `ola` |  |
+| **CUPRA** | `com.cupra.mycupra` | `2.19.1` | `google_play` | `ola` |  |
+| **Volkswagen EU (We Connect ID)** | `com.volkswagen.weconnect` | `4.1.1` | `google_play` | `cariad_bff` |  |
+| **Audi (myAudi)** | `de.myaudi.mobile.assistant` | `5.6.0` | `google_play` | `cariad_bff` |  |
+| **Škoda (MyŠkoda)** | `cz.skodaauto.myskoda` | `8.14.0` | `google_play` | `mysmob` |  |
 | **Volkswagen US/CA (myVW)** | `com.vw.carnet.release` | `2026.5.27-9076` | `apkmirror` | `con_veh_net` |  |
 | **Porsche (My Porsche)** | `com.porsche.one` | `12.24.27` | `apkmirror` | `ppa` |  |
 
