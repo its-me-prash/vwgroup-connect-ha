@@ -340,10 +340,13 @@ def test_alias_canonical_charge_rate_wins_over_actual() -> None:
     assert d.charging_rate_kmh == 7
 
 
-def test_alias_charging_power_to_charging_power_kw() -> None:
-    # fix #3 — charging_power (dict "Power of charging", unit=null) folds into
-    # charging_power_kw by kW convention; value passes through unscaled.
-    assert _map({"charging_power": "22.0"}).charging_power_kw == 22.0
+def test_alias_charging_power_deci_scaled_to_kw() -> None:
+    # #764 (Motii08, Leon VZ e-Hybrid): a live charging export showed
+    # charging_power=19 while charging at max 11 kW AC — 19 kW raw is physically
+    # impossible, so the portal reports it at 0.1-kW resolution (deci-kW), NOT
+    # already-kW as the old #518 "convention" assumed (dict UUID 978be4ed states
+    # no unit/resolution). It now scales /10 like charge_power → 1.9 kW.
+    assert _map({"charging_power": "19"}).charging_power_kw == 1.9
 
 
 def test_alias_outdoor_temperature_to_outside_temp() -> None:

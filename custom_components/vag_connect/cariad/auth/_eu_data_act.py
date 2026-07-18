@@ -1173,18 +1173,22 @@ def map_dataset_to_vehicle_data(
         if d.electric_range_km is None:
             d.electric_range_km = rng
 
-    # #717 — battery_state_report.charge_power / charge_power are RAW
-    # 0.1-kW-resolution portal values (EU data dict UUID 44ed0d61: "actual charge
-    # power … range 0..500 with a resolution of 0,1 kW"; the reporter saw 65 →
-    # 6.5 kW), so they scale /10 — the same deci-unit handling the temps + kWh
-    # fields below already get. The chargePower_kW / charging_power aliases carry
-    # kW already (chargePower_kW by name; charging_power UUID 978be4ed treated as
-    # kW by convention — #518), so they stay UNSCALED.
-    cp_deci = _to_float(first("battery_state_report.charge_power", "charge_power"))
+    # #717 / #764 — the portal reports charge power at 0.1-kW resolution (deci-kW),
+    # so battery_state_report.charge_power / charge_power / charging_power all scale
+    # /10 (EU data dict UUID 44ed0d61: "actual charge power … resolution of 0,1 kW";
+    # the #717 reporter saw 65 → 6.5 kW). #764 (Motii08, Leon VZ e-Hybrid) settled
+    # charging_power with a live charging export: value 19 while charging at max
+    # 11 kW AC → 1.9 kW, so 19 kW raw is physically impossible — it IS deci-kW, not
+    # already-kW as the old #518 "convention" assumed (dict UUID 978be4ed states no
+    # unit/resolution, only "Power of charging"). Only chargePower_kW (kW by name)
+    # stays UNSCALED.
+    cp_deci = _to_float(first(
+        "battery_state_report.charge_power", "charge_power", "charging_power",
+    ))
     if cp_deci is not None:
         d.charging_power_kw = round(cp_deci / 10.0, 1)
     else:
-        cp_kw = _to_float(first("chargePower_kW", "charging_power"))
+        cp_kw = _to_float(first("chargePower_kW"))
         if cp_kw is not None:
             d.charging_power_kw = cp_kw
 
@@ -2977,8 +2981,42 @@ class EUDataActConnector:
                             break
                 cands.append((name, dts, idx))
         if not cands:
-            self.last_no_data_reason = "empty"
-            _LOGGER.debug("EU Data Act portal: no dataset files for %s yet", vin[-6:])
+            # #709 — distinguish the three "no usable file" cases so a stuck feed
+            # is diagnosable: (a) the listing was empty, (b) the portal IS
+            # generating 15-min files but every one is a "no content" placeholder
+            # (the request is active, the car just hasn't fed telemetry into it —
+            # usually starts once it's driven/woken), or (c) the file objects came
+            # back in an unexpected shape (no "name"). Names are not logged (they
+            # can carry identifiers); only counts.
+            _flist = files if isinstance(files, list) else []
+            _raw_n = len(_flist)
+            _named = sum(
+                1 for f in _flist
+                if isinstance(f, dict) and isinstance(f.get("name"), str)
+            )
+            _nc = sum(
+                1 for f in _flist
+                if isinstance(f, dict)
+                and isinstance(f.get("name"), str)
+                and f["name"].endswith(_NO_CONTENT_SUFFIX)
+            )
+            if _raw_n and _named == _raw_n and _nc == _raw_n:
+                self.last_no_data_reason = "no_content"
+                _LOGGER.info(
+                    "EU Data Act portal: %s has %d dataset file(s) this cycle but "
+                    "all are 'no content' placeholders — the request is active, the "
+                    "car just hasn't delivered telemetry into it yet (it usually "
+                    "starts once the car is driven or woken). The vehicle will fill "
+                    "in as soon as real data arrives.",
+                    vin[-6:], _raw_n,
+                )
+            else:
+                self.last_no_data_reason = "empty"
+                _LOGGER.debug(
+                    "EU Data Act portal: no usable dataset files for %s yet "
+                    "(raw=%d, named=%d, no_content=%d, listing=%s)",
+                    vin[-6:], _raw_n, _named, _nc, type(listing).__name__,
+                )
             return d
         # Newest by delivery ts when present; files without a ts sort below those
         # with one (-inf), and ties / a fully-tsless listing fall back to array
