@@ -54,6 +54,35 @@ from .cariad.models import VehicleData
 
 _LOGGER = logging.getLogger(__name__)
 
+
+def _is_selfhealing_poll_error(err: object) -> bool:
+    """True for a poll error that must NOT be escalated to the public Error
+    Reporter, because it self-heals and is not our bug:
+
+    - a transient VW-backend 5xx (``UpstreamUnavailableError`` or an ``APIError``
+      with ``status >= 500``), or
+    - a status-0 transient NETWORK error — DNS timeout / connection refused /
+      mid-stream disconnect — which ``base._request`` tags ``"transient:"`` in the
+      ``APIError`` body AFTER exhausting its own retries. (#814 was exactly a
+      "Timeout while contacting DNS servers" on a user's Home Assistant host.)
+
+    Auth-interaction errors are de-escalated separately (they trigger reauth).
+    """
+    from .cariad.exceptions import APIError, UpstreamUnavailableError  # noqa: PLC0415
+
+    if isinstance(err, UpstreamUnavailableError):
+        return True
+    if isinstance(err, APIError):
+        status = getattr(err, "status", 0)
+        if status >= 500:
+            return True
+        body = getattr(err, "body", None)
+        if status == 0 and isinstance(body, str) and body.lstrip().startswith(
+            "transient:"
+        ):
+            return True
+    return False
+
 # v2.17.2 (#666) — how long an optimistically-set command value is held across
 # polls before the backend state is trusted again. Long enough to cover a
 # couple of poll cycles (VW reflects a command in ~10-60 s), short enough that a
@@ -1658,16 +1687,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         # outage. The vehicle still keeps its last-known data
                         # (above) and recovers on the next poll.
                         from .cariad.exceptions import (  # noqa: PLC0415
-                            APIError,
                             AuthenticationError,
-                            UpstreamUnavailableError,
                         )
-                        is_transient_upstream = isinstance(
-                            result, UpstreamUnavailableError
-                        ) or (
-                            isinstance(result, APIError)
-                            and getattr(result, "status", 0) >= 500
-                        )
+                        # v2.19.0 (#814) — de-escalate self-healing errors (5xx
+                        # AND status-0 transient network/DNS errors) from the
+                        # public Error Reporter; see _is_selfhealing_poll_error.
+                        is_transient_upstream = _is_selfhealing_poll_error(result)
                         # v2.15.9 (#596) — a user-actionable auth-interaction
                         # (T&C / marketing-consent / 2FA / portal-interaction)
                         # re-hit on EVERY poll (the portal re-login walks into
@@ -1967,9 +1992,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 # Auth failure that survived the client's refresh-then-relogin
                 # fallback means the credentials are stale. Trigger HA reauth.
                 from .cariad.exceptions import (  # noqa: PLC0415
-                    APIError,
                     AuthenticationError,
-                    UpstreamUnavailableError,
                 )
                 if isinstance(err, AuthenticationError):
                     self._trigger_reauth(str(err) or type(err).__name__)
@@ -1981,9 +2004,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 # server-side outage symptom, not our bug, and escalating it
                 # spammed #435-#439. Entities stay available via the
                 # failure-tolerance window below.
-                is_transient_upstream = isinstance(err, UpstreamUnavailableError) or (
-                    isinstance(err, APIError) and getattr(err, "status", 0) >= 500
-                )
+                # v2.19.0 (#814) — de-escalate self-healing errors (5xx AND
+                # status-0 transient network/DNS errors) from the public Error
+                # Reporter; see _is_selfhealing_poll_error.
+                is_transient_upstream = _is_selfhealing_poll_error(err)
                 if is_transient_upstream:
                     _LOGGER.warning(
                         "VAG Connect: VW backend temporarily unavailable — %s", err
