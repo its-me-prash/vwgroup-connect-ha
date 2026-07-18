@@ -25,15 +25,19 @@ code exchange in the config flow; this module owns the token REFRESH (rotating
 refresh token) + the reads. Scopes are read-only (``data-api-*-read``) — there is
 no write/command scope.
 
-Field / capability mapping (from the evcc + HA-core + pyTibber consumers):
-  storage.stateOfCharge       -> battery_soc (%)
-  storage.targetStateOfCharge -> target_soc (%)
-  range.remaining             -> range_km + electric_range_km (metres -> km; mi supported)
-  connector.status            -> plug_connected  (== "connected")
-  charging.status             -> charging_state + is_charging  (== "charging")
-  charging.current.max        -> charge_max_ac_setting (A)
-  isOnline                    -> is_online
-VIN is NOT a capability — it rides ``device.externalId`` as the ``:``-tail.
+Field / capability mapping. The five core ids + the externalId VIN + the
+/homes -> devices -> device path are verified against the evcc and pyTibber
+consumers. The last two ids are OPPORTUNISTIC and UNVERIFIED — no primary source
+uses them; they are kept only because they are harmless (a field only populates
+if the id happens to be present, otherwise it stays ``None``):
+  storage.stateOfCharge       -> battery_soc (%)                 [evcc-verified]
+  storage.targetStateOfCharge -> target_soc (%)                  [evcc-verified]
+  range.remaining             -> range_km + electric_range_km    [evcc-verified] (unit "m" = metres; mi supported)
+  connector.status            -> plug_connected (== "connected")  [evcc-verified]
+  charging.status             -> charging_state + is_charging     [evcc-verified] (== "charging")
+  charging.current.max        -> charge_max_ac_setting (A)        [UNVERIFIED guess]
+  isOnline                    -> is_online                        [UNVERIFIED guess — may be an attribute, not a capability]
+VIN is NOT a capability — it rides ``device.externalId`` as the ``:``-tail (evcc/pyTibber-verified).
 GPS / odometer / climate / charge-power(kW) are NOT exposed by Tibber (any surface).
 """
 
@@ -73,8 +77,10 @@ def _to_int_pct(value: Any) -> int | None:
 
 
 def _range_to_km(value: Any, unit: Any) -> int | None:
-    """Tibber ``range.remaining`` is metres by default (evcc divides by 1000);
-    a ``mi`` unit means miles. Convert either to whole km."""
+    """Convert Tibber ``range.remaining`` to whole km. Tibber's native unit is
+    ``m`` (metres) — evcc's reference consumer divides that by 1000; a ``mi``
+    unit means miles. When the unit is absent, fall back to a magnitude
+    heuristic (a real EV range is 3-3000 km, so a value >= 3000 is metres)."""
     try:
         v = float(value)
     except (TypeError, ValueError):
@@ -86,7 +92,10 @@ def _range_to_km(value: Any, unit: Any) -> int | None:
         return int(round(v * 1.609344))
     if u in ("km", "kilometre", "kilometer", "kilometres"):
         return int(round(v))
-    # default: metres (Tibber's native unit). Guard against an already-km value.
+    if u in ("m", "meter", "metre", "meters", "metres"):
+        return int(round(v / 1000))
+    # unit absent: assume metres (Tibber's native unit), but guard against an
+    # already-km value by magnitude.
     if v >= 3000:
         return int(round(v / 1000))
     return int(round(v))
