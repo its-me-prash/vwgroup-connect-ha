@@ -1336,6 +1336,30 @@ def map_dataset_to_vehicle_data(
         # already-°C value (e.g. 17.1) stays as-is — no ambient temp is > 200 °C.
         d.outside_temp = round(otemp / 10 - 273.15, 1) if otemp > 200 else otemp
 
+    # `outdoor_temperature.temperature` — EU-DA one-time-export dialect of the
+    # ambient reading (dict UUID f2e30577). SAME offset encoding as the cabin
+    # sensor (74039fb6): raw 0..1460 = 0.1 °C with a -46 offset (0->-46 °C,
+    # 1460->100 °C), raw 1461..2513 = the 0.25 °F alternative → °C. This nested
+    # spelling is NOT the flat plain-°C `outdoor_temperature` consumed above, so
+    # it needs the offset formula — the deci-Kelvin/passthrough path would
+    # misread raw 675 as -205 °C (the exact bug fixed for cabin in v2.19.1).
+    # Fallback only: fills outside_temp when neither the dK nor the flat-°C
+    # alias was present. `measurement_state` gates validity when carried.
+    if d.outside_temp is None:
+        _odt_state = first("outdoor_temperature.measurement_state")
+        _odt = _to_float(first("outdoor_temperature.temperature"))
+        if _odt is not None and (
+            _odt_state is None
+            or str(_odt_state).lower()
+            not in ("invalid", "error", "measurement_invalid", "not_available")
+        ):
+            if _odt <= 1460:
+                d.outside_temp = round(_odt * 0.1 - 46.0, 1)
+            else:
+                d.outside_temp = round(
+                    ((_odt - 1461) * 0.25 - 51.0 - 32.0) * 5.0 / 9.0, 1
+                )
+
     # v2.17.1 (Scout #701, VW ID.7) — EU-portal HV-battery + cabin temps.
     # `hvbatterytemperature.{min,max}_temperature` feed the same
     # battery_temp (min) / battery_temp_max (max) sensors the CARIAD-BFF
