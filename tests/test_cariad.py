@@ -1291,9 +1291,9 @@ class TestVWEUFallbackPaths:
         return client, session, idx
 
     def test_404_on_v1_primary_falls_back_to_v2_primary(self):
-        """v1/access/lock-unlock → 404, v2/access/lock-unlock → 204.
-        Should call exactly two endpoints and not touch the separate
-        access/lock fallback at all."""
+        """v2.20.0 (E5): primary is the SEPARATE route now. v1/access/lock →
+        404, v2/access/lock → 204. Should call exactly two endpoints and not
+        touch the combined access/lock-unlock fallback at all."""
         responses = [self._resp(404, text="not found"),
                      self._resp(204)]
         client, session, idx = self._client_with_responses(responses)
@@ -1302,24 +1302,25 @@ class TestVWEUFallbackPaths:
             asyncio.run(client.command_lock("VIN1"))
         assert idx["i"] == 2
         urls = [call.args[1] for call in session.request.call_args_list]
-        assert "/vehicle/v1/vehicles/VIN1/access/lock-unlock" in urls[0]
-        assert "/vehicle/v2/vehicles/VIN1/access/lock-unlock" in urls[1]
+        assert "/vehicle/v1/vehicles/VIN1/access/lock" in urls[0]
+        assert "/vehicle/v2/vehicles/VIN1/access/lock" in urls[1]
+        assert all("lock-unlock" not in u for u in urls)
 
-    def test_404_on_both_primaries_falls_back_to_separate_endpoint(self):
-        """v1+v2 of combined endpoint both 404 → tries the separate
-        endpoint (v1/access/lock) which succeeds with 204."""
-        responses = [self._resp(404),  # v1 combined
-                     self._resp(404),  # v2 combined
-                     self._resp(204)]  # v1 separate
+    def test_404_on_both_primaries_falls_back_to_combined_endpoint(self):
+        """v2.20.0 (E5): v1+v2 of the SEPARATE endpoint both 404 → falls back
+        to the legacy COMBINED endpoint (v1/access/lock-unlock) which 204s."""
+        responses = [self._resp(404),  # v1 separate
+                     self._resp(404),  # v2 separate
+                     self._resp(204)]  # v1 combined
         client, session, idx = self._client_with_responses(responses)
         with patch("custom_components.vag_connect.cariad.api.base.asyncio.sleep",
                    new=AsyncMock(return_value=None)):
             asyncio.run(client.command_lock("VIN1"))
         assert idx["i"] == 3
         urls = [call.args[1] for call in session.request.call_args_list]
-        assert urls[0].endswith("/vehicle/v1/vehicles/VIN1/access/lock-unlock")
-        assert urls[1].endswith("/vehicle/v2/vehicles/VIN1/access/lock-unlock")
-        assert urls[2].endswith("/vehicle/v1/vehicles/VIN1/access/lock")
+        assert urls[0].endswith("/vehicle/v1/vehicles/VIN1/access/lock")
+        assert urls[1].endswith("/vehicle/v2/vehicles/VIN1/access/lock")
+        assert urls[2].endswith("/vehicle/v1/vehicles/VIN1/access/lock-unlock")
 
     def test_500_on_primary_does_not_trigger_fallback(self):
         """KEY REGRESSION TEST for v1.8.8: a 500 server error must
@@ -1340,22 +1341,24 @@ class TestVWEUFallbackPaths:
         assert exc.value.status == 500
         # The 500 itself is retried 4 times (3 backoff retries inside
         # _request) — that's the existing behaviour. What MUST NOT happen
-        # is a fall-through to the separate access/lock endpoint.
+        # is a fall-through to the OTHER endpoint. v2.20.0 (E5): primary is now
+        # the separate /access/lock; the forbidden fallback is combined
+        # /access/lock-unlock.
         urls = [call.args[1] for call in session.request.call_args_list]
-        assert all("access/lock-unlock" in u for u in urls), (
-            f"Expected only combined-endpoint URLs (lock-unlock); got: {urls}"
+        assert all(u.endswith("/access/lock") for u in urls), (
+            f"Expected only the separate-endpoint URL (/access/lock); got: {urls}"
         )
-        assert not any(u.endswith("/access/lock") for u in urls), (
-            f"500 must NOT trigger fallback to separate /access/lock; got: {urls}"
+        assert not any("lock-unlock" in u for u in urls), (
+            f"500 must NOT trigger fallback to combined /access/lock-unlock; got: {urls}"
         )
 
     def test_unlock_passes_spin_in_both_payloads(self):
-        """When falling back from combined to separate endpoint after a
-        404, the S-PIN must be present in *both* payloads — the legacy
-        separate /access/unlock endpoint accepts the PIN in the body."""
-        responses = [self._resp(404),  # v1 combined
-                     self._resp(404),  # v2 combined
-                     self._resp(204)]  # v1 separate succeeds
+        """When the primary SEPARATE endpoint 404s and we fall back to the
+        legacy COMBINED endpoint (v2.20.0 E5 made separate primary), the S-PIN
+        must be present in *both* forms — each accepts the PIN in the body."""
+        responses = [self._resp(404),  # v1 separate
+                     self._resp(404),  # v2 separate
+                     self._resp(204)]  # v1 combined succeeds
         client, session, idx = self._client_with_responses(responses)
         with patch("custom_components.vag_connect.cariad.api.base.asyncio.sleep",
                    new=AsyncMock(return_value=None)):
@@ -1364,9 +1367,9 @@ class TestVWEUFallbackPaths:
             )
         # Inspect payloads: kwargs['json'] on each request
         payloads = [call.kwargs.get("json") for call in session.request.call_args_list]
-        assert payloads[0] == {"action": "unlock", "spin": "1234"}, payloads[0]
-        assert payloads[1] == {"action": "unlock", "spin": "1234"}, payloads[1]
-        assert payloads[2] == {"spin": "1234"}, payloads[2]
+        assert payloads[0] == {"spin": "1234"}, payloads[0]              # separate
+        assert payloads[1] == {"spin": "1234"}, payloads[1]              # separate v2
+        assert payloads[2] == {"action": "unlock", "spin": "1234"}, payloads[2]  # combined
 
 
 # ── BaseClient refresh logic ──────────────────────────────────────────────────

@@ -272,10 +272,12 @@ class TestPpcClimateBody:
             client.command_start_climate("VINX", ppe_mode=False)
         )
         kwargs = client._post_command_with_fallback_paths.await_args.kwargs
-        fallback = kwargs["fallback_payload"]
-        assert "targetTemperature" in fallback
-        assert "targetTemperatureUnit" in fallback
-        assert "climatisationMode" not in fallback
+        # v2.20.0 (E5): the rich climate body is now the PRIMARY payload (the
+        # separate /climatisation/start route); combined start-stop is fallback.
+        body = kwargs["primary_payload"]
+        assert "targetTemperature" in body
+        assert "targetTemperatureUnit" in body
+        assert "climatisationMode" not in body
 
     def test_ppe_body_omits_target_temperature_and_sets_mode(self):
         client = self._client()
@@ -283,14 +285,15 @@ class TestPpcClimateBody:
             client.command_start_climate("VINX", ppe_mode=True)
         )
         kwargs = client._post_command_with_fallback_paths.await_args.kwargs
-        fallback = kwargs["fallback_payload"]
+        # v2.20.0 (E5): rich body is now the PRIMARY payload.
+        body = kwargs["primary_payload"]
         # PPE: targetTemperature MUST be omitted
-        assert "targetTemperature" not in fallback
-        assert "targetTemperatureUnit" not in fallback
+        assert "targetTemperature" not in body
+        assert "targetTemperatureUnit" not in body
         # PPE: climatisationMode MANDATORY
-        assert fallback["climatisationMode"] == "comfort"
+        assert body["climatisationMode"] == "comfort"
         # Other fields preserved
-        assert fallback["windowHeatingEnabled"] is True
+        assert body["windowHeatingEnabled"] is True
 
     def test_default_is_legacy_body(self):
         """Backwards-compat: existing callers without ppe_mode get legacy."""
@@ -298,10 +301,10 @@ class TestPpcClimateBody:
         asyncio.run(
             client.command_start_climate("VINX")
         )
-        fallback = client._post_command_with_fallback_paths.await_args.kwargs[
-            "fallback_payload"
+        body = client._post_command_with_fallback_paths.await_args.kwargs[
+            "primary_payload"  # v2.20.0 (E5): rich body is now primary
         ]
-        assert "targetTemperature" in fallback
+        assert "targetTemperature" in body
 
 
 # ─────────────────────────────────────────────────────────────────────────────

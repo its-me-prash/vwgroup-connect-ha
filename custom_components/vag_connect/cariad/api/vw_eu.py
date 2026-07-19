@@ -703,16 +703,20 @@ class VWEUClient(CariadBaseClient):
         if _tgt is not None:
             await _tgt._command_rlu_mbb(vin, spin=spin, lock=True)
             return
-        primary_payload: dict[str, Any] = {"action": "lock"}
-        fallback_payload: dict[str, Any] = {}
+        # v2.20.0 (E5) — the SEPARATE route is the only one the current apps
+        # (We Connect 4.1.1 / myAudi 5.6.0) expose; the combined lock-unlock
+        # route 404s. Make separate primary so we stop wasting a 404 round-trip
+        # per command; keep combined as the 404-fallback (zero-cost insurance).
+        primary_payload: dict[str, Any] = {}
+        fallback_payload: dict[str, Any] = {"action": "lock"}
         if spin or self._spin:
             primary_payload["spin"] = spin or self._spin
             fallback_payload["spin"] = spin or self._spin
         await self._post_command_with_fallback_paths(
             vin,
-            primary_suffix="access/lock-unlock",
+            primary_suffix="access/lock",
             primary_payload=primary_payload,
-            fallback_suffix="access/lock",
+            fallback_suffix="access/lock-unlock",
             fallback_payload=fallback_payload,
         )
 
@@ -730,16 +734,17 @@ class VWEUClient(CariadBaseClient):
         if _tgt is not None:
             await _tgt._command_rlu_mbb(vin, spin=spin, lock=False)
             return
-        primary_payload: dict[str, Any] = {"action": "unlock"}
-        fallback_payload: dict[str, Any] = {}
+        # v2.20.0 (E5) — separate route primary, combined as 404-fallback.
+        primary_payload: dict[str, Any] = {}
+        fallback_payload: dict[str, Any] = {"action": "unlock"}
         if spin or self._spin:
             primary_payload["spin"] = spin or self._spin
             fallback_payload["spin"] = spin or self._spin
         await self._post_command_with_fallback_paths(
             vin,
-            primary_suffix="access/lock-unlock",
+            primary_suffix="access/unlock",
             primary_payload=primary_payload,
-            fallback_suffix="access/unlock",
+            fallback_suffix="access/lock-unlock",
             fallback_payload=fallback_payload,
         )
 
@@ -783,12 +788,13 @@ class VWEUClient(CariadBaseClient):
                 "climatisationWithoutExternalPower": True,
                 "windowHeatingEnabled": True,
             }
+        # v2.20.0 (E5) — separate route primary, combined as 404-fallback.
         await self._post_command_with_fallback_paths(
             vin,
-            primary_suffix="climatisation/start-stop",
-            primary_payload={"action": "start"},
-            fallback_suffix="climatisation/start",
-            fallback_payload=fallback_payload,
+            primary_suffix="climatisation/start",
+            primary_payload=fallback_payload,
+            fallback_suffix="climatisation/start-stop",
+            fallback_payload={"action": "start"},
         )
 
     async def command_start_climate_control(
@@ -861,12 +867,13 @@ class VWEUClient(CariadBaseClient):
         if _tgt is not None:
             await _tgt._command_mbb_op(vin, "climate_stop")
             return
+        # v2.20.0 (E5) — separate route primary, combined as 404-fallback.
         await self._post_command_with_fallback_paths(
             vin,
-            primary_suffix="climatisation/start-stop",
-            primary_payload={"action": "stop"},
-            fallback_suffix="climatisation/stop",
-            fallback_payload={},
+            primary_suffix="climatisation/stop",
+            primary_payload={},
+            fallback_suffix="climatisation/start-stop",
+            fallback_payload={"action": "stop"},
         )
 
     async def command_start_charging(self, vin: str) -> None:
@@ -875,12 +882,13 @@ class VWEUClient(CariadBaseClient):
         if _tgt is not None:
             await _tgt._command_mbb_op(vin, "charge_start")
             return
+        # v2.20.0 (E5) — separate route primary, combined as 404-fallback.
         await self._post_command_with_fallback_paths(
             vin,
-            primary_suffix="charging/start-stop",
-            primary_payload={"action": "start"},
-            fallback_suffix="charging/start",
-            fallback_payload={},
+            primary_suffix="charging/start",
+            primary_payload={},
+            fallback_suffix="charging/start-stop",
+            fallback_payload={"action": "start"},
         )
 
     async def command_stop_charging(self, vin: str) -> None:
@@ -889,12 +897,13 @@ class VWEUClient(CariadBaseClient):
         if _tgt is not None:
             await _tgt._command_mbb_op(vin, "charge_stop")
             return
+        # v2.20.0 (E5) — separate route primary, combined as 404-fallback.
         await self._post_command_with_fallback_paths(
             vin,
-            primary_suffix="charging/start-stop",
-            primary_payload={"action": "stop"},
-            fallback_suffix="charging/stop",
-            fallback_payload={},
+            primary_suffix="charging/stop",
+            primary_payload={},
+            fallback_suffix="charging/start-stop",
+            fallback_payload={"action": "stop"},
         )
 
     async def command_flash(
@@ -2108,10 +2117,12 @@ class VWEUClient(CariadBaseClient):
         Order of attempts (each via ``_post_command``, so each carries its
         own v1 → v2 fallback on 404):
 
-        1. ``primary_suffix`` (combined endpoint, the historically
-           preferred form on the older CARIAD BFF)
-        2. ``fallback_suffix`` (separate endpoint, what older firmware
-           and some current PPE/PPC vehicles still expect)
+        1. ``primary_suffix`` (v2.20.0 E5: the SEPARATE endpoint, e.g.
+           ``/access/lock`` — the only form We Connect 4.1.1 / myAudi 5.6.0
+           expose today; this is what actually succeeds)
+        2. ``fallback_suffix`` (the legacy COMBINED endpoint, e.g.
+           ``/access/lock-unlock`` with ``{"action": ...}`` — 404s on current
+           firmware, kept purely as zero-cost insurance for any old vehicle)
 
         The previous implementation caught a bare ``except Exception`` and
         always fell back, which masked auth failures, rate limits and
