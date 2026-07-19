@@ -176,12 +176,33 @@ class SeatCupraClient(CariadBaseClient):
             # Layer 4: all fallbacks exhausted — count toward threshold.
             self._ola_consecutive_403 += 1
             if self._ola_consecutive_403 >= _OLA_REPAIR_THRESHOLD:
-                _LOGGER.error(
-                    "OLA 403 persistent (%d consecutive) — flagging for HA "
-                    "Repair issue. Likely cause: OLA backend updated app-"
-                    "header requirements again. Check for integration update.",
-                    self._ola_consecutive_403,
-                )
+                # #779 — log ONCE on crossing the threshold, not on every 403:
+                # one poll fans out over ~19 OLA endpoints, which used to flood
+                # ~18 identical ERROR lines per stuck poll.
+                if not self.ola_headers_repair_needed:
+                    # #779 — a persistent OLA 403 is a VW server-side DEVICE-
+                    # ATTESTATION lockdown (Firebase App Check / Play Integrity,
+                    # #464), NOT a stale app-header we can bump. The Repair issue
+                    # already says so; the old ERROR text ("check for an
+                    # integration update") sent attestation-walled users chasing
+                    # a phantom fix — rmalbrecht's Born still 403'd "Forbidden
+                    # device detected" AFTER the v2.19.1 header bump. Match the
+                    # Repair's honest wording and note the confirmed marker.
+                    _body = (getattr(exc, "body", "") or "").lower()
+                    _attest = (
+                        "forbidden device detected" in _body
+                        or "missing-device-token" in _body
+                        or "aws-waf" in _body
+                    )
+                    _LOGGER.error(
+                        "OLA 403 persistent (%d consecutive)%s — this is a VW "
+                        "server-side device-attestation lockdown, not something "
+                        "an integration/header update can fix; vehicle data still "
+                        "flows via the EU Data Act portal where available. "
+                        "Raising HA Repair issue.",
+                        self._ola_consecutive_403,
+                        " [device-attestation marker confirmed]" if _attest else "",
+                    )
                 self.ola_headers_repair_needed = True
             raise
 

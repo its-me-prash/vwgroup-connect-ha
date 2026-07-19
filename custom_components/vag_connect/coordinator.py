@@ -48,7 +48,7 @@ from .cariad._reporter_pipeline import (
     ensure_unexpected_keys_issue,
 )
 from .cariad._unexpected_keys import UnexpectedField, detect_unexpected
-from .cariad._util import mask_vin
+from .cariad._util import mask_email, mask_vin
 from .cariad.exceptions import CommandFailureReason, CommandProfile
 from .cariad.models import VehicleData
 
@@ -3329,7 +3329,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             if not self._was_available:
                 _LOGGER.info(
                     "VAG Connect: vehicle reachable again (%s)",
-                    self.entry.data.get("username", ""),
+                    mask_email(self.entry.data.get("username", "")),
                 )
                 self._was_available = True
 
@@ -3342,7 +3342,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             if self._was_available:
                 _LOGGER.warning(
                     "VAG Connect: vehicle unreachable — entities set to unavailable (%s)",
-                    self.entry.data.get("username", ""),
+                    mask_email(self.entry.data.get("username", "")),
                 )
                 self._was_available = False
             self.last_update_success = False
