@@ -81,8 +81,8 @@ BRAND_AUDI = BrandConfig(
     # client_id from upstream (arjenvrh/upstream, MIT) — confirmed working
     client_id="09b6cbec-cd19-4589-82fd-363dfa8c24da@apps_vw-dilab_com",
     redirect_uri="myaudi:///",
-    # b13 (RE myAudi dismantle) — live build 5.5.1 / versionCode 800344232.
-    user_agent="Android/5.5.1 (Build 800344232.root project 'myaudi_android'.ext.buildTime) Android/13",
+    # v2.20.0 (APK audit) — current myAudi build 5.6.0 / versionCode 800344256.
+    user_agent="Android/5.6.0 (Build 800344256.root project 'myaudi_android'.ext.buildTime) Android/13",
     api_base="https://emea.bff.cariad.digital",
     # scope exactly matching upstream — no extra "cars"/"dealers" scopes
     scope=(
@@ -113,8 +113,10 @@ BRAND_AUDI_NA = BrandConfig(
     # d8ef5ed0-2fd5-4afe-9ffb-018da6b76724@apps_vw-dilab_com.
     client_id="7c6b4634-f0c5-488b-a78f-b1a65414fb90@apps_vw-dilab_com",
     redirect_uri="myaudi:///",
-    user_agent="Android/5.5.1 (Build 800344232.root project 'myaudi_android'.ext.buildTime) Android/13",
-    api_base="https://na.bff.cariad.digital",
+    user_agent="Android/5.6.0 (Build 800344256.root project 'myaudi_android'.ext.buildTime) Android/13",
+    # v2.20.0 (APK audit) — reads go to the global emea.bff (the NA app has no
+    # na.bff host); only authorize is region-split at identity.na.vwgroup.io.
+    api_base="https://emea.bff.cariad.digital",
     scope=(
         "address profile badge birthdate birthplace nationalIdentifier nationality "
         "profession email vin phone nickname name picture mbb gallery openid"

@@ -51,7 +51,12 @@ from ..models import BRAND_AUDI_NA, VehicleData
 from ..auth.idk import IDKAuth
 from .vw_eu import VWEUClient
 
-_NA_BFF_BASE = "https://na.bff.cariad.digital"
+# v2.20.0 (APK audit) — the current myAudi 5.6.0 app has NO ``na.bff.cariad.digital``
+# string anywhere; its ONLY data BFF is the global ``emea.bff.cariad.digital`` (same
+# host EU Audi uses). The NA split is ONLY at the IDP layer (authorize at
+# identity.na.vwgroup.io). Our old na.bff host was almost certainly NXDOMAIN,
+# breaking both token-exchange and reads — point them at emea.bff to match the app.
+_NA_BFF_BASE = "https://emea.bff.cariad.digital"
 _NA_IDP_BASE = "https://identity.na.vwgroup.io"
 _NA_AUTHORIZE_URL = f"{_NA_IDP_BASE}/oidc/v1/authorize"
 _NA_TOKEN_URL = f"{_NA_BFF_BASE}/auth/v1/idk/oidc/token"

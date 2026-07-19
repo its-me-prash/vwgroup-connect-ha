@@ -2655,9 +2655,13 @@ class SeatCupraClient(CariadBaseClient):
         await self._post(f"{_BASE}/v1/vehicles/{vin}/vehicle-wakeup/request", json={})
 
     async def command_set_target_soc(self, vin: str, target: int) -> None:
+        # v2.20.0 (APK audit) — the bare /charging/actions route is gone; the OLA
+        # (SEAT/CUPRA 2.19.1) moved to /charging/actions/update-settings, and the
+        # field is targetSocPercentage (the old action-wrapper + targetSOC_pct
+        # was foreign to the app and 404'd/ignored).
         await self._post(
-            f"{_BASE}/v1/vehicles/{vin}/charging/actions",
-            json={"action": "settings", "targetSOC_pct": target},
+            f"{_BASE}/v1/vehicles/{vin}/charging/actions/update-settings",
+            json={"targetSocPercentage": target},
         )
 
     async def command_set_battery_care(self, vin: str, enabled: bool) -> None:
@@ -2667,9 +2671,11 @@ class SeatCupraClient(CariadBaseClient):
         Defaults to a 50% target if the user has not set one yet
         (backend rejects the toggle without a target on first call).
         """
+        # v2.20.0 (APK audit) — the OLA BatteryCareBody write field is ``enabled``;
+        # ``batteryCareMode`` does not exist anywhere in the SEAT/CUPRA app.
         await self._post(
             f"{_BASE}/v1/vehicles/{vin}/charging/battery-care",
-            json={"batteryCareMode": enabled},
+            json={"enabled": enabled},
         )
 
     async def command_set_battery_care_target(self, vin: str, target_pct: int) -> None:
@@ -2680,15 +2686,19 @@ class SeatCupraClient(CariadBaseClient):
         rejected upstream. The integration does NOT clamp; bad values
         surface as a 400 error so the user sees the constraint.
         """
+        # v2.20.0 (APK audit) — BatteryCareTarget write field is targetSocPercentage.
         await self._post(
             f"{_BASE}/v1/vehicles/{vin}/charging/battery-care/target",
-            json={"targetSOC_pct": target_pct},
+            json={"targetSocPercentage": target_pct},
         )
 
     async def command_set_climate_temperature(self, vin: str, temp_c: float) -> None:
+        # v2.20.0 (APK audit) — dedicated route /climatisation/settings with a
+        # Celsius field; the bare /climatisation + action-wrapper + Kelvin
+        # targetTemperature_K was the stale pre-#53 shape and foreign to the app.
         await self._post(
-            f"{_BASE}/v2/vehicles/{vin}/climatisation",
-            json={"action": "settings", "targetTemperature_K": temp_c + 273.15},
+            f"{_BASE}/v2/vehicles/{vin}/climatisation/settings",
+            json={"targetTemperatureInCelsius": temp_c},
         )
 
     async def command_start_window_heating(self, vin: str) -> None:

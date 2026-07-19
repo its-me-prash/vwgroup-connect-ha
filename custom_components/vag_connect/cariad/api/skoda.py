@@ -1572,15 +1572,22 @@ class SkodaClient(CariadBaseClient):
         latitude: float | None = None,  # noqa: ARG002
         longitude: float | None = None,  # noqa: ARG002
     ) -> None:
-        await self._post(f"{_BASE}/api/v1/vehicle-access/{vin}/honk-and-flash", json={"mode": "FLASH_ONLY"})
+        # v2.20.0 (APK audit) — Skoda's HonkAndFlashRequestDto$Mode enum (MyŠkoda
+        # 8.14.0) has only HONK_AND_FLASH / FLASH; "FLASH_ONLY" is the VW-EU/Audi
+        # value that was wrongly copied here and was rejected. Flash-only = FLASH.
+        await self._post(f"{_BASE}/api/v1/vehicle-access/{vin}/honk-and-flash", json={"mode": "FLASH"})
 
     async def command_wake(self, vin: str) -> None:
         await self._post(f"{_BASE}/api/v1/vehicle-wakeup/{vin}?applyRequestLimiter=true", json={})
 
     async def command_set_target_soc(self, vin: str, target: int) -> None:
+        # v2.20.0 (APK audit) — read-vs-write field trap: the set-charge-limit
+        # request DTO (ChargeLimitDto, MyŠkoda 8.14.0) uses ``targetSOCInPercent``,
+        # not the read-side ``targetStateOfChargeInPercent`` — the old key was
+        # silently ignored so the target was never applied.
         await self._post(
             f"{_BASE}/api/v1/charging/{vin}/set-charge-limit",
-            json={"targetStateOfChargeInPercent": target},
+            json={"targetSOCInPercent": target},
         )
 
     async def command_update_charging_settings(

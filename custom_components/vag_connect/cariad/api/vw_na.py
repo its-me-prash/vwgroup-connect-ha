@@ -1436,17 +1436,26 @@ class VWNAClient:
         longitude: float | None = None,  # noqa: ARG002
     ) -> None:
         uuid = self._vin_to_uuid.get(vin, vin)
-        await self._post(f"{self._base}/ev/v1/vehicle/{uuid}/horn-and-lights", json={"action": "FLASH_ONLY"})
+        # v2.20.0 (APK audit) — myVW 2026.5.27 exposes honk/flash as the dedicated
+        # top-level service /honkflash/v1/vehicle/{id} (parallel to /lockunlock/v1);
+        # the old /ev/.../horn-and-lights path doesn't exist → 404. NOTE: the exact
+        # action/mode body value is not yet confirmed (FLASH_ONLY is the EU value);
+        # live-capture on a real myVW before relying on flash-only vs honk+flash.
+        await self._post(f"{self._base}/honkflash/v1/vehicle/{uuid}", json={"action": "FLASH_ONLY"})
 
     async def command_wake(self, vin: str) -> None:
         uuid = self._vin_to_uuid.get(vin, vin)
-        await self._post(f"{self._base}/ev/v1/vehicle/{uuid}/wakeup", json={})
+        # v2.20.0 (APK audit) — no /wakeup route exists on con-veh.net; a fresh
+        # status is forced via the vehicle-status-request refresh endpoint.
+        await self._post(f"{self._base}/rvs/v1/vehicle/{uuid}/refresh", json={})
 
     async def command_set_target_soc(self, vin: str, target: int) -> None:
         uuid = self._vin_to_uuid.get(vin, vin)
+        # v2.20.0 (APK audit) — myVW models use targetSOCPercentage (matches the
+        # read side); the invented targetSOC_pct was silently ignored.
         await self._post(
             f"{self._base}/ev/v1/vehicle/{uuid}/charging/settings",
-            json={"targetSOC_pct": target},
+            json={"targetSOCPercentage": target},
         )
 
     async def command_set_climate_temperature(self, vin: str, temp_c: float) -> None:
@@ -1516,8 +1525,11 @@ class VWNAClient:
             if cleaned:
                 payload["recurringOn"] = cleaned
                 payload["type"] = "RECURRING"
+        # v2.20.0 (APK audit) — myVW's EV climate routes are the pretripclimate/*
+        # family; the EU-style climatisation/timers path is not exposed on
+        # con-veh.net → 404.
         await self._post(
-            f"{self._base}/ev/v1/vehicle/{uuid}/climatisation/timers",
+            f"{self._base}/ev/v1/vehicle/{uuid}/pretripclimate/timers",
             json=payload,
         )
 

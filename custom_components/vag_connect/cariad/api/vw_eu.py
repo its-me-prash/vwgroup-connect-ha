@@ -1296,14 +1296,12 @@ class VWEUClient(CariadBaseClient):
         fixtures). Audi uses ``myAudi``; everything else the VW We Connect id.
         """
         if self._brand.name == "audi":
-            return "myAudi", "5.5.1"  # b13 (RE) — live myAudi build (was 4.24.0)
-        # b13 (#503 dismantle / H5) — bumped to the live We Connect version.
-        # Verified against the dismantled com.volkswagen.weconnect APK
-        # (versionName 3.63.2, androguard 2026-06). A fidelity check on the
-        # fs-car endpoints rejects stale versions, so tracking the current
-        # build hardens the command path; this is the value the App-Atlas
-        # refresh unblocked.
-        return "Volkswagen", "3.63.2"
+            # v2.20.0 (APK audit) — current myAudi build is 5.6.0 (was 5.5.1).
+            return "myAudi", "5.6.0"
+        # b13 (#503 dismantle / H5) — track the live We Connect version; the
+        # fs-car endpoints reject stale versions. v2.20.0 (APK audit): current
+        # com.volkswagen.weconnect is 4.1.1 (was 3.63.2).
+        return "Volkswagen", "4.1.1"
 
     def _mbb_headers(self, extra: dict[str, str] | None = None) -> dict[str, str]:
         app_name, app_version = self._mbb_app_identity()
@@ -2300,10 +2298,11 @@ class VWEUClient(CariadBaseClient):
         if _tgt is not None:
             await _tgt._command_mbb_op(vin, "window_heat_start")
             return
-        await self._post(
-            f"{self._base_for_vin(vin)}/vehicle/v1/vehicles/{vin}/climatisation/windowheating/start-stop",
-            json={"action": "start"},
-        )
+        # v2.20.0 (APK audit) — VW-EU 4.1.1 + Audi 5.6.0 use separate
+        # windowheating/start + /stop routes (no climatisation/ prefix, no
+        # start-stop combined route, empty body). _post_command adds the
+        # v1→v2 404 fallback + pendingrequests confirmation.
+        await self._post_command(vin, "windowheating/start", json={})
 
     async def command_stop_window_heating(self, vin: str) -> None:
         """Stop window heating."""
@@ -2311,10 +2310,7 @@ class VWEUClient(CariadBaseClient):
         if _tgt is not None:
             await _tgt._command_mbb_op(vin, "window_heat_stop")
             return
-        await self._post(
-            f"{self._base_for_vin(vin)}/vehicle/v1/vehicles/{vin}/climatisation/windowheating/start-stop",
-            json={"action": "stop"},
-        )
+        await self._post_command(vin, "windowheating/stop", json={})
 
     # v2.8.0 - Auxiliary heating (Standheizung).
     async def command_start_aux_heating(

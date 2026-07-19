@@ -41,7 +41,9 @@ def test_brand_audi_na_has_live_na_endpoints() -> None:
         BRAND_AUDI_NA.client_id
         == "7c6b4634-f0c5-488b-a78f-b1a65414fb90@apps_vw-dilab_com"
     )
-    assert BRAND_AUDI_NA.api_base == "https://na.bff.cariad.digital"
+    # v2.20.0 (APK audit) — myAudi 5.6.0 has no na.bff host; reads/token use the
+    # global emea.bff (only authorize is region-split at identity.na.vwgroup.io).
+    assert BRAND_AUDI_NA.api_base == "https://emea.bff.cariad.digital"
 
 
 def test_factory_routes_audi_na() -> None:
@@ -51,8 +53,9 @@ def test_factory_routes_audi_na() -> None:
 
 
 def test_audi_na_reads_target_na_bff() -> None:
-    # The EU per-VIN HomeRegion base is overridden → all reads hit na.bff.
-    assert _client()._base_for_vin("WAUZZZ00000000000") == "https://na.bff.cariad.digital"
+    # v2.20.0 (APK audit) — reads hit the global emea.bff (the NA app has no
+    # na.bff host); the EU per-VIN HomeRegion split is still overridden off.
+    assert _client()._base_for_vin("WAUZZZ00000000000") == "https://emea.bff.cariad.digital"
 
 
 def test_audi_na_registered_in_brands() -> None:
