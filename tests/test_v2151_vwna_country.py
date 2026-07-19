@@ -2,14 +2,16 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """v2.15.1 (#503) — Volkswagen US/Canada region selector.
 
-``cariad/api/vw_na.py`` already picks the right MYVW client_id (US
-``59992128`` / CA ``69eb3c39``) and host (``b-h-s.spr.{us|ca}00.p.con-veh.net``)
-from a ``country='us'|'ca'`` argument, and ``cariad/api/factory.py``
-``create(..., country="us")`` forwards it. But until now nothing let a
-user pick the region: the config flow never collected a country and the
-coordinator never passed one, so every VW-NA install defaulted to ``us``
-→ Canada users (issue #503) silently got the US client_id + host and
-their login failed.
+``cariad/api/vw_na.py`` takes a ``country='us'|'ca'`` argument, and
+``cariad/api/factory.py`` ``create(..., country="us")`` forwards it. Until
+this fix nothing let a user pick the region: the config flow never collected
+a country and the coordinator never passed one, so every VW-NA install
+defaulted to ``us``.
+
+(v2.20.0 N7 note: the current myVW app ships only ONE phone client, 59992128,
+and only the us00 host — there is no ca00 host or CA-specific client_id — so
+US and CA now share that config. The US/CA selector still exists so the user
+records their country; both map to the same backend.)
 
 The fix plumbs a ``CONF_COUNTRY`` value end-to-end:
 
@@ -37,6 +39,7 @@ _CONST_PY = _COMPONENT / "const.py"
 _CONFIG_FLOW_PY = _COMPONENT / "config_flow.py"
 _COORDINATOR_PY = _COMPONENT / "coordinator.py"
 _FACTORY_PY = _COMPONENT / "cariad" / "api" / "factory.py"
+_VW_NA_PY = _COMPONENT / "cariad" / "api" / "vw_na.py"
 _STRINGS_JSON = _COMPONENT / "strings.json"
 _TRANSLATIONS = _COMPONENT / "translations"
 _LANGS = ["en", "de", "es", "fr", "nl", "pl", "cs", "sv", "it", "nb", "da", "fi"]
@@ -49,6 +52,37 @@ def _load(path: Path) -> dict:
 # ──────────────────────────────────────────────────────────────────────
 # (a) Schema + selector wiring in config_flow.py / const.py
 # ──────────────────────────────────────────────────────────────────────
+
+
+class TestN7CaUsesSharedUsConfig:
+    """v2.20.0 (N7) — the current myVW app has no ca00 host and no CA-specific
+    client_id, so CA must fall back to the shared us00 host + 59992128 client.
+    Guards against re-introducing the unvalidated CA-split config."""
+
+    def test_no_ca_client_id_constant(self) -> None:
+        src = _VW_NA_PY.read_text(encoding="utf-8")
+        assert "_CA_CLIENT_ID" not in src
+
+    def test_no_ca00_host(self) -> None:
+        # The ca00 con-veh HOST + the old CA client_id must be gone from code
+        # (explanatory prose mentioning "ca00 host" is fine).
+        src = _VW_NA_PY.read_text(encoding="utf-8")
+        assert "spr.ca00" not in src
+        assert "69eb3c39" not in src
+
+    def test_ca_base_points_to_us00(self) -> None:
+        # The _COUNTRY_BASES["ca"] entry must resolve to the us00 con-veh host.
+        import re
+        src = _VW_NA_PY.read_text(encoding="utf-8")
+        m = re.search(r'"ca":\s*"([^"]+)"', src)
+        assert m is not None
+        assert m.group(1) == "https://b-h-s.spr.us00.p.con-veh.net"
+
+    def test_client_id_is_unconditional_shared(self) -> None:
+        # No country ternary selecting a different client_id anymore.
+        src = _VW_NA_PY.read_text(encoding="utf-8")
+        assert 'client_id = BRAND_VW_NA.client_id' in src
+        assert 'if self._country == "ca"' not in src
 
 
 class TestCountryConstAndSelector:

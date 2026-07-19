@@ -93,10 +93,15 @@ def _classify_data_403(exc: APIError) -> str:
         return "bare-403"
     return "bare-403"
 
-# Country → API base: US=us, CA=ca
+# Country → API base. v2.20.0 (N7) — the current myVW app (com.vw.carnet.release
+# 2026.5.27) has NO ca00 host and NO CA-specific client: DEX-confirmed the only
+# con-veh host literal is ``b-h-s.spr.us00.p.con-veh.net`` and the only phone
+# client is 59992128. So CA uses the SAME us00 base + shared client as US.
+# (Live-unconfirmed for a real Canadian VIN — the one fact not settleable from
+# the APK; a CA tester should verify us00 serves CA cars.)
 _COUNTRY_BASES: dict[str, str] = {
     "us": "https://b-h-s.spr.us00.p.con-veh.net",
-    "ca": "https://b-h-s.spr.ca00.p.con-veh.net",
+    "ca": "https://b-h-s.spr.us00.p.con-veh.net",
 }
 
 BRAND_VW_NA = BrandConfig(
@@ -116,12 +121,11 @@ BRAND_VW_NA = BrandConfig(
     scope="openid",
 )
 
-# b13 (#503) — CA uses its own MYVW client_id. APK-CONFIRMED real: the live
-# MyVW DEX carries this exact id (alongside the US 59992128 and 5 others), so
-# it is a genuine app client, not an invented value. It is NOT the #503 cause
-# — a wrong client_id yields "invalid_client", whereas the observed "no code"
-# is a scope/consent symptom (fixed by the scope revert above). Kept as-is.
-_CA_CLIENT_ID = "69eb3c39-d2be-4006-8197-37cc4971e8fe_MYVW_ANDROID"
+# v2.20.0 (N7) — the old per-CA client_id was REMOVED. Re-grepping the current
+# myVW 2026.5.27 DEX independently: the old CA client = 0 hits, the ca00 host = 0
+# hits; the only *_MYVW_ANDROID literals are 59992128 (phone) + the Wear-OS id.
+# The earlier "carries this id alongside 5 others" comment was wrong. CA now uses
+# the shared 59992128 client + us00 host, same as US.
 
 # v2.3.0 (#269) — VW NA-specific IDP host: identity.na.vwgroup.io
 # (NOT identity.vwgroup.io). The authorize-redirect lands on this NA IDP and
@@ -157,12 +161,9 @@ class VWNAClient:
         self._base     = _COUNTRY_BASES.get(self._country, _COUNTRY_BASES["us"])
         self._tokens: TokenSet | None = None
         # VW NA uses IDK auth but against a country-specific endpoint.
-        # b13 (#503) — CA keeps its own APK-confirmed client_id; US uses the
-        # shared one. The #503 regression was the scope (reverted above), not
-        # this id.
-        client_id = (
-            _CA_CLIENT_ID if self._country == "ca" else BRAND_VW_NA.client_id
-        )
+        # v2.20.0 (N7) — US and CA share the one client the current app ships
+        # (59992128); the old per-CA client_id was unvalidated dead config.
+        client_id = BRAND_VW_NA.client_id
         brand = BrandConfig(
             name=f"volkswagen_{self._country}",
             client_id=client_id,
@@ -198,8 +199,8 @@ class VWNAClient:
         # MYVW_ANDROID client throughout — verified against the live MyVW app
         # (its DEX has zero ``b680e751`` / ``identity.na`` literals) and an
         # independent working US implementation. Dropping the override makes
-        # ``idk._signin_client_id`` fall back to ``brand.client_id`` (the
-        # per-country 59992128 / 69eb3c39 MYVW client), matching the app.
+        # ``idk._signin_client_id`` fall back to ``brand.client_id`` (the shared
+        # 59992128 MYVW client for both US and CA), matching the app.
         self._auth = IDKAuth(
             session,
             brand,
