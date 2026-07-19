@@ -70,7 +70,7 @@ def test_start_aux_heating_hits_bff_on_non_mbb_entry(monkeypatch) -> None:
 
     c._post_command = _cap
     asyncio.run(c.command_start_aux_heating("VINX"))
-    assert calls == [("VINX", "auxiliary-heating/start")]
+    assert calls == [("VINX", "auxiliaryheating/start")]
 
 
 def test_stop_aux_heating_hits_bff_on_non_mbb_entry(monkeypatch) -> None:
@@ -83,4 +83,4 @@ def test_stop_aux_heating_hits_bff_on_non_mbb_entry(monkeypatch) -> None:
 
     c._post_command = _cap
     asyncio.run(c.command_stop_aux_heating("VINX"))
-    assert calls == [("VINX", "auxiliary-heating/stop")]
+    assert calls == [("VINX", "auxiliaryheating/stop")]

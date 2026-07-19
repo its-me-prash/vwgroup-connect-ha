@@ -51,9 +51,11 @@ def test_hvbattery_does_not_clobber_bff_value() -> None:
 
 
 def test_cabin_temperature_mapped() -> None:
+    # EU-DA dict 74039fb6: raw is offset-encoded (0.1 °C, -46 offset), so a
+    # 21.5 °C cabin is raw 675 (675*0.1 - 46 = 21.5) — NOT deci-Kelvin.
     d = _map(
         {
-            "in_cabin_temperature.temperature": "21.5",
+            "in_cabin_temperature.temperature": "675",
             "in_cabin_temperature.measurement_state": "valid",
         }
     )
@@ -61,8 +63,14 @@ def test_cabin_temperature_mapped() -> None:
 
 
 def test_cabin_temperature_no_state_still_accepted() -> None:
-    d = _map({"in_cabin_temperature.temperature": "19.0"})
+    d = _map({"in_cabin_temperature.temperature": "650"})  # 650*0.1 - 46 = 19.0
     assert d.cabin_temp == 19.0
+
+
+def test_cabin_temperature_fahrenheit_subrange_converted() -> None:
+    # raw 1461 = -51 °F (dict) → -46.1 °C.
+    d = _map({"in_cabin_temperature.temperature": "1461"})
+    assert d.cabin_temp == -46.1
 
 
 def test_cabin_temperature_invalid_state_skipped() -> None:

@@ -145,7 +145,7 @@ class TestVWEUWake:
         client._post_command = AsyncMock(return_value=None)
         asyncio.run(client.command_wake("VINX"))
         client._post_command.assert_awaited_once_with(
-            "VINX", "vehicleWakeup", json={}
+            "VINX", "vehiclewakeup", json={}
         )
 
     def test_wake_v1_404_falls_back_to_v2(self):

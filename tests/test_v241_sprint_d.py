@@ -84,15 +84,19 @@ class TestOLAHeadersModule:
     def test_seat_headers_present(self) -> None:
         src = _OLA_HEADERS_PY.read_text(encoding="utf-8")
         assert '"seat":' in src
-        # CarConnectivity v0.6.3 values per upstream session config.
         assert '"app-brand": "seat"' in src
-        assert '"app-version": "2.17.0"' in src
+        # v2.19.1 (#779) — primary bumped to the current store version; the
+        # previous 2.17.0 is retained in the fallback chain.
+        assert '"app-version": "2.19.1"' in src
+        assert '"app-version": "2.17.0"' in src  # kept as fallback
 
     def test_cupra_headers_present(self) -> None:
         src = _OLA_HEADERS_PY.read_text(encoding="utf-8")
         assert '"cupra":' in src
         assert '"app-brand": "cupra"' in src
-        assert '"app-version": "2.15.0"' in src
+        # v2.19.1 (#779) — primary bumped; 2.15.0 retained as fallback.
+        assert '"app-version": "2.19.1"' in src
+        assert '"app-version": "2.15.0"' in src  # kept as fallback
 
     def test_common_headers_for_both_brands(self) -> None:
         """app-market + origin are universal across brands."""

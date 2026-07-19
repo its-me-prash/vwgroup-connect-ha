@@ -108,6 +108,13 @@ _USER_AGENT = (
     "(KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
 )
 _NO_CONTENT_SUFFIX = "_no_content_found.zip"
+
+# Junk sentinels the portal uses for state STRINGS (no active session / single-
+# port car / infra not up / no reading). Any of these means "no value" → the
+# field stays None instead of surfacing the literal token as a phantom reading.
+_CHARGE_STATE_JUNK = frozenset(
+    {"invalid", "unavailable", "notavailable", "error", "unknown"}
+)
 _TIMEOUT_S = 60
 # v2.12.4 (#428/#429/#430/#431) — statuses that mean "the portal is having a
 # bad moment", not "your session is dead". During the VW-side all-brands
@@ -1173,18 +1180,22 @@ def map_dataset_to_vehicle_data(
         if d.electric_range_km is None:
             d.electric_range_km = rng
 
-    # #717 — battery_state_report.charge_power / charge_power are RAW
-    # 0.1-kW-resolution portal values (EU data dict UUID 44ed0d61: "actual charge
-    # power … range 0..500 with a resolution of 0,1 kW"; the reporter saw 65 →
-    # 6.5 kW), so they scale /10 — the same deci-unit handling the temps + kWh
-    # fields below already get. The chargePower_kW / charging_power aliases carry
-    # kW already (chargePower_kW by name; charging_power UUID 978be4ed treated as
-    # kW by convention — #518), so they stay UNSCALED.
-    cp_deci = _to_float(first("battery_state_report.charge_power", "charge_power"))
+    # #717 / #764 — the portal reports charge power at 0.1-kW resolution (deci-kW),
+    # so battery_state_report.charge_power / charge_power / charging_power all scale
+    # /10 (EU data dict UUID 44ed0d61: "actual charge power … resolution of 0,1 kW";
+    # the #717 reporter saw 65 → 6.5 kW). #764 (Motii08, Leon VZ e-Hybrid) settled
+    # charging_power with a live charging export: value 19 while charging at max
+    # 11 kW AC → 1.9 kW, so 19 kW raw is physically impossible — it IS deci-kW, not
+    # already-kW as the old #518 "convention" assumed (dict UUID 978be4ed states no
+    # unit/resolution, only "Power of charging"). Only chargePower_kW (kW by name)
+    # stays UNSCALED.
+    cp_deci = _to_float(first(
+        "battery_state_report.charge_power", "charge_power", "charging_power",
+    ))
     if cp_deci is not None:
         d.charging_power_kw = round(cp_deci / 10.0, 1)
     else:
-        cp_kw = _to_float(first("chargePower_kW", "charging_power"))
+        cp_kw = _to_float(first("chargePower_kW"))
         if cp_kw is not None:
             d.charging_power_kw = cp_kw
 
@@ -1207,9 +1218,16 @@ def map_dataset_to_vehicle_data(
     cs = first("charging_state_report.current_charge_state", "current_charge_state",
                "chargingState", "charging_state")
     if cs:
-        # is_charging from the RAW value (logic unchanged); store a shortened
-        # label for display (a13/A4 — strips verbose VW enum prefixes).
-        d.is_charging = cs.lower() in ("charging", "chargingacactive", "active")
+        # is_charging from the RAW value; store a shortened label for display
+        # (a13/A4 — strips verbose VW enum prefixes). #764 — the portal one-time
+        # export reports the active state as ``chargingHvBattery`` (Motii08's Leon
+        # VZ e-Hybrid, confirmed charging: SoC 50 %, power 1.9 kW, 230 min left);
+        # ``chargingDcActive`` is the DC counterpart of the AC state already here.
+        # Without these the charging binary_sensor read OFF while actively charging.
+        d.is_charging = cs.lower() in (
+            "charging", "chargingacactive", "chargingdcactive",
+            "charginghvbattery", "active",
+        )
         d.charging_state = _shorten_enum(cs)
 
     else:
@@ -1318,6 +1336,30 @@ def map_dataset_to_vehicle_data(
         # already-°C value (e.g. 17.1) stays as-is — no ambient temp is > 200 °C.
         d.outside_temp = round(otemp / 10 - 273.15, 1) if otemp > 200 else otemp
 
+    # `outdoor_temperature.temperature` — EU-DA one-time-export dialect of the
+    # ambient reading (dict UUID f2e30577). SAME offset encoding as the cabin
+    # sensor (74039fb6): raw 0..1460 = 0.1 °C with a -46 offset (0->-46 °C,
+    # 1460->100 °C), raw 1461..2513 = the 0.25 °F alternative → °C. This nested
+    # spelling is NOT the flat plain-°C `outdoor_temperature` consumed above, so
+    # it needs the offset formula — the deci-Kelvin/passthrough path would
+    # misread raw 675 as -205 °C (the exact bug fixed for cabin in v2.19.1).
+    # Fallback only: fills outside_temp when neither the dK nor the flat-°C
+    # alias was present. `measurement_state` gates validity when carried.
+    if d.outside_temp is None:
+        _odt_state = first("outdoor_temperature.measurement_state")
+        _odt = _to_float(first("outdoor_temperature.temperature"))
+        if _odt is not None and (
+            _odt_state is None
+            or str(_odt_state).lower()
+            not in ("invalid", "error", "measurement_invalid", "not_available")
+        ):
+            if _odt <= 1460:
+                d.outside_temp = round(_odt * 0.1 - 46.0, 1)
+            else:
+                d.outside_temp = round(
+                    ((_odt - 1461) * 0.25 - 51.0 - 32.0) * 5.0 / 9.0, 1
+                )
+
     # v2.17.1 (Scout #701, VW ID.7) — EU-portal HV-battery + cabin temps.
     # `hvbatterytemperature.{min,max}_temperature` feed the same
     # battery_temp (min) / battery_temp_max (max) sensors the CARIAD-BFF
@@ -1381,10 +1423,14 @@ def map_dataset_to_vehicle_data(
             str(_legacy_cwhv).strip().lower() in ("true", "1")
         )
 
-    # `in_cabin_temperature.temperature` — current interior °C. The
-    # companion `measurement_state` flags validity; skip an explicitly
-    # invalid reading but accept when the flag is absent (not all reports
-    # carry it). Same dK guard.
+    # `in_cabin_temperature.temperature` — current interior temperature. The
+    # companion `measurement_state` flags validity; skip an explicitly invalid
+    # reading but accept when the flag is absent (not all reports carry it).
+    # ENCODING (EU-DA data dict 74039fb6): raw 0..1460 = 0.1 °C with a -46
+    # offset (0->-46 °C, 1460->100 °C), so °C = raw*0.1 - 46; raw 1461..2513 is
+    # the 0.25 °F alternative (1461->-51 °F), converted to °C. The old
+    # deci-Kelvin formula was wrong — it returned ~-205 °C for a normal 22 °C
+    # cabin (whose encoded raw is 680).
     cabin_state = first("in_cabin_temperature.measurement_state")
     cabin_t = _to_float(first("in_cabin_temperature.temperature"))
     if cabin_t is not None and (
@@ -1392,7 +1438,11 @@ def map_dataset_to_vehicle_data(
         or str(cabin_state).lower()
         not in ("invalid", "error", "measurement_invalid", "not_available")
     ):
-        d.cabin_temp = round(cabin_t / 10 - 273.15, 1) if cabin_t > 200 else cabin_t
+        if cabin_t <= 1460:
+            d.cabin_temp = round(cabin_t * 0.1 - 46.0, 1)
+        else:
+            _cf = ((cabin_t - 1461) * 0.25 - 51.0 - 32.0) * 5.0 / 9.0
+            d.cabin_temp = round(_cf, 1)
 
     # `battery_state_report.charge_target_time` — ISO-8601 ts the pack
     # reaches its charge target (charging analog of climatisation_ready_at).
@@ -1638,9 +1688,15 @@ def map_dataset_to_vehicle_data(
         d.charging_type = _shorten_enum(_ctype)
 
     # charging_mode → charging_preferred_mode (guard is None so a BFF value
-    # is never clobbered).
+    # is never clobbered). #764 — drop the portal 'invalid'/etc. junk sentinels
+    # the same way the plug-state strings do, so the literal 'invalid' never
+    # surfaces as the preferred charging mode.
     _cmode = first("charging_mode", "chargingMode")
-    if _cmode is not None and d.charging_preferred_mode is None:
+    if (
+        _cmode is not None
+        and d.charging_preferred_mode is None
+        and str(_cmode).strip().lower() not in _CHARGE_STATE_JUNK
+    ):
         d.charging_preferred_mode = _shorten_enum(_cmode)
 
     # battery_care_mode.charge_bcam_threshold → battery_care_target_soc_pct.
@@ -1768,12 +1824,10 @@ def map_dataset_to_vehicle_data(
         raw = first(*names)
         if raw is None:
             return None
-        # junk sentinels for these state strings: no active session / single-
-        # port car / infra not yet up. Skip → field stays None (no phantom
+        # junk sentinels for these state strings (no active session / single-
+        # port car / infra not yet up). Skip → field stays None (no phantom
         # entity) but the raw key is still consumed for discovery hygiene.
-        if str(raw).strip().lower() in (
-            "invalid", "unavailable", "notavailable", "error", "unknown",
-        ):
+        if str(raw).strip().lower() in _CHARGE_STATE_JUNK:
             return None
         return _shorten_enum(raw)
 
@@ -2124,15 +2178,18 @@ def map_dataset_to_vehicle_data(
     if _spoiler_pos is not None and d.spoiler_position_pct is None:
         d.spoiler_position_pct = _spoiler_pos
 
-    # C. Trip odometer endpoints (km).
+    # C. Trip odometer endpoints (km). #764 — guard >= 0: a distance/odometer is
+    # never negative, and the lifetime fields use -1 as a "not set yet" sentinel
+    # (Motii08's long_term_data_start_mileage=-1 leaked -1 km onto the start
+    # odometer). Skip negatives so the sentinel never surfaces.
     _lt_dist = _to_int(first("long_term_data_mileage"))
-    if _lt_dist is not None:
+    if _lt_dist is not None and _lt_dist >= 0:
         d.lifetime_trip_distance_km = _lt_dist
     _lt_start = _to_int(first("long_term_data_start_mileage"))
-    if _lt_start is not None:
+    if _lt_start is not None and _lt_start >= 0:
         d.lifetime_trip_start_odometer_km = _lt_start
     _st_start = _to_int(first("short_term_data_start_mileage"))
-    if _st_start is not None:
+    if _st_start is not None and _st_start >= 0:
         d.last_trip_start_odometer_km = _st_start
 
     # D. Fuel / fluids / SCR.
@@ -2977,8 +3034,42 @@ class EUDataActConnector:
                             break
                 cands.append((name, dts, idx))
         if not cands:
-            self.last_no_data_reason = "empty"
-            _LOGGER.debug("EU Data Act portal: no dataset files for %s yet", vin[-6:])
+            # #709 — distinguish the three "no usable file" cases so a stuck feed
+            # is diagnosable: (a) the listing was empty, (b) the portal IS
+            # generating 15-min files but every one is a "no content" placeholder
+            # (the request is active, the car just hasn't fed telemetry into it —
+            # usually starts once it's driven/woken), or (c) the file objects came
+            # back in an unexpected shape (no "name"). Names are not logged (they
+            # can carry identifiers); only counts.
+            _flist = files if isinstance(files, list) else []
+            _raw_n = len(_flist)
+            _named = sum(
+                1 for f in _flist
+                if isinstance(f, dict) and isinstance(f.get("name"), str)
+            )
+            _nc = sum(
+                1 for f in _flist
+                if isinstance(f, dict)
+                and isinstance(f.get("name"), str)
+                and f["name"].endswith(_NO_CONTENT_SUFFIX)
+            )
+            if _raw_n and _named == _raw_n and _nc == _raw_n:
+                self.last_no_data_reason = "no_content"
+                _LOGGER.info(
+                    "EU Data Act portal: %s has %d dataset file(s) this cycle but "
+                    "all are 'no content' placeholders — the request is active, the "
+                    "car just hasn't delivered telemetry into it yet (it usually "
+                    "starts once the car is driven or woken). The vehicle will fill "
+                    "in as soon as real data arrives.",
+                    vin[-6:], _raw_n,
+                )
+            else:
+                self.last_no_data_reason = "empty"
+                _LOGGER.debug(
+                    "EU Data Act portal: no usable dataset files for %s yet "
+                    "(raw=%d, named=%d, no_content=%d, listing=%s)",
+                    vin[-6:], _raw_n, _named, _nc, type(listing).__name__,
+                )
             return d
         # Newest by delivery ts when present; files without a ts sort below those
         # with one (-inf), and ties / a fully-tsless listing fall back to array

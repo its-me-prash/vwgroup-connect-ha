@@ -1169,7 +1169,9 @@ class TestVWEUCommands:
         assert "vehicleLights/flash" not in url
         # Real body schema — mode enum value + integer duration, no "action".
         assert body["mode"] == "FLASH_ONLY"
-        assert isinstance(body["duration"], int)
+        # #752 — APK-grounded key is duration_s (@SerialName), not "duration".
+        assert isinstance(body["duration_s"], int)
+        assert "duration" not in body
         assert "action" not in body
         # Bare body first → no userPosition unless the backend 400s.
         assert "userPosition" not in body

@@ -49,6 +49,9 @@ def _vw_client():
     # bearer to the CARIAD BFF. A real client always has _tokens; this bare
     # __new__ mock is a non-MBB (BFF) entry, so give it a None token set.
     client._tokens = None
+    # #752 — aux-heating now sends the S-PIN in the body (when set); a real
+    # client always has _spin. Empty = VW/Audi don't require it.
+    client._spin = ""
     return client
 
 
@@ -122,12 +125,10 @@ class TestCariadCommands:
         client._post_command.assert_awaited_once()
         call = client._post_command.await_args
         assert call.args[0] == "VINX"
-        assert call.args[1] == "auxiliary-heating/start"
-        body = call.kwargs["json"]
-        assert body["command"] == "start"
-        # Defaults: 30 minutes, 21 C -> 294.15 K.
-        assert body["duration_in_min"] == 30
-        assert abs(body["target_temperature_in_kelvin"] - 294.15) < 0.001
+        assert call.args[1] == "auxiliaryheating/start"
+        # #752 — minimal {duration_min, spin} body (no temperature); spin is
+        # omitted when unset. Default duration 30 min.
+        assert call.kwargs["json"] == {"duration_min": 30}
 
     def test_start_custom_duration_and_temp(self):
         client = _vw_client()
@@ -138,9 +139,7 @@ class TestCariadCommands:
             )
         )
         body = client._post_command.await_args.kwargs["json"]
-        assert body["duration_in_min"] == 45
-        # 22.5 C -> 295.65 K
-        assert abs(body["target_temperature_in_kelvin"] - 295.65) < 0.001
+        assert body == {"duration_min": 45}  # target_c is not part of the request
 
     def test_stop_payload(self):
         client = _vw_client()
@@ -150,8 +149,8 @@ class TestCariadCommands:
         )
         call = client._post_command.await_args
         assert call.args[0] == "VINX"
-        assert call.args[1] == "auxiliary-heating/stop"
-        assert call.kwargs["json"] == {"command": "stop"}
+        assert call.args[1] == "auxiliaryheating/stop"
+        assert call.kwargs["json"] == {}
 
     def test_audi_inherits_via_subclass(self):
         """``AudiClient`` inherits from ``VWEUClient`` so the new

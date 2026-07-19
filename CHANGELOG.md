@@ -38,6 +38,26 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.19.1] - 2026-07-19
+
+### Fixed
+
+- **PHEV charging power was reading 10× too high (#764).** On plug-in hybrids the portal feed reports charge power in tenths of a kW, but it was being taken as whole kW — so a 1.9 kW trickle showed as 19 kW, above what the car can even draw. It's now scaled correctly. The same real-world charging export also surfaced three smaller portal glitches, all fixed too: the charging state no longer flips to a junk value mid-charge, an odd placeholder charge-mode is ignored instead of shown, and a sentinel "0" odometer at trip start no longer masquerades as a real reading.
+- **Cabin and outside temperature from the portal feed were decoded wrong.** Both were read as deci-Kelvin, but the data dictionary actually encodes them with a 0.1 °C step and a −46 °C offset — so a normal 22 °C cabin could come out around −205 °C. Both now use the correct formula (including the nested one-time-export spelling of the outside reading), with the Fahrenheit sub-range handled too.
+- **Several Audi / VW commands were hitting the wrong backend path and silently failing (#752).** Parking-heater start, climate start, charge-mode and vehicle wake were each using a mistyped route or a mis-named field, so the backend answered with a 404 that led nowhere. The routes and payloads now match what the official app actually sends (parking-heater, charge-mode on its own route, the climate temperature / at-unlock keys, wake), and the VIN is upper-cased before every command because some backend nodes are case-sensitive. Note: on a car where a given function simply isn't provisioned for remote control, the backend will still legitimately refuse it.
+- **Honk & flash ignored the requested duration.** The duration field was mis-named, so "flash the lights" always ran the backend's default length instead of the value sent. Fixed, grounded in the official app's own wire format.
+- **Your car's model now shows even when the long name is missing (#764).** When the backend returns no full model name, the device now falls back to the short model name from the vehicle list before dropping to a plain brand label.
+- **CUPRA / SEAT read channel: app-version header refreshed (#779).** Bumped to the current version so requests keep matching what the backend expects.
+- **The "no data yet" help text now leads with the consent step (#755).** If the portal feed hasn't produced anything, the guidance starts with enabling the continuous-data consent in your VW/Audi account — the step people most often miss — before the rest.
+
+### Changed
+
+- **Commands now wait to confirm they actually ran (#666).** Instead of firing a command and assuming success, the integration briefly polls the backend until the request reaches a final state, so a genuine failure surfaces as an error instead of looking like it silently did nothing. It adds a little latency but is far more honest about what happened.
+
+### Thanks
+
+Huge thanks to **@Motii08**, whose real charging export pinned down the 10× power bug and three other portal glitches (#764); **@heyensh-sys** for patiently testing the Audi commands and sending the exact error logs that isolated the route bugs (#752); **@dazj1990** (#709) and **@rmalbrecht** (#779) for the read-channel reports; **@Mech0z** for flagging the confusing "no data" guidance (#755); and **@torstentosh**, whose command errors drove the completion-confirmation work (#666). The full roll of reporters, requesters and testers is in [CONTRIBUTORS.md](CONTRIBUTORS.md) — thank you. 🙏
+
 ## [2.19.0] - 2026-07-18
 
 ### Fixed

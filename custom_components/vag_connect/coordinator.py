@@ -3382,9 +3382,18 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             if isinstance(_img_map, dict):
                 _vimg = _img_map.get(vin)
                 _long = getattr(_vimg, "long_name", None) if _vimg else None
+                _short = getattr(_vimg, "short_name", None) if _vimg else None
                 _iyear = getattr(_vimg, "model_year", None) if _vimg else None
+                # Prefer the rich long name ("Audi S6 Avant TDI quattro
+                # tiptronic"); fall back to the short model name ("S6 Avant").
+                # Some cars (e.g. the Audi S6 Avant) return core.modelYear +
+                # media.shortName but a NULL media.longName — long_name-only
+                # left the model empty, so the device page fell back to the
+                # bare brand ("Audi") even though shortName held the model.
                 if isinstance(_long, str) and _long.strip():
                     data["model"] = _long.strip()
+                elif isinstance(_short, str) and _short.strip():
+                    data["model"] = _short.strip()
                 if _iyear and not data.get("model_year"):
                     data["model_year"] = _iyear
             static = getattr(self, "vehicle_static_info", {}).get(vin)

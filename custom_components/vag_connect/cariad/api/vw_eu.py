@@ -98,6 +98,61 @@ def _find_flat(node: Any, key: str) -> Any:
     return None
 
 
+# ── v2.19.1 (audit) — BFF command completion poll ──────────────────────────
+# The CARIAD BFF 202-accepts a command, then runs it asynchronously against the
+# vehicle. Without confirming, we report success on accept — so a command the
+# vehicle later REJECTS looks successful (the #666 optimistic snap-back). We
+# poll .../pendingrequests to a terminal status. Bounded so a slow backend can't
+# hang the command; raises ONLY on an explicit failure for the matching id.
+_BFF_CONFIRM_ATTEMPTS = 10
+_BFF_CONFIRM_SLEEP_S = 3.0
+_BFF_FAIL_STATES = frozenset(
+    {"failed", "fail", "unsuccessful", "error", "errored", "rejected"}
+)
+_BFF_OK_STATES = frozenset(
+    {"successful", "succeeded", "success", "completed", "done", "finished"}
+)
+
+
+def _bff_request_id(resp: Any) -> str | None:
+    """Extract the async request id from a BFF 202 command response."""
+    if not isinstance(resp, dict):
+        return None
+    data = resp.get("data")
+    candidates = [data] if isinstance(data, dict) else []
+    candidates.append(resp)
+    for obj in candidates:
+        for key in ("requestID", "requestId", "id"):
+            val = obj.get(key)
+            if isinstance(val, str) and val.strip():
+                return val.strip()
+    return None
+
+
+def _bff_status_for(pend: Any, request_id: str) -> str | None:
+    """Find the status of ``request_id`` in a pendingrequests response.
+
+    Returns the raw status string, or ``None`` when the request isn't listed
+    (not started yet / already cleared / unexpected shape)."""
+    items: list[Any] = []
+    if isinstance(pend, dict):
+        for key in ("data", "requests", "pendingrequests", "pendingRequests"):
+            val = pend.get(key)
+            if isinstance(val, list):
+                items = val
+                break
+    elif isinstance(pend, list):
+        items = pend
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        rid = it.get("id") or it.get("requestID") or it.get("requestId")
+        if rid is not None and str(rid) == str(request_id):
+            st = it.get("status") or it.get("state")
+            return str(st) if st is not None else None
+    return None
+
+
 class VWEUClient(CariadBaseClient):
     """VW EU / WeConnect client — emea.bff.cariad.digital.
 
@@ -766,7 +821,14 @@ class VWEUClient(CariadBaseClient):
         """
         body: dict[str, Any] = {}
         if temp_c is not None:
-            body["targetTemperatureInCelsius"] = float(temp_c)
+            # #752 audit — the CARIAD climatisation/start action takes
+            # targetTemperature + targetTemperatureUnit (as our own simpler
+            # climate paths at command_start_climate + command_set_climate_
+            # temperature already do), NOT targetTemperatureInCelsius, which the
+            # backend silently ignores → the target temp was never applied on
+            # rich climate start.
+            body["targetTemperature"] = float(temp_c)
+            body["targetTemperatureUnit"] = "celsius"
         if glass_heating is not None:
             body["windowHeatingEnabled"] = bool(glass_heating)
         if any(s is not None for s in (seat_fl, seat_fr, seat_rl, seat_rr)):
@@ -783,7 +845,11 @@ class VWEUClient(CariadBaseClient):
                 bool(seat_rr) if seat_rr is not None else False
             )
         if climatisation_at_unlock is not None:
-            body["climatisationAtUnlock"] = bool(climatisation_at_unlock)
+            # #752 audit — CARIAD spells this key with a 'z'
+            # (climatiZationAtUnlock), even though the rest of the body uses 's'
+            # (climatisationMode / climatisationWithoutExternalPower). The 's'
+            # variant is silently dropped, so the at-unlock toggle was a no-op.
+            body["climatizationAtUnlock"] = bool(climatisation_at_unlock)
         if climatisation_mode is not None:
             body["climatisationMode"] = str(climatisation_mode)
         url = f"{self._base_for_vin(vin)}/vehicle/v1/vehicles/{vin}/climatisation/start"
@@ -847,10 +913,10 @@ class VWEUClient(CariadBaseClient):
         - **Path**: ``/vehicle/v1/vehicles/{vin}/honkandflash`` (literal in
           classes3.dex; routed via ``_post_command`` so it inherits the
           v1→v2 404 fallback every other command uses).
-        - **Body**: a ``HonkAndFlashRequest`` whose ctor signature in the
-          DEX is ``(int duration, String mode, UserPosition userPosition)``
-          → JSON keys ``duration`` / ``mode`` / ``userPosition`` (the last
-          nesting ``latitude`` / ``longitude``).
+        - **Body**: a ``HonkAndFlashParameters`` → JSON keys ``duration_s`` /
+          ``mode`` / ``userPosition`` (the last nesting ``latitude`` /
+          ``longitude``). ``duration_s`` is the @SerialName of the app's
+          ``durationInSeconds`` field (grounded in the decoded APK).
         - **Mode**: the CARIAD ``HonkAndFlashParameters$Mode`` enum has
           exactly two members — ``HONK_AND_FLASH`` and ``FLASH_ONLY``.
           We flash only, so ``mode = "FLASH_ONLY"``.
@@ -891,7 +957,11 @@ class VWEUClient(CariadBaseClient):
                 "have. Lock, unlock, climate and charge commands still work "
                 "over MBB.",
             )
-        body: dict[str, Any] = {"mode": "FLASH_ONLY", "duration": 10}
+        # #752 (APK-grounded) — the wire key is ``duration_s`` (the app's
+        # HonkAndFlashParameters uses @SerialName("duration_s") on
+        # durationInSeconds); the old ``duration`` was an unknown key the backend
+        # silently dropped, so the flash always ran the backend default length.
+        body: dict[str, Any] = {"mode": "FLASH_ONLY", "duration_s": 10}
         try:
             await self._post_command(vin, "honkandflash", json=body)
             return
@@ -977,7 +1047,12 @@ class VWEUClient(CariadBaseClient):
 
         # Step 2: try Cariad-BFF (existing v1→v2 fallback)
         try:
-            await self._post_command(vin, "vehicleWakeup", json={})
+            # #752 audit — the BFF resource is all-lowercase 'vehiclewakeup'
+            # (the reference client's proven spelling; the CARIAD BFF is
+            # case-sensitive, cf. the auxiliaryheating fix). camelCase
+            # 'vehicleWakeup' risks a 404 our wrapper mis-reads as "MBB-backed",
+            # wrongly routing every CARIAD car's wake through the legacy stack.
+            await self._post_command(vin, "vehiclewakeup", json={})
             # Success — mark VIN as Cariad-backed if not already
             if cached_backend != "cariad":
                 self._mbb_backend_cache.set(vin, "cariad")
@@ -1951,25 +2026,71 @@ class VWEUClient(CariadBaseClient):
         Other 4xx/5xx errors propagate as-is — this only handles the
         version-mismatch case.
         """
+        # audit hardening — normalise the VIN to upper-case before it enters the
+        # BFF path. The CARIAD garage returns upper VINs, but a manually-entered
+        # MBB VIN (or a mixed-case portal VIN) would otherwise 404; this also
+        # keys the HomeRegion lookup consistently. (All fallback-path commands
+        # route through here, so one normalisation covers every BFF command.)
+        vin = vin.upper()
         # v2.1.0 — per-VIN base URL via HomeRegion lookup.
         base = self._base_for_vin(vin)
         if self._supports_v2_paths(vin):
-            return await self._post(
+            resp = await self._post(
                 f"{base}/vehicle/v2/vehicles/{vin}/{path_suffix}", **kwargs,
             )
-        try:
-            return await self._post(
-                f"{base}/vehicle/v1/vehicles/{vin}/{path_suffix}", **kwargs,
-            )
-        except APIError as err:
-            if getattr(err, "status", 0) != 404:
-                raise
-            # v1 said the resource doesn't exist — try v2 once
-            result = await self._post(
-                f"{base}/vehicle/v2/vehicles/{vin}/{path_suffix}", **kwargs,
-            )
-            self._mark_v2_active(vin)
-            return result
+        else:
+            try:
+                resp = await self._post(
+                    f"{base}/vehicle/v1/vehicles/{vin}/{path_suffix}", **kwargs,
+                )
+            except APIError as err:
+                if getattr(err, "status", 0) != 404:
+                    raise
+                # v1 said the resource doesn't exist — try v2 once
+                resp = await self._post(
+                    f"{base}/vehicle/v2/vehicles/{vin}/{path_suffix}", **kwargs,
+                )
+                self._mark_v2_active(vin)
+        # v2.19.1 (audit) — confirm the accepted command actually ran at the
+        # vehicle (best-effort; only raises on an explicit rejection).
+        await self._await_bff_command(vin, base, resp)
+        return resp
+
+    async def _await_bff_command(self, vin: str, base: str, resp: Any) -> None:
+        """Confirm a just-accepted BFF command via the pendingrequests poll.
+
+        The BFF 202-accepts, then runs the command asynchronously. We poll the
+        matching request to a terminal status and raise VehicleCommandError on an
+        explicit failure so the coordinator's optimistic revert fires. SAFE /
+        best-effort: raises ONLY on an explicit failure for the matching request
+        id; on no request id, a poll error, an unexpected shape, or a timeout
+        without a terminal status it returns silently — never worse than the old
+        fire-and-forget behaviour."""
+        request_id = _bff_request_id(resp)
+        if not request_id:
+            return
+        for _ in range(_BFF_CONFIRM_ATTEMPTS):
+            await asyncio.sleep(_BFF_CONFIRM_SLEEP_S)
+            try:
+                pend = await self._get(
+                    f"{base}/vehicle/v1/vehicles/{vin}/pendingrequests"
+                )
+            except Exception:  # noqa: BLE001
+                return  # poll unavailable → keep the old (accept) behaviour
+            status = _bff_status_for(pend, request_id)
+            if status is None:
+                continue  # not listed yet / unknown → keep polling
+            low = status.strip().lower()
+            if low in _BFF_FAIL_STATES:
+                raise VehicleCommandError(
+                    "command",
+                    "the vehicle did not carry out the command "
+                    f"(status: {status})",
+                )
+            if low in _BFF_OK_STATES:
+                return
+            # any other value = still in progress → keep polling within the bound
+        return  # bound reached without a terminal status → accept (optimistic)
 
     async def _post_command_with_fallback_paths(
         self,
@@ -2107,14 +2228,27 @@ class VWEUClient(CariadBaseClient):
         )
 
     async def command_set_charge_mode(self, vin: str, mode: str) -> None:
-        """Set charging mode — MANUAL, TIMER, PREFERRED_CHARGING_TIMES.
+        """Set the preferred charging mode.
 
-        v2.17.0 (#666) — charging/settings is a PUT (was POST → 404 on PPE).
+        v2.19.1 (#752 audit) — charge mode has its OWN CARIAD BFF route
+        ``charging/mode`` with body ``{"preferredChargeMode": <lowerCamel>}``,
+        NOT ``charging/settings`` with a ``chargeMode`` field. That key is unknown
+        on the settings route, so the setter 400'd / silently no-op'd (the same
+        class as the auxiliaryheating spelling bug). The write value is
+        lower-camelCase — a working myAudi client sends "manual"/"timer", and the
+        multi-word modes follow the same camelCase the read side already aliases
+        (e.g. preferredChargingTimes) — even though the READ enum is UPPER_SNAKE.
+        (The exotic modes beyond manual/timer are best-effort until live-confirmed.)
         """
+        _parts = [p for p in str(mode).strip().lower().split("_") if p]
+        _mode = (
+            _parts[0] + "".join(p.capitalize() for p in _parts[1:])
+            if _parts else ""
+        )
         await self._settings_put_with_fallback(
-            vin, "charging/settings",
-            put_body={"chargeMode": mode.upper()},
-            post_body={"chargeMode": mode.upper()},
+            vin, "charging/mode",
+            put_body={"preferredChargeMode": _mode},
+            post_body={"preferredChargeMode": _mode},
             command_name="set_charge_mode",
         )
 
@@ -2186,29 +2320,22 @@ class VWEUClient(CariadBaseClient):
     async def command_start_aux_heating(
         self,
         vin: str,
-        spin: str = "",  # noqa: ARG002 - kept for signature parity with SEAT/CUPRA
+        spin: str = "",
         duration_min: int = 30,
-        target_c: float = 21.0,
+        target_c: float = 21.0,  # noqa: ARG002 - pre-heater takes no target temp
     ) -> None:
         """Start engine pre-heater (Audi + VW EU CARIAD-BFF).
 
-        Endpoint: ``POST /vehicle/v1/vehicles/{vin}/auxiliary-heating/start``
-        with v2 fallback via ``_post_command`` on 404.
-
-        Payload shape (from upstream APK research, CARIAD vocabulary):
-            {
-                "command": "start",
-                "duration_in_min": <int>,
-                "target_temperature_in_kelvin": <float>,
-            }
-        Target temperature is sent in Kelvin (Celsius + 273.15) to match
-        every other CARIAD climate endpoint that takes Kelvin on the wire.
-
-        ``spin`` parameter is accepted for signature parity with the
-        SEAT/CUPRA OLA path but ignored here: VW EU + Audi do not gate
-        the engine pre-heater behind SecToken on this surface (in
-        contrast to engine remote start which uses the separate
-        ``/vehicle/v1/engine/{VIN}/...`` two-step S-PIN flow).
+        Endpoint: ``POST /vehicle/v1/vehicles/{vin}/auxiliaryheating/start``
+        — one word, matching the CARIAD read field ``auxiliaryHeating``. The
+        earlier hyphenated ``auxiliary-heating`` (tried on v1 AND v2) 404'd for
+        every Audi (#752). Body is the minimal
+        ``{"duration_min": <int>, "spin": <S-PIN>}`` the myAudi backend accepts
+        (community-verified against a working client) — the old
+        ``{command, duration_in_min, target_temperature_in_kelvin}`` was an
+        unverified APK-research guess, and the pre-heater request carries no
+        target temperature (``target_c`` kept for signature parity, unused). The
+        S-PIN is sent when configured.
         """
         # v2.15.12 (#584 follow-up) — on a legacy MBB-primary entry
         # ``self._access_token`` is the MBB bearer, which the CARIAD BFF
@@ -2223,22 +2350,17 @@ class VWEUClient(CariadBaseClient):
                 "Car-Net two-way path yet — this vehicle uses MBB, which has "
                 "no verified aux-heating command",
             )
-        kelvin = round(float(target_c) + 273.15, 2)
-        await self._post_command(
-            vin,
-            "auxiliary-heating/start",
-            json={
-                "command": "start",
-                "duration_in_min": int(duration_min),
-                "target_temperature_in_kelvin": kelvin,
-            },
-        )
+        _pin = spin or self._spin
+        body: dict[str, Any] = {"duration_min": int(duration_min)}
+        if _pin:
+            body["spin"] = _pin
+        await self._post_command(vin, "auxiliaryheating/start", json=body)
 
     async def command_stop_aux_heating(self, vin: str) -> None:
         """Stop engine pre-heater (Audi + VW EU CARIAD-BFF).
 
-        ``POST /vehicle/v1/vehicles/{vin}/auxiliary-heating/stop`` with the
-        minimal ``{"command": "stop"}`` payload. No S-PIN, no SecToken,
+        ``POST /vehicle/v1/vehicles/{vin}/auxiliaryheating/stop`` (one word,
+        #752) with an empty body — matching a working myAudi client's stop.
         v2 fallback on 404 via ``_post_command``.
         """
         # v2.15.12 (#584 follow-up) — same MBB-primary guard as start: don't
@@ -2250,11 +2372,7 @@ class VWEUClient(CariadBaseClient):
                 "Car-Net two-way path yet — this vehicle uses MBB, which has "
                 "no verified aux-heating command",
             )
-        await self._post_command(
-            vin,
-            "auxiliary-heating/stop",
-            json={"command": "stop"},
-        )
+        await self._post_command(vin, "auxiliaryheating/stop", json={})
 
     async def command_set_departure_timer(
         self,
