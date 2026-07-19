@@ -134,6 +134,121 @@ _WAKE_COOLDOWN = timedelta(minutes=5)
 # even for slow weekend backend windows).
 _COMMAND_LOCK_TIMEOUT = 60.0
 
+# v2.20.0 — durable-MBB (legacy Car-Net) command pre-test map.
+#
+# When commands route through the durable MBB channel, the CARIAD-BFF
+# ``/capabilities`` document is empty (the BFF read is ACL-closed for an MBB
+# bearer — every data read 403s ``XID_APP_VW``, live-confirmed on a Golf 7 GTE
+# 2026-07-19). So the AUTHORITATIVE per-VIN command directory is the MBB
+# ``operationList`` (the rolesrights service directory, which the MBB bearer
+# CAN read — 200). Each command entity maps to the Car-Net service that must be
+# present + ``Enabled`` in that VIN's operationList for the command to be real.
+# ``None`` = not a durable-MBB command → never available on this channel (a
+# ``command_flash``/``command_wake`` is honk-flash / VSR-refresh, not a granted
+# Car-Net operation), so it is hidden when the channel is MBB.
+# Only commands with a REAL durable-MBB implementation (a ``_mbb_command_target``
+# guard routing to ``_command_mbb_op`` / ``_command_rlu_mbb``) map to a service;
+# their entity shows iff that Car-Net service is granted in the VIN's
+# operationList. EVERY other command routes to the CARIAD BFF, which rejects the
+# MBB bearer ("400 missing/invalid auth header") — so on an MBB-command entry
+# they can only ever fail and are mapped to ``None`` (hidden), same as flash/wake.
+# (verified against vw_eu.py 2026-07-20: set_climate_temperature/aux_heating/
+# set_min_soc/set_max_charge_current/set_departure_timer are BFF-backed, and
+# set_battery_care/start_ventilation have no VW-EU method at all.)
+_MBB_COMMAND_SERVICE: dict[str, str | None] = {
+    # real MBB commands — gate on the operationList service
+    "command_lock": "rlu_v1",
+    "command_start_climate": "rclima_v1",
+    "command_start_window_heating": "rclima_v1",
+    "command_start_charging": "rbatterycharge_v1",
+    "command_set_target_soc": "rbatterycharge_v1",
+    # BFF-only / unimplemented on MBB — always hide on an MBB-command entry
+    "command_set_climate_temperature": None,
+    "command_set_min_soc": None,
+    "command_set_max_charge_current": None,
+    "command_set_battery_care": None,
+    "command_set_departure_timer": None,
+    "command_start_ventilation": None,
+    "command_start_aux_heating": None,
+    "command_flash": None,
+    "command_wake": None,
+}
+
+
+def _mbb_command_channel_client(coord: Any) -> Any | None:
+    """Return the client that owns the durable-MBB command path for this
+    entry, or None when commands do NOT route through MBB.
+
+    Two shapes: (a) a read-only primary with an MBB command connector armed
+    alongside (``client._mbb_command``, gated on the explicit
+    ``CONF_MBB_COMMAND_CHANNEL`` flag); (b) an MBB-primary client
+    (``strategy == 'mbb'``, e.g. Audi Car-Net). In both, the operationList
+    lives on that client's ``_mbb_oplist_cache``. Anything else (BFF two-way
+    Audi, Škoda, portal-only) returns None so the caller falls back to the
+    normal CARIAD-BFF capability gate.
+
+    Module-level (not a method) so it runs for real even when called with a
+    MagicMock coordinator in tests — the gating is driven by the real
+    ``entry.data`` dict + a string strategy compare, never by a mock attr.
+    """
+    client = getattr(coord, "_cariad_client", None)
+    if client is None:
+        return None
+    # MBB-primary (e.g. Audi Car-Net): the client itself is the command path.
+    # A string compare, so a mock ``_tokens`` never trips it.
+    strat = getattr(getattr(client, "_tokens", None), "strategy", "")
+    if strat == "mbb":
+        return client
+    # Read-only primary + MBB command channel armed alongside. Gate on the
+    # explicit config flag — a real dict lookup, NOT ``getattr(client,
+    # '_mbb_command')`` which a MagicMock test client would auto-vivify to a
+    # truthy value — then hand back the armed connector.
+    try:
+        armed = bool(coord.entry.data.get(CONF_MBB_COMMAND_CHANNEL))
+    except Exception:  # noqa: BLE001
+        armed = False
+    if not armed:
+        return None
+    cmd = getattr(client, "_mbb_command", None)
+    return cmd if cmd is not None else None
+
+
+def _mbb_command_capability(
+    coord: Any, vin: str, command_id: str
+) -> bool | None:
+    """v2.20.0 — strict per-VIN command pre-test from the MBB operationList.
+
+    Returns True/False ONLY when this entry's commands route through the
+    durable MBB channel; None otherwise (so ``command_capability_supported``
+    falls through to the CARIAD-BFF capability gate for non-MBB cars).
+
+    Policy (user choice 2026-07-19: *maximal streng*): a command entity is
+    created ONLY on positive operationList proof that the car currently grants
+    that command's Car-Net service. No proof — service absent or Disabled, or
+    the operationList not yet fetched for this VIN — hides the entity (never
+    invent a two-way control the car can't run). The operationList is fetched
+    by ``_refresh_mbb_command_capabilities`` and cached 12 h per VIN on the
+    command client.
+    """
+    cmd = _mbb_command_channel_client(coord)
+    if cmd is None:
+        return None
+    if command_id not in _MBB_COMMAND_SERVICE:
+        # A command we don't route via MBB — leave it to the BFF gate rather
+        # than risk hiding a legitimate non-MBB control.
+        return None
+    service_id = _MBB_COMMAND_SERVICE[command_id]
+    if service_id is None:
+        # honk-flash / VSR-refresh etc. — not a granted Car-Net operation.
+        return False
+    cache = getattr(cmd, "_mbb_oplist_cache", None)
+    entry = cache.get(vin) if isinstance(cache, dict) else None
+    oplist = entry[0] if entry else None
+    if oplist is None:
+        return False  # STRICT: no operationList proof → hide
+    svc = oplist.service(service_id)
+    return bool(svc is not None and svc.enabled)
+
 
 def _parse_trip_statistics(
     short_resp: Any, long_resp: Any
@@ -895,6 +1010,16 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 return_exceptions=True,
             )
 
+            # v2.20.0 — warm the durable-MBB command operationList AFTER
+            # self.vehicles is populated. The warm inside _arm_supplementary_
+            # channels runs before get_vehicles, and the portal+MBB-command
+            # config never sets CONF_MBB_VINS, so that early warm has no VINs to
+            # fall back on. Warming here (VINs known, MBB channel already armed)
+            # makes the per-VIN command pre-test authoritative at first spawn, so
+            # granted command entities appear immediately instead of being
+            # strict-hidden until a restart. No-op for non-MBB entries.
+            await self._refresh_mbb_command_capabilities()
+
             self._started = True
             found = len(self.vehicles)
             _LOGGER.info("VAG Connect: setup complete — %d vehicle(s)", found)
@@ -1520,6 +1645,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     cmd = getattr(client, "_mbb_command", None)
                     if cmd is not None:
                         cmd.on_tokens_changed = self._persist_mbb_command_tokens
+                    # v2.20.0 — warm the per-VIN operationList so command
+                    # entities gate on real grants at first spawn (never
+                    # invent). Fail-soft; retried each refresh.
+                    await self._refresh_mbb_command_capabilities()
             except Exception as err:  # noqa: BLE001
                 _LOGGER.warning(
                     "VAG Connect: MBB command channel arming failed (%s)"
@@ -1696,6 +1825,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 if not hasattr(self, "vehicle_success"):
                     self.vehicle_success = {}
                 vins = list(self.vehicles.keys())
+                # v2.20.0 — self-heal the durable-MBB command pre-test: re-warm
+                # the operationList each poll (12h client cache → cache-hit
+                # cheap) so a VIN whose setup warm transiently failed recovers on
+                # a normal background poll rather than staying command-hidden
+                # until a restart. update_interval is None here, so this loop —
+                # not _async_update_data — is the periodic path. No-op non-MBB.
+                await self._refresh_mbb_command_capabilities()
                 results = await asyncio.gather(
                     *[self._cariad_client.get_status(vin) for vin in vins],
                     return_exceptions=True,
@@ -2708,6 +2844,36 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             return None
         return self.capability_gating_reason(vin, cap_id)
 
+    async def _refresh_mbb_command_capabilities(self) -> None:
+        """v2.20.0 — warm the per-VIN MBB operationList so the command
+        pre-test (``_mbb_command_capability``) has authoritative data.
+
+        Reads the operationList through the armed MBB command connector, whose
+        durable bearer reaches the rolesrights plane (data reads are ACL-closed
+        but operationList/SecToken are open). The client caches it 12 h per VIN,
+        so calling this every refresh is cheap (cache hit) yet retries a VIN
+        whose earlier fetch failed. Fail-soft: a VIN we can't fetch simply keeps
+        no proof, and under the strict policy its command entities stay hidden
+        until a later refresh succeeds."""
+        cmd = _mbb_command_channel_client(self)
+        if cmd is None:
+            return
+        getter = getattr(cmd, "_get_mbb_operationlist", None)
+        if getter is None:
+            return
+        vins = list(getattr(cmd, "_mbb_manual_vins", None) or [])
+        if not vins:
+            with self._vehicles_lock:
+                vins = list(self.vehicles.keys())
+        for vin in vins:
+            if not vin:
+                continue
+            try:
+                await getter(vin, for_command=True)
+            except Exception:  # noqa: BLE001
+                # fail-soft — strict gate keeps this VIN's commands hidden
+                pass
+
     def command_capability_supported(
         self, vin: str, command_id: str
     ) -> bool | None:
@@ -2763,6 +2929,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             command_id,
         ):
             return False
+
+        # v2.20.0 — durable-MBB command pre-test. When commands route through
+        # the MBB channel the BFF capability cache is empty, so gate strictly on
+        # the MBB operationList instead. Returns None for non-MBB cars so they
+        # fall through to the CARIAD-BFF capability gate below unchanged.
+        mbb_gate = _mbb_command_capability(self, vin, command_id)
+        if mbb_gate is not None:
+            return mbb_gate
 
         cap_id = cap_id_for(brand, command_id)
         if cap_id is None:
@@ -3759,6 +3933,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             with self._vehicles_lock:
                 return dict(self.vehicles)
         try:
+            # v2.20.0 — keep the durable-MBB operationList warm so the command
+            # pre-test stays authoritative and a VIN whose earlier fetch failed
+            # gets retried (12 h client cache → cache-hit cheap). No-op for
+            # non-MBB entries.
+            await self._refresh_mbb_command_capabilities()
             vins = list(self.vehicles.keys())
             results = await asyncio.gather(
                 *[self._cariad_client.get_status(vin) for vin in vins],
