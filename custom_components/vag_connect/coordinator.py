@@ -2647,6 +2647,67 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # Cache is populated but capability isn't listed — explicit absence.
         return False
 
+    def capability_gating_reason(
+        self, vin: str, capability_id: str
+    ) -> tuple[str, str] | None:
+        """Return ``(category, human_reason)`` for WHY a capability is gated.
+
+        Companion to ``vehicle_supports_capability`` — it does NOT change the
+        gating decision, only explains it. Reads the same cached capabilities
+        document and decodes the capability's ``status`` array (or, for Skoda,
+        its ``license-issue`` / ``active`` / ``user-enabled`` flags) into a
+        legible reason via ``_capability_status``. Returns ``None`` when there
+        is nothing to explain (no cache, capability usable, or absent with no
+        status detail). Never raises — pure read of cached data.
+        """
+        from .cariad._capability_status import (  # noqa: PLC0415
+            capability_status_reason,
+        )
+
+        caps = getattr(self, "vehicle_capabilities", {}).get(vin)
+        if not isinstance(caps, dict):
+            return None
+        items = caps.get("capabilities")
+        if not isinstance(items, list):
+            return None
+        for entry in items:
+            if not isinstance(entry, dict) or entry.get("id") != capability_id:
+                continue
+            reason = capability_status_reason(entry.get("status"))
+            if reason is not None:
+                return reason
+            # Skoda mysmob expresses gating via flags, not a status array —
+            # synthesise the equivalent status tokens and reuse the decoder.
+            synth: list[str] = []
+            if entry.get("license-issue"):
+                synth.append("licenseRequired")
+            if entry.get("active") is False:
+                synth.append("deactivated")
+            if entry.get("user-enabled") is False:
+                synth.append("disabledByUser")
+            return capability_status_reason(synth)
+        return None
+
+    def command_gating_reason(
+        self, vin: str, command_id: str
+    ) -> tuple[str, str] | None:
+        """``capability_gating_reason`` keyed by integration command-id.
+
+        Translates the command-id to the brand's capability-id (same lookup as
+        ``command_capability_supported``) and returns the decoded gating reason,
+        so a failed command can tell the user *why* instead of a bare 404.
+        """
+        from .cariad._capabilities import cap_id_for  # noqa: PLC0415
+
+        try:
+            brand = str(self.entry.data.get(CONF_BRAND, "")).lower()
+        except Exception:  # noqa: BLE001
+            return None
+        cap_id = cap_id_for(brand, command_id) if brand else None
+        if cap_id is None:
+            return None
+        return self.capability_gating_reason(vin, cap_id)
+
     def command_capability_supported(
         self, vin: str, command_id: str
     ) -> bool | None:
@@ -4725,7 +4786,19 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
             if isinstance(err, HomeAssistantError) or not isinstance(err, APIError):
                 raise
-            raise HomeAssistantError(str(err)) from err
+            # v2.20.0 (#752) — if the vehicle's own capabilities document
+            # explains WHY this command is gated (subscription inactive, car
+            # doesn't offer it, T&C pending, …), append that so the user gets an
+            # actionable reason instead of a bare backend 404. Purely additive:
+            # any failure in the lookup leaves the original message untouched.
+            msg = str(err)
+            try:
+                gate = self.command_gating_reason(vin, method)
+                if gate is not None:
+                    msg = f"{msg} — {gate[1]}"
+            except Exception:  # noqa: BLE001
+                pass  # enrichment must never change the command outcome
+            raise HomeAssistantError(msg) from err
 
     async def async_set_charge_mode(self, vin: str, mode: str) -> None:
         """Set charging mode (MANUAL / TIMER / PREFERRED_CHARGING_TIMES)."""
