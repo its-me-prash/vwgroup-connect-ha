@@ -91,6 +91,9 @@ def test_reason_ambiguous_code_is_unmapped() -> None:
         (4104, CommandFailureReason.MISSING_CAPABILITY),  # operationNotSupported
         (4113, CommandFailureReason.MISSING_CAPABILITY),  # capabilityDisabledByUser
         (4007, CommandFailureReason.SUBSCRIPTION_EXPIRED),  # connectivityLicenseInactive
+        # missingUserConsent must NOT hide the entity — reversible consent gap,
+        # so it maps to non-hiding BACKEND_ERROR, not NOT_ENTITLED.
+        (4004, CommandFailureReason.BACKEND_ERROR),  # missingUserConsent
         (2101, CommandFailureReason.NOT_ENTITLED),  # userNotEnrolled
         (2103, CommandFailureReason.NOT_ENTITLED),  # userIsNotLinkedToVehicleBackend
         (4003, CommandFailureReason.NOT_ENTITLED),  # unauthorizedCall

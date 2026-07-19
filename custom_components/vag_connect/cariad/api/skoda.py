@@ -1683,9 +1683,11 @@ class SkodaClient(CariadBaseClient):
 
         Overrides ``CariadBaseClient.command_set_battery_care`` (which raises
         NotImplementedError) so the existing ``VagBatteryCareSwitch`` works for
-        Skoda. Route + DTO field ``chargingCareMode`` grounded in MyŠkoda 8.14.0
-        (``ChargingCareModeDto``); the bool value mirrors the read-side
-        ``isBatteryCareMode`` flag. LIVE-GATED.
+        Skoda. Route + DTO field ``chargingCareMode`` are grounded in MyŠkoda
+        8.14.0 (``ChargingCareModeDto``); the VALUE TYPE is unverified — we send
+        a JSON bool as the most likely shape for an on/off toggle, but the app
+        may serialise it as an enum string. LIVE-GATED (no tester); if a real
+        Skoda rejects the bool, the enum form is the first thing to try.
         """
         await self._post(
             f"{_BASE}/api/v1/charging/{vin}/set-care-mode",

@@ -33,7 +33,9 @@ from custom_components.vag_connect.coordinator import VagConnectCoordinator
         ("missingLicense", "license"),
         ("LICENSE_REQUIRED", "license"),  # Skoda UPPER_SNAKE
         ("consentMissing", "consent"),
-        ("termsAndConditionsNotAccepted", "consent"),
+        ("termsAndConditionsNotAccepted", "consent"),  # spelled-out fallback
+        ("TAndCNotAccepted", "consent"),  # the REAL CARIAD wire value (Status.smali)
+        ("privacyMode", "privacy"),  # privacy != consent (own remediation)
         ("insufficientSecurityLevel", "permission"),
         ("unsupported", "unsupported"),
         ("missingService", "unsupported"),

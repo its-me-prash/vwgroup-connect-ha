@@ -98,7 +98,15 @@ _BFF_ERROR_REASON: dict[int, CommandFailureReason] = {
     0x838: CommandFailureReason.NOT_ENTITLED,  # userHasNoRelationWithVIN
     0xFA3: CommandFailureReason.NOT_ENTITLED,  # unauthorizedCall
     0xFA5: CommandFailureReason.NOT_ENTITLED,  # accessToThisResourceNotAllowed
-    0xFA4: CommandFailureReason.NOT_ENTITLED,  # missingUserConsent
+    # missingUserConsent (0xFA4) is NOT an entitlement gap — the user just
+    # hasn't accepted a consent in the brand app, which is reversible. Mapping
+    # it to NOT_ENTITLED would flip entitled_by_account=False and HIDE the
+    # control for 24h (and send the user chasing a phantom subscription). The
+    # enum has no dedicated consent reason, so classify it as a non-hiding
+    # BACKEND_ERROR: the control stays visible and the user can retry once they
+    # accept the consent. (Same spirit as the invalidSecurityPin / attestation
+    # carve-outs in classify_command_failure.)
+    0xFA4: CommandFailureReason.BACKEND_ERROR,  # missingUserConsent
     # Car asleep / offline → transient, keep the entity available.
     0x10C9: CommandFailureReason.VEHICLE_UNREACHABLE,  # vehicleIsInDeepSleep
     0x101A: CommandFailureReason.VEHICLE_UNREACHABLE,  # vehicleOffline

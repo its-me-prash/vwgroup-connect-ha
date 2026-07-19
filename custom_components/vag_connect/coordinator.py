@@ -4791,11 +4791,25 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # doesn't offer it, T&C pending, …), append that so the user gets an
             # actionable reason instead of a bare backend 404. Purely additive:
             # any failure in the lookup leaves the original message untouched.
+            # Only enrich when the failure actually classifies as a
+            # capability/entitlement gate — otherwise a stale cached limitation
+            # could be misattributed to a transient failure (e.g. the car is
+            # briefly offline while the cached caps still say licenseExpired).
             msg = str(err)
             try:
-                gate = self.command_gating_reason(vin, method)
-                if gate is not None:
-                    msg = f"{msg} — {gate[1]}"
+                from .cariad.exceptions import (  # noqa: PLC0415
+                    CommandFailureReason,
+                    classify_command_failure,
+                )
+
+                if classify_command_failure(err) in (
+                    CommandFailureReason.MISSING_CAPABILITY,
+                    CommandFailureReason.NOT_ENTITLED,
+                    CommandFailureReason.SUBSCRIPTION_EXPIRED,
+                ):
+                    gate = self.command_gating_reason(vin, method)
+                    if gate is not None:
+                        msg = f"{msg} — {gate[1]}"
             except Exception:  # noqa: BLE001
                 pass  # enrichment must never change the command outcome
             raise HomeAssistantError(msg) from err

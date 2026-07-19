@@ -32,6 +32,7 @@ from typing import Final
 _CATEGORY_ORDER: Final[tuple[str, ...]] = (
     "license",
     "consent",
+    "privacy",
     "permission",
     "unsupported",
     "deactivated",
@@ -47,6 +48,10 @@ _CATEGORY_REASON: Final[dict[str, str]] = {
     "consent": (
         "a consent or terms-and-conditions step is pending — open the brand "
         "app, sign in and accept it"
+    ),
+    "privacy": (
+        "privacy mode is switched on in the car — turn it off in the "
+        "vehicle to use remote features"
     ),
     "permission": (
         "your account lacks the required permission or security level "
@@ -65,7 +70,13 @@ _CATEGORY_REASON: Final[dict[str, str]] = {
 }
 
 # Normalised status value (casefold, alphanumerics only) → category.
-# CARIAD-BFF camelCase + Skoda UPPER_SNAKE both fold to the same keys.
+# Keys are the normalised CARIAD-BFF WIRE values (the string constants in the
+# app's ``capabilities.Status`` — e.g. field ``termsAndConditionsNotAccepted``
+# actually serialises as ``"TAndCNotAccepted"``, so its key is the abbreviated
+# ``tandcnotaccepted``, NOT the field name). Most values happen to serialise as
+# the PascalCase of the field name, so casefold makes them line up with the
+# camelCase field spelling — but abbreviated ones (T&C) must be keyed on the
+# real wire form. Skoda mysmob UPPER_SNAKE values fold to the same keys.
 _STATUS_CATEGORY: Final[dict[str, str]] = {
     # ── license / subscription ───────────────────────────────────────
     "licenseexpired": "license",
@@ -74,10 +85,12 @@ _STATUS_CATEGORY: Final[dict[str, str]] = {
     "licenserequired": "license",  # Skoda
     "connectivitylicenseinactive": "license",
     # ── consent / T&C / verification ─────────────────────────────────
-    "consentmissing": "consent",
-    "termsandconditionsnotaccepted": "consent",
+    "consentmissing": "consent",  # wire "ConsentMissing"
+    "tandcnotaccepted": "consent",  # real wire value (abbreviated in the app)
+    "termsandconditionsnotaccepted": "consent",  # spelled-out fallback
     "usernotverified": "consent",
-    "privacymode": "consent",
+    # ── privacy mode (user toggled it ON in the car; not a consent gap) ──
+    "privacymode": "privacy",
     # ── permission / rights / S-PIN ──────────────────────────────────
     "insufficientrights": "permission",
     "insufficientuserrole": "permission",
