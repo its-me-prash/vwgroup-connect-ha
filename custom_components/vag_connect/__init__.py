@@ -253,6 +253,19 @@ def _register_services(hass: HomeAssistant) -> None:
             # token has no command path, so "disable the option" is wrong
             # advice. Use an honest message that says it isn't toggleable.
             if c.is_structural_read_only():
+                # v2.20.0 — SEAT/CUPRA are attestation-walled, not portal-gated;
+                # give the honest device-attestation message rather than the
+                # EU-Data-Act-portal one.
+                if str(c.entry.data.get(CONF_BRAND, "")).lower() in ("seat", "cupra"):
+                    raise ServiceValidationError(
+                        "VW blocks remote commands for SEAT/CUPRA behind a "
+                        "Google device-attestation check that only the official "
+                        "app on a real phone can pass, so lock/climate/charging "
+                        "can't be sent from here. This is a permanent VW-side "
+                        "lockdown, not a setting — vehicle data still updates.",
+                        translation_domain=DOMAIN,
+                        translation_key="read_only_attestation_blocked",
+                    )
                 raise ServiceValidationError(
                     "This vehicle connects through VW's read-only EU Data "
                     "Act portal, so remote commands aren't available for it.",

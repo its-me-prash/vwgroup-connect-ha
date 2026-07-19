@@ -45,6 +45,31 @@ _CHARGING_HOST = "https://prod.emea.mobile.charging.cariad.digital"
 # OLA path too, which 403s on stale tokens).
 _OLA_REPAIR_THRESHOLD = 5
 
+# v2.20.0 (#S6 license-bug parity) — OLA ``serviceStatus`` values that mean
+# the vehicle is NOT entitled to the service. A service in one of these
+# states keeps its old expiry timestamp in the past; it must be excluded
+# from the earliest-expiry aggregate so it can't show negative days while
+# a live subscription runs. Enum harvested from the current myCUPRA/mySEAT
+# 2.19.1 APK (ServiceStatus). Entitled states (ACTIVE/AVAILABLE/ENABLED/
+# LICENSED) are intentionally absent → they count normally.
+_NON_ENTITLED_SERVICE_STATUS: frozenset[str] = frozenset(
+    {
+        "EXPIRED",
+        "LICENSE_EXPIRED",
+        "MISSING",
+        "LICENSE_MISSING",
+        "INACTIVE",
+        "LICENSE_INACTIVE",
+        "DISABLED",
+        "UNAVAILABLE",
+        "SUBSCRIPTION_REQUIRED",
+        "SUBSCRIPTION_NO",
+        "SUBSCRIPTION_POSSIBLE",
+        "SUBSCRIPTION_PENDING",
+        "SUBSCRIPTION_WAITLIST",
+    }
+)
+
 
 class SeatCupraClient(CariadBaseClient):
     """SEAT/CUPRA API client.
@@ -758,6 +783,26 @@ class SeatCupraClient(CariadBaseClient):
                 earliest: str | None = None
                 for svc_name, svc_data in services.items():
                     if not isinstance(svc_data, dict):
+                        continue
+                    # v2.20.0 (#S6 license-bug parity) — only ENTITLED
+                    # services count toward earliest-expiry. A lapsed
+                    # service keeps its old expiry in the past; without
+                    # this guard that stale date wins the earliest-wins
+                    # race and shows negative "days remaining" even while
+                    # a live subscription runs (Prash's S6 on the Audi
+                    # side). OLA marks non-entitlement via serviceStatus
+                    # (EXPIRED/MISSING/INACTIVE/…) and/or the boolean
+                    # expirationDatePassed/Exhausted flags.
+                    svc_status = svc_data.get("serviceStatus") or svc_data.get("status")
+                    if (
+                        isinstance(svc_status, str)
+                        and svc_status.strip().upper() in _NON_ENTITLED_SERVICE_STATUS
+                    ):
+                        continue
+                    if (
+                        svc_data.get("expirationDatePassed") is True
+                        or svc_data.get("expirationDateExhausted") is True
+                    ):
                         continue
                     # Try the 3 known key-name variants in priority order
                     raw_expiry = (

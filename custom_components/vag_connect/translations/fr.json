@@ -1687,6 +1687,9 @@
     "read_only_portal_active": {
       "message": "Ce véhicule est connecté via le portail EU Data Act en lecture seule de VW, les commandes à distance (verrouillage, climatisation, charge) ne sont donc pas disponibles pour lui. Ce n'est pas une option que tu peux activer ou désactiver — le canal du portail n'a aucune voie de commande."
     },
+    "read_only_attestation_blocked": {
+      "message": "VW bloque les commandes à distance pour SEAT/CUPRA derrière une vérification d'appareil Google (Play Integrity / App Check) que seule l'application officielle sur un vrai téléphone peut passer. Le verrouillage, la climatisation et la charge ne peuvent donc pas être envoyés d'ici. C'est un blocage permanent côté serveur de VW, pas un réglage désactivable. Les données du véhicule continuent d'être mises à jour via le portail EU Data Act."
+    },
     "historical_portal_not_ready": {
       "message": "Le portail EU Data Act n'est pas encore prêt. Attendez que l'intégration ait interrogé une fois après la configuration, puis réessayez l'export historique."
     }

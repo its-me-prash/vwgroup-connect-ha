@@ -1707,6 +1707,9 @@
     "read_only_portal_active": {
       "message": "Dieses Fahrzeug ist über VWs schreibgeschütztes EU-Data-Act-Portal angebunden, deshalb sind Fernbefehle (Verriegeln, Klima, Laden) dafür nicht verfügbar. Das ist keine Einstellung, die du umschalten kannst — der Portal-Kanal hat keinen Befehlsweg."
     },
+    "read_only_attestation_blocked": {
+      "message": "VW sperrt Fernbefehle für SEAT/CUPRA hinter einer Google-Geräteprüfung (Play Integrity / App Check), die nur die offizielle App auf einem echten Smartphone besteht. Verriegeln, Klima und Laden lassen sich daher von hier nicht senden. Das ist eine dauerhafte serverseitige Sperre von VW, keine umschaltbare Einstellung. Fahrzeugdaten werden weiterhin über das EU-Data-Act-Portal aktualisiert."
+    },
     "historical_portal_not_ready": {
       "message": "Das EU-Data-Act-Portal ist noch nicht bereit. Warte, bis die Integration nach der Einrichtung einmal abgefragt hat, und versuche den Verlaufsexport dann erneut."
     }

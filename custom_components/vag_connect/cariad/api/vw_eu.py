@@ -3709,6 +3709,19 @@ class VWEUClient(CariadBaseClient):
             for cap in caps:
                 if not isinstance(cap, dict):
                     continue
+                # v2.20.0 (#S6 license bug) — only ENTITLED capabilities count
+                # toward the subscription expiry. CARIAD ships already-lapsed
+                # ancillary caps (non-empty status: LicenseExpired / MissingLicense
+                # / deactivated) that still carry a PAST expirationDate; without
+                # this filter the earliest-wins scan latched onto one of those and
+                # reported subscription_active=False + negative days-remaining even
+                # for a car with an active primary subscription (Prash's Audi S6).
+                # Same "empty status == entitled" rule the coordinator uses.
+                cap_status = cap.get("status")
+                if isinstance(cap_status, (list, tuple)) and any(
+                    s not in (None, "") for s in cap_status
+                ):
+                    continue
                 cap_exp = (
                     cap.get("expirationDate")
                     or cap.get("validUntil")

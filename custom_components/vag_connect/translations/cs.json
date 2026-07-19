@@ -1687,6 +1687,9 @@
     "read_only_portal_active": {
       "message": "Toto vozidlo se připojuje přes portál EU Data Act od VW určený jen pro čtení, takže vzdálené příkazy (zamykání, klimatizace, nabíjení) pro něj nejsou dostupné. Není to nastavení, které byste mohli přepnout — kanál portálu nemá žádnou cestu pro příkazy."
     },
+    "read_only_attestation_blocked": {
+      "message": "VW blokuje vzdálené příkazy pro SEAT/CUPRA za ověřením zařízení od Googlu (Play Integrity / App Check), kterým projde jen oficiální aplikace na skutečném telefonu. Zamýkání, klimatizaci ani nabíjení proto odsud nelze odeslat. Jde o trvalé serverové omezení ze strany VW, nikoli o přepínatelné nastavení. Data vozidla se dál aktualizují přes portál EU Data Act."
+    },
     "historical_portal_not_ready": {
       "message": "Portál EU Data Act ještě není připraven. Počkejte, až integrace po nastavení jednou provede dotaz, a poté zkuste historický export znovu."
     }

@@ -4368,6 +4368,23 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         client = getattr(self, "_cariad_client", None)
         tokens = getattr(client, "_tokens", None) if client else None
         strategy = getattr(tokens, "strategy", "") if tokens else ""
+        # v2.20.0 — SEAT/CUPRA command plane is PERMANENTLY attestation-walled.
+        # The single OLA command backend (ola.prod.code.seat.cloud.vwgroup.com)
+        # enforces a Firebase App Check / Play Integrity token on EVERY request
+        # (AppCheckInterceptor + generatePlayIntegrityChallenge), returning 403
+        # "Forbidden device detected" off-device. No auth trick, header bump, or
+        # device-grant opens it — verified on the fresh 2.19.1 APKs (#464/#779):
+        # there is no MBB/fs-car fallback for these two brands, and emea.bff is a
+        # charging/nav companion only. The one theoretical two-way path is an
+        # on-device ADB companion (parked for 3.0.0). Force read-only so we don't
+        # spawn lock/switch/button/climate/number command entities that could
+        # only ever 403; reads keep flowing via the EU-Data-Act portal / Tibber.
+        try:
+            _brand = str(self.entry.data.get(CONF_BRAND, "")).lower()
+        except Exception:  # noqa: BLE001
+            _brand = ""
+        if _brand in ("seat", "cupra"):
+            return True
         # v2.14.0 — the volkswagen.de website authproxy (opt-in beta) is a
         # read-only channel too: the confidential web OAuth client has no
         # command surface, so command entities could only ever fail. Force
@@ -4411,6 +4428,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         (``read_only_portal_active``) instead of the misleading
         "disable it in the options" message (``read_only_mode_active``).
         """
+        # v2.20.0 — SEAT/CUPRA are structurally command-dead (attestation wall,
+        # see is_read_only); this is NOT a user toggle either, so the service
+        # handler shows the honest attestation message, not "disable it in the
+        # options".
+        try:
+            if str(self.entry.data.get(CONF_BRAND, "")).lower() in ("seat", "cupra"):
+                return True
+        except Exception:  # noqa: BLE001
+            pass
         client = getattr(self, "_cariad_client", None)
         tokens = getattr(client, "_tokens", None) if client else None
         strategy = getattr(tokens, "strategy", "") if tokens else ""
