@@ -1655,6 +1655,63 @@ class SkodaClient(CariadBaseClient):
             f"{_BASE}/api/v2/air-conditioning/{vin}/auxiliary-heating/stop", json={}
         )
 
+    # ── v2.20.0 — additional mysmob command routes ────────────────────────
+    # APK-GROUNDED, LIVE-GATED (not yet confirmed against a real Skoda Connect
+    # car — no tester). Each route + JSON DTO field below is a LITERAL string
+    # from the decoded MyŠkoda 8.14.0 app: the route paths and the DTO wrappers
+    # ``ChargingCareModeDto(chargingCareMode=…)``, ``AutoUnlockPlugDto(
+    # autoUnlockPlug=…)`` and the ActiveVentilation ``durationInSeconds`` field.
+    # Value TYPES are the best inference (bool for the care toggle, matching the
+    # read-side bool ``isBatteryCareMode``); the auto-unlock value is passed
+    # through from the caller because its enum could not be cleanly isolated
+    # from the DEX string table — so we ground the field, never guess the value.
+    # These are client-surface groundwork; HA entity/service wiring is a
+    # follow-up once a Skoda owner confirms the bodies.
+
+    async def command_set_battery_care_mode(self, vin: str, enabled: bool) -> None:
+        """Toggle battery Care Mode (caps charge target to protect the pack).
+
+        Route + DTO field ``chargingCareMode`` grounded in MyŠkoda 8.14.0
+        (``ChargingCareModeDto``); the bool value mirrors the read-side
+        ``isBatteryCareMode`` flag. LIVE-GATED.
+        """
+        await self._post(
+            f"{_BASE}/api/v1/charging/{vin}/set-care-mode",
+            json={"chargingCareMode": bool(enabled)},
+        )
+
+    async def command_set_auto_unlock_plug(self, vin: str, mode: str) -> None:
+        """Set auto-unlock-plug-when-charged behaviour.
+
+        Route + DTO field ``autoUnlockPlug`` grounded in MyŠkoda 8.14.0
+        (``AutoUnlockPlugDto``). ``mode`` is passed through verbatim — the
+        app's enum values were not cleanly recoverable from the DEX strings, so
+        the caller supplies the exact token rather than us guessing. LIVE-GATED.
+        """
+        await self._post(
+            f"{_BASE}/api/v1/charging/{vin}/set-auto-unlock-plug",
+            json={"autoUnlockPlug": str(mode)},
+        )
+
+    async def command_start_active_ventilation(
+        self, vin: str, duration_min: int = 30
+    ) -> None:
+        """Start cabin active ventilation (airing without heating).
+
+        Route ``active-ventilation/start`` and the ``durationInSeconds`` field
+        are grounded in MyŠkoda 8.14.0 (v2 air-conditioning). LIVE-GATED.
+        """
+        await self._post(
+            f"{_BASE}/api/v2/air-conditioning/{vin}/active-ventilation/start",
+            json={"durationInSeconds": int(duration_min) * 60},
+        )
+
+    async def command_stop_active_ventilation(self, vin: str) -> None:
+        """Stop cabin active ventilation. Route grounded in MyŠkoda 8.14.0."""
+        await self._post(
+            f"{_BASE}/api/v2/air-conditioning/{vin}/active-ventilation/stop", json={}
+        )
+
     # ── v2.0.0 Big-Bang: Driving Score (Skoda-only metric) ────────────────
     async def get_driving_score(self, vin: str) -> dict[str, Any] | None:
         """Fetch Skoda driving score (efficiency metric, 0-100).
