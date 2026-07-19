@@ -192,6 +192,33 @@ def classify_command_failure(exc: BaseException) -> CommandFailureReason:
     ):
         return CommandFailureReason.BACKEND_ERROR
 
+    # v2.20.0 — authoritative CARIAD numeric error code. The BFF error envelope
+    # carries a numeric ``code`` (the official app's ``BFFError$Code`` enum,
+    # e.g. 4112=missingCapability, 4007=connectivityLicenseInactive,
+    # 4297=vehicleIsInDeepSleep) that decodes into a named reason. Read it from
+    # the RAW body (not the lowercased str(exc), whose keys/casing are lossy).
+    # Placed AFTER the retry:true guard above so a transient upstream wrap —
+    # which reuses e.g. code 4112 with retry:true — stays BACKEND_ERROR rather
+    # than being mis-read as a permanent missing capability that hides the
+    # entity. Only the unambiguous codes are mapped; the rest fall through.
+    from ._bff_error_codes import (  # noqa: PLC0415
+        bff_error_retryable,
+        decode_bff_error,
+        reason_for_bff_code,
+    )
+
+    body_raw = getattr(exc, "body", "") or ""
+    decoded = decode_bff_error(body_raw)
+    if decoded is not None:
+        mapped = reason_for_bff_code(decoded[0])
+        if mapped is not None:
+            # A retryable upstream wrap must stay transient (entity visible),
+            # never a permanent verdict — even when it reuses a "permanent"
+            # code. Robust to JSON whitespace (the substring guard above is not).
+            if bff_error_retryable(body_raw):
+                return CommandFailureReason.BACKEND_ERROR
+            return mapped
+
     # Fall back to status-code-only classification.
     if status == 403:
         return CommandFailureReason.NOT_ENTITLED
