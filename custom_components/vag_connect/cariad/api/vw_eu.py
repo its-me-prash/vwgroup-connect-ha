@@ -913,10 +913,10 @@ class VWEUClient(CariadBaseClient):
         - **Path**: ``/vehicle/v1/vehicles/{vin}/honkandflash`` (literal in
           classes3.dex; routed via ``_post_command`` so it inherits the
           v1→v2 404 fallback every other command uses).
-        - **Body**: a ``HonkAndFlashRequest`` whose ctor signature in the
-          DEX is ``(int duration, String mode, UserPosition userPosition)``
-          → JSON keys ``duration`` / ``mode`` / ``userPosition`` (the last
-          nesting ``latitude`` / ``longitude``).
+        - **Body**: a ``HonkAndFlashParameters`` → JSON keys ``duration_s`` /
+          ``mode`` / ``userPosition`` (the last nesting ``latitude`` /
+          ``longitude``). ``duration_s`` is the @SerialName of the app's
+          ``durationInSeconds`` field (grounded in the decoded APK).
         - **Mode**: the CARIAD ``HonkAndFlashParameters$Mode`` enum has
           exactly two members — ``HONK_AND_FLASH`` and ``FLASH_ONLY``.
           We flash only, so ``mode = "FLASH_ONLY"``.
@@ -957,7 +957,11 @@ class VWEUClient(CariadBaseClient):
                 "have. Lock, unlock, climate and charge commands still work "
                 "over MBB.",
             )
-        body: dict[str, Any] = {"mode": "FLASH_ONLY", "duration": 10}
+        # #752 (APK-grounded) — the wire key is ``duration_s`` (the app's
+        # HonkAndFlashParameters uses @SerialName("duration_s") on
+        # durationInSeconds); the old ``duration`` was an unknown key the backend
+        # silently dropped, so the flash always ran the backend default length.
+        body: dict[str, Any] = {"mode": "FLASH_ONLY", "duration_s": 10}
         try:
             await self._post_command(vin, "honkandflash", json=body)
             return
