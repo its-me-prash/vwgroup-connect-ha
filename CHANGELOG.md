@@ -38,6 +38,32 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.20.0] - 2026-07-20
+
+### Added
+
+- **Clear reasons when a control is missing or a command is refused (#752).** Until now, if a lock / climate / charge control couldn't be offered, it just quietly disappeared — and if a command failed, you got a bare error. The integration now decodes the backend's own error codes and per-service licence status into a plain reason: *your subscription has expired*, *this feature isn't licensed on this car*, *terms & conditions not accepted*, *privacy mode is on*, *the car is offline / in deep sleep*, and so on. So instead of a silent gap you get told **why** — and what, if anything, you can do about it.
+- **Škoda: care-mode, auto-unlock-plug and active-ventilation controls (experimental).** Grounded in the current myŠkoda app's own routes. Treat as experimental until a Škoda owner confirms them on a real car.
+
+### Fixed
+
+- **Licence "days remaining" no longer goes negative on an active subscription.** On some cars (seen on an Audi S6 with a live subscription) a long-lapsed side-feature's old expiry date was winning out and showing the subscription as expired with negative days left. Only genuinely entitled services now count toward the expiry, so the figure reflects your real, active plan.
+- **SEAT / CUPRA remote commands removed — they could only ever fail.** VW guards SEAT/CUPRA remote control behind a Google device-attestation check that only the official app on a real phone can pass, so lock / climate / charging sent from here were always refused. Those controls are now hidden, with an honest one-line explanation, instead of showing buttons that don't work. Vehicle **data still updates** as before.
+- **Legacy Car-Net two-way now only offers controls the car actually grants.** For older Car-Net vehicles driven through the durable command channel, the integration reads the car's own service directory and creates a lock / climate / charge control **only** when that car currently licenses it — so you no longer get, say, a lock button on a car whose plan doesn't include remote lock. Nothing invented that can't run.
+- **Škoda battery-care switch works again.** It was wired to a stub that raised instead of sending the command; it now sends the real care-mode request.
+- **More command routes and payloads corrected to match the current official apps.** A fresh, byte-for-byte pass over the latest Audi / VW / Škoda / SEAT / CUPRA / VW-US apps caught several commands still using an old route or a mis-named field (Škoda flash + charge-target, SEAT/CUPRA battery-care + charge-target + climate temperature, VW-US flash / wake / charge-target, separate window-heating routes), plus the app-version headers were refreshed to the current builds.
+- **VW US / Canada: Canada now uses the working US configuration.** The current myVW app ships no Canada-specific server or login client, so Canadian cars now use the same US endpoint that already works, instead of an unverified Canada-only config. (A Canadian tester should still confirm.)
+- **Lock / climate / charge commands stop wasting a failed first attempt.** They were trying a combined endpoint that no current app exposes — always a 404 — before falling back to the route that works. The working route is now tried first, so commands are a touch faster and don't burn a needless round-trip.
+- **Quieter, more honest logs; account e-mail masked (#779, #709).** The CUPRA/SEAT read channel no longer floods the log on a repeated backend refusal (it says once, plainly, what's happening), and your account e-mail is masked wherever it appears in logs.
+
+### Changed
+
+- **A few backend-error classifications corrected** so a transient or consent-related backend response no longer hides a working entity for a day.
+
+### Thanks
+
+Thanks to **@heyensh-sys**, whose reports on missing controls drove the "explain why" work (#752); **@rmalbrecht** (#779) and **@dazj1990** (#709) for the read-channel and logging reports. The full roll of reporters, requesters and testers is in [CONTRIBUTORS.md](CONTRIBUTORS.md) — thank you. 🙏
+
 ## [2.19.1] - 2026-07-19
 
 ### Fixed
