@@ -60,11 +60,15 @@ _RAW_TO_CANONICAL: dict[str, str] = {
     "timerchargingclimatization": "timer_charging_climatization",
 }
 
-# Canonical key → API command token. ``command_set_charge_mode`` upper-cases
-# the token before sending, so these are the pre-upper snake forms the
-# backend expects on write (VW-EU BFF chargeMode enum; SEAT/CUPRA inherit
-# the same command). Keeping the exact tokens the API accepted before #589
-# preserves SEAT/CUPRA charge-mode commands.
+# Canonical key → API command token (snake_case). ``command_set_charge_mode``
+# (VW-EU / Audi only) converts these to lowerCamelCase and PUTs
+# ``{"preferredChargeMode": <value>}`` to ``charging/mode`` — the exact enum the
+# decoded Audi app writes (ChargeModes$Mode wire values: manual, timer,
+# preferredChargingTimes, onlyOwnCurrent, immediateDischarging,
+# timerChargingWithClimatisation). NOTE: SEAT/CUPRA do NOT inherit this command
+# (SeatCupraClient extends CariadBaseClient, not VWEUClient); the read-side
+# localisation below is what they share via _RAW_TO_CANONICAL. (Pre-v2.19.1 this
+# wrongly UPPER-cased the token onto charging/settings — don't reintroduce that.)
 _CANONICAL_TO_API: dict[str, str] = {
     "manual": "manual",
     "timer": "timer",
