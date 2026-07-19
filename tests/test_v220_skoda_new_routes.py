@@ -32,7 +32,7 @@ def _call(client: SkodaClient) -> tuple[str, dict]:
 
 def test_battery_care_mode_on() -> None:
     client = _client()
-    asyncio.run(client.command_set_battery_care_mode("VIN1", True))
+    asyncio.run(client.command_set_battery_care("VIN1", True))
     url, body = _call(client)
     assert url.endswith("/api/v1/charging/VIN1/set-care-mode")
     assert body == {"chargingCareMode": True}
@@ -40,7 +40,7 @@ def test_battery_care_mode_on() -> None:
 
 def test_battery_care_mode_off() -> None:
     client = _client()
-    asyncio.run(client.command_set_battery_care_mode("VIN1", False))
+    asyncio.run(client.command_set_battery_care("VIN1", False))
     _, body = _call(client)
     assert body == {"chargingCareMode": False}
 

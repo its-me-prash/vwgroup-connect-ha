@@ -1656,22 +1656,34 @@ class SkodaClient(CariadBaseClient):
         )
 
     # ── v2.20.0 — additional mysmob command routes ────────────────────────
-    # APK-GROUNDED, LIVE-GATED (not yet confirmed against a real Skoda Connect
-    # car — no tester). Each route + JSON DTO field below is a LITERAL string
-    # from the decoded MyŠkoda 8.14.0 app: the route paths and the DTO wrappers
+    # APK-GROUNDED. Each route + JSON DTO field below is a LITERAL string from
+    # the decoded MyŠkoda 8.14.0 app: the route paths and the DTO wrappers
     # ``ChargingCareModeDto(chargingCareMode=…)``, ``AutoUnlockPlugDto(
     # autoUnlockPlug=…)`` and the ActiveVentilation ``durationInSeconds`` field.
     # Value TYPES are the best inference (bool for the care toggle, matching the
     # read-side bool ``isBatteryCareMode``); the auto-unlock value is passed
     # through from the caller because its enum could not be cleanly isolated
     # from the DEX string table — so we ground the field, never guess the value.
-    # These are client-surface groundwork; HA entity/service wiring is a
-    # follow-up once a Skoda owner confirms the bodies.
+    #
+    # WIRING STATUS:
+    # - ``command_set_battery_care`` OVERRIDES the base (which raises
+    #   NotImplementedError): Skoda already parses ``battery_care_enabled`` so
+    #   ``VagBatteryCareSwitch`` already spawns and dispatches this — until now
+    #   it hit the base stub and crashed. This override makes the existing
+    #   switch actually work. Still LIVE-GATED (no Skoda tester has confirmed
+    #   the body), but it is a real fix for an already-visible control.
+    # - active-ventilation + auto-unlock stay client-surface groundwork: we
+    #   don't parse an active-ventilation state (no Skoda status sample to
+    #   ground the JSON path), so a read-gated switch can't spawn honestly; the
+    #   auto-unlock write enum is unconfirmed. HA entities are a follow-up once
+    #   a Skoda owner provides a status dump.
 
-    async def command_set_battery_care_mode(self, vin: str, enabled: bool) -> None:
+    async def command_set_battery_care(self, vin: str, enabled: bool) -> None:
         """Toggle battery Care Mode (caps charge target to protect the pack).
 
-        Route + DTO field ``chargingCareMode`` grounded in MyŠkoda 8.14.0
+        Overrides ``CariadBaseClient.command_set_battery_care`` (which raises
+        NotImplementedError) so the existing ``VagBatteryCareSwitch`` works for
+        Skoda. Route + DTO field ``chargingCareMode`` grounded in MyŠkoda 8.14.0
         (``ChargingCareModeDto``); the bool value mirrors the read-side
         ``isBatteryCareMode`` flag. LIVE-GATED.
         """
