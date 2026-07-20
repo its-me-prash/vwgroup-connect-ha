@@ -1549,7 +1549,7 @@ class VWEUClient(CariadBaseClient):
         return []
 
     async def _get_mbb_operationlist(
-        self, vin: str, *, for_command: bool = False,
+        self, vin: str, *, for_command: bool = False, _refreshed: bool = False,
     ) -> "MbbOperationList | None":
         """Fetch + cache the per-VIN MBB operationList (service directory).
 
@@ -1589,9 +1589,37 @@ class VWEUClient(CariadBaseClient):
                 url, _retry=False, for_command=for_command
             )
         except APIError as err:
+            body = str(err.body)
+            # v2.20.1 (#584) — distinguish a TOKEN-AUTH 401 from the systemId
+            # ACL. ``gw.error.authentication`` means the gateway rejected the
+            # bearer as unauthenticated (Mattheisen87's Passat: 26× on v2.20.0 —
+            # the token exchange succeeds but the FIRST call with it 401s),
+            # unlike the data-plane ACL (``mbbc.rolesandrights.unauthorized`` /
+            # ``*.security.9007``) which no refresh can fix. A real token-auth
+            # failure IS recoverable by refreshing the bearer once — mirror
+            # audi_connect_ha #782 (keep the session token fresh on auth
+            # failure). Guarded to EXACTLY ONE retry so we never storm the
+            # refresh endpoint (the original _retry=False concern).
+            if (
+                err.status == 401
+                and "gw.error.authentication" in body
+                and not _refreshed
+            ):
+                _LOGGER.info(
+                    "MBB operationList ***%s → 401 gw.error.authentication — "
+                    "refreshing the MBB bearer and retrying once (#584).",
+                    vin[-6:],
+                )
+                try:
+                    await self._refresh_tokens(for_command=for_command)
+                except Exception:  # noqa: BLE001
+                    pass
+                return await self._get_mbb_operationlist(
+                    vin, for_command=for_command, _refreshed=True,
+                )
             _LOGGER.warning(
                 "MBB operationList ***%s → HTTP %s: %s",
-                vin[-6:], err.status, str(err.body)[:160],
+                vin[-6:], err.status, body[:160],
             )
             return None
         except Exception as err:  # noqa: BLE001
