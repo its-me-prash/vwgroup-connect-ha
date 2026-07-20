@@ -32,6 +32,17 @@ def _aggregate_caps(caps: list) -> str | None:
     for cap in caps:
         if not isinstance(cap, dict):
             continue
+        # v2.20.0 (#S6 license bug) — only ENTITLED capabilities count
+        # toward the earliest-expiry aggregate. A capability that carries
+        # a non-empty ``status`` leaf (e.g. ["MISSING"], ["EXPIRED"]) is a
+        # service the vehicle is NOT entitled to; its stale expirationDate
+        # would otherwise win the earliest-wins race and show a negative
+        # "days remaining" even while the real subscription is live.
+        cap_status = cap.get("status")
+        if isinstance(cap_status, (list, tuple)) and any(
+            s not in (None, "") for s in cap_status
+        ):
+            continue
         cap_exp = (
             cap.get("expirationDate")
             or cap.get("validUntil")
@@ -138,6 +149,63 @@ class TestParitySemantics:
         caps = [{"id": "honkAndFlash"}]
         assert _aggregate_caps(caps) is None
         assert _compute_active(None) is None
+
+
+class TestS6LicenseBug:
+    """v2.20.0 regression — Prash's Audi S6 showed negative days-remaining
+    while a live subscription was running.
+
+    Root cause: a lapsed, non-entitled capability (status=["MISSING"]) kept
+    its old expirationDate in the past, and the unfiltered earliest-wins
+    loop let that past date win over the genuinely active entitlement's
+    future date → negative "days remaining".
+    """
+
+    def test_lapsed_noncap_does_not_beat_active(self) -> None:
+        past = (
+            datetime.now(tz=timezone.utc) - timedelta(days=30)
+        ).strftime("%Y-%m-%dT%H:%M:%SZ")
+        future = (
+            datetime.now(tz=timezone.utc) + timedelta(days=200)
+        ).strftime("%Y-%m-%dT%H:%M:%SZ")
+        caps = [
+            # not entitled — stale past expiry, must be ignored
+            {"id": "honkAndFlash", "status": ["MISSING"], "expirationDate": past},
+            # entitled — empty status, future expiry, this is the truth
+            {"id": "access", "status": [], "expirationDate": future},
+        ]
+        agg = _aggregate_caps(caps)
+        assert agg == future
+        assert _compute_active(agg) is True
+
+    def test_all_lapsed_yields_none_not_negative(self) -> None:
+        past = (
+            datetime.now(tz=timezone.utc) - timedelta(days=10)
+        ).strftime("%Y-%m-%dT%H:%M:%SZ")
+        caps = [
+            {"id": "honkAndFlash", "status": ["MISSING"], "expirationDate": past},
+            {"id": "access", "status": ["EXPIRED"], "expirationDate": past},
+        ]
+        # every capability is non-entitled → nothing counts → None (no
+        # phantom negative-days sensor), rather than a stale past date.
+        assert _aggregate_caps(caps) is None
+
+    def test_string_status_leaf_is_entitled(self) -> None:
+        # Some revs ship status as a bare string "" for entitled; that must
+        # NOT be treated as the list-form non-entitled marker.
+        future = (
+            datetime.now(tz=timezone.utc) + timedelta(days=90)
+        ).strftime("%Y-%m-%dT%H:%M:%SZ")
+        caps = [{"id": "access", "status": "", "expirationDate": future}]
+        assert _aggregate_caps(caps) == future
+
+    def test_empty_status_list_still_counts(self) -> None:
+        # The common entitled shape (status: []) must remain counted.
+        future = (
+            datetime.now(tz=timezone.utc) + timedelta(days=45)
+        ).strftime("%Y-%m-%dT%H:%M:%SZ")
+        caps = [{"id": "access", "status": [], "expirationDate": future}]
+        assert _aggregate_caps(caps) == future
 
 
 class TestPhantomGateUnchanged:

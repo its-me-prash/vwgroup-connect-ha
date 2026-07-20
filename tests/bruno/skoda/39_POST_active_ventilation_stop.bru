@@ -1,0 +1,30 @@
+meta {
+  name: POST stop active ventilation
+  type: http
+  seq: 39
+}
+
+post {
+  url: {{base_url}}/api/v2/air-conditioning/{{vin}}/active-ventilation/stop
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {}
+}
+
+docs {
+  Stop active ventilation (air-conditioning v2 route, empty body).
+  Implementation: SkodaClient.command_stop_active_ventilation() in
+  cariad/api/skoda.py. Bearer-only. Live-gated groundwork.
+}

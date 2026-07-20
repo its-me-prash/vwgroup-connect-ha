@@ -1,0 +1,34 @@
+meta {
+  name: POST set battery care-mode
+  type: http
+  seq: 36
+}
+
+post {
+  url: {{base_url}}/api/v1/charging/{{vin}}/set-care-mode
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "chargingCareMode": true
+  }
+}
+
+docs {
+  Toggle battery care-mode (caps charging ~80% to preserve the pack).
+  Grounded in the myŠkoda mysmob ChargingCareModeDto (chargingCareMode
+  bool). Implementation: SkodaClient.command_set_battery_care_mode() in
+  cariad/api/skoda.py. Bearer-only, no S-PIN. Live-gated (client-surface
+  groundwork; entity wiring follows a Škoda-owner confirmation).
+}

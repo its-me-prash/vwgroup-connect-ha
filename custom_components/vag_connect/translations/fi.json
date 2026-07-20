@@ -1687,6 +1687,9 @@
     "read_only_portal_active": {
       "message": "Tämä ajoneuvo on yhdistetty VW:n vain lukemiseen tarkoitetun EU Data Act -portaalin kautta, joten etäkomennot (lukitus, ilmastointi, lataus) eivät ole sille käytettävissä. Tämä ei ole asetus, jonka voit vaihtaa — portaalikanavalla ei ole komentopolkua."
     },
+    "read_only_attestation_blocked": {
+      "message": "VW estää SEAT/CUPRAn etäkomennot Googlen laitetarkistuksen (Play Integrity / App Check) taakse, jonka läpäisee vain virallinen sovellus aidolla puhelimella. Lukitusta, ilmastointia ja latausta ei siksi voi lähettää täältä. Kyseessä on VW:n pysyvä palvelinpuolen esto, ei asetus, jonka voi kytkeä pois. Ajoneuvon tiedot päivittyvät edelleen EU:n datasäädösportaalin kautta."
+    },
     "historical_portal_not_ready": {
       "message": "EU:n datasäädösportaali ei ole vielä valmis. Odota, kunnes integraatio on hakenut tiedot kerran käyttöönoton jälkeen, ja yritä sitten uudelleen."
     }

@@ -131,3 +131,53 @@ def test_is_read_only_true_when_flag_set_but_not_armed() -> None:
     # flag in data but arming failed → still structurally read-only (no path).
     stub = _coord("data_act_portal", channel_flag=True, channel_armed=False)
     assert VagConnectCoordinator.is_read_only(stub) is True
+
+
+# ── v2.20.0 SEAT/CUPRA attestation wall (two-way cut) ─────────────────────────
+
+def _brand_coord(brand: str, *, strategy: str = "ola") -> object:
+    from custom_components.vag_connect.const import CONF_BRAND
+
+    stub = type("S", (), {})()
+    stub.entry = MagicMock()
+    # A fully command-capable config: real strategy, command channel on,
+    # read-only toggle OFF. Only the brand should force read-only.
+    stub.entry.data = {
+        CONF_BRAND: brand,
+        "mbb_command_channel": True,
+        "read_only_mode": False,
+    }
+    stub.entry.options = {}
+    client = MagicMock()
+    client._tokens = TokenSet(
+        access_token="a", refresh_token="r", id_token="i", strategy=strategy,
+    )
+    client._mbb_command = MagicMock()
+    stub._cariad_client = client
+    return stub
+
+
+def test_is_read_only_forced_for_seat() -> None:
+    stub = _brand_coord("seat")
+    assert VagConnectCoordinator.is_read_only(stub) is True
+
+
+def test_is_read_only_forced_for_cupra() -> None:
+    stub = _brand_coord("cupra")
+    assert VagConnectCoordinator.is_read_only(stub) is True
+
+
+def test_is_read_only_seat_case_insensitive() -> None:
+    stub = _brand_coord("CUPRA")
+    assert VagConnectCoordinator.is_read_only(stub) is True
+
+
+def test_is_read_only_not_forced_for_audi() -> None:
+    # Same command-capable config, different brand → NOT forced read-only.
+    stub = _brand_coord("audi")
+    assert VagConnectCoordinator.is_read_only(stub) is False
+
+
+def test_is_structural_read_only_forced_for_cupra() -> None:
+    stub = _brand_coord("cupra")
+    assert VagConnectCoordinator.is_structural_read_only(stub) is True

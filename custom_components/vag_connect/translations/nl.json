@@ -1687,6 +1687,9 @@
     "read_only_portal_active": {
       "message": "Dit voertuig maakt verbinding via VW's alleen-lezen EU Data Act-portaal, dus commando's op afstand (vergrendelen, klimaat, laden) zijn er niet voor beschikbaar. Dit is geen instelling die je kunt aan- of uitzetten — het portaalkanaal heeft geen commandopad."
     },
+    "read_only_attestation_blocked": {
+      "message": "VW blokkeert opdrachten op afstand voor SEAT/CUPRA achter een Google-apparaatcontrole (Play Integrity / App Check) die alleen de officiële app op een echte telefoon kan doorstaan. Vergrendeling, klimaat en laden kunnen daarom niet vanaf hier worden verstuurd. Dit is een permanente blokkering aan de serverkant van VW, geen instelling die je kunt uitschakelen. Voertuiggegevens worden nog steeds bijgewerkt via het EU Data Act-portaal."
+    },
     "historical_portal_not_ready": {
       "message": "Het EU Data Act-portaal is nog niet gereed. Wacht tot de integratie na de installatie één keer heeft opgehaald en probeer de historische export dan opnieuw."
     }

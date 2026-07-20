@@ -1,0 +1,33 @@
+meta {
+  name: POST start active ventilation
+  type: http
+  seq: 38
+}
+
+post {
+  url: {{base_url}}/api/v2/air-conditioning/{{vin}}/active-ventilation/start
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "durationInSeconds": 900
+  }
+}
+
+docs {
+  Start active ventilation (air-conditioning v2 route). durationInSeconds
+  from the myŠkoda ActiveVentilation DTO. Implementation:
+  SkodaClient.command_start_active_ventilation() in cariad/api/skoda.py.
+  Bearer-only. Live-gated groundwork.
+}

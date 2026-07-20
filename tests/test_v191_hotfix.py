@@ -48,14 +48,17 @@ class TestAudiLockSpin:
     ``command_unlock`` and includes the S-PIN in the payload when set.
     """
 
+    # v2.20.0 (E5): the SEPARATE route (/access/lock) is now primary, so its
+    # payload has NO "action" marker (that's the combined-route form, now the
+    # 404-fallback). The v1.9.1 intent — the S-PIN must ride the lock payload —
+    # is unchanged and still asserted here.
     def test_lock_without_spin_payload_omits_spin_field(self):
         client = _vw_eu_client()
         asyncio.run(client.command_lock("VINX"))
         client._post.assert_awaited_once()
         call_kwargs = client._post.await_args.kwargs
         body = call_kwargs.get("json", {})
-        assert body.get("action") == "lock"
-        assert "spin" not in body  # no S-PIN configured → no field
+        assert body == {}  # separate route, no S-PIN configured → empty body
 
     def test_lock_with_spin_kwarg_includes_in_payload(self):
         client = _vw_eu_client()
@@ -63,14 +66,14 @@ class TestAudiLockSpin:
             client.command_lock("VINX", spin="1234")
         )
         body = client._post.await_args.kwargs["json"]
-        assert body == {"action": "lock", "spin": "1234"}
+        assert body == {"spin": "1234"}
 
     def test_lock_with_client_default_spin_uses_it(self):
         client = _vw_eu_client()
         client._spin = "9876"
         asyncio.run(client.command_lock("VINX"))
         body = client._post.await_args.kwargs["json"]
-        assert body == {"action": "lock", "spin": "9876"}
+        assert body == {"spin": "9876"}
 
     def test_coordinator_lock_passes_spin_for_audi(self):
         """Coordinator's ``async_lock`` must forward the configured S-PIN

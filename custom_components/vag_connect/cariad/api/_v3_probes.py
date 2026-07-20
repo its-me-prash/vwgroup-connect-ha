@@ -247,7 +247,8 @@ _CARIAD_BFF_PROBES: tuple[V3Probe, ...] = (
 
 # ── VW NA (con-veh.net) ─────────────────────────────────────────────────────
 # matpoulin/CarConnectivity-connector-volkswagen-na Apache-2.0. Backend host
-# is regional (`b-h-s.spr.us00.p.con-veh.net` or `…ca00…`). We have limited
+# is `b-h-s.spr.us00.p.con-veh.net` (v2.20.0 N7: US + CA share it — the current
+# app has no ca00 host). We have limited
 # production parser coverage for VW NA; even a 1-endpoint probe yields
 # significant scout signal for the small but vocal US/CA user pool (#270).
 _VW_NA_PROBES: tuple[V3Probe, ...] = (
@@ -318,7 +319,7 @@ BASE_URL_BY_BRAND: dict[str, str] = {
     "skoda":         "https://mysmob.api.connect.skoda-auto.cz",
     "volkswagen":    "https://emea.bff.cariad.digital",
     "audi":          "https://emea.bff.cariad.digital",
-    # VW NA is regional (us00 vs ca00); the brand client knows which.
+    # VW NA uses the us00 con-veh host (US + CA, per v2.20.0 N7).
     # The runner falls back to the brand client's own ``_BASE`` attribute
     # for VW NA when present, otherwise probes are skipped for VW NA.
     "porsche":       "https://api.ppa.porsche.com",

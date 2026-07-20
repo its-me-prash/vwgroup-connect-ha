@@ -1687,6 +1687,9 @@
     "read_only_portal_active": {
       "message": "Det här fordonet ansluter via VW:s skrivskyddade EU Data Act-portal, så fjärrkommandon (lås, klimat, laddning) är inte tillgängliga för det. Det här är ingen inställning du kan slå av eller på — portalkanalen har ingen kommandoväg."
     },
+    "read_only_attestation_blocked": {
+      "message": "VW blockerar fjärrkommandon för SEAT/CUPRA bakom en enhetskontroll från Google (Play Integrity / App Check) som bara den officiella appen på en riktig telefon klarar. Lås, klimat och laddning kan därför inte skickas härifrån. Det är en permanent blockering på VW:s serversida, inte en inställning du kan stänga av. Fordonsdata uppdateras fortfarande via EU Data Act-portalen."
+    },
     "historical_portal_not_ready": {
       "message": "EU Data Act-portalen är inte redo ännu. Vänta tills integrationen har hämtat data en gång efter installationen och försök sedan med den historiska exporten igen."
     }

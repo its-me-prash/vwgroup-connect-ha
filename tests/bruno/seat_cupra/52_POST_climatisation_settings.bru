@@ -1,0 +1,36 @@
+meta {
+  name: POST climatisation settings (target temp)
+  type: http
+  seq: 52
+}
+
+post {
+  url: {{base_url}}/v2/vehicles/{{vin}}/climatisation/settings
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "targetTemperatureInCelsius": 21
+  }
+}
+
+docs {
+  Set the pre-conditioning target temperature (Celsius) on the SEAT/CUPRA
+  OLA backend. v2.20.0 (APK audit): dedicated /climatisation/settings route
+  with targetTemperatureInCelsius — replaced the stale bare /climatisation +
+  action-wrapper + Kelvin shape. Implementation:
+  SeatCupraClient.command_set_climate_temperature() in cariad/api/seat_cupra.py.
+  NOTE: SEAT/CUPRA two-way is attestation-walled off-device (v2.20.0 cut), so
+  this route is kept for reference/parity, not user-reachable command entities.
+}

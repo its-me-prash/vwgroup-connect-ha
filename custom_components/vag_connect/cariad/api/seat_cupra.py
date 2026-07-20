@@ -45,6 +45,31 @@ _CHARGING_HOST = "https://prod.emea.mobile.charging.cariad.digital"
 # OLA path too, which 403s on stale tokens).
 _OLA_REPAIR_THRESHOLD = 5
 
+# v2.20.0 (#S6 license-bug parity) — OLA ``serviceStatus`` values that mean
+# the vehicle is NOT entitled to the service. A service in one of these
+# states keeps its old expiry timestamp in the past; it must be excluded
+# from the earliest-expiry aggregate so it can't show negative days while
+# a live subscription runs. Enum harvested from the current myCUPRA/mySEAT
+# 2.19.1 APK (ServiceStatus). Entitled states (ACTIVE/AVAILABLE/ENABLED/
+# LICENSED) are intentionally absent → they count normally.
+_NON_ENTITLED_SERVICE_STATUS: frozenset[str] = frozenset(
+    {
+        "EXPIRED",
+        "LICENSE_EXPIRED",
+        "MISSING",
+        "LICENSE_MISSING",
+        "INACTIVE",
+        "LICENSE_INACTIVE",
+        "DISABLED",
+        "UNAVAILABLE",
+        "SUBSCRIPTION_REQUIRED",
+        "SUBSCRIPTION_NO",
+        "SUBSCRIPTION_POSSIBLE",
+        "SUBSCRIPTION_PENDING",
+        "SUBSCRIPTION_WAITLIST",
+    }
+)
+
 
 class SeatCupraClient(CariadBaseClient):
     """SEAT/CUPRA API client.
@@ -176,12 +201,33 @@ class SeatCupraClient(CariadBaseClient):
             # Layer 4: all fallbacks exhausted — count toward threshold.
             self._ola_consecutive_403 += 1
             if self._ola_consecutive_403 >= _OLA_REPAIR_THRESHOLD:
-                _LOGGER.error(
-                    "OLA 403 persistent (%d consecutive) — flagging for HA "
-                    "Repair issue. Likely cause: OLA backend updated app-"
-                    "header requirements again. Check for integration update.",
-                    self._ola_consecutive_403,
-                )
+                # #779 — log ONCE on crossing the threshold, not on every 403:
+                # one poll fans out over ~19 OLA endpoints, which used to flood
+                # ~18 identical ERROR lines per stuck poll.
+                if not self.ola_headers_repair_needed:
+                    # #779 — a persistent OLA 403 is a VW server-side DEVICE-
+                    # ATTESTATION lockdown (Firebase App Check / Play Integrity,
+                    # #464), NOT a stale app-header we can bump. The Repair issue
+                    # already says so; the old ERROR text ("check for an
+                    # integration update") sent attestation-walled users chasing
+                    # a phantom fix — rmalbrecht's Born still 403'd "Forbidden
+                    # device detected" AFTER the v2.19.1 header bump. Match the
+                    # Repair's honest wording and note the confirmed marker.
+                    _body = (getattr(exc, "body", "") or "").lower()
+                    _attest = (
+                        "forbidden device detected" in _body
+                        or "missing-device-token" in _body
+                        or "aws-waf" in _body
+                    )
+                    _LOGGER.error(
+                        "OLA 403 persistent (%d consecutive)%s — this is a VW "
+                        "server-side device-attestation lockdown, not something "
+                        "an integration/header update can fix; vehicle data still "
+                        "flows via the EU Data Act portal where available. "
+                        "Raising HA Repair issue.",
+                        self._ola_consecutive_403,
+                        " [device-attestation marker confirmed]" if _attest else "",
+                    )
                 self.ola_headers_repair_needed = True
             raise
 
@@ -737,6 +783,26 @@ class SeatCupraClient(CariadBaseClient):
                 earliest: str | None = None
                 for svc_name, svc_data in services.items():
                     if not isinstance(svc_data, dict):
+                        continue
+                    # v2.20.0 (#S6 license-bug parity) — only ENTITLED
+                    # services count toward earliest-expiry. A lapsed
+                    # service keeps its old expiry in the past; without
+                    # this guard that stale date wins the earliest-wins
+                    # race and shows negative "days remaining" even while
+                    # a live subscription runs (Prash's S6 on the Audi
+                    # side). OLA marks non-entitlement via serviceStatus
+                    # (EXPIRED/MISSING/INACTIVE/…) and/or the boolean
+                    # expirationDatePassed/Exhausted flags.
+                    svc_status = svc_data.get("serviceStatus") or svc_data.get("status")
+                    if (
+                        isinstance(svc_status, str)
+                        and svc_status.strip().upper() in _NON_ENTITLED_SERVICE_STATUS
+                    ):
+                        continue
+                    if (
+                        svc_data.get("expirationDatePassed") is True
+                        or svc_data.get("expirationDateExhausted") is True
+                    ):
                         continue
                     # Try the 3 known key-name variants in priority order
                     raw_expiry = (
@@ -2634,9 +2700,13 @@ class SeatCupraClient(CariadBaseClient):
         await self._post(f"{_BASE}/v1/vehicles/{vin}/vehicle-wakeup/request", json={})
 
     async def command_set_target_soc(self, vin: str, target: int) -> None:
+        # v2.20.0 (APK audit) — the bare /charging/actions route is gone; the OLA
+        # (SEAT/CUPRA 2.19.1) moved to /charging/actions/update-settings, and the
+        # field is targetSocPercentage (the old action-wrapper + targetSOC_pct
+        # was foreign to the app and 404'd/ignored).
         await self._post(
-            f"{_BASE}/v1/vehicles/{vin}/charging/actions",
-            json={"action": "settings", "targetSOC_pct": target},
+            f"{_BASE}/v1/vehicles/{vin}/charging/actions/update-settings",
+            json={"targetSocPercentage": target},
         )
 
     async def command_set_battery_care(self, vin: str, enabled: bool) -> None:
@@ -2646,9 +2716,11 @@ class SeatCupraClient(CariadBaseClient):
         Defaults to a 50% target if the user has not set one yet
         (backend rejects the toggle without a target on first call).
         """
+        # v2.20.0 (APK audit) — the OLA BatteryCareBody write field is ``enabled``;
+        # ``batteryCareMode`` does not exist anywhere in the SEAT/CUPRA app.
         await self._post(
             f"{_BASE}/v1/vehicles/{vin}/charging/battery-care",
-            json={"batteryCareMode": enabled},
+            json={"enabled": enabled},
         )
 
     async def command_set_battery_care_target(self, vin: str, target_pct: int) -> None:
@@ -2659,15 +2731,19 @@ class SeatCupraClient(CariadBaseClient):
         rejected upstream. The integration does NOT clamp; bad values
         surface as a 400 error so the user sees the constraint.
         """
+        # v2.20.0 (APK audit) — BatteryCareTarget write field is targetSocPercentage.
         await self._post(
             f"{_BASE}/v1/vehicles/{vin}/charging/battery-care/target",
-            json={"targetSOC_pct": target_pct},
+            json={"targetSocPercentage": target_pct},
         )
 
     async def command_set_climate_temperature(self, vin: str, temp_c: float) -> None:
+        # v2.20.0 (APK audit) — dedicated route /climatisation/settings with a
+        # Celsius field; the bare /climatisation + action-wrapper + Kelvin
+        # targetTemperature_K was the stale pre-#53 shape and foreign to the app.
         await self._post(
-            f"{_BASE}/v2/vehicles/{vin}/climatisation",
-            json={"action": "settings", "targetTemperature_K": temp_c + 273.15},
+            f"{_BASE}/v2/vehicles/{vin}/climatisation/settings",
+            json={"targetTemperatureInCelsius": temp_c},
         )
 
     async def command_start_window_heating(self, vin: str) -> None:

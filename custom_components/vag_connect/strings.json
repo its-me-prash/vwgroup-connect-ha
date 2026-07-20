@@ -1707,6 +1707,9 @@
     "read_only_portal_active": {
       "message": "This vehicle connects through VW's read-only EU Data Act portal, so remote commands (lock, climate, charging) aren't available for it. This isn't a setting you can toggle — the portal channel has no command path."
     },
+    "read_only_attestation_blocked": {
+      "message": "VW blocks remote commands for SEAT/CUPRA behind a Google device-attestation check (Play Integrity / App Check) that only the official app on a genuine phone can pass — so lock, climate and charging can't be sent from here. This is a permanent VW server-side lockdown, not a setting you can toggle. Vehicle data still updates via the EU Data Act portal."
+    },
     "historical_portal_not_ready": {
       "message": "The EU Data Act portal isn't ready yet. Wait until the integration has polled once after setup, then try requesting/importing the historical export again."
     }

@@ -703,16 +703,20 @@ class VWEUClient(CariadBaseClient):
         if _tgt is not None:
             await _tgt._command_rlu_mbb(vin, spin=spin, lock=True)
             return
-        primary_payload: dict[str, Any] = {"action": "lock"}
-        fallback_payload: dict[str, Any] = {}
+        # v2.20.0 (E5) — the SEPARATE route is the only one the current apps
+        # (We Connect 4.1.1 / myAudi 5.6.0) expose; the combined lock-unlock
+        # route 404s. Make separate primary so we stop wasting a 404 round-trip
+        # per command; keep combined as the 404-fallback (zero-cost insurance).
+        primary_payload: dict[str, Any] = {}
+        fallback_payload: dict[str, Any] = {"action": "lock"}
         if spin or self._spin:
             primary_payload["spin"] = spin or self._spin
             fallback_payload["spin"] = spin or self._spin
         await self._post_command_with_fallback_paths(
             vin,
-            primary_suffix="access/lock-unlock",
+            primary_suffix="access/lock",
             primary_payload=primary_payload,
-            fallback_suffix="access/lock",
+            fallback_suffix="access/lock-unlock",
             fallback_payload=fallback_payload,
         )
 
@@ -730,16 +734,17 @@ class VWEUClient(CariadBaseClient):
         if _tgt is not None:
             await _tgt._command_rlu_mbb(vin, spin=spin, lock=False)
             return
-        primary_payload: dict[str, Any] = {"action": "unlock"}
-        fallback_payload: dict[str, Any] = {}
+        # v2.20.0 (E5) — separate route primary, combined as 404-fallback.
+        primary_payload: dict[str, Any] = {}
+        fallback_payload: dict[str, Any] = {"action": "unlock"}
         if spin or self._spin:
             primary_payload["spin"] = spin or self._spin
             fallback_payload["spin"] = spin or self._spin
         await self._post_command_with_fallback_paths(
             vin,
-            primary_suffix="access/lock-unlock",
+            primary_suffix="access/unlock",
             primary_payload=primary_payload,
-            fallback_suffix="access/unlock",
+            fallback_suffix="access/lock-unlock",
             fallback_payload=fallback_payload,
         )
 
@@ -783,12 +788,13 @@ class VWEUClient(CariadBaseClient):
                 "climatisationWithoutExternalPower": True,
                 "windowHeatingEnabled": True,
             }
+        # v2.20.0 (E5) — separate route primary, combined as 404-fallback.
         await self._post_command_with_fallback_paths(
             vin,
-            primary_suffix="climatisation/start-stop",
-            primary_payload={"action": "start"},
-            fallback_suffix="climatisation/start",
-            fallback_payload=fallback_payload,
+            primary_suffix="climatisation/start",
+            primary_payload=fallback_payload,
+            fallback_suffix="climatisation/start-stop",
+            fallback_payload={"action": "start"},
         )
 
     async def command_start_climate_control(
@@ -861,12 +867,13 @@ class VWEUClient(CariadBaseClient):
         if _tgt is not None:
             await _tgt._command_mbb_op(vin, "climate_stop")
             return
+        # v2.20.0 (E5) — separate route primary, combined as 404-fallback.
         await self._post_command_with_fallback_paths(
             vin,
-            primary_suffix="climatisation/start-stop",
-            primary_payload={"action": "stop"},
-            fallback_suffix="climatisation/stop",
-            fallback_payload={},
+            primary_suffix="climatisation/stop",
+            primary_payload={},
+            fallback_suffix="climatisation/start-stop",
+            fallback_payload={"action": "stop"},
         )
 
     async def command_start_charging(self, vin: str) -> None:
@@ -875,12 +882,13 @@ class VWEUClient(CariadBaseClient):
         if _tgt is not None:
             await _tgt._command_mbb_op(vin, "charge_start")
             return
+        # v2.20.0 (E5) — separate route primary, combined as 404-fallback.
         await self._post_command_with_fallback_paths(
             vin,
-            primary_suffix="charging/start-stop",
-            primary_payload={"action": "start"},
-            fallback_suffix="charging/start",
-            fallback_payload={},
+            primary_suffix="charging/start",
+            primary_payload={},
+            fallback_suffix="charging/start-stop",
+            fallback_payload={"action": "start"},
         )
 
     async def command_stop_charging(self, vin: str) -> None:
@@ -889,12 +897,13 @@ class VWEUClient(CariadBaseClient):
         if _tgt is not None:
             await _tgt._command_mbb_op(vin, "charge_stop")
             return
+        # v2.20.0 (E5) — separate route primary, combined as 404-fallback.
         await self._post_command_with_fallback_paths(
             vin,
-            primary_suffix="charging/start-stop",
-            primary_payload={"action": "stop"},
-            fallback_suffix="charging/stop",
-            fallback_payload={},
+            primary_suffix="charging/stop",
+            primary_payload={},
+            fallback_suffix="charging/start-stop",
+            fallback_payload={"action": "stop"},
         )
 
     async def command_flash(
@@ -1296,14 +1305,12 @@ class VWEUClient(CariadBaseClient):
         fixtures). Audi uses ``myAudi``; everything else the VW We Connect id.
         """
         if self._brand.name == "audi":
-            return "myAudi", "5.5.1"  # b13 (RE) — live myAudi build (was 4.24.0)
-        # b13 (#503 dismantle / H5) — bumped to the live We Connect version.
-        # Verified against the dismantled com.volkswagen.weconnect APK
-        # (versionName 3.63.2, androguard 2026-06). A fidelity check on the
-        # fs-car endpoints rejects stale versions, so tracking the current
-        # build hardens the command path; this is the value the App-Atlas
-        # refresh unblocked.
-        return "Volkswagen", "3.63.2"
+            # v2.20.0 (APK audit) — current myAudi build is 5.6.0 (was 5.5.1).
+            return "myAudi", "5.6.0"
+        # b13 (#503 dismantle / H5) — track the live We Connect version; the
+        # fs-car endpoints reject stale versions. v2.20.0 (APK audit): current
+        # com.volkswagen.weconnect is 4.1.1 (was 3.63.2).
+        return "Volkswagen", "4.1.1"
 
     def _mbb_headers(self, extra: dict[str, str] | None = None) -> dict[str, str]:
         app_name, app_version = self._mbb_app_identity()
@@ -2110,10 +2117,12 @@ class VWEUClient(CariadBaseClient):
         Order of attempts (each via ``_post_command``, so each carries its
         own v1 → v2 fallback on 404):
 
-        1. ``primary_suffix`` (combined endpoint, the historically
-           preferred form on the older CARIAD BFF)
-        2. ``fallback_suffix`` (separate endpoint, what older firmware
-           and some current PPE/PPC vehicles still expect)
+        1. ``primary_suffix`` (v2.20.0 E5: the SEPARATE endpoint, e.g.
+           ``/access/lock`` — the only form We Connect 4.1.1 / myAudi 5.6.0
+           expose today; this is what actually succeeds)
+        2. ``fallback_suffix`` (the legacy COMBINED endpoint, e.g.
+           ``/access/lock-unlock`` with ``{"action": ...}`` — 404s on current
+           firmware, kept purely as zero-cost insurance for any old vehicle)
 
         The previous implementation caught a bare ``except Exception`` and
         always fell back, which masked auth failures, rate limits and
@@ -2300,10 +2309,11 @@ class VWEUClient(CariadBaseClient):
         if _tgt is not None:
             await _tgt._command_mbb_op(vin, "window_heat_start")
             return
-        await self._post(
-            f"{self._base_for_vin(vin)}/vehicle/v1/vehicles/{vin}/climatisation/windowheating/start-stop",
-            json={"action": "start"},
-        )
+        # v2.20.0 (APK audit) — VW-EU 4.1.1 + Audi 5.6.0 use separate
+        # windowheating/start + /stop routes (no climatisation/ prefix, no
+        # start-stop combined route, empty body). _post_command adds the
+        # v1→v2 404 fallback + pendingrequests confirmation.
+        await self._post_command(vin, "windowheating/start", json={})
 
     async def command_stop_window_heating(self, vin: str) -> None:
         """Stop window heating."""
@@ -2311,10 +2321,7 @@ class VWEUClient(CariadBaseClient):
         if _tgt is not None:
             await _tgt._command_mbb_op(vin, "window_heat_stop")
             return
-        await self._post(
-            f"{self._base_for_vin(vin)}/vehicle/v1/vehicles/{vin}/climatisation/windowheating/start-stop",
-            json={"action": "stop"},
-        )
+        await self._post_command(vin, "windowheating/stop", json={})
 
     # v2.8.0 - Auxiliary heating (Standheizung).
     async def command_start_aux_heating(
@@ -3712,6 +3719,19 @@ class VWEUClient(CariadBaseClient):
             cap_earliest: str | None = None
             for cap in caps:
                 if not isinstance(cap, dict):
+                    continue
+                # v2.20.0 (#S6 license bug) — only ENTITLED capabilities count
+                # toward the subscription expiry. CARIAD ships already-lapsed
+                # ancillary caps (non-empty status: LicenseExpired / MissingLicense
+                # / deactivated) that still carry a PAST expirationDate; without
+                # this filter the earliest-wins scan latched onto one of those and
+                # reported subscription_active=False + negative days-remaining even
+                # for a car with an active primary subscription (Prash's Audi S6).
+                # Same "empty status == entitled" rule the coordinator uses.
+                cap_status = cap.get("status")
+                if isinstance(cap_status, (list, tuple)) and any(
+                    s not in (None, "") for s in cap_status
+                ):
                     continue
                 cap_exp = (
                     cap.get("expirationDate")

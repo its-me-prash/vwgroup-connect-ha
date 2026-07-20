@@ -324,6 +324,23 @@ def mask_vin(vin: str | None) -> str:
     return f"***{vin[-6:]}"
 
 
+def mask_email(value: str | None) -> str:
+    """Return a privacy-safe account/email representation for logs.
+
+    ``user@example.com`` → ``u***@***.com``; a value without an ``@`` is
+    treated as an opaque username and reduced to ``u***``. The account
+    identifier ties a log line to a real person, so it must never appear
+    verbatim in logs or forwarded diagnostics (#709).
+    """
+    if not value:
+        return "***"
+    local, sep, domain = value.partition("@")
+    if not sep or not local:
+        return f"{value[:1]}***"
+    tld = domain.rpartition(".")[2] if "." in domain else "***"
+    return f"{local[:1]}***@***.{tld}"
+
+
 def compute_connection_state(
     *sub_objects: Any,
     timestamp_keys: tuple[str, ...] = ("carCapturedTimestamp",),

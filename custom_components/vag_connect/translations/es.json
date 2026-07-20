@@ -1687,6 +1687,9 @@
     "read_only_portal_active": {
       "message": "Este vehículo se conecta a través del portal de solo lectura EU Data Act de VW, por lo que los comandos remotos (bloqueo, climatización, carga) no están disponibles para él. No es un ajuste que puedas cambiar — el canal del portal no tiene ninguna vía de comandos."
     },
+    "read_only_attestation_blocked": {
+      "message": "VW bloquea los comandos remotos de SEAT/CUPRA tras una verificación de dispositivo de Google (Play Integrity / App Check) que solo la app oficial en un teléfono real puede superar. Por eso no se pueden enviar desde aquí el cierre, la climatización ni la carga. Es un bloqueo permanente del lado del servidor de VW, no un ajuste que puedas desactivar. Los datos del vehículo siguen actualizándose mediante el portal de la Ley de Datos de la UE."
+    },
     "historical_portal_not_ready": {
       "message": "El portal de la Ley de Datos de la UE aún no está listo. Espera a que la integración haya consultado una vez tras la configuración e inténtalo de nuevo."
     }

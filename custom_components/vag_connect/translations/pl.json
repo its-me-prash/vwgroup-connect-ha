@@ -1687,6 +1687,9 @@
     "read_only_portal_active": {
       "message": "Ten pojazd łączy się przez tylko-do-odczytu portal EU Data Act firmy VW, więc polecenia zdalne (zamykanie, klimatyzacja, ładowanie) nie są dla niego dostępne. To nie jest ustawienie, które możesz przełączyć — kanał portalu nie ma żadnej ścieżki poleceń."
     },
+    "read_only_attestation_blocked": {
+      "message": "VW blokuje zdalne polecenia dla SEAT/CUPRA za weryfikacją urządzenia Google (Play Integrity / App Check), którą przechodzi tylko oficjalna aplikacja na prawdziwym telefonie. Dlatego z tego miejsca nie można wysłać zamykania, klimatyzacji ani ładowania. To trwała blokada po stronie serwera VW, a nie ustawienie, które można wyłączyć. Dane pojazdu są nadal aktualizowane przez portal EU Data Act."
+    },
     "historical_portal_not_ready": {
       "message": "Portal EU Data Act nie jest jeszcze gotowy. Poczekaj, aż integracja wykona jedno odpytanie po konfiguracji, a następnie ponów eksport historyczny."
     }

@@ -24,7 +24,7 @@ def test_weconnect_app_version_is_current() -> None:
     fresh dismantle — a fidelity check on the fs-car endpoints rejects stale
     versions, which is exactly how an unverified value regresses a channel."""
     src = _VW_EU.read_text(encoding="utf-8")
-    assert '"Volkswagen", "3.63.2"' in src
+    assert '"Volkswagen", "4.1.1"' in src
     assert "3.51.1" not in src  # the stale value must not creep back
 
 
@@ -38,5 +38,5 @@ def test_myaudi_app_version_is_current() -> None:
         for stale in ('"4.31.0"', "Android/4.31.0", "myAudi/4.18.0", '"4.18.0"',
                       '"myAudi", "4.24.0"', "800341641"):
             assert stale not in src, f"{f.name} still ships stale {stale}"
-    assert "5.5.1" in _AUDI.read_text(encoding="utf-8")
-    assert "800344232" in _AUDI.read_text(encoding="utf-8")
+    assert "5.6.0" in _AUDI.read_text(encoding="utf-8")
+    assert "800344256" in _AUDI.read_text(encoding="utf-8")
