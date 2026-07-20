@@ -1,0 +1,33 @@
+meta {
+  name: POST set auto-unlock plug
+  type: http
+  seq: 37
+}
+
+post {
+  url: {{base_url}}/api/v1/charging/{{vin}}/set-auto-unlock-plug
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "autoUnlockPlug": "PERMANENT"
+  }
+}
+
+docs {
+  Set the auto-unlock-plug-when-charged behaviour (PERMANENT/ON/OFF).
+  Grounded in the myŠkoda AutoUnlockPlugDto (autoUnlockPlug enum).
+  Implementation: SkodaClient.command_set_auto_unlock_plug() in
+  cariad/api/skoda.py. Bearer-only. Live-gated groundwork.
+}

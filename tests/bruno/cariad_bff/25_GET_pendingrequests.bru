@@ -1,0 +1,26 @@
+meta {
+  name: GET pending requests
+  type: http
+  seq: 25
+}
+
+get {
+  url: {{base_url}}/vehicle/v1/vehicles/{{vin}}/pendingrequests
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  Poll the vehicle's pending/in-flight remote requests. After a command is
+  sent, the integration polls this to a terminal status so a genuine failure
+  surfaces instead of looking like a silent success (#666 completion-confirm).
+  Implementation: VWEUClient command-confirmation poll in cariad/api/vw_eu.py.
+}
