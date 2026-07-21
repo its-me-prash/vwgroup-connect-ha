@@ -4,7 +4,7 @@ meta {
   seq: 36
 }
 
-post {
+put {
   url: {{base_url}}/api/v1/charging/{{vin}}/set-care-mode
   body: json
   auth: bearer
@@ -21,7 +21,7 @@ headers {
 
 body:json {
   {
-    "chargingCareMode": true
+    "chargingCareMode": "ACTIVATED"
   }
 }
 

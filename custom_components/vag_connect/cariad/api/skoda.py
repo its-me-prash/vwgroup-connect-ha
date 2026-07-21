@@ -1585,7 +1585,11 @@ class SkodaClient(CariadBaseClient):
         # request DTO (ChargeLimitDto, MyŠkoda 8.14.0) uses ``targetSOCInPercent``,
         # not the read-side ``targetStateOfChargeInPercent`` — the old key was
         # silently ignored so the target was never applied.
-        await self._post(
+        # v2.20.1 (#866) — the mysmob charging-SETTINGS routes are PUT, not POST
+        # (actions like start/stop stay POST). A POST here 500s server-side
+        # (@tader, Elroq) even with the correct field. Confirmed against the
+        # upstream myskoda rest_api (set_charge_limit → PUT).
+        await self._put(
             f"{_BASE}/api/v1/charging/{vin}/set-charge-limit",
             json={"targetSOCInPercent": target},
         )
@@ -1604,9 +1608,11 @@ class SkodaClient(CariadBaseClient):
         dispatches (see SeatCupraClient for the OLA sibling). Only the
         ``max_charge_current`` field is wired for Skoda here; the endpoint
         and the ``MAXIMUM``/``REDUCED`` enum are grounded in the mysmob
-        contract (POST /api/v1/charging/{vin}/set-charging-current) and the
+        contract (PUT /api/v1/charging/{vin}/set-charging-current) and the
         read-side ``settings.maxChargingCurrent`` shape used by
-        ``get_charging_profiles``.
+        ``get_charging_profiles``. v2.20.1 (#866) — the write DTO field is
+        ``chargingCurrent`` (not the read-side ``maxChargingCurrent``) and the
+        verb is PUT, confirmed against upstream myskoda (set_reduced_current_limit).
 
         ``target_soc`` is intentionally routed through the dedicated
         ``set-charge-limit`` endpoint (``command_set_target_soc``) — the
@@ -1619,9 +1625,9 @@ class SkodaClient(CariadBaseClient):
         if target_soc is not None:
             await self.command_set_target_soc(vin, int(target_soc))
         if max_charge_current is not None:
-            await self._post(
+            await self._put(
                 f"{_BASE}/api/v1/charging/{vin}/set-charging-current",
-                json={"maxChargingCurrent": str(max_charge_current)},
+                json={"chargingCurrent": str(max_charge_current)},
             )
 
     async def command_set_climate_temperature(self, vin: str, temp_c: float) -> None:
@@ -1667,10 +1673,10 @@ class SkodaClient(CariadBaseClient):
     # the decoded MyŠkoda 8.14.0 app: the route paths and the DTO wrappers
     # ``ChargingCareModeDto(chargingCareMode=…)``, ``AutoUnlockPlugDto(
     # autoUnlockPlug=…)`` and the ActiveVentilation ``durationInSeconds`` field.
-    # Value TYPES are the best inference (bool for the care toggle, matching the
-    # read-side bool ``isBatteryCareMode``); the auto-unlock value is passed
-    # through from the caller because its enum could not be cleanly isolated
-    # from the DEX string table — so we ground the field, never guess the value.
+    # v2.20.1 (#866) — the charging-SETTINGS routes are PUT (not POST) and their
+    # value shapes were confirmed against upstream myskoda: care-mode is the
+    # string enum ``ACTIVATED``/``DEACTIVATED`` (not a bool), auto-unlock is
+    # ``PERMANENT``/``OFF``. Actions (start/stop/window-heating) stay POST.
     #
     # WIRING STATUS:
     # - ``command_set_battery_care`` OVERRIDES the base (which raises
@@ -1691,25 +1697,26 @@ class SkodaClient(CariadBaseClient):
         Overrides ``CariadBaseClient.command_set_battery_care`` (which raises
         NotImplementedError) so the existing ``VagBatteryCareSwitch`` works for
         Skoda. Route + DTO field ``chargingCareMode`` are grounded in MyŠkoda
-        8.14.0 (``ChargingCareModeDto``); the VALUE TYPE is unverified — we send
-        a JSON bool as the most likely shape for an on/off toggle, but the app
-        may serialise it as an enum string. LIVE-GATED (no tester); if a real
-        Skoda rejects the bool, the enum form is the first thing to try.
+        8.14.0 (``ChargingCareModeDto``). v2.20.1 (#866) — verb is PUT (a
+        charging-SETTINGS route, not an action) and the value is the string
+        enum ``ACTIVATED``/``DEACTIVATED``, NOT a JSON bool — confirmed against
+        upstream myskoda (set_battery_care_mode). The old POST+bool 500'd.
         """
-        await self._post(
+        await self._put(
             f"{_BASE}/api/v1/charging/{vin}/set-care-mode",
-            json={"chargingCareMode": bool(enabled)},
+            json={"chargingCareMode": "ACTIVATED" if enabled else "DEACTIVATED"},
         )
 
     async def command_set_auto_unlock_plug(self, vin: str, mode: str) -> None:
         """Set auto-unlock-plug-when-charged behaviour.
 
         Route + DTO field ``autoUnlockPlug`` grounded in MyŠkoda 8.14.0
-        (``AutoUnlockPlugDto``). ``mode`` is passed through verbatim — the
-        app's enum values were not cleanly recoverable from the DEX strings, so
-        the caller supplies the exact token rather than us guessing. LIVE-GATED.
+        (``AutoUnlockPlugDto``). v2.20.1 (#866) — verb is PUT (charging-SETTINGS
+        route) and the enum is ``PERMANENT``/``OFF``, confirmed against upstream
+        myskoda (set_auto_unlock_charging). ``mode`` is still passed through so
+        the caller supplies the exact token; no HA entity is wired yet.
         """
-        await self._post(
+        await self._put(
             f"{_BASE}/api/v1/charging/{vin}/set-auto-unlock-plug",
             json={"autoUnlockPlug": str(mode)},
         )

@@ -1,10 +1,10 @@
 meta {
-  name: POST set charge limit (target SoC)
+  name: PUT set charge limit (target SoC)
   type: http
   seq: 8
 }
 
-post {
+put {
   url: {{base_url}}/api/v1/charging/{{vin}}/set-charge-limit
   body: json
   auth: bearer
@@ -21,7 +21,7 @@ headers {
 
 body:json {
   {
-    "targetStateOfChargeInPercent": 80
+    "targetSOCInPercent": 80
   }
 }
 
