@@ -137,11 +137,15 @@ class TestMbbGateBffOnlyCommandsHidden:
 
 
 class TestMbbGateStrictness:
-    def test_no_oplist_cached_hidden(self) -> None:
-        # MEB / not-yet-fetched → no proof → strict hide.
+    def test_no_oplist_cached_defers_not_hidden(self) -> None:
+        # v2.20.1 (#584/#866) — operationList NOT fetched (never cached or the
+        # read 401'd, an expected condition) is "no proof EITHER way", so the
+        # gate returns None and defers to the BFF gate rather than hiding a
+        # control that worked pre-v2.20.0. Proven-absent (a fetched oplist
+        # lacking the service) is still hidden — see test_disabled_service_hidden.
         stub = _coord(mbb_armed=True, oplist=None)
-        assert _cap(stub, "command_start_climate") is False
-        assert _cap(stub, "command_start_charging") is False
+        assert _cap(stub, "command_start_climate") is None
+        assert _cap(stub, "command_start_charging") is None
 
     def test_disabled_service_hidden(self) -> None:
         services = [
@@ -199,12 +203,16 @@ class TestCommandCapabilitySupportedIntegration:
             VIN, "command_start_climate") is True
         assert stub.command_capability_supported(VIN, "command_lock") is False
 
-    def test_public_gate_meb_hides_all(self) -> None:
+    def test_public_gate_no_oplist_defers(self) -> None:
+        # v2.20.1 — armed MBB but no operationList proof: the MBB gate returns
+        # None and command_capability_supported falls through to the BFF gate
+        # (permissive on an empty cap cache) instead of hiding. Phase-2 runtime
+        # failure classification still catches a genuinely unsupported command.
         stub = _coord(mbb_armed=True, oplist=None)
         assert stub.command_capability_supported(
-            VIN, "command_start_climate") is False
+            VIN, "command_start_climate") is None
         assert stub.command_capability_supported(
-            VIN, "command_start_charging") is False
+            VIN, "command_start_charging") is None
 
 
 class TestRefreshWarmVinFallback:
