@@ -38,6 +38,21 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.20.1] - 2026-07-21
+
+### Fixed
+
+- **Škoda charge controls work again (#866).** Setting the charge limit — plus the battery-care, charging-current and auto-unlock controls alongside it — failed with a server error even though the official app worked. They were being sent as an *action* rather than a *settings change*, so Škoda's backend rejected them. All four now use the exact request the app sends, checked against the actively-maintained Škoda library.
+- **Two-way controls no longer vanish on older Car-Net cars.** On some legacy Car-Net vehicles the integration couldn't read the car's service directory (it came back "unauthorised"), and a v2.20.0 change then hid *every* lock / climate / charging control for the rest of the session. Now, when that directory simply can't be read, the controls stay available (a failed command is reported when you use it) instead of disappearing — while a car that genuinely proves it lacks a service still correctly hides it. That directory read is now also retried once after refreshing the login.
+
+### Changed
+
+- Internal tidy-up of some out-of-date code comments left by the v2.20.0 command-routing change. No behaviour change.
+
+### Thanks
+
+Thanks to **@tader** for the clean Škoda charge-limit report (#866). The full roll of reporters and testers is in [CONTRIBUTORS.md](CONTRIBUTORS.md). 🙏
+
 ## [2.20.0] - 2026-07-20
 
 ### Added
