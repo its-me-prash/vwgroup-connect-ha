@@ -24,6 +24,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding, requested 
 - @birni-debug
 - @bitte-ein-bit
 - @bmwpower530d
+- @bobbasli
 - @Brinki99
 - @brokkolo
 - @bufferoverflow1337
@@ -149,6 +150,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding, requested 
 - @Lagaff86
 - @larrybarry3003
 - @Leibinger
+- @leMineGaming
 - @liborcicvarek
 - @littlecake
 - @LouisFk

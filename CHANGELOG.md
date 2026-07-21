@@ -38,6 +38,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.21.1] - 2026-07-21
+
+### Fixed
+
+- **VW EU cars no longer get a false "authentication expired / check your password" (#875).** On MEB / ID. cars, the WeConnect login path is blocked by VW's device-attestation wall, so its saved token can't be refreshed. The integration was treating that dead refresh as a login failure and taking the whole entry down — even though the EU Data Act portal login (the one that actually feeds your data) was working fine. It now falls back to a fresh portal login and keeps going, instead of asking you to re-enter a password that was never wrong. A genuinely wrong password is still reported as before.
+
+### Thanks
+
+Thanks to **@bobbasli**, **@leMineGaming**, **@m3gg3** and **@shaarkys** for the reports and the debug logs that pinned this down (#875) — credited in [CONTRIBUTORS.md](CONTRIBUTORS.md). 🙏
+
 ## [2.21.0] - 2026-07-21
 
 ### Added
