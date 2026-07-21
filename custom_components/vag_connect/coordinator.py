@@ -963,7 +963,29 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 await self.hass.async_add_executor_job(_dd._load)
             except Exception:  # noqa: BLE001
                 pass
-            vins = await self._cariad_client.get_vehicles()
+            try:
+                vins = await self._cariad_client.get_vehicles()
+            except AuthenticationError:
+                # v2.21.1 (#875) — persisted IDK/legacy tokens can no longer be
+                # refreshed (VW's device-attestation wall 403s the refresh). We
+                # skipped the fresh login above because they weren't a portal
+                # strategy, so ``_eu_portal`` was never armed and get_vehicles
+                # hit the dead BFF path. The portal login ITSELF still works, so
+                # don't kill the entry with "invalid credentials" — do the fresh
+                # login we skipped and retry once. Portal-persisted / no-persisted
+                # entries already did their fresh login above, so for them the
+                # failure is genuine → re-raise unchanged.
+                if persisted is None or persisted_is_portal:
+                    raise
+                _LOGGER.info(
+                    "VAG Connect: persisted tokens for %s no longer refresh "
+                    "(VW attestation wall) — falling back to a fresh login and "
+                    "retrying vehicle enumeration",
+                    brand,
+                )
+                await self._cariad_client.authenticate()
+                await self._arm_supplementary_channels()
+                vins = await self._cariad_client.get_vehicles()
             if not vins:
                 return False
 
