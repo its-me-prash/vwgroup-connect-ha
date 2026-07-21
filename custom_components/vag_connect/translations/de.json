@@ -639,6 +639,9 @@
       "active_ventilation_remaining_time_min": {
         "name": "Aktive Belüftung Restzeit"
       },
+      "battery_support_state": {
+        "name": "12V-Batterie-Unterstützung"
+      },
       "connection_state_battery_power_level": {
         "name": "12V-Batterie Ladezustand"
       },

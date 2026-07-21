@@ -273,6 +273,18 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # v2.21.0 — MEB/PPE 12V-battery-support state (enabled/disabled), mapped
+    # from the ``batterySupport`` selectivestatus job that ~27 reporters filed
+    # (#832 et al.). Interim-silenced since v2.12.0; now surfaced as a
+    # diagnostic, opt-in sensor. None when the leaf is absent.
+    VagSensorDescription(
+        key="battery_support_state",
+        translation_key="battery_support_state",
+        data_key="battery_support_state",
+        icon="mdi:car-battery",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     # v2.18.0 — Scout #799: queued charge-PROFILE changes
     # (``automation.chargingProfiles.requests``). Same *_pending diagnostic.
     VagSensorDescription(
@@ -3090,6 +3102,7 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "auto_release_ac_connector_state",
     "active_ventilation_state",
     "active_ventilation_remaining_time_min",
+    "battery_support_state",  # v2.21.0 — MEB-only; no phantom on other cars
     "connection_state_battery_power_level",
     "last_trip_total_fuel_consumption_l",
     "last_trip_total_electric_consumption_kwh",

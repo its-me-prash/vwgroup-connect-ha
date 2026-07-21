@@ -3369,6 +3369,11 @@ class VWEUClient(CariadBaseClient):
             v(raw, "climatisation", "climatisationStatus", "value", "ventilationState")
             or v(raw, "climatisation", "ventilationStatus", "value", "ventilationState")
             or v(raw, "climatisation", "climatisationStatus", "value", "activeVentilationState")
+            # v2.21.0 — the backend also ships active ventilation under its own
+            # ``activeVentilationStatus`` container using the generic
+            # ``climatisationState`` name (#845/#856/#859). Consume that spelling
+            # too so it stops surfacing on the Vehicle Data Scout.
+            or v(raw, "climatisation", "activeVentilationStatus", "value", "climatisationState")
         )
         if isinstance(vent_state, str) and vent_state:
             d.active_ventilation_state = vent_state
@@ -3376,10 +3381,20 @@ class VWEUClient(CariadBaseClient):
             v(raw, "climatisation", "climatisationStatus", "value", "ventilationRemainingTimeInMinutes")
             or v(raw, "climatisation", "climatisationStatus", "value", "ventilationRemainingTime_min")
             or v(raw, "climatisation", "ventilationStatus", "value", "remainingTime_min")
+            or v(raw, "climatisation", "activeVentilationStatus", "value", "remainingClimatisationTime_min")
         )
         vent_remaining_int = safe_int(vent_remaining)
         if vent_remaining_int is not None:
             d.active_ventilation_remaining_time_min = vent_remaining_int
+
+        # v2.21.0 — MEB/PPE 12V-battery-support state, interim-silenced since
+        # v2.12.0. Real ``enabled``/``disabled`` payloads from ~27 reporters
+        # (#832 et al.) let us map it now instead of suppressing it.
+        batt_support = v(
+            raw, "batterySupport", "batterySupportStatus", "value", "batterySupport"
+        ) or v(raw, "charging", "batterySupport", "batterySupportStatus", "value", "batterySupport")
+        if isinstance(batt_support, str) and batt_support:
+            d.battery_support_state = batt_support
 
         # v2.10.0 Group A - rear sunroof + Cabrio roof cover. Both are
         # window-array entries on the access.accessStatus.value.windows

@@ -639,6 +639,9 @@
       "active_ventilation_remaining_time_min": {
         "name": "Active Ventilation Remaining"
       },
+      "battery_support_state": {
+        "name": "Wsparcie akumulatora 12V"
+      },
       "connection_state_battery_power_level": {
         "name": "12V Battery Power Level"
       },
