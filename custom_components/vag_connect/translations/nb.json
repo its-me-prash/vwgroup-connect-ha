@@ -639,6 +639,9 @@
       "active_ventilation_remaining_time_min": {
         "name": "Aktiv ventilasjon gjenstår"
       },
+      "battery_support_state": {
+        "name": "12V-batteristøtte"
+      },
       "connection_state_battery_power_level": {
         "name": "12V-batteriets effektnivå"
       },

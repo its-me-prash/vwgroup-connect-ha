@@ -596,6 +596,14 @@ class VehicleData:
     active_ventilation_state: str | None = None
     active_ventilation_remaining_time_min: int | None = None
 
+    # v2.21.0 — MEB/PPE 12V-battery-support state (``enabled`` / ``disabled``).
+    # The CARIAD BFF ships it as a selectivestatus job
+    # ``batterySupport.batterySupportStatus.value.batterySupport``. Was
+    # interim-silenced since v2.12.0 (the IOU: map once a real payload confirmed
+    # the field); ~27 MEB reporters supplied ``enabled``/``disabled`` values, so
+    # it is now mapped to this diagnostic state instead of suppressed.
+    battery_support_state: str | None = None
+
     # Rear sunroof + Cabrio roof cover state. Both are window-array
     # entries; ``sunRoofRear`` covers panoramic rear glass roofs
     # (Touareg, Tiguan Allspace), ``roofCover`` covers convertible

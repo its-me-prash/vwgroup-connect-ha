@@ -639,6 +639,9 @@
       "active_ventilation_remaining_time_min": {
         "name": "Aktiivista tuuletusta jäljellä"
       },
+      "battery_support_state": {
+        "name": "12V-akun tuki"
+      },
       "connection_state_battery_power_level": {
         "name": "12 V:n akun tehotaso"
       },

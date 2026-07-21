@@ -650,8 +650,15 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # ``chargingTimers.*`` does NOT cover the 3-segment path. Add
             # 2- and 3-deep wildcards for each container.
             "charging.batterySupport", "charging.batterySupport.*",
-            "charging.batterySupport.*.*",
+            "charging.batterySupport.*.*", "charging.batterySupport.*.*.*",
             "batterySupport", "batterySupport.*", "batterySupport.*.*",
+            # v2.21.0 — the real payload nests 4 deep
+            # (``batterySupport.batterySupportStatus.value.batterySupport``);
+            # the value is now MAPPED to battery_support_state, so absorb the
+            # rest of the container instead of leaking it to the Scout (the
+            # 3-deep wildcard above missed this depth — same gap chargingProfiles
+            # /chargingTimers already had fixed).
+            "batterySupport.*.*.*",
             "chargingProfiles", "chargingProfiles.*", "chargingProfiles.*.*",
             "charging.chargingProfiles", "charging.chargingProfiles.*",
             "charging.chargingProfiles.*.*",
@@ -721,6 +728,18 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # surface them via Scout. Audi inherits via line 851.
             "climatisation.activeVentilationStatus",
             "climatisation.activeVentilationStatus.*",
+            # v2.21.0 — the backend also nests state + remaining time one level
+            # deeper under ``.value`` using the generic ``climatisationState`` /
+            # ``remainingClimatisationTime_min`` names (#845/#856/#859). Those are
+            # now parsed into active_ventilation_state / _remaining_time_min, so
+            # absorb the value.* container (the 1-deep wildcard above missed it).
+            "climatisation.activeVentilationStatus.*.*",
+            # v2.21.0 — aux-heating settings container on VW EU (#843/#868). The
+            # inner shape isn't confirmed from a real payload yet (masked), so
+            # absorb it for now; the issues stay open pending a diagnostic dump
+            # so it can be mapped rather than silently dropped.
+            "climatisation.climatisationSettings.value.auxiliaryHeatingSettings",
+            "climatisation.climatisationSettings.value.auxiliaryHeatingSettings.*",
             "climatisation.climatisationSettings.value.activeVentilationSettings",
             "climatisation.climatisationSettings.value.activeVentilationSettings.*",
             "climatisationTimers.activeVentilationTimersStatus",

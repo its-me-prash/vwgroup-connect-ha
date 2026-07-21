@@ -38,6 +38,20 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.21.0] - 2026-07-21
+
+### Added
+
+- **12V battery-support sensor (MEB / ID. cars).** Newer MEB firmware reports a "battery support" state (`enabled` / `disabled`) that keeps the 12V battery topped up. It's now a diagnostic sensor (off by default — enable it under the device if you want it). This is the field a whole wave of Vehicle Data Scout reports flagged as unmapped; it's now mapped instead of just silenced.
+
+### Fixed
+
+- **Vehicle Data Scout stops flooding on `batterySupport` and active-ventilation.** Two fields were slipping past the Scout's noise filter because their real payload nested one level deeper than the interim filter reached — so dozens of ID./MEB cars kept opening "new field" reports for the same two items. Both are now properly consumed (the battery-support state as the new sensor above; the active-ventilation state + remaining time fold into the existing Active Ventilation sensors), so they no longer surface as unmapped.
+
+### Thanks
+
+Thanks to the many ID./MEB owners who reported the `batterySupport` field (#832 and ~26 more) and the active-ventilation spelling (#845, #856, #859) — all now credited in [CONTRIBUTORS.md](CONTRIBUTORS.md). 🙏
+
 ## [2.20.1] - 2026-07-21
 
 ### Fixed
