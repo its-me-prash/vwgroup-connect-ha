@@ -175,6 +175,30 @@ _MBB_COMMAND_SERVICE: dict[str, str | None] = {
 }
 
 
+def evcc_charge_status(data: dict[str, Any]) -> str | None:
+    """v2.22.0 — normalized IEC-61851 charge status for the evcc connector.
+
+    evcc's custom-vehicle ``status`` reads only the FIRST character and raises
+    on anything it doesn't recognise, so this returns strictly one of:
+      ``"A"`` — unplugged, ``"B"`` — plugged (idle), ``"C"`` — charging.
+
+    Returns ``None`` (field left unset → no phantom sensor) only for cars that
+    report NO charging data at all (combustion). Any car with charging data
+    always gets a valid A/B/C. See docs/EVCC.md.
+    """
+    if (
+        data.get("plug_connected") is None
+        and data.get("is_charging") is None
+        and not data.get("charging_state")
+    ):
+        return None
+    if data.get("is_charging") or data.get("charging_state") == "conservationCharging":
+        return "C"
+    if data.get("plug_connected"):
+        return "B"
+    return "A"
+
+
 def _mbb_command_channel_client(coord: Any) -> Any | None:
     """Return the client that owns the durable-MBB command path for this
     entry, or None when commands do NOT route through MBB.
@@ -3632,6 +3656,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
         # Always stamp when we fetched
         data["last_updated_at"] = datetime.now(tz=timezone.utc)
+
+        # v2.22.0 (evcc) — normalized IEC-61851 charge status for the evcc
+        # connector (see docs/EVCC.md). Only set for cars that report charging
+        # data (EVs); combustion cars leave it unset so no phantom sensor spawns.
+        _evcc = evcc_charge_status(data)
+        if _evcc is not None:
+            data["evcc_charge_status"] = _evcc
 
         # v1.20.0 Bundle 2 Phase A — Skoda static-info enrichment.
         # If we have a cached vehicle-information + equipment block

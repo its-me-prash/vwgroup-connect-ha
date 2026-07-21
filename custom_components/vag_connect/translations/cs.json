@@ -642,6 +642,9 @@
       "battery_support_state": {
         "name": "Podpora 12V baterie"
       },
+      "evcc_charge_status": {
+        "name": "evcc stav nabíjení"
+      },
       "connection_state_battery_power_level": {
         "name": "12V Battery Power Level"
       },

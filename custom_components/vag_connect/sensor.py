@@ -148,6 +148,21 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:power-plug",
         condition="electric",
     ),
+    # v2.22.0 (evcc) — normalized IEC-61851 charge status (A=unplugged /
+    # B=plugged-idle / C=charging) for the evcc connector's custom-vehicle
+    # `status` field (our raw charging_state strings don't map to A/B/C).
+    # Diagnostic + opt-in (enable it under the device if you use evcc);
+    # electric-only. Always A/B/C — computed in coordinator._enrich. See
+    # docs/EVCC.md.
+    VagSensorDescription(
+        key="evcc_charge_status",
+        translation_key="evcc_charge_status",
+        data_key="evcc_charge_status",
+        icon="mdi:ev-station",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     VagSensorDescription(
         key="target_soc",
         translation_key="target_soc",
@@ -3103,6 +3118,7 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "active_ventilation_state",
     "active_ventilation_remaining_time_min",
     "battery_support_state",  # v2.21.0 — MEB-only; no phantom on other cars
+    "evcc_charge_status",  # v2.22.0 — only set for EVs with charging data
     "connection_state_battery_power_level",
     "last_trip_total_fuel_consumption_l",
     "last_trip_total_electric_consumption_kwh",
