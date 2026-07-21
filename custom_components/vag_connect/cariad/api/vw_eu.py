@@ -681,8 +681,8 @@ class VWEUClient(CariadBaseClient):
             return False
 
     async def command_lock(self, vin: str, spin: str = "") -> None:
-        """Lock vehicle — combined endpoint with separate-endpoint fallback,
-        each tried on both /vehicle/v1/ and /vehicle/v2/ paths.
+        """Lock vehicle — separate endpoint (primary) with combined endpoint as
+        404-fallback, each tried on both /vehicle/v1/ and /vehicle/v2/ paths.
 
         v1.8.8 (Session 3B): HTTP-404-only fallback via
         ``_post_command_with_fallback_paths``. Auth failures, rate limits
@@ -723,10 +723,10 @@ class VWEUClient(CariadBaseClient):
     async def command_unlock(self, vin: str, spin: str = "") -> None:
         """Unlock vehicle — S-PIN required if set.
 
-        Same v1/v2 + combined/separate dispatch as ``command_lock``.
-        S-PIN, when present, is included in *both* the combined-endpoint
-        payload and the separate-endpoint fallback payload (the legacy
-        unlock endpoint accepts the PIN in the body, the same way the
+        Same v1/v2 + separate/combined dispatch as ``command_lock``.
+        S-PIN, when present, is included in *both* the separate-endpoint
+        (primary) payload and the combined-endpoint 404-fallback payload (the
+        legacy unlock endpoint accepts the PIN in the body, the same way the
         SecToken-using SEAT/CUPRA flow does in v1.8.4).
         """
         # v2.15.0 — durable MBB strategy uses the classic Car-Net RLU flow.
@@ -751,8 +751,8 @@ class VWEUClient(CariadBaseClient):
     async def command_start_climate(
         self, vin: str, ppe_mode: bool = False
     ) -> None:
-        """Start pre-conditioning — combined endpoint with separate fallback,
-        each on v1/v2.
+        """Start pre-conditioning — separate endpoint (primary) with combined
+        404-fallback, each on v1/v2.
 
         Default target temperature 21°C and window heating enabled match
         the previous separate-endpoint payload — kept so behaviour does
@@ -774,7 +774,7 @@ class VWEUClient(CariadBaseClient):
             await _tgt._command_mbb_op(vin, "climate_start")
             return
         if ppe_mode:
-            fallback_payload = {
+            start_body = {
                 "climatisationMode": "comfort",
                 "climatisationWithoutExternalPower": True,
                 "windowHeatingEnabled": True,
@@ -782,7 +782,7 @@ class VWEUClient(CariadBaseClient):
                 # rejects it on Q6/A6 e-tron / PPC vehicles.
             }
         else:
-            fallback_payload = {
+            start_body = {
                 "targetTemperature": 21.0,
                 "targetTemperatureUnit": "celsius",
                 "climatisationWithoutExternalPower": True,
@@ -792,7 +792,7 @@ class VWEUClient(CariadBaseClient):
         await self._post_command_with_fallback_paths(
             vin,
             primary_suffix="climatisation/start",
-            primary_payload=fallback_payload,
+            primary_payload=start_body,
             fallback_suffix="climatisation/start-stop",
             fallback_payload={"action": "start"},
         )
@@ -862,7 +862,7 @@ class VWEUClient(CariadBaseClient):
         await self._post(url, json=body)
 
     async def command_stop_climate(self, vin: str) -> None:
-        """Stop pre-conditioning — combined endpoint with separate fallback."""
+        """Stop pre-conditioning — separate endpoint (primary), combined 404-fallback."""
         _tgt = self._mbb_command_target()
         if _tgt is not None:
             await _tgt._command_mbb_op(vin, "climate_stop")
@@ -877,7 +877,7 @@ class VWEUClient(CariadBaseClient):
         )
 
     async def command_start_charging(self, vin: str) -> None:
-        """Start charging — combined endpoint with separate fallback."""
+        """Start charging — separate endpoint (primary), combined 404-fallback."""
         _tgt = self._mbb_command_target()
         if _tgt is not None:
             await _tgt._command_mbb_op(vin, "charge_start")
@@ -892,7 +892,7 @@ class VWEUClient(CariadBaseClient):
         )
 
     async def command_stop_charging(self, vin: str) -> None:
-        """Stop charging — combined endpoint with separate fallback."""
+        """Stop charging — separate endpoint (primary), combined 404-fallback."""
         _tgt = self._mbb_command_target()
         if _tgt is not None:
             await _tgt._command_mbb_op(vin, "charge_stop")
@@ -1549,7 +1549,7 @@ class VWEUClient(CariadBaseClient):
         return []
 
     async def _get_mbb_operationlist(
-        self, vin: str, *, for_command: bool = False,
+        self, vin: str, *, for_command: bool = False, _refreshed: bool = False,
     ) -> "MbbOperationList | None":
         """Fetch + cache the per-VIN MBB operationList (service directory).
 
@@ -1589,9 +1589,37 @@ class VWEUClient(CariadBaseClient):
                 url, _retry=False, for_command=for_command
             )
         except APIError as err:
+            body = str(err.body)
+            # v2.20.1 (#584) — distinguish a TOKEN-AUTH 401 from the systemId
+            # ACL. ``gw.error.authentication`` means the gateway rejected the
+            # bearer as unauthenticated (Mattheisen87's Passat: 26× on v2.20.0 —
+            # the token exchange succeeds but the FIRST call with it 401s),
+            # unlike the data-plane ACL (``mbbc.rolesandrights.unauthorized`` /
+            # ``*.security.9007``) which no refresh can fix. A real token-auth
+            # failure IS recoverable by refreshing the bearer once — mirror
+            # audi_connect_ha #782 (keep the session token fresh on auth
+            # failure). Guarded to EXACTLY ONE retry so we never storm the
+            # refresh endpoint (the original _retry=False concern).
+            if (
+                err.status == 401
+                and "gw.error.authentication" in body
+                and not _refreshed
+            ):
+                _LOGGER.info(
+                    "MBB operationList ***%s → 401 gw.error.authentication — "
+                    "refreshing the MBB bearer and retrying once (#584).",
+                    vin[-6:],
+                )
+                try:
+                    await self._refresh_tokens(for_command=for_command)
+                except Exception:  # noqa: BLE001
+                    pass
+                return await self._get_mbb_operationlist(
+                    vin, for_command=for_command, _refreshed=True,
+                )
             _LOGGER.warning(
                 "MBB operationList ***%s → HTTP %s: %s",
-                vin[-6:], err.status, str(err.body)[:160],
+                vin[-6:], err.status, body[:160],
             )
             return None
         except Exception as err:  # noqa: BLE001

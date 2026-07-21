@@ -223,12 +223,14 @@ def _mbb_command_capability(
     falls through to the CARIAD-BFF capability gate for non-MBB cars).
 
     Policy (user choice 2026-07-19: *maximal streng*): a command entity is
-    created ONLY on positive operationList proof that the car currently grants
-    that command's Car-Net service. No proof — service absent or Disabled, or
-    the operationList not yet fetched for this VIN — hides the entity (never
-    invent a two-way control the car can't run). The operationList is fetched
-    by ``_refresh_mbb_command_capabilities`` and cached 12 h per VIN on the
-    command client.
+    hidden when the operationList was FETCHED and positively shows the service
+    absent or Disabled (never invent a two-way control the car proved it can't
+    run) → returns False. But when the operationList could NOT be fetched for
+    this VIN (not yet cached, or the read 401'd / failed — an expected
+    condition) there is no proof either way, so v2.20.1 returns None and defers
+    to the BFF gate rather than hiding a control that worked pre-v2.20.0. The
+    operationList is fetched by ``_refresh_mbb_command_capabilities`` and cached
+    12 h per VIN on the command client.
     """
     cmd = _mbb_command_channel_client(coord)
     if cmd is None:
@@ -245,7 +247,18 @@ def _mbb_command_capability(
     entry = cache.get(vin) if isinstance(cache, dict) else None
     oplist = entry[0] if entry else None
     if oplist is None:
-        return False  # STRICT: no operationList proof → hide
+        # v2.20.1 — the operationList was NOT fetched for this VIN (never
+        # cached, or the fetch 401'd / failed — an EXPECTED condition, see
+        # vw_eu._get_mbb_operationlist which treats a 401 here as the data-plane
+        # ACL and deliberately does not retry). "No proof EITHER way" must not
+        # remove a control that worked pre-v2.20.0: return None so
+        # command_capability_supported falls through to the BFF gate (permissive
+        # on an empty cache) instead of hiding. The strict "never invent a
+        # control the car proved it can't run" intent is preserved below — we
+        # still return False when the operationList WAS fetched and positively
+        # lacks or Disables the service. The spawner re-evaluates every refresh,
+        # so an entity re-appears the moment a later operationList fetch succeeds.
+        return None
     svc = oplist.service(service_id)
     return bool(svc is not None and svc.enabled)
 

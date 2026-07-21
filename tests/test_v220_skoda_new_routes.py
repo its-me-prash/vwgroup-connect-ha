@@ -19,12 +19,18 @@ from custom_components.vag_connect.cariad.api.skoda import SkodaClient
 def _client() -> SkodaClient:
     client = SkodaClient(MagicMock(), "u@t.de", "pw")
     client._post = AsyncMock()  # type: ignore[method-assign]
+    client._put = AsyncMock()  # type: ignore[method-assign]
     return client
 
 
 def _call(client: SkodaClient) -> tuple[str, dict]:
-    """Return (url, json_body) of the single _post call."""
-    args = client._post.call_args
+    """Return (url, json_body) of the single command call, whichever verb it
+    used — charging-SETTINGS routes are PUT (v2.20.1 #866), actions are POST."""
+    args = (
+        client._put.call_args
+        if client._put.call_args is not None
+        else client._post.call_args
+    )
     url = args.args[0]
     body = args.kwargs.get("json")
     return url, body
@@ -35,14 +41,16 @@ def test_battery_care_mode_on() -> None:
     asyncio.run(client.command_set_battery_care("VIN1", True))
     url, body = _call(client)
     assert url.endswith("/api/v1/charging/VIN1/set-care-mode")
-    assert body == {"chargingCareMode": True}
+    # v2.20.1 (#866) — string enum, PUT (upstream myskoda), not a JSON bool.
+    assert body == {"chargingCareMode": "ACTIVATED"}
+    client._put.assert_awaited_once()
 
 
 def test_battery_care_mode_off() -> None:
     client = _client()
     asyncio.run(client.command_set_battery_care("VIN1", False))
     _, body = _call(client)
-    assert body == {"chargingCareMode": False}
+    assert body == {"chargingCareMode": "DEACTIVATED"}
 
 
 def test_auto_unlock_plug_passes_mode_through() -> None:

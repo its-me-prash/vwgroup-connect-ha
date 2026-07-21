@@ -4,7 +4,7 @@ meta {
   seq: 35
 }
 
-post {
+put {
   url: {{base_url}}/api/v1/charging/{{vin}}/set-charging-current
   body: json
   auth: bearer
@@ -21,7 +21,7 @@ headers {
 
 body:json {
   {
-    "maxChargingCurrent": "REDUCED"
+    "chargingCurrent": "REDUCED"
   }
 }
 

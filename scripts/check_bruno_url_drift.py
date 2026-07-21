@@ -106,6 +106,13 @@ _BRAND_DIRS: dict[str, tuple[list[str], str]] = {
         ["custom_components/vag_connect/cariad/api/vw_na.py"],
         "tests/bruno/vw_na",
     ),
+    # NOTE: tests/bruno/mbb_legacy/ is INTENTIONALLY not registered here. The
+    # durable-MBB specs use different host variables ({{mbb_oauth_url}},
+    # {{home_region}}) than the {{base_url}} convention this checker parses
+    # (_BRU_URL_RE), and the MBB client builds URLs from host constants in
+    # cariad/_mbb.py rather than a single {_BASE}. Adding a row without also
+    # teaching the regex + Python patterns would emit spurious Python-only
+    # drift. Left out on purpose — not an oversight.
 }
 
 

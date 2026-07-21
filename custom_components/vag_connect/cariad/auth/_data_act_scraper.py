@@ -354,7 +354,7 @@ class DataActScraper:
         external evidence for is the leading one in
         ``_API_DATA_CANDIDATE_PATHS``, and that path is documented as
         returning a metadata JSON, not the customised-data zip itself.
-        Live-credential testing (TODO v2.8.1, requires real VW EU
+        Live-credential testing (TODO — requires a credentialed VW EU
         account) is what will tell us:
           1. whether one of the candidate paths returns the zip
              directly under the session cookie, or
@@ -443,7 +443,7 @@ class DataActScraper:
                 )
                 continue
 
-        # TODO v2.8.1 - live route A discovery requires real
+        # TODO (credentialed tester) - live route A discovery requires real
         # credentials, see _private/research-archive/old-docs/
         # RESEARCH_NOTES_2026-04-29.md section 9 for the only
         # confirmed endpoint shape we have so far.
@@ -520,7 +520,7 @@ class DataActScraper:
                     wait_until="domcontentloaded",
                 )
 
-                # TODO v2.8.1 - real selectors require a recorded DOM
+                # TODO (credentialed tester) - real selectors require a recorded DOM
                 # snapshot from a credentialed tester. Until then the
                 # method bails out cleanly and the coordinator falls
                 # back to "no data this cycle". Suggested selector

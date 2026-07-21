@@ -1002,6 +1002,14 @@ _RAW_FIELD_CAP = 250
 # forever, so they ARE dropped from the raw/Scout surface. Anything with a real,
 # vehicle-specific field name still surfaces — the no-suppression rule holds for
 # everything except this metadata repetition.
+# NOTE (v2.20.1): do NOT union this with ``_GENERIC_FIELD_NAMES``. The two sets
+# serve different purposes and are intentionally NOT identical: the generic set
+# drives the flattener's UUID-aliasing, whereas this set silences pure envelope
+# noise for the Vehicle Data Scout. The generic-but-ambiguous leaves ``open`` /
+# ``type`` / ``is_set`` are DELIBERATELY left Scout-visible under the
+# no-suppression policy (see test_v2181_ambiguous_open_stays_visible, #794/#807)
+# until their meaning is known — carving them would suppress an unidentified
+# real field, which the mapping policy forbids.
 _ENVELOPE_NOISE_LEAVES: frozenset[str] = frozenset({
     "user_id", "userid", "vin", "timestamp", "timestamputc",
     "echo", "message_id", "state", "value", "unit", "key",

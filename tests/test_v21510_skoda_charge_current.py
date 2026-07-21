@@ -88,19 +88,24 @@ class TestSkodaCommandUpdateChargingSettings:
         from custom_components.vag_connect.cariad.api.skoda import SkodaClient
         client = SkodaClient.__new__(SkodaClient)
         client._post = AsyncMock(return_value={})
+        client._put = AsyncMock(return_value={})
         return client
 
-    def test_max_current_posts_grounded_url_and_body(self):
+    def test_max_current_puts_grounded_url_and_body(self):
+        # v2.20.1 (#866) — charging-SETTINGS routes are PUT (not POST) and the
+        # write DTO field is chargingCurrent (upstream myskoda), not the
+        # read-side maxChargingCurrent.
         client = self._client()
         asyncio.run(
             client.command_update_charging_settings(
                 "VINX", max_charge_current="REDUCED"
             )
         )
-        client._post.assert_awaited_once_with(
+        client._put.assert_awaited_once_with(
             "https://mysmob.api.connect.skoda-auto.cz/api/v1/charging/VINX/set-charging-current",
-            json={"maxChargingCurrent": "REDUCED"},
+            json={"chargingCurrent": "REDUCED"},
         )
+        client._post.assert_not_awaited()
 
     def test_maximum_enum_passthrough(self):
         client = self._client()
@@ -109,8 +114,8 @@ class TestSkodaCommandUpdateChargingSettings:
                 "VINX", max_charge_current="MAXIMUM"
             )
         )
-        _, kwargs = client._post.await_args
-        assert kwargs["json"] == {"maxChargingCurrent": "MAXIMUM"}
+        _, kwargs = client._put.await_args
+        assert kwargs["json"] == {"chargingCurrent": "MAXIMUM"}
 
     def test_target_soc_forwarded_to_set_charge_limit(self):
         # target_soc must route through the dedicated grounded endpoint,

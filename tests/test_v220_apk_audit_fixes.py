@@ -34,9 +34,11 @@ def test_skoda_flash_is_FLASH_not_FLASH_ONLY() -> None:
 
 def test_skoda_target_soc_field() -> None:
     c = SkodaClient(MagicMock(), "u@t.de", "pw")
-    c._post = AsyncMock()  # type: ignore[method-assign]
+    c._put = AsyncMock()  # type: ignore[method-assign]
     asyncio.run(c.command_set_target_soc("VIN1", 80))
-    _, body = _url_body(c)
+    a = c._put.call_args  # v2.20.1 (#866): set-charge-limit is PUT, not POST
+    url, body = a.args[0], a.kwargs.get("json")
+    assert url.endswith("/charging/VIN1/set-charge-limit")
     assert body == {"targetSOCInPercent": 80}  # not targetStateOfChargeInPercent
 
 
