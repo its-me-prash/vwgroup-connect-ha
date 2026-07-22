@@ -1788,6 +1788,7 @@ class VWEUClient(CariadBaseClient):
             parse_mbb_completed_token,
             parse_mbb_rlu_request_id,
             parse_mbb_spin_challenge,
+            spin_tries_low,
             validate_spin_format,
         )
 
@@ -1827,7 +1828,7 @@ class VWEUClient(CariadBaseClient):
         level1, challenge, remaining = parse_mbb_spin_challenge(ch_resp)
         if not level1 or not challenge:
             raise VehicleCommandError(verb, "MBB SPIN challenge missing token/challenge")
-        if remaining is not None and remaining < 2:
+        if spin_tries_low(remaining):
             raise SpinError(
                 f"S-PIN has only {remaining} attempt(s) left — refusing to "
                 "risk a lockout. Verify your S-PIN in the brand app first."
@@ -1960,6 +1961,7 @@ class VWEUClient(CariadBaseClient):
             parse_mbb_action_request_id,
             parse_mbb_completed_token,
             parse_mbb_spin_challenge,
+            spin_tries_low,
             validate_spin_format,
         )
 
@@ -1996,7 +1998,7 @@ class VWEUClient(CariadBaseClient):
         level1, challenge, remaining = parse_mbb_spin_challenge(ch)
         if not level1 or not challenge:
             raise VehicleCommandError(command_name, "SecToken challenge missing")
-        if remaining is not None and remaining < 2:
+        if spin_tries_low(remaining):
             raise SpinError(
                 f"S-PIN has only {remaining} attempt(s) left — refusing to risk "
                 "a lockout. Verify your S-PIN in the brand app first.")
