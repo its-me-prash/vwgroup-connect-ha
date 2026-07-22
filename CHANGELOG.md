@@ -38,11 +38,17 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
-## [Unreleased]
+## [2.22.0] - 2026-07-22
+
+### Added
+
+- **evcc integration (read path, works on every brand).** You can now feed your car's state of charge, range and charging status straight into [evcc](https://evcc.io) — it reads them from Home Assistant's own REST API, so nothing extra runs inside this integration. A new diagnostic sensor **evcc charge status** (the A/B/C plug/charge state evcc expects, which it can't derive from our raw status text) is added per EV, disabled by default — enable it and follow the copy-paste recipe in [docs/EVCC.md](docs/EVCC.md). The read path (SoC / range / status / charge-limit / climate) works everywhere, including read-only VW EU; the write path (start/stop charging) works only on a two-way car (Audi / Škoda via MBB).
 
 ### Fixed
 
 - **Two-way MBB commands (lock, climate, charging) no longer refuse themselves on cars that don't report an S-PIN attempt count.** When you send a command, the car first hands back a security challenge — and many cars report the remaining-tries count as `-1` at that stage, which just means "not tracked yet" (the real count only shows up if you actually get the PIN wrong). The command path was reading that `-1` as "you have -1 tries left" and blocking every lock/climate/charge command to dodge a lockout that couldn't happen. It now only holds back when there really are 0 or 1 attempts left.
+- **The "please reauthenticate" prompt no longer fires on legacy Car-Net cars whose command gateway rejects them (#584).** On some MQB / Car-Net cars the command service-directory call comes back with an authorization rejection that a fresh login can't fix — it's an enrolment / primary-user thing on that car's account, not a token problem (confirmed by re-approving a brand-new token that still gets rejected one second later). The integration used to refresh the token and retry on every poll, which slowly tripped the "token refresh storm — please reauthenticate" guard and sent you off to re-log-in for nothing. It now recognises that rejection for what it is, logs a clear one-line explanation, and stops hammering the login endpoint.
+- **No more `'NoneType' object has no attribute 'get_status'` right after a Reconfigure (#584).** Reconfiguring an entry could race a manual refresh that was already in flight, briefly leaving it without a client handle mid-fetch.
 
 ## [2.21.1] - 2026-07-21
 
