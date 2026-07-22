@@ -987,6 +987,9 @@
       "aux_battery_energy_pct": {
         "name": "Lisäakun taso"
       },
+      "aux_battery_bem_alert_at": {
+        "name": "Lisäakun hälytysaika"
+      },
       "dashboard_warnings_raw": {
         "name": "Mittariston varoitukset (raakadata)"
       },

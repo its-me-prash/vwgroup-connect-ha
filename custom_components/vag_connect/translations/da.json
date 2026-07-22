@@ -987,6 +987,9 @@
       "aux_battery_energy_pct": {
         "name": "Hjælpebatteriniveau"
       },
+      "aux_battery_bem_alert_at": {
+        "name": "Alarmtidspunkt hjælpebatteri"
+      },
       "dashboard_warnings_raw": {
         "name": "Instrumentbrætadvarsler (rå)"
       },

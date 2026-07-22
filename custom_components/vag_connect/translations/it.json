@@ -987,6 +987,9 @@
       "aux_battery_energy_pct": {
         "name": "Livello batteria ausiliaria"
       },
+      "aux_battery_bem_alert_at": {
+        "name": "Ora di allerta batteria ausiliaria"
+      },
       "dashboard_warnings_raw": {
         "name": "Avvisi del cruscotto (grezzi)"
       },

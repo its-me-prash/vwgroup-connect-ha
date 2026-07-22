@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [Unreleased]
+
+### Added
+
+- **New auxiliary-battery alert-time sensor from the EU Data Act feed.** Some VW cars report a `bem_alert_time` — the moment the 12V (auxiliary) battery's BEM level-2 pre-warning kicks in. It now shows up as a diagnostic timestamp sensor (disabled by default). Picked up from a Scout report; the tyre-pressure and charge-rate fields in the same report were already mapped in earlier versions.
+
 ## [2.22.0] - 2026-07-22
 
 ### Added

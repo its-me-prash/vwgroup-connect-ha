@@ -2276,6 +2276,18 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:car-battery",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # 12V battery BEM level-2 pre-warning alert time (#897). EU-Data-Act dialect
+    # only; observed value is an absolute ISO timestamp. LOW value, disabled-by-
+    # default.
+    VagSensorDescription(
+        key="aux_battery_bem_alert_at",
+        translation_key="aux_battery_bem_alert_at",
+        data_key="aux_battery_bem_alert_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:car-battery",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     # LOW — raw warning bitmask, no verified decode. Disabled-by-default.
     VagSensorDescription(
         key="dashboard_warnings_raw",
@@ -3238,6 +3250,9 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # v2.15.4 (#537) — next-charging-timer slot index. EU-Data-Act dialect only;
     # vehicles/channels without the field stay None → no phantom.
     "next_charge_timer_number",
+    # #897 — 12V battery BEM level-2 pre-warning alert time. EU-Data-Act dialect
+    # only; vehicles/channels without the field stay None → no phantom.
+    "aux_battery_bem_alert_at",
     "ascent_slope_consumption",
     "descent_slope_consumption",
     "report_type",

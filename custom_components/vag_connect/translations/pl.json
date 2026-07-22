@@ -987,6 +987,9 @@
       "aux_battery_energy_pct": {
         "name": "Poziom akumulatora pomocniczego"
       },
+      "aux_battery_bem_alert_at": {
+        "name": "Czas alarmu akumulatora pomocniczego"
+      },
       "dashboard_warnings_raw": {
         "name": "Kontrolki ostrzegawcze (surowe)"
       },

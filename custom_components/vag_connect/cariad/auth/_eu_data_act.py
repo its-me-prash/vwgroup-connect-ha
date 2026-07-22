@@ -2290,6 +2290,13 @@ def map_dataset_to_vehicle_data(
     _bem = _to_int(first("bem_level"))
     if _bem is not None:
         d.aux_battery_energy_pct = _bem
+    # bem_alert_time — 12V battery BEM level-2 pre-warning alert time. Dict
+    # type=number ("delay after activation of the BEM2 pre-warning"), but the
+    # real portal payload carries an absolute ISO timestamp → _epoch_or_iso
+    # tolerates both. #897 (SparkyDan555).
+    _bem_alert = first("bem_alert_time")
+    if _bem_alert is not None and d.aux_battery_bem_alert_at is None:
+        d.aux_battery_bem_alert_at = _epoch_or_iso(str(_bem_alert))
     # active_warnings_in_instrument_cluster_feff_filtered — RAW hex/interpreted
     # bitmask only. Do NOT attempt an enum decode we can't verify; surface the
     # raw value as a disabled-by-default diagnostic.

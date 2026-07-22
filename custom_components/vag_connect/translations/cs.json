@@ -987,6 +987,9 @@
       "aux_battery_energy_pct": {
         "name": "Úroveň pomocné baterie"
       },
+      "aux_battery_bem_alert_at": {
+        "name": "Čas výstrahy pomocné baterie"
+      },
       "dashboard_warnings_raw": {
         "name": "Výstražné kontrolky (surová data)"
       },
