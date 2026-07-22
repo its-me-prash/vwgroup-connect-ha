@@ -282,6 +282,9 @@
       "plug_state": {
         "name": "Charging Port"
       },
+      "evcc_charge_status": {
+        "name": "evcc charge status"
+      },
       "target_soc": {
         "name": "Charge Target"
       },
