@@ -987,6 +987,9 @@
       "aux_battery_energy_pct": {
         "name": "Nivå hjälpbatteri"
       },
+      "aux_battery_bem_alert_at": {
+        "name": "Larmtid hjälpbatteri"
+      },
       "dashboard_warnings_raw": {
         "name": "Varningslampor (rådata)"
       },

@@ -987,6 +987,9 @@
       "aux_battery_energy_pct": {
         "name": "Nivel de batería auxiliar"
       },
+      "aux_battery_bem_alert_at": {
+        "name": "Hora de alerta de batería auxiliar"
+      },
       "dashboard_warnings_raw": {
         "name": "Testigos de aviso (valor bruto)"
       },

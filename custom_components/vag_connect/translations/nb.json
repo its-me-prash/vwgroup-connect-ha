@@ -987,6 +987,9 @@
       "aux_battery_energy_pct": {
         "name": "Tilleggsbatterinivå"
       },
+      "aux_battery_bem_alert_at": {
+        "name": "Varseltid tilleggsbatteri"
+      },
       "dashboard_warnings_raw": {
         "name": "Dashbordvarsler (rå)"
       },

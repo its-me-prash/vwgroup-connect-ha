@@ -987,6 +987,9 @@
       "aux_battery_energy_pct": {
         "name": "Niveau hulpaccu"
       },
+      "aux_battery_bem_alert_at": {
+        "name": "Waarschuwingstijd hulpaccu"
+      },
       "dashboard_warnings_raw": {
         "name": "Waarschuwingslampjes (ruw)"
       },

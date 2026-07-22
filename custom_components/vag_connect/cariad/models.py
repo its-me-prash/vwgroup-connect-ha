@@ -1606,6 +1606,12 @@ class VehicleData:
     parking_lights_state: str | None = None
     # Auxiliary/12V battery energy-management level (%). sensor, diagnostic.
     aux_battery_energy_pct: int | None = None
+    # Auxiliary/12V battery BEM level-2 pre-warning alert time (bem_alert_time).
+    # Dict type=number ("delay after activation of the BEM2 pre-warning"), but the
+    # observed portal value is an absolute ISO timestamp → passthrough via
+    # _epoch_or_iso (tolerates epoch OR ISO). sensor (TIMESTAMP), diagnostic,
+    # disabled-by-default. EU-Data-Act dialect only.
+    aux_battery_bem_alert_at: Any | None = None
     # Instrument-cluster warning bitmask — RAW hex/interpreted value only, no
     # decode. LOW — disabled-by-default. sensor, diagnostic.
     dashboard_warnings_raw: str | None = None

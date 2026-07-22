@@ -987,6 +987,9 @@
       "aux_battery_energy_pct": {
         "name": "Auxiliary battery level"
       },
+      "aux_battery_bem_alert_at": {
+        "name": "Auxiliary battery alert time"
+      },
       "dashboard_warnings_raw": {
         "name": "Dashboard warnings (raw)"
       },

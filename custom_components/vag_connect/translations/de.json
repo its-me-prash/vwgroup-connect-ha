@@ -987,6 +987,9 @@
       "aux_battery_energy_pct": {
         "name": "Zusatzbatterie-Ladestand"
       },
+      "aux_battery_bem_alert_at": {
+        "name": "Zusatzbatterie-Warnzeit"
+      },
       "dashboard_warnings_raw": {
         "name": "Warnleuchten (Rohwert)"
       },
