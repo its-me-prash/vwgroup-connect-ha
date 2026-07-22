@@ -134,6 +134,8 @@ U Volkswagen EU **samotné přihlášení nestačí** — VW začne streamovat v
 
 Portál zpočátku poskytuje jen **výsek polí** a tento výsek se **postupně rozšiřuje**, jak VW rozšiřuje pokrytí portálu před zářijovým termínem 2026 — pole, která dnes čtou `unknown`, se mohou sama vyplnit. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465) · [#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527) · [#567](https://github.com/its-me-prash/vwgroup-connect-ha/issues/567))
 
+> **Úplný seznam polí.** Kompletní oficiální datový slovník skupiny VW (každý klíč EU Data Act -> pole, popis a jednotka) najdete v [docs/EU_DATA_ACT_DATA_DICTIONARY.md](docs/EU_DATA_ACT_DATA_DICTIONARY.md).
+
 > Ten 15minutový Custom Data Request vytváří přepínač v Možnostech **`eu_data_act_auto_kickoff`** a je **ve výchozím stavu zapnutý** — v režimu portálu bez něj žádná data nejsou. Vypněte ho jen tehdy, pokud si chcete požadavek spravovat sami.
 
 ---

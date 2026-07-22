@@ -134,6 +134,8 @@ Per Volkswagen EU, **accedere non basta** — VW trasmette i dati del veicolo so
 
 Il portale inizialmente serve solo una **fetta di campi**, e quella fetta **si amplia nel tempo** man mano che VW espande la copertura del portale in vista della scadenza di settembre 2026 — i campi che oggi leggono `unknown` potrebbero riempirsi da soli. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465) · [#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527) · [#567](https://github.com/its-me-prash/vwgroup-connect-ha/issues/567))
 
+> **Elenco completo dei campi.** Il dizionario dati ufficiale del gruppo VW (ogni chiave EU Data Act -> campo, descrizione e unità) si trova in [docs/EU_DATA_ACT_DATA_DICTIONARY.md](docs/EU_DATA_ACT_DATA_DICTIONARY.md).
+
 > È l'opzione **`eu_data_act_auto_kickoff`** a creare quella Custom Data Request a 15 minuti, ed è **attiva per impostazione predefinita** — in modalità portale senza di essa non ci sono dati. Disattivala solo se preferisci gestire la richiesta per conto tuo.
 
 ---
