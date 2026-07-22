@@ -54,12 +54,17 @@ from .vw_eu import VWEUClient
 # v2.20.0 (APK audit) — the current myAudi 5.6.0 app has NO ``na.bff.cariad.digital``
 # string anywhere; its ONLY data BFF is the global ``emea.bff.cariad.digital`` (same
 # host EU Audi uses). The NA split is ONLY at the IDP layer (authorize at
-# identity.na.vwgroup.io). Our old na.bff host was almost certainly NXDOMAIN,
-# breaking both token-exchange and reads — point them at emea.bff to match the app.
+# identity.na.vwgroup.io). READS go to emea.bff (global, no na.bff host exists).
+# But the TOKEN EXCHANGE must go to the IDP that ISSUED the code, not the BFF:
+# the authorization code is signed by identity.na.vwgroup.io, so exchanging it at
+# emea.bff (EU) fails with ``{"error":"invalid key id"}`` — the EU BFF has no key
+# with the NA code's kid (live-confirmed on a real US Audi, #13, coreywillwhat).
+# So token-exchange + refresh target the NA IDP's own OIDC token endpoint — the
+# same host+path the device-grant path already uses (``_NA_IDP_TOKEN_URL``).
 _NA_BFF_BASE = "https://emea.bff.cariad.digital"
 _NA_IDP_BASE = "https://identity.na.vwgroup.io"
 _NA_AUTHORIZE_URL = f"{_NA_IDP_BASE}/oidc/v1/authorize"
-_NA_TOKEN_URL = f"{_NA_BFF_BASE}/auth/v1/idk/oidc/token"
+_NA_TOKEN_URL = f"{_NA_IDP_BASE}/oidc/v1/token"
 
 
 class AudiNAClient(VWEUClient):

@@ -44,6 +44,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 - **New auxiliary-battery alert-time sensor from the EU Data Act feed.** Some VW cars report a `bem_alert_time` — the moment the 12V (auxiliary) battery's BEM level-2 pre-warning kicks in. It now shows up as a diagnostic timestamp sensor (disabled by default). Picked up from a Scout report; the tyre-pressure and charge-rate fields in the same report were already mapped in earlier versions.
 
+### Fixed
+
+- **Audi US / CA login now completes instead of failing with "Invalid credentials" (#13).** The North-American login itself was working — the app sign-in went through and handed back an authorization code — but the integration then tried to exchange that code at the European backend, which can't read a code the US identity server issued (it came back `invalid key id`). The exchange (and token refresh) now go to the North-American identity endpoint that issued the code, matching the QR / device-code path. Reads are unchanged (they still use the shared global backend).
+
 ## [2.22.0] - 2026-07-22
 
 ### Added
