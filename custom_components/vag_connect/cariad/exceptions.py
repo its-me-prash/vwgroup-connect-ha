@@ -136,6 +136,19 @@ def classify_command_failure(exc: BaseException) -> CommandFailureReason:
     # subscription renewal. It's just a wrong PIN — actionable, non-hiding.
     if "invalidsecuritypin" in body or "invalid security pin" in body:
         return CommandFailureReason.SPIN_REQUIRED
+    # A LOCKED S-PIN (``mbbc.rolesandrights.securityPinLocked``, after too many
+    # wrong tries) is ALSO a spin problem, not an entitlement one. Without this
+    # marker it fell through to the bare ``status == 403`` → NOT_ENTITLED
+    # branch, which HID the command entities for ~24h and told the user to chase
+    # a phantom subscription renewal — seen live on a Golf GTE once the S-PIN
+    # locked. It's the S-PIN: unlock it in the brand app, then retry. Actionable,
+    # non-hiding.
+    if (
+        "securitypinlocked" in body
+        or "security pin locked" in body
+        or "pinlocked" in body
+    ):
+        return CommandFailureReason.SPIN_REQUIRED
     if "subscription" in body and ("expired" in body or "lapsed" in body):
         return CommandFailureReason.SUBSCRIPTION_EXPIRED
     if (

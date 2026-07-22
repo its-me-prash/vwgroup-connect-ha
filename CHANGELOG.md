@@ -38,6 +38,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [Unreleased]
+
+### Fixed
+
+- **Two-way commands on legacy Car-Net cars no longer refuse themselves with a false "not granted / check your subscription".** The service-directory grant check was treated as the final word, but it can briefly drop grants right after a reconfigure (or vary by cache) even on cars that fully allow the command. It's now advisory: on a negative result it refetches the service directory once and, if still unconfirmed, goes ahead — letting the car's own security-token step be the authority (which safely rejects a genuinely-ungranted command before any S-PIN attempt is spent).
+- **A locked S-PIN no longer hides your lock / climate / charge buttons for a day.** After too many wrong S-PIN tries the car returns a "security PIN locked" error; the integration was misreading that as "your account isn't entitled", which hid the command entities for ~24 h and pointed you at a phantom subscription renewal. It's now correctly treated as an S-PIN problem — unlock it in the brand app and the buttons stay put.
+
 ## [2.22.1] - 2026-07-22
 
 ### Added

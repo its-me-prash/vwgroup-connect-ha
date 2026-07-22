@@ -1549,7 +1549,7 @@ class VWEUClient(CariadBaseClient):
         return []
 
     async def _get_mbb_operationlist(
-        self, vin: str, *, for_command: bool = False,
+        self, vin: str, *, for_command: bool = False, force_refresh: bool = False,
     ) -> "MbbOperationList | None":
         """Fetch + cache the per-VIN MBB operationList (service directory).
 
@@ -1560,6 +1560,11 @@ class VWEUClient(CariadBaseClient):
 
         v2.15.12 (#584): ``for_command`` bills any proactive refresh triggered
         here to the command budget when this is fetched as a command pre-flight.
+
+        ``force_refresh`` bypasses the 12h cache — used when a command's grant
+        pre-check comes back negative, to rule out a stale/degraded cached list
+        before deciding (a fresh operationList right after a reconfigure has
+        been seen to briefly drop grants it lists again seconds later).
         """
         from .._mbb import (  # noqa: PLC0415
             MBB_SETTER_BASE,
@@ -1573,7 +1578,7 @@ class VWEUClient(CariadBaseClient):
             ] = {}
         now = datetime.now(tz=timezone.utc)
         cached = self._mbb_oplist_cache.get(vin)
-        if cached and cached[1] > now:
+        if not force_refresh and cached and cached[1] > now:
             return cached[0]
 
         url = build_mbb_operationlist_url(MBB_SETTER_BASE, vin)
@@ -1972,6 +1977,15 @@ class VWEUClient(CariadBaseClient):
 
         # operationList → per-service host (generic) + granted gate
         oplist = await self._get_mbb_operationlist(vin, for_command=True)
+        # If the grant pre-check comes back negative, rule out a stale/degraded
+        # cached operationList before deciding: a fresh list right after a
+        # reconfigure has been seen to briefly drop grants it lists again
+        # moments later (Prash's Golf: P_START/P_START_WND granted in a live
+        # operationList, then "not granted" here just after re-entering the
+        # S-PIN). Force one fresh fetch and re-evaluate against it.
+        if not mbb_operation_granted(oplist, spec.service_id, spec.operation_id):
+            oplist = await self._get_mbb_operationlist(
+                vin, for_command=True, force_refresh=True)
         country = self._mbb_country_from_id_token() or "DE"
         base = mbb_service_base(
             oplist, spec.service_id, brand=self._brand.name,
@@ -1982,10 +1996,19 @@ class VWEUClient(CariadBaseClient):
                 f"{spec.service_id} not available on this vehicle "
                 "(not in the operationList)")
         if not mbb_operation_granted(oplist, spec.service_id, spec.operation_id):
-            raise VehicleCommandError(
-                command_name,
-                f"{spec.operation_id} not granted — check the We Connect "
-                "subscription / that you're the primary user")
+            # Still unconfirmed after a fresh fetch. The operationList grant is
+            # ADVISORY, not authoritative — it varies by cache/client and has
+            # produced false negatives on cars that DO grant the op. Do NOT hard-
+            # block (that refuses a valid command with a misleading "check your
+            # subscription" message); proceed and let the op-auth leg be the
+            # authority. A genuinely-ungranted op 403s at leg-1 (rolesrights)
+            # WITHOUT burning an S-PIN try — the S-PIN counter only moves at
+            # leg-3 (security-pin-auth-completed) — so attempting is safe.
+            _LOGGER.warning(
+                "MBB %s: %s is not listed as granted in the operationList for "
+                "***%s — attempting anyway (the op-auth leg is authoritative; a "
+                "true not-granted 403s before any S-PIN try).",
+                command_name, spec.operation_id, vin[-6:])
 
         setter = MBB_SETTER_BASE
         # Leg 1 — operation-specific SecToken challenge
