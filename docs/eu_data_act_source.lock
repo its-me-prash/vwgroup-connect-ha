@@ -1,0 +1,12 @@
+{
+  "svk_versions": [
+    "4.0"
+  ],
+  "download_urls": {
+    "continuous": "https://eu-data-act.drivesomethinggreater.com/content/dam/datahub/pdf/data-dictionary/251022_01_SVK_DataDictionary_V4.0_Continous_Data.pdf",
+    "historical": "https://eu-data-act.drivesomethinggreater.com/content/dam/datahub/pdf/data-dictionary/251022_01_SVK_DataDictionary_V4.0_Historical%20Data.pdf",
+    "version": "4.0",
+    "prefix": "251022_01"
+  },
+  "page_sha256": "26bfa2517beb4ab453a1ab3ddf6165869f33758b7c2ed20be783dd8b4a456d5f"
+}

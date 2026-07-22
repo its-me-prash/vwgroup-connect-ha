@@ -1,0 +1,77 @@
+name: EU Data Act dictionary watch
+
+# Watches the official EU Data Act portal data-dictionary page for a new SVK
+# DataDictionary version. The PDFs are publicly downloadable from the portal's
+# DAM (verified: HTTP 200, application/pdf, no login), so on a new version this
+# auto-downloads the fresh Continuous + Historical PDFs, regenerates
+# docs/EU_DATA_ACT_DATA_DICTIONARY.md, and opens a PR for review.
+#
+# Manual run: Actions -> "EU Data Act dictionary watch" -> Run workflow.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"   # Mondays 06:17 UTC (off-peak minute)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: eu-data-dict-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install deps
+        run: pip install pdfplumber
+
+      - name: Check source for a new dictionary version
+        id: check
+        run: python scripts/check_eu_data_dict.py
+
+      - name: Download fresh PDFs + regenerate doc
+        if: steps.check.outputs.changed == 'true' && steps.check.outputs.continuous_url != ''
+        run: |
+          set -euo pipefail
+          mkdir -p .eu-dict-tmp
+          curl -fsSL "${{ steps.check.outputs.continuous_url }}" -o ".eu-dict-tmp/continuous.pdf"
+          curl -fsSL "${{ steps.check.outputs.historical_url }}" -o ".eu-dict-tmp/historical.pdf"
+          python scripts/build_eu_data_dict_doc.py .eu-dict-tmp/continuous.pdf .eu-dict-tmp/historical.pdf --date "$(date -u +%Y-%m-%d)"
+          python scripts/check_eu_data_dict.py --update-lock
+          rm -rf .eu-dict-tmp
+
+      - name: Open PR with the regenerated dictionary
+        if: steps.check.outputs.changed == 'true' && steps.check.outputs.continuous_url != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [ -z "$(git status --porcelain docs/)" ]; then
+            echo "page changed but generated doc is identical — nothing to PR"; exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          BRANCH="chore/eu-data-dict-v${VERSION}"
+          git checkout -b "$BRANCH"
+          git add docs/EU_DATA_ACT_DATA_DICTIONARY.md docs/eu_data_act_source.lock
+          git commit -m "chore: regenerate EU Data Act data dictionary (SVK V${VERSION})"
+          git push -u origin "$BRANCH" --force-with-lease
+          gh pr create --base main --head "$BRANCH" \
+            --title "chore: EU Data Act data dictionary updated (SVK V${VERSION})" \
+            --body "Automated: the portal published a new SVK DataDictionary (V${VERSION}). Fresh Continuous + Historical PDFs were downloaded from the public DAM and \`docs/EU_DATA_ACT_DATA_DICTIONARY.md\` regenerated. Review the diff and merge. Source: https://eu-data-act.drivesomethinggreater.com/content/euda/de/de/service/data-dictionary" \
+            || echo "PR may already exist for $BRANCH"
+
+      - name: Report (no change)
+        if: steps.check.outputs.changed != 'true'
+        run: echo "No new dictionary version. ${{ steps.check.outputs.summary }}"
