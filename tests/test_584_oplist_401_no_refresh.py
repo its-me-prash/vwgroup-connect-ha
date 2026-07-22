@@ -1,16 +1,22 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""v2.20.1 (#584) — MBB operationList: refresh + retry once on a token-auth 401.
+"""#584 — MBB operationList: a gw.error.authentication 401 must NOT refresh.
 
-Mattheisen87's Passat GTE on v2.20.0: the durable-MBB token refresh works (the
-v2.18.0 fix), reads are healthy, but the operationList GET returns
-``401 gw.error.authentication`` 26× → an empty service directory → every command
-entity stays ``unavailable``. That 401 is a TOKEN-AUTH failure (the gateway
-rejects the bearer as unauthenticated), NOT the data-plane systemId ACL
-(``mbbc.rolesandrights.unauthorized`` / ``*.security.9007``) which no refresh can
-fix. Mirroring audi_connect_ha #782, a token-auth failure is recovered by
-refreshing the bearer once and retrying — guarded to exactly one retry so the
-refresh endpoint is never stormed.
+History: v2.20.1 refreshed-and-retried once on a ``gw.error.authentication`` 401,
+on the theory that the gateway had rejected a stale bearer (mirroring
+audi_connect_ha #782). That premise was disproven 2026-07-22:
+
+- a live Golf 7 GTE returns 200 on this exact operationList call with the
+  integration's own header set (the header-provenance A/B test), and
+- Mattheisen87 re-ran the full device-code approval and a one-second-old,
+  freshly-approved token STILL 401s on the first call.
+
+So the 401 is a gateway/rolesrights AUTHORIZATION rejection scoped to the
+vehicle↔account (Car-Net enrolment / primary-user), which no token refresh can
+fix. Worse, refreshing once per poll fed the command refresh budget until the
+storm guard raised a misleading "please reauthenticate". The operationList now
+treats every 401 (gw.error.authentication OR the systemId ACL) the same: log
+once, spend no refresh, return None.
 """
 
 from __future__ import annotations
@@ -40,24 +46,25 @@ def _client(mbb_get_side_effect) -> VWEUClient:
     return c
 
 
-class TestOplist401Retry:
-    def test_auth_401_then_success_refreshes_and_retries(self) -> None:
-        c = _client([_AUTH_401, _GOOD])
-        oplist = asyncio.run(c._get_mbb_operationlist(VIN, for_command=True))
-        assert oplist is not None
-        assert "rclima_v1" in oplist.services
-        c._refresh_tokens.assert_awaited_once()          # refreshed exactly once
-        assert c._mbb_get.await_count == 2               # original + retry
-        # the refresh was routed to the command channel
-        assert c._refresh_tokens.await_args.kwargs.get("for_command") is True
-
-    def test_auth_401_persists_refreshes_once_then_gives_up(self) -> None:
-        # Both attempts 401 → one refresh, one retry, then None — NO storm.
-        c = _client([_AUTH_401, _AUTH_401])
+class TestOplist401NoRefresh:
+    def test_gw_error_authentication_returns_none_without_refresh(self) -> None:
+        # The core reversal: the gw.error.authentication 401 is a vehicle/account
+        # authz rejection, NOT a stale bearer → no refresh, no retry, None.
+        c = _client([_AUTH_401])
         oplist = asyncio.run(c._get_mbb_operationlist(VIN, for_command=True))
         assert oplist is None
-        c._refresh_tokens.assert_awaited_once()
-        assert c._mbb_get.await_count == 2               # never a third attempt
+        c._refresh_tokens.assert_not_awaited()           # never spends the budget
+        assert c._mbb_get.await_count == 1               # single call, no retry
+
+    def test_gw_error_authentication_never_storms(self) -> None:
+        # Even called repeatedly (e.g. once per poll), it must never refresh —
+        # that is exactly what used to trip the storm guard into a false
+        # "please reauthenticate".
+        c = _client([_AUTH_401, _AUTH_401, _AUTH_401, _AUTH_401])
+        for _ in range(4):
+            assert asyncio.run(c._get_mbb_operationlist(VIN, for_command=True)) is None
+        c._refresh_tokens.assert_not_awaited()
+        assert c._mbb_get.await_count == 4               # 1 per call, never a retry
 
     def test_systemid_403_does_not_refresh(self) -> None:
         # The data-plane ACL is unrecoverable — must NOT refresh/retry.
@@ -68,8 +75,6 @@ class TestOplist401Retry:
         assert c._mbb_get.await_count == 1
 
     def test_systemid_401_does_not_refresh(self) -> None:
-        # A 401 that is the systemId ACL (not gw.error.authentication) is also
-        # unrecoverable — the trigger is the error code, not the status.
         c = _client([_ACL_401])
         oplist = asyncio.run(c._get_mbb_operationlist(VIN, for_command=True))
         assert oplist is None
@@ -81,5 +86,6 @@ class TestOplist401Retry:
         c = _client([_GOOD])
         oplist = asyncio.run(c._get_mbb_operationlist(VIN, for_command=True))
         assert oplist is not None
+        assert "rclima_v1" in oplist.services
         c._refresh_tokens.assert_not_awaited()
         assert c._mbb_get.await_count == 1

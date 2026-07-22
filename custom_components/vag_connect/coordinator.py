@@ -3967,6 +3967,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         if not self._started or self._cariad_client is None:
             with self._vehicles_lock:
                 return dict(self.vehicles)
+        # #584 (2026-07-22, Mattheisen87) — capture the client into a local up
+        # front. A Reconfigure runs an unload that sets ``self._cariad_client =
+        # None`` mid-flight; without the local, the ``await`` below yields, the
+        # attribute is nulled, and the next ``self._cariad_client.get_status``
+        # raises ``'NoneType' object has no attribute 'get_status'`` (reported
+        # right after Reconfigure). The captured object stays valid (or fails
+        # cleanly as a closed session, handled by the except → cached data).
+        client = self._cariad_client
         try:
             # v2.20.0 — keep the durable-MBB operationList warm so the command
             # pre-test stays authoritative and a VIN whose earlier fetch failed
@@ -3975,7 +3983,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             await self._refresh_mbb_command_capabilities()
             vins = list(self.vehicles.keys())
             results = await asyncio.gather(
-                *[self._cariad_client.get_status(vin) for vin in vins],
+                *[client.get_status(vin) for vin in vins],
                 return_exceptions=True,
             )
             # v2.18.0 (A1) — same shape as the setup fetch: merge + enrich
@@ -3993,7 +4001,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 if isinstance(result, VehicleData):
                     merged = await self._merge_supplementary(vin, result)
                     data = merged.to_dict()
-                    data["_client"] = self._cariad_client
+                    data["_client"] = client
                     refreshed.append((vin, await self._enrich(data)))
 
             with self._vehicles_lock:
