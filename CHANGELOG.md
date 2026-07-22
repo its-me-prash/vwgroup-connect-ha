@@ -48,6 +48,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 - **Audi US / CA login now completes instead of failing with "Invalid credentials" (#13).** The North-American login itself was working — the app sign-in went through and handed back an authorization code — but the integration then tried to exchange that code at the European backend, which can't read a code the US identity server issued (it came back `invalid key id`). The exchange (and token refresh) now go to the North-American identity endpoint that issued the code, matching the QR / device-code path. Reads are unchanged (they still use the shared global backend).
 
+### Thanks
+
+Thanks to **@coreywillwhat** for loading the integration onto a real US Audi and sending the full logs that pinned down the #13 token-exchange endpoint — credited in [CONTRIBUTORS.md](CONTRIBUTORS.md). 🙏
+
 ## [2.22.0] - 2026-07-22
 
 ### Added

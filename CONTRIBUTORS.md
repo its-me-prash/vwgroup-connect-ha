@@ -43,6 +43,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding, requested 
 - @ChristophCaina
 - @clipse2004
 - @ColinSainsbury
+- @coreywillwhat
 - @Cruiser1989
 - @crusader85
 - @CyberChris79
