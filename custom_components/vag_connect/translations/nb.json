@@ -642,6 +642,9 @@
       "battery_support_state": {
         "name": "12V-batteristøtte"
       },
+      "evcc_charge_status": {
+        "name": "evcc-ladestatus"
+      },
       "connection_state_battery_power_level": {
         "name": "12V-batteriets effektnivå"
       },

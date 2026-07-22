@@ -1549,7 +1549,7 @@ class VWEUClient(CariadBaseClient):
         return []
 
     async def _get_mbb_operationlist(
-        self, vin: str, *, for_command: bool = False, _refreshed: bool = False,
+        self, vin: str, *, for_command: bool = False,
     ) -> "MbbOperationList | None":
         """Fetch + cache the per-VIN MBB operationList (service directory).
 
@@ -1590,33 +1590,30 @@ class VWEUClient(CariadBaseClient):
             )
         except APIError as err:
             body = str(err.body)
-            # v2.20.1 (#584) — distinguish a TOKEN-AUTH 401 from the systemId
-            # ACL. ``gw.error.authentication`` means the gateway rejected the
-            # bearer as unauthenticated (Mattheisen87's Passat: 26× on v2.20.0 —
-            # the token exchange succeeds but the FIRST call with it 401s),
-            # unlike the data-plane ACL (``mbbc.rolesandrights.unauthorized`` /
-            # ``*.security.9007``) which no refresh can fix. A real token-auth
-            # failure IS recoverable by refreshing the bearer once — mirror
-            # audi_connect_ha #782 (keep the session token fresh on auth
-            # failure). Guarded to EXACTLY ONE retry so we never storm the
-            # refresh endpoint (the original _retry=False concern).
-            if (
-                err.status == 401
-                and "gw.error.authentication" in body
-                and not _refreshed
-            ):
-                _LOGGER.info(
-                    "MBB operationList ***%s → 401 gw.error.authentication — "
-                    "refreshing the MBB bearer and retrying once (#584).",
+            # #584 (2026-07-22, Mattheisen87) — a ``gw.error.authentication`` 401
+            # on the operationList is NOT a stale bearer, so DO NOT refresh on it.
+            # Proven twice: (1) a live Golf returns 200 on this exact call with the
+            # integration's own header set, and (2) Mattheisen re-ran the full
+            # device-code approval and a one-second-old, freshly-approved token
+            # still 401s. It is a gateway/rolesrights AUTHORIZATION rejection
+            # scoped to that vehicle↔account (Car-Net enrolment / primary-user),
+            # which no token refresh or re-auth can change. v2.20.1 refreshed-and-
+            # retried here on the (now-disproven) header-regression theory; that
+            # never helped and, once per poll, fed the command refresh budget
+            # until the storm guard raised a misleading "please reauthenticate".
+            # So: log once, spend no refresh, return None (caller treats None as
+            # "unknown" and does not block reads).
+            if err.status == 401 and "gw.error.authentication" in body:
+                _LOGGER.warning(
+                    "MBB operationList ***%s → 401 gw.error.authentication: the "
+                    "gateway rejected the bearer for this vehicle. This is an "
+                    "enrolment/authorization issue for this account and car (is "
+                    "the account the primary user in the brand app?), not an "
+                    "expired token — refreshing or re-authenticating won't "
+                    "change it.",
                     vin[-6:],
                 )
-                try:
-                    await self._refresh_tokens(for_command=for_command)
-                except Exception:  # noqa: BLE001
-                    pass
-                return await self._get_mbb_operationlist(
-                    vin, for_command=for_command, _refreshed=True,
-                )
+                return None
             _LOGGER.warning(
                 "MBB operationList ***%s → HTTP %s: %s",
                 vin[-6:], err.status, body[:160],
@@ -1788,6 +1785,7 @@ class VWEUClient(CariadBaseClient):
             parse_mbb_completed_token,
             parse_mbb_rlu_request_id,
             parse_mbb_spin_challenge,
+            spin_tries_low,
             validate_spin_format,
         )
 
@@ -1827,7 +1825,7 @@ class VWEUClient(CariadBaseClient):
         level1, challenge, remaining = parse_mbb_spin_challenge(ch_resp)
         if not level1 or not challenge:
             raise VehicleCommandError(verb, "MBB SPIN challenge missing token/challenge")
-        if remaining is not None and remaining < 2:
+        if spin_tries_low(remaining):
             raise SpinError(
                 f"S-PIN has only {remaining} attempt(s) left — refusing to "
                 "risk a lockout. Verify your S-PIN in the brand app first."
@@ -1960,6 +1958,7 @@ class VWEUClient(CariadBaseClient):
             parse_mbb_action_request_id,
             parse_mbb_completed_token,
             parse_mbb_spin_challenge,
+            spin_tries_low,
             validate_spin_format,
         )
 
@@ -1996,7 +1995,7 @@ class VWEUClient(CariadBaseClient):
         level1, challenge, remaining = parse_mbb_spin_challenge(ch)
         if not level1 or not challenge:
             raise VehicleCommandError(command_name, "SecToken challenge missing")
-        if remaining is not None and remaining < 2:
+        if spin_tries_low(remaining):
             raise SpinError(
                 f"S-PIN has only {remaining} attempt(s) left — refusing to risk "
                 "a lockout. Verify your S-PIN in the brand app first.")
