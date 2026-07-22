@@ -1823,10 +1823,21 @@ class VWEUClient(CariadBaseClient):
             country = "DE"
 
         # Leg 1 — challenge
-        ch_resp = await self._mbb_get(
-            build_mbb_spin_challenge_url(setter, vin, lock=lock),
-            for_command=True,
-        )
+        try:
+            ch_resp = await self._mbb_get(
+                build_mbb_spin_challenge_url(setter, vin, lock=lock),
+                for_command=True,
+            )
+        except APIError as _e:
+            # A locked S-PIN 403s here (mbbc.rolesandrights.securityPinLocked)
+            # before any challenge — surface it as a clear S-PIN message, not a
+            # raw 403 traceback.
+            if "securitypinlocked" in str(_e).lower():
+                raise SpinError(
+                    "S-PIN is locked (too many wrong tries) — unlock it by "
+                    "entering the correct S-PIN in the brand app, then retry."
+                ) from _e
+            raise
         level1, challenge, remaining = parse_mbb_spin_challenge(ch_resp)
         if not level1 or not challenge:
             raise VehicleCommandError(verb, "MBB SPIN challenge missing token/challenge")
@@ -2012,9 +2023,19 @@ class VWEUClient(CariadBaseClient):
 
         setter = MBB_SETTER_BASE
         # Leg 1 — operation-specific SecToken challenge
-        ch = await self._mbb_get(
-            build_mbb_op_auth_url(setter, vin, spec.service_id, spec.operation_id),
-            for_command=True)
+        try:
+            ch = await self._mbb_get(
+                build_mbb_op_auth_url(setter, vin, spec.service_id, spec.operation_id),
+                for_command=True)
+        except APIError as _e:
+            # A locked S-PIN 403s here (mbbc.rolesandrights.securityPinLocked)
+            # before any challenge — surface a clear S-PIN message, not a raw 403.
+            if "securitypinlocked" in str(_e).lower():
+                raise SpinError(
+                    "S-PIN is locked (too many wrong tries) — unlock it by "
+                    "entering the correct S-PIN in the brand app, then retry."
+                ) from _e
+            raise
         level1, challenge, remaining = parse_mbb_spin_challenge(ch)
         if not level1 or not challenge:
             raise VehicleCommandError(command_name, "SecToken challenge missing")

@@ -2078,7 +2078,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                                 "VAG Connect portal-safety %s: %s",
                                 mask_vin(vin), "; ".join(_discrepancies),
                             )
-                        fresh[vin] = enriched
+                        # Reconcile against any pending optimistic hold, exactly
+                        # like the setup fetch (line ~1051) and the manual-refresh
+                        # path (line ~4040). Without this the periodic poll wrote
+                        # the raw backend snapshot straight over a just-issued
+                        # command's optimistic value (e.g. lock → doors_locked
+                        # snaps back to the stale poll reading for ~150 s).
+                        fresh[vin] = self._apply_optimistic_hold(vin, enriched)
                         any_success = True
                         self.vehicle_success[vin] = True
                         self.vehicle_failure_count[vin] = 0
@@ -3134,10 +3140,19 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             key: self._observe_capability(key) for key in sorted(observed_keys)
         }
 
+        # Push/auth channels are opt-in RUNTIME state, not vehicle
+        # capabilities — push is off by default and can be attestation-walled,
+        # so "declared but not observed" is the NORMAL resting state for them
+        # and would otherwise show a permanent false "capability drift" in
+        # diagnostics. Vehicle-data capabilities stay in scope: a declared data
+        # field that never shows up IS worth surfacing.
+        _runtime_channel_keys = {"ola_push", "fcm_push", "mqtt_push", "dag_login"}
         drift = sorted(
             key
             for key, declared_value in declared.items()
-            if declared_value is True and observed.get(key) is False
+            if declared_value is True
+            and observed.get(key) is False
+            and key not in _runtime_channel_keys
         )
 
         return {
@@ -5061,8 +5076,16 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             #   must keep bubbling as a traceback: wrapping them would disguise
             #   a programming error as a normal command failure and we'd never
             #   hear about it.
-            from .cariad.exceptions import APIError  # noqa: PLC0415
+            from .cariad.exceptions import APIError, SpinError  # noqa: PLC0415
 
+            # Our own S-PIN guard (missing / wrong / locked S-PIN) is an
+            # actionable user error, not a bug — but SpinError is a CariadError,
+            # not a HomeAssistantError, so without this it fell into the
+            # "not APIError → re-raise raw" branch below and HA logged an
+            # "Unexpected exception" traceback for pressing a button. Surface it
+            # as a clean validation error instead.
+            if isinstance(err, SpinError):
+                raise ServiceValidationError(str(err)) from err
             if isinstance(err, HomeAssistantError) or not isinstance(err, APIError):
                 raise
             # v2.20.0 (#752) — if the vehicle's own capabilities document

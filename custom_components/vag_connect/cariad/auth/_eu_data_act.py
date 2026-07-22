@@ -2290,13 +2290,19 @@ def map_dataset_to_vehicle_data(
     _bem = _to_int(first("bem_level"))
     if _bem is not None:
         d.aux_battery_energy_pct = _bem
-    # bem_alert_time — 12V battery BEM level-2 pre-warning alert time. Dict
-    # type=number ("delay after activation of the BEM2 pre-warning"), but the
-    # real portal payload carries an absolute ISO timestamp → _epoch_or_iso
-    # tolerates both. #897 (SparkyDan555).
+    # bem_alert_time — 12V battery BEM level-2 pre-warning alert time. #897
+    # (SparkyDan555) carried an absolute ISO timestamp, but the dict type is
+    # ``number`` ("delay after activation of the BEM2 pre-warning"): a bare small
+    # number is a DELAY in seconds, not an epoch. Feeding that to _epoch_or_iso
+    # would stamp a 1970 date on the TIMESTAMP sensor, so only treat it as an
+    # absolute time when it's ISO-shaped (non-numeric) or a plausibly-absolute
+    # epoch (>= ~1e9 s); skip a small numeric delay rather than mis-date it.
     _bem_alert = first("bem_alert_time")
     if _bem_alert is not None and d.aux_battery_bem_alert_at is None:
-        d.aux_battery_bem_alert_at = _epoch_or_iso(str(_bem_alert))
+        _bem_raw = str(_bem_alert).strip()
+        _bem_num = _to_float(_bem_raw)
+        if _bem_num is None or _bem_num >= 1_000_000_000:
+            d.aux_battery_bem_alert_at = _epoch_or_iso(_bem_raw)
     # active_warnings_in_instrument_cluster_feff_filtered — RAW hex/interpreted
     # bitmask only. Do NOT attempt an enum decode we can't verify; surface the
     # raw value as a disabled-by-default diagnostic.
