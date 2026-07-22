@@ -50,6 +50,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **The "please reauthenticate" prompt no longer fires on legacy Car-Net cars whose command gateway rejects them (#584).** On some MQB / Car-Net cars the command service-directory call comes back with an authorization rejection that a fresh login can't fix — it's an enrolment / primary-user thing on that car's account, not a token problem (confirmed by re-approving a brand-new token that still gets rejected one second later). The integration used to refresh the token and retry on every poll, which slowly tripped the "token refresh storm — please reauthenticate" guard and sent you off to re-log-in for nothing. It now recognises that rejection for what it is, logs a clear one-line explanation, and stops hammering the login endpoint.
 - **No more `'NoneType' object has no attribute 'get_status'` right after a Reconfigure (#584).** Reconfiguring an entry could race a manual refresh that was already in flight, briefly leaving it without a client handle mid-fetch.
 
+### Thanks
+
+Thanks to **@Mattheisen87** for the meticulous #584 diagnostics that pinned down both guard fixes — the authorization-401 refresh storm and the reconfigure crash — and to **@nekas123** for raising the evcc use-case that motivated the read-path connector. Both credited in [CONTRIBUTORS.md](CONTRIBUTORS.md). 🙏
+
 ## [2.21.1] - 2026-07-21
 
 ### Fixed
