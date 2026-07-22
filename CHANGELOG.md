@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [Unreleased]
+
+### Fixed
+
+- **Two-way MBB commands (lock, climate, charging) no longer refuse themselves on cars that don't report an S-PIN attempt count.** When you send a command, the car first hands back a security challenge — and many cars report the remaining-tries count as `-1` at that stage, which just means "not tracked yet" (the real count only shows up if you actually get the PIN wrong). The command path was reading that `-1` as "you have -1 tries left" and blocking every lock/climate/charge command to dodge a lockout that couldn't happen. It now only holds back when there really are 0 or 1 attempts left.
+
 ## [2.21.1] - 2026-07-21
 
 ### Fixed

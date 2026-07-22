@@ -560,6 +560,22 @@ def parse_mbb_spin_challenge(response: dict | None) -> tuple[str | None, str | N
     )
 
 
+def spin_tries_low(remaining: int | None) -> bool:
+    """True only when leg-1 reports a GENUINE low S-PIN attempt count (0 or 1),
+    so we refuse the command rather than risk a lockout.
+
+    ``remaining`` is ``parse_mbb_spin_challenge``'s third value (leg-1
+    ``securityPinTransmission.remainingTries``). The backend uses ``-1`` as a
+    "not tracked / not applicable" sentinel at the challenge stage — leg-1 does
+    NOT consume an attempt, and the real count only surfaces on a wrong-PIN
+    leg-2 403. So a NEGATIVE value is not a real countdown and must NOT block
+    the command; a bare ``remaining < 2`` guard refuses EVERY command on the
+    (common) cars that report ``-1`` here. ``None`` (unreported) never blocks.
+    Only 0 or 1 are real last-attempt warnings.
+    """
+    return remaining is not None and 0 <= remaining < 2
+
+
 def parse_mbb_completed_token(response: dict | None) -> str | None:
     """Extract the level-2 ``securityToken`` from the leg-2 response."""
     if not isinstance(response, dict):
