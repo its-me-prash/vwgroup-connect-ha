@@ -1345,6 +1345,42 @@
       },
       "climatisation_without_hv_power": {
         "name": "Klimatizace bez externího napájení"
+      },
+      "door_front_left": {
+        "name": "Dveře přední levé"
+      },
+      "door_front_right": {
+        "name": "Dveře přední pravé"
+      },
+      "door_rear_left": {
+        "name": "Dveře zadní levé"
+      },
+      "door_rear_right": {
+        "name": "Dveře zadní pravé"
+      },
+      "door_trunk": {
+        "name": "Kufr"
+      },
+      "door_bonnet": {
+        "name": "Kapota"
+      },
+      "light_left": {
+        "name": "Světlo vlevo"
+      },
+      "light_right": {
+        "name": "Světlo vpravo"
+      },
+      "window_front_left": {
+        "name": "Okno přední levé"
+      },
+      "window_front_right": {
+        "name": "Okno přední pravé"
+      },
+      "window_rear_left": {
+        "name": "Okno zadní levé"
+      },
+      "window_rear_right": {
+        "name": "Okno zadní pravé"
       }
     },
     "switch": {

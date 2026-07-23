@@ -1345,6 +1345,42 @@
       },
       "climatisation_without_hv_power": {
         "name": "Klimatisierung ohne Netzstrom"
+      },
+      "door_front_left": {
+        "name": "Tür vorne links"
+      },
+      "door_front_right": {
+        "name": "Tür vorne rechts"
+      },
+      "door_rear_left": {
+        "name": "Tür hinten links"
+      },
+      "door_rear_right": {
+        "name": "Tür hinten rechts"
+      },
+      "door_trunk": {
+        "name": "Kofferraum"
+      },
+      "door_bonnet": {
+        "name": "Motorhaube"
+      },
+      "light_left": {
+        "name": "Licht links"
+      },
+      "light_right": {
+        "name": "Licht rechts"
+      },
+      "window_front_left": {
+        "name": "Fenster vorne links"
+      },
+      "window_front_right": {
+        "name": "Fenster vorne rechts"
+      },
+      "window_rear_left": {
+        "name": "Fenster hinten links"
+      },
+      "window_rear_right": {
+        "name": "Fenster hinten rechts"
       }
     },
     "switch": {

@@ -1345,6 +1345,42 @@
       },
       "climatisation_without_hv_power": {
         "name": "Klimaanlegg uten ekstern strøm"
+      },
+      "door_front_left": {
+        "name": "Dør foran venstre"
+      },
+      "door_front_right": {
+        "name": "Dør foran høyre"
+      },
+      "door_rear_left": {
+        "name": "Dør bak venstre"
+      },
+      "door_rear_right": {
+        "name": "Dør bak høyre"
+      },
+      "door_trunk": {
+        "name": "Bagasjerom"
+      },
+      "door_bonnet": {
+        "name": "Panser"
+      },
+      "light_left": {
+        "name": "Lys venstre"
+      },
+      "light_right": {
+        "name": "Lys høyre"
+      },
+      "window_front_left": {
+        "name": "Vindu foran venstre"
+      },
+      "window_front_right": {
+        "name": "Vindu foran høyre"
+      },
+      "window_rear_left": {
+        "name": "Vindu bak venstre"
+      },
+      "window_rear_right": {
+        "name": "Vindu bak høyre"
       }
     },
     "switch": {

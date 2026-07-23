@@ -1345,6 +1345,42 @@
       },
       "climatisation_without_hv_power": {
         "name": "Klimaatregeling zonder externe stroom"
+      },
+      "door_front_left": {
+        "name": "Portier linksvoor"
+      },
+      "door_front_right": {
+        "name": "Portier rechtsvoor"
+      },
+      "door_rear_left": {
+        "name": "Portier linksachter"
+      },
+      "door_rear_right": {
+        "name": "Portier rechtsachter"
+      },
+      "door_trunk": {
+        "name": "Kofferbak"
+      },
+      "door_bonnet": {
+        "name": "Motorkap"
+      },
+      "light_left": {
+        "name": "Licht links"
+      },
+      "light_right": {
+        "name": "Licht rechts"
+      },
+      "window_front_left": {
+        "name": "Raam linksvoor"
+      },
+      "window_front_right": {
+        "name": "Raam rechtsvoor"
+      },
+      "window_rear_left": {
+        "name": "Raam linksachter"
+      },
+      "window_rear_right": {
+        "name": "Raam rechtsachter"
       }
     },
     "switch": {

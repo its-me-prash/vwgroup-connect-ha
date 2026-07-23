@@ -1345,6 +1345,42 @@
       },
       "climatisation_without_hv_power": {
         "name": "Climate without external power"
+      },
+      "door_front_left": {
+        "name": "Door Front Left"
+      },
+      "door_front_right": {
+        "name": "Door Front Right"
+      },
+      "door_rear_left": {
+        "name": "Door Rear Left"
+      },
+      "door_rear_right": {
+        "name": "Door Rear Right"
+      },
+      "door_trunk": {
+        "name": "Trunk"
+      },
+      "door_bonnet": {
+        "name": "Bonnet"
+      },
+      "light_left": {
+        "name": "Light Left"
+      },
+      "light_right": {
+        "name": "Light Right"
+      },
+      "window_front_left": {
+        "name": "Window Front Left"
+      },
+      "window_front_right": {
+        "name": "Window Front Right"
+      },
+      "window_rear_left": {
+        "name": "Window Rear Left"
+      },
+      "window_rear_right": {
+        "name": "Window Rear Right"
       }
     },
     "switch": {

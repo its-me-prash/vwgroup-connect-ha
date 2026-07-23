@@ -21,7 +21,7 @@ jobs:
       - name: Abhängigkeiten installieren
         run: |
           pip install \
-            ruff \
+            ruff==0.15.12 \
             mypy \
             aiohttp \
             homeassistant

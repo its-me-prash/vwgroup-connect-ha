@@ -243,9 +243,14 @@ class VWEUClient(CariadBaseClient):
             if not vins:
                 _LOGGER.warning(
                     "EU Data Act portal: login OK but the portal returned "
-                    "no vehicle. Enable the data-sharing / continuous data "
-                    "request for this car on the VW data portal — it can "
-                    "take a while to propagate before the car appears."
+                    "no vehicle. Two common causes: (1) if you recently "
+                    "changed your S-PIN or account settings, the brand may "
+                    "require you to re-confirm as the primary user (Hauptnutzer) "
+                    "in the brand app before it lists the car again; (2) the "
+                    "data-sharing / continuous data request for this car is not "
+                    "enabled yet on the VW data portal. Either way it can take a "
+                    "while to propagate before the car reappears — your login is "
+                    "fine, so this is not a credentials problem."
                 )
             return vins
 
