@@ -42,6 +42,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Added
 
+- **Four new driving-telemetry entities from the EU Data Act feed (#901).** Some VW cars report live speed, ignition state, a "driver is braking" flag, and a brake-pressure indication. They now show up as diagnostic entities (disabled by default) — speed as a proper km/h sensor (auto-converts to mph), the other three surfaced as-is while we confirm their exact meaning. Picked up from a Scout report.
 - **The poll interval is now a slider you can automate (#847).** Until now the interval only lived in the integration's options; it's now also a Number entity (in minutes) on a per-account "VW Group Connect" device, so you can drive it from an automation — for example poll more often while you're driving and back off overnight — to go easier on the manufacturer's servers. It shows up for every account, including read-only / portal ones, and takes effect on the next poll without a restart.
 
 ### Fixed

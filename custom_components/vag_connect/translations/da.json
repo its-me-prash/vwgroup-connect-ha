@@ -990,6 +990,15 @@
       "aux_battery_bem_alert_at": {
         "name": "Alarmtidspunkt hjælpebatteri"
       },
+      "current_speed_kmh": {
+        "name": "Hastighed"
+      },
+      "ignition_state": {
+        "name": "Tænding"
+      },
+      "brake_pressure_indication": {
+        "name": "Bremstrykindikation"
+      },
       "dashboard_warnings_raw": {
         "name": "Instrumentbrætadvarsler (rå)"
       },
@@ -1108,6 +1117,9 @@
       },
       "doors_open": {
         "name": "Døre åbne"
+      },
+      "driver_braking_active": {
+        "name": "Fører bremser"
       },
       "windows_open": {
         "name": "Vinduer åbne"

@@ -900,6 +900,15 @@
       "aux_battery_bem_alert_at": {
         "name": "Auxiliary battery alert time"
       },
+      "current_speed_kmh": {
+        "name": "Speed"
+      },
+      "ignition_state": {
+        "name": "Ignition"
+      },
+      "brake_pressure_indication": {
+        "name": "Brake pressure indication"
+      },
       "dashboard_warnings_raw": {
         "name": "Dashboard warnings (raw)"
       },
@@ -1105,6 +1114,9 @@
       },
       "doors_open": {
         "name": "Doors Open"
+      },
+      "driver_braking_active": {
+        "name": "Driver braking"
       },
       "windows_open": {
         "name": "Windows Open"

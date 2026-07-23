@@ -57,6 +57,18 @@ BINARY_DESCRIPTIONS: tuple[VagBinarySensorDescription, ...] = (
         device_class=BinarySensorDeviceClass.WINDOW,
         icon="mdi:car-windshield-outline",
     ),
+    # #901 (Mezzo1973, volkswagen) — best-effort LOW-confidence "driver is
+    # braking" indication from the EU-Data-Act feed (sample "0" → off). No
+    # device_class (semantic unconfirmed). Disabled-by-default; phantom-
+    # protected via _DATA_PRESENT_REQUIRED below.
+    VagBinarySensorDescription(
+        key="driver_braking_active",
+        translation_key="driver_braking_active",
+        data_key="driver_braking_active",
+        icon="mdi:car-brake-hold",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     # v2.4.1 — Scout Policy Compliance Audit T1 binary entities.
     # All disabled-by-default per the policy doc (opt-in for users
     # who actually need them). Climatisation zone-control, climate-
@@ -826,6 +838,9 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "energy_flow",
     "area_alarm",
     "lights_on",
+    # #901 — best-effort "driver is braking" indication. VW-only / firmware-
+    # restricted at the parser; other vehicles stay None → no phantom entity.
+    "driver_braking_active",
     # v2.5.0 (#306 goncal Mii) — sunroof is option-dependent. Many cars
     # don't have a sunroof; parser leaves field None → no phantom entity.
     "sunroof_open",

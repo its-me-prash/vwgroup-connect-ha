@@ -2309,6 +2309,24 @@ def map_dataset_to_vehicle_data(
     _warn = first("active_warnings_in_instrument_cluster_feff_filtered")
     if _warn is not None:
         d.dashboard_warnings_raw = str(_warn)
+    # #901 (Mezzo1973, volkswagen) — best-effort LOW-confidence mapping of four
+    # newly-observed EU-Data-Act driving-telemetry fields. Types inferred from
+    # the Scout samples; we do NOT invent enum values or units beyond speed's
+    # documented km/h. All surface disabled-by-default.
+    _speed = _to_float(first("speed"))
+    if _speed is not None:
+        d.current_speed_kmh = _speed
+    _ign = first("ignition")
+    if _ign is not None:
+        d.ignition_state = str(_ign)
+    _bpi = _to_float(first("brakePressureIndication"))
+    if _bpi is not None:
+        d.brake_pressure_indication = _bpi
+    _brk = first("driverIsBrakingIndication")
+    if _brk is not None:
+        d.driver_braking_active = str(_brk).strip().lower() not in (
+            "0", "", "false", "no", "off",
+        )
     # climate_error_code / window_heating_error_code — drop "0"/"#0" like the
     # existing charging_state_error_code pattern.
     _clim_err = first("climate_error_code")
