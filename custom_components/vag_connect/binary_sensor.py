@@ -1107,14 +1107,17 @@ class VagAbrpDataChangedSensor(VagConnectEntity, BinarySensorEntity):
 
 
 # Per-door binary sensors.
-
-_DOOR_NAMES = {
-    "frontLeft":  "Door Front Left",
-    "frontRight": "Door Front Right",
-    "rearLeft":   "Door Rear Left",
-    "rearRight":  "Door Rear Right",
-    "trunk":      "Trunk",
-    "bonnet":     "Motorhaube",
+# v2.23.1 — map the camelCase part-id to a snake_case translation_key so the
+# friendly name is localised (all 12 locales) instead of the old hardcoded
+# English _attr_name (which leaked "Door Front Left"/"Trunk" into non-English
+# HA). Entity keys / unique_ids are unchanged (still door_<camelCaseId>).
+_DOOR_TKEYS = {
+    "frontLeft":  "door_front_left",
+    "frontRight": "door_front_right",
+    "rearLeft":   "door_rear_left",
+    "rearRight":  "door_rear_right",
+    "trunk":      "door_trunk",
+    "bonnet":     "door_bonnet",
 }
 
 
@@ -1131,7 +1134,11 @@ class VagDoorSensor(VagConnectEntity, BinarySensorEntity):
     ) -> None:
         super().__init__(coordinator, vin, f"door_{door_id}")
         self._door_id = door_id
-        self._attr_name = _DOOR_NAMES.get(door_id, door_id)
+        _tkey = _DOOR_TKEYS.get(door_id)
+        if _tkey:
+            self._attr_translation_key = _tkey
+        else:
+            self._attr_name = door_id
         self._attr_icon = "mdi:car-door" if "door" in door_id.lower() or "rear" in door_id.lower() or "front" in door_id.lower() else "mdi:car-door-lock"
 
     @property
@@ -1149,11 +1156,11 @@ class VagDoorSensor(VagConnectEntity, BinarySensorEntity):
 # *closed* in ``windows_individual`` (consistent with
 # ``doors_individual``), so ``is_on`` inverts that.
 
-_WINDOW_NAMES = {
-    "frontLeft":  "Window Front Left",
-    "frontRight": "Window Front Right",
-    "rearLeft":   "Window Rear Left",
-    "rearRight":  "Window Rear Right",
+_WINDOW_TKEYS = {
+    "frontLeft":  "window_front_left",
+    "frontRight": "window_front_right",
+    "rearLeft":   "window_rear_left",
+    "rearRight":  "window_rear_right",
 }
 
 
@@ -1170,7 +1177,12 @@ class VagWindowSensor(VagConnectEntity, BinarySensorEntity):
     ) -> None:
         super().__init__(coordinator, vin, f"window_{window_id}")
         self._window_id = window_id
-        self._attr_name = _WINDOW_NAMES.get(window_id, window_id)
+        # v2.23.1 — localise via translation_key instead of hardcoded English.
+        _tkey = _WINDOW_TKEYS.get(window_id)
+        if _tkey:
+            self._attr_translation_key = _tkey
+        else:
+            self._attr_name = window_id
         self._attr_icon = "mdi:car-door"
 
     @property
@@ -1199,6 +1211,17 @@ class VagLightSensor(VagConnectEntity, BinarySensorEntity):
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_icon = "mdi:lightbulb-on-outline"
 
+    # v2.23.1 — localise the common light positions instead of the old
+    # hardcoded English "Light <id>". CARIAD light names are open-ended, so
+    # unknown ids keep the English fallback.
+    # Only the positions we ship verified 12-locale names for. Any other
+    # CARIAD light name keeps the English fallback rather than pointing at a
+    # missing translation_key (which would render an empty friendly name).
+    _LIGHT_TKEYS = {
+        "left":  "light_left",
+        "right": "light_right",
+    }
+
     def __init__(
         self,
         coordinator: VagConnectCoordinator,
@@ -1207,8 +1230,12 @@ class VagLightSensor(VagConnectEntity, BinarySensorEntity):
     ) -> None:
         super().__init__(coordinator, vin, f"light_{light_id}")
         self._light_id = light_id
-        # Friendly fallback name; HA will use translation_key if available.
-        self._attr_name = f"Light {light_id}"
+        _tkey = self._LIGHT_TKEYS.get(light_id)
+        if _tkey:
+            self._attr_translation_key = _tkey
+        else:
+            # Unknown light name — keep a readable fallback.
+            self._attr_name = f"Light {light_id}"
 
     @property
     def is_on(self) -> bool | None:

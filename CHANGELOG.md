@@ -40,9 +40,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+
+- **Door, window and light sensors now show localized names.** The per-part door / window / light binary sensors hardcoded their English names ("Door Front Left", "Trunk", "Light left"…), so they stayed English even in a German (or French, Spanish, …) Home Assistant while their neighbours were translated. They now use proper translation keys with names in all 12 languages ("Tür vorne links", "Kofferraum", "Licht links"…). Entity IDs are unchanged, only the display names.
+
 ### Changed
 
 - **Clearer message when the account has no vehicle yet.** When login works but the manufacturer lists no vehicle, the setup error used to say "No vehicles found. Check credentials and network." — which is misleading, since the credentials are fine. It now explains the real common causes: a VW data-sharing request still propagating, or a primary-user ("Hauptnutzer") re-confirmation that the brand app requires after you change your S-PIN or account settings.
+- **Fewer duplicate range and fuel sensors.** On a single-energy car (pure petrol/diesel) the total-range and combustion-range sensors just repeated the main "Range" value, so three identical range sensors showed up; the redundant two are now hidden on those cars while genuine hybrids still get the full electric / combustion / total breakdown. The second fuel-level sensor ("primary engine fuel level"), which mirrors the main tank sensor, is now a diagnostic that is disabled by default (existing setups keep it).
 
 ## [2.23.0] - 2026-07-23
 

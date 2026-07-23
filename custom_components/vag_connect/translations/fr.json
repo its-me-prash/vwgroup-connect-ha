@@ -1345,6 +1345,42 @@
       },
       "climatisation_without_hv_power": {
         "name": "Climatisation sans alimentation externe"
+      },
+      "door_front_left": {
+        "name": "Porte avant gauche"
+      },
+      "door_front_right": {
+        "name": "Porte avant droite"
+      },
+      "door_rear_left": {
+        "name": "Porte arrière gauche"
+      },
+      "door_rear_right": {
+        "name": "Porte arrière droite"
+      },
+      "door_trunk": {
+        "name": "Coffre"
+      },
+      "door_bonnet": {
+        "name": "Capot"
+      },
+      "light_left": {
+        "name": "Feu gauche"
+      },
+      "light_right": {
+        "name": "Feu droit"
+      },
+      "window_front_left": {
+        "name": "Vitre avant gauche"
+      },
+      "window_front_right": {
+        "name": "Vitre avant droite"
+      },
+      "window_rear_left": {
+        "name": "Vitre arrière gauche"
+      },
+      "window_rear_right": {
+        "name": "Vitre arrière droite"
       }
     },
     "switch": {

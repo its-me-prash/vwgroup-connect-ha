@@ -1345,6 +1345,42 @@
       },
       "climatisation_without_hv_power": {
         "name": "Klimatanläggning utan extern ström"
+      },
+      "door_front_left": {
+        "name": "Dörr fram vänster"
+      },
+      "door_front_right": {
+        "name": "Dörr fram höger"
+      },
+      "door_rear_left": {
+        "name": "Dörr bak vänster"
+      },
+      "door_rear_right": {
+        "name": "Dörr bak höger"
+      },
+      "door_trunk": {
+        "name": "Baklucka"
+      },
+      "door_bonnet": {
+        "name": "Motorhuv"
+      },
+      "light_left": {
+        "name": "Ljus vänster"
+      },
+      "light_right": {
+        "name": "Ljus höger"
+      },
+      "window_front_left": {
+        "name": "Fönster fram vänster"
+      },
+      "window_front_right": {
+        "name": "Fönster fram höger"
+      },
+      "window_rear_left": {
+        "name": "Fönster bak vänster"
+      },
+      "window_rear_right": {
+        "name": "Fönster bak höger"
       }
     },
     "switch": {

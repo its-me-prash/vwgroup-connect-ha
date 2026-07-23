@@ -1336,6 +1336,12 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:car-info",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # v2.23.1 — this is the same combustion-tank percentage as the primary
+    # "fuel_level" sensor (fuel_level even falls back to this very field), so
+    # showing both was a duplicate ("Tankstand" + "Tankfüllstand (primär)").
+    # Demote it to a diagnostic, disabled-by-default comparison value instead of
+    # deleting it (entity_id + registry entry preserved); fuel_level stays the
+    # primary user-facing tank sensor.
     VagSensorDescription(
         key="primary_engine_fuel_level_pct",
         translation_key="primary_engine_fuel_level_pct",
@@ -1345,6 +1351,8 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:fuel",
         condition="combustion",
         suggested_display_precision=0,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
     ),
     VagSensorDescription(
         key="maintenance_report_captured_at",
@@ -3381,6 +3389,22 @@ async def async_setup_entry(
             if desc.condition == "electric" and not has_battery:
                 continue
             if desc.condition == "combustion" and not has_combustion:
+                continue
+            # v2.23.1 — de-duplicate the range family on single-energy cars. The
+            # parser collapses range_km to the total on any non-hybrid, so on a
+            # pure-combustion car range_km == combustion_range_km == total_range_km
+            # (three identical "Reichweite" sensors). Keep the single range_km
+            # headline and hide the redundant two. A real hybrid (battery AND
+            # combustion) keeps all three because they genuinely differ, and
+            # combustion_range_km is hidden ONLY when it actually equals range_km,
+            # so a bi-fuel car reporting a distinct combustion range still keeps it.
+            if desc.key == "total_range_km" and not (has_battery and has_combustion):
+                continue
+            if (
+                desc.key == "combustion_range_km"
+                and not has_battery
+                and vehicle.get("combustion_range_km") == vehicle.get("range_km")
+            ):
                 continue
             if desc.key in _DATA_PRESENT_REQUIRED:
                 _present = vehicle.get(desc.data_key)

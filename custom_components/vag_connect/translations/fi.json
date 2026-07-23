@@ -1345,6 +1345,42 @@
       },
       "climatisation_without_hv_power": {
         "name": "Ilmastointi ilman ulkoista virtaa"
+      },
+      "door_front_left": {
+        "name": "Ovi edessä vasemmalla"
+      },
+      "door_front_right": {
+        "name": "Ovi edessä oikealla"
+      },
+      "door_rear_left": {
+        "name": "Ovi takana vasemmalla"
+      },
+      "door_rear_right": {
+        "name": "Ovi takana oikealla"
+      },
+      "door_trunk": {
+        "name": "Tavaratila"
+      },
+      "door_bonnet": {
+        "name": "Konepelti"
+      },
+      "light_left": {
+        "name": "Valo vasen"
+      },
+      "light_right": {
+        "name": "Valo oikea"
+      },
+      "window_front_left": {
+        "name": "Ikkuna edessä vasemmalla"
+      },
+      "window_front_right": {
+        "name": "Ikkuna edessä oikealla"
+      },
+      "window_rear_left": {
+        "name": "Ikkuna takana vasemmalla"
+      },
+      "window_rear_right": {
+        "name": "Ikkuna takana oikealla"
       }
     },
     "switch": {
