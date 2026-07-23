@@ -510,43 +510,53 @@ class VWNAClient:
         entity-naming downstream.
         """
         data = await self._get(f"{self._base}/account/v1/garage")
-        # Defensive envelope walk: prefer data.data.vehicles (matpoulin
-        # confirmed), fall back to data.vehicles (legacy / forward-
-        # compat if VW NA flattens), else empty list.
-        payload = (
-            (data.get("data") or {}).get("vehicles")
-            or data.get("vehicles")
-            or []
-        )
-        vins = []
-        for vehicle_dict in payload:
-            vin = vehicle_dict.get("vin")
-            uuid = vehicle_dict.get("uuid") or vehicle_dict.get("vehicleId")
-            if vin:
-                if uuid:
-                    self._vin_to_uuid[vin] = uuid
-                # v2.4.1 — cache the human-friendly fields per matpoulin.
-                # Surfaced as sensors in v2.4.1 audit (T1 entities).
-                nickname = vehicle_dict.get("vehicleNickName")
-                if isinstance(nickname, str) and nickname:
-                    self._vin_to_nickname[vin] = nickname
-                model = vehicle_dict.get("modelName")
-                if isinstance(model, str) and model:
-                    self._vin_to_model[vin] = model
-                vins.append(vin)
-                _LOGGER.debug(
-                    "VW NA: found VIN %s uuid=%s nickname=%s model=%s",
-                    _mask_vin(vin), uuid, nickname, model,
-                )
-        if not vins and payload == []:
-            # Empty envelope OR shape didn't match — log diagnostically
-            # so the next user-report includes the actual top-level
-            # keys for diagnosis.
+        # v2.23.3 (#503/#659, vrouleau CA) — robust recursive garage walk.
+        # The old rigid path data["data"]["vehicles"] / data["vehicles"]
+        # returned [] for accounts where VW NA nests the vehicle array deeper
+        # under the 'data' envelope (per-region Cox shape), raising a false
+        # "no vehicles" ConfigEntryNotReady even though auth + the garage call
+        # both succeeded. Mirror the EU-portal parser: walk the whole payload
+        # and treat any dict carrying a 17-char 'vin' as a vehicle, draining
+        # its uuid / nickname / model too. A genuinely empty garage still
+        # walks to zero VINs, so the empty-account behaviour is unchanged.
+        vins: list[str] = []
+
+        def _collect(node: Any) -> None:
+            if isinstance(node, dict):
+                vin = node.get("vin") or node.get("vehicleIdentificationNumber")
+                if isinstance(vin, str) and len(vin) == 17 and vin not in vins:
+                    uuid = node.get("uuid") or node.get("vehicleId")
+                    if uuid:
+                        self._vin_to_uuid[vin] = uuid
+                    nickname = node.get("vehicleNickName")
+                    if isinstance(nickname, str) and nickname:
+                        self._vin_to_nickname[vin] = nickname
+                    model = node.get("modelName")
+                    if isinstance(model, str) and model:
+                        self._vin_to_model[vin] = model
+                    vins.append(vin)
+                    _LOGGER.debug(
+                        "VW NA: found VIN %s uuid=%s nickname=%s model=%s",
+                        _mask_vin(vin), uuid, nickname, model,
+                    )
+                for value in node.values():
+                    _collect(value)
+            elif isinstance(node, list):
+                for value in node:
+                    _collect(value)
+
+        _collect(data)
+        if not vins:
+            # Genuinely empty OR a shape we still don't reach — log the nested
+            # keys (top level + one into 'data') so an unexpected empty result
+            # stays diagnosable from a single DEBUG report.
+            inner = data.get("data") if isinstance(data, dict) else None
             _LOGGER.warning(
-                "VW NA garage returned no vehicles (top-level keys=%s) — "
-                "if this is unexpected, please open an issue with the "
-                "DEBUG log so we can adjust the parser shape",
+                "VW NA garage returned no vehicles (top-level keys=%s, data "
+                "keys=%s) — if this is unexpected, please open an issue with "
+                "the DEBUG log so we can adjust the parser shape",
                 list(data.keys()) if isinstance(data, dict) else type(data).__name__,
+                list(inner.keys()) if isinstance(inner, dict) else type(inner).__name__,
             )
         return vins
 

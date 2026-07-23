@@ -661,6 +661,7 @@ _NEW_BINARY: tuple[VagBinarySensorDescription, ...] = (
         device_class=BinarySensorDeviceClass.POWER,
         icon="mdi:flash",
         entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
     ),
     # ── v2.15.3 — EU Data Act portal new fields (#465/#514/#515/#516) ────────
     # Battery-care mode on/off (setting.bcam_activation). DIAGNOSTIC.
@@ -670,6 +671,7 @@ _NEW_BINARY: tuple[VagBinarySensorDescription, ...] = (
         data_key="battery_care_mode_active",
         icon="mdi:battery-heart-variant",
         entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
     ),
     # Front bonnet lock (safe-state family, 2=locked). DIAGNOSTIC.
     VagBinarySensorDescription(

@@ -224,9 +224,11 @@ class TestVWNAGarageEnvelope:
 
     def test_parser_walks_data_envelope(self) -> None:
         src = _VW_NA_PY.read_text(encoding="utf-8")
-        # Defensive walk: data.data.vehicles preferred, top-level fallback.
-        assert "(data.get(\"data\") or {}).get(\"vehicles\")" in src
-        assert 'or data.get("vehicles")' in src
+        # v2.23.3 (#503/#659) — robust recursive walk that finds a vehicle dict
+        # under any nesting, replacing the old rigid data.data.vehicles path.
+        assert "def _collect(" in src
+        assert 'node.get("vin")' in src
+        assert "len(vin) == 17" in src
 
     def test_nickname_cache_added(self) -> None:
         src = _VW_NA_PY.read_text(encoding="utf-8")

@@ -38,6 +38,18 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.23.3] - 2026-07-24
+
+### Fixed
+
+- **VW US / CA logins that returned "no vehicles" despite a successful sign-in now find the car (#503, #659).** The North-American garage response nests the vehicle list differently for some (e.g. Canadian) accounts, and the parser was looking in one fixed spot. It now walks the whole response to find your vehicle wherever it sits. A genuinely empty account still reports empty.
+- **The charge-mode selector no longer appears in read-only mode.** It sends a command, so like the other command entities it's now hidden when the integration is running read-only.
+- **Audi/VW render images show a localized name.** The seven fixed render viewpoints (side/angle/large/small…) were showing their hardcoded German label in every language; they now use the translated name.
+
+### Changed
+
+- **Fewer duplicate diagnostic sensors.** Six sensors that mirror another sensor's value from a second source (two max-AC-current variants, the charging-block HV min/max temperature clones, and the EU-portal battery-care and energy-flow twins) are now diagnostic and disabled by default. Nothing is removed — existing setups keep them, and the primary sensor of each pair stays enabled.
+
 ## [2.23.2] - 2026-07-24
 
 ### Fixed
