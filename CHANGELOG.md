@@ -38,6 +38,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.23.2] - 2026-07-24
+
+### Fixed
+
+- **SEAT and CUPRA per-door sensors were showing open/closed backwards.** The individual door binary sensors on SEAT/CUPRA cars stored "closed" where the rest of the integration means "open", so a closed door read as open and vice-versa. They now match the correct convention.
+- **Eight climate/connection/power binary sensors had no name.** A handful of entities (climate zones, "Connection active", the daily-power-budget and low-battery warnings) had their name filed in the wrong place internally, so they showed up unnamed. They now have proper names in all 12 languages.
+- **French, Spanish, Dutch, Polish, Czech and Swedish are now fully translated.** Around 70 entity names were still showing in English in those six languages while the others were translated. They're now complete.
+- **The vehicle-render image entity now shows a localized name** instead of a hardcoded English "Vehicle Render".
+
 ## [2.23.1] - 2026-07-23
 
 ### Fixed
