@@ -376,13 +376,13 @@
         "name": "Laatste Sessie — Duur"
       },
       "last_charging_session_start": {
-        "name": "Last Charging Session Start"
+        "name": "Laatste laadsessie, start"
       },
       "last_charging_session_current_type": {
-        "name": "Last Charging Session Current Type"
+        "name": "Laatste laadsessie, stroomtype"
       },
       "last_charging_power_curve_points": {
-        "name": "Last Charging Power Curve Points"
+        "name": "Laatste laadsessie, vermogenscurvepunten"
       },
       "active_charging_profile_name": {
         "name": "Actief Laadprofiel"
@@ -433,22 +433,22 @@
         "name": "Foutmelder"
       },
       "requests_remaining_today": {
-        "name": "API Requests Remaining"
+        "name": "Resterende API-verzoeken"
       },
       "license_plate": {
-        "name": "License Plate"
+        "name": "Kenteken"
       },
       "equipment_count": {
-        "name": "Equipment Count"
+        "name": "Aantal uitrustingen"
       },
       "secondary_engine_range_km": {
-        "name": "Secondary Engine Range"
+        "name": "Actieradius secundaire motor"
       },
       "secondary_engine_type": {
-        "name": "Secondary Engine Type"
+        "name": "Type secundaire motor"
       },
       "secondary_engine_fuel_level_pct": {
-        "name": "Secondary Engine Fuel Level"
+        "name": "Brandstofniveau secundaire motor"
       },
       "subscription_expiry_at": {
         "name": "Abonnement verloopt"
@@ -490,7 +490,7 @@
         "name": "Klimaattimers ingeschakeld"
       },
       "primary_engine_type": {
-        "name": "Primary Engine Type"
+        "name": "Type primaire motor"
       },
       "steering_wheel_position": {
         "name": "Stuurpositie"
@@ -505,7 +505,7 @@
         "name": "Volgende timer — Doel-lading haalbaar"
       },
       "capabilities_count": {
-        "name": "Capabilities Count"
+        "name": "Aantal functies"
       },
       "tire_pressure_front_left_bar": {
         "name": "Bandenspanning Voor Links"
@@ -541,103 +541,103 @@
         "name": "Voertuig waarschuwingen"
       },
       "auxiliary_heating_remaining_min": {
-        "name": "Auxiliary Heating ETA"
+        "name": "Standkachel resterende tijd"
       },
       "auxiliary_heating_status": {
-        "name": "Auxiliary Heating Status"
+        "name": "Status standkachel"
       },
       "brake_fluid_change_due_at": {
-        "name": "Brake Fluid Change Due"
+        "name": "Vervanging remvloeistof vereist"
       },
       "brake_pads_front_inspection_due_at": {
-        "name": "Brake Pads Front Inspection Due"
+        "name": "Inspectie remblokken voor vereist"
       },
       "brake_pads_rear_inspection_due_at": {
-        "name": "Brake Pads Rear Inspection Due"
+        "name": "Inspectie remblokken achter vereist"
       },
       "preferred_workshop_address": {
-        "name": "Preferred Workshop Address"
+        "name": "Adres voorkeursgarage"
       },
       "preferred_workshop_name": {
-        "name": "Preferred Workshop"
+        "name": "Voorkeursgarage"
       },
       "preferred_workshop_phone": {
-        "name": "Preferred Workshop Phone"
+        "name": "Telefoon voorkeursgarage"
       },
       "adblue_level_pct": {
-        "name": "AdBlue Level"
+        "name": "AdBlue-niveau"
       },
       "cng_level_pct": {
-        "name": "CNG Tank Level"
+        "name": "CNG-tankniveau"
       },
       "cng_range_km": {
-        "name": "CNG Range"
+        "name": "CNG-actieradius"
       },
       "primary_engine_range_km": {
-        "name": "Primary Engine Range"
+        "name": "Actieradius primaire motor"
       },
       "charging_preferred_mode": {
-        "name": "Preferred Charging Mode"
+        "name": "Voorkeurslaadmodus"
       },
       "pending_action_id": {
-        "name": "Pending action ID"
+        "name": "ID openstaande actie"
       },
       "pending_action_type": {
-        "name": "Pending action type"
+        "name": "Type openstaande actie"
       },
       "pending_action_status": {
-        "name": "Pending action status"
+        "name": "Status openstaande actie"
       },
       "refuel_trip_distance_km": {
-        "name": "Distance since refuel"
+        "name": "Afstand sinds tanken"
       },
       "refuel_trip_duration_min": {
-        "name": "Drive time since refuel"
+        "name": "Rijtijd sinds tanken"
       },
       "refuel_trip_avg_speed_kmh": {
-        "name": "Avg speed since refuel"
+        "name": "Gem. snelheid sinds tanken"
       },
       "refuel_trip_avg_fuel_consumption_l_100km": {
-        "name": "Avg fuel since refuel"
+        "name": "Gem. brandstofverbruik sinds tanken"
       },
       "refuel_trip_avg_electric_consumption_kwh_100km": {
-        "name": "Avg energy since refuel"
+        "name": "Gem. energieverbruik sinds tanken"
       },
       "refuel_trip_total_fuel_consumption_l": {
-        "name": "Total fuel since refuel"
+        "name": "Totale brandstof sinds tanken"
       },
       "refuel_trip_total_electric_consumption_kwh": {
-        "name": "Total energy since charge"
+        "name": "Totale energie sinds laden"
       },
       "refuel_trip_recuperation_kwh": {
-        "name": "Recuperation since charge"
+        "name": "Recuperatie sinds laden"
       },
       "refuel_trip_timestamp": {
-        "name": "Refuel cycle started"
+        "name": "Tankcyclus gestart"
       },
       "actual_charge_rate_kw": {
-        "name": "Actual charge rate"
+        "name": "Actueel laadvermogen"
       },
       "hv_battery_min_temperature_c": {
-        "name": "HV Battery Temperature (Min)"
+        "name": "HV-accutemperatuur (min)"
       },
       "hv_battery_max_temperature_c": {
-        "name": "HV Battery Temperature (Max)"
+        "name": "HV-accutemperatuur (max)"
       },
       "charge_max_ac_setting": {
-        "name": "Max AC Current (Setting)"
+        "name": "Max AC-stroom (instelling)"
       },
       "charge_max_ac_ampere": {
-        "name": "Max AC Current (Deliverable)"
+        "name": "Max AC-stroom (leverbaar)"
       },
       "auto_release_ac_connector_state": {
-        "name": "Auto Release Connector State"
+        "name": "Status automatische ontgrendeling connector"
       },
       "active_ventilation_state": {
-        "name": "Active Ventilation"
+        "name": "Actieve ventilatie"
       },
       "active_ventilation_remaining_time_min": {
-        "name": "Active Ventilation Remaining"
+        "name": "Actieve ventilatie resterend"
       },
       "battery_support_state": {
         "name": "12V-accuondersteuning"
@@ -646,31 +646,31 @@
         "name": "evcc-laadstatus"
       },
       "connection_state_battery_power_level": {
-        "name": "12V Battery Power Level"
+        "name": "12V-accu laadniveau"
       },
       "last_trip_total_fuel_consumption_l": {
-        "name": "Last Trip Total Fuel"
+        "name": "Laatste rit, totale brandstof"
       },
       "last_trip_total_electric_consumption_kwh": {
-        "name": "Last Trip Total Energy"
+        "name": "Laatste rit, totale energie"
       },
       "notifications_count": {
-        "name": "Notifications count"
+        "name": "Aantal meldingen"
       },
       "last_notification_subject": {
-        "name": "Last notification subject"
+        "name": "Laatste melding, onderwerp"
       },
       "last_notification_severity": {
-        "name": "Last notification severity"
+        "name": "Laatste melding, ernst"
       },
       "engine_oil_temperature_c": {
-        "name": "Engine oil temperature"
+        "name": "Motorolietemperatuur"
       },
       "engine_coolant_temperature_c": {
-        "name": "Engine coolant temperature"
+        "name": "Koelvloeistoftemperatuur"
       },
       "last_trip_reset_at": {
-        "name": "Last Trip Reset"
+        "name": "Laatste ritreset"
       },
       "battery_temp_c": {
         "name": "Batterijtemperatuur"
@@ -1182,16 +1182,16 @@
         "name": "Batterij-Zorg Actief"
       },
       "auto_unlock_when_charged": {
-        "name": "Auto Unlock When Charged"
+        "name": "Automatisch ontgrendelen bij volle lading"
       },
       "climate_at_unlock": {
-        "name": "Climate at Unlock"
+        "name": "Klimaat bij ontgrendelen"
       },
       "window_heating_enabled": {
-        "name": "Window Heating Enabled"
+        "name": "Ruitverwarming ingeschakeld"
       },
       "air_conditioning_without_external_power": {
-        "name": "AC Without External Power"
+        "name": "Airco zonder externe voeding"
       },
       "subscription_active": {
         "name": "Abonnement actief"
@@ -1233,40 +1233,40 @@
         "name": "Oliepeil"
       },
       "seat_heating": {
-        "name": "Seat Heating"
+        "name": "Stoelverwarming"
       },
       "parking_light": {
-        "name": "Parking Light"
+        "name": "Parkeerlicht"
       },
       "external_power": {
-        "name": "External Power Available"
+        "name": "Externe voeding beschikbaar"
       },
       "battery_care": {
-        "name": "Battery Care Mode"
+        "name": "Batterijbeschermingsmodus"
       },
       "energy_flow": {
-        "name": "Energy Flow Active"
+        "name": "Energiestroom actief"
       },
       "area_alarm": {
-        "name": "Geofence Alarm"
+        "name": "Geofence-alarm"
       },
       "auto_release_ac_connector": {
-        "name": "Auto Release AC Connector"
+        "name": "Automatische ontgrendeling AC-connector"
       },
       "optimised_battery_use": {
-        "name": "Optimised Battery Use"
+        "name": "Geoptimaliseerd batterijgebruik"
       },
       "sunroof_rear_closed": {
-        "name": "Rear Sunroof"
+        "name": "Schuifdak achter"
       },
       "roof_cover_closed": {
-        "name": "Roof Cover"
+        "name": "Cabriokap"
       },
       "permission_is_owner": {
-        "name": "Account is primary owner"
+        "name": "Account is hoofdeigenaar"
       },
       "permission_can_command": {
-        "name": "Account can send commands"
+        "name": "Account kan opdrachten verzenden"
       },
       "external_power_available": {
         "name": "Externe voeding beschikbaar"
@@ -1381,6 +1381,30 @@
       },
       "window_rear_right": {
         "name": "Raam rechtsachter"
+      },
+      "climate_zone_front_left": {
+        "name": "Klimaatzone linksvoor"
+      },
+      "climate_zone_front_right": {
+        "name": "Klimaatzone rechtsvoor"
+      },
+      "climate_zone_rear_left": {
+        "name": "Klimaatzone linksachter"
+      },
+      "climate_zone_rear_right": {
+        "name": "Klimaatzone rechtsachter"
+      },
+      "climate_without_external_power": {
+        "name": "Klimaat zonder externe voeding"
+      },
+      "connection_active": {
+        "name": "Verbinding actief"
+      },
+      "daily_power_budget_warning": {
+        "name": "Waarschuwing dagelijks energiebudget"
+      },
+      "insufficient_battery_level_warning": {
+        "name": "Waarschuwing batterijniveau te laag"
       }
     },
     "switch": {
@@ -1435,10 +1459,10 @@
         "name": "Max. laadstroom"
       },
       "auxheat_duration": {
-        "name": "Auxiliary Heating Duration"
+        "name": "Duur standkachel"
       },
       "auxheat_target_temp": {
-        "name": "Auxiliary Heating Target Temperature"
+        "name": "Doeltemperatuur standkachel"
       },
       "battery_care_target": {
         "name": "Doel batterijbehoud"
@@ -1523,6 +1547,9 @@
       },
       "render_angle_lg": {
         "name": "3/4 weergave groot"
+      },
+      "vehicle_render": {
+        "name": "Voertuigweergave"
       }
     },
     "lock": {

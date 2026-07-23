@@ -376,13 +376,13 @@
         "name": "Senaste Sessionen — Längd"
       },
       "last_charging_session_start": {
-        "name": "Last Charging Session Start"
+        "name": "Senaste laddning, start"
       },
       "last_charging_session_current_type": {
-        "name": "Last Charging Session Current Type"
+        "name": "Senaste laddning, strömtyp"
       },
       "last_charging_power_curve_points": {
-        "name": "Last Charging Power Curve Points"
+        "name": "Senaste laddning, effektkurvpunkter"
       },
       "active_charging_profile_name": {
         "name": "Aktiv Laddningsprofil"
@@ -433,22 +433,22 @@
         "name": "Felrapportör"
       },
       "requests_remaining_today": {
-        "name": "API Requests Remaining"
+        "name": "Återstående API-förfrågningar"
       },
       "license_plate": {
-        "name": "License Plate"
+        "name": "Registreringsskylt"
       },
       "equipment_count": {
-        "name": "Equipment Count"
+        "name": "Antal utrustning"
       },
       "secondary_engine_range_km": {
-        "name": "Secondary Engine Range"
+        "name": "Räckvidd sekundärmotor"
       },
       "secondary_engine_type": {
-        "name": "Secondary Engine Type"
+        "name": "Sekundär motortyp"
       },
       "secondary_engine_fuel_level_pct": {
-        "name": "Secondary Engine Fuel Level"
+        "name": "Bränslenivå sekundärmotor"
       },
       "subscription_expiry_at": {
         "name": "Prenumeration löper ut"
@@ -490,7 +490,7 @@
         "name": "Aktiva klimattimer"
       },
       "primary_engine_type": {
-        "name": "Primary Engine Type"
+        "name": "Primär motortyp"
       },
       "steering_wheel_position": {
         "name": "Ratt-position"
@@ -505,7 +505,7 @@
         "name": "Nästa timer — Mål-laddning nåbar"
       },
       "capabilities_count": {
-        "name": "Capabilities Count"
+        "name": "Antal funktioner"
       },
       "tire_pressure_front_left_bar": {
         "name": "Däcktryck Fram Vänster"
@@ -541,103 +541,103 @@
         "name": "Fordonsvarningar"
       },
       "auxiliary_heating_remaining_min": {
-        "name": "Auxiliary Heating ETA"
+        "name": "Parkeringsvärmare, återstående tid"
       },
       "auxiliary_heating_status": {
-        "name": "Auxiliary Heating Status"
+        "name": "Status för parkeringsvärmare"
       },
       "brake_fluid_change_due_at": {
-        "name": "Brake Fluid Change Due"
+        "name": "Bromsvätskebyte förfaller"
       },
       "brake_pads_front_inspection_due_at": {
-        "name": "Brake Pads Front Inspection Due"
+        "name": "Kontroll av bromsbelägg fram"
       },
       "brake_pads_rear_inspection_due_at": {
-        "name": "Brake Pads Rear Inspection Due"
+        "name": "Kontroll av bromsbelägg bak"
       },
       "preferred_workshop_address": {
-        "name": "Preferred Workshop Address"
+        "name": "Adress till föredragen verkstad"
       },
       "preferred_workshop_name": {
-        "name": "Preferred Workshop"
+        "name": "Föredragen verkstad"
       },
       "preferred_workshop_phone": {
-        "name": "Preferred Workshop Phone"
+        "name": "Telefon till föredragen verkstad"
       },
       "adblue_level_pct": {
-        "name": "AdBlue Level"
+        "name": "AdBlue-nivå"
       },
       "cng_level_pct": {
-        "name": "CNG Tank Level"
+        "name": "CNG-tanknivå"
       },
       "cng_range_km": {
-        "name": "CNG Range"
+        "name": "CNG-räckvidd"
       },
       "primary_engine_range_km": {
-        "name": "Primary Engine Range"
+        "name": "Räckvidd primärmotor"
       },
       "charging_preferred_mode": {
-        "name": "Preferred Charging Mode"
+        "name": "Föredraget laddläge"
       },
       "pending_action_id": {
-        "name": "Pending action ID"
+        "name": "ID för väntande åtgärd"
       },
       "pending_action_type": {
-        "name": "Pending action type"
+        "name": "Typ av väntande åtgärd"
       },
       "pending_action_status": {
-        "name": "Pending action status"
+        "name": "Status för väntande åtgärd"
       },
       "refuel_trip_distance_km": {
-        "name": "Distance since refuel"
+        "name": "Sträcka sedan tankning"
       },
       "refuel_trip_duration_min": {
-        "name": "Drive time since refuel"
+        "name": "Körtid sedan tankning"
       },
       "refuel_trip_avg_speed_kmh": {
-        "name": "Avg speed since refuel"
+        "name": "Snitthastighet sedan tankning"
       },
       "refuel_trip_avg_fuel_consumption_l_100km": {
-        "name": "Avg fuel since refuel"
+        "name": "Snittbränsle sedan tankning"
       },
       "refuel_trip_avg_electric_consumption_kwh_100km": {
-        "name": "Avg energy since refuel"
+        "name": "Snittenergi sedan tankning"
       },
       "refuel_trip_total_fuel_consumption_l": {
-        "name": "Total fuel since refuel"
+        "name": "Totalt bränsle sedan tankning"
       },
       "refuel_trip_total_electric_consumption_kwh": {
-        "name": "Total energy since charge"
+        "name": "Total energi sedan laddning"
       },
       "refuel_trip_recuperation_kwh": {
-        "name": "Recuperation since charge"
+        "name": "Återvinning sedan laddning"
       },
       "refuel_trip_timestamp": {
-        "name": "Refuel cycle started"
+        "name": "Tankningscykel startad"
       },
       "actual_charge_rate_kw": {
-        "name": "Actual charge rate"
+        "name": "Aktuell laddeffekt"
       },
       "hv_battery_min_temperature_c": {
-        "name": "HV Battery Temperature (Min)"
+        "name": "HV-batteritemperatur (min)"
       },
       "hv_battery_max_temperature_c": {
-        "name": "HV Battery Temperature (Max)"
+        "name": "HV-batteritemperatur (max)"
       },
       "charge_max_ac_setting": {
-        "name": "Max AC Current (Setting)"
+        "name": "Max AC-ström (inställning)"
       },
       "charge_max_ac_ampere": {
-        "name": "Max AC Current (Deliverable)"
+        "name": "Max AC-ström (levererbar)"
       },
       "auto_release_ac_connector_state": {
-        "name": "Auto Release Connector State"
+        "name": "Status för automatisk frigöring av kontakt"
       },
       "active_ventilation_state": {
-        "name": "Active Ventilation"
+        "name": "Aktiv ventilation"
       },
       "active_ventilation_remaining_time_min": {
-        "name": "Active Ventilation Remaining"
+        "name": "Aktiv ventilation återstår"
       },
       "battery_support_state": {
         "name": "12V-batteristöd"
@@ -646,31 +646,31 @@
         "name": "evcc-laddstatus"
       },
       "connection_state_battery_power_level": {
-        "name": "12V Battery Power Level"
+        "name": "12V-batteriets laddnivå"
       },
       "last_trip_total_fuel_consumption_l": {
-        "name": "Last Trip Total Fuel"
+        "name": "Senaste tur, totalt bränsle"
       },
       "last_trip_total_electric_consumption_kwh": {
-        "name": "Last Trip Total Energy"
+        "name": "Senaste tur, total energi"
       },
       "notifications_count": {
-        "name": "Notifications count"
+        "name": "Antal aviseringar"
       },
       "last_notification_subject": {
-        "name": "Last notification subject"
+        "name": "Senaste avisering, ämne"
       },
       "last_notification_severity": {
-        "name": "Last notification severity"
+        "name": "Senaste avisering, allvarsgrad"
       },
       "engine_oil_temperature_c": {
-        "name": "Engine oil temperature"
+        "name": "Motoroljetemperatur"
       },
       "engine_coolant_temperature_c": {
-        "name": "Engine coolant temperature"
+        "name": "Kylvätsketemperatur"
       },
       "last_trip_reset_at": {
-        "name": "Last Trip Reset"
+        "name": "Senaste turnollställning"
       },
       "battery_temp_c": {
         "name": "Batteritemperatur"
@@ -1182,16 +1182,16 @@
         "name": "Batteri-Vård Aktiv"
       },
       "auto_unlock_when_charged": {
-        "name": "Auto Unlock When Charged"
+        "name": "Lås upp automatiskt vid fulladdning"
       },
       "climate_at_unlock": {
-        "name": "Climate at Unlock"
+        "name": "Klimat vid upplåsning"
       },
       "window_heating_enabled": {
-        "name": "Window Heating Enabled"
+        "name": "Rutvärme aktiverad"
       },
       "air_conditioning_without_external_power": {
-        "name": "AC Without External Power"
+        "name": "AC utan extern ström"
       },
       "subscription_active": {
         "name": "Prenumeration aktiv"
@@ -1233,40 +1233,40 @@
         "name": "Oljenivå"
       },
       "seat_heating": {
-        "name": "Seat Heating"
+        "name": "Sätesvärme"
       },
       "parking_light": {
-        "name": "Parking Light"
+        "name": "Parkeringsljus"
       },
       "external_power": {
-        "name": "External Power Available"
+        "name": "Extern ström tillgänglig"
       },
       "battery_care": {
-        "name": "Battery Care Mode"
+        "name": "Batteriskyddsläge"
       },
       "energy_flow": {
-        "name": "Energy Flow Active"
+        "name": "Energiflöde aktivt"
       },
       "area_alarm": {
-        "name": "Geofence Alarm"
+        "name": "Geofence-larm"
       },
       "auto_release_ac_connector": {
-        "name": "Auto Release AC Connector"
+        "name": "Automatisk frigöring av AC-kontakt"
       },
       "optimised_battery_use": {
-        "name": "Optimised Battery Use"
+        "name": "Optimerad batterianvändning"
       },
       "sunroof_rear_closed": {
-        "name": "Rear Sunroof"
+        "name": "Bakre soltak"
       },
       "roof_cover_closed": {
-        "name": "Roof Cover"
+        "name": "Sufflett"
       },
       "permission_is_owner": {
-        "name": "Account is primary owner"
+        "name": "Kontot är primär ägare"
       },
       "permission_can_command": {
-        "name": "Account can send commands"
+        "name": "Kontot kan skicka kommandon"
       },
       "external_power_available": {
         "name": "Extern strömförsörjning tillgänglig"
@@ -1381,6 +1381,30 @@
       },
       "window_rear_right": {
         "name": "Fönster bak höger"
+      },
+      "climate_zone_front_left": {
+        "name": "Klimatzon fram vänster"
+      },
+      "climate_zone_front_right": {
+        "name": "Klimatzon fram höger"
+      },
+      "climate_zone_rear_left": {
+        "name": "Klimatzon bak vänster"
+      },
+      "climate_zone_rear_right": {
+        "name": "Klimatzon bak höger"
+      },
+      "climate_without_external_power": {
+        "name": "Klimat utan extern ström"
+      },
+      "connection_active": {
+        "name": "Anslutning aktiv"
+      },
+      "daily_power_budget_warning": {
+        "name": "Varning för daglig energibudget"
+      },
+      "insufficient_battery_level_warning": {
+        "name": "Varning för låg batterinivå"
       }
     },
     "switch": {
@@ -1435,10 +1459,10 @@
         "name": "Max laddström"
       },
       "auxheat_duration": {
-        "name": "Auxiliary Heating Duration"
+        "name": "Parkeringsvärmare varaktighet"
       },
       "auxheat_target_temp": {
-        "name": "Auxiliary Heating Target Temperature"
+        "name": "Parkeringsvärmare måltemperatur"
       },
       "battery_care_target": {
         "name": "Mål för batterivård"
@@ -1523,6 +1547,9 @@
       },
       "render_angle_lg": {
         "name": "3/4 vy stor"
+      },
+      "vehicle_render": {
+        "name": "Fordonsrendering"
       }
     },
     "lock": {

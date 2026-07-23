@@ -427,7 +427,7 @@
         "name": "Autonomia AdBlue"
       },
       "api_observer_findings": {
-        "name": "Vehicle Data Scout"
+        "name": "Osservatore API"
       },
       "raw_api_fields": {
         "name": "Campi API grezzi"
@@ -1381,6 +1381,30 @@
       },
       "window_rear_right": {
         "name": "Finestrino posteriore destro"
+      },
+      "climate_zone_front_left": {
+        "name": "Zona clima anteriore sinistra"
+      },
+      "climate_zone_front_right": {
+        "name": "Zona clima anteriore destra"
+      },
+      "climate_zone_rear_left": {
+        "name": "Zona clima posteriore sinistra"
+      },
+      "climate_zone_rear_right": {
+        "name": "Zona clima posteriore destra"
+      },
+      "climate_without_external_power": {
+        "name": "Clima senza alimentazione esterna"
+      },
+      "connection_active": {
+        "name": "Connessione attiva"
+      },
+      "daily_power_budget_warning": {
+        "name": "Avviso budget energetico giornaliero"
+      },
+      "insufficient_battery_level_warning": {
+        "name": "Avviso livello batteria insufficiente"
       }
     },
     "switch": {
@@ -1523,6 +1547,9 @@
       },
       "render_angle_lg": {
         "name": "Vista 3/4 grande"
+      },
+      "vehicle_render": {
+        "name": "Rendering del veicolo"
       }
     },
     "lock": {

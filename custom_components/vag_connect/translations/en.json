@@ -1381,6 +1381,30 @@
       },
       "window_rear_right": {
         "name": "Window Rear Right"
+      },
+      "climate_zone_front_left": {
+        "name": "Climate Zone Front Left"
+      },
+      "climate_zone_front_right": {
+        "name": "Climate Zone Front Right"
+      },
+      "climate_zone_rear_left": {
+        "name": "Climate Zone Rear Left"
+      },
+      "climate_zone_rear_right": {
+        "name": "Climate Zone Rear Right"
+      },
+      "climate_without_external_power": {
+        "name": "Climate Without External Power"
+      },
+      "connection_active": {
+        "name": "Connection Active"
+      },
+      "daily_power_budget_warning": {
+        "name": "Daily Power Budget Warning"
+      },
+      "insufficient_battery_level_warning": {
+        "name": "Insufficient Battery Level Warning"
       }
     },
     "switch": {
@@ -1523,6 +1547,9 @@
       },
       "render_angle_lg": {
         "name": "3/4 View Large"
+      },
+      "vehicle_render": {
+        "name": "Vehicle Render"
       }
     },
     "lock": {

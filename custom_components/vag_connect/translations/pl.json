@@ -376,13 +376,13 @@
         "name": "Ostatnia Sesja — Czas Trwania"
       },
       "last_charging_session_start": {
-        "name": "Last Charging Session Start"
+        "name": "Ostatnia sesja ładowania, początek"
       },
       "last_charging_session_current_type": {
-        "name": "Last Charging Session Current Type"
+        "name": "Ostatnia sesja ładowania, typ prądu"
       },
       "last_charging_power_curve_points": {
-        "name": "Last Charging Power Curve Points"
+        "name": "Ostatnia sesja ładowania, punkty krzywej mocy"
       },
       "active_charging_profile_name": {
         "name": "Aktywny Profil Ładowania"
@@ -433,22 +433,22 @@
         "name": "Raporter błędów"
       },
       "requests_remaining_today": {
-        "name": "API Requests Remaining"
+        "name": "Pozostałe żądania API"
       },
       "license_plate": {
-        "name": "License Plate"
+        "name": "Tablica rejestracyjna"
       },
       "equipment_count": {
-        "name": "Equipment Count"
+        "name": "Liczba wyposażenia"
       },
       "secondary_engine_range_km": {
-        "name": "Secondary Engine Range"
+        "name": "Zasięg silnika dodatkowego"
       },
       "secondary_engine_type": {
-        "name": "Secondary Engine Type"
+        "name": "Typ silnika dodatkowego"
       },
       "secondary_engine_fuel_level_pct": {
-        "name": "Secondary Engine Fuel Level"
+        "name": "Poziom paliwa silnika dodatkowego"
       },
       "subscription_expiry_at": {
         "name": "Subskrypcja wygasa"
@@ -505,7 +505,7 @@
         "name": "Następny timer — Docelowe naładowanie osiągalne"
       },
       "capabilities_count": {
-        "name": "Capabilities Count"
+        "name": "Liczba funkcji"
       },
       "tire_pressure_front_left_bar": {
         "name": "Ciśnienie Opony Przód Lewy"
@@ -541,103 +541,103 @@
         "name": "Ostrzeżenia pojazdu"
       },
       "auxiliary_heating_remaining_min": {
-        "name": "Auxiliary Heating ETA"
+        "name": "Ogrzewanie postojowe, pozostały czas"
       },
       "auxiliary_heating_status": {
-        "name": "Auxiliary Heating Status"
+        "name": "Stan ogrzewania postojowego"
       },
       "brake_fluid_change_due_at": {
-        "name": "Brake Fluid Change Due"
+        "name": "Wymiana płynu hamulcowego wymagana"
       },
       "brake_pads_front_inspection_due_at": {
-        "name": "Brake Pads Front Inspection Due"
+        "name": "Przegląd przednich klocków hamulcowych"
       },
       "brake_pads_rear_inspection_due_at": {
-        "name": "Brake Pads Rear Inspection Due"
+        "name": "Przegląd tylnych klocków hamulcowych"
       },
       "preferred_workshop_address": {
-        "name": "Preferred Workshop Address"
+        "name": "Adres preferowanego warsztatu"
       },
       "preferred_workshop_name": {
-        "name": "Preferred Workshop"
+        "name": "Preferowany warsztat"
       },
       "preferred_workshop_phone": {
-        "name": "Preferred Workshop Phone"
+        "name": "Telefon preferowanego warsztatu"
       },
       "adblue_level_pct": {
-        "name": "AdBlue Level"
+        "name": "Poziom AdBlue"
       },
       "cng_level_pct": {
-        "name": "CNG Tank Level"
+        "name": "Poziom zbiornika CNG"
       },
       "cng_range_km": {
-        "name": "CNG Range"
+        "name": "Zasięg na CNG"
       },
       "primary_engine_range_km": {
-        "name": "Primary Engine Range"
+        "name": "Zasięg silnika głównego"
       },
       "charging_preferred_mode": {
-        "name": "Preferred Charging Mode"
+        "name": "Preferowany tryb ładowania"
       },
       "pending_action_id": {
-        "name": "Pending action ID"
+        "name": "ID oczekującej akcji"
       },
       "pending_action_type": {
-        "name": "Pending action type"
+        "name": "Typ oczekującej akcji"
       },
       "pending_action_status": {
-        "name": "Pending action status"
+        "name": "Stan oczekującej akcji"
       },
       "refuel_trip_distance_km": {
-        "name": "Distance since refuel"
+        "name": "Dystans od tankowania"
       },
       "refuel_trip_duration_min": {
-        "name": "Drive time since refuel"
+        "name": "Czas jazdy od tankowania"
       },
       "refuel_trip_avg_speed_kmh": {
-        "name": "Avg speed since refuel"
+        "name": "Śr. prędkość od tankowania"
       },
       "refuel_trip_avg_fuel_consumption_l_100km": {
-        "name": "Avg fuel since refuel"
+        "name": "Śr. zużycie paliwa od tankowania"
       },
       "refuel_trip_avg_electric_consumption_kwh_100km": {
-        "name": "Avg energy since refuel"
+        "name": "Śr. zużycie energii od tankowania"
       },
       "refuel_trip_total_fuel_consumption_l": {
-        "name": "Total fuel since refuel"
+        "name": "Całkowite paliwo od tankowania"
       },
       "refuel_trip_total_electric_consumption_kwh": {
-        "name": "Total energy since charge"
+        "name": "Całkowita energia od ładowania"
       },
       "refuel_trip_recuperation_kwh": {
-        "name": "Recuperation since charge"
+        "name": "Rekuperacja od ładowania"
       },
       "refuel_trip_timestamp": {
-        "name": "Refuel cycle started"
+        "name": "Początek cyklu tankowania"
       },
       "actual_charge_rate_kw": {
-        "name": "Actual charge rate"
+        "name": "Aktualna moc ładowania"
       },
       "hv_battery_min_temperature_c": {
-        "name": "HV Battery Temperature (Min)"
+        "name": "Temperatura akumulatora HV (min.)"
       },
       "hv_battery_max_temperature_c": {
-        "name": "HV Battery Temperature (Max)"
+        "name": "Temperatura akumulatora HV (maks.)"
       },
       "charge_max_ac_setting": {
-        "name": "Max AC Current (Setting)"
+        "name": "Maks. prąd AC (ustawienie)"
       },
       "charge_max_ac_ampere": {
-        "name": "Max AC Current (Deliverable)"
+        "name": "Maks. prąd AC (dostępny)"
       },
       "auto_release_ac_connector_state": {
-        "name": "Auto Release Connector State"
+        "name": "Stan automatycznego zwolnienia złącza"
       },
       "active_ventilation_state": {
-        "name": "Active Ventilation"
+        "name": "Aktywna wentylacja"
       },
       "active_ventilation_remaining_time_min": {
-        "name": "Active Ventilation Remaining"
+        "name": "Pozostała aktywna wentylacja"
       },
       "battery_support_state": {
         "name": "Wsparcie akumulatora 12V"
@@ -646,31 +646,31 @@
         "name": "Stan ładowania evcc"
       },
       "connection_state_battery_power_level": {
-        "name": "12V Battery Power Level"
+        "name": "Poziom naładowania akumulatora 12V"
       },
       "last_trip_total_fuel_consumption_l": {
-        "name": "Last Trip Total Fuel"
+        "name": "Ostatnia podróż, paliwo całkowite"
       },
       "last_trip_total_electric_consumption_kwh": {
-        "name": "Last Trip Total Energy"
+        "name": "Ostatnia podróż, energia całkowita"
       },
       "notifications_count": {
-        "name": "Notifications count"
+        "name": "Liczba powiadomień"
       },
       "last_notification_subject": {
-        "name": "Last notification subject"
+        "name": "Ostatnie powiadomienie, temat"
       },
       "last_notification_severity": {
-        "name": "Last notification severity"
+        "name": "Ostatnie powiadomienie, ważność"
       },
       "engine_oil_temperature_c": {
-        "name": "Engine oil temperature"
+        "name": "Temperatura oleju silnikowego"
       },
       "engine_coolant_temperature_c": {
-        "name": "Engine coolant temperature"
+        "name": "Temperatura płynu chłodzącego"
       },
       "last_trip_reset_at": {
-        "name": "Last Trip Reset"
+        "name": "Ostatnie zerowanie podróży"
       },
       "battery_temp_c": {
         "name": "Temperatura akumulatora"
@@ -1182,16 +1182,16 @@
         "name": "Ochrona Baterii Aktywna"
       },
       "auto_unlock_when_charged": {
-        "name": "Auto Unlock When Charged"
+        "name": "Automatyczne odblokowanie po naładowaniu"
       },
       "climate_at_unlock": {
-        "name": "Climate at Unlock"
+        "name": "Klimatyzacja przy odblokowaniu"
       },
       "window_heating_enabled": {
-        "name": "Window Heating Enabled"
+        "name": "Ogrzewanie szyb włączone"
       },
       "air_conditioning_without_external_power": {
-        "name": "AC Without External Power"
+        "name": "Klimatyzacja bez zasilania zewnętrznego"
       },
       "subscription_active": {
         "name": "Subskrypcja aktywna"
@@ -1233,40 +1233,40 @@
         "name": "Poziom oleju"
       },
       "seat_heating": {
-        "name": "Seat Heating"
+        "name": "Podgrzewanie foteli"
       },
       "parking_light": {
-        "name": "Parking Light"
+        "name": "Światło postojowe"
       },
       "external_power": {
-        "name": "External Power Available"
+        "name": "Zasilanie zewnętrzne dostępne"
       },
       "battery_care": {
-        "name": "Battery Care Mode"
+        "name": "Tryb ochrony akumulatora"
       },
       "energy_flow": {
-        "name": "Energy Flow Active"
+        "name": "Przepływ energii aktywny"
       },
       "area_alarm": {
-        "name": "Geofence Alarm"
+        "name": "Alarm geofence"
       },
       "auto_release_ac_connector": {
-        "name": "Auto Release AC Connector"
+        "name": "Automatyczne zwolnienie złącza AC"
       },
       "optimised_battery_use": {
-        "name": "Optimised Battery Use"
+        "name": "Zoptymalizowane użycie akumulatora"
       },
       "sunroof_rear_closed": {
-        "name": "Rear Sunroof"
+        "name": "Tylny szyberdach"
       },
       "roof_cover_closed": {
-        "name": "Roof Cover"
+        "name": "Dach składany"
       },
       "permission_is_owner": {
-        "name": "Account is primary owner"
+        "name": "Konto jest głównym właścicielem"
       },
       "permission_can_command": {
-        "name": "Account can send commands"
+        "name": "Konto może wysyłać polecenia"
       },
       "external_power_available": {
         "name": "Zasilanie zewnętrzne dostępne"
@@ -1381,6 +1381,30 @@
       },
       "window_rear_right": {
         "name": "Szyba tylna prawa"
+      },
+      "climate_zone_front_left": {
+        "name": "Strefa klimatyzacji przód lewa"
+      },
+      "climate_zone_front_right": {
+        "name": "Strefa klimatyzacji przód prawa"
+      },
+      "climate_zone_rear_left": {
+        "name": "Strefa klimatyzacji tył lewa"
+      },
+      "climate_zone_rear_right": {
+        "name": "Strefa klimatyzacji tył prawa"
+      },
+      "climate_without_external_power": {
+        "name": "Klimatyzacja bez zasilania zewnętrznego"
+      },
+      "connection_active": {
+        "name": "Połączenie aktywne"
+      },
+      "daily_power_budget_warning": {
+        "name": "Ostrzeżenie o dziennym limicie energii"
+      },
+      "insufficient_battery_level_warning": {
+        "name": "Ostrzeżenie o zbyt niskim poziomie baterii"
       }
     },
     "switch": {
@@ -1435,10 +1459,10 @@
         "name": "Maks. prąd ładowania"
       },
       "auxheat_duration": {
-        "name": "Auxiliary Heating Duration"
+        "name": "Czas ogrzewania postojowego"
       },
       "auxheat_target_temp": {
-        "name": "Auxiliary Heating Target Temperature"
+        "name": "Docelowa temperatura ogrzewania postojowego"
       },
       "battery_care_target": {
         "name": "Cel ochrony baterii"
@@ -1523,6 +1547,9 @@
       },
       "render_angle_lg": {
         "name": "Widok 3/4 duży"
+      },
+      "vehicle_render": {
+        "name": "Render pojazdu"
       }
     },
     "lock": {
