@@ -1394,6 +1394,9 @@
       },
       "battery_care_target": {
         "name": "Doel batterijbehoud"
+      },
+      "scan_interval": {
+        "name": "Pollinterval"
       }
     },
     "button": {

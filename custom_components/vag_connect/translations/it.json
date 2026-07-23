@@ -1394,6 +1394,9 @@
       },
       "battery_care_target": {
         "name": "Obiettivo cura batteria"
+      },
+      "scan_interval": {
+        "name": "Intervallo di polling"
       }
     },
     "button": {

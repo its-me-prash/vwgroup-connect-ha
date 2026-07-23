@@ -40,6 +40,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+
+- **The poll interval is now a slider you can automate (#847).** Until now the interval only lived in the integration's options; it's now also a Number entity (in minutes) on a per-account "VW Group Connect" device, so you can drive it from an automation — for example poll more often while you're driving and back off overnight — to go easier on the manufacturer's servers. It shows up for every account, including read-only / portal ones, and takes effect on the next poll without a restart.
+
 ### Fixed
 
 - **Two-way commands on legacy Car-Net cars no longer refuse themselves with a false "not granted / check your subscription".** The service-directory grant check was treated as the final word, but it can briefly drop grants right after a reconfigure (or vary by cache) even on cars that fully allow the command. It's now advisory: on a negative result it refetches the service directory once and, if still unconfirmed, goes ahead — letting the car's own security-token step be the authority (which safely rejects a genuinely-ungranted command before any S-PIN attempt is spent).
