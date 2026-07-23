@@ -1964,11 +1964,13 @@ class TestSeatCupraGetStatus:
         result = asyncio.run(
             client.get_status("VSSZZE1KZLR000001"))
 
+        # v2.23.2 — doors_individual stores True == OPEN (matches VW EU + the
+        # BinarySensorDeviceClass.DOOR convention). Only frontRight is open.
         assert result.doors_individual == {
-            "frontLeft":  True,
-            "frontRight": False,  # open
-            "rearLeft":   True,
-            "rearRight":  True,
+            "frontLeft":  False,
+            "frontRight": True,   # open
+            "rearLeft":   False,
+            "rearRight":  False,
         }
         assert result.doors_open is True       # frontRight open → at least one
         assert result.doors_locked is False    # rearRight not locked → not all

@@ -1063,19 +1063,24 @@ class SeatCupraClient(CariadBaseClient):
                 door = v(doors_obj, pos) or {}
                 if not door:
                     continue
-                # ``open`` may be bool or "open"/"closed" string — normalise
+                # ``open`` may be bool or "open"/"closed" string — normalise.
+                # v2.23.2 — store True == OPEN to match the project-wide
+                # doors_individual convention (VW EU stores `status == "open"`,
+                # and BinarySensorDeviceClass.DOOR treats True as "open"). The
+                # old code stored `is_closed` here, which inverted every SEAT /
+                # CUPRA per-door binary sensor (a closed door showed as open).
                 open_raw = door.get("open")
                 if isinstance(open_raw, bool):
-                    is_closed = not open_raw
+                    is_open = open_raw
                 elif isinstance(open_raw, str):
-                    is_closed = open_raw.lower() == "closed"
+                    is_open = open_raw.lower() == "open"
                 else:
-                    is_closed = None
-                if is_closed is not None:
-                    door_individual[pos] = is_closed
+                    is_open = None
+                if is_open is not None:
+                    door_individual[pos] = is_open
             if door_individual:
                 d.doors_individual = door_individual
-                d.doors_open = any(not closed for closed in door_individual.values())
+                d.doors_open = any(door_individual.values())
                 # ``doors_locked`` is True only when every position reports
                 # locked=True. If any position doesn't report (None),
                 # fall back to the access endpoint or stay False.
