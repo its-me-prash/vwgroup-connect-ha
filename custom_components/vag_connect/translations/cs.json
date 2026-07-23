@@ -376,13 +376,13 @@
         "name": "Poslední Relace — Doba"
       },
       "last_charging_session_start": {
-        "name": "Last Charging Session Start"
+        "name": "Poslední nabíjení, začátek"
       },
       "last_charging_session_current_type": {
-        "name": "Last Charging Session Current Type"
+        "name": "Poslední nabíjení, typ proudu"
       },
       "last_charging_power_curve_points": {
-        "name": "Last Charging Power Curve Points"
+        "name": "Poslední nabíjení, body křivky výkonu"
       },
       "active_charging_profile_name": {
         "name": "Aktivní Profil Nabíjení"
@@ -433,22 +433,22 @@
         "name": "Hlásič chyb"
       },
       "requests_remaining_today": {
-        "name": "API Requests Remaining"
+        "name": "Zbývající API požadavky"
       },
       "license_plate": {
-        "name": "License Plate"
+        "name": "Registrační značka"
       },
       "equipment_count": {
-        "name": "Equipment Count"
+        "name": "Počet výbavy"
       },
       "secondary_engine_range_km": {
-        "name": "Secondary Engine Range"
+        "name": "Dojezd sekundárního motoru"
       },
       "secondary_engine_type": {
-        "name": "Secondary Engine Type"
+        "name": "Typ sekundárního motoru"
       },
       "secondary_engine_fuel_level_pct": {
-        "name": "Secondary Engine Fuel Level"
+        "name": "Hladina paliva sekundárního motoru"
       },
       "subscription_expiry_at": {
         "name": "Předplatné vyprší"
@@ -505,7 +505,7 @@
         "name": "Další časovač — Cílové nabití dosažitelné"
       },
       "capabilities_count": {
-        "name": "Capabilities Count"
+        "name": "Počet funkcí"
       },
       "tire_pressure_front_left_bar": {
         "name": "Tlak Pneumatik Přední Levá"
@@ -541,103 +541,103 @@
         "name": "Varování vozidla"
       },
       "auxiliary_heating_remaining_min": {
-        "name": "Auxiliary Heating ETA"
+        "name": "Nezávislé topení, zbývající čas"
       },
       "auxiliary_heating_status": {
-        "name": "Auxiliary Heating Status"
+        "name": "Stav nezávislého topení"
       },
       "brake_fluid_change_due_at": {
-        "name": "Brake Fluid Change Due"
+        "name": "Výměna brzdové kapaliny"
       },
       "brake_pads_front_inspection_due_at": {
-        "name": "Brake Pads Front Inspection Due"
+        "name": "Kontrola předních brzdových destiček"
       },
       "brake_pads_rear_inspection_due_at": {
-        "name": "Brake Pads Rear Inspection Due"
+        "name": "Kontrola zadních brzdových destiček"
       },
       "preferred_workshop_address": {
-        "name": "Preferred Workshop Address"
+        "name": "Adresa preferovaného servisu"
       },
       "preferred_workshop_name": {
-        "name": "Preferred Workshop"
+        "name": "Preferovaný servis"
       },
       "preferred_workshop_phone": {
-        "name": "Preferred Workshop Phone"
+        "name": "Telefon preferovaného servisu"
       },
       "adblue_level_pct": {
-        "name": "AdBlue Level"
+        "name": "Hladina AdBlue"
       },
       "cng_level_pct": {
-        "name": "CNG Tank Level"
+        "name": "Hladina nádrže CNG"
       },
       "cng_range_km": {
-        "name": "CNG Range"
+        "name": "Dojezd na CNG"
       },
       "primary_engine_range_km": {
-        "name": "Primary Engine Range"
+        "name": "Dojezd hlavního motoru"
       },
       "charging_preferred_mode": {
-        "name": "Preferred Charging Mode"
+        "name": "Preferovaný režim nabíjení"
       },
       "pending_action_id": {
-        "name": "Pending action ID"
+        "name": "ID čekající akce"
       },
       "pending_action_type": {
-        "name": "Pending action type"
+        "name": "Typ čekající akce"
       },
       "pending_action_status": {
-        "name": "Pending action status"
+        "name": "Stav čekající akce"
       },
       "refuel_trip_distance_km": {
-        "name": "Distance since refuel"
+        "name": "Vzdálenost od tankování"
       },
       "refuel_trip_duration_min": {
-        "name": "Drive time since refuel"
+        "name": "Doba jízdy od tankování"
       },
       "refuel_trip_avg_speed_kmh": {
-        "name": "Avg speed since refuel"
+        "name": "Prům. rychlost od tankování"
       },
       "refuel_trip_avg_fuel_consumption_l_100km": {
-        "name": "Avg fuel since refuel"
+        "name": "Prům. spotřeba paliva od tankování"
       },
       "refuel_trip_avg_electric_consumption_kwh_100km": {
-        "name": "Avg energy since refuel"
+        "name": "Prům. spotřeba energie od tankování"
       },
       "refuel_trip_total_fuel_consumption_l": {
-        "name": "Total fuel since refuel"
+        "name": "Celkové palivo od tankování"
       },
       "refuel_trip_total_electric_consumption_kwh": {
-        "name": "Total energy since charge"
+        "name": "Celková energie od nabíjení"
       },
       "refuel_trip_recuperation_kwh": {
-        "name": "Recuperation since charge"
+        "name": "Rekuperace od nabíjení"
       },
       "refuel_trip_timestamp": {
-        "name": "Refuel cycle started"
+        "name": "Začátek cyklu tankování"
       },
       "actual_charge_rate_kw": {
-        "name": "Actual charge rate"
+        "name": "Aktuální nabíjecí výkon"
       },
       "hv_battery_min_temperature_c": {
-        "name": "HV Battery Temperature (Min)"
+        "name": "Teplota HV baterie (min.)"
       },
       "hv_battery_max_temperature_c": {
-        "name": "HV Battery Temperature (Max)"
+        "name": "Teplota HV baterie (max.)"
       },
       "charge_max_ac_setting": {
-        "name": "Max AC Current (Setting)"
+        "name": "Max. AC proud (nastavení)"
       },
       "charge_max_ac_ampere": {
-        "name": "Max AC Current (Deliverable)"
+        "name": "Max. AC proud (dodávaný)"
       },
       "auto_release_ac_connector_state": {
-        "name": "Auto Release Connector State"
+        "name": "Stav automatického uvolnění konektoru"
       },
       "active_ventilation_state": {
-        "name": "Active Ventilation"
+        "name": "Aktivní větrání"
       },
       "active_ventilation_remaining_time_min": {
-        "name": "Active Ventilation Remaining"
+        "name": "Zbývající aktivní větrání"
       },
       "battery_support_state": {
         "name": "Podpora 12V baterie"
@@ -646,31 +646,31 @@
         "name": "evcc stav nabíjení"
       },
       "connection_state_battery_power_level": {
-        "name": "12V Battery Power Level"
+        "name": "Úroveň nabití baterie 12V"
       },
       "last_trip_total_fuel_consumption_l": {
-        "name": "Last Trip Total Fuel"
+        "name": "Poslední jízda, celkové palivo"
       },
       "last_trip_total_electric_consumption_kwh": {
-        "name": "Last Trip Total Energy"
+        "name": "Poslední jízda, celková energie"
       },
       "notifications_count": {
-        "name": "Notifications count"
+        "name": "Počet oznámení"
       },
       "last_notification_subject": {
-        "name": "Last notification subject"
+        "name": "Poslední oznámení, předmět"
       },
       "last_notification_severity": {
-        "name": "Last notification severity"
+        "name": "Poslední oznámení, závažnost"
       },
       "engine_oil_temperature_c": {
-        "name": "Engine oil temperature"
+        "name": "Teplota motorového oleje"
       },
       "engine_coolant_temperature_c": {
-        "name": "Engine coolant temperature"
+        "name": "Teplota chladicí kapaliny"
       },
       "last_trip_reset_at": {
-        "name": "Last Trip Reset"
+        "name": "Poslední vynulování jízdy"
       },
       "battery_temp_c": {
         "name": "Teplota baterie"
@@ -1182,16 +1182,16 @@
         "name": "Péče o Baterii Aktivní"
       },
       "auto_unlock_when_charged": {
-        "name": "Auto Unlock When Charged"
+        "name": "Automatické odemknutí po nabití"
       },
       "climate_at_unlock": {
-        "name": "Climate at Unlock"
+        "name": "Klimatizace při odemknutí"
       },
       "window_heating_enabled": {
-        "name": "Window Heating Enabled"
+        "name": "Vyhřívání oken zapnuto"
       },
       "air_conditioning_without_external_power": {
-        "name": "AC Without External Power"
+        "name": "Klimatizace bez externího napájení"
       },
       "subscription_active": {
         "name": "Předplatné aktivní"
@@ -1233,40 +1233,40 @@
         "name": "Stav oleje"
       },
       "seat_heating": {
-        "name": "Seat Heating"
+        "name": "Vyhřívání sedadel"
       },
       "parking_light": {
-        "name": "Parking Light"
+        "name": "Parkovací světlo"
       },
       "external_power": {
-        "name": "External Power Available"
+        "name": "Externí napájení dostupné"
       },
       "battery_care": {
-        "name": "Battery Care Mode"
+        "name": "Režim šetření baterie"
       },
       "energy_flow": {
-        "name": "Energy Flow Active"
+        "name": "Tok energie aktivní"
       },
       "area_alarm": {
-        "name": "Geofence Alarm"
+        "name": "Alarm geofence"
       },
       "auto_release_ac_connector": {
-        "name": "Auto Release AC Connector"
+        "name": "Automatické uvolnění AC konektoru"
       },
       "optimised_battery_use": {
-        "name": "Optimised Battery Use"
+        "name": "Optimalizované využití baterie"
       },
       "sunroof_rear_closed": {
-        "name": "Rear Sunroof"
+        "name": "Zadní střešní okno"
       },
       "roof_cover_closed": {
-        "name": "Roof Cover"
+        "name": "Střecha kabrioletu"
       },
       "permission_is_owner": {
-        "name": "Account is primary owner"
+        "name": "Účet je hlavní vlastník"
       },
       "permission_can_command": {
-        "name": "Account can send commands"
+        "name": "Účet může odesílat příkazy"
       },
       "external_power_available": {
         "name": "Externí napájení k dispozici"
@@ -1381,6 +1381,30 @@
       },
       "window_rear_right": {
         "name": "Okno zadní pravé"
+      },
+      "climate_zone_front_left": {
+        "name": "Klimatická zóna vpředu vlevo"
+      },
+      "climate_zone_front_right": {
+        "name": "Klimatická zóna vpředu vpravo"
+      },
+      "climate_zone_rear_left": {
+        "name": "Klimatická zóna vzadu vlevo"
+      },
+      "climate_zone_rear_right": {
+        "name": "Klimatická zóna vzadu vpravo"
+      },
+      "climate_without_external_power": {
+        "name": "Klimatizace bez externího napájení"
+      },
+      "connection_active": {
+        "name": "Připojení aktivní"
+      },
+      "daily_power_budget_warning": {
+        "name": "Varování denního energetického limitu"
+      },
+      "insufficient_battery_level_warning": {
+        "name": "Varování nedostatečné úrovně baterie"
       }
     },
     "switch": {
@@ -1435,10 +1459,10 @@
         "name": "Max. nabíjecí proud"
       },
       "auxheat_duration": {
-        "name": "Auxiliary Heating Duration"
+        "name": "Doba nezávislého topení"
       },
       "auxheat_target_temp": {
-        "name": "Auxiliary Heating Target Temperature"
+        "name": "Cílová teplota nezávislého topení"
       },
       "battery_care_target": {
         "name": "Cíl ochrany baterie"
@@ -1523,6 +1547,9 @@
       },
       "render_angle_lg": {
         "name": "Pohled 3/4 velký"
+      },
+      "vehicle_render": {
+        "name": "Vykreslení vozidla"
       }
     },
     "lock": {

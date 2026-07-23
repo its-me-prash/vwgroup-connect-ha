@@ -448,7 +448,9 @@ class VagSkodaWidgetImageEntity(VagConnectEntity, ImageEntity):
     ) -> None:
         VagConnectEntity.__init__(self, coordinator, vin, "render_widget")
         ImageEntity.__init__(self, hass, verify_ssl=True)
-        self._attr_name = "Vehicle Render"
+        # v2.23.2 — localise via translation_key instead of the hardcoded
+        # English "Vehicle Render" (which leaked into every non-English HA).
+        self._attr_translation_key = "vehicle_render"
         self._attr_image_url = initial_url
         self._attr_image_last_updated = datetime.now(tz=timezone.utc)
 
