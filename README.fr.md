@@ -134,6 +134,8 @@ Pour Volkswagen EU, **se connecter ne suffit pas** — VW ne diffuse les donnée
 
 Le portail ne sert au départ qu'une **partie des champs**, et cette part **s'élargit avec le temps** à mesure que VW étend la couverture du portail avant l'échéance de septembre 2026 — des champs affichant `unknown` aujourd'hui pourront se remplir d'eux-mêmes. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465) · [#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527) · [#567](https://github.com/its-me-prash/vwgroup-connect-ha/issues/567))
 
+> **Liste complète des champs.** Le dictionnaire de données officiel du groupe VW (chaque clé EU Data Act -> champ, description et unité) se trouve dans [docs/EU_DATA_ACT_DATA_DICTIONARY.md](docs/EU_DATA_ACT_DATA_DICTIONARY.md).
+
 > C'est la bascule des Options **`eu_data_act_auto_kickoff`** qui crée cette demande de données personnalisée de 15 minutes, et elle est **activée par défaut** — en mode portail, sans elle, il n'y a pas de données. Ne la désactivez que si vous préférez gérer la demande vous-même.
 
 ---

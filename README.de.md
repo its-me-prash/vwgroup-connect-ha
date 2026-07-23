@@ -134,6 +134,8 @@ Bei Volkswagen EU reicht **Einloggen nicht** — VW streamt Fahrzeugdaten erst, 
 
 Das Portal liefert anfangs nur einen **Ausschnitt der Felder**, und dieser Ausschnitt **weitet sich mit der Zeit**, während VW die Portalabdeckung vor der Frist im September 2026 ausbaut — Felder, die heute `unknown` zeigen, füllen sich womöglich von selbst. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465) · [#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527) · [#567](https://github.com/its-me-prash/vwgroup-connect-ha/issues/567))
 
+> **Vollständige Feldliste.** Das komplette offizielle VW-Group-Data-Dictionary (jeder EU-Data-Act-Key -> Feld, Beschreibung und Einheit) steht in [docs/EU_DATA_ACT_DATA_DICTIONARY.md](docs/EU_DATA_ACT_DATA_DICTIONARY.md).
+
 > Der Optionen-Schalter **`eu_data_act_auto_kickoff`** ist das, was die 15-Minuten-Custom-Data-Request anlegt, und er ist **standardmässig an** — im Portal-Modus gibt es ohne sie keine Daten. Schalte ihn nur aus, wenn du die Anfrage lieber selbst verwalten willst.
 
 ---

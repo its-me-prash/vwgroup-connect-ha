@@ -990,6 +990,15 @@
       "aux_battery_bem_alert_at": {
         "name": "Larmtid hjälpbatteri"
       },
+      "current_speed_kmh": {
+        "name": "Hastighet"
+      },
+      "ignition_state": {
+        "name": "Tändning"
+      },
+      "brake_pressure_indication": {
+        "name": "Bromstrycksindikering"
+      },
       "dashboard_warnings_raw": {
         "name": "Varningslampor (rådata)"
       },
@@ -1108,6 +1117,9 @@
       },
       "doors_open": {
         "name": "Dörrar öppna"
+      },
+      "driver_braking_active": {
+        "name": "Föraren bromsar"
       },
       "windows_open": {
         "name": "Fönster öppna"
@@ -1394,6 +1406,9 @@
       },
       "battery_care_target": {
         "name": "Mål för batterivård"
+      },
+      "scan_interval": {
+        "name": "Avläsningsintervall"
       }
     },
     "button": {

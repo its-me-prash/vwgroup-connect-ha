@@ -2297,6 +2297,38 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # #901 (Mezzo1973, volkswagen) — best-effort LOW-confidence EU-Data-Act
+    # driving-telemetry. All disabled-by-default. Speed carries km/h (grounded
+    # in the parser dictionary) + SPEED device class (HA auto-converts to mph);
+    # the other two stay unit-less / class-less (enum/unit unconfirmed).
+    VagSensorDescription(
+        key="current_speed_kmh",
+        translation_key="current_speed_kmh",
+        data_key="current_speed_kmh",
+        native_unit_of_measurement=UnitOfSpeed.KILOMETERS_PER_HOUR,
+        device_class=SensorDeviceClass.SPEED,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:speedometer",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="ignition_state",
+        translation_key="ignition_state",
+        data_key="ignition_state",
+        icon="mdi:key-variant",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="brake_pressure_indication",
+        translation_key="brake_pressure_indication",
+        data_key="brake_pressure_indication",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:car-brake-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     VagSensorDescription(
         key="climate_error_code",
         translation_key="climate_error_code",
@@ -3205,6 +3237,12 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "dashboard_warnings_raw",
     "climate_error_code",
     "window_heating_error_code",
+    # #901 — best-effort EU-Data-Act driving telemetry. VW-only / firmware-
+    # restricted at the parser; vehicles/channels without the field stay None
+    # → no phantom diagnostic entity.
+    "current_speed_kmh",
+    "ignition_state",
+    "brake_pressure_indication",
     # v2.15.3 (#517) — consumption / range aggregates (EU-Data-Act dialect) +
     # deferred energy-content + Skoda trip-cost + oil-level-pct. All
     # brand/firmware-restricted at the parser level → None on cars/channels

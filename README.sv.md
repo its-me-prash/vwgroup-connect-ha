@@ -134,6 +134,8 @@ För Volkswagen EU är **det inte nog att logga in** — VW strömmar bara fordo
 
 Portalen levererar inledningsvis bara en **del av fälten**, och den delen **breddas över tid** när VW utökar portaltäckningen inför deadline i september 2026 — fält som i dag visar `unknown` kan fyllas i av sig själva. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465) · [#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527) · [#567](https://github.com/its-me-prash/vwgroup-connect-ha/issues/567))
 
+> **Fullständig fältlista.** VW-koncernens kompletta officiella dataordbok (varje EU Data Act-nyckel -> fält, beskrivning och enhet) finns i [docs/EU_DATA_ACT_DATA_DICTIONARY.md](docs/EU_DATA_ACT_DATA_DICTIONARY.md).
+
 > Det är växeln **`eu_data_act_auto_kickoff`** i Alternativ som skapar den där 15-minuters Custom Data Request, och den är **på som standard** — i portalläge finns det inga data utan en. Stäng bara av den om du hellre vill hantera begäran själv.
 
 ---

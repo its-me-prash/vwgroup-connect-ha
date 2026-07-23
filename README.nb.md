@@ -134,6 +134,8 @@ For Volkswagen EU er **det ikke nok å logge inn** — VW streamer kjøretøydat
 
 Portalen leverer i utgangspunktet bare et **utsnitt av felter**, og det utsnittet **utvides over tid** etter hvert som VW bygger ut portaldekningen frem mot fristen i september 2026 — felter som i dag viser `unknown`, kan fylle seg av seg selv. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465) · [#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527) · [#567](https://github.com/its-me-prash/vwgroup-connect-ha/issues/567))
 
+> **Fullstendig feltliste.** VW-konsernets komplette offisielle dataordbok (hver EU Data Act-nøkkel -> felt, beskrivelse og enhet) finnes i [docs/EU_DATA_ACT_DATA_DICTIONARY.md](docs/EU_DATA_ACT_DATA_DICTIONARY.md).
+
 > Alternativer-bryteren **`eu_data_act_auto_kickoff`** er den som oppretter denne 15-minutters Custom Data Request, og den er **på som standard** — i portalmodus finnes det ingen data uten en. Slå den av bare hvis du heller vil håndtere forespørselen selv.
 
 ---

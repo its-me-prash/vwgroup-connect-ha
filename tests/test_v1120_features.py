@@ -371,16 +371,23 @@ class TestReadOnlyMode:
         assert added == []
 
     def test_number_setup_skipped_when_read_only(self):
-        from custom_components.vag_connect.number import async_setup_entry
+        # v2.23.0 (#847) — the COMMAND sliders stay skipped in read-only mode,
+        # but the account-scoped poll-interval number is created for EVERY entry
+        # (portal / read-only users want to tune polling too).
+        from custom_components.vag_connect.number import (
+            VagConnectScanIntervalNumber,
+            async_setup_entry,
+        )
 
         coord = _coord_with_read_only(True)
         entry = MagicMock()
         entry.runtime_data = coord
-        added = []
+        added: list = []
         asyncio.run(
-            async_setup_entry(MagicMock(), entry, added.append)
+            async_setup_entry(MagicMock(), entry, added.extend)
         )
-        assert added == []
+        assert len(added) == 1
+        assert isinstance(added[0], VagConnectScanIntervalNumber)
 
     def test_normal_mode_creates_entities(self):
         """Read-only=False → entities ARE created."""

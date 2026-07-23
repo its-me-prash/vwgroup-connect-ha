@@ -990,6 +990,15 @@
       "aux_battery_bem_alert_at": {
         "name": "Lisäakun hälytysaika"
       },
+      "current_speed_kmh": {
+        "name": "Nopeus"
+      },
+      "ignition_state": {
+        "name": "Virtalukko"
+      },
+      "brake_pressure_indication": {
+        "name": "Jarrupaineen ilmaisin"
+      },
       "dashboard_warnings_raw": {
         "name": "Mittariston varoitukset (raakadata)"
       },
@@ -1108,6 +1117,9 @@
       },
       "doors_open": {
         "name": "Ovet auki"
+      },
+      "driver_braking_active": {
+        "name": "Kuljettaja jarruttaa"
       },
       "windows_open": {
         "name": "Ikkunat auki"
@@ -1394,6 +1406,9 @@
       },
       "battery_care_target": {
         "name": "Akun hoidon tavoite"
+      },
+      "scan_interval": {
+        "name": "Kyselyväli"
       }
     },
     "button": {

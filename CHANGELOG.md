@@ -38,6 +38,26 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.23.0] - 2026-07-23
+
+### Added
+
+- **In-repo EU Data Act data dictionary + auto-update watcher.** The official SVK data-dictionary fields (what every EU Data Act portal key means, with types and units) are now documented in-repo at [`docs/EU_DATA_ACT_DATA_DICTIONARY.md`](docs/EU_DATA_ACT_DATA_DICTIONARY.md), linked from all 12 READMEs. A weekly GitHub Action watches the upstream source PDFs and opens an issue when a fresher version appears, so the doc stays current.
+- **Four new driving-telemetry entities from the EU Data Act feed (#901).** Some VW cars report live speed, ignition state, a "driver is braking" flag, and a brake-pressure indication. They now show up as diagnostic entities (disabled by default) — speed as a proper km/h sensor (auto-converts to mph), the other three surfaced as-is while we confirm their exact meaning. Picked up from a Scout report.
+- **The poll interval is now a slider you can automate (#847).** Until now the interval only lived in the integration's options; it's now also a Number entity (in minutes) on a per-account "VW Group Connect" device, so you can drive it from an automation — for example poll more often while you're driving and back off overnight — to go easier on the manufacturer's servers. It shows up for every account, including read-only / portal ones, and takes effect on the next poll without a restart.
+
+### Fixed
+
+- **Two-way commands on legacy Car-Net cars no longer refuse themselves with a false "not granted / check your subscription".** The service-directory grant check was treated as the final word, but it can briefly drop grants right after a reconfigure (or vary by cache) even on cars that fully allow the command. It's now advisory: on a negative result it refetches the service directory once and, if still unconfirmed, goes ahead — letting the car's own security-token step be the authority (which safely rejects a genuinely-ungranted command before any S-PIN attempt is spent).
+- **A locked S-PIN no longer hides your lock / climate / charge buttons for a day.** After too many wrong S-PIN tries the car returns a "security PIN locked" error; the integration was misreading that as "your account isn't entitled", which hid the command entities for ~24 h and pointed you at a phantom subscription renewal. It's now correctly treated as an S-PIN problem — unlock it in the brand app and the buttons stay put.
+- **A locked S-PIN now shows a plain "unlock it in the app" message instead of a scary error dump.** Pressing a command with a locked (or missing) S-PIN used to log a raw Python traceback that looked like the integration crashed. It's now a clean, one-line notification telling you what to do. This covers every command, including window heating.
+- **Missing/locked-S-PIN feedback also reaches window heating.** Same clean-error handling as the other commands — no more traceback when you start window heating without a valid S-PIN.
+- **You can finish enabling MBB commands even when your account uses two-factor login.** If a VW/Audi login needed a 2FA code, ticking "enable MBB commands" was silently dropped and you ended up with a read-only entry. The command-channel setup now continues after the 2FA step, exactly like a non-2FA login.
+- **A per-vehicle S-PIN can now be removed again.** Clearing a car's individual S-PIN field in the options used to do nothing — the old value stuck around. Blanking it now actually clears it (falling back to the shared S-PIN).
+- **Optimistic button states no longer snap back for a moment after a refresh.** Right after you pressed lock/climate/charge, the next data poll could briefly show the old state before settling. The poll now respects the short optimistic hold, so the button stays where you put it.
+- **"Push notifications" no longer shows up as a permanent "capability drift" in diagnostics.** Push is off by default (and can be blocked by the manufacturer's app-attestation), so "declared but not seen" is its normal state — it's no longer reported as a mismatch. Genuine vehicle-data gaps are still surfaced.
+- **The 12V-battery alert-time sensor reads plain durations correctly.** When the EU Data Act feed sends `bem_alert_time` as a countdown rather than a wall-clock time, it's no longer misread as a date far in the past/future.
+
 ## [2.22.1] - 2026-07-22
 
 ### Added

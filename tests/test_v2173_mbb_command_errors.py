@@ -167,6 +167,17 @@ class TestClassifyInvalidSpin:
         # was NOT_ENTITLED (bare-403 fallthrough) → now the actionable reason
         assert classify_command_failure(exc) is CommandFailureReason.SPIN_REQUIRED
 
+    def test_locked_security_pin_is_spin_required_not_entitled(self) -> None:
+        # A locked S-PIN (after wrong tries) is a spin problem, not an
+        # entitlement one — it must NOT fall through to NOT_ENTITLED and hide
+        # the command entities for 24h (live Golf GTE regression).
+        body = '{"error":{"errorCode":"mbbc.rolesandrights.securityPinLocked",' \
+               '"description":"The Security PIN is currently locked."}}'
+        assert (
+            classify_command_failure(APIError(403, "/x", body))
+            is CommandFailureReason.SPIN_REQUIRED
+        )
+
     def test_bare_403_still_not_entitled(self) -> None:
         # guard: the fix must not swallow genuine entitlement 403s
         assert (

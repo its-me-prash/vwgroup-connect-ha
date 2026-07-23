@@ -310,6 +310,11 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         self._pending_username: str = ""
         self._pending_password: str = ""
         self._pending_entry_data: dict[str, Any] = {}
+        # v2.22.2 — the raw user_input captured when a login needs 2FA, so the
+        # MFA-success finish can honour the "enable MBB commands" tick (VW/Audi)
+        # exactly like the non-2FA path. Without it, a 2FA account silently got a
+        # read-only portal entry and the command channel was dropped.
+        self._pending_user_input: dict[str, Any] = {}
         # v2.7.0 — Device Authorization Grant (browser-login) state.
         # Two-phase flow so HA's show_progress can re-render with the
         # populated URL + user_code BEFORE the long polling wait begins.
@@ -439,6 +444,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     self._pending_username = username
                     self._pending_password = password
                     self._pending_entry_data = self._build_entry_data(brand, username, password, user_input)
+                    self._pending_user_input = dict(user_input)
                     return await self.async_step_mfa()
                 errors["base"] = _map_error(err_str)
             else:
@@ -1362,6 +1368,37 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             except ValueError as err:
                 errors["base"] = _map_error(str(err))
             else:
+                # v2.22.2 — honour "enable MBB commands" on a 2FA account too.
+                # The non-2FA path (async_step_email_password) chains VW/Audi +
+                # ticked-box logins into the durable-MBB QR before creating the
+                # entry; here that decision used to be dropped, so a 2FA VW/Audi
+                # user who asked for commands got a read-only portal entry.
+                ui = self._pending_user_input
+                if (
+                    ui.get("enable_mbb_commands")
+                    and self._pending_brand in ("volkswagen", "audi")
+                ):
+                    self._pending_portal_data = self._pending_entry_data
+                    self._pending_portal_title = (
+                        f"{_brand_label(self._pending_brand)} — "
+                        f"{self._pending_username}"
+                    )
+                    self._dag_mbb = True
+                    self._dag_mbb_command = True
+                    self._dag_brand = self._pending_brand
+                    self._dag_user_input = dict(ui)
+                    self._dag_request_task = None
+                    self._dag_poll_task = None
+                    self._dag_user_code = ""
+                    self._dag_verification_uri = ""
+                    self._dag_device_code = ""
+                    self._dag_tokens = None
+                    self._dag_mbb_tokens = None
+                    self._dag_mbb_client_id = ""
+                    self._dag_mbb_ineligible = False
+                    self._dag_user_id = ""
+                    self._dag_error = ""
+                    return await self.async_step_browser_login_pending()
                 return self.async_create_entry(
                     title=f"{_brand_label(self._pending_brand)} — {self._pending_username}",
                     data=self._pending_entry_data,
@@ -1640,12 +1677,19 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
             # CONF_SPIN_BY_VIN dict and drop the transient per-field keys so they
             # never persist as standalone options. Empty fields = shared S-PIN.
             _by_vin: dict[str, str] = {}
+            _had_per_vin_fields = False
             for _k in list(user_input.keys()):
                 if _k.startswith(f"{CONF_SPIN_BY_VIN}_"):
+                    _had_per_vin_fields = True
                     _val = str(user_input.pop(_k) or "").strip()
                     if _val:
                         _by_vin[_k[len(CONF_SPIN_BY_VIN) + 1:]] = _val
-            if _by_vin:
+            if _had_per_vin_fields:
+                # Write the resolved dict UNCONDITIONALLY (even when empty) so
+                # blanking a field actually clears that VIN's override. Before,
+                # an empty result left the key absent, and the options→data fold
+                # (see the entry.options trap) then kept the stale value — so a
+                # per-VIN S-PIN could never be removed once set (#759 follow-up).
                 user_input[CONF_SPIN_BY_VIN] = _by_vin
             # b1/C1 — if the user ticked "add vw.de read channel", branch into
             # the login sub-flow; the remaining options are saved when it

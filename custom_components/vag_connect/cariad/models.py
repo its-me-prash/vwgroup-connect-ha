@@ -1615,6 +1615,20 @@ class VehicleData:
     # Instrument-cluster warning bitmask — RAW hex/interpreted value only, no
     # decode. LOW — disabled-by-default. sensor, diagnostic.
     dashboard_warnings_raw: str | None = None
+    # #901 (Mezzo1973, volkswagen) — best-effort LOW-confidence driving-telemetry
+    # from the EU-Data-Act feed. Types inferred from Scout samples; enums/units
+    # unconfirmed beyond speed's documented km/h. All disabled-by-default.
+    # Instantaneous vehicle speed (km/h; km/h grounded in the parser dictionary).
+    current_speed_kmh: float | None = None
+    # Ignition state — raw string (sample "keyContact"); enum domain unknown, so
+    # no fixed options / device_class. sensor, diagnostic.
+    ignition_state: str | None = None
+    # Brake-pressure indication — raw numeric (sample "0"); unit unconfirmed, so
+    # no unit / device_class. sensor, diagnostic.
+    brake_pressure_indication: float | None = None
+    # Driver-is-braking indication (sample "0" → off) — binary_sensor, no
+    # device_class.
+    driver_braking_active: bool | None = None
     # Climatisation error code; "0"/"#0" (no error) dropped → None. sensor.
     climate_error_code: str | None = None
     # Window-heating error code; "0"/"#0" (no error) dropped → None. sensor.

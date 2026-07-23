@@ -19,8 +19,15 @@ from homeassistant.const import (
     UnitOfTime,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .const import (
+    CONF_SCAN_INTERVAL,
+    DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
+    MIN_SCAN_INTERVAL,
+)
 from .coordinator import VagConnectCoordinator
 from .entity_base import VagConnectEntity, register_dynamic_spawner
 
@@ -159,6 +166,11 @@ async def async_setup_entry(
 ) -> None:
     """Set up number entities. v1.25.0 PR-C: dynamic listener spawn."""
     coordinator: VagConnectCoordinator = entry.runtime_data
+    # v2.23.0 (#847) — the poll-interval slider is account-scoped (not per-VIN)
+    # and useful to EVERY user, so create it BEFORE the read-only short-circuit
+    # below: read-only / portal users are exactly the ones who want to tune how
+    # often the integration polls the manufacturer backend.
+    async_add_entities([VagConnectScanIntervalNumber(coordinator, entry)])
     # v1.12.0 (#63) — Read-only Mode: number sliders send commands, skip.
     if coordinator.is_read_only():
         return
@@ -291,3 +303,69 @@ class VagConnectNumber(VagConnectEntity, NumberEntity):
             # Trigger an entity state update so the slider reflects the
             # new value immediately without waiting for the next poll.
             self.async_write_ha_state()
+
+
+class VagConnectScanIntervalNumber(NumberEntity):
+    """Config-entry-scoped poll-interval slider, in minutes.
+
+    v2.23.0 (#847) — exposes the account poll interval as a Number so it can be
+    driven from an HA automation (e.g. shorter by day, longer at night) to cut
+    load on the manufacturer backend. It writes ``CONF_SCAN_INTERVAL`` into
+    ``entry.options``; the update-listener folds that into ``entry.data`` and
+    ``_poll_loop`` re-reads it live every iteration — no reload, no service.
+
+    Unlike the per-VIN command sliders it is NOT tied to a vehicle: it lives on
+    its own account-level service device and is created for EVERY entry,
+    including read-only (portal) ones.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "scan_interval"
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_native_unit_of_measurement = UnitOfTime.MINUTES
+    _attr_native_min_value = MIN_SCAN_INTERVAL
+    _attr_native_max_value = 240
+    _attr_native_step = 5
+    _attr_mode = NumberMode.SLIDER
+    _attr_icon = "mdi:timer-cog-outline"
+
+    def __init__(
+        self, coordinator: VagConnectCoordinator, entry: ConfigEntry
+    ) -> None:
+        self._coordinator = coordinator
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_scan_interval"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, f"{entry.entry_id}_settings")},
+            name="VW Group Connect",
+            manufacturer="VW Group",
+            entry_type=DeviceEntryType.SERVICE,
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        # Options THEN data: the setter writes entry.options, but the
+        # update-listener folds options into entry.data and blanks options, so
+        # an options-only read would miss the stored value. Both are
+        # MappingProxyType on a live HA (#806), so normalise to a real dict.
+        options = dict(getattr(self._entry, "options", None) or {})
+        data = dict(getattr(self._entry, "data", None) or {})
+        val = options.get(CONF_SCAN_INTERVAL)
+        if val is None:
+            val = data.get(CONF_SCAN_INTERVAL)
+        try:
+            return float(val) if val is not None else float(DEFAULT_SCAN_INTERVAL)
+        except (TypeError, ValueError):
+            return float(DEFAULT_SCAN_INTERVAL)
+
+    async def async_set_native_value(self, value: float) -> None:
+        # Clamp to [MIN_SCAN_INTERVAL, native_max] as a belt against a raw
+        # number.set_value service call bypassing the slider bounds — a too-low
+        # interval would hammer the backend's request quota.
+        clamped = max(MIN_SCAN_INTERVAL, min(int(value), int(self._attr_native_max_value)))
+        current = dict(self._entry.options or {})
+        current[CONF_SCAN_INTERVAL] = clamped
+        self._coordinator.hass.config_entries.async_update_entry(
+            self._entry, options=current,
+        )
+        self.async_write_ha_state()

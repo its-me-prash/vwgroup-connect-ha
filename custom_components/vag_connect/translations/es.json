@@ -990,6 +990,15 @@
       "aux_battery_bem_alert_at": {
         "name": "Hora de alerta de batería auxiliar"
       },
+      "current_speed_kmh": {
+        "name": "Velocidad"
+      },
+      "ignition_state": {
+        "name": "Encendido"
+      },
+      "brake_pressure_indication": {
+        "name": "Indicación de presión de freno"
+      },
       "dashboard_warnings_raw": {
         "name": "Testigos de aviso (valor bruto)"
       },
@@ -1108,6 +1117,9 @@
       },
       "doors_open": {
         "name": "Puertas abiertas"
+      },
+      "driver_braking_active": {
+        "name": "Frenado del conductor"
       },
       "windows_open": {
         "name": "Ventanas abiertas"
@@ -1394,6 +1406,9 @@
       },
       "battery_care_target": {
         "name": "Objetivo de cuidado"
+      },
+      "scan_interval": {
+        "name": "Intervalo de sondeo"
       }
     },
     "button": {
