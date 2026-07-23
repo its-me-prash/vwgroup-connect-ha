@@ -816,7 +816,13 @@ class TestNumberExtended:
         asyncio.run(
             async_setup_entry(MagicMock(), entry, _collect)
         )
-        keys = {e.entity_description.key for e in added}
+        # v2.23.0 (#847) — the account-scoped poll-interval number has no
+        # entity_description (it is not a per-VIN VagConnectNumber); skip it.
+        keys = {
+            e.entity_description.key
+            for e in added
+            if hasattr(e, "entity_description")
+        }
         assert "target_soc" in keys
         assert "target_temperature" in keys
         # v1.12.0 (#91 follow-up) — max_charge_current returned as a

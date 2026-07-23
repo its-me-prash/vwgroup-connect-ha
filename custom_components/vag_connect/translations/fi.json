@@ -1394,6 +1394,9 @@
       },
       "battery_care_target": {
         "name": "Akun hoidon tavoite"
+      },
+      "scan_interval": {
+        "name": "Kyselyväli"
       }
     },
     "button": {

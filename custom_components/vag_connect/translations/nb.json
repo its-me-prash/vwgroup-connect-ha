@@ -1394,6 +1394,9 @@
       },
       "battery_care_target": {
         "name": "Mål for batteripleie"
+      },
+      "scan_interval": {
+        "name": "Spørreintervall"
       }
     },
     "button": {

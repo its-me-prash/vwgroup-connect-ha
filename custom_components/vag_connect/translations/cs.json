@@ -1394,6 +1394,9 @@
       },
       "battery_care_target": {
         "name": "Cíl ochrany baterie"
+      },
+      "scan_interval": {
+        "name": "Interval dotazování"
       }
     },
     "button": {

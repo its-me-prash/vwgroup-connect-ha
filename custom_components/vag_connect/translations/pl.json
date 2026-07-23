@@ -1394,6 +1394,9 @@
       },
       "battery_care_target": {
         "name": "Cel ochrony baterii"
+      },
+      "scan_interval": {
+        "name": "Interwał odpytywania"
       }
     },
     "button": {
