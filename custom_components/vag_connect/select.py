@@ -136,6 +136,10 @@ async def async_setup_entry(
 ) -> None:
     """Set up charge-mode selects. v1.25.0 PR-C: dynamic listener spawn."""
     coordinator: VagConnectCoordinator = entry.runtime_data
+    # v2.23.3 (#63) — Read-only Mode: the charge-mode select sends a command,
+    # so skip it in read-only mode, matching number/switch/button/climate/lock.
+    if coordinator.is_read_only():
+        return
 
     from .const import CONF_BRAND  # noqa: PLC0415
 

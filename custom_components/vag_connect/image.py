@@ -339,6 +339,18 @@ def _write_file(path: str, content: bytes) -> None:
 
 
 
+# v2.23.3 — the fixed Audi/VW GraphQL render viewpoints ship a localised name
+# under entity.image.<entity_suffix> in all 12 locales, so wire them to a
+# translation_key. Without this they used view_description, a hardcoded GERMAN
+# label ("Seitenprofil groß" …) that leaked German into every non-German HA.
+# Dynamic OLA / mysmob viewpoints (open-ended, suffix derived at runtime) keep
+# the label fallback.
+_RENDER_TKEYS = frozenset({
+    "render_side_lg", "render_angle_lg", "render_medium",
+    "render_side_sm", "render_small", "render_icon", "render_angle_hd",
+})
+
+
 class VagRenderImageEntity(VagConnectEntity, ImageEntity):
     """One render image entity for a single MediaType + vehicle combination.
 
@@ -362,7 +374,12 @@ class VagRenderImageEntity(VagConnectEntity, ImageEntity):
         VagConnectEntity.__init__(self, coordinator, vin, meta["entity_suffix"])
         ImageEntity.__init__(self, hass, verify_ssl=True)
         self._meta = meta
-        self._attr_name = self._label_for(meta)
+        _suffix = meta["entity_suffix"]
+        if _suffix in _RENDER_TKEYS:
+            self._attr_translation_key = _suffix
+        else:
+            # Open-ended OLA/mysmob viewpoint — keep the backend label.
+            self._attr_name = self._label_for(meta)
         self._attr_image_url = initial_url
         self._attr_image_last_updated = datetime.now(tz=timezone.utc)
 
