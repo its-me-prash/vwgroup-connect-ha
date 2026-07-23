@@ -134,6 +134,8 @@ Volkswagen EU:lla **kirjautuminen ei riitä** — VW streamaa ajoneuvon dataa va
 
 Portaali tarjoaa aluksi vain **siivun kentistä**, ja tämä siivu **laajenee ajan myötä**, kun VW laajentaa portaalin kattavuutta ennen syyskuun 2026 määräaikaa — kentät, jotka lukevat tänään `unknown`, saattavat täyttyä itsestään. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465) · [#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527) · [#567](https://github.com/its-me-prash/vwgroup-connect-ha/issues/567))
 
+> **Täydellinen kenttäluettelo.** VW-konsernin täydellinen virallinen tietosanakirja (jokainen EU Data Act -avain -> kenttä, kuvaus ja yksikkö) on tiedostossa [docs/EU_DATA_ACT_DATA_DICTIONARY.md](docs/EU_DATA_ACT_DATA_DICTIONARY.md).
+
 > Asetuskytkin **`eu_data_act_auto_kickoff`** on se, joka luo tuon 15 minuutin mukautetun datapyynnön, ja se on **oletuksena päällä** — portaalitilassa ilman sitä ei tule dataa. Kytke se pois vain, jos haluat mieluummin hallita pyyntöä itse.
 
 ---

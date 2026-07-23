@@ -134,6 +134,8 @@ Dla Volkswagen EU **samo zalogowanie nie wystarczy** — VW przesyła dane pojaz
 
 Portal początkowo udostępnia tylko **wycinek pól**, a ten wycinek **z czasem się poszerza**, gdy VW rozszerza zakres portalu przed terminem we wrześniu 2026 — pola, które dziś pokazują `unknown`, mogą wypełnić się same. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465) · [#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527) · [#567](https://github.com/its-me-prash/vwgroup-connect-ha/issues/567))
 
+> **Pełna lista pól.** Kompletny oficjalny słownik danych grupy VW (każdy klucz EU Data Act -> pole, opis i jednostka) znajduje się w [docs/EU_DATA_ACT_DATA_DICTIONARY.md](docs/EU_DATA_ACT_DATA_DICTIONARY.md).
+
 > To właśnie przełącznik Opcji **`eu_data_act_auto_kickoff`** tworzy owo 15-minutowe Custom Data Request i jest **domyślnie włączony** — w trybie portalowym bez niego nie ma danych. Wyłącz go tylko wtedy, gdy wolisz zarządzać żądaniem samodzielnie.
 
 ---

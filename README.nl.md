@@ -134,6 +134,8 @@ Voor Volkswagen EU is **inloggen niet genoeg** — VW streamt voertuigdata pas z
 
 Het portaal levert aanvankelijk slechts een **deel van de velden**, en dat deel **wordt na verloop van tijd ruimer** naarmate VW de portaaldekking uitbreidt richting de deadline van september 2026 — velden die vandaag `unknown` tonen, kunnen vanzelf invullen. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465) · [#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527) · [#567](https://github.com/its-me-prash/vwgroup-connect-ha/issues/567))
 
+> **Volledige veldenlijst.** Het volledige officiële VW-Group data-dictionary (elke EU Data Act-sleutel -> veld, beschrijving en eenheid) staat in [docs/EU_DATA_ACT_DATA_DICTIONARY.md](docs/EU_DATA_ACT_DATA_DICTIONARY.md).
+
 > De Opties-schakelaar **`eu_data_act_auto_kickoff`** is degene die dat Custom Data Request van 15 minuten aanmaakt, en hij staat **standaard aan** — in portaalmodus is er zonder zo'n verzoek geen data. Zet hem alleen uit als je het verzoek liever zelf beheert.
 
 ---

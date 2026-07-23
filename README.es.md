@@ -134,6 +134,8 @@ Para Volkswagen EU, **iniciar sesión no basta** — VW solo transmite datos del
 
 El portal sirve inicialmente solo una **porción de campos**, y esa porción **se amplía con el tiempo** a medida que VW expande la cobertura del portal de cara a la fecha límite de septiembre de 2026 — campos que hoy aparecen como `unknown` pueden rellenarse por sí solos. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465) · [#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527) · [#567](https://github.com/its-me-prash/vwgroup-connect-ha/issues/567))
 
+> **Lista completa de campos.** El diccionario de datos oficial del grupo VW (cada clave de EU Data Act -> campo, descripción y unidad) está en [docs/EU_DATA_ACT_DATA_DICTIONARY.md](docs/EU_DATA_ACT_DATA_DICTIONARY.md).
+
 > El interruptor de Opciones **`eu_data_act_auto_kickoff`** es el que crea esa Solicitud de Datos Personalizada de 15 minutos, y está **activado por defecto** — en modo portal no hay datos sin ella. Desactívalo solo si prefieres gestionar la solicitud por tu cuenta.
 
 ---
