@@ -153,7 +153,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) -
         raise ConfigEntryNotReady(str(err)) from err
 
     if not ok:
-        raise ConfigEntryNotReady("No vehicles found. Check credentials and network.")
+        raise ConfigEntryNotReady(
+            "No vehicles found for this account. The login itself worked, so "
+            "this is usually not a credentials problem — check the log for the "
+            "exact reason (e.g. a VW data-sharing request still propagating, or "
+            "a primary-user / Hauptnutzer re-confirmation needed in the brand "
+            "app after a recent S-PIN or account change)."
+        )
 
     from .repairs import clear_auth_issues  # noqa: PLC0415
     clear_auth_issues(hass, entry.entry_id)

@@ -38,6 +38,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [Unreleased]
+
+### Changed
+
+- **Clearer message when the account has no vehicle yet.** When login works but the manufacturer lists no vehicle, the setup error used to say "No vehicles found. Check credentials and network." — which is misleading, since the credentials are fine. It now explains the real common causes: a VW data-sharing request still propagating, or a primary-user ("Hauptnutzer") re-confirmation that the brand app requires after you change your S-PIN or account settings.
+
 ## [2.23.0] - 2026-07-23
 
 ### Added
