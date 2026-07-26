@@ -38,6 +38,17 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [Unreleased]
+
+### Added
+
+- **Two new battery-care sensors on EU-portal cars (#938, #947).** The portal ships a score for how well the battery charging care mode is being used, plus the threshold it's measured against. Both are diagnostic and off by default, and they have no unit because the data dictionary doesn't give one.
+
+### Fixed
+
+- **Ambient temperature and parking brake stopped showing up as "new fields" every poll (#938, #947).** Some cars send those two readings under a doubled-up name. The value was already being read, but the doubled spelling kept getting reported as undiscovered. Nothing changes on the entities themselves.
+- **The window-heating command queue no longer counts as an unknown field (#934).** It's the same pending-command list the charging and climate blocks already have, so it's now recognised as such instead of being reported.
+
 ## [2.23.3] - 2026-07-24
 
 ### Fixed

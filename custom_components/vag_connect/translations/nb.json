@@ -1092,6 +1092,12 @@
       "spoiler_position_pct": {
         "name": "Spoilerposisjon"
       },
+      "battery_care_score": {
+        "name": "Poengsum for batterisparing"
+      },
+      "battery_care_score_threshold": {
+        "name": "Terskel for batterisparing-poengsum"
+      },
       "cabin_temp": {
         "name": "Kupétemperatur"
       },

@@ -1092,6 +1092,12 @@
       "spoiler_position_pct": {
         "name": "Spoiler-Position"
       },
+      "battery_care_score": {
+        "name": "Batterieschonung Punktzahl"
+      },
+      "battery_care_score_threshold": {
+        "name": "Batterieschonung Punktzahl-Schwelle"
+      },
       "cabin_temp": {
         "name": "Innenraumtemperatur"
       },

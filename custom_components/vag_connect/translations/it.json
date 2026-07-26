@@ -1092,6 +1092,12 @@
       "spoiler_position_pct": {
         "name": "Posizione spoiler"
       },
+      "battery_care_score": {
+        "name": "Punteggio cura batteria"
+      },
+      "battery_care_score_threshold": {
+        "name": "Soglia punteggio cura batteria"
+      },
       "cabin_temp": {
         "name": "Temperatura abitacolo"
       },

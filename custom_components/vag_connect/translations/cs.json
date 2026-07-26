@@ -1092,6 +1092,12 @@
       "spoiler_position_pct": {
         "name": "Poloha spoileru"
       },
+      "battery_care_score": {
+        "name": "Skóre šetření baterie"
+      },
+      "battery_care_score_threshold": {
+        "name": "Prahové skóre šetření baterie"
+      },
       "cabin_temp": {
         "name": "Teplota v kabině"
       },

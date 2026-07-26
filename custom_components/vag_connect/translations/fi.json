@@ -1092,6 +1092,12 @@
       "spoiler_position_pct": {
         "name": "Takasiiven asento"
       },
+      "battery_care_score": {
+        "name": "Akun säästötilan pistemäärä"
+      },
+      "battery_care_score_threshold": {
+        "name": "Akun säästötilan pistemäärän raja"
+      },
       "cabin_temp": {
         "name": "Sisätilan lämpötila"
       },

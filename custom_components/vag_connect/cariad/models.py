@@ -1789,6 +1789,15 @@ class VehicleData:
     # STATE in spoiler_open). dict-confirmed type=number, unit "%" (0 = closed),
     # mirrors sunroof_position_pct. LOW — disabled-by-default diagnostic sensor.
     spoiler_position_pct: int | None = None
+    # ── Unreleased (Scout #938/#947) — battery charging care mode (BCAM) score.
+    # Written by _eu_data_act.py only (EU-Data-Act dialect). dict-confirmed
+    # type=number, unit=null: bcam_score = "Score value indicates the use of the
+    # battery charging care mode", bcam_score_threshold = "Threshold up to which
+    # the battery charging care mode was used in an exemplary manner". Unit is
+    # NOT given by the dictionary, so both stay unitless with no device_class.
+    # LOW — disabled-by-default diagnostic sensors.
+    battery_care_score: float | None = None
+    battery_care_score_threshold: float | None = None
 
     # ── v2.16.0 — volkswagen.de authproxy live-status read-path (BETA) ────────
     # Written by auth/_website_authproxy.py only (opt-in, read-only channel).

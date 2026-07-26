@@ -1092,6 +1092,12 @@
       "spoiler_position_pct": {
         "name": "Position de l'aileron"
       },
+      "battery_care_score": {
+        "name": "Score de préservation de la batterie"
+      },
+      "battery_care_score_threshold": {
+        "name": "Seuil du score de préservation de la batterie"
+      },
       "cabin_temp": {
         "name": "Température de l'habitacle"
       },

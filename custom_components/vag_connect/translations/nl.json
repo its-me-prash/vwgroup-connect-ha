@@ -1092,6 +1092,12 @@
       "spoiler_position_pct": {
         "name": "Spoilerpositie"
       },
+      "battery_care_score": {
+        "name": "Batterijzorg-score"
+      },
+      "battery_care_score_threshold": {
+        "name": "Drempel batterijzorg-score"
+      },
       "cabin_temp": {
         "name": "Interieurtemperatuur"
       },

@@ -1089,6 +1089,12 @@
       "spoiler_position_pct": {
         "name": "Spoiler position"
       },
+      "battery_care_score": {
+        "name": "Battery care score"
+      },
+      "battery_care_score_threshold": {
+        "name": "Battery care score threshold"
+      },
       "cabin_temp": {
         "name": "Cabin Temperature"
       },

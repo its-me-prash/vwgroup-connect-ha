@@ -1337,8 +1337,15 @@ def map_dataset_to_vehicle_data(
     # Added LAST so the dK-carrying outside_temperature wins when both appear;
     # the > 200 guard below already handles dK-vs-°C either way, so the plain-°C
     # outdoor_temperature sample (e.g. 31.5) passes through untouched.
+    # Unreleased (Scout #938/#947) — the portal also ships this datum
+    # SELF-QUALIFIED (`outdoor_temperature.outdoor_temperature`, i.e. the same
+    # leaf nested under its own container). The walker's bare/dotted synonym
+    # pair only reclaims the spelling first() actually matched, so without the
+    # dotted alias the self-qualified key re-surfaced in the Scout on every
+    # poll. Same datum, same plain-°C encoding — added LAST, no new entity.
     otemp = _to_float(first("outsideTemperatureIndication", "outside_temperature",
-                            "outside_temp", "outdoor_temperature"))
+                            "outside_temp", "outdoor_temperature",
+                            "outdoor_temperature.outdoor_temperature"))
     if otemp is not None:
         # flat MQB ships outside temp in deci-Kelvin (e.g. 2981 = 24.95 °C); an
         # already-°C value (e.g. 17.1) stays as-is — no ambient temp is > 200 °C.
@@ -1820,6 +1827,21 @@ def map_dataset_to_vehicle_data(
     if _bidi_min is not None and d.bidi_min_charge_level_pct is None:
         d.bidi_min_charge_level_pct = _bidi_min
 
+    # Unreleased (Scout #938/#947) — battery charging care mode (BCAM) score and
+    # its threshold. Dict-confirmed type=number with unit=null (dict UUIDs
+    # d3df7f3d / 2a12f8e6), so both stay UNITLESS with no device_class. Container
+    # + bare spellings tried, mirroring the bidi pair above; first() drops the
+    # uint16/int32 sentinels. The rest of the battery_care_mode.* family
+    # (bcam_notification, charge_bcam_threshold) stays Scout-visible.
+    _bcam_score = _to_float(first(
+        "battery_care_mode.bcam_score", "bcam_score"))
+    if _bcam_score is not None and d.battery_care_score is None:
+        d.battery_care_score = _bcam_score
+    _bcam_thr = _to_float(first(
+        "battery_care_mode.bcam_score_threshold", "bcam_score_threshold"))
+    if _bcam_thr is not None and d.battery_care_score_threshold is None:
+        d.battery_care_score_threshold = _bcam_thr
+
     # v2.15.3 (#518) — EU-Data-Act charging-detail string family. All
     # dict-confirmed type=string with no enum list in the dictionary (the enum
     # tokens are only observed from samples: connected/disconnected, locked/
@@ -1938,7 +1960,13 @@ def map_dataset_to_vehicle_data(
         d.last_seen_at = cap_iso
 
     # parking_brake.is_set → parking_brake_engaged (shared field).
-    _pb = first("parking_brake.is_set", "parking_brake_is_set", "parking_brake")
+    # Unreleased (Scout #947) — `parking_brake.parking_brake` is the same datum
+    # SELF-QUALIFIED (leaf nested under its own container). Added LAST so the
+    # is_set spellings still win; without it the dotted key re-surfaced in the
+    # Scout every poll because the synonym-collapse only reclaims the spelling
+    # that was actually matched. No new entity.
+    _pb = first("parking_brake.is_set", "parking_brake_is_set", "parking_brake",
+                "parking_brake.parking_brake")
     if _pb is not None:
         d.parking_brake_engaged = str(_pb).lower() in ("true", "1", "set")
 

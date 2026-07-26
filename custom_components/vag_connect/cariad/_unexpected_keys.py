@@ -754,6 +754,12 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             "climatisation.climatisationSettings.value.climatisationWithoutExternalPower",
             "climatisation.climatisationSettings.value.carCapturedTimestamp",
             "climatisation.windowHeatingStatus",
+            # Unreleased — Scout #934 (Audi Q4 e-tron 2023): the pending-command
+            # queue counter on the windowHeating side. Same ``*.requests``
+            # envelope family as chargingStatus / climatisationStatus /
+            # climatisationSettings above (a list of in-flight command requests,
+            # not a vehicle reading), so it is known-structural, not new data.
+            "climatisation.windowHeatingStatus.requests",
             "climatisation.windowHeatingStatus.value",
             "climatisation.windowHeatingStatus.value.windowHeatingStatus",
             "climatisation.windowHeatingStatus.value.carCapturedTimestamp",
