@@ -985,6 +985,34 @@ def _shorten_enum(value: str | None) -> str | None:
     return value[len(best):] if best else value
 
 
+# #931 (2026-07, Golf GTE — SparkyDan555) — the portal's charge rate is
+# unit-TAGGED by a companion enum (dict UUIDs 1f9c6e86 / 9ca09c8a / f01dccee:
+# CHARGE_RATE_UNIT_INVALID, _KM_PER_H, _KM_PER_MIN, _MILES_PER_H,
+# _MILES_PER_MIN). We publish ``charging_rate_kmh`` as km/h, so a miles-tagged
+# rate must be converted or the sensor's declared unit is simply untrue — the
+# reporter's car tags ``miles_per_h`` and its rate read far too fast in HA.
+_MILES_TO_KM = 1.609344
+
+
+def _charge_rate_to_kmh(value: float, unit: str | None) -> float:
+    """Normalise a portal charge rate to km/h using its companion unit enum.
+
+    An absent / unknown / INVALID unit passes through unchanged: km/h is what
+    the canonical dict entry (UUID 732b602c, unit=kmPerHour) already means, so
+    "no unit" must never silently rescale an already-correct value. Matching is
+    on the enum TAIL and case-insensitive because the portal ships both the
+    verbose dict spelling and a shortened lowercase variant of the same token.
+    """
+    if not isinstance(unit, str) or not unit:
+        return value
+    u = unit.strip().upper()
+    if u.endswith(("PER_MIN", "PERMIN")):
+        value *= 60.0
+    if "MILE" in u:
+        value *= _MILES_TO_KM
+    return value
+
+
 # b1/A6 — cap raw-discovery fields kept on the diagnostic sensor's attributes,
 # so a pathological payload can't bloat the recorder / state machine.
 _RAW_FIELD_CAP = 250
@@ -1293,17 +1321,36 @@ def map_dataset_to_vehicle_data(
     # the LAST alias so canonical/report-shaped keys still win when both appear.
     # #717 — battery_state_report.charge_rate / charge_rate are RAW
     # 0.1-resolution portal values (dict UUID 0c60a14f: "actual rate … range
-    # 0..3000 with a resolution of 0,1"; reporter saw 149 → 14.9), so /10. The
-    # chargeRate_kmph / charging_rate_kmh / actual_charge_rate aliases already
-    # carry the real km/h value and stay UNSCALED.
+    # 0..3000 with a resolution of 0,1"; reporter saw 149 → 14.9), so /10.
+    # #931 — actual_charge_rate is the SAME deci-encoded portal datum (its own
+    # dict entry 370c2092 carries unit=null, i.e. it is NOT the km/h-tagged
+    # canonical one) and was the source of the reporter's 10x-too-fast reading,
+    # so it now gets /10 too. It keeps its LAST position in the alias order so
+    # canonical/report-shaped keys still win when several appear. Only
+    # chargeRate_kmph / charging_rate_kmh stay UNSCALED — those are the BFF/OLA
+    # camelCase keys, which really are whole km/h.
+    crate_unit = first("battery_state_report.charge_rate_unit", "charge_rate_unit")
+    crate_kmh: float | None = None
     crate_deci = _to_float(first("battery_state_report.charge_rate", "charge_rate"))
     if crate_deci is not None:
-        d.charging_rate_kmh = round(crate_deci / 10.0, 1)
+        crate_kmh = crate_deci / 10.0
     else:
-        crate = _to_int(first("chargeRate_kmph", "charging_rate_kmh",
-                              "actual_charge_rate"))
-        if crate is not None:
-            d.charging_rate_kmh = crate
+        crate_plain = _to_float(first("chargeRate_kmph", "charging_rate_kmh"))
+        if crate_plain is not None:
+            crate_kmh = crate_plain
+        else:
+            crate_actual = _to_float(first("actual_charge_rate"))
+            if crate_actual is not None:
+                crate_kmh = crate_actual / 10.0
+    if crate_kmh is not None:
+        # #931 — honour the companion unit enum so the km/h sensor is truthful
+        # on cars that report the rate in miles (or per minute).
+        d.charging_rate_kmh = round(
+            _charge_rate_to_kmh(
+                crate_kmh, crate_unit if isinstance(crate_unit, str) else None,
+            ),
+            1,
+        )
 
     plug = first("charging_plug1_connectionstate", "plug_connection_state",
                  "plugConnectionState", "plug_state")
@@ -1337,8 +1384,15 @@ def map_dataset_to_vehicle_data(
     # Added LAST so the dK-carrying outside_temperature wins when both appear;
     # the > 200 guard below already handles dK-vs-°C either way, so the plain-°C
     # outdoor_temperature sample (e.g. 31.5) passes through untouched.
+    # Unreleased (Scout #938/#947) — the portal also ships this datum
+    # SELF-QUALIFIED (`outdoor_temperature.outdoor_temperature`, i.e. the same
+    # leaf nested under its own container). The walker's bare/dotted synonym
+    # pair only reclaims the spelling first() actually matched, so without the
+    # dotted alias the self-qualified key re-surfaced in the Scout on every
+    # poll. Same datum, same plain-°C encoding — added LAST, no new entity.
     otemp = _to_float(first("outsideTemperatureIndication", "outside_temperature",
-                            "outside_temp", "outdoor_temperature"))
+                            "outside_temp", "outdoor_temperature",
+                            "outdoor_temperature.outdoor_temperature"))
     if otemp is not None:
         # flat MQB ships outside temp in deci-Kelvin (e.g. 2981 = 24.95 °C); an
         # already-°C value (e.g. 17.1) stays as-is — no ambient temp is > 200 °C.
@@ -1820,6 +1874,21 @@ def map_dataset_to_vehicle_data(
     if _bidi_min is not None and d.bidi_min_charge_level_pct is None:
         d.bidi_min_charge_level_pct = _bidi_min
 
+    # Unreleased (Scout #938/#947) — battery charging care mode (BCAM) score and
+    # its threshold. Dict-confirmed type=number with unit=null (dict UUIDs
+    # d3df7f3d / 2a12f8e6), so both stay UNITLESS with no device_class. Container
+    # + bare spellings tried, mirroring the bidi pair above; first() drops the
+    # uint16/int32 sentinels. The rest of the battery_care_mode.* family
+    # (bcam_notification, charge_bcam_threshold) stays Scout-visible.
+    _bcam_score = _to_float(first(
+        "battery_care_mode.bcam_score", "bcam_score"))
+    if _bcam_score is not None and d.battery_care_score is None:
+        d.battery_care_score = _bcam_score
+    _bcam_thr = _to_float(first(
+        "battery_care_mode.bcam_score_threshold", "bcam_score_threshold"))
+    if _bcam_thr is not None and d.battery_care_score_threshold is None:
+        d.battery_care_score_threshold = _bcam_thr
+
     # v2.15.3 (#518) — EU-Data-Act charging-detail string family. All
     # dict-confirmed type=string with no enum list in the dictionary (the enum
     # tokens are only observed from samples: connected/disconnected, locked/
@@ -1938,7 +2007,13 @@ def map_dataset_to_vehicle_data(
         d.last_seen_at = cap_iso
 
     # parking_brake.is_set → parking_brake_engaged (shared field).
-    _pb = first("parking_brake.is_set", "parking_brake_is_set", "parking_brake")
+    # Unreleased (Scout #947) — `parking_brake.parking_brake` is the same datum
+    # SELF-QUALIFIED (leaf nested under its own container). Added LAST so the
+    # is_set spellings still win; without it the dotted key re-surfaced in the
+    # Scout every poll because the synonym-collapse only reclaims the spelling
+    # that was actually matched. No new entity.
+    _pb = first("parking_brake.is_set", "parking_brake_is_set", "parking_brake",
+                "parking_brake.parking_brake")
     if _pb is not None:
         d.parking_brake_engaged = str(_pb).lower() in ("true", "1", "set")
 

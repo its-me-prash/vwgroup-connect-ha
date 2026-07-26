@@ -2959,6 +2959,29 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # ── Unreleased (Scout #938/#947) — battery charging care mode (BCAM) score
+    # and its threshold. dict-confirmed type=number, unit=null → UNITLESS, no
+    # device_class. LOW — diagnostic, disabled-by-default.
+    VagSensorDescription(
+        key="battery_care_score",
+        translation_key="battery_care_score",
+        data_key="battery_care_score",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-heart-variant",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="battery_care_score_threshold",
+        translation_key="battery_care_score_threshold",
+        data_key="battery_care_score_threshold",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-heart-outline",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
 )
 
 # Sensor keys that read from coordinator helpers instead of the per-vehicle
@@ -3339,6 +3362,11 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # v2.15.11 (#614) — spoiler position. EU-Data-Act dialect only; vehicles/
     # channels without the field stay None → no phantom.
     "spoiler_position_pct",
+    # Unreleased (Scout #938/#947) — battery charging care mode score + its
+    # threshold. EU-Data-Act dialect only; vehicles/channels without the field
+    # stay None → no phantom.
+    "battery_care_score",
+    "battery_care_score_threshold",
 })
 
 # v1.14.0 (#24) — Trip Statistics is brand-restricted at the API level

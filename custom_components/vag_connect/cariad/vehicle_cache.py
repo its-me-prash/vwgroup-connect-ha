@@ -38,6 +38,12 @@ CARRY_FORWARD_FIELDS: frozenset[str] = frozenset({
     "fuel_tank_capacity_liters",
     "service_km", "oil_service_km", "service_due_in_days", "oil_service_due_in_days",
     "last_seen_at",
+    # #923 — the parked position belongs in the "old but visible" class too: a
+    # degraded parkingposition response that omits the coordinates does NOT mean
+    # the car moved, and blanking them sent the device_tracker to "unknown"
+    # mid-outage. A parked car is still where it last was, and the poll that
+    # brings real coordinates back overwrites these immediately.
+    "latitude", "longitude",
 })
 
 # Fields that physically only ever increase. A fresh value below the recorded

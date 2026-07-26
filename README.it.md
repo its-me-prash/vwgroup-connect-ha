@@ -5,8 +5,8 @@
 <h1 align="center">VW Group Connect</h1>
 
 <p align="center">
-  <strong>Un'unica integrazione Home Assistant per le marche del gruppo Volkswagen — Audi · Volkswagen · Škoda · SEAT · CUPRA · Porsche · VW US/Canada · Bentley</strong><br>
-  <em>Accesso diretto alle API, multicanale con fallback automatico, nessun middleware.</em>
+  <strong>Un'unica integrazione Home Assistant per le auto del gruppo Volkswagen: Audi · Volkswagen · Škoda · SEAT · CUPRA · Porsche · Bentley · VW e Audi USA/Canada</strong><br>
+  <em>Batteria, ricarica, autonomia, porte, clima e posizione GPS in Home Assistant. Accesso diretto alle API, più canali di lettura con ripiego automatico, senza middleware.</em>
 </p>
 
 <p align="center">
@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  🌍 <a href="README.de.md">Deutsch</a> · <a href="README.fr.md">Français</a> · <a href="README.es.md">Español</a> · <a href="README.nl.md">Nederlands</a> · <a href="README.pl.md">Polski</a> · <a href="README.cs.md">Čeština</a> · <a href="README.sv.md">Svenska</a>
+  🌍 <a href="README.md">English</a> · <a href="README.de.md">Deutsch</a> · <a href="README.fr.md">Français</a> · <a href="README.es.md">Español</a> · <a href="README.it.md">Italiano</a> · <a href="README.nl.md">Nederlands</a> · <a href="README.pl.md">Polski</a> · <a href="README.cs.md">Čeština</a> · <a href="README.sv.md">Svenska</a> · <a href="README.da.md">Dansk</a> · <a href="README.nb.md">Norsk</a> · <a href="README.fi.md">Suomi</a>
 </p>
 
 ---
@@ -43,9 +43,11 @@
 
 ## Che cos'è?
 
-**VW Group Connect è un'integrazione [Home Assistant](https://www.home-assistant.io) che porta i dati e il controllo dell'auto connessa nella tua smart home per le marche del gruppo Volkswagen — Volkswagen, Audi, Škoda, SEAT, CUPRA, Porsche, VW US/Canada e Bentley — da un'unica voce di configurazione.**
+**VW Group Connect è un'integrazione [Home Assistant](https://www.home-assistant.io) che porta la tua auto del gruppo Volkswagen nella smart home: stato di batteria e ricarica, autonomia, contachilometri, clima, porte e finestrini, posizione GPS e altro, per Volkswagen, Audi, Škoda, SEAT, CUPRA, Porsche, Bentley e gli account nordamericani VW / Audi, tutto da un'unica voce di configurazione.**
 
-Mostra stato di batteria e ricarica, autonomia, contachilometri, clima, porte e finestrini, posizione e altro ancora, e — dove il backend della marca lo consente ancora — invia comandi remoti come chiusura/apertura, controllo del clima e della ricarica. Per continuare a funzionare attraverso le modifiche alle API di Volkswagen del 2026, parla **diversi canali e ripiega automaticamente** quando uno è bloccato: i backend nativi delle marche, il portale dei dati del veicolo **EU Data Act** in sola lettura, un canale web `volkswagen.de` opt-in e un login **senza password** duraturo per i veicoli Car-Net più vecchi. Gira tranquillamente **accanto a [evcc](https://evcc.io)** e non richiede **alcuna dipendenza PyPI**.
+Dove il backend della marca lo consente ancora, invia anche comandi a distanza come blocco/sblocco, controllo del clima e della ricarica. **Questo dipende dalla marca, non è universale:** Audi e Škoda sono bidirezionali, Volkswagen EU sul portale EU Data Act è in sola lettura, e i comandi SEAT/CUPRA sono bloccati dal costruttore. La tabella qui sotto dice esattamente cosa vale dove.
+
+Per continuare a funzionare attraverso i cambi di API di Volkswagen del 2026 parla **più canali di lettura e ripiega automaticamente** quando uno è bloccato: i backend nativi delle marche, il portale dati veicolo **EU Data Act** in sola lettura, un canale web `volkswagen.de` opzionale (beta), un riempimento opzionale via **Tibber** e un accesso **senza password** duraturo per le vetture Car-Net più vecchie. Gira tranquillamente **accanto a [evcc](https://evcc.io)** (vedi [docs/EVCC.md](docs/EVCC.md)) e non richiede **nessun add-on, broker o container intermedio**. Home Assistant installa automaticamente due piccoli pacchetti Python; sono usati solo dai canali push opzionali.
 
 > 🎉 **Ora disponibile direttamente in HACS** — nessun repository personalizzato necessario.
 
@@ -53,14 +55,15 @@ Mostra stato di batteria e ricarica, autonomia, contachilometri, clima, porte e 
 
 ## In evidenza
 
-- **8 marche del gruppo Volkswagen selezionabili** in un'unica integrazione — Audi, Volkswagen EU, Škoda, SEAT, CUPRA, VW US/Canada, Porsche e Bentley.
-- **Compatibile con Porsche** — Porsche viaggia sul proprio backend *Porsche Connect*, **non** sul portale EU Data Act. Il percorso del portale *esclude* strutturalmente Porsche, quindi gli strumenti basati solo sul portale non potranno mai coprirlo; questa integrazione sì.
-- **Controllo bidirezionale dove il backend della marca lo consente** — chiusura/apertura, clima, ricarica, SoC obiettivo. Leggi quali marche hanno un vero supporto ai comandi nella tabella qui sotto; VW EU è in sola lettura per impostazione predefinita (vedi la nota onesta lì).
-- **Opzione di login senza password** (browser/device-code) per Audi/Škoda/SEAT/CUPRA — nessuna password salvata in Home Assistant.
-- **Multicanale con fallback automatico** — nativo della marca → portale EU Data Act → web vw.de opt-in → Car-Net duraturo. Se un canale va giù, i tuoi dati non restano al buio.
-- **Resiliente per progettazione** — mantiene gli ultimi valori noti durante le interruzioni del portale, filtra i falsi segnaposto "nessuna lettura", non lascia mai che il contachilometri salti all'indietro.
-- **Device tracker GPS**, oltre 100 entità su più piattaforme, oltre 20 service-call, più veicoli per account.
-- **Vehicle Data Scout** — rileva automaticamente il drift delle API e offre una segnalazione di bug con un clic. **Quality Scale: Platinum.**
+- **9 marche del gruppo Volkswagen selezionabili** in un'unica integrazione: Audi, Volkswagen EU, Škoda, SEAT, CUPRA, VW USA/Canada, Audi USA/Canada, Porsche e Bentley.
+- **Controllo bidirezionale dove il backend della marca lo permette**: blocco/sblocco, clima, ricarica, SoC obiettivo. È **per marca, non universale**. Guarda la tabella qui sotto prima di contare su un comando.
+- **Accesso senza password** (browser/device-code) per Audi, Škoda, SEAT, CUPRA e Audi USA/CA. In Home Assistant non viene salvata nessuna password.
+- **Multicanale con ripiego automatico**: backend nativo della marca, portale EU Data Act, web vw.de opzionale, Tibber opzionale, Car-Net duraturo. Se un canale cade, i tuoi dati non si spengono.
+- **Resiliente per progetto**: conserva gli ultimi valori noti e l'ultima posizione di parcheggio nota attraverso i disservizi del portale, filtra le false sentinelle «nessuna lettura», non lascia mai tornare indietro il contachilometri e ti dice quando un accesso fallito è un disservizio del costruttore e non la tua password.
+- **Il ritmo di interrogazione lo decidi tu**: un **cursore dell'intervallo di interrogazione** per account (un'entità Number, in minuti) pilotabile dalle automazioni, creato in ogni installazione, comprese quelle in sola lettura via portale.
+- **Device tracker GPS**, oltre 100 entità su più piattaforme, oltre 20 chiamate di servizio, più veicoli per account, nomi delle entità in **12 lingue**.
+- **Porsche gira sul proprio backend**, non sul portale EU Data Act. La via del portale *esclude* strutturalmente Porsche, quindi gli strumenti basati solo sul portale non potranno mai coprirla. Il codice dei comandi è qui, ma l'accesso Porsche in sé è al momento sperimentale (vedi la tabella).
+- **Vehicle Data Scout** rileva automaticamente le derive delle API e propone una segnalazione di bug con un clic. **Quality Scale: Platinum.**
 
 ---
 
@@ -68,13 +71,14 @@ Mostra stato di batteria e ricarica, autonomia, contachilometri, clima, porte e 
 
 | Marca | Controllo | Dati | Note |
 |---|---|---|---|
-| **Audi** | ✅ Bidirezionale | ✅ Completo | backend myAudi (incl. avvio/arresto motore termico) |
+| **Audi** (EU) | ✅ Bidirezionale | ✅ Completo | backend myAudi (incl. avvio/arresto motore termico) |
 | **Škoda** | ✅ Bidirezionale | ✅ Completo | backend nativo Škoda |
-| **Porsche** | ✅ Bidirezionale | ✅ Completo | Porsche Connect — backend proprio, non il portale EU Data Act |
-| **VW US/CA** | ✅ Bidirezionale | ✅ Completo | cloud VW NA (richiede il selettore di paese US/CA + S-PIN) |
-| **VW EU** | 🔒 In sola lettura per impostazione predefinita · ⚠️ comandi = MBB **alpha** | ✅ Telemetria completa via portale EU Data Act | Vedi la nota onesta qui sotto — [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584) |
-| **CUPRA / SEAT** | ⛔ Comandi bloccati da VW | ✅ Portale EU Data Act | Accesso OLA revocato lato server nel 2026 — [#464](https://github.com/its-me-prash/vwgroup-connect-ha/issues/464) |
-| **Bentley** | ⏳ Bidirezionale subordinato a test dal vivo | ✅ Login + lettura | My Bentley — gira sul tenant Audi/IDK |
+| **VW USA/CA** | ✅ Bidirezionale | ✅ Completo | cloud VW NA (richiede il selettore di paese USA/CA + S-PIN). ⚠️ Il servizio di accesso di VW risponde attualmente con un errore del server ad alcuni accessi canadesi: è un disservizio dal lato VW, non una password sbagliata ([#915](https://github.com/its-me-prash/vwgroup-connect-ha/issues/915)) |
+| **VW EU** | 🔒 Sola lettura per impostazione predefinita · ⚠️ comandi = MBB **alpha** | ✅ Telemetria completa via portale EU Data Act | Vedi la nota onesta qui sotto ([#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)) |
+| **CUPRA / SEAT** | ⛔ Comandi bloccati da VW | ✅ Portale EU Data Act | Accesso OLA revocato lato server nel 2026 ([#464](https://github.com/its-me-prash/vwgroup-connect-ha/issues/464)) |
+| **Bentley** | ⏳ Bidirezionale in attesa di test dal vivo | ✅ Accesso + lettura | My Bentley, gira sul tenant Audi/IDK |
+| **Porsche** | ⚠️ Sperimentale | ⚠️ Sperimentale | Porsche Connect, backend proprio. Porsche è passata all'app *Porsche One*, quindi **è previsto che l'accesso fallisca sugli account attuali**. Il codice dei comandi c'è ma è irraggiungibile finché l'accesso non viene ricostruito ([#666](https://github.com/its-me-prash/vwgroup-connect-ha/issues/666)) |
+| **Audi USA/CA** | ⚠️ Sperimentale | ⚠️ Sperimentale | L'accesso è cablato verso l'identity provider nordamericano ma **non ancora confermato** su un account USA/CA reale. Tester benvenuti ([#13](https://github.com/its-me-prash/vwgroup-connect-ha/issues/13)) |
 
 > **Nota onesta sul controllo VW EU.** I veicoli Volkswagen EU sono **in sola lettura per impostazione predefinita**: ottieni la telemetria completa attraverso il portale EU Data Act, ma nessun comando remoto. I comandi remoti per VW EU esistono **solo come ALPHA bidirezionale sperimentale con MBB duraturo**, e solo per le auto **legacy MQB / Car-Net** — è un'opzione opt-in, **non** una funzione predefinita. **Le auto della famiglia MEB / ID (ID.3/4/5/7, Enyaq, Born, Q4 e-tron) non hanno alcun percorso per i comandi** e vengono create in sola lettura. L'alpha MBB è tracciata in **[#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)** — tester benvenuti.
 
@@ -89,6 +93,9 @@ Alcune cose sono **strutturali** — derivano da come funzionano i backend di Vo
 - **VW EU è in sola lettura per impostazione predefinita; i comandi sono un'alpha MBB solo per le auto legacy.** Vedi la nota sulla marca qui sopra. **Le auto della famiglia MEB / ID sono in sola lettura** — il percorso duraturo dei comandi Car-Net non le riconosce (risponde "Unknown user") e il backend MEB di VW non espone alcun equivalente. La configurazione lo rileva e crea una **voce in sola lettura** (con un avviso di riparazione) invece di fallire, quindi è un limite noto, non silenzioso. ([#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584))
 - **I comandi remoti CUPRA / SEAT sono bloccati da VW.** L'accesso ai servizi online (OLA) per queste marche è stato revocato lato server nel 2026 (HTTP 403); un nuovo login o un aggiornamento della versione dell'app non lo ripristina. I dati continuano a fluire tramite il portale EU Data Act. ([#464](https://github.com/its-me-prash/vwgroup-connect-ha/issues/464))
 - **I dati del portale EU Data Act sono scarni e variano da auto ad auto.** VW pubblica oggi solo una fetta dei campi (spesso contachilometri + chiusura + ricarica, a volte molto di più). Si amplia nel tempo man mano che VW espande il portale in vista della scadenza di settembre 2026 — i campi che oggi leggono `unknown` potrebbero riempirsi da soli, senza alcuna modifica. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465))
+- **Il Nord America è sperimentale.** L'accesso **Audi USA/CA** è cablato ma non è mai stato confermato su un account reale ([#13](https://github.com/its-me-prash/vwgroup-connect-ha/issues/13)). **VW USA/CA** funziona, ma il servizio di accesso di VW restituisce attualmente errori del server per alcuni account canadesi ([#915](https://github.com/its-me-prash/vwgroup-connect-ha/issues/915)). Non scegliere questa integrazione per un'auto nordamericana aspettandoti che funzioni e basta.
+- **È previsto che l'accesso Porsche fallisca in questo momento.** Porsche ha dismesso l'app *My Porsche*, verso cui questa integrazione si autentica, a favore di *Porsche One*. Letture e comandi sono implementati, ma probabilmente non supererai l'accesso finché non verrà ricostruito. ([#666](https://github.com/its-me-prash/vwgroup-connect-ha/issues/666))
+- **Gli aggiornamenti push (quasi in tempo reale) sono una BETA opzionale, disattivata per impostazione predefinita.** I canali MQTT (Škoda) e Firebase (Audi/VW, CUPRA/SEAT) sono cablati ma non validati dal vivo, e le marche li proteggono sempre più con l'attestazione dell'app, che fuori dal dispositivo non è soddisfacibile. Lasciali disattivati a meno che tu non voglia aiutare a testarli. L'interrogazione normale è la via supportata.
 
 > **Dove ci troviamo.** Ai sensi dell'EU Data Act (Regolamento (UE) 2023/2854), i dati della tua auto sono *tuoi*. Eseguire questa integrazione sul tuo hardware significa che *tu* accedi ai *tuoi stessi* dati (Articolo 4) — dovuti alla stessa qualità con cui il produttore li serve a se stesso, in tempo reale dove tecnicamente fattibile. Il portale di VW in sola lettura, vecchio di ore, oggi non è all'altezza. Questa integrazione è deliberatamente **agnostica rispetto al canale**: nel momento in cui VW darà ai proprietari un'interfaccia in tempo reale, capace di controllo — come richiede il Data Act, e come alcuni produttori già offrono ai loro proprietari — la supporteremo qui, gratuitamente, per tutti. Sosteniamo il tuo diritto all'accesso in tempo reale alla tua stessa auto.
 
@@ -111,10 +118,10 @@ Alcune cose sono **strutturali** — derivano da come funzionano i backend di Vo
 
 La prima schermata dell'integrazione offre **due** metodi di login. Scegli quello che la tua marca supporta:
 
-- **Browser / device-code (senza password)** — *Audi · Škoda · SEAT · CUPRA.* Accedi sul telefono o sul laptop e approva il dispositivo; nessuna password viene salvata in Home Assistant (mantiene un vero refresh token). Questo passaggio offre anche i campi opzionali **S-PIN** e intervallo di scansione.
-- **Portale — email + password** — *Volkswagen EU · Porsche.* Inserisci il login della tua marca. Questo passaggio espone un selettore di marca (Volkswagen EU, Porsche e le altre marche email/password), email, password, **S-PIN** opzionale, intervallo di scansione e un'opzione **"abilita i comandi MBB"** (che ha effetto solo su Volkswagen EU — vedi [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)). Per **Volkswagen US/Canada** qui appare un **selettore di paese (US vs CA)** — viene visualizzato **solo** per quella marca e non è usato da nessun'altra.
+- **Browser / device-code (senza password)** per *Audi, Škoda, SEAT, CUPRA e Audi USA/CA (sperimentale)*. Accedi dal telefono o dal portatile e approva il dispositivo; in Home Assistant non viene salvata nessuna password (conserva un vero refresh token). Questo passaggio offre anche il **S-PIN** facoltativo e l'intervallo di scansione.
+- **Portale, e-mail + password** per *Volkswagen EU, Volkswagen USA/CA, Bentley e Porsche (sperimentale)*. Inserisci le credenziali della tua marca. Questo passaggio mostra un selettore di marca, e-mail, password, **S-PIN** facoltativo, intervallo di scansione e un interruttore **«abilita comandi MBB»** (che ha effetto solo su Volkswagen EU, vedi [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)). Per **Volkswagen USA/Canada** compare qui un **selettore di paese (USA o CA)**; si mostra **solo** per quella marca e nessun'altra lo usa.
 
-> Il **portale EU Data Act non è un terzo pulsante di login.** È la strategia in sola lettura su cui il coordinatore ripiega automaticamente, e può inoltre essere *aggiunto* come canale di lettura supplementare da **Configura → Opzioni**. Lo stesso vale per il canale web `volkswagen.de` (un canale di lettura supplementare opt-in, disponibile solo dalle Opzioni).
+> Il **portale EU Data Act non è un terzo pulsante di accesso.** È la strategia in sola lettura su cui il coordinatore ripiega automaticamente, e può inoltre essere *aggiunto* come canale di lettura supplementare da **Configura → Opzioni**. Lo stesso vale per il canale web `volkswagen.de` (beta opzionale, solo dalle Opzioni, in sola lettura) e per il canale **Tibber** opzionale, che riempie i campi lasciati vuoti dai canali di prima parte e non sovrascrive mai dati più freschi.
 
 ### Il campo S-PIN — quando serve
 
@@ -134,7 +141,7 @@ Per Volkswagen EU, **accedere non basta** — VW trasmette i dati del veicolo so
 
 Il portale inizialmente serve solo una **fetta di campi**, e quella fetta **si amplia nel tempo** man mano che VW espande la copertura del portale in vista della scadenza di settembre 2026 — i campi che oggi leggono `unknown` potrebbero riempirsi da soli. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465) · [#527](https://github.com/its-me-prash/vwgroup-connect-ha/issues/527) · [#567](https://github.com/its-me-prash/vwgroup-connect-ha/issues/567))
 
-> **Elenco completo dei campi.** Il dizionario dati ufficiale del gruppo VW (ogni chiave EU Data Act -> campo, descrizione e unità) si trova in [docs/EU_DATA_ACT_DATA_DICTIONARY.md](docs/EU_DATA_ACT_DATA_DICTIONARY.md).
+> **Elenco completo dei campi.** Il dizionario dati ufficiale del gruppo VW (ogni chiave EU Data Act -> campo, descrizione e unità) si trova in [docs/EU_DATA_ACT_DATA_DICTIONARY.md](docs/EU_DATA_ACT_DATA_DICTIONARY.md). Un workflow settimanale sorveglia la pagina del dizionario del portale e apre una pull request quando VW pubblica una versione più recente, così la tabella non invecchia in silenzio.
 
 > È l'opzione **`eu_data_act_auto_kickoff`** a creare quella Custom Data Request a 15 minuti, ed è **attiva per impostazione predefinita** — in modalità portale senza di essa non ci sono dati. Disattivala solo se preferisci gestire la richiesta per conto tuo.
 
@@ -142,17 +149,27 @@ Il portale inizialmente serve solo una **fetta di campi**, e quella fetta **si a
 
 ## Cosa ottieni
 
-- **Sensori:** SoC batteria, autonomia (elettrica / termica / totale), livello carburante, contachilometri, temperature, potenza/velocità/tipo di ricarica, obiettivo di ricarica, statistiche di viaggio e aggregati sull'intera vita del veicolo, intervalli di tagliando e cambio olio, versione software, stato della connessione, ultima rilevazione e altro.
+- **Sensori:** SoC batteria, autonomia (elettrica / termica / totale), livello carburante, contachilometri, temperature, potenza di ricarica, velocità di ricarica (sempre in km/h, convertito se la tua auto riporta in mph) e tipo di ricarica, obiettivo di ricarica, statistiche di viaggio e aggregati sull'intera vita del veicolo, intervalli di tagliando e cambio olio, versione software, stato della connessione, ultima rilevazione e altro.
 - **Sensori binari:** porte chiuse, porte/finestrini/bagagliaio/cofano/tetto apribile aperti, spina collegata, in ricarica, aggiornamento OTA disponibile, luci, veicolo online, timer di partenza, allarme.
 - **Controllo:** chiusura/apertura, avvio/arresto clima, avvio/arresto ricarica, riscaldamento vetri, timer di partenza, impostazione di SoC obiettivo / temperatura / corrente di ricarica max, clacson-e-lampeggio, risveglio, aggiornamento, ricerca stazioni di ricarica *(la disponibilità dipende da marca e modello)*.
-- **Device tracker:** posizione GPS per la mappa di Home Assistant.
+- **Device tracker:** posizione GPS per la mappa di Home Assistant. Un'interrogazione che torna senza coordinate conserva l'ultima posizione di parcheggio nota invece di perderla.
 - **Immagini:** render del veicolo dove la marca li fornisce.
+- **Impostazioni:** un cursore dell'**intervallo di interrogazione** per account, in minuti, così un'automazione può interrogare più spesso mentre guidi e rallentare di notte. Esiste in ogni installazione, comprese le voci portale in sola lettura.
+- **12 lingue:** i nomi delle entità sono tradotti integralmente in inglese, tedesco, francese, spagnolo, italiano, olandese, polacco, ceco, svedese, danese, norvegese e finlandese.
 
 > 💡 **Dashboard energia:** il sensore dell'energia caricata è `total_increasing`, quindi aggiungilo direttamente alla **dashboard Energia** di Home Assistant, oppure avvolgilo in un helper `utility_meter` per i totali giornalieri/mensili di energia caricata. Usa a questo scopo il sensore cumulativo **energia caricata (kWh)** — non i sensori di efficienza per 100 km (quelli sono medie, non contatori).
 
 ### Servizi
 
 L'integrazione include **oltre 20 service-call** (`vag_connect.*`), molti specifici per marca — *la disponibilità dipende da marca e modello*. Tra questi: `lock` / `unlock`, `start_climatisation` / `stop_climatisation`, `start_charging` / `stop_charging`, `set_target_soc`, `set_climatisation_temperature`, `set_departure_timer`, `start_window_heating` / `stop_window_heating`, `flash_lights`, `wake_vehicle`, `refresh_vehicle`, `refresh_cloud_cache`, `find_charging_stations`, `start_climate_control`, `engine_start` / `engine_stop` (Audi termico), `start_ventilation` / `stop_ventilation`, `start_aux_heating` / `stop_aux_heating` (SEAT/CUPRA Webasto), `send_destination` e `update_charging_settings` (SEAT/CUPRA), `open_app`, `execute_vehicle_action`, `abrp_send` e l'easter egg `show_vag`.
+
+---
+
+## evcc
+
+[evcc](https://evcc.io) può prendere stato di carica, autonomia e stato della ricarica della tua auto direttamente da Home Assistant, così la ricarica da surplus solare pianifica sulla batteria reale invece che su una stima. Dentro l'integrazione non gira nulla in più: evcc legge l'API REST di Home Assistant. La via di **lettura** funziona su **tutte le marche**, comprese le auto VW EU / portale in sola lettura. La via di **scrittura** (`chargeEnable`) funziona solo su un'auto bidirezionale (Audi o Škoda con un canale comandi vivo) e solo quando evcc tratta l'auto stessa come punto di ricarica. Con una vera wallbox intelligente a evcc basta la via di lettura.
+
+Le ricette `evcc.yaml` già pronte e la configurazione iniziale sono in [docs/EVCC.md](docs/EVCC.md). Questo connettore è in **beta**.
 
 ---
 
@@ -178,7 +195,7 @@ Puoi anche chiamare direttamente il servizio **`vag_connect.abrp_send`** (punta 
 ## Opzioni (Configura)
 
 Da **Impostazioni → Dispositivi e servizi → VW Group Connect → Configura** puoi regolare:
-intervallo di scansione, S-PIN (più un S-PIN per veicolo quando l'account ha più di un'auto), geocodifica inversa, **modalità sola lettura**, forza clima PPE (Audi), opzioni push (MQTT/FCM/Audi-VW), override client-id, **`eu_data_act_auto_kickoff`** (attivo per impostazione predefinita), nascondi entità vuote (attivo per impostazione predefinita), **ABRP** (abilita + api_key + token utente, validati come coppia), oltre ad **aggiungere / rimuovere** i canali di lettura supplementari `volkswagen.de` e portale EU Data Act.
+intervallo di scansione (disponibile anche dal vivo come cursore dell'intervallo di interrogazione), S-PIN (più un S-PIN per veicolo quando l'account ha più di un'auto), geocodifica inversa, **modalità sola lettura**, forza clima PPE (Audi), opzioni push (MQTT/FCM/Audi-VW, tutte beta opzionali e disattivate per impostazione predefinita), override client-id, **`eu_data_act_auto_kickoff`** (attivo per impostazione predefinita), nascondi entità vuote (attivo per impostazione predefinita), **ABRP** (abilita + api_key + token utente, validati come coppia), oltre ad **aggiungere / rimuovere** i canali di lettura supplementari: `volkswagen.de` (beta), portale EU Data Act e **Tibber**.
 
 ---
 
@@ -190,7 +207,7 @@ Questo è un progetto di una sola persona — e VW non lo rende facile: ogni mod
 
 ## Contribuire
 
-PR benvenute — vedi [`CONTRIBUTING.md`](CONTRIBUTING.md). Il **Vehicle Data Scout** trasforma i campi API sconosciuti in una segnalazione di bug precompilata e con un clic, così puoi contribuire a migliorare la copertura senza leggere il codice.
+PR benvenute, vedi [`CONTRIBUTING.md`](CONTRIBUTING.md). Le domande frequenti trovano risposta in [docs/FAQ.md](docs/FAQ.md). Il **Vehicle Data Scout** trasforma i campi API sconosciuti in una segnalazione di bug precompilata e con un clic, così puoi contribuire a migliorare la copertura senza leggere il codice.
 
 ## Licenza
 

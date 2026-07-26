@@ -326,6 +326,10 @@ class IDKAuth:
             else _SIGNIN_BASE
         )
         self._signin_client_id = signin_client_id_override or self._brand.client_id
+        # Set once per login from the signin URL we land on, see
+        # _learn_signin_client_id. Kept separate so an explicit override always
+        # wins and the configured value stays the fallback.
+        self._signin_client_id_override = signin_client_id_override
         # v2.10.4 — user-supplied OAuth client_id override from the
         # OptionsFlow. Set via ``set_user_client_id_override`` after
         # construction (we do not add a constructor param here to
@@ -559,6 +563,19 @@ class IDKAuth:
             raise AuthenticationError(
                 f"Authorization page HTTP {initial_status} at {login_url}"
             )
+
+        # v2.24.0 — learn the signin client id from the URL we actually landed
+        # on instead of assuming it equals the OAuth client we authorize with.
+        # They are NOT always the same: on VW North America the con-veh host is
+        # a proxy that runs its own inner OIDC flow, so the page we end up on
+        # belongs to ITS client, not to ours. Getting this wrong only shows when
+        # the served page has no parseable form action and we fall back to
+        # building the URL ourselves (see the two _signin_client_id sites
+        # below): the NA signin-service answers HTTP 500 for a client id it
+        # cannot resolve, which surfaces as a confusing "server error" rather
+        # than anything actionable. Parsing it costs nothing and is correct for
+        # both the direct and the proxied case.
+        self._learn_signin_client_id(login_url)
 
         # Determine which login variant we landed on
         if "/u/login" in login_url:
@@ -1095,6 +1112,12 @@ class IDKAuth:
             timeout=_AUTH_TIMEOUT, data=submit_data,
             headers=self._form_headers(), allow_redirects=True,
         ) as resp:
+            if resp.status >= 500:
+                # #915 — same misclassification one step earlier in the flow:
+                # the identifier POST hits the same signin-service host, so a
+                # VW-side 5xx here must also read as an outage, not as a
+                # credentials problem (the email hasn't even been judged yet).
+                raise UpstreamUnavailableError(resp.status, self._brand.name)
             if resp.status != 200:
                 raise AuthenticationError(
                     f"Email POST HTTP {resp.status} at {email_url[:80]}"
@@ -1170,6 +1193,15 @@ class IDKAuth:
             raise AuthenticationError("Invalid credentials (401).")
         if pw_status == 429:
             raise RateLimitError()
+        # #915 (2026-07, VW Canada — vrouleau + amateurdeveloper) — a 5xx from
+        # the signin-service is VW's own outage, NOT a wrong password: the same
+        # account on the same code path returned a clean 302 earlier the same
+        # day. Falling through to the catch-all below told those users "invalid
+        # credentials" and fired a reauth prompt that could never succeed.
+        # UpstreamUnavailableError is not an AuthenticationError, so setup and
+        # the config flow surface it as a retryable backend outage instead.
+        if pw_status >= 500:
+            raise UpstreamUnavailableError(pw_status, self._brand.name)
         if pw_status not in (302, 303):
             raise AuthenticationError(
                 f"Password POST HTTP {pw_status} at {pw_url[:80]}: {pw_body[:200]}"
@@ -1950,6 +1982,40 @@ class IDKAuth:
                 _LOGGER.debug("IDK: hmac extracted via JSON pattern")
 
         return parser
+
+    def _learn_signin_client_id(self, login_url: str) -> None:
+        """Adopt the client id from the signin URL we actually landed on.
+
+        The sign-in page lives at ``.../signin-service/v1/<client-id>[/...]``.
+        That id is not necessarily the OAuth client we authorized with: VW North
+        America proxies through ``con-veh``, which runs its own inner flow with
+        its own client, so the page belongs to that one. We only ever use this
+        value to rebuild a URL when the served page has no parseable form
+        action, but getting it wrong there produces an unresolvable-client HTTP
+        500 that reads like an outage. An explicit constructor override still
+        wins, and anything unparseable leaves the configured value untouched.
+        """
+        if self._signin_client_id_override:
+            return
+        path = urlparse(login_url).path
+        marker = "/signin-service/v1/"
+        idx = path.find(marker)
+        if idx == -1:
+            return
+        candidate = path[idx + len(marker):].split("/", 1)[0].strip()
+        # Guard against the trailing "signin" segment some deployments use
+        # (".../signin-service/v1/signin/<client-id>") and against junk.
+        if candidate == "signin":
+            rest = path[idx + len(marker) + len("signin/"):]
+            candidate = rest.split("/", 1)[0].strip()
+        if not candidate or len(candidate) < 8:
+            return
+        if candidate != self._signin_client_id:
+            _LOGGER.debug(
+                "IDK: adopting signin client id from the landed URL (%s -> %s)",
+                self._signin_client_id[:12], candidate[:12],
+            )
+            self._signin_client_id = candidate
 
     def _base_headers(self) -> dict[str, str]:
         return {

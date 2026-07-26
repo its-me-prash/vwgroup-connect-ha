@@ -330,12 +330,14 @@ def test_528_tyre_pressure_actual_sentinels_dropped() -> None:
 def test_alias_actual_charge_rate_to_charging_rate_kmh() -> None:
     # fix #2 — actual_charge_rate (dict unit=null) folds into charging_rate_kmh
     # as the "actual" variant of the same charge-rate family.
-    assert _map({"actual_charge_rate": "11"}).charging_rate_kmh == 11
+    # #931 — it is a 0.1-resolution portal value like the canonical key, so it
+    # is scaled /10 as well: raw 11 → 1.1 km/h (was published as 11).
+    assert _map({"actual_charge_rate": "11"}).charging_rate_kmh == 1.1
 
 
 def test_alias_canonical_charge_rate_wins_over_actual() -> None:
     # canonical battery_state_report.charge_rate is 0.1-resolution (#717) → /10;
-    # raw 70 → 7 km/h. It still WINS over the (unscaled) actual_charge_rate alias.
+    # raw 70 → 7 km/h. It still WINS over the actual_charge_rate alias.
     d = _map({"battery_state_report.charge_rate": "70", "actual_charge_rate": "11"})
     assert d.charging_rate_kmh == 7
 

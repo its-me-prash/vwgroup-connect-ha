@@ -191,16 +191,36 @@ class VWNAClient:
         #      relative form-actions + the ``Origin`` header must point
         #      at the right base.
         #
-        # b14 (#503) — NO separate signin client_id. matpoulin's old GUID
-        # ``b680e751-…@apps_vw-dilab_com`` was used to build the fallback
-        # signin-service URL, but it is OUTDATED: with it, NA login dies at
-        # ``signin-service/v1/b680e751… → "no code"`` even after the b13 scope
-        # revert (Canaillee, b13 test). The current NA flow uses the SAME
-        # MYVW_ANDROID client throughout — verified against the live MyVW app
-        # (its DEX has zero ``b680e751`` / ``identity.na`` literals) and an
-        # independent working US implementation. Dropping the override makes
-        # ``idk._signin_client_id`` fall back to ``brand.client_id`` (the shared
-        # 59992128 MYVW client for both US and CA), matching the app.
+        # b14 (#503) — NO separate signin client_id override. Keeping the
+        # override off means ``idk._signin_client_id`` falls back to
+        # ``brand.client_id`` (the shared 59992128 MYVW client for US and CA).
+        # Rationale, corrected in v2.24.0 after a live probe of the whole chain:
+        #
+        #  - The ORIGINAL justification here was that the MyVW APK contains zero
+        #    ``b680e751`` / ``identity.na`` literals, so the flow "must" use
+        #    MYVW_ANDROID throughout. That inference is WRONG: the app never
+        #    performs the credential step itself (it opens a CustomTab and lets
+        #    the browser do it), so its DEX cannot evidence the signin client
+        #    either way.
+        #  - What is actually true: ``b-h-s.spr.us00.p.con-veh.net`` is a PROXY.
+        #    Our authorize call 302s to identity.na.vwgroup.io carrying con-veh's
+        #    OWN client ``b680e751-…@apps_vw-dilab_com``, so the signin-service
+        #    page we land on genuinely belongs to b680e751.
+        #  - The override nevertheless stays OFF, because the reason it was
+        #    removed still stands on its own: with it, NA login died at "no code"
+        #    in a real test (Canaillee, b13). The signin client and the client we
+        #    exchange the code with are different layers, and forcing the inner
+        #    one broke the outer exchange.
+        #  - Live-checked consequence of leaving it off: the wrong id is only
+        #    ever used to BUILD A FALLBACK URL, and only when the served page has
+        #    no parseable form action. Today the page has exactly one form with a
+        #    valid action, so the fallback never fires. If VW ever re-renders it
+        #    as a SPA shell, that fallback would hit
+        #    ``signin-service/v1/59992128…_MYVW_ANDROID`` which answers HTTP 500
+        #    (probed: the same path with b680e751 answers 400), i.e. an
+        #    unresolvable-client 500 rather than a clear error. Prefer parsing the
+        #    client id out of the signin URL we actually landed on over
+        #    hardcoding either value.
         self._auth = IDKAuth(
             session,
             brand,

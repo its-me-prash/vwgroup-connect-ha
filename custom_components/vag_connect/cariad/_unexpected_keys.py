@@ -734,14 +734,19 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # now parsed into active_ventilation_state / _remaining_time_min, so
             # absorb the value.* container (the 1-deep wildcard above missed it).
             "climatisation.activeVentilationStatus.*.*",
-            # v2.21.0 — aux-heating settings container on VW EU (#843/#868). The
-            # inner shape isn't confirmed from a real payload yet (masked), so
-            # absorb it for now; the issues stay open pending a diagnostic dump
-            # so it can be mapped rather than silently dropped.
+            # v2.21.0 — aux-heating settings container on VW EU (#843/#868).
+            # v2.24.0 — the child wildcard is deliberately GONE. Absorbing both
+            # the container AND its children made us blind to the very thing we
+            # were waiting for: a reporter sent a diagnostic to map these, and
+            # the field had already been filtered out before it reached the
+            # export, so the file could not contain what we asked for. Silencing
+            # a container is about stopping the parent from re-reporting as one
+            # anonymous blob; its named children are exactly the discovery
+            # signal, and they are few, so they do not flood anything. Same
+            # reasoning for the ventilation settings next to it. When these are
+            # mapped, delete the container line too rather than re-adding ".*".
             "climatisation.climatisationSettings.value.auxiliaryHeatingSettings",
-            "climatisation.climatisationSettings.value.auxiliaryHeatingSettings.*",
             "climatisation.climatisationSettings.value.activeVentilationSettings",
-            "climatisation.climatisationSettings.value.activeVentilationSettings.*",
             "climatisationTimers.activeVentilationTimersStatus",
             "climatisationTimers.activeVentilationTimersStatus.value",
             "climatisationTimers.activeVentilationTimersStatus.value.*",
@@ -754,6 +759,12 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             "climatisation.climatisationSettings.value.climatisationWithoutExternalPower",
             "climatisation.climatisationSettings.value.carCapturedTimestamp",
             "climatisation.windowHeatingStatus",
+            # Unreleased — Scout #934 (Audi Q4 e-tron 2023): the pending-command
+            # queue counter on the windowHeating side. Same ``*.requests``
+            # envelope family as chargingStatus / climatisationStatus /
+            # climatisationSettings above (a list of in-flight command requests,
+            # not a vehicle reading), so it is known-structural, not new data.
+            "climatisation.windowHeatingStatus.requests",
             "climatisation.windowHeatingStatus.value",
             "climatisation.windowHeatingStatus.value.windowHeatingStatus",
             "climatisation.windowHeatingStatus.value.carCapturedTimestamp",
