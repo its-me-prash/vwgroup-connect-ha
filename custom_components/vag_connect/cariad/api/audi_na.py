@@ -54,17 +54,31 @@ from .vw_eu import VWEUClient
 # v2.20.0 (APK audit) — the current myAudi 5.6.0 app has NO ``na.bff.cariad.digital``
 # string anywhere; its ONLY data BFF is the global ``emea.bff.cariad.digital`` (same
 # host EU Audi uses). The NA split is ONLY at the IDP layer (authorize at
-# identity.na.vwgroup.io). READS go to emea.bff (global, no na.bff host exists).
-# But the TOKEN EXCHANGE must go to the IDP that ISSUED the code, not the BFF:
-# the authorization code is signed by identity.na.vwgroup.io, so exchanging it at
-# emea.bff (EU) fails with ``{"error":"invalid key id"}`` — the EU BFF has no key
-# with the NA code's kid (live-confirmed on a real US Audi, #13, coreywillwhat).
-# So token-exchange + refresh target the NA IDP's own OIDC token endpoint — the
-# same host+path the device-grant path already uses (``_NA_IDP_TOKEN_URL``).
+# identity.na.vwgroup.io). READS go to emea.bff (global).
+#
+# v2.24.0 (#13) — TOKEN EXCHANGE: the endpoint was wrong, and that is the whole
+# reason NA login never worked. Both of these were probed live (unauthenticated,
+# a deliberately invalid code, same client id and body in each):
+#
+#   POST identity.na.vwgroup.io/oidc/v1/token
+#     -> 401 {"error":"invalid_client","error_description":"Request requires a
+#             valid client authentication method but is missing client_secret
+#             for clientId 7c6b4634-..."}          <- exactly the #13 symptom
+#   POST na.bff.cariad.digital/auth/v1/idk/oidc/token
+#     -> 400 {"error":"Bad Request"}               <- rejects the CODE, not the client
+#
+# The IDP's raw /oidc/v1/token is the CONFIDENTIAL-client endpoint and demands a
+# client_secret. Audi's IDK is a public PKCE client and has no secret to give,
+# which is why "just add a client_secret" never helped: it was the wrong endpoint,
+# not a missing credential. The CARIAD BFF proxy accepts the public client.
+# ``na.bff.cariad.digital`` has zero hits in the DEX because, like the NA client
+# id itself, it is supplied at runtime by the US market config.
+# STILL LIVE-GATED: the 400 proves the client is accepted, not that a real code
+# completes. Needs a confirming capture on a real US/CA Audi (#13).
 _NA_BFF_BASE = "https://emea.bff.cariad.digital"
 _NA_IDP_BASE = "https://identity.na.vwgroup.io"
 _NA_AUTHORIZE_URL = f"{_NA_IDP_BASE}/oidc/v1/authorize"
-_NA_TOKEN_URL = f"{_NA_IDP_BASE}/oidc/v1/token"
+_NA_TOKEN_URL = "https://na.bff.cariad.digital/auth/v1/idk/oidc/token"
 
 
 class AudiNAClient(VWEUClient):
