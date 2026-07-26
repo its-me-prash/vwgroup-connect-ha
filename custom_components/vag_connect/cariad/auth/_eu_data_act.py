@@ -1961,12 +1961,20 @@ def map_dataset_to_vehicle_data(
         d.parking_light_right = _plr_b
     # v2.17.5 — parkinglightstate.is_set: some dialects send only this flag and
     # not the per-side lights above (mirrors the parking_brake.is_set precedent).
-    # "true"/"set" = a parking light is on.
+    #
+    # v2.24.1 — ORDER FIX. ``is_set`` says "this container was populated", not
+    # "the light is on", so it must never outrank a real reading. It used to be
+    # evaluated FIRST, so a car sending is_set=true together with both per-side
+    # lights explicitly off came out as "parking light on", and the per-side
+    # branch below could no longer correct it because parking_light was no
+    # longer None. Real per-side values now win; the flag survives only as the
+    # fallback for dialects that send nothing else.
     _pls = first("parkinglightstate.is_set", "parkinglightstate_is_set")
-    if _pls is not None and d.parking_light is None:
-        d.parking_light = str(_pls).strip().lower() in ("true", "1", "set")
-    if (_pll_b is not None or _plr_b is not None) and d.parking_light is None:
-        d.parking_light = bool(_pll_b) or bool(_plr_b)
+    if d.parking_light is None:
+        if _pll_b is not None or _plr_b is not None:
+            d.parking_light = bool(_pll_b) or bool(_plr_b)
+        elif _pls is not None:
+            d.parking_light = str(_pls).strip().lower() in ("true", "1", "set")
 
     # Capture timestamp → last_seen_at. epoch-seconds→ISO-8601 UTC; ISO
     # passthrough. (_dataset_captured_ts already reads these for freshness —
@@ -2007,13 +2015,20 @@ def map_dataset_to_vehicle_data(
         d.last_seen_at = cap_iso
 
     # parking_brake.is_set → parking_brake_engaged (shared field).
-    # Unreleased (Scout #947) — `parking_brake.parking_brake` is the same datum
-    # SELF-QUALIFIED (leaf nested under its own container). Added LAST so the
-    # is_set spellings still win; without it the dotted key re-surfaced in the
-    # Scout every poll because the synonym-collapse only reclaims the spelling
-    # that was actually matched. No new entity.
-    _pb = first("parking_brake.is_set", "parking_brake_is_set", "parking_brake",
-                "parking_brake.parking_brake")
+    # Scout #947 — `parking_brake.parking_brake` is the same datum SELF-QUALIFIED
+    # (leaf nested under its own container).
+    #
+    # v2.24.1 — PRECEDENCE FIX, same defect as the parking light above. These
+    # used to share one ``first()`` with the is_set spellings listed first, and
+    # the comment even said the is_set spellings were meant to win. They must
+    # not: a payload carrying is_set=true alongside parking_brake=false made us
+    # report the brake ENGAGED on a car that had said it was released. Read the
+    # two groups separately so the real value wins and the flag is only a
+    # fallback — and so BOTH spellings still get reclaimed by the synonym
+    # collapse, which is what kept the dotted key out of the Scout.
+    _pb_real = first("parking_brake.parking_brake", "parking_brake")
+    _pb_flag = first("parking_brake.is_set", "parking_brake_is_set")
+    _pb = _pb_real if _pb_real is not None else _pb_flag
     if _pb is not None:
         d.parking_brake_engaged = str(_pb).lower() in ("true", "1", "set")
 

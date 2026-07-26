@@ -38,6 +38,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.24.1] - 2026-07-27
+
+### Fixed
+
+- **Your car's recorded values are no longer wiped when a restart happens during a backend outage (#702).** If the very first data fetch after starting Home Assistant came back empty, the integration wrote that emptiness over everything it had saved, and the next poll then made it permanent. So a car that the portal was quiet about lost its history on every restart, and importing an older export was pointless because the next restart deleted it again. The periodic polls have been protected against this for a while; the fetch that runs at startup was not, and now is. A brand new car still appears normally on its first setup.
+- **A parking position that is being kept during an outage now says how old it is.** Keeping the last known position when the backend answers without coordinates is deliberate, since a parked car has not moved. But it was being kept indefinitely and with nothing to indicate its age, so a position from last week looked exactly like one from a minute ago. It is now kept for at most a day, the map entry carries the time the car itself reported that position, and the address is kept and dropped together with the coordinates instead of leaving a half-filled location behind.
+- **Parking lights and parking brake no longer read as "on" when the car says they are off.** Some cars send a flag that only means "this section of the report is present" alongside the real reading. That flag was being trusted first, so a car reporting both parking lights explicitly off, or the parking brake explicitly released, was still shown as on or engaged. The real reading now wins. Cars that send nothing but the flag are unaffected.
+- **Adding the volkswagen.de channel now says why it failed.** Every failure was reported as a wrong password and nothing was written to the log, so an expired session, a redirect loop and an actual typo all looked the same and none of them could be told apart. The reason is now logged, exactly like the equivalent step during initial setup already did.
+
 ## [2.24.0] - 2026-07-26
 
 ### Added

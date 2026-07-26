@@ -4375,6 +4375,13 @@ class VWEUClient(CariadBaseClient):
             if lat is not None and lon is not None:
                 d.latitude = lat
                 d.longitude = lon
+                # v2.24.1 — record the BACKEND's capture time alongside the
+                # coordinates. #923 made the position carry forward through an
+                # outage, which is correct, but without this the carried value
+                # had no age and read as current no matter how old it was.
+                _pos_ts = parking_data.get("carCapturedTimestamp")
+                if isinstance(_pos_ts, str) and _pos_ts:
+                    d.position_captured_at = _pos_ts
             # v1.25.0 PR-A — Cross-brand parity: parking_address from
             # Cariad-BFF if present (Skoda mysmob ships
             # ``formattedAddress`` since v1.20.0). Cariad-BFF

@@ -2337,9 +2337,19 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
             return True
         except AuthenticationError as err:
             await self._ovw_close_session()
+            # v2.24.1 (#957) — this is the options-flow twin of the setup-time
+            # login at line ~637, and it was the only one of the two that stayed
+            # silent. Every one of the upstream raise sites landed here as a bare
+            # "invalid_credentials", so a redirect loop, an expired SSO session or
+            # a portal outage all told the user their password was wrong and left
+            # nothing in the log to tell them apart.
+            _LOGGER.warning("Website authproxy login failed: %s", err)
             raise ValueError("invalid_credentials") from err
         except Exception as err:  # noqa: BLE001
             await self._ovw_close_session()
+            _LOGGER.error(
+                "Website authproxy unexpected error: %s", type(err).__name__,
+            )
             raise ValueError("cannot_connect") from err
         if result == "otp_required":
             return True
