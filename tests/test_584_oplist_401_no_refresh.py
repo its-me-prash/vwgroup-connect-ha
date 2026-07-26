@@ -64,7 +64,9 @@ class TestOplist401NoRefresh:
         for _ in range(4):
             assert asyncio.run(c._get_mbb_operationlist(VIN, for_command=True)) is None
         c._refresh_tokens.assert_not_awaited()
-        assert c._mbb_get.await_count == 4               # 1 per call, never a retry
+        # #909 — the denial is now negative-cached, so the follow-up polls do not
+        # even reach the wire any more (it used to be one call per poll forever).
+        assert c._mbb_get.await_count == 1
 
     def test_systemid_403_does_not_refresh(self) -> None:
         # The data-plane ACL is unrecoverable — must NOT refresh/retry.

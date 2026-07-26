@@ -44,8 +44,18 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 - **Two new battery-care sensors on EU-portal cars (#938, #947).** The portal ships a score for how well the battery charging care mode is being used, plus the threshold it's measured against. Both are diagnostic and off by default, and they have no unit because the data dictionary doesn't give one.
 
+### Changed
+
+- **We identify as the current We Connect app version again.** One of the two places that announce the VW app version had drifted two releases behind the other, so the integration was introducing itself with two different app versions depending on which channel it used. Both now say 4.2.1, which is what the live app sends. Nothing else about the app changed.
+
 ### Fixed
 
+- **VW Canada sign-ins no longer get blamed on your password when VW is having an outage (#915).** If VW's own login server answered with a server error, the integration told you your credentials were wrong and opened a login prompt that could never succeed. It now says plainly that this is a problem on the manufacturer's side and retries on its own. A genuinely wrong password is still reported as such.
+- **The start_climate_control service works on Audi PPE cars again (#912).** The "force PPE climate" option was only being applied to the simple climate start, so the service with the richer options kept sending a target temperature that PPE cars reject, and the whole command failed. Both paths now respect the option.
+- **Charging speed is no longer about ten times too high, and it respects the unit your car uses (#931).** One of the charge rate readings was published exactly as the portal sent it instead of being scaled, and a car reporting miles per hour was shown as if the number were km/h. Both are corrected, so the sensor now means what it says.
+- **A car the VW gateway refuses to describe is no longer asked about on every single poll (#909).** That refusal is about how the car is registered to your account and cannot change by itself, so it is now remembered for a while and explained once in the log instead of repeating the same warning every few minutes. On top of that, a setup that fails on something only you can fix (pending terms, missing consent, two factor, wrong password) now asks you to sign in again instead of retrying forever in the background.
+- **The integration's own rate-limit pause is no longer treated as a backend failure (#933).** When it deliberately pauses to protect your account from being locked out, that is normal and temporary, so it no longer counts as an error worth escalating.
+- **A missing position no longer wipes your car's last known location (#923).** When the backend answers without coordinates, the previous parking position is kept instead of the car jumping to an unknown location until the next good poll.
 - **Ambient temperature and parking brake stopped showing up as "new fields" every poll (#938, #947).** Some cars send those two readings under a doubled-up name. The value was already being read, but the doubled spelling kept getting reported as undiscovered. Nothing changes on the entities themselves.
 - **The window-heating command queue no longer counts as an unknown field (#934).** It's the same pending-command list the charging and climate blocks already have, so it's now recognised as such instead of being reported.
 

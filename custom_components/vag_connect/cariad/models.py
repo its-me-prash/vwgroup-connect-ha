@@ -52,7 +52,7 @@ BRAND_VW_EU = BrandConfig(
     name="volkswagen",
     client_id="a24fba63-34b3-4d43-b181-942111e6bda8@apps_vw-dilab_com",
     redirect_uri="weconnect://authenticated",
-    user_agent="Volkswagen/3.63.2-android/14",
+    user_agent="Volkswagen/4.2.1-android/14",
     api_base="https://emea.bff.cariad.digital",
     # scope from volkswagencarnet (upstream/volkswagencarnet, MIT) — confirmed working
     scope="openid profile badge cars dealers vin",
@@ -60,6 +60,11 @@ BRAND_VW_EU = BrandConfig(
     # Source: VW WeConnect 3.61.0 APK xapk archive name + ioBroker commit 884269b1.
     # v2.15.3 — user_agent bumped 3.61.0 → 3.63.2 to match the live We Connect
     # build (DEX-verified; _mbb_app_identity() in vw_eu.py already ships 3.63.2).
+    # Unreleased (App Atlas refresh 2026-07) — bumped 3.63.2 → 4.2.1 from the
+    # fresh com.volkswagen.weconnect DEX. This literal had drifted two whole
+    # generations behind the app while _mbb_app_identity() had already moved on,
+    # so the two channels were announcing different builds of the same app.
+    # Nothing else changed between 4.1.1 and 4.2.1 (no new clients/endpoints).
     # Pre-v2.5.11 this was silently impersonating the Audi package via the
     # hardcoded ``de.myaudi.mobile.assistant`` default in idk.py.
     android_package_name="de.volkswagen.weconnect",

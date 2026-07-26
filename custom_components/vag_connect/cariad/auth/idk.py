@@ -1095,6 +1095,12 @@ class IDKAuth:
             timeout=_AUTH_TIMEOUT, data=submit_data,
             headers=self._form_headers(), allow_redirects=True,
         ) as resp:
+            if resp.status >= 500:
+                # #915 — same misclassification one step earlier in the flow:
+                # the identifier POST hits the same signin-service host, so a
+                # VW-side 5xx here must also read as an outage, not as a
+                # credentials problem (the email hasn't even been judged yet).
+                raise UpstreamUnavailableError(resp.status, self._brand.name)
             if resp.status != 200:
                 raise AuthenticationError(
                     f"Email POST HTTP {resp.status} at {email_url[:80]}"
@@ -1170,6 +1176,15 @@ class IDKAuth:
             raise AuthenticationError("Invalid credentials (401).")
         if pw_status == 429:
             raise RateLimitError()
+        # #915 (2026-07, VW Canada — vrouleau + amateurdeveloper) — a 5xx from
+        # the signin-service is VW's own outage, NOT a wrong password: the same
+        # account on the same code path returned a clean 302 earlier the same
+        # day. Falling through to the catch-all below told those users "invalid
+        # credentials" and fired a reauth prompt that could never succeed.
+        # UpstreamUnavailableError is not an AuthenticationError, so setup and
+        # the config flow surface it as a retryable backend outage instead.
+        if pw_status >= 500:
+            raise UpstreamUnavailableError(pw_status, self._brand.name)
         if pw_status not in (302, 303):
             raise AuthenticationError(
                 f"Password POST HTTP {pw_status} at {pw_url[:80]}: {pw_body[:200]}"

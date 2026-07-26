@@ -971,12 +971,18 @@ class CariadBaseClient:
         seat_rr: bool | None = None,
         climatisation_at_unlock: bool | None = None,
         climatisation_mode: str | None = None,
+        ppe_mode: bool = False,
     ) -> None:
         """v2.10.0 - rich climate-start. Override in CARIAD-BFF brand clients.
 
         Accepts per-seat heating toggles (seat_fl/fr/rl/rr), glass_heating,
         climatisation_at_unlock, climatisation_mode and temp_c. Each field
         is optional, with omitted fields keeping the brand backend default.
+
+        #912 - ``ppe_mode`` carries the coordinator's ``force_ppe_climate``
+        gate through to the CARIAD-BFF clients, which drop the temperature
+        fields PPE/PPC vehicles reject. Declared here so the signature matches
+        the override and the coordinator can pass it unconditionally.
 
         Default implementation raises NotImplementedError so the coordinator
         can fall back to the basic ``command_start_climate`` flow for brands

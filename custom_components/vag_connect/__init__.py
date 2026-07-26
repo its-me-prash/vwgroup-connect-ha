@@ -102,6 +102,23 @@ _SETUP_ERRORS: dict[str, str] = {
     ),
 }
 
+# #909 (2026-07, Audi e-tron GT — Lagaff86) — setup reasons that CANNOT clear on
+# their own. Each one comes from an ``AuthenticationError`` subclass and needs a
+# one-time human action (accept terms, give consent, pass 2FA, finish a portal
+# step, fix the password). Retrying them as ``ConfigEntryNotReady`` re-ran the
+# whole blocking login on every HA backoff tick — minutes of stalled setup that
+# could never succeed — instead of showing the reauth prompt that actually
+# resolves it. ``too_many_requests`` is deliberately NOT here: a rate limit does
+# clear by itself, so it stays a retry.
+_HARD_AUTH_SETUP_ERRORS: frozenset[str] = frozenset({
+    "terms_and_conditions",
+    "marketing_consent",
+    "two_factor_required",
+    "email_two_factor_required",
+    "portal_interaction_required",
+    "invalid_credentials",
+})
+
 
 def _get_coordinator(hass: HomeAssistant, vin: str) -> VagConnectCoordinator | None:
     """Return the coordinator that owns *vin*, or None if not found.
@@ -138,9 +155,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) -
         from .repairs import raise_issue_auth_required  # noqa: PLC0415
         raise_issue_auth_required(hass, entry.entry_id, reason)
         message = _SETUP_ERRORS.get(reason, str(err))
-        # invalid_credentials is a hard auth failure — let HA show the reauth
-        # prompt instead of looping ConfigEntryNotReady retries forever.
-        if reason == "invalid_credentials":
+        # #909 — a hard auth failure gets the reauth prompt instead of looping
+        # ConfigEntryNotReady retries forever (see _HARD_AUTH_SETUP_ERRORS).
+        if reason in _HARD_AUTH_SETUP_ERRORS:
             raise ConfigEntryAuthFailed(message) from err
         raise ConfigEntryNotReady(message) from err
     except Exception as err:  # noqa: BLE001

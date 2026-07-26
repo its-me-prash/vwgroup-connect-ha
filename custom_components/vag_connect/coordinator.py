@@ -65,6 +65,11 @@ def _is_selfhealing_poll_error(err: object) -> bool:
       mid-stream disconnect — which ``base._request`` tags ``"transient:"`` in the
       ``APIError`` body AFTER exhausting its own retries. (#814 was exactly a
       "Timeout while contacting DNS servers" on a user's Home Assistant host.)
+    - a 429 (#933) — either the backend throttling us or, more often, our OWN
+      client-side account cooldown, which ``base._request`` raises as a
+      synthetic ``APIError(429, …, "rate-limit lockout active …")``. Our own
+      protective pause is by definition not a backend failure and expires on its
+      own, so escalating it to the public Error Reporter was pure noise.
 
     Auth-interaction errors are de-escalated separately (they trigger reauth).
     """
@@ -74,7 +79,7 @@ def _is_selfhealing_poll_error(err: object) -> bool:
         return True
     if isinstance(err, APIError):
         status = getattr(err, "status", 0)
-        if status >= 500:
+        if status >= 500 or status == 429:
             return True
         body = getattr(err, "body", None)
         if status == 0 and isinstance(body, str) and body.lstrip().startswith(
@@ -4121,28 +4126,36 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             spin=spin,
         )
 
+    def _ppe_climate_kwargs(self) -> dict[str, Any]:
+        """v1.14.0 (#29) — PPE/PPC body-shape gate for climate commands.
+
+        User option ``force_ppe_climate`` forces the new body shape (no
+        targetTemperature*, climatisationMode mandatory) for Audi vehicles on
+        PPC/PPE platforms (Q6 e-tron, A6 e-tron, RS e-tron GT Facelift, A3
+        2024+ PHEV). VW EU and other brands ignore the option — only Audi's
+        CARIAD backend differentiates.
+
+        #912 (2026-07, Audi A6 e-tron PPE — Mirjam9) — this used to live inline
+        in ``async_start_climatisation`` only, so the ``start_climate_control``
+        service never applied it and kept sending ``targetTemperature`` to a PPE
+        car that rejects it. Shared helper now, so every climate entry point
+        reads the option the same way and cannot drift apart again.
+        """
+        brand = str(self.entry.data.get(CONF_BRAND, "")).lower()
+        if brand not in ("audi", "volkswagen"):
+            return {}
+        options = dict(getattr(self.entry, "options", None) or {})
+        data = dict(getattr(self.entry, "data", None) or {})
+        ppe_mode = bool(options.get(CONF_FORCE_PPE_CLIMATE, False))
+        if not ppe_mode:
+            ppe_mode = bool(data.get(CONF_FORCE_PPE_CLIMATE, False))
+        return {"ppe_mode": True} if ppe_mode else {}
+
     async def async_start_climatisation(self, vin: str) -> None:
         # v1.11.1 (3B-Part-3) — optimistic UI: climate flips to active
         # immediately. Backend value will overwrite on next poll if it
         # disagrees (which is rare — start succeeds for entitled VINs).
-        # v1.14.0 (#29) — PPE/PPC body shape conditional. User option
-        # ``force_ppe_climate`` forces the new body shape (no
-        # targetTemperature*, climatisationMode mandatory) for Audi
-        # vehicles on PPC platforms (Q6 e-tron, A6 e-tron, RS e-tron GT
-        # Facelift, A3 2024+ PHEV). VW EU and other brands ignore the
-        # option — only Audi's CARIAD backend differentiates.
-        cmd_kwargs: dict[str, Any] = {}
-        brand = str(self.entry.data.get(CONF_BRAND, "")).lower()
-        if brand in ("audi", "volkswagen"):
-            options = dict(getattr(self.entry, "options", None) or {})
-            data = dict(getattr(self.entry, "data", None) or {})
-            ppe_mode = False
-            if isinstance(options, dict):
-                ppe_mode = bool(options.get(CONF_FORCE_PPE_CLIMATE, False))
-            if not ppe_mode and isinstance(data, dict):
-                ppe_mode = bool(data.get(CONF_FORCE_PPE_CLIMATE, False))
-            if ppe_mode:
-                cmd_kwargs["ppe_mode"] = True
+        cmd_kwargs: dict[str, Any] = self._ppe_climate_kwargs()
         await self._cariad_cmd_optimistic(
             vin, "command_start_climate",
             optimistic={
@@ -4192,12 +4205,16 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             return
         brand = str(self.entry.data.get(CONF_BRAND, "")).lower()
         if brand in ("audi", "volkswagen"):
+            # #912 — the rich-payload service must honour the same PPE gate as
+            # the basic start; without it a PPE car (A6 e-tron) always got a
+            # targetTemperature in the body and rejected the whole command.
             await self._cariad_cmd_optimistic(
                 vin, "command_start_climate_control",
                 optimistic={
                     "climatisation_state": "VENTILATION",
                     "climatisation_active": True,
                 },
+                **self._ppe_climate_kwargs(),
                 temp_c=temp_c,
                 glass_heating=glass_heating,
                 seat_fl=seat_fl,

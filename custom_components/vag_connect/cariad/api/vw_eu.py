@@ -113,6 +113,13 @@ _BFF_OK_STATES = frozenset(
     {"successful", "succeeded", "success", "completed", "done", "finished"}
 )
 
+# #909 — cooldown for a gateway-DENIED MBB operationList. The denial is an
+# enrolment/authorization verdict, so it only changes when the user fixes
+# something in the brand app; 12 h matches the positive cache's TTL and still
+# picks up such a fix on the same day. A command pre-flight (force_refresh)
+# bypasses it, so an explicit user action is never blocked by the cooldown.
+_MBB_OPLIST_DENY_TTL = timedelta(hours=12)
+
 
 def _bff_request_id(resp: Any) -> str | None:
     """Extract the async request id from a BFF 202 command response."""
@@ -814,6 +821,7 @@ class VWEUClient(CariadBaseClient):
         seat_rr: bool | None = None,
         climatisation_at_unlock: bool | None = None,
         climatisation_mode: str | None = None,
+        ppe_mode: bool = False,
     ) -> None:
         """v2.10.0 - rich climate-start payload for CARIAD BFF.
 
@@ -829,8 +837,20 @@ class VWEUClient(CariadBaseClient):
         to ``False``). Mixed per-seat + None inputs are treated as
         ``False`` for the unspecified seats so the user always sends
         a coherent zone configuration to the backend.
+
+        #912 (2026-07, Audi A6 e-tron PPE) — ``ppe_mode`` mirrors the gate
+        ``command_start_climate`` already has: PPE/PPC vehicles reject a body
+        that carries ``targetTemperature*`` and require ``climatisationMode``,
+        so on those cars the temperature is dropped and the mode defaults to
+        ``comfort`` when the caller didn't name one.
         """
         body: dict[str, Any] = {}
+        if ppe_mode:
+            # PPE body validator rejects targetTemperature* outright, so the
+            # caller's temp_c is dropped rather than failing the whole command.
+            temp_c = None
+            if climatisation_mode is None:
+                climatisation_mode = "comfort"
         if temp_c is not None:
             # #752 audit — the CARIAD climatisation/start action takes
             # targetTemperature + targetTemperatureUnit (as our own simpler
@@ -1314,8 +1334,10 @@ class VWEUClient(CariadBaseClient):
             return "myAudi", "5.6.0"
         # b13 (#503 dismantle / H5) — track the live We Connect version; the
         # fs-car endpoints reject stale versions. v2.20.0 (APK audit): current
-        # com.volkswagen.weconnect is 4.1.1 (was 3.63.2).
-        return "Volkswagen", "4.1.1"
+        # com.volkswagen.weconnect is 4.1.1 (was 3.63.2). Unreleased (App Atlas
+        # refresh 2026-07): the fresh DEX says 4.2.1, and BrandConfig.user_agent
+        # in models.py now names the same build so the two agree.
+        return "Volkswagen", "4.2.1"
 
     def _mbb_headers(self, extra: dict[str, str] | None = None) -> dict[str, str]:
         app_name, app_version = self._mbb_app_identity()
@@ -1581,10 +1603,24 @@ class VWEUClient(CariadBaseClient):
             self._mbb_oplist_cache: dict[
                 str, tuple[MbbOperationList, datetime]
             ] = {}
+        # #909 (2026-07, Audi e-tron GT — Lagaff86) — mirror of the positive
+        # cache for the NON-RECOVERABLE denial below. A gateway 401 is an
+        # enrolment/authorization verdict that cannot change within a poll
+        # cycle, yet it was re-requested (and re-logged at WARNING) on every
+        # single poll, spamming the log and burning a request per poll forever.
+        if not hasattr(self, "_mbb_oplist_denied"):
+            self._mbb_oplist_denied: dict[str, datetime] = {}
         now = datetime.now(tz=timezone.utc)
         cached = self._mbb_oplist_cache.get(vin)
         if not force_refresh and cached and cached[1] > now:
             return cached[0]
+        denied_until = self._mbb_oplist_denied.get(vin)
+        if not force_refresh and denied_until is not None and denied_until > now:
+            _LOGGER.debug(
+                "MBB operationList ***%s: denied by the gateway, not retrying "
+                "until %s", vin[-6:], denied_until.isoformat(timespec="seconds"),
+            )
+            return None
 
         url = build_mbb_operationlist_url(MBB_SETTER_BASE, vin)
         try:
@@ -1614,14 +1650,35 @@ class VWEUClient(CariadBaseClient):
             # So: log once, spend no refresh, return None (caller treats None as
             # "unknown" and does not block reads).
             if err.status == 401 and "gw.error.authentication" in body:
-                _LOGGER.warning(
+                # #909 — remember the denial so the next polls skip the call
+                # entirely, and say it out loud only ONCE per vehicle: the
+                # verdict never changes, so repeating the full explanation every
+                # poll is pure log noise. Subsequent hits stay at DEBUG.
+                first_denial = vin not in self._mbb_oplist_denied
+                self._mbb_oplist_denied[vin] = now + _MBB_OPLIST_DENY_TTL
+                _LOGGER.log(
+                    logging.WARNING if first_denial else logging.DEBUG,
                     "MBB operationList ***%s → 401 gw.error.authentication: the "
                     "gateway rejected the bearer for this vehicle. This is an "
                     "enrolment/authorization issue for this account and car (is "
                     "the account the primary user in the brand app?), not an "
                     "expired token — refreshing or re-authenticating won't "
-                    "change it.",
-                    vin[-6:],
+                    "change it. Not retried for %d h.",
+                    vin[-6:], int(_MBB_OPLIST_DENY_TTL.total_seconds() // 3600),
+                )
+                return None
+            if err.status in (401, 403):
+                # #909 — the systemId / rolesandrights ACL rejection is just as
+                # non-recoverable as the gateway one above, so it earns the same
+                # cooldown and the same log-once treatment. Everything else (5xx,
+                # 404, …) is potentially transient and keeps being retried.
+                first_denial = vin not in self._mbb_oplist_denied
+                self._mbb_oplist_denied[vin] = now + _MBB_OPLIST_DENY_TTL
+                _LOGGER.log(
+                    logging.WARNING if first_denial else logging.DEBUG,
+                    "MBB operationList ***%s → HTTP %s: %s. Not retried for %d h.",
+                    vin[-6:], err.status, body[:160],
+                    int(_MBB_OPLIST_DENY_TTL.total_seconds() // 3600),
                 )
                 return None
             _LOGGER.warning(
@@ -1637,6 +1694,9 @@ class VWEUClient(CariadBaseClient):
 
         oplist = parse_mbb_operationlist(resp, vin)
         if oplist is not None:
+            # #909 — a successful list means the denial is over (e.g. the user
+            # became primary user in the app), so drop the negative cache.
+            self._mbb_oplist_denied.pop(vin, None)
             self._mbb_oplist_cache[vin] = (oplist, now + timedelta(hours=12))
             enabled = [s for s in oplist.services.values() if s.enabled]
             _LOGGER.info(
@@ -4304,8 +4364,17 @@ class VWEUClient(CariadBaseClient):
                 # Some legacy/historic responses or alternate firmwares may
                 # ship lat/lon at top level — keep that as a fallback.
                 parking_data = parking
-            d.latitude = parking_data.get("lat")
-            d.longitude = parking_data.get("lon")
+            # #923 (2026-07, VW T-Roc — fight3) — only write coordinates the
+            # response actually carries. A degraded backend answers 200 with an
+            # empty data node; assigning ``.get("lat")`` unconditionally wrote
+            # None over a perfectly good position, so the car jumped to "unknown
+            # location" on every hiccup. Leaving them unset lets the last-known
+            # position carry forward (see CARRY_FORWARD_FIELDS).
+            lat = parking_data.get("lat")
+            lon = parking_data.get("lon")
+            if lat is not None and lon is not None:
+                d.latitude = lat
+                d.longitude = lon
             # v1.25.0 PR-A — Cross-brand parity: parking_address from
             # Cariad-BFF if present (Skoda mysmob ships
             # ``formattedAddress`` since v1.20.0). Cariad-BFF
