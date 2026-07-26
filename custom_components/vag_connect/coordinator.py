@@ -1035,24 +1035,63 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # threading.Lock, and awaiting while holding one parks the whole
             # event loop for any other task that tries to acquire it — the
             # merge does network I/O, so it must not run inside.
-            prepared: list[tuple[str, dict[str, Any] | None, bool]] = []
+            prepared: list[tuple[str, dict[str, Any] | None, bool, bool]] = []
             for vin, result in zip(vins, results):
                 if isinstance(result, Exception):
                     _LOGGER.warning("Could not fetch status for %s: %s", mask_vin(vin), result)
-                    prepared.append((vin, None, True))
+                    prepared.append((vin, None, True, False))
                     continue
                 if isinstance(result, VehicleData):
                     merged = await self._merge_supplementary(vin, result)
                     data = merged.to_dict()
                     data["_client"] = self._cariad_client
-                    prepared.append((vin, await self._enrich(data), False))
+                    prepared.append((
+                        vin,
+                        await self._enrich(data),
+                        False,
+                        bool(getattr(merged, "no_data", False)),
+                    ))
+
+            # v2.24.1 (#702) — the poll loop has guarded this since v2.15.0a10
+            # (line ~1994) and this path never did, which made the fix only half
+            # landed. A no-data portal response is NOT an exception: it returns a
+            # bare VehicleData, so it arrived here with failed=False and wrote
+            # blanks straight over the snapshot restored at line ~874. The first
+            # poll afterwards then reconciled against those blanks (nothing left
+            # to carry forward) and persisted them, so every restart of a car
+            # whose setup poll came back empty destroyed its stored values for
+            # good — and made ``import_historical_export`` a no-op for exactly
+            # the users it exists for. Same two-stage treatment as the poll loop:
+            # keep last-known-good VISIBLE on no-data, and reconcile a partial
+            # payload instead of letting it blank recorded fields.
+            from .cariad.vehicle_cache import reconcile  # noqa: PLC0415
 
             with self._vehicles_lock:
-                for vin, prepared_data, failed in prepared:
+                for vin, prepared_data, failed, no_data in prepared:
                     if failed or prepared_data is None:
                         if hasattr(self, "vehicle_success"):
                             self.vehicle_success[vin] = False
                         continue
+                    # "Old but visible": a VIN we have never seen still falls
+                    # through, so a brand-new car appears on first setup.
+                    if no_data and self.vehicles.get(vin):
+                        self.vehicles[vin]["_poll_failed"] = True
+                        if hasattr(self, "vehicle_success"):
+                            self.vehicle_success[vin] = False
+                        _LOGGER.debug(
+                            "VAG Connect portal-safety %s: setup poll returned "
+                            "no data; keeping the restored snapshot",
+                            mask_vin(vin),
+                        )
+                        continue
+                    prepared_data, _setup_disc = reconcile(
+                        self.vehicles.get(vin), prepared_data
+                    )
+                    if _setup_disc:
+                        _LOGGER.debug(
+                            "VAG Connect portal-safety %s (setup): %s",
+                            mask_vin(vin), "; ".join(_setup_disc),
+                        )
                     self.vehicles[vin] = self._apply_optimistic_hold(vin, prepared_data)
                     if hasattr(self, "vehicle_success"):
                         self.vehicle_success[vin] = True

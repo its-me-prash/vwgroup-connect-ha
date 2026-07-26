@@ -122,6 +122,12 @@ class VagConnectTracker(VagConnectEntity, TrackerEntity):
             "parking_address",
             "parking_city",
             "last_seen_at",
+            # v2.24.1 — when the BACKEND captured this position, which is not
+            # the same as when we last polled. A parked position is carried
+            # through a backend outage on purpose (#923); this is what lets a
+            # user tell a position from a minute ago from one from yesterday
+            # instead of having to trust that the marker is current.
+            "position_captured_at",
             "vehicle_state",
             "model",
             "model_year",

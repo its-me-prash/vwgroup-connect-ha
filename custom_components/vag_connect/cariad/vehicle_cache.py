@@ -12,6 +12,7 @@ This module is the pure reconcile/serialise logic; the coordinator owns the
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 VEHICLE_CACHE_VERSION = 1
@@ -38,13 +39,56 @@ CARRY_FORWARD_FIELDS: frozenset[str] = frozenset({
     "fuel_tank_capacity_liters",
     "service_km", "oil_service_km", "service_due_in_days", "oil_service_due_in_days",
     "last_seen_at",
-    # #923 — the parked position belongs in the "old but visible" class too: a
-    # degraded parkingposition response that omits the coordinates does NOT mean
-    # the car moved, and blanking them sent the device_tracker to "unknown"
-    # mid-outage. A parked car is still where it last was, and the poll that
-    # brings real coordinates back overwrites these immediately.
-    "latitude", "longitude",
 })
+
+# #923 — the parked position belongs in the "old but visible" class too: a
+# degraded parkingposition response that omits the coordinates does NOT mean the
+# car moved, and blanking them sent the device_tracker to "unknown" mid-outage.
+# A parked car is still where it last was, and the poll that brings real
+# coordinates back overwrites these immediately.
+#
+# v2.24.1 — but NOT forever, and not as a bare pair. Held in CARRY_FORWARD_FIELDS
+# these were carried with no age attached and across restarts, so a position from
+# last week presented exactly like one from a minute ago, and the backend's own
+# ``parkingPositionNotAvailable`` was masked rather than surfaced. They are now
+# reconciled as one group under a TTL, address and city included: carrying
+# coordinates while dropping the address left a half-position that read as a
+# parser fault, and the address is the only staleness hint a user actually sees.
+POSITION_FIELDS: tuple[str, ...] = (
+    "latitude", "longitude", "parking_address", "parking_city",
+)
+
+# How long a recorded position may still be shown when the backend stops serving
+# one. A parked car really does stay put, so this is generous; it exists to stop
+# an indefinitely stale position, not to expire a legitimately parked one.
+POSITION_MAX_AGE_S: int = 24 * 3600
+
+
+def _parse_iso(raw: Any) -> datetime | None:
+    """Best-effort ISO-8601 → aware datetime. ``None`` when unparseable."""
+    if not isinstance(raw, str) or not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def position_age_seconds(previous: dict[str, Any]) -> float | None:
+    """Age of a recorded position, or ``None`` when it cannot be established.
+
+    Prefers the backend's own capture time and falls back to ``last_seen_at``.
+    An unknown age is deliberately NOT treated as expired: brands that never
+    supply a timestamp would otherwise lose a working position entirely.
+    """
+    for key in ("position_captured_at", "last_seen_at"):
+        stamp = _parse_iso(previous.get(key))
+        if stamp is not None:
+            return (datetime.now(tz=timezone.utc) - stamp).total_seconds()
+    return None
 
 # Fields that physically only ever increase. A fresh value below the recorded
 # one is a bad reading (the portal occasionally serves a stale / zero odometer)
@@ -77,6 +121,21 @@ def reconcile(
     for field in CARRY_FORWARD_FIELDS:
         if merged.get(field) is None and previous.get(field) is not None:
             merged[field] = previous[field]
+    # Position — carried as ONE group and only when the fresh poll has no
+    # coordinates at all. Topping a fresh position up with the previous
+    # address would pin last week's street name onto this minute's
+    # coordinates, which is worse than showing no address.
+    if merged.get("latitude") is None and merged.get("longitude") is None:
+        age = position_age_seconds(previous)
+        if age is not None and age > POSITION_MAX_AGE_S:
+            notes.append(
+                f"recorded position is {age / 3600:.0f}h old "
+                f"(limit {POSITION_MAX_AGE_S // 3600}h); dropped, not carried"
+            )
+        else:
+            for field in (*POSITION_FIELDS, "position_captured_at"):
+                if merged.get(field) is None and previous.get(field) is not None:
+                    merged[field] = previous[field]
     for field in MONOTONIC_INCREASING_FIELDS:
         new = merged.get(field)
         old = previous.get(field)

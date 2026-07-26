@@ -697,6 +697,13 @@ class VehicleData:
     parking_address: str | None = None
     parking_city: str | None = None
     heading: int | None = None
+    # v2.24.1 — when the BACKEND says the position was captured, as opposed to
+    # when we polled. Carrying a parked position forward through an outage is
+    # right (the car has not moved), but doing it with no age attached made a
+    # week-old position indistinguishable from a current one. This is what the
+    # carry-forward TTL in ``vehicle_cache.reconcile`` measures against, and what
+    # the device_tracker exposes so the age is visible rather than implied.
+    position_captured_at: str | None = None
 
     # Status
     vehicle_state: str | None = None
