@@ -88,6 +88,11 @@ class BrandPreset:
     actions: tuple[ActionSelector, ...] = ()
     # v2.26.0 — nag/interstitial screens to dismiss before reading/tapping.
     overlays: tuple[OverlaySelector, ...] = ()
+    # v2.26.0 (ckomma #21) — "too many requests" / account-lockout banners. On
+    # match the channel trips a LONG, PERSISTED backoff and blocks writes, so we
+    # never drive further into a real rate-limit. Distinct from a nag (which is
+    # dismissed): a rate-limit banner means back off, not press BACK.
+    rate_limit_banners: tuple[OverlaySelector, ...] = ()
     # v2.26.0 — a node that proves we are on the expected main/detail screen.
     # A read/tap only proceeds when this anchor is present, so a stray screen
     # (or a dismissed-overlay-left-us-elsewhere state) yields no_data rather than
@@ -104,6 +109,25 @@ class BrandPreset:
         wrong control on the car.
         """
         return self.verified and bool(self.actions)
+
+
+# v2.26.0 (ckomma #21) — a shared, multilingual "too many requests / temporarily
+# blocked" banner. The CARIAD rate-limit backend is shared across all five
+# brands, so the same seeded matcher is correct brand-agnostically; only the
+# exact wording would be tightened per brand once a tester captures it.
+_RATE_LIMIT_BANNER = OverlaySelector(
+    name="rate_limited",
+    content_desc_re=(
+        r"(?:Zu\s*(?:viele|häufige)\s*Anfragen|Too\s*many\s*requests"
+        r"|vorübergehend\s*(?:gesperrt|blockiert|nicht\s*verfügbar)"
+        r"|temporarily\s*(?:blocked|unavailable)|Demasiadas\s*solicitudes)"
+    ),
+    text_re=(
+        r"(?:Zu\s*(?:viele|häufige)\s*Anfragen|Too\s*many\s*requests"
+        r"|vorübergehend\s*(?:gesperrt|blockiert|nicht\s*verfügbar)"
+        r"|temporarily\s*(?:blocked|unavailable)|Demasiadas\s*solicitudes)"
+    ),
+)
 
 
 # ── Volkswagen — the one brand verified in-house (Golf GTE, app 4.2.1) ───────
@@ -198,6 +222,10 @@ _VW = BrandPreset(
             text_re=r"(?:verzögert\s*ausgeführt|executed\s*with\s*a\s*delay)",
         ),
     ),
+    # v2.26.0 (ckomma #21) — SEEDED (unverified even for VW: the ckomma report
+    # was a backend request-limit, not a confirmed on-screen banner). The
+    # mechanism is what matters; the exact string comes with a tester capture.
+    rate_limit_banners=(_RATE_LIMIT_BANNER,),
 )
 
 # ── The four unverified brands — structure present, selectors best-effort ────
@@ -269,6 +297,7 @@ _AUDI = BrandPreset(
         r"^(?:Ladezustand|State of charge)$", r"^(?:Reichweite|Range)$"
     ),
     overlays=(_SEEDED_POWERSAVE,),
+    rate_limit_banners=(_RATE_LIMIT_BANNER,),
 )
 
 _SKODA = BrandPreset(
@@ -280,6 +309,7 @@ _SKODA = BrandPreset(
         r"^(?:Ladestand|Ladezustand|State of charge)$", r"^(?:Reichweite|Range)$"
     ),
     overlays=(_SEEDED_POWERSAVE,),
+    rate_limit_banners=(_RATE_LIMIT_BANNER,),
 )
 
 _SEAT = BrandPreset(
@@ -291,6 +321,7 @@ _SEAT = BrandPreset(
         r"^(?:Ladezustand|State of charge)$", r"^(?:Reichweite|Range)$"
     ),
     overlays=(_SEEDED_POWERSAVE,),
+    rate_limit_banners=(_RATE_LIMIT_BANNER,),
 )
 
 _CUPRA = BrandPreset(
@@ -302,6 +333,7 @@ _CUPRA = BrandPreset(
         r"^(?:Ladezustand|State of charge)$", r"^(?:Reichweite|Range)$"
     ),
     overlays=(_SEEDED_POWERSAVE,),
+    rate_limit_banners=(_RATE_LIMIT_BANNER,),
 )
 
 

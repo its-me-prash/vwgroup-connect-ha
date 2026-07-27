@@ -23,6 +23,7 @@ without sleeping or touching a device.
 from __future__ import annotations
 
 import logging
+import time
 from typing import Callable
 
 from .presets import ACTION_TO_COMMAND, BrandPreset
@@ -30,6 +31,7 @@ from .screen import (
     UiNode,
     find_action_node,
     find_overlay,
+    find_rate_limit_banner,
     parse_ui_dump,
     read_fields,
 )
@@ -41,6 +43,10 @@ _FAILURE_COOLDOWN_S = 1800.0        # 30 min after any transport failure
 _OVERLAY_MAX_DISMISS = 3            # BACK presses before giving up on a nag screen
 _WRITE_MIN_INTERVAL_S = 60.0       # min gap between taps, so we never drive into
                                    # a backend rate-limit / lockout (ckomma #21)
+_RATE_LIMIT_BACKOFF_S = 12 * 3600  # 12 h after a rate-limit banner. Uses wall
+                                   # clock so it can be PERSISTED across restarts
+                                   # (ckomma #21: an account lockout must NOT be
+                                   # cleared by a restart the way a TCP blip is)
 
 
 class CompanionWriteBlocked(RuntimeError):
@@ -56,11 +62,17 @@ class CompanionChannel:
         preset: BrandPreset,
         *,
         time_fn: Callable[[], float],
+        wall_clock_fn: Callable[[], float] | None = None,
     ) -> None:
         self._t = transport
         self._preset = preset
         self._now = time_fn
+        # Wall clock (unix seconds) for the rate-limit backoff only, because that
+        # one must be persistable across restarts; ``_now`` (monotonic) is right
+        # for the in-session failure cooldown. Injected for tests.
+        self._wall = wall_clock_fn or time.time
         self._cooldown_until: float = 0.0
+        self._rate_limited_until: float = 0.0  # wall-clock; persisted (ckomma #21)
         self._live_app_version: str | None = None
         self._writes_ok: bool | None = None  # decided on first read
         self._last_write_at: float | None = None  # write min-interval (ckomma #21)
@@ -72,7 +84,37 @@ class CompanionChannel:
     @property
     def writes_enabled(self) -> bool:
         """Whether writes are currently allowed, with all gates applied."""
-        return bool(self._writes_ok) and self._preset.writable
+        return (
+            bool(self._writes_ok)
+            and self._preset.writable
+            and not self._is_rate_limited()
+        )
+
+    # -- rate-limit backoff (ckomma #21), wall-clock so it can be persisted ----
+
+    @property
+    def rate_limited_until(self) -> float:
+        """Wall-clock unix time until which the channel is backed off (0 = not).
+
+        The coordinator persists this so an account lockout survives a restart.
+        """
+        return self._rate_limited_until
+
+    def restore_rate_limit(self, until: float) -> None:
+        """Re-apply a persisted rate-limit backoff at setup."""
+        if until and until > self._wall():
+            self._rate_limited_until = float(until)
+
+    def _is_rate_limited(self) -> bool:
+        return self._wall() < self._rate_limited_until
+
+    def _trip_rate_limit(self) -> None:
+        self._rate_limited_until = self._wall() + _RATE_LIMIT_BACKOFF_S
+        _LOGGER.warning(
+            "companion %s: a rate-limit / lockout banner is up; backing off for "
+            "%d h and disabling writes. This is a backend limit on the account, "
+            "not a phone problem.", self._preset.brand, _RATE_LIMIT_BACKOFF_S // 3600,
+        )
 
     # -- read -----------------------------------------------------------------
 
@@ -97,7 +139,7 @@ class CompanionChannel:
         trips the cooldown and re-raises, so the coordinator counts a real
         failure as a failed poll rather than a blank overwrite.
         """
-        if self._in_cooldown():
+        if self._in_cooldown() or self._is_rate_limited():
             return None
         try:
             if not self._t.connected:
@@ -110,6 +152,13 @@ class CompanionChannel:
         except CompanionTransportError:
             self._cooldown_until = self._now() + _FAILURE_COOLDOWN_S
             raise
+        # v2.26.0 (ckomma #21) — a rate-limit / lockout banner is not a nag to
+        # dismiss; it means stop. Trip the long persisted backoff and return
+        # no-data (last-known-good stays visible) rather than reading the
+        # lockout screen.
+        if find_rate_limit_banner(nodes, self._preset) is not None:
+            self._trip_rate_limit()
+            return None
         if not cleared:
             # A nag/interstitial we could not dismiss is up; the screen behind it
             # is not the data screen. Return no fields rather than parsing the
@@ -216,6 +265,13 @@ class CompanionChannel:
                 f"on the phone ({self._live_app_version or 'unknown'}) does not "
                 f"match the one this preset was verified against "
                 f"({self._preset.verified_app_version}). Reads still work."
+            )
+        # v2.26.0 (ckomma #21) — if a rate-limit backoff is active, do not send.
+        if self._is_rate_limited():
+            raise CompanionWriteBlocked(
+                f"the {self._preset.brand} companion channel is backed off after "
+                "a rate-limit or lockout from the backend; commands are paused "
+                "until it clears (this is an account-side limit, not the phone)"
             )
         # v2.26.0 (ckomma #21) — enforce a minimum gap between taps so a rapid
         # repeat (a stuck automation, a double press) can never drive the account

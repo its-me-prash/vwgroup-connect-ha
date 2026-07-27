@@ -151,6 +151,27 @@ def find_overlay(nodes: list[UiNode], preset: BrandPreset) -> OverlaySelector | 
     return None
 
 
+def find_rate_limit_banner(
+    nodes: list[UiNode], preset: BrandPreset
+) -> OverlaySelector | None:
+    """Return a "too many requests / temporarily blocked" banner if present.
+
+    v2.26.0 (ckomma #21). Unlike a nag (dismissed with BACK), this means back
+    off: the caller trips a long persisted cooldown and stops writing.
+    """
+    for banner in preset.rate_limit_banners:
+        for n in nodes:
+            if (
+                banner.content_desc_re
+                and n.content_desc
+                and re.search(banner.content_desc_re, n.content_desc, re.I)
+            ):
+                return banner
+            if banner.text_re and n.text and re.search(banner.text_re, n.text, re.I):
+                return banner
+    return None
+
+
 def has_anchor(nodes: list[UiNode], preset: BrandPreset) -> bool:
     """True if the preset's screen-identity anchor is present (or none is set).
 
