@@ -135,7 +135,7 @@
       },
       "companion_adb": {
         "title": "Companion phone (ADB) — experimental",
-        "description": "Read and control your car by driving the official app on a spare Android phone over ADB. This is EXPERIMENTAL and opt-in. You need a second phone that stays signed into the brand app, with ADB over Wi-Fi enabled. Volkswagen is verified; the other brands are read-only for now until a screen map from a real device is confirmed. Nothing is rooted and no app tokens are read — the integration only reads the screen and taps buttons.",
+        "description": "Read and control your car by driving the official app on a spare Android phone over ADB. This is EXPERIMENTAL and opt-in. You need a second phone that stays signed into the brand app, with ADB over Wi-Fi enabled. An older phone (Android 10 or earlier) connects here directly; a modern phone (Android 11+, wireless debugging) needs the 'VW Group App ADB Bridge' add-on, which you then point this at. Volkswagen is verified; the other brands are read-only for now until a screen map from a real device is confirmed. Nothing is rooted and no app tokens are read — the integration only reads the screen and taps buttons.",
         "data": {
           "brand": "Vehicle brand",
           "adb_host": "Phone IP address",
@@ -164,6 +164,7 @@
       "portal_interaction_required": "The EU Data Act portal needs a one-time action in your browser or brand app (e.g. accept terms, confirm consent, finish onboarding/region selection) before headless access works. This is NOT a wrong-password problem — open the portal once in a browser, complete the prompt, then try again.",
       "still_waiting_browser": "Still waiting for browser approval. Open the URL above, sign in, confirm the code, then click Submit again.",
       "companion_cannot_connect": "Could not reach the phone over ADB. Check it is on the network, that ADB over Wi-Fi is on, and that you accepted the debugging prompt.",
+      "companion_needs_addon": "This looks like an Android 11+ phone using wireless debugging, which the direct connection here cannot use (it is TLS + pairing). Install the 'VW Group App ADB Bridge' add-on (github.com/its-me-prash/vwgroup-app-adb-bridge) and point the companion at it. Older phones (Android 10 or earlier) connect here directly.",
       "companion_app_not_found": "Connected to the phone, but the brand app is not installed on it.",
       "companion_unknown_brand": "That brand has no companion preset yet."
     },

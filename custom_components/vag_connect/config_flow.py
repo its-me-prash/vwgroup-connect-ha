@@ -505,9 +505,17 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             version = await transport.current_app_version(preset.package)
         except CompanionTransportError as err:
             _LOGGER.warning("Companion ADB probe failed: %s", err)
+            # v2.26.0 — a bare "InvalidCommandError" is the fingerprint of
+            # Android 11+ "wireless debugging": the pure-python transport reaches
+            # the port but it speaks TLS + pairing, which adb-shell cannot. Point
+            # the user at the companion add-on rather than a generic "no connect".
+            if "InvalidCommandError" in str(err):
+                return False, "companion_needs_addon"
             return False, "companion_cannot_connect"
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning("Companion ADB probe error: %s", type(err).__name__)
+            if type(err).__name__ == "InvalidCommandError":
+                return False, "companion_needs_addon"
             return False, "companion_cannot_connect"
         finally:
             await transport.close()
