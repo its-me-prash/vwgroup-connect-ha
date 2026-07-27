@@ -133,7 +133,17 @@ class NetworkAdbTransport:
         return xml
 
     async def foreground_app(self, package: str, timeout_s: float = 10.0) -> None:
-        """Bring the app to the front (monkey launch) and let it settle."""
+        """Bring the app to the front and let it settle.
+
+        v2.26.0 — wake the display first (ckomma #23a: a sleeping screen is the
+        commonest cause of an empty dump), then skip the monkey-launch if the
+        app is already frontmost (ckomma #21: relaunching every read is needless
+        churn and a possible backend nudge). A cold launch still gets the settle
+        delay; an already-foreground app returns immediately.
+        """
+        await self.wake(timeout_s)
+        if await self.is_foreground(package, timeout_s):
+            return
         await self.shell(
             f"monkey -p {package} -c android.intent.category.LAUNCHER 1", timeout_s
         )
@@ -150,4 +160,55 @@ class NetworkAdbTransport:
 
     async def tap(self, x: int, y: int, timeout_s: float = 10.0) -> None:
         await self.shell(f"input tap {int(x)} {int(y)}", timeout_s)
+        await asyncio.sleep(0.6)
+
+    # v2.26.0 — reliability primitives adapted from the prior-art ADB projects.
+
+    async def wake(self, timeout_s: float = 10.0) -> None:
+        """Wake the display (KEYCODE_WAKEUP) before a dump.
+
+        ckomma #23a: a sleeping screen makes ``dump_ui`` return no hierarchy,
+        which otherwise trips the failure cooldown. Waking first removes the
+        single most common false trip. Raw keyevent, identical on every app.
+        """
+        await self.shell("input keyevent 224", timeout_s)  # KEYCODE_WAKEUP
+        await asyncio.sleep(0.4)
+
+    async def key_back(self, timeout_s: float = 10.0) -> None:
+        """Press BACK (KEYCODE_BACK). The dismissal primitive for overlay
+        recovery. Deliberately BACK-only: BACK can never actuate the car, so
+        overlay recovery is safe to run even on the unverified read-only brands.
+        """
+        await self.shell("input keyevent 4", timeout_s)  # KEYCODE_BACK
+        await asyncio.sleep(0.5)
+
+    async def is_foreground(self, package: str, timeout_s: float = 10.0) -> bool:
+        """True if ``package`` is the frontmost app.
+
+        ckomma #21: monkey-launching on every read even when the app is already
+        in front is needless churn. Lets the caller skip the relaunch. Best
+        effort: on any parse failure it returns False so the caller relaunches
+        (safe default).
+        """
+        out = await self.shell(
+            "dumpsys activity activities | grep -E 'mResumedActivity|mCurrentFocus'",
+            timeout_s,
+        )
+        return package in (out or "")
+
+    async def swipe(
+        self, x1: int, y1: int, x2: int, y2: int, dur_ms: int = 300,
+        timeout_s: float = 10.0,
+    ) -> None:
+        """Swipe gesture (e.g. pull-to-refresh).
+
+        CAUTION: unlike a local uiautomator dump, a pull-to-refresh forces an
+        app->backend sync, so it re-introduces the rate-limit surface a passive
+        read avoids. The channel only ever calls this behind its rate-limit
+        backoff, never as a free local op.
+        """
+        await self.shell(
+            f"input swipe {int(x1)} {int(y1)} {int(x2)} {int(y2)} {int(dur_ms)}",
+            timeout_s,
+        )
         await asyncio.sleep(0.6)

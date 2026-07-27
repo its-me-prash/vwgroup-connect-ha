@@ -69,3 +69,44 @@ class TestStaleDumpFileGuard:
         dev = _RecordingDevice({"cat": xml})
         t = _transport(dev)
         assert await t.dump_ui() == xml
+
+
+class TestReliabilityPrimitives:
+    """ckomma #21 / #23a — wake, foreground-skip, back key."""
+
+    @pytest.mark.asyncio
+    async def test_wake_sends_wakeup_keyevent(self) -> None:
+        dev = _RecordingDevice({})
+        await _transport(dev).wake()
+        assert any("keyevent 224" in c for c in dev.calls)
+
+    @pytest.mark.asyncio
+    async def test_key_back_sends_back_keyevent(self) -> None:
+        dev = _RecordingDevice({})
+        await _transport(dev).key_back()
+        assert any("keyevent 4" in c for c in dev.calls)
+
+    @pytest.mark.asyncio
+    async def test_foreground_skips_relaunch_when_already_frontmost(self) -> None:
+        pkg = "com.volkswagen.weconnect"
+        dev = _RecordingDevice({
+            "dumpsys": f"  mResumedActivity: ActivityRecord{{{pkg}/.MainActivity}}",
+        })
+        await _transport(dev).foreground_app(pkg)
+        assert not any("monkey" in c for c in dev.calls), (
+            "must not relaunch an already-foreground app"
+        )
+        assert any("keyevent 224" in c for c in dev.calls), "must still wake"
+
+    @pytest.mark.asyncio
+    async def test_foreground_relaunches_when_not_frontmost(self) -> None:
+        pkg = "com.volkswagen.weconnect"
+        dev = _RecordingDevice({"dumpsys": "  mResumedActivity: something.else/.X"})
+        await _transport(dev).foreground_app(pkg)
+        assert any("monkey" in c and pkg in c for c in dev.calls)
+
+    @pytest.mark.asyncio
+    async def test_swipe_emits_input_swipe(self) -> None:
+        dev = _RecordingDevice({})
+        await _transport(dev).swipe(100, 800, 100, 400, 300)
+        assert any(c.startswith("input swipe 100 800 100 400 300") for c in dev.calls)
