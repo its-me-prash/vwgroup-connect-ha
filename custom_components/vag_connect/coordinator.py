@@ -1717,6 +1717,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     "VAG Connect: supplementary vw.de arming failed (%s)"
                     " — primary channel unaffected.", type(err).__name__,
                 )
+            # v2.25.0 (#966/#632) — arming runs refresh(), which rotates the
+            # cookie jar. Write the fresh cookies back so the NEXT restart
+            # resumes from a current session instead of replaying the original
+            # OTP cookies until they expire. No-op guarded inside.
+            if armed:
+                self._persist_supplementary_cookies()
             # v2.15.0b5 — graceful "re-login" Repair when the OTP-bound vw.de
             # session can't resume; cleared once it arms again.
             from .repairs import (  # noqa: PLC0415
@@ -2226,6 +2232,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     self._save_vehicle_cache()
                 except Exception:  # noqa: BLE001
                     pass
+                # v2.25.0 (#966/#632) — the per-VIN _merge_supplementary above
+                # may have refreshed the vw.de session on a mid-poll 401,
+                # rotating its cookie jar. Persist the rotated cookies here (once
+                # per poll, after the loop) so a long-uptime instance that never
+                # hits a manual refresh still carries a CURRENT session across a
+                # restart, not the aging setup-time snapshot. Idempotent: the
+                # equality guard makes it a no-op unless the jar actually moved.
+                self._persist_supplementary_cookies()
                 # v1.9.0 — Refresh the two reporter repair issues. Cheap to
                 # call: ``ensure_*_issue`` deletes when empty and updates
                 # in-place when the IDs already exist.
@@ -4192,6 +4206,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # fresh cookies so the next restart keeps skipping the OTP prompt.
             # No-op (and cheap) for every non-website-authproxy entry.
             self._persist_website_cookies()
+            # v2.25.0 (#966/#632) — same for the SUPPLEMENTARY vw.de channel,
+            # whose jar the merge above may also have rotated. Idempotent.
+            self._persist_supplementary_cookies()
             _LOGGER.debug("VAG Connect: Manual refresh OK")
             return dict(self.vehicles)
         except Exception as err:  # noqa: BLE001
@@ -4757,6 +4774,57 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             _LOGGER.debug(
                 "VAG Connect: could not persist website-authproxy cookies "
                 "(%s) — will retry next login.", type(err).__name__,
+            )
+
+    def _persist_supplementary_cookies(self) -> None:
+        """v2.25.0 (#966/#632) — write the SUPPLEMENTARY vw.de cookies back.
+
+        The twin of ``_persist_website_cookies`` for the supplementary slot. It
+        was missing entirely: the supplementary connector's ``refresh()`` rotates
+        its cookie jar every poll, but nothing exported those back, so the entry
+        kept the original OTP cookies from setup. On the next restart the arm
+        replayed those stale cookies, ``refresh()`` bounced to the login page,
+        and the channel reported "SSO session expired — full re-login required"
+        even though a live session had existed moments before. Same guards as the
+        sole-mode twin: no-op unless this is a supplementary-authproxy entry with
+        a non-empty export, writes only when the cookies actually changed, and
+        never raises (a persistence hiccup must not break the poll).
+        """
+        from .const import (  # noqa: PLC0415
+            CONF_SUPPLEMENTARY_AUTHPROXY,
+            CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES,
+        )
+
+        if not self.entry.data.get(CONF_SUPPLEMENTARY_AUTHPROXY):
+            return
+        client = getattr(self, "_cariad_client", None)
+        if client is None or not hasattr(client, "get_supplementary_proxy_cookies"):
+            return
+        try:
+            fresh: list[dict[str, Any]] = client.get_supplementary_proxy_cookies()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "VAG Connect: supplementary vw.de cookie export failed (%s) "
+                "— session still valid in-memory", type(err).__name__,
+            )
+            return
+        if not fresh:
+            return
+        if fresh == (self.entry.data.get(CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES) or []):
+            return
+        try:
+            self.hass.config_entries.async_update_entry(
+                self.entry,
+                data={**self.entry.data, CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES: fresh},
+            )
+            _LOGGER.debug(
+                "VAG Connect: persisted %d refreshed supplementary vw.de "
+                "cookie(s) back to the entry.", len(fresh),
+            )
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "VAG Connect: could not persist supplementary vw.de cookies "
+                "(%s) — will retry next poll.", type(err).__name__,
             )
 
     def is_read_only(self) -> bool:

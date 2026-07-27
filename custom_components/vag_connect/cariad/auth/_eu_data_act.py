@@ -1092,11 +1092,27 @@ def map_dataset_to_vehicle_data(
         for n in names:
             if n in fields:
                 val = fields[n]
-                # NO-SUPPRESSION: a sentinel ("no reading") value must never be
-                # assigned to a mapped target, but the field stays Scout-visible.
-                # We skip it WITHOUT marking it used, so it still appears in
-                # raw_unmapped_fields for discovery/mapping later.
+                # A sentinel ("no reading") value must never be assigned to a
+                # mapped target.
+                #
+                # v2.25.0 — but it must still be CONSUMED. A field first() is
+                # asked for is, by definition, a mapped field (only mapped names
+                # are ever passed here), so a sentinel on it is "this mapped
+                # field has no current value", NOT an undiscovered field. Leaving
+                # it Scout-visible (the pre-2.25.0 behaviour) made every mapped
+                # field re-report to the Scout on every poll for as long as the
+                # car sent the sentinel — e.g. tyre pressure reading "1"=invalid
+                # re-filed #958/#969/#970 endlessly. Same class as the v2.24.2
+                # value_type reclaim. Consume it (and its walker synonyms) so it
+                # stops re-surfacing; the sensor simply stays unavailable until a
+                # real value arrives. UNmapped fields never reach first(), so
+                # their sentinels still surface for discovery — the
+                # no-suppression policy for genuinely-new fields is intact.
                 if _is_sentinel(n, val):
+                    used.add(n)
+                    for other in syn.get(n, frozenset()):
+                        if other in fields:
+                            used.add(other)
                     continue
                 used.add(n)
                 # v2.15.4 synonym-collapse (no-suppression-safe): bare / dotted /
