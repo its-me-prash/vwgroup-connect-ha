@@ -1461,6 +1461,11 @@ class VehicleData:
     # (e.g. "eu_data_act+mbb"); None for a single-channel poll. Surfaced as a
     # diagnostic attribute so users/maintainers can see where data came from.
     source_channel: str | None = None
+    # v3.0.0-alpha — companion (ADB) channel only. True when this snapshot came
+    # from a phone whose app version matched a verified preset, so writes (tap
+    # actions) are currently allowed. None for every network channel. Lets the
+    # entity layer show whether the experimental two-way path is live.
+    companion_writes_enabled: bool | None = None
     # v2.18.0 (A2) — per-FIELD provenance: {field_name: channel} for every
     # field that actually carries a value, recorded by the channel-merge layer.
     # ``source_channel`` answers "which channels fed this car"; this answers

@@ -38,6 +38,18 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [3.0.0a1] - 2026-07-27
+
+> **Pre-release, experimental.** This alpha adds one new opt-in source and changes nothing for existing setups. It only appears in HACS if you have beta versions enabled. If you do not set up the companion channel, the integration behaves exactly like 2.24.2.
+
+### Added
+
+- **Companion phone (ADB) channel — experimental, opt-in.** A fourth source in the hub menu at the start of setup, next to the QR login, the portal login, and MBB. It drives the official manufacturer app on a spare Android phone over ADB and reads the values off the screen, so it works as a last-resort two-way path on cars where the network side is read-only. There is no separate login and no credentials are stored: the phone is already signed in, nothing is rooted, and no app tokens are read. The integration only reads the screen and taps buttons.
+  - **Volkswagen is verified** (built and tested against the We Connect app 4.2.1): it reads state of charge, range and charging state, and can start/stop climate and charging.
+  - **Audi, Škoda, SEAT and CUPRA ship read-only for now.** The structure is there, but their on-screen maps are not yet confirmed against a real device, so they read what they can and refuse to tap a button rather than risk hitting the wrong control. They switch to two-way once a tester with that car confirms the screen map.
+  - Safety built in: a conservative read budget so it never looks like abuse to the backend, and a write quarantine that disables taps whenever the app version on the phone differs from the one a preset was verified against (reads keep working).
+  - Needs a spare Android phone signed into the brand app with ADB over Wi-Fi, and the app language set to German or English. See the tracking issue for setup and to volunteer as a tester for the non-VW brands.
+
 ## [2.24.2] - 2026-07-27
 
 ### Fixed

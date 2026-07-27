@@ -148,9 +148,15 @@ async def async_setup_entry(
     def _build_for_vin(vin: str, vehicle: dict) -> list:
         entities: list = []
         if vehicle.get("has_battery"):
-            entities.append(VagChargeModeSelect(coordinator, vin))
+            # v3.0.0a1 — only if the client implements the command, else the
+            # select raises AttributeError on change (companion/ADB has no
+            # charge-mode command).
+            if coordinator.command_method_available("command_set_charge_mode"):
+                entities.append(VagChargeModeSelect(coordinator, vin))
             # v2.15.10 — Skoda-only max-charging-current select (enum plane).
-            if is_skoda:
+            if is_skoda and coordinator.command_method_available(
+                "command_update_charging_settings"
+            ):
                 entities.append(VagSkodaChargeCurrentSelect(coordinator, vin))
         return entities
 

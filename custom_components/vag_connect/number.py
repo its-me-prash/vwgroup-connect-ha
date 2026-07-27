@@ -215,6 +215,10 @@ async def async_setup_entry(
             cmd_id = _CMD_ID.get(desc.key)
             if cmd_id and coordinator.command_capability_supported(vin, cmd_id) is False:
                 continue
+            # v3.0.0a1 — the client must implement the command, else the number
+            # raises AttributeError on set (companion/ADB has no target-SoC etc.).
+            if cmd_id and not coordinator.command_method_available(cmd_id):
+                continue
             entities.append(VagConnectNumber(coordinator, vin, desc))
         return entities
 

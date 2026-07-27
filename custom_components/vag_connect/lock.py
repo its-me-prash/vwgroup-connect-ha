@@ -32,6 +32,10 @@ async def async_setup_entry(
         # catches at runtime via classify_command_failure).
         if coordinator.command_capability_supported(vin, "command_lock") is False:
             return []
+        # v3.0.0a1 — the client must actually implement the command, or the
+        # entity would raise AttributeError on press (companion/ADB has no lock).
+        if not coordinator.command_method_available("command_lock"):
+            return []
         return [VagDoorLock(coordinator, vin)]
 
     register_dynamic_spawner(entry, coordinator, async_add_entities, _build_for_vin)

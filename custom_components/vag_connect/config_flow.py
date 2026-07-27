@@ -410,8 +410,110 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     "Portal (E-Mail + Passwort) — Volkswagen EU / Porsche "
                     "(+ Toggle: MBB-Fahrzeug → Fernbefehle)"
                 ),
+                # v3.0.0-alpha — experimental fourth source. Drives the official
+                # app on a spare phone over ADB; last-resort two-way where the
+                # network side is read-only. Clearly flagged EXPERIMENTAL.
+                "companion_adb": (
+                    "Companion-Handy (ADB) — EXPERIMENTELL, alle Marken "
+                    "(zweites Handy mit eingeloggter App nötig)"
+                ),
             },
         )
+
+    async def async_step_companion_adb(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """v3.0.0-alpha — set up the companion (ADB) channel.
+
+        Collects the phone's network-ADB address, the brand, the VIN the app
+        shows, and an optional S-PIN, then validates the connection by opening
+        ADB and reading the app's version. No credentials are stored: the phone
+        is already signed in, and the only secret at rest is the ADB RSA key.
+        """
+        from .const import (  # noqa: PLC0415
+            CONF_ADB_HOST,
+            CONF_ADB_PORT,
+            CONF_STRATEGY,
+            CONF_VIN,
+            DEFAULT_ADB_PORT,
+            STRATEGY_COMPANION_ADB,
+        )
+        from .companion.presets import PRESETS  # noqa: PLC0415
+
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            brand = user_input[CONF_BRAND]
+            host = user_input[CONF_ADB_HOST].strip()
+            port = int(user_input.get(CONF_ADB_PORT, DEFAULT_ADB_PORT))
+            vin = user_input[CONF_VIN].strip().upper()
+            spin = (user_input.get(CONF_SPIN) or "").strip()
+
+            valid, reason = await self._companion_probe(brand, host, port)
+            if not valid:
+                errors["base"] = reason
+            else:
+                await self.async_set_unique_id(f"companion_{brand}_{vin}")
+                self._abort_if_unique_id_configured()
+                preset = PRESETS[brand]
+                title = f"{brand.title()} (Companion/ADB) {vin[-6:]}"
+                if not preset.verified:
+                    title += " [alpha, read-only]"
+                return self.async_create_entry(
+                    title=title,
+                    data={
+                        CONF_STRATEGY: STRATEGY_COMPANION_ADB,
+                        CONF_BRAND: brand,
+                        CONF_ADB_HOST: host,
+                        CONF_ADB_PORT: port,
+                        CONF_VIN: vin,
+                        CONF_SPIN: spin,
+                    },
+                )
+
+        brands = {b: b.title() for b in PRESETS}
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_BRAND, default="volkswagen"): vol.In(brands),
+                vol.Required(CONF_ADB_HOST): str,
+                vol.Optional(CONF_ADB_PORT, default=DEFAULT_ADB_PORT): int,
+                vol.Required(CONF_VIN): str,
+                vol.Optional(CONF_SPIN, default=""): str,
+            }
+        )
+        return self.async_show_form(
+            step_id="companion_adb", data_schema=schema, errors=errors,
+        )
+
+    async def _companion_probe(
+        self, brand: str, host: str, port: int
+    ) -> tuple[bool, str]:
+        """Open ADB and read the app version; returns (ok, error_key)."""
+        from .companion.presets import PRESETS  # noqa: PLC0415
+        from .companion.transport import (  # noqa: PLC0415
+            CompanionTransportError,
+            NetworkAdbTransport,
+        )
+
+        preset = PRESETS.get(brand)
+        if preset is None:
+            return False, "companion_unknown_brand"
+        adbkey = self.hass.config.path(".storage", "vag_connect_adbkey")
+        transport = NetworkAdbTransport(host, port, adbkey)
+        try:
+            await transport.connect()
+            version = await transport.current_app_version(preset.package)
+        except CompanionTransportError as err:
+            _LOGGER.warning("Companion ADB probe failed: %s", err)
+            return False, "companion_cannot_connect"
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning("Companion ADB probe error: %s", type(err).__name__)
+            return False, "companion_cannot_connect"
+        finally:
+            await transport.close()
+        if version is None:
+            return False, "companion_app_not_found"
+        return True, ""
 
     async def async_step_email_password(
         self, user_input: dict[str, Any] | None = None

@@ -132,6 +132,22 @@
           "user_code": "Dopo aver effettuato l'accesso, conferma questo codice nel browser per approvare Home Assistant.",
           "approved_in_browser": "Lascia la casella selezionata. Clicca su Invia solo dopo aver effettuato l'accesso e confermato il codice nel browser."
         }
+      },
+      "companion_adb": {
+        "title": "Companion phone (ADB) — experimental",
+        "description": "Read and control your car by driving the official app on a spare Android phone over ADB. This is EXPERIMENTAL and opt-in. You need a second phone that stays signed into the brand app, with ADB over Wi-Fi enabled. Volkswagen is verified; the other brands are read-only for now until a screen map from a real device is confirmed. Nothing is rooted and no app tokens are read — the integration only reads the screen and taps buttons.",
+        "data": {
+          "brand": "Vehicle brand",
+          "adb_host": "Phone IP address",
+          "adb_port": "ADB port",
+          "vin": "VIN (the car the app shows)",
+          "spin": "S-PIN (optional)"
+        },
+        "data_description": {
+          "adb_host": "The phone's address on your network, e.g. 192.168.1.42.",
+          "adb_port": "Usually 5555 for ADB over Wi-Fi.",
+          "vin": "The 17-character VIN of the car shown in the app."
+        }
       }
     },
     "error": {
@@ -146,7 +162,10 @@
       "upstream_unavailable": "Backend VW temporaneamente non disponibile. Si tratta di un problema lato server di VW, NON di un problema di credenziali. Attendi 5–15 minuti e riprova. NON riconfigurare l'integrazione.",
       "brand_not_dag_eligible": "La marca selezionata non supporta il login via browser. Usa invece la procedura con email + password.",
       "portal_interaction_required": "Il portale EU Data Act richiede un'azione una tantum nel tuo browser o nell'app della marca (ad es. accettare i termini, confermare il consenso, completare l'onboarding/la selezione della regione) prima che l'accesso headless funzioni. Questo NON è un problema di password errata — apri il portale una volta in un browser, completa la richiesta, poi riprova.",
-      "still_waiting_browser": "In attesa dell'approvazione dal browser. Apri l'URL qui sopra, accedi, conferma il codice, poi clicca di nuovo su Invia."
+      "still_waiting_browser": "In attesa dell'approvazione dal browser. Apri l'URL qui sopra, accedi, conferma il codice, poi clicca di nuovo su Invia.",
+      "companion_cannot_connect": "Could not reach the phone over ADB. Check it is on the network, that ADB over Wi-Fi is on, and that you accepted the debugging prompt.",
+      "companion_app_not_found": "Connected to the phone, but the brand app is not installed on it.",
+      "companion_unknown_brand": "That brand has no companion preset yet."
     },
     "abort": {
       "already_configured": "Questo account è già configurato.",

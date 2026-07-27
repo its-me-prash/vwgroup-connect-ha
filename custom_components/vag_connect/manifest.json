@@ -16,7 +16,8 @@
   "quality_scale": "platinum",
   "requirements": [
     "firebase-messaging>=0.4.0",
-    "aiomqtt>=2.0.0"
+    "aiomqtt>=2.0.0",
+    "adb-shell==0.4.4"
   ],
-  "version": "2.24.2"
+  "version": "3.0.0a1"
 }
