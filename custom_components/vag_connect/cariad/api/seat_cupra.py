@@ -192,7 +192,14 @@ class SeatCupraClient(CariadBaseClient):
             # Layer 3: try the next fallback header-set if available.
             fb_count = get_fallback_count(self._brand.name)
             if _attempt < fb_count:
-                _LOGGER.warning(
+                # v2.24.2 (#779) — DEBUG, not WARNING. One poll fans out over
+                # ~19 OLA endpoints, so on an attestation-walled account this
+                # fired ~22 identical warnings inside a third of a second, every
+                # poll, for a condition the user cannot do anything about. The
+                # retry itself is routine defense-in-depth and is not news. The
+                # signal the user actually needs is unchanged: the ERROR once
+                # the fallbacks are exhausted, plus the Repair issue.
+                _LOGGER.debug(
                     "OLA 403 on %s — retrying with fallback header-set "
                     "#%d/%d (defense-in-depth Layer 3)",
                     url[-60:], _attempt + 1, fb_count,

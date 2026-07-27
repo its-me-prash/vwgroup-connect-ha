@@ -1494,6 +1494,23 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             )
         historical = await portal.get_vehicle_data(vin, request_type="all")
         if getattr(historical, "no_data", True):
+            # v2.24.2 — say which of the failure modes this was. This service
+            # returned a bare False for several completely different outcomes
+            # and logged nothing at all, so a user running it saw exactly the
+            # same "nothing happened" whether no data request exists yet, the
+            # portal was briefly down, or the export came back empty. The
+            # connector already recorded the discriminator, we just never
+            # showed it. Relevant right now because the people most likely to
+            # run this are the ones recovering from the restart data loss.
+            reason = getattr(portal, "last_no_data_reason", "") or "unknown"
+            _LOGGER.warning(
+                "EU Data Act: the one-time historical export for %s returned no "
+                "data (%s), so nothing was imported. If this says no_request, "
+                "the one-time export has not been requested in the portal yet; "
+                "if it says empty or no_content, the portal accepted the request "
+                "but has not produced the file yet, which can take a while.",
+                mask_vin(vin), reason,
+            )
             return False
         hist = historical.to_dict()
         merged_any = False
@@ -1515,6 +1532,17 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             _LOGGER.info(
                 "EU Data Act: merged one-time historical export config fields "
                 "for VIN %s", mask_vin(vin),
+            )
+        else:
+            # v2.24.2 — the fourth silent outcome, and the most confusing one:
+            # the export was fetched and parsed just fine, but every field it
+            # carries already holds a live value, so the merge (which never
+            # clobbers live data) had nothing to write. That is a success, not
+            # a failure, and it looked identical to all the error cases.
+            _LOGGER.info(
+                "EU Data Act: the historical export for %s was read successfully "
+                "but nothing needed importing — every field it contains already "
+                "has a current value.", mask_vin(vin),
             )
         return merged_any
 

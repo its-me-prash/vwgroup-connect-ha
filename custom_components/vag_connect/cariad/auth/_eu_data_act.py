@@ -796,6 +796,21 @@ def _walk_fields(
                     and pkey.strip().lower() in _MAPPED_UUIDS
                 ):
                     add(pkey.strip().lower(), node.get("value"), ts, ts_real)
+                    # v2.24.2 (#959, #960, #961) — record the pair as synonyms,
+                    # exactly like the container-qualified branch below already
+                    # did. Without it the bare generic leaf was never reclaimed
+                    # once first() consumed its UUID twin, so it re-surfaced as
+                    # an "undiscovered field" on every single poll. Three people
+                    # filed the identical one-row report for a bare ``open`` in
+                    # one day, and that row is unactionable anyway: roughly ten
+                    # opening UUIDs share the leaf, so no reporter can say which
+                    # one it belongs to. Suppressing the leaf is NOT the answer
+                    # here (see the no-suppression note further down); the leaf
+                    # is genuinely consumed, the bookkeeping just never said so.
+                    if _syn_out is not None and isinstance(fname, str):
+                        _alias = pkey.strip().lower()
+                        _syn_out.setdefault(fname, set()).add(_alias)
+                        _syn_out.setdefault(_alias, set()).add(fname)
                 # v2.15.4 overreport fix: a data-point node reached through a
                 # container (e.g. slope_consumption_values.ascent_slope_consumption
                 # .physical_value) carries its full dotted path in ``prefix``. Emit
@@ -1777,25 +1792,33 @@ def map_dataset_to_vehicle_data(
             return True  # no gate present → don't block a real reading
         return str(vt).strip().lower() not in ("invalid", "error", "0", "false")
 
+    # v2.24.2 (#963) — CALL ORDER MATTERS at every use site below. Consuming the
+    # companion is a side effect of this helper, so it has to be the LEFT operand:
+    # written as ``value is not None and _value_type_ok(...)`` Python short-circuits
+    # whenever the physical value is absent, the companion is never consumed, and
+    # the Scout re-reports the same value_type row on every poll forever. Cars that
+    # ship the companion without the reading are exactly the ones that hit this, so
+    # those owners get the report every poll and can never act on it.
+
     # physical_value is reported in 0.1-kWh units (100 Wh), so divide by 10 to
     # get kWh — e.g. raw 756 → 75.6 kWh, 461 → 46.1 kWh (#534, ID.4 2024).
     _cur_kwh = _to_float(first(
         "energy_contents.current_energy_content.physical_value",
         "current_energy_content.physical_value",
     ))
-    if _cur_kwh is not None and _value_type_ok(
+    if _value_type_ok(
         "energy_contents.current_energy_content.value_type",
         "current_energy_content.value_type",
-    ):
+    ) and _cur_kwh is not None:
         d.battery_available_kwh = _cur_kwh / 10.0
     _max_kwh = _to_float(first(
         "energy_contents.maximal_energy_content.physical_value",
         "maximal_energy_content.physical_value",
     ))
-    if _max_kwh is not None and _value_type_ok(
+    if _value_type_ok(
         "energy_contents.maximal_energy_content.value_type",
         "maximal_energy_content.value_type",
-    ):
+    ) and _max_kwh is not None:
         d.battery_cap_kwh = _max_kwh / 10.0
 
     # Trip consumption averages (l/1000km → l/100km, kWh/1000km → kWh/100km).
@@ -2491,19 +2514,19 @@ def map_dataset_to_vehicle_data(
         "slope_consumption_values.ascent_slope_consumption.physical_value",
         "ascent_slope_consumption.physical_value",
     ))
-    if _asc_slope is not None and _value_type_ok(
+    if _value_type_ok(
         "slope_consumption_values.ascent_slope_consumption.value_type",
         "ascent_slope_consumption.value_type",
-    ):
+    ) and _asc_slope is not None:
         d.ascent_slope_consumption = _asc_slope
     _desc_slope = _to_float(first(
         "slope_consumption_values.descent_slope_consumption.physical_value",
         "descent_slope_consumption.physical_value",
     ))
-    if _desc_slope is not None and _value_type_ok(
+    if _value_type_ok(
         "slope_consumption_values.descent_slope_consumption.value_type",
         "descent_slope_consumption.value_type",
-    ):
+    ) and _desc_slope is not None:
         d.descent_slope_consumption = _desc_slope
 
     # report_type — dict-confirmed enum metadata describing which report this

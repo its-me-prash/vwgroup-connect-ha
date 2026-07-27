@@ -577,12 +577,36 @@ class CariadBaseClient:
             # storm on reload. (Mechanism mirrors the rafaelhutter portal client.)
             try:
                 await connector.refresh()
-            except Exception as err:  # noqa: BLE001
+            except AuthenticationError as err:
+                # v2.24.2 — say WHY. This used to log the exception class only,
+                # so an expired SSO, a redirect loop and a portal outage were
+                # indistinguishable in the log, and reports arrived with nothing
+                # to go on. AuthenticationError carries a purpose-built message
+                # and never a URL, so it is safe to show in full.
                 self._supplementary_needs_reauth = True
                 _LOGGER.warning(
                     "VAG Connect: supplementary vw.de channel could not silently"
-                    " resume (%s) — re-add it from the integration options; the"
-                    " primary channel is unaffected.", type(err).__name__,
+                    " resume: %s — re-add it from the integration options; the"
+                    " primary channel is unaffected.", err,
+                )
+                await session.close()
+                return False
+            except Exception as err:  # noqa: BLE001
+                # Everything else keeps the class-only form on purpose. Per the
+                # v2.7.2 rule, a raw message must never reach WARNING here:
+                # aiohttp.InvalidURL and friends put the whole request URL in
+                # __str__, which on the OAuth callback path is
+                # weconnect://authenticated#access_token=<JWT>… — those decode to
+                # the user's email and a working token. Message goes to DEBUG.
+                self._supplementary_needs_reauth = True
+                _LOGGER.warning(
+                    "VAG Connect: supplementary vw.de channel could not silently"
+                    " resume (%s, message redacted, see DEBUG) — re-add it from"
+                    " the integration options; the primary channel is"
+                    " unaffected.", type(err).__name__,
+                )
+                _LOGGER.debug(
+                    "vw.de silent resume failure details: %s", err, exc_info=True,
                 )
                 await session.close()
                 return False
