@@ -38,6 +38,27 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.26.0] - 2026-07-27
+
+> This release is about the companion (ADB) channel from 2.25.0, and it changes nothing for anyone not using it. Two things stand out: the Volkswagen screen-reading is now grounded against a real, independently verified reference instead of our own guesses, and CUPRA reads real data for the first time thanks to a contributor's screen dump. Command sending on the companion channel is paused for now — see below.
+
+### Changed
+
+- **Volkswagen companion reads are re-grounded against a verified reference.** The words we looked for on screen (state of charge, range, charge target) were our best guess and did not actually match what the We Connect app shows. They are now aligned with a real-device reference, so the values read reliably. The old wording is kept as a fallback, so nothing that already worked stops working.
+- **CUPRA now reads real data.** Thanks to a screen dump a CUPRA owner shared (#968), the app's actual layout is known: it shows the numbers as bare values without the labels we were looking for, so the previous version read nothing. It now reads charge, range, lock state and engine state, plus how long ago the car last synced. Still read-only until an owner confirms the command screens.
+
+### Added
+
+- **Charge target on Volkswagen (opt-in).** The charge target, live power and remaining time live on a detail screen you have to open, so reading them means the integration briefly navigates there in the app and comes back. Because that taps the phone, it is off by default and runs at most every 15 minutes when on. Turn it on under the companion entry's options once you have confirmed it behaves on your phone.
+- **Wake screen to poll, sleep after (opt-in) (#974).** A new companion option that wakes the phone's display for the read and puts it back to sleep afterwards, so a locked or sleeping phone shows the app without you having to keep the screen on permanently.
+- **"Reset companion connection" button.** Clears a stuck back-off (after a failure run or an app rate-limit) and reads again immediately, instead of waiting the back-off out.
+
+### Fixed
+
+- **A companion rate-limit now survives a restart.** If the app shows a "too many requests" screen the channel backs off for hours, and that back-off is now remembered across a Home Assistant restart — a real account lockout should not be cleared just by restarting the way a brief network blip is.
+
+> **Note on Volkswagen commands (climate / charge start-stop).** These are paused on the companion channel in this release. They never actually worked: the app needs a two-step tap (open a tile, then press the button on the detail screen) that the old code did not do, so a command could only ever fail silently. Rather than ship buttons that do nothing, the companion Volkswagen entry is read-only for now; the command path returns once the two-step flow is confirmed on a real car. The network command paths (QR / portal / MBB) are unaffected.
+
 ## [2.25.0] - 2026-07-27
 
 > The companion (ADB) channel that was briefly pre-released as 3.0.0a1 ships here in the stable line instead. It is still opt-in and experimental, and it changes nothing unless you set it up: if you do not pick it in the hub menu, the integration behaves exactly like 2.24.2.
