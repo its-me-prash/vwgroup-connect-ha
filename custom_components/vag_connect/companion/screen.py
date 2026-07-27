@@ -10,6 +10,7 @@ this is what lets the fragile bit (ADB itself) stay a thin shell.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 from xml.etree import ElementTree as ET
 
@@ -77,20 +78,23 @@ def parse_ui_dump(xml: str) -> list[UiNode]:
     return out
 
 
-def _match_field_raw(nodes: list[UiNode], sel: FieldSelector) -> str | None:
-    """Return the raw string a selector resolves to, or None.
+def _iter_field_raws(nodes: list[UiNode], sel: FieldSelector) -> Iterator[str]:
+    """Yield every raw string a selector could resolve to, in preference order.
 
-    Tries resource-id, then content-description (with capture-group support),
-    then a localized label whose value is on the node itself or its sibling.
+    v2.26.0 (ckomma #19) — resource-id, then content-description, then a
+    localized label's value. ``read_fields`` takes the first that COERCES to a
+    valid value, so a leading placeholder ("--", "—", an out-of-range number)
+    no longer drops the field when a later node carries the real reading.
     """
     # 1) resource-id — the value is the node's own text.
     if sel.resource_id:
         for n in nodes:
             if n.resource_id == sel.resource_id:
-                return n.text or n.content_desc or None
+                v = n.text or n.content_desc
+                if v:
+                    yield v
 
-    # 2) content-description — if the regex has a capture group, return it;
-    #    otherwise the whole content-desc is the value (used for state strings).
+    # 2) content-description — capture group if present, else the whole desc.
     if sel.content_desc_re:
         rx = re.compile(sel.content_desc_re, re.I)
         for n in nodes:
@@ -98,7 +102,7 @@ def _match_field_raw(nodes: list[UiNode], sel: FieldSelector) -> str | None:
                 continue
             m = rx.search(n.content_desc)
             if m:
-                return m.group(1) if m.groups() else n.content_desc
+                yield m.group(1) if m.groups() else n.content_desc
 
     # 3) localized label — find the label node, then read the value.
     if sel.label_re:
@@ -108,27 +112,34 @@ def _match_field_raw(nodes: list[UiNode], sel: FieldSelector) -> str | None:
             if not hay or not rx.search(hay):
                 continue
             if sel.value_from == "self":
-                return hay
-            # "sibling": the next node in document order that actually carries
-            # text and is not the label itself.
-            for sib in nodes[i + 1:i + 4]:
-                if sib.text and sib.text.strip() and sib.text != hay:
-                    return sib.text
-    return None
+                yield hay
+            else:
+                # "sibling": nearby nodes that carry their own text.
+                for sib in nodes[i + 1:i + 4]:
+                    if sib.text and sib.text.strip() and sib.text != hay:
+                        yield sib.text
+
+
+def _match_field_raw(nodes: list[UiNode], sel: FieldSelector) -> str | None:
+    """The first candidate a selector resolves to (presence check, for anchors)."""
+    return next(_iter_field_raws(nodes, sel), None)
 
 
 def read_fields(nodes: list[UiNode], preset: BrandPreset) -> dict[str, object]:
-    """Resolve every field selector in the preset against the parsed screen.
+    """Resolve every field selector against the parsed screen.
 
-    Returns only the fields that actually matched and coerced to a value, so a
-    partial screen never writes a spurious ``None`` over anything downstream.
+    Returns only the fields that coerced to a value, so a partial screen never
+    writes a spurious ``None``. Numeric-preferring (ckomma #19): the first
+    candidate that coerces to a valid value wins, not merely the first that
+    matches, so a "--" placeholder ahead of the real number is skipped.
     """
     out: dict[str, object] = {}
     for sel in preset.fields:
-        raw = _match_field_raw(nodes, sel)
-        val = coerce(sel.parse, raw if isinstance(raw, str) else None)
-        if val is not None:
-            out[sel.target] = val
+        for raw in _iter_field_raws(nodes, sel):
+            val = coerce(sel.parse, raw)
+            if val is not None:
+                out[sel.target] = val
+                break
     return out
 
 

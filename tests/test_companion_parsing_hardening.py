@@ -69,3 +69,31 @@ class TestOdometerAndChargePowerWiring:
         for brand, p in PRESETS.items():
             targets = {f.target for f in p.fields}
             assert "odometer_km" in targets, brand
+
+
+class TestNumericPreferringResolution:
+    """ckomma #19 — a leading placeholder must not drop the field when a later
+    node carries the real reading."""
+
+    def test_placeholder_first_then_real_number(self) -> None:
+        # a "--" SoC label/value ahead of the real "74 %" overview value
+        screen = _dump(
+            '<node content-desc="Ladung" text="Ladung" class="TextView" '
+            'clickable="false" bounds="[0,0][10,10]" />'
+            '<node content-desc="" text="--" class="TextView" '
+            'clickable="false" bounds="[0,12][10,22]" />'
+            '<node content-desc="Ladezustand 74 %" text="" class="TextView" '
+            'clickable="false" bounds="[0,30][100,50]" />'
+        )
+        fields = read_fields(parse_ui_dump(screen), PRESETS["volkswagen"])
+        assert fields["battery_soc"] == 74
+
+    def test_only_placeholder_yields_no_field(self) -> None:
+        screen = _dump(
+            '<node content-desc="Ladung" text="Ladung" class="TextView" '
+            'clickable="false" bounds="[0,0][10,10]" />'
+            '<node content-desc="" text="--" class="TextView" '
+            'clickable="false" bounds="[0,12][10,22]" />'
+        )
+        fields = read_fields(parse_ui_dump(screen), PRESETS["volkswagen"])
+        assert "battery_soc" not in fields
