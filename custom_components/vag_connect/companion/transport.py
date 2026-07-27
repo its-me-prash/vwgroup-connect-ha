@@ -113,12 +113,22 @@ class NetworkAdbTransport:
         command prints a status line to stdout, not the XML, so reading the file
         is the reliable path.
         """
+        # v2.26.0 (ckomma #20/#22) — delete any previous dump FIRST. uiautomator
+        # prints its status to stdout, not into the file, and on a failed dump
+        # (secure screen, overlay, idle display) it does NOT overwrite the file.
+        # Without this rm, the cat below would return the PREVIOUS run's XML,
+        # which still contains "<hierarchy>" and sails past the guard, so we
+        # would parse a frozen screen as if it were live, the connector
+        # manufacturing its own stale value. Removing it first turns a failed
+        # dump into an honest no-data (empty cat, guard raises) instead.
+        await self.shell(f"rm -f {_DUMP_PATH}", timeout_s)
         await self.shell(f"uiautomator dump {_DUMP_PATH}", timeout_s)
         xml = await self.shell(f"cat {_DUMP_PATH}", timeout_s)
         if "<hierarchy" not in xml:
             raise CompanionTransportError(
-                "uiautomator returned no screen dump; the phone may be asleep "
-                "or the app may not be in the foreground"
+                "uiautomator returned no screen dump; the phone may be asleep, "
+                "the app may not be in the foreground, or the screen may be "
+                "secured"
             )
         return xml
 
