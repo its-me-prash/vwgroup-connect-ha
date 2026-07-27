@@ -51,6 +51,9 @@ async def async_setup_entry(
             is False
         ):
             return []
+        # v3.0.0a1 — client must implement it (companion/ADB does not).
+        if not coordinator.command_method_available("command_set_departure_timer"):
+            return []
         return [VagDepartureTimerTime(coordinator, vin, tid) for tid in (1, 2, 3)]
 
     register_dynamic_spawner(entry, coordinator, async_add_entities, _build_for_vin)

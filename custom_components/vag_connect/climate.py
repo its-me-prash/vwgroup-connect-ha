@@ -63,6 +63,14 @@ class VagClimate(VagConnectEntity, ClimateEntity):
 
     def __init__(self, coordinator: VagConnectCoordinator, vin: str) -> None:
         super().__init__(coordinator, vin, "climate")
+        # v3.0.0a1 — only advertise settable target temperature when the client
+        # can actually set it. The companion (ADB) client does climate on/off
+        # (command_start/stop_climate) but has no command_set_climate_temperature,
+        # so offering the slider there would AttributeError on use. A full
+        # network client keeps the feature (it has the method), so existing
+        # setups are unchanged.
+        if not coordinator.command_method_available("command_set_climate_temperature"):
+            self._attr_supported_features = ClimateEntityFeature(0)
 
     @property
     def hvac_mode(self) -> HVACMode:

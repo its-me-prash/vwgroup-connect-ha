@@ -132,6 +132,22 @@
           "user_code": "After signing in, confirm this code in the browser to approve Home Assistant.",
           "approved_in_browser": "Leave checked. Click Submit only after you have signed in and confirmed the code in the browser."
         }
+      },
+      "companion_adb": {
+        "title": "Companion phone (ADB) — experimental",
+        "description": "Read and control your car by driving the official app on a spare Android phone over ADB. This is EXPERIMENTAL and opt-in. You need a second phone that stays signed into the brand app, with ADB over Wi-Fi enabled. Volkswagen is verified; the other brands are read-only for now until a screen map from a real device is confirmed. Nothing is rooted and no app tokens are read — the integration only reads the screen and taps buttons.",
+        "data": {
+          "brand": "Vehicle brand",
+          "adb_host": "Phone IP address",
+          "adb_port": "ADB port",
+          "vin": "VIN (the car the app shows)",
+          "spin": "S-PIN (optional)"
+        },
+        "data_description": {
+          "adb_host": "The phone's address on your network, e.g. 192.168.1.42.",
+          "adb_port": "Usually 5555 for ADB over Wi-Fi.",
+          "vin": "The 17-character VIN of the car shown in the app."
+        }
       }
     },
     "error": {
@@ -146,7 +162,10 @@
       "portal_interaction_required": "EU Data Act-portalen kräver en engångsåtgärd i din webbläsare eller varumärkesapp (t.ex. godkänna villkor, bekräfta samtycke, slutföra onboarding/regionval) innan huvudlös åtkomst fungerar. Detta är INTE ett lösenordsproblem — öppna portalen en gång i en webbläsare, slutför uppmaningen och försök igen.",
       "upstream_unavailable": "VW backend tillfälligt otillgänglig. Detta är ett serverproblem hos VW, INTE ett autentiseringsfel. Vänta 5–15 minuter och försök igen. Konfigurera INTE om integrationen.",
       "brand_not_dag_eligible": "Selected brand does not support browser login. Use the email + password flow instead.",
-      "still_waiting_browser": "Still waiting for browser approval. Open the URL above, sign in, confirm the code, then click Submit again."
+      "still_waiting_browser": "Still waiting for browser approval. Open the URL above, sign in, confirm the code, then click Submit again.",
+      "companion_cannot_connect": "Could not reach the phone over ADB. Check it is on the network, that ADB over Wi-Fi is on, and that you accepted the debugging prompt.",
+      "companion_app_not_found": "Connected to the phone, but the brand app is not installed on it.",
+      "companion_unknown_brand": "That brand has no companion preset yet."
     },
     "abort": {
       "already_configured": "Det här kontot är redan konfigurerat.",

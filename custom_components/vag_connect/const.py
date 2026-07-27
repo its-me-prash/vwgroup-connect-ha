@@ -9,6 +9,16 @@ CONF_BRAND                    = "brand"
 CONF_USERNAME                 = "username"
 CONF_PASSWORD                 = "password"
 CONF_SPIN                     = "spin"
+# v3.0.0-alpha — companion (ADB) channel. A config entry whose CONF_STRATEGY is
+# "companion_adb" is served by the CompanionClient over network ADB instead of
+# a CARIAD network client. Host/port point at the spare phone; VIN is the car
+# the phone's app shows. EXPERIMENTAL, opt-in from the hub menu.
+CONF_STRATEGY                 = "strategy"
+STRATEGY_COMPANION_ADB        = "companion_adb"
+CONF_ADB_HOST                 = "adb_host"
+CONF_ADB_PORT                 = "adb_port"
+CONF_VIN                      = "vin"
+DEFAULT_ADB_PORT              = 5555
 # v2.17.5 (#759) — optional per-VIN S-PIN overrides: {vin: spin}. When a
 # vehicle has no entry here the shared CONF_SPIN is used, so existing
 # single-S-PIN setups are unchanged. Set via the Options flow.

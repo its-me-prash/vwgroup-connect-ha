@@ -47,9 +47,17 @@ async def async_setup_entry(
             # inside Home Assistant instead of the portal UI.
             entities.append(VagDataActRequestButton(coordinator, vin))
             return entities
-        if coordinator.command_capability_supported(vin, "command_flash") is not False:
+        # v3.0.0a1 — also require the client to implement the command, else the
+        # button raises AttributeError on press (companion/ADB has neither).
+        if (
+            coordinator.command_capability_supported(vin, "command_flash") is not False
+            and coordinator.command_method_available("command_flash")
+        ):
             entities.append(VagFlashButton(coordinator, vin))
-        if coordinator.command_capability_supported(vin, "command_wake") is not False:
+        if (
+            coordinator.command_capability_supported(vin, "command_wake") is not False
+            and coordinator.command_method_available("command_wake")
+        ):
             entities.append(VagWakeButton(coordinator, vin))
         return entities
 

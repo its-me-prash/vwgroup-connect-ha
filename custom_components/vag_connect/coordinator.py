@@ -747,8 +747,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         )
 
         brand    = self.entry.data[CONF_BRAND]
-        username = self.entry.data[CONF_USERNAME]
-        password = self.entry.data[CONF_PASSWORD]
+        # v3.0.0-alpha — a companion (ADB) entry carries no username/password
+        # (the phone is already signed in), so read these defensively rather
+        # than with a hard key access that would KeyError before the companion
+        # branch below is even reached.
+        username = self.entry.data.get(CONF_USERNAME, "")
+        password = self.entry.data.get(CONF_PASSWORD, "")
         spin     = self.entry.data.get(CONF_SPIN) or ""
 
         # v2.4.1 (#281+#282) — OLA defense-in-depth Layer 2: read the
@@ -770,16 +774,43 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             or ""
         ).strip() or None
 
-        session = async_get_clientsession(self.hass)
-        self._cariad_client = CariadClientFactory.create(
-            brand, session, username, password, spin,
-            # v2.15.1 (#503) — Volkswagen US/Canada region. Only the
-            # volkswagen_na client consumes it; every other brand ignores
-            # the kwarg. Default "us" for entries created before this field.
-            country=self.entry.data.get(CONF_COUNTRY, "us"),
-            ola_app_version_override=ola_app_v,
-            ola_user_agent_override=ola_ua,
-        )
+        # v3.0.0-alpha — companion (ADB) channel. A companion entry is served by
+        # the CompanionClient over network ADB, not a CARIAD network client. It
+        # duck-types the same read/command surface, so everything after this
+        # point (client_id override, first fetch, poll loop) treats it like any
+        # other client; the token/portal/MBB attributes it lacks are all read
+        # via getattr(..., default) elsewhere, so those paths no-op cleanly.
+        from .const import CONF_STRATEGY, STRATEGY_COMPANION_ADB  # noqa: PLC0415
+        if self.entry.data.get(CONF_STRATEGY) == STRATEGY_COMPANION_ADB:
+            import time  # noqa: PLC0415
+
+            from .companion import CompanionClient  # noqa: PLC0415
+            from .const import (  # noqa: PLC0415
+                CONF_ADB_HOST,
+                CONF_ADB_PORT,
+                CONF_VIN,
+                DEFAULT_ADB_PORT,
+            )
+
+            self._cariad_client = CompanionClient(
+                brand=brand,
+                vin=self.entry.data[CONF_VIN],
+                host=self.entry.data[CONF_ADB_HOST],
+                port=self.entry.data.get(CONF_ADB_PORT, DEFAULT_ADB_PORT),
+                adbkey_path=self.hass.config.path(".storage", "vag_connect_adbkey"),
+                time_fn=time.monotonic,
+            )
+        else:
+            session = async_get_clientsession(self.hass)
+            self._cariad_client = CariadClientFactory.create(
+                brand, session, username, password, spin,
+                # v2.15.1 (#503) — Volkswagen US/Canada region. Only the
+                # volkswagen_na client consumes it; every other brand ignores
+                # the kwarg. Default "us" for entries created before this field.
+                country=self.entry.data.get(CONF_COUNTRY, "us"),
+                ola_app_version_override=ola_app_v,
+                ola_user_agent_override=ola_ua,
+            )
         # v2.10.4 — push the user-supplied OAuth client_id override
         # onto the underlying IDKAuth instance so the AuthConfigResolver
         # prepends it to the chain. No-op when override is None.
@@ -2373,6 +2404,17 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 await close_supp()
             except Exception:  # noqa: BLE001
                 pass
+        # v3.0.0a1 — the companion (ADB) client holds a TCP/ADB socket and a
+        # worker thread that must be released on unload/reload, or a reconfigure
+        # orphans the connection and (since ADB allows one authed session) can
+        # block the freshly-built client from reconnecting until the phone times
+        # out. Network clients have no ``close`` and are skipped.
+        close = getattr(self._cariad_client, "close", None)
+        if close is not None:
+            try:
+                await close()
+            except Exception:  # noqa: BLE001
+                pass
         self._cariad_client = None
         _LOGGER.debug("VAG Connect: shutdown complete")
 
@@ -3010,6 +3052,26 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             except Exception:  # noqa: BLE001
                 # fail-soft — strict gate keeps this VIN's commands hidden
                 pass
+
+    def command_method_available(self, command_id: str) -> bool:
+        """v3.0.0a1 — does the active client implement this command?
+
+        Separate from ``command_capability_supported`` on purpose: that answers
+        a BACKEND capability question, this answers a CLIENT-method question.
+        The dispatcher calls ``getattr(self._cariad_client, command_id)``, so a
+        command whose method is absent could only ever raise AttributeError on
+        press (the "Unexpected exception" traceback class). Command-entity spawn
+        sites gate on this in addition to the capability check, mirroring the
+        long-standing guard in ``switch.py``. Matters for the companion (ADB)
+        client, which implements only climate + charge; a full network client
+        has every command method, so this is a no-op for existing setups.
+        A missing/None client returns True so setup-time entity creation before
+        the client is built is unaffected (capability check still applies).
+        """
+        client = getattr(self, "_cariad_client", None)
+        if client is None:
+            return True
+        return hasattr(client, command_id)
 
     def command_capability_supported(
         self, vin: str, command_id: str
@@ -4737,6 +4799,23 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             _brand = ""
         if _brand in ("seat", "cupra"):
             return True
+        # v3.0.0a1 — a companion (ADB) entry whose brand preset is not verified
+        # is structurally read-only: writes are refused at the channel anyway
+        # (a wrong tap on an unconfirmed screen map could hit the wrong control
+        # on the car), so spawning command entities that can only ever return a
+        # clean "experimental, read-only" error is just noise. A verified brand
+        # (currently only Volkswagen) is NOT forced read-only, so its climate +
+        # charge controls appear.
+        from .const import (  # noqa: PLC0415
+            CONF_STRATEGY,
+            STRATEGY_COMPANION_ADB,
+        )
+        if self.entry.data.get(CONF_STRATEGY) == STRATEGY_COMPANION_ADB:
+            from .companion.presets import PRESETS  # noqa: PLC0415
+
+            _preset = PRESETS.get(_brand)
+            if _preset is None or not _preset.writable:
+                return True
         # v2.14.0 — the volkswagen.de website authproxy (opt-in beta) is a
         # read-only channel too: the confidential web OAuth client has no
         # command surface, so command entities could only ever fail. Force
