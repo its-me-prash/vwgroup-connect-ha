@@ -5132,7 +5132,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             #   must keep bubbling as a traceback: wrapping them would disguise
             #   a programming error as a normal command failure and we'd never
             #   hear about it.
-            from .cariad.exceptions import APIError, SpinError  # noqa: PLC0415
+            from .cariad.exceptions import (  # noqa: PLC0415
+                APIError,
+                SpinError,
+                VehicleCommandError,
+            )
 
             # Our own S-PIN guard (missing / wrong / locked S-PIN) is an
             # actionable user error, not a bug — but SpinError is a CariadError,
@@ -5141,6 +5145,16 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # "Unexpected exception" traceback for pressing a button. Surface it
             # as a clean validation error instead.
             if isinstance(err, SpinError):
+                raise ServiceValidationError(str(err)) from err
+            # v2.24.2 — VehicleCommandError has exactly the same problem and was
+            # simply never carried over when the above was fixed in v2.17.1: it
+            # is a CariadError but not an APIError, so it also fell through to
+            # the raw re-raise and produced an "Unexpected exception" traceback.
+            # The usual way to hit it is a gateway-denied MBB operationList,
+            # where the message is already a complete explanation ("<service>
+            # not available on this vehicle"). A refusal we can explain in one
+            # sentence should not look to the user like the integration crashed.
+            if isinstance(err, VehicleCommandError):
                 raise ServiceValidationError(str(err)) from err
             if isinstance(err, HomeAssistantError) or not isinstance(err, APIError):
                 raise

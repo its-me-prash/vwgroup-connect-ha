@@ -38,6 +38,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.24.2] - 2026-07-27
+
+### Fixed
+
+- **A command the car declines now explains itself instead of looking like a crash.** When the gateway refuses to hand over the list of services a car offers, the resulting "not available on this vehicle" was thrown at Home Assistant in a form it does not recognise, so pressing a button produced an "Unexpected exception" with a full traceback. The explanation was there the whole time and was being thrown away. It is now shown as a normal, readable message. The same thing was already fixed for the S-PIN check a while back and simply never carried over to this one.
+- **A single unlucky rejection no longer keeps a working car quiet for half a day.** When the gateway explicitly says the account is not authorised for a car, that is a decision only you can change in the brand app, so we stop asking for twelve hours. That was also being applied to any other rejection, including ones that are merely temporary, so one bad response could silence a perfectly fine car until the next day. Those now back off for half an hour and recover on their own.
+
 ## [2.24.1] - 2026-07-27
 
 ### Fixed

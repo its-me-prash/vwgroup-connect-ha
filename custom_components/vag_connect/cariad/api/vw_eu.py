@@ -120,6 +120,15 @@ _BFF_OK_STATES = frozenset(
 # bypasses it, so an explicit user action is never blocked by the cooldown.
 _MBB_OPLIST_DENY_TTL = timedelta(hours=12)
 
+# v2.24.2 — the long cooldown above is only justified for the explicit
+# ``gw.error.authentication`` verdict. It was also being applied to any bare
+# 401/403, and those are not all permanent: an expiring session, a brief ACL
+# hiccup or a gateway having a bad minute all look the same from here. Treating
+# them as a 12 h verdict meant one unlucky response could keep a perfectly fine
+# car silent for half a day. They get a short backoff instead, long enough to
+# stop per-poll hammering and short enough to self-heal unattended.
+_MBB_OPLIST_SOFT_DENY_TTL = timedelta(minutes=30)
+
 
 def _bff_request_id(resp: Any) -> str | None:
     """Extract the async request id from a BFF 202 command response."""
@@ -1668,17 +1677,22 @@ class VWEUClient(CariadBaseClient):
                 )
                 return None
             if err.status in (401, 403):
-                # #909 — the systemId / rolesandrights ACL rejection is just as
-                # non-recoverable as the gateway one above, so it earns the same
-                # cooldown and the same log-once treatment. Everything else (5xx,
-                # 404, …) is potentially transient and keeps being retried.
+                # v2.24.2 — a 401/403 WITHOUT the explicit gateway verdict above
+                # used to earn the same 12 h cooldown, on the assumption that it
+                # was an equally permanent ACL rejection. That assumption is not
+                # safe: the same bare status also covers an expiring session and
+                # a gateway having a bad minute, and one such response then kept
+                # a working car silent for half a day. Short backoff instead, so
+                # it stops the per-poll hammering that #909 was about but still
+                # heals on its own without the user touching anything.
                 first_denial = vin not in self._mbb_oplist_denied
-                self._mbb_oplist_denied[vin] = now + _MBB_OPLIST_DENY_TTL
+                self._mbb_oplist_denied[vin] = now + _MBB_OPLIST_SOFT_DENY_TTL
                 _LOGGER.log(
                     logging.WARNING if first_denial else logging.DEBUG,
-                    "MBB operationList ***%s → HTTP %s: %s. Not retried for %d h.",
+                    "MBB operationList ***%s → HTTP %s: %s. Backing off %d min "
+                    "(no explicit gateway verdict, so this may be transient).",
                     vin[-6:], err.status, body[:160],
-                    int(_MBB_OPLIST_DENY_TTL.total_seconds() // 3600),
+                    int(_MBB_OPLIST_SOFT_DENY_TTL.total_seconds() // 60),
                 )
                 return None
             _LOGGER.warning(
