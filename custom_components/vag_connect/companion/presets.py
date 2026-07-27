@@ -127,6 +127,22 @@ _VW = BrandPreset(
             content_desc_re=r"(?:noch|remaining)\D*(\d{1,4})\s*min",
             parse="int_km",  # reuse the "first integer" parser
         ),
+        # v2.26.0 (ckomma #7) — odometer. Grouped-thousands safe now (_first_int).
+        FieldSelector(
+            target="odometer_km",
+            content_desc_re=r"(?:Kilometerstand|Odometer|Mileage|km-Stand)\D*([\d\s.]+)\s*km",
+            label_re=r"^(?:Kilometerstand|Odometer|Mileage|km-Stand)$",
+            value_from="sibling",
+            parse="int_km",
+        ),
+        # v2.26.0 (ckomma #15) — live charge power in kW.
+        FieldSelector(
+            target="charging_power_kw",
+            content_desc_re=r"(?:Ladeleistung|Charge\s*power|Charging\s*power)\D*([\d.,]+)\s*kW",
+            label_re=r"^(?:Ladeleistung|Charge power|Charging power)$",
+            value_from="sibling",
+            parse="kw",
+        ),
     ),
     actions=(
         ActionSelector(
@@ -168,6 +184,15 @@ def _readonly_soc_range_fields(soc_label: str, range_label: str) -> tuple[FieldS
         FieldSelector(
             target="electric_range_km",
             label_re=range_label,
+            value_from="sibling",
+            parse="int_km",
+        ),
+        # v2.26.0 — odometer is brand-generic (every app shows it). Label is the
+        # same German/English wording; promote to verified once a tester dump
+        # confirms the exact string for this brand.
+        FieldSelector(
+            target="odometer_km",
+            label_re=r"^(?:Kilometerstand|Odometer|Mileage|km-Stand)$",
             value_from="sibling",
             parse="int_km",
         ),
@@ -233,10 +258,26 @@ PRESETS: dict[str, BrandPreset] = {
 # ── value parsers ────────────────────────────────────────────────────────────
 
 _FIRST_INT_RE = re.compile(r"-?\d+")
+# v2.26.0 (ckomma #7) — a grouped-thousands number: 1-3 digits then one or more
+# 3-digit groups: whitespace (\s covers space + nbsp) or dot as separator.
+# A plain decimal ("12,5", "12.5") is NOT matched (comma, or a non-3-digit tail),
+# so it is left untouched for the kw parser.
+_GROUPED_THOUSANDS_RE = re.compile(r"-?\d{1,3}(?:[\s.]\d{3})+(?!\d)")
 
 
 def _first_int(text: str) -> int | None:
-    m = _FIRST_INT_RE.search(text or "")
+    if not text:
+        return None
+    # Collapse a grouped-thousands number first, otherwise the first-digit-run
+    # regex below truncates "27 886 km" to 27 (ckomma #7, an odometer read).
+    gm = _GROUPED_THOUSANDS_RE.search(text)
+    if gm:
+        digits = re.sub(r"[\s.]", "", gm.group())
+        try:
+            return int(digits)
+        except ValueError:  # pragma: no cover - regex guarantees digits
+            pass
+    m = _FIRST_INT_RE.search(text)
     return int(m.group()) if m else None
 
 
