@@ -13,7 +13,7 @@ import re
 from dataclasses import dataclass
 from xml.etree import ElementTree as ET
 
-from .presets import BrandPreset, FieldSelector, coerce
+from .presets import BrandPreset, FieldSelector, OverlaySelector, coerce
 
 
 @dataclass(frozen=True)
@@ -130,6 +130,37 @@ def read_fields(nodes: list[UiNode], preset: BrandPreset) -> dict[str, object]:
         if val is not None:
             out[sel.target] = val
     return out
+
+
+def find_overlay(nodes: list[UiNode], preset: BrandPreset) -> OverlaySelector | None:
+    """Return the first known nag/interstitial overlay present on the screen.
+
+    v2.26.0 (ckomma #8/#13/#20). Matched on content-description or visible text.
+    The caller dismisses it with BACK and re-dumps.
+    """
+    for ov in preset.overlays:
+        for n in nodes:
+            if (
+                ov.content_desc_re
+                and n.content_desc
+                and re.search(ov.content_desc_re, n.content_desc, re.I)
+            ):
+                return ov
+            if ov.text_re and n.text and re.search(ov.text_re, n.text, re.I):
+                return ov
+    return None
+
+
+def has_anchor(nodes: list[UiNode], preset: BrandPreset) -> bool:
+    """True if the preset's screen-identity anchor is present (or none is set).
+
+    v2.26.0 (ckomma #10/#20). Gates a read/tap so a stray screen yields no_data
+    rather than a wrong value. A preset with no ``screen_anchor`` returns True
+    (best-effort, VW until a dump confirms an anchor).
+    """
+    if preset.screen_anchor is None:
+        return True
+    return _match_field_raw(nodes, preset.screen_anchor) is not None
 
 
 def find_action_node(nodes: list[UiNode], preset: BrandPreset, action: str) -> UiNode | None:

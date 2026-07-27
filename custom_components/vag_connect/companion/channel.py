@@ -26,12 +26,19 @@ import logging
 from typing import Callable
 
 from .presets import ACTION_TO_COMMAND, BrandPreset
-from .screen import find_action_node, parse_ui_dump, read_fields
+from .screen import (
+    UiNode,
+    find_action_node,
+    find_overlay,
+    parse_ui_dump,
+    read_fields,
+)
 from .transport import CompanionTransportError, NetworkAdbTransport
 
 _LOGGER = logging.getLogger(__name__)
 
 _FAILURE_COOLDOWN_S = 1800.0        # 30 min after any transport failure
+_OVERLAY_MAX_DISMISS = 3            # BACK presses before giving up on a nag screen
 
 
 class CompanionWriteBlocked(RuntimeError):
@@ -96,12 +103,46 @@ class CompanionChannel:
             # Decide the write quarantine on every read: the app can be updated
             # under us at any time.
             await self._refresh_write_gate()
-            xml = await self._t.dump_ui()
+            nodes, cleared = await self._dump_and_clear_overlays()
         except CompanionTransportError:
             self._cooldown_until = self._now() + _FAILURE_COOLDOWN_S
             raise
-        nodes = parse_ui_dump(xml)
+        if not cleared:
+            # A nag/interstitial we could not dismiss is up; the screen behind it
+            # is not the data screen. Return no fields rather than parsing the
+            # overlay. The coordinator keeps last-known-good visible.
+            return {}
         return read_fields(nodes, self._preset)
+
+    async def _dump_and_clear_overlays(self) -> tuple[list[UiNode], bool]:
+        """Dump the screen; if a known overlay is up, BACK past it and re-dump.
+
+        v2.26.0 (ckomma #8/#13/#20). Returns (parsed_nodes, cleared). ``cleared``
+        is False when an overlay is still present after the capped retries, so
+        the caller can decline to read/tap the wrong screen. BACK-only, so this
+        is safe to run on the read-only brands too.
+        """
+        xml = await self._t.dump_ui()
+        for _ in range(_OVERLAY_MAX_DISMISS):
+            nodes = parse_ui_dump(xml)
+            overlay = find_overlay(nodes, self._preset)
+            if overlay is None:
+                return nodes, True
+            _LOGGER.debug(
+                "companion %s: dismissing overlay '%s' with BACK",
+                self._preset.brand, overlay.name,
+            )
+            await self._t.key_back()
+            xml = await self._t.dump_ui()
+        nodes = parse_ui_dump(xml)
+        still = find_overlay(nodes, self._preset)
+        if still is not None:
+            _LOGGER.warning(
+                "companion %s: overlay '%s' did not clear after %d BACK presses",
+                self._preset.brand, still.name, _OVERLAY_MAX_DISMISS,
+            )
+            return nodes, False
+        return nodes, True
 
     async def _refresh_write_gate(self) -> None:
         """Read the live app version and (re)decide whether writes are allowed.
@@ -177,10 +218,16 @@ class CompanionChannel:
             if not self._t.connected:
                 await self._t.connect()
             await self._t.foreground_app(self._preset.package)
-            xml = await self._t.dump_ui()
+            # v2.26.0 — dismiss any nag screen before locating the control, or
+            # the BACK-safe overlay would sit on top of the button we tap.
+            nodes, cleared = await self._dump_and_clear_overlays()
         except CompanionTransportError as err:
             raise CompanionWriteBlocked(str(err)) from err
-        node = find_action_node(parse_ui_dump(xml), self._preset, action)
+        if not cleared:
+            raise CompanionWriteBlocked(
+                "a nag screen is up and did not clear; not tapping blind"
+            )
+        node = find_action_node(nodes, self._preset, action)
         if node is None or node.tap_point is None:
             raise CompanionWriteBlocked(
                 f"could not find the '{action}' control on the current screen; "

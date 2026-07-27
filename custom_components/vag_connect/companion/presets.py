@@ -60,6 +60,20 @@ class ActionSelector:
 
 
 @dataclass(frozen=True)
+class OverlaySelector:
+    """A known interstitial / nag screen (power-saving prompt, delay notice, …).
+
+    Detected before every read and every tap; dismissed with BACK only (which
+    can never actuate the car), so overlay recovery is safe even on the
+    unverified read-only brands. Matched on content-description or visible text.
+    """
+
+    name: str  # for logging / diagnostics
+    content_desc_re: str | None = None
+    text_re: str | None = None
+
+
+@dataclass(frozen=True)
 class BrandPreset:
     """Everything the channel needs to read and (maybe) write one brand's app."""
 
@@ -72,6 +86,14 @@ class BrandPreset:
     verified_app_version: str | None
     fields: tuple[FieldSelector, ...]
     actions: tuple[ActionSelector, ...] = ()
+    # v2.26.0 — nag/interstitial screens to dismiss before reading/tapping.
+    overlays: tuple[OverlaySelector, ...] = ()
+    # v2.26.0 — a node that proves we are on the expected main/detail screen.
+    # A read/tap only proceeds when this anchor is present, so a stray screen
+    # (or a dismissed-overlay-left-us-elsewhere state) yields no_data rather than
+    # a wrong value or a tap into the void. None = no anchor gate (VW best-effort
+    # until a dump confirms one; see #10 where tiles can be absent entirely).
+    screen_anchor: FieldSelector | None = None
 
     @property
     def writable(self) -> bool:
@@ -163,6 +185,19 @@ _VW = BrandPreset(
             content_desc_re=r"(?:Laden\s*stoppen|Stop charging)",
         ),
     ),
+    # v2.26.0 (ckomma #13, #8) — confirmed VW nag screens. BACK dismisses both.
+    overlays=(
+        OverlaySelector(
+            name="power_saving",
+            content_desc_re=r"(?:Intelligentes\s*Stromsparen|Intelligent\s*power\s*saving)",
+            text_re=r"(?:Intelligentes\s*Stromsparen|Intelligent\s*power\s*saving)",
+        ),
+        OverlaySelector(
+            name="vehicle_health_delay",
+            content_desc_re=r"(?:verzögert\s*ausgeführt|executed\s*with\s*a\s*delay)",
+            text_re=r"(?:verzögert\s*ausgeführt|executed\s*with\s*a\s*delay)",
+        ),
+    ),
 )
 
 # ── The four unverified brands — structure present, selectors best-effort ────
@@ -209,6 +244,22 @@ def _readonly_soc_range_fields(soc_label: str, range_label: str) -> tuple[FieldS
     )
 
 
+# v2.26.0 — seeded (unverified) power-saving nag for the read-only brands.
+# German / English / Spanish wording; promote per brand once a tester dump
+# confirms the exact string. Dismissed with BACK, so it is safe on reads.
+_SEEDED_POWERSAVE = OverlaySelector(
+    name="power_saving",
+    content_desc_re=(
+        r"(?:Intelligentes\s*(?:Strom|Energie)sparen"
+        r"|Intelligent\s*power\s*saving|Ahorro\s*inteligente)"
+    ),
+    text_re=(
+        r"(?:Intelligentes\s*(?:Strom|Energie)sparen"
+        r"|Intelligent\s*power\s*saving|Ahorro\s*inteligente)"
+    ),
+)
+
+
 _AUDI = BrandPreset(
     brand="audi",
     package="de.myaudi.mobile.assistant",
@@ -217,6 +268,7 @@ _AUDI = BrandPreset(
     fields=_readonly_soc_range_fields(
         r"^(?:Ladezustand|State of charge)$", r"^(?:Reichweite|Range)$"
     ),
+    overlays=(_SEEDED_POWERSAVE,),
 )
 
 _SKODA = BrandPreset(
@@ -227,6 +279,7 @@ _SKODA = BrandPreset(
     fields=_readonly_soc_range_fields(
         r"^(?:Ladestand|Ladezustand|State of charge)$", r"^(?:Reichweite|Range)$"
     ),
+    overlays=(_SEEDED_POWERSAVE,),
 )
 
 _SEAT = BrandPreset(
@@ -237,6 +290,7 @@ _SEAT = BrandPreset(
     fields=_readonly_soc_range_fields(
         r"^(?:Ladezustand|State of charge)$", r"^(?:Reichweite|Range)$"
     ),
+    overlays=(_SEEDED_POWERSAVE,),
 )
 
 _CUPRA = BrandPreset(
@@ -247,6 +301,7 @@ _CUPRA = BrandPreset(
     fields=_readonly_soc_range_fields(
         r"^(?:Ladezustand|State of charge)$", r"^(?:Reichweite|Range)$"
     ),
+    overlays=(_SEEDED_POWERSAVE,),
 )
 
 
