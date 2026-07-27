@@ -858,6 +858,26 @@ class CariadBaseClient:
         result: list[dict[str, Any]] = cookies if isinstance(cookies, list) else []
         return result
 
+    def get_supplementary_proxy_cookies(self) -> list[dict[str, Any]]:
+        """v2.25.0 — export the live SUPPLEMENTARY vw.de session cookies.
+
+        The twin of ``get_website_proxy_cookies`` for the supplementary slot
+        (``_supplementary_authproxy``), which had no export path at all. Without
+        it the coordinator could never write the rotated cookies back, so every
+        restart replayed the original OTP cookies from the entry until they went
+        stale and ``refresh()`` reported "SSO session expired" (#966/#632).
+        Same fail-soft contract: empty list, never raises.
+        """
+        connector = self._supplementary_authproxy
+        if connector is None:
+            return []
+        try:
+            cookies = connector.export_cookies()
+        except Exception:  # noqa: BLE001
+            return []
+        result: list[dict[str, Any]] = cookies if isinstance(cookies, list) else []
+        return result
+
     def set_persisted_tokens(self, tokens: TokenSet | None) -> None:
         """v1.19.2 (#118) — inject tokens loaded from HA storage at
         coordinator setup, before the first API call. If valid, the

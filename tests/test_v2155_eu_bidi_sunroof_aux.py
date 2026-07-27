@@ -50,11 +50,12 @@ def test_bidi_consumed_not_in_raw() -> None:
     assert "bidirectional_charging_mode.bidi_max_Soc" not in d.raw_unmapped_fields
 
 
-def test_bidi_sentinel_dropped_but_scout_visible() -> None:
-    # 65535 uint16 not-available sentinel → None, but stays Scout-visible.
+def test_bidi_sentinel_dropped_and_consumed() -> None:
+    # 65535 uint16 not-available sentinel → None. v2.25.0: mapped field, no
+    # reading → consumed, not left Scout-visible.
     d = _map_flatlog(("bidirectional_charging_mode.bidi_max_Soc", "65535"))
     assert d.bidi_max_charge_level_pct is None
-    assert "bidirectional_charging_mode.bidi_max_Soc" in d.raw_unmapped_fields
+    assert "bidirectional_charging_mode.bidi_max_Soc" not in d.raw_unmapped_fields
 
 
 # ── #544 — sunroof motor hood 1 POSITION (distinct from STATE) ───────────────
@@ -80,10 +81,11 @@ def test_sunroof_position_distinct_from_state() -> None:
     assert d.sunroof_position_pct == 30
 
 
-def test_sunroof_position_sentinel_dropped_but_scout_visible() -> None:
+def test_sunroof_position_sentinel_dropped_and_consumed() -> None:
     d = _map_flatlog(("position_sunroof_motor_hood_1", "65535"))
     assert d.sunroof_position_pct is None
-    assert "position_sunroof_motor_hood_1" in d.raw_unmapped_fields
+    # v2.25.0: mapped field, sentinel reading → consumed, not Scout-visible.
+    assert "position_sunroof_motor_hood_1" not in d.raw_unmapped_fields
 
 
 # ── #544 — aux-consumer consumption 65535 SENTINEL fix ───────────────────────
@@ -96,14 +98,15 @@ def test_aux_consumption_65535_sentinel_dropped() -> None:
     )
     assert d.lifetime_avg_aux_consumption_kwh_100km is None
     assert d.last_trip_avg_aux_consumption_kwh_100km is None
-    # No-suppression: the sentinel field stays Scout-visible.
+    # v2.25.0: mapped fields with a sentinel reading are consumed, not left
+    # Scout-visible (they must not re-report every poll).
     assert (
         "long_term_data_average_aux_consumer_consumption"
-        in d.raw_unmapped_fields
+        not in d.raw_unmapped_fields
     )
     assert (
         "short_term_data_average_aux_consumer_consumption"
-        in d.raw_unmapped_fields
+        not in d.raw_unmapped_fields
     )
 
 

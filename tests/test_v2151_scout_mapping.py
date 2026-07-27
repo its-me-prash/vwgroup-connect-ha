@@ -199,15 +199,17 @@ class TestEUNewFields:
             "battery_state_report": {"remaining_charging_time_bulk": -1},
         }
         flat = _walk_fields(payload)
-        # kept on the flattened surface (no-suppress)…
+        # kept on the flattened surface by the walker (pre-first())…
         assert "battery_state_report.remaining_charging_time_bulk" in flat
         d = map_dataset_to_vehicle_data(flat, VehicleData(vin="X"))
-        # …but the sentinel value never lands on the mapped target…
+        # …the sentinel value never lands on the mapped target…
         assert d.remaining_charge_time_bulk_min is None
-        # …and it remains Scout-visible for discovery.
+        # …and v2.25.0: it is CONSUMED, not left Scout-visible. This is a mapped
+        # field with no current reading, not an undiscovered field, so it must
+        # not re-report to the Scout every poll.
         assert (
             "battery_state_report.remaining_charging_time_bulk"
-            in d.raw_unmapped_fields
+            not in d.raw_unmapped_fields
         )
 
     def test_bulk_real_value_maps(self) -> None:

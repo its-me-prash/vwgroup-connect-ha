@@ -167,15 +167,16 @@ def test_tyre_pressure_diff_valid_value() -> None:
     assert d.tyre_pressure_diff_fl == 7
 
 
-def test_tyre_pressure_diff_sentinel_not_mapped_but_scout_visible() -> None:
-    # 0=unsupported / 1=invalid → NO-SUPPRESSION: the value is never mapped to
-    # the target, but the field stays Scout-visible (raw_unmapped).
+def test_tyre_pressure_diff_sentinel_not_mapped_and_consumed() -> None:
+    # 0=unsupported / 1=invalid → never mapped to the target. v2.25.0: this is a
+    # MAPPED field with no reading, so it is now CONSUMED rather than left
+    # Scout-visible — it must not re-file #958/#969/#970 on every poll.
     d_fl = _map_flatlog(("tyre_pressure_differential_front_left", "1"))
     assert d_fl.tyre_pressure_diff_fl is None
-    assert "tyre_pressure_differential_front_left" in d_fl.raw_unmapped_fields
+    assert "tyre_pressure_differential_front_left" not in d_fl.raw_unmapped_fields
     d_fr = _map_flatlog(("tyre_pressure_differential_front_right", "0"))
     assert d_fr.tyre_pressure_diff_fr is None
-    assert "tyre_pressure_differential_front_right" in d_fr.raw_unmapped_fields
+    assert "tyre_pressure_differential_front_right" not in d_fr.raw_unmapped_fields
 
 
 # ── F. Lights / energy / misc ────────────────────────────────────────────────
