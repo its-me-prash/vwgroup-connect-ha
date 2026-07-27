@@ -183,6 +183,41 @@ def find_rate_limit_banner(
     return None
 
 
+def _unit_seconds(unit: str) -> int | None:
+    u = unit.lower()
+    if u.startswith(("sek", "sec")):
+        return 1
+    if u.startswith("min"):
+        return 60
+    if u.startswith(("std", "stund", "hour")) or u == "h":
+        return 3600
+    if u.startswith(("tag", "day")) or u == "d":
+        return 86400
+    return None
+
+
+def find_sync_age(nodes: list[UiNode], preset: BrandPreset) -> float | None:
+    """Parse the app's "synchronised N ago" line into an age in seconds.
+
+    v2.26.0 (ckomma #22). Returns None if the preset has no sync line configured
+    or none is on screen. Lets the channel report how old the CAR's data is
+    (a VW-side freshness signal), separate from connector health.
+    """
+    if not preset.sync_age_re:
+        return None
+    rx = re.compile(preset.sync_age_re, re.I)
+    for n in nodes:
+        hay = n.text or n.content_desc
+        if not hay:
+            continue
+        m = rx.search(hay)
+        if m:
+            mult = _unit_seconds(m.group(2))
+            if mult is not None:
+                return float(int(m.group(1)) * mult)
+    return None
+
+
 def has_anchor(nodes: list[UiNode], preset: BrandPreset) -> bool:
     """True if the preset's screen-identity anchor is present (or none is set).
 

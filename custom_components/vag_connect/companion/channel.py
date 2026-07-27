@@ -32,6 +32,7 @@ from .screen import (
     find_action_node,
     find_overlay,
     find_rate_limit_banner,
+    find_sync_age,
     parse_ui_dump,
     read_fields,
 )
@@ -39,7 +40,10 @@ from .transport import CompanionTransportError, NetworkAdbTransport
 
 _LOGGER = logging.getLogger(__name__)
 
-_FAILURE_COOLDOWN_S = 1800.0        # 30 min after any transport failure
+_FAILURE_COOLDOWN_S = 1800.0        # 30 min base; the cooldown is ADAPTIVE and
+_MAX_COOLDOWN_S = 6 * 3600.0       # doubles per consecutive failure up to 6 h,
+                                   # so a phone that is off does not get retried
+                                   # every 30 min forever (ckomma #16)
 _OVERLAY_MAX_DISMISS = 3            # BACK presses before giving up on a nag screen
 _WRITE_MIN_INTERVAL_S = 60.0       # min gap between taps, so we never drive into
                                    # a backend rate-limit / lockout (ckomma #21)
@@ -72,7 +76,9 @@ class CompanionChannel:
         # for the in-session failure cooldown. Injected for tests.
         self._wall = wall_clock_fn or time.time
         self._cooldown_until: float = 0.0
+        self._consecutive_failures: int = 0  # drives the adaptive cooldown (#16)
         self._rate_limited_until: float = 0.0  # wall-clock; persisted (ckomma #21)
+        self._source_data_age_s: float | None = None  # from the app's sync line
         self._live_app_version: str | None = None
         self._writes_ok: bool | None = None  # decided on first read
         self._last_write_at: float | None = None  # write min-interval (ckomma #21)
@@ -116,6 +122,29 @@ class CompanionChannel:
             "not a phone problem.", self._preset.brand, _RATE_LIMIT_BACKOFF_S // 3600,
         )
 
+    # -- degraded / out-of-sync (ckomma #22/#16) ------------------------------
+
+    @property
+    def source_data_age_s(self) -> float | None:
+        """Age of the CAR's data as the app itself reports it, or None.
+
+        This is "how old is the data VW has", distinct from connector health: a
+        working companion can still be showing a car that has not synced in
+        hours. Exposed so the entity layer can surface a stale-data signal.
+        """
+        return self._source_data_age_s
+
+    def reset_cooldown(self) -> None:
+        """Clear any failure/rate-limit backoff (a user-initiated retry).
+
+        Lets a stuck channel recover without waiting out the adaptive or
+        rate-limit window (wired to an HA button/service on the entry).
+        """
+        self._cooldown_until = 0.0
+        self._consecutive_failures = 0
+        self._rate_limited_until = 0.0
+        _LOGGER.debug("companion %s: backoff reset by request", self._preset.brand)
+
     # -- read -----------------------------------------------------------------
 
     def _in_cooldown(self) -> bool:
@@ -150,7 +179,15 @@ class CompanionChannel:
             await self._refresh_write_gate()
             nodes, cleared = await self._dump_and_clear_overlays()
         except CompanionTransportError:
-            self._cooldown_until = self._now() + _FAILURE_COOLDOWN_S
+            # v2.26.0 (ckomma #16) — adaptive backoff: double the cooldown per
+            # consecutive failure (capped), so a phone that is off / asleep is
+            # not retried every 30 min indefinitely.
+            self._consecutive_failures += 1
+            backoff = min(
+                _FAILURE_COOLDOWN_S * (2 ** (self._consecutive_failures - 1)),
+                _MAX_COOLDOWN_S,
+            )
+            self._cooldown_until = self._now() + backoff
             raise
         # v2.26.0 (ckomma #21) — a rate-limit / lockout banner is not a nag to
         # dismiss; it means stop. Trip the long persisted backoff and return
@@ -164,6 +201,10 @@ class CompanionChannel:
             # is not the data screen. Return no fields rather than parsing the
             # overlay. The coordinator keeps last-known-good visible.
             return {}
+        # A real read succeeded: clear the adaptive backoff and record how old
+        # the CAR's data is (ckomma #22, separate from connector health).
+        self._consecutive_failures = 0
+        self._source_data_age_s = find_sync_age(nodes, self._preset)
         return read_fields(nodes, self._preset)
 
     async def _dump_and_clear_overlays(self) -> tuple[list[UiNode], bool]:

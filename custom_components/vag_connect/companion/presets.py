@@ -99,6 +99,11 @@ class BrandPreset:
     # a wrong value or a tap into the void. None = no anchor gate (VW best-effort
     # until a dump confirms one; see #10 where tiles can be absent entirely).
     screen_anchor: FieldSelector | None = None
+    # v2.26.0 (ckomma #22/#16) — the app's own "synchronised N ago" line. Parsed
+    # into a source-data age so we can tell "the car's data is old" (a VW-side
+    # freshness issue) apart from "our connector is unhealthy". Captures a number
+    # and a unit. None = not wired for this brand.
+    sync_age_re: str | None = None
 
     @property
     def writable(self) -> bool:
@@ -127,6 +132,17 @@ _RATE_LIMIT_BANNER = OverlaySelector(
         r"|vorübergehend\s*(?:gesperrt|blockiert|nicht\s*verfügbar)"
         r"|temporarily\s*(?:blocked|unavailable)|Demasiadas\s*solicitudes)"
     ),
+)
+
+
+# v2.26.0 (ckomma #22) — the app's freshness line, "Synchronised 5 minutes ago"
+# / "Aktualisiert vor 5 Minuten". Captures the number and the unit; shared
+# across brands (same wording family), tightened per brand with a tester dump.
+_SYNC_AGE_RE = (
+    r"(?:Synchronisiert|Aktualisiert|Synchronised|Synchronized|Updated|"
+    r"Letzte\s*Aktualisierung)[^0-9]*?(\d+)\s*"
+    r"(Sekunden?|Minuten?|Stunden?|Tage?n?|seconds?|minutes?|hours?|days?"
+    r"|min|sek|std|h|d)"
 )
 
 
@@ -226,6 +242,9 @@ _VW = BrandPreset(
     # was a backend request-limit, not a confirmed on-screen banner). The
     # mechanism is what matters; the exact string comes with a tester capture.
     rate_limit_banners=(_RATE_LIMIT_BANNER,),
+    # v2.26.0 (ckomma #22) — VW shows a "Synchronised … ago" line (#22 confirms
+    # the wording exists); seeded German + English, number + unit.
+    sync_age_re=_SYNC_AGE_RE,
 )
 
 # ── The four unverified brands — structure present, selectors best-effort ────
@@ -298,6 +317,7 @@ _AUDI = BrandPreset(
     ),
     overlays=(_SEEDED_POWERSAVE,),
     rate_limit_banners=(_RATE_LIMIT_BANNER,),
+    sync_age_re=_SYNC_AGE_RE,
 )
 
 _SKODA = BrandPreset(
@@ -310,6 +330,7 @@ _SKODA = BrandPreset(
     ),
     overlays=(_SEEDED_POWERSAVE,),
     rate_limit_banners=(_RATE_LIMIT_BANNER,),
+    sync_age_re=_SYNC_AGE_RE,
 )
 
 _SEAT = BrandPreset(
@@ -322,6 +343,7 @@ _SEAT = BrandPreset(
     ),
     overlays=(_SEEDED_POWERSAVE,),
     rate_limit_banners=(_RATE_LIMIT_BANNER,),
+    sync_age_re=_SYNC_AGE_RE,
 )
 
 _CUPRA = BrandPreset(
@@ -334,6 +356,7 @@ _CUPRA = BrandPreset(
     ),
     overlays=(_SEEDED_POWERSAVE,),
     rate_limit_banners=(_RATE_LIMIT_BANNER,),
+    sync_age_re=_SYNC_AGE_RE,
 )
 
 
