@@ -2,36 +2,54 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Porsche Connect authentication — EXPERIMENTAL / superseded stack.
 
-⚠️ v2.17.1 (#666 fresh APK sweep): this module targets the OLD My-Porsche
-**Auth0** stack (identity.porsche.com /authorize + /oauth/token, hardcoded
-Auth0 client XhygisuebbrqQ80byOuU5VncxLIm8E6H, my-porsche-app://auth0/callback).
-The live app is **Porsche One** (com.porsche.one 12.24.27), whose auth is
-**PingFederate**, not Auth0 — so this password flow is expected to fail on
-current accounts. Porsche is marked experimental in the brand picker until
-this is rebuilt.
+⚠️ v2.17.1 (#666 fresh APK sweep): this module's ACTIVE flow targets the OLD
+My-Porsche Auth0 password stack (identity.porsche.com /authorize + /oauth/token,
+hardcoded Auth0 client XhygisuebbrqQ80byOuU5VncxLIm8E6H,
+my-porsche-app://auth0/callback). The live app is **Porsche One**
+(com.porsche.one 12.24.27), and that password flow returns "wrong credentials
+or captcha required" on current accounts (see #13). Porsche stays experimental
+in the brand picker until the device-grant below is wired in.
 
-REBUILD RECIPE (DEX-grounded, feasible off-device — verified in the sweep:
-zero client_secret, NO Play-Integrity/AppCheck/captcha on the auth path,
-first-class RFC-8628 device grant):
-  1. clientId at runtime: GET /v1/mobile/clientId (no hardcoded Auth0 client).
+v2.26.0 (#13, re-verified against the current com.porsche.one DEX + LIVE probes):
+  - identity.porsche.com is an **Auth0** tenant, NOT PingFederate (an earlier
+    note here was wrong). Live .well-known/openid-configuration confirms:
+    device_authorization_endpoint = https://identity.porsche.com/oauth/device/code,
+    token_endpoint = https://identity.porsche.com/oauth/token, and
+    "urn:ietf:params:oauth:grant-type:device_code" IS in grant_types_supported.
+    So the device grant is viable and our discovery-driven code resolves the
+    right endpoints without a code change.
+  - scope="openid profile email ssodb mbb offline_access" is confirmed present
+    in the current DEX (verbatim).
+  - The client_id is genuinely fetched at RUNTIME (DEX has a whole
+    clientIdProvider/clientIdService/clientIdCache + ClientIdDto); there is no
+    static Porsche One Auth0 client_id literal to hardcode.
+  - LIVE BLOCKER: GET https://api.ppa.porsche.com/v1/mobile/clientId returns 502
+    for us (Azure Application Gateway). The host is alive (/app/connect gives a
+    clean 401), and the DEX shows the app redacts X-API-KEY / X-Client-ID /
+    X-Auth-Token headers in its logs, so that endpoint almost certainly needs an
+    X-API-KEY we do not send. The key is not a plain DEX literal (likely
+    assembled or in a resource/native lib). So the clientId fetch, and therefore
+    the whole device grant, cannot be validated off a real account: the next
+    step is a Porsche One owner (#13) either running a test build so its real
+    error tells us what the endpoint wants, or capturing one login.
+
+REBUILD RECIPE (Auth0 device grant, RFC 8628):
+  1. clientId at runtime: GET /v1/mobile/clientId (needs the app's X-API-KEY).
   2. OIDC discovery: GET https://identity.porsche.com/.well-known/openid-configuration
-     → device_authorization_endpoint + token_endpoint (PingFederate).
-  3. Device authorization (RFC 8628): POST device_authorization_endpoint with
-     client_id + scope="openid profile email ssodb mbb offline_access" →
-     device_code/user_code/verification_uri (device.identity.porsche.com/activate).
+     → device_authorization_endpoint + token_endpoint (Auth0).
+  3. Device authorization: POST device_authorization_endpoint with client_id +
+     scope → device_code/user_code/verification_uri.
   4. Poll token_endpoint (grant_type=urn:ietf:params:oauth:grant-type:device_code).
   Commands then run against api.ppa.porsche.com/app/connect/*.
 
-v2.17.2 — the recipe above is now IMPLEMENTED as ``PorscheOneDeviceAuth``
-(below): OIDC-discovery-driven device grant + token poll + refresh, unit-tested
-against mocked endpoints. Two gates remain before Porsche can be un-flagged, and
-both need a Porsche One owner: (a) end-to-end verification against the live
-PingFederate tenant (the clientId host + exact discovery shape can't be probed
-off a real account), and (b) wiring the interactive user-code/QR step into the
-config flow (the current ``PorscheClient`` still drives the legacy Auth0
-``PorscheAuth`` password flow — swapping it in is deliberately deferred so this
-release ships no unverified auth path). Self-contained: touches neither the old
-Auth0 flow nor the shared device-grant used by the 4 working VW-Group brands.
+v2.17.2 — the recipe is IMPLEMENTED as ``PorscheOneDeviceAuth`` (below):
+discovery-driven device grant + token poll + refresh, unit-tested against mocked
+endpoints. Two gates remain, both needing a Porsche One owner: (a) the live
+clientId endpoint (blocked above), and (b) wiring the interactive user-code/QR
+step into the config flow (the current ``PorscheClient`` still drives the legacy
+password flow — swapping it in is deferred so no unverified auth path ships).
+Self-contained: touches neither the old Auth0 password flow nor the shared
+device-grant used by the 4 working VW-Group brands.
 
 Old flow based on CJNE/pyporscheconnectapi (Apache-2.0), aiohttp reimpl.
 """
@@ -222,7 +240,7 @@ class PorscheAuth:
         return codes[0] if codes else None
 
 
-# ── Porsche One — PingFederate RFC-8628 device grant (v2.17.2) ────────────────
+# ── Porsche One — Auth0 RFC-8628 device grant (v2.17.2) ────────────────
 # DEX-grounded from the com.porsche.one 12.24.27 sweep. Public client, no
 # secret / captcha / Play-Integrity on the auth path. See the module docstring
 # for the two remaining live-gates (end-to-end verify + config-flow QR wiring).
@@ -238,7 +256,7 @@ _PORSCHE_ONE_UA = "PorscheOne/12.24.27 (Android)"
 
 
 class PorscheOneDeviceAuth:
-    """Porsche One (com.porsche.one) PingFederate RFC-8628 device grant.
+    """Porsche One (com.porsche.one) Auth0 RFC-8628 device grant.
 
     Interactive: :meth:`request_device_code` returns a ``user_code`` +
     ``verification_uri`` the owner approves in a browser, then
@@ -265,7 +283,7 @@ class PorscheOneDeviceAuth:
         self._token_endpoint: str = ""
 
     async def prepare(self) -> None:
-        """Fetch the runtime client_id + resolve the PingFederate device /
+        """Fetch the runtime client_id + resolve the Auth0 device /
         token endpoints via OIDC discovery. Idempotent."""
         if not self._client_id:
             self._client_id = await self._fetch_client_id()
@@ -378,7 +396,7 @@ class PorscheOneDeviceAuth:
         raise AuthenticationError(f"Porsche One device grant rejected: {error}")
 
     async def refresh(self, refresh_token: str) -> TokenSet:
-        """Refresh via the PingFederate token endpoint."""
+        """Refresh via the Auth0 token endpoint."""
         await self.prepare()
         async with self._session.post(
             self._token_endpoint,
