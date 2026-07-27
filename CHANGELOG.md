@@ -38,6 +38,18 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.24.2] - 2026-07-27
+
+### Fixed
+
+- **A command the car declines now explains itself instead of looking like a crash.** When the gateway refuses to hand over the list of services a car offers, the resulting "not available on this vehicle" was thrown at Home Assistant in a form it does not recognise, so pressing a button produced an "Unexpected exception" with a full traceback. The explanation was there the whole time and was being thrown away. It is now shown as a normal, readable message. The same thing was already fixed for the S-PIN check a while back and simply never carried over to this one.
+- **A single unlucky rejection no longer keeps a working car quiet for half a day.** When the gateway explicitly says the account is not authorised for a car, that is a decision only you can change in the brand app, so we stop asking for twelve hours. That was also being applied to any other rejection, including ones that are merely temporary, so one bad response could silence a perfectly fine car until the next day. Those now back off for half an hour and recover on their own.
+- **Two readings stopped being reported as "undiscovered" on every single poll (#959, #960, #961, #963).** Both were already being read correctly, but the bookkeeping never recorded that, so the same one-line report kept coming back and there was nothing anyone could do about it. One affected an opening state (three people filed the identical report within a day, and the report could not identify which opening it referred to because around ten of them share the same name). The other affected cars that send a measurement's quality marker without the measurement itself. Nothing was ever suppressed to achieve this, the fields are simply accounted for properly now.
+- **The log no longer floods when SEAT or CUPRA online services are blocked (#779).** One poll asks around nineteen addresses, and each refusal wrote its own warning, so a blocked account produced roughly twenty identical lines every few minutes for something the owner cannot fix. The retry is routine and is now quiet. The single clear error and the repair notice are unchanged.
+- **A volkswagen.de channel that stops resuming now says why.** Previously only the error type was logged, so an expired sign-in, a redirect loop and an outage looked identical and reports arrived with nothing to work from. Note this is the already-added channel; adding a new one was fixed in v2.24.1. Unknown errors still have their details held back deliberately, because some of them carry the sign-in address including access tokens.
+- **The historical import service says what happened.** It reported nothing at all in several completely different situations: no export requested yet, the portal still preparing the file, an empty file, or a successful read where every value was already up to date. All four now say so plainly in the log.
+- **Two log lines that were still in German are now English**, like the rest of the log.
+
 ## [2.24.1] - 2026-07-27
 
 ### Fixed

@@ -147,7 +147,7 @@ def raise_issue_auth_required(
         data={"entry_id": entry_id, "reason": reason},
     )
     _LOGGER.warning(
-        "VAG Connect Repair-Issue erstellt: %s (brand=%s, fixable=%s)",
+        "VAG Connect repair issue created: %s (brand=%s, fixable=%s)",
         reason, brand, is_fixable,
     )
 
@@ -257,7 +257,7 @@ def raise_issue_quota_low(
         learn_more_url="https://github.com/its-me-prash/vag-connect-ha/blob/main/docs/FAQ.md#api-quota",
     )
     _LOGGER.info(
-        "VAG Connect Quota-Warning Repair-Issue erstellt: %d remaining "
+        "VAG Connect quota-warning repair issue created: %d remaining "
         "(critical=%s)",
         remaining, critical,
     )

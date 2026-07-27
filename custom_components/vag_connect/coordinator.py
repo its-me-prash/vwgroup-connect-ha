@@ -1494,6 +1494,23 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             )
         historical = await portal.get_vehicle_data(vin, request_type="all")
         if getattr(historical, "no_data", True):
+            # v2.24.2 — say which of the failure modes this was. This service
+            # returned a bare False for several completely different outcomes
+            # and logged nothing at all, so a user running it saw exactly the
+            # same "nothing happened" whether no data request exists yet, the
+            # portal was briefly down, or the export came back empty. The
+            # connector already recorded the discriminator, we just never
+            # showed it. Relevant right now because the people most likely to
+            # run this are the ones recovering from the restart data loss.
+            reason = getattr(portal, "last_no_data_reason", "") or "unknown"
+            _LOGGER.warning(
+                "EU Data Act: the one-time historical export for %s returned no "
+                "data (%s), so nothing was imported. If this says no_request, "
+                "the one-time export has not been requested in the portal yet; "
+                "if it says empty or no_content, the portal accepted the request "
+                "but has not produced the file yet, which can take a while.",
+                mask_vin(vin), reason,
+            )
             return False
         hist = historical.to_dict()
         merged_any = False
@@ -1515,6 +1532,17 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             _LOGGER.info(
                 "EU Data Act: merged one-time historical export config fields "
                 "for VIN %s", mask_vin(vin),
+            )
+        else:
+            # v2.24.2 — the fourth silent outcome, and the most confusing one:
+            # the export was fetched and parsed just fine, but every field it
+            # carries already holds a live value, so the merge (which never
+            # clobbers live data) had nothing to write. That is a success, not
+            # a failure, and it looked identical to all the error cases.
+            _LOGGER.info(
+                "EU Data Act: the historical export for %s was read successfully "
+                "but nothing needed importing — every field it contains already "
+                "has a current value.", mask_vin(vin),
             )
         return merged_any
 
@@ -5132,7 +5160,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             #   must keep bubbling as a traceback: wrapping them would disguise
             #   a programming error as a normal command failure and we'd never
             #   hear about it.
-            from .cariad.exceptions import APIError, SpinError  # noqa: PLC0415
+            from .cariad.exceptions import (  # noqa: PLC0415
+                APIError,
+                SpinError,
+                VehicleCommandError,
+            )
 
             # Our own S-PIN guard (missing / wrong / locked S-PIN) is an
             # actionable user error, not a bug — but SpinError is a CariadError,
@@ -5141,6 +5173,16 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # "Unexpected exception" traceback for pressing a button. Surface it
             # as a clean validation error instead.
             if isinstance(err, SpinError):
+                raise ServiceValidationError(str(err)) from err
+            # v2.24.2 — VehicleCommandError has exactly the same problem and was
+            # simply never carried over when the above was fixed in v2.17.1: it
+            # is a CariadError but not an APIError, so it also fell through to
+            # the raw re-raise and produced an "Unexpected exception" traceback.
+            # The usual way to hit it is a gateway-denied MBB operationList,
+            # where the message is already a complete explanation ("<service>
+            # not available on this vehicle"). A refusal we can explain in one
+            # sentence should not look to the user like the integration crashed.
+            if isinstance(err, VehicleCommandError):
                 raise ServiceValidationError(str(err)) from err
             if isinstance(err, HomeAssistantError) or not isinstance(err, APIError):
                 raise
