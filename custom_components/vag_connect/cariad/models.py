@@ -1804,6 +1804,19 @@ class VehicleData:
     # disabled-by-default diagnostic sensors. NO 'SoC' token in entity NAMES.
     bidi_max_charge_level_pct: int | None = None
     bidi_min_charge_level_pct: int | None = None
+    # v2.26.0 (#981) — the rest of the bidirectional_charging_mode.* family: the
+    # V2G usage accounting (energy dispensed, cycles, operating hours, quota) and
+    # each one's limit/threshold. dict type=number, unit=null → mapped UNITLESS
+    # with no device_class (like the bcam pair), so a wrong-unit guess can never
+    # ship. LOW — disabled-by-default diagnostic sensors.
+    bidi_energy_used: float | None = None
+    bidi_energy_used_threshold: float | None = None
+    bidi_cycles: int | None = None
+    bidi_cycles_threshold: int | None = None
+    bidi_operating_hours: float | None = None
+    bidi_operating_hours_threshold: float | None = None
+    bidi_quota: float | None = None
+    bidi_quota_threshold: float | None = None
     # ── v2.15.5 (#544) — sunroof motor hood 1 POSITION (distinct from the
     # open/closed STATE in sunroof_open). dict-confirmed type=number, unit "%"
     # (0 = closed). LOW — disabled-by-default diagnostic sensor.

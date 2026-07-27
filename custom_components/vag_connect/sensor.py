@@ -2935,6 +2935,31 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # ── v2.26.0 (#981) — the rest of the bidirectional_charging_mode.* V2G usage
+    # accounting + its limits. All UNITLESS (dict unit=null) — no device_class,
+    # no invented unit. LOW — diagnostic, disabled-by-default.
+    *(
+        VagSensorDescription(
+            key=_k,
+            translation_key=_k,
+            data_key=_k,
+            state_class=SensorStateClass.MEASUREMENT,
+            icon="mdi:home-battery-outline",
+            condition="electric",
+            entity_category=EntityCategory.DIAGNOSTIC,
+            entity_registry_enabled_default=False,
+        )
+        for _k in (
+            "bidi_energy_used",
+            "bidi_energy_used_threshold",
+            "bidi_cycles",
+            "bidi_cycles_threshold",
+            "bidi_operating_hours",
+            "bidi_operating_hours_threshold",
+            "bidi_quota",
+            "bidi_quota_threshold",
+        )
+    ),
     # ── v2.15.5 (#544) — sunroof motor hood 1 POSITION (%; 0=closed). Distinct
     # from the sunroof_open STATE. LOW — diagnostic, disabled-by-default.
     VagSensorDescription(

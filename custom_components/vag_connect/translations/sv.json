@@ -1105,6 +1105,30 @@
       "bidi_min_charge_level_pct": {
         "name": "Dubbelriktad laddning min. laddnivå"
       },
+      "bidi_energy_used": {
+        "name": "Bidirectional energy used"
+      },
+      "bidi_energy_used_threshold": {
+        "name": "Bidirectional energy used limit"
+      },
+      "bidi_cycles": {
+        "name": "Bidirectional charging cycles"
+      },
+      "bidi_cycles_threshold": {
+        "name": "Bidirectional charging cycles limit"
+      },
+      "bidi_operating_hours": {
+        "name": "Bidirectional operating hours"
+      },
+      "bidi_operating_hours_threshold": {
+        "name": "Bidirectional operating hours limit"
+      },
+      "bidi_quota": {
+        "name": "Bidirectional charging quota"
+      },
+      "bidi_quota_threshold": {
+        "name": "Bidirectional charging quota limit"
+      },
       "sunroof_position_pct": {
         "name": "Soltakets position"
       },

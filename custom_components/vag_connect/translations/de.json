@@ -1109,6 +1109,30 @@
       "bidi_min_charge_level_pct": {
         "name": "Bidirektionales Laden min. Ladestand"
       },
+      "bidi_energy_used": {
+        "name": "Bidirektional genutzte Energie"
+      },
+      "bidi_energy_used_threshold": {
+        "name": "Bidirektional genutzte Energie Limit"
+      },
+      "bidi_cycles": {
+        "name": "Bidirektionale Ladezyklen"
+      },
+      "bidi_cycles_threshold": {
+        "name": "Bidirektionale Ladezyklen Limit"
+      },
+      "bidi_operating_hours": {
+        "name": "Bidirektionale Betriebsstunden"
+      },
+      "bidi_operating_hours_threshold": {
+        "name": "Bidirektionale Betriebsstunden Limit"
+      },
+      "bidi_quota": {
+        "name": "Bidirektionale Ladequote"
+      },
+      "bidi_quota_threshold": {
+        "name": "Bidirektionale Ladequote Limit"
+      },
       "sunroof_position_pct": {
         "name": "Schiebedach-Position"
       },
