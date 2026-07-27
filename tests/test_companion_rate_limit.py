@@ -111,10 +111,27 @@ class TestRateLimitBackoff:
 
     @pytest.mark.asyncio
     async def test_writes_blocked_and_disabled_while_backed_off(self) -> None:
+        # Use a synthetic WRITABLE preset so the ONLY thing disabling writes here
+        # is the rate-limit backoff (the shipped VW quarantines writes anyway).
+        from dataclasses import replace
+
+        from custom_components.vag_connect.companion.presets import ActionSelector
+
+        writable = replace(
+            PRESETS["volkswagen"],
+            actions=(
+                ActionSelector(
+                    action="start_climate",
+                    content_desc_re=r"(?:Klima\w*\s*starten|Start climate)",
+                ),
+            ),
+        )
         mono, wall, _, _ = _clocks()
-        ch = _channel(_SeqTransport([LOCKOUT]), wall, mono)
+        ch = CompanionChannel(
+            _SeqTransport([LOCKOUT]), writable, time_fn=mono, wall_clock_fn=wall,
+        )
         await ch.read()  # trips backoff
-        ch._writes_ok = True  # even with the version gate open
+        ch._version_ok = True  # even with the version gate open
         assert ch.writes_enabled is False
         with pytest.raises(CompanionWriteBlocked):
             await ch.do_action("start_climate")

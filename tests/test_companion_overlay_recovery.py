@@ -72,6 +72,28 @@ def _channel(transport):
     return CompanionChannel(transport, PRESETS["volkswagen"], time_fn=time.monotonic)
 
 
+def _make_writable_vw():
+    """A synthetic WRITABLE VW. The shipped VW preset quarantines writes (no
+    actions, v2.26.0); the overlay-before-tap and min-interval write mechanisms
+    still need coverage, so restore a climate action here."""
+    from dataclasses import replace
+
+    from custom_components.vag_connect.companion.presets import ActionSelector
+
+    return replace(
+        PRESETS["volkswagen"],
+        actions=(
+            ActionSelector(
+                action="start_climate",
+                content_desc_re=r"(?:Klima\w*\s*(?:starten|ein)|Start climate)",
+            ),
+        ),
+    )
+
+
+_WRITABLE_VW = _make_writable_vw()
+
+
 class TestOverlayDetection:
     def test_vw_power_saving_is_detected(self) -> None:
         ov = find_overlay(parse_ui_dump(NAG), PRESETS["volkswagen"])
@@ -105,11 +127,11 @@ class TestOverlayRecovery:
     @pytest.mark.asyncio
     async def test_write_blocked_when_overlay_will_not_clear(self) -> None:
         t = _SeqTransport([NAG])
-        ch = _channel(t)
-        await ch.read()  # decide write gate (returns {} but sets version ok)
-        # writes_enabled needs a clean read; here the nag blocks, so writes off
-        # — force the gate on to isolate the overlay check:
-        ch._writes_ok = True
+        ch = CompanionChannel(t, _WRITABLE_VW, time_fn=time.monotonic)
+        await ch.read()  # decide version gate (returns {} but sets version ok)
+        # writes_enabled needs a clean read; here the nag blocks, so force the
+        # version gate on to isolate the overlay check (not the version check):
+        ch._version_ok = True
         with pytest.raises(CompanionWriteBlocked):
             await ch.do_action("start_climate")
         assert t.taps == []
@@ -118,9 +140,9 @@ class TestOverlayRecovery:
     async def test_write_proceeds_after_overlay_cleared(self) -> None:
         # nag, then clean (with the climate button) for the write dump
         t = _SeqTransport([CLEAN])  # already clean
-        ch = _channel(t)
+        ch = CompanionChannel(t, _WRITABLE_VW, time_fn=time.monotonic)
         await ch.read()
-        ch._writes_ok = True
+        ch._version_ok = True
         await ch.do_action("start_climate")
         assert t.taps == [(100, 230)]
 
@@ -140,8 +162,8 @@ class TestWriteMinInterval:
 
         now, t = self._clock()
         tr = _SeqTransport([CLEAN])
-        ch = CompanionChannel(tr, PRESETS["volkswagen"], time_fn=now)
-        ch._writes_ok = True
+        ch = CompanionChannel(tr, _WRITABLE_VW, time_fn=now)
+        ch._version_ok = True
         await ch.do_action("start_climate")
         assert len(tr.taps) == 1
         t["v"] += _WRITE_MIN_INTERVAL_S / 2  # still inside the window
@@ -157,8 +179,8 @@ class TestWriteMinInterval:
 
         now, t = self._clock()
         tr = _SeqTransport([CLEAN])
-        ch = CompanionChannel(tr, PRESETS["volkswagen"], time_fn=now)
-        ch._writes_ok = True
+        ch = CompanionChannel(tr, _WRITABLE_VW, time_fn=now)
+        ch._version_ok = True
         await ch.do_action("start_climate")
         t["v"] += _WRITE_MIN_INTERVAL_S + 1
         await ch.do_action("start_climate")

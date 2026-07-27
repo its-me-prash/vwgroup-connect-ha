@@ -4283,6 +4283,9 @@ class TestButtonCapabilityGating:
         # button platform's new Read-only Mode gate doesn't skip Flash +
         # Wake button creation under tests.
         coord.is_read_only = MagicMock(return_value=False)
+        # v2.26.0 — likewise pin is_companion False so button setup doesn't take
+        # the companion (reset-only) branch on a bare-MagicMock truthy value.
+        coord.is_companion = MagicMock(return_value=False)
         coord.vehicles = {"VIN1": {"vin": "VIN1", "model": "Born"}}
         coord.vehicle_capabilities = {"VIN1": caps} if caps else {}
         # v1.13.0 (#56 Phase 3) — entry.data["brand"] is what

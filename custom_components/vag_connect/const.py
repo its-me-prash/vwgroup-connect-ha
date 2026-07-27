@@ -19,6 +19,20 @@ CONF_ADB_HOST                 = "adb_host"
 CONF_ADB_PORT                 = "adb_port"
 CONF_VIN                      = "vin"
 DEFAULT_ADB_PORT              = 5555
+# v2.26.0 (ckomma #21) — wall-clock unix time until which the companion channel
+# is rate-limited. Persisted so an account lockout survives an HA restart (an
+# in-memory backoff clearing on restart is fine for a TCP blip, dangerous for a
+# real lockout). Written by the coordinator after a poll; restored at setup.
+CONF_COMPANION_RATE_LIMIT_UNTIL = "companion_rate_limit_until"
+# v2.26.0 (C9) — opt-in: also read the charge-target/power/time that live behind
+# the charge-detail screen. OFF by default because it TAPS the app to navigate
+# there (a forward tap, unlike a plain screen dump); only a user who has
+# confirmed the flow on their device should turn it on.
+CONF_COMPANION_READ_CHARGE_DETAIL = "companion_read_charge_detail"
+# v2.26.0 (#974) — opt-in: wake the phone display before a poll and put it back
+# to sleep afterwards, so a locked/asleep phone shows the app (not the keyguard)
+# without needing "Stay awake" on permanently. OFF by default.
+CONF_COMPANION_WAKE_SLEEP        = "companion_wake_sleep"
 # v2.17.5 (#759) — optional per-VIN S-PIN overrides: {vin: spin}. When a
 # vehicle has no entry here the shared CONF_SPIN is used, so existing
 # single-S-PIN setups are unchanged. Set via the Options flow.

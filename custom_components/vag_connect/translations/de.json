@@ -191,6 +191,8 @@
           "enable_push_fcm": "CUPRA/SEAT Push-Updates (FCM, EXPERIMENTELL)",
           "enable_push_audi_vw": "Audi/VW Push-Updates (Cariad FCM, EXPERIMENTELL)",
           "read_only_mode": "Nur-Lesen-Modus",
+          "companion_read_charge_detail": "Companion: Ladeziel lesen (navigiert in der App)",
+          "companion_wake_sleep": "Companion: Display zum Abfragen wecken, danach schlafen",
           "client_id_override": "OAuth client_id Override (Power-User)",
           "eu_data_act_auto_kickoff": "EU Data Act: Custom Data Request automatisch anlegen",
           "supplementary_authproxy": "Volkswagen.de-Lesekanal hinzufügen (Daten zusammenführen)",
@@ -213,6 +215,8 @@
           "scan_interval": "Polling-Intervall in Minuten (5–60). Niedrige Werte bringen die Daten schneller, fressen aber das tägliche API-Quota schneller (~1.500 Calls/Tag bei MyCupra/MySEAT).",
           "spin": "Optionale 4-stellige Sicherheits-PIN für privilegierte Kommandos (Lock/Unlock bei manchen Marken). Leer lassen wenn nicht benötigt.",
           "read_only_mode": "Wenn aktiv: nur Status-Sensoren werden erstellt, keine Schalter/Buttons/Schlösser/Climate die Befehle senden würden. Schützt vor versehentlicher Auslösung und Subscription-zählenden Kommandos.",
+          "companion_read_charge_detail": "Nur Companion (ADB). Liest zusätzlich Ladeziel, Ladeleistung und Restzeit, die hinter dem Lade-Detailscreen liegen. Dafür TIPPT die App zur Navigation dorthin (etwa alle 15 Minuten) — nur aktivieren, wenn der Ablauf auf deinem Handy funktioniert. Standard aus. Nach Änderung neu laden.",
+          "companion_wake_sleep": "Nur Companion (ADB). Weckt das Display vor jeder Abfrage und legt es danach wieder schlafen, damit ein gesperrtes/schlafendes Handy die App während des Lesens zeigt, ohne den Bildschirm dauerhaft an zu lassen. Standard aus. Nach Änderung neu laden.",
           "client_id_override": "Power-User Eskapeluke wenn die Community einen frischen OAuth client_id in einer neuen VW Group APK entdeckt bevor unser täglicher Atlas-Builder ihn findet. Paste den vollen UUID@apps_vw-dilab_com String hier rein, dann probiert der Resolver ihn ZUERST bei jedem authenticate, mit allen bestehenden client_ids weiter als Fallback in der Chain. Leer lassen für Default-Verhalten. Format: 8-4-4-4-12 hex Zeichen gefolgt von @apps_vw-dilab_com. Ungültige Werte werden stillschweigend ignoriert.",
           "eu_data_act_auto_kickoff": "Nur relevant wenn die Integration im Read-only EU Data Act Portal-Modus läuft (die Live BFF Strategien sind gescheitert). Wenn AN, prüft der Coordinator beim Start ob pro VIN ein aktiver 15-min Custom Data Request existiert und legt einen an wenn nicht. Der Kickoff impliziert ein 1-Monats Daten-Abo auf deinem Account beim Portal, deshalb opt-in. Das Portal akzeptiert HÖCHSTENS EINEN aktiven Custom Request pro VIN gleichzeitig. Standard: aus.",
           "abrp_enable": "Live-Telemetrie an A Better Routeplanner senden. Benötigt api_key und einen Token pro Fahrzeug. Aus = keine ausgehenden Aufrufe.",
@@ -1508,6 +1512,9 @@
       },
       "data_act_request_button": {
         "name": "EU-Data-Act-Datenanfrage erstellen"
+      },
+      "companion_reset_button": {
+        "name": "Companion-Verbindung zurücksetzen"
       }
     },
     "climate": {

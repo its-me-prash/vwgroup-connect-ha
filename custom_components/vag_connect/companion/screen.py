@@ -14,7 +14,13 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from xml.etree import ElementTree as ET
 
-from .presets import BrandPreset, FieldSelector, OverlaySelector, coerce
+from .presets import (
+    ActionSelector,
+    BrandPreset,
+    FieldSelector,
+    OverlaySelector,
+    coerce,
+)
 
 
 @dataclass(frozen=True)
@@ -119,14 +125,30 @@ def _iter_field_raws(nodes: list[UiNode], sel: FieldSelector) -> Iterator[str]:
                     if sib.text and sib.text.strip() and sib.text != hay:
                         yield sib.text
 
+    # 4) unit-adjacent bare number (#968, split-node apps like My CUPRA): the
+    # value ("51") and its unit ("%") are separate text nodes with no label.
+    # Match the UNIT node, take the nearest preceding bare-number node (within a
+    # small window so a far-away number never binds to the wrong unit).
+    if sel.unit_re:
+        rx = re.compile(sel.unit_re)
+        for i, n in enumerate(nodes):
+            if not n.text or not rx.fullmatch(n.text.strip()):
+                continue
+            for prev in reversed(nodes[max(0, i - 3):i]):
+                if prev.text and re.fullmatch(r"\d{1,4}", prev.text.strip()):
+                    yield prev.text.strip()
+                    break
+
 
 def _match_field_raw(nodes: list[UiNode], sel: FieldSelector) -> str | None:
     """The first candidate a selector resolves to (presence check, for anchors)."""
     return next(_iter_field_raws(nodes, sel), None)
 
 
-def read_fields(nodes: list[UiNode], preset: BrandPreset) -> dict[str, object]:
-    """Resolve every field selector against the parsed screen.
+def read_selectors(
+    nodes: list[UiNode], selectors: "tuple[FieldSelector, ...]"
+) -> dict[str, object]:
+    """Resolve a tuple of field selectors against the parsed screen.
 
     Returns only the fields that coerced to a value, so a partial screen never
     writes a spurious ``None``. Numeric-preferring (ckomma #19): the first
@@ -134,13 +156,18 @@ def read_fields(nodes: list[UiNode], preset: BrandPreset) -> dict[str, object]:
     matches, so a "--" placeholder ahead of the real number is skipped.
     """
     out: dict[str, object] = {}
-    for sel in preset.fields:
+    for sel in selectors:
         for raw in _iter_field_raws(nodes, sel):
             val = coerce(sel.parse, raw)
             if val is not None:
                 out[sel.target] = val
                 break
     return out
+
+
+def read_fields(nodes: list[UiNode], preset: BrandPreset) -> dict[str, object]:
+    """Resolve every overview field selector against the parsed screen."""
+    return read_selectors(nodes, preset.fields)
 
 
 def find_overlay(nodes: list[UiNode], preset: BrandPreset) -> OverlaySelector | None:
@@ -230,16 +257,14 @@ def has_anchor(nodes: list[UiNode], preset: BrandPreset) -> bool:
     return _match_field_raw(nodes, preset.screen_anchor) is not None
 
 
-def find_action_node(nodes: list[UiNode], preset: BrandPreset, action: str) -> UiNode | None:
-    """Find the tappable node for a logical action, or None if not present.
+def find_node_for(nodes: list[UiNode], spec: "ActionSelector") -> UiNode | None:
+    """Find the tappable node matching an ActionSelector, or None if absent.
 
     Prefers a clickable node; a matching but non-clickable node is returned only
     if nothing clickable matched, so the caller can decide whether to tap its
-    centre anyway.
+    centre anyway. Used both for logical write actions and for the nav-read tile
+    (C9) that opens a detail screen.
     """
-    spec = next((a for a in preset.actions if a.action == action), None)
-    if spec is None:
-        return None
     candidates: list[UiNode] = []
     for n in nodes:
         hit = False
@@ -259,3 +284,11 @@ def find_action_node(nodes: list[UiNode], preset: BrandPreset, action: str) -> U
         return None
     clickable = [n for n in candidates if n.clickable and n.tap_point]
     return clickable[0] if clickable else candidates[0]
+
+
+def find_action_node(nodes: list[UiNode], preset: BrandPreset, action: str) -> UiNode | None:
+    """Find the tappable node for a logical action, or None if not present."""
+    spec = next((a for a in preset.actions if a.action == action), None)
+    if spec is None:
+        return None
+    return find_node_for(nodes, spec)

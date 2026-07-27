@@ -57,16 +57,26 @@ class TestOdometerAndChargePowerWiring:
         fields = read_fields(parse_ui_dump(screen), PRESETS["volkswagen"])
         assert fields["odometer_km"] == 27886
 
-    def test_vw_reads_charge_power(self) -> None:
-        screen = _dump(
+    def test_vw_reads_charge_power_via_nav(self) -> None:
+        # v2.26.0 — charge power lives on the charge-DETAIL screen (ckomma reads
+        # it there too), so it moved from overview fields to the nav-read values.
+        from custom_components.vag_connect.companion.screen import read_selectors
+
+        detail = _dump(
             '<node content-desc="Ladeleistung 7,4 kW" text="" '
             'class="TextView" clickable="false" bounds="[0,0][10,10]" />'
         )
-        fields = read_fields(parse_ui_dump(screen), PRESETS["volkswagen"])
-        assert fields["charging_power_kw"] == 7.4
+        nav = PRESETS["volkswagen"].nav_reads[0]
+        got = read_selectors(parse_ui_dump(detail), nav.values)
+        assert got["charging_power_kw"] == 7.4
 
-    def test_every_preset_now_reads_odometer(self) -> None:
+    def test_every_preset_reads_odometer_where_the_overview_shows_it(self) -> None:
+        # v2.26.0 — CUPRA is grounded from a real dump whose overview has no
+        # odometer (it lives on a sub-screen), so it is exempt; the others still
+        # carry the odometer selector on the overview.
         for brand, p in PRESETS.items():
+            if brand == "cupra":
+                continue
             targets = {f.target for f in p.fields}
             assert "odometer_km" in targets, brand
 

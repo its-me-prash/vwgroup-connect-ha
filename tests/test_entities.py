@@ -19,6 +19,9 @@ def _make_coordinator(vehicles=None):
     """
     coord = MagicMock()
     coord.is_read_only = MagicMock(return_value=False)
+    # v2.26.0 — same reason: a bare MagicMock's is_companion() is truthy, which
+    # would send button setup down the companion (reset-only) branch.
+    coord.is_companion = MagicMock(return_value=False)
     coord.data = vehicles or {
         "WVGZZZ1KZAW123456": {
             "vin": "WVGZZZ1KZAW123456",

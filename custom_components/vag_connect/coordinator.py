@@ -792,6 +792,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 DEFAULT_ADB_PORT,
             )
 
+            from .const import (  # noqa: PLC0415
+                CONF_COMPANION_READ_CHARGE_DETAIL,
+                CONF_COMPANION_WAKE_SLEEP,
+            )
             self._cariad_client = CompanionClient(
                 brand=brand,
                 vin=self.entry.data[CONF_VIN],
@@ -799,7 +803,20 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 port=self.entry.data.get(CONF_ADB_PORT, DEFAULT_ADB_PORT),
                 adbkey_path=self.hass.config.path(".storage", "vag_connect_adbkey"),
                 time_fn=time.monotonic,
+                read_charge_detail=bool(
+                    self.entry.data.get(CONF_COMPANION_READ_CHARGE_DETAIL, False)
+                ),
+                wake_sleep=bool(
+                    self.entry.data.get(CONF_COMPANION_WAKE_SLEEP, False)
+                ),
             )
+            # v2.26.0 (ckomma #21) — re-apply a rate-limit backoff persisted
+            # before a restart, so an account lockout is not cleared just by
+            # restarting HA.
+            from .const import CONF_COMPANION_RATE_LIMIT_UNTIL  # noqa: PLC0415
+            _rl = self.entry.data.get(CONF_COMPANION_RATE_LIMIT_UNTIL)
+            if _rl and hasattr(self._cariad_client, "restore_rate_limit"):
+                self._cariad_client.restore_rate_limit(float(_rl))
         else:
             session = async_get_clientsession(self.hass)
             self._cariad_client = CariadClientFactory.create(
@@ -2240,6 +2257,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 # restart, not the aging setup-time snapshot. Idempotent: the
                 # equality guard makes it a no-op unless the jar actually moved.
                 self._persist_supplementary_cookies()
+                # v2.26.0 (ckomma #21) — persist the companion rate-limit backoff
+                # if it moved this poll. No-op for non-companion entries.
+                self._persist_companion_rate_limit()
                 # v1.9.0 — Refresh the two reporter repair issues. Cheap to
                 # call: ``ensure_*_issue`` deletes when empty and updates
                 # in-place when the IDs already exist.
@@ -4209,6 +4229,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # v2.25.0 (#966/#632) — same for the SUPPLEMENTARY vw.de channel,
             # whose jar the merge above may also have rotated. Idempotent.
             self._persist_supplementary_cookies()
+            # v2.26.0 (ckomma #21) — persist a companion rate-limit backoff if a
+            # write during this manual refresh tripped it. No-op otherwise.
+            self._persist_companion_rate_limit()
             _LOGGER.debug("VAG Connect: Manual refresh OK")
             return dict(self.vehicles)
         except Exception as err:  # noqa: BLE001
@@ -4775,6 +4798,57 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 "VAG Connect: could not persist website-authproxy cookies "
                 "(%s) — will retry next login.", type(err).__name__,
             )
+
+    def _persist_companion_rate_limit(self) -> None:
+        """v2.26.0 (ckomma #21) — persist the companion (ADB) rate-limit backoff.
+
+        So an account lockout survives an HA restart. No-op unless this is a
+        companion entry and the value actually changed (avoids churn).
+        """
+        from .const import (  # noqa: PLC0415
+            CONF_COMPANION_RATE_LIMIT_UNTIL,
+            CONF_STRATEGY,
+            STRATEGY_COMPANION_ADB,
+        )
+
+        if self.entry.data.get(CONF_STRATEGY) != STRATEGY_COMPANION_ADB:
+            return
+        client = getattr(self, "_cariad_client", None)
+        until = float(getattr(client, "companion_rate_limited_until", 0.0) or 0.0)
+        current = float(self.entry.data.get(CONF_COMPANION_RATE_LIMIT_UNTIL) or 0.0)
+        if until == current:
+            return
+        try:
+            self.hass.config_entries.async_update_entry(
+                self.entry,
+                data={**self.entry.data, CONF_COMPANION_RATE_LIMIT_UNTIL: until},
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
+    def is_companion(self) -> bool:
+        """v2.26.0 — True if this entry reads via the companion (ADB) channel."""
+        from .const import CONF_STRATEGY, STRATEGY_COMPANION_ADB  # noqa: PLC0415
+
+        return bool(self.entry.data.get(CONF_STRATEGY) == STRATEGY_COMPANION_ADB)
+
+    async def async_reset_companion_cooldown(self) -> None:
+        """v2.26.0 (ckomma #22) — user-initiated clear of a stuck companion
+        failure/rate-limit backoff, then an immediate re-read.
+
+        The channel backs off adaptively after failures and for hours after an
+        app rate-limit banner. If the underlying cause is gone (phone rebooted,
+        app reopened) the user should not have to wait out the backoff — this
+        button clears it and polls now.
+        """
+        client = getattr(self, "_cariad_client", None)
+        reset = getattr(client, "reset_cooldown", None)
+        if callable(reset):
+            reset()
+            # The persisted backoff must go too, else the next restart restores
+            # the lockout we just cleared.
+            self._persist_companion_rate_limit()
+        await self.async_request_refresh()
 
     def _persist_supplementary_cookies(self) -> None:
         """v2.25.0 (#966/#632) — write the SUPPLEMENTARY vw.de cookies back.

@@ -1508,6 +1508,9 @@
       },
       "data_act_request_button": {
         "name": "Crea richiesta dati EU Data Act"
+      },
+      "companion_reset_button": {
+        "name": "Reimposta connessione companion"
       }
     },
     "climate": {

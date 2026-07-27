@@ -1508,6 +1508,9 @@
       },
       "data_act_request_button": {
         "name": "Luo EU Data Act -datapyyntö"
+      },
+      "companion_reset_button": {
+        "name": "Nollaa companion-yhteys"
       }
     },
     "climate": {

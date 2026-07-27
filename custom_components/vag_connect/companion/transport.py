@@ -39,11 +39,18 @@ class NetworkAdbTransport:
     worker thread via ``asyncio.to_thread`` so nothing blocks the event loop.
     """
 
-    def __init__(self, host: str, port: int, adbkey_path: str) -> None:
+    def __init__(
+        self, host: str, port: int, adbkey_path: str, *, wake_sleep: bool = False
+    ) -> None:
         self._host = host
         self._port = int(port)
         self._adbkey_path = adbkey_path
         self._device: Any = None
+        # v2.26.0 (#974) — when True, the display is put back to SLEEP after each
+        # read so a locked/asleep phone shows the app during the dump but does
+        # not stay lit permanently. The wake happens anyway (foreground_app);
+        # this adds the matching sleep.
+        self._wake_sleep = bool(wake_sleep)
 
     # -- connection -----------------------------------------------------------
 
@@ -173,6 +180,19 @@ class NetworkAdbTransport:
         """
         await self.shell("input keyevent 224", timeout_s)  # KEYCODE_WAKEUP
         await asyncio.sleep(0.4)
+
+    async def sleep_if_enabled(self, timeout_s: float = 10.0) -> None:
+        """Put the display back to sleep (KEYCODE_SLEEP) after a poll (#974).
+
+        No-op unless the wake/sleep opt-in is on. Best-effort: a failure here
+        must never turn a good read into an error, so it swallows exceptions.
+        """
+        if not self._wake_sleep:
+            return
+        try:
+            await self.shell("input keyevent 223", timeout_s)  # KEYCODE_SLEEP
+        except Exception:  # noqa: BLE001
+            pass
 
     async def key_back(self, timeout_s: float = 10.0) -> None:
         """Press BACK (KEYCODE_BACK). The dismissal primitive for overlay

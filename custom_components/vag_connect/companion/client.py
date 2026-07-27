@@ -38,14 +38,19 @@ class CompanionClient:
         port: int,
         adbkey_path: str,
         time_fn: Callable[[], float],
+        read_charge_detail: bool = False,
+        wake_sleep: bool = False,
     ) -> None:
         self._brand = brand.lower()
         self._vin = vin.upper()
         preset = PRESETS.get(self._brand)
         if preset is None:
             raise ValueError(f"no companion preset for brand {brand!r}")
-        self._transport = NetworkAdbTransport(host, port, adbkey_path)
-        self._channel = CompanionChannel(self._transport, preset, time_fn=time_fn)
+        self._transport = NetworkAdbTransport(host, port, adbkey_path, wake_sleep=wake_sleep)
+        self._channel = CompanionChannel(
+            self._transport, preset, time_fn=time_fn,
+            read_charge_detail=read_charge_detail,
+        )
         # Last snapshot we actually read, so a throttled poll can return the
         # known values instead of a spurious no_data that the coordinator would
         # count as a failed poll (the channel reads far less often than the poll
@@ -100,6 +105,7 @@ class CompanionClient:
         # A companion read is a two-way-capable source only when writes are on;
         # expose that so the entity layer can reflect it.
         data.companion_writes_enabled = self._channel.writes_enabled
+        data.companion_source_age_s = self._channel.source_data_age_s
         self._last_data = data
         return data
 
@@ -137,6 +143,22 @@ class CompanionClient:
 
     async def command_stop_charging(self, vin: str, *_a: Any, **_k: Any) -> None:
         await self._dispatch("command_stop_charging")
+
+    # -- rate-limit persistence + manual reset (delegated to the channel) ------
+
+    @property
+    def companion_rate_limited_until(self) -> float:
+        """Wall-clock time until the channel is backed off (0 = not). The
+        coordinator persists this so a lockout survives a restart."""
+        return self._channel.rate_limited_until
+
+    def restore_rate_limit(self, until: float) -> None:
+        """Re-apply a persisted rate-limit backoff at setup."""
+        self._channel.restore_rate_limit(until)
+
+    def reset_cooldown(self) -> None:
+        """Clear a stuck failure/rate-limit backoff (user-initiated retry)."""
+        self._channel.reset_cooldown()
 
     async def close(self) -> None:
         await self._transport.close()

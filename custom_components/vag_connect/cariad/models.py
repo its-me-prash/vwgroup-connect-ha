@@ -1466,6 +1466,12 @@ class VehicleData:
     # actions) are currently allowed. None for every network channel. Lets the
     # entity layer show whether the experimental two-way path is live.
     companion_writes_enabled: bool | None = None
+    # v2.26.0 — companion (ADB) channel only. Age in seconds of the CAR's data
+    # as the app itself reports it ("synchronised N ago"), distinct from how
+    # fresh OUR read is. None for every network channel and when the app shows
+    # no sync line. Surfaced as a diagnostic so a stale car (working connector,
+    # old backend data) is visible.
+    companion_source_age_s: float | None = None
     # v2.18.0 (A2) — per-FIELD provenance: {field_name: channel} for every
     # field that actually carries a value, recorded by the channel-merge layer.
     # ``source_channel`` answers "which channels fed this car"; this answers

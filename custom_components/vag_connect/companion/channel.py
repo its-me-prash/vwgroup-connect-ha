@@ -26,15 +26,17 @@ import logging
 import time
 from typing import Callable
 
-from .presets import ACTION_TO_COMMAND, BrandPreset
+from .presets import ACTION_TO_COMMAND, ActionSelector, BrandPreset
 from .screen import (
     UiNode,
     find_action_node,
+    find_node_for,
     find_overlay,
     find_rate_limit_banner,
     find_sync_age,
     parse_ui_dump,
     read_fields,
+    read_selectors,
 )
 from .transport import CompanionTransportError, NetworkAdbTransport
 
@@ -51,6 +53,10 @@ _RATE_LIMIT_BACKOFF_S = 12 * 3600  # 12 h after a rate-limit banner. Uses wall
                                    # clock so it can be PERSISTED across restarts
                                    # (ckomma #21: an account lockout must NOT be
                                    # cleared by a restart the way a TCP blip is)
+_NAV_READ_INTERVAL_S = 900.0       # C9: a forward-nav READ (into charge detail)
+                                   # runs at most every 15 min, NOT every poll —
+                                   # it taps the app, so it stays infrequent and
+                                   # the value is cached in between
 
 
 class CompanionWriteBlocked(RuntimeError):
@@ -67,10 +73,15 @@ class CompanionChannel:
         *,
         time_fn: Callable[[], float],
         wall_clock_fn: Callable[[], float] | None = None,
+        read_charge_detail: bool = False,
     ) -> None:
         self._t = transport
         self._preset = preset
         self._now = time_fn
+        # C9 opt-in. A forward-nav read TAPS the app on a schedule, so it stays
+        # OFF by default until a user opts in (and until the flow is confirmed on
+        # a real device). Off ⇒ the read path never taps forward at all.
+        self._read_charge_detail = read_charge_detail
         # Wall clock (unix seconds) for the rate-limit backoff only, because that
         # one must be persistable across restarts; ``_now`` (monotonic) is right
         # for the in-session failure cooldown. Injected for tests.
@@ -80,8 +91,18 @@ class CompanionChannel:
         self._rate_limited_until: float = 0.0  # wall-clock; persisted (ckomma #21)
         self._source_data_age_s: float | None = None  # from the app's sync line
         self._live_app_version: str | None = None
-        self._writes_ok: bool | None = None  # decided on first read
+        # v2.26.0 — "verified preset AND live app version matches the one it was
+        # built against". Gates BOTH writes and forward-nav reads (C9); a wrong
+        # tap is a wrong tap whether it is a command or a navigation. Decided on
+        # first read/first command. NOT the same as writes_enabled, which also
+        # requires ``writable`` — a verified-reads preset (VW today) has
+        # version_ok True but no writes.
+        self._version_ok: bool | None = None
         self._last_write_at: float | None = None  # write min-interval (ckomma #21)
+        # C9 nav-read cadence + cache: nav taps at most every _NAV_READ_INTERVAL_S
+        # and the values persist in between so the sensors don't flap.
+        self._nav_cache: dict[str, object] = {}
+        self._last_nav_at: float | None = None
 
     @property
     def preset(self) -> BrandPreset:
@@ -91,9 +112,31 @@ class CompanionChannel:
     def writes_enabled(self) -> bool:
         """Whether writes are currently allowed, with all gates applied."""
         return (
-            bool(self._writes_ok)
+            bool(self._version_ok)
             and self._preset.writable
             and not self._is_rate_limited()
+        )
+
+    @property
+    def nav_reads_enabled(self) -> bool:
+        """Whether a forward-nav READ (C9) may run.
+
+        Requires the user opt-in (it taps the app), the same version gate as a
+        write (a wrong tile tap is as bad as a wrong command), and no active
+        rate-limit. NOT gated on ``writable``: reading the charge target is
+        allowed even when command entities are quarantined.
+        """
+        return (
+            self._read_charge_detail
+            and bool(self._version_ok)
+            and not self._is_rate_limited()
+        )
+
+    def _nav_due(self) -> bool:
+        """True when a nav-read has never run or the cadence window elapsed."""
+        return (
+            self._last_nav_at is None
+            or self._now() - self._last_nav_at >= _NAV_READ_INTERVAL_S
         )
 
     # -- rate-limit backoff (ckomma #21), wall-clock so it can be persisted ----
@@ -171,12 +214,25 @@ class CompanionChannel:
         if self._in_cooldown() or self._is_rate_limited():
             return None
         try:
+            return await self._read_once()
+        finally:
+            # v2.26.0 (#974) — if the wake/sleep opt-in is on, put the display
+            # back to sleep after every poll that woke it (including a failed or
+            # nav-tapping one). No-op otherwise. Optional transport capability,
+            # so guard for a transport that does not implement it.
+            _sleep = getattr(self._t, "sleep_if_enabled", None)
+            if _sleep is not None:
+                await _sleep()
+
+    async def _read_once(self) -> dict[str, object] | None:
+        """The read body. ``read`` wraps this with the #974 sleep-after."""
+        try:
             if not self._t.connected:
                 await self._t.connect()
             await self._t.foreground_app(self._preset.package)
-            # Decide the write quarantine on every read: the app can be updated
+            # Decide the version gate on every read: the app can be updated
             # under us at any time.
-            await self._refresh_write_gate()
+            await self._refresh_version_gate()
             nodes, cleared = await self._dump_and_clear_overlays()
         except CompanionTransportError:
             # v2.26.0 (ckomma #16) — adaptive backoff: double the cooldown per
@@ -205,7 +261,72 @@ class CompanionChannel:
         # the CAR's data is (ckomma #22, separate from connector health).
         self._consecutive_failures = 0
         self._source_data_age_s = find_sync_age(nodes, self._preset)
-        return read_fields(nodes, self._preset)
+        fields = read_fields(nodes, self._preset)
+        # v2.26.0 (C9) — values behind a detail screen (charge target/power/time
+        # on VW) are read by tapping a tile, reading, and coming BACK. Re-apply
+        # the cached detail values every poll so the sensors don't flap between
+        # the (infrequent) nav refreshes; only actually tap when it is opted in,
+        # the version gate holds, and the cadence window has elapsed.
+        if self._preset.nav_reads:
+            for key, val in self._nav_cache.items():
+                fields.setdefault(key, val)
+            if self.nav_reads_enabled and self._nav_due():
+                await self._augment_via_nav(fields)
+        return fields
+
+    async def _augment_via_nav(self, fields: dict[str, object]) -> None:
+        """Fill missing nav-read targets by opening their detail screen.
+
+        Best-effort: a nav-read that fails (tile not found, transport blip)
+        leaves its fields absent rather than raising, and we always return to
+        the overview afterwards so the next plain read sees the main screen.
+        Successful values are cached and re-applied on later polls.
+        """
+        self._last_nav_at = self._now()
+        for nav in self._preset.nav_reads:
+            if all(fields.get(v.target) is not None for v in nav.values):
+                continue  # nothing to fetch from this detail
+            try:
+                detail = await self._open_detail(nav.tile)
+                if detail is not None:
+                    for key, val in read_selectors(detail, nav.values).items():
+                        fields.setdefault(key, val)
+                        self._nav_cache[key] = val
+            except CompanionTransportError:
+                _LOGGER.debug(
+                    "companion %s: nav read '%s' hit a transport error; skipping",
+                    self._preset.brand, nav.name,
+                )
+            finally:
+                await self._return_to_overview()
+
+    async def _open_detail(self, tile: ActionSelector) -> list[UiNode] | None:
+        """Tap a tile to open its detail screen and return the parsed detail.
+
+        Returns None (without tapping) when the tile is not on the current
+        screen, so we never tap into the dark. Clears overlays before and after.
+        """
+        nodes, cleared = await self._dump_and_clear_overlays()
+        if not cleared:
+            return None
+        node = find_node_for(nodes, tile)
+        if node is None or node.tap_point is None:
+            return None
+        x, y = node.tap_point
+        await self._t.tap(x, y)
+        detail, cleared = await self._dump_and_clear_overlays()
+        return detail if cleared else None
+
+    async def _return_to_overview(self) -> None:
+        """BACK out of a detail screen so the next plain read sees the overview.
+
+        Bounded and failure-soft: a transport blip here must not turn a good
+        read into an error.
+        """
+        try:
+            await self._t.key_back()
+        except CompanionTransportError:
+            pass
 
     async def _dump_and_clear_overlays(self) -> tuple[list[UiNode], bool]:
         """Dump the screen; if a known overlay is up, BACK past it and re-dump.
@@ -237,20 +358,26 @@ class CompanionChannel:
             return nodes, False
         return nodes, True
 
-    async def _refresh_write_gate(self) -> None:
-        """Read the live app version and (re)decide whether writes are allowed.
+    async def _refresh_version_gate(self) -> None:
+        """Read the live app version and (re)decide whether the app matches the
+        version this preset was verified against.
 
         Called on every read, and lazily by ``do_action`` when a command is
-        issued before the first scheduled poll — otherwise ``_writes_ok`` would
+        issued before the first scheduled poll — otherwise ``_version_ok`` would
         still be ``None`` and a perfectly valid command on the verified VW at the
         right version would be rejected as a version mismatch until the first
         poll (up to a full scan interval, and again after every restart).
         """
         self._live_app_version = await self._t.current_app_version(self._preset.package)
-        self._writes_ok = self._decide_writes(self._live_app_version)
+        self._version_ok = self._decide_version_ok(self._live_app_version)
 
-    def _decide_writes(self, live_version: str | None) -> bool:
-        if not self._preset.writable:
+    def _decide_version_ok(self, live_version: str | None) -> bool:
+        """True when this is a verified preset AND the live app version matches.
+
+        Gates both writes and forward-nav reads. Independent of ``writable`` so
+        a verified-reads preset (writes quarantined) can still nav-read.
+        """
+        if not self._preset.verified:
             return False
         want = self._preset.verified_app_version
         if want is None:
@@ -258,15 +385,15 @@ class CompanionChannel:
         if live_version is None:
             # Could not read the version → do not risk a tap.
             _LOGGER.debug(
-                "companion %s: could not read the app version; writes disabled "
-                "until it is confirmed", self._preset.brand,
+                "companion %s: could not read the app version; taps (writes and "
+                "nav reads) disabled until it is confirmed", self._preset.brand,
             )
             return False
         if live_version != want:
             _LOGGER.warning(
                 "companion %s: app is %s but this preset was built for %s; "
-                "writes are disabled until the preset is confirmed against the "
-                "new version. Reads keep working.",
+                "taps (writes and nav reads) are disabled until the preset is "
+                "confirmed against the new version. Overview reads keep working.",
                 self._preset.brand, live_version, want,
             )
             return False
@@ -288,19 +415,19 @@ class CompanionChannel:
                 "read-only; writing would risk tapping the wrong control. It "
                 "needs a confirmed screen map from a real device first."
             )
-        # v3.0.0a1 — if no poll has decided the write gate yet (e.g. a command
+        # v3.0.0a1 — if no poll has decided the version gate yet (e.g. a command
         # issued right after startup, before the first scheduled read), decide
         # it now from the live app version rather than rejecting on the initial
         # ``None``. Needs the connection up first.
-        if self._writes_ok is None:
+        if self._version_ok is None:
             try:
                 if not self._t.connected:
                     await self._t.connect()
                 await self._t.foreground_app(self._preset.package)
-                await self._refresh_write_gate()
+                await self._refresh_version_gate()
             except CompanionTransportError as err:
                 raise CompanionWriteBlocked(str(err)) from err
-        if not self._writes_ok:
+        if not self._version_ok:
             raise CompanionWriteBlocked(
                 f"writes are disabled for {self._preset.brand}: the app version "
                 f"on the phone ({self._live_app_version or 'unknown'}) does not "

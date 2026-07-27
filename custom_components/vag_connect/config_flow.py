@@ -2069,6 +2069,30 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                     f"{CONF_SPIN_BY_VIN}_{_vin}",
                     default=str(_cur_by_vin.get(_vin, "")),
                 )] = _SPIN_SELECTOR
+        # v2.26.0 — companion (ADB) advanced opt-ins, surfaced only for a
+        # companion entry (both default OFF: each TAPS the phone, so a user opts
+        # in only after confirming the flow on their own device).
+        from .const import (  # noqa: PLC0415
+            CONF_COMPANION_READ_CHARGE_DETAIL,
+            CONF_COMPANION_WAKE_SLEEP,
+            CONF_STRATEGY,
+            STRATEGY_COMPANION_ADB,
+        )
+        if current_data.get(CONF_STRATEGY) == STRATEGY_COMPANION_ADB:
+            schema[vol.Optional(
+                CONF_COMPANION_READ_CHARGE_DETAIL,
+                default=current_options.get(
+                    CONF_COMPANION_READ_CHARGE_DETAIL,
+                    current_data.get(CONF_COMPANION_READ_CHARGE_DETAIL, False),
+                ),
+            )] = _BOOL_SELECTOR
+            schema[vol.Optional(
+                CONF_COMPANION_WAKE_SLEEP,
+                default=current_options.get(
+                    CONF_COMPANION_WAKE_SLEEP,
+                    current_data.get(CONF_COMPANION_WAKE_SLEEP, False),
+                ),
+            )] = _BOOL_SELECTOR
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(schema),
