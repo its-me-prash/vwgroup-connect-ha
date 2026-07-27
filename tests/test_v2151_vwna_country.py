@@ -8,10 +8,11 @@ this fix nothing let a user pick the region: the config flow never collected
 a country and the coordinator never passed one, so every VW-NA install
 defaulted to ``us``.
 
-(v2.20.0 N7 note: the current myVW app ships only ONE phone client, 59992128,
-and only the us00 host — there is no ca00 host or CA-specific client_id — so
-US and CA now share that config. The US/CA selector still exists so the user
-records their country; both map to the same backend.)
+(v2.26.0 note, #915: US and CA share the one phone client, 59992128, but each
+uses its OWN regional host — US = us00, CA = ca00 — confirmed by a live capture
+of the official Canada app. The earlier N7 "CA = us00" was a static-scan
+artefact: the host is runtime-templated by country code, so ``ca00`` never
+appeared as a literal to grep.)
 
 The fix plumbs a ``CONF_COUNTRY`` value end-to-end:
 
@@ -54,32 +55,40 @@ def _load(path: Path) -> dict:
 # ──────────────────────────────────────────────────────────────────────
 
 
-class TestN7CaUsesSharedUsConfig:
-    """v2.20.0 (N7) — the current myVW app has no ca00 host and no CA-specific
-    client_id, so CA must fall back to the shared us00 host + 59992128 client.
-    Guards against re-introducing the unvalidated CA-split config."""
+class TestCaUsesOwnHostSharedClient:
+    """v2.26.0 (#915) — Canada uses its OWN regional host (ca00), confirmed by a
+    live capture of the official app, but still SHARES the 59992128 client with
+    US (only the old per-CA client_id stays removed). The earlier N7 "CA = us00"
+    was a static-scan artefact: the host is runtime-templated by country code, so
+    ``ca00`` never appeared as a literal to find."""
 
     def test_no_ca_client_id_constant(self) -> None:
         src = _VW_NA_PY.read_text(encoding="utf-8")
         assert "_CA_CLIENT_ID" not in src
 
-    def test_no_ca00_host(self) -> None:
-        # The ca00 con-veh HOST + the old CA client_id must be gone from code
-        # (explanatory prose mentioning "ca00 host" is fine).
+    def test_old_ca_client_id_stays_removed(self) -> None:
+        # Only the HOST changed to ca00; the old unvalidated per-CA client_id
+        # must stay gone (CA shares the 59992128 client with US).
         src = _VW_NA_PY.read_text(encoding="utf-8")
-        assert "spr.ca00" not in src
         assert "69eb3c39" not in src
 
-    def test_ca_base_points_to_us00(self) -> None:
-        # The _COUNTRY_BASES["ca"] entry must resolve to the us00 con-veh host.
+    def test_ca_base_points_to_ca00(self) -> None:
+        # The _COUNTRY_BASES["ca"] entry must resolve to Canada's own ca00 host.
         import re
         src = _VW_NA_PY.read_text(encoding="utf-8")
         m = re.search(r'"ca":\s*"([^"]+)"', src)
         assert m is not None
+        assert m.group(1) == "https://b-h-s.spr.ca00.p.con-veh.net"
+
+    def test_us_base_still_us00(self) -> None:
+        import re
+        src = _VW_NA_PY.read_text(encoding="utf-8")
+        m = re.search(r'"us":\s*"([^"]+)"', src)
+        assert m is not None
         assert m.group(1) == "https://b-h-s.spr.us00.p.con-veh.net"
 
     def test_client_id_is_unconditional_shared(self) -> None:
-        # No country ternary selecting a different client_id anymore.
+        # No country ternary selecting a different client_id: CA shares 59992128.
         src = _VW_NA_PY.read_text(encoding="utf-8")
         assert 'client_id = BRAND_VW_NA.client_id' in src
         assert 'if self._country == "ca"' not in src

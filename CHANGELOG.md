@@ -56,6 +56,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ### Fixed
 
 - **A companion rate-limit now survives a restart.** If the app shows a "too many requests" screen the channel backs off for hours, and that back-off is now remembered across a Home Assistant restart — a real account lockout should not be cleared just by restarting the way a brief network blip is.
+- **Volkswagen Canada now uses its own regional backend (#915).** Canada was being sent to the US host, which returns HTTP 500 for a Canadian car. A Canadian owner captured the official app and it talks to the Canada host (`ca00`) directly — the host is built from the country code at runtime, so it never showed up in a static scan of the app, which is why we had it pointed at the US host. Canada now goes to its own host. (If your Canada login still fails after this, a fresh log would show what the Canada backend wants next — it could not be worse than the 500 it returned before.)
 
 > **Note on Volkswagen commands (climate / charge start-stop).** These are paused on the companion channel in this release. They never actually worked: the app needs a two-step tap (open a tile, then press the button on the detail screen) that the old code did not do, so a command could only ever fail silently. Rather than ship buttons that do nothing, the companion Volkswagen entry is read-only for now; the command path returns once the two-step flow is confirmed on a real car. The network command paths (QR / portal / MBB) are unaffected.
 
