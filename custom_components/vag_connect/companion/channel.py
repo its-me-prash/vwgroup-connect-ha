@@ -39,6 +39,8 @@ _LOGGER = logging.getLogger(__name__)
 
 _FAILURE_COOLDOWN_S = 1800.0        # 30 min after any transport failure
 _OVERLAY_MAX_DISMISS = 3            # BACK presses before giving up on a nag screen
+_WRITE_MIN_INTERVAL_S = 60.0       # min gap between taps, so we never drive into
+                                   # a backend rate-limit / lockout (ckomma #21)
 
 
 class CompanionWriteBlocked(RuntimeError):
@@ -61,6 +63,7 @@ class CompanionChannel:
         self._cooldown_until: float = 0.0
         self._live_app_version: str | None = None
         self._writes_ok: bool | None = None  # decided on first read
+        self._last_write_at: float | None = None  # write min-interval (ckomma #21)
 
     @property
     def preset(self) -> BrandPreset:
@@ -214,6 +217,17 @@ class CompanionChannel:
                 f"match the one this preset was verified against "
                 f"({self._preset.verified_app_version}). Reads still work."
             )
+        # v2.26.0 (ckomma #21) — enforce a minimum gap between taps so a rapid
+        # repeat (a stuck automation, a double press) can never drive the account
+        # into a backend rate-limit or lockout.
+        if self._last_write_at is not None:
+            since = self._now() - self._last_write_at
+            if since < _WRITE_MIN_INTERVAL_S:
+                raise CompanionWriteBlocked(
+                    f"a command was sent {int(since)}s ago; the companion "
+                    f"channel keeps at least {int(_WRITE_MIN_INTERVAL_S)}s between "
+                    "commands so it never looks like abuse to the backend"
+                )
         try:
             if not self._t.connected:
                 await self._t.connect()
@@ -235,3 +249,4 @@ class CompanionChannel:
             )
         x, y = node.tap_point
         await self._t.tap(x, y)
+        self._last_write_at = self._now()

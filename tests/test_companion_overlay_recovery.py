@@ -123,3 +123,43 @@ class TestOverlayRecovery:
         ch._writes_ok = True
         await ch.do_action("start_climate")
         assert t.taps == [(100, 230)]
+
+
+class TestWriteMinInterval:
+    """ckomma #21 — never drive INTO a backend lockout with rapid taps."""
+
+    def _clock(self):
+        t = {"v": 1000.0}
+        return (lambda: t["v"]), t
+
+    @pytest.mark.asyncio
+    async def test_second_tap_too_soon_is_blocked(self) -> None:
+        from custom_components.vag_connect.companion.channel import (
+            _WRITE_MIN_INTERVAL_S,
+        )
+
+        now, t = self._clock()
+        tr = _SeqTransport([CLEAN])
+        ch = CompanionChannel(tr, PRESETS["volkswagen"], time_fn=now)
+        ch._writes_ok = True
+        await ch.do_action("start_climate")
+        assert len(tr.taps) == 1
+        t["v"] += _WRITE_MIN_INTERVAL_S / 2  # still inside the window
+        with pytest.raises(CompanionWriteBlocked):
+            await ch.do_action("start_climate")
+        assert len(tr.taps) == 1  # the second tap never happened
+
+    @pytest.mark.asyncio
+    async def test_tap_allowed_after_the_interval(self) -> None:
+        from custom_components.vag_connect.companion.channel import (
+            _WRITE_MIN_INTERVAL_S,
+        )
+
+        now, t = self._clock()
+        tr = _SeqTransport([CLEAN])
+        ch = CompanionChannel(tr, PRESETS["volkswagen"], time_fn=now)
+        ch._writes_ok = True
+        await ch.do_action("start_climate")
+        t["v"] += _WRITE_MIN_INTERVAL_S + 1
+        await ch.do_action("start_climate")
+        assert len(tr.taps) == 2
