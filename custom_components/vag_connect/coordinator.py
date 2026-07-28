@@ -1144,53 +1144,53 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     if hasattr(self, "vehicle_success"):
                         self.vehicle_success[vin] = True
 
-            # Best-effort capabilities prefetch — never blocks setup.
-            # Result lives in self.vehicle_capabilities for entity platforms
-            # to read in Session 2B. Failure is debug-logged and ignored.
-            await asyncio.gather(
-                *[self.refresh_capabilities(vin) for vin in self.vehicles],
-                return_exceptions=True,
-            )
-
-            # v1.20.0 Bundle 2 Phase A — Skoda static-info prefetch.
-            # Only Skoda gets the vehicle-information + equipment 24h
-            # cache (other brands return early in refresh_static_info).
-            # Failure debug-logged, never blocks setup.
-            await asyncio.gather(
-                *[self.refresh_static_info(vin) for vin in self.vehicles],
-                return_exceptions=True,
-            )
-
-            # v2.20.0 — warm the durable-MBB command operationList AFTER
-            # self.vehicles is populated. The warm inside _arm_supplementary_
-            # channels runs before get_vehicles, and the portal+MBB-command
-            # config never sets CONF_MBB_VINS, so that early warm has no VINs to
-            # fall back on. Warming here (VINs known, MBB channel already armed)
-            # makes the per-VIN command pre-test authoritative at first spawn, so
-            # granted command entities appear immediately instead of being
-            # strict-hidden until a restart. No-op for non-MBB entries.
-            await self._refresh_mbb_command_capabilities()
-
             self._started = True
             found = len(self.vehicles)
             _LOGGER.info("VAG Connect: setup complete — %d vehicle(s)", found)
 
-            # v2.10.5 — EU Data Act portal Custom Data Request first-time
-            # kickoff. Fires unless (a) the user turned OFF the OptionsFlow
-            # toggle CONF_EU_DATA_ACT_AUTO_KICKOFF (v2.17.1: default ON) and
-            # only when (b) we actually authenticated via a portal strategy.
-            # Best-effort: any failure is debug-logged and never blocks
-            # setup. Session-expiry surfaces a Repairs issue.
-            try:
-                await self._ensure_data_act_custom_request_kickoff()
-            except Exception:  # noqa: BLE001
-                _LOGGER.debug(
-                    "Data Act kickoff helper raised - non-fatal, continuing",
-                    exc_info=True,
+            # #909 — the capabilities / static-info / MBB-command prefetches and
+            # the Data Act kickoff are all best-effort ("never blocks setup"), but
+            # awaiting them here still held config-entry setup open on a slow
+            # backend. Run them in a background task and start the poll loop at its
+            # end, so setup returns now and these fill in shortly after. Kept in
+            # the same order as when they ran inline (prefetches, then poll loop),
+            # so nothing writes the snapshot while the first poll tick is in
+            # flight. None of these write self.vehicles (capabilities land in
+            # self.vehicle_capabilities), so entity data is unaffected.
+            async def _bg_finish() -> None:
+                try:
+                    # capabilities → self.vehicle_capabilities (entity platforms)
+                    await asyncio.gather(
+                        *[self.refresh_capabilities(vin) for vin in self.vehicles],
+                        return_exceptions=True,
+                    )
+                    # Skoda static-info 24h cache (other brands return early)
+                    await asyncio.gather(
+                        *[self.refresh_static_info(vin) for vin in self.vehicles],
+                        return_exceptions=True,
+                    )
+                    # durable-MBB command operationList warm (no-op off MBB), so
+                    # granted command entities appear at first spawn
+                    await self._refresh_mbb_command_capabilities()
+                    # EU Data Act Custom Data Request first-time kickoff (portal
+                    # strategies only, default ON; session-expiry surfaces a repair)
+                    try:
+                        await self._ensure_data_act_custom_request_kickoff()
+                    except Exception:  # noqa: BLE001
+                        _LOGGER.debug(
+                            "Data Act kickoff helper raised - non-fatal, continuing",
+                            exc_info=True,
+                        )
+                except Exception:  # noqa: BLE001 - a background task must not die silently
+                    _LOGGER.exception("VAG Connect: background setup finish failed")
+                # Start background polling — after the prefetches, as it was inline.
+                self.hass.async_create_background_task(
+                    self._poll_loop(), f"{DOMAIN}_poll"
                 )
 
-            # Start background polling — use background task so HA bootstrap doesn't wait
-            self.hass.async_create_background_task(self._poll_loop(), f"{DOMAIN}_poll")
+            self.hass.async_create_background_task(
+                _bg_finish(), f"{DOMAIN}_setup_finish"
+            )
             return found > 0
 
         except TermsAndConditionsError as err:
