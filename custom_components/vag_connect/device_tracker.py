@@ -23,6 +23,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .cariad._util import json_safe_dict, mask_vin
+from .const import CONF_SUPPLEMENTARY_AUTHPROXY
 from .coordinator import VagConnectCoordinator
 from .entity_base import VagConnectEntity
 
@@ -41,6 +42,13 @@ async def async_setup_entry(
     """
     coordinator: VagConnectCoordinator = entry.runtime_data
     added: set[str] = set()
+    # #984 — GPS can come solely from the vw.de supplementary channel. When its
+    # SSO expires the coordinator stops reporting coordinates, so a tracker gated
+    # purely on live GPS would never spawn again (and an already-registered one
+    # gets orphaned and eventually purged by HA, breaking maps/automations). If
+    # that channel is configured we spawn the tracker regardless: it just reads
+    # unavailable until a position returns after re-login, instead of vanishing.
+    supplementary_gps = bool(entry.data.get(CONF_SUPPLEMENTARY_AUTHPROXY))
 
     def _has_gps(vehicle: dict) -> bool:
         lat = vehicle.get("latitude")
@@ -59,7 +67,7 @@ async def async_setup_entry(
         for vin, vehicle in coordinator.vehicles.items():
             if vin in added:
                 continue
-            if _has_gps(vehicle):
+            if _has_gps(vehicle) or supplementary_gps:
                 new_entities.append(VagConnectTracker(coordinator, vin))
                 added.add(vin)
         if new_entities:

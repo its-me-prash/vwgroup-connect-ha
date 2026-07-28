@@ -113,9 +113,11 @@ def _make_coordinator(vehicles=None):
     return coord
 
 
-def _make_entry(coord=None):
+def _make_entry(coord=None, data=None):
     entry = MagicMock()
     entry.runtime_data = coord or _make_coordinator()
+    # Real dict so entry.data.get(...) returns None (not a truthy MagicMock).
+    entry.data = data if data is not None else {}
     return entry
 
 
@@ -525,6 +527,26 @@ class TestDeviceTracker:
             async_setup_entry(MagicMock(), entry, _collect)
         )
         assert len(added) == 0
+
+    def test_setup_spawns_tracker_when_supplementary_channel_configured(self):
+        # #984 — the GPS-capable vw.de channel is configured but there are no
+        # live coordinates yet (e.g. its SSO expired at startup). The tracker
+        # must still spawn so it reads unavailable, instead of never appearing
+        # and being orphaned/purged by HA.
+        import asyncio
+        from custom_components.vag_connect.const import CONF_SUPPLEMENTARY_AUTHPROXY
+        from custom_components.vag_connect.device_tracker import async_setup_entry
+        coord = _make_coordinator()
+        vin = list(coord.data.keys())[0]
+        coord.data[vin]["latitude"] = None
+        coord.vehicles[vin]["latitude"] = None
+        entry = _make_entry(coord, data={CONF_SUPPLEMENTARY_AUTHPROXY: True})
+        added = []
+        def _collect(entities, **kw): added.extend(entities)
+        asyncio.run(
+            async_setup_entry(MagicMock(), entry, _collect)
+        )
+        assert len(added) == 1
 
 
 # ── climate ────────────────────────────────────────────────────────────────────
