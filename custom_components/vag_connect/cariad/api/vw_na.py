@@ -93,15 +93,22 @@ def _classify_data_403(exc: APIError) -> str:
         return "bare-403"
     return "bare-403"
 
-# Country → API base. v2.20.0 (N7) — the current myVW app (com.vw.carnet.release
-# 2026.5.27) has NO ca00 host and NO CA-specific client: DEX-confirmed the only
-# con-veh host literal is ``b-h-s.spr.us00.p.con-veh.net`` and the only phone
-# client is 59992128. So CA uses the SAME us00 base + shared client as US.
-# (Live-unconfirmed for a real Canadian VIN — the one fact not settleable from
-# the APK; a CA tester should verify us00 serves CA cars.)
+# Country → API base. b-h-s.spr.{cc}00.p.con-veh.net, per-country host.
+# v2.26.0 (#915) — CANADA CORRECTED to ca00. The earlier N7 decision routed CA
+# to us00 because a static DEX scan of the myVW APK found no "ca00" literal. That
+# scan was misleading: the host is built at RUNTIME from the country code
+# (b-h-s.spr.{cc}00...), so the concrete "ca00" never appears as a string to
+# grep — only the "us00" default the app ships with does. A CA tester (vrouleau,
+# #915) captured the live app and it queries b-h-s.spr.ca00.p.con-veh.net
+# directly (most of the traffic in the capture), which is the "verify us00 serves
+# CA cars" check the old comment asked for: it does not — a CA account on us00
+# returns HTTP 500. Pointing CA at its own ca00 host cannot regress Canada (it was
+# already 500); whether our client + login authenticate on ca00 is still
+# live-unconfirmed (the capture was encrypted), so this is a grounded best-effort
+# pending vrouleau's test on a real Canada account.
 _COUNTRY_BASES: dict[str, str] = {
     "us": "https://b-h-s.spr.us00.p.con-veh.net",
-    "ca": "https://b-h-s.spr.us00.p.con-veh.net",
+    "ca": "https://b-h-s.spr.ca00.p.con-veh.net",
 }
 
 BRAND_VW_NA = BrandConfig(
@@ -121,11 +128,12 @@ BRAND_VW_NA = BrandConfig(
     scope="openid",
 )
 
-# v2.20.0 (N7) — the old per-CA client_id was REMOVED. Re-grepping the current
-# myVW 2026.5.27 DEX independently: the old CA client = 0 hits, the ca00 host = 0
-# hits; the only *_MYVW_ANDROID literals are 59992128 (phone) + the Wear-OS id.
-# The earlier "carries this id alongside 5 others" comment was wrong. CA now uses
-# the shared 59992128 client + us00 host, same as US.
+# v2.20.0 (N7) — the old per-CA client_id was REMOVED. Re-grepping the myVW DEX:
+# the old CA client = 0 hits; the only *_MYVW_ANDROID literals are 59992128
+# (phone) + the Wear-OS id. So CA shares the 59992128 CLIENT with US. Only the
+# HOST differs: v2.26.0 (#915) points CA at its own ca00 host (see the bases
+# above); the "ca00 = 0 DEX hits" that once argued for us00 was a static-scan
+# artefact of the runtime-templated host, not evidence ca00 does not exist.
 
 # v2.3.0 (#269) — VW NA-specific IDP host: identity.na.vwgroup.io
 # (NOT identity.vwgroup.io). The authorize-redirect lands on this NA IDP and

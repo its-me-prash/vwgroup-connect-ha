@@ -145,16 +145,64 @@ def _clock():
     return now, advance
 
 
+def _writable_vw():
+    """VW with its climate/charge tap actions restored, for exercising the WRITE
+    mechanism directly. The SHIPPED VW preset quarantines writes (no actions,
+    v2.26.0) until the two-step nav is confirmed on a real device; the write
+    path (version gate, min-interval, overlay-before-tap) still needs coverage."""
+    from dataclasses import replace
+
+    from custom_components.vag_connect.companion.presets import ActionSelector
+
+    return replace(
+        PRESETS["volkswagen"],
+        actions=(
+            ActionSelector(
+                action="start_climate",
+                content_desc_re=r"(?:Klima\w*\s*(?:starten|ein)|Start climate)",
+            ),
+            ActionSelector(
+                action="stop_climate",
+                content_desc_re=r"(?:Klima\w*\s*stoppen|Stop climate)",
+            ),
+            ActionSelector(
+                action="start_charging",
+                content_desc_re=r"(?:Laden\s*starten|Start charging)",
+            ),
+            ActionSelector(
+                action="stop_charging",
+                content_desc_re=r"(?:Laden\s*stoppen|Stop charging)",
+            ),
+        ),
+    )
+
+
 class TestWriteQuarantine:
     @pytest.mark.asyncio
     async def test_verified_matching_version_allows_a_tap(self) -> None:
+        # Uses a synthetic WRITABLE preset: the shipped VW quarantines writes.
         now, _ = _clock()
         t = _FakeTransport(version="4.2.1", dump=VW_SCREEN)
-        ch = CompanionChannel(t, PRESETS["volkswagen"], time_fn=now)
+        ch = CompanionChannel(t, _writable_vw(), time_fn=now)
         await ch.read()
         assert ch.writes_enabled is True
         await ch.do_action("start_climate")
         assert t.taps == [(100, 230)]
+
+    @pytest.mark.asyncio
+    async def test_shipped_vw_quarantines_writes_but_still_reads(self) -> None:
+        # v2.26.0 — the real VW preset carries NO actions (writes quarantined
+        # until the 2-step nav is confirmed), but a verified matching version
+        # still reads AND may nav-read.
+        now, _ = _clock()
+        t = _FakeTransport(version="4.2.1", dump=VW_SCREEN)
+        ch = CompanionChannel(t, PRESETS["volkswagen"], time_fn=now)
+        fields = await ch.read()
+        assert fields["battery_soc"] == 74
+        assert ch.writes_enabled is False
+        with pytest.raises(CompanionWriteBlocked):
+            await ch.do_action("start_climate")
+        assert t.taps == []
 
     @pytest.mark.asyncio
     async def test_version_drift_disables_writes_but_not_reads(self) -> None:
@@ -347,12 +395,14 @@ class TestCompanionClient:
         assert data.no_data is True
 
     @pytest.mark.asyncio
-    async def test_command_before_first_poll_still_works_on_verified_vw(self) -> None:
-        # S4: a command issued before any scheduled read must decide the write
-        # gate itself, not reject on the initial None.
+    async def test_command_before_first_poll_still_works_on_a_writable_preset(self) -> None:
+        # S4: a command issued before any scheduled read must decide the version
+        # gate itself, not reject on the initial None. Exercised on a synthetic
+        # writable preset since the shipped VW quarantines writes (v2.26.0).
+        now, _ = _clock()
         t = _FakeTransport(version="4.2.1", dump=VW_SCREEN)
-        c = self._client(t)  # no get_status called yet
-        await c.command_start_climate("WVWZZZAUZFW805377")
+        ch = CompanionChannel(t, _writable_vw(), time_fn=now)  # no read() yet
+        await ch.do_action("start_climate")
         assert t.taps == [(100, 230)]
 
     @pytest.mark.asyncio
@@ -421,9 +471,12 @@ class TestCoordinatorGuards:
         c = self._coord(brand="audi", client=self._companion_client("audi"))
         assert c.is_read_only() is True
 
-    def test_s1_verified_vw_is_not_forced_read_only(self) -> None:
+    def test_s1_verified_vw_writes_quarantined_is_read_only(self) -> None:
+        # v2.26.0 — VW reads are verified but WRITES are quarantined (no actions
+        # until the 2-step nav is confirmed on a device), so the companion entry
+        # is read-only for now: no command entities spawn.
         c = self._coord(brand="volkswagen", client=self._companion_client("volkswagen"))
-        assert c.is_read_only() is False
+        assert c.is_read_only() is True
 
 
 # ── preset integrity ────────────────────────────────────────────────────────

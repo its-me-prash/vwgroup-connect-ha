@@ -1466,6 +1466,12 @@ class VehicleData:
     # actions) are currently allowed. None for every network channel. Lets the
     # entity layer show whether the experimental two-way path is live.
     companion_writes_enabled: bool | None = None
+    # v2.26.0 — companion (ADB) channel only. Age in seconds of the CAR's data
+    # as the app itself reports it ("synchronised N ago"), distinct from how
+    # fresh OUR read is. None for every network channel and when the app shows
+    # no sync line. Surfaced as a diagnostic so a stale car (working connector,
+    # old backend data) is visible.
+    companion_source_age_s: float | None = None
     # v2.18.0 (A2) — per-FIELD provenance: {field_name: channel} for every
     # field that actually carries a value, recorded by the channel-merge layer.
     # ``source_channel`` answers "which channels fed this car"; this answers
@@ -1798,6 +1804,19 @@ class VehicleData:
     # disabled-by-default diagnostic sensors. NO 'SoC' token in entity NAMES.
     bidi_max_charge_level_pct: int | None = None
     bidi_min_charge_level_pct: int | None = None
+    # v2.26.0 (#981) — the rest of the bidirectional_charging_mode.* family: the
+    # V2G usage accounting (energy dispensed, cycles, operating hours, quota) and
+    # each one's limit/threshold. dict type=number, unit=null → mapped UNITLESS
+    # with no device_class (like the bcam pair), so a wrong-unit guess can never
+    # ship. LOW — disabled-by-default diagnostic sensors.
+    bidi_energy_used: float | None = None
+    bidi_energy_used_threshold: float | None = None
+    bidi_cycles: int | None = None
+    bidi_cycles_threshold: int | None = None
+    bidi_operating_hours: float | None = None
+    bidi_operating_hours_threshold: float | None = None
+    bidi_quota: float | None = None
+    bidi_quota_threshold: float | None = None
     # ── v2.15.5 (#544) — sunroof motor hood 1 POSITION (distinct from the
     # open/closed STATE in sunroof_open). dict-confirmed type=number, unit "%"
     # (0 = closed). LOW — disabled-by-default diagnostic sensor.

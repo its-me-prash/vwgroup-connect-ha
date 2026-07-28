@@ -38,6 +38,34 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.26.0] - 2026-07-27
+
+> This release is about the companion (ADB) channel from 2.25.0, and it changes nothing for anyone not using it. Two things stand out: the Volkswagen screen-reading is now grounded against a real, independently verified reference instead of our own guesses, and CUPRA reads real data for the first time thanks to a contributor's screen dump. Command sending on the companion channel is paused for now — see below.
+
+### Changed
+
+- **Volkswagen companion reads are re-grounded against a verified reference.** The words we looked for on screen (state of charge, range, charge target) were our best guess and did not actually match what the We Connect app shows. They are now aligned with a real-device reference, so the values read reliably. The old wording is kept as a fallback, so nothing that already worked stops working.
+- **CUPRA now reads real data.** Thanks to a screen dump a CUPRA owner shared (#968), the app's actual layout is known: it shows the numbers as bare values without the labels we were looking for, so the previous version read nothing. It now reads charge, range, lock state and engine state, plus how long ago the car last synced. Still read-only until an owner confirms the command screens.
+
+### Added
+
+- **Charge target on Volkswagen (opt-in).** The charge target, live power and remaining time live on a detail screen you have to open, so reading them means the integration briefly navigates there in the app and comes back. Because that taps the phone, it is off by default and runs at most every 15 minutes when on. Turn it on under the companion entry's options once you have confirmed it behaves on your phone.
+- **Wake screen to poll, sleep after (opt-in) (#974).** A new companion option that wakes the phone's display for the read and puts it back to sleep afterwards, so a locked or sleeping phone shows the app without you having to keep the screen on permanently.
+- **"Reset companion connection" button.** Clears a stuck back-off (after a failure run or an app rate-limit) and reads again immediately, instead of waiting the back-off out.
+- **Bidirectional (V2G) charging usage sensors (#981).** For cars that support vehicle-to-grid, eight new diagnostic sensors surface the usage accounting the car keeps: energy dispensed, charge cycles, operating hours and quota, each with its limit. Disabled by default. Values are shown as-is (the data source does not state a unit, so none is invented).
+- **Import a data-export ZIP you downloaded yourself (#702).** If a car is not enrolled in the EU Data Act portal, the connector has nothing to fetch for it, so the existing import brought nothing back. A new service, `import_export_file`, lets you point the connector at the ZIP you downloaded from the VW data portal by hand: it parses the file exactly the way the portal path does and fills in only the empty values, never overwriting live data. Put the file in your Home Assistant config folder (or another allowed folder) and give the service its name plus the VIN.
+
+### Fixed
+
+- **Setting up the companion channel on a modern phone now tells you what to do.** On an Android 11+ phone the direct ADB connection fails with a cryptic error, because that phone uses wireless debugging (TLS + pairing) which the built-in connection cannot speak. Instead of a generic "could not connect", the setup now recognises that case and points you at the companion add-on (older phones still connect directly). The setup screen says the same.
+- **The off-peak charge reason is read again on cars that report it in a sub-block (#978).** Some cars nest `profile_charge_reason` inside a `charging_state_report` container; that spelling was being flagged as an unknown field instead of filling the existing sensor. Now handled.
+- **A companion rate-limit now survives a restart.** If the app shows a "too many requests" screen the channel backs off for hours, and that back-off is now remembered across a Home Assistant restart — a real account lockout should not be cleared just by restarting the way a brief network blip is.
+- **Volkswagen Canada now uses its own regional backend (#915).** Canada was being sent to the US host, which returns HTTP 500 for a Canadian car. A Canadian owner captured the official app and it talks to the Canada host (`ca00`) directly — the host is built from the country code at runtime, so it never showed up in a static scan of the app, which is why we had it pointed at the US host. Canada now goes to its own host. (If your Canada login still fails after this, a fresh log would show what the Canada backend wants next — it could not be worse than the 500 it returned before.)
+- **Setup no longer hangs on the best-effort prefetches (#909).** After reading your cars, the integration warms a few caches (capabilities, static info, command availability) and kicks off the Data Act data request. These are meant not to block setup, but they were being awaited during it, so a slow or flaky backend could leave the entry stuck on "still setting up" for a long time (and Home Assistant kept retrying). They now run in the background once setup has returned; entities appear right away from the restored snapshot and these fill in a moment later.
+- **The map marker no longer disappears when the volkswagen.de sign-in expires (#984).** On a car whose GPS comes only from the extra volkswagen.de channel, an expired session meant there were no coordinates, so the tracker was never created — and an existing one eventually got cleaned up by Home Assistant, breaking maps and automations that pointed at it. The tracker is now kept whenever that channel is set up: it simply reads unavailable while the session is expired and fills back in once you sign in again, instead of vanishing.
+
+> **Note on Volkswagen commands (climate / charge start-stop).** These are paused on the companion channel in this release. They never actually worked: the app needs a two-step tap (open a tile, then press the button on the detail screen) that the old code did not do, so a command could only ever fail silently. Rather than ship buttons that do nothing, the companion Volkswagen entry is read-only for now; the command path returns once the two-step flow is confirmed on a real car. The network command paths (QR / portal / MBB) are unaffected.
+
 ## [2.25.0] - 2026-07-27
 
 > The companion (ADB) channel that was briefly pre-released as 3.0.0a1 ships here in the stable line instead. It is still opt-in and experimental, and it changes nothing unless you set it up: if you do not pick it in the hub menu, the integration behaves exactly like 2.24.2.

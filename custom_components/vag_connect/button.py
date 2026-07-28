@@ -40,6 +40,14 @@ async def async_setup_entry(
         entities: list = []
         # Refresh button never gates — coordinator-level operation.
         entities.append(VagRefreshButton(coordinator, vin))
+        # v2.26.0 — companion (ADB) entries have no portal, so they must NOT
+        # get the EU-Data-Act request button (it would call a portal that
+        # isn't there). Instead they get a reset button to clear a stuck
+        # failure/rate-limit backoff. Handle before the read_only branch,
+        # because an unverified-brand companion is read_only too.
+        if coordinator.is_companion():
+            entities.append(VagCompanionResetButton(coordinator, vin))
+            return entities
         if read_only:
             # v2.17.1 — portal (read-only) entries expose a button to create or
             # refresh the EU-Data-Act continuous data request on demand, so a
@@ -119,3 +127,22 @@ class VagDataActRequestButton(VagConnectEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         await self.coordinator.async_create_data_act_request()
+
+
+class VagCompanionResetButton(VagConnectEntity, ButtonEntity):
+    """v2.26.0 — clear a stuck companion (ADB) failure/rate-limit backoff.
+
+    The companion channel backs off adaptively after failures and for hours
+    after the app shows a rate-limit banner. If the cause is gone (phone
+    rebooted, app reopened) this button clears the backoff and re-reads now.
+    """
+
+    _attr_translation_key = "companion_reset_button"
+    _attr_icon = "mdi:restart-alert"
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, coordinator: VagConnectCoordinator, vin: str) -> None:
+        super().__init__(coordinator, vin, "companion_reset_button")
+
+    async def async_press(self) -> None:
+        await self.coordinator.async_reset_companion_cooldown()

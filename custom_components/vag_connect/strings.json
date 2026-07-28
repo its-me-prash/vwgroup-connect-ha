@@ -135,7 +135,7 @@
       },
       "companion_adb": {
         "title": "Companion phone (ADB) — experimental",
-        "description": "Read and control your car by driving the official app on a spare Android phone over ADB. This is EXPERIMENTAL and opt-in. You need a second phone that stays signed into the brand app, with ADB over Wi-Fi enabled. Volkswagen is verified; the other brands are read-only for now until a screen map from a real device is confirmed. Nothing is rooted and no app tokens are read — the integration only reads the screen and taps buttons.",
+        "description": "Read and control your car by driving the official app on a spare Android phone over ADB. This is EXPERIMENTAL and opt-in. You need a second phone that stays signed into the brand app, with ADB over Wi-Fi enabled. An older phone (Android 10 or earlier) connects here directly; a modern phone (Android 11+, wireless debugging) needs the 'VW Group App ADB Bridge' add-on, which you then point this at. Volkswagen is verified; the other brands are read-only for now until a screen map from a real device is confirmed. Nothing is rooted and no app tokens are read — the integration only reads the screen and taps buttons.",
         "data": {
           "brand": "Vehicle brand",
           "adb_host": "Phone IP address",
@@ -164,6 +164,7 @@
       "portal_interaction_required": "The EU Data Act portal needs a one-time action in your browser or brand app (e.g. accept terms, confirm consent, finish onboarding/region selection) before headless access works. This is NOT a wrong-password problem — open the portal once in a browser, complete the prompt, then try again.",
       "still_waiting_browser": "Still waiting for browser approval. Open the URL above, sign in, confirm the code, then click Submit again.",
       "companion_cannot_connect": "Could not reach the phone over ADB. Check it is on the network, that ADB over Wi-Fi is on, and that you accepted the debugging prompt.",
+      "companion_needs_addon": "This looks like an Android 11+ phone using wireless debugging, which the direct connection here cannot use (it is TLS + pairing). Install the 'VW Group App ADB Bridge' add-on (github.com/its-me-prash/vwgroup-app-adb-bridge) and point the companion at it. Older phones (Android 10 or earlier) connect here directly.",
       "companion_app_not_found": "Connected to the phone, but the brand app is not installed on it.",
       "companion_unknown_brand": "That brand has no companion preset yet."
     },
@@ -187,6 +188,8 @@
           "spin": "S-PIN",
           "enable_reverse_geocoding": "Reverse Geocoding (parking address)",
           "read_only_mode": "Read-only Mode",
+          "companion_read_charge_detail": "Companion: read charge target (navigates the app)",
+          "companion_wake_sleep": "Companion: wake screen to poll, sleep after",
           "force_ppe_climate": "Audi PPE/PPC Climate body (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
           "enable_push_mqtt": "Skoda push updates (MQTT, EXPERIMENTAL)",
           "enable_push_fcm": "CUPRA/SEAT push updates (FCM, EXPERIMENTAL)",
@@ -209,6 +212,8 @@
           "spin": "S-PIN for door locking. App → Security → S-PIN.",
           "enable_reverse_geocoding": "Sends parking GPS to OpenStreetMap Nominatim to resolve street/city. Off by default for privacy.",
           "read_only_mode": "When enabled, only status sensors are created — no switches, buttons, locks, climate or sliders that send commands. Useful if you want vehicle telemetry without any risk of accidental actuation. Reload the integration after toggling.",
+          "companion_read_charge_detail": "Companion (ADB) only. Also reads the charge target, power and remaining time that live behind the charge-detail screen. This TAPS the app to navigate there (about every 15 minutes), so enable it only after confirming the flow works on your phone. Off by default. Reload after toggling.",
+          "companion_wake_sleep": "Companion (ADB) only. Wakes the phone display before each poll and puts it back to sleep afterwards, so a locked or sleeping phone shows the app during the read without keeping the screen on permanently. Off by default. Reload after toggling.",
           "force_ppe_climate": "Audi-only. Forces the new PPE/PPC body shape (climatisationMode mandatory, targetTemperature omitted) on climate start. Enable only if you own a Q6 e-tron, A6 e-tron, RS e-tron GT Facelift or A3 2024+ PHEV — climate-start otherwise returns 400. Reload the integration after toggling.",
           "enable_push_mqtt": "EXPERIMENTAL: Skoda-only. Enables real-time MQTT push from Skoda mysmob backend (requires aiomqtt + firebase-messaging Python packages — currently lazy-imported, not pre-installed). Foundation phase in v1.18.0; live activation pending community-tester validation. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling.",
           "enable_push_fcm": "EXPERIMENTAL: CUPRA/SEAT only. Enables real-time Firebase Cloud Messaging push from OLA backend (requires firebase-messaging Python package — same lazy-import as v1.18.0 Skoda MQTT toggle). Foundation phase in v1.19.0; live activation pending community-tester validation. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling.",
@@ -1102,6 +1107,30 @@
       "bidi_min_charge_level_pct": {
         "name": "Bidirectional charging min charge level"
       },
+      "bidi_energy_used": {
+        "name": "Bidirectional energy used"
+      },
+      "bidi_energy_used_threshold": {
+        "name": "Bidirectional energy used limit"
+      },
+      "bidi_cycles": {
+        "name": "Bidirectional charging cycles"
+      },
+      "bidi_cycles_threshold": {
+        "name": "Bidirectional charging cycles limit"
+      },
+      "bidi_operating_hours": {
+        "name": "Bidirectional operating hours"
+      },
+      "bidi_operating_hours_threshold": {
+        "name": "Bidirectional operating hours limit"
+      },
+      "bidi_quota": {
+        "name": "Bidirectional charging quota"
+      },
+      "bidi_quota_threshold": {
+        "name": "Bidirectional charging quota limit"
+      },
       "sunroof_position_pct": {
         "name": "Sunroof position"
       },
@@ -1505,6 +1534,9 @@
       },
       "data_act_request_button": {
         "name": "Create EU Data Act data request"
+      },
+      "companion_reset_button": {
+        "name": "Reset companion connection"
       }
     },
     "climate": {
@@ -1818,6 +1850,15 @@
     },
     "read_only_attestation_blocked": {
       "message": "VW blocks remote commands for SEAT/CUPRA behind a Google device-attestation check (Play Integrity / App Check) that only the official app on a genuine phone can pass — so lock, climate and charging can't be sent from here. This is a permanent VW server-side lockdown, not a setting you can toggle. Vehicle data still updates via the EU Data Act portal."
+    },
+    "export_file_not_allowed": {
+      "message": "Home Assistant is not allowed to read {path}. Put the export file in the config folder (or a folder listed under allowlist_external_dirs) and pass its path again."
+    },
+    "export_file_not_found": {
+      "message": "No file was found at {path}. Check the path. A relative name is looked up in the config folder."
+    },
+    "export_file_no_data": {
+      "message": "That file did not contain a readable EU Data Act dataset. Make sure it is the .zip you downloaded from the VW data portal for this car."
     },
     "historical_portal_not_ready": {
       "message": "The EU Data Act portal isn't ready yet. Wait until the integration has polled once after setup, then try requesting/importing the historical export again."

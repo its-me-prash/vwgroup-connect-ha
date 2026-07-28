@@ -505,9 +505,17 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             version = await transport.current_app_version(preset.package)
         except CompanionTransportError as err:
             _LOGGER.warning("Companion ADB probe failed: %s", err)
+            # v2.26.0 — a bare "InvalidCommandError" is the fingerprint of
+            # Android 11+ "wireless debugging": the pure-python transport reaches
+            # the port but it speaks TLS + pairing, which adb-shell cannot. Point
+            # the user at the companion add-on rather than a generic "no connect".
+            if "InvalidCommandError" in str(err):
+                return False, "companion_needs_addon"
             return False, "companion_cannot_connect"
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning("Companion ADB probe error: %s", type(err).__name__)
+            if type(err).__name__ == "InvalidCommandError":
+                return False, "companion_needs_addon"
             return False, "companion_cannot_connect"
         finally:
             await transport.close()
@@ -2069,6 +2077,30 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                     f"{CONF_SPIN_BY_VIN}_{_vin}",
                     default=str(_cur_by_vin.get(_vin, "")),
                 )] = _SPIN_SELECTOR
+        # v2.26.0 — companion (ADB) advanced opt-ins, surfaced only for a
+        # companion entry (both default OFF: each TAPS the phone, so a user opts
+        # in only after confirming the flow on their own device).
+        from .const import (  # noqa: PLC0415
+            CONF_COMPANION_READ_CHARGE_DETAIL,
+            CONF_COMPANION_WAKE_SLEEP,
+            CONF_STRATEGY,
+            STRATEGY_COMPANION_ADB,
+        )
+        if current_data.get(CONF_STRATEGY) == STRATEGY_COMPANION_ADB:
+            schema[vol.Optional(
+                CONF_COMPANION_READ_CHARGE_DETAIL,
+                default=current_options.get(
+                    CONF_COMPANION_READ_CHARGE_DETAIL,
+                    current_data.get(CONF_COMPANION_READ_CHARGE_DETAIL, False),
+                ),
+            )] = _BOOL_SELECTOR
+            schema[vol.Optional(
+                CONF_COMPANION_WAKE_SLEEP,
+                default=current_options.get(
+                    CONF_COMPANION_WAKE_SLEEP,
+                    current_data.get(CONF_COMPANION_WAKE_SLEEP, False),
+                ),
+            )] = _BOOL_SELECTOR
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(schema),

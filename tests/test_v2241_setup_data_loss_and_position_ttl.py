@@ -144,6 +144,31 @@ class TestSetupPathDataLoss:
         assert kept["battery_soc"] == 70, "fresh value must win"
         assert kept["odometer_km"] == 81234, "omitted value must carry forward"
 
+    def test_prefetch_and_kickoff_are_deferred_to_the_background(self) -> None:
+        """#909 — the best-effort prefetches + Data Act kickoff must no longer be
+        awaited inline (they held config-entry setup open on a slow backend).
+        They run in a background task, and the inline status merge is untouched.
+        """
+        coord = self._coord(restored={"vin": "VIN123", "battery_soc": 50})
+        coord.refresh_capabilities = AsyncMock()
+        coord.refresh_static_info = AsyncMock()
+        coord._refresh_mbb_command_capabilities = AsyncMock()
+        coord._ensure_data_act_custom_request_kickoff = AsyncMock()
+        fresh = VehicleData(vin="VIN123", battery_soc=88)
+
+        self._run(coord, self._client(fresh))
+
+        # the inline status fetch + merge still ran…
+        assert coord.vehicles["VIN123"]["battery_soc"] == 88
+        # …but the tail-only best-effort work was NOT awaited inline. (Note
+        # refresh_static_info is deliberately excluded: _enrich also calls it as
+        # a lazy 24h-cache no-op per vehicle, which is inline and expected.)
+        coord.refresh_capabilities.assert_not_called()
+        coord._refresh_mbb_command_capabilities.assert_not_called()
+        coord._ensure_data_act_custom_request_kickoff.assert_not_called()
+        # a background finish task was scheduled to run them + the poll loop
+        assert coord.hass.async_create_background_task.called
+
 
 # ── 2. position carry-forward is bounded and dated ──────────────────────────
 

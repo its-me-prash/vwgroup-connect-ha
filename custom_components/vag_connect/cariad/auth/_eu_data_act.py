@@ -1902,8 +1902,8 @@ def map_dataset_to_vehicle_data(
     # type=number, unit=null; description "Additional SOC range for
     # bidirectional charging" → percent. Upper / lower bidi charge-level limit.
     # first() drops the uint16 65535 sentinel; container + bare spellings tried.
-    # ONLY these two bidi_* fields were reported (#541) — the rest of the
-    # bidirectional_charging_mode.* family stays Scout-visible.
+    # (#541 reported only the two bidi_*_Soc limits; the V2G usage accounting
+    # below arrived with #981.)
     _bidi_max = _to_int(first(
         "bidirectional_charging_mode.bidi_max_Soc", "bidi_max_Soc"))
     if _bidi_max is not None and d.bidi_max_charge_level_pct is None:
@@ -1912,6 +1912,24 @@ def map_dataset_to_vehicle_data(
         "bidirectional_charging_mode.bidi_min_Soc", "bidi_min_Soc"))
     if _bidi_min is not None and d.bidi_min_charge_level_pct is None:
         d.bidi_min_charge_level_pct = _bidi_min
+
+    # v2.26.0 (#981) — the rest of the bidirectional_charging_mode.* V2G usage
+    # accounting + limits. dict type=number, unit=null → mapped UNITLESS. Each is
+    # container + bare spelled, first() drops the uint16/int32 sentinels. Note
+    # the portal's mixed-case ``quota_Threshold`` spelling (as shipped).
+    for _src, _attr, _coerce in (
+        ("amount_of_energy", "bidi_energy_used", _to_float),
+        ("amount_of_energy_threshold", "bidi_energy_used_threshold", _to_float),
+        ("numbers_of_cycles", "bidi_cycles", _to_int),
+        ("numbers_of_cycles_threshold", "bidi_cycles_threshold", _to_int),
+        ("operating_hours", "bidi_operating_hours", _to_float),
+        ("operating_hours_threshold", "bidi_operating_hours_threshold", _to_float),
+        ("quota", "bidi_quota", _to_float),
+        ("quota_Threshold", "bidi_quota_threshold", _to_float),
+    ):
+        _val = _coerce(first(f"bidirectional_charging_mode.{_src}", _src))
+        if _val is not None and getattr(d, _attr) is None:
+            setattr(d, _attr, _val)
 
     # Unreleased (Scout #938/#947) — battery charging care mode (BCAM) score and
     # its threshold. Dict-confirmed type=number with unit=null (dict UUIDs
@@ -2091,7 +2109,11 @@ def map_dataset_to_vehicle_data(
     if _icas is not None:
         d.immediate_charge_action_state = _shorten_enum(_icas)
 
-    _pcr = first("profile_charge_reason", "charge_reason")
+    _pcr = first(
+        "profile_charge_reason", "charge_reason",
+        # v2.26.0 (#978) — the container-qualified spelling the portal also ships.
+        "charging_state_report.profile_charge_reason",
+    )
     if _pcr is not None:
         d.profile_charge_reason = _shorten_enum(_pcr)
 
@@ -3338,3 +3360,25 @@ def _unzip_json(raw: bytes, name: str) -> dict[str, Any]:
             return parsed if isinstance(parsed, dict) else {}
     except (zipfile.BadZipFile, ValueError, KeyError, OSError):
         return {}
+
+
+def parse_export_zip(raw: bytes, vin: str, name: str = "export.zip") -> VehicleData:
+    """Map a raw EU Data Act export ZIP (bytes) to VehicleData, fully offline.
+
+    This is the exact parse the portal download path runs (unzip → flatten →
+    map), split out so a ZIP the user downloaded from the VW data portal by hand
+    imports identically to one the connector fetches itself — no portal session,
+    no network. Mirrors ``get_vehicle_data``'s tail: ``no_data`` stays True and
+    nothing is mapped when the ZIP has no usable JSON dataset, so a caller can
+    tell an empty / wrong file from a real one.
+    """
+    d = VehicleData(vin=vin)
+    d.no_data = True
+    payload = _unzip_json(raw, name)
+    field_ts: dict[str, float] = {}
+    field_syn: dict[str, set[str]] = {}
+    fields = _walk_fields(payload, field_ts, field_syn)
+    if not fields:
+        return d
+    d.no_data = False  # real dataset parsed → mirror get_vehicle_data:3322
+    return map_dataset_to_vehicle_data(fields, d, field_ts, field_syn)

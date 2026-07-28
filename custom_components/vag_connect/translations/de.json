@@ -135,7 +135,7 @@
       },
       "companion_adb": {
         "title": "Companion phone (ADB) — experimental",
-        "description": "Read and control your car by driving the official app on a spare Android phone over ADB. This is EXPERIMENTAL and opt-in. You need a second phone that stays signed into the brand app, with ADB over Wi-Fi enabled. Volkswagen is verified; the other brands are read-only for now until a screen map from a real device is confirmed. Nothing is rooted and no app tokens are read — the integration only reads the screen and taps buttons.",
+        "description": "Read and control your car by driving the official app on a spare Android phone over ADB. This is EXPERIMENTAL and opt-in. You need a second phone that stays signed into the brand app, with ADB over Wi-Fi enabled. An older phone (Android 10 or earlier) connects here directly; a modern phone (Android 11+, wireless debugging) needs the 'VW Group App ADB Bridge' add-on, which you then point this at. Volkswagen is verified; the other brands are read-only for now until a screen map from a real device is confirmed. Nothing is rooted and no app tokens are read — the integration only reads the screen and taps buttons.",
         "data": {
           "brand": "Vehicle brand",
           "adb_host": "Phone IP address",
@@ -164,6 +164,7 @@
       "brand_not_dag_eligible": "Diese Marke unterstützt kein Browser-Login. Nutze stattdessen E-Mail + Passwort.",
       "still_waiting_browser": "Warte noch auf die Browser-Bestätigung. Öffne die URL oben, melde dich an, bestätige den Code und klick dann nochmal auf Senden.",
       "companion_cannot_connect": "Could not reach the phone over ADB. Check it is on the network, that ADB over Wi-Fi is on, and that you accepted the debugging prompt.",
+      "companion_needs_addon": "This looks like an Android 11+ phone using wireless debugging, which the direct connection here cannot use (it is TLS + pairing). Install the 'VW Group App ADB Bridge' add-on (github.com/its-me-prash/vwgroup-app-adb-bridge) and point the companion at it. Older phones (Android 10 or earlier) connect here directly.",
       "companion_app_not_found": "Connected to the phone, but the brand app is not installed on it.",
       "companion_unknown_brand": "That brand has no companion preset yet."
     },
@@ -191,6 +192,8 @@
           "enable_push_fcm": "CUPRA/SEAT Push-Updates (FCM, EXPERIMENTELL)",
           "enable_push_audi_vw": "Audi/VW Push-Updates (Cariad FCM, EXPERIMENTELL)",
           "read_only_mode": "Nur-Lesen-Modus",
+          "companion_read_charge_detail": "Companion: Ladeziel lesen (navigiert in der App)",
+          "companion_wake_sleep": "Companion: Display zum Abfragen wecken, danach schlafen",
           "client_id_override": "OAuth client_id Override (Power-User)",
           "eu_data_act_auto_kickoff": "EU Data Act: Custom Data Request automatisch anlegen",
           "supplementary_authproxy": "Volkswagen.de-Lesekanal hinzufügen (Daten zusammenführen)",
@@ -213,6 +216,8 @@
           "scan_interval": "Polling-Intervall in Minuten (5–60). Niedrige Werte bringen die Daten schneller, fressen aber das tägliche API-Quota schneller (~1.500 Calls/Tag bei MyCupra/MySEAT).",
           "spin": "Optionale 4-stellige Sicherheits-PIN für privilegierte Kommandos (Lock/Unlock bei manchen Marken). Leer lassen wenn nicht benötigt.",
           "read_only_mode": "Wenn aktiv: nur Status-Sensoren werden erstellt, keine Schalter/Buttons/Schlösser/Climate die Befehle senden würden. Schützt vor versehentlicher Auslösung und Subscription-zählenden Kommandos.",
+          "companion_read_charge_detail": "Nur Companion (ADB). Liest zusätzlich Ladeziel, Ladeleistung und Restzeit, die hinter dem Lade-Detailscreen liegen. Dafür TIPPT die App zur Navigation dorthin (etwa alle 15 Minuten) — nur aktivieren, wenn der Ablauf auf deinem Handy funktioniert. Standard aus. Nach Änderung neu laden.",
+          "companion_wake_sleep": "Nur Companion (ADB). Weckt das Display vor jeder Abfrage und legt es danach wieder schlafen, damit ein gesperrtes/schlafendes Handy die App während des Lesens zeigt, ohne den Bildschirm dauerhaft an zu lassen. Standard aus. Nach Änderung neu laden.",
           "client_id_override": "Power-User Eskapeluke wenn die Community einen frischen OAuth client_id in einer neuen VW Group APK entdeckt bevor unser täglicher Atlas-Builder ihn findet. Paste den vollen UUID@apps_vw-dilab_com String hier rein, dann probiert der Resolver ihn ZUERST bei jedem authenticate, mit allen bestehenden client_ids weiter als Fallback in der Chain. Leer lassen für Default-Verhalten. Format: 8-4-4-4-12 hex Zeichen gefolgt von @apps_vw-dilab_com. Ungültige Werte werden stillschweigend ignoriert.",
           "eu_data_act_auto_kickoff": "Nur relevant wenn die Integration im Read-only EU Data Act Portal-Modus läuft (die Live BFF Strategien sind gescheitert). Wenn AN, prüft der Coordinator beim Start ob pro VIN ein aktiver 15-min Custom Data Request existiert und legt einen an wenn nicht. Der Kickoff impliziert ein 1-Monats Daten-Abo auf deinem Account beim Portal, deshalb opt-in. Das Portal akzeptiert HÖCHSTENS EINEN aktiven Custom Request pro VIN gleichzeitig. Standard: aus.",
           "abrp_enable": "Live-Telemetrie an A Better Routeplanner senden. Benötigt api_key und einen Token pro Fahrzeug. Aus = keine ausgehenden Aufrufe.",
@@ -1105,6 +1110,30 @@
       "bidi_min_charge_level_pct": {
         "name": "Bidirektionales Laden min. Ladestand"
       },
+      "bidi_energy_used": {
+        "name": "Bidirektional genutzte Energie"
+      },
+      "bidi_energy_used_threshold": {
+        "name": "Bidirektional genutzte Energie Limit"
+      },
+      "bidi_cycles": {
+        "name": "Bidirektionale Ladezyklen"
+      },
+      "bidi_cycles_threshold": {
+        "name": "Bidirektionale Ladezyklen Limit"
+      },
+      "bidi_operating_hours": {
+        "name": "Bidirektionale Betriebsstunden"
+      },
+      "bidi_operating_hours_threshold": {
+        "name": "Bidirektionale Betriebsstunden Limit"
+      },
+      "bidi_quota": {
+        "name": "Bidirektionale Ladequote"
+      },
+      "bidi_quota_threshold": {
+        "name": "Bidirektionale Ladequote Limit"
+      },
       "sunroof_position_pct": {
         "name": "Schiebedach-Position"
       },
@@ -1508,6 +1537,9 @@
       },
       "data_act_request_button": {
         "name": "EU-Data-Act-Datenanfrage erstellen"
+      },
+      "companion_reset_button": {
+        "name": "Companion-Verbindung zurücksetzen"
       }
     },
     "climate": {
@@ -1821,6 +1853,15 @@
     },
     "read_only_attestation_blocked": {
       "message": "VW sperrt Fernbefehle für SEAT/CUPRA hinter einer Google-Geräteprüfung (Play Integrity / App Check), die nur die offizielle App auf einem echten Smartphone besteht. Verriegeln, Klima und Laden lassen sich daher von hier nicht senden. Das ist eine dauerhafte serverseitige Sperre von VW, keine umschaltbare Einstellung. Fahrzeugdaten werden weiterhin über das EU-Data-Act-Portal aktualisiert."
+    },
+    "export_file_not_allowed": {
+      "message": "Home Assistant darf {path} nicht lesen. Lege die Export-Datei in den Konfig-Ordner (oder einen unter allowlist_external_dirs erlaubten Ordner) und gib den Pfad erneut an."
+    },
+    "export_file_not_found": {
+      "message": "Unter {path} wurde keine Datei gefunden. Prüfe den Pfad. Ein relativer Name wird im Konfig-Ordner gesucht."
+    },
+    "export_file_no_data": {
+      "message": "Diese Datei enthielt keinen lesbaren EU-Data-Act-Datensatz. Stelle sicher, dass es die .zip ist, die du für dieses Auto aus dem VW-Datenportal heruntergeladen hast."
     },
     "historical_portal_not_ready": {
       "message": "Das EU-Data-Act-Portal ist noch nicht bereit. Warte, bis die Integration nach der Einrichtung einmal abgefragt hat, und versuche den Verlaufsexport dann erneut."

@@ -792,6 +792,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 DEFAULT_ADB_PORT,
             )
 
+            from .const import (  # noqa: PLC0415
+                CONF_COMPANION_READ_CHARGE_DETAIL,
+                CONF_COMPANION_WAKE_SLEEP,
+            )
             self._cariad_client = CompanionClient(
                 brand=brand,
                 vin=self.entry.data[CONF_VIN],
@@ -799,7 +803,20 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 port=self.entry.data.get(CONF_ADB_PORT, DEFAULT_ADB_PORT),
                 adbkey_path=self.hass.config.path(".storage", "vag_connect_adbkey"),
                 time_fn=time.monotonic,
+                read_charge_detail=bool(
+                    self.entry.data.get(CONF_COMPANION_READ_CHARGE_DETAIL, False)
+                ),
+                wake_sleep=bool(
+                    self.entry.data.get(CONF_COMPANION_WAKE_SLEEP, False)
+                ),
             )
+            # v2.26.0 (ckomma #21) — re-apply a rate-limit backoff persisted
+            # before a restart, so an account lockout is not cleared just by
+            # restarting HA.
+            from .const import CONF_COMPANION_RATE_LIMIT_UNTIL  # noqa: PLC0415
+            _rl = self.entry.data.get(CONF_COMPANION_RATE_LIMIT_UNTIL)
+            if _rl and hasattr(self._cariad_client, "restore_rate_limit"):
+                self._cariad_client.restore_rate_limit(float(_rl))
         else:
             session = async_get_clientsession(self.hass)
             self._cariad_client = CariadClientFactory.create(
@@ -1127,53 +1144,53 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     if hasattr(self, "vehicle_success"):
                         self.vehicle_success[vin] = True
 
-            # Best-effort capabilities prefetch — never blocks setup.
-            # Result lives in self.vehicle_capabilities for entity platforms
-            # to read in Session 2B. Failure is debug-logged and ignored.
-            await asyncio.gather(
-                *[self.refresh_capabilities(vin) for vin in self.vehicles],
-                return_exceptions=True,
-            )
-
-            # v1.20.0 Bundle 2 Phase A — Skoda static-info prefetch.
-            # Only Skoda gets the vehicle-information + equipment 24h
-            # cache (other brands return early in refresh_static_info).
-            # Failure debug-logged, never blocks setup.
-            await asyncio.gather(
-                *[self.refresh_static_info(vin) for vin in self.vehicles],
-                return_exceptions=True,
-            )
-
-            # v2.20.0 — warm the durable-MBB command operationList AFTER
-            # self.vehicles is populated. The warm inside _arm_supplementary_
-            # channels runs before get_vehicles, and the portal+MBB-command
-            # config never sets CONF_MBB_VINS, so that early warm has no VINs to
-            # fall back on. Warming here (VINs known, MBB channel already armed)
-            # makes the per-VIN command pre-test authoritative at first spawn, so
-            # granted command entities appear immediately instead of being
-            # strict-hidden until a restart. No-op for non-MBB entries.
-            await self._refresh_mbb_command_capabilities()
-
             self._started = True
             found = len(self.vehicles)
             _LOGGER.info("VAG Connect: setup complete — %d vehicle(s)", found)
 
-            # v2.10.5 — EU Data Act portal Custom Data Request first-time
-            # kickoff. Fires unless (a) the user turned OFF the OptionsFlow
-            # toggle CONF_EU_DATA_ACT_AUTO_KICKOFF (v2.17.1: default ON) and
-            # only when (b) we actually authenticated via a portal strategy.
-            # Best-effort: any failure is debug-logged and never blocks
-            # setup. Session-expiry surfaces a Repairs issue.
-            try:
-                await self._ensure_data_act_custom_request_kickoff()
-            except Exception:  # noqa: BLE001
-                _LOGGER.debug(
-                    "Data Act kickoff helper raised - non-fatal, continuing",
-                    exc_info=True,
+            # #909 — the capabilities / static-info / MBB-command prefetches and
+            # the Data Act kickoff are all best-effort ("never blocks setup"), but
+            # awaiting them here still held config-entry setup open on a slow
+            # backend. Run them in a background task and start the poll loop at its
+            # end, so setup returns now and these fill in shortly after. Kept in
+            # the same order as when they ran inline (prefetches, then poll loop),
+            # so nothing writes the snapshot while the first poll tick is in
+            # flight. None of these write self.vehicles (capabilities land in
+            # self.vehicle_capabilities), so entity data is unaffected.
+            async def _bg_finish() -> None:
+                try:
+                    # capabilities → self.vehicle_capabilities (entity platforms)
+                    await asyncio.gather(
+                        *[self.refresh_capabilities(vin) for vin in self.vehicles],
+                        return_exceptions=True,
+                    )
+                    # Skoda static-info 24h cache (other brands return early)
+                    await asyncio.gather(
+                        *[self.refresh_static_info(vin) for vin in self.vehicles],
+                        return_exceptions=True,
+                    )
+                    # durable-MBB command operationList warm (no-op off MBB), so
+                    # granted command entities appear at first spawn
+                    await self._refresh_mbb_command_capabilities()
+                    # EU Data Act Custom Data Request first-time kickoff (portal
+                    # strategies only, default ON; session-expiry surfaces a repair)
+                    try:
+                        await self._ensure_data_act_custom_request_kickoff()
+                    except Exception:  # noqa: BLE001
+                        _LOGGER.debug(
+                            "Data Act kickoff helper raised - non-fatal, continuing",
+                            exc_info=True,
+                        )
+                except Exception:  # noqa: BLE001 - a background task must not die silently
+                    _LOGGER.exception("VAG Connect: background setup finish failed")
+                # Start background polling — after the prefetches, as it was inline.
+                self.hass.async_create_background_task(
+                    self._poll_loop(), f"{DOMAIN}_poll"
                 )
 
-            # Start background polling — use background task so HA bootstrap doesn't wait
-            self.hass.async_create_background_task(self._poll_loop(), f"{DOMAIN}_poll")
+            self.hass.async_create_background_task(
+                _bg_finish(), f"{DOMAIN}_setup_finish"
+            )
             return found > 0
 
         except TermsAndConditionsError as err:
@@ -1574,6 +1591,94 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 "EU Data Act: the historical export for %s was read successfully "
                 "but nothing needed importing — every field it contains already "
                 "has a current value.", mask_vin(vin),
+            )
+        return merged_any
+
+    async def async_import_export_file(self, vin: str, file_path: str) -> bool:
+        """Phase C (local) — import a EU Data Act export ZIP the user downloaded
+        from the portal by hand, instead of fetching it through the portal
+        session. Same gap-fill contract as ``async_import_historical_export``: a
+        field is taken only where the live snapshot has none, so live telemetry
+        is never overwritten.
+
+        The file is read from a Home Assistant allowed path (the config dir, or a
+        directory in ``allowlist_external_dirs``); a relative name resolves under
+        the config dir. Each failure raises a specific reason so the user is not
+        left with the same silent no-op the portal path used to give.
+        """
+        import os  # noqa: PLC0415
+
+        path = file_path.strip()
+        if not os.path.isabs(path):
+            path = self.hass.config.path(path)
+        if not self.hass.config.is_allowed_path(path):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="export_file_not_allowed",
+                translation_placeholders={"path": path},
+            )
+
+        def _read() -> bytes | None:
+            try:
+                if not os.path.isfile(path):
+                    return None
+                with open(path, "rb") as fh:
+                    return fh.read()
+            except OSError:
+                return None
+
+        raw = await self.hass.async_add_executor_job(_read)
+        if raw is None:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="export_file_not_found",
+                translation_placeholders={"path": path},
+            )
+
+        from .cariad.auth._eu_data_act import parse_export_zip  # noqa: PLC0415
+
+        try:
+            parsed = await self.hass.async_add_executor_job(
+                parse_export_zip, raw, vin, os.path.basename(path)
+            )
+        except Exception as err:  # noqa: BLE001 - a hand-supplied file may be anything
+            _LOGGER.warning(
+                "EU Data Act: could not parse local export %s: %s",
+                os.path.basename(path), err,
+            )
+            parsed = None
+        if parsed is None or getattr(parsed, "no_data", True):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="export_file_no_data",
+            )
+
+        hist = parsed.to_dict()
+        merged_any = False
+        with self._vehicles_lock:
+            current = self.vehicles.get(vin)
+            if not isinstance(current, dict):
+                # A car we had nothing for yet — take the snapshot.
+                self.vehicles[vin] = hist
+                merged_any = True
+            else:
+                for key, val in hist.items():
+                    if val is None:
+                        continue
+                    if current.get(key) is None:  # never clobber a live value
+                        current[key] = val
+                        merged_any = True
+        if merged_any:
+            self.async_set_updated_data(dict(self.vehicles))
+            _LOGGER.info(
+                "EU Data Act: merged local export file %s into VIN %s",
+                os.path.basename(path), mask_vin(vin),
+            )
+        else:
+            _LOGGER.info(
+                "EU Data Act: local export file for %s was read successfully but "
+                "nothing needed importing — every field it contains already has a "
+                "current value.", mask_vin(vin),
             )
         return merged_any
 
@@ -2240,6 +2345,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 # restart, not the aging setup-time snapshot. Idempotent: the
                 # equality guard makes it a no-op unless the jar actually moved.
                 self._persist_supplementary_cookies()
+                # v2.26.0 (ckomma #21) — persist the companion rate-limit backoff
+                # if it moved this poll. No-op for non-companion entries.
+                self._persist_companion_rate_limit()
                 # v1.9.0 — Refresh the two reporter repair issues. Cheap to
                 # call: ``ensure_*_issue`` deletes when empty and updates
                 # in-place when the IDs already exist.
@@ -4209,6 +4317,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # v2.25.0 (#966/#632) — same for the SUPPLEMENTARY vw.de channel,
             # whose jar the merge above may also have rotated. Idempotent.
             self._persist_supplementary_cookies()
+            # v2.26.0 (ckomma #21) — persist a companion rate-limit backoff if a
+            # write during this manual refresh tripped it. No-op otherwise.
+            self._persist_companion_rate_limit()
             _LOGGER.debug("VAG Connect: Manual refresh OK")
             return dict(self.vehicles)
         except Exception as err:  # noqa: BLE001
@@ -4775,6 +4886,57 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 "VAG Connect: could not persist website-authproxy cookies "
                 "(%s) — will retry next login.", type(err).__name__,
             )
+
+    def _persist_companion_rate_limit(self) -> None:
+        """v2.26.0 (ckomma #21) — persist the companion (ADB) rate-limit backoff.
+
+        So an account lockout survives an HA restart. No-op unless this is a
+        companion entry and the value actually changed (avoids churn).
+        """
+        from .const import (  # noqa: PLC0415
+            CONF_COMPANION_RATE_LIMIT_UNTIL,
+            CONF_STRATEGY,
+            STRATEGY_COMPANION_ADB,
+        )
+
+        if self.entry.data.get(CONF_STRATEGY) != STRATEGY_COMPANION_ADB:
+            return
+        client = getattr(self, "_cariad_client", None)
+        until = float(getattr(client, "companion_rate_limited_until", 0.0) or 0.0)
+        current = float(self.entry.data.get(CONF_COMPANION_RATE_LIMIT_UNTIL) or 0.0)
+        if until == current:
+            return
+        try:
+            self.hass.config_entries.async_update_entry(
+                self.entry,
+                data={**self.entry.data, CONF_COMPANION_RATE_LIMIT_UNTIL: until},
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
+    def is_companion(self) -> bool:
+        """v2.26.0 — True if this entry reads via the companion (ADB) channel."""
+        from .const import CONF_STRATEGY, STRATEGY_COMPANION_ADB  # noqa: PLC0415
+
+        return bool(self.entry.data.get(CONF_STRATEGY) == STRATEGY_COMPANION_ADB)
+
+    async def async_reset_companion_cooldown(self) -> None:
+        """v2.26.0 (ckomma #22) — user-initiated clear of a stuck companion
+        failure/rate-limit backoff, then an immediate re-read.
+
+        The channel backs off adaptively after failures and for hours after an
+        app rate-limit banner. If the underlying cause is gone (phone rebooted,
+        app reopened) the user should not have to wait out the backoff — this
+        button clears it and polls now.
+        """
+        client = getattr(self, "_cariad_client", None)
+        reset = getattr(client, "reset_cooldown", None)
+        if callable(reset):
+            reset()
+            # The persisted backoff must go too, else the next restart restores
+            # the lockout we just cleared.
+            self._persist_companion_rate_limit()
+        await self.async_request_refresh()
 
     def _persist_supplementary_cookies(self) -> None:
         """v2.25.0 (#966/#632) — write the SUPPLEMENTARY vw.de cookies back.
