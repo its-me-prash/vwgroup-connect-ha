@@ -3360,3 +3360,25 @@ def _unzip_json(raw: bytes, name: str) -> dict[str, Any]:
             return parsed if isinstance(parsed, dict) else {}
     except (zipfile.BadZipFile, ValueError, KeyError, OSError):
         return {}
+
+
+def parse_export_zip(raw: bytes, vin: str, name: str = "export.zip") -> VehicleData:
+    """Map a raw EU Data Act export ZIP (bytes) to VehicleData, fully offline.
+
+    This is the exact parse the portal download path runs (unzip → flatten →
+    map), split out so a ZIP the user downloaded from the VW data portal by hand
+    imports identically to one the connector fetches itself — no portal session,
+    no network. Mirrors ``get_vehicle_data``'s tail: ``no_data`` stays True and
+    nothing is mapped when the ZIP has no usable JSON dataset, so a caller can
+    tell an empty / wrong file from a real one.
+    """
+    d = VehicleData(vin=vin)
+    d.no_data = True
+    payload = _unzip_json(raw, name)
+    field_ts: dict[str, float] = {}
+    field_syn: dict[str, set[str]] = {}
+    fields = _walk_fields(payload, field_ts, field_syn)
+    if not fields:
+        return d
+    d.no_data = False  # real dataset parsed → mirror get_vehicle_data:3322
+    return map_dataset_to_vehicle_data(fields, d, field_ts, field_syn)

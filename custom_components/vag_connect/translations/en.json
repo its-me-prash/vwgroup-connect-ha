@@ -1834,6 +1834,15 @@
     "read_only_attestation_blocked": {
       "message": "VW blocks remote commands for SEAT/CUPRA behind a Google device-attestation check (Play Integrity / App Check) that only the official app on a genuine phone can pass, so lock, climate and charging can't be sent from here. This is a permanent VW server-side lockdown, not a setting you can toggle. Vehicle data still updates via the EU Data Act portal."
     },
+    "export_file_not_allowed": {
+      "message": "Home Assistant is not allowed to read {path}. Put the export file in the config folder (or a folder listed under allowlist_external_dirs) and pass its path again."
+    },
+    "export_file_not_found": {
+      "message": "No file was found at {path}. Check the path. A relative name is looked up in the config folder."
+    },
+    "export_file_no_data": {
+      "message": "That file did not contain a readable EU Data Act dataset. Make sure it is the .zip you downloaded from the VW data portal for this car."
+    },
     "historical_portal_not_ready": {
       "message": "The EU Data Act portal isn't ready yet. Wait until the integration has polled once after setup, then try requesting/importing the historical export again."
     }

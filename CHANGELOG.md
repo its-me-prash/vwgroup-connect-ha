@@ -53,6 +53,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **Wake screen to poll, sleep after (opt-in) (#974).** A new companion option that wakes the phone's display for the read and puts it back to sleep afterwards, so a locked or sleeping phone shows the app without you having to keep the screen on permanently.
 - **"Reset companion connection" button.** Clears a stuck back-off (after a failure run or an app rate-limit) and reads again immediately, instead of waiting the back-off out.
 - **Bidirectional (V2G) charging usage sensors (#981).** For cars that support vehicle-to-grid, eight new diagnostic sensors surface the usage accounting the car keeps: energy dispensed, charge cycles, operating hours and quota, each with its limit. Disabled by default. Values are shown as-is (the data source does not state a unit, so none is invented).
+- **Import a data-export ZIP you downloaded yourself (#702).** If a car is not enrolled in the EU Data Act portal, the connector has nothing to fetch for it, so the existing import brought nothing back. A new service, `import_export_file`, lets you point the connector at the ZIP you downloaded from the VW data portal by hand: it parses the file exactly the way the portal path does and fills in only the empty values, never overwriting live data. Put the file in your Home Assistant config folder (or another allowed folder) and give the service its name plus the VIN.
 
 ### Fixed
 

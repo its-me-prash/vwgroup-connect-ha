@@ -52,6 +52,9 @@ PLATFORMS: list[Platform] = [
 ]
 
 SERVICE_VIN_SCHEMA = vol.Schema({vol.Required("vin"): cv.string})
+SERVICE_IMPORT_FILE_SCHEMA = vol.Schema(
+    {vol.Required("vin"): cv.string, vol.Required("file"): cv.string}
+)
 
 # v2.10.0 unified action dispatcher (``execute_vehicle_action``).
 # Maps the user-facing action key (from the services.yaml select
@@ -408,6 +411,14 @@ def _register_services(hass: HomeAssistant) -> None:
             call.data["vin"]
         )
 
+    async def _handle_import_export_file(call: ServiceCall) -> None:
+        # Offline import of a EU Data Act export ZIP the user downloaded from the
+        # portal by hand (no portal session needed), for cars whose data cannot
+        # be fetched through the connector's own portal channel.
+        await _coord(call.data["vin"]).async_import_export_file(
+            call.data["vin"], call.data["file"]
+        )
+
     async def _handle_set_departure_timer(call: ServiceCall) -> None:
         # v2.0.0 (Big-Bang) — accept optional ``recurring_on`` weekday
         # list (e.g. ``["MONDAY","TUESDAY","FRIDAY"]``). Forwarded to
@@ -607,6 +618,7 @@ def _register_services(hass: HomeAssistant) -> None:
         ("flash_lights",                   _handle_flash,               SERVICE_VIN_SCHEMA),
         ("request_historical_export",      _handle_request_historical_export, SERVICE_VIN_SCHEMA),
         ("import_historical_export",       _handle_import_historical_export,  SERVICE_VIN_SCHEMA),
+        ("import_export_file",             _handle_import_export_file,        SERVICE_IMPORT_FILE_SCHEMA),
         ("refresh_vehicle",                _handle_refresh,             vol.Schema({})),
         # v1.13.0 (#63 Phase 3) — explicit semantic-clear alias.
         ("refresh_cloud_cache",            _handle_refresh_cloud_cache, vol.Schema({})),

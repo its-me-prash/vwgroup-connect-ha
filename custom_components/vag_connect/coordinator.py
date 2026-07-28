@@ -1594,6 +1594,94 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             )
         return merged_any
 
+    async def async_import_export_file(self, vin: str, file_path: str) -> bool:
+        """Phase C (local) — import a EU Data Act export ZIP the user downloaded
+        from the portal by hand, instead of fetching it through the portal
+        session. Same gap-fill contract as ``async_import_historical_export``: a
+        field is taken only where the live snapshot has none, so live telemetry
+        is never overwritten.
+
+        The file is read from a Home Assistant allowed path (the config dir, or a
+        directory in ``allowlist_external_dirs``); a relative name resolves under
+        the config dir. Each failure raises a specific reason so the user is not
+        left with the same silent no-op the portal path used to give.
+        """
+        import os  # noqa: PLC0415
+
+        path = file_path.strip()
+        if not os.path.isabs(path):
+            path = self.hass.config.path(path)
+        if not self.hass.config.is_allowed_path(path):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="export_file_not_allowed",
+                translation_placeholders={"path": path},
+            )
+
+        def _read() -> bytes | None:
+            try:
+                if not os.path.isfile(path):
+                    return None
+                with open(path, "rb") as fh:
+                    return fh.read()
+            except OSError:
+                return None
+
+        raw = await self.hass.async_add_executor_job(_read)
+        if raw is None:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="export_file_not_found",
+                translation_placeholders={"path": path},
+            )
+
+        from .cariad.auth._eu_data_act import parse_export_zip  # noqa: PLC0415
+
+        try:
+            parsed = await self.hass.async_add_executor_job(
+                parse_export_zip, raw, vin, os.path.basename(path)
+            )
+        except Exception as err:  # noqa: BLE001 - a hand-supplied file may be anything
+            _LOGGER.warning(
+                "EU Data Act: could not parse local export %s: %s",
+                os.path.basename(path), err,
+            )
+            parsed = None
+        if parsed is None or getattr(parsed, "no_data", True):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="export_file_no_data",
+            )
+
+        hist = parsed.to_dict()
+        merged_any = False
+        with self._vehicles_lock:
+            current = self.vehicles.get(vin)
+            if not isinstance(current, dict):
+                # A car we had nothing for yet — take the snapshot.
+                self.vehicles[vin] = hist
+                merged_any = True
+            else:
+                for key, val in hist.items():
+                    if val is None:
+                        continue
+                    if current.get(key) is None:  # never clobber a live value
+                        current[key] = val
+                        merged_any = True
+        if merged_any:
+            self.async_set_updated_data(dict(self.vehicles))
+            _LOGGER.info(
+                "EU Data Act: merged local export file %s into VIN %s",
+                os.path.basename(path), mask_vin(vin),
+            )
+        else:
+            _LOGGER.info(
+                "EU Data Act: local export file for %s was read successfully but "
+                "nothing needed importing — every field it contains already has a "
+                "current value.", mask_vin(vin),
+            )
+        return merged_any
+
     async def _maybe_runtime_data_act_kickoff(self) -> None:
         """Re-provision the portal Custom Data Request at RUNTIME when a poll
         came back ``no_request`` (no active request on the portal).

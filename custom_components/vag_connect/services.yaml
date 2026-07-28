@@ -214,6 +214,31 @@ import_historical_export:
       selector:
         text:
 
+import_export_file:
+  name: Export-Datei importieren
+  description: >-
+    Importiert eine EU-Data-Act-Export-ZIP, die du selbst aus dem VW-Datenportal
+    heruntergeladen hast, ohne Portal-Verbindung. Ergänzt nur Lücken im
+    Live-Datensatz (Live-Telemetrie wird nie überschrieben). Die Datei muss in
+    einem für Home Assistant erlaubten Ordner liegen (z. B. im Konfig-Ordner);
+    ein relativer Name wird im Konfig-Ordner gesucht.
+  fields:
+    vin:
+      name: VIN
+      description: Fahrzeug, in das die Datei importiert wird.
+      required: true
+      selector:
+        text:
+    file:
+      name: Datei
+      description: >-
+        Pfad zur heruntergeladenen Export-ZIP, z. B. "export.zip" (im
+        Konfig-Ordner) oder "/share/export.zip".
+      required: true
+      example: export.zip
+      selector:
+        text:
+
 set_target_soc:
   name: Ladeziel setzen
   description: Setzt das Ladeziel des Fahrzeugs in Prozent.
