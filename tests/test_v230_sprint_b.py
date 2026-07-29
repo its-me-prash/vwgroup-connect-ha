@@ -132,13 +132,16 @@ class TestVWNAUsesNAOverrides:
 
     def test_idkauth_constructed_with_authorize_override(self) -> None:
         src = _VW_NA_PY.read_text(encoding="utf-8")
-        # The authorize URL must point at the per-country API base
-        # (b-h-s.spr.{us|ca}00.p.con-veh.net), NOT identity.vwgroup.io.
-        assert 'authorize_url_override=f"{self._base}/oidc/v1/authorize"' in src
+        # v2.26.1 (#990) — the authorize URL points at the fixed us00 OIDC proxy
+        # (_NA_OIDC_PROXY_BASE), NOT the per-country data host. ca00 has no
+        # working /oidc/v1/authorize (it 400s); the us00 proxy 302s to
+        # identity.na for every NA country, and vrouleau confirmed CA signs in
+        # there (v2.25 authenticated this way). Only api_base is per-country.
+        assert 'authorize_url_override=f"{_NA_OIDC_PROXY_BASE}/oidc/v1/authorize"' in src
 
     def test_idkauth_constructed_with_token_override(self) -> None:
         src = _VW_NA_PY.read_text(encoding="utf-8")
-        assert 'token_url_override=f"{self._base}/oidc/v1/token"' in src
+        assert 'token_url_override=f"{_NA_OIDC_PROXY_BASE}/oidc/v1/token"' in src
 
     def test_idkauth_constructed_with_idk_base_override(self) -> None:
         src = _VW_NA_PY.read_text(encoding="utf-8")

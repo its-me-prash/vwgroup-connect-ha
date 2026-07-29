@@ -93,6 +93,21 @@ class TestCaUsesOwnHostSharedClient:
         assert 'client_id = BRAND_VW_NA.client_id' in src
         assert 'if self._country == "ca"' not in src
 
+    def test_auth_uses_us00_proxy_but_api_stays_per_country(self) -> None:
+        # v2.26.1 (#990) — vrouleau proved the myVW app signs in on identity.na
+        # and that CA auth works through the us00 proxy (v2.25 authenticated;
+        # only the later data call 500'd). The Canadian ca00 host has no working
+        # /oidc/v1/authorize (400s). So the OIDC authorize+token must go to the
+        # fixed us00 proxy for every NA country, while api_base stays per-country.
+        src = _VW_NA_PY.read_text(encoding="utf-8")
+        assert '_NA_OIDC_PROXY_BASE = _COUNTRY_BASES["us"]' in src
+        assert 'authorize_url_override=f"{_NA_OIDC_PROXY_BASE}/oidc/v1/authorize"' in src
+        assert 'token_url_override=f"{_NA_OIDC_PROXY_BASE}/oidc/v1/token"' in src
+        # the auth override must no longer be gated on the per-country data host
+        assert 'authorize_url_override=f"{self._base}' not in src
+        # but the vehicle API base must still be per-country (ca00 for CA)
+        assert 'api_base=self._base' in src
+
 
 class TestCountryConstAndSelector:
     """const.py defines CONF_COUNTRY; config_flow builds the dropdown."""
