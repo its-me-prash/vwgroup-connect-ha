@@ -38,6 +38,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.26.1] - 2026-07-29
+
+### Fixed
+- **Volkswagen Canada sign-in reaches the right host again (#990, #915).** v2.26.0 sent Canada to its own regional host (ca00) for everything, including the login. That was half right: the vehicle data does live on ca00, but the login does not, and ca00 has no working authorize endpoint, so Canadian setup started failing at the login step with an HTTP 400 (before v2.26.0 it got past the login and failed later with a 500). A Canadian owner confirmed the official app signs in on the shared North America identity host, so the login now goes back there (as it did in 2.25.0) while only the vehicle data stays on ca00. Thanks to vrouleau for the capture and the details.
+
 ## [2.26.0] - 2026-07-27
 
 > This release is about the companion (ADB) channel from 2.25.0, and it changes nothing for anyone not using it. Two things stand out: the Volkswagen screen-reading is now grounded against a real, independently verified reference instead of our own guesses, and CUPRA reads real data for the first time thanks to a contributor's screen dump. Command sending on the companion channel is paused for now — see below.

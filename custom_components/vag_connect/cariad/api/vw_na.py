@@ -111,6 +111,18 @@ _COUNTRY_BASES: dict[str, str] = {
     "ca": "https://b-h-s.spr.ca00.p.con-veh.net",
 }
 
+# v2.26.1 (#990/#915) — OIDC authorize/token PROXY host for every NA country.
+# vrouleau confirmed the myVW app signs in on identity.na.vwgroup.io, and that
+# v2.25 (which sent every NA country through us00) authenticated fine; only the
+# vehicle-DATA host is per-country. The Canadian data host ca00 does NOT front a
+# working /oidc/v1/authorize (it returns HTTP 400 before any credentials are
+# submitted), so the auth flow must stay on the us00 con-veh proxy that 302s to
+# the NA IDP for ALL NA countries, while api_base (the vehicle reads/commands)
+# stays per-country from _COUNTRY_BASES above. This is the v2.26.0 regression:
+# routing CA auth to ca00 moved the failure from a late 500 (v2.25, us00 data
+# host wrong for a CA car) to an early 400 (ca00 has no authorize proxy).
+_NA_OIDC_PROXY_BASE = _COUNTRY_BASES["us"]
+
 BRAND_VW_NA = BrandConfig(
     name="volkswagen_na",
     client_id="59992128-69a9-42c3-8621-7942041ba824_MYVW_ANDROID",
@@ -183,14 +195,16 @@ class VWNAClient:
         # v2.3.0 (#269 roberttco, 2026-05-21) — VW NA auth requires four
         # IDP overrides vs the default identity.vwgroup.io (EU) flow:
         #
-        #   1. authorize_url_override → ``{api_base}/oidc/v1/authorize``
-        #      (per-country host b-h-s.spr.{us|ca}00.p.con-veh.net,
-        #      NOT identity.vwgroup.io). The MYVW_ANDROID client_id is
-        #      only registered against this host — sending it to the EU
-        #      IDP returns HTTP 400 (user's log on #269).
+        #   1. authorize_url_override → ``{_NA_OIDC_PROXY_BASE}/oidc/v1/authorize``
+        #      (the us00 con-veh proxy, NOT identity.vwgroup.io). The
+        #      MYVW_ANDROID client_id is only registered against this host —
+        #      sending it to the EU IDP returns HTTP 400 (user's log on #269).
+        #      v2.26.1 (#990): this is the us00 proxy for EVERY NA country, not
+        #      the per-country data host. The ca00 host has no working authorize
+        #      endpoint (it 400s), and vrouleau confirmed CA signs in here fine.
         #
-        #   2. token_url_override → ``{api_base}/oidc/v1/token`` — same
-        #      host for both code-exchange and refresh-token calls. The
+        #   2. token_url_override → ``{_NA_OIDC_PROXY_BASE}/oidc/v1/token`` — same
+        #      us00 host for both code-exchange and refresh-token calls. The
         #      default fallback (emea.bff.cariad.digital/login/v1/idk/
         #      token) does not know NA client_ids.
         #
@@ -232,8 +246,8 @@ class VWNAClient:
         self._auth = IDKAuth(
             session,
             brand,
-            authorize_url_override=f"{self._base}/oidc/v1/authorize",
-            token_url_override=f"{self._base}/oidc/v1/token",
+            authorize_url_override=f"{_NA_OIDC_PROXY_BASE}/oidc/v1/authorize",
+            token_url_override=f"{_NA_OIDC_PROXY_BASE}/oidc/v1/token",
             idk_base_override=_NA_IDP_BASE,
         )
         # UUID cache: VIN → UUID (returned by garage)
