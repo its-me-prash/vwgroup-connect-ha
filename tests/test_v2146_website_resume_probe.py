@@ -202,3 +202,80 @@ async def test_headers_send_x_csrf_token_from_cookie() -> None:
     conn = WebsiteAuthProxyConnector(_S(), "u@x.z", "pw")  # type: ignore[arg-type]
     headers = conn._headers()
     assert headers["x-csrf-token"] == "CSRF-123"
+
+
+# ── silent-resume redirect budget (learned from a competitor's 2026-07 fix) ──
+#
+# The resume GET issues the IDENTICAL request begin_login does, but it used to
+# run at aiohttp's default of 10 hops while begin_login was deliberately given
+# 20, and it had no TooManyRedirects guard. When VW lengthened the SSO chain,
+# the resume aborted (and the reason was redacted into a generic error) while
+# the interactive login still worked.
+
+@pytest.mark.asyncio
+async def test_refresh_uses_the_same_redirect_budget_as_begin_login() -> None:
+    """The resume GET must not cap lower than the identical begin_login GET."""
+    seen: dict[str, Any] = {}
+
+    class _S:
+        def get(self, url: str, **kw: Any) -> _Resp:
+            seen.update(kw)
+            seen["url"] = url
+            return _Resp("https://www.volkswagen.de/de.html", 200)
+
+    conn = WebsiteAuthProxyConnector(_S(), "u@x.z", "pw")  # type: ignore[arg-type]
+    try:
+        await conn.refresh()
+    except Exception:  # noqa: BLE001 - the landing decision is not under test
+        pass
+    assert seen.get("max_redirects") == 20, (
+        "resume must use the same redirect budget as begin_login"
+    )
+
+
+@pytest.mark.asyncio
+async def test_refresh_redirect_loop_is_clean_auth_error() -> None:
+    """An over-long or looping SSO chain on resume surfaces as a clean
+    ``AuthenticationError``, not a raw aiohttp error reaching the poll."""
+    class _S:
+        def get(self, url: str, **kw: Any) -> Any:
+            raise TooManyRedirects(None, ())  # type: ignore[arg-type]
+
+    conn = WebsiteAuthProxyConnector(_S(), "u@x.z", "pw")  # type: ignore[arg-type]
+    with pytest.raises(AuthenticationError):
+        await conn.refresh()
+
+
+@pytest.mark.asyncio
+async def test_import_cookies_does_not_broadcast_a_colliding_name() -> None:
+    """VW reuses some cookie names across both hosts with different values.
+
+    Broadcasting those makes the last one written win on BOTH hosts, so one
+    host gets the wrong value. A colliding name must go only to its own host;
+    every other cookie (incl. the host-only SSO one) still broadcasts.
+    """
+    from yarl import URL
+
+    written: list[tuple[str, str, str]] = []
+
+    class _Jar:
+        def update_cookies(self, cookies: dict, response_url: Any = None) -> None:
+            for name, morsel in cookies.items():
+                written.append((str(name), str(morsel.value), str(URL(response_url).host)))
+
+    class _S:
+        cookie_jar = _Jar()
+
+    conn = WebsiteAuthProxyConnector(_S(), "u@x.z", "pw")  # type: ignore[arg-type]
+    conn.import_cookies([
+        {"name": "shared", "value": "site-value", "domain": "www.volkswagen.de"},
+        {"name": "shared", "value": "idp-value", "domain": "identity.vwgroup.io"},
+        {"name": "auth0", "value": "sso", "domain": "identity.vwgroup.io"},
+    ])
+
+    site = {(v, h) for n, v, h in written if n == "shared" and "volkswagen.de" in h}
+    idp = {(v, h) for n, v, h in written if n == "shared" and "vwgroup.io" in h}
+    assert site == {("site-value", "www.volkswagen.de")}, "site host got the wrong value"
+    assert idp == {("idp-value", "identity.vwgroup.io")}, "idp host got the wrong value"
+    # The non-colliding SSO cookie must still reach BOTH hosts.
+    assert len({h for n, _v, h in written if n == "auth0"}) == 2

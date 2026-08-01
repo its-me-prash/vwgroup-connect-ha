@@ -38,6 +38,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.26.2] - 2026-08-01
+
+### Fixed
+- **The "Visit" link on the car's device page works again (#1001).** The Volkswagen, Skoda and SEAT links pointed at owner pages those brands have since renamed, so the button led to a 404. All brand links were re-checked and the dead ones now point at pages that exist.
+- **The saved volkswagen.de session no longer sends one host the wrong cookie.** VW reuses a few cookie names across its two sign-in hosts with different values for each. Restoring the saved session pushed every cookie to both hosts, so for those names whichever one was written last won on both and one host always got the wrong value. Names that differ per host are now restored only to the host they came from; everything else, including the single sign-on cookie that makes the silent resume work, is unchanged.
+- **SEAT and CUPRA doors could still read "open" on a locked car.** When the car reports locked but the (sometimes stale) door positions still say open, the integration trusts the lock and forces the doors closed. That safeguard was written before the v2.23.2 open/closed correction and was missed by it, so it forced them to the wrong value and every per-door sensor showed "Open" on a locked car. It now writes closed, as its own log line always claimed. A second, dormant path that reads the older flat door format had the same leftover inversion and is fixed too, and the tests for both now drive the real parser instead of a copy of the logic, which is why this went unnoticed for so long.
+- **Resuming the extra volkswagen.de session no longer gives up on a longer sign-in chain.** The silent resume sends exactly the same request as the interactive login, but it allowed only half as many redirect hops and reported the resulting failure as a generic, redacted error. If the sign-in chain gets longer at VW's end, the resume would fail while a fresh login still worked, and the log would not say why. It now uses the same budget as the login and reports a clear "re-authentication needed" instead.
+
 ## [2.26.1] - 2026-07-29
 
 ### Fixed

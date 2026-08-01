@@ -2147,12 +2147,16 @@ class TestSeatCupraGetStatus:
         result = asyncio.run(
             client.get_status("VSSZZE1KZLR000005"))
 
-        # New-shape parsing produces nothing → legacy fallback fires
+        # New-shape parsing produces nothing → legacy fallback fires.
+        # doors_individual stores True == OPEN (v2.23.2 convention), and the
+        # source field is "doorClosed*", so the values invert on the way in.
+        # This assertion used to pin the pre-v2.23.2 meaning, which is why the
+        # legacy path kept rendering every door backwards.
         assert result.doors_individual == {
-            "frontLeft":  False,  # open
-            "frontRight": True,
-            "rearLeft":   True,
-            "rearRight":  True,
+            "frontLeft":  True,   # doorClosedLeftFront False → open
+            "frontRight": False,  # doorClosedRightFront True → closed
+            "rearLeft":   False,
+            "rearRight":  False,
         }
         assert result.doors_open is True
         assert result.windows_open is False

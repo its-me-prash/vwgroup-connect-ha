@@ -15,6 +15,8 @@ client (HA dep); instead we mirror the parse paths used in
 
 from __future__ import annotations
 
+import asyncio
+
 
 # ── /v1/mileage parse contract ──────────────────────────────────────────────
 
@@ -189,34 +191,56 @@ class TestDoorsLockedConsistencySafeguard:
     stick at the last-known value). Override to closed.
     """
 
+    # These used to be inline copies of the safeguard's logic, so they passed
+    # while the real parser wrote the opposite polarity for years. They now
+    # drive SeatCupraClient.get_status itself. doors_individual stores
+    # True == OPEN (v2.23.2), so "forced closed" means every value is False.
+
+    @staticmethod
+    def _status(locked: bool, door_open: bool) -> dict:
+        # Real OLA shape: status.doors.{pos}.{open: "open"|"closed", locked: bool}
+        state = "open" if door_open else "closed"
+        return {
+            "doors": {
+                pos: {"open": state, "locked": locked}
+                for pos in ("frontLeft", "frontRight", "rearLeft", "rearRight")
+            },
+        }
+
+    def _doors(self, body: dict):
+        from tests.test_cariad import TestSeatCupraGetStatus
+
+        helper = TestSeatCupraGetStatus()
+        client = helper._client_with_url_routing("cupra", {"/v2/vehicles/": body})
+        return asyncio.run(client.get_status("VSSZZE1KZLR000005"))
+
     def test_consistent_locked_closed_no_override(self) -> None:
         """Normal case — locked + closed agree, no change."""
-        d_locked, d_open = True, False
-        individual = {"frontLeft": True, "frontRight": True,
-                      "rearLeft": True, "rearRight": True}
-        if d_locked is True and d_open is True:  # not the case here
-            d_open = False
-            individual = {k: True for k in individual}
-        assert d_open is False
-        assert all(individual.values())
+        res = self._doors(self._status(True, door_open=False))
+        assert res.doors_open is False
+        assert res.doors_individual == dict.fromkeys(res.doors_individual, False)
 
     def test_locked_but_open_overrides_to_closed(self) -> None:
-        """DanielBie's exact scenario — locked + open contradict, lock wins."""
-        d_locked = True
-        d_open = True  # stale per-door cache
-        individual = {"frontLeft": False, "frontRight": False,
-                      "rearLeft": False, "rearRight": False}  # all open
-        # Override:
-        if d_locked is True and d_open is True:
-            d_open = False
-            individual = {k: True for k in individual}
-        assert d_open is False
-        assert all(individual.values()), (
-            "all per-door entries must be True (closed) after override"
+        """DanielBie's scenario — locked + open contradict, the lock wins.
+
+        The regression this now catches: the safeguard used to write True for
+        every door while True means OPEN, so a locked car rendered all four
+        per-door sensors as "Open" (ckomma hit the same polarity class).
+        """
+        res = self._doors(self._status(True, door_open=True))
+        assert res.doors_open is False
+        assert res.doors_individual, "per-door map must survive the override"
+        assert not any(res.doors_individual.values()), (
+            "every per-door entry must read closed (False) after the override"
         )
 
     def test_unlocked_open_no_override(self) -> None:
-        """User legitimately opened the door — no override should apply."""
+        """User legitimately opened a door — no override should apply."""
+        res = self._doors(self._status(False, door_open=True))
+        assert res.doors_open is True
+        assert any(res.doors_individual.values()), (
+            "an open door on an unlocked car must stay open"
+        )
         d_locked = False
         d_open = True
         individual = {"frontLeft": False, "frontRight": True,
