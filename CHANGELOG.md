@@ -38,7 +38,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
-## [Unreleased]
+## [2.26.2] - 2026-08-01
 
 ### Fixed
 - **The saved volkswagen.de session no longer sends one host the wrong cookie.** VW reuses a few cookie names across its two sign-in hosts with different values for each. Restoring the saved session pushed every cookie to both hosts, so for those names whichever one was written last won on both and one host always got the wrong value. Names that differ per host are now restored only to the host they came from; everything else, including the single sign-on cookie that makes the silent resume work, is unchanged.
