@@ -96,16 +96,24 @@ class TestPortalTimeoutRetry:
                 asyncio.run(conn._get_json("https://x/y", soft=False))
         assert sess.get.call_count == _ATTEMPTS
 
-    def test_status_5xx_path_still_works(self) -> None:
-        """Regression shield: the existing HTTP-status retry path is untouched —
-        a non-soft 5xx still raises AuthenticationError immediately."""
-        r = AsyncMock()
-        r.status = 500
-        r.__aenter__ = AsyncMock(return_value=r)
-        r.__aexit__ = AsyncMock(return_value=False)
-        sess = _session_seq([r])
+    def test_status_5xx_path_matches_the_timeout_path(self) -> None:
+        """A non-soft 5xx now retries like a non-soft timeout already did.
+
+        This test used to assert the opposite (raise on the first 5xx) purely
+        because the retry was nested in the soft branch, which made the two
+        transient-failure kinds behave differently on the same call. The end
+        state is unchanged: after the retries a hard call still raises.
+        """
+        def _r() -> AsyncMock:
+            r = AsyncMock()
+            r.status = 500
+            r.__aenter__ = AsyncMock(return_value=r)
+            r.__aexit__ = AsyncMock(return_value=False)
+            return r
+
+        sess = _session_seq([_r() for _ in range(_ATTEMPTS)])
         conn = _conn(sess)
         with patch(_SLEEP, new=AsyncMock()):
             with pytest.raises(AuthenticationError):
                 asyncio.run(conn._get_json("https://x/y", soft=False))
-        assert sess.get.call_count == 1
+        assert sess.get.call_count == _ATTEMPTS

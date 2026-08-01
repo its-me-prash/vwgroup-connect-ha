@@ -1797,6 +1797,15 @@ def map_dataset_to_vehicle_data(
                           "charge_bcam_threshold"))
     if _bcam is not None:
         d.battery_care_target_soc_pct = _bcam
+        # Some cars (the Audi Q4 e-tron is the known one) ship this threshold
+        # and no settings.target_soc at all, so the headline charge-target
+        # sensor was never created for them even though the car does have a
+        # ceiling. When battery care is the only limit reported, it IS the
+        # effective charge target, so fill the gap with it. Gap-fill only: an
+        # explicit target_soc above always wins, and the battery-care value
+        # stays available in its own sensor either way.
+        if d.target_soc is None:
+            d.target_soc = _bcam
 
     # energy_contents.{current,maximal}_energy_content.physical_value gated on
     # the companion value_type being valid.
@@ -3086,13 +3095,22 @@ class EUDataActConnector:
                     url, headers=eff_headers, timeout=ClientTimeout(total=_TIMEOUT_S),
                 ) as resp:
                     if resp.status >= 400:
+                        # Retry a retriable 5xx regardless of ``soft``. This
+                        # used to sit inside the soft branch, so a HARD call
+                        # (VIN enumeration is one) raised on the first portal
+                        # hiccup with no retry at all, while a transport
+                        # timeout on the very same call retried three times.
+                        # The outcome after the retries is unchanged: soft
+                        # gives up as "no data", hard still raises — which
+                        # matters, because an empty VIN list is read as "this
+                        # account has no cars" and fails setup outright.
+                        if (
+                            resp.status in _RETRIABLE_STATUSES
+                            and attempt < len(_PORTAL_RETRY_DELAYS)
+                        ):
+                            await asyncio.sleep(_PORTAL_RETRY_DELAYS[attempt])
+                            continue
                         if soft and resp.status in _TRANSIENT_STATUSES:
-                            if (
-                                resp.status in _RETRIABLE_STATUSES
-                                and attempt < len(_PORTAL_RETRY_DELAYS)
-                            ):
-                                await asyncio.sleep(_PORTAL_RETRY_DELAYS[attempt])
-                                continue
                             return None
                         raise AuthenticationError(
                             f"EU Data Act GET {url} → HTTP {resp.status}"
