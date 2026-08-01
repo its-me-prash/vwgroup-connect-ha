@@ -1206,17 +1206,13 @@ class SeatCupraClient(CariadBaseClient):
                                    .replace("RightFront", "frontRight")
                                    .replace("LeftBack", "rearLeft")
                                    .replace("RightBack", "rearRight"))
-                        # v1.8.10 hotfix: pre-v1.8.9 legacy code had
-                        # ``doors_legacy[door_id] = not val`` which inverted
-                        # the semantics — the field is named "doorClosed*"
-                        # so ``True`` means the door IS closed, matching our
-                        # ``doors_individual`` convention (True == closed).
-                        # The accidental ``not val`` was caught by the v1.8.9
-                        # regression test ``test_v189_status_legacy_flat_fallback_still_works``
-                        # which failed in CI on the v1.8.9 PR (#82) but the
-                        # PR was merged anyway because branch protection on
-                        # required-checks isn't enabled.
-                        doors_legacy[door_id] = bool(val)
+                        # The source field is named "doorClosed*", so True here
+                        # means the door IS closed — but ``doors_individual``
+                        # stores True == OPEN (v2.23.2, see the main path
+                        # above), so the value has to be inverted on the way in.
+                        # This dormant legacy path kept the pre-v2.23.2
+                        # convention and was missed by that flip.
+                        doors_legacy[door_id] = not bool(val)
                 if doors_legacy:
                     d.doors_individual = doors_legacy
 
@@ -2388,9 +2384,11 @@ class SeatCupraClient(CariadBaseClient):
             )
             d.doors_open = False
             if d.doors_individual:
-                # True == closed per the upstream parser convention.
+                # True == OPEN (the v2.23.2 convention this branch was missed
+                # by), so "forcing closed" writes False. Writing True here made
+                # the safeguard render every door as open on a locked car.
                 d.doors_individual = {
-                    pos: True for pos in d.doors_individual
+                    pos: False for pos in d.doors_individual
                 }
 
         # ── Availability ─────────────────────────────────────────────────────

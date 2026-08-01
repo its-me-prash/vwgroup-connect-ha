@@ -202,3 +202,45 @@ async def test_headers_send_x_csrf_token_from_cookie() -> None:
     conn = WebsiteAuthProxyConnector(_S(), "u@x.z", "pw")  # type: ignore[arg-type]
     headers = conn._headers()
     assert headers["x-csrf-token"] == "CSRF-123"
+
+
+# ── silent-resume redirect budget (learned from a competitor's 2026-07 fix) ──
+#
+# The resume GET issues the IDENTICAL request begin_login does, but it used to
+# run at aiohttp's default of 10 hops while begin_login was deliberately given
+# 20, and it had no TooManyRedirects guard. When VW lengthened the SSO chain,
+# the resume aborted (and the reason was redacted into a generic error) while
+# the interactive login still worked.
+
+@pytest.mark.asyncio
+async def test_refresh_uses_the_same_redirect_budget_as_begin_login() -> None:
+    """The resume GET must not cap lower than the identical begin_login GET."""
+    seen: dict[str, Any] = {}
+
+    class _S:
+        def get(self, url: str, **kw: Any) -> _Resp:
+            seen.update(kw)
+            seen["url"] = url
+            return _Resp("https://www.volkswagen.de/de.html", 200)
+
+    conn = WebsiteAuthProxyConnector(_S(), "u@x.z", "pw")  # type: ignore[arg-type]
+    try:
+        await conn.refresh()
+    except Exception:  # noqa: BLE001 - the landing decision is not under test
+        pass
+    assert seen.get("max_redirects") == 20, (
+        "resume must use the same redirect budget as begin_login"
+    )
+
+
+@pytest.mark.asyncio
+async def test_refresh_redirect_loop_is_clean_auth_error() -> None:
+    """An over-long or looping SSO chain on resume surfaces as a clean
+    ``AuthenticationError``, not a raw aiohttp error reaching the poll."""
+    class _S:
+        def get(self, url: str, **kw: Any) -> Any:
+            raise TooManyRedirects(None, ())  # type: ignore[arg-type]
+
+    conn = WebsiteAuthProxyConnector(_S(), "u@x.z", "pw")  # type: ignore[arg-type]
+    with pytest.raises(AuthenticationError):
+        await conn.refresh()

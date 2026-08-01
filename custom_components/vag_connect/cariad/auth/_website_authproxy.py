@@ -600,15 +600,36 @@ class WebsiteAuthProxyConnector:
         ``begin_login`` flow; a surfaced OTP requirement raises so the caller
         can route the user back through the OTP UI.
         """
-        async with self._session.get(
-            f"{_SITE_BASE}{_LOGIN_PATH}",
-            params=_LOGIN_PARAMS,
-            headers=self._headers(),
-            allow_redirects=True,
-            timeout=ClientTimeout(total=_TIMEOUT_S),
-        ) as resp:
-            landed = str(resp.url)
-            status = resp.status
+        # The silent resume issues the IDENTICAL request begin_login does, so it
+        # needs the identical redirect budget. It used to run at aiohttp's
+        # default of 10 hops while begin_login was deliberately given 20, and
+        # _LOGIN_PARAMS fans out over two function-access groups (a two-leg
+        # OAuth chain in one run), so a lengthened VW SSO chain aborted here
+        # while the interactive login sailed through. A raw TooManyRedirects
+        # also escaped as a redacted generic error, hiding the reason.
+        try:
+            async with self._session.get(
+                f"{_SITE_BASE}{_LOGIN_PATH}",
+                params=_LOGIN_PARAMS,
+                headers=self._headers(),
+                allow_redirects=True,
+                max_redirects=20,
+                timeout=ClientTimeout(total=_TIMEOUT_S),
+            ) as resp:
+                landed = str(resp.url)
+                status = resp.status
+        except TooManyRedirects as exc:
+            # Same contract as begin_login: surface a normal auth failure so the
+            # caller re-authenticates instead of a raw aiohttp error reaching
+            # the poll. Hostnames only, so the OAuth state never lands in a log.
+            _LOGGER.debug(
+                "Website authproxy refresh GET redirect LOOP — chain: %s",
+                self._redirect_hosts(getattr(exc, "history", ())),
+            )
+            raise AuthenticationError(
+                "Website authproxy: redirect loop or over-long SSO chain "
+                "resuming the session — re-authentication needed"
+            ) from exc
 
         # prompt=none silent re-authorize: a LIVE Auth0 SSO cookie mints a fresh
         # portal session and lands us back on volkswagen.de. A DEAD SSO bounces
