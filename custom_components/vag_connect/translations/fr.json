@@ -1155,6 +1155,27 @@
       },
       "climatisation_timers_pending": {
         "name": "Changements de minuterie de climatisation en attente"
+      },
+      "calibration_need_detected": {
+        "name": "Étalonnage batterie requis"
+      },
+      "calibration_request_initial": {
+        "name": "Demande d'étalonnage"
+      },
+      "calibration_request_escalation_1": {
+        "name": "Rappel d'étalonnage"
+      },
+      "calibration_request_escalation_2": {
+        "name": "Dernier rappel d'étalonnage"
+      },
+      "calibration_request_method": {
+        "name": "Méthode d'étalonnage"
+      },
+      "calibration_failure": {
+        "name": "Échec de l'étalonnage"
+      },
+      "calibration_failure_reason": {
+        "name": "Motif de l'échec d'étalonnage"
       }
     },
     "binary_sensor": {

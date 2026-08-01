@@ -1792,6 +1792,28 @@ def map_dataset_to_vehicle_data(
     ):
         d.charging_preferred_mode = _shorten_enum(_cmode)
 
+    # #1020 — HV-battery calibration notifications. Every one of these is an
+    # enum that VW's own data dictionary names and describes, so nothing is
+    # inferred here: the car flags that a calibration is needed, asks (then
+    # escalates twice), names the method it wants, and reports a failure with a
+    # reason. Stored shortened for display, like the other enum states.
+    for _cal_key, _cal_attr in (
+        ("calibration_need_detected", "calibration_need_detected"),
+        ("calibration_requests.calibration_request_initial",
+         "calibration_request_initial"),
+        ("calibration_requests.calibration_request_escalation_1",
+         "calibration_request_escalation_1"),
+        ("calibration_requests.calibration_request_escalation_2",
+         "calibration_request_escalation_2"),
+        ("calibration_request_method", "calibration_request_method"),
+        ("calibration_failure", "calibration_failure"),
+        ("calibration_failure_reason", "calibration_failure_reason"),
+    ):
+        _bare = _cal_key.rsplit(".", 1)[-1]
+        _cal_val = first(_cal_key, _bare)
+        if _cal_val and getattr(d, _cal_attr) is None:
+            setattr(d, _cal_attr, _shorten_enum(_cal_val))
+
     # battery_care_mode.charge_bcam_threshold → battery_care_target_soc_pct.
     _bcam = _to_int(first("battery_care_mode.charge_bcam_threshold",
                           "charge_bcam_threshold"))

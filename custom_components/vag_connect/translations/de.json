@@ -1164,6 +1164,27 @@
       },
       "climatisation_timers_pending": {
         "name": "Klima-Timer-Änderungen ausstehend"
+      },
+      "calibration_need_detected": {
+        "name": "Batteriekalibrierung nötig"
+      },
+      "calibration_request_initial": {
+        "name": "Kalibrierungsanfrage"
+      },
+      "calibration_request_escalation_1": {
+        "name": "Kalibrierung Erinnerung"
+      },
+      "calibration_request_escalation_2": {
+        "name": "Kalibrierung letzte Erinnerung"
+      },
+      "calibration_request_method": {
+        "name": "Kalibrierungsmethode"
+      },
+      "calibration_failure": {
+        "name": "Kalibrierungsfehler"
+      },
+      "calibration_failure_reason": {
+        "name": "Grund des Kalibrierungsfehlers"
       }
     },
     "binary_sensor": {

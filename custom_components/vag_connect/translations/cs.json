@@ -1155,6 +1155,27 @@
       },
       "climatisation_timers_pending": {
         "name": "Změny časovače klimatizace čekají"
+      },
+      "calibration_need_detected": {
+        "name": "Nutná kalibrace baterie"
+      },
+      "calibration_request_initial": {
+        "name": "Žádost o kalibraci"
+      },
+      "calibration_request_escalation_1": {
+        "name": "Připomenutí kalibrace"
+      },
+      "calibration_request_escalation_2": {
+        "name": "Poslední připomenutí kalibrace"
+      },
+      "calibration_request_method": {
+        "name": "Metoda kalibrace"
+      },
+      "calibration_failure": {
+        "name": "Chyba kalibrace"
+      },
+      "calibration_failure_reason": {
+        "name": "Důvod chyby kalibrace"
       }
     },
     "binary_sensor": {

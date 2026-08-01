@@ -322,6 +322,65 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # #1020 — HV-battery calibration notifications. All diagnostic and
+    # disabled by default: most owners never see anything but NONE, and the
+    # ones who do want to know without hunting through the app.
+    VagSensorDescription(
+        key="calibration_need_detected",
+        translation_key="calibration_need_detected",
+        data_key="calibration_need_detected",
+        icon="mdi:battery-sync",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="calibration_request_initial",
+        translation_key="calibration_request_initial",
+        data_key="calibration_request_initial",
+        icon="mdi:battery-clock",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="calibration_request_escalation_1",
+        translation_key="calibration_request_escalation_1",
+        data_key="calibration_request_escalation_1",
+        icon="mdi:battery-alert-variant",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="calibration_request_escalation_2",
+        translation_key="calibration_request_escalation_2",
+        data_key="calibration_request_escalation_2",
+        icon="mdi:battery-alert-variant-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="calibration_request_method",
+        translation_key="calibration_request_method",
+        data_key="calibration_request_method",
+        icon="mdi:battery-charging-medium",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="calibration_failure",
+        translation_key="calibration_failure",
+        data_key="calibration_failure",
+        icon="mdi:battery-remove",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    VagSensorDescription(
+        key="calibration_failure_reason",
+        translation_key="calibration_failure_reason",
+        data_key="calibration_failure_reason",
+        icon="mdi:information-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     # v2.18.0 — Scout #799: queued charge-PROFILE changes
     # (``automation.chargingProfiles.requests``). Same *_pending diagnostic.
     VagSensorDescription(

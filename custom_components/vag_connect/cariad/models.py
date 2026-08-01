@@ -609,6 +609,23 @@ class VehicleData:
     # it is now mapped to this diagnostic state instead of suppressed.
     battery_support_state: str | None = None
 
+    # #1020 — HV-battery calibration notifications. The car asks the owner to
+    # run a calibration (a full charge, sometimes with a specified AC rate),
+    # escalates if it is ignored, and reports whether the attempt failed. All
+    # enums, all named and described in VW's own data dictionary, so the
+    # meanings below are theirs and not inferred:
+    #   calibration_need_detected  — "first hint for battery calibration"
+    #   calibration_request_*      — UNDEFINED / NONE / ACTIVE / ACK / REJECT
+    #   calibration_request_method — e.g. FULL_CHARGE_RELAX / _AC60 / _AC95
+    #   calibration_failure(_reason) — whether an attempt failed, and why
+    calibration_need_detected: str | None = None
+    calibration_request_initial: str | None = None
+    calibration_request_escalation_1: str | None = None
+    calibration_request_escalation_2: str | None = None
+    calibration_request_method: str | None = None
+    calibration_failure: str | None = None
+    calibration_failure_reason: str | None = None
+
     # Rear sunroof + Cabrio roof cover state. Both are window-array
     # entries; ``sunRoofRear`` covers panoramic rear glass roofs
     # (Touareg, Tiguan Allspace), ``roofCover`` covers convertible
