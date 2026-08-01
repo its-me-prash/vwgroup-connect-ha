@@ -1256,11 +1256,21 @@ def map_dataset_to_vehicle_data(
     # already-kW as the old #518 "convention" assumed (dict UUID 978be4ed states no
     # unit/resolution, only "Power of charging"). Only chargePower_kW (kW by name)
     # stays UNSCALED.
+    # #1022 (ID.7, MEB) — but NOT every car uses that encoding. This one sends
+    # 10.399994 while on an 11 kW AC wallbox, i.e. already kW, and dividing it
+    # by ten reported 1.0 kW. The discriminator is the fractional part: a
+    # deci-kW reading counts whole 0.1-kW steps, so it arrives as an integer
+    # (65, 19), while a value carrying decimals is already in kW. Verified
+    # against all three grounded reports: 65 -> 6.5, 19 -> 1.9, 10.399994 ->
+    # 10.4. Integer readings keep behaving exactly as before.
     cp_deci = _to_float(first(
         "battery_state_report.charge_power", "charge_power", "charging_power",
     ))
     if cp_deci is not None:
-        d.charging_power_kw = round(cp_deci / 10.0, 1)
+        if cp_deci % 1 != 0:
+            d.charging_power_kw = round(cp_deci, 1)
+        else:
+            d.charging_power_kw = round(cp_deci / 10.0, 1)
     else:
         cp_kw = _to_float(first("chargePower_kW"))
         if cp_kw is not None:
