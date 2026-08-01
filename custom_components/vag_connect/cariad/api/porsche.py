@@ -271,6 +271,8 @@ class PorscheClient:
         vin: str,
         latitude: float | None = None,  # noqa: ARG002
         longitude: float | None = None,  # noqa: ARG002
+        duration_s: int = 10,  # noqa: ARG002 - value not grounded for this brand
+        honk: bool = False,  # noqa: ARG002 - value not grounded for this brand
     ) -> None:
         await self._command(vin, "HONK_FLASH")
 

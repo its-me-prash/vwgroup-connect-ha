@@ -945,6 +945,8 @@ class VWEUClient(CariadBaseClient):
         vin: str,
         latitude: float | None = None,
         longitude: float | None = None,
+        duration_s: int = 10,
+        honk: bool = False,
     ) -> None:
         """Flash the lights — CARIAD-BFF ``honkandflash`` endpoint.
 
@@ -1004,7 +1006,14 @@ class VWEUClient(CariadBaseClient):
         # HonkAndFlashParameters uses @SerialName("duration_s") on
         # durationInSeconds); the old ``duration`` was an unknown key the backend
         # silently dropped, so the flash always ran the backend default length.
-        body: dict[str, Any] = {"mode": "FLASH_ONLY", "duration_s": 10}
+        # #1009 — the app's own signal screen offers both of these, and the
+        # wire contract already carries them: the CARIAD ``Mode`` enum has
+        # exactly HONK_AND_FLASH and FLASH_ONLY, and ``duration_s`` is plain
+        # seconds. Defaults reproduce the previous fixed 10-second flash.
+        body: dict[str, Any] = {
+            "mode": "HONK_AND_FLASH" if honk else "FLASH_ONLY",
+            "duration_s": int(duration_s),
+        }
         try:
             await self._post_command(vin, "honkandflash", json=body)
             return

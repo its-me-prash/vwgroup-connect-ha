@@ -1052,8 +1052,15 @@ class CariadBaseClient:
         vin: str,
         latitude: float | None = None,
         longitude: float | None = None,
+        duration_s: int = 10,
+        honk: bool = False,
     ) -> None:
-        """Honk and flash. SEAT/CUPRA require the user position; others ignore it."""
+        """Honk and flash. SEAT/CUPRA require the user position; others ignore it.
+
+        ``duration_s`` and ``honk`` (#1009) default to the previous behaviour —
+        a 10-second lights-only signal — so a brand client that ignores them
+        behaves exactly as it did before.
+        """
         raise NotImplementedError
 
     async def command_wake(self, vin: str) -> None:
