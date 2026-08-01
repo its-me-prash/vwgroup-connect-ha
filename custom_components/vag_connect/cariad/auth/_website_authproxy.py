@@ -798,6 +798,18 @@ class WebsiteAuthProxyConnector:
             from yarl import URL  # noqa: PLC0415
         except ImportError:
             return
+        # VW reuses some cookie NAMES across the two hosts with DIFFERENT
+        # values. Broadcasting those would make whichever entry is written last
+        # win on BOTH hosts, so one host is guaranteed the wrong value (a
+        # neighbouring project hit exactly this). Export already stamps each
+        # cookie with its real host, so for a colliding name we bind per host
+        # instead of broadcasting. Every non-colliding cookie — including the
+        # host-only SSO cookie the broadcast exists for — is untouched.
+        _values_per_name: dict[str, set[str]] = {}
+        for ck in cookies:
+            if isinstance(ck, dict) and ck.get("name") and ck.get("value") is not None:
+                _values_per_name.setdefault(str(ck["name"]), set()).add(str(ck["value"]))
+        colliding = {n for n, vals in _values_per_name.items() if len(vals) > 1}
         for ck in cookies:
             if not isinstance(ck, dict):
                 continue
@@ -824,7 +836,14 @@ class WebsiteAuthProxyConnector:
                         morsel[attr] = ck[attr]
                     except (KeyError, ValueError):
                         pass
-            for host in _COOKIE_HOSTS:
+            if str(name) in colliding:
+                # Ambiguous name: send this value only to the host it came from.
+                targets = tuple(
+                    h for h in _COOKIE_HOSTS if (URL(h).host or "") in domain
+                ) or (_COOKIE_HOSTS[0],)
+            else:
+                targets = _COOKIE_HOSTS
+            for host in targets:
                 try:
                     self._session.cookie_jar.update_cookies(
                         {str(name): morsel}, response_url=URL(host),

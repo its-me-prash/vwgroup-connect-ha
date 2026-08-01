@@ -244,3 +244,38 @@ async def test_refresh_redirect_loop_is_clean_auth_error() -> None:
     conn = WebsiteAuthProxyConnector(_S(), "u@x.z", "pw")  # type: ignore[arg-type]
     with pytest.raises(AuthenticationError):
         await conn.refresh()
+
+
+@pytest.mark.asyncio
+async def test_import_cookies_does_not_broadcast_a_colliding_name() -> None:
+    """VW reuses some cookie names across both hosts with different values.
+
+    Broadcasting those makes the last one written win on BOTH hosts, so one
+    host gets the wrong value. A colliding name must go only to its own host;
+    every other cookie (incl. the host-only SSO one) still broadcasts.
+    """
+    from yarl import URL
+
+    written: list[tuple[str, str, str]] = []
+
+    class _Jar:
+        def update_cookies(self, cookies: dict, response_url: Any = None) -> None:
+            for name, morsel in cookies.items():
+                written.append((str(name), str(morsel.value), str(URL(response_url).host)))
+
+    class _S:
+        cookie_jar = _Jar()
+
+    conn = WebsiteAuthProxyConnector(_S(), "u@x.z", "pw")  # type: ignore[arg-type]
+    conn.import_cookies([
+        {"name": "shared", "value": "site-value", "domain": "www.volkswagen.de"},
+        {"name": "shared", "value": "idp-value", "domain": "identity.vwgroup.io"},
+        {"name": "auth0", "value": "sso", "domain": "identity.vwgroup.io"},
+    ])
+
+    site = {(v, h) for n, v, h in written if n == "shared" and "volkswagen.de" in h}
+    idp = {(v, h) for n, v, h in written if n == "shared" and "vwgroup.io" in h}
+    assert site == {("site-value", "www.volkswagen.de")}, "site host got the wrong value"
+    assert idp == {("idp-value", "identity.vwgroup.io")}, "idp host got the wrong value"
+    # The non-colliding SSO cookie must still reach BOTH hosts.
+    assert len({h for n, _v, h in written if n == "auth0"}) == 2
