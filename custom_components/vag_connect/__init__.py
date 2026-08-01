@@ -55,6 +55,17 @@ SERVICE_VIN_SCHEMA = vol.Schema({vol.Required("vin"): cv.string})
 SERVICE_IMPORT_FILE_SCHEMA = vol.Schema(
     {vol.Required("vin"): cv.string, vol.Required("file"): cv.string}
 )
+# #1009 — the signal screen's two settings. Both optional: omitting them keeps
+# the previous fixed 10-second lights-only signal.
+SERVICE_FLASH_SCHEMA = vol.Schema(
+    {
+        vol.Required("vin"): cv.string,
+        vol.Optional("duration_seconds", default=10): vol.In([10, 20, 30]),
+        vol.Optional("signal_type", default="lights_only"): vol.In(
+            ["lights_only", "horn_and_lights"]
+        ),
+    }
+)
 
 # v2.10.0 unified action dispatcher (``execute_vehicle_action``).
 # Maps the user-facing action key (from the services.yaml select
@@ -387,7 +398,13 @@ def _register_services(hass: HomeAssistant) -> None:
         await _coord_writeable(call.data["vin"]).async_wake_vehicle(call.data["vin"])
 
     async def _handle_flash(call: ServiceCall) -> None:
-        await _coord_writeable(call.data["vin"]).async_flash_lights(call.data["vin"])
+        # #1009 — both optional; omitting them reproduces the previous fixed
+        # 10-second lights-only signal.
+        await _coord_writeable(call.data["vin"]).async_flash_lights(
+            call.data["vin"],
+            duration_s=int(call.data.get("duration_seconds", 10)),
+            honk=call.data.get("signal_type") == "horn_and_lights",
+        )
 
     async def _handle_set_target_soc(call: ServiceCall) -> None:
         await _coord_writeable(call.data["vin"]).async_set_target_soc(
@@ -615,7 +632,7 @@ def _register_services(hass: HomeAssistant) -> None:
         ("start_window_heating",           _handle_start_window,        SERVICE_VIN_SCHEMA),
         ("stop_window_heating",            _handle_stop_window,         SERVICE_VIN_SCHEMA),
         ("wake_vehicle",                   _handle_wake,                SERVICE_VIN_SCHEMA),
-        ("flash_lights",                   _handle_flash,               SERVICE_VIN_SCHEMA),
+        ("flash_lights",                   _handle_flash,               SERVICE_FLASH_SCHEMA),
         ("request_historical_export",      _handle_request_historical_export, SERVICE_VIN_SCHEMA),
         ("import_historical_export",       _handle_import_historical_export,  SERVICE_VIN_SCHEMA),
         ("import_export_file",             _handle_import_export_file,        SERVICE_IMPORT_FILE_SCHEMA),

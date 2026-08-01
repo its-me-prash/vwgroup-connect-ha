@@ -2639,6 +2639,8 @@ class SeatCupraClient(CariadBaseClient):
         vin: str,
         latitude: float | None = None,
         longitude: float | None = None,
+        duration_s: int = 10,  # noqa: ARG002 - value not grounded for this brand
+        honk: bool = False,  # noqa: ARG002 - value not grounded for this brand
     ) -> None:
         """SEAT/CUPRA honk-and-flash.
 

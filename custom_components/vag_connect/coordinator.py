@@ -4514,7 +4514,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             optimistic={"charging_state": "NOT_CHARGING", "is_charging": False},
         )
 
-    async def async_flash_lights(self, vin: str) -> None:
+    async def async_flash_lights(
+        self, vin: str, duration_s: int = 10, honk: bool = False
+    ) -> None:
         # SEAT/CUPRA require the user position in the honk-and-flash payload
         # (HTTP 400 otherwise). Other brands accept and ignore it.
         #
@@ -4533,6 +4535,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             "command_flash",
             latitude=vehicle.get("latitude"),
             longitude=vehicle.get("longitude"),
+            # #1009 — honoured where the brand's own signal enum grounds them
+            # (Volkswagen/Audi carry both; Skoda carries the horn but no
+            # duration); brands where the values are not grounded accept and
+            # ignore them rather than guessing a wire value.
+            duration_s=int(duration_s),
+            honk=bool(honk),
         )
 
     async def async_set_target_soc(self, vin: str, target: int) -> None:

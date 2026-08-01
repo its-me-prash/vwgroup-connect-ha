@@ -1571,11 +1571,19 @@ class SkodaClient(CariadBaseClient):
         vin: str,
         latitude: float | None = None,  # noqa: ARG002
         longitude: float | None = None,  # noqa: ARG002
+        duration_s: int = 10,  # noqa: ARG002 - Skoda's DTO carries no duration
+        honk: bool = False,
     ) -> None:
         # v2.20.0 (APK audit) — Skoda's HonkAndFlashRequestDto$Mode enum (MyŠkoda
         # 8.14.0) has only HONK_AND_FLASH / FLASH; "FLASH_ONLY" is the VW-EU/Audi
         # value that was wrongly copied here and was rejected. Flash-only = FLASH.
-        await self._post(f"{_BASE}/api/v1/vehicle-access/{vin}/honk-and-flash", json={"mode": "FLASH"})
+        # #1009 — the same enum carries HONK_AND_FLASH, so the horn option is
+        # grounded here too. There is no duration field in Skoda's DTO, so
+        # duration_s is accepted and ignored rather than invented.
+        await self._post(
+            f"{_BASE}/api/v1/vehicle-access/{vin}/honk-and-flash",
+            json={"mode": "HONK_AND_FLASH" if honk else "FLASH"},
+        )
 
     async def command_wake(self, vin: str) -> None:
         await self._post(f"{_BASE}/api/v1/vehicle-wakeup/{vin}?applyRequestLimiter=true", json={})

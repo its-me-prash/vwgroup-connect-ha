@@ -148,13 +148,42 @@ stop_charging:
 
 flash_lights:
   name: Lichtsignal
-  description: Aktiviert Lichthupe und Lichtsignal (Honk & Flash).
+  description: >-
+    Löst das Fahrzeugsignal aus, um das Auto zu finden. Ohne Angaben blinkt es
+    10 Sekunden ohne Hupe, wie bisher.
   fields:
     vin:
       name: VIN
       required: true
       selector:
         text:
+    duration_seconds:
+      name: Dauer
+      description: >-
+        Dauer des Signals in Sekunden. Wird von Volkswagen und Audi
+        unterstützt; andere Marken nutzen ihre eigene Vorgabe.
+      required: false
+      default: 10
+      selector:
+        select:
+          options:
+            - "10"
+            - "20"
+            - "30"
+    signal_type:
+      name: Signalart
+      description: >-
+        Nur Blinken oder Hupe und Blinken. Wird von Volkswagen, Audi und Škoda
+        unterstützt; bei anderen Marken bleibt es beim Blinken.
+      required: false
+      default: lights_only
+      selector:
+        select:
+          options:
+            - label: Nur Blinken
+              value: lights_only
+            - label: Hupe und Blinken
+              value: horn_and_lights
 
 start_window_heating:
   name: Fensterheizung starten

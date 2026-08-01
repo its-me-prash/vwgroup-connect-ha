@@ -1487,6 +1487,8 @@ class VWNAClient:
         vin: str,
         latitude: float | None = None,  # noqa: ARG002
         longitude: float | None = None,  # noqa: ARG002
+        duration_s: int = 10,  # noqa: ARG002 - value not grounded for this brand
+        honk: bool = False,  # noqa: ARG002 - value not grounded for this brand
     ) -> None:
         uuid = self._vin_to_uuid.get(vin, vin)
         # v2.20.0 (APK audit) — myVW 2026.5.27 exposes honk/flash as the dedicated

@@ -38,6 +38,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.28.0] - 2026-08-01
+
+### Added
+- **The vehicle-signal service can now choose duration and horn (#1009).** The manufacturer app's signal screen lets you pick how long the car signals and whether the horn joins in, and `flash_lights` only ever sent a fixed ten-second flash. It now takes an optional duration (10, 20 or 30 seconds) and signal type (lights only, or horn and lights). Leaving both out does exactly what it did before, so nothing changes for existing automations. Volkswagen and Audi honour both settings and Skoda honours the horn; on the remaining brands the values are not documented in their apps, so they are accepted and ignored rather than guessed at. Thanks to Kimmy42-J for the request.
+
 ## [2.27.0] - 2026-08-01
 
 ### Added
