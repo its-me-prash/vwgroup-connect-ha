@@ -97,10 +97,13 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
     # v1.25.0 PR-F: brand-aware "Open in App" deep-links for the
     # ``configuration_url`` button on the device page.
     _BRAND_PORTAL: dict[str, str] = {
+        # #1001 — three of these had gone 404 (brands reorganise their sites).
+        # Every entry below was checked to answer 200 on 2026-08-01; prefer a
+        # durable section landing page over a deep link that gets renamed.
         "audi":          "https://my.audi.com/",
-        "volkswagen":    "https://www.volkswagen.de/de/myvolkswagen.html",
-        "skoda":         "https://www.skoda-auto.com/myskoda",
-        "seat":          "https://www.seat.com/owners/myseat.html",
+        "volkswagen":    "https://www.volkswagen.de/de/besitzer-und-nutzer.html",
+        "skoda":         "https://www.skoda-auto.com/",
+        "seat":          "https://www.seat.com/owners",
         "cupra":         "https://www.cupraofficial.com/services/mycupra.html",
         "porsche":       "https://my.porsche.com/",
         "volkswagen_na": "https://www.vw.com/myvw/",
