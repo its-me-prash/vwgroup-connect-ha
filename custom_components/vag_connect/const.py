@@ -33,6 +33,14 @@ CONF_COMPANION_READ_CHARGE_DETAIL = "companion_read_charge_detail"
 # to sleep afterwards, so a locked/asleep phone shows the app (not the keyguard)
 # without needing "Stay awake" on permanently. OFF by default.
 CONF_COMPANION_WAKE_SLEEP        = "companion_wake_sleep"
+# v2.27.0 (#968) — route the companion channel through the ADB Bridge add-on
+# instead of talking ADB to the phone directly. Android 11+ wireless debugging
+# needs TLS + pairing, which the pure-python transport cannot do, so a modern
+# phone can only be driven via the add-on (it bundles the real adb binary).
+# When set, CONF_ADB_HOST/PORT address the ADD-ON, not the phone.
+CONF_COMPANION_USE_ADDON         = "companion_use_addon"
+CONF_COMPANION_ADDON_TOKEN       = "companion_addon_token"
+DEFAULT_COMPANION_ADDON_PORT     = 8129
 # v2.17.5 (#759) — optional per-VIN S-PIN overrides: {vin: spin}. When a
 # vehicle has no entry here the shared CONF_SPIN is used, so existing
 # single-S-PIN setups are unchanged. Set via the Options flow.

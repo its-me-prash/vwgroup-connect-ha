@@ -19,5 +19,5 @@
     "aiomqtt>=2.0.0",
     "adb-shell==0.4.4"
   ],
-  "version": "2.26.3"
+  "version": "2.27.0"
 }

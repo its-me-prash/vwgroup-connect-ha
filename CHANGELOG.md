@@ -38,6 +38,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.27.0] - 2026-08-01
+
+### Added
+- **The companion channel can now run through the ADB Bridge add-on (#968).** On a phone running Android 11 or newer, the only way in is wireless debugging, which needs a TLS handshake and a pairing step that the built-in connection cannot do. It reaches the phone and fails, which is as far as most people got. The [ADB Bridge add-on](https://github.com/its-me-prash/vwgroup-app-adb-bridge) bundles the real tooling and does the pairing, and the integration can now talk to it instead: tick "Connect through the ADB Bridge add-on" when you add the companion channel, and give the add-on's address instead of the phone's. Everything after that is unchanged, including the read-only quarantine, so an older phone still connects directly exactly as before. Thanks to plainmad for testing the add-on and reporting precisely where it stopped.
+
 ## [2.26.3] - 2026-08-01
 
 ### Fixed

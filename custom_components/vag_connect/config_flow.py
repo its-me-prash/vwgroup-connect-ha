@@ -433,9 +433,12 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         from .const import (  # noqa: PLC0415
             CONF_ADB_HOST,
             CONF_ADB_PORT,
+            CONF_COMPANION_ADDON_TOKEN,
+            CONF_COMPANION_USE_ADDON,
             CONF_STRATEGY,
             CONF_VIN,
             DEFAULT_ADB_PORT,
+            DEFAULT_COMPANION_ADDON_PORT,
             STRATEGY_COMPANION_ADB,
         )
         from .companion.presets import PRESETS  # noqa: PLC0415
@@ -445,11 +448,22 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         if user_input is not None:
             brand = user_input[CONF_BRAND]
             host = user_input[CONF_ADB_HOST].strip()
-            port = int(user_input.get(CONF_ADB_PORT, DEFAULT_ADB_PORT))
+            use_addon = bool(user_input.get(CONF_COMPANION_USE_ADDON))
+            addon_token = (user_input.get(CONF_COMPANION_ADDON_TOKEN) or "").strip()
+            # The add-on serves its API on its own port, so a user who ticked
+            # the box and left the ADB default in place gets the right one.
+            _default_port = (
+                DEFAULT_COMPANION_ADDON_PORT if use_addon else DEFAULT_ADB_PORT
+            )
+            port = int(user_input.get(CONF_ADB_PORT) or _default_port)
+            if use_addon and port == DEFAULT_ADB_PORT:
+                port = DEFAULT_COMPANION_ADDON_PORT
             vin = user_input[CONF_VIN].strip().upper()
             spin = (user_input.get(CONF_SPIN) or "").strip()
 
-            valid, reason = await self._companion_probe(brand, host, port)
+            valid, reason = await self._companion_probe(
+                brand, host, port, use_addon=use_addon, addon_token=addon_token
+            )
             if not valid:
                 errors["base"] = reason
             else:
@@ -468,6 +482,8 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                         CONF_ADB_PORT: port,
                         CONF_VIN: vin,
                         CONF_SPIN: spin,
+                        CONF_COMPANION_USE_ADDON: use_addon,
+                        CONF_COMPANION_ADDON_TOKEN: addon_token,
                     },
                 )
 
@@ -479,6 +495,12 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 vol.Optional(CONF_ADB_PORT, default=DEFAULT_ADB_PORT): int,
                 vol.Required(CONF_VIN): str,
                 vol.Optional(CONF_SPIN, default=""): str,
+                # #968 — on Android 11+ the phone only speaks wireless debugging
+                # (TLS + pairing), which the built-in transport cannot do. Tick
+                # this and give the ADD-ON's address above instead of the
+                # phone's; the add-on holds the phone connection.
+                vol.Optional(CONF_COMPANION_USE_ADDON, default=False): bool,
+                vol.Optional(CONF_COMPANION_ADDON_TOKEN, default=""): str,
             }
         )
         return self.async_show_form(
@@ -486,7 +508,13 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         )
 
     async def _companion_probe(
-        self, brand: str, host: str, port: int
+        self,
+        brand: str,
+        host: str,
+        port: int,
+        *,
+        use_addon: bool = False,
+        addon_token: str = "",
     ) -> tuple[bool, str]:
         """Open ADB and read the app version; returns (ok, error_key)."""
         from .companion.presets import PRESETS  # noqa: PLC0415
@@ -498,8 +526,16 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         preset = PRESETS.get(brand)
         if preset is None:
             return False, "companion_unknown_brand"
-        adbkey = self.hass.config.path(".storage", "vag_connect_adbkey")
-        transport = NetworkAdbTransport(host, port, adbkey)
+        transport: NetworkAdbTransport
+        if use_addon:
+            # host/port address the add-on; it owns the phone connection, so
+            # there is no local RSA key involved.
+            from .companion.addon_transport import AddOnAdbTransport  # noqa: PLC0415
+
+            transport = AddOnAdbTransport(host, port, token=addon_token)
+        else:
+            adbkey = self.hass.config.path(".storage", "vag_connect_adbkey")
+            transport = NetworkAdbTransport(host, port, adbkey)
         try:
             await transport.connect()
             version = await transport.current_app_version(preset.package)
