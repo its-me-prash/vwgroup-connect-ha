@@ -793,7 +793,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             )
 
             from .const import (  # noqa: PLC0415
+                CONF_COMPANION_ADDON_TOKEN,
                 CONF_COMPANION_READ_CHARGE_DETAIL,
+                CONF_COMPANION_USE_ADDON,
                 CONF_COMPANION_WAKE_SLEEP,
             )
             self._cariad_client = CompanionClient(
@@ -808,6 +810,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 ),
                 wake_sleep=bool(
                     self.entry.data.get(CONF_COMPANION_WAKE_SLEEP, False)
+                ),
+                # #968 — when set, host/port above address the ADB Bridge
+                # add-on rather than the phone (Android 11+ wireless debugging
+                # needs the real adb binary, which the add-on bundles).
+                use_addon=bool(
+                    self.entry.data.get(CONF_COMPANION_USE_ADDON, False)
+                ),
+                addon_token=str(
+                    self.entry.data.get(CONF_COMPANION_ADDON_TOKEN, "") or ""
                 ),
             )
             # v2.26.0 (ckomma #21) — re-apply a rate-limit backoff persisted
