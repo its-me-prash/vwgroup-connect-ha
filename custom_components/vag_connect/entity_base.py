@@ -80,7 +80,21 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
         definitive "command not supported" outcome from a previous attempt.
         """
         if not super().available:
-            return False
+            # Connector-level failure (``last_update_success``). That is a
+            # statement about the poll, not about this car: a single-vehicle
+            # account hits it on any transient 5xx or timeout, and every
+            # account hits it during a backend-wide outage. Returning here
+            # made the coordinator's own two-stage tolerance unreachable for
+            # exactly those cases, even though the poll-failure path promises
+            # it (coordinator.py, "is_vehicle_available still tolerates this").
+            # Fall through to that policy, but only when we actually hold a
+            # last-known-good snapshot for this VIN, so a car that has never
+            # polled successfully still reports unavailable as before.
+            last_good = (
+                getattr(self.coordinator, "vehicle_last_good_at", {}) or {}
+            ).get(self._vin)
+            if last_good is None:
+                return False
         if not self.coordinator.is_vehicle_available(self._vin):
             return False
         if self._command_id is not None:

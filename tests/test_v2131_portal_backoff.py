@@ -68,10 +68,29 @@ class TestPortalBackoff:
         assert sess.get.call_count == 1  # 404 is a stable state, not retried
         sleep.assert_not_awaited()
 
-    def test_non_soft_raises_immediately(self):
-        sess = _session_seq([_resp(500)])
+    def test_non_soft_retries_then_raises(self):
+        """A hard call retries a retriable 5xx, then still raises.
+
+        The retry used to sit inside the soft branch, so a hard call gave up on
+        the first hiccup while a transport timeout on the same call retried
+        three times. VIN enumeration is a hard call, and an empty VIN list is
+        read as "this account has no cars", so failing fast there costs a
+        working setup. What must NOT change is the ending: a hard call still
+        raises rather than returning an empty result.
+        """
+        sess = _session_seq([_resp(500), _resp(500), _resp(500)])
         conn = _conn(sess)
         with patch(_SLEEP, new=AsyncMock()):
             with pytest.raises(AuthenticationError):
                 asyncio.run(conn._get_json("https://x/y", soft=False))
-        assert sess.get.call_count == 1
+        assert sess.get.call_count == 3  # 1 try + 2 retries, same as soft
+
+    def test_non_soft_recovers_when_a_retry_succeeds(self):
+        """The point of retrying: a one-off 500 no longer kills the call."""
+        ok = _resp(200)
+        ok.json = AsyncMock(return_value={"vehicles": []})
+        sess = _session_seq([_resp(500), ok])
+        conn = _conn(sess)
+        with patch(_SLEEP, new=AsyncMock()):
+            out = asyncio.run(conn._get_json("https://x/y", soft=False))
+        assert out == {"vehicles": []}

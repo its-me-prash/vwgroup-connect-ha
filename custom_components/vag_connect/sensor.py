@@ -10,6 +10,7 @@ The VagSensorDescription.condition field gates sensor creation:
 charging_rate_kmh uses SensorDeviceClass.SPEED so HA auto-converts km/h ↔ mph
 based on the user's unit system preference.
 """
+import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -37,6 +38,27 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .coordinator import VagConnectCoordinator
 from .entity_base import VagConnectEntity, register_dynamic_spawner
+
+_LOGGER = logging.getLogger(__name__)
+
+# Device classes whose state Home Assistant parses as a number. DATE and
+# TIMESTAMP are deliberately absent: they are datetimes and have their own
+# handling in native_value above. Used by the schema-drift guard there.
+_NUMERIC_DEVICE_CLASSES = frozenset({
+    SensorDeviceClass.BATTERY,
+    SensorDeviceClass.CURRENT,
+    SensorDeviceClass.DISTANCE,
+    SensorDeviceClass.DURATION,
+    SensorDeviceClass.ENERGY,
+    SensorDeviceClass.ENERGY_STORAGE,
+    SensorDeviceClass.POWER,
+    SensorDeviceClass.PRESSURE,
+    SensorDeviceClass.SPEED,
+    SensorDeviceClass.TEMPERATURE,
+    SensorDeviceClass.VOLTAGE,
+    SensorDeviceClass.VOLUME,
+    SensorDeviceClass.VOLUME_STORAGE,
+})
 
 
 @dataclass(frozen=True)
@@ -3689,6 +3711,36 @@ class VagConnectSensor(VagConnectEntity, SensorEntity):
                 if parsed.tzinfo is None:
                     parsed = parsed.replace(tzinfo=timezone.utc)
                 return parsed
+
+        # Schema-drift safety net. A backend field that turns from a number
+        # into an enum string raises inside Home Assistant's state write, which
+        # is outside the coordinator's parse guard, so it cannot be caught
+        # there. It has happened for real: CUPRA firmware turned the max charge
+        # current into "maximum"/"reduced" and the amp sensor blew up with
+        # "could not convert string to float" (#392). That was patched per
+        # field, in whichever parser had already been burned; this catches the
+        # whole class once, at the boundary. Reports unknown instead of raising.
+        # No-op for every field that is already numeric today, and untouched
+        # for text sensors (no state class, no numeric device class).
+        if (
+            val is not None
+            and not isinstance(val, (int, float))
+            and (
+                self.entity_description.state_class is not None
+                or self.entity_description.device_class in _NUMERIC_DEVICE_CLASSES
+            )
+        ):
+            from .cariad._util import safe_float  # noqa: PLC0415
+
+            coerced = safe_float(val)
+            if coerced is None:
+                _LOGGER.warning(
+                    "VAG Connect: %s received the non-numeric value %r, so it "
+                    "reports unknown. This usually means the backend changed "
+                    "the field's type.",
+                    self.entity_description.key, val,
+                )
+            return coerced
 
         return val
 

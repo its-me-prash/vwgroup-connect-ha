@@ -38,6 +38,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.26.3] - 2026-08-01
+
+### Fixed
+- **A backend hiccup no longer makes every entity look broken.** The integration has always been meant to keep showing a car's last known values through a short outage, with the "last updated" timestamp telling you how old they are. That tolerance never actually applied when the whole poll failed, which on a single-car account is any brief error at all, so entities went unavailable immediately instead. They now stay visible with their last known values, exactly as intended, and still disappear once the data is genuinely too old.
+- **A sensor whose value changes type no longer breaks.** When a manufacturer turns a number into a text value (CUPRA once changed the max charge current to "maximum"/"reduced"), the affected sensor used to break outright. Each case was patched individually after someone had already hit it. Any sensor that expects a number now simply reports unknown and logs why, so one changed field cannot take an entity down.
+- **A brief portal error during startup no longer costs you the setup.** Listing your cars gave up on the first server error, while the very same call already retried three times if the connection timed out instead. Both are now retried the same way. If the portal is genuinely down the result is unchanged.
+
+### Added
+- **A charge target for cars that only report a battery-care limit.** Some cars (the Audi Q4 e-tron is the known one) send a battery-care charge ceiling and no separate charge target, so the target sensor stayed empty even though the car does have a limit. That ceiling now fills the target when nothing else provides one, and it is still shown separately as before.
+
 ## [2.26.2] - 2026-08-01
 
 ### Fixed
