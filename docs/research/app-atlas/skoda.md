@@ -1,7 +1,7 @@
 # App Atlas — Škoda (MyŠkoda)
 
 > **Auto-generated** by `.github/workflows/app-atlas-builder.yml` ·
-> Last refreshed: 2026-07-31
+> Last refreshed: 2026-08-02
 
 ## Identity
 
@@ -22,8 +22,8 @@
 
 | | |
 |---|---|
-| Latest version-name | `8.14.0` |
-| Source that responded | `uptodown` |
+| Latest version-name | `(fetch failed)` |
+| Source that responded | `(no source succeeded)` |
 | Previously cached version | `8.14.0` |
 | Changed since last run? | No |
 
