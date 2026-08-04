@@ -40,6 +40,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Changed
+- **An identity token from the portal export no longer enters field discovery.** The export carries `idp_idt`, which identifies the account holder rather than anything about the car, and it was reaching the Vehicle Data Scout as an unmapped field. Only the token masker kept its value out of a public issue. It is now withheld from discovery entirely, so it can never end up in an entity attribute, a backup or a diagnostics download. This is a deliberate single exception to the rule that every discovered field stays visible until mapped, it is scoped to one named field, and each withholding is logged.
+
 ### Fixed
 - **The companion channel could not read the range off the Volkswagen app.** The app narrates its units in words, so the overview tile reads "Batteriereichweite: 253 Kilometer", while the selector required the symbol "km". On those cars the channel reported itself healthy and read no range at all. Grounded in two accessibility dumps from We Connect 4.2.1, an ID.4 and an e-up. Thanks to kgroshert for the dumps.
 - **A reading of zero no longer makes a sensor disappear.** The parsers read the same quantity under several field names and took whichever answered, which quietly skipped a legitimate zero. That is the value that matters most: a service interval of 0 km means due now, an empty tank reports 0 km of range, a flat battery reports 0 %, and 0 degrees is an ordinary winter morning. Each of those arrived as "no reading at all", so with hide-empty-entities on the sensor vanished at the moment it was worth looking at. Worse, the combustion and battery capability flags were derived from the same collapsed value, so a tank showing 0 km made the car count as not-a-combustion-car and took every combustion entity with it. Affects SEAT and CUPRA most, plus Skoda ranges, VW US/CA odometer and charge power, and the VW EU brake-service intervals.

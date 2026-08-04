@@ -1045,6 +1045,25 @@ def _charge_rate_to_kmh(value: float, unit: str | None) -> float:
 # so a pathological payload can't bloat the recorder / state machine.
 _RAW_FIELD_CAP = 250
 
+# Fields that are credential material rather than anything about the car.
+# ``idp_idt`` is an identity token for the ACCOUNT HOLDER: the portal puts it in
+# the export because the export is built for the signed-in person. We never read
+# it, and VW's own dictionary describes it only as "The string value of 'idp
+# IDt'".
+#
+# This is a deliberate, single exception to the rule that every discovered field
+# stays visible until it is mapped. Everywhere else that rule holds, because a
+# hidden field is a field nobody ever maps. Here the alternative is worse:
+# keeping the name means eventually mapping it, and mapping it would write a
+# token that identifies a real person into the entity state, from where it
+# travels into every backup and every diagnostics download attached to an issue.
+# Our own masker is the only reason it did not already appear in full in a
+# public bug report.
+#
+# Withheld, not silently dropped: the count is logged on every poll, so the
+# behaviour is observable rather than invisible.
+_CREDENTIAL_FIELDS: frozenset[str] = frozenset({"idp_idt"})
+
 # b14 — NO field suppression. Policy (Prash): never hide Scout/raw fields; every
 # portal field is surfaced so it can be mapped. (The b10 ``_SCOUT_SKIP_FIELDS`` /
 # ``_is_noise`` filter was removed — we map everything, we don't suppress.)
@@ -2770,10 +2789,20 @@ def map_dataset_to_vehicle_data(
         # (`vin`) and container-qualified (`eu_data_act.vin`) spellings redact.
         if contested:
             d.contested_fields = {k: sorted(v) for k, v in contested.items()}
+        # Credential-shaped fields are withheld entirely rather than redacted:
+        # a redacted value still leaves the NAME in discovery, and a name in
+        # discovery is a promise to map it one day. See _CREDENTIAL_FIELDS.
+        withheld = [k for k in unmapped if k.rsplit(".", 1)[-1] in _CREDENTIAL_FIELDS]
+        if withheld:
+            _LOGGER.debug(
+                "EU Data Act: withholding %d credential field(s) from discovery: %s",
+                len(withheld), ", ".join(withheld),
+            )
         d.raw_unmapped_fields = {
             k: ("<redacted>" if k.rsplit(".", 1)[-1] in ("user_id", "vin")
                 else str(fields[k]))
             for k in unmapped[:_RAW_FIELD_CAP]
+            if k.rsplit(".", 1)[-1] not in _CREDENTIAL_FIELDS
         }
         if len(unmapped) > _RAW_FIELD_CAP:
             _LOGGER.debug(
