@@ -659,6 +659,7 @@ def _walk_fields(
     payload: Any,
     _ts_out: dict[str, float] | None = None,
     _syn_out: dict[str, set[str]] | None = None,
+    _contested_out: dict[str, set[str]] | None = None,
 ) -> dict[str, str]:
     """Flatten the EU Data Act dataset into ``{field_name: value}``.
 
@@ -753,6 +754,18 @@ def _walk_fields(
             # >= not >: a newer real ts wins, AND on an EQUAL real ts (two samples
             # in the SAME snapshot block, #529 S6) the later-appended one wins —
             # the log is append-ordered, so last-in-block is the newer reading.
+            if (
+                cand == prev[1]
+                and str(value) != prev[0]
+                and _contested_out is not None
+                and not _is_envelope_noise(name)
+            ):
+                # Same capture time, different values: the append order is the
+                # ONLY thing separating them, which is not evidence. Record both
+                # so a later layer that knows the previous poll can prefer the
+                # plausible one instead of us picking by array position. The
+                # choice below is unchanged, so this is observation only.
+                _contested_out.setdefault(name, set()).update({prev[0], str(value)})
             if cand >= prev[1]:
                 best[name] = (str(value), cand, True)
         elif cand_real and not prev_real:
@@ -1076,6 +1089,7 @@ def map_dataset_to_vehicle_data(
     d: VehicleData,
     field_ts: dict[str, float] | None = None,
     field_syn: dict[str, set[str]] | None = None,
+    contested: dict[str, set[str]] | None = None,
 ) -> VehicleData:
     """Map a curated subset of EU Data Act fields onto ``VehicleData``.
 
@@ -2754,6 +2768,8 @@ def map_dataset_to_vehicle_data(
         # otherwise exposes the REAL account UUID + full VIN (the Scout issue
         # itself already masks both). Match on the leaf name so both the bare
         # (`vin`) and container-qualified (`eu_data_act.vin`) spellings redact.
+        if contested:
+            d.contested_fields = {k: sorted(v) for k, v in contested.items()}
         d.raw_unmapped_fields = {
             k: ("<redacted>" if k.rsplit(".", 1)[-1] in ("user_id", "vin")
                 else str(fields[k]))
@@ -3358,7 +3374,8 @@ class EUDataActConnector:
         payload = _unzip_json(raw, newest)
         field_ts: dict[str, float] = {}  # #529: resolved per-field capture ts
         field_syn: dict[str, set[str]] = {}  # v2.15.4: bare/qualified synonym map
-        fields = _walk_fields(payload, field_ts, field_syn)
+        contested: dict[str, set[str]] = {}  # same capture time, disagreeing values
+        fields = _walk_fields(payload, field_ts, field_syn, contested)
         _LOGGER.debug(
             "EU Data Act portal: %s dataset carried %d fields", vin[-6:], len(fields)
         )
@@ -3371,7 +3388,7 @@ class EUDataActConnector:
         self.last_no_data_reason = ""
         d.no_data = False  # real dataset parsed → this is a genuine good poll
         d.connection_state = "online"
-        return map_dataset_to_vehicle_data(fields, d, field_ts, field_syn)
+        return map_dataset_to_vehicle_data(fields, d, field_ts, field_syn, contested)
 
     async def get_relation_nickname(self, vin: str) -> str | None:
         """Best-effort vehicle nickname from the relation endpoint."""

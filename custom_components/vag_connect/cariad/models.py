@@ -1502,6 +1502,12 @@ class VehicleData:
     # sensor — no per-field entity explosion). Same unmapped set that feeds the
     # Vehicle Data Scout report: one detection pass, both worlds.
     raw_unmapped_fields: dict[str, str] = field(default_factory=dict)
+    # Fields the export delivered MORE THAN ONCE under one capture time with
+    # different values. The append order is then the only thing separating
+    # them, which is not evidence, so the parser records every candidate here
+    # and a layer that knows the previous poll picks the plausible one. Keyed
+    # by the raw portal field name; empty on the overwhelming majority of polls.
+    contested_fields: dict[str, list[str]] = field(default_factory=dict)
 
     # ── v2.15.1 — EU Data Act + BFF wire-key mapping (2.15.0 plan) ──────────
     # New fields declared once on the shared model; each is written by the EU
