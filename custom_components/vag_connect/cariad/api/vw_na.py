@@ -17,6 +17,7 @@ from typing import Any
 
 from aiohttp import ClientConnectionError, ClientSession
 
+from .._util import first_not_none
 from .._util import mask_vin as _mask_vin
 from .._util import safe_float, safe_int
 from ..models import VehicleData
@@ -884,9 +885,9 @@ class VWNAClient:
             # instead of) the legacy ``powerStatus.odometer`` nested
             # path. Try both, root-level first since that is what
             # current firmware sends.
-            d.odometer_km = (
-                v(vehicle_raw, "currentMileage")
-                or v(power, "odometer")
+            d.odometer_km = first_not_none(
+                v(vehicle_raw, "currentMileage"),
+                v(power, "odometer"),
             )
             d.fuel_level  = v(power, "fuelPercentRemaining")
             # v2.11.0 (zackcornelius source-verified) - cruiseRangeUnits
@@ -1092,17 +1093,17 @@ class VWNAClient:
             # v2.0.1 (#131 follow-up) — defensive parsing.
             if isinstance(d.charging_state, str):
                 d.is_charging = d.charging_state.upper() == "CHARGING"
-            d.charging_power_kw = (
-                v(charge, "chargingStatus", "chargePower")
-                or v(charge, "chargingStatus", "chargePower_kW")
+            d.charging_power_kw = first_not_none(
+                v(charge, "chargingStatus", "chargePower"),
+                v(charge, "chargingStatus", "chargePower_kW"),
             )
             plug = v(charge, "plugStatus", "plugConnectionState")
             if isinstance(plug, str):
                 d.plug_connected = plug.upper() == "CONNECTED"
                 d.plug_state = plug
-            d.target_soc = (
-                v(charge, "chargeSettings", "targetSOCPercentage")
-                or v(charge, "chargingSettings", "targetSOC_pct")
+            d.target_soc = first_not_none(
+                v(charge, "chargeSettings", "targetSOCPercentage"),
+                v(charge, "chargingSettings", "targetSOC_pct"),
             )
             # v2.15.3 (#503, MyVW APK DEX-verified) — the EV traction SoC, range
             # and charged energy live on charge/summary's BatteryStatus object

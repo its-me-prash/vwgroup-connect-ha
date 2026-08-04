@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from .._mbb import MbbOperationList
 
-from .._util import compute_connection_state, safe_float, safe_int
+from .._util import compute_connection_state, first_not_none, safe_float, safe_int
 from ..exceptions import (
     APIError,
     AuthenticationError,
@@ -4234,25 +4234,25 @@ class VWEUClient(CariadBaseClient):
         )
         ms_value = v(raw, "vehicleHealthInspection", "maintenanceStatus", "value")
         if isinstance(ms_value, dict):
-            brake_fluid_raw = (
-                ms_value.get("brakeFluidChange_days")
-                or ms_value.get("brakeFluidChangeDue_days")
-                or ms_value.get("brakeFluidChangeDue_at")
-                or ms_value.get("brakeFluidChange_at")
+            brake_fluid_raw = first_not_none(
+                ms_value.get("brakeFluidChange_days"),
+                ms_value.get("brakeFluidChangeDue_days"),
+                ms_value.get("brakeFluidChangeDue_at"),
+                ms_value.get("brakeFluidChange_at"),
             )
             d.brake_fluid_change_due_at = days_or_date_to_iso(brake_fluid_raw)
-            front_pads_raw = (
-                ms_value.get("brakePadWearFrontInspection_days")
-                or ms_value.get("frontBrakePadWearInspection_days")
-                or ms_value.get("brakePadFrontInspectionDue_days")
-                or ms_value.get("brakePadWearFrontInspection_at")
+            front_pads_raw = first_not_none(
+                ms_value.get("brakePadWearFrontInspection_days"),
+                ms_value.get("frontBrakePadWearInspection_days"),
+                ms_value.get("brakePadFrontInspectionDue_days"),
+                ms_value.get("brakePadWearFrontInspection_at"),
             )
             d.brake_pads_front_inspection_due_at = days_or_date_to_iso(front_pads_raw)
-            rear_pads_raw = (
-                ms_value.get("brakePadWearRearInspection_days")
-                or ms_value.get("rearBrakePadWearInspection_days")
-                or ms_value.get("brakePadRearInspectionDue_days")
-                or ms_value.get("brakePadWearRearInspection_at")
+            rear_pads_raw = first_not_none(
+                ms_value.get("brakePadWearRearInspection_days"),
+                ms_value.get("rearBrakePadWearInspection_days"),
+                ms_value.get("brakePadRearInspectionDue_days"),
+                ms_value.get("brakePadWearRearInspection_at"),
             )
             d.brake_pads_rear_inspection_due_at = days_or_date_to_iso(rear_pads_raw)
 

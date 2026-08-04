@@ -15,6 +15,7 @@ from typing import Any
 from aiohttp import ClientSession
 
 from .._util import (
+    first_not_none,
     compose_workshop_address,
     compute_connection_state,
     days_or_date_to_iso,
@@ -1020,13 +1021,13 @@ class SkodaClient(CariadBaseClient):
                 )
             else:
                 # No engineType - try both, prefer remainingRangeInKm.
-                electric = (
-                    v(driving_range, "primaryEngineRange", "remainingRangeInKm")
-                    or v(driving_range, "electricRange", "distanceInKm")
+                electric = first_not_none(
+                    v(driving_range, "primaryEngineRange", "remainingRangeInKm"),
+                    v(driving_range, "electricRange", "distanceInKm"),
                 )
-                combustion = (
-                    v(driving_range, "secondaryEngineRange", "remainingRangeInKm")
-                    or v(driving_range, "combustionRange", "distanceInKm")
+                combustion = first_not_none(
+                    v(driving_range, "secondaryEngineRange", "remainingRangeInKm"),
+                    v(driving_range, "combustionRange", "distanceInKm"),
                 )
             total = v(driving_range, "totalRangeInKm")
             if combustion is None:

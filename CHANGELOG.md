@@ -38,6 +38,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [Unreleased]
+
+### Fixed
+- **A reading of zero no longer makes a sensor disappear.** The parsers read the same quantity under several field names and took whichever answered, which quietly skipped a legitimate zero. That is the value that matters most: a service interval of 0 km means due now, an empty tank reports 0 km of range, a flat battery reports 0 %, and 0 degrees is an ordinary winter morning. Each of those arrived as "no reading at all", so with hide-empty-entities on the sensor vanished at the moment it was worth looking at. Worse, the combustion and battery capability flags were derived from the same collapsed value, so a tank showing 0 km made the car count as not-a-combustion-car and took every combustion entity with it. Affects SEAT and CUPRA most, plus Skoda ranges, VW US/CA odometer and charge power, and the VW EU brake-service intervals.
+
 ## [2.29.0] - 2026-08-04
 
 ### Fixed

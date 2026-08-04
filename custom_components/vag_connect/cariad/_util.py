@@ -24,6 +24,27 @@ _LOGGER = logging.getLogger(__name__)
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+def first_not_none(*values: Any) -> Any:
+    """The first value that is not ``None``.
+
+    The brand parsers read the same reading under several spellings and used
+    ``a or b or c`` to take whichever answered. That chain skips a legitimate
+    zero, and zero is exactly the value that matters most: a service interval
+    of 0 km means DUE NOW, an empty tank reports 0 km of range, a flat battery
+    reports 0 %, and 0 degrees is an ordinary winter morning. Every one of
+    those used to fall through to the next spelling and, finding nothing,
+    arrive as "no reading at all" - so the sensor vanished at the precise
+    moment it was worth looking at.
+
+    Only ``None`` means absent here. ``0``, ``0.0``, ``""`` and ``False`` are
+    answers and are returned as given.
+    """
+    for value in values:
+        if value is not None:
+            return value
+    return None
+
+
 def safe_int(value: Any, default: int | None = None) -> int | None:
     """Convert ``value`` to int or return ``default``.
 
