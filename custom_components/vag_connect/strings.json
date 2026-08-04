@@ -1161,6 +1161,27 @@
       },
       "climatisation_timers_pending": {
         "name": "Climate Timer Changes Pending"
+      },
+      "calibration_need_detected": {
+        "name": "Battery calibration needed"
+      },
+      "calibration_request_initial": {
+        "name": "Calibration request"
+      },
+      "calibration_request_escalation_1": {
+        "name": "Calibration reminder"
+      },
+      "calibration_request_escalation_2": {
+        "name": "Calibration final reminder"
+      },
+      "calibration_request_method": {
+        "name": "Calibration method"
+      },
+      "calibration_failure": {
+        "name": "Calibration failure"
+      },
+      "calibration_failure_reason": {
+        "name": "Calibration failure reason"
       }
     },
     "binary_sensor": {
@@ -1626,8 +1647,8 @@
       "description": "Your {brand} account ({username}) requires an **email verification code**.\n\n**One-time fix:**\n1. **Check your email inbox** (and spam folder) for a 6-digit code from VAG IDP\n2. Open the **{brand} app** on your phone\n3. Sign in manually and enter the code\n4. Restart Home Assistant\n\nAfter this one-time step, the integration stores the login token — you won't need to repeat this."
     },
     "terms_and_conditions": {
-      "title": "Accept terms and conditions — {brand}",
-      "description": "There are new terms and conditions for {brand} ({username}).\n\n1. Open the {brand} app\n2. Sign in and accept the terms\n3. Restart Home Assistant"
+      "title": "Accept terms and conditions ({brand})",
+      "description": "There are terms to accept for {brand} ({username}). They can come from two places, and accepting in one does not cover the other.\n\n1. Open the {brand} app, sign in and accept anything it shows\n2. Open the data portal sign-in in a browser, sign in with the SAME account, and accept there too. The portal asks separately, which is why this can still appear after the app is clear.\n3. Reload the integration"
     },
     "marketing_consent": {
       "title": "Consent required — {brand}",

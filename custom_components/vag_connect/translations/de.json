@@ -1164,6 +1164,27 @@
       },
       "climatisation_timers_pending": {
         "name": "Klima-Timer-Änderungen ausstehend"
+      },
+      "calibration_need_detected": {
+        "name": "Batteriekalibrierung nötig"
+      },
+      "calibration_request_initial": {
+        "name": "Kalibrierungsanfrage"
+      },
+      "calibration_request_escalation_1": {
+        "name": "Kalibrierung Erinnerung"
+      },
+      "calibration_request_escalation_2": {
+        "name": "Kalibrierung letzte Erinnerung"
+      },
+      "calibration_request_method": {
+        "name": "Kalibrierungsmethode"
+      },
+      "calibration_failure": {
+        "name": "Kalibrierungsfehler"
+      },
+      "calibration_failure_reason": {
+        "name": "Grund des Kalibrierungsfehlers"
       }
     },
     "binary_sensor": {
@@ -1629,8 +1650,8 @@
       "description": "Dein {brand}-Konto ({username}) erfordert einen **E-Mail-Bestätigungscode**.\n\n**Einmalige Behebung:**\n1. **Postfach prüfen** (und Spam-Ordner) — 6-stelliger Code von VAG IDP\n2. **{brand}-App** auf dem Smartphone öffnen\n3. Manuell anmelden und Code eingeben\n4. Home Assistant neu starten\n\nNach diesem einmaligen Schritt speichert die Integration den Login-Token — du musst es nicht wiederholen."
     },
     "terms_and_conditions": {
-      "title": "Nutzungsbedingungen akzeptieren — {brand}",
-      "description": "Für {brand} ({username}) gibt es neue Nutzungsbedingungen.\n\n1. {brand}-App öffnen\n2. Anmelden und Bedingungen bestätigen\n3. Home Assistant neu starten"
+      "title": "Nutzungsbedingungen akzeptieren ({brand})",
+      "description": "Für {brand} ({username}) sind Nutzungsbedingungen zu bestätigen. Sie können von zwei Stellen kommen, und eine Zustimmung deckt die andere nicht ab.\n\n1. {brand}-App öffnen, anmelden und dort alles bestätigen\n2. Die Portal-Anmeldung im Browser öffnen, mit DEMSELBEN Konto anmelden und auch dort bestätigen. Das Portal fragt separat, deshalb kann das hier auch erscheinen, wenn die App schon sauber ist.\n3. Integration neu laden"
     },
     "marketing_consent": {
       "title": "Einwilligung nötig — {brand}",

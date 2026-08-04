@@ -95,6 +95,22 @@ def position_age_seconds(previous: dict[str, Any]) -> float | None:
 # — keep the recorded value so the "km" sensor never jumps backwards.
 MONOTONIC_INCREASING_FIELDS: tuple[str, ...] = ("odometer_km",)
 
+# Raw portal field name -> the entity attribute it fills, for the contested
+# reading resolver below. Deliberately explicit and NUMERIC-only: comparing a
+# candidate to the last known value is only meaningful for a quantity that
+# moves gradually. Enum fields turn up contested too (charge mode, charge
+# state), but "closest to last" is meaningless there and preferring the
+# previous one would just freeze the state, so they are left alone.
+_CONTESTED_ATTR: dict[str, str] = {
+    "battery_state_report.soc": "battery_soc",
+    "soc": "battery_soc",
+    "settings.target_soc": "target_soc",
+    "target_soc": "target_soc",
+    "mileage.value": "odometer_km",
+    "mileage": "odometer_km",
+    "odometer": "odometer_km",
+}
+
 
 def strip_runtime(data: dict[str, Any]) -> dict[str, Any]:
     """Drop runtime-only keys (``_client``, ``_poll_failed``, ``_restored``, …)
@@ -136,6 +152,46 @@ def reconcile(
             for field in (*POSITION_FIELDS, "position_captured_at"):
                 if merged.get(field) is None and previous.get(field) is not None:
                     merged[field] = previous[field]
+    # Contested readings: the export delivered one field twice under a single
+    # capture time with different values, so the parser could only pick by
+    # position in the array. That is not evidence, and it is what makes a
+    # charge level flip between two numbers on a parked car. Here we know the
+    # last good value, so we take the candidate closest to it: a real change
+    # moves the reading gradually between polls, while the spurious twin sits
+    # far away (typically a fixed placeholder that never tracks the car at
+    # all). This ONLY runs where the parser already had to guess, so a reading
+    # that was never contested is untouched.
+    contested = fresh.get("contested_fields") or {}
+    if isinstance(contested, dict):
+        for raw_name, candidates in contested.items():
+            attr = _CONTESTED_ATTR.get(raw_name)
+            if attr is None or not isinstance(candidates, (list, tuple, set)):
+                continue
+            old_val = previous.get(attr)
+            if not isinstance(old_val, (int, float)) or isinstance(old_val, bool):
+                continue
+            numeric: list[float] = []
+            for c in candidates:
+                try:
+                    numeric.append(float(c))
+                except (TypeError, ValueError):
+                    continue
+            if len(numeric) < 2:
+                continue
+            best_val = min(numeric, key=lambda v: abs(v - float(old_val)))
+            current = merged.get(attr)
+            if isinstance(current, (int, float)) and not isinstance(current, bool):
+                if float(current) != best_val:
+                    notes.append(
+                        f"{attr} was reported as {sorted(numeric)} under one "
+                        f"capture time; kept {best_val} as the one consistent "
+                        f"with the last reading {old_val}"
+                    )
+                    merged[attr] = (
+                        int(best_val) if float(old_val).is_integer()
+                        and best_val.is_integer() else best_val
+                    )
+
     for field in MONOTONIC_INCREASING_FIELDS:
         new = merged.get(field)
         old = previous.get(field)

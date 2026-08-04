@@ -659,6 +659,7 @@ def _walk_fields(
     payload: Any,
     _ts_out: dict[str, float] | None = None,
     _syn_out: dict[str, set[str]] | None = None,
+    _contested_out: dict[str, set[str]] | None = None,
 ) -> dict[str, str]:
     """Flatten the EU Data Act dataset into ``{field_name: value}``.
 
@@ -753,6 +754,18 @@ def _walk_fields(
             # >= not >: a newer real ts wins, AND on an EQUAL real ts (two samples
             # in the SAME snapshot block, #529 S6) the later-appended one wins —
             # the log is append-ordered, so last-in-block is the newer reading.
+            if (
+                cand == prev[1]
+                and str(value) != prev[0]
+                and _contested_out is not None
+                and not _is_envelope_noise(name)
+            ):
+                # Same capture time, different values: the append order is the
+                # ONLY thing separating them, which is not evidence. Record both
+                # so a later layer that knows the previous poll can prefer the
+                # plausible one instead of us picking by array position. The
+                # choice below is unchanged, so this is observation only.
+                _contested_out.setdefault(name, set()).update({prev[0], str(value)})
             if cand >= prev[1]:
                 best[name] = (str(value), cand, True)
         elif cand_real and not prev_real:
@@ -1076,6 +1089,7 @@ def map_dataset_to_vehicle_data(
     d: VehicleData,
     field_ts: dict[str, float] | None = None,
     field_syn: dict[str, set[str]] | None = None,
+    contested: dict[str, set[str]] | None = None,
 ) -> VehicleData:
     """Map a curated subset of EU Data Act fields onto ``VehicleData``.
 
@@ -1256,11 +1270,21 @@ def map_dataset_to_vehicle_data(
     # already-kW as the old #518 "convention" assumed (dict UUID 978be4ed states no
     # unit/resolution, only "Power of charging"). Only chargePower_kW (kW by name)
     # stays UNSCALED.
+    # #1022 (ID.7, MEB) — but NOT every car uses that encoding. This one sends
+    # 10.399994 while on an 11 kW AC wallbox, i.e. already kW, and dividing it
+    # by ten reported 1.0 kW. The discriminator is the fractional part: a
+    # deci-kW reading counts whole 0.1-kW steps, so it arrives as an integer
+    # (65, 19), while a value carrying decimals is already in kW. Verified
+    # against all three grounded reports: 65 -> 6.5, 19 -> 1.9, 10.399994 ->
+    # 10.4. Integer readings keep behaving exactly as before.
     cp_deci = _to_float(first(
         "battery_state_report.charge_power", "charge_power", "charging_power",
     ))
     if cp_deci is not None:
-        d.charging_power_kw = round(cp_deci / 10.0, 1)
+        if cp_deci % 1 != 0:
+            d.charging_power_kw = round(cp_deci, 1)
+        else:
+            d.charging_power_kw = round(cp_deci / 10.0, 1)
     else:
         cp_kw = _to_float(first("chargePower_kW"))
         if cp_kw is not None:
@@ -1791,6 +1815,28 @@ def map_dataset_to_vehicle_data(
         and str(_cmode).strip().lower() not in _CHARGE_STATE_JUNK
     ):
         d.charging_preferred_mode = _shorten_enum(_cmode)
+
+    # #1020 — HV-battery calibration notifications. Every one of these is an
+    # enum that VW's own data dictionary names and describes, so nothing is
+    # inferred here: the car flags that a calibration is needed, asks (then
+    # escalates twice), names the method it wants, and reports a failure with a
+    # reason. Stored shortened for display, like the other enum states.
+    for _cal_key, _cal_attr in (
+        ("calibration_need_detected", "calibration_need_detected"),
+        ("calibration_requests.calibration_request_initial",
+         "calibration_request_initial"),
+        ("calibration_requests.calibration_request_escalation_1",
+         "calibration_request_escalation_1"),
+        ("calibration_requests.calibration_request_escalation_2",
+         "calibration_request_escalation_2"),
+        ("calibration_request_method", "calibration_request_method"),
+        ("calibration_failure", "calibration_failure"),
+        ("calibration_failure_reason", "calibration_failure_reason"),
+    ):
+        _bare = _cal_key.rsplit(".", 1)[-1]
+        _cal_val = first(_cal_key, _bare)
+        if _cal_val and getattr(d, _cal_attr) is None:
+            setattr(d, _cal_attr, _shorten_enum(_cal_val))
 
     # battery_care_mode.charge_bcam_threshold → battery_care_target_soc_pct.
     _bcam = _to_int(first("battery_care_mode.charge_bcam_threshold",
@@ -2722,6 +2768,8 @@ def map_dataset_to_vehicle_data(
         # otherwise exposes the REAL account UUID + full VIN (the Scout issue
         # itself already masks both). Match on the leaf name so both the bare
         # (`vin`) and container-qualified (`eu_data_act.vin`) spellings redact.
+        if contested:
+            d.contested_fields = {k: sorted(v) for k, v in contested.items()}
         d.raw_unmapped_fields = {
             k: ("<redacted>" if k.rsplit(".", 1)[-1] in ("user_id", "vin")
                 else str(fields[k]))
@@ -3326,7 +3374,8 @@ class EUDataActConnector:
         payload = _unzip_json(raw, newest)
         field_ts: dict[str, float] = {}  # #529: resolved per-field capture ts
         field_syn: dict[str, set[str]] = {}  # v2.15.4: bare/qualified synonym map
-        fields = _walk_fields(payload, field_ts, field_syn)
+        contested: dict[str, set[str]] = {}  # same capture time, disagreeing values
+        fields = _walk_fields(payload, field_ts, field_syn, contested)
         _LOGGER.debug(
             "EU Data Act portal: %s dataset carried %d fields", vin[-6:], len(fields)
         )
@@ -3339,7 +3388,7 @@ class EUDataActConnector:
         self.last_no_data_reason = ""
         d.no_data = False  # real dataset parsed → this is a genuine good poll
         d.connection_state = "online"
-        return map_dataset_to_vehicle_data(fields, d, field_ts, field_syn)
+        return map_dataset_to_vehicle_data(fields, d, field_ts, field_syn, contested)
 
     async def get_relation_nickname(self, vin: str) -> str | None:
         """Best-effort vehicle nickname from the relation endpoint."""

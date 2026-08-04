@@ -2965,6 +2965,15 @@ class VWEUClient(CariadBaseClient):
         timers_pending = v(
             raw, "climatisationTimers", "climatisationTimersStatus", "requests"
         )
+        if timers_pending is None:
+            # Scout #1030 (Audi) — same queue under the ``automation`` container
+            # and a SINGULAR "Timer", mirroring the duality that already exists
+            # for charging profiles (automation.chargingProfiles.value.* vs
+            # chargingProfiles.chargingProfilesStatus.*). Same meaning, same
+            # target; only the spelling differs by firmware.
+            timers_pending = v(
+                raw, "automation", "climatisationTimer", "requests"
+            )
         if isinstance(timers_pending, list):
             d.climatisation_timers_pending = len(timers_pending)
 

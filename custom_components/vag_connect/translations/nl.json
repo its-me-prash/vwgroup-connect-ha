@@ -1155,6 +1155,27 @@
       },
       "climatisation_timers_pending": {
         "name": "Klimaattimer wijzigingen in behandeling"
+      },
+      "calibration_need_detected": {
+        "name": "Accukalibratie nodig"
+      },
+      "calibration_request_initial": {
+        "name": "Kalibratieverzoek"
+      },
+      "calibration_request_escalation_1": {
+        "name": "Kalibratieherinnering"
+      },
+      "calibration_request_escalation_2": {
+        "name": "Laatste kalibratieherinnering"
+      },
+      "calibration_request_method": {
+        "name": "Kalibratiemethode"
+      },
+      "calibration_failure": {
+        "name": "Kalibratiefout"
+      },
+      "calibration_failure_reason": {
+        "name": "Reden kalibratiefout"
       }
     },
     "binary_sensor": {
