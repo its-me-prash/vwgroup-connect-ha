@@ -1155,6 +1155,27 @@
       },
       "climatisation_timers_pending": {
         "name": "Zmiany timera klimatyzacji oczekują"
+      },
+      "calibration_need_detected": {
+        "name": "Wymagana kalibracja akumulatora"
+      },
+      "calibration_request_initial": {
+        "name": "Prośba o kalibrację"
+      },
+      "calibration_request_escalation_1": {
+        "name": "Przypomnienie o kalibracji"
+      },
+      "calibration_request_escalation_2": {
+        "name": "Ostatnie przypomnienie o kalibracji"
+      },
+      "calibration_request_method": {
+        "name": "Metoda kalibracji"
+      },
+      "calibration_failure": {
+        "name": "Błąd kalibracji"
+      },
+      "calibration_failure_reason": {
+        "name": "Przyczyna błędu kalibracji"
       }
     },
     "binary_sensor": {

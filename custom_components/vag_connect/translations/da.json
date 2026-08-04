@@ -1155,6 +1155,27 @@
       },
       "climatisation_timers_pending": {
         "name": "Klimatimerændringer afventende"
+      },
+      "calibration_need_detected": {
+        "name": "Batterikalibrering nødvendig"
+      },
+      "calibration_request_initial": {
+        "name": "Kalibreringsanmodning"
+      },
+      "calibration_request_escalation_1": {
+        "name": "Påmindelse om kalibrering"
+      },
+      "calibration_request_escalation_2": {
+        "name": "Sidste påmindelse om kalibrering"
+      },
+      "calibration_request_method": {
+        "name": "Kalibreringsmetode"
+      },
+      "calibration_failure": {
+        "name": "Kalibreringsfejl"
+      },
+      "calibration_failure_reason": {
+        "name": "Årsag til kalibreringsfejl"
       }
     },
     "binary_sensor": {

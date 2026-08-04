@@ -95,7 +95,15 @@ VagConnectConfigEntry: TypeAlias = ConfigEntry[VagConnectCoordinator]
 
 _SETUP_ERRORS: dict[str, str] = {
     "terms_and_conditions": (
-        "Terms and conditions must be accepted. Open the app, sign in, and confirm."
+        # #465/#1027 — both reporters had already accepted everything in the
+        # brand app and still hit this, because the DATA PORTAL sign-in has its
+        # own separate terms page. Naming only the app sent them looking in the
+        # wrong place (one concluded the integration used the wrong identity
+        # service). Name both.
+        "Terms and conditions must be accepted. This can be the brand app OR "
+        "the data portal, which asks separately: open the portal sign-in in a "
+        "browser, sign in with the same account, accept what it shows, then "
+        "reload the integration."
     ),
     "marketing_consent": (
         "New privacy consent required. App → Profile → Consents."
