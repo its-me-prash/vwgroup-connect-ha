@@ -108,6 +108,13 @@ jobs:
         run: |
           # Compare the VERSIONS, not the file bytes.
           #
+          # The status travels with the version on purpose. A run that keeps
+          # the previous version because every source failed, or because a
+          # source offered an older reading, does NOT move last_version_name —
+          # so comparing versions alone would call that "no change" and the
+          # `git checkout --` below would throw the explanation away. Comparing
+          # the pair means the flip into (and back out of) those states is what
+          # opens the PR, rather than every single run in that state.
           # This used to be a plain `git diff --quiet` over the cache + docs.
           # But `last_checked_at` is rewritten on every single run, so the diff
           # was never empty, "changed" was always true, and the no-change branch
@@ -119,14 +126,14 @@ jobs:
           import json
           b = json.load(open(".app-atlas-cache.json", encoding="utf-8"))["brands"]
           for k in sorted(b):
-              print(f'{k}={b[k].get("last_version_name")}')
+              print(f'{k}={b[k].get("last_version_name")}|{b[k].get("last_status", "ok")}')
           PY
           git show HEAD:.app-atlas-cache.json > /tmp/atlas_head.json 2>/dev/null || echo '{"brands":{}}' > /tmp/atlas_head.json
           python - <<'PY' > /tmp/atlas_before.txt
           import json
           b = json.load(open("/tmp/atlas_head.json", encoding="utf-8")).get("brands", {})
           for k in sorted(b):
-              print(f'{k}={b[k].get("last_version_name")}')
+              print(f'{k}={b[k].get("last_version_name")}|{b[k].get("last_status", "ok")}')
           PY
           if diff -q /tmp/atlas_before.txt /tmp/atlas_after.txt >/dev/null; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
