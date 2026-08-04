@@ -117,3 +117,35 @@ class TestResolverPrefersThePlausibleCandidate:
              "contested_fields": {"settings.target_soc": ["90", "70"]}},
         )
         assert merged["target_soc"] == 70
+
+
+# ── Scout #1030: the climate-timer queue under the automation container ──────
+
+class TestClimatisationTimerAlias:
+    """Audi firmware ships the queued climate-timer changes under
+    ``automation.climatisationTimer.requests`` (singular Timer) instead of
+    ``climatisationTimers.climatisationTimersStatus.requests``. Same queue,
+    same meaning, so it fills the same sensor rather than being a new field.
+    The duality already exists for charging profiles.
+    """
+
+    @staticmethod
+    def _parse(raw: dict):
+        from custom_components.vag_connect.cariad.api.vw_eu import VWEUClient
+
+        c = VWEUClient.__new__(VWEUClient)
+        return c._parse_status("VIN123", raw, {})
+
+    def test_known_spelling_still_counts(self) -> None:
+        d = self._parse({"climatisationTimers": {
+            "climatisationTimersStatus": {"requests": [{"id": 1}, {"id": 2}]}}})
+        assert d.climatisation_timers_pending == 2
+
+    def test_automation_spelling_counts_too(self) -> None:
+        d = self._parse({"automation": {
+            "climatisationTimer": {"requests": [{"id": 1}]}}})
+        assert d.climatisation_timers_pending == 1
+
+    def test_neither_present_leaves_it_unset(self) -> None:
+        d = self._parse({"charging": {}})
+        assert d.climatisation_timers_pending is None
