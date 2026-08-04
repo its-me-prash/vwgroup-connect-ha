@@ -1155,6 +1155,27 @@
       },
       "climatisation_timers_pending": {
         "name": "Ilmastointiajastimen muutokset odottamassa"
+      },
+      "calibration_need_detected": {
+        "name": "Akun kalibrointi tarpeen"
+      },
+      "calibration_request_initial": {
+        "name": "Kalibrointipyyntö"
+      },
+      "calibration_request_escalation_1": {
+        "name": "Kalibroinnin muistutus"
+      },
+      "calibration_request_escalation_2": {
+        "name": "Kalibroinnin viimeinen muistutus"
+      },
+      "calibration_request_method": {
+        "name": "Kalibrointitapa"
+      },
+      "calibration_failure": {
+        "name": "Kalibrointivirhe"
+      },
+      "calibration_failure_reason": {
+        "name": "Kalibrointivirheen syy"
       }
     },
     "binary_sensor": {

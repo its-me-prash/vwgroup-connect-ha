@@ -105,6 +105,11 @@ _PORTAL_BASE = "https://eu-data-act.drivesomethinggreater.com"
 # fewer or sparser dumps. See docs/EU_DATA_ACT_PORTAL.md for the
 # full payload schema.
 _EUDA_APIM = "/proxy_api/euda-apim"
+# The EndDate that accompanies Duration="No Expiry". The portal keeps
+# treating StartDate/EndDate as a window, so a one-month EndDate next to a
+# no-expiry Duration would contradict itself; this pushes the window out far
+# enough that it is never the thing that stops a feed.
+_NO_EXPIRY_WINDOW_DAYS = 3650
 _CUSTOM_REQUEST_POST_PATH = _EUDA_APIM + "/datarequest/vehicles/{vin}/requests/partial"
 _CUSTOM_REQUEST_META_PATH = _EUDA_APIM + "/datarequest/vehicles/{vin}/metadata/partial"
 _ALL_REQUEST_META_PATH = _EUDA_APIM + "/datarequest/vehicles/{vin}/metadata/all"
@@ -866,48 +871,74 @@ class DataActScraper:
 
         identifier = _secrets.token_hex(16)  # 32 chars
         now = datetime.now(timezone.utc).replace(microsecond=0)
-        end = (now + timedelta(days=duration_days)).replace(
-            hour=23, minute=59, second=59
-        )
         clusters = list(data_clusters or _DEFAULT_DATA_CLUSTERS)
-        body = {
-            "Name": name,
-            "Identifier": identifier,
-            "Frequency": "15mins",
-            # v2.17.x — the portal now REQUIRES a Duration field; without it the
-            # POST 400s "Invalid Duration: None. Allowed values are
-            # ['No Expiry', 'One Month'] or upcoming dates …" (verified live
-            # 2026-07-12). "One Month" matches the 31-day StartDate/EndDate
-            # window below; the coordinator re-adopts/re-kicks each cycle.
-            "Duration": "One Month",
-            "StartDate": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "EndDate": end.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "DataClusters": clusters,
-            "EmailFrequency": "No notification",
-            "LastNotificationDate": None,
-        }
+
+        def _body(duration: str, days: int) -> dict[str, Any]:
+            end = (now + timedelta(days=days)).replace(
+                hour=23, minute=59, second=59
+            )
+            return {
+                "Name": name,
+                "Identifier": identifier,
+                "Frequency": "15mins",
+                # v2.17.x — the portal REQUIRES a Duration field; without it the
+                # POST 400s "Invalid Duration: None. Allowed values are
+                # ['No Expiry', 'One Month'] or upcoming dates …" (verified live
+                # 2026-07-12). StartDate/EndDate must not contradict it.
+                "Duration": duration,
+                "StartDate": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "EndDate": end.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "DataClusters": clusters,
+                "EmailFrequency": "No notification",
+                "LastNotificationDate": None,
+            }
+
+        # Every feed used to be created as "One Month", so the data
+        # stopped roughly four weeks after setup and the sensors went quiet
+        # with no error anywhere. The portal's own message lists "No Expiry"
+        # as an allowed value, so that is what we ask for now.
+        #
+        # "One Month" stays as a fallback: we cannot re-verify the exact
+        # no-expiry body shape against the live portal from here, and a
+        # rejected kickoff means NO data feed at all. Asking for less is far
+        # better than asking for nothing.
+        attempts: list[tuple[str, int]] = [
+            ("No Expiry", _NO_EXPIRY_WINDOW_DAYS),
+            ("One Month", duration_days),
+        ]
         url = _PORTAL_BASE + _CUSTOM_REQUEST_POST_PATH.format(vin=vin)
-        try:
-            async with self._session.post(
-                url,
-                json=body,
-                timeout=ClientTimeout(total=30),
-                headers={
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                    "CSRF-Token": csrf,
-                    "X-CSRF-Token": csrf,  # belt and braces
-                    # Required by the euda-apim layer (see metadata GET above);
-                    # without it the POST 503s at the AEM edge.
-                    "traceId": uuid.uuid4().hex,
-                },
-            ) as resp:
-                if resp.status == 401:
-                    raise DataActSessionExpiredError(
-                        "requests/partial returned 401 - portal session expired"
-                    )
-                if resp.status not in (200, 201, 202):
+        for index, (duration, days) in enumerate(attempts):
+            last = index == len(attempts) - 1
+            try:
+                async with self._session.post(
+                    url,
+                    json=_body(duration, days),
+                    timeout=ClientTimeout(total=30),
+                    headers={
+                        "Accept": "application/json",
+                        "Content-Type": "application/json",
+                        "CSRF-Token": csrf,
+                        "X-CSRF-Token": csrf,  # belt and braces
+                        # Required by the euda-apim layer (see metadata GET
+                        # above); without it the POST 503s at the AEM edge.
+                        "traceId": uuid.uuid4().hex,
+                    },
+                ) as resp:
+                    if resp.status == 401:
+                        raise DataActSessionExpiredError(
+                            "requests/partial returned 401 - portal session expired"
+                        )
+                    if resp.status in (200, 201, 202):
+                        break
                     body_text = await resp.text(errors="replace")
+                    if not last:
+                        _LOGGER.info(
+                            "kickoff_custom_data_request: portal rejected "
+                            "Duration=%r (HTTP %s), retrying with %r: %s",
+                            duration, resp.status, attempts[index + 1][0],
+                            body_text[:200],
+                        )
+                        continue
                     # WARNING, not INFO: a non-2xx here means the portal rejected
                     # the request (e.g. a changed request format) → the car gets
                     # NO data feed, silently. It must be visible so the next
@@ -918,16 +949,18 @@ class DataActScraper:
                         resp.status, _mask_vin(vin), body_text[:300],
                     )
                     return None
-        except DataActSessionExpiredError:
-            raise
-        except Exception as exc:  # noqa: BLE001
-            _LOGGER.debug("kickoff_custom_data_request failed: %s", exc)
+            except DataActSessionExpiredError:
+                raise
+            except Exception as exc:  # noqa: BLE001
+                _LOGGER.debug("kickoff_custom_data_request failed: %s", exc)
+                return None
+        else:  # pragma: no cover - the loop always breaks or returns
             return None
 
         _LOGGER.info(
             "EU Data Act Custom Request kicked off for VIN %s "
-            "(Identifier=%s..., duration=%dd, frequency=15min)",
-            _mask_vin(vin), identifier[:8], duration_days,
+            "(Identifier=%s..., duration=%s, frequency=15min)",
+            _mask_vin(vin), identifier[:8], duration,
         )
         return identifier
 
