@@ -1,6 +1,6 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""#632 — the portal feed must not be created with a four-week expiry.
+"""The portal feed must not be created with a four-week expiry.
 
 Every 15-minute feed used to be created as ``Duration: "One Month"`` with a
 matching 31-day window, so roughly four weeks after setup the portal stopped

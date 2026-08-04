@@ -74,10 +74,10 @@ async def test_kickoff_body_includes_duration() -> None:
     assert ident  # 201 → returns the new Identifier
     assert sess.post_calls, "no POST was made"
     body = sess.post_calls[-1][1]["json"]
-    # v2.29.x (#632) — asked for as "No Expiry" now; the value this pins is
+    # v2.29.x — asked for as "No Expiry" now; the value this pins is
     # that a valid Duration is sent at all. The month-long window that used to
     # be sent here is what silently stopped every feed after four weeks, and it
-    # survives only as the fallback (see test_v2290_632_no_expiry.py).
+    # survives only as the fallback (see test_v2290_portal_feed_no_expiry.py).
     assert body["Duration"] == "No Expiry"
     assert body["Frequency"] == "15mins"  # legacy fields still present (echoed live)
 

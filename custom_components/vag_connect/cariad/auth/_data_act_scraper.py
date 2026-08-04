@@ -105,7 +105,7 @@ _PORTAL_BASE = "https://eu-data-act.drivesomethinggreater.com"
 # fewer or sparser dumps. See docs/EU_DATA_ACT_PORTAL.md for the
 # full payload schema.
 _EUDA_APIM = "/proxy_api/euda-apim"
-# #632 — the EndDate that accompanies Duration="No Expiry". The portal keeps
+# The EndDate that accompanies Duration="No Expiry". The portal keeps
 # treating StartDate/EndDate as a window, so a one-month EndDate next to a
 # no-expiry Duration would contradict itself; this pushes the window out far
 # enough that it is never the thing that stops a feed.
@@ -893,7 +893,7 @@ class DataActScraper:
                 "LastNotificationDate": None,
             }
 
-        # #632 — every feed used to be created as "One Month", so the data
+        # Every feed used to be created as "One Month", so the data
         # stopped roughly four weeks after setup and the sensors went quiet
         # with no error anywhere. The portal's own message lists "No Expiry"
         # as an allowed value, so that is what we ask for now.
