@@ -4,38 +4,52 @@
     "seat": {
       "last_version_name": "2.20.2",
       "last_source": "google_play",
-      "last_checked_at": "2026-07-31T06:34:58.976477+00:00"
+      "last_checked_at": "2026-08-04T15:55:03.870026+00:00",
+      "last_confirmed_at": "2026-08-04T15:55:03.870026+00:00",
+      "last_status": "ok"
     },
     "cupra": {
-      "last_version_name": "2.20.2",
+      "last_version_name": "2.20.3",
       "last_source": "google_play",
-      "last_checked_at": "2026-07-31T06:35:02.330217+00:00"
+      "last_checked_at": "2026-08-04T15:55:04.137123+00:00",
+      "last_confirmed_at": "2026-08-04T15:55:04.137123+00:00",
+      "last_status": "ok"
     },
     "volkswagen": {
       "last_version_name": "4.2.1",
       "last_source": "google_play",
-      "last_checked_at": "2026-07-31T06:35:02.487168+00:00"
+      "last_checked_at": "2026-08-04T15:55:04.435816+00:00",
+      "last_confirmed_at": "2026-08-04T15:55:04.435816+00:00",
+      "last_status": "ok"
     },
     "audi": {
       "last_version_name": "5.6.0",
       "last_source": "google_play",
-      "last_checked_at": "2026-07-31T06:35:02.615714+00:00"
+      "last_checked_at": "2026-08-04T15:55:05.649094+00:00",
+      "last_confirmed_at": "2026-08-04T15:55:05.649094+00:00",
+      "last_status": "ok"
     },
     "skoda": {
       "last_version_name": "8.14.0",
       "last_source": "uptodown",
-      "last_checked_at": "2026-07-31T06:35:03.360564+00:00"
+      "last_checked_at": "2026-08-04T15:55:06.457632+00:00",
+      "last_confirmed_at": "2026-08-04T15:55:06.457632+00:00",
+      "last_status": "ok"
     },
     "volkswagen_na": {
-      "last_version_name": "2026.5.27-9076",
-      "last_source": "apkmirror",
-      "last_checked_at": "2026-07-31T06:35:03.967396+00:00"
+      "last_version_name": "2026.7.28-9380",
+      "last_source": "google_play",
+      "last_checked_at": "2026-08-04T15:55:06.747744+00:00",
+      "last_confirmed_at": "2026-08-04T15:55:06.747744+00:00",
+      "last_status": "ok"
     },
     "porsche": {
-      "last_version_name": "12.24.27",
+      "last_version_name": "20.26.31",
       "last_source": "apkmirror",
-      "last_checked_at": "2026-07-31T06:35:04.512885+00:00"
+      "last_checked_at": "2026-08-04T15:55:07.664304+00:00",
+      "last_confirmed_at": "2026-08-04T15:55:07.664304+00:00",
+      "last_status": "ok"
     }
   },
-  "_last_updated": "2026-07-31T06:35:04.512996+00:00"
+  "_last_updated": "2026-08-04T15:55:07.665621+00:00"
 }

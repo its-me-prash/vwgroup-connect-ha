@@ -1,12 +1,15 @@
 name: Changelog Pflicht
 
+# Runs on EVERY pull request, deliberately. This job is a required check on
+# main, and a required check that is filtered out by path never reports at
+# all — it sits as "expected" forever and the pull request can only be merged
+# by an administrator overriding the protection. That is what happened to
+# every docs-only and CI-only pull request in this repo. The rule itself has
+# not changed: the job decides for itself whether the rule applies, and says
+# so, instead of the trigger deciding whether anyone hears from it.
 on:
   pull_request:
     branches: [main]
-    paths:
-      - 'custom_components/**'
-      - 'CHANGELOG.md'
-      - 'docs/CHANGELOG_TECHNICAL.md'
 
 jobs:
   check:
@@ -19,8 +22,12 @@ jobs:
 
       - name: Prüfen ob CHANGELOG.md geändert wurde
         run: |
-          CHANGED=$(git diff --name-only origin/main...HEAD | grep -c "CHANGELOG.md" || true)
-          if [ "$CHANGED" -eq 0 ]; then
+          FILES=$(git diff --name-only origin/main...HEAD)
+          if ! echo "$FILES" | grep -qE '^(custom_components/|CHANGELOG\.md$|docs/CHANGELOG_TECHNICAL\.md$)'; then
+            echo "Kein Integrations-Code geändert (nur Doku/CI/Tests) — CHANGELOG-Pflicht gilt hier nicht."
+            exit 0
+          fi
+          if ! echo "$FILES" | grep -q "CHANGELOG.md"; then
             echo ""
             echo "══════════════════════════════════════════"
             echo "  CHANGELOG.md wurde nicht aktualisiert!"
