@@ -251,6 +251,39 @@ def scrape_version(brand: str, sources: dict[str, str | None]) -> tuple[str | No
     return None, None
 
 
+# ── Version ordering ────────────────────────────────────────────────
+
+
+def parse_version(value: str) -> tuple[int, ...] | None:
+    """``"2026.7.28-9380"`` → ``(2026, 7, 28, 9380)``; ``None`` when the string
+    is not purely numeric segments.
+
+    Deliberately refuses rather than guesses. A qualifier like ``3.61.0-beta``
+    has no defensible ordering against a plain release, and a comparator that
+    invents one is worse than no comparator: it would silently freeze a brand
+    on a value it decided was newer.
+    """
+    tokens = re.split(r"[.\-]", value.strip())
+    if not tokens or not all(t.isdigit() for t in tokens):
+        return None
+    return tuple(int(t) for t in tokens)
+
+
+def is_downgrade(new: str, old: str) -> bool:
+    """True only when both strings parse, share a shape, and ``new`` sorts below.
+
+    The same-length requirement is what keeps this honest across brands: myVW
+    numbers releases by date (``2026.7.28-9380``) while the SEAT app uses plain
+    semver (``2.20.2``). Comparing across those schemes is meaningless, so a
+    brand that changes its numbering is passed through untouched rather than
+    being read as a catastrophic downgrade and pinned forever.
+    """
+    a, b = parse_version(new), parse_version(old)
+    if a is None or b is None or len(a) != len(b):
+        return False
+    return a < b
+
+
 # ── Cache I/O ───────────────────────────────────────────────────────
 
 
@@ -348,8 +381,21 @@ def _render_apk_section(findings: dict[str, Any] | None) -> str:
     return "\n".join(parts)
 
 
+def _reading_note(status: str, current_version: str | None, observed: str | None) -> str:
+    """The one line on the page that says how much to trust the number above it."""
+    if status == "stale":
+        return ("| Reading | **Not re-confirmed today** — every source failed, "
+                "so this is the last confirmed value, not a fresh one. |")
+    if status == "rejected":
+        return (f"| Reading | **A source offered `{observed}`**, which sorts below the "
+                f"confirmed `{current_version}`. Kept the confirmed one. If the app "
+                f"really was rolled back, clear this brand's cache entry to accept it. |")
+    return ""
+
+
 def emit_brand_atlas(brand: str, brand_cfg: dict[str, Any], current_version: str | None,
-                    source_name: str | None, cache_entry: dict[str, Any]) -> None:
+                    source_name: str | None, cache_entry: dict[str, Any],
+                    status: str = "ok", observed: str | None = None) -> None:
     """Write/update docs/research/app-atlas/{brand}.md."""
     display    = brand_cfg["display_name"]
     package    = brand_cfg["package_id"]
@@ -390,6 +436,7 @@ def emit_brand_atlas(brand: str, brand_cfg: dict[str, Any], current_version: str
 | Source that responded | `{src_label}` |
 | Previously cached version | `{prev_ver or '(first run)'}` |
 | Changed since last run? | {'**YES**' if current_version and current_version != prev_ver else 'No'} |
+{_reading_note(status, current_version, observed)}
 
 ## Discovered via APK extraction (Phase A.2)
 
@@ -412,13 +459,22 @@ _See [`README.md`](README.md) for atlas methodology and
 
 
 def emit_summary(config: dict[str, Any], results: dict[str, str | None],
-                 sources_used: dict[str, str | None]) -> None:
+                 sources_used: dict[str, str | None],
+                 statuses: dict[str, str] | None = None) -> None:
     """Write docs/research/app-atlas/_summary.md — cross-brand matrix."""
     now = datetime.datetime.now(tz=datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    statuses = statuses or {}
     rows: list[str] = []
     for brand, cfg in config["brands"].items():
         version = results.get(brand) or "(fetch failed)"
         src = sources_used.get(brand) or "—"
+        # A version carried over from an earlier run reads exactly like a fresh
+        # one in a table, which is how a stale number gets quoted as current.
+        status = statuses.get(brand, "ok")
+        if status == "stale":
+            version += " (not re-confirmed)"
+        elif status == "rejected":
+            version += " (kept; an older reading was rejected)"
         ola_flag = "" if cfg.get("ola_enforcement_known") else ""
         rows.append(
             f"| **{cfg['display_name']}** | `{cfg['package_id']}` | "
@@ -482,6 +538,7 @@ def main(argv: list[str] | None = None) -> int:
 
     results: dict[str, str | None] = {}
     sources_used: dict[str, str | None] = {}
+    statuses: dict[str, str] = {}
     changed_brands: list[str] = []
 
     target_brands = [args.brand] if args.brand else list(config["brands"].keys())
@@ -503,13 +560,50 @@ def main(argv: list[str] | None = None) -> int:
             sources_used[brand] = None
             continue
 
-        current, src = scrape_version(brand, sources)
+        observed, observed_src = scrape_version(brand, sources)
+        prev_entry = cache["brands"].get(brand, {})
+        # `or ""` rather than a .get default: a cache entry written by an older
+        # build carries an explicit null, and `.get(key, "")` returns that null
+        # rather than the default, which used to render the brand as a
+        # first-ever run and report a spurious version change.
+        prev_ver = prev_entry.get("last_version_name") or ""
+        prev_src = prev_entry.get("last_source")
+
+        # A scrape reports one of three things, and only one of them is new
+        # knowledge about the app. Treating all three as "the current version"
+        # is how a failed fetch erased a known-good version-name, and how a
+        # mirror serving an older listing walked a brand backwards.
+        current, src, status = observed, observed_src, "ok"
+        if observed is None and prev_ver:
+            # Every source failed. That says something about the sources, not
+            # about the app — so keep what we last confirmed and mark it as
+            # not re-confirmed rather than forgetting it.
+            current, src, status = prev_ver, prev_src, "stale"
+        elif observed and prev_ver and is_downgrade(observed, prev_ver):
+            # Apps do get pulled and re-released, so this is not impossible —
+            # but a single scrape is not enough to conclude it, and the page
+            # carries several version-shaped strings that are NOT the current
+            # one. Keep the confirmed value and make the rejected reading
+            # visible so a human can override it.
+            current, src, status = prev_ver, prev_src, "rejected"
+
         results[brand] = current
         sources_used[brand] = src
-        prev_entry = cache["brands"].get(brand, {})
-        prev_ver = prev_entry.get("last_version_name", "")
+        statuses[brand] = status
 
-        if current and current != prev_ver:
+        if status == "stale":
+            _LOGGER.warning("STALE %s: every source failed — keeping %s", brand, prev_ver)
+            # print(), not the logger: a workflow command is only recognised
+            # when it starts the line, and the log format prefixes it.
+            print(f"::warning title=App Atlas::{brand}: every source failed; "
+                  f"keeping the last confirmed version {prev_ver}", flush=True)
+        elif status == "rejected":
+            _LOGGER.warning("REJECTED %s: %s sorts below confirmed %s — keeping %s",
+                            brand, observed, prev_ver, prev_ver)
+            print(f"::warning title=App Atlas::{brand}: a source offered {observed}, "
+                  f"which is older than the confirmed {prev_ver}; kept {prev_ver}",
+                  flush=True)
+        elif current and current != prev_ver:
             changed_brands.append(brand)
             _LOGGER.info("CHANGED %s: %s → %s (via %s)", brand, prev_ver or "(none)", current, src)
         elif current:
@@ -549,17 +643,28 @@ def main(argv: list[str] | None = None) -> int:
                                     "render last-known findings only", brand)
 
         if not args.dry_run:
-            emit_brand_atlas(brand, brand_cfg, current, src, prev_entry)
-            cache["brands"][brand] = {
+            emit_brand_atlas(brand, brand_cfg, current, src, prev_entry,
+                             status=status, observed=observed)
+            now_iso = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
+            entry: dict[str, Any] = {
                 "last_version_name": current,
                 "last_source": src,
-                "last_checked_at": datetime.datetime.now(
-                    tz=datetime.timezone.utc
-                ).isoformat(),
+                "last_checked_at": now_iso,
+                # Separate from last_checked_at on purpose: "we looked" and "we
+                # got an answer" stopped being the same thing the moment a
+                # failed look was allowed to keep the old value.
+                "last_confirmed_at": (
+                    now_iso if status == "ok"
+                    else prev_entry.get("last_confirmed_at")
+                ),
+                "last_status": status,
             }
+            if status == "rejected":
+                entry["last_rejected_reading"] = observed
+            cache["brands"][brand] = entry
 
     if not args.dry_run:
-        emit_summary(config, results, sources_used)
+        emit_summary(config, results, sources_used, statuses)
         save_cache(cache)
 
     print(f"\nSummary: {len(changed_brands)} brand(s) changed: {changed_brands}")

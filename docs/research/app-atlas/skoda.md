@@ -1,7 +1,7 @@
 # App Atlas — Škoda (MyŠkoda)
 
 > **Auto-generated** by `.github/workflows/app-atlas-builder.yml` ·
-> Last refreshed: 2026-08-02
+> Last refreshed: 2026-08-04
 
 ## Identity
 
@@ -22,14 +22,24 @@
 
 | | |
 |---|---|
-| Latest version-name | `(fetch failed)` |
-| Source that responded | `(no source succeeded)` |
+| Latest version-name | `8.14.0` |
+| Source that responded | `uptodown` |
 | Previously cached version | `8.14.0` |
 | Changed since last run? | No |
 
+
 ## Discovered via APK extraction (Phase A.2)
 
-_(Empty — Phase A.2 APK extraction not yet run for this brand, or last attempt failed. See `app_atlas/apk_extractor.py`.)_
+_Last extracted: (unknown) (for version `(unknown)`)_
+
+
+### HTTP header keys found in app bytecode
+
+_(none of the configured OLA-style header keys found)_
+
+### Backend hosts found in app bytecode
+
+_(none of the configured backend hosts found)_
 
 ## Cross-version diff
 
