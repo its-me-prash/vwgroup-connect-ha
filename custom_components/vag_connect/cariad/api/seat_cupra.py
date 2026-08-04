@@ -16,6 +16,7 @@ from typing import Any
 from aiohttp import ClientSession
 
 from .._util import (
+    first_not_none,
     compose_workshop_address,
     compute_connection_state,
     days_or_date_to_iso,
@@ -993,27 +994,27 @@ class SeatCupraClient(CariadBaseClient):
         # ``gasolineRange``/``dieselRange`` vs ``combustionRangeInKm``;
         # ``totalRange`` vs ``totalRangeInKm``. First non-None wins.
         if isinstance(ranges, dict):
-            electric = (
-                v(ranges, "electricRange")
-                or v(ranges, "electricRangeInKm")                           # v2.5.3
-                or v(ranges, "primaryEngineRange", "remainingRangeInKm")    # v2.5.3
+            electric = first_not_none(
+                v(ranges, "electricRange"),
+                v(ranges, "electricRangeInKm"),  # v2.5.3
+                v(ranges, "primaryEngineRange", "remainingRangeInKm"),  # v2.5.3
             )
-            combustion = (
-                v(ranges, "gasolineRange")
-                or v(ranges, "dieselRange")
-                or v(ranges, "combustionRangeInKm")                         # v2.5.3
-                or v(ranges, "secondaryEngineRange", "remainingRangeInKm")  # v2.5.3
+            combustion = first_not_none(
+                v(ranges, "gasolineRange"),
+                v(ranges, "dieselRange"),
+                v(ranges, "combustionRangeInKm"),  # v2.5.3
+                v(ranges, "secondaryEngineRange", "remainingRangeInKm"),  # v2.5.3
             )
-            d.range_km = (
-                electric
-                or combustion
-                or v(ranges, "totalRange")
-                or v(ranges, "totalRangeInKm")                              # v2.5.3
+            d.range_km = first_not_none(
+                electric,
+                combustion,
+                v(ranges, "totalRange"),
+                v(ranges, "totalRangeInKm"),  # v2.5.3
             )
             d.has_combustion = combustion is not None
-            d.adblue_range_km = (
-                v(ranges, "adBlueRange")
-                or v(ranges, "adBlueRangeInKm")                             # v2.5.3
+            d.adblue_range_km = first_not_none(
+                v(ranges, "adBlueRange"),
+                v(ranges, "adBlueRangeInKm"),  # v2.5.3
             )
 
         # ── Detailed vehicle status (doors, windows, trunk) ──────────────────
@@ -1248,11 +1249,11 @@ class SeatCupraClient(CariadBaseClient):
                 # users on 2026+ firmware would otherwise see no SoC at
                 # all — Rainer's #109 dump (used as v1.8.9 reference)
                 # was already on a firmware that's been superseded.
-                d.battery_soc = (
-                    v(bat, "currentSocPercentage")        # Born 2026 firmware (#53)
-                    or v(charge_status, "currentPct")  # Rainer #109 shape A — verified
-                    or v(bat, "stateOfChargeInPercent")
-                    or v(bat, "currentSOC_pct")
+                d.battery_soc = first_not_none(
+                    v(bat, "currentSocPercentage"),  # Born 2026 firmware (#53)
+                    v(charge_status, "currentPct"),  # Rainer #109 shape A — verified
+                    v(bat, "stateOfChargeInPercent"),
+                    v(bat, "currentSOC_pct"),
                 )
                 d.has_battery = d.battery_soc is not None
 
@@ -1319,15 +1320,15 @@ class SeatCupraClient(CariadBaseClient):
                 isinstance(d.charging_state, str)
                 and d.charging_state.lower() == "charging"
             )
-            d.charging_power_kw = (
-                v(chg, "chargedPowerInKw")  # Rainer #109 shape B — verified
-                or v(chg, "chargePowerInKw")  # Legacy
-                or v(chg, "chargePower_kW")   # Legacy
+            d.charging_power_kw = first_not_none(
+                v(chg, "chargedPowerInKw"),  # Rainer #109 shape B — verified
+                v(chg, "chargePowerInKw"),  # Legacy
+                v(chg, "chargePower_kW"),  # Legacy
             )
-            d.charging_rate_kmh = (
-                v(chg, "chargeRateInKmPerHour")  # Rainer #109 shape A
-                or v(chg, "chargeRate_kmph")     # Legacy CARIAD path
-                or v(chg, "rateInKmph")          # v2.0.1 Scout #192 — Cupra Born MY26 ships this on the OLA charging endpoint
+            d.charging_rate_kmh = first_not_none(
+                v(chg, "chargeRateInKmPerHour"),  # Rainer #109 shape A
+                v(chg, "chargeRate_kmph"),  # Legacy CARIAD path
+                v(chg, "rateInKmph"),  # v2.0.1 Scout #192 — Cupra Born MY26 ships this on the OLA charging endpoint
             )
             remaining = (
                 v(chg, "remainingTimeInMinutes")  # Rainer #109 shape B — verified
@@ -1437,11 +1438,11 @@ class SeatCupraClient(CariadBaseClient):
             # CUPRA/SEAT firmwares. Try the nested path first, fall
             # back to legacy top-level for older shapes.
             settings = v(charge_info, "settings") or {}
-            d.target_soc = (
-                (settings.get("targetSoc") if isinstance(settings, dict) else None)
-                or v(charge_info, "targetSoc_pct")
-                or v(charge_info, "targetSOC_pct")
-                or v(charge_info, "targetStateOfChargeInPercent")
+            d.target_soc = first_not_none(
+                (settings.get("targetSoc") if isinstance(settings, dict) else None),
+                v(charge_info, "targetSoc_pct"),
+                v(charge_info, "targetSOC_pct"),
+                v(charge_info, "targetStateOfChargeInPercent"),
             )
             # v2.11.1 hotfix (#392 heidle78 v2.11.0 regression): the OLA
             # API returns `settings.maxChargeCurrentAc` as an enum string
@@ -1629,29 +1630,29 @@ class SeatCupraClient(CariadBaseClient):
         # camelCase → ``*InKm``/``*InDays`` (myskoda-style). First non-None
         # wins, so newer responses fall through cleanly.
         if isinstance(maintenance, dict):
-            d.service_km = (
-                v(maintenance, "inspectionDue_km")
-                or v(maintenance, "distanceToInspection")
-                or v(maintenance, "inspectionDueInKm")              # v2.5.3
-                or v(maintenance, "mileageRemainingForInspection")  # v2.5.3 (Leon FR-KL variant)
+            d.service_km = first_not_none(
+                v(maintenance, "inspectionDue_km"),
+                v(maintenance, "distanceToInspection"),
+                v(maintenance, "inspectionDueInKm"),  # v2.5.3
+                v(maintenance, "mileageRemainingForInspection"),  # v2.5.3 (Leon FR-KL variant)
             )
-            d.service_due_at = (
-                v(maintenance, "inspectionDue_days")
-                or v(maintenance, "daysToInspection")
-                or v(maintenance, "inspectionDueInDays")            # v2.5.3
-                or v(maintenance, "timeRemainingForInspection")     # v2.5.3
+            d.service_due_at = first_not_none(
+                v(maintenance, "inspectionDue_days"),
+                v(maintenance, "daysToInspection"),
+                v(maintenance, "inspectionDueInDays"),  # v2.5.3
+                v(maintenance, "timeRemainingForInspection"),  # v2.5.3
             )
-            d.oil_service_km = (
-                v(maintenance, "oilServiceDue_km")
-                or v(maintenance, "distanceToOilChange")
-                or v(maintenance, "oilServiceDueInKm")              # v2.5.3
-                or v(maintenance, "mileageRemainingForOilService")  # v2.5.3
+            d.oil_service_km = first_not_none(
+                v(maintenance, "oilServiceDue_km"),
+                v(maintenance, "distanceToOilChange"),
+                v(maintenance, "oilServiceDueInKm"),  # v2.5.3
+                v(maintenance, "mileageRemainingForOilService"),  # v2.5.3
             )
-            d.oil_service_at = (
-                v(maintenance, "oilServiceDue_days")
-                or v(maintenance, "daysToOilChange")
-                or v(maintenance, "oilServiceDueInDays")            # v2.5.3
-                or v(maintenance, "timeRemainingForOilService")     # v2.5.3
+            d.oil_service_at = first_not_none(
+                v(maintenance, "oilServiceDue_days"),
+                v(maintenance, "daysToOilChange"),
+                v(maintenance, "oilServiceDueInDays"),  # v2.5.3
+                v(maintenance, "timeRemainingForOilService"),  # v2.5.3
             )
             # v2.8.1 #306 — AdBlue tank level (%). OLA ships this under
             # an opaque code key on diesel vehicles with SCR. Field-name

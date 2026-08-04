@@ -209,7 +209,10 @@ _VW = BrandPreset(
             target="electric_range_km",
             content_desc_re=(
                 r"(?:Batteriereichweite|Battery range|Electric range|Reichweite|Range)"
-                r"\D*(\d{1,4})\s*km"
+                # The app narrates the unit in words, not as a symbol: a real
+                # We Connect 4.2.1 tile reads "Batteriereichweite: 253
+                # Kilometer". Matching only "km" read nothing at all here.
+                r"\D*(\d{1,4})\s*(?:km\b|[Kk]ilomet)"
             ),
             label_re=r"^(?:Batteriereichweite|Battery range|Electric range|Reichweite|Range)$",
             value_from="sibling",
@@ -232,7 +235,10 @@ _VW = BrandPreset(
         # v2.26.0 (ckomma #7) — odometer. Grouped-thousands safe now (_first_int).
         FieldSelector(
             target="odometer_km",
-            content_desc_re=r"(?:Kilometerstand|Odometer|Mileage|km-Stand)\D*([\d\s.]+)\s*km",
+            content_desc_re=(
+                r"(?:Kilometerstand|Odometer|Mileage|km-Stand)"
+                r"\D*([\d\s.]+)\s*(?:km\b|[Kk]ilomet)"
+            ),
             label_re=r"^(?:Kilometerstand|Odometer|Mileage|km-Stand)$",
             value_from="sibling",
             parse="int_km",
