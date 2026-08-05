@@ -1194,6 +1194,14 @@ class IDKAuth:
                 raise EmailTwoFactorRequiredError()
             if "two-factor" in pw_body_lc or "2fa" in pw_body_lc:
                 raise TwoFactorRequiredError()
+            # v2.29.x (sstur/vwapp) — a con-veh NA login returns THROTTLING as a
+            # 200 signin-HTML page (marker "login.error.throttled"), not an HTTP
+            # 429. Without this it fell to the "wrong credentials?" catch-all below
+            # and was misreported as a bad password → a reauth prompt that then
+            # fired more (throttled) login attempts. Classify it as the rate-limit
+            # it is so the coordinator backs off instead.
+            if "login.error.throttled" in pw_body_lc or "throttl" in pw_body_lc:
+                raise RateLimitError()
             raise AuthenticationError(
                 "Unexpected 200 after password POST — wrong credentials?"
             )
