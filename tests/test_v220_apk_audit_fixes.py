@@ -89,23 +89,36 @@ def _vwna() -> VWNAClient:
     c = VWNAClient.__new__(VWNAClient)
     c._base = "https://b-h-s.spr.us00.p.con-veh.net"
     c._vin_to_uuid = {"VIN1": "uuid-1"}
+    c._read_session_tokens = {}
     c._post = AsyncMock()  # type: ignore[method-assign]
     return c
 
 
 def test_vwna_wake_uses_rvs_refresh() -> None:
+    # v2.29.x — wake is now carnet-gated (sstur/vwapp): routed via _carnet_command
+    # -> _request with the carnetVehicleToken as Bearer, not a plain _post.
     c = _vwna()
+    c._get_read_session_token = AsyncMock(return_value="carnet")  # type: ignore[method-assign]
+    c._request = AsyncMock(return_value={})  # type: ignore[method-assign]
     asyncio.run(c.command_wake("VIN1"))
-    url, _ = _url_body(c)
-    assert url.endswith("/rvs/v1/vehicle/uuid-1/refresh")  # not /ev/.../wakeup
+    a = c._request.call_args
+    assert a.args[0] == "POST"
+    assert a.args[1].endswith("/rvs/v1/vehicle/uuid-1/refresh")  # not /ev/.../wakeup
+    assert a.kwargs["headers"]["Authorization"] == "Bearer carnet"
 
 
 def test_vwna_target_soc_percentage_field() -> None:
+    # v2.29.x — set-charge-limit is a PUT that replaces the whole settings object;
+    # with no readable current settings it PUTs the bare targetSOCPercentage.
     c = _vwna()
+    c._get_read_session_token = AsyncMock(return_value="carnet")  # type: ignore[method-assign]
+    c._read = AsyncMock(return_value={})  # type: ignore[method-assign]
+    c._request = AsyncMock(return_value={})  # type: ignore[method-assign]
     asyncio.run(c.command_set_target_soc("VIN1", 90))
-    url, body = _url_body(c)
-    assert url.endswith("/ev/v1/vehicle/uuid-1/charging/settings")
-    assert body == {"targetSOCPercentage": 90}  # not targetSOC_pct
+    a = c._request.call_args
+    assert a.args[0] == "PUT"
+    assert a.args[1].endswith("/ev/v1/vehicle/uuid-1/charging/settings")
+    assert a.kwargs["json"] == {"targetSOCPercentage": 90}  # not targetSOC_pct
 
 
 def test_vwna_flash_uses_honkflash_service() -> None:

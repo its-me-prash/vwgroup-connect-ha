@@ -396,11 +396,11 @@ class VWNAClient:
                     body {idToken, spinHash, tsp:"WCT"}
                     -> data.carnetVehicleToken (a JWT)
 
-        NOTE — this READ session endpoint
-        (``/ss/v1/user/{uid}/vehicle/{uuid}/session``) is DISTINCT from our
-        command-SPIN path (``/ss/v1/user/{uid}/spin`` with {challenge,response}
-        in ``_get_na_spin_session_token``). We implement the read flow exactly
-        as the peer does; we do NOT assume the two are identical.
+        v2.29.x (sstur/vwapp): this SAME ``carnetVehicleToken`` is now the auth
+        for the remote COMMANDS too (lock/unlock/wake/charge/climate use it as
+        the Bearer via ``_carnet_command``). The old separate command-SPIN path
+        (``/ss/v1/user/{uid}/spin`` with {challenge,response} → an X-Spin-Session
+        header) was wrong — VW never honoured it — and has been removed.
 
         SAFETY:
         - S-PIN-gated: returns ``None`` immediately if no S-PIN is configured
@@ -447,88 +447,111 @@ class VWNAClient:
         if not id_token:
             return None
 
-        # ── 1) challenge ──────────────────────────────────────────────────────
-        try:
-            ch_resp = await self._get(
-                f"{self._base}/ss/v1/user/{self._user_id}/challenge"
-            )
-        except APIError as err:
-            _LOGGER.debug(
-                "VW NA read-session: challenge failed (%s) for vin ***%s — "
-                "falling back to access_token reads",
-                err.status, vin[-6:],
-            )
-            return None
-        if not isinstance(ch_resp, dict):
-            return None
-        _ch_nested = ch_resp.get("data")
-        data: dict[str, Any] = _ch_nested if isinstance(_ch_nested, dict) else ch_resp
-        challenge = data.get("challenge")
-        remaining = data.get("remainingTries")
-        if not isinstance(challenge, str) or not challenge:
-            return None
-        # LOCKOUT GUARD: refuse to spend an attempt when few tries remain.
-        if isinstance(remaining, int) and remaining <= self._SPIN_MIN_REMAINING_TRIES:
-            self._spin_read_session_disabled = True
-            if not self._spin_read_warned:
-                self._spin_read_warned = True
-                _LOGGER.warning(
-                    "VW NA read-session: only %d S-PIN attempt(s) remain — "
-                    "NOT spending one on the data-read session exchange to "
-                    "avoid locking your S-PIN. Falling back to the standard "
-                    "read path. Verify your S-PIN is correct, then reload the "
-                    "integration to re-enable the SPIN read path.",
-                    remaining,
+        challenge_url = f"{self._base}/ss/v1/user/{self._user_id}/challenge"
+        session_url = (
+            f"{self._base}/ss/v1/user/{self._user_id}/vehicle/{uuid}/session"
+        )
+
+        # spinHash casing — v2.29.x (sstur/vwapp, iOS live-capture 2026-08): VW's
+        # OWN app sends LOWERCASE SHA-512 hex. Our prior uppercase (from
+        # zackcornelius) was never end-to-end validated on our stack, and SHA-512
+        # hex is canonically lowercase — an uppercase-only server is implausible,
+        # so if uppercase ever "worked" it was because VW compares case-
+        # insensitively. Try lowercase first; only if the session POST rejects it
+        # (401/403) fetch a FRESH single-use challenge and retry with the legacy
+        # uppercase before disabling. The remaining-tries guard runs on each
+        # challenge, so the fallback can never push the S-PIN budget to lockout.
+        for use_upper in (False, True):
+            # ── 1) challenge (fresh each attempt: single-use) ──────────────────
+            try:
+                ch_resp = await self._get(challenge_url)
+            except APIError as err:
+                _LOGGER.debug(
+                    "VW NA read-session: challenge failed (%s) for vin ***%s — "
+                    "falling back to access_token reads",
+                    err.status, vin[-6:],
                 )
-            return None
-
-        # ── 2) spinHash ───────────────────────────────────────────────────────
-        spin_hash = hashlib.sha512(
-            f"{challenge}.{spin}".encode("utf-8")
-        ).hexdigest().upper()
-
-        # ── 3) session ────────────────────────────────────────────────────────
-        try:
-            sess = await self._post(
-                f"{self._base}/ss/v1/user/{self._user_id}/vehicle/{uuid}/session",
-                json={"idToken": id_token, "spinHash": spin_hash, "tsp": "WCT"},
+                return None
+            if not isinstance(ch_resp, dict):
+                return None
+            _ch_nested = ch_resp.get("data")
+            data: dict[str, Any] = (
+                _ch_nested if isinstance(_ch_nested, dict) else ch_resp
             )
-        except APIError as err:
-            status = err.status or 0
-            if status in (401, 403):
-                # Wrong S-PIN (or PIN-protected lockout). DISABLE for the
-                # session so we never loop and burn the remaining tries.
+            challenge = data.get("challenge")
+            remaining = data.get("remainingTries")
+            if not isinstance(challenge, str) or not challenge:
+                return None
+            # LOCKOUT GUARD: refuse to spend an attempt when few tries remain.
+            if isinstance(remaining, int) and remaining <= self._SPIN_MIN_REMAINING_TRIES:
                 self._spin_read_session_disabled = True
                 if not self._spin_read_warned:
                     self._spin_read_warned = True
                     _LOGGER.warning(
-                        "VW NA read-session: the S-PIN session exchange was "
-                        "rejected (%s) — your S-PIN may be wrong. Disabling the "
-                        "SPIN read path for this session (falling back to the "
-                        "standard reads) so we don't lock your S-PIN. Fix the "
-                        "S-PIN and reload the integration to retry.",
-                        status,
+                        "VW NA read-session: only %d S-PIN attempt(s) remain — "
+                        "NOT spending one on the data-read session exchange to "
+                        "avoid locking your S-PIN. Falling back to the standard "
+                        "read path. Verify your S-PIN is correct, then reload the "
+                        "integration to re-enable the SPIN read path.",
+                        remaining,
                     )
-            else:
+                return None
+
+            # ── 2) spinHash (lowercase primary, uppercase legacy fallback) ─────
+            digest = hashlib.sha512(
+                f"{challenge}.{spin}".encode("utf-8")
+            ).hexdigest()
+            spin_hash = digest.upper() if use_upper else digest
+
+            # ── 3) session ─────────────────────────────────────────────────────
+            try:
+                sess = await self._post(
+                    session_url,
+                    json={"idToken": id_token, "spinHash": spin_hash, "tsp": "WCT"},
+                )
+            except APIError as err:
+                status = err.status or 0
+                if status in (401, 403):
+                    if not use_upper:
+                        # Lowercase rejected — retry once with the legacy
+                        # uppercase casing on a fresh challenge before disabling.
+                        continue
+                    # Both casings rejected: wrong S-PIN (or PIN lockout).
+                    # DISABLE for the session so we never loop and burn tries.
+                    self._spin_read_session_disabled = True
+                    if not self._spin_read_warned:
+                        self._spin_read_warned = True
+                        _LOGGER.warning(
+                            "VW NA read-session: the S-PIN session exchange was "
+                            "rejected (%s) — your S-PIN may be wrong. Disabling "
+                            "the SPIN read path for this session (falling back to "
+                            "the standard reads) so we don't lock your S-PIN. Fix "
+                            "the S-PIN and reload the integration to retry.",
+                            status,
+                        )
+                    return None
                 _LOGGER.debug(
                     "VW NA read-session: session POST failed (%s) for vin "
                     "***%s — falling back to access_token reads",
                     status, vin[-6:],
                 )
-            return None
-        if not isinstance(sess, dict):
-            return None
-        _s_nested = sess.get("data")
-        sdata: dict[str, Any] = _s_nested if isinstance(_s_nested, dict) else sess
-        new_token = sdata.get("carnetVehicleToken")
-        if not isinstance(new_token, str) or not new_token:
-            return None
-        self._read_session_tokens[uuid] = (new_token, self._jwt_exp(new_token))
-        _LOGGER.debug(
-            "VW NA read-session: obtained carnetVehicleToken for vin ***%s "
-            "(cached)", vin[-6:],
-        )
-        return new_token
+                return None
+            if not isinstance(sess, dict):
+                return None
+            _s_nested = sess.get("data")
+            sdata: dict[str, Any] = (
+                _s_nested if isinstance(_s_nested, dict) else sess
+            )
+            new_token = sdata.get("carnetVehicleToken")
+            if not isinstance(new_token, str) or not new_token:
+                return None
+            self._read_session_tokens[uuid] = (new_token, self._jwt_exp(new_token))
+            _LOGGER.debug(
+                "VW NA read-session: obtained carnetVehicleToken for vin ***%s "
+                "(cached)", vin[-6:],
+            )
+            return new_token
+        return None
 
     async def get_vehicles(self) -> list[str]:
         """Return VINs from VW NA garage.
@@ -1101,6 +1124,13 @@ class VWNAClient:
             if isinstance(plug, str):
                 d.plug_connected = plug.upper() == "CONNECTED"
                 d.plug_state = plug
+            # v2.29.x (sstur/vwapp) — plug LOCK state → connector_locked, the most
+            # safety-relevant plug signal (whether the cable is latched). vw_na
+            # read plugConnectionState but never the lock state; four other brands
+            # already map it. NA field is plugStatus.plugLockState ("LOCKED"/...).
+            plug_lock = v(charge, "plugStatus", "plugLockState")
+            if isinstance(plug_lock, str):
+                d.connector_locked = plug_lock.upper() == "LOCKED"
             d.target_soc = first_not_none(
                 v(charge, "chargeSettings", "targetSOCPercentage"),
                 v(charge, "chargingSettings", "targetSOC_pct"),
@@ -1155,6 +1185,14 @@ class VWNAClient:
                 or v(climate, "climatisationStatus", "climatisationState")
             )
             d.climatisation_active = d.climatisation_state not in (None, "OFF", "off")
+            # v2.29.x (sstur/vwapp) — minutes left until the cabin reaches target.
+            # NA field is climateStatusReport.remainingClimatizationTimeMin; feeds
+            # the existing cross-brand climate_remaining_time_min sensor.
+            rem = safe_int(
+                v(climate, "climateStatusReport", "remainingClimatizationTimeMin")
+            )
+            if rem is not None and rem >= 0:
+                d.climate_remaining_time_min = rem
             # Settings block: target temperature. NA backend reports
             # this in either Celsius (modern firmware on ID.4) or
             # Fahrenheit + Kelvin depending on the user's app preference.
@@ -1238,114 +1276,6 @@ class VWNAClient:
         """
         return {}
 
-    async def _get_na_spin_session_token(
-        self, vin: str, spin: str  # noqa: ARG002
-    ) -> str | None:
-        """v2.10.0 (Group C). VW NA two-step SPIN verification.
-
-        NA uses a DIFFERENT SPIN protocol from EU. The EU flow puts the
-        raw SPIN into the action payload; NA requires a challenge /
-        response handshake against a per-user endpoint:
-
-            1. ``POST /ss/v1/user/{user_id}/challenge`` returns a
-               single-use ``nonce``/``challenge`` string.
-            2. Compute ``SHA1(spin + nonce).upper()`` as the response.
-            3. ``POST /ss/v1/user/{user_id}/spin`` with the response.
-               On success the backend returns a short-lived
-               ``sessionToken`` that subsequent lock/unlock POSTs must
-               present as the ``X-Spin-Session`` header.
-
-        Pattern verified against the matpoulin reference + a smali
-        excerpt from the MyVW APK. Both ``challenge`` and ``response``
-        key names have shipped, defensive walk tries the known variants.
-
-        Returns ``None`` on any error. Caller falls back to attempting
-        the action without a session token (some firmware will still
-        accept a privileged token unprompted).
-        """
-        if not self._user_id or not spin:
-            _LOGGER.debug(
-                "VW NA SPIN flow skipped (user_id=%s, spin_set=%s)",
-                bool(self._user_id), bool(spin),
-            )
-            return None
-        try:
-            challenge_resp = await self._post(
-                f"{self._base}/ss/v1/user/{self._user_id}/challenge", json={}
-            )
-        except APIError as err:
-            _LOGGER.debug(
-                "VW NA SPIN challenge failed (%s) for vin ***%s",
-                err.status, vin[-6:],
-            )
-            return None
-        if not isinstance(challenge_resp, dict):
-            return None
-        # Defensive walk: backend has shipped at least 3 key names for
-        # the same field over the past 18 months.
-        nonce = (
-            challenge_resp.get("challenge")
-            or challenge_resp.get("nonce")
-            or challenge_resp.get("challengeData")
-        )
-        if not isinstance(nonce, str) or not nonce:
-            return None
-        # v2.11.0 (zackcornelius source-verified) - the SPIN hash is
-        # SHA-512 of ``"{challenge}.{spin}"`` (challenge first, then
-        # the dot separator, then the spin), NOT SHA-1 of (spin+nonce).
-        # Try the modern shape first; fall back to legacy SHA-1 if
-        # the modern path returns 4xx (kept so users whose accounts
-        # still respond to the old algorithm don't regress).
-        response = hashlib.sha512(
-            f"{nonce}.{spin}".encode("utf-8")
-        ).hexdigest().upper()
-        response_legacy = hashlib.sha1(  # noqa: S324
-            (spin + nonce).encode("utf-8")
-        ).hexdigest().upper()
-        # v2.11.0 - try modern (SHA-512) first; on 4xx fall back to
-        # legacy (SHA-1) which the older endpoint still expects on
-        # some firmwares.
-        spin_resp = None
-        try:
-            spin_resp = await self._post(
-                f"{self._base}/ss/v1/user/{self._user_id}/spin",
-                json={"challenge": nonce, "response": response},
-            )
-        except APIError as err:
-            if 400 <= (err.status or 0) < 500:
-                try:
-                    spin_resp = await self._post(
-                        f"{self._base}/ss/v1/user/{self._user_id}/spin",
-                        json={"challenge": nonce, "response": response_legacy},
-                    )
-                except APIError as legacy_err:
-                    _LOGGER.debug(
-                        "VW NA SPIN both modern + legacy failed (%s/%s) for vin ***%s",
-                        err.status, legacy_err.status, vin[-6:],
-                    )
-                    return None
-            else:
-                _LOGGER.debug(
-                    "VW NA SPIN POST failed (%s) for vin ***%s",
-                    err.status, vin[-6:],
-                )
-                return None
-        if not isinstance(spin_resp, dict):
-            return None
-        # v2.11.0 (zackcornelius source-verified) - canonical token
-        # field is `carnetVehicleToken` (NOT sessionToken). Kept the
-        # other variants as defensive fallbacks for non-canonical
-        # firmware responses.
-        token = (
-            spin_resp.get("carnetVehicleToken")
-            or spin_resp.get("sessionToken")
-            or spin_resp.get("spinSessionToken")
-            or spin_resp.get("token")
-        )
-        if isinstance(token, str) and token:
-            return token
-        return None
-
     async def _post_with_ab_fallback(
         self,
         *,
@@ -1384,64 +1314,83 @@ class VWNAClient:
             fallback_kwargs["headers"] = fallback_headers
         await self._post(fallback_url, **fallback_kwargs)
 
-    async def command_lock(self, vin: str) -> None:
-        """v2.10.0 (Group C). NA lockunlock endpoint with EU fallback.
+    async def _carnet_command(
+        self,
+        method: str,
+        url: str,
+        vin: str,
+        json: dict[str, Any] | None = None,
+    ) -> Any:
+        """v2.29.x (sstur/vwapp, APK + live-verified 2026-07-30) — issue an NA
+        remote command authorised with the per-vehicle carnetVehicleToken.
 
-        Modern Cox firmware exposes ``/lockunlock/v1/vehicle/{uuid}``
-        as the lock/unlock action endpoint. Older firmware (legacy
-        Cox) only knows ``/ev/v1/vehicle/{uuid}/lock``. Try the
-        modern path first, fall back to the legacy one on 404 so
-        existing installs keep working through the firmware
-        transition window.
+        VW moved NA remote commands behind the same S-PIN ``carnetVehicleToken``
+        the reads now require: with the plain access_token every command returns
+        ``403 USER_NOT_AUTHORIZED`` and lock/unlock is silently ignored (VW drops
+        the unknown ``action`` field). Reuse the CACHED read-session carnet token
+        (``_get_read_session_token`` — no extra S-PIN spend) as the
+        ``Authorization: Bearer``. When no carnet token is available (no S-PIN, or
+        the exchange is disabled) fall back to the plain access_token path so a
+        non-S-PIN account is no worse off than before.
+
+        NOT YET live-confirmed on our own stack (we have no NA car): the routes,
+        HTTP methods and bodies are taken verbatim from sstur/vwapp's live-
+        verified client, which fixed why NA commands never actuated. See the
+        #1012 / #915 lineage and the open "testers wanted" issue.
+        """
+        carnet = await self._get_read_session_token(vin)
+        if carnet:
+            headers = dict(self._READ_HEADERS)
+            headers["Authorization"] = f"Bearer {carnet}"
+            try:
+                return await self._request(
+                    method, url, headers=headers, _carnet_auth=True, json=json
+                )
+            except APIError as err:
+                # A 401/403 with the carnet token means it was rejected/expired —
+                # drop it so the NEXT command re-mints (subject to the lockout
+                # guard). Never re-mint in this call (avoids a 2nd S-PIN attempt
+                # back-to-back).
+                if (err.status or 0) in (401, 403):
+                    self._read_session_tokens.pop(
+                        self._vin_to_uuid.get(vin, vin), None
+                    )
+                raise
+        return await self._request(method, url, json=json)
+
+    async def command_lock(self, vin: str) -> None:
+        """NA lock — v2.29.x (sstur/vwapp): PUT ``{lock: true}`` with the
+        carnetVehicleToken as Bearer.
+
+        The old ``POST {"action":"lock"}`` on the access_token was silently
+        ignored by VW (unknown ``action`` field) — the command was accepted but
+        never actuated. VW's own app PUTs ``{lock: boolean}`` to
+        ``/lockunlock/v1/vehicle/{uuid}`` with the carnet token as the bearer.
         """
         uuid = self._vin_to_uuid.get(vin, vin)
-        await self._post_with_ab_fallback(
-            primary_url=f"{self._base}/lockunlock/v1/vehicle/{uuid}",
-            primary_json={"action": "lock"},
-            fallback_url=f"{self._base}/ev/v1/vehicle/{uuid}/lock",
-            fallback_json={"action": "lock"},
-            label="lock",
-            vin=vin,
+        await self._carnet_command(
+            "PUT",
+            f"{self._base}/lockunlock/v1/vehicle/{uuid}",
+            vin,
+            json={"lock": True},
         )
 
-    async def command_unlock(self, vin: str, spin: str = "") -> None:
-        """v2.10.0 (Group C). NA unlock with two-step SPIN handshake.
+    async def command_unlock(self, vin: str, spin: str = "") -> None:  # noqa: ARG002
+        """NA unlock — v2.29.x (sstur/vwapp): PUT ``{lock: false}`` with the
+        carnetVehicleToken as Bearer (see :meth:`command_lock`).
 
-        Pre-v2.10.0 we put the SPIN directly into the unlock body which
-        worked for some firmware but failed on Cox post-2024 builds. NA
-        actually requires the two-step ``/challenge`` + ``/spin``
-        handshake to obtain a session token, then the unlock POST
-        carries that token as an ``X-Spin-Session`` header. The body
-        no longer needs to contain the SPIN itself.
-
-        If the SPIN session token cannot be fetched (no user_id, no
-        SPIN configured, backend down), we fall back to the legacy
-        in-body SPIN behaviour so existing accounts that worked on
-        older firmware keep working.
+        The ``spin`` argument is kept for signature compatibility; the S-PIN is
+        consumed by the carnet-token exchange (``_get_read_session_token``), not
+        sent in the request. The old two-step ``/challenge`` + ``/spin`` handshake
+        with an ``X-Spin-Session`` header and ``{"action":"unlock"}`` body never
+        actuated (VW ignores the unknown ``action`` field).
         """
         uuid = self._vin_to_uuid.get(vin, vin)
-        spin_to_use = spin or self._spin
-        session_token = await self._get_na_spin_session_token(vin, spin_to_use)
-
-        primary_headers: dict[str, str] | None = None
-        if session_token:
-            primary_headers = {"X-Spin-Session": session_token}
-
-        primary_payload: dict[str, Any] = {"action": "unlock"}
-        legacy_payload: dict[str, Any] = {"action": "unlock"}
-        # Legacy path keeps the in-body SPIN for older Cox firmware
-        # that doesn't honour the X-Spin-Session header.
-        if spin_to_use:
-            legacy_payload["spin"] = spin_to_use
-
-        await self._post_with_ab_fallback(
-            primary_url=f"{self._base}/lockunlock/v1/vehicle/{uuid}",
-            primary_json=primary_payload,
-            fallback_url=f"{self._base}/ev/v1/vehicle/{uuid}/lock",
-            fallback_json=legacy_payload,
-            label="unlock",
-            vin=vin,
-            primary_headers=primary_headers,
+        await self._carnet_command(
+            "PUT",
+            f"{self._base}/lockunlock/v1/vehicle/{uuid}",
+            vin,
+            json={"lock": False},
         )
 
     async def command_start_climate(self, vin: str) -> None:
@@ -1477,11 +1426,19 @@ class VWNAClient:
 
     async def command_start_charging(self, vin: str) -> None:
         uuid = self._vin_to_uuid.get(vin, vin)
-        await self._post(f"{self._base}/ev/v1/vehicle/{uuid}/charging/start", json={})
+        # v2.29.x (sstur/vwapp) — body {actionMode:"immediate"} + carnet Bearer;
+        # the old empty-body POST on the access_token was ignored / 403'd.
+        await self._carnet_command(
+            "POST", f"{self._base}/ev/v1/vehicle/{uuid}/charging/start", vin,
+            json={"actionMode": "immediate"},
+        )
 
     async def command_stop_charging(self, vin: str) -> None:
         uuid = self._vin_to_uuid.get(vin, vin)
-        await self._post(f"{self._base}/ev/v1/vehicle/{uuid}/charging/stop", json={})
+        await self._carnet_command(
+            "POST", f"{self._base}/ev/v1/vehicle/{uuid}/charging/stop", vin,
+            json={"actionMode": "immediate"},
+        )
 
     async def command_flash(
         self,
@@ -1503,22 +1460,62 @@ class VWNAClient:
         uuid = self._vin_to_uuid.get(vin, vin)
         # v2.20.0 (APK audit) — no /wakeup route exists on con-veh.net; a fresh
         # status is forced via the vehicle-status-request refresh endpoint.
-        await self._post(f"{self._base}/rvs/v1/vehicle/{uuid}/refresh", json={})
+        # v2.29.x (sstur/vwapp) — carnet-gated: with the plain access_token this
+        # 403s USER_NOT_AUTHORIZED. This is our freshness lever, so it matters.
+        await self._carnet_command(
+            "POST", f"{self._base}/rvs/v1/vehicle/{uuid}/refresh", vin, json={}
+        )
 
     async def command_set_target_soc(self, vin: str, target: int) -> None:
         uuid = self._vin_to_uuid.get(vin, vin)
         # v2.20.0 (APK audit) — myVW models use targetSOCPercentage (matches the
         # read side); the invented targetSOC_pct was silently ignored.
-        await self._post(
-            f"{self._base}/ev/v1/vehicle/{uuid}/charging/settings",
-            json={"targetSOCPercentage": target},
+        # v2.29.x (sstur/vwapp) — set-charge-limit is a PUT that REPLACES the whole
+        # charging-settings object, so read the current settings and merge the new
+        # target rather than PUTting a bare {targetSOCPercentage} (which would wipe
+        # the other charge settings). carnet Bearer. The old POST never actuated.
+        merged: dict[str, Any] = {"targetSOCPercentage": target}
+        try:
+            carnet = await self._get_read_session_token(vin)
+            summary = await self._read(
+                f"{self._base}/ev/v1/vehicle/{uuid}/charge/summary", carnet
+            )
+            if isinstance(summary, dict):
+                cur = summary.get("chargeSettings") or summary.get("chargingSettings")
+                if isinstance(cur, dict) and cur:
+                    merged = {**cur, "targetSOCPercentage": target}
+        except APIError:
+            pass  # fall back to the bare target below
+        await self._carnet_command(
+            "PUT", f"{self._base}/ev/v1/vehicle/{uuid}/charging/settings", vin,
+            json=merged,
         )
 
     async def command_set_climate_temperature(self, vin: str, temp_c: float) -> None:
         uuid = self._vin_to_uuid.get(vin, vin)
-        await self._post(
-            f"{self._base}/ev/v1/vehicle/{uuid}/pretripclimate/settings",
-            json={"targetTemperature_K": temp_c + 273.15, "tempUnit": "C"},
+        # v2.29.x (sstur/vwapp) — PUT the full climate-settings object with a
+        # NESTED targetTemperature {temperature, unit}; VW replaces the whole
+        # object, so read + merge to preserve the other zones/toggles. carnet
+        # Bearer. The old POST of a scalar {targetTemperature_K} was dropped.
+        target = {"temperature": round(temp_c, 1), "unit": "celsius"}
+        body: dict[str, Any] = {"targetTemperature": target}
+        try:
+            carnet = await self._get_read_session_token(vin)
+            summary = await self._read(
+                f"{self._base}/ev/v1/vehicle/{uuid}/climate/summary", carnet
+            )
+            if isinstance(summary, dict):
+                cur = (
+                    summary.get("climateSettings")
+                    or summary.get("climatisationSettings")
+                )
+                if isinstance(cur, dict) and cur:
+                    body = {**cur, "targetTemperature": target}
+        except APIError:
+            pass
+        await self._carnet_command(
+            "PUT", f"{self._base}/ev/v1/vehicle/{uuid}/pretripclimate/settings",
+            vin, json=body,
         )
 
     async def command_start_window_heating(self, vin: str) -> None:

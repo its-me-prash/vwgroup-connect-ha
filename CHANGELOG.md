@@ -38,6 +38,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.29.2] - 2026-08-05
+
+### Fixed
+- **The connector-lock status shows on Volkswagen US and Canada.** The charging read already carried whether the charge cable is latched, but that one field was never picked up, so the connector-lock sensor stayed blank on those cars. It is read now.
+- **A throttled Volkswagen North America sign-in is no longer mistaken for a wrong password.** When the North American login is rate-limited it answers with an ordinary-looking page instead of a clear "too many attempts", so the login read it as bad credentials and prompted a re-login — which only piled on more attempts. It is recognised as the rate-limit it is now, and the integration backs off instead.
+- **Minutes-until-ready fills in for Volkswagen North America climate.** The remaining pre-conditioning time was already a sensor for other brands; it now populates for VW US/CA too.
+
+### Changed
+- **Volkswagen US and Canada remote commands were rewritten to the shape the app actually sends (experimental — needs a North America tester).** Lock, unlock, wake, charge start/stop, the charge target and the climate temperature were being sent in a form the server quietly ignored, so a command came back "accepted" while the car never moved. They now go out the way the official app sends them — the right request type, the right body, and signed with the per-car token that North America has required for every command since late July. This is grounded in a live, community-maintained reference client but is not yet confirmed on our own side, because we have no North American car to test on. If you run Volkswagen US or Canada, a note on whether lock/unlock now actuates would settle it.
+
 ## [2.29.1] - 2026-08-05
 
 ### Fixed

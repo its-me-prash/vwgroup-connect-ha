@@ -9,7 +9,8 @@ access_token but succeed when authorised with a per-vehicle
 
 Flow:
     1. GET  {base}/ss/v1/user/{uid}/challenge -> data.challenge + remainingTries
-    2. spinHash = SHA512(challenge + "." + spin).hexdigest().upper()
+    2. spinHash = SHA512(challenge + "." + spin).hexdigest()  [LOWERCASE first,
+       v2.29.x sstur/vwapp; uppercase is retried on a 401/403 as a legacy fallback]
     3. POST {base}/ss/v1/user/{uid}/vehicle/{uuid}/session
             body {idToken, spinHash, tsp:"WCT"} -> data.carnetVehicleToken
     4. Authorization: Bearer <carnetVehicleToken> on the rvs + ev reads.
@@ -106,9 +107,10 @@ class TestReadSessionHappyPath:
         future_exp = (datetime.now(tz=timezone.utc) + timedelta(hours=1)).timestamp()
         carnet_jwt = _make_jwt(future_exp)
         challenge = "deadbeefchallenge"
+        # v2.29.x — lowercase hex is the primary casing (VW's own app form).
         expected_hash = hashlib.sha512(
             f"{challenge}.1234".encode("utf-8")
-        ).hexdigest().upper()
+        ).hexdigest()
 
         get_calls: list[tuple[str, dict]] = []
         post_calls: list[tuple[str, dict]] = []
@@ -214,10 +216,13 @@ class TestSessionFailureNoRetryLoop:
         client._request = fake_request  # type: ignore[method-assign]
         client.get_subscription_privileges = AsyncMock(return_value={})  # type: ignore[method-assign]
 
-        # First poll: challenge + session(403) -> disable, reads via access_token
+        # First poll: lowercase session(403) -> fresh challenge + uppercase
+        # session(403) -> BOTH casings rejected -> disable, reads via access_token.
+        # v2.29.x: the lowercase→uppercase fallback means 2 challenges + 2 sessions
+        # on the failing poll (each on a fresh single-use challenge).
         await client.get_status(_VIN)
-        assert challenge_calls["n"] == 1
-        assert session_calls["n"] == 1
+        assert challenge_calls["n"] == 2
+        assert session_calls["n"] == 2
         assert client._spin_read_session_disabled is True
         assert all(f is False for f in read_carnet_flags)
         assert client._spin_read_warned is True
@@ -225,9 +230,44 @@ class TestSessionFailureNoRetryLoop:
         # Second poll: MUST NOT re-challenge or re-session (no try-burning loop)
         read_carnet_flags.clear()
         await client.get_status(_VIN)
-        assert challenge_calls["n"] == 1  # unchanged
-        assert session_calls["n"] == 1  # unchanged
+        assert challenge_calls["n"] == 2  # unchanged
+        assert session_calls["n"] == 2  # unchanged
         assert all(f is False for f in read_carnet_flags)
+
+    @pytest.mark.asyncio
+    async def test_lowercase_403_then_uppercase_succeeds(self):
+        """v2.29.x — lowercase is tried first; if VW rejects it (401/403) the
+        legacy uppercase casing is retried on a fresh challenge and, when it
+        succeeds, yields the carnet token (no disable)."""
+        client = _client(spin="1234")
+        future_exp = (datetime.now(tz=timezone.utc) + timedelta(hours=1)).timestamp()
+        carnet_jwt = _make_jwt(future_exp)
+        challenge = "chal-xyz"
+        lower = hashlib.sha512(f"{challenge}.1234".encode("utf-8")).hexdigest()
+        upper = lower.upper()
+        seen_hashes: list[str] = []
+
+        async def fake_request(method, url, retry=True, _carnet_auth=False, **kwargs):
+            if url.endswith("/challenge"):
+                return {"data": {"challenge": challenge, "remainingTries": 5}}
+            if url.endswith("/session"):
+                h = kwargs["json"]["spinHash"]
+                seen_hashes.append(h)
+                if h == lower:
+                    raise _api_error(403, "wrong casing")
+                return {"data": {"carnetVehicleToken": carnet_jwt}}
+            if "/rvs/" in url:
+                return {"powerStatus": {}}
+            return {}
+
+        client._request = fake_request  # type: ignore[method-assign]
+        client.get_subscription_privileges = AsyncMock(return_value={})  # type: ignore[method-assign]
+
+        await client.get_status(_VIN)
+        # lowercase tried first, then uppercase which succeeded
+        assert seen_hashes == [lower, upper]
+        assert client._spin_read_session_disabled is False
+        assert client._read_session_tokens[_UUID][0] == carnet_jwt
 
     @pytest.mark.asyncio
     async def test_low_remaining_tries_aborts_without_session(self):
