@@ -245,29 +245,28 @@ _CARIAD_BFF_PROBES: tuple[V3Probe, ...] = (
 )
 
 
-# ── VW NA (con-veh.net) ─────────────────────────────────────────────────────
-# matpoulin/CarConnectivity-connector-volkswagen-na Apache-2.0. Backend host
-# is `b-h-s.spr.us00.p.con-veh.net` (v2.20.0 N7: US + CA share it — the current
-# app has no ca00 host). We have limited
-# production parser coverage for VW NA; even a 1-endpoint probe yields
-# significant scout signal for the small but vocal US/CA user pool (#270).
-_VW_NA_PROBES: tuple[V3Probe, ...] = (
-    V3Probe(
-        name="vw_na_vehicle_health",
-        path="/v3/vehicles/{vin}/vehicleHealth",
-        notes="Combined health + warning lights for myVW US/CA",
-    ),
-    V3Probe(
-        name="vw_na_trip_data",
-        path="/v3/vehicles/{vin}/tripData/longTerm",
-        notes="Lifetime trip statistics — feature-parity with EU tripstatistics",
-    ),
-    V3Probe(
-        name="vw_na_subscription",
-        path="/v3/vehicles/{vin}/subscriptions",
-        notes="Car-Net subscription state — US-equivalent of EU pay/subscriptions",
-    ),
-)
+# ── VW NA (con-veh.net) — REMOVED in v2.29.x ────────────────────────────────
+# There were three VW-NA probes here (vehicle_health / trip_data / subscription)
+# on a ``/v3/vehicles/{vin}/…`` namespace. They were dead code in three
+# independent ways, and worse, their presence made the repo look as though NA
+# health/trip coverage was being probed when nothing ever ran:
+#
+#   1. The namespace is the CARIAD-BFF shape. An androguard sweep of the current
+#      myVW app (com.vw.carnet.release 2026.7.28-9380) shows con-veh exposes no
+#      ``/v3/vehicles/`` path at all — NA is addressed by vehicle UUID under
+#      per-service roots (``/rvs/v1/vehicle/{id}``, ``/ev/v1/vehicle/{id}/…``).
+#   2. ``VWNAClient`` does not inherit ``CariadBaseClient``, so the probe runner
+#      (base.py ``_run_v3_probe_pass``) is not even a method on it.
+#   3. They were registered under brand key ``volkswagen_na`` while the client
+#      builds its brand as ``volkswagen_us`` / ``volkswagen_ca``, so
+#      ``probes_for_brand`` would have returned nothing regardless — and
+#      ``BASE_URL_BY_BRAND`` has no NA entry, with the fallback reading
+#      ``self._BASE`` where vw_na.py defines ``self._base``.
+#
+# NA field discovery runs through ``scripts/vwna_capture.py`` instead: NA reads
+# are S-PIN/carnet-authorised, which the generic probe runner cannot do, so a
+# cooperating owner running the capture script is the honest path. Do not
+# re-add speculative NA probes here without a captured response to ground them.
 
 
 # ── Porsche (api.ppa.porsche.com) ───────────────────────────────────────────
@@ -304,7 +303,9 @@ PROBES_BY_BRAND: dict[str, tuple[V3Probe, ...]] = {
     "skoda":         _MYSMOB_PROBES,
     "volkswagen":    _CARIAD_BFF_PROBES,
     "audi":          _CARIAD_BFF_PROBES,
-    "volkswagen_na": _VW_NA_PROBES,
+    # No VW-NA entry: NA discovery runs through scripts/vwna_capture.py (the
+    # reads are S-PIN/carnet-authorised, which this runner cannot do). See the
+    # VW NA block above for why the old probes could never fire.
     "porsche":       _PORSCHE_PROBES,
 }
 
@@ -340,8 +341,8 @@ def base_url_for_brand(brand_name: str) -> str | None:
 #   OLA (SEAT+CUPRA): 10
 #   mysmob (Skoda):    8
 #   CARIAD-BFF (VW+Audi): 10
-#   VW NA:             3
+#   VW NA:             0 (removed in v2.29.x — see the VW NA block above)
 #   Porsche:           3
-# = 34 distinct endpoints. Per-VIN per-pass at 1×/h = 34 calls/h max across
+# = 31 distinct endpoints. Per-VIN per-pass at 1×/h = 31 calls/h max across
 # a multi-brand HA install. Per-user typical scope: 8-10 calls/h. Well under
 # any documented rate-limit for the targeted backends.

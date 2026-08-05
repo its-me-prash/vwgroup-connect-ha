@@ -14,9 +14,17 @@ What it settles:
        user-summary route embeds climateStatusInd?
   N6 — does /rrs/v1/privileges... still return coverage, and what shape does
        /account/v1/coverages expose for subscription.active / expiresAt?
+  v2.29.x hidden surface — vehicle health, the dedicated location read, the
+       remote-operation activity feed, message center, public charging
+       sessions, trips, send-to-car, ToS status, in-car wifi, phone-key
+       summary and the capability check. These are endpoints the official app
+       calls and we have never seen a response from; each is a candidate for
+       data we cannot offer today.
 
-Read-only. No commands are sent. Password read via a hidden getpass prompt —
-never echoed, never stored.
+Read-only. Every request is a GET and nothing changes state: no commands, no
+purchases, no pairing changes, no accepting terms, no starting a charging
+session (see the safety block next to the probes). Password read via a hidden
+getpass prompt — never echoed, never stored.
 
 Usage (PowerShell):
     py scripts/vwna_capture.py --vin 3VW... --email you@example.com --country us
@@ -136,15 +144,115 @@ async def _run(email: str, password: str, mfa: str | None, vin: str,
         await _probe(client, "rvs status",
                      f"{B}/rvs/v1/vehicle/{uuid}", carnet, True)
         # N6 candidates (subscription/coverage — plain account auth)
+        # v2.29.x — the coverages/VWCare URLs were TRUNCATED (bare
+        # /account/v1/coverages and /account/v1/VWCare), so they could only ever
+        # 404 and the N6 question this script exists to answer stayed
+        # unanswerable. The path templates below are verbatim from the current
+        # myVW app (androguard sweep of com.vw.carnet.release 2026.7.28-9380).
         await _probe(client, "N6 rrs privileges",
                      f"{B}/rrs/v1/privileges/user/{uid}/vehicle/{uuid}", None, False)
         await _probe(client, "N6 account/coverages",
-                     f"{B}/account/v1/coverages", None, False)
+                     f"{B}/account/v1/coverages/vehicle/{uuid}", None, False)
         await _probe(client, "N6 account/VWCare",
-                     f"{B}/account/v1/VWCare", None, False)
+                     f"{B}/account/v1/VWCare/user/{uid}/vehicle/{uuid}/summary",
+                     None, False)
+
+        # ── v2.29.x — hidden-surface probes ──────────────────────────────────
+        # Path templates verbatim from the current myVW app (androguard sweep of
+        # com.vw.carnet.release 2026.7.28-9380). These are endpoints the official
+        # app calls that we have NEVER seen a response from; each one is a
+        # candidate for data we cannot offer today (vehicle health, charging
+        # sessions, notifications, trips).
+        #
+        # SAFETY — every probe below is a plain GET and nothing here changes
+        # state. Deliberately NOT probed, and they must never be added:
+        #   * /account/v2/enrollment/toses (POST)  — POSTing would accept a legal
+        #     agreement on the owner's behalf. The GET status read below is fine.
+        #   * /estore/*                            — carts, payment, wallets.
+        #   * /pair/*, /mdk/*/pairing/password|reset — revokes the owner's phone
+        #     key / vehicle pairing.
+        #   * /cds/wifi/*/reset                    — rotates the hotspot creds.
+        #   * /device/v1/*/analytic, /devicestatistics/* — sends telemetry TO VW.
+        #   * /poi/*/session/start|stop            — starts/stops a PAID public
+        #     charging session on the owner's account.
+        # A 405 here is a useful answer too: it tells us the verb, exactly how
+        # the flash 405 told us honkflash wants PUT.
+        print("\n[5/5] hidden-surface probes (masked, read-only):")
+
+        # Vehicle health. NOTE: the app inventory only exposes a /refresh
+        # TRIGGER for this service and no health READ path, so we probe the
+        # trigger (expect 405/404 if it is POST-only) and diff the normal status
+        # read around it rather than assuming a read exists.
+        await _probe(client, "health listener (trigger; verb probe)",
+                     f"{B}/vehiclehealthlistener/v2/vehicle/{uuid}/refresh",
+                     carnet, True)
+        await _probe(client, "rvs status (post-health diff)",
+                     f"{B}/rvs/v1/vehicle/{uuid}", carnet, True)
+
+        # Dedicated location read (we only parse GPS out of the rvs aggregate).
+        await _probe(client, "location (dedicated)",
+                     f"{B}/rvs/v1/location/vehicle/{uuid}", carnet, True)
+
+        # Remote-operation activity feed (sibling of the correlationId history
+        # we already use for command confirmation).
+        await _probe(client, "activity feed",
+                     f"{B}/history/activity/v1/vehicle/{uuid}", carnet, True)
+
+        # Message center. Bodies may contain personal text — _shape() masks all
+        # free-text values, only field names/types/enums are printed.
+        await _probe(client, "messagecenter unread count",
+                     f"{B}/messagecenter/v2/user/{uid}/vehicle/{uuid}/unRead/count",
+                     carnet, True)
+        await _probe(client, "messagecenter inbox",
+                     f"{B}/messagecenter/v2/user/{uid}/vehicle/{uuid}", carnet, True)
+        await _probe(client, "messagecenter categories",
+                     f"{B}/messagecenter/v2/user/{uid}/vehicle/{uuid}/categories",
+                     carnet, True)
+
+        # Public charging sessions (history + any session in flight).
+        await _probe(client, "charging sessions (history)",
+                     f"{B}/poi/v1/history/vehicle/{uuid}/user/{uid}/sessions",
+                     carnet, True)
+        await _probe(client, "charging session (active)",
+                     f"{B}/poi/v1/vehicle/{uuid}/user/{uid}/session/active",
+                     carnet, True)
+
+        # Trips. Likely planned NAV routes rather than driven trips — the probe
+        # settles which, so we don't promise a trip sensor we cannot build.
+        await _probe(client, "trip v1", f"{B}/poi/v1/vehicle/{uuid}/trip",
+                     carnet, True)
+        await _probe(client, "trip v2", f"{B}/poi/v2/vehicle/{uuid}/trip",
+                     carnet, True)
+
+        # Send-to-car destination resource (GET only; we never POST a
+        # destination from a capture run).
+        await _probe(client, "destination (send-to-car resource)",
+                     f"{B}/poi/v1/vehicle/{uuid}/destination", carnet, True)
+
+        # Terms-of-service enrolment STATUS. GET ONLY — see the safety note.
+        await _probe(client, "enrollment toses (STATUS GET only)",
+                     f"{B}/account/v2/enrollment/toses/user/{uid}/vehicle/{uuid}",
+                     None, False)
+
+        # In-car wifi hotspot state (status only, never /reset).
+        await _probe(client, "wifi connection status",
+                     f"{B}/cds/wifi/v1/wifiConnection/vehicle/{uuid}/status",
+                     carnet, True)
+
+        # Mobile-device-key summary (read only, never pairing/password|reset).
+        # Also tells us whether this account has a paired phone key at all.
+        await _probe(client, "mdk summary",
+                     f"{B}/mdk/v1/vehicle/{uuid}/summary", carnet, True)
+
+        # Capability check. Its siblings (resolveAmbiguity / searchDatastore /
+        # provideFeedback) suggest a VOICE-assistant service rather than an
+        # entitlement source; this probe settles it before we would ever gate a
+        # button on it.
+        await _probe(client, "vas checkCapability",
+                     f"{B}/vas/v1/checkCapability/vehicle/{uuid}", carnet, True)
 
     print("\n" + "-" * 68)
-    print("Paste the whole [4/4] block. It's masked (VIN/text hidden, only field")
+    print("Paste the whole [4/4] AND [5/5] blocks. They're masked (VIN/text hidden, only field")
     print("names + types + enum values shown). We ground N5/N6 from it.")
     return 0
 
