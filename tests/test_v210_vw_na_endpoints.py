@@ -281,76 +281,65 @@ class TestCommandCarnet:
 
 
 # ---------------------------------------------------------------------------
-# 3) Climate naming fallback (NA pretripclimate -> EU climatisation on 404)
+# 3) Climate / window-heating / timer commands — carnet Bearer (v2.29.x, #659)
 # ---------------------------------------------------------------------------
 
 
-class TestClimateFallback:
-    """NA climatisation naming first, EU naming as fallback on 404."""
+class TestClimateCarnet:
+    """climate start/stop, window-heating and the departure timer route through
+    ``_carnet_command`` (carnet Bearer) on the pretripclimate family. The old
+    EU-style /climatisation 404 fallback was dropped (v2.20.0: only pretripclimate
+    is exposed on con-veh.net), and #659 showed these 403 without the carnet."""
+
+    def _c(self):
+        client = _client()
+        client._get_read_session_token = AsyncMock(  # type: ignore[method-assign]
+            return_value="carnet-tok"
+        )
+        client._request = AsyncMock(return_value={})  # type: ignore[method-assign]
+        return client
 
     @pytest.mark.asyncio
-    async def test_start_climate_na_naming_first(self):
-        client = _client()
-        urls: list[str] = []
-
-        async def fake_post(url, **kwargs):  # noqa: ARG001
-            urls.append(url)
-            return {}
-
-        client._post = fake_post  # type: ignore[method-assign]
-        await client.command_start_climate("VWNA00000000000001")
-        assert urls[0].endswith("/pretripclimate/start")
+    async def test_start_climate_carnet_pretripclimate(self):
+        c = self._c()
+        await c.command_start_climate("VWNA00000000000001")
+        a = c._request.await_args
+        assert a.args[0] == "POST"
+        assert a.args[1].endswith("/ev/v1/vehicle/uuid-xyz/pretripclimate/start")
+        assert a.kwargs["headers"]["Authorization"] == "Bearer carnet-tok"
 
     @pytest.mark.asyncio
-    async def test_start_climate_falls_to_eu_naming_on_404(self):
-        from custom_components.vag_connect.cariad.exceptions import APIError
-
-        client = _client()
-        urls: list[str] = []
-
-        async def fake_post(url, **kwargs):  # noqa: ARG001
-            urls.append(url)
-            if "/pretripclimate/start" in url:
-                raise APIError(404, url, "not found")
-            return {}
-
-        client._post = fake_post  # type: ignore[method-assign]
-        await client.command_start_climate("VWNA00000000000001")
-        assert len(urls) == 2
-        assert urls[0].endswith("/pretripclimate/start")
-        assert urls[1].endswith("/climatisation/start")
+    async def test_stop_climate_carnet_pretripclimate(self):
+        c = self._c()
+        await c.command_stop_climate("VWNA00000000000001")
+        a = c._request.await_args
+        assert a.args[0] == "POST"
+        assert a.args[1].endswith("/ev/v1/vehicle/uuid-xyz/pretripclimate/stop")
+        assert a.kwargs["headers"]["Authorization"] == "Bearer carnet-tok"
 
     @pytest.mark.asyncio
-    async def test_stop_climate_na_naming_first(self):
-        client = _client()
-        urls: list[str] = []
-
-        async def fake_post(url, **kwargs):  # noqa: ARG001
-            urls.append(url)
-            return {}
-
-        client._post = fake_post  # type: ignore[method-assign]
-        await client.command_stop_climate("VWNA00000000000001")
-        assert urls[0].endswith("/pretripclimate/stop")
+    async def test_window_heating_start_carnet(self):
+        c = self._c()
+        await c.command_start_window_heating("VWNA00000000000001")
+        a = c._request.await_args
+        assert a.args[0] == "POST"
+        assert a.args[1].endswith(
+            "/ev/v1/vehicle/uuid-xyz/pretripclimate/windowheating/start"
+        )
+        assert a.kwargs["headers"]["Authorization"] == "Bearer carnet-tok"
 
     @pytest.mark.asyncio
-    async def test_window_heating_start_falls_back(self):
-        from custom_components.vag_connect.cariad.exceptions import APIError
-
-        client = _client()
-        urls: list[str] = []
-
-        async def fake_post(url, **kwargs):  # noqa: ARG001
-            urls.append(url)
-            if "/pretripclimate/windowheating/start" in url:
-                raise APIError(404, url, "not found")
-            return {}
-
-        client._post = fake_post  # type: ignore[method-assign]
-        await client.command_start_window_heating("VWNA00000000000001")
-        assert len(urls) == 2
-        assert urls[0].endswith("/pretripclimate/windowheating/start")
-        assert urls[1].endswith("/climatisation/windowheating/start")
+    async def test_departure_timer_carnet(self):
+        c = self._c()
+        await c.command_set_departure_timer(
+            "VWNA00000000000001", 1, True, "07:30", ["monday"]
+        )
+        a = c._request.await_args
+        assert a.args[0] == "POST"
+        assert a.args[1].endswith("/ev/v1/vehicle/uuid-xyz/pretripclimate/timers")
+        assert a.kwargs["json"]["id"] == 1
+        assert a.kwargs["json"]["enabled"] is True
+        assert a.kwargs["headers"]["Authorization"] == "Bearer carnet-tok"
 
 
 # ---------------------------------------------------------------------------

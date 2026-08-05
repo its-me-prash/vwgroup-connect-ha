@@ -1276,44 +1276,6 @@ class VWNAClient:
         """
         return {}
 
-    async def _post_with_ab_fallback(
-        self,
-        *,
-        primary_url: str,
-        primary_json: dict[str, Any] | None,
-        fallback_url: str,
-        fallback_json: dict[str, Any] | None,
-        label: str,
-        vin: str,
-        primary_headers: dict[str, str] | None = None,
-        fallback_headers: dict[str, str] | None = None,
-    ) -> None:
-        """v2.10.0 (Group C). Generic A/B fallback POST.
-
-        Mirrors the v1.17.1 SEAT/CUPRA pattern. Try ``primary_url`` first.
-        On 404 only, fall back to ``fallback_url``. Non-404 errors
-        propagate so the caller can surface auth / SPIN / privilege
-        problems instead of masking them as endpoint drift.
-        """
-        primary_kwargs: dict[str, Any] = {"json": primary_json}
-        if primary_headers:
-            primary_kwargs["headers"] = primary_headers
-        try:
-            await self._post(primary_url, **primary_kwargs)
-            return
-        except APIError as err:
-            if err.status != 404:
-                raise
-            _LOGGER.debug(
-                "VW NA %s: 404 on primary %s, falling back to legacy %s "
-                "(vin ***%s)",
-                label, primary_url, fallback_url, vin[-6:],
-            )
-        fallback_kwargs: dict[str, Any] = {"json": fallback_json}
-        if fallback_headers:
-            fallback_kwargs["headers"] = fallback_headers
-        await self._post(fallback_url, **fallback_kwargs)
-
     async def _carnet_command(
         self,
         method: str,
@@ -1394,34 +1356,26 @@ class VWNAClient:
         )
 
     async def command_start_climate(self, vin: str) -> None:
-        """v2.10.0 (Group C). NA pretripclimate naming, EU fallback.
+        """NA pre-trip climate start.
 
-        NA's Cox backend uses the explicit ``/pretripclimate/start``
-        path. We already used this path pre-v2.10.0, but some users
-        with older firmware reported it returning 404. In that case
-        we fall back to the EU-style ``/climatisation/start`` which
-        the legacy Cox build accepts as an alias.
+        v2.29.x (#659, sstur/vwapp) — carnet-gated like every other NA command:
+        with the plain access_token it 403s USER_NOT_AUTHORIZED (same signature
+        #659 reported for wake/flash). The old EU-style ``/climatisation/start``
+        404 fallback is dropped: v2.20.0 confirmed the myVW app only exposes the
+        ``/pretripclimate/*`` family, so that alias never resolved.
         """
         uuid = self._vin_to_uuid.get(vin, vin)
-        await self._post_with_ab_fallback(
-            primary_url=f"{self._base}/ev/v1/vehicle/{uuid}/pretripclimate/start",
-            primary_json={},
-            fallback_url=f"{self._base}/ev/v1/vehicle/{uuid}/climatisation/start",
-            fallback_json={},
-            label="start_climate",
-            vin=vin,
+        await self._carnet_command(
+            "POST", f"{self._base}/ev/v1/vehicle/{uuid}/pretripclimate/start",
+            vin, json={},
         )
 
     async def command_stop_climate(self, vin: str) -> None:
-        """v2.10.0 (Group C). See command_start_climate for the A/B rationale."""
+        """NA pre-trip climate stop. See command_start_climate (carnet-gated)."""
         uuid = self._vin_to_uuid.get(vin, vin)
-        await self._post_with_ab_fallback(
-            primary_url=f"{self._base}/ev/v1/vehicle/{uuid}/pretripclimate/stop",
-            primary_json={},
-            fallback_url=f"{self._base}/ev/v1/vehicle/{uuid}/climatisation/stop",
-            fallback_json={},
-            label="stop_climate",
-            vin=vin,
+        await self._carnet_command(
+            "POST", f"{self._base}/ev/v1/vehicle/{uuid}/pretripclimate/stop",
+            vin, json={},
         )
 
     async def command_start_charging(self, vin: str) -> None:
@@ -1454,7 +1408,12 @@ class VWNAClient:
         # the old /ev/.../horn-and-lights path doesn't exist → 404. NOTE: the exact
         # action/mode body value is not yet confirmed (FLASH_ONLY is the EU value);
         # live-capture on a real myVW before relying on flash-only vs honk+flash.
-        await self._post(f"{self._base}/honkflash/v1/vehicle/{uuid}", json={"action": "FLASH_ONLY"})
+        # v2.29.x (#659) — carnet-gated: Rizencip's Tiguan 403'd USER_NOT_AUTHORIZED
+        # on flash with the plain access_token, the same wall wake hit.
+        await self._carnet_command(
+            "POST", f"{self._base}/honkflash/v1/vehicle/{uuid}", vin,
+            json={"action": "FLASH_ONLY"},
+        )
 
     async def command_wake(self, vin: str) -> None:
         uuid = self._vin_to_uuid.get(vin, vin)
@@ -1519,41 +1478,26 @@ class VWNAClient:
         )
 
     async def command_start_window_heating(self, vin: str) -> None:
-        """v2.10.0 (Group C). Dedicated NA windowheating endpoint.
+        """NA window heating start — ``/pretripclimate/windowheating/start``.
 
-        ``/pretripclimate/windowheating/start`` is the NA-specific path
-        (verified against the zackcornelius reference). Older firmware
-        only exposed ``/climatisation/windowheating/start``; try the
-        NA path first, fall back on 404.
+        v2.29.x (#659, sstur/vwapp) — carnet-gated like the other NA commands;
+        the EU-style ``/climatisation/*`` 404 fallback is dropped (v2.20.0: only
+        the pretripclimate family is exposed on con-veh.net).
         """
         uuid = self._vin_to_uuid.get(vin, vin)
-        await self._post_with_ab_fallback(
-            primary_url=(
-                f"{self._base}/ev/v1/vehicle/{uuid}/pretripclimate/windowheating/start"
-            ),
-            primary_json={},
-            fallback_url=(
-                f"{self._base}/ev/v1/vehicle/{uuid}/climatisation/windowheating/start"
-            ),
-            fallback_json={},
-            label="start_window_heating",
-            vin=vin,
+        await self._carnet_command(
+            "POST",
+            f"{self._base}/ev/v1/vehicle/{uuid}/pretripclimate/windowheating/start",
+            vin, json={},
         )
 
     async def command_stop_window_heating(self, vin: str) -> None:
-        """v2.10.0 (Group C). See command_start_window_heating doc."""
+        """NA window heating stop. See command_start_window_heating (carnet-gated)."""
         uuid = self._vin_to_uuid.get(vin, vin)
-        await self._post_with_ab_fallback(
-            primary_url=(
-                f"{self._base}/ev/v1/vehicle/{uuid}/pretripclimate/windowheating/stop"
-            ),
-            primary_json={},
-            fallback_url=(
-                f"{self._base}/ev/v1/vehicle/{uuid}/climatisation/windowheating/stop"
-            ),
-            fallback_json={},
-            label="stop_window_heating",
-            vin=vin,
+        await self._carnet_command(
+            "POST",
+            f"{self._base}/ev/v1/vehicle/{uuid}/pretripclimate/windowheating/stop",
+            vin, json={},
         )
 
     async def command_set_departure_timer(
@@ -1581,9 +1525,10 @@ class VWNAClient:
         # v2.20.0 (APK audit) — myVW's EV climate routes are the pretripclimate/*
         # family; the EU-style climatisation/timers path is not exposed on
         # con-veh.net → 404.
-        await self._post(
-            f"{self._base}/ev/v1/vehicle/{uuid}/pretripclimate/timers",
-            json=payload,
+        # v2.29.x (#659) — carnet-gated like every other NA command.
+        await self._carnet_command(
+            "POST", f"{self._base}/ev/v1/vehicle/{uuid}/pretripclimate/timers",
+            vin, json=payload,
         )
 
     # ── HTTP helpers ──────────────────────────────────────────────────────────
