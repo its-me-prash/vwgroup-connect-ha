@@ -38,7 +38,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
-## [Unreleased]
+## [2.29.1] - 2026-08-05
 
 ### Fixed
 - **Volkswagen US and Canada could not be added since 30 July (#1012).** Sign-in itself was working: it ran through to an authorization code and only the step that trades that code for a token was refused, with a 401 that read like a wrong password but was not one. On 30 July VW's North American token service began requiring a field that was not there before, and every request without it now bounces. That field is sent now, on both the initial token exchange and the refresh, so an affected account adds and stays signed in. Confirmed by three owners, whose reports all point at the same 04:00 UTC cut-over. Thanks to briancmoses, chrisspatrickk1 and savabg.
