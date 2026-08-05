@@ -835,11 +835,66 @@ class DataActScraper:
                 if payload.get("Identifier"):
                     candidates = [payload]
         for c in candidates:
-            if str(c.get("Frequency", "")).lower() == "15mins":
-                identifier = c.get("Identifier")
-                if isinstance(identifier, str) and len(identifier) >= 16:
-                    return identifier
+            if str(c.get("Frequency", "")).lower() != "15mins":
+                continue
+            identifier = c.get("Identifier")
+            if not (isinstance(identifier, str) and len(identifier) >= 16):
+                continue
+            # v2.29.x (#465) — skip an EXPIRED descriptor. The portal keeps
+            # expired requests in metadata/partial, so adopting the first 15-min
+            # one meant that once an old "One Month" request lapsed (~4 weeks
+            # after setup) we never kicked off a fresh feed and the data silently
+            # stopped while the stale request still showed up here. A "No Expiry"
+            # request keeps its EndDate ~10 years out (_NO_EXPIRY_WINDOW_DAYS) so
+            # it is never seen as expired; only a genuinely lapsed window is.
+            if self._descriptor_expired(c):
+                _LOGGER.debug(
+                    "metadata/partial: 15-min request %s… for VIN %s is expired "
+                    "— ignoring it so a fresh feed is kicked off",
+                    identifier[:8], _mask_vin(vin),
+                )
+                continue
+            return identifier
         return None
+
+    @staticmethod
+    def _descriptor_expired(desc: dict[str, Any]) -> bool:
+        """True only when a metadata/partial descriptor clearly reports it is
+        past its window / no longer active. Unknown or unparseable -> False, so
+        we never drop a possibly-valid request on a shape we don't recognise.
+
+        The portal's window-end field is ``EndDate`` (a "No Expiry" request keeps
+        an EndDate ~10 years out, a "One Month" one ~31 days out), so a past
+        EndDate is the reliable "this feed has lapsed" signal. A few alternate key
+        names plus an explicit status field are checked defensively.
+        """
+        from datetime import datetime, timezone  # noqa: PLC0415
+
+        status = str(
+            desc.get("Status") or desc.get("State") or desc.get("RequestState") or ""
+        ).upper()
+        if status in (
+            "EXPIRED", "INACTIVE", "COMPLETED", "CANCELLED", "CANCELED",
+            "CLOSED", "FINISHED", "TERMINATED",
+        ):
+            return True
+        now = datetime.now(tz=timezone.utc)
+        for key in (
+            "EndDate", "ExpiryDate", "ExpiresAt", "ValidUntil",
+            "ExpirationDate", "ValidTo",
+        ):
+            raw = desc.get(key)
+            if not isinstance(raw, str) or len(raw) < 10:
+                continue
+            try:
+                dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            except (ValueError, TypeError):
+                continue
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            if dt < now:
+                return True
+        return False
 
     async def kickoff_custom_data_request(
         self,

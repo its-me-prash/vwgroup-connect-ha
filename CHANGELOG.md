@@ -38,6 +38,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.29.3] - 2026-08-05
+
+### Fixed
+- **An expired portal data feed is renewed instead of quietly staying dead (#465).** The data portal keeps old requests in its list even after they lapse, and we adopted the first one we found without checking whether it was still live. So once a request created with the older one-month duration ran out, about four weeks after setup, we kept pointing at the dead one and never asked for a fresh feed: the sensors just stopped moving while everything looked healthy. We now skip a request whose window has ended and start a new feed in its place. A no-expiry request keeps its far-future end date and is never mistaken for a dead one.
+
 ## [2.29.2] - 2026-08-05
 
 ### Fixed
