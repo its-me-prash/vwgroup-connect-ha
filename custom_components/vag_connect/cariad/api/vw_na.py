@@ -27,6 +27,7 @@ from ..exceptions import (
     CommandFailureReason,
     TokenExpiredError,
     UpstreamUnavailableError,
+    VehicleCommandError,
     classify_command_failure,
 )
 from ..auth.idk import IDKAuth
@@ -157,6 +158,65 @@ _NA_IDP_BASE = "https://identity.na.vwgroup.io"
 # uses the MYVW_ANDROID client throughout, so this would dead-end at
 # ``signin-service/v1/b680e751… → "no code"``. Kept documented, not used.
 _NA_SIGNIN_CLIENT_GUID_DORMANT = "b680e751-7e1f-4008-8ec1-3a528183d215@apps_vw-dilab_com"
+
+
+# ── v2.29.x (#659) — NA command completion poll ────────────────────────────
+# A con-veh command 2xx-accepts, then runs asynchronously against the vehicle;
+# without confirming, we report success on accept, so a command the car later
+# REJECTS looks successful (the NA twin of the EU #666 optimistic snap-back).
+# Found while digging the current myVW APK for remote-start: the app polls
+# ``/history/v1/vehicle/{id}/correlationId/{cid}/ro/`` by the command's
+# correlationId to a terminal outcome. Outcome enum (sstur/vwapp live-verified):
+# 0 REJECTED / 1 QUEUED / 2 SUCCESS / 3 FAILED. Bounded, and best-effort: raises
+# ONLY on an explicit rejected/failed — no correlationId, a poll error, an
+# unknown shape or a timeout all return silently, never worse than the old
+# fire-and-forget accept.
+_NA_CONFIRM_ATTEMPTS = 5
+_NA_CONFIRM_SLEEP_S = 2.0
+_NA_OUTCOME_REJECTED = 0
+_NA_OUTCOME_SUCCESS = 2
+_NA_OUTCOME_FAILED = 3
+
+
+def _na_correlation_id(resp: Any) -> str | None:
+    """Extract the async correlationId from a con-veh command response."""
+    if not isinstance(resp, dict):
+        return None
+    data = resp.get("data")
+    for obj in ([data] if isinstance(data, dict) else []) + [resp]:
+        for key in ("correlationId", "correlationID", "requestId", "requestID", "id"):
+            val = obj.get(key)
+            if isinstance(val, str) and val.strip():
+                return val.strip()
+    return None
+
+
+def _na_command_outcome(hist: Any) -> int | None:
+    """Terminal outcome int from the ro-history response, or ``None`` when it is
+    not yet terminal / the shape is unrecognised.
+
+    sstur/vwapp: ``responseBody.eventStatus.responseOutcome``. We try that plus a
+    couple of envelope variants defensively; a bool is rejected (never an outcome)
+    and a numeric string is coerced."""
+    if not isinstance(hist, dict):
+        return None
+
+    def _dig(node: Any, *path: str) -> Any:
+        for key in path:
+            if not isinstance(node, dict):
+                return None
+            node = node.get(key)
+        return node
+
+    for prefix in ((), ("data",), ("responseBody",), ("data", "responseBody")):
+        oc = _dig(hist, *prefix, "eventStatus", "responseOutcome")
+        if isinstance(oc, bool):
+            continue
+        if isinstance(oc, int):
+            return oc
+        if isinstance(oc, str) and oc.strip().lstrip("-").isdigit():
+            return int(oc.strip())
+    return None
 
 
 class VWNAClient:
@@ -1305,7 +1365,7 @@ class VWNAClient:
             headers = dict(self._READ_HEADERS)
             headers["Authorization"] = f"Bearer {carnet}"
             try:
-                return await self._request(
+                resp = await self._request(
                     method, url, headers=headers, _carnet_auth=True, json=json
                 )
             except APIError as err:
@@ -1318,7 +1378,48 @@ class VWNAClient:
                         self._vin_to_uuid.get(vin, vin), None
                     )
                 raise
-        return await self._request(method, url, json=json)
+        else:
+            resp = await self._request(method, url, json=json)
+        # v2.29.x (#659) — confirm the async outcome (raises only on an explicit
+        # rejected/failed; best-effort otherwise). No-op when the command returned
+        # no correlationId (e.g. a sync settings PUT or the refresh trigger).
+        await self._confirm_na_command(vin, resp)
+        return resp
+
+    async def _confirm_na_command(self, vin: str, resp: Any) -> None:
+        """v2.29.x (#659) — poll the ro-history by the command's correlationId to
+        a terminal outcome and raise ``VehicleCommandError`` ONLY on an explicit
+        rejected/failed, so a command the car quietly refused stops reporting
+        success. Best-effort: no correlationId, no carnet (can't poll), a poll
+        error, an unknown shape or a timeout all return silently — never worse
+        than the old fire-and-forget accept."""
+        cid = _na_correlation_id(resp)
+        if not cid:
+            return
+        carnet = await self._get_read_session_token(vin)  # cached, no S-PIN spend
+        if not carnet:
+            return  # the ro-history is carnet-gated; stay optimistic without it
+        uuid = self._vin_to_uuid.get(vin, vin)
+        url = f"{self._base}/history/v1/vehicle/{uuid}/correlationId/{cid}/ro/"
+        for _ in range(_NA_CONFIRM_ATTEMPTS):
+            await asyncio.sleep(_NA_CONFIRM_SLEEP_S)
+            try:
+                hist = await self._read(url, carnet)
+            except APIError:
+                return  # poll unavailable → keep the accept behaviour
+            outcome = _na_command_outcome(hist)
+            if outcome is None:
+                continue  # not terminal yet / unknown → keep polling
+            if outcome in (_NA_OUTCOME_REJECTED, _NA_OUTCOME_FAILED):
+                raise VehicleCommandError(
+                    "command",
+                    "the vehicle did not carry out the command "
+                    f"(outcome {outcome})",
+                )
+            if outcome == _NA_OUTCOME_SUCCESS:
+                return
+            # queued (1) or any other non-terminal value → keep polling in-bound
+        return  # bound reached without a terminal outcome → optimistic accept
 
     async def command_lock(self, vin: str) -> None:
         """NA lock — v2.29.x (sstur/vwapp): PUT ``{lock: true}`` with the
