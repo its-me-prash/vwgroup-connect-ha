@@ -141,12 +141,16 @@
           "adb_host": "Phone IP address",
           "adb_port": "ADB port",
           "vin": "VIN (the car the app shows)",
-          "spin": "S-PIN (optional)"
+          "spin": "S-PIN (optional)",
+          "companion_use_addon": "Připojit přes doplněk ADB Bridge",
+          "companion_addon_token": "Token doplňku"
         },
         "data_description": {
           "adb_host": "The phone's address on your network, e.g. 192.168.1.42.",
           "adb_port": "Usually 5555 for ADB over Wi-Fi.",
-          "vin": "The 17-character VIN of the car shown in the app."
+          "vin": "The 17-character VIN of the car shown in the app.",
+          "companion_use_addon": "Zaškrtněte u telefonu s Androidem 11 nebo novějším, který nabízí jen bezdrátové ladění. Pak výše zadejte adresu DOPLŇKU místo adresy telefonu.",
+          "companion_addon_token": "Potřeba jen tehdy, pokud jste v doplňku nastavili api_token."
         }
       }
     },
@@ -164,6 +168,7 @@
       "brand_not_dag_eligible": "Selected brand does not support browser login. Use the email + password flow instead.",
       "still_waiting_browser": "Still waiting for browser approval. Open the URL above, sign in, confirm the code, then click Submit again.",
       "companion_cannot_connect": "Could not reach the phone over ADB. Check it is on the network, that ADB over Wi-Fi is on, and that you accepted the debugging prompt.",
+      "companion_needs_addon": "Vypadá to na telefon s Androidem 11+ používající bezdrátové ladění, které zdejší přímé připojení neumí (vyžaduje TLS a párování). Nainstalujte doplněk 'VW Group App ADB Bridge' (github.com/its-me-prash/vwgroup-app-adb-bridge) a nasměrujte na něj companion. Starší telefony (Android 10 a starší) se připojí přímo zde.",
       "companion_app_not_found": "Connected to the phone, but the brand app is not installed on it.",
       "companion_unknown_brand": "That brand has no companion preset yet."
     },
@@ -187,6 +192,8 @@
           "spin": "S-PIN",
           "enable_reverse_geocoding": "Reverzní geokódování (adresa parkování)",
           "read_only_mode": "Režim jen pro čtení",
+          "companion_read_charge_detail": "Companion: číst cíl nabíjení (naviguje v aplikaci)",
+          "companion_wake_sleep": "Companion: probudit displej k dotazu, poté uspat",
           "force_ppe_climate": "Audi PPE/PPC klima-tělo (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
           "enable_push_mqtt": "Skoda push updates (MQTT, EXPERIMENTAL)",
           "enable_push_fcm": "CUPRA/SEAT push updates (FCM, EXPERIMENTAL)",
@@ -209,6 +216,8 @@
           "spin": "S-PIN pro zamykání dveří.",
           "enable_reverse_geocoding": "Odesílá GPS parkování do OpenStreetMap Nominatim pro získání ulice/města. Výchozí: vypnuto (soukromí).",
           "read_only_mode": "Když je povoleno, vytváří se pouze stavové senzory — žádné spínače, tlačítka, zámky, klima ani posuvníky odesílající příkazy. Užitečné, pokud chcete telemetrii vozidla bez rizika náhodného spuštění. Po přepnutí znovu načtěte integraci.",
+          "companion_read_charge_detail": "Pouze companion (ADB). Načítá navíc cíl nabíjení, výkon a zbývající čas, které jsou skryté za obrazovkou s detailem nabíjení. Kvůli tomu KLEPÁ do aplikace, aby se tam dostala (asi každých 15 minut), proto to zapínejte až po ověření, že postup na vašem telefonu funguje. Výchozí: vypnuto. Po přepnutí znovu načtěte integraci.",
+          "companion_wake_sleep": "Pouze companion (ADB). Před každým dotazem probudí displej telefonu a poté ho zase uspí, takže zamčený nebo spící telefon během čtení zobrazí aplikaci, aniž by displej svítil trvale. Výchozí: vypnuto. Po přepnutí znovu načtěte integraci.",
           "force_ppe_climate": "Pouze Audi. Vynucuje nový PPE/PPC formát těla (climatisationMode povinný, targetTemperature vynechaný) při startu klimatizace. Zapnout pouze pokud vlastníš Q6 e-tron, A6 e-tron, RS e-tron GT Facelift nebo A3 2024+ PHEV — jinak API vrátí 400. Po zapnutí znovu načti integraci.",
           "enable_push_mqtt": "EXPERIMENTAL: Skoda-only. Enables real-time MQTT push from Skoda mysmob backend (requires aiomqtt + firebase-messaging Python packages — currently lazy-imported, not pre-installed). Foundation phase in v1.18.0; live activation pending community-tester validation. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling.",
           "enable_push_fcm": "EXPERIMENTAL: CUPRA/SEAT only. Enables real-time Firebase Cloud Messaging push from OLA backend (requires firebase-messaging Python package — same lazy-import as v1.18.0 Skoda MQTT toggle). Foundation phase in v1.19.0; live activation pending community-tester validation. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling.",
@@ -1849,6 +1858,15 @@
     },
     "read_only_attestation_blocked": {
       "message": "VW blokuje vzdálené příkazy pro SEAT/CUPRA za ověřením zařízení od Googlu (Play Integrity / App Check), kterým projde jen oficiální aplikace na skutečném telefonu. Zamýkání, klimatizaci ani nabíjení proto odsud nelze odeslat. Jde o trvalé serverové omezení ze strany VW, nikoli o přepínatelné nastavení. Data vozidla se dál aktualizují přes portál EU Data Act."
+    },
+    "export_file_not_allowed": {
+      "message": "Home Assistant nemá povoleno číst {path}. Umístěte soubor s exportem do konfigurační složky (nebo do složky uvedené v allowlist_external_dirs) a zadejte cestu znovu."
+    },
+    "export_file_not_found": {
+      "message": "V umístění {path} nebyl nalezen žádný soubor. Zkontrolujte cestu. Relativní název se hledá v konfigurační složce."
+    },
+    "export_file_no_data": {
+      "message": "Soubor neobsahoval čitelnou datovou sadu EU Data Act. Ujistěte se, že jde o .zip stažený z datového portálu VW pro toto vozidlo."
     },
     "historical_portal_not_ready": {
       "message": "Portál EU Data Act ještě není připraven. Počkejte, až integrace po nastavení jednou provede dotaz, a poté zkuste historický export znovu."

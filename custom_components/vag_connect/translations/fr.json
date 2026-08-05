@@ -141,12 +141,16 @@
           "adb_host": "Phone IP address",
           "adb_port": "ADB port",
           "vin": "VIN (the car the app shows)",
-          "spin": "S-PIN (optional)"
+          "spin": "S-PIN (optional)",
+          "companion_use_addon": "Se connecter via le module complémentaire ADB Bridge",
+          "companion_addon_token": "Jeton du module complémentaire"
         },
         "data_description": {
           "adb_host": "The phone's address on your network, e.g. 192.168.1.42.",
           "adb_port": "Usually 5555 for ADB over Wi-Fi.",
-          "vin": "The 17-character VIN of the car shown in the app."
+          "vin": "The 17-character VIN of the car shown in the app.",
+          "companion_use_addon": "À cocher pour un téléphone Android 11 ou plus récent, qui ne propose que le débogage sans fil. Saisissez ensuite ci-dessus l'adresse du MODULE COMPLÉMENTAIRE, pas celle du téléphone.",
+          "companion_addon_token": "Nécessaire uniquement si vous avez défini api_token dans le module complémentaire."
         }
       }
     },
@@ -164,6 +168,7 @@
       "brand_not_dag_eligible": "Selected brand does not support browser login. Use the email + password flow instead.",
       "still_waiting_browser": "Still waiting for browser approval. Open the URL above, sign in, confirm the code, then click Submit again.",
       "companion_cannot_connect": "Could not reach the phone over ADB. Check it is on the network, that ADB over Wi-Fi is on, and that you accepted the debugging prompt.",
+      "companion_needs_addon": "Ce téléphone semble être un Android 11 ou plus récent en débogage sans fil, que la connexion directe d'ici ne peut pas utiliser (TLS + appairage). Installez le module complémentaire « VW Group App ADB Bridge » (github.com/its-me-prash/vwgroup-app-adb-bridge) et indiquez son adresse ici. Les téléphones plus anciens (Android 10 ou antérieur) se connectent directement ici.",
       "companion_app_not_found": "Connected to the phone, but the brand app is not installed on it.",
       "companion_unknown_brand": "That brand has no companion preset yet."
     },
@@ -187,6 +192,8 @@
           "spin": "S-PIN",
           "enable_reverse_geocoding": "Géocodage inverse (adresse de stationnement)",
           "read_only_mode": "Mode lecture seule",
+          "companion_read_charge_detail": "Companion : lire l'objectif de charge (navigue dans l'application)",
+          "companion_wake_sleep": "Companion : réveiller l'écran pour interroger, puis le rendormir",
           "force_ppe_climate": "Climate Audi PPE/PPC (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
           "enable_push_mqtt": "Skoda push updates (MQTT, EXPERIMENTAL)",
           "enable_push_fcm": "CUPRA/SEAT push updates (FCM, EXPERIMENTAL)",
@@ -209,6 +216,8 @@
           "spin": "S-PIN pour le verrouillage des portes.",
           "enable_reverse_geocoding": "Envoie le GPS de stationnement à OpenStreetMap Nominatim pour obtenir rue/ville. Désactivé par défaut (confidentialité).",
           "read_only_mode": "Lorsqu'activé, seuls les capteurs d'état sont créés — pas d'interrupteurs, boutons, verrous, climat ou curseurs qui envoient des commandes. Utile si vous voulez la télémétrie véhicule sans risque d'actionnement accidentel. Rechargez l'intégration après activation.",
+          "companion_read_charge_detail": "Companion (ADB) uniquement. Lit aussi l'objectif de charge, la puissance et le temps restant qui se trouvent derrière l'écran de détail de la charge. Pour y accéder, l'application est PILOTÉE par appuis (environ toutes les 15 minutes) : n'activez cette option qu'après avoir vérifié que cela fonctionne sur votre téléphone. Désactivé par défaut. Rechargez l'intégration après activation.",
+          "companion_wake_sleep": "Companion (ADB) uniquement. Réveille l'écran du téléphone avant chaque interrogation et le rendort ensuite, pour qu'un téléphone verrouillé ou en veille affiche l'application pendant la lecture sans rester allumé en permanence. Désactivé par défaut. Rechargez l'intégration après activation.",
           "force_ppe_climate": "Audi uniquement. Force le nouveau format de payload PPE/PPC (climatisationMode obligatoire, targetTemperature omis) au démarrage du climat. À activer uniquement si vous possédez une Q6 e-tron, A6 e-tron, RS e-tron GT Facelift ou A3 2024+ PHEV — sinon l'API renvoie 400. Rechargez l'intégration après activation.",
           "enable_push_mqtt": "EXPERIMENTAL: Skoda-only. Enables real-time MQTT push from Skoda mysmob backend (requires aiomqtt + firebase-messaging Python packages — currently lazy-imported, not pre-installed). Foundation phase in v1.18.0; live activation pending community-tester validation. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling.",
           "enable_push_fcm": "EXPERIMENTAL: CUPRA/SEAT only. Enables real-time Firebase Cloud Messaging push from OLA backend (requires firebase-messaging Python package — same lazy-import as v1.18.0 Skoda MQTT toggle). Foundation phase in v1.19.0; live activation pending community-tester validation. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling.",
@@ -1849,6 +1858,15 @@
     },
     "read_only_attestation_blocked": {
       "message": "VW bloque les commandes à distance pour SEAT/CUPRA derrière une vérification d'appareil Google (Play Integrity / App Check) que seule l'application officielle sur un vrai téléphone peut passer. Le verrouillage, la climatisation et la charge ne peuvent donc pas être envoyés d'ici. C'est un blocage permanent côté serveur de VW, pas un réglage désactivable. Les données du véhicule continuent d'être mises à jour via le portail EU Data Act."
+    },
+    "export_file_not_allowed": {
+      "message": "Home Assistant n'est pas autorisé à lire {path}. Placez le fichier d'export dans le dossier de configuration (ou un dossier listé sous allowlist_external_dirs) et indiquez à nouveau son chemin."
+    },
+    "export_file_not_found": {
+      "message": "Aucun fichier n'a été trouvé à {path}. Vérifiez le chemin. Un nom relatif est recherché dans le dossier de configuration."
+    },
+    "export_file_no_data": {
+      "message": "Ce fichier ne contient pas de jeu de données EU Data Act lisible. Assurez-vous qu'il s'agit bien du .zip téléchargé depuis le portail de données VW pour cette voiture."
     },
     "historical_portal_not_ready": {
       "message": "Le portail EU Data Act n'est pas encore prêt. Attendez que l'intégration ait interrogé une fois après la configuration, puis réessayez l'export historique."
