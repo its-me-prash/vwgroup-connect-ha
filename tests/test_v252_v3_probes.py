@@ -18,17 +18,37 @@ import pytest
 class TestProbeInventory:
     """Per-brand probe lists must be populated, well-formed and unique."""
 
-    def test_all_seven_brands_have_probes(self) -> None:
+    def test_all_probe_brands_have_probes(self) -> None:
         from custom_components.vag_connect.cariad.api._v3_probes import (
             PROBES_BY_BRAND,
         )
         expected = {
-            "seat", "cupra", "skoda", "volkswagen", "audi",
-            "volkswagen_na", "porsche",
+            "seat", "cupra", "skoda", "volkswagen", "audi", "porsche",
         }
         assert expected.issubset(PROBES_BY_BRAND.keys())
         for brand, probes in PROBES_BY_BRAND.items():
             assert probes, f"Brand {brand!r} has empty probe list"
+
+    def test_vw_na_has_no_probes(self) -> None:
+        """v2.29.x — VW NA is deliberately absent from the probe registry.
+
+        The old ``volkswagen_na`` entry was dead three ways over: its
+        ``/v3/vehicles/{vin}/…`` namespace does not exist on con-veh (androguard
+        sweep of myVW 2026.7.28-9380), ``VWNAClient`` does not inherit
+        ``CariadBaseClient`` so the probe runner is not even a method on it, and
+        the client's brand is ``volkswagen_us`` / ``volkswagen_ca`` so the
+        registry key could never match. It made the repo look as though NA health
+        and trip data were being probed while nothing ever ran. NA discovery goes
+        through ``scripts/vwna_capture.py`` (the reads are S-PIN/carnet
+        authorised, which the generic runner cannot do). Do not re-add
+        speculative NA probes here without a captured response to ground them.
+        """
+        from custom_components.vag_connect.cariad.api._v3_probes import (
+            PROBES_BY_BRAND, probes_for_brand,
+        )
+        assert "volkswagen_na" not in PROBES_BY_BRAND
+        for brand in ("volkswagen_na", "volkswagen_us", "volkswagen_ca"):
+            assert probes_for_brand(brand) == ()
 
     def test_probe_names_unique_within_brand(self) -> None:
         from custom_components.vag_connect.cariad.api._v3_probes import (
@@ -65,9 +85,9 @@ class TestProbeInventory:
         from custom_components.vag_connect.cariad.api._v3_probes import (
             BASE_URL_BY_BRAND, PROBES_BY_BRAND,
         )
-        # VW NA intentionally omitted from BASE_URL_BY_BRAND (regional).
-        non_regional = {b for b in PROBES_BY_BRAND if b != "volkswagen_na"}
-        for brand in non_regional:
+        # v2.29.x — every brand that still has probes must have a base URL.
+        # (VW NA used to be the exception; its probes are gone entirely now.)
+        for brand in PROBES_BY_BRAND:
             assert brand in BASE_URL_BY_BRAND, (
                 f"Brand {brand!r} has probes but no base URL"
             )
