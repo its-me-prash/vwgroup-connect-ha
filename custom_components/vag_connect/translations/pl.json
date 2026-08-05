@@ -141,12 +141,16 @@
           "adb_host": "Phone IP address",
           "adb_port": "ADB port",
           "vin": "VIN (the car the app shows)",
-          "spin": "S-PIN (optional)"
+          "spin": "S-PIN (optional)",
+          "companion_use_addon": "Połącz przez dodatek ADB Bridge",
+          "companion_addon_token": "Token dodatku"
         },
         "data_description": {
           "adb_host": "The phone's address on your network, e.g. 192.168.1.42.",
           "adb_port": "Usually 5555 for ADB over Wi-Fi.",
-          "vin": "The 17-character VIN of the car shown in the app."
+          "vin": "The 17-character VIN of the car shown in the app.",
+          "companion_use_addon": "Zaznacz dla telefonu z Androidem 11 lub nowszym, który udostępnia tylko debugowanie bezprzewodowe. Wtedy wpisz powyżej adres DODATKU, a nie telefonu.",
+          "companion_addon_token": "Potrzebny tylko, jeśli ustawiłeś api_token w dodatku."
         }
       }
     },
@@ -164,6 +168,7 @@
       "brand_not_dag_eligible": "Selected brand does not support browser login. Use the email + password flow instead.",
       "still_waiting_browser": "Still waiting for browser approval. Open the URL above, sign in, confirm the code, then click Submit again.",
       "companion_cannot_connect": "Could not reach the phone over ADB. Check it is on the network, that ADB over Wi-Fi is on, and that you accepted the debugging prompt.",
+      "companion_needs_addon": "To wygląda na telefon z Androidem 11 lub nowszym z debugowaniem bezprzewodowym, którego bezpośrednie połączenie stąd nie obsługuje (wymaga TLS i parowania). Zainstaluj dodatek „VW Group App ADB Bridge” (github.com/its-me-prash/vwgroup-app-adb-bridge) i wskaż go tutaj. Starsze telefony (Android 10 lub wcześniejszy) łączą się bezpośrednio.",
       "companion_app_not_found": "Connected to the phone, but the brand app is not installed on it.",
       "companion_unknown_brand": "That brand has no companion preset yet."
     },
@@ -187,6 +192,8 @@
           "spin": "S-PIN",
           "enable_reverse_geocoding": "Geokodowanie odwrotne (adres parkowania)",
           "read_only_mode": "Tryb tylko do odczytu",
+          "companion_read_charge_detail": "Companion: odczyt celu ładowania (nawiguje w aplikacji)",
+          "companion_wake_sleep": "Companion: wybudź ekran do odpytania, potem uśpij",
           "force_ppe_climate": "Audi PPE/PPC klimat-body (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
           "enable_push_mqtt": "Skoda push updates (MQTT, EXPERIMENTAL)",
           "enable_push_fcm": "CUPRA/SEAT push updates (FCM, EXPERIMENTAL)",
@@ -209,6 +216,8 @@
           "spin": "S-PIN do blokowania drzwi.",
           "enable_reverse_geocoding": "Wysyła GPS parkowania do OpenStreetMap Nominatim, aby uzyskać ulicę/miasto. Domyślnie wyłączone (prywatność).",
           "read_only_mode": "Po włączeniu tworzone są tylko czujniki statusu — bez przełączników, przycisków, blokad, klimatu czy suwaków wysyłających polecenia. Przydatne gdy chcesz telemetrię pojazdu bez ryzyka przypadkowego uruchomienia. Przeładuj integrację po włączeniu.",
+          "companion_read_charge_detail": "Tylko Companion (ADB). Odczytuje dodatkowo cel ładowania, moc i pozostały czas, które są ukryte za ekranem szczegółów ładowania. Aby tam przejść, integracja DOTYKA ekranu aplikacji (mniej więcej co 15 minut), więc włącz to dopiero po sprawdzeniu, że taki przebieg działa na Twoim telefonie. Domyślnie wyłączone. Po zmianie przeładuj integrację.",
+          "companion_wake_sleep": "Tylko Companion (ADB). Wybudza ekran telefonu przed każdym odpytaniem i usypia go po nim, dzięki czemu zablokowany lub uśpiony telefon pokazuje aplikację podczas odczytu bez trzymania ekranu włączonego na stałe. Domyślnie wyłączone. Po zmianie przeładuj integrację.",
           "force_ppe_climate": "Tylko Audi. Wymusza nowy format PPE/PPC (climatisationMode obowiązkowy, targetTemperature pominięty) przy starcie klimatyzacji. Włącz tylko jeśli masz Q6 e-tron, A6 e-tron, RS e-tron GT Facelift lub A3 2024+ PHEV — w przeciwnym razie API zwraca 400. Po włączeniu przeładuj integrację.",
           "enable_push_mqtt": "EXPERIMENTAL: Skoda-only. Enables real-time MQTT push from Skoda mysmob backend (requires aiomqtt + firebase-messaging Python packages — currently lazy-imported, not pre-installed). Foundation phase in v1.18.0; live activation pending community-tester validation. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling.",
           "enable_push_fcm": "EXPERIMENTAL: CUPRA/SEAT only. Enables real-time Firebase Cloud Messaging push from OLA backend (requires firebase-messaging Python package — same lazy-import as v1.18.0 Skoda MQTT toggle). Foundation phase in v1.19.0; live activation pending community-tester validation. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling.",
@@ -1849,6 +1858,15 @@
     },
     "read_only_attestation_blocked": {
       "message": "VW blokuje zdalne polecenia dla SEAT/CUPRA za weryfikacją urządzenia Google (Play Integrity / App Check), którą przechodzi tylko oficjalna aplikacja na prawdziwym telefonie. Dlatego z tego miejsca nie można wysłać zamykania, klimatyzacji ani ładowania. To trwała blokada po stronie serwera VW, a nie ustawienie, które można wyłączyć. Dane pojazdu są nadal aktualizowane przez portal EU Data Act."
+    },
+    "export_file_not_allowed": {
+      "message": "Home Assistant nie ma uprawnień do odczytu {path}. Umieść plik eksportu w folderze konfiguracji (lub w folderze wymienionym w allowlist_external_dirs) i podaj jego ścieżkę ponownie."
+    },
+    "export_file_not_found": {
+      "message": "Nie znaleziono pliku w {path}. Sprawdź ścieżkę. Nazwa względna jest szukana w folderze konfiguracji."
+    },
+    "export_file_no_data": {
+      "message": "Ten plik nie zawierał czytelnego zestawu danych EU Data Act. Upewnij się, że to plik .zip pobrany z portalu danych VW dla tego auta."
     },
     "historical_portal_not_ready": {
       "message": "Portal EU Data Act nie jest jeszcze gotowy. Poczekaj, aż integracja wykona jedno odpytanie po konfiguracji, a następnie ponów eksport historyczny."

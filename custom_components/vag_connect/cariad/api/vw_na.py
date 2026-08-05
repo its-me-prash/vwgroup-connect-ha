@@ -1679,7 +1679,14 @@ class VWNAClient:
     async def _refresh(self) -> None:
         if self._tokens and self._tokens.refresh_token:
             try:
-                self._tokens = await self._auth.refresh(self._tokens.refresh_token)
+                # #1012 — replay the login's PKCE verifier: the con-veh server
+                # binds the refresh to it. Empty on a token set from before the
+                # fix, in which case the refresh fails and we fall through to a
+                # full re-login below (which now carries the verifier again).
+                self._tokens = await self._auth.refresh(
+                    self._tokens.refresh_token,
+                    code_verifier=self._tokens.code_verifier,
+                )
                 return
             except TokenExpiredError:
                 pass

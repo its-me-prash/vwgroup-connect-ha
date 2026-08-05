@@ -40,6 +40,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **Volkswagen US and Canada could not be added since 30 July (#1012).** Sign-in itself was working: it ran through to an authorization code and only the step that trades that code for a token was refused, with a 401 that read like a wrong password but was not one. On 30 July VW's North American token service began requiring a field that was not there before, and every request without it now bounces. That field is sent now, on both the initial token exchange and the refresh, so an affected account adds and stays signed in. Confirmed by three owners, whose reports all point at the same 04:00 UTC cut-over. Thanks to briancmoses, chrisspatrickk1 and savabg.
+- **Ten of the eleven translations were missing the companion-channel strings.** Home Assistant does not fall back to English for a custom integration, so a key that exists only in English renders as the raw key or as nothing at all. The twelve strings added with the companion channel and the export-file import had reached German only, which left the add-on checkbox, its error message, the two companion option toggles and the three import error messages blank for everyone running Home Assistant in French, Spanish, Italian, Dutch, Polish, Czech, Swedish, Danish, Norwegian or Finnish. All twelve are translated now, and a test fails the build if a language ever falls behind again.
+
 ### Changed
 - **An identity token from the portal export no longer enters field discovery.** The export carries `idp_idt`, which identifies the account holder rather than anything about the car, and it was reaching the Vehicle Data Scout as an unmapped field. Only the token masker kept its value out of a public issue. It is now withheld from discovery entirely, so it can never end up in an entity attribute, a backup or a diagnostics download. This is a deliberate single exception to the rule that every discovered field stays visible until mapped, it is scoped to one named field, and each withholding is logged.
 

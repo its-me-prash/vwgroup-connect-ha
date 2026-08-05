@@ -141,12 +141,16 @@
           "adb_host": "Phone IP address",
           "adb_port": "ADB port",
           "vin": "VIN (the car the app shows)",
-          "spin": "S-PIN (optional)"
+          "spin": "S-PIN (optional)",
+          "companion_use_addon": "Yhdistä ADB Bridge -lisäosan kautta",
+          "companion_addon_token": "Lisäosan tunniste"
         },
         "data_description": {
           "adb_host": "The phone's address on your network, e.g. 192.168.1.42.",
           "adb_port": "Usually 5555 for ADB over Wi-Fi.",
-          "vin": "The 17-character VIN of the car shown in the app."
+          "vin": "The 17-character VIN of the car shown in the app.",
+          "companion_use_addon": "Rastita tämä, jos puhelin on Android 11 tai uudempi ja tarjoaa vain langattoman virheenkorjauksen. Syötä sitten yllä LISÄOSAN osoite puhelimen osoitteen sijaan.",
+          "companion_addon_token": "Tarvitaan vain, jos olet asettanut lisäosassa api_token-arvon."
         }
       }
     },
@@ -164,6 +168,7 @@
       "portal_interaction_required": "EU Data Act -portaali vaatii kertaluonteisen toimenpiteen selaimessasi tai merkin sovelluksessa (esim. käyttöehtojen hyväksyminen, suostumuksen vahvistaminen, käyttöönoton/alueen valinnan viimeistely) ennen kuin selaimeton pääsy toimii. Tämä EI ole väärän salasanan ongelma — avaa portaali kerran selaimessa, suorita kehote loppuun ja yritä sitten uudelleen.",
       "still_waiting_browser": "Odotetaan yhä selaimen hyväksyntää. Avaa yllä oleva URL-osoite, kirjaudu sisään, vahvista koodi ja napsauta sitten Lähetä uudelleen.",
       "companion_cannot_connect": "Could not reach the phone over ADB. Check it is on the network, that ADB over Wi-Fi is on, and that you accepted the debugging prompt.",
+      "companion_needs_addon": "Tämä näyttää Android 11 -puhelimelta tai uudemmalta, joka käyttää langatonta virheenkorjausta. Suora yhteys tästä ei toimi sen kanssa (se vaatii TLS:n ja parituksen). Asenna 'VW Group App ADB Bridge' -lisäosa (github.com/its-me-prash/vwgroup-app-adb-bridge) ja anna sen osoite tähän. Vanhemmat puhelimet (Android 10 tai vanhempi) yhdistyvät suoraan.",
       "companion_app_not_found": "Connected to the phone, but the brand app is not installed on it.",
       "companion_unknown_brand": "That brand has no companion preset yet."
     },
@@ -187,6 +192,8 @@
           "spin": "S-PIN",
           "enable_reverse_geocoding": "Käänteinen geokoodaus (pysäköintiosoite)",
           "read_only_mode": "Vain luku -tila",
+          "companion_read_charge_detail": "Companion: lue lataustavoite (navigoi sovelluksessa)",
+          "companion_wake_sleep": "Companion: herätä näyttö kyselyn ajaksi, nukuta sen jälkeen",
           "force_ppe_climate": "Audi PPE/PPC -ilmastoinnin runko (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
           "enable_push_mqtt": "Skoda push-päivitykset (MQTT, KOKEELLINEN)",
           "enable_push_fcm": "CUPRA/SEAT push-päivitykset (FCM, KOKEELLINEN)",
@@ -209,6 +216,8 @@
           "spin": "S-PIN ovien lukitsemiseen. Sovellus → Turvallisuus → S-PIN.",
           "enable_reverse_geocoding": "Lähettää pysäköinnin GPS-sijainnin OpenStreetMap Nominatimille kadun/kaupungin selvittämiseksi. Oletuksena pois päältä yksityisyyden vuoksi.",
           "read_only_mode": "Käytössä ollessaan vain tilanantureita luodaan — ei kytkimiä, painikkeita, lukkoja, ilmastointia tai liukusäätimiä, jotka lähettävät komentoja. Hyödyllinen, jos haluat ajoneuvon telemetrian ilman tahattoman toiminnan riskiä. Lataa integraatio uudelleen vaihdon jälkeen.",
+          "companion_read_charge_detail": "Vain Companion (ADB). Lukee lisäksi lataustavoitteen, lataustehon ja jäljellä olevan ajan, jotka ovat latauksen tietonäytön takana. Tämä NAPAUTTAA sovellusta siirtyäkseen sinne (noin 15 minuutin välein), joten ota se käyttöön vasta kun olet varmistanut, että se toimii puhelimessasi. Oletuksena pois päältä. Lataa uudelleen vaihdon jälkeen.",
+          "companion_wake_sleep": "Vain Companion (ADB). Herättää puhelimen näytön ennen jokaista kyselyä ja nukuttaa sen jälkeen, jotta lukittu tai nukkuva puhelin näyttää sovelluksen luvun ajan ilman, että näyttö jää pysyvästi päälle. Oletuksena pois päältä. Lataa uudelleen vaihdon jälkeen.",
           "force_ppe_climate": "Vain Audi. Pakottaa uuden PPE/PPC-rungon muodon (climatisationMode pakollinen, targetTemperature jätetty pois) ilmastoinnin käynnistyksessä. Ota käyttöön vain, jos omistat Q6 e-tronin, A6 e-tronin, RS e-tron GT Faceliftin tai A3 2024+ PHEV:n — muutoin ilmastoinnin käynnistys palauttaa 400. Lataa integraatio uudelleen vaihdon jälkeen.",
           "enable_push_mqtt": "KOKEELLINEN: vain Skoda. Ottaa käyttöön reaaliaikaiset MQTT-push-päivitykset Skodan mysmob-taustajärjestelmästä (vaatii aiomqtt + firebase-messaging Python-paketit — tällä hetkellä lazy-imported, ei esiasennettu). Perustusvaihe versiossa v1.18.0; live-aktivointi odottaa yhteisötestaajien validointia. Jos push ei ole saatavilla, integraatio palautuu hiljaisesti kyselyyn. Lataa integraatio uudelleen vaihdon jälkeen.",
           "enable_push_fcm": "KOKEELLINEN: vain CUPRA/SEAT. Ottaa käyttöön reaaliaikaisen Firebase Cloud Messaging -pushin OLA-taustajärjestelmästä (vaatii firebase-messaging Python-paketin — sama lazy-import kuin v1.18.0 Skoda MQTT -kytkimessä). Perustusvaihe versiossa v1.19.0; live-aktivointi odottaa yhteisötestaajien validointia. Jos push ei ole saatavilla, integraatio palautuu hiljaisesti kyselyyn. Lataa integraatio uudelleen vaihdon jälkeen.",
@@ -1849,6 +1858,15 @@
     },
     "read_only_attestation_blocked": {
       "message": "VW estää SEAT/CUPRAn etäkomennot Googlen laitetarkistuksen (Play Integrity / App Check) taakse, jonka läpäisee vain virallinen sovellus aidolla puhelimella. Lukitusta, ilmastointia ja latausta ei siksi voi lähettää täältä. Kyseessä on VW:n pysyvä palvelinpuolen esto, ei asetus, jonka voi kytkeä pois. Ajoneuvon tiedot päivittyvät edelleen EU:n datasäädösportaalin kautta."
+    },
+    "export_file_not_allowed": {
+      "message": "Home Assistantilla ei ole lupaa lukea polkua {path}. Siirrä vientitiedosto config-kansioon (tai kansioon, joka on listattu kohdassa allowlist_external_dirs) ja anna sen polku uudelleen."
+    },
+    "export_file_not_found": {
+      "message": "Polusta {path} ei löytynyt tiedostoa. Tarkista polku. Suhteellinen nimi haetaan config-kansiosta."
+    },
+    "export_file_no_data": {
+      "message": "Tiedosto ei sisältänyt luettavaa EU Data Act -tietojoukkoa. Varmista, että se on .zip, jonka latasit VW:n dataportaalista tälle autolle."
     },
     "historical_portal_not_ready": {
       "message": "EU:n datasäädösportaali ei ole vielä valmis. Odota, kunnes integraatio on hakenut tiedot kerran käyttöönoton jälkeen, ja yritä sitten uudelleen."

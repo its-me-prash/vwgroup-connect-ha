@@ -141,12 +141,16 @@
           "adb_host": "Phone IP address",
           "adb_port": "ADB port",
           "vin": "VIN (the car the app shows)",
-          "spin": "S-PIN (optional)"
+          "spin": "S-PIN (optional)",
+          "companion_use_addon": "Forbind via ADB Bridge-tilføjelsen",
+          "companion_addon_token": "Tilføjelses-token"
         },
         "data_description": {
           "adb_host": "The phone's address on your network, e.g. 192.168.1.42.",
           "adb_port": "Usually 5555 for ADB over Wi-Fi.",
-          "vin": "The 17-character VIN of the car shown in the app."
+          "vin": "The 17-character VIN of the car shown in the app.",
+          "companion_use_addon": "Sæt flueben her, hvis telefonen kører Android 11 eller nyere og kun tilbyder trådløs fejlfinding. Indtast så TILFØJELSENS adresse ovenfor i stedet for telefonens.",
+          "companion_addon_token": "Kræves kun, hvis du har sat api_token i tilføjelsen."
         }
       }
     },
@@ -164,6 +168,7 @@
       "portal_interaction_required": "EU Data Act-portalen kræver en engangshandling i din browser eller mærke-app (f.eks. accepter vilkår, bekræft samtykke, fuldfør onboarding/regionsvalg), før headless-adgang virker. Dette er IKKE et problem med forkert adgangskode — åbn portalen én gang i en browser, fuldfør anmodningen, og prøv igen.",
       "still_waiting_browser": "Venter stadig på browser-godkendelse. Åbn URL'en ovenfor, log ind, bekræft koden, og klik på Send igen.",
       "companion_cannot_connect": "Could not reach the phone over ADB. Check it is on the network, that ADB over Wi-Fi is on, and that you accepted the debugging prompt.",
+      "companion_needs_addon": "Dette ligner en telefon med Android 11 eller nyere, der bruger trådløs fejlfinding, som den direkte forbindelse her ikke kan bruge (den kræver TLS + parring). Installér tilføjelsen 'VW Group App ADB Bridge' (github.com/its-me-prash/vwgroup-app-adb-bridge), og lad Companion forbinde til den. Ældre telefoner (Android 10 eller tidligere) forbinder direkte her.",
       "companion_app_not_found": "Connected to the phone, but the brand app is not installed on it.",
       "companion_unknown_brand": "That brand has no companion preset yet."
     },
@@ -187,6 +192,8 @@
           "spin": "S-PIN",
           "enable_reverse_geocoding": "Omvendt geokodning (parkeringsadresse)",
           "read_only_mode": "Skrivebeskyttet tilstand",
+          "companion_read_charge_detail": "Companion: læs lademål (navigerer i appen)",
+          "companion_wake_sleep": "Companion: væk skærmen før hentning, sov bagefter",
           "force_ppe_climate": "Audi PPE/PPC-klimaformat (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
           "enable_push_mqtt": "Skoda push-opdateringer (MQTT, EKSPERIMENTEL)",
           "enable_push_fcm": "CUPRA/SEAT push-opdateringer (FCM, EKSPERIMENTEL)",
@@ -209,6 +216,8 @@
           "spin": "S-PIN til dørlåsning. App → Sikkerhed → S-PIN.",
           "enable_reverse_geocoding": "Sender parkerings-GPS til OpenStreetMap Nominatim for at finde gade/by. Slået fra som standard af hensyn til privatliv.",
           "read_only_mode": "Når aktiveret, oprettes kun statussensorer — ingen kontakter, knapper, låse, klima eller skydere, der sender kommandoer. Nyttigt, hvis du vil have køretøjstelemetri uden nogen risiko for utilsigtet aktivering. Genindlæs integrationen efter ændring.",
+          "companion_read_charge_detail": "Kun Companion (ADB). Læser også lademål, ladeeffekt og resterende tid, som ligger bag ladedetalje-skærmen. Det kræver, at der TRYKKES i appen for at navigere derhen (cirka hvert 15. minut), så aktivér det først, når du har bekræftet, at flowet virker på din telefon. Slået fra som standard. Genindlæs efter ændring.",
+          "companion_wake_sleep": "Kun Companion (ADB). Vækker telefonens skærm før hver hentning og lader den sove igen bagefter, så en låst eller sovende telefon viser appen under aflæsningen uden at have skærmen tændt permanent. Slået fra som standard. Genindlæs efter ændring.",
           "force_ppe_climate": "Kun Audi. Gennemtvinger det nye PPE/PPC-format (climatisationMode obligatorisk, targetTemperature udeladt) ved klimastart. Aktivér kun, hvis du ejer en Q6 e-tron, A6 e-tron, RS e-tron GT Facelift eller A3 2024+ PHEV — ellers returnerer klimastart 400. Genindlæs integrationen efter ændring.",
           "enable_push_mqtt": "EKSPERIMENTEL: Kun Skoda. Aktiverer realtids-MQTT-push fra Skoda mysmob-backendet (kræver Python-pakkerne aiomqtt + firebase-messaging — pt. importeret dovent, ikke forudinstalleret). Grundlagsfase i v1.18.0; live-aktivering afventer validering fra community-testere. Hvis push ikke er tilgængelig, falder integrationen stille tilbage til polling. Genindlæs integrationen efter ændring.",
           "enable_push_fcm": "EKSPERIMENTEL: Kun CUPRA/SEAT. Aktiverer realtids-push via Firebase Cloud Messaging fra OLA-backendet (kræver Python-pakken firebase-messaging — samme dovne import som Skoda MQTT-kontakten i v1.18.0). Grundlagsfase i v1.19.0; live-aktivering afventer validering fra community-testere. Hvis push ikke er tilgængelig, falder integrationen stille tilbage til polling. Genindlæs integrationen efter ændring.",
@@ -1849,6 +1858,15 @@
     },
     "read_only_attestation_blocked": {
       "message": "VW blokerer fjernkommandoer til SEAT/CUPRA bag en Google-enhedskontrol (Play Integrity / App Check), som kun den officielle app på en rigtig telefon kan bestå. Lås, klima og opladning kan derfor ikke sendes herfra. Det er en permanent serverside-blokering fra VW, ikke en indstilling, du kan slå fra. Køretøjsdata opdateres stadig via EU Data Act-portalen."
+    },
+    "export_file_not_allowed": {
+      "message": "Home Assistant har ikke lov til at læse {path}. Læg eksportfilen i config-mappen (eller en mappe, der står under allowlist_external_dirs), og angiv stien igen."
+    },
+    "export_file_not_found": {
+      "message": "Der blev ikke fundet nogen fil på {path}. Tjek stien. Et relativt navn søges i config-mappen."
+    },
+    "export_file_no_data": {
+      "message": "Filen indeholdt ikke et læsbart EU Data Act-datasæt. Kontrollér, at det er den .zip, du har hentet fra VW's dataportal til denne bil."
     },
     "historical_portal_not_ready": {
       "message": "EU Data Act-portalen er ikke klar endnu. Vent, til integrationen har hentet data én gang efter opsætning, og prøv derefter det historiske eksport igen."

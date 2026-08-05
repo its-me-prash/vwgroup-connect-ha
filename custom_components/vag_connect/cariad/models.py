@@ -337,6 +337,15 @@ class TokenSet:
     #    "expires": ..., "secure": ..., "httponly": ...}
     auth_cookies: list[dict[str, Any]] = field(default_factory=list)
 
+    # #1012 — VW North America. Its con-veh token server binds the refresh
+    # grant to the ORIGINAL login's PKCE code_verifier: refreshing without it
+    # returns "400 Internal Service validation failure" (confirmed against two
+    # maintained NA clients). So the verifier has to survive from the initial
+    # exchange through to every later refresh, which means persisting it here
+    # with the token set. Empty for every other brand, whose servers do not
+    # want it on refresh.
+    code_verifier: str = ""
+
     def is_valid(self) -> bool:
         """Return True if the access_token + id_token are populated.
 
