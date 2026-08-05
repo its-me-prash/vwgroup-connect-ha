@@ -61,7 +61,7 @@ import hashlib
 import logging
 import os
 import re
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, urljoin
 
 from aiohttp import ClientTimeout, ClientSession
 
@@ -69,6 +69,7 @@ from ..exceptions import AuthenticationError, TokenExpiredError
 from ..models import TokenSet
 
 _AUTH_TIMEOUT = ClientTimeout(total=30)  # per-request timeout for auth flows
+_MAX_AUTH_REDIRECTS = 10  # bound the Auth0 resume-hop chain so it cannot loop
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -173,15 +174,59 @@ class PorscheAuth:
         ) as resp:
             location = resp.headers.get("Location", "")
 
-        # Extract auth code from redirect
-        code = self._extract_code(location)
+        # Step 4: follow the Auth0 redirect chain to the code.
+        #
+        # In Auth0's Identifier-First flow the password POST does NOT redirect
+        # straight to my-porsche-app://auth0/callback. Its Location is a *resume*
+        # path (e.g. /authorize/resume?state=...), and the code only appears
+        # after following that hop (and sometimes a second one). The old code
+        # required the callback immediately, so it ALWAYS fell through to
+        # "wrong credentials or captcha" even with correct credentials — a
+        # self-inflicted failure independent of the Porsche One migration.
+        code = await self._follow_to_code(location, password_url)
         if not code:
             raise AuthenticationError(
-                "Porsche auth failed — wrong credentials or captcha required"
+                "Porsche auth failed — no authorization code after login "
+                "(wrong credentials, or a captcha/consent step we do not handle)"
             )
 
-        # Step 4: Exchange code for tokens
+        # Step 5: Exchange code for tokens
         return await self._exchange_code(code, verifier)
+
+    async def _follow_to_code(self, location: str, base_url: str) -> str | None:
+        """Walk the redirect chain from the password POST to the auth code.
+
+        Each ``Location`` may be relative (``/authorize/resume?...``) or
+        absolute (Auth0 sometimes bounces to ``https://my.porsche.com/?iss=``),
+        so it is resolved with ``urljoin`` against the URL it came from rather
+        than string-formatted. The loop is bounded so a redirect cycle cannot
+        hang the login.
+        """
+        current_base = base_url
+        for _ in range(_MAX_AUTH_REDIRECTS):
+            if not location:
+                return None
+            code = self._extract_code(location)
+            if code:
+                return code
+            target = urljoin(current_base, location)
+            # The app-scheme callback is terminal; if it carried no code the
+            # chain has failed rather than continuing.
+            if target.startswith(_REDIRECT_URI):
+                return self._extract_code(target)
+            async with self._session.get(
+                target,
+                timeout=_AUTH_TIMEOUT,
+                headers={"User-Agent": _USER_AGENT},
+                allow_redirects=False,
+            ) as resp:
+                # A 200 here means Auth0 rendered a page instead of redirecting
+                # — typically the captcha/consent screen — so there is no code.
+                if resp.status not in (301, 302, 303, 307, 308):
+                    return None
+                current_base = target
+                location = resp.headers.get("Location", "")
+        return None
 
     async def refresh(self, refresh_token: str) -> TokenSet:
         """Refresh tokens using refresh_token."""
