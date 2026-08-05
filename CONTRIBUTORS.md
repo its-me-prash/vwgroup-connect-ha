@@ -25,6 +25,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding, requested 
 - @bitte-ein-bit
 - @bmwpower530d
 - @bobbasli
+- @briancmoses
 - @Brinki99
 - @brokkolo
 - @bufferoverflow1337
@@ -38,6 +39,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding, requested 
 - @Chrischan20
 - @chrischtili
 - @ChrisPolewiak
+- @chrisspatrickk1-sys
 - @christiankrauss77
 - @christianmhz
 - @ChristophCaina
@@ -126,6 +128,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding, requested 
 - @JoeriGert
 - @jojoac
 - @joostbouten
+- @JoostVijfpoot
 - @JosefAuer84
 - @julianteufel96-pixel
 - @juluga
@@ -134,9 +137,11 @@ Everyone below has reported an issue or a Vehicle Data Scout finding, requested 
 - @kaledii
 - @kaufmannralf
 - @KawoAdm
+- @kgroshert
 - @Killerrio
 - @Kilowatt-W
 - @KimmoT727
+- @Kimmy42-J
 - @kitkat270
 - @knalp
 - @KnappeP
@@ -218,6 +223,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding, requested 
 - @petermnt
 - @pgmad
 - @Phoenix-DH
+- @plainmad
 - @Plexiblue4
 - @PoliMalo
 - @PollenNor
@@ -248,6 +254,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding, requested 
 - @Sacha72
 - @Sahiyandev
 - @Sammy9040
+- @savabg
 - @saxmanio85
 - @sebastianedse
 - @shaarkys
@@ -290,6 +297,8 @@ Everyone below has reported an issue or a Vehicle Data Scout finding, requested 
 - @vacuum007
 - @VanHynten
 - @vogesr
+- @vrouleau
+- @WEZANGO
 - @wfa001
 - @whaak58
 - @Winbergarnas
