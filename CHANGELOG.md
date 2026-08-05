@@ -38,6 +38,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.29.5] - 2026-08-06
+
+### Fixed
+- **Headlight flash on Volkswagen US and Canada sends the request the car understands (#659).** Flash had gone from one wrong answer to the next as we narrowed it down: first the wrong request type, then, once that was fixed, a server error because the payload itself was wrong. The value we sent was copied from the European app and does not exist in North America. Read out of the current app, the real request is two switches, a horn flag and a lights flag, exactly like lock is a single lock switch. Flash now sends lights on and horn off, and the honk option that was quietly ignored before now actually sounds the horn.
+
+### Changed
+- **The Volkswagen US and Canada capture script can now map which features a specific car is actually allowed (#659).** The app checks each remote action against a per-car permission before offering it, the North American counterpart to the licence check the European cars use, with the same "not permitted by licence or configuration" wording. The capture script now reads those checks for climate, locks, flash, charging, wake and engine start, so a single run tells us which buttons a car is entitled to and which sit behind a subscription. It also probes a few feature groups the earlier look missed entirely: trip statistics, geofence and curfew and speed and valet alerts, and over-the-air update history. Still read-only, still masked.
+
 ## [2.29.4] - 2026-08-05
 
 ### Changed
