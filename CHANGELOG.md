@@ -41,6 +41,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ## [Unreleased]
 
 ### Fixed
+- **Porsche login follows the Auth0 resume step instead of giving up (experimental).** In Auth0's identifier-first flow the password step does not redirect straight to the app callback: it returns a resume URL that has to be followed before the authorization code appears. The login required the callback immediately, so it always ended in "wrong credentials or captcha" even when the credentials were right, a failure of our own regardless of any app migration. It now follows the resume hop (relative or absolute, bounded so it cannot loop) through to the code. Porsche stays experimental and still needs a Porsche owner to confirm the full login end to end.
 - **Ten of the eleven translations were missing the companion-channel strings.** Home Assistant does not fall back to English for a custom integration, so a key that exists only in English renders as the raw key or as nothing at all. The twelve strings added with the companion channel and the export-file import had reached German only, which left the add-on checkbox, its error message, the two companion option toggles and the three import error messages blank for everyone running Home Assistant in French, Spanish, Italian, Dutch, Polish, Czech, Swedish, Danish, Norwegian or Finnish. All twelve are translated now, and a test fails the build if a language ever falls behind again.
 
 ### Changed
