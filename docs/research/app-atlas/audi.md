@@ -1,7 +1,7 @@
 # App Atlas — Audi (myAudi)
 
 > **Auto-generated** by `.github/workflows/app-atlas-builder.yml` ·
-> Last refreshed: 2026-08-04
+> Last refreshed: 2026-08-05
 
 ## Identity
 
@@ -30,16 +30,7 @@
 
 ## Discovered via APK extraction (Phase A.2)
 
-_Last extracted: 2026-06-25T04:38:28 (for version `5.5.1`)_
-
-
-### HTTP header keys found in app bytecode
-
-_(none of the configured OLA-style header keys found)_
-
-### Backend hosts found in app bytecode
-
-_(none of the configured backend hosts found)_
+_(Empty — Phase A.2 APK extraction not yet run for this brand, or last attempt failed. See `app_atlas/apk_extractor.py`.)_
 
 ## Cross-version diff
 

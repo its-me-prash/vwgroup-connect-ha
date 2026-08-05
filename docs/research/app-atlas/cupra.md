@@ -1,7 +1,7 @@
 # App Atlas — CUPRA
 
 > **Auto-generated** by `.github/workflows/app-atlas-builder.yml` ·
-> Last refreshed: 2026-08-04
+> Last refreshed: 2026-08-05
 
 ## Identity
 
@@ -24,22 +24,13 @@
 |---|---|
 | Latest version-name | `2.20.3` |
 | Source that responded | `google_play` |
-| Previously cached version | `2.20.2` |
-| Changed since last run? | **YES** |
+| Previously cached version | `2.20.3` |
+| Changed since last run? | No |
 
 
 ## Discovered via APK extraction (Phase A.2)
 
-_Last extracted: 2026-06-24T22:20:25 (for version `2.18.1`)_
-
-
-### HTTP header keys found in app bytecode
-
-_(none of the configured OLA-style header keys found)_
-
-### Backend hosts found in app bytecode
-
-_(none of the configured backend hosts found)_
+_(Empty — Phase A.2 APK extraction not yet run for this brand, or last attempt failed. See `app_atlas/apk_extractor.py`.)_
 
 ## Cross-version diff
 
