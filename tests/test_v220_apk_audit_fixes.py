@@ -122,7 +122,13 @@ def test_vwna_target_soc_percentage_field() -> None:
 
 
 def test_vwna_flash_uses_honkflash_service() -> None:
+    # v2.29.x (#659) — flash is now carnet-gated too (same 403 wall wake hit),
+    # routed via _carnet_command -> _request with the carnet Bearer.
     c = _vwna()
+    c._get_read_session_token = AsyncMock(return_value="carnet")  # type: ignore[method-assign]
+    c._request = AsyncMock(return_value={})  # type: ignore[method-assign]
     asyncio.run(c.command_flash("VIN1"))
-    url, _ = _url_body(c)
-    assert url.endswith("/honkflash/v1/vehicle/uuid-1")  # not /ev/.../horn-and-lights
+    a = c._request.call_args
+    assert a.args[0] == "POST"
+    assert a.args[1].endswith("/honkflash/v1/vehicle/uuid-1")  # not /ev/.../horn-and-lights
+    assert a.kwargs["headers"]["Authorization"] == "Bearer carnet"
