@@ -63,6 +63,14 @@ _AUTHORIZE_URL = f"{_IDK_BASE}/oidc/v1/authorize"
 # evcc PR #30277 / volkswagencarnet PR #331 / ioBroker.vw-connect):
 _CARIAD_TOKEN_URL = "https://emea.bff.cariad.digital/auth/v1/idk/oidc/token"
 
+# #1012 — the value sent in the ``play_integrity_token`` field VW NA's con-veh
+# token endpoint began requiring on 2026-07-30. VW checks presence, not that it
+# is a genuine Play Integrity attestation (which cannot be minted off-device),
+# so this placeholder is what the maintained third-party NA clients send too.
+# The moment VW starts validating it, the exchange 401s again and this is the
+# line to revisit — it is deliberately not a fabricated-looking real token.
+_NA_PLAY_INTEGRITY_PLACEHOLDER = "unavailable"
+
 # ── X-QMAuth signing for Audi + VW EU IDK token exchange ────────────────────
 # v2.5.4 (#313) — Audi/VW EU's IDK token endpoint validates an
 # ``x-qmauth`` HMAC-SHA256 header on both ``authorization_code`` and
@@ -1260,7 +1268,7 @@ class IDKAuth:
 
         return await self._exchange_code(auth_code, verifier)
 
-    async def refresh(self, refresh_token: str) -> TokenSet:
+    async def refresh(self, refresh_token: str, code_verifier: str = "") -> TokenSet:
         """Exchange a refresh token for a fresh token set.
 
         Refresh endpoints differ by brand:
@@ -1304,6 +1312,20 @@ class IDKAuth:
         }
         if self._brand.client_secret:
             data["client_secret"] = self._brand.client_secret
+
+        # #1012 — VW North America. The same con-veh server change that added
+        # play_integrity_token to the code exchange applies to refresh, and the
+        # server additionally binds the refresh to the original PKCE verifier,
+        # so both travel on the refresh too. Without the token the refresh 401s;
+        # without the verifier it 400s "Internal Service validation failure".
+        # Both are scoped to the con-veh endpoint so the CARIAD-BFF and OLA
+        # brands sharing this method are untouched. If the verifier was not
+        # preserved (e.g. a token set from before this change), the refresh
+        # falls through to the coordinator's full re-login rather than looping.
+        if "con-veh" in token_url:
+            data["play_integrity_token"] = _NA_PLAY_INTEGRITY_PLACEHOLDER
+            if code_verifier:
+                data["code_verifier"] = code_verifier
 
         # v2.5.4 (#313) — Audi + VW EU require the assertion header set
         # at the CARIAD BFF token endpoint AFTER the 2026-05-28 Azure
@@ -1705,6 +1727,22 @@ class IDKAuth:
             if self._brand.client_secret:
                 data["client_secret"] = self._brand.client_secret
 
+            # #1012 — VW North America. Since 2026-07-30 the con-veh token
+            # endpoint (which proxies to CarnetSPAuthorizationServer /azs) has
+            # required a ``play_integrity_token`` form field on the grant.
+            # Without it the exchange returns exactly HTTP 401
+            # {"errorCode":"INVALID_REQUEST","origin":"CarnetSPAuthorizationServer"},
+            # which is what two US owners reported after their sign-in itself
+            # succeeded. VW only checks the field is PRESENT, not that it is a
+            # valid Play Integrity attestation, so a placeholder satisfies it
+            # (confirmed against two independently-maintained live NA clients).
+            # Scoped to the con-veh host by the token-url marker so the other
+            # brands sharing this branch (Skoda/SEAT/CUPRA) are untouched, and
+            # so the day VW starts validating the token this simply 401s again
+            # rather than doing anything unsafe.
+            if "con-veh" in self._get_token_endpoint():
+                data["play_integrity_token"] = _NA_PLAY_INTEGRITY_PLACEHOLDER
+
             # v2.5.7 R2 — assertion headers signed with this attempt's qmauth.
             # v2.5.11 — per-brand x-android-package-name (was hardcoded to
             # Audi value pre-v2.5.11; latent VW-impersonation bug fixed).
@@ -1738,7 +1776,16 @@ class IDKAuth:
                                 qm_client_id or "n/a",
                             )
                         payload: dict[str, Any] = await resp.json()
-                        return self._parse_tokens(payload)
+                        # #1012 — persist the PKCE verifier on the token set for
+                        # the con-veh brands, whose refresh grant requires it
+                        # replayed. Left empty for everyone else.
+                        _keep_verifier = (
+                            verifier if "con-veh" in self._get_token_endpoint()
+                            else ""
+                        )
+                        return self._parse_tokens(
+                            payload, code_verifier=_keep_verifier
+                        )
                     body = await resp.text()
                     # v2.5.7 (#313 follow-on / 502 storm 2026-05-29) — 5xx
                     # responses from the CARIAD-BFF mean the VW backend is
@@ -1896,6 +1943,7 @@ class IDKAuth:
         self,
         payload: dict[str, Any],
         fallback_refresh: str = "",
+        code_verifier: str = "",
     ) -> TokenSet:
         """Parse token response into a TokenSet.
 
@@ -1924,7 +1972,15 @@ class IDKAuth:
             raise AuthenticationError(
                 f"Token response missing refresh_token (no fallback): {list(payload)}"
             )
-        return TokenSet(access_token=access, refresh_token=refresh, id_token=id_tok)
+        return TokenSet(
+            access_token=access,
+            refresh_token=refresh,
+            id_token=id_tok,
+            # #1012 — carried only when the caller (the con-veh exchange) passes
+            # it, or preserved across a refresh via fallback so it survives the
+            # whole token lifetime.
+            code_verifier=code_verifier,
+        )
 
     @staticmethod
     def _parse_csrf(html: str) -> _CSRFParser:
