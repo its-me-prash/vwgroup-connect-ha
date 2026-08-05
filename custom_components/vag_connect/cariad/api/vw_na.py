@@ -1408,10 +1408,15 @@ class VWNAClient:
         # the old /ev/.../horn-and-lights path doesn't exist → 404. NOTE: the exact
         # action/mode body value is not yet confirmed (FLASH_ONLY is the EU value);
         # live-capture on a real myVW before relying on flash-only vs honk+flash.
-        # v2.29.x (#659) — carnet-gated: Rizencip's Tiguan 403'd USER_NOT_AUTHORIZED
-        # on flash with the plain access_token, the same wall wake hit.
+        # v2.29.x (#659) — carnet-gated AND a PUT, not a POST. A VW-US owner on
+        # v2.29.2 (chrisspatrickk1-sys) confirmed lock/unlock now actuate, but
+        # flash still 405'd METHOD_NOT_ALLOWED from HonkAndFlashService — the same
+        # wrong-method signature lock had before we switched it to PUT. The
+        # honkflash service on con-veh follows the lockunlock convention, so it is
+        # PUT. The body value (FLASH_ONLY) is still the EU guess and unconfirmed;
+        # if the PUT now 400s instead of 405, the body is the next thing to fix.
         await self._carnet_command(
-            "POST", f"{self._base}/honkflash/v1/vehicle/{uuid}", vin,
+            "PUT", f"{self._base}/honkflash/v1/vehicle/{uuid}", vin,
             json={"action": "FLASH_ONLY"},
         )
 
