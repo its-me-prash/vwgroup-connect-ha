@@ -1,7 +1,7 @@
 # App Atlas — SEAT
 
 > **Auto-generated** by `.github/workflows/app-atlas-builder.yml` ·
-> Last refreshed: 2026-08-04
+> Last refreshed: 2026-08-05
 
 ## Identity
 
@@ -30,16 +30,7 @@
 
 ## Discovered via APK extraction (Phase A.2)
 
-_Last extracted: (unknown) (for version `(unknown)`)_
-
-
-### HTTP header keys found in app bytecode
-
-_(none of the configured OLA-style header keys found)_
-
-### Backend hosts found in app bytecode
-
-_(none of the configured backend hosts found)_
+_(Empty — Phase A.2 APK extraction not yet run for this brand, or last attempt failed. See `app_atlas/apk_extractor.py`.)_
 
 ## Cross-version diff
 
