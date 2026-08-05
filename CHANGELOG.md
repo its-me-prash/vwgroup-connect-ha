@@ -38,6 +38,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.29.4] - 2026-08-05
+
+### Fixed
+- **Volkswagen US and Canada commands report the car's real answer, not just "sent" (#659).** A remote command is accepted first and carried out a moment later, so a command the car quietly refused still looked successful here. While looking into remote start we noticed the app confirms the outcome afterwards, which we were not doing. Lock, unlock, flash and charge now wait for the car's actual result and surface a refusal as an error instead of a false success. The wait is short and best effort, so a slow or unavailable check never turns a command that worked into a reported failure.
+
 ## [2.29.3] - 2026-08-05
 
 ### Fixed
