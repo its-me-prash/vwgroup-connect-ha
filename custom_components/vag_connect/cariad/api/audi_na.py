@@ -41,6 +41,17 @@ read ``na.bff``.
 Country: only the US market-config is live-verified. CA is accepted for interface
 parity but currently reuses the US brand — a CA-specific market-config sweep
 (``.../market/CA/en``) is a follow-up before CA can be trusted.
+
+v2.29.1 — one CA question is now answered externally. A CA-account debug capture
+(audi_connect_ha #814, 2026-08-05) showed the Canadian market config carries
+``marketSupportsAppAttestation: True`` and its discovery document routes CA to
+``token_endpoint = emea.bff.cariad.digital`` with ``device_code`` present in
+``grant_types_supported``. So CA has attestation enforced, which is why a
+password login there fails at the token step with the EU "invalid assertion
+headers" body, and device-code is the way through — exactly the path this client
+already drives (``audi_na`` is in ``DAG_ENABLED_BRANDS``). CA should therefore
+use the browser/device-code login, not the password fallback; a live CA-Audi
+tester is still what confirms it end to end (#13).
 """
 
 from __future__ import annotations
