@@ -40,6 +40,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [2.29.4] - 2026-08-05
 
+### Changed
+- **The Volkswagen US and Canada capture script now reaches the parts of the app we have never seen (#659).** The official app calls a good deal more than we read: a vehicle-health service, public charging sessions, a message centre, an activity feed, trips, send-to-car and more. We have never seen a single response from any of them, so nothing can be built on guesses. The capture script an owner can run now probes all of them in one go, and two of its existing checks were sending truncated addresses that could only fail. Every request is a read, and the output masks your VIN, identifiers, locations, names and any message text before you paste it anywhere. Waking the car for the health check is a separate opt-in switch, off by default.
+- **Three vehicle-health probes for US and Canada were removed.** They pointed at an address that does not exist on the North American backend, sat on a client that could never run them, and were registered under a name that never matched, so nothing ever ran while the code looked as though it did.
+
 ### Fixed
 - **Volkswagen US and Canada commands report the car's real answer, not just "sent" (#659).** A remote command is accepted first and carried out a moment later, so a command the car quietly refused still looked successful here. While looking into remote start we noticed the app confirms the outcome afterwards, which we were not doing. Lock, unlock, flash and charge now wait for the car's actual result and surface a refusal as an error instead of a false success. The wait is short and best effort, so a slow or unavailable check never turns a command that worked into a reported failure.
 
