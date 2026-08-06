@@ -26,6 +26,7 @@ from custom_components.vag_connect.cariad.api import seat_cupra as sc
 from custom_components.vag_connect.cariad.api.base import CariadBaseClient
 from custom_components.vag_connect.cariad.api.seat_cupra import SeatCupraClient
 from custom_components.vag_connect.cariad.auth._eu_data_act import (
+    _walk_fields,
     map_dataset_to_vehicle_data,
 )
 from custom_components.vag_connect.cariad.exceptions import APIError
@@ -73,6 +74,25 @@ class TestUuidFallback:
         assert d.battery_soc is None
         assert d.odometer_km is None
         assert d.range_km is None
+
+    def test_walker_roundtrip_generic_leaf_keyed_by_uuid(self) -> None:
+        # END-TO-END: a portal-only car ships SoC/odo/range as generic-leaf
+        # ("value") points carrying ONLY the content-UUID in ``key``. The walker
+        # must alias them by UUID (they are now in _MAPPED_UUIDS) so the mapper's
+        # UUID last-resort resolves them — the real path, not just the mapper half.
+        payload = [
+            {"dataFieldName": "value", "value": "55",
+             "key": "ae0294b4-1286-3e98-a818-1485b8d88430"},
+            {"dataFieldName": "value", "value": "12345",
+             "key": "41c0805c-43e5-313e-9dfb-356cb8d20f7c"},
+            {"dataFieldName": "value", "value": "300",
+             "key": "153e8c40-4c6c-3c17-a11b-0ecc35d55b81"},
+        ]
+        fields = _walk_fields(payload)
+        d = map_dataset_to_vehicle_data(fields, VehicleData(vin="X"))
+        assert d.battery_soc == 55
+        assert d.odometer_km == 12345
+        assert d.range_km == 300
 
 
 # ── 3. OLA 403: status-keyed, not substring-keyed ─────────────────────────────
