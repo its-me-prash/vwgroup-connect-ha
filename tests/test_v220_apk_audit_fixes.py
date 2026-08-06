@@ -122,9 +122,10 @@ def test_vwna_target_soc_percentage_field() -> None:
 
 
 def test_vwna_flash_uses_honkflash_service() -> None:
-    # v2.29.x (#659) — flash is carnet-gated AND a PUT: a VW-US owner on v2.29.2
-    # got 405 METHOD_NOT_ALLOWED on the POST from HonkAndFlashService, the same
-    # wrong-method signature lock had before its PUT switch.
+    # v2.29.x (#659) — carnet-gated PUT with the APK-grounded body. The old
+    # {"action": "FLASH_ONLY"} (an EU enum) drew a 405, then a 500 from
+    # HonkAndFlashService once the verb was right. The real model is
+    # HonkAndLights(horn=bool, lights=bool), mirroring lockunlock's {lock: bool}.
     c = _vwna()
     c._get_read_session_token = AsyncMock(return_value="carnet")  # type: ignore[method-assign]
     c._request = AsyncMock(return_value={})  # type: ignore[method-assign]
@@ -132,4 +133,14 @@ def test_vwna_flash_uses_honkflash_service() -> None:
     a = c._request.call_args
     assert a.args[0] == "PUT"
     assert a.args[1].endswith("/honkflash/v1/vehicle/uuid-1")  # not /ev/.../horn-and-lights
+    assert a.kwargs["json"] == {"horn": False, "lights": True}  # flash only
     assert a.kwargs["headers"]["Authorization"] == "Bearer carnet"
+
+
+def test_vwna_flash_honk_flag_sets_horn() -> None:
+    # the honk argument used to be ignored; it now drives the horn boolean
+    c = _vwna()
+    c._get_read_session_token = AsyncMock(return_value="carnet")  # type: ignore[method-assign]
+    c._request = AsyncMock(return_value={})  # type: ignore[method-assign]
+    asyncio.run(c.command_flash("VIN1", honk=True))
+    assert c._request.call_args.kwargs["json"] == {"horn": True, "lights": True}

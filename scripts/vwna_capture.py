@@ -356,6 +356,50 @@ async def _run(email: str, password: str, mfa: str | None, vin: str,
         await _probe(client, "vas checkCapability",
                      f"{B}/vas/v1/checkCapability/vehicle/{uuid}", carnet, True)
 
+        # ── per-operation permission check: the NA answer to MBB's operationList
+        # The app calls ss/v1/user/{uid}/vehicle/{vid}/operation/{op}/check, and
+        # its own denial wording is "<x> is not permitted, either by the license
+        # or configuration" — the same license-vs-configuration split MBB uses.
+        # Only "climateControl" survives as a whole literal (the rest is built at
+        # runtime), but the operation vocabulary is right there in the strings.
+        # This is what would finally tell us, per car, which buttons are actually
+        # released and which sit behind a subscription.
+        #
+        # NOTE on the "does the wall actually hold" question: these are READS.
+        # They report what the SERVER says is permitted. Whether the server also
+        # ENFORCES that on the command path (versus the app merely hiding a
+        # button) is answered by comparing a check result here against the real
+        # command result an owner already produces on their OWN car — never by
+        # firing a command this script would send, and never against another
+        # VIN. This harness stays read-only on purpose; it maps the wall, it does
+        # not test bypassing it.
+        for _op in ("climateControl", "climateControlOn", "climateControlOff",
+                    "doorLocks", "honkFlash", "charging", "refresh",
+                    "engineStart", "remoteStart", "remoteAccess"):
+            await _probe(client, f"operation check: {_op}",
+                         f"{B}/ss/v1/user/{uid}/vehicle/{uuid}/operation/{_op}/check",
+                         carnet, True)
+
+        # ── alert family: geofence, curfew, speed and valet alerts.
+        # A whole feature group we never knew existed. Summary first; the
+        # per-rule sub-resources need ids we do not have and are not probed.
+        await _probe(client, "alert summary (geofence/curfew/speed/valet)",
+                     f"{B}/alert/v1/vehicle/{uuid}/summary", carnet, True,
+                     strict=True)
+
+        # Trip statistics for North America. The earlier pass concluded no such
+        # resource existed here; that was wrong, it just never appeared as a
+        # whole-string literal.
+        await _probe(client, "remote trip stats",
+                     f"{B}/remotetripstats/v1/vehicle/{uuid}", carnet, True,
+                     strict=True)
+
+        # Over-the-air update campaign history (read only; the consent paths are
+        # deliberately NOT probed, accepting an OTA campaign is the owner's call).
+        await _probe(client, "ota campaign history",
+                     f"{B}/ota/v1/campaigns/history/vehicle/{uuid}", carnet, True,
+                     strict=True)
+
     print("\n" + "-" * 68)
     print("Paste the whole [4/4] AND [5/5] blocks. They're masked (VIN/text hidden, only field")
     print("names + types + enum values shown). We ground N5/N6 from it.")
