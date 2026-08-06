@@ -1011,6 +1011,15 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # to silence the Scout. No sensor, no code change.
             "userCapabilities.capabilitiesStatus.error",
             "userCapabilities.capabilitiesStatus.error.*",
+            # Unreleased — Scout #998 (Audi, neuhausf): the capabilities
+            # subsystem's pending-request queue counter, the same ``*.requests``
+            # command-queue envelope as chargingStatus / climatisationStatus /
+            # windowHeatingStatus above (a list of in-flight capability requests,
+            # not a vehicle reading; the sample was ``[0 items]``). Known-
+            # structural, not new data, so we register it to stop the Scout
+            # re-reporting the wrapper. No sensor, no parser change.
+            "userCapabilities.capabilitiesStatus.requests",
+            "userCapabilities.capabilitiesStatus.requests.*",
             # v2.2.3 — scout #273 (VW EU gudden 2026-05-23): readiness
             # endpoint's defensive ``.error`` envelope (Cariad-BFF
             # "endpoint hat einen Fehler"-wrapper pattern, same shape
