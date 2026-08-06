@@ -843,6 +843,25 @@ class VWNAClient:
         )
         vehicle_raw, charge, climate, privileges = results
 
+        # v2.29.x (#990 vrouleau CA) — unwrap the ``{"data": {...}}`` envelope.
+        # The CA backend (b-h-s.spr.ca00) wraps every response in a top-level
+        # ``data`` key. The parser below expects fields (powerStatus, location,
+        # chargingStatus, etc.) at the top level. If the response is a dict with
+        # only a ``data`` key holding a dict, unwrap it so the field lookups hit.
+        def _unwrap_data(obj: Any) -> Any:
+            if (
+                isinstance(obj, dict)
+                and "data" in obj
+                and isinstance(obj["data"], dict)
+                and len(obj) == 1
+            ):
+                return obj["data"]
+            return obj
+
+        vehicle_raw = _unwrap_data(vehicle_raw)
+        charge = _unwrap_data(charge)
+        climate = _unwrap_data(climate)
+
         # v2.15.3 (#503) — COMPACT shape-only DEBUG log so a user's DEBUG log
         # reveals the real response shape without ever logging values (privacy).
         # Emits, per response, either the exception repr OR the sorted top-level
@@ -1026,6 +1045,7 @@ class VWNAClient:
             overall_lock = (
                 v(vehicle_raw, "exteriorStatus", "doorLockStatus")
                 or v(door_status, "overallStatus")
+                or v(vehicle_raw, "lockStatus")
             )
             if isinstance(overall_lock, str):
                 d.doors_locked = overall_lock.upper() == "LOCKED"
@@ -1126,7 +1146,7 @@ class VWNAClient:
             d.is_hybrid      = engine == "PHEV"
             d.has_battery    = d.is_electric or d.is_hybrid or d.has_battery
             d.has_combustion = engine in ("PHEV", "ICE", "GASOLINE", "DIESEL") or (
-                d.fuel_level is not None
+                d.fuel_level is not None and d.fuel_level > 0
             )
 
             # v2.5.10 (#323 roberttco — 2023 ID.4 US) — populate
@@ -1189,7 +1209,7 @@ class VWNAClient:
             )
             # v2.0.1 (#131 follow-up) — defensive parsing.
             if isinstance(d.charging_state, str):
-                d.is_charging = d.charging_state.upper() == "CHARGING"
+                d.is_charging = d.charging_state.upper() in ("CHARGING", "CHARGINGHVBATTERY")
             d.charging_power_kw = first_not_none(
                 v(charge, "chargingStatus", "chargePower"),
                 v(charge, "chargingStatus", "chargePower_kW"),
