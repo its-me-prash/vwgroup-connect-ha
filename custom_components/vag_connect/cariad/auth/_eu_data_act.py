@@ -1431,7 +1431,16 @@ def map_dataset_to_vehicle_data(
         # VZ e-Hybrid, confirmed charging: SoC 50 %, power 1.9 kW, 230 min left);
         # ``chargingDcActive`` is the DC counterpart of the AC state already here.
         # Without these the charging binary_sensor read OFF while actively charging.
-        d.is_charging = cs.lower() in (
+        # #1002 / #1022 — the 15-min feed spells the SAME state in SCREAMING_SNAKE
+        # with a prefix (CHARGE_STATE_CHARGING_HV_BATTERY), which never matched the
+        # camelCase tuple, so MEB cars (ID.5 / ID.7) read OFF while actively
+        # charging. Normalise both dialects to one form (drop the state prefix and
+        # underscores) before matching, so CHARGE_STATE_CHARGING_HV_BATTERY and the
+        # one-time export's chargingHvBattery both land on the same token.
+        cs_norm = re.sub(
+            r"^(?:charge|charging)_?state_?", "", cs.strip().lower(),
+        ).replace("_", "")
+        d.is_charging = cs_norm in (
             "charging", "chargingacactive", "chargingdcactive",
             "charginghvbattery", "active",
         )
