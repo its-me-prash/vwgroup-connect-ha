@@ -601,6 +601,23 @@ _MAPPED_UUIDS: frozenset[str] = frozenset({
     "30cc36fd-71ca-3c09-9296-e94ebd47bd2b",  # odometer fallback
 })
 
+# #1022 — charge_power is emitted under the SAME dataFieldName
+# (battery_state_report.charge_power) by several dict UUIDs with DIFFERENT units,
+# so the UUID (not the value's fractional part) is the true scale discriminator.
+# c8cb205f is described as "The float value" = already kW; the other three state
+# "resolution of 0,1 kW" = deci-kW. These UUIDs are aliased in the walker EVEN on
+# a non-generic leaf (see below) so the mapper can scale per encoding instead of
+# guessing from decimals (which breaks on a car charging at an exact integer kW).
+_CP_KW_UUIDS: frozenset[str] = frozenset({
+    "c8cb205f-01c6-3c81-bda1-059b99ae6515",  # "The float value …" = kW, unscaled
+})
+_CP_DECI_UUIDS: frozenset[str] = frozenset({
+    "44ed0d61-98c4-36df-b860-b077929a5797",  # "resolution of 0,1 kW" = deci-kW
+    "8087d3b7-03bd-350a-95ef-bd8cb3ba20fa",
+    "885d1abd-799d-344a-bf02-0d07c6d6eebf",
+})
+_CP_ENCODING_UUIDS: frozenset[str] = _CP_KW_UUIDS | _CP_DECI_UUIDS
+
 
 def _num(value: Any) -> float | None:
     """Coerce a leaf value to float for sentinel/monotonic checks, else None."""
@@ -819,13 +836,20 @@ def _walk_fields(
                 # generic point flooded the Scout with unmapped UUID rows (2.17.4
                 # regression). Lowercased to match the dictionary + mapping forms.
                 pkey = node.get("key")
-                if (
-                    isinstance(fname, str)
-                    and fname.strip().lower() in _GENERIC_FIELD_NAMES
-                    and isinstance(pkey, str)
-                    and pkey.strip().lower() in _MAPPED_UUIDS
+                pkey_l = pkey.strip().lower() if isinstance(pkey, str) else ""
+                # Alias by UUID for (a) generic-leaf points whose UUID we map, OR
+                # (b) the charge_power encoding UUIDs regardless of leaf name: the
+                # SAME dataFieldName (battery_state_report.charge_power) is emitted
+                # by several UUIDs with different units, and only the UUID says the
+                # scale (#1022). (b) is a tight, curated carve-out — everything
+                # else still requires the generic-leaf gate.
+                if pkey_l and (
+                    (isinstance(fname, str)
+                     and fname.strip().lower() in _GENERIC_FIELD_NAMES
+                     and pkey_l in _MAPPED_UUIDS)
+                    or pkey_l in _CP_ENCODING_UUIDS
                 ):
-                    add(pkey.strip().lower(), node.get("value"), ts, ts_real)
+                    add(pkey_l, node.get("value"), ts, ts_real)
                     # v2.24.2 (#959, #960, #961) — record the pair as synonyms,
                     # exactly like the container-qualified branch below already
                     # did. Without it the bare generic leaf was never reclaimed
@@ -838,7 +862,7 @@ def _walk_fields(
                     # here (see the no-suppression note further down); the leaf
                     # is genuinely consumed, the bookkeeping just never said so.
                     if _syn_out is not None and isinstance(fname, str):
-                        _alias = pkey.strip().lower()
+                        _alias = pkey_l
                         _syn_out.setdefault(fname, set()).add(_alias)
                         _syn_out.setdefault(_alias, set()).add(fname)
                 # v2.15.4 overreport fix: a data-point node reached through a
@@ -1329,18 +1353,31 @@ def map_dataset_to_vehicle_data(
     # (65, 19), while a value carrying decimals is already in kW. Verified
     # against all three grounded reports: 65 -> 6.5, 19 -> 1.9, 10.399994 ->
     # 10.4. Integer readings keep behaving exactly as before.
-    cp_deci = _to_float(first(
-        "battery_state_report.charge_power", "charge_power", "charging_power",
-    ))
-    if cp_deci is not None:
-        if cp_deci % 1 != 0:
-            d.charging_power_kw = round(cp_deci, 1)
-        else:
-            d.charging_power_kw = round(cp_deci / 10.0, 1)
+    # #1022 — prefer the UUID-tagged encoding, the dict's true scale discriminator
+    # (c8cb205f is a float already in kW; the deci UUIDs count 0.1-kW steps). This
+    # fixes the exact-integer-kW case the fractional heuristic below cannot: an ID.7
+    # charging at a round 11 kW would otherwise be read as deci and shown as 1.1 kW.
+    # Fall back to the name + fractional heuristic only when no encoding-UUID point
+    # is present (cars that ship the field name without a mapped UUID).
+    cp_kw_uuid = _to_float(first(*sorted(_CP_KW_UUIDS)))
+    cp_deci_uuid = _to_float(first(*sorted(_CP_DECI_UUIDS)))
+    if cp_kw_uuid is not None:
+        d.charging_power_kw = round(cp_kw_uuid, 1)
+    elif cp_deci_uuid is not None:
+        d.charging_power_kw = round(cp_deci_uuid / 10.0, 1)
     else:
-        cp_kw = _to_float(first("chargePower_kW"))
-        if cp_kw is not None:
-            d.charging_power_kw = cp_kw
+        cp_deci = _to_float(first(
+            "battery_state_report.charge_power", "charge_power", "charging_power",
+        ))
+        if cp_deci is not None:
+            if cp_deci % 1 != 0:
+                d.charging_power_kw = round(cp_deci, 1)
+            else:
+                d.charging_power_kw = round(cp_deci / 10.0, 1)
+        else:
+            cp_kw = _to_float(first("chargePower_kW"))
+            if cp_kw is not None:
+                d.charging_power_kw = cp_kw
 
     # 2.15.1 — the charger dialect reports charged energy
     # (battery_state_report.charge_energy). The EU data dictionary defines this
