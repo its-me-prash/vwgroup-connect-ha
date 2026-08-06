@@ -776,7 +776,7 @@
         "name": "Rijtijd totaal"
       },
       "monthly_mileage_km": {
-        "name": "Maandelijkse kilometerstand"
+        "name": "Maandelijkse kilometers"
       },
       "remaining_charge_time_min": {
         "name": "Resterende laadtijd"
@@ -830,7 +830,7 @@
         "name": "Rapport-ID"
       },
       "climate_energy_consumption_kwh": {
-        "name": "Klimaverbruik"
+        "name": "Klimaatverbruik"
       },
       "residual_energy_consumption_kwh": {
         "name": "Verbruik boordnet"
