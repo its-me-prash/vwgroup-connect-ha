@@ -4312,10 +4312,26 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     _LOGGER.debug("Refresh failed for %s: %s", mask_vin(vin), result)
                     continue
                 if isinstance(result, VehicleData):
+                    # v2.29.x — portal-safety, mirroring the poll path
+                    # (coordinator.py:2214/2298). This manual-refresh path runs
+                    # after EVERY command (async_request_refresh), so a no-data
+                    # result (empty/failed portal ZIP -> no_data=True, all
+                    # telemetry None) landed here and clobbered good
+                    # SoC/odometer/range with blanks — the residual third member
+                    # of the #702 self.vehicles clobber family. Keep
+                    # last-known-good VISIBLE when we already hold it; otherwise
+                    # reconcile the fresh payload over last-good so a partial
+                    # refresh never blanks a field (and a backwards odometer is
+                    # rejected). A never-seen VIN still falls through.
+                    if getattr(result, "no_data", False) and self.vehicles.get(vin):
+                        continue
                     merged = await self._merge_supplementary(vin, result)
                     data = merged.to_dict()
                     data["_client"] = client
-                    refreshed.append((vin, await self._enrich(data)))
+                    enriched = await self._enrich(data)
+                    from .cariad.vehicle_cache import reconcile  # noqa: PLC0415
+                    enriched, _disc = reconcile(self.vehicles.get(vin), enriched)
+                    refreshed.append((vin, enriched))
 
             with self._vehicles_lock:
                 for vin, data in refreshed:

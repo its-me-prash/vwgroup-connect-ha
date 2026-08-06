@@ -582,6 +582,23 @@ _MAPPED_UUIDS: frozenset[str] = frozenset({
     "8540dd41-556c-3e41-aea9-3e28f8d80a2a",  # enginehood.open
     "3d219e22-1311-3112-a9cc-f8db86a69a9f",  # sunrooffront.open
     "f5fa6f61-ea56-3be8-97e6-acc8543cc49e",  # "open" — sun roof opening status
+    # v2.29.x — SoC/range/odometer UUID fallback layer, grounded in openWB's
+    # `vweuda/libeuda.py` (commit e47e7e9, parse_vehicle_data). We resolve these
+    # signals primarily by dataFieldName; this widens coverage to portal-only
+    # cars (carnet-dead MEB/ID.x) whose export carries the value under a generic
+    # leaf keyed ONLY by content-UUID, where our name path yields nothing. These
+    # are aliased here and wired as the LAST-resort names in first() below, so
+    # they can never out-compete a real name match. A UUID that never appears is
+    # inert. NOTE: not yet confirmed against our own portal-only captures — safe
+    # dormant hardening until a live capture proves the UUID surfaces for us.
+    "ae0294b4-1286-3e98-a818-1485b8d88430",  # SoC (state_of_charge, primary — openWB)
+    "ac1108b1-b8cc-3db9-a663-03d387e42223",  # SoC fallback
+    "0a18a053-b4b0-3db1-be44-a6c5dba629b1",  # SoC fallback (Skoda-ish per openWB)
+    "f89ed652-d104-3fa6-b7e2-ab7543309e7b",  # SoC fallback
+    "506cb83e-f99f-3af3-bbeb-0429b69a78d9",  # SoC fallback
+    "153e8c40-4c6c-3c17-a11b-0ecc35d55b81",  # range (primary per openWB — we lacked it)
+    "41c0805c-43e5-313e-9dfb-356cb8d20f7c",  # odometer (primary per openWB)
+    "30cc36fd-71ca-3c09-9296-e94ebd47bd2b",  # odometer fallback
 })
 
 
@@ -1195,12 +1212,24 @@ def map_dataset_to_vehicle_data(
                         # with no bare-leaf twin, so none of the keys above ever
                         # match and the car reads as "no data at all". LAST, for
                         # the same reason as the charger-dialect aliases.
-                        "RBC.vehicleStates.[0].soc"))
+                        "RBC.vehicleStates.[0].soc",
+                        # v2.29.x — UUID last-resort (openWB vweuda catalog).
+                        # Only reached when NO named SoC source matched, i.e. a
+                        # portal-only car that ships SoC as a generic point keyed
+                        # solely by content-UUID. Aliased via _MAPPED_UUIDS above.
+                        "ae0294b4-1286-3e98-a818-1485b8d88430",
+                        "ac1108b1-b8cc-3db9-a663-03d387e42223",
+                        "0a18a053-b4b0-3db1-be44-a6c5dba629b1",
+                        "f89ed652-d104-3fa6-b7e2-ab7543309e7b",
+                        "506cb83e-f99f-3af3-bbeb-0429b69a78d9"))
     if soc is not None:
         d.battery_soc = soc
         d.has_battery = True
 
-    odo = _to_int(first("mileage.value", "mileage", "odometer", "totalMileage"))
+    odo = _to_int(first("mileage.value", "mileage", "odometer", "totalMileage",
+                        # v2.29.x — UUID last-resort (openWB vweuda catalog).
+                        "41c0805c-43e5-313e-9dfb-356cb8d20f7c",
+                        "30cc36fd-71ca-3c09-9296-e94ebd47bd2b"))
     if odo is not None:
         d.odometer_km = odo
 
@@ -1238,6 +1267,9 @@ def map_dataset_to_vehicle_data(
         # v2.17.4 — MEB/ID.x ships the primary range as a UUID-only "value" point.
         # The engine-type logic below still routes it correctly (electric on a
         # BEV, combustion on a PHEV), so wiring it here needs no orientation care.
+        # v2.29.x — 153e8c40 is openWB's PRIMARY range UUID (tried before
+        # 0ca40e18); we only had the fallback. Both are last-resort after names.
+        "153e8c40-4c6c-3c17-a11b-0ecc35d55b81",
         "0ca40e18-0564-3eda-bcc0-7aee9ef44f04",
     ))
     secondary_raw = _to_int(first("cruising_range_secondary_engine"))
@@ -1274,6 +1306,7 @@ def map_dataset_to_vehicle_data(
     # so the existing range_km behaviour is preserved for every car.
     rng = _to_int(first("range", "cruising_range_primary_engine",
                         "totalRange_km", "primaryEngineRange",
+                        "153e8c40-4c6c-3c17-a11b-0ecc35d55b81",
                         "0ca40e18-0564-3eda-bcc0-7aee9ef44f04"))
     if rng is not None:
         d.range_km = rng

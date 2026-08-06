@@ -1515,24 +1515,32 @@ class VWNAClient:
         latitude: float | None = None,  # noqa: ARG002
         longitude: float | None = None,  # noqa: ARG002
         duration_s: int = 10,  # noqa: ARG002 - value not grounded for this brand
-        honk: bool = False,  # noqa: ARG002 - value not grounded for this brand
+        honk: bool = False,
     ) -> None:
         uuid = self._vin_to_uuid.get(vin, vin)
-        # v2.20.0 (APK audit) — myVW 2026.5.27 exposes honk/flash as the dedicated
-        # top-level service /honkflash/v1/vehicle/{id} (parallel to /lockunlock/v1);
-        # the old /ev/.../horn-and-lights path doesn't exist → 404. NOTE: the exact
-        # action/mode body value is not yet confirmed (FLASH_ONLY is the EU value);
-        # live-capture on a real myVW before relying on flash-only vs honk+flash.
-        # v2.29.x (#659) — carnet-gated AND a PUT, not a POST. A VW-US owner on
-        # v2.29.2 (chrisspatrickk1-sys) confirmed lock/unlock now actuate, but
-        # flash still 405'd METHOD_NOT_ALLOWED from HonkAndFlashService — the same
-        # wrong-method signature lock had before we switched it to PUT. The
-        # honkflash service on con-veh follows the lockunlock convention, so it is
-        # PUT. The body value (FLASH_ONLY) is still the EU guess and unconfirmed;
-        # if the PUT now 400s instead of 405, the body is the next thing to fix.
+        # v2.20.0 (APK audit) — myVW exposes honk/flash as the dedicated top-level
+        # service /honkflash/v1/vehicle/{id} (parallel to /lockunlock/v1); the old
+        # /ev/.../horn-and-lights path doesn't exist → 404.
+        #
+        # v2.29.x (#659) — the BODY is now grounded, and the old one was wrong in
+        # shape, not just in value. We sent the EU/Audi enum {"action":
+        # "FLASH_ONLY"}, which first drew a 405 (wrong HTTP verb, fixed by the
+        # switch to PUT) and then a 500 INTERNAL_SERVER_ERROR from
+        # HonkAndFlashService once the verb was right — a well-formed request the
+        # service could not parse. Decompiling the current myVW app
+        # (com.vw.carnet.release 2026.7.28-9380) gives the real model:
+        #
+        #     com.vw.myVW.common.apis.carnetApis.commands.models.HonkAndLights
+        #     HonkAndLights(horn=<boolean>, lights=<boolean>)
+        #
+        # So con-veh takes two booleans here, exactly like /lockunlock/v1 takes
+        # {"lock": <boolean>} — this backend family uses boolean bodies, not
+        # action enums. Flash-only is horn=false + lights=true; honk+flash sets
+        # both, which is what the ``honk`` argument now actually controls (it used
+        # to be ignored).
         await self._carnet_command(
             "PUT", f"{self._base}/honkflash/v1/vehicle/{uuid}", vin,
-            json={"action": "FLASH_ONLY"},
+            json={"horn": bool(honk), "lights": True},
         )
 
     async def command_wake(self, vin: str) -> None:

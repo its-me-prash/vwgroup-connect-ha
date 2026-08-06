@@ -1088,7 +1088,7 @@
         "name": "Steigungsverbrauch (bergauf)"
       },
       "descent_slope_consumption": {
-        "name": "Steigungsverbrauch (bergab)"
+        "name": "Gefälleverbrauch (bergab)"
       },
       "report_type": {
         "name": "Berichtstyp"

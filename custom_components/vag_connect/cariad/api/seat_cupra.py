@@ -188,7 +188,14 @@ class SeatCupraClient(CariadBaseClient):
             return response
         except APIError as exc:
             # Only intercept 403s from OLA — let other errors propagate.
-            if "403" not in str(exc) or "ola.prod" not in url:
+            # v2.29.x — key on the numeric status, not a substring of str(exc):
+            # str(APIError) embeds the URL + body[:200] ("API error {status} for
+            # {url}: {body}"), so a non-403 (500 outage, 429, 400) whose body or
+            # URL merely contains "403" (a trace id, an epoch-ms timestamp, a
+            # nested code like 40399) used to be misread as a 403 — a wasted
+            # fallback retry that also inflated _ola_consecutive_403 toward the
+            # false "device-attestation lockdown" repair.
+            if getattr(exc, "status", None) != 403 or "ola.prod" not in url:
                 raise
             # Layer 3: try the next fallback header-set if available.
             fb_count = get_fallback_count(self._brand.name)
