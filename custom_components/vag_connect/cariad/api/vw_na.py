@@ -113,17 +113,17 @@ _COUNTRY_BASES: dict[str, str] = {
     "ca": "https://b-h-s.spr.ca00.p.con-veh.net",
 }
 
-# v2.26.1 (#990/#915) — OIDC authorize/token PROXY host for every NA country.
-# vrouleau confirmed the myVW app signs in on identity.na.vwgroup.io, and that
-# v2.25 (which sent every NA country through us00) authenticated fine; only the
-# vehicle-DATA host is per-country. The Canadian data host ca00 does NOT front a
-# working /oidc/v1/authorize (it returns HTTP 400 before any credentials are
-# submitted), so the auth flow must stay on the us00 con-veh proxy that 302s to
-# the NA IDP for ALL NA countries, while api_base (the vehicle reads/commands)
-# stays per-country from _COUNTRY_BASES above. This is the v2.26.0 regression:
-# routing CA auth to ca00 moved the failure from a late 500 (v2.25, us00 data
-# host wrong for a CA car) to an early 400 (ca00 has no authorize proxy).
-_NA_OIDC_PROXY_BASE = _COUNTRY_BASES["us"]
+# v2.29.x (#915/#990/#659) — the OIDC authorize/token proxy is PER-COUNTRY, on
+# each country's OWN con-veh host, mirroring US. A live probe settled the old
+# open question: ca00 /oidc/v1/authorize returns 302 to the CA sign-in (client
+# b43c9f82, ui_locales=en-CA) with the CA client 69eb3c39 — and 400 with the US
+# client; us00 is the exact mirror for US (302 to sign-in b680e751, en-US). The
+# earlier "ca00 authorize 400" (which pinned all NA auth to us00 in v2.26.1) was
+# probed while CA still used the US client (N7 had removed the CA one), so that
+# 400 was the wrong-client rejection, NOT a missing proxy. Routing CA through
+# us00 landed CA accounts on the US sign-in b680e751, whose password POST 500s
+# for CA. So each country proxies OIDC through its own con-veh host with its own
+# client (see the IDKAuth construction below): CA -> ca00, US -> us00 (unchanged).
 
 BRAND_VW_NA = BrandConfig(
     name="volkswagen_na",
@@ -142,12 +142,19 @@ BRAND_VW_NA = BrandConfig(
     scope="openid",
 )
 
-# v2.20.0 (N7) — the old per-CA client_id was REMOVED. Re-grepping the myVW DEX:
-# the old CA client = 0 hits; the only *_MYVW_ANDROID literals are 59992128
-# (phone) + the Wear-OS id. So CA shares the 59992128 CLIENT with US. Only the
-# HOST differs: v2.26.0 (#915) points CA at its own ca00 host (see the bases
-# above); the "ca00 = 0 DEX hits" that once argued for us00 was a static-scan
-# artefact of the runtime-templated host, not evidence ca00 does not exist.
+# v2.29.x (#915/#990/#659) — CA authorize client_id RESTORED. b13 grounded this
+# id as APK-CONFIRMED real ("the live MyVW DEX carries this exact id alongside
+# the US 59992128 and 5 others, a genuine app client"). N7 (v2.20.0) dropped it
+# on a "re-grep found 0 hits" reading, but that is the SAME static-scan artefact
+# that also wrongly dropped the ca00 host (a runtime-templated string never
+# appears as a literal). v2.26.0 restored the ca00 host but left CA on the US
+# authorize client, and CA sign-in has kept returning HTTP 500 for two testers
+# (vrouleau #990, shaunadam #659) at the password POST. A CA account authorizing
+# with the US client is the leading suspect. Restore the per-country authorize
+# client; the ca00 data host + us00 OIDC proxy stay. NEEDS a CA live-test to
+# confirm the 500 clears. The INNER signin-client override stays OFF (forcing it
+# broke the code exchange in a real b13 test).
+_CA_CLIENT_ID = "69eb3c39-d2be-4006-8197-37cc4971e8fe_MYVW_ANDROID"
 
 # v2.3.0 (#269) — VW NA-specific IDP host: identity.na.vwgroup.io
 # (NOT identity.vwgroup.io). The authorize-redirect lands on this NA IDP and
@@ -242,9 +249,13 @@ class VWNAClient:
         self._base     = _COUNTRY_BASES.get(self._country, _COUNTRY_BASES["us"])
         self._tokens: TokenSet | None = None
         # VW NA uses IDK auth but against a country-specific endpoint.
-        # v2.20.0 (N7) — US and CA share the one client the current app ships
-        # (59992128); the old per-CA client_id was unvalidated dead config.
-        client_id = BRAND_VW_NA.client_id
+        # US and CA each ship their OWN MyVW authorize client_id (both real DEX
+        # literals). N7 collapsed CA onto the US client; restored here because a
+        # CA account on the US client is the leading suspect for the CA sign-in
+        # 500 (#915/#990/#659). See the _CA_CLIENT_ID note above.
+        client_id = (
+            _CA_CLIENT_ID if self._country == "ca" else BRAND_VW_NA.client_id
+        )
         brand = BrandConfig(
             name=f"volkswagen_{self._country}",
             client_id=client_id,
@@ -256,7 +267,7 @@ class VWNAClient:
         # v2.3.0 (#269 roberttco, 2026-05-21) — VW NA auth requires four
         # IDP overrides vs the default identity.vwgroup.io (EU) flow:
         #
-        #   1. authorize_url_override → ``{_NA_OIDC_PROXY_BASE}/oidc/v1/authorize``
+        #   1. authorize_url_override → ``{self._base}/oidc/v1/authorize``
         #      (the us00 con-veh proxy, NOT identity.vwgroup.io). The
         #      MYVW_ANDROID client_id is only registered against this host —
         #      sending it to the EU IDP returns HTTP 400 (user's log on #269).
@@ -264,7 +275,7 @@ class VWNAClient:
         #      the per-country data host. The ca00 host has no working authorize
         #      endpoint (it 400s), and vrouleau confirmed CA signs in here fine.
         #
-        #   2. token_url_override → ``{_NA_OIDC_PROXY_BASE}/oidc/v1/token`` — same
+        #   2. token_url_override → ``{self._base}/oidc/v1/token`` — same
         #      us00 host for both code-exchange and refresh-token calls. The
         #      default fallback (emea.bff.cariad.digital/login/v1/idk/
         #      token) does not know NA client_ids.
@@ -304,11 +315,14 @@ class VWNAClient:
         #    unresolvable-client 500 rather than a clear error. Prefer parsing the
         #    client id out of the signin URL we actually landed on over
         #    hardcoding either value.
+        # Per-country OIDC proxy (see the _COUNTRY_BASES note above): CA authorizes
+        # on ca00 and lands on its real en-CA sign-in; US stays on us00. Both use
+        # their OWN client. self._base is ca00 for CA, us00 for US.
         self._auth = IDKAuth(
             session,
             brand,
-            authorize_url_override=f"{_NA_OIDC_PROXY_BASE}/oidc/v1/authorize",
-            token_url_override=f"{_NA_OIDC_PROXY_BASE}/oidc/v1/token",
+            authorize_url_override=f"{self._base}/oidc/v1/authorize",
+            token_url_override=f"{self._base}/oidc/v1/token",
             idk_base_override=_NA_IDP_BASE,
         )
         # UUID cache: VIN → UUID (returned by garage)

@@ -55,22 +55,23 @@ def _load(path: Path) -> dict:
 # ──────────────────────────────────────────────────────────────────────
 
 
-class TestCaUsesOwnHostSharedClient:
-    """v2.26.0 (#915) — Canada uses its OWN regional host (ca00), confirmed by a
-    live capture of the official app, but still SHARES the 59992128 client with
-    US (only the old per-CA client_id stays removed). The earlier N7 "CA = us00"
-    was a static-scan artefact: the host is runtime-templated by country code, so
-    ``ca00`` never appeared as a literal to find."""
+class TestCaUsesOwnHostAndClient:
+    """v2.29.x (#915/#990/#659) — Canada uses BOTH its own regional data host
+    (ca00) AND its own APK-confirmed authorize client_id (69eb3c39). N7 collapsed
+    the client onto the US 59992128 on the SAME static-scan artefact that also
+    wrongly dropped ca00 (a runtime-templated value never appears as a literal);
+    v2.26.0 restored the host but not the client, and CA sign-in kept 500ing for
+    two testers. Both the host and the client are per-country again. These tests
+    lock that so the collapse cannot silently return."""
 
-    def test_no_ca_client_id_constant(self) -> None:
+    def test_ca_client_id_constant_present(self) -> None:
         src = _VW_NA_PY.read_text(encoding="utf-8")
-        assert "_CA_CLIENT_ID" not in src
+        assert "_CA_CLIENT_ID" in src
 
-    def test_old_ca_client_id_stays_removed(self) -> None:
-        # Only the HOST changed to ca00; the old unvalidated per-CA client_id
-        # must stay gone (CA shares the 59992128 client with US).
+    def test_ca_client_id_is_apk_confirmed(self) -> None:
+        # The per-CA authorize client is the real DEX literal, restored (b13).
         src = _VW_NA_PY.read_text(encoding="utf-8")
-        assert "69eb3c39" not in src
+        assert "69eb3c39" in src
 
     def test_ca_base_points_to_ca00(self) -> None:
         # The _COUNTRY_BASES["ca"] entry must resolve to Canada's own ca00 host.
@@ -87,26 +88,23 @@ class TestCaUsesOwnHostSharedClient:
         assert m is not None
         assert m.group(1) == "https://b-h-s.spr.us00.p.con-veh.net"
 
-    def test_client_id_is_unconditional_shared(self) -> None:
-        # No country ternary selecting a different client_id: CA shares 59992128.
+    def test_client_id_is_per_country(self) -> None:
+        # A country ternary selects the per-CA client; US keeps the shared one.
         src = _VW_NA_PY.read_text(encoding="utf-8")
-        assert 'client_id = BRAND_VW_NA.client_id' in src
-        assert 'if self._country == "ca"' not in src
+        assert '_CA_CLIENT_ID if self._country == "ca" else BRAND_VW_NA.client_id' in src
 
-    def test_auth_uses_us00_proxy_but_api_stays_per_country(self) -> None:
-        # v2.26.1 (#990) — vrouleau proved the myVW app signs in on identity.na
-        # and that CA auth works through the us00 proxy (v2.25 authenticated;
-        # only the later data call 500'd). The Canadian ca00 host has no working
-        # /oidc/v1/authorize (400s). So the OIDC authorize+token must go to the
-        # fixed us00 proxy for every NA country, while api_base stays per-country.
+    def test_auth_proxy_and_api_base_are_per_country(self) -> None:
+        # v2.29.x (#915/#990/#659) — the OIDC authorize+token proxy is per-country
+        # (CA -> ca00, US -> us00), each with its own client. Live probe: ca00
+        # /oidc/v1/authorize 302s to the en-CA sign-in with the CA client and 400s
+        # with the US client; the old us00-for-all choice landed CA accounts on
+        # the US sign-in whose password POST 500s for CA.
         src = _VW_NA_PY.read_text(encoding="utf-8")
-        assert '_NA_OIDC_PROXY_BASE = _COUNTRY_BASES["us"]' in src
-        assert 'authorize_url_override=f"{_NA_OIDC_PROXY_BASE}/oidc/v1/authorize"' in src
-        assert 'token_url_override=f"{_NA_OIDC_PROXY_BASE}/oidc/v1/token"' in src
-        # the auth override must no longer be gated on the per-country data host
-        assert 'authorize_url_override=f"{self._base}' not in src
-        # but the vehicle API base must still be per-country (ca00 for CA)
+        assert 'authorize_url_override=f"{self._base}/oidc/v1/authorize"' in src
+        assert 'token_url_override=f"{self._base}/oidc/v1/token"' in src
         assert 'api_base=self._base' in src
+        # the fixed us00 proxy constant is gone
+        assert '_NA_OIDC_PROXY_BASE' not in src
 
 
 class TestCountryConstAndSelector:
