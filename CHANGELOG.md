@@ -38,6 +38,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.29.5] - 2026-08-06
+
+### Fixed
+- **Volkswagen Canada login that failed with a server error now works (#990, #659).** Canadian accounts were being routed to the US login server with the US app client, and Volkswagen answered that mismatch with a server error at the password step even though the official app worked fine. Canada now logs in on its own server with its own app client, exactly the way the US already does. Volkswagen US is untouched. Two Canadian testers hit this, so if you are on a Canadian account please update and try again.
+
 ## [2.29.4] - 2026-08-05
 
 ### Changed
