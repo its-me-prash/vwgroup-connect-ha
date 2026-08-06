@@ -40,7 +40,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [2.29.5] - 2026-08-06
 
-> 🎉 **Release number 300.** Three hundred releases on from a small community project, thanks to everyone who filed a bug, ran a capture on their own car, tested a fix, corrected a translation or sent a log. This integration exists because of you. Here is to the next three hundred.
+> 🎉 **Release number 300.** Three hundred releases on from a small community project, thanks to everyone who filed a bug, ran a capture on their own car, tested a fix, corrected a translation or sent a log. This integration exists because of you, and it stays free. It is a one-person project kept alive against a moving target, so if it is worth something to you, [GitHub Sponsors](https://github.com/sponsors/its-me-prash) helps keep the reverse-engineering going. Here is to the next three hundred.
 
 ### Fixed
 - **Volkswagen Canada login that failed with a server error now works (#990, #659, #915).** Canadian accounts were being routed to the US login server with the US app client, and Volkswagen answered that mismatch with a server error at the password step even though the official app worked fine. Canada now logs in on its own server with its own app client, exactly the way the US already does. Volkswagen US is untouched. Thanks to @vrouleau and @shaunadam for running it on real Canadian accounts and sending the logs that pinned it down.
