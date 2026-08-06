@@ -40,6 +40,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [2.29.5] - 2026-08-06
 
+> 🎉 **Release number 300.** Three hundred releases on from a small community project, thanks to everyone who filed a bug, ran a capture on their own car, tested a fix, corrected a translation or sent a log. This integration exists because of you. Here is to the next three hundred.
+
 ### Fixed
 - **Volkswagen Canada login that failed with a server error now works (#990, #659, #915).** Canadian accounts were being routed to the US login server with the US app client, and Volkswagen answered that mismatch with a server error at the password step even though the official app worked fine. Canada now logs in on its own server with its own app client, exactly the way the US already does. Volkswagen US is untouched. Thanks to @vrouleau and @shaunadam for running it on real Canadian accounts and sending the logs that pinned it down.
 - **Headlight flash on Volkswagen US and Canada sends the request the car understands (#659).** Flash had gone from one wrong answer to the next as we narrowed it down: first the wrong request type, then, once that was fixed, a server error because the payload itself was wrong. The value we sent was copied from the European app and does not exist in North America. Read out of the current app, the real request is two switches, a horn flag and a lights flag, exactly like lock is a single lock switch. Flash now sends lights on and horn off, and the honk option that was quietly ignored before now actually sounds the horn. Thanks to @chrisspatrickk1-sys for the testing and the remote-start research.
