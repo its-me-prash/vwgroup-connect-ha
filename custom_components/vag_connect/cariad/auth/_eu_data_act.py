@@ -2972,6 +2972,11 @@ class EUDataActConnector:
         #                  VW-side portal outage at the metadata layer)
         #   "empty"      → request exists but the portal delivered no dataset
         self.last_no_data_reason: str = ""
+        # #465/#1027 — last actionable sign-in interstitial the portal login hit
+        # (e.g. "terms_and_conditions"). A SUPPLEMENTARY portal fails PAST setup,
+        # at runtime, so the setup-path Repair never fires; the coordinator reads
+        # this each poll and surfaces the matching Repair. "" once login succeeds.
+        self.last_login_interaction: str = ""
         # v2.13.0 — device-code/QR Bearer mode. When set, every proxy_api call
         # authenticates via ``Authorization: Bearer <token>`` (the device-grant
         # access_token, aud=portal client) instead of the cookie-scrape session,
@@ -2987,6 +2992,7 @@ class EUDataActConnector:
         mid-poll)."""
         self._bearer = token
         self.logged_in = True
+        self.last_login_interaction = ""
 
     @staticmethod
     def _is_consent_landing(landing_url: str, landing_html: str) -> bool:
@@ -3220,6 +3226,13 @@ class EUDataActConnector:
             typed_exc, log_ctx = classify_portal_login_failure(
                 landing, landing_html
             )
+            # #465/#1027 — record an actionable interstitial (T&C / consent /
+            # 2FA / portal step) so a SUPPLEMENTARY portal, which hits this at
+            # runtime past setup, can still surface the matching Repair. A plain
+            # credential failure (typed_exc is None) is NOT an interaction.
+            self.last_login_interaction = (
+                log_ctx.get("classified", "") if typed_exc is not None else ""
+            )
             # Secret-free diagnostics: host+path (query STRIPPED), HTTP
             # status, and templateModel error/errorCode/page-type keys.
             # NEVER email/password/tokens/relayState/code/query strings.
@@ -3252,6 +3265,7 @@ class EUDataActConnector:
                 "login did not complete (unexpected landing page)"
             )
         self.logged_in = True
+        self.last_login_interaction = ""  # #465/#1027 — recovered → clear Repair
         _LOGGER.info(
             "EU Data Act portal: login succeeded (read-only, ~15min cadence)"
         )
