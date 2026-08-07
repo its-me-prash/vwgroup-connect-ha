@@ -38,6 +38,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.30.0] - 2026-08-07
+
+### Added
+- **Per-location charging targets now work on Volkswagen and Audi, not just SEAT and CUPRA (#442).** If you set a different charge limit for "Home", "Work" and so on in the app, the sensor that shows the active profile's target SoC now fills in for VW and Audi too: it reads the full charging-profile list and follows the profile your car is parked at, the same way SEAT and CUPRA already did. The exact field names were read out of the current We Connect app so they match what your car actually sends, and unknown shapes are skipped rather than guessed. Thanks @nekas123 for the request and the patience.
+- **Optional battery State of Health sensor.** Volkswagen never reports a battery-health figure and the official app does not calculate one either, so this cannot be guessed from the data. If you enter your car's nameplate net battery capacity (kWh) in the integration options, a new "Battery health" sensor shows the current maximum capacity as a percentage of that nameplate. It is disabled by default and does nothing until you supply the capacity; a wrong-sized capacity for one car on a multi-car account is simply ignored rather than shown as a wrong number.
+- **You can now see when two portal readings disagreed.** When the data portal delivers two samples stamped with the same capture time but different values for a field, the "Data source" diagnostic sensor now lists which field was contested and the values that tied, so a value that briefly jumps around is explainable instead of mysterious.
+
 ## [2.29.6] - 2026-08-07
 
 ### Fixed
