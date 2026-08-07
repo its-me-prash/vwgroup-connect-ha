@@ -194,6 +194,89 @@ _BROWSER_NAV_TIMEOUT_S = 90
 _EMPTY_STREAK_HINT_AT = 4
 
 
+def descriptor_expired(desc: dict[str, Any]) -> bool:
+    """True only when a metadata/partial descriptor clearly reports it is
+    past its window / no longer active. Unknown or unparseable -> False, so
+    we never drop a possibly-valid request on a shape we don't recognise.
+
+    The portal's window-end field is ``EndDate`` (a "No Expiry" request has
+    none or a portal-assigned far-future one, a "One Month" one ~31 days out),
+    so a past EndDate is the reliable "this feed has lapsed" signal; a MISSING
+    EndDate is treated as not-lapsed. A few alternate key names plus an
+    explicit status field are checked defensively.
+
+    Module-level (not a method) so both the kickoff path
+    (``DataActScraper.get_active_custom_request_identifier``) and the 15-min
+    poll path (``EUDataActConnector.get_vehicle_data``) share ONE expiry rule
+    and can never diverge (#957/#966).
+    """
+    from datetime import datetime, timezone  # noqa: PLC0415
+
+    status = str(
+        desc.get("Status") or desc.get("State") or desc.get("RequestState") or ""
+    ).upper()
+    if status in (
+        "EXPIRED", "INACTIVE", "COMPLETED", "CANCELLED", "CANCELED",
+        "CLOSED", "FINISHED", "TERMINATED",
+    ):
+        return True
+    now = datetime.now(tz=timezone.utc)
+    for key in (
+        "EndDate", "ExpiryDate", "ExpiresAt", "ValidUntil",
+        "ExpirationDate", "ValidTo",
+    ):
+        raw = desc.get(key)
+        if not isinstance(raw, str) or len(raw) < 10:
+            continue
+        try:
+            dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            continue
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        if dt < now:
+            return True
+    return False
+
+
+def pick_active_15min_identifier(payload: Any) -> str | None:
+    """Return the Identifier of the first active (non-expired) 15-min Custom
+    Request in a metadata/partial *payload*, or ``None``.
+
+    Pure — no I/O. The portal returns the descriptors either as a bare list,
+    a dict wrapping them under ``items`` / ``requests`` / ``data``, or a single
+    descriptor dict; all three shapes are walked defensively. Only a descriptor
+    whose ``Frequency`` is ``15mins`` with a plausible ``Identifier`` (>= 16
+    chars) and that is not expired is adopted.
+
+    Shared by the kickoff path and the poll path so a list-shaped payload can
+    never again read as ``no_request`` on the poll while the kickoff walker
+    sees the same list correctly (#957/#966).
+    """
+    candidates: list[dict[str, Any]] = []
+    if isinstance(payload, list):
+        candidates = [p for p in payload if isinstance(p, dict)]
+    elif isinstance(payload, dict):
+        for key in ("items", "requests", "data"):
+            inner = payload.get(key)
+            if isinstance(inner, list):
+                candidates = [p for p in inner if isinstance(p, dict)]
+                break
+        if not candidates and payload.get("Identifier"):
+            # Single-dict response variant.
+            candidates = [payload]
+    for c in candidates:
+        if str(c.get("Frequency", "")).lower() != "15mins":
+            continue
+        identifier = c.get("Identifier")
+        if not (isinstance(identifier, str) and len(identifier) >= 16):
+            continue
+        if descriptor_expired(c):
+            continue
+        return identifier
+    return None
+
+
 class DataActScraperError(Exception):
     """Raised by ``DataActScraper`` when a fetch fails in an explicit way.
 
@@ -818,85 +901,27 @@ class DataActScraper:
             return None
 
         # Payload shape captured 2026-06-03: either a list of request
-        # descriptors directly OR a dict with a key like "items" /
-        # "requests" wrapping them. Walk both shapes defensively.
-        candidates: list[dict[str, Any]] = []
-        if isinstance(payload, list):
-            candidates = [p for p in payload if isinstance(p, dict)]
-        elif isinstance(payload, dict):
-            for key in ("items", "requests", "data"):
-                inner = payload.get(key)
-                if isinstance(inner, list):
-                    candidates = [p for p in inner if isinstance(p, dict)]
-                    break
-            if not candidates:
-                # Single-dict response variant - treat the top-level
-                # dict itself as a candidate if it carries Identifier.
-                if payload.get("Identifier"):
-                    candidates = [payload]
-        for c in candidates:
-            if str(c.get("Frequency", "")).lower() != "15mins":
-                continue
-            identifier = c.get("Identifier")
-            if not (isinstance(identifier, str) and len(identifier) >= 16):
-                continue
-            # v2.29.x (#465) — skip an EXPIRED descriptor. The portal keeps
-            # expired requests in metadata/partial, so adopting the first 15-min
-            # one meant that once an old "One Month" request lapsed (~4 weeks
-            # after setup) we never kicked off a fresh feed and the data silently
-            # stopped while the stale request still showed up here. A "No Expiry"
-            # request has no EndDate (or a portal-assigned ~12-month one), which
-            # _descriptor_expired treats as not-expired; only a genuinely lapsed
-            # window is skipped.
-            if self._descriptor_expired(c):
-                _LOGGER.debug(
-                    "metadata/partial: 15-min request %s… for VIN %s is expired "
-                    "— ignoring it so a fresh feed is kicked off",
-                    identifier[:8], _mask_vin(vin),
-                )
-                continue
-            return identifier
-        return None
+        # descriptors directly, a dict wrapping them under "items"/"requests"/
+        # "data", or a single descriptor dict. The walk (incl. the #465
+        # expired-descriptor skip) lives in the module-level
+        # ``pick_active_15min_identifier`` so the poll path shares it verbatim.
+        identifier = pick_active_15min_identifier(payload)
+        if identifier is None:
+            _LOGGER.debug(
+                "metadata/partial: no active 15-min request for VIN %s",
+                _mask_vin(vin),
+            )
+        return identifier
 
     @staticmethod
     def _descriptor_expired(desc: dict[str, Any]) -> bool:
-        """True only when a metadata/partial descriptor clearly reports it is
-        past its window / no longer active. Unknown or unparseable -> False, so
-        we never drop a possibly-valid request on a shape we don't recognise.
+        """Back-compat shim → module-level :func:`descriptor_expired`.
 
-        The portal's window-end field is ``EndDate`` (a "No Expiry" request has
-        none or a portal-assigned far-future one, a "One Month" one ~31 days out),
-        so a past EndDate is the reliable "this feed has lapsed" signal; a MISSING
-        EndDate is treated as not-lapsed. A few alternate key names plus an
-        explicit status field are checked defensively.
+        Kept because tests and internal callers reference
+        ``DataActScraper._descriptor_expired``; the logic now lives at module
+        level so the poll path can share it (#957/#966).
         """
-        from datetime import datetime, timezone  # noqa: PLC0415
-
-        status = str(
-            desc.get("Status") or desc.get("State") or desc.get("RequestState") or ""
-        ).upper()
-        if status in (
-            "EXPIRED", "INACTIVE", "COMPLETED", "CANCELLED", "CANCELED",
-            "CLOSED", "FINISHED", "TERMINATED",
-        ):
-            return True
-        now = datetime.now(tz=timezone.utc)
-        for key in (
-            "EndDate", "ExpiryDate", "ExpiresAt", "ValidUntil",
-            "ExpirationDate", "ValidTo",
-        ):
-            raw = desc.get(key)
-            if not isinstance(raw, str) or len(raw) < 10:
-                continue
-            try:
-                dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-            except (ValueError, TypeError):
-                continue
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
-            if dt < now:
-                return True
-        return False
+        return descriptor_expired(desc)
 
     async def kickoff_custom_data_request(
         self,

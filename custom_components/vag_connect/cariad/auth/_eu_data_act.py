@@ -51,6 +51,7 @@ from ..exceptions import (
     UpstreamUnavailableError,
 )
 from ..models import VehicleData
+from ._data_act_scraper import pick_active_15min_identifier
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -3456,7 +3457,20 @@ class EUDataActConnector:
             f"{_PORTAL_BASE}{meta_path.format(vin=vin)}", soft=True,
         )
         identifier = ""
-        if isinstance(meta, dict):
+        if request_type != "all":
+            # #957/#966 — the 15-min poll now shares the SAME descriptor walk
+            # the kickoff/coordinator path uses (``pick_active_15min_identifier``)
+            # instead of a dict-only read. A list-shaped metadata payload (the
+            # portal's actual shape) used to skip the ``isinstance(meta, dict)``
+            # branch entirely, so ``identifier`` stayed empty and every poll
+            # reported ``no_request`` even with an active feed. The walker also
+            # skips expired descriptors and — since metadata is re-fetched each
+            # poll — re-adopts a rotated Identifier automatically (delete+recreate
+            # in the portal self-heals on the next poll, no restart needed).
+            identifier = pick_active_15min_identifier(meta) or ""
+        if not identifier and isinstance(meta, dict):
+            # Legacy "all" export dialect + bare-dict responses carry the
+            # identifier at the top level (no 15-min descriptor to walk).
             identifier = (
                 meta.get("identifier")
                 or meta.get("Identifier")
