@@ -190,6 +190,7 @@
         "data": {
           "scan_interval": "Interwał aktualizacji",
           "spin": "S-PIN",
+          "battery_nominal_kwh": "Pojemność znamionowa akumulatora (kWh, do stanu zdrowia)",
           "enable_reverse_geocoding": "Geokodowanie odwrotne (adres parkowania)",
           "read_only_mode": "Tryb tylko do odczytu",
           "companion_read_charge_detail": "Companion: odczyt celu ładowania (nawiguje w aplikacji)",
@@ -915,6 +916,9 @@
       },
       "battery_cap_kwh": {
         "name": "Pojemność akumulatora (energia)"
+      },
+      "battery_soh_pct": {
+        "name": "Kondycja akumulatora (stan zdrowia)"
       },
       "trip_total_cost": {
         "name": "Całkowity koszt podróży"

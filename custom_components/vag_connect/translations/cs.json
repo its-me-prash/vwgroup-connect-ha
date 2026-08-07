@@ -190,6 +190,7 @@
         "data": {
           "scan_interval": "Interval aktualizace",
           "spin": "S-PIN",
+          "battery_nominal_kwh": "Jmenovitá kapacita baterie (kWh, pro State of Health)",
           "enable_reverse_geocoding": "Reverzní geokódování (adresa parkování)",
           "read_only_mode": "Režim jen pro čtení",
           "companion_read_charge_detail": "Companion: číst cíl nabíjení (naviguje v aplikaci)",
@@ -915,6 +916,9 @@
       },
       "battery_cap_kwh": {
         "name": "Kapacita baterie (energie)"
+      },
+      "battery_soh_pct": {
+        "name": "Kondice baterie (State of Health)"
       },
       "trip_total_cost": {
         "name": "Celkové náklady jízdy"

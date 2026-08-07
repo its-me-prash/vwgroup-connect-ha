@@ -190,6 +190,7 @@
         "data": {
           "scan_interval": "Intervalle de mise à jour",
           "spin": "S-PIN",
+          "battery_nominal_kwh": "Capacité nominale de la batterie (kWh, pour l'état de santé)",
           "enable_reverse_geocoding": "Géocodage inverse (adresse de stationnement)",
           "read_only_mode": "Mode lecture seule",
           "companion_read_charge_detail": "Companion : lire l'objectif de charge (navigue dans l'application)",
@@ -915,6 +916,9 @@
       },
       "battery_cap_kwh": {
         "name": "Capacité batterie (énergie)"
+      },
+      "battery_soh_pct": {
+        "name": "Santé de la batterie (état de santé)"
       },
       "trip_total_cost": {
         "name": "Coût total du trajet"

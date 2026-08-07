@@ -190,6 +190,7 @@
         "data": {
           "scan_interval": "Update-interval",
           "spin": "S-PIN",
+          "battery_nominal_kwh": "Nominale accucapaciteit (kWh, voor State of Health)",
           "enable_reverse_geocoding": "Reverse geocoding (parkeeradres)",
           "read_only_mode": "Alleen-lezen modus",
           "companion_read_charge_detail": "Companion: laaddoel lezen (navigeert in de app)",
@@ -915,6 +916,9 @@
       },
       "battery_cap_kwh": {
         "name": "Accucapaciteit (energie)"
+      },
+      "battery_soh_pct": {
+        "name": "Accugezondheid (State of Health)"
       },
       "trip_total_cost": {
         "name": "Totale ritkosten"

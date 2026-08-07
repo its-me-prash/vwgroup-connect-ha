@@ -190,6 +190,7 @@
         "data": {
           "scan_interval": "Aktualisierungsintervall (Minuten)",
           "spin": "S-PIN",
+          "battery_nominal_kwh": "Netto-Nennkapazität der Batterie (kWh, für Batteriezustand)",
           "enable_reverse_geocoding": "Adress-Auflösung (Parkposition)",
           "force_ppe_climate": "Audi PPE/PPC Klima-Body (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
           "enable_push_mqtt": "Skoda Push-Updates (MQTT, EXPERIMENTELL)",
@@ -915,6 +916,9 @@
       },
       "battery_cap_kwh": {
         "name": "Batteriekapazität (Energie)"
+      },
+      "battery_soh_pct": {
+        "name": "Batteriezustand (SoH)"
       },
       "trip_total_cost": {
         "name": "Fahrtkosten gesamt"

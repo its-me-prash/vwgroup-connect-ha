@@ -190,6 +190,7 @@
         "data": {
           "scan_interval": "Uppdateringsintervall",
           "spin": "S-PIN",
+          "battery_nominal_kwh": "Batteriets märkkapacitet (kWh, för hälsotillstånd)",
           "enable_reverse_geocoding": "Omvänd geokodning (parkeringsadress)",
           "read_only_mode": "Skrivskyddat läge",
           "companion_read_charge_detail": "Companion: läs laddningsmål (navigerar i appen)",
@@ -915,6 +916,9 @@
       },
       "battery_cap_kwh": {
         "name": "Batterikapacitet (energi)"
+      },
+      "battery_soh_pct": {
+        "name": "Batterihälsa (hälsotillstånd)"
       },
       "trip_total_cost": {
         "name": "Total reskostnad"

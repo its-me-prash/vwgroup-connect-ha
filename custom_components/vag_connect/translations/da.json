@@ -190,6 +190,7 @@
         "data": {
           "scan_interval": "Opdateringsinterval",
           "spin": "S-PIN",
+          "battery_nominal_kwh": "Nominel batterikapacitet (kWh, til State of Health)",
           "enable_reverse_geocoding": "Omvendt geokodning (parkeringsadresse)",
           "read_only_mode": "Skrivebeskyttet tilstand",
           "companion_read_charge_detail": "Companion: læs lademål (navigerer i appen)",
@@ -915,6 +916,9 @@
       },
       "battery_cap_kwh": {
         "name": "Batterikapacitet (energi)"
+      },
+      "battery_soh_pct": {
+        "name": "Batterisundhed (State of Health)"
       },
       "trip_total_cost": {
         "name": "Turomkostninger i alt"
