@@ -38,6 +38,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.30.2] - 2026-08-07
+
+### Fixed
+- **Battery level no longer flips between two values on the EU Data Act portal (#465).** Some cars report the state of charge under two different fields that do not always agree, a fresh reading and a stale one, and the integration picked between them by a fixed priority order rather than by which one was newer. So the battery level could bounce between, for example, 57% and 81% while the real value sat steady near 80%. It now picks the freshest reading when they disagree (ties keep the previous order, so nothing changes for the normal case), and logs the candidates at debug level so a mismatch is traceable. Thanks @Arno-MA-73 for reading the mapper and pinning the exact cause.
+
 ## [2.30.1] - 2026-08-07
 
 ### Fixed
