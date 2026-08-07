@@ -266,8 +266,8 @@
         "title": "Tibber — elbil-læsekanal (OAuth2)",
         "description": "Tilføj din elbils ladedata fra Tibbers officielle Data API som en skrivebeskyttet kilde med lavest prioritet — den udfylder kun de huller, din bils egne kanaler efterlader tomme, og overskriver aldrig friskere data. Engangsopsætning:\n\n1. Åbn {manage_url}, og opret en OAuth2-klient.\n2. Sæt dens redirect-URI til præcis `{redirect_uri}`.\n3. Tildel læse-scopes (user, homes, vehicles).\n4. Indsæt client ID og client secret nedenfor.\n\nSkrivebeskyttet — Tibber kan ikke sende kommandoer til din bil. Din bil skal allerede være parret i Tibber-appen.",
         "data": {
-          "tibber_client_id": "Tibber client ID",
-          "tibber_client_secret": "Tibber client secret"
+          "tibber_client_id": "Tibber klient-ID",
+          "tibber_client_secret": "Tibber-klienthemmelighed"
         }
       },
       "tibber_authorize": {
@@ -1119,28 +1119,28 @@
         "name": "Bidirektionel opladning min. ladeniveau"
       },
       "bidi_energy_used": {
-        "name": "Bidirectional energy used"
+        "name": "Bidirektionel forbrugt energi"
       },
       "bidi_energy_used_threshold": {
-        "name": "Bidirectional energy used limit"
+        "name": "Grænse for bidirektionel forbrugt energi"
       },
       "bidi_cycles": {
-        "name": "Bidirectional charging cycles"
+        "name": "Bidirektionelle ladecyklusser"
       },
       "bidi_cycles_threshold": {
-        "name": "Bidirectional charging cycles limit"
+        "name": "Grænse for bidirektionelle ladecyklusser"
       },
       "bidi_operating_hours": {
-        "name": "Bidirectional operating hours"
+        "name": "Bidirektionelle driftstimer"
       },
       "bidi_operating_hours_threshold": {
-        "name": "Bidirectional operating hours limit"
+        "name": "Grænse for bidirektionelle driftstimer"
       },
       "bidi_quota": {
-        "name": "Bidirectional charging quota"
+        "name": "Bidirektionel ladekvote"
       },
       "bidi_quota_threshold": {
-        "name": "Bidirectional charging quota limit"
+        "name": "Grænse for bidirektionel ladekvote"
       },
       "sunroof_position_pct": {
         "name": "Soltagsposition"
@@ -1720,6 +1720,10 @@
     "meb_commands_unavailable": {
       "title": "Fjernkommandoer er ikke tilgængelige for denne bil ({brand})",
       "description": "Du aktiverede MBB-fjernkommandoer, da du opsatte {brand}, men dette er en MEB / ID-familie-bil (ID.3/4/5/7, Enyaq, Born, Q4). VW's MEB-backend understøtter ikke den vedvarende Car-Net-kommandosti — det vedvarende login svarede \"Unknown user\" — så lås-, klima- og ladekommandoer kan ikke sendes.\n\nPosten blev holdt **skrivebeskyttet**: køretøjsdata flyder stadig gennem EU Data Act-portalen, du ser bare ingen kommando-entiteter. Dette er en kendt begrænsning ved VW's MEB-platform, ikke en opsætningsfejl — du kan afvise denne meddelelse."
+    },
+    "refresh_interval_too_frequent": {
+      "title": "{brand}: opdateringsinterval for hyppigt",
+      "description": "{brand} udsteder kortlivede adgangstokens, så ved dit nuværende opdateringsinterval på **{current} minutter** skal næsten hver forespørgsel forny tokenet. Det udløser beskyttelsen mod fornyelsesstorme — en grænse for, hvor ofte integrationen må forny, som er der for at forhindre, at mærkekontoen bliver låst — og data holder op med at blive opdateret, indtil beskyttelsen nulstilles.\n\nDette er et problem med forespørgselshyppighed, ikke et loginproblem: at logge ind igen løser det ikke.\n\n**Løsningen:** hæv opdateringsintervallet til **{recommended} minutter** eller mere under Indstillinger → Enheder og tjenester → VW Group Connect → Konfigurer. Det holder tokenfornyelser under grænsen og data i bevægelse.\n\nDenne advarsel forsvinder automatisk, første gang en tokenfornyelse lykkes igen."
     }
   },
   "services": {

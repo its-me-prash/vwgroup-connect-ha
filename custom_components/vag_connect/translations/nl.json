@@ -5,9 +5,9 @@
         "title": "VW Group Connect instellen",
         "description": "Verbind je voertuig met Home Assistant.\n\nKies je merk en voer de inloggegevens van de fabrieksapp in.",
         "menu_options": {
-          "browser_login": "Browser-Login (recommended)",
-          "email_password": "Email + Password (legacy)",
-          "website_authproxy": "Volkswagen.de website (beta — read-only)",
+          "browser_login": "Browser-login (aanbevolen)",
+          "email_password": "E-mail + wachtwoord (verouderd)",
+          "website_authproxy": "Volkswagen.de-website (bèta — alleen-lezen)",
           "mbb_login": "Volkswagen EU — Duurzame login (MBB, tweerichtings-alpha)"
         }
       },
@@ -26,27 +26,27 @@
         }
       },
       "website_authproxy": {
-        "title": "Volkswagen.de website (BETA, read-only)",
+        "title": "Volkswagen.de-website (BÈTA, alleen-lezen)",
         "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next. **Vereiste:** je Volkswagen ID moet de hoofdgebruiker van het voertuig zijn — bevestig je identiteit één keer op volkswagen.de (myVolkswagen → je voertuig). Zonder dit geeft de website geen voertuiggegevens.",
         "data": {
-          "username": "Email Address",
-          "password": "Password",
-          "scan_interval": "Update Interval"
+          "username": "E-mailadres",
+          "password": "Wachtwoord",
+          "scan_interval": "Update-interval"
         },
         "data_description": {
-          "username": "The email of your Volkswagen ID / myVolkswagen account.",
-          "password": "Your Volkswagen ID password.",
-          "scan_interval": "How often data is fetched (minutes). Minimum: 5."
+          "username": "Het e-mailadres van je Volkswagen ID / myVolkswagen-account.",
+          "password": "Je Volkswagen ID-wachtwoord.",
+          "scan_interval": "Hoe vaak gegevens worden opgehaald (minuten). Minimum: 5."
         }
       },
       "website_authproxy_otp": {
-        "title": "Email verification code",
-        "description": "A verification code was sent to the email for **{username}**.\n\nEnter the code to finish signing in to the Volkswagen.de website (beta) channel.",
+        "title": "E-mailverificatiecode",
+        "description": "Er is een verificatiecode verstuurd naar het e-mailadres van **{username}**.\n\nVoer de code in om het aanmelden bij het Volkswagen.de-website-kanaal (bèta) te voltooien.",
         "data": {
-          "mfa_code": "Verification Code"
+          "mfa_code": "Verificatiecode"
         },
         "data_description": {
-          "mfa_code": "Code from your email inbox — valid for a few minutes."
+          "mfa_code": "Code uit je inbox — enkele minuten geldig."
         }
       },
       "reauth_confirm": {
@@ -80,32 +80,32 @@
         }
       },
       "email_password": {
-        "title": "Sign in with email + password (legacy)",
-        "description": "Connect your vehicle to Home Assistant.\n\nChoose your brand and enter the credentials from your manufacturer's app.",
+        "title": "Aanmelden met e-mail + wachtwoord (verouderd)",
+        "description": "Verbind je voertuig met Home Assistant.\n\nKies je merk en voer de inloggegevens van de app van je fabrikant in.",
         "data": {
-          "brand": "Vehicle Brand",
-          "username": "Email Address",
-          "password": "Password",
+          "brand": "Merk van het voertuig",
+          "username": "E-mailadres",
+          "password": "Wachtwoord",
           "spin": "S-PIN",
           "country": "Regio (alleen Volkswagen VS/Canada)",
-          "scan_interval": "Update Interval",
+          "scan_interval": "Update-interval",
           "enable_mbb_commands": "MBB-afstandsbediening inschakelen (alleen Volkswagen — extra QR-bevestiging)"
         },
         "data_description": {
-          "brand": "Choose your brand — myAudi, WeConnect ID, MyŠkoda, SEAT, CUPRA, VW US/CA or Porsche.",
-          "username": "Email address from the manufacturer app.",
-          "password": "Password from the app.",
-          "spin": "Only needed for locking. App → Security → S-PIN.",
-          "scan_interval": "How often data is fetched. Default: 5 min. Minimum: 3 min."
+          "brand": "Kies je merk — myAudi, WeConnect ID, MyŠkoda, SEAT, CUPRA, VW US/CA of Porsche.",
+          "username": "E-mailadres uit de app van de fabrikant.",
+          "password": "Wachtwoord uit de app.",
+          "spin": "Alleen nodig voor vergrendelen. App → Beveiliging → S-PIN.",
+          "scan_interval": "Hoe vaak gegevens worden opgehaald. Standaard: 5 min. Minimum: 3 min."
         }
       },
       "browser_login": {
-        "title": "Browser-Login — choose your brand",
-        "description": "Pick the brand of the vehicle you want to connect. On the next screen you will see a short code and a URL to visit on any device with a browser.",
+        "title": "Browser-login — kies je merk",
+        "description": "Kies het merk van het voertuig dat je wilt verbinden. Op het volgende scherm zie je een korte code en een URL die je op elk apparaat met een browser kunt openen.",
         "data": {
-          "brand": "Vehicle Brand",
+          "brand": "Merk van het voertuig",
           "spin": "S-PIN",
-          "scan_interval": "Update Interval"
+          "scan_interval": "Update-interval"
         },
         "data_description": {
           "brand": "Alleen merken met browser-login-ondersteuning worden getoond. Gebruik 'E-mail + wachtwoord' voor Volkswagen EU en Porsche.",
@@ -114,23 +114,23 @@
         }
       },
       "browser_login_pending": {
-        "title": "Requesting login code…",
-        "description": "Asking the IDP for a one-time device code."
+        "title": "Inlogcode aanvragen…",
+        "description": "De IDP om een eenmalige apparaatcode vragen."
       },
       "browser_login_approve": {
-        "title": "Approve in your browser",
-        "description": "Scan the QR code with your phone, or open the URL on any device. Sign in to your Brand ID account if asked, confirm the code, then check the box below and click Submit.",
+        "title": "Goedkeuren in je browser",
+        "description": "Scan de QR-code met je telefoon of open de URL op een willekeurig apparaat. Meld je aan bij je Brand ID-account als daarom wordt gevraagd, bevestig de code, vink daarna het vakje hieronder aan en klik op Verzenden.",
         "data": {
-          "qr_code": "Scan with phone camera to open login page",
-          "verification_url": "Or open this URL in any browser",
-          "user_code": "Code to confirm in the browser",
-          "approved_in_browser": "I have approved in the browser"
+          "qr_code": "Scan met je telefooncamera om de inlogpagina te openen",
+          "verification_url": "Of open deze URL in een willekeurige browser",
+          "user_code": "Code om te bevestigen in de browser",
+          "approved_in_browser": "Ik heb goedgekeurd in de browser"
         },
         "data_description": {
-          "qr_code": "Point your phone camera at the QR code. The login page opens in your phone browser pre-filled with the code below.",
-          "verification_url": "If you can't scan: copy this link, open it on any device, sign in to your Brand ID account.",
-          "user_code": "After signing in, confirm this code in the browser to approve Home Assistant.",
-          "approved_in_browser": "Leave checked. Click Submit only after you have signed in and confirmed the code in the browser."
+          "qr_code": "Richt je telefooncamera op de QR-code. De inlogpagina opent in de browser van je telefoon, vooraf ingevuld met de onderstaande code.",
+          "verification_url": "Als je niet kunt scannen: kopieer deze link, open hem op een willekeurig apparaat en meld je aan bij je Brand ID-account.",
+          "user_code": "Bevestig na het aanmelden deze code in de browser om Home Assistant goed te keuren.",
+          "approved_in_browser": "Laat aangevinkt. Klik pas op Verzenden nadat je bent aangemeld en de code in de browser hebt bevestigd."
         }
       },
       "companion_adb": {
@@ -165,8 +165,8 @@
       "invalid_credentials": "E-mailadres of wachtwoord onjuist.",
       "portal_interaction_required": "Het EU Data Act-portaal vereist een eenmalige actie in je browser of merk-app (bijv. voorwaarden accepteren, toestemming bevestigen, onboarding/regiokeuze voltooien) voordat headless-toegang werkt. Dit is GEEN wachtwoordprobleem — open het portaal één keer in een browser, voltooi de melding en probeer het opnieuw.",
       "upstream_unavailable": "VW backend tijdelijk onbereikbaar. Dit is een serverprobleem bij VW, GEEN inlogfout. Wacht 5–15 minuten en probeer opnieuw. Configureer de integratie NIET opnieuw.",
-      "brand_not_dag_eligible": "Selected brand does not support browser login. Use the email + password flow instead.",
-      "still_waiting_browser": "Still waiting for browser approval. Open the URL above, sign in, confirm the code, then click Submit again.",
+      "brand_not_dag_eligible": "Het geselecteerde merk ondersteunt geen browser-login. Gebruik in plaats daarvan de e-mail + wachtwoord-methode.",
+      "still_waiting_browser": "Nog steeds wachten op goedkeuring in de browser. Open de bovenstaande URL, meld je aan, bevestig de code en klik daarna opnieuw op Verzenden.",
       "companion_cannot_connect": "Could not reach the phone over ADB. Check it is on the network, that ADB over Wi-Fi is on, and that you accepted the debugging prompt.",
       "companion_needs_addon": "Dit lijkt een telefoon met Android 11 of nieuwer die draadloos debuggen gebruikt; de directe verbinding hier kan daar niet mee overweg (dat is TLS + koppelen). Installeer de add-on 'VW Group App ADB Bridge' (github.com/its-me-prash/vwgroup-app-adb-bridge) en laat de companion daarnaar wijzen. Oudere telefoons (Android 10 of ouder) verbinden hier rechtstreeks.",
       "companion_app_not_found": "Connected to the phone, but the brand app is not installed on it.",
@@ -179,8 +179,8 @@
       "mbb_not_eligible": "Je voertuig komt niet in aanmerking voor de duurzame MBB-login — de backend gaf \"Unknown user\" terug. Het is een nieuwer ID-/MEB-model (ID.3/4/5, e-up enz.) dat nooit in het oude Car-Net/MBB-systeem was geregistreerd, dus de duurzame login en de commando's op afstand kunnen het niet bereiken. Gebruik voor zulke voertuigen het EU Data Act-portaalkanaal (of de e-mail-+-wachtwoordlogin). De MBB-login is voor oudere Car-Net-auto's (de meeste plug-inhybride / verbrandingsmodellen)."
     },
     "progress": {
-      "awaiting_browser_login": "Open {verification_uri} in any browser, sign in with your Brand ID account, and confirm the code {user_code}.",
-      "requesting_device_code": "Requesting a one-time login code from the IDP…"
+      "awaiting_browser_login": "Open {verification_uri} in een willekeurige browser, meld je aan met je Brand ID-account en bevestig de code {user_code}.",
+      "requesting_device_code": "Een eenmalige inlogcode aanvragen bij de IDP…"
     }
   },
   "options": {
@@ -196,11 +196,11 @@
           "companion_read_charge_detail": "Companion: laaddoel lezen (navigeert in de app)",
           "companion_wake_sleep": "Companion: scherm wekken om op te halen, daarna weer in slaap",
           "force_ppe_climate": "Audi PPE/PPC klimaat-body (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
-          "enable_push_mqtt": "Skoda push updates (MQTT, EXPERIMENTAL)",
-          "enable_push_fcm": "CUPRA/SEAT push updates (FCM, EXPERIMENTAL)",
+          "enable_push_mqtt": "Skoda push-updates (MQTT, EXPERIMENTEEL)",
+          "enable_push_fcm": "CUPRA/SEAT push-updates (FCM, EXPERIMENTEEL)",
           "enable_push_audi_vw": "Audi/VW push updates (Cariad FCM, EXPERIMENTAL)",
-          "client_id_override": "OAuth client_id override (power users)",
-          "eu_data_act_auto_kickoff": "EU Data Act: auto-kickoff Custom Data Request",
+          "client_id_override": "OAuth client_id-overschrijving (gevorderde gebruikers)",
+          "eu_data_act_auto_kickoff": "EU Data Act: Custom Data Request automatisch starten",
           "supplementary_authproxy": "Volkswagen.de-leeskanaal toevoegen (gegevens samenvoegen)",
           "hide_empty_entities": "Entiteiten zonder gegevens verbergen",
           "supplementary_eu_portal": "EU Data Act-portaal-leeskanaal toevoegen",
@@ -220,38 +220,38 @@
           "companion_read_charge_detail": "Alleen voor Companion (ADB). Leest ook het laaddoel, het vermogen en de resterende tijd die achter het laaddetailscherm zitten. Hiervoor wordt er in de app GETIKT om daarheen te navigeren (ongeveer elke 15 minuten), dus schakel dit pas in als je hebt bevestigd dat dit op je telefoon werkt. Standaard uit. Herlaad de integratie na het wijzigen.",
           "companion_wake_sleep": "Alleen voor Companion (ADB). Wekt het scherm van de telefoon vóór elke opvraging en laat het daarna weer slapen, zodat een vergrendelde of slapende telefoon de app toont tijdens het lezen zonder het scherm permanent aan te laten staan. Standaard uit. Herlaad de integratie na het wijzigen.",
           "force_ppe_climate": "Alleen voor Audi. Forceert het nieuwe PPE/PPC body-formaat (climatisationMode verplicht, targetTemperature weggelaten) bij klimaat-start. Alleen inschakelen als je een Q6 e-tron, A6 e-tron, RS e-tron GT Facelift of A3 2024+ PHEV bezit — anders geeft de API 400 terug. Integratie herladen na inschakelen.",
-          "enable_push_mqtt": "EXPERIMENTAL: Skoda-only. Enables real-time MQTT push from Skoda mysmob backend (requires aiomqtt + firebase-messaging Python packages — currently lazy-imported, not pre-installed). Foundation phase in v1.18.0; live activation pending community-tester validation. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling.",
-          "enable_push_fcm": "EXPERIMENTAL: CUPRA/SEAT only. Enables real-time Firebase Cloud Messaging push from OLA backend (requires firebase-messaging Python package — same lazy-import as v1.18.0 Skoda MQTT toggle). Foundation phase in v1.19.0; live activation pending community-tester validation. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling.",
+          "enable_push_mqtt": "EXPERIMENTEEL: alleen Skoda. Schakelt realtime MQTT-push van de Skoda mysmob-backend in (vereist de Python-pakketten aiomqtt + firebase-messaging — momenteel lazy-imported, niet vooraf geïnstalleerd). Basisfase in v1.18.0; live-activering wacht op validatie door community-testers. Als push niet beschikbaar is, valt de integratie stilletjes terug op polling. Herlaad de integratie na het wijzigen.",
+          "enable_push_fcm": "EXPERIMENTEEL: alleen CUPRA/SEAT. Schakelt realtime Firebase Cloud Messaging-push van de OLA-backend in (vereist het Python-pakket firebase-messaging — dezelfde lazy-import als de Skoda MQTT-schakelaar in v1.18.0). Basisfase in v1.19.0; live-activering wacht op validatie door community-testers. Als push niet beschikbaar is, valt de integratie stilletjes terug op polling. Herlaad de integratie na het wijzigen.",
           "enable_push_audi_vw": "EXPERIMENTAL: Audi/VW only. Enables real-time push notifications from Cariad FCM channel (same one myAudi/WeConnect mobile apps use — covers lock/unlock results, charging-state, climate, alarm). Requires firebase-messaging Python package (same as Skoda MQTT + CUPRA/SEAT FCM). Foundation phase in v1.23.0; live activation pending community-tester validation. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling.",
-          "client_id_override": "Power-user escape hatch for when the community spots a fresh OAuth client_id in a new VW Group APK before our daily atlas builder catches it. Paste the full UUID@apps_vw-dilab_com string here and the resolver tries it FIRST on every authenticate, with all the existing client_ids still in the chain as fallback. Leave empty for default behaviour. Format: 8-4-4-4-12 hex digits followed by @apps_vw-dilab_com. Malformed values are silently ignored.",
-          "eu_data_act_auto_kickoff": "Only meaningful when the integration is operating in read-only EU Data Act portal mode (live BFF strategies have failed). When ON, the coordinator checks for an active 15-min Custom Data Request per VIN at startup and creates one when none exists. The kickoff implies a 1-month data subscription on your account at the portal, so this is opt-in. The portal accepts AT MOST ONE active custom request per VIN at a time. Off by default.",
+          "client_id_override": "Noodoplossing voor gevorderde gebruikers, voor wanneer de community een nieuwe OAuth client_id in een nieuwe VW Group-APK ontdekt voordat onze dagelijkse atlas-builder deze oppikt. Plak hier de volledige UUID@apps_vw-dilab_com-tekenreeks; de resolver probeert deze bij elke authenticatie als EERSTE, met alle bestaande client_ids nog steeds als fallback in de keten. Laat leeg voor het standaardgedrag. Formaat: 8-4-4-4-12 hexadecimale tekens gevolgd door @apps_vw-dilab_com. Onjuist opgemaakte waarden worden stilletjes genegeerd.",
+          "eu_data_act_auto_kickoff": "Alleen zinvol wanneer de integratie in de alleen-lezen EU Data Act-portalmodus draait (live BFF-strategieën zijn mislukt). Wanneer AAN, controleert de coördinator bij het opstarten per VIN op een actieve 15-minuten Custom Data Request en maakt er een aan als die niet bestaat. Het starten impliceert een data-abonnement van 1 maand op je account bij het portaal, dus dit is opt-in. Het portaal accepteert MAXIMAAL ÉÉN actieve custom request per VIN tegelijk. Standaard uit.",
           "abrp_enable": "Live telemetrie naar A Better Routeplanner sturen. Vereist een api_key en een token per voertuig. Uit = geen uitgaande oproepen.",
           "abrp_api_key": "Een ontwikkelaars-/partnersleutel die je bij iternio registreert (wij leveren er geen). Identificeert de integratie. Wordt nooit gelogd.",
           "abrp_user_token": "Het 'Generic'-token uit de ABRP-app: Instellingen -> je auto -> Live Data. Wordt nooit gelogd."
         }
       },
       "add_vwde": {
-        "title": "Volkswagen.de website (BETA, read-only)",
+        "title": "Volkswagen.de-website (BÈTA, alleen-lezen)",
         "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next. **Vereiste:** je Volkswagen ID moet de hoofdgebruiker van het voertuig zijn — bevestig je identiteit één keer op volkswagen.de (myVolkswagen → je voertuig). Zonder dit geeft de website geen voertuiggegevens.",
         "data": {
-          "username": "Email Address",
-          "password": "Password",
-          "scan_interval": "Update Interval"
+          "username": "E-mailadres",
+          "password": "Wachtwoord",
+          "scan_interval": "Update-interval"
         },
         "data_description": {
-          "username": "The email of your Volkswagen ID / myVolkswagen account.",
-          "password": "Your Volkswagen ID password.",
-          "scan_interval": "How often data is fetched (minutes). Minimum: 5."
+          "username": "Het e-mailadres van je Volkswagen ID / myVolkswagen-account.",
+          "password": "Je Volkswagen ID-wachtwoord.",
+          "scan_interval": "Hoe vaak gegevens worden opgehaald (minuten). Minimum: 5."
         }
       },
       "add_vwde_otp": {
-        "title": "Email verification code",
-        "description": "A verification code was sent to the email for **{username}**.\n\nEnter the code to finish signing in to the Volkswagen.de website (beta) channel.",
+        "title": "E-mailverificatiecode",
+        "description": "Er is een verificatiecode verstuurd naar het e-mailadres van **{username}**.\n\nVoer de code in om het aanmelden bij het Volkswagen.de-website-kanaal (bèta) te voltooien.",
         "data": {
-          "mfa_code": "Verification Code"
+          "mfa_code": "Verificatiecode"
         },
         "data_description": {
-          "mfa_code": "Code from your email inbox — valid for a few minutes."
+          "mfa_code": "Code uit je inbox — enkele minuten geldig."
         }
       },
       "add_portal": {
@@ -1119,28 +1119,28 @@
         "name": "Bidirectioneel laden min. laadniveau"
       },
       "bidi_energy_used": {
-        "name": "Bidirectional energy used"
+        "name": "Bidirectioneel energieverbruik"
       },
       "bidi_energy_used_threshold": {
-        "name": "Bidirectional energy used limit"
+        "name": "Limiet bidirectioneel energieverbruik"
       },
       "bidi_cycles": {
-        "name": "Bidirectional charging cycles"
+        "name": "Bidirectionele laadcycli"
       },
       "bidi_cycles_threshold": {
-        "name": "Bidirectional charging cycles limit"
+        "name": "Limiet bidirectionele laadcycli"
       },
       "bidi_operating_hours": {
-        "name": "Bidirectional operating hours"
+        "name": "Bidirectionele bedrijfsuren"
       },
       "bidi_operating_hours_threshold": {
-        "name": "Bidirectional operating hours limit"
+        "name": "Limiet bidirectionele bedrijfsuren"
       },
       "bidi_quota": {
-        "name": "Bidirectional charging quota"
+        "name": "Bidirectioneel laadquotum"
       },
       "bidi_quota_threshold": {
-        "name": "Bidirectional charging quota limit"
+        "name": "Limiet bidirectioneel laadquotum"
       },
       "sunroof_position_pct": {
         "name": "Schuifdakpositie"
@@ -1678,16 +1678,16 @@
       "description": "De Foutmelder heeft **{count}** recente integratiefout(en) voor {brand} vastgelegd.\n\nMelden helpt ons bugs te vinden die alleen op specifieke voertuigen of firmwareversies optreden.\n\n**1-klik rapport:**\n📤 Klik hieronder op **Meer info** om een vooraf ingevulde GitHub-issue te openen.\n\n**Voor Facebook / forum:** Instellingen → Apparaten → VW Group Connect → Diagnose → Downloaden — het rapport is bijgevoegd, VINs en tokens gemaskeerd.\n\n_Privacy: VINs gemaskeerd, Bearer/JWT/UUID/e-mail-tokens uit berichten en tracebacks verwijderd. Geen referenties opgenomen._"
     },
     "quota_low": {
-      "title": "API quota low — {remaining} requests remaining today",
-      "description": "Your VAG account is approaching the daily API request limit ({remaining} of {limit} remaining, {pct}%).\n\nTo protect against quota lockout (the manufacturer backend can soft-suspend the account when the daily cap is reached), consider:\n\n1. **Increase the update interval** — Settings → Devices & Services → VW Group Connect → Configure → Update Interval (currently typically 5–10 min)\n2. **Reduce other VAG integrations** running on the same account (each counts against the same quota)\n3. **Wait for daily reset** — usually around midnight in the manufacturer's home time zone\n\nThis warning auto-clears when the remaining count recovers."
+      "title": "API-quotum laag — {remaining} verzoeken over vandaag",
+      "description": "Je VAG-account nadert de dagelijkse limiet voor API-verzoeken ({remaining} van {limit} over, {pct}%).\n\nOm een quotum-lockout te voorkomen (de backend van de fabrikant kan het account tijdelijk opschorten wanneer de daglimiet wordt bereikt), overweeg je het volgende:\n\n1. **Verhoog het update-interval** — Instellingen → Apparaten en services → VW Group Connect → Configureren → Update-interval (momenteel meestal 5–10 min)\n2. **Verminder andere VAG-integraties** die op hetzelfde account draaien (elke telt mee voor hetzelfde quotum)\n3. **Wacht op de dagelijkse reset** — meestal rond middernacht in de tijdzone van de fabrikant\n\nDeze waarschuwing verdwijnt automatisch wanneer het resterende aantal weer toeneemt."
     },
     "quota_critical": {
-      "title": "API quota CRITICAL — {remaining} requests remaining today",
-      "description": "Your VAG account has fewer than 25 API requests remaining today ({remaining} of {limit}, {pct}%). The manufacturer backend may soft-suspend the account if you exhaust the budget.\n\n**Immediate action:**\n1. **Pause polling** — Settings → Devices & Services → VW Group Connect → Configure → Update Interval → set to 30 min or higher\n2. Avoid manual refreshes / vehicle wake-ups until the budget resets\n\nThis warning auto-clears when the remaining count recovers."
+      "title": "API-quotum KRITIEK — {remaining} verzoeken over vandaag",
+      "description": "Je VAG-account heeft vandaag minder dan 25 API-verzoeken over ({remaining} van {limit}, {pct}%). De backend van de fabrikant kan het account tijdelijk opschorten als je het budget uitput.\n\n**Onmiddellijke actie:**\n1. **Pauzeer het pollen** — Instellingen → Apparaten en services → VW Group Connect → Configureren → Update-interval → stel in op 30 min of hoger\n2. Vermijd handmatige verversingen / het wekken van het voertuig totdat het budget wordt gereset\n\nDeze waarschuwing verdwijnt automatisch wanneer het resterende aantal weer toeneemt."
     },
     "account_locked": {
-      "title": "{brand} account appears to be temporarily locked",
-      "description": "The brand backend has returned **3 lock-class auth responses** in the last 30 minutes (most recently HTTP {last_status}). This typically means VW has temporarily blocked the underlying brand account after too many failed token-refresh attempts.\n\nThe lock usually lifts within **a few hours up to 24 hours**. The integration has stopped retrying so the lock window does not extend.\n\n**While you wait**:\n\n1. **Do not** sign in / out of the manufacturer app repeatedly — that extends the lock.\n2. Wait at least 1-2 hours, then open the official manufacturer app on your phone. If the app signs you in cleanly, the backend has unlocked your account.\n3. Once unlocked, raise the `scan_interval` in Settings → Devices & Services → VW Group Connect → Configure to 15-30 minutes to reduce future pressure.\n4. Optional: enable the read-only EU Data Act portal mode via the OptionsFlow to keep some data flowing during future incidents.\n\nThis warning auto-clears the first time the next token refresh succeeds."
+      "title": "{brand}-account lijkt tijdelijk vergrendeld",
+      "description": "De backend van het merk heeft in de afgelopen 30 minuten **3 auth-reacties van de lock-klasse** teruggegeven (meest recent HTTP {last_status}). Dit betekent doorgaans dat VW het onderliggende merkaccount tijdelijk heeft geblokkeerd na te veel mislukte pogingen om het token te vernieuwen.\n\nDe vergrendeling wordt meestal binnen **enkele uren tot 24 uur** opgeheven. De integratie is gestopt met opnieuw proberen, zodat het vergrendelingsvenster niet wordt verlengd.\n\n**Terwijl je wacht**:\n\n1. Meld je **niet** herhaaldelijk aan/af bij de app van de fabrikant — dat verlengt de vergrendeling.\n2. Wacht minstens 1-2 uur en open daarna de officiële app van de fabrikant op je telefoon. Als de app je probleemloos aanmeldt, heeft de backend je account ontgrendeld.\n3. Verhoog na het ontgrendelen de `scan_interval` in Instellingen → Apparaten en services → VW Group Connect → Configureren naar 15-30 minuten om toekomstige druk te verminderen.\n4. Optioneel: schakel de alleen-lezen EU Data Act-portalmodus in via de OptionsFlow om tijdens toekomstige incidenten toch wat gegevens te blijven ontvangen.\n\nDeze waarschuwing verdwijnt automatisch zodra de volgende tokenvernieuwing voor het eerst slaagt."
     },
     "data_act_no_data": {
       "title": "EU Data Act-portaal: nog geen voertuiggegevens ({brand})",
@@ -1720,84 +1720,88 @@
     "meb_commands_unavailable": {
       "title": "Opdrachten op afstand zijn niet beschikbaar voor deze auto ({brand})",
       "description": "Je hebt MBB-opdrachten op afstand ingeschakeld bij het instellen van {brand}, maar dit is een MEB-/ID-auto (ID.3/4/5/7, Enyaq, Born, Q4). De MEB-backend van VW ondersteunt het duurzame Car-Net-opdrachtpad niet — de duurzame login antwoordde \"Unknown user\" — dus vergrendel-, klimaat- en laadopdrachten kunnen niet worden verzonden.\n\nDe vermelding blijft **alleen-lezen**: voertuiggegevens komen nog steeds binnen via het EU Data Act-portaal, je ziet alleen geen opdracht-entiteiten. Dit is een bekende beperking van VW's MEB-platform, geen instelfout — je kunt deze melding sluiten."
+    },
+    "refresh_interval_too_frequent": {
+      "title": "{brand}: update-interval te frequent",
+      "description": "{brand} geeft kortlevende access-tokens uit, dus bij je huidige update-interval van **{current} minuten** moet vrijwel elke poll het token vernieuwen. Dat activeert de refresh-storm-beveiliging — een limiet op hoe vaak de integratie mag vernieuwen, bedoeld om te voorkomen dat het merkaccount wordt vergrendeld — en de gegevens stoppen met bijwerken totdat de beveiliging wordt gereset.\n\nDit is een probleem met de pollingfrequentie, niet een inlogprobleem: opnieuw authenticeren lost het niet op.\n\n**De oplossing:** verhoog het update-interval naar **{recommended} minuten** of meer in Instellingen → Apparaten en services → VW Group Connect → Configureren. Zo blijven de tokenvernieuwingen onder de limiet en blijven de gegevens binnenkomen.\n\nDeze waarschuwing verdwijnt automatisch zodra een tokenvernieuwing weer voor het eerst slaagt."
     }
   },
   "services": {
     "start_climate_control": {
-      "name": "Start Climate Control (Rich)",
-      "description": "Start pre-conditioning with individual seat heaters, glass heating, climate mode and at-unlock behaviour. Only applies to Audi and VW EU (CARIAD BFF). Other brands fall through to the basic `start_climatisation` service. All payload fields except `device_id` are optional - omitted fields keep the brand default.",
+      "name": "Klimaatregeling starten (uitgebreid)",
+      "description": "Start het voorklimatiseren met individuele stoelverwarming, ruitverwarming, klimaatmodus en gedrag bij ontgrendeling. Alleen van toepassing op Audi en VW EU (CARIAD BFF). Andere merken vallen terug op de basisservice `start_climatisation`. Alle payload-velden behalve `device_id` zijn optioneel — weggelaten velden behouden de standaardwaarde van het merk.",
       "fields": {
         "device_id": {
-          "name": "Vehicle",
-          "description": "Vehicle that receives the pre-conditioning command."
+          "name": "Voertuig",
+          "description": "Voertuig dat de voorklimatiseer-opdracht ontvangt."
         },
         "temp_c": {
-          "name": "Target temperature (C)",
-          "description": "Cabin target temperature in degrees Celsius (15 to 30, step 0.5)."
+          "name": "Doeltemperatuur (C)",
+          "description": "Doeltemperatuur van de cabine in graden Celsius (15 tot 30, stap 0,5)."
         },
         "glass_heating": {
-          "name": "Glass heating",
-          "description": "Enable windscreen and rear-window heating alongside the cabin pre-conditioning."
+          "name": "Ruitverwarming",
+          "description": "Schakel voorruit- en achterruitverwarming in naast het voorklimatiseren van de cabine."
         },
         "seat_fl": {
-          "name": "Front-left seat heating",
-          "description": "Enable seat heating on the front-left seat."
+          "name": "Stoelverwarming linksvoor",
+          "description": "Schakel stoelverwarming in op de linkervoorstoel."
         },
         "seat_fr": {
-          "name": "Front-right seat heating",
-          "description": "Enable seat heating on the front-right seat."
+          "name": "Stoelverwarming rechtsvoor",
+          "description": "Schakel stoelverwarming in op de rechtervoorstoel."
         },
         "seat_rl": {
-          "name": "Rear-left seat heating",
-          "description": "Enable seat heating on the rear-left seat."
+          "name": "Stoelverwarming linksachter",
+          "description": "Schakel stoelverwarming in op de linkerachterstoel."
         },
         "seat_rr": {
-          "name": "Rear-right seat heating",
-          "description": "Enable seat heating on the rear-right seat."
+          "name": "Stoelverwarming rechtsachter",
+          "description": "Schakel stoelverwarming in op de rechterachterstoel."
         },
         "climatisation_at_unlock": {
-          "name": "Continue climate when unlocked",
-          "description": "Keep pre-conditioning running after the vehicle is unlocked."
+          "name": "Klimaatregeling voortzetten na ontgrendelen",
+          "description": "Houd het voorklimatiseren actief nadat het voertuig is ontgrendeld."
         },
         "climatisation_mode": {
-          "name": "Climatisation mode",
-          "description": "Comfort (full power) or economy (reduced power, longer runtime)."
+          "name": "Klimatiseermodus",
+          "description": "Comfort (vol vermogen) of economy (verminderd vermogen, langere looptijd)."
         }
       }
     },
     "update_charging_settings": {
-      "name": "Update Charging Settings (SEAT/CUPRA)",
-      "description": "Update the SEAT/CUPRA charge plan in one call. Sets any combination of target state of charge, maximum AC charge current and the auto-unlock-when-charged flag. Other brands are rejected at the coordinator dispatch level.",
+      "name": "Laadinstellingen bijwerken (SEAT/CUPRA)",
+      "description": "Werk het SEAT/CUPRA-laadschema in één aanroep bij. Stelt een willekeurige combinatie in van doellaadtoestand, maximale AC-laadstroom en de vlag voor automatisch ontgrendelen wanneer opgeladen. Andere merken worden op het dispatch-niveau van de coördinator geweigerd.",
       "fields": {
         "vin": {
           "name": "VIN",
-          "description": "VIN of the vehicle to update."
+          "description": "VIN van het bij te werken voertuig."
         },
         "target_soc": {
-          "name": "Target state of charge (%)",
-          "description": "Target state of charge between 20 and 100 percent."
+          "name": "Doellaadtoestand (%)",
+          "description": "Doellaadtoestand tussen 20 en 100 procent."
         },
         "max_charge_current": {
-          "name": "Maximum AC charge current",
-          "description": "Backend enum, maximum or reduced."
+          "name": "Maximale AC-laadstroom",
+          "description": "Backend-enum, maximum of gereduceerd."
         },
         "auto_unlock_charge": {
-          "name": "Auto-unlock plug when fully charged",
-          "description": "When true the connector unlocks itself once charging is complete."
+          "name": "Stekker automatisch ontgrendelen wanneer volledig opgeladen",
+          "description": "Indien waar ontgrendelt de connector zichzelf zodra het opladen is voltooid."
         }
       }
     },
     "execute_vehicle_action": {
-      "name": "Execute Vehicle Action",
-      "description": "Unified service that dispatches a vehicle action selected from a dropdown. Equivalent to calling the per-action service of the same name but easier to find in the Home Assistant Lovelace service picker. All existing per-action services (vag_connect.lock, vag_connect.start_climatisation, etc) keep working unchanged.",
+      "name": "Voertuigactie uitvoeren",
+      "description": "Geïntegreerde service die een uit een vervolgkeuzelijst geselecteerde voertuigactie verstuurt. Gelijkwaardig aan het aanroepen van de gelijknamige service per actie, maar gemakkelijker te vinden in de Home Assistant Lovelace-servicekiezer. Alle bestaande services per actie (vag_connect.lock, vag_connect.start_climatisation, enz.) blijven ongewijzigd werken.",
       "fields": {
         "device_id": {
-          "name": "Vehicle",
-          "description": "The vehicle device to act on."
+          "name": "Voertuig",
+          "description": "Het voertuigapparaat waarop de actie wordt uitgevoerd."
         },
         "action": {
-          "name": "Action",
-          "description": "Which action to dispatch."
+          "name": "Actie",
+          "description": "Welke actie moet worden verstuurd."
         }
       }
     },
@@ -1879,20 +1883,20 @@
   "selector": {
     "execute_vehicle_action_options": {
       "options": {
-        "lock": "Lock",
-        "unlock": "Unlock",
-        "start_climatisation": "Start climatisation",
-        "stop_climatisation": "Stop climatisation",
-        "start_charging": "Start charging",
-        "stop_charging": "Stop charging",
-        "flash_lights": "Flash lights",
-        "start_window_heating": "Start window heating",
-        "stop_window_heating": "Stop window heating",
-        "wake_vehicle": "Wake vehicle",
-        "start_aux_heating": "Start auxiliary heating",
-        "stop_aux_heating": "Stop auxiliary heating",
-        "start_ventilation": "Start ventilation",
-        "stop_ventilation": "Stop ventilation"
+        "lock": "Vergrendelen",
+        "unlock": "Ontgrendelen",
+        "start_climatisation": "Klimatisering starten",
+        "stop_climatisation": "Klimatisering stoppen",
+        "start_charging": "Opladen starten",
+        "stop_charging": "Opladen stoppen",
+        "flash_lights": "Lichten laten knipperen",
+        "start_window_heating": "Ruitverwarming starten",
+        "stop_window_heating": "Ruitverwarming stoppen",
+        "wake_vehicle": "Voertuig wekken",
+        "start_aux_heating": "Standkachel starten",
+        "stop_aux_heating": "Standkachel stoppen",
+        "start_ventilation": "Ventilatie starten",
+        "stop_ventilation": "Ventilatie stoppen"
       }
     }
   }
