@@ -65,7 +65,10 @@ class TestKtoC:
         k = c + 273.15
         recovered = k_to_c(k)
         assert recovered is not None
-        assert abs(recovered - c) < 0.05  # rounding to 1 decimal
+        # 1-decimal rounding: max error is exactly 0.05 at the half-step
+        # boundaries (e.g. 1.25 -> 1.2), and float noise nudges it a hair over,
+        # so the bound is inclusive with a tiny epsilon, not a strict <.
+        assert abs(recovered - c) <= 0.05 + 1e-9
 
     def test_known_values(self):
         assert k_to_c(273.15) == 0.0
