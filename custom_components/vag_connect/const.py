@@ -67,6 +67,11 @@ CONF_MBB_COMMAND_CLIENT_ID    = "mbb_command_client_id"    # registered X-Client
 CONF_MEB_COMMANDS_UNAVAILABLE = "meb_commands_unavailable"  # bool: MEB/ID car, commands requested but impossible
 CONF_SCAN_INTERVAL            = "scan_interval"
 CONF_ENABLE_REVERSE_GEOCODING = "enable_reverse_geocoding"
+# Optional nameplate NET battery capacity (kWh). VW never reports it and even the
+# official app does not derive State of Health, so we cannot guess it (a single
+# model name maps to several battery options). When the user supplies it we
+# publish battery_soh_pct = current max capacity / nominal. 0 / unset = no SoH.
+CONF_BATTERY_NOMINAL_KWH      = "battery_nominal_kwh"
 # v1.12.0 (#63) — Read-only mode. When True, the integration creates
 # only status sensors + binary sensors (read-only), no switches/buttons/
 # locks/numbers/climate that would send commands. Useful for users who

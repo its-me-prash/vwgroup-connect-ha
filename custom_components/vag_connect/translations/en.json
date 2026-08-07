@@ -190,6 +190,7 @@
         "data": {
           "scan_interval": "Update Interval",
           "spin": "S-PIN",
+          "battery_nominal_kwh": "Battery nameplate capacity (kWh, for State of Health)",
           "enable_reverse_geocoding": "Reverse Geocoding (parking address)",
           "read_only_mode": "Read-only Mode",
           "companion_read_charge_detail": "Companion: read charge target (navigates the app)",
@@ -915,6 +916,9 @@
       },
       "battery_cap_kwh": {
         "name": "Battery capacity (energy)"
+      },
+      "battery_soh_pct": {
+        "name": "Battery health (State of Health)"
       },
       "trip_total_cost": {
         "name": "Trip total cost"

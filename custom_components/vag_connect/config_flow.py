@@ -34,6 +34,7 @@ from .const import (
     CONF_ABRP_API_KEY,
     CONF_ABRP_ENABLE,
     CONF_ABRP_USER_TOKEN,
+    CONF_BATTERY_NOMINAL_KWH,
     CONF_BRAND,
     CONF_CLIENT_ID_OVERRIDE,
     CONF_COUNTRY,
@@ -142,6 +143,17 @@ _INTERVAL_SELECTOR = NumberSelector(
         step=1,
         mode=NumberSelectorMode.SLIDER,
         unit_of_measurement="min",
+    )
+)
+
+# Nameplate NET battery capacity for the optional State-of-Health sensor. 0 = off.
+_KWH_SELECTOR = NumberSelector(
+    NumberSelectorConfig(
+        min=0,
+        max=250,
+        step=0.1,
+        mode=NumberSelectorMode.BOX,
+        unit_of_measurement="kWh",
     )
 )
 
@@ -1902,6 +1914,17 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                         CONF_SPIN, current_data.get(CONF_SPIN, "")
                     ),
                 ): _SPIN_SELECTOR,
+                # Optional nameplate NET battery capacity (kWh) for the
+                # State-of-Health sensor. 0 = off (no SoH). VW ships no SoH field,
+                # so the user supplies the nameplate and we compute
+                # current-max / nominal.
+                vol.Optional(
+                    CONF_BATTERY_NOMINAL_KWH,
+                    default=current_options.get(
+                        CONF_BATTERY_NOMINAL_KWH,
+                        current_data.get(CONF_BATTERY_NOMINAL_KWH, 0),
+                    ),
+                ): _KWH_SELECTOR,
                 vol.Optional(
                     CONF_ENABLE_REVERSE_GEOCODING,
                     default=current_options.get(

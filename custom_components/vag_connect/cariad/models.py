@@ -422,6 +422,10 @@ class VehicleData:
     battery_soc: int | None = None
     battery_available_kwh: float | None = None
     battery_cap_kwh: float | None = None
+    # Battery State of Health (%). Only computed when the user supplied the car's
+    # nameplate net capacity (CONF_BATTERY_NOMINAL_KWH); = current max capacity /
+    # nominal. Left None otherwise -- VW ships no SoH field, so we never guess it.
+    battery_soh_pct: int | None = None
     battery_temp: float | None = None
     fuel_level: int | None = None
     range_km: int | None = None

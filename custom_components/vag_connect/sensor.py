@@ -2697,6 +2697,21 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         suggested_display_precision=1,
     ),
+    # Battery State of Health (%). Only produced when the user set the car's
+    # nameplate net capacity in the options (CONF_BATTERY_NOMINAL_KWH) -- VW ships
+    # no SoH field, so we never guess it. Disabled by default: the user opts in by
+    # enabling this + supplying the nominal, then it reads current-max / nominal.
+    VagSensorDescription(
+        key="battery_soh_pct",
+        translation_key="battery_soh_pct",
+        data_key="battery_soh_pct",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-heart-variant",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
 
     # v2.15.3 — Skoda trip-cost breakdown (parsed in skoda.py, previously
     # unsurfaced). Currency is dynamic (per account) so it lives in
