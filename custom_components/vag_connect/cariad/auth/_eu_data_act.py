@@ -1241,7 +1241,55 @@ def map_dataset_to_vehicle_data(
                 return val
         return None
 
-    soc = _to_int(first("battery_state_report.soc", "soc", "stateOfChargeInPercent",
+    def first_freshest(*names: str) -> str | None:
+        """Like ``first()``, but when the SAME datum is reported under multiple
+        DIFFERENT-source aliases that disagree, pick the FRESHEST by capture
+        time instead of the first in list order (#465, Arno-MA-73: portal SoC
+        oscillating 57<->81 because a stale alias out-ranked a newer one).
+
+        The common case is unchanged: bare/dotted spellings of ONE node share a
+        timestamp, so the tie-break falls back to the canonical list order and
+        the selected value is identical to ``first()``. Only when two genuinely
+        different-timestamped sources conflict does freshness decide. A candidate
+        WITH a timestamp always beats one without. Same sentinel-skip + used /
+        synonym bookkeeping as ``first()`` (every present alias is consumed).
+        """
+        # (ts, -idx, name, value): newest ts wins; ties keep the FIRST-listed name.
+        cands: list[tuple[float, int, str, str]] = []
+        for idx, n in enumerate(names):
+            if n not in fields:
+                continue
+            val = fields[n]
+            if _is_sentinel(n, val):
+                used.add(n)
+                for other in syn.get(n, frozenset()):
+                    if other in fields:
+                        used.add(other)
+                continue
+            used.add(n)
+            for other in syn.get(n, frozenset()):
+                if other in fields:
+                    used.add(other)
+            ts = (field_ts or {}).get(n)
+            cands.append((ts if ts is not None else float("-inf"), -idx, n, val))
+        if not cands:
+            return None
+        cands.sort(reverse=True)
+        best = cands[0]
+        # #465 diagnostic trace: when candidates DISAGREE, log each name/value/ts
+        # and the selected one so a reporter can confirm the resolution. Field
+        # names + SoC integers + capture times carry no PII.
+        if len({c[3] for c in cands}) > 1:
+            _LOGGER.debug(
+                "EU Data Act freshness-resolved field: candidates=%s selected=%s=%s",
+                [(c[2], c[3], None if c[0] == float("-inf") else c[0]) for c in cands],
+                best[2], best[3],
+            )
+        return best[3]
+
+    # #465 — SoC is the one field observed to ship under disagreeing aliases
+    # (a stale 57 vs the fresh 81); resolve it by capture time, not list order.
+    soc = _to_int(first_freshest("battery_state_report.soc", "soc", "stateOfChargeInPercent",
                         "state_of_charge",
                         # b13 (#504) — legacy Car-Net charger dialect: the HV
                         # battery level IS the traction SoC. Kept LAST so the
