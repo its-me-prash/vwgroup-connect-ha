@@ -190,6 +190,7 @@
         "data": {
           "scan_interval": "Päivitysväli",
           "spin": "S-PIN",
+          "battery_nominal_kwh": "Akun nimelliskapasiteetti (kWh, SoH-laskentaan)",
           "enable_reverse_geocoding": "Käänteinen geokoodaus (pysäköintiosoite)",
           "read_only_mode": "Vain luku -tila",
           "companion_read_charge_detail": "Companion: lue lataustavoite (navigoi sovelluksessa)",
@@ -916,6 +917,9 @@
       "battery_cap_kwh": {
         "name": "Akun kapasiteetti (energia)"
       },
+      "battery_soh_pct": {
+        "name": "Akun kunto (SoH)"
+      },
       "trip_total_cost": {
         "name": "Matkan kokonaiskustannus"
       },
@@ -1115,28 +1119,28 @@
         "name": "Kaksisuuntaisen latauksen vähimmäisvaraus"
       },
       "bidi_energy_used": {
-        "name": "Bidirectional energy used"
+        "name": "Kaksisuuntaisesti käytetty energia"
       },
       "bidi_energy_used_threshold": {
-        "name": "Bidirectional energy used limit"
+        "name": "Kaksisuuntaisesti käytetyn energian raja"
       },
       "bidi_cycles": {
-        "name": "Bidirectional charging cycles"
+        "name": "Kaksisuuntaiset lataussyklit"
       },
       "bidi_cycles_threshold": {
-        "name": "Bidirectional charging cycles limit"
+        "name": "Kaksisuuntaisten lataussyklien raja"
       },
       "bidi_operating_hours": {
-        "name": "Bidirectional operating hours"
+        "name": "Kaksisuuntaiset käyttötunnit"
       },
       "bidi_operating_hours_threshold": {
-        "name": "Bidirectional operating hours limit"
+        "name": "Kaksisuuntaisten käyttötuntien raja"
       },
       "bidi_quota": {
-        "name": "Bidirectional charging quota"
+        "name": "Kaksisuuntainen latauskiintiö"
       },
       "bidi_quota_threshold": {
-        "name": "Bidirectional charging quota limit"
+        "name": "Kaksisuuntaisen latauskiintiön raja"
       },
       "sunroof_position_pct": {
         "name": "Kattoluukun asento"
@@ -1716,6 +1720,10 @@
     "meb_commands_unavailable": {
       "title": "Etäkomennot eivät ole käytettävissä tälle autolle ({brand})",
       "description": "Otit MBB-etäkomennot käyttöön määrittäessäsi merkkiä {brand}, mutta tämä on MEB- / ID-perheen auto (ID.3/4/5/7, Enyaq, Born, Q4). VW:n MEB-taustajärjestelmä ei tue pysyvää Car-Net-komentopolkua — pysyvä kirjautuminen vastasi \"Unknown user\" — joten lukitus-, ilmastointi- ja latauskomentoja ei voi lähettää.\n\nMerkintä säilytettiin **vain luku -tilassa**: ajoneuvon tiedot kulkevat edelleen EU Data Act -portaalin kautta, et vain näe komentoentiteettejä. Tämä on VW:n MEB-alustan tunnettu rajoitus, ei määritysvirhe — voit ohittaa tämän ilmoituksen."
+    },
+    "refresh_interval_too_frequent": {
+      "title": "{brand}: päivitysväli liian tiheä",
+      "description": "{brand} antaa lyhytikäisiä pääsytunnuksia, joten nykyisellä **{current} minuutin** päivitysvälilläsi lähes jokainen kysely joutuu uusimaan tunnuksen. Tämä laukaisee uusimismyrskyn suojan — rajan sille, kuinka usein integraatio saa uusia tunnuksen, joka estää merkkitilin lukkiutumisen — ja tietojen päivittyminen pysähtyy, kunnes suoja nollautuu.\n\nKyseessä on kyselytiheyden ongelma, ei kirjautumisongelma: uudelleentodennus ei korjaa tätä.\n\n**Korjaus:** nosta päivitysväli arvoon **{recommended} minuuttia** tai suuremmaksi kohdassa Asetukset → Laitteet ja palvelut → VW Group Connect → Määritä. Näin tunnusten uusimiset pysyvät rajan alapuolella ja tiedot päivittyvät edelleen.\n\nTämä varoitus poistuu automaattisesti heti, kun tunnuksen uusiminen onnistuu seuraavan kerran."
     }
   },
   "services": {

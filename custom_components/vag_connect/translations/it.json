@@ -190,6 +190,7 @@
         "data": {
           "scan_interval": "Intervallo di aggiornamento",
           "spin": "S-PIN",
+          "battery_nominal_kwh": "Capacità nominale della batteria (kWh, per lo stato di salute)",
           "enable_reverse_geocoding": "Geocodifica inversa (indirizzo di parcheggio)",
           "read_only_mode": "Modalità sola lettura",
           "companion_read_charge_detail": "Companion: leggi l'obiettivo di ricarica (naviga nell'app)",
@@ -916,6 +917,9 @@
       "battery_cap_kwh": {
         "name": "Capacità batteria (energia)"
       },
+      "battery_soh_pct": {
+        "name": "Salute batteria (State of Health)"
+      },
       "trip_total_cost": {
         "name": "Costo totale viaggio"
       },
@@ -1115,28 +1119,28 @@
         "name": "Livello minimo di carica ricarica bidirezionale"
       },
       "bidi_energy_used": {
-        "name": "Bidirectional energy used"
+        "name": "Energia bidirezionale utilizzata"
       },
       "bidi_energy_used_threshold": {
-        "name": "Bidirectional energy used limit"
+        "name": "Limite energia bidirezionale utilizzata"
       },
       "bidi_cycles": {
-        "name": "Bidirectional charging cycles"
+        "name": "Cicli di ricarica bidirezionale"
       },
       "bidi_cycles_threshold": {
-        "name": "Bidirectional charging cycles limit"
+        "name": "Limite cicli di ricarica bidirezionale"
       },
       "bidi_operating_hours": {
-        "name": "Bidirectional operating hours"
+        "name": "Ore di funzionamento bidirezionale"
       },
       "bidi_operating_hours_threshold": {
-        "name": "Bidirectional operating hours limit"
+        "name": "Limite ore di funzionamento bidirezionale"
       },
       "bidi_quota": {
-        "name": "Bidirectional charging quota"
+        "name": "Quota di ricarica bidirezionale"
       },
       "bidi_quota_threshold": {
-        "name": "Bidirectional charging quota limit"
+        "name": "Limite quota di ricarica bidirezionale"
       },
       "sunroof_position_pct": {
         "name": "Posizione tetto apribile"
@@ -1716,6 +1720,10 @@
     "meb_commands_unavailable": {
       "title": "I comandi remoti non sono disponibili per questa auto ({brand})",
       "description": "Hai abilitato i comandi remoti MBB durante la configurazione di {brand}, ma questa è un'auto della famiglia MEB / ID (ID.3/4/5/7, Enyaq, Born, Q4). Il backend MEB di VW non supporta il percorso duraturo dei comandi Car-Net — il login duraturo ha risposto \"Unknown user\" — quindi non è possibile inviare i comandi di chiusura, clima e ricarica.\n\nLa voce è stata mantenuta **in sola lettura**: i dati del veicolo continuano a fluire attraverso il portale EU Data Act, semplicemente non vedrai le entità di comando. Questa è una limitazione nota della piattaforma MEB di VW, non un errore di configurazione — puoi ignorare questo avviso."
+    },
+    "refresh_interval_too_frequent": {
+      "title": "{brand}: intervallo di aggiornamento troppo frequente",
+      "description": "{brand} emette token di accesso di breve durata, quindi con l'attuale intervallo di aggiornamento di **{current} minuti** quasi ogni interrogazione deve rinnovare il token. Questo fa scattare la protezione anti-tempesta di rinnovi — un limite sulla frequenza con cui l'integrazione può rinnovare il token, pensato per evitare che l'account del marchio venga bloccato — e i dati smettono di aggiornarsi finché la protezione non si reimposta.\n\nÈ un problema di frequenza di interrogazione, non un problema di accesso: ri-autenticarsi non lo risolverà.\n\n**La soluzione:** aumenta l'intervallo di aggiornamento a **{recommended} minuti** o più in Impostazioni → Dispositivi e servizi → VW Group Connect → Configura. In questo modo i rinnovi dei token restano sotto il limite e i dati continuano ad arrivare.\n\nQuesto avviso scompare automaticamente la prima volta che un rinnovo del token riesce di nuovo."
     }
   },
   "services": {

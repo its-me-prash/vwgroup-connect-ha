@@ -190,6 +190,7 @@
         "data": {
           "scan_interval": "Oppdateringsintervall",
           "spin": "S-PIN",
+          "battery_nominal_kwh": "Nominell batterikapasitet (kWh, for helsetilstand)",
           "enable_reverse_geocoding": "Omvendt geokoding (parkeringsadresse)",
           "read_only_mode": "Skrivebeskyttet modus",
           "companion_read_charge_detail": "Companion: les lademål (navigerer i appen)",
@@ -916,6 +917,9 @@
       "battery_cap_kwh": {
         "name": "Batterikapasitet (energi)"
       },
+      "battery_soh_pct": {
+        "name": "Batterihelse (helsetilstand)"
+      },
       "trip_total_cost": {
         "name": "Total turkostnad"
       },
@@ -1115,28 +1119,28 @@
         "name": "Bidireksjonell lading, min. ladenivå"
       },
       "bidi_energy_used": {
-        "name": "Bidirectional energy used"
+        "name": "Brukt toveisenergi"
       },
       "bidi_energy_used_threshold": {
-        "name": "Bidirectional energy used limit"
+        "name": "Grense for brukt toveisenergi"
       },
       "bidi_cycles": {
-        "name": "Bidirectional charging cycles"
+        "name": "Toveis ladesykluser"
       },
       "bidi_cycles_threshold": {
-        "name": "Bidirectional charging cycles limit"
+        "name": "Grense for toveis ladesykluser"
       },
       "bidi_operating_hours": {
-        "name": "Bidirectional operating hours"
+        "name": "Toveis driftstimer"
       },
       "bidi_operating_hours_threshold": {
-        "name": "Bidirectional operating hours limit"
+        "name": "Grense for toveis driftstimer"
       },
       "bidi_quota": {
-        "name": "Bidirectional charging quota"
+        "name": "Toveis ladekvote"
       },
       "bidi_quota_threshold": {
-        "name": "Bidirectional charging quota limit"
+        "name": "Grense for toveis ladekvote"
       },
       "sunroof_position_pct": {
         "name": "Soltakposisjon"
@@ -1582,7 +1586,7 @@
         "name": "Lademodus",
         "state": {
           "manual": "Manuell",
-          "timer": "Timer",
+          "timer": "Tidsur",
           "preferred_charging_times": "Foretrukne ladetider",
           "only_own_current": "Kun egen strøm",
           "immediate_discharging": "Lad ut nå",
@@ -1716,6 +1720,10 @@
     "meb_commands_unavailable": {
       "title": "Fjernkommandoer er ikke tilgjengelige for denne bilen ({brand})",
       "description": "Du aktiverte MBB-fjernkommandoer da du satte opp {brand}, men dette er en MEB- / ID-familiebil (ID.3/4/5/7, Enyaq, Born, Q4). VWs MEB-baksystem støtter ikke den varige Car-Net-kommandobanen — den varige påloggingen svarte «Unknown user» — så kommandoer for låsing, klima og lading kan ikke sendes.\n\nOppføringen ble holdt **skrivebeskyttet**: kjøretøydata flyter fortsatt gjennom EU Data Act-portalen, du får bare ikke se kommandoentiteter. Dette er en kjent begrensning i VWs MEB-plattform, ikke en oppsettsfeil — du kan avvise dette varselet."
+    },
+    "refresh_interval_too_frequent": {
+      "title": "{brand}: oppdateringsintervall for hyppig",
+      "description": "{brand} utsteder kortvarige tilgangstokener, så med ditt nåværende oppdateringsintervall på **{current} minutter** må nesten hver spørring fornye tokenet. Det utløser vernet mot fornyelsesstorm — en grense for hvor ofte integrasjonen kan fornye, som finnes for å hindre at merkekontoen blir låst — og dataene slutter å oppdateres til vernet nullstilles.\n\nDette er et problem med spørringsfrekvensen, ikke et innloggingsproblem: å autentisere på nytt løser det ikke.\n\n**Løsningen:** øk oppdateringsintervallet til **{recommended} minutter** eller mer under Innstillinger → Enheter og tjenester → VW Group Connect → Konfigurer. Da holdes tokenfornyelsene under grensen og dataene fortsetter å flyte.\n\nDenne advarselen fjernes automatisk første gang en tokenfornyelse lykkes igjen."
     }
   },
   "services": {

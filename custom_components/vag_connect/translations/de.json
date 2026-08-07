@@ -135,7 +135,7 @@
       },
       "companion_adb": {
         "title": "Companion phone (ADB) — experimental",
-        "description": "Read and control your car by driving the official app on a spare Android phone over ADB. This is EXPERIMENTAL and opt-in. You need a second phone that stays signed into the brand app, with ADB over Wi-Fi enabled. An older phone (Android 10 or earlier) connects here directly; a modern phone (Android 11+, wireless debugging) needs the 'VW Group App ADB Bridge' add-on, which you then point this at. Volkswagen is verified; the other brands are read-only for now until a screen map from a real device is confirmed. Nothing is rooted and no app tokens are read — the integration only reads the screen and taps buttons.",
+        "description": "Lies dein Auto aus und steuere es, indem die offizielle App auf einem übrigen Android-Telefon per ADB bedient wird. Das ist EXPERIMENTELL und optional (Opt-in). Du brauchst ein zweites Telefon, das in der Marken-App angemeldet bleibt und bei dem ADB über Wi-Fi aktiviert ist. Ein älteres Telefon (Android 10 oder älter) verbindet sich hier direkt; ein modernes Telefon (Android 11+, kabelloses Debugging) benötigt das Add-on 'VW Group App ADB Bridge', auf das du dann hier verweist. Volkswagen ist verifiziert; die anderen Marken sind vorerst nur lesend, bis eine Bildschirm-Zuordnung von einem echten Gerät bestätigt ist. Nichts wird gerootet und es werden keine App-Tokens gelesen — die Integration liest nur den Bildschirm und tippt auf Schaltflächen.",
         "data": {
           "brand": "Vehicle brand",
           "adb_host": "Phone IP address",
@@ -168,7 +168,7 @@
       "brand_not_dag_eligible": "Diese Marke unterstützt kein Browser-Login. Nutze stattdessen E-Mail + Passwort.",
       "still_waiting_browser": "Warte noch auf die Browser-Bestätigung. Öffne die URL oben, melde dich an, bestätige den Code und klick dann nochmal auf Senden.",
       "companion_cannot_connect": "Could not reach the phone over ADB. Check it is on the network, that ADB over Wi-Fi is on, and that you accepted the debugging prompt.",
-      "companion_needs_addon": "This looks like an Android 11+ phone using wireless debugging, which the direct connection here cannot use (it is TLS + pairing). Install the 'VW Group App ADB Bridge' add-on (github.com/its-me-prash/vwgroup-app-adb-bridge) and point the companion at it. Older phones (Android 10 or earlier) connect here directly.",
+      "companion_needs_addon": "Das sieht nach einem Android-11+-Telefon mit kabellosem Debugging aus, das die direkte Verbindung hier nicht nutzen kann (sie läuft über TLS + Pairing). Installiere das Add-on 'VW Group App ADB Bridge' (github.com/its-me-prash/vwgroup-app-adb-bridge) und verweise den Companion darauf. Ältere Telefone (Android 10 oder älter) verbinden sich hier direkt.",
       "companion_app_not_found": "Connected to the phone, but the brand app is not installed on it.",
       "companion_unknown_brand": "That brand has no companion preset yet."
     },
@@ -190,6 +190,7 @@
         "data": {
           "scan_interval": "Aktualisierungsintervall (Minuten)",
           "spin": "S-PIN",
+          "battery_nominal_kwh": "Netto-Nennkapazität der Batterie (kWh, für Batteriezustand)",
           "enable_reverse_geocoding": "Adress-Auflösung (Parkposition)",
           "force_ppe_climate": "Audi PPE/PPC Klima-Body (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
           "enable_push_mqtt": "Skoda Push-Updates (MQTT, EXPERIMENTELL)",
@@ -915,6 +916,9 @@
       },
       "battery_cap_kwh": {
         "name": "Batteriekapazität (Energie)"
+      },
+      "battery_soh_pct": {
+        "name": "Batteriezustand (SoH)"
       },
       "trip_total_cost": {
         "name": "Fahrtkosten gesamt"
@@ -1716,6 +1720,10 @@
     "meb_commands_unavailable": {
       "title": "Fernbefehle sind für dieses Auto nicht verfügbar ({brand})",
       "description": "Du hast beim Einrichten von {brand} MBB-Fernbefehle aktiviert, aber das ist ein MEB-/ID-Fahrzeug (ID.3/4/5/7, Enyaq, Born, Q4). VWs MEB-Backend unterstützt den durablen Car-Net-Befehlspfad nicht — der durable Login antwortete „Unknown user“ — daher lassen sich Sperren, Klima und Laden nicht senden.\n\nDer Eintrag bleibt **read-only**: Fahrzeugdaten kommen weiter über das EU-Data-Act-Portal, du siehst nur keine Befehls-Entities. Das ist eine bekannte Einschränkung von VWs MEB-Plattform, kein Setup-Fehler — du kannst diesen Hinweis schließen."
+    },
+    "refresh_interval_too_frequent": {
+      "title": "{brand}: Aktualisierungsintervall zu häufig",
+      "description": "{brand} gibt nur kurzlebige Zugriffstokens aus, sodass bei deinem aktuellen Aktualisierungsintervall von **{current} Minuten** fast jede Abfrage das Token erneuern muss. Das löst den Schutz gegen Erneuerungs-Stürme aus — eine Obergrenze, wie oft die Integration erneuern darf, die verhindert, dass das Markenkonto gesperrt wird — und die Daten werden nicht mehr aktualisiert, bis der Schutz zurückgesetzt ist.\n\nDas ist ein Problem der Abfragehäufigkeit, kein Anmeldeproblem: Eine erneute Authentifizierung behebt es nicht.\n\n**Die Lösung:** Erhöhe das Aktualisierungsintervall auf **{recommended} Minuten** oder mehr unter Einstellungen → Geräte & Dienste → VW Group Connect → Konfigurieren. So bleiben die Token-Erneuerungen unter dem Limit und die Daten fließen weiter.\n\nDiese Warnung verschwindet automatisch, sobald eine Token-Erneuerung wieder erfolgreich ist."
     }
   },
   "selector": {

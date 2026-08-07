@@ -2697,6 +2697,21 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         suggested_display_precision=1,
     ),
+    # Battery State of Health (%). Only produced when the user set the car's
+    # nameplate net capacity in the options (CONF_BATTERY_NOMINAL_KWH) -- VW ships
+    # no SoH field, so we never guess it. Disabled by default: the user opts in by
+    # enabling this + supplying the nominal, then it reads current-max / nominal.
+    VagSensorDescription(
+        key="battery_soh_pct",
+        translation_key="battery_soh_pct",
+        data_key="battery_soh_pct",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery-heart-variant",
+        condition="electric",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
 
     # v2.15.3 — Skoda trip-cost breakdown (parsed in skoda.py, previously
     # unsurfaced). Currency is dynamic (per account) so it lives in
@@ -3687,6 +3702,18 @@ class VagConnectSensor(VagConnectEntity, SensorEntity):
             raw = self._vehicle.get("raw_unmapped_fields")
             if isinstance(raw, dict) and raw:
                 return json_safe_dict({"fields": raw})
+        # Move 1 / data-quality — surface the ambiguous-reading signal we already
+        # compute (two portal samples with the SAME car_captured_time but
+        # different values, recorded by _walk_fields as contested_fields) on the
+        # data-provenance diagnostic sensor. Portal rivals (TommiG1) expose a bare
+        # ``ambiguous_reading: true``; ours names each field and the values that
+        # tied, so a user can see exactly which reading was uncertain this cycle.
+        # Only present when a genuine tie occurred, so it never bloats the
+        # recorder on a clean poll.
+        if self.entity_description.key == "data_source_channel":
+            contested = self._vehicle.get("contested_fields")
+            if isinstance(contested, dict) and contested:
+                return json_safe_dict({"contested_fields": contested})
         # v2.15.3 — Skoda trip-cost sensors carry the (dynamic) ISO currency
         # code as an attribute, since device_class=MONETARY would force a fixed
         # native currency unit we don't know ahead of time.

@@ -169,6 +169,85 @@ def _bff_status_for(pend: Any, request_id: str) -> str | None:
     return None
 
 
+# #442 — per-profile / per-location charging target SoC for VW EU + Audi.
+# Field names below are grounded in We Connect 4.2.1 (androguard string dump of
+# the Moshi model classes: ChargingProfile(id=...), targetSOC_pct /
+# targetStateOfChargePercent, options.autoUnlockPlugWhenCharged, and the GPS
+# pointer vehiclePositionedInProfileID). The exact live nesting varies by
+# firmware, so both helpers are defensive: every known spelling is tried and
+# anything absent is skipped -- a shape we have not seen never raises and never
+# fabricates a value.
+_CP_TARGET_SOC_KEYS: tuple[str, ...] = (
+    "targetSOC_pct", "targetStateOfChargePercent", "targetStateOfChargePercentage",
+    "targetStateOfChargeInPercent", "targetSoc", "targetSOC",
+)
+
+
+def _bff_profile_target_soc(p: dict[str, Any]) -> int | None:
+    """A single profile's target SoC (%), tried at the profile level and under a
+    nested ``options`` / ``settings`` block."""
+    for src in (p, p.get("options"), p.get("settings")):
+        if not isinstance(src, dict):
+            continue
+        for key in _CP_TARGET_SOC_KEYS:
+            val = src.get(key)
+            if isinstance(val, bool):
+                continue
+            if isinstance(val, (int, float)):
+                return int(val)
+    return None
+
+
+def _parse_bff_charging_profiles(value: Any) -> dict[str, Any]:
+    """Parse the CARIAD-BFF charging-profiles block into the SAME shape the
+    Skoda/SEAT/CUPRA path produces, so the existing per-profile entities light up
+    for VW EU / Audi too (#442). Returns ``{}`` on any unusable shape so callers
+    keep their stale cache. Pure function -- safe to test in isolation."""
+    out: dict[str, Any] = {}
+    if not isinstance(value, dict):
+        return out
+    raw_profiles = value.get("chargingProfiles")
+    if not isinstance(raw_profiles, list):
+        raw_profiles = value.get("profiles")
+    if not isinstance(raw_profiles, list):
+        return out
+    flat: list[dict[str, Any]] = []
+    for p in raw_profiles:
+        if not isinstance(p, dict):
+            continue
+        pid = p.get("id")
+        if pid is None:
+            pid = p.get("profileId") or p.get("profileID")
+        opts = p.get("options")
+        opts = opts if isinstance(opts, dict) else {}
+        flat.append({
+            "id": pid,
+            "name": p.get("name") or p.get("profileName"),
+            "target_soc_pct": _bff_profile_target_soc(p),
+            "max_charging_current": p.get("maxChargingCurrent")
+            or opts.get("maxChargingCurrent"),
+        })
+    if not flat:
+        return out
+    out["charging_profiles"] = flat
+    out["charging_profiles_count"] = len(flat)
+    # Active profile: prefer the backend's GPS-derived "which profile is the car
+    # parked in" pointer (mirrors Skoda's currentVehiclePositionProfile), else the
+    # explicitly-active id. Surfacing its target SoC is the #442 payoff.
+    active_id = value.get("vehiclePositionedInProfileID")
+    if active_id is None:
+        active_id = value.get("activeProfileId")
+    if active_id is not None:
+        for entry in flat:
+            if entry.get("id") is not None and str(entry["id"]) == str(active_id):
+                if entry.get("target_soc_pct") is not None:
+                    out["active_charging_profile_target_soc_pct"] = entry["target_soc_pct"]
+                if entry.get("name"):
+                    out["active_charging_profile_name"] = entry["name"]
+                break
+    return out
+
+
 class VWEUClient(CariadBaseClient):
     """VW EU / WeConnect client — emea.bff.cariad.digital.
 
@@ -2959,6 +3038,24 @@ class VWEUClient(CariadBaseClient):
         profiles_pending = v(raw, "automation", "chargingProfiles", "requests")
         if isinstance(profiles_pending, list):
             d.charging_profiles_pending = len(profiles_pending)
+
+        # #442 — parse the profile LIST (not just the queued-change count above)
+        # so the per-location target-SoC entities, which only lit up for
+        # SEAT/CUPRA until now, populate for VW EU / Audi too. Try both firmware
+        # container spellings; the defensive helper skips shapes we have not seen.
+        cp_value = v(raw, "automation", "chargingProfiles", "value")
+        if not isinstance(cp_value, dict):
+            cp_value = v(raw, "chargingProfiles", "chargingProfilesStatus", "value")
+        parsed_cp = _parse_bff_charging_profiles(cp_value)
+        if parsed_cp.get("charging_profiles"):
+            d.charging_profiles = parsed_cp["charging_profiles"]
+            d.charging_profiles_count = parsed_cp.get("charging_profiles_count")
+            _cp_soc = parsed_cp.get("active_charging_profile_target_soc_pct")
+            if _cp_soc is not None:
+                d.active_charging_profile_target_soc_pct = _cp_soc
+            _cp_name = parsed_cp.get("active_charging_profile_name")
+            if _cp_name:
+                d.active_charging_profile_name = _cp_name
 
         # v2.18.0 — Scout #801: queued climate-TIMER schedule changes (distinct
         # from climatisation start/stop, which is climatisationStatus.requests).

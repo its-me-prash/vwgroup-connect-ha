@@ -5,9 +5,9 @@
         "title": "Konfigurera VW Group Connect",
         "description": "Anslut ditt fordon till Home Assistant.\n\nVälj ditt märke och ange inloggningsuppgifterna från tillverkarens app.",
         "menu_options": {
-          "browser_login": "Browser-Login (recommended)",
-          "email_password": "Email + Password (legacy)",
-          "website_authproxy": "Volkswagen.de website (beta — read-only)",
+          "browser_login": "Webbläsarinloggning (rekommenderas)",
+          "email_password": "E-post + lösenord (äldre metod)",
+          "website_authproxy": "Volkswagen.de-webbplats (beta — skrivskyddad)",
           "mbb_login": "Volkswagen EU — Varaktig inloggning (MBB, tvåvägs-alfa)"
         }
       },
@@ -26,27 +26,27 @@
         }
       },
       "website_authproxy": {
-        "title": "Volkswagen.de website (BETA, read-only)",
+        "title": "Volkswagen.de-webbplats (BETA, skrivskyddad)",
         "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next. **Krav:** ditt Volkswagen ID måste vara fordonets huvudanvändare — bekräfta din identitet en gång på volkswagen.de (myVolkswagen → ditt fordon). Utan detta returnerar webbplatsen inga fordonsdata.",
         "data": {
-          "username": "Email Address",
-          "password": "Password",
-          "scan_interval": "Update Interval"
+          "username": "E-postadress",
+          "password": "Lösenord",
+          "scan_interval": "Uppdateringsintervall"
         },
         "data_description": {
-          "username": "The email of your Volkswagen ID / myVolkswagen account.",
-          "password": "Your Volkswagen ID password.",
-          "scan_interval": "How often data is fetched (minutes). Minimum: 5."
+          "username": "E-postadressen för ditt Volkswagen ID-/myVolkswagen-konto.",
+          "password": "Ditt Volkswagen ID-lösenord.",
+          "scan_interval": "Hur ofta data hämtas (minuter). Minst: 5."
         }
       },
       "website_authproxy_otp": {
-        "title": "Email verification code",
-        "description": "A verification code was sent to the email for **{username}**.\n\nEnter the code to finish signing in to the Volkswagen.de website (beta) channel.",
+        "title": "Verifieringskod via e-post",
+        "description": "En verifieringskod skickades till e-postadressen för **{username}**.\n\nAnge koden för att slutföra inloggningen till kanalen för Volkswagen.de-webbplatsen (beta).",
         "data": {
-          "mfa_code": "Verification Code"
+          "mfa_code": "Verifieringskod"
         },
         "data_description": {
-          "mfa_code": "Code from your email inbox — valid for a few minutes."
+          "mfa_code": "Kod från din inkorg — giltig i några minuter."
         }
       },
       "reauth_confirm": {
@@ -80,32 +80,32 @@
         }
       },
       "email_password": {
-        "title": "Sign in with email + password (legacy)",
-        "description": "Connect your vehicle to Home Assistant.\n\nChoose your brand and enter the credentials from your manufacturer's app.",
+        "title": "Logga in med e-post + lösenord (äldre metod)",
+        "description": "Anslut ditt fordon till Home Assistant.\n\nVälj ditt märke och ange inloggningsuppgifterna från tillverkarens app.",
         "data": {
-          "brand": "Vehicle Brand",
-          "username": "Email Address",
-          "password": "Password",
+          "brand": "Fordonsmärke",
+          "username": "E-postadress",
+          "password": "Lösenord",
           "spin": "S-PIN",
           "country": "Region (endast Volkswagen USA/Kanada)",
-          "scan_interval": "Update Interval",
+          "scan_interval": "Uppdateringsintervall",
           "enable_mbb_commands": "Aktivera MBB-fjärrkommandon (endast Volkswagen — QR-bekräftelse)"
         },
         "data_description": {
-          "brand": "Choose your brand — myAudi, WeConnect ID, MyŠkoda, SEAT, CUPRA, VW US/CA or Porsche.",
-          "username": "Email address from the manufacturer app.",
-          "password": "Password from the app.",
-          "spin": "Only needed for locking. App → Security → S-PIN.",
-          "scan_interval": "How often data is fetched. Default: 5 min. Minimum: 3 min."
+          "brand": "Välj ditt märke — myAudi, WeConnect ID, MyŠkoda, SEAT, CUPRA, VW US/CA eller Porsche.",
+          "username": "E-postadress från tillverkarens app.",
+          "password": "Lösenord från appen.",
+          "spin": "Behövs bara för låsning. App → Säkerhet → S-PIN.",
+          "scan_interval": "Hur ofta data hämtas. Standard: 5 min. Minst: 3 min."
         }
       },
       "browser_login": {
-        "title": "Browser-Login — choose your brand",
-        "description": "Pick the brand of the vehicle you want to connect. On the next screen you will see a short code and a URL to visit on any device with a browser.",
+        "title": "Webbläsarinloggning — välj ditt märke",
+        "description": "Välj märket på fordonet du vill ansluta. På nästa skärm ser du en kort kod och en URL att besöka på valfri enhet med webbläsare.",
         "data": {
-          "brand": "Vehicle Brand",
+          "brand": "Fordonsmärke",
           "spin": "S-PIN",
-          "scan_interval": "Update Interval"
+          "scan_interval": "Uppdateringsintervall"
         },
         "data_description": {
           "brand": "Endast märken med stöd för webbläsarinloggning visas. Använd 'E-post + lösenord' för Volkswagen EU och Porsche.",
@@ -114,23 +114,23 @@
         }
       },
       "browser_login_pending": {
-        "title": "Requesting login code…",
-        "description": "Asking the IDP for a one-time device code."
+        "title": "Begär inloggningskod…",
+        "description": "Ber IDP om en engångskod för enheten."
       },
       "browser_login_approve": {
-        "title": "Approve in your browser",
-        "description": "Scan the QR code with your phone, or open the URL on any device. Sign in to your Brand ID account if asked, confirm the code, then check the box below and click Submit.",
+        "title": "Godkänn i din webbläsare",
+        "description": "Skanna QR-koden med din telefon, eller öppna URL:en på valfri enhet. Logga in på ditt Brand ID-konto om du blir ombedd, bekräfta koden, kryssa sedan i rutan nedan och klicka på Skicka.",
         "data": {
-          "qr_code": "Scan with phone camera to open login page",
-          "verification_url": "Or open this URL in any browser",
-          "user_code": "Code to confirm in the browser",
-          "approved_in_browser": "I have approved in the browser"
+          "qr_code": "Skanna med telefonkameran för att öppna inloggningssidan",
+          "verification_url": "Eller öppna denna URL i valfri webbläsare",
+          "user_code": "Kod att bekräfta i webbläsaren",
+          "approved_in_browser": "Jag har godkänt i webbläsaren"
         },
         "data_description": {
-          "qr_code": "Point your phone camera at the QR code. The login page opens in your phone browser pre-filled with the code below.",
-          "verification_url": "If you can't scan: copy this link, open it on any device, sign in to your Brand ID account.",
-          "user_code": "After signing in, confirm this code in the browser to approve Home Assistant.",
-          "approved_in_browser": "Leave checked. Click Submit only after you have signed in and confirmed the code in the browser."
+          "qr_code": "Rikta telefonkameran mot QR-koden. Inloggningssidan öppnas i telefonens webbläsare, förifylld med koden nedan.",
+          "verification_url": "Om du inte kan skanna: kopiera länken, öppna den på valfri enhet och logga in på ditt Brand ID-konto.",
+          "user_code": "Efter inloggningen bekräftar du denna kod i webbläsaren för att godkänna Home Assistant.",
+          "approved_in_browser": "Låt rutan vara ikryssad. Klicka på Skicka först när du har loggat in och bekräftat koden i webbläsaren."
         }
       },
       "companion_adb": {
@@ -165,8 +165,8 @@
       "invalid_credentials": "Felaktig e-postadress eller lösenord.",
       "portal_interaction_required": "EU Data Act-portalen kräver en engångsåtgärd i din webbläsare eller varumärkesapp (t.ex. godkänna villkor, bekräfta samtycke, slutföra onboarding/regionval) innan huvudlös åtkomst fungerar. Detta är INTE ett lösenordsproblem — öppna portalen en gång i en webbläsare, slutför uppmaningen och försök igen.",
       "upstream_unavailable": "VW backend tillfälligt otillgänglig. Detta är ett serverproblem hos VW, INTE ett autentiseringsfel. Vänta 5–15 minuter och försök igen. Konfigurera INTE om integrationen.",
-      "brand_not_dag_eligible": "Selected brand does not support browser login. Use the email + password flow instead.",
-      "still_waiting_browser": "Still waiting for browser approval. Open the URL above, sign in, confirm the code, then click Submit again.",
+      "brand_not_dag_eligible": "Det valda märket stöder inte webbläsarinloggning. Använd flödet för e-post + lösenord i stället.",
+      "still_waiting_browser": "Väntar fortfarande på godkännande i webbläsaren. Öppna URL:en ovan, logga in, bekräfta koden och klicka sedan på Skicka igen.",
       "companion_cannot_connect": "Could not reach the phone over ADB. Check it is on the network, that ADB over Wi-Fi is on, and that you accepted the debugging prompt.",
       "companion_needs_addon": "Det här ser ut som en telefon med Android 11 eller nyare som använder trådlös felsökning, vilket den direkta anslutningen här inte klarar (den bygger på TLS och parkoppling). Installera tillägget 'VW Group App ADB Bridge' (github.com/its-me-prash/vwgroup-app-adb-bridge) och peka companion-anslutningen mot tillägget. Äldre telefoner (Android 10 eller tidigare) ansluter direkt här.",
       "companion_app_not_found": "Connected to the phone, but the brand app is not installed on it.",
@@ -179,8 +179,8 @@
       "mbb_not_eligible": "Ditt fordon är inte behörigt för den varaktiga MBB-inloggningen — backend returnerade \"Unknown user\". Det är en nyare ID-/MEB-modell (ID.3/4/5, e-up osv.) som aldrig registrerades i det gamla Car-Net/MBB-systemet, så den varaktiga inloggningen och fjärrkommandona når den inte. Använd EU Data Act-portalkanalen (eller e-post + lösenord-inloggningen) för sådana fordon. MBB-inloggningen är för äldre Car-Net-bilar (de flesta laddhybrid-/förbränningsmodeller)."
     },
     "progress": {
-      "awaiting_browser_login": "Open {verification_uri} in any browser, sign in with your Brand ID account, and confirm the code {user_code}.",
-      "requesting_device_code": "Requesting a one-time login code from the IDP…"
+      "awaiting_browser_login": "Öppna {verification_uri} i valfri webbläsare, logga in med ditt Brand ID-konto och bekräfta koden {user_code}.",
+      "requesting_device_code": "Begär en engångsinloggningskod från IDP…"
     }
   },
   "options": {
@@ -190,16 +190,17 @@
         "data": {
           "scan_interval": "Uppdateringsintervall",
           "spin": "S-PIN",
+          "battery_nominal_kwh": "Batteriets märkkapacitet (kWh, för hälsotillstånd)",
           "enable_reverse_geocoding": "Omvänd geokodning (parkeringsadress)",
           "read_only_mode": "Skrivskyddat läge",
           "companion_read_charge_detail": "Companion: läs laddningsmål (navigerar i appen)",
           "companion_wake_sleep": "Companion: väck skärmen för hämtning, släck efteråt",
           "force_ppe_climate": "Audi PPE/PPC klimat-body (Q6/A6 e-tron, RS e-tron GT Facelift, A3 2024+ PHEV)",
-          "enable_push_mqtt": "Skoda push updates (MQTT, EXPERIMENTAL)",
-          "enable_push_fcm": "CUPRA/SEAT push updates (FCM, EXPERIMENTAL)",
+          "enable_push_mqtt": "Skoda push-uppdateringar (MQTT, EXPERIMENTELLT)",
+          "enable_push_fcm": "CUPRA/SEAT push-uppdateringar (FCM, EXPERIMENTELLT)",
           "enable_push_audi_vw": "Audi/VW push updates (Cariad FCM, EXPERIMENTAL)",
-          "client_id_override": "OAuth client_id override (power users)",
-          "eu_data_act_auto_kickoff": "EU Data Act: auto-kickoff Custom Data Request",
+          "client_id_override": "OAuth client_id-åsidosättning (avancerade användare)",
+          "eu_data_act_auto_kickoff": "EU Data Act: starta automatiskt Custom Data Request",
           "supplementary_authproxy": "Lägg till en Volkswagen.de-läskanal (slå samman data)",
           "hide_empty_entities": "Dölj entiteter utan data",
           "supplementary_eu_portal": "Lägg till en EU Data Act-portalläskanal",
@@ -219,38 +220,38 @@
           "companion_read_charge_detail": "Endast Companion (ADB). Läser även laddningsmål, effekt och återstående tid som ligger bakom laddningsdetaljvyn. Detta TRYCKER i appen för att navigera dit (ungefär var 15:e minut), så aktivera det först när du har bekräftat att flödet fungerar på din telefon. Av som standard. Ladda om efter ändring.",
           "companion_wake_sleep": "Endast Companion (ADB). Väcker telefonens skärm före varje hämtning och släcker den igen efteråt, så att en låst eller sovande telefon visar appen under avläsningen utan att skärmen är tänd hela tiden. Av som standard. Ladda om efter ändring.",
           "force_ppe_climate": "Endast Audi. Tvingar det nya PPE/PPC body-formatet (climatisationMode obligatoriskt, targetTemperature utelämnat) vid klimatstart. Aktivera bara om du äger en Q6 e-tron, A6 e-tron, RS e-tron GT Facelift eller A3 2024+ PHEV — annars svarar API:t med 400. Ladda om integrationen efter aktivering.",
-          "enable_push_mqtt": "EXPERIMENTAL: Skoda-only. Enables real-time MQTT push from Skoda mysmob backend (requires aiomqtt + firebase-messaging Python packages — currently lazy-imported, not pre-installed). Foundation phase in v1.18.0; live activation pending community-tester validation. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling.",
-          "enable_push_fcm": "EXPERIMENTAL: CUPRA/SEAT only. Enables real-time Firebase Cloud Messaging push from OLA backend (requires firebase-messaging Python package — same lazy-import as v1.18.0 Skoda MQTT toggle). Foundation phase in v1.19.0; live activation pending community-tester validation. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling.",
+          "enable_push_mqtt": "EXPERIMENTELLT: Endast Skoda. Aktiverar MQTT-push i realtid från Skodas mysmob-backend (kräver Python-paketen aiomqtt + firebase-messaging — importeras för närvarande lazy, inte förinstallerade). Grundläggningsfas i v1.18.0; live-aktivering väntar på validering av community-testare. Om push inte är tillgängligt faller integrationen tyst tillbaka till pollning. Ladda om integrationen efter att du växlat inställningen.",
+          "enable_push_fcm": "EXPERIMENTELLT: Endast CUPRA/SEAT. Aktiverar Firebase Cloud Messaging-push i realtid från OLA-backend (kräver Python-paketet firebase-messaging — samma lazy-import som Skoda MQTT-växlingen i v1.18.0). Grundläggningsfas i v1.19.0; live-aktivering väntar på validering av community-testare. Om push inte är tillgängligt faller integrationen tyst tillbaka till pollning. Ladda om integrationen efter att du växlat inställningen.",
           "enable_push_audi_vw": "EXPERIMENTAL: Audi/VW only. Enables real-time push notifications from Cariad FCM channel (same one myAudi/WeConnect mobile apps use — covers lock/unlock results, charging-state, climate, alarm). Requires firebase-messaging Python package (same as Skoda MQTT + CUPRA/SEAT FCM). Foundation phase in v1.23.0; live activation pending community-tester validation. If push is unavailable, the integration silently falls back to polling. Reload the integration after toggling.",
-          "client_id_override": "Power-user escape hatch for when the community spots a fresh OAuth client_id in a new VW Group APK before our daily atlas builder catches it. Paste the full UUID@apps_vw-dilab_com string here and the resolver tries it FIRST on every authenticate, with all the existing client_ids still in the chain as fallback. Leave empty for default behaviour. Format: 8-4-4-4-12 hex digits followed by @apps_vw-dilab_com. Malformed values are silently ignored.",
-          "eu_data_act_auto_kickoff": "Only meaningful when the integration is operating in read-only EU Data Act portal mode (live BFF strategies have failed). When ON, the coordinator checks for an active 15-min Custom Data Request per VIN at startup and creates one when none exists. The kickoff implies a 1-month data subscription on your account at the portal, so this is opt-in. The portal accepts AT MOST ONE active custom request per VIN at a time. Off by default.",
+          "client_id_override": "Nödutgång för avancerade användare för när communityn upptäcker ett nytt OAuth client_id i en ny VW Group-APK innan vår dagliga atlas-byggare fångar det. Klistra in hela strängen UUID@apps_vw-dilab_com här, så provar resolvern det FÖRST vid varje autentisering, med alla befintliga client_id:n kvar i kedjan som reserv. Lämna tomt för standardbeteende. Format: 8-4-4-4-12 hexadecimala siffror följt av @apps_vw-dilab_com. Felaktiga värden ignoreras tyst.",
+          "eu_data_act_auto_kickoff": "Endast meningsfullt när integrationen körs i skrivskyddat EU Data Act-portalläge (live-BFF-strategier har misslyckats). När den är PÅ kontrollerar koordinatorn vid start om det finns en aktiv 15-minuters Custom Data Request per VIN och skapar en om ingen finns. Igångsättningen innebär en 1-månads dataprenumeration på ditt konto i portalen, så detta är opt-in. Portalen accepterar HÖGST EN aktiv anpassad begäran per VIN åt gången. Av som standard.",
           "abrp_enable": "Skicka livetelemetri till A Better Routeplanner. Kräver en api_key och en token per fordon. Av = inga utgående anrop.",
           "abrp_api_key": "En utvecklar-/partnernyckel som du registrerar hos iternio (vi levererar ingen). Identifierar integrationen. Loggas aldrig.",
           "abrp_user_token": "'Generic'-token från ABRP-appen: Inställningar -> din bil -> Live Data. Loggas aldrig."
         }
       },
       "add_vwde": {
-        "title": "Volkswagen.de website (BETA, read-only)",
+        "title": "Volkswagen.de-webbplats (BETA, skrivskyddad)",
         "description": "**Experimental, opt-in.** Reads your Volkswagen via the volkswagen.de website login instead of the app backend. Volkswagen only, read-only (no remote commands). Sign in with your Volkswagen ID email and password. If your account uses email verification you will be asked for the code next. **Krav:** ditt Volkswagen ID måste vara fordonets huvudanvändare — bekräfta din identitet en gång på volkswagen.de (myVolkswagen → ditt fordon). Utan detta returnerar webbplatsen inga fordonsdata.",
         "data": {
-          "username": "Email Address",
-          "password": "Password",
-          "scan_interval": "Update Interval"
+          "username": "E-postadress",
+          "password": "Lösenord",
+          "scan_interval": "Uppdateringsintervall"
         },
         "data_description": {
-          "username": "The email of your Volkswagen ID / myVolkswagen account.",
-          "password": "Your Volkswagen ID password.",
-          "scan_interval": "How often data is fetched (minutes). Minimum: 5."
+          "username": "E-postadressen för ditt Volkswagen ID-/myVolkswagen-konto.",
+          "password": "Ditt Volkswagen ID-lösenord.",
+          "scan_interval": "Hur ofta data hämtas (minuter). Minst: 5."
         }
       },
       "add_vwde_otp": {
-        "title": "Email verification code",
-        "description": "A verification code was sent to the email for **{username}**.\n\nEnter the code to finish signing in to the Volkswagen.de website (beta) channel.",
+        "title": "Verifieringskod via e-post",
+        "description": "En verifieringskod skickades till e-postadressen för **{username}**.\n\nAnge koden för att slutföra inloggningen till kanalen för Volkswagen.de-webbplatsen (beta).",
         "data": {
-          "mfa_code": "Verification Code"
+          "mfa_code": "Verifieringskod"
         },
         "data_description": {
-          "mfa_code": "Code from your email inbox — valid for a few minutes."
+          "mfa_code": "Kod från din inkorg — giltig i några minuter."
         }
       },
       "add_portal": {
@@ -916,6 +917,9 @@
       "battery_cap_kwh": {
         "name": "Batterikapacitet (energi)"
       },
+      "battery_soh_pct": {
+        "name": "Batterihälsa (hälsotillstånd)"
+      },
       "trip_total_cost": {
         "name": "Total reskostnad"
       },
@@ -1115,28 +1119,28 @@
         "name": "Dubbelriktad laddning min. laddnivå"
       },
       "bidi_energy_used": {
-        "name": "Bidirectional energy used"
+        "name": "Använd bidirektionell energi"
       },
       "bidi_energy_used_threshold": {
-        "name": "Bidirectional energy used limit"
+        "name": "Gräns för använd bidirektionell energi"
       },
       "bidi_cycles": {
-        "name": "Bidirectional charging cycles"
+        "name": "Bidirektionella laddningscykler"
       },
       "bidi_cycles_threshold": {
-        "name": "Bidirectional charging cycles limit"
+        "name": "Gräns för bidirektionella laddningscykler"
       },
       "bidi_operating_hours": {
-        "name": "Bidirectional operating hours"
+        "name": "Bidirektionella drifttimmar"
       },
       "bidi_operating_hours_threshold": {
-        "name": "Bidirectional operating hours limit"
+        "name": "Gräns för bidirektionella drifttimmar"
       },
       "bidi_quota": {
-        "name": "Bidirectional charging quota"
+        "name": "Bidirektionell laddningskvot"
       },
       "bidi_quota_threshold": {
-        "name": "Bidirectional charging quota limit"
+        "name": "Gräns för bidirektionell laddningskvot"
       },
       "sunroof_position_pct": {
         "name": "Soltakets position"
@@ -1674,16 +1678,16 @@
       "description": "Felrapportören fångade **{count}** senaste integrationsfel för {brand}.\n\nAtt rapportera dem hjälper oss hitta buggar som bara uppstår på vissa fordon eller firmware-versioner.\n\n**1-klick-rapport:**\n📤 Klicka på **Läs mer** nedan för att öppna ett förifyllt GitHub-ärende.\n\n**För Facebook / forum:** Inställningar → Enheter → VW Group Connect → Diagnostik → Ladda ner — rapporten ingår, VIN och tokens maskerade.\n\n_Integritet: VIN maskerade, Bearer/JWT/UUID/e-post-tokens borttagna från meddelanden och tracebacks. Inga inloggningsuppgifter._"
     },
     "quota_low": {
-      "title": "API quota low — {remaining} requests remaining today",
-      "description": "Your VAG account is approaching the daily API request limit ({remaining} of {limit} remaining, {pct}%).\n\nTo protect against quota lockout (the manufacturer backend can soft-suspend the account when the daily cap is reached), consider:\n\n1. **Increase the update interval** — Settings → Devices & Services → VW Group Connect → Configure → Update Interval (currently typically 5–10 min)\n2. **Reduce other VAG integrations** running on the same account (each counts against the same quota)\n3. **Wait for daily reset** — usually around midnight in the manufacturer's home time zone\n\nThis warning auto-clears when the remaining count recovers."
+      "title": "Låg API-kvot — {remaining} förfrågningar kvar idag",
+      "description": "Ditt VAG-konto närmar sig den dagliga gränsen för API-förfrågningar ({remaining} av {limit} kvar, {pct}%).\n\nFör att skydda mot kvotlåsning (tillverkarens backend kan tillfälligt stänga av kontot när den dagliga gränsen nås) kan du överväga att:\n\n1. **Öka uppdateringsintervallet** — Inställningar → Enheter och tjänster → VW Group Connect → Konfigurera → Uppdateringsintervall (för närvarande vanligtvis 5–10 min)\n2. **Minska antalet andra VAG-integrationer** som körs på samma konto (var och en räknas mot samma kvot)\n3. **Vänta på den dagliga återställningen** — vanligtvis runt midnatt i tillverkarens hemtidszon\n\nDenna varning försvinner automatiskt när antalet kvarvarande förfrågningar återhämtar sig."
     },
     "quota_critical": {
-      "title": "API quota CRITICAL — {remaining} requests remaining today",
-      "description": "Your VAG account has fewer than 25 API requests remaining today ({remaining} of {limit}, {pct}%). The manufacturer backend may soft-suspend the account if you exhaust the budget.\n\n**Immediate action:**\n1. **Pause polling** — Settings → Devices & Services → VW Group Connect → Configure → Update Interval → set to 30 min or higher\n2. Avoid manual refreshes / vehicle wake-ups until the budget resets\n\nThis warning auto-clears when the remaining count recovers."
+      "title": "API-kvot KRITISK — {remaining} förfrågningar kvar idag",
+      "description": "Ditt VAG-konto har färre än 25 API-förfrågningar kvar idag ({remaining} av {limit}, {pct}%). Tillverkarens backend kan tillfälligt stänga av kontot om du gör slut på budgeten.\n\n**Omedelbar åtgärd:**\n1. **Pausa pollningen** — Inställningar → Enheter och tjänster → VW Group Connect → Konfigurera → Uppdateringsintervall → ställ in på 30 min eller mer\n2. Undvik manuella uppdateringar/väckningar av fordonet tills budgeten återställs\n\nDenna varning försvinner automatiskt när antalet kvarvarande förfrågningar återhämtar sig."
     },
     "account_locked": {
-      "title": "{brand} account appears to be temporarily locked",
-      "description": "The brand backend has returned **3 lock-class auth responses** in the last 30 minutes (most recently HTTP {last_status}). This typically means VW has temporarily blocked the underlying brand account after too many failed token-refresh attempts.\n\nThe lock usually lifts within **a few hours up to 24 hours**. The integration has stopped retrying so the lock window does not extend.\n\n**While you wait**:\n\n1. **Do not** sign in / out of the manufacturer app repeatedly — that extends the lock.\n2. Wait at least 1-2 hours, then open the official manufacturer app on your phone. If the app signs you in cleanly, the backend has unlocked your account.\n3. Once unlocked, raise the `scan_interval` in Settings → Devices & Services → VW Group Connect → Configure to 15-30 minutes to reduce future pressure.\n4. Optional: enable the read-only EU Data Act portal mode via the OptionsFlow to keep some data flowing during future incidents.\n\nThis warning auto-clears the first time the next token refresh succeeds."
+      "title": "{brand}-kontot verkar vara tillfälligt låst",
+      "description": "Märkets backend har returnerat **3 låsklassade autentiseringssvar** de senaste 30 minuterna (senast HTTP {last_status}). Detta betyder vanligtvis att VW tillfälligt har blockerat det underliggande märkeskontot efter för många misslyckade försök att förnya token.\n\nLåset släpper vanligtvis inom **några timmar upp till 24 timmar**. Integrationen har slutat göra nya försök så att låsperioden inte förlängs.\n\n**Medan du väntar**:\n\n1. Logga **inte** in och ut ur tillverkarens app upprepade gånger — det förlänger låset.\n2. Vänta minst 1–2 timmar och öppna sedan den officiella tillverkarappen på din telefon. Om appen loggar in dig utan problem har backend låst upp ditt konto.\n3. När det är upplåst höjer du `scan_interval` i Inställningar → Enheter och tjänster → VW Group Connect → Konfigurera till 15–30 minuter för att minska framtida belastning.\n4. Valfritt: aktivera det skrivskyddade EU Data Act-portalläget via OptionsFlow för att hålla en del data flödande vid framtida incidenter.\n\nDenna varning försvinner automatiskt första gången nästa token-förnyelse lyckas."
     },
     "data_act_no_data": {
       "title": "EU Data Act-portalen: ingen fordonsdata ännu ({brand})",
@@ -1716,84 +1720,88 @@
     "meb_commands_unavailable": {
       "title": "Fjärrkommandon är inte tillgängliga för den här bilen ({brand})",
       "description": "Du aktiverade MBB-fjärrkommandon när du konfigurerade {brand}, men det här är en bil i MEB-/ID-familjen (ID.3/4/5/7, Enyaq, Born, Q4). VW:s MEB-backend stöder inte den hållbara Car-Net-kommandovägen — den hållbara inloggningen svarade \"Unknown user\" — så lås-, klimat- och laddningskommandon kan inte skickas.\n\nPosten behålls som **skrivskyddad**: fordonsdata kommer fortfarande via EU Data Act-portalen, du ser bara inga kommandoentiteter. Det här är en känd begränsning i VW:s MEB-plattform, inte ett konfigurationsfel — du kan stänga det här meddelandet."
+    },
+    "refresh_interval_too_frequent": {
+      "title": "{brand}: uppdateringsintervallet är för tätt",
+      "description": "{brand} utfärdar kortlivade åtkomsttoken, så vid ditt nuvarande uppdateringsintervall på **{current} minuter** måste nästan varje hämtning förnya token. Det utlöser skyddet mot förnyelsestormar — en gräns för hur ofta integrationen får förnya, som finns för att förhindra att märkeskontot låses — och data slutar uppdateras tills skyddet återställs.\n\nDetta är ett problem med pollningsfrekvensen, inte ett inloggningsproblem: att autentisera på nytt löser det inte.\n\n**Lösningen:** höj uppdateringsintervallet till **{recommended} minuter** eller mer i Inställningar → Enheter och tjänster → VW Group Connect → Konfigurera. Det håller token-förnyelserna under gränsen och data flödande.\n\nDenna varning försvinner automatiskt första gången en token-förnyelse lyckas igen."
     }
   },
   "services": {
     "start_climate_control": {
-      "name": "Start Climate Control (Rich)",
-      "description": "Start pre-conditioning with individual seat heaters, glass heating, climate mode and at-unlock behaviour. Only applies to Audi and VW EU (CARIAD BFF). Other brands fall through to the basic `start_climatisation` service. All payload fields except `device_id` are optional - omitted fields keep the brand default.",
+      "name": "Starta klimatstyrning (utökad)",
+      "description": "Starta förkonditionering med enskilda sätesvärmare, rutvärme, klimatläge och beteende vid upplåsning. Gäller endast Audi och VW EU (CARIAD BFF). Övriga märken faller tillbaka på den grundläggande tjänsten `start_climatisation`. Alla nyttolastfält utom `device_id` är valfria - utelämnade fält behåller märkets standardvärde.",
       "fields": {
         "device_id": {
-          "name": "Vehicle",
-          "description": "Vehicle that receives the pre-conditioning command."
+          "name": "Fordon",
+          "description": "Fordonet som tar emot förkonditioneringskommandot."
         },
         "temp_c": {
-          "name": "Target temperature (C)",
-          "description": "Cabin target temperature in degrees Celsius (15 to 30, step 0.5)."
+          "name": "Måltemperatur (C)",
+          "description": "Kupéns måltemperatur i grader Celsius (15 till 30, steg 0,5)."
         },
         "glass_heating": {
-          "name": "Glass heating",
-          "description": "Enable windscreen and rear-window heating alongside the cabin pre-conditioning."
+          "name": "Rutvärme",
+          "description": "Aktivera vindrute- och bakrutevärme tillsammans med förkonditioneringen av kupén."
         },
         "seat_fl": {
-          "name": "Front-left seat heating",
-          "description": "Enable seat heating on the front-left seat."
+          "name": "Sätesvärme fram vänster",
+          "description": "Aktivera sätesvärme på framsätet till vänster."
         },
         "seat_fr": {
-          "name": "Front-right seat heating",
-          "description": "Enable seat heating on the front-right seat."
+          "name": "Sätesvärme fram höger",
+          "description": "Aktivera sätesvärme på framsätet till höger."
         },
         "seat_rl": {
-          "name": "Rear-left seat heating",
-          "description": "Enable seat heating on the rear-left seat."
+          "name": "Sätesvärme bak vänster",
+          "description": "Aktivera sätesvärme på baksätet till vänster."
         },
         "seat_rr": {
-          "name": "Rear-right seat heating",
-          "description": "Enable seat heating on the rear-right seat."
+          "name": "Sätesvärme bak höger",
+          "description": "Aktivera sätesvärme på baksätet till höger."
         },
         "climatisation_at_unlock": {
-          "name": "Continue climate when unlocked",
-          "description": "Keep pre-conditioning running after the vehicle is unlocked."
+          "name": "Fortsätt klimatiseringen vid upplåsning",
+          "description": "Håll förkonditioneringen igång efter att fordonet låsts upp."
         },
         "climatisation_mode": {
-          "name": "Climatisation mode",
-          "description": "Comfort (full power) or economy (reduced power, longer runtime)."
+          "name": "Klimatiseringsläge",
+          "description": "Komfort (full effekt) eller ekonomi (reducerad effekt, längre drifttid)."
         }
       }
     },
     "update_charging_settings": {
-      "name": "Update Charging Settings (SEAT/CUPRA)",
-      "description": "Update the SEAT/CUPRA charge plan in one call. Sets any combination of target state of charge, maximum AC charge current and the auto-unlock-when-charged flag. Other brands are rejected at the coordinator dispatch level.",
+      "name": "Uppdatera laddningsinställningar (SEAT/CUPRA)",
+      "description": "Uppdatera SEAT/CUPRA-laddningsplanen i ett anrop. Ställer in valfri kombination av mål-laddningsnivå, maximal AC-laddström och flaggan för automatisk upplåsning vid fulladdning. Övriga märken avvisas på koordinatorns dispatch-nivå.",
       "fields": {
         "vin": {
           "name": "VIN",
-          "description": "VIN of the vehicle to update."
+          "description": "VIN för fordonet som ska uppdateras."
         },
         "target_soc": {
-          "name": "Target state of charge (%)",
-          "description": "Target state of charge between 20 and 100 percent."
+          "name": "Mål-laddningsnivå (%)",
+          "description": "Mål-laddningsnivå mellan 20 och 100 procent."
         },
         "max_charge_current": {
-          "name": "Maximum AC charge current",
-          "description": "Backend enum, maximum or reduced."
+          "name": "Maximal AC-laddström",
+          "description": "Backend-enum, maximal eller reducerad."
         },
         "auto_unlock_charge": {
-          "name": "Auto-unlock plug when fully charged",
-          "description": "When true the connector unlocks itself once charging is complete."
+          "name": "Lås upp kontakten automatiskt vid fulladdning",
+          "description": "När detta är aktiverat låser kontakten upp sig själv när laddningen är klar."
         }
       }
     },
     "execute_vehicle_action": {
-      "name": "Execute Vehicle Action",
-      "description": "Unified service that dispatches a vehicle action selected from a dropdown. Equivalent to calling the per-action service of the same name but easier to find in the Home Assistant Lovelace service picker. All existing per-action services (vag_connect.lock, vag_connect.start_climatisation, etc) keep working unchanged.",
+      "name": "Utför fordonsåtgärd",
+      "description": "Samlad tjänst som skickar en fordonsåtgärd vald från en rullgardinsmeny. Motsvarar att anropa den enskilda tjänsten med samma namn men är lättare att hitta i Home Assistants Lovelace-tjänstväljare. Alla befintliga enskilda tjänster (vag_connect.lock, vag_connect.start_climatisation osv.) fortsätter fungera oförändrat.",
       "fields": {
         "device_id": {
-          "name": "Vehicle",
-          "description": "The vehicle device to act on."
+          "name": "Fordon",
+          "description": "Fordonsenheten som åtgärden ska utföras på."
         },
         "action": {
-          "name": "Action",
-          "description": "Which action to dispatch."
+          "name": "Åtgärd",
+          "description": "Vilken åtgärd som ska skickas."
         }
       }
     },
@@ -1875,20 +1883,20 @@
   "selector": {
     "execute_vehicle_action_options": {
       "options": {
-        "lock": "Lock",
-        "unlock": "Unlock",
-        "start_climatisation": "Start climatisation",
-        "stop_climatisation": "Stop climatisation",
-        "start_charging": "Start charging",
-        "stop_charging": "Stop charging",
-        "flash_lights": "Flash lights",
-        "start_window_heating": "Start window heating",
-        "stop_window_heating": "Stop window heating",
-        "wake_vehicle": "Wake vehicle",
-        "start_aux_heating": "Start auxiliary heating",
-        "stop_aux_heating": "Stop auxiliary heating",
-        "start_ventilation": "Start ventilation",
-        "stop_ventilation": "Stop ventilation"
+        "lock": "Lås",
+        "unlock": "Lås upp",
+        "start_climatisation": "Starta klimatisering",
+        "stop_climatisation": "Stoppa klimatisering",
+        "start_charging": "Starta laddning",
+        "stop_charging": "Stoppa laddning",
+        "flash_lights": "Blinka med ljusen",
+        "start_window_heating": "Starta rutvärme",
+        "stop_window_heating": "Stoppa rutvärme",
+        "wake_vehicle": "Väck fordonet",
+        "start_aux_heating": "Starta parkeringsvärmare",
+        "stop_aux_heating": "Stoppa parkeringsvärmare",
+        "start_ventilation": "Starta ventilation",
+        "stop_ventilation": "Stoppa ventilation"
       }
     }
   }

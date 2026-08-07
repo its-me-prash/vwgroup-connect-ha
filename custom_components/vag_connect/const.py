@@ -67,6 +67,11 @@ CONF_MBB_COMMAND_CLIENT_ID    = "mbb_command_client_id"    # registered X-Client
 CONF_MEB_COMMANDS_UNAVAILABLE = "meb_commands_unavailable"  # bool: MEB/ID car, commands requested but impossible
 CONF_SCAN_INTERVAL            = "scan_interval"
 CONF_ENABLE_REVERSE_GEOCODING = "enable_reverse_geocoding"
+# Optional nameplate NET battery capacity (kWh). VW never reports it and even the
+# official app does not derive State of Health, so we cannot guess it (a single
+# model name maps to several battery options). When the user supplies it we
+# publish battery_soh_pct = current max capacity / nominal. 0 / unset = no SoH.
+CONF_BATTERY_NOMINAL_KWH      = "battery_nominal_kwh"
 # v1.12.0 (#63) — Read-only mode. When True, the integration creates
 # only status sensors + binary sensors (read-only), no switches/buttons/
 # locks/numbers/climate that would send commands. Useful for users who
@@ -298,3 +303,23 @@ DEEPLINK_SCHEMES: dict[str, str] = {
 # at upgrade — only the default for fresh installs changes.
 DEFAULT_SCAN_INTERVAL = 10   # minutes (was 5 — see v1.17.0 reasoning)
 MIN_SCAN_INTERVAL     = 5    # minutes (was 3 — quota protection)
+
+# #1078 — some brands hand out short-lived access tokens, so at the default
+# 10-min poll almost every cycle triggers a token refresh. The refresh-storm
+# guard (base.py, capped at 3 refreshes/hour to avoid an account lock) then
+# trips and the account goes quiet. Škoda is the known case: myskoda's own
+# README recommends a 30-min interval, which keeps refreshes at ~2/hour, under
+# the storm budget. New setups for these brands start at the recommended value;
+# every other brand keeps the 10-min default.
+RECOMMENDED_SCAN_INTERVAL: dict[str, int] = {
+    "skoda": 30,
+}
+
+
+def recommended_scan_interval(brand: str | None) -> int:
+    """The suggested default poll interval (minutes) for *brand*.
+
+    Falls back to ``DEFAULT_SCAN_INTERVAL`` for brands with no short-token
+    caveat. Case-insensitive; tolerates ``None``.
+    """
+    return RECOMMENDED_SCAN_INTERVAL.get((brand or "").lower(), DEFAULT_SCAN_INTERVAL)

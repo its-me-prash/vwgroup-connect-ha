@@ -30,6 +30,7 @@ from .const import (
     CONF_ENABLE_PUSH_MQTT,
     CONF_ENABLE_REVERSE_GEOCODING,
     CONF_FORCE_PPE_CLIMATE,
+    CONF_BATTERY_NOMINAL_KWH,
     CONF_MBB_COMMAND_CHANNEL,
     CONF_MEB_COMMANDS_UNAVAILABLE,
     CONF_PASSWORD,
@@ -40,6 +41,7 @@ from .const import (
     CONF_USERNAME,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    recommended_scan_interval,
 )
 from homeassistant.helpers import device_registry as dr
 from .cariad._error_reporter import ErrorRingBuffer, record_error
@@ -178,6 +180,23 @@ _MBB_COMMAND_SERVICE: dict[str, str | None] = {
     "command_flash": None,
     "command_wake": None,
 }
+
+
+def _battery_soh_pct(cap: Any, nominal: Any) -> int | None:
+    """Battery State of Health (%) = current max capacity / nameplate nominal, or
+    None. Bounded to a plausibility band (0.6x..1.05x) so a per-entry nominal only
+    applies to the car it actually fits: on a multi-car account the others get no
+    SoH rather than a wrong one. VW ships no SoH field, so the nominal must come
+    from the user (CONF_BATTERY_NOMINAL_KWH)."""
+    if (
+        isinstance(nominal, (int, float)) and not isinstance(nominal, bool)
+        and nominal > 0
+        and isinstance(cap, (int, float)) and not isinstance(cap, bool)
+        and cap > 0
+        and 0.6 * nominal <= cap <= 1.05 * nominal
+    ):
+        return round(cap / nominal * 100)
+    return None
 
 
 def evcc_charge_status(data: dict[str, Any]) -> str | None:
@@ -3939,6 +3958,20 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # Always stamp when we fetched
         data["last_updated_at"] = datetime.now(tz=timezone.utc)
 
+        # Battery State of Health, only when the user supplied the car's nameplate
+        # NET capacity (CONF_BATTERY_NOMINAL_KWH). VW ships no SoH field and even
+        # the official app derives none, and one model name maps to several
+        # battery options, so we never guess it. SoH% = current max capacity /
+        # nominal. The plausibility band means a nominal only applies to the car it
+        # actually fits, so on a multi-car account the others simply get no SoH
+        # rather than a wrong one.
+        _soh = _battery_soh_pct(
+            data.get("battery_cap_kwh"),
+            self.entry.data.get(CONF_BATTERY_NOMINAL_KWH),
+        )
+        if _soh is not None:
+            data["battery_soh_pct"] = _soh
+
         # v2.22.0 (evcc) — normalized IEC-61851 charge status for the evcc
         # connector (see docs/EVCC.md). Only set for cars that report charging
         # data (EVs); combustion cars leave it unset so no phantom sensor spawns.
@@ -4133,6 +4166,33 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 )
             else:
                 clear_account_locked_issue(self.hass, self.entry.entry_id)
+
+        # #1078 — token-refresh storm on the DATA plane. The brand client flips
+        # ``refresh_storm_detected`` once the refresh budget trips at the
+        # current poll cadence — for a short-token brand (Škoda) that is a
+        # polling-frequency problem, not a credential one. Surface an
+        # actionable "raise your update interval" Repair instead of the
+        # misleading "reauthenticate", and auto-clear it on the next good
+        # refresh (the client clears the flag), exactly like the lock above.
+        if client is not None:
+            from .repairs import (  # noqa: PLC0415
+                raise_issue_refresh_interval_too_frequent,
+                clear_refresh_interval_issue,
+            )
+            if getattr(client, "refresh_storm_detected", False):
+                brand = self.entry.data.get(CONF_BRAND, "unknown")
+                current_min = int(
+                    self.entry.options.get(CONF_SCAN_INTERVAL)
+                    or self.entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+                )
+                raise_issue_refresh_interval_too_frequent(
+                    self.hass, self.entry.entry_id,
+                    brand=brand,
+                    current=current_min,
+                    recommended=recommended_scan_interval(brand),
+                )
+            else:
+                clear_refresh_interval_issue(self.hass, self.entry.entry_id)
 
         # Fix #32: Defensive is_charging reset.
         # When plug is disconnected, charging MUST be False regardless of API state.
