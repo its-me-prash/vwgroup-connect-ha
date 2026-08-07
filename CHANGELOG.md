@@ -41,6 +41,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ## [2.30.3] - 2026-08-07
 
 ### Fixed
+- **Service and oil-change "distance/time to service" no longer shows a wrong "overdue" on some cars.** The EU Data Act portal reports the remaining interval with an inconsistent sign: most cars send it as a negative number, but some send it already positive. The integration negated it unconditionally, so the positive-sign cars flipped to a false "overdue". It now normalises to a positive countdown either way.
+- **State of charge now reads on Enyaq and e-up cars that report it under a bespoke field.** Those cars ship the traction SoC under a `currentSoc` field that the mapper did not recognise, so the battery level stayed empty on the read-only portal channel; it is recognised now.
 - **The EU Data Act 15-minute feed is more reliable to set up (#957, #966).** When the integration creates the continuous data request for you, two things could leave you with no feed and no error. It asked for an "unlimited" request but attached a contradictory ten-year end date, a shape the portal never produces itself, and it trusted the portal's "created" response without checking the request actually landed. Now the unlimited request is created the way the portal's own website does it (no end date), and after creating one the integration reads it back to confirm it exists, falling back to a one-month request if it does not, instead of going quiet for hours. Thanks @Ra72xx and @PeterSchroederPaderborn for the diagnosis.
 
 ## [2.30.2] - 2026-08-07
