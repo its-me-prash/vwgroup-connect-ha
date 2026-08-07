@@ -64,12 +64,21 @@ def _scraper(sess: Any) -> DataActScraper:
     return DataActScraper(sess, brand_name="volkswagen")
 
 
+def _confirm_readback(scraper: DataActScraper) -> None:
+    """#957/#966 — kickoff reads the request back after a 2xx; confirm it landed
+    so body/header-shape tests still see a successful kickoff."""
+    scraper.get_active_custom_request_identifier = AsyncMock(  # type: ignore[method-assign]
+        return_value="READBACK_IDENTIFIER_0001"
+    )
+
+
 @pytest.mark.asyncio
 async def test_kickoff_body_includes_duration() -> None:
     """The kickoff POST body carries the now-required ``Duration`` field."""
     sess = _CaptureSession(post_status=201)
     scraper = _scraper(sess)
     scraper._fetch_csrf_token = AsyncMock(return_value="csrf")  # type: ignore[method-assign]
+    _confirm_readback(scraper)
     ident = await scraper.kickoff_custom_data_request(_VIN)
     assert ident  # 201 → returns the new Identifier
     assert sess.post_calls, "no POST was made"
@@ -88,6 +97,7 @@ async def test_kickoff_post_sends_traceid() -> None:
     sess = _CaptureSession(post_status=201)
     scraper = _scraper(sess)
     scraper._fetch_csrf_token = AsyncMock(return_value="csrf")  # type: ignore[method-assign]
+    _confirm_readback(scraper)
     await scraper.kickoff_custom_data_request(_VIN)
     headers = sess.post_calls[-1][1]["headers"]
     assert headers.get("traceId")

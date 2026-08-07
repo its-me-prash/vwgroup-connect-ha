@@ -845,8 +845,9 @@ class DataActScraper:
             # one meant that once an old "One Month" request lapsed (~4 weeks
             # after setup) we never kicked off a fresh feed and the data silently
             # stopped while the stale request still showed up here. A "No Expiry"
-            # request keeps its EndDate ~10 years out (_NO_EXPIRY_WINDOW_DAYS) so
-            # it is never seen as expired; only a genuinely lapsed window is.
+            # request has no EndDate (or a portal-assigned ~12-month one), which
+            # _descriptor_expired treats as not-expired; only a genuinely lapsed
+            # window is skipped.
             if self._descriptor_expired(c):
                 _LOGGER.debug(
                     "metadata/partial: 15-min request %s… for VIN %s is expired "
@@ -863,10 +864,11 @@ class DataActScraper:
         past its window / no longer active. Unknown or unparseable -> False, so
         we never drop a possibly-valid request on a shape we don't recognise.
 
-        The portal's window-end field is ``EndDate`` (a "No Expiry" request keeps
-        an EndDate ~10 years out, a "One Month" one ~31 days out), so a past
-        EndDate is the reliable "this feed has lapsed" signal. A few alternate key
-        names plus an explicit status field are checked defensively.
+        The portal's window-end field is ``EndDate`` (a "No Expiry" request has
+        none or a portal-assigned far-future one, a "One Month" one ~31 days out),
+        so a past EndDate is the reliable "this feed has lapsed" signal; a MISSING
+        EndDate is treated as not-lapsed. A few alternate key names plus an
+        explicit status field are checked defensively.
         """
         from datetime import datetime, timezone  # noqa: PLC0415
 
@@ -928,11 +930,8 @@ class DataActScraper:
         now = datetime.now(timezone.utc).replace(microsecond=0)
         clusters = list(data_clusters or _DEFAULT_DATA_CLUSTERS)
 
-        def _body(duration: str, days: int) -> dict[str, Any]:
-            end = (now + timedelta(days=days)).replace(
-                hour=23, minute=59, second=59
-            )
-            return {
+        def _body(duration: str, days: int | None) -> dict[str, Any]:
+            body: dict[str, Any] = {
                 "Name": name,
                 "Identifier": identifier,
                 "Frequency": "15mins",
@@ -942,11 +941,24 @@ class DataActScraper:
                 # 2026-07-12). StartDate/EndDate must not contradict it.
                 "Duration": duration,
                 "StartDate": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "EndDate": end.strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "DataClusters": clusters,
                 "EmailFrequency": "No notification",
                 "LastNotificationDate": None,
             }
+            # #957/#966 — "No Expiry" is the portal UI's "unlimited" duration,
+            # which sends NO EndDate. We previously paired it with a literal
+            # EndDate = now + 3650 days (10 years, well outside the portal's
+            # ~12-month continuous grant): a self-contradicting shape no human
+            # ever creates, plausibly accepted-but-inert. Mirror the UI and omit
+            # EndDate for the no-expiry duration (our own kickoff_historical_export
+            # already POSTs EndDate=None, so the layer accepts it). Finite
+            # durations keep an explicit EndDate.
+            if days is not None:
+                end = (now + timedelta(days=days)).replace(
+                    hour=23, minute=59, second=59
+                )
+                body["EndDate"] = end.strftime("%Y-%m-%dT%H:%M:%SZ")
+            return body
 
         # Every feed used to be created as "One Month", so the data
         # stopped roughly four weeks after setup and the sensors went quiet
@@ -957,9 +969,9 @@ class DataActScraper:
         # no-expiry body shape against the live portal from here, and a
         # rejected kickoff means NO data feed at all. Asking for less is far
         # better than asking for nothing.
-        attempts: list[tuple[str, int]] = [
-            ("No Expiry", _NO_EXPIRY_WINDOW_DAYS),
-            ("One Month", duration_days),
+        attempts: list[tuple[str, int | None]] = [
+            ("No Expiry", None),            # UI-native: null EndDate, not now+3650d
+            ("One Month", duration_days),   # proven-emitting finite fallback
         ]
         url = _PORTAL_BASE + _CUSTOM_REQUEST_POST_PATH.format(vin=vin)
         for index, (duration, days) in enumerate(attempts):
@@ -984,7 +996,42 @@ class DataActScraper:
                             "requests/partial returned 401 - portal session expired"
                         )
                     if resp.status in (200, 201, 202):
-                        break
+                        # #957/#966 — a 2xx does NOT prove a working request
+                        # landed: a non-native body can be accepted-but-inert, in
+                        # which case the old status-only break trusted it blindly
+                        # and never tried the proven "One Month". Read it back: the
+                        # created request must show up as the active one. If it
+                        # doesn't, treat this attempt as failed and fall through to
+                        # the next duration. Turns "12h of silent nothing" into a
+                        # one-cycle detected failure.
+                        try:
+                            confirmed = await self.get_active_custom_request_identifier(vin)
+                        except DataActSessionExpiredError:
+                            raise
+                        except Exception:  # noqa: BLE001
+                            confirmed = None
+                        if confirmed:
+                            _LOGGER.info(
+                                "EU Data Act Custom Request kicked off for VIN %s "
+                                "(Identifier=%s..., Duration=%s, frequency=15min)",
+                                _mask_vin(vin), str(confirmed)[:8], duration,
+                            )
+                            return confirmed
+                        if not last:
+                            _LOGGER.info(
+                                "kickoff_custom_data_request: Duration=%r returned "
+                                "%s but no active request appeared on readback — "
+                                "retrying with %r",
+                                duration, resp.status, attempts[index + 1][0],
+                            )
+                            continue
+                        _LOGGER.warning(
+                            "kickoff_custom_data_request: created (HTTP %s) but no "
+                            "active request appeared for VIN %s — no data feed will "
+                            "start until this is resolved.",
+                            resp.status, _mask_vin(vin),
+                        )
+                        return None
                     body_text = await resp.text(errors="replace")
                     if not last:
                         _LOGGER.info(
@@ -1009,15 +1056,9 @@ class DataActScraper:
             except Exception as exc:  # noqa: BLE001
                 _LOGGER.debug("kickoff_custom_data_request failed: %s", exc)
                 return None
-        else:  # pragma: no cover - the loop always breaks or returns
-            return None
-
-        _LOGGER.info(
-            "EU Data Act Custom Request kicked off for VIN %s "
-            "(Identifier=%s..., duration=%s, frequency=15min)",
-            _mask_vin(vin), identifier[:8], duration,
-        )
-        return identifier
+        # Every attempt now returns inside the loop (success via readback, or a
+        # detected failure); this is only reached if the attempt list were empty.
+        return None  # pragma: no cover
 
     async def kickoff_historical_export(self, vin: str) -> bool:
         """Create a ONE-TIME historical export for ``vin`` (Phase C).

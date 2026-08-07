@@ -38,6 +38,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.30.3] - 2026-08-07
+
+### Fixed
+- **The EU Data Act 15-minute feed is more reliable to set up (#957, #966).** When the integration creates the continuous data request for you, two things could leave you with no feed and no error. It asked for an "unlimited" request but attached a contradictory ten-year end date, a shape the portal never produces itself, and it trusted the portal's "created" response without checking the request actually landed. Now the unlimited request is created the way the portal's own website does it (no end date), and after creating one the integration reads it back to confirm it exists, falling back to a one-month request if it does not, instead of going quiet for hours. Thanks @Ra72xx and @PeterSchroederPaderborn for the diagnosis.
+
 ## [2.30.2] - 2026-08-07
 
 ### Fixed
