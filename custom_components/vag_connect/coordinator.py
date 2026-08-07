@@ -651,6 +651,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         self._started = False
         self._was_available: bool = True  # tracks availability for log_when_unavailable
         self._cariad_client: Any = None
+        # #465/#1027 — the portal sign-in interstitial Repair we last surfaced
+        # (e.g. "terms_and_conditions"), so a good login clears exactly it, once.
+        self._portal_interaction_reason: str = ""
 
         # v2.0.0 (Big-Bang) — Push manager lifecycle slots.
         # Wired by ``async_start_push_manager`` after the first
@@ -1789,6 +1792,39 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             getattr(self._cariad_client, "_eu_portal", None)
             or getattr(self._cariad_client, "_supplementary_eu_portal", None)
         )
+        entry_id = self.entry.entry_id
+        # #465/#1027 — a portal login can land on an actionable sign-in
+        # interstitial (VW Group's updated Terms & Conditions, a marketing
+        # consent, a 2FA / portal step). On a SUPPLEMENTARY portal this happens
+        # at RUNTIME, past setup, so the setup-path Repair never fired and the
+        # user saw only a log line. Surface the SAME actionable Repair here each
+        # poll. It self-heals: the per-poll re-login clears the portal's flag the
+        # moment the user accepts (out-of-band, in the app / browser), and the
+        # Repair clears with it — no reload needed.
+        _INTERACTION_REASONS = (
+            "terms_and_conditions", "marketing_consent",
+            "two_factor_required", "email_two_factor_required",
+            "portal_interaction_required",
+        )
+        interaction = (
+            getattr(portal, "last_login_interaction", "") if portal else ""
+        )
+        if isinstance(interaction, str) and interaction in _INTERACTION_REASONS:
+            from .repairs import raise_issue_auth_required  # noqa: PLC0415
+            raise_issue_auth_required(
+                self.hass, entry_id, interaction,
+                brand=self.entry.data.get(CONF_BRAND),
+            )
+            self._portal_interaction_reason = interaction
+            # the interstitial is the real blocker — don't also nag "no data"
+            ir.async_delete_issue(self.hass, DOMAIN, f"data_act_no_data_{entry_id}")
+            return
+        # recovered (or never blocked) → clear only the Repair we actually
+        # raised, once, so a good login self-heals without per-poll churn.
+        prev = getattr(self, "_portal_interaction_reason", "")
+        if isinstance(prev, str) and prev in _INTERACTION_REASONS:
+            ir.async_delete_issue(self.hass, DOMAIN, f"{entry_id}_{prev}")
+            self._portal_interaction_reason = ""
         issue_id = f"data_act_no_data_{self.entry.entry_id}"
         reason = getattr(portal, "last_no_data_reason", "") if portal else ""
         if portal is None or not reason:

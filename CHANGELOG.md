@@ -38,6 +38,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.30.1] - 2026-08-07
+
+### Fixed
+- **Škoda (and any car using the data portal as an extra channel) now tells you when it needs new terms accepted, instead of just going quiet (#465, #1027).** When the data portal sign-in lands on Volkswagen Group's updated terms-of-use page, that is a required service agreement, separate from marketing consent. If the portal was your main sign-in this already showed up as a repair, but if it was a secondary channel on top of a working one, the terms page was hit later, during normal polling, and only ended up in the log with no repair, so there was no hint anything needed doing. It now raises the same "accept terms and conditions" repair with the one-click accept link in that case too, and clears itself the moment the next sign-in gets through, so accepting the terms is enough and you do not have to reload anything. Thanks @foobarth for the logs that pinned it down.
+
 ## [2.30.0] - 2026-08-07
 
 ### Added
