@@ -38,6 +38,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.29.6] - 2026-08-07
+
+### Fixed
+- **Volkswagen Canada now shows its data, not just logs in (#990).** After Canadian accounts could sign in again in 2.29.5, the values still stayed empty: the Canadian backend wraps every response in an extra layer that the parser never unwrapped, so charge, location, range and doors all came back blank. That layer is now unwrapped, a charging Canadian car is recognised as charging, the door-lock state reads from the field Canada actually uses, and an electric car that reports an empty fuel tank is no longer mistaken for a petrol car. Volkswagen US is untouched. Thanks to @vrouleau for tracking it down and testing it against a real Canadian ID.4.
+- **Charging power and charging speed read the right number on more cars (#1022, #717, #1002, #931).** The data portal sends these two values in two different encodings, and until now we guessed which one from the number itself, which broke on cars that send a plain value that happens to be a round number (an ID.7 charging at 10.4 kW was shown as 1 kW). We now read the encoding from the field's own dictionary entry instead of guessing, so both the cars that report already in kW or km per hour and the cars that report in tenths come out right. Thanks to @mce2024, @RaAdNe and @SparkyDan555 for the raw values that made it testable.
+- **A charging car is no longer shown as "not charging" (#1002, #1022).** The live 15-minute portal feed spells the charging state differently from the one-time export, and we only recognised the second spelling, so ID.5 and ID.7 owners saw "not charging" while the car was plugged in and drawing power. Both spellings are recognised now.
+
+### Changed
+- **One internal portal field stops appearing as an undiscovered field.** A capabilities-status queue counter on Audi (a list of in-flight requests, not a vehicle reading) was reported as a new field on every poll; it is now recognised as the plumbing it is, with no sensor added. Thanks @neuhausf.
+
 ## [2.29.5] - 2026-08-06
 
 > 🎉 **Release number 300.** Three hundred releases on from a small community project, thanks to everyone who filed a bug, ran a capture on their own car, tested a fix, corrected a translation or sent a log. This integration exists because of you, and it stays free. It is a one-person project kept alive against a moving target, so if it is worth something to you, [GitHub Sponsors](https://github.com/sponsors/its-me-prash) helps keep the reverse-engineering going. Here is to the next three hundred.
