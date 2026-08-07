@@ -210,7 +210,8 @@
           "remove_supplementary_tibber": "Tibber-Lesekanal entfernen",
           "abrp_enable": "ABRP-Telemetrie senden",
           "abrp_api_key": "ABRP-api_key (Entwicklerschlüssel)",
-          "abrp_user_token": "ABRP-Token (pro Fahrzeug)"
+          "abrp_user_token": "ABRP-Token (pro Fahrzeug)",
+          "keep_raw_datasets": "Rohe EU-Data-Act-Datensätze behalten (Diagnose)"
         },
         "data_description": {
           "enable_reverse_geocoding": "Sendet GPS der Parkposition an OpenStreetMap Nominatim, um Straße/Stadt zu ermitteln. Standard: aus (Datenschutz).",
@@ -227,7 +228,8 @@
           "eu_data_act_auto_kickoff": "Nur relevant wenn die Integration im Read-only EU Data Act Portal-Modus läuft (die Live BFF Strategien sind gescheitert). Wenn AN, prüft der Coordinator beim Start ob pro VIN ein aktiver 15-min Custom Data Request existiert und legt einen an wenn nicht. Der Kickoff impliziert ein 1-Monats Daten-Abo auf deinem Account beim Portal, deshalb opt-in. Das Portal akzeptiert HÖCHSTENS EINEN aktiven Custom Request pro VIN gleichzeitig. Standard: aus.",
           "abrp_enable": "Live-Telemetrie an A Better Routeplanner senden. Benötigt api_key und einen Token pro Fahrzeug. Aus = keine ausgehenden Aufrufe.",
           "abrp_api_key": "Ein Entwickler-/Partnerschlüssel, den du bei iternio registrierst (wir liefern keinen). Identifiziert die Integration. Wird nie protokolliert.",
-          "abrp_user_token": "Der 'Generic'-Token aus der ABRP-App: Einstellungen -> dein Auto -> Live Data. Wird nie protokolliert."
+          "abrp_user_token": "Der 'Generic'-Token aus der ABRP-App: Einstellungen -> dein Auto -> Live Data. Wird nie protokolliert.",
+          "keep_raw_datasets": "Nur auf dem EU-Data-Act-Portal-Kanal sinnvoll. Wenn aktiv, werden die letzten paar rohen Datensatz-ZIPs des Portals auf der Festplatte behalten (unter .storage, pro Fahrzeug und größenbegrenzt), damit sich ein falscher oder fehlender Wert aus genau den Bytes reproduzieren lässt, die dein Auto gesendet hat. Diese Dateien enthalten GPS, VIN und Telemetrie, deshalb ist die Option standardmäßig aus – schalte sie nur zur Fehlersuche ein."
         }
       },
       "add_vwde": {

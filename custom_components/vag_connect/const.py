@@ -72,6 +72,14 @@ CONF_ENABLE_REVERSE_GEOCODING = "enable_reverse_geocoding"
 # model name maps to several battery options). When the user supplies it we
 # publish battery_soh_pct = current max capacity / nominal. 0 / unset = no SoH.
 CONF_BATTERY_NOMINAL_KWH      = "battery_nominal_kwh"
+# P1-5 — opt-in diagnostic archive of raw EU Data Act dataset ZIPs. Default
+# off: a raw dataset carries GPS + VIN + telemetry, so keeping the last few on
+# disk is a privacy cost the user opts into knowingly. When on, the coordinator
+# keeps a small, byte-capped, VIN-hashed per-vehicle ring buffer under
+# ``.storage/vag_connect_datasets`` so a wrong/missing-field report can be
+# reproduced from the exact bytes the car sent. Snapshot restore-on-restart is
+# already handled by the vehicle cache; this is purely a troubleshooting trail.
+CONF_KEEP_RAW_DATASETS        = "keep_raw_datasets"
 # v1.12.0 (#63) — Read-only mode. When True, the integration creates
 # only status sensors + binary sensors (read-only), no switches/buttons/
 # locks/numbers/climate that would send commands. Useful for users who

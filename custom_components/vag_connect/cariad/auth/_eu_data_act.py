@@ -35,6 +35,7 @@ import logging
 import re
 import uuid
 import zipfile
+from collections.abc import Callable
 from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import urljoin, urlparse
@@ -3046,6 +3047,13 @@ class EUDataActConnector:
         # access_token, aud=portal client) instead of the cookie-scrape session,
         # and login() becomes a no-op. None → legacy cookie mode (unchanged).
         self._bearer: str | None = access_token
+        # P1-5 — optional raw-dataset archive hook. When the user opts into the
+        # diagnostic archive, the coordinator sets this to a fire-and-forget
+        # callback ``(vin, raw_zip_bytes, filename) -> None`` that schedules a
+        # bounded on-disk write in an executor. Left None (the default) means no
+        # raw bytes ever touch the disk. Kept as a plain callback so the
+        # connector stays Home-Assistant-free.
+        self.on_raw_dataset: Callable[[str, bytes, str], None] | None = None
 
     def set_bearer(self, token: str) -> None:
         """Inject / refresh the device-grant access_token for Bearer mode.
@@ -3626,6 +3634,15 @@ class EUDataActConnector:
         self.last_no_data_reason = ""
         d.no_data = False  # real dataset parsed → this is a genuine good poll
         d.connection_state = "online"
+        # P1-5 — hand the RAW dataset ZIP to the opt-in diagnostic archive, but
+        # only for a genuine dataset (fields parsed). Fire-and-forget: the
+        # callback schedules a bounded executor write and any failure there must
+        # never disturb the poll, so it is fully guarded.
+        if self.on_raw_dataset is not None:
+            try:
+                self.on_raw_dataset(vin, raw, newest)
+            except Exception:  # noqa: BLE001  # pragma: no cover - defensive
+                _LOGGER.debug("EU Data Act: raw-dataset archive hook failed")
         return map_dataset_to_vehicle_data(fields, d, field_ts, field_syn, contested)
 
     async def get_relation_nickname(self, vin: str) -> str | None:

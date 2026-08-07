@@ -210,7 +210,8 @@
           "remove_supplementary_tibber": "Rimuovi il canale di lettura Tibber",
           "abrp_enable": "Abilita l'invio di telemetria ad ABRP",
           "abrp_api_key": "ABRP api_key (chiave sviluppatore)",
-          "abrp_user_token": "Token ABRP (per veicolo)"
+          "abrp_user_token": "Token ABRP (per veicolo)",
+          "keep_raw_datasets": "Conserva i set di dati grezzi EU Data Act (diagnostica)"
         },
         "data_description": {
           "scan_interval": "Con quale frequenza vengono recuperati i dati (minuti). Minimo: 3.",
@@ -227,7 +228,8 @@
           "eu_data_act_auto_kickoff": "Ha senso solo quando l'integrazione opera in modalità portale EU Data Act in sola lettura (le strategie BFF live hanno fallito). Quando è ATTIVO, il coordinatore verifica all'avvio la presenza di una Custom Data Request attiva a 15 minuti per ogni VIN e ne crea una quando non ne esiste alcuna. L'avvio implica un abbonamento ai dati di 1 mese sul tuo account nel portale, quindi è opt-in. Il portale accetta AL MASSIMO UNA custom request attiva per VIN alla volta. Disattivato per impostazione predefinita.",
           "abrp_enable": "Invia telemetria in tempo reale ad A Better Routeplanner. Richiede sia una api_key sia un token per veicolo qui sotto. Disattivato = nessuna chiamata in uscita.",
           "abrp_api_key": "Una chiave sviluppatore/partner che registri presso iternio (non ne forniamo una). Identifica l'integrazione. Mai registrata nei log.",
-          "abrp_user_token": "Il token 'Generic' dell'app ABRP: Impostazioni -> la tua auto -> Live Data. Mai registrato nei log."
+          "abrp_user_token": "Il token 'Generic' dell'app ABRP: Impostazioni -> la tua auto -> Live Data. Mai registrato nei log.",
+          "keep_raw_datasets": "Utile solo sul canale del portale EU Data Act. Se attivo, gli ultimi file ZIP di dati grezzi forniti dal portale vengono conservati su disco (in .storage, per veicolo e con un limite di dimensione) così un valore errato o mancante può essere riprodotto dai byte esatti inviati dalla tua auto. Questi file contengono la posizione GPS, il VIN e la telemetria, quindi è disattivato per impostazione predefinita: attivalo solo durante la risoluzione dei problemi."
         }
       },
       "add_vwde": {

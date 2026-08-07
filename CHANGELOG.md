@@ -40,6 +40,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [2.30.3] - 2026-08-07
 
+### Added
+- **Optional diagnostic archive of raw EU Data Act datasets.** A new advanced option keeps the last few raw dataset files the portal delivers on disk, per vehicle and size-capped, so if a value ever reads wrong or goes missing it can be reproduced from the exact data your car sent, instead of asking you to extract and share it by hand. It is off by default and only does anything on the EU Data Act portal channel — the files contain your location, VIN and telemetry, so you turn it on knowingly, and only while troubleshooting. Your recorded values already survive a restart without this; it exists purely to make problems reproducible.
+
 ### Fixed
 - **Service and oil-change "distance/time to service" no longer shows a wrong "overdue" on some cars.** The EU Data Act portal reports the remaining interval with an inconsistent sign: most cars send it as a negative number, but some send it already positive. The integration negated it unconditionally, so the positive-sign cars flipped to a false "overdue". It now normalises to a positive countdown either way.
 - **State of charge now reads on Enyaq and e-up cars that report it under a bespoke field.** Those cars ship the traction SoC under a `currentSoc` field that the mapper did not recognise, so the battery level stayed empty on the read-only portal channel; it is recognised now.

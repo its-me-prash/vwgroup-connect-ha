@@ -31,6 +31,7 @@ from .const import (
     CONF_ENABLE_REVERSE_GEOCODING,
     CONF_FORCE_PPE_CLIMATE,
     CONF_BATTERY_NOMINAL_KWH,
+    CONF_KEEP_RAW_DATASETS,
     CONF_MBB_COMMAND_CHANNEL,
     CONF_MEB_COMMANDS_UNAVAILABLE,
     CONF_PASSWORD,
@@ -1770,6 +1771,38 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 "brand": self.entry.data[CONF_BRAND],
             },
         )
+
+    def _wire_dataset_archive(self) -> None:
+        """P1-5 — point every EU-DA portal connector's raw-dataset hook at a
+        bounded on-disk ring buffer, but only when the user opted in.
+
+        Idempotent and cheap, so it is safe to call on every poll: it re-attaches
+        the hook to whatever portal connector objects currently exist (primary or
+        supplementary, armed at different times). When the option is off it is a
+        no-op and no raw bytes ever touch the disk.
+        """
+        entry = getattr(self, "entry", None)
+        if entry is None or not entry.data.get(CONF_KEEP_RAW_DATASETS):
+            return
+        archive = getattr(self, "_dataset_archive", None)
+        if archive is None:
+            from .cariad.dataset_archive import DatasetArchive  # noqa: PLC0415
+
+            base = self.hass.config.path(
+                ".storage", "vag_connect_datasets", self.entry.entry_id
+            )
+            archive = DatasetArchive(base)
+            self._dataset_archive = archive
+
+        def _hook(vin: str, raw: bytes, _name: str) -> None:
+            # Fire-and-forget: the write + prune runs off the event loop. store()
+            # never raises, so the un-awaited job resolves cleanly.
+            self.hass.async_add_executor_job(archive.store, vin, raw)
+
+        for attr in ("_eu_portal", "_supplementary_eu_portal"):
+            portal = getattr(self._cariad_client, attr, None)
+            if portal is not None and hasattr(portal, "on_raw_dataset"):
+                portal.on_raw_dataset = _hook
 
     def _update_data_act_no_data_repair(self) -> None:
         """v2.12.2 (#393/#424) — raise/clear the "portal returned no data"
@@ -4384,6 +4417,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # right after Reconfigure). The captured object stays valid (or fails
         # cleanly as a closed session, handled by the except → cached data).
         client = self._cariad_client
+        # P1-5 — attach the opt-in raw-dataset archive hook (no-op when off).
+        self._wire_dataset_archive()
         try:
             # v2.20.0 — keep the durable-MBB operationList warm so the command
             # pre-test stays authoritative and a VIN whose earlier fetch failed

@@ -210,7 +210,8 @@
           "remove_supplementary_tibber": "Ta bort Tibber-läskanalen",
           "abrp_enable": "Aktivera ABRP-telemetri",
           "abrp_api_key": "ABRP-api_key (utvecklarnyckel)",
-          "abrp_user_token": "ABRP-token (per fordon)"
+          "abrp_user_token": "ABRP-token (per fordon)",
+          "keep_raw_datasets": "Behåll rå EU Data Act-datauppsättningar (diagnostik)"
         },
         "data_description": {
           "scan_interval": "Hur ofta data hämtas (minuter). Minimum: 3.",
@@ -227,7 +228,8 @@
           "eu_data_act_auto_kickoff": "Endast meningsfullt när integrationen körs i skrivskyddat EU Data Act-portalläge (live-BFF-strategier har misslyckats). När den är PÅ kontrollerar koordinatorn vid start om det finns en aktiv 15-minuters Custom Data Request per VIN och skapar en om ingen finns. Igångsättningen innebär en 1-månads dataprenumeration på ditt konto i portalen, så detta är opt-in. Portalen accepterar HÖGST EN aktiv anpassad begäran per VIN åt gången. Av som standard.",
           "abrp_enable": "Skicka livetelemetri till A Better Routeplanner. Kräver en api_key och en token per fordon. Av = inga utgående anrop.",
           "abrp_api_key": "En utvecklar-/partnernyckel som du registrerar hos iternio (vi levererar ingen). Identifierar integrationen. Loggas aldrig.",
-          "abrp_user_token": "'Generic'-token från ABRP-appen: Inställningar -> din bil -> Live Data. Loggas aldrig."
+          "abrp_user_token": "'Generic'-token från ABRP-appen: Inställningar -> din bil -> Live Data. Loggas aldrig.",
+          "keep_raw_datasets": "Endast användbart på EU Data Act-portalkanalen. När det är på sparas de senaste råa dataset-ZIP-filerna som portalen levererar på disken (under .storage, per fordon och med en storleksgräns), så att ett felaktigt eller saknat värde kan återskapas från exakt de byte som din bil skickade. Dessa filer innehåller din GPS-position, VIN och telemetri, så det är avstängt som standard – slå bara på det vid felsökning."
         }
       },
       "add_vwde": {

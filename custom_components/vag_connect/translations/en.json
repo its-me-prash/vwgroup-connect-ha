@@ -210,7 +210,8 @@
           "remove_supplementary_tibber": "Remove the Tibber read channel",
           "abrp_enable": "Enable ABRP telemetry push",
           "abrp_api_key": "ABRP api_key (developer key)",
-          "abrp_user_token": "ABRP token (per vehicle)"
+          "abrp_user_token": "ABRP token (per vehicle)",
+          "keep_raw_datasets": "Keep raw EU Data Act datasets (diagnostics)"
         },
         "data_description": {
           "scan_interval": "How often data is fetched (minutes). Minimum: 3.",
@@ -227,7 +228,8 @@
           "eu_data_act_auto_kickoff": "Only meaningful when the integration is operating in read-only EU Data Act portal mode (live BFF strategies have failed). When ON, the coordinator checks for an active 15-min Custom Data Request per VIN at startup and creates one when none exists. The kickoff implies a 1-month data subscription on your account at the portal, so this is opt-in. The portal accepts AT MOST ONE active custom request per VIN at a time. Off by default.",
           "abrp_enable": "Send live telemetry to A Better Routeplanner. Needs both an api_key and a per-vehicle token below. Off = no outbound calls.",
           "abrp_api_key": "A developer/partner key you register with iternio (we don't ship one). Identifies the integration. Never logged.",
-          "abrp_user_token": "The 'Generic' token from the ABRP app: Settings -> your car -> Live Data. Never logged."
+          "abrp_user_token": "The 'Generic' token from the ABRP app: Settings -> your car -> Live Data. Never logged.",
+          "keep_raw_datasets": "Only useful on the EU Data Act portal channel. When on, the last few raw dataset ZIPs the portal delivers are kept on disk (under .storage, per vehicle and size-capped) so a wrong or missing value can be reproduced from the exact bytes your car sent. These files contain your GPS, VIN and telemetry, so it is off by default; turn it on only while troubleshooting."
         }
       },
       "add_vwde": {

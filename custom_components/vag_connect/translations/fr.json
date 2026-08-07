@@ -210,7 +210,8 @@
           "remove_supplementary_tibber": "Supprimer le canal de lecture Tibber",
           "abrp_enable": "Activer l'envoi de télémétrie ABRP",
           "abrp_api_key": "api_key ABRP (clé développeur)",
-          "abrp_user_token": "Jeton ABRP (par véhicule)"
+          "abrp_user_token": "Jeton ABRP (par véhicule)",
+          "keep_raw_datasets": "Conserver les jeux de données EU Data Act bruts (diagnostic)"
         },
         "data_description": {
           "scan_interval": "Fréquence de mise à jour (minutes). Minimum: 3.",
@@ -227,7 +228,8 @@
           "eu_data_act_auto_kickoff": "Pertinent uniquement lorsque l'intégration fonctionne en mode portail EU Data Act en lecture seule (les stratégies BFF en direct ont échoué). Lorsque cette option est activée, le coordinateur vérifie au démarrage l'existence d'une Custom Data Request active de 15 min par VIN et en crée une s'il n'y en a aucune. Ce lancement implique un abonnement de données d'un mois sur votre compte au niveau du portail, il s'agit donc d'une option volontaire. Le portail accepte AU PLUS UNE demande personnalisée active par VIN à la fois. Désactivé par défaut.",
           "abrp_enable": "Envoyer la télémétrie en direct à A Better Routeplanner. Nécessite une api_key et un jeton par véhicule. Désactivé = aucun appel sortant.",
           "abrp_api_key": "Une clé développeur/partenaire que vous enregistrez auprès d'iternio (nous n'en fournissons pas). Identifie l'intégration. Jamais journalisée.",
-          "abrp_user_token": "Le jeton « Generic » de l'application ABRP : Paramètres -> votre voiture -> Live Data. Jamais journalisé."
+          "abrp_user_token": "Le jeton « Generic » de l'application ABRP : Paramètres -> votre voiture -> Live Data. Jamais journalisé.",
+          "keep_raw_datasets": "Utile uniquement sur le canal du portail EU Data Act. Une fois activé, les derniers fichiers ZIP de données bruts fournis par le portail sont conservés sur le disque (sous .storage, par véhicule et avec une limite de taille) afin qu'une valeur erronée ou manquante puisse être reproduite à partir des octets exacts envoyés par votre voiture. Ces fichiers contiennent votre position GPS, votre VIN et votre télémétrie ; l'option est donc désactivée par défaut – ne l'activez que pour le dépannage."
         }
       },
       "add_vwde": {

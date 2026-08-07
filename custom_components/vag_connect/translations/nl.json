@@ -210,7 +210,8 @@
           "remove_supplementary_tibber": "Tibber-leeskanaal verwijderen",
           "abrp_enable": "ABRP-telemetrie verzenden inschakelen",
           "abrp_api_key": "ABRP-api_key (ontwikkelaarssleutel)",
-          "abrp_user_token": "ABRP-token (per voertuig)"
+          "abrp_user_token": "ABRP-token (per voertuig)",
+          "keep_raw_datasets": "Ruwe EU Data Act-datasets bewaren (diagnose)"
         },
         "data_description": {
           "scan_interval": "Hoe vaak gegevens worden opgehaald (minuten). Minimum: 3.",
@@ -227,7 +228,8 @@
           "eu_data_act_auto_kickoff": "Alleen zinvol wanneer de integratie in de alleen-lezen EU Data Act-portalmodus draait (live BFF-strategieën zijn mislukt). Wanneer AAN, controleert de coördinator bij het opstarten per VIN op een actieve 15-minuten Custom Data Request en maakt er een aan als die niet bestaat. Het starten impliceert een data-abonnement van 1 maand op je account bij het portaal, dus dit is opt-in. Het portaal accepteert MAXIMAAL ÉÉN actieve custom request per VIN tegelijk. Standaard uit.",
           "abrp_enable": "Live telemetrie naar A Better Routeplanner sturen. Vereist een api_key en een token per voertuig. Uit = geen uitgaande oproepen.",
           "abrp_api_key": "Een ontwikkelaars-/partnersleutel die je bij iternio registreert (wij leveren er geen). Identificeert de integratie. Wordt nooit gelogd.",
-          "abrp_user_token": "Het 'Generic'-token uit de ABRP-app: Instellingen -> je auto -> Live Data. Wordt nooit gelogd."
+          "abrp_user_token": "Het 'Generic'-token uit de ABRP-app: Instellingen -> je auto -> Live Data. Wordt nooit gelogd.",
+          "keep_raw_datasets": "Alleen nuttig op het EU Data Act-portaalkanaal. Indien ingeschakeld worden de laatste paar ruwe dataset-ZIP's die het portaal levert op schijf bewaard (onder .storage, per voertuig en met een groottelimiet), zodat een verkeerde of ontbrekende waarde kan worden gereproduceerd uit precies de bytes die je auto heeft verzonden. Deze bestanden bevatten je GPS-locatie, VIN en telemetrie, dus standaard staat dit uit – schakel het alleen in tijdens het oplossen van problemen."
         }
       },
       "add_vwde": {

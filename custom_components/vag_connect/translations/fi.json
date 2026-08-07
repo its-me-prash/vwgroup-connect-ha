@@ -210,7 +210,8 @@
           "remove_supplementary_tibber": "Poista Tibber-lukukanava",
           "abrp_enable": "Ota käyttöön ABRP-telemetrian lähetys",
           "abrp_api_key": "ABRP api_key (kehittäjäavain)",
-          "abrp_user_token": "ABRP-tunniste (ajoneuvokohtainen)"
+          "abrp_user_token": "ABRP-tunniste (ajoneuvokohtainen)",
+          "keep_raw_datasets": "Säilytä EU Data Act -raakadatajoukot (diagnostiikka)"
         },
         "data_description": {
           "scan_interval": "Kuinka usein tietoja haetaan (minuutteja). Vähintään: 3.",
@@ -227,7 +228,8 @@
           "eu_data_act_auto_kickoff": "Merkityksellinen vain, kun integraatio toimii vain lukemiseen tarkoitetussa EU Data Act -portaalitilassa (live-BFF-strategiat ovat epäonnistuneet). Käytössä ollessaan koordinaattori tarkistaa käynnistyksessä, onko VIN-kohtaisesti aktiivinen 15 minuutin mukautettu datapyyntö, ja luo sellaisen jos yhtään ei ole. Aloitus tarkoittaa 1 kuukauden datatilausta tilillesi portaalissa, joten tämä on valinnainen. Portaali hyväksyy KORKEINTAAN YHDEN aktiivisen mukautetun pyynnön VIN-numeroa kohti kerrallaan. Oletuksena pois päältä.",
           "abrp_enable": "Lähetä live-telemetriaa A Better Routeplannerille. Tarvitsee sekä api_keyn että ajoneuvokohtaisen tunnisteen alla. Pois = ei lähteviä kutsuja.",
           "abrp_api_key": "Kehittäjä-/kumppaniavain, jonka rekisteröit iterniolla (emme toimita sellaista). Tunnistaa integraation. Ei koskaan lokiin.",
-          "abrp_user_token": "'Generic'-tunniste ABRP-sovelluksesta: Asetukset -> autosi -> Live Data. Ei koskaan lokiin."
+          "abrp_user_token": "'Generic'-tunniste ABRP-sovelluksesta: Asetukset -> autosi -> Live Data. Ei koskaan lokiin.",
+          "keep_raw_datasets": "Hyödyllinen vain EU Data Act -portaalikanavalla. Kun käytössä, portaalin toimittamat viimeisimmät raa'at datajoukko-ZIP-tiedostot säilytetään levyllä (.storage-kansiossa, ajoneuvokohtaisesti ja kokorajoitettuna), jotta väärä tai puuttuva arvo voidaan toistaa juuri niistä tavuista, jotka autosi lähetti. Nämä tiedostot sisältävät GPS-sijaintisi, VIN-numerosi ja telemetriasi, joten oletuksena se on pois päältä – ota se käyttöön vain vianmäärityksen ajaksi."
         }
       },
       "add_vwde": {
