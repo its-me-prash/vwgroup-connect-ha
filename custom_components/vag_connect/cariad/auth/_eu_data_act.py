@@ -601,6 +601,49 @@ _MAPPED_UUIDS: frozenset[str] = frozenset({
     "30cc36fd-71ca-3c09-9296-e94ebd47bd2b",  # odometer fallback
 })
 
+# #1022 — charge_power is emitted under the SAME dataFieldName
+# (battery_state_report.charge_power) by several dict UUIDs with DIFFERENT units,
+# so the UUID (not the value's fractional part) is the true scale discriminator.
+# c8cb205f is described as "The float value" = already kW; the other three state
+# "resolution of 0,1 kW" = deci-kW. These UUIDs are aliased in the walker EVEN on
+# a non-generic leaf (see below) so the mapper can scale per encoding instead of
+# guessing from decimals (which breaks on a car charging at an exact integer kW).
+_CP_KW_UUIDS: frozenset[str] = frozenset({
+    "c8cb205f-01c6-3c81-bda1-059b99ae6515",  # "The float value …" = kW, unscaled
+})
+_CP_DECI_UUIDS: frozenset[str] = frozenset({
+    "44ed0d61-98c4-36df-b860-b077929a5797",  # "resolution of 0,1 kW" = deci-kW
+    "8087d3b7-03bd-350a-95ef-bd8cb3ba20fa",
+    "885d1abd-799d-344a-bf02-0d07c6d6eebf",
+})
+_CP_ENCODING_UUIDS: frozenset[str] = _CP_KW_UUIDS | _CP_DECI_UUIDS
+
+# #1022 / #717 — charge_rate has the SAME split as charge_power above:
+# battery_state_report.charge_rate is emitted under several dict UUIDs with
+# different units, so the UUID (not the value) is the real scale discriminator.
+# 1efb6000 is "The float value" (already km/h) and 732b602c is the canonical
+# "Charge Rate" tagged unit=kmPerHour, while 0c60a14f / 1edd4c7f / 9e366e14 all
+# say "resolution of 0,1" (deci) and 370c2092 (actual_charge_rate) is the same
+# deci datum. Without this an ID.7 sending a plain 68.0 km/h (1efb6000) was
+# divided to 6.8, and a car sending a deci 149 (0c60a14f) needs the /10 to reach
+# 14.9. These UUIDs are aliased in the walker even on the non-generic charge_rate
+# leaf so the mapper can scale per encoding.
+_CR_KMH_UUIDS: frozenset[str] = frozenset({
+    "1efb6000-6b54-366a-9233-d320699687cf",  # "The float value …" = km/h, unscaled
+    "732b602c-ec3a-3f77-805f-77ec03bf0e5a",  # canonical "Charge Rate", unit=kmPerHour
+})
+_CR_DECI_UUIDS: frozenset[str] = frozenset({
+    "0c60a14f-116d-3ccd-b551-940a0814364e",  # "resolution of 0,1" = deci km/h
+    "1edd4c7f-90b3-3ca4-a748-3b78132aab1d",
+    "9e366e14-a8ce-30b4-a204-b573596d1dbf",
+    "370c2092-d983-38e4-861f-91482b7cff54",  # actual_charge_rate, same deci datum (#931)
+})
+_CR_ENCODING_UUIDS: frozenset[str] = _CR_KMH_UUIDS | _CR_DECI_UUIDS
+
+# Every UUID whose value the walker must alias even off a non-generic leaf, so
+# the mapper can pick the scale from the encoding instead of guessing.
+_SCALE_ENCODING_UUIDS: frozenset[str] = _CP_ENCODING_UUIDS | _CR_ENCODING_UUIDS
+
 
 def _num(value: Any) -> float | None:
     """Coerce a leaf value to float for sentinel/monotonic checks, else None."""
@@ -819,13 +862,21 @@ def _walk_fields(
                 # generic point flooded the Scout with unmapped UUID rows (2.17.4
                 # regression). Lowercased to match the dictionary + mapping forms.
                 pkey = node.get("key")
-                if (
-                    isinstance(fname, str)
-                    and fname.strip().lower() in _GENERIC_FIELD_NAMES
-                    and isinstance(pkey, str)
-                    and pkey.strip().lower() in _MAPPED_UUIDS
+                pkey_l = pkey.strip().lower() if isinstance(pkey, str) else ""
+                # Alias by UUID for (a) generic-leaf points whose UUID we map, OR
+                # (b) the charge power / charge rate encoding UUIDs regardless of
+                # leaf name: the SAME dataFieldName (battery_state_report.charge_power
+                # or .charge_rate) is emitted by several UUIDs with different units,
+                # and only the UUID says the scale (#1022/#717). (b) is a tight,
+                # curated carve-out — everything else still requires the generic-leaf
+                # gate.
+                if pkey_l and (
+                    (isinstance(fname, str)
+                     and fname.strip().lower() in _GENERIC_FIELD_NAMES
+                     and pkey_l in _MAPPED_UUIDS)
+                    or pkey_l in _SCALE_ENCODING_UUIDS
                 ):
-                    add(pkey.strip().lower(), node.get("value"), ts, ts_real)
+                    add(pkey_l, node.get("value"), ts, ts_real)
                     # v2.24.2 (#959, #960, #961) — record the pair as synonyms,
                     # exactly like the container-qualified branch below already
                     # did. Without it the bare generic leaf was never reclaimed
@@ -838,7 +889,7 @@ def _walk_fields(
                     # here (see the no-suppression note further down); the leaf
                     # is genuinely consumed, the bookkeeping just never said so.
                     if _syn_out is not None and isinstance(fname, str):
-                        _alias = pkey.strip().lower()
+                        _alias = pkey_l
                         _syn_out.setdefault(fname, set()).add(_alias)
                         _syn_out.setdefault(_alias, set()).add(fname)
                 # v2.15.4 overreport fix: a data-point node reached through a
@@ -1329,18 +1380,31 @@ def map_dataset_to_vehicle_data(
     # (65, 19), while a value carrying decimals is already in kW. Verified
     # against all three grounded reports: 65 -> 6.5, 19 -> 1.9, 10.399994 ->
     # 10.4. Integer readings keep behaving exactly as before.
-    cp_deci = _to_float(first(
-        "battery_state_report.charge_power", "charge_power", "charging_power",
-    ))
-    if cp_deci is not None:
-        if cp_deci % 1 != 0:
-            d.charging_power_kw = round(cp_deci, 1)
-        else:
-            d.charging_power_kw = round(cp_deci / 10.0, 1)
+    # #1022 — prefer the UUID-tagged encoding, the dict's true scale discriminator
+    # (c8cb205f is a float already in kW; the deci UUIDs count 0.1-kW steps). This
+    # fixes the exact-integer-kW case the fractional heuristic below cannot: an ID.7
+    # charging at a round 11 kW would otherwise be read as deci and shown as 1.1 kW.
+    # Fall back to the name + fractional heuristic only when no encoding-UUID point
+    # is present (cars that ship the field name without a mapped UUID).
+    cp_kw_uuid = _to_float(first(*sorted(_CP_KW_UUIDS)))
+    cp_deci_uuid = _to_float(first(*sorted(_CP_DECI_UUIDS)))
+    if cp_kw_uuid is not None:
+        d.charging_power_kw = round(cp_kw_uuid, 1)
+    elif cp_deci_uuid is not None:
+        d.charging_power_kw = round(cp_deci_uuid / 10.0, 1)
     else:
-        cp_kw = _to_float(first("chargePower_kW"))
-        if cp_kw is not None:
-            d.charging_power_kw = cp_kw
+        cp_deci = _to_float(first(
+            "battery_state_report.charge_power", "charge_power", "charging_power",
+        ))
+        if cp_deci is not None:
+            if cp_deci % 1 != 0:
+                d.charging_power_kw = round(cp_deci, 1)
+            else:
+                d.charging_power_kw = round(cp_deci / 10.0, 1)
+        else:
+            cp_kw = _to_float(first("chargePower_kW"))
+            if cp_kw is not None:
+                d.charging_power_kw = cp_kw
 
     # 2.15.1 — the charger dialect reports charged energy
     # (battery_state_report.charge_energy). The EU data dictionary defines this
@@ -1367,7 +1431,16 @@ def map_dataset_to_vehicle_data(
         # VZ e-Hybrid, confirmed charging: SoC 50 %, power 1.9 kW, 230 min left);
         # ``chargingDcActive`` is the DC counterpart of the AC state already here.
         # Without these the charging binary_sensor read OFF while actively charging.
-        d.is_charging = cs.lower() in (
+        # #1002 / #1022 — the 15-min feed spells the SAME state in SCREAMING_SNAKE
+        # with a prefix (CHARGE_STATE_CHARGING_HV_BATTERY), which never matched the
+        # camelCase tuple, so MEB cars (ID.5 / ID.7) read OFF while actively
+        # charging. Normalise both dialects to one form (drop the state prefix and
+        # underscores) before matching, so CHARGE_STATE_CHARGING_HV_BATTERY and the
+        # one-time export's chargingHvBattery both land on the same token.
+        cs_norm = re.sub(
+            r"^(?:charge|charging)_?state_?", "", cs.strip().lower(),
+        ).replace("_", "")
+        d.is_charging = cs_norm in (
             "charging", "chargingacactive", "chargingdcactive",
             "charginghvbattery", "active",
         )
@@ -1438,17 +1511,29 @@ def map_dataset_to_vehicle_data(
     # camelCase keys, which really are whole km/h.
     crate_unit = first("battery_state_report.charge_rate_unit", "charge_rate_unit")
     crate_kmh: float | None = None
-    crate_deci = _to_float(first("battery_state_report.charge_rate", "charge_rate"))
-    if crate_deci is not None:
-        crate_kmh = crate_deci / 10.0
+    # #1022 / #717 — prefer the UUID-tagged encoding, the dict's true scale
+    # discriminator (1efb6000 / 732b602c are already km/h; the deci UUIDs count
+    # 0.1-km/h steps). This fixes the ID.7 case the /10 rule below gets wrong: a
+    # plain 68.0 km/h under 1efb6000 must NOT be divided down to 6.8. Fall back to
+    # the name-based rule only when no encoding-UUID point is present.
+    cr_kmh_uuid = _to_float(first(*sorted(_CR_KMH_UUIDS)))
+    cr_deci_uuid = _to_float(first(*sorted(_CR_DECI_UUIDS)))
+    if cr_kmh_uuid is not None:
+        crate_kmh = cr_kmh_uuid
+    elif cr_deci_uuid is not None:
+        crate_kmh = cr_deci_uuid / 10.0
     else:
-        crate_plain = _to_float(first("chargeRate_kmph", "charging_rate_kmh"))
-        if crate_plain is not None:
-            crate_kmh = crate_plain
+        crate_deci = _to_float(first("battery_state_report.charge_rate", "charge_rate"))
+        if crate_deci is not None:
+            crate_kmh = crate_deci / 10.0
         else:
-            crate_actual = _to_float(first("actual_charge_rate"))
-            if crate_actual is not None:
-                crate_kmh = crate_actual / 10.0
+            crate_plain = _to_float(first("chargeRate_kmph", "charging_rate_kmh"))
+            if crate_plain is not None:
+                crate_kmh = crate_plain
+            else:
+                crate_actual = _to_float(first("actual_charge_rate"))
+                if crate_actual is not None:
+                    crate_kmh = crate_actual / 10.0
     if crate_kmh is not None:
         # #931 — honour the companion unit enum so the km/h sensor is truthful
         # on cars that report the rate in miles (or per minute).
