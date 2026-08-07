@@ -303,3 +303,23 @@ DEEPLINK_SCHEMES: dict[str, str] = {
 # at upgrade — only the default for fresh installs changes.
 DEFAULT_SCAN_INTERVAL = 10   # minutes (was 5 — see v1.17.0 reasoning)
 MIN_SCAN_INTERVAL     = 5    # minutes (was 3 — quota protection)
+
+# #1078 — some brands hand out short-lived access tokens, so at the default
+# 10-min poll almost every cycle triggers a token refresh. The refresh-storm
+# guard (base.py, capped at 3 refreshes/hour to avoid an account lock) then
+# trips and the account goes quiet. Škoda is the known case: myskoda's own
+# README recommends a 30-min interval, which keeps refreshes at ~2/hour, under
+# the storm budget. New setups for these brands start at the recommended value;
+# every other brand keeps the 10-min default.
+RECOMMENDED_SCAN_INTERVAL: dict[str, int] = {
+    "skoda": 30,
+}
+
+
+def recommended_scan_interval(brand: str | None) -> int:
+    """The suggested default poll interval (minutes) for *brand*.
+
+    Falls back to ``DEFAULT_SCAN_INTERVAL`` for brands with no short-token
+    caveat. Case-insensitive; tolerates ``None``.
+    """
+    return RECOMMENDED_SCAN_INTERVAL.get((brand or "").lower(), DEFAULT_SCAN_INTERVAL)

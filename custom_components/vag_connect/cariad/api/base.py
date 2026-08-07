@@ -228,6 +228,12 @@ class CariadBaseClient:
         # threshold has been crossed inside the window. Cleared after
         # the first successful auth lands.
         self.account_lock_detected: bool = False
+        # #1078 — True once the DATA-plane refresh-storm guard has tripped.
+        # The coordinator polls it each cycle to surface an actionable Repair
+        # ("raise your update interval"), because for a short-token brand the
+        # storm is a polling-frequency problem, not a credential problem —
+        # "reauthenticate" does not fix it. Cleared on the next good refresh.
+        self.refresh_storm_detected: bool = False
         self._auth = IDKAuth(session, brand)
         # v1.9.0 — Vehicle Data Scout opt-in stash. Brand clients populate
         # this in ``get_status`` so the coordinator can run
@@ -1421,6 +1427,11 @@ class CariadBaseClient:
                     self._brand.name,
                     "command" if for_command else "data",
                 )
+                # #1078 — flag the DATA-plane storm so the coordinator can raise
+                # a "raise your update interval" Repair. Commands have their own
+                # bounded budget and a separate remedy, so don't flag those.
+                if not for_command:
+                    self.refresh_storm_detected = True
                 raise AuthenticationError(
                     "Token refresh storm — please reauthenticate"
                 )
@@ -1457,6 +1468,7 @@ class CariadBaseClient:
                 )
                 await self._notify_tokens_changed()
                 self.account_lock_detected = False
+                self.refresh_storm_detected = False
                 self._lock_history.clear()
                 return
 
@@ -1487,6 +1499,7 @@ class CariadBaseClient:
                     if getattr(self, "_eu_portal", None) is not None:
                         self._eu_portal.set_bearer(self._tokens.access_token)
                     await self._notify_tokens_changed()
+                    self.refresh_storm_detected = False
                     return
 
             if self._tokens and self._tokens.refresh_token:
@@ -1502,6 +1515,7 @@ class CariadBaseClient:
                     # lock signal so the coordinator's Repair issue
                     # gets dismissed on the next cycle.
                     self.account_lock_detected = False
+                    self.refresh_storm_detected = False
                     self._lock_history.clear()
                     return
                 except TokenExpiredError:
@@ -1518,6 +1532,7 @@ class CariadBaseClient:
             await self.authenticate()
             # v2.9.0 - a successful full re-auth also clears the lock.
             self.account_lock_detected = False
+            self.refresh_storm_detected = False
             self._lock_history.clear()
 
     def _record_lock_signal(self, status: int, body: str) -> None:

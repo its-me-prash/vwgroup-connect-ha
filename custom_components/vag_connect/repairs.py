@@ -440,6 +440,53 @@ def clear_account_locked_issue(hass: HomeAssistant, entry_id: str) -> None:
     ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_account_locked")
 
 
+# #1078 — a short-token brand (Škoda) polled too often refreshes its token on
+# almost every cycle and trips the storm guard. The old signal was the generic
+# "reauthenticate" message, which does nothing for a frequency problem. This
+# Repair names the actual remedy: raise the update interval.
+def raise_issue_refresh_interval_too_frequent(
+    hass: HomeAssistant,
+    entry_id: str,
+    brand: str,
+    current: int,
+    recommended: int,
+) -> None:
+    """Surface a token-refresh-storm as an actionable "raise your interval".
+
+    Called by the coordinator once the brand client has flagged
+    ``refresh_storm_detected`` (the DATA-plane refresh budget tripped).
+    Idempotent — repeated calls with the same ``issue_id`` refresh in place.
+
+    Args:
+        hass: Home Assistant instance.
+        entry_id: Config entry id (per-entry isolation).
+        brand: Brand name for the placeholder text.
+        current: The currently configured update interval, in minutes.
+        recommended: The interval we suggest for this brand, in minutes.
+    """
+    issue_id = f"{entry_id}_refresh_interval_too_frequent"
+    # is_fixable=False: the fix is a one-line change the user makes in the
+    # OptionsFlow. The issue auto-clears on the next successful token refresh.
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        issue_id,
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="refresh_interval_too_frequent",
+        translation_placeholders={
+            "brand": brand,
+            "current": str(current),
+            "recommended": str(recommended),
+        },
+    )
+
+
+def clear_refresh_interval_issue(hass: HomeAssistant, entry_id: str) -> None:
+    """Clear the refresh-interval repair issue once a refresh succeeds again."""
+    ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_refresh_interval_too_frequent")
+
+
 # ─── v2.0.0 Repair-Flow Handler ──────────────────────────────────────────
 class _AuthRepairFlow(RepairsFlow):
     """v2.0.0 — Generic repair flow for auth-related issues.
