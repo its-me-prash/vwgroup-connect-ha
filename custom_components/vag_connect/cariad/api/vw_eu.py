@@ -594,6 +594,11 @@ class VWEUClient(CariadBaseClient):
             except AuthenticationError:
                 await web.refresh()
                 web_data = await web.get_vehicle_data(vin)
+            # v3.0.0 — this path returns early, before the selectivestatus
+            # capture below, so surface the raw vw.de responses here instead;
+            # otherwise a vw.de reporter's diagnostics carries no raw data to
+            # ground the location / auth issues (#923 / #966).
+            self.last_raw_responses = dict(getattr(web, "last_raw_responses", {}))
             return web_data
 
         # v2.12.0 — EU Data Act portal mode (read-only fallback). When the

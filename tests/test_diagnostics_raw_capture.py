@@ -96,3 +96,34 @@ def test_diagnostics_source_wires_raw_responses() -> None:
     ).read_text(encoding="utf-8")
     assert '"raw_responses": raw_responses' in src
     assert "_scrub_raw(payload)" in src
+
+
+def test_vwde_authproxy_captures_raw_with_vin_stripped_from_key() -> None:
+    # #923 / #966 — the vw.de channel returns early from get_status, so it must
+    # capture its own raw responses; the KEY must not leak the VIN.
+    from custom_components.vag_connect.cariad.auth._website_authproxy import (
+        WebsiteAuthProxyConnector,
+    )
+
+    c = WebsiteAuthProxyConnector.__new__(WebsiteAuthProxyConnector)
+    c.last_raw_responses = {}
+    c._capture_raw(
+        "https://x/api/vehicles/WVWZZZSYNTHET0001/warninglights/last?foo=1",
+        {"warningLights": []},
+    )
+    assert list(c.last_raw_responses) == ["vwde:warninglights/last"]
+    assert "WVWZZZSYNTHET0001" not in " ".join(c.last_raw_responses)
+    # and the body itself is redacted at export time
+    out = _scrub_raw({"vin": "WVWZZZSYNTHET0001", "position": {"latitude": 48.1}})
+    assert "WVWZZZSYNTHET0001" not in json.dumps(out) and "48.1" not in json.dumps(out)
+
+
+def test_vw_eu_surfaces_website_raw_responses() -> None:
+    from pathlib import Path
+
+    src = (
+        Path(__file__).resolve().parents[1]
+        / "custom_components/vag_connect/cariad/api/vw_eu.py"
+    ).read_text(encoding="utf-8")
+    # the early-return vw.de path must copy the connector's raw responses out
+    assert "self.last_raw_responses = dict(getattr(web," in src
