@@ -1227,6 +1227,18 @@
       },
       "parking_ended_at": {
         "name": "Parkering avslutades"
+      },
+      "reminder_technical_inspection": {
+        "name": "Besiktningspåminnelse"
+      },
+      "reminder_seasonal_tyre_change": {
+        "name": "Däckbytespåminnelse"
+      },
+      "reminder_first_aid_kit": {
+        "name": "Påminnelse om första hjälpen"
+      },
+      "reminder_tyre_repair_kit": {
+        "name": "Påminnelse om däckreparationssats"
       }
     },
     "binary_sensor": {
@@ -1526,6 +1538,12 @@
       },
       "insufficient_battery_level_warning": {
         "name": "Varning för låg batterinivå"
+      },
+      "mandatory_consent_given": {
+        "name": "Obligatoriskt samtycke givet"
+      },
+      "marketing_consent_given": {
+        "name": "Marknadsföringssamtycke givet"
       }
     },
     "switch": {
@@ -1768,6 +1786,10 @@
     "refresh_interval_too_frequent": {
       "title": "{brand}: uppdateringsintervallet är för tätt",
       "description": "{brand} utfärdar kortlivade åtkomsttoken, så vid ditt nuvarande uppdateringsintervall på **{current} minuter** måste nästan varje hämtning förnya token. Det utlöser skyddet mot förnyelsestormar — en gräns för hur ofta integrationen får förnya, som finns för att förhindra att märkeskontot låses — och data slutar uppdateras tills skyddet återställs.\n\nDetta är ett problem med pollningsfrekvensen, inte ett inloggningsproblem: att autentisera på nytt löser det inte.\n\n**Lösningen:** höj uppdateringsintervallet till **{recommended} minuter** eller mer i Inställningar → Enheter och tjänster → VW Group Connect → Konfigurera. Det håller token-förnyelserna under gränsen och data flödande.\n\nDenna varning försvinner automatiskt första gången en token-förnyelse lyckas igen."
+    },
+    "mandatory_consent_missing": {
+      "title": "Škoda: obligatoriskt samtycke ej accepterat",
+      "description": "Ditt {brand}-konto har inte accepterat ett obligatoriskt tjänstesamtycke, så vissa data eller funktioner kan vara otillgängliga. Öppna MyŠkoda-appen och acceptera det begärda samtycket — den här notisen försvinner av sig själv."
     }
   },
   "services": {

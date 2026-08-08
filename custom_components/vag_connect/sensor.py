@@ -640,6 +640,58 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:clock-end",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # v2.31.0 (8.15.0 APK) — Škoda predictive-maintenance service reminders
+    # (read-only; state = due date if present else status). Phantom-gated.
+    VagSensorDescription(
+        key="reminder_technical_inspection",
+        translation_key="reminder_technical_inspection",
+        data_key="reminder_technical_inspection",
+        icon="mdi:car-wrench",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="reminder_seasonal_tyre_change",
+        translation_key="reminder_seasonal_tyre_change",
+        data_key="reminder_seasonal_tyre_change",
+        icon="mdi:tire",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="reminder_first_aid_kit",
+        translation_key="reminder_first_aid_kit",
+        data_key="reminder_first_aid_kit",
+        icon="mdi:medical-bag",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="reminder_tyre_repair_kit",
+        translation_key="reminder_tyre_repair_kit",
+        data_key="reminder_tyre_repair_kit",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # v2.31.0 (8.15.0 APK) — Škoda departure-timer times (read-only).
+    VagSensorDescription(
+        key="departure_timer_1_time",
+        translation_key="departure_timer_1_time",
+        data_key="departure_timer_1_time",
+        icon="mdi:clock-time-four-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="departure_timer_2_time",
+        translation_key="departure_timer_2_time",
+        data_key="departure_timer_2_time",
+        icon="mdi:clock-time-four-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="departure_timer_3_time",
+        translation_key="departure_timer_3_time",
+        data_key="departure_timer_3_time",
+        icon="mdi:clock-time-four-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
 
 
     VagSensorDescription(
@@ -3307,6 +3359,14 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "parking_currency",
     "parking_started_at",
     "parking_ended_at",
+    # v2.31.0 — Škoda service reminders + departure-timer times (Skoda-only).
+    "reminder_technical_inspection",
+    "reminder_seasonal_tyre_change",
+    "reminder_first_aid_kit",
+    "reminder_tyre_repair_kit",
+    "departure_timer_1_time",
+    "departure_timer_2_time",
+    "departure_timer_3_time",
     "battery_temp_max",             # VW EU + Audi only (CARIAD-BFF)
     # v2.2.0 Phase 7 PR #2 — VW EU + Audi only (CARIAD-BFF
     # departureTimers block). Other brands' parsers don't populate

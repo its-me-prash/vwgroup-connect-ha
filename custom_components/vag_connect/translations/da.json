@@ -1227,6 +1227,18 @@
       },
       "parking_ended_at": {
         "name": "Parkering afsluttet"
+      },
+      "reminder_technical_inspection": {
+        "name": "Påmindelse om syn"
+      },
+      "reminder_seasonal_tyre_change": {
+        "name": "Påmindelse om dækskifte"
+      },
+      "reminder_first_aid_kit": {
+        "name": "Påmindelse om førstehjælpskasse"
+      },
+      "reminder_tyre_repair_kit": {
+        "name": "Påmindelse om dækreparationssæt"
       }
     },
     "binary_sensor": {
@@ -1526,6 +1538,12 @@
       },
       "insufficient_battery_level_warning": {
         "name": "Advarsel: for lavt batteriniveau"
+      },
+      "mandatory_consent_given": {
+        "name": "Obligatorisk samtykke givet"
+      },
+      "marketing_consent_given": {
+        "name": "Marketingsamtykke givet"
       }
     },
     "switch": {
@@ -1768,6 +1786,10 @@
     "refresh_interval_too_frequent": {
       "title": "{brand}: opdateringsinterval for hyppigt",
       "description": "{brand} udsteder kortlivede adgangstokens, så ved dit nuværende opdateringsinterval på **{current} minutter** skal næsten hver forespørgsel forny tokenet. Det udløser beskyttelsen mod fornyelsesstorme — en grænse for, hvor ofte integrationen må forny, som er der for at forhindre, at mærkekontoen bliver låst — og data holder op med at blive opdateret, indtil beskyttelsen nulstilles.\n\nDette er et problem med forespørgselshyppighed, ikke et loginproblem: at logge ind igen løser det ikke.\n\n**Løsningen:** hæv opdateringsintervallet til **{recommended} minutter** eller mere under Indstillinger → Enheder og tjenester → VW Group Connect → Konfigurer. Det holder tokenfornyelser under grænsen og data i bevægelse.\n\nDenne advarsel forsvinder automatisk, første gang en tokenfornyelse lykkes igen."
+    },
+    "mandatory_consent_missing": {
+      "title": "Škoda: obligatorisk samtykke ikke accepteret",
+      "description": "Din {brand}-konto har ikke accepteret et obligatorisk servicesamtykke, så nogle data eller funktioner kan være utilgængelige. Åbn MyŠkoda-appen og accepter det påkrævede samtykke — denne besked forsvinder af sig selv."
     }
   },
   "services": {

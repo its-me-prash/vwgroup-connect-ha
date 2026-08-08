@@ -443,13 +443,13 @@
         "name": "Kjørescore-klasse"
       },
       "departure_timer_1_time": {
-        "name": "Avreisetimer 1"
+        "name": "Avgangstimer 1"
       },
       "departure_timer_2_time": {
-        "name": "Avreisetimer 2"
+        "name": "Avgangstimer 2"
       },
       "departure_timer_3_time": {
-        "name": "Avreisetimer 3"
+        "name": "Avgangstimer 3"
       },
       "last_updated_at": {
         "name": "Siste oppdatering"
@@ -1227,6 +1227,18 @@
       },
       "parking_ended_at": {
         "name": "Parkering avsluttet"
+      },
+      "reminder_technical_inspection": {
+        "name": "Påminnelse om kontroll"
+      },
+      "reminder_seasonal_tyre_change": {
+        "name": "Påminnelse om dekkskift"
+      },
+      "reminder_first_aid_kit": {
+        "name": "Påminnelse om førstehjelpsutstyr"
+      },
+      "reminder_tyre_repair_kit": {
+        "name": "Påminnelse om dekkreparasjonssett"
       }
     },
     "binary_sensor": {
@@ -1526,6 +1538,12 @@
       },
       "insufficient_battery_level_warning": {
         "name": "Advarsel om for lavt batterinivå"
+      },
+      "mandatory_consent_given": {
+        "name": "Obligatorisk samtykke gitt"
+      },
+      "marketing_consent_given": {
+        "name": "Markedsføringssamtykke gitt"
       }
     },
     "switch": {
@@ -1768,6 +1786,10 @@
     "refresh_interval_too_frequent": {
       "title": "{brand}: oppdateringsintervall for hyppig",
       "description": "{brand} utsteder kortvarige tilgangstokener, så med ditt nåværende oppdateringsintervall på **{current} minutter** må nesten hver spørring fornye tokenet. Det utløser vernet mot fornyelsesstorm — en grense for hvor ofte integrasjonen kan fornye, som finnes for å hindre at merkekontoen blir låst — og dataene slutter å oppdateres til vernet nullstilles.\n\nDette er et problem med spørringsfrekvensen, ikke et innloggingsproblem: å autentisere på nytt løser det ikke.\n\n**Løsningen:** øk oppdateringsintervallet til **{recommended} minutter** eller mer under Innstillinger → Enheter og tjenester → VW Group Connect → Konfigurer. Da holdes tokenfornyelsene under grensen og dataene fortsetter å flyte.\n\nDenne advarselen fjernes automatisk første gang en tokenfornyelse lykkes igjen."
+    },
+    "mandatory_consent_missing": {
+      "title": "Škoda: obligatorisk samtykke ikke akseptert",
+      "description": "{brand}-kontoen din har ikke akseptert et obligatorisk tjenestesamtykke, så noen data eller funksjoner kan være utilgjengelige. Åpne MyŠkoda-appen og godta det nødvendige samtykket — dette varselet forsvinner av seg selv."
     }
   },
   "services": {

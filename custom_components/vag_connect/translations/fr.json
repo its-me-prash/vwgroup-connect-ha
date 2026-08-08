@@ -1227,6 +1227,18 @@
       },
       "parking_ended_at": {
         "name": "Fin du stationnement"
+      },
+      "reminder_technical_inspection": {
+        "name": "Rappel d'inspection"
+      },
+      "reminder_seasonal_tyre_change": {
+        "name": "Rappel de changement de pneus"
+      },
+      "reminder_first_aid_kit": {
+        "name": "Rappel trousse de secours"
+      },
+      "reminder_tyre_repair_kit": {
+        "name": "Rappel kit réparation pneus"
       }
     },
     "binary_sensor": {
@@ -1526,6 +1538,12 @@
       },
       "insufficient_battery_level_warning": {
         "name": "Alerte niveau de batterie insuffisant"
+      },
+      "mandatory_consent_given": {
+        "name": "Consentement obligatoire donné"
+      },
+      "marketing_consent_given": {
+        "name": "Consentement marketing donné"
       }
     },
     "switch": {
@@ -1768,6 +1786,10 @@
     "refresh_interval_too_frequent": {
       "title": "{brand} : intervalle de mise à jour trop fréquent",
       "description": "{brand} émet des jetons d'accès à courte durée de vie, si bien qu'avec votre intervalle de mise à jour actuel de **{current} minutes**, presque chaque interrogation doit rafraîchir le jeton. Cela déclenche la protection anti-tempête de rafraîchissement — une limite sur la fréquence à laquelle l'intégration peut rafraîchir, destinée à empêcher le verrouillage du compte de marque — et les données cessent de se mettre à jour jusqu'à la réinitialisation de la protection.\n\nIl s'agit d'un problème de fréquence d'interrogation, pas d'un problème de connexion : se réauthentifier n'y changera rien.\n\n**La solution :** augmentez l'intervalle de mise à jour à **{recommended} minutes** ou plus dans Paramètres → Appareils et services → VW Group Connect → Configurer. Cela maintient les rafraîchissements de jeton sous la limite et les données à jour.\n\nCet avertissement disparaît automatiquement dès qu'un rafraîchissement de jeton réussit à nouveau."
+    },
+    "mandatory_consent_missing": {
+      "title": "Škoda : consentement obligatoire non accepté",
+      "description": "Votre compte {brand} n'a pas accepté un consentement de service obligatoire ; certaines données ou fonctions peuvent être indisponibles. Ouvrez l'application MyŠkoda et acceptez le consentement requis — cet avis disparaît ensuite tout seul."
     }
   },
   "services": {

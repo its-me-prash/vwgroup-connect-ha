@@ -293,6 +293,22 @@ _NEW_BINARY: tuple[VagBinarySensorDescription, ...] = (
         icon="mdi:car-seat-heater",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # v2.31.0 (8.15.0 APK) — Škoda account consent state (read-only). ON =
+    # consented. Mandatory-not-consented also raises an actionable Repair.
+    VagBinarySensorDescription(
+        key="mandatory_consent_given",
+        translation_key="mandatory_consent_given",
+        data_key="mandatory_consent_given",
+        icon="mdi:file-sign",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagBinarySensorDescription(
+        key="marketing_consent_given",
+        translation_key="marketing_consent_given",
+        data_key="marketing_consent_given",
+        icon="mdi:email-check-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
     VagBinarySensorDescription(
         key="parking_light",
         translation_key="parking_light",
@@ -834,6 +850,8 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # primarily; vehicles without the underlying field stay None so
     # no phantom binary sensor surfaces.
     "seat_heating",
+    "mandatory_consent_given",       # Skoda-only (consents) — v2.31.0
+    "marketing_consent_given",       # Skoda-only (consents) — v2.31.0
     "parking_light",
     "external_power",
     "battery_care",

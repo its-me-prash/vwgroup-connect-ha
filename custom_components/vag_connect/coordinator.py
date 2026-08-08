@@ -601,6 +601,81 @@ def _parse_parking(resp: Any) -> dict[str, Any]:
     return out
 
 
+_REMINDER_KEYS = {
+    "TECHNICAL_INSPECTION": "reminder_technical_inspection",
+    "SEASONAL_TYRE_CHANGE": "reminder_seasonal_tyre_change",
+    "FIRST_AID_KIT": "reminder_first_aid_kit",
+    "TYRE_REPAIR_KIT": "reminder_tyre_repair_kit",
+}
+
+
+def _parse_predictive_maintenance(resp: Any) -> dict[str, Any]:
+    """v2.31.0 (8.15.0 APK) — service reminders → per-type flat field. State =
+    the ``dueDate`` (when it's due) if present, else the ``status``. Empty → {}.
+    """
+    reminders = resp.get("reminders") if isinstance(resp, dict) else None
+    if not isinstance(reminders, list):
+        return {}
+    out: dict[str, Any] = {}
+    for r in reminders:
+        if not isinstance(r, dict):
+            continue
+        key = _REMINDER_KEYS.get(str(r.get("type")))
+        if not key:
+            continue
+        due = r.get("dueDate")
+        status = r.get("status")
+        val = (
+            due if isinstance(due, str) and due
+            else (status if isinstance(status, str) and status else None)
+        )
+        if val:
+            out[key] = val
+    return out
+
+
+def _parse_departure_timers(resp: Any) -> dict[str, Any]:
+    """v2.31.0 (8.15.0 APK) — configured departure timers → per-timer time +
+    enabled-count. Timer ids 1..3. Empty → {}."""
+    timers = resp.get("timers") if isinstance(resp, dict) else None
+    if not isinstance(timers, list):
+        return {}
+    out: dict[str, Any] = {}
+    count = 0
+    for t in timers:
+        if not isinstance(t, dict):
+            continue
+        tid = t.get("id")
+        if not isinstance(tid, int) or isinstance(tid, bool) or not 1 <= tid <= 3:
+            continue
+        tm = t.get("time")
+        if isinstance(tm, str) and tm:
+            out[f"departure_timer_{tid}_time"] = tm
+        if t.get("enabled") is True:
+            count += 1
+    if out:
+        out["departure_timer_enabled_count"] = count
+    return out
+
+
+def _parse_consents(resp: Any) -> dict[str, Any]:
+    """v2.31.0 (8.15.0 APK) — mandatory + marketing consent state (read-only).
+    Empty → {}."""
+    if not isinstance(resp, dict):
+        return {}
+    out: dict[str, Any] = {}
+    m = resp.get("mandatory")
+    if isinstance(m, dict) and isinstance(m.get("consented"), bool):
+        out["mandatory_consent_given"] = m["consented"]
+        link = m.get("termsAndConditionsLink")
+        if isinstance(link, str) and link:
+            out["mandatory_consent_link"] = link
+    mk = resp.get("marketing")
+    if isinstance(mk, dict) and isinstance(mk.get("consented"), bool):
+        out["marketing_consent_given"] = mk["consented"]
+    return out
+
+
 def _parse_charging_profiles(resp: Any) -> dict[str, Any]:
     """v1.16.0 (#25, #31) — Pure parser for Skoda charging-profiles
     response. Returns dict ready to merge into ``coordinator.vehicles[vin]``.
@@ -1898,6 +1973,33 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             if portal is not None and hasattr(portal, "on_raw_dataset"):
                 portal.on_raw_dataset = _hook
 
+    def _update_consent_repair(self) -> None:
+        """v2.31.0 — surface a Repair when the Škoda account's MANDATORY consent
+        is not granted (read from ``GET api/v2/consents/mandatory``). Non-fixable
+        warning pointing the user to accept it in the MyŠkoda app; clears itself
+        once granted. Marketing consent is optional → never a Repair, only the
+        binary_sensor.
+        """
+        from homeassistant.helpers import issue_registry as ir  # noqa: PLC0415
+
+        issue_id = f"mandatory_consent_{self.entry.entry_id}"
+        missing = False
+        with self._vehicles_lock:
+            for v in self.vehicles.values():
+                if isinstance(v, dict) and v.get("mandatory_consent_given") is False:
+                    missing = True
+                    break
+        if not missing:
+            ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+            return
+        ir.async_create_issue(
+            self.hass, DOMAIN, issue_id,
+            is_fixable=False, is_persistent=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="mandatory_consent_missing",
+            translation_placeholders={"brand": self.entry.data.get(CONF_BRAND, "")},
+        )
+
     def _update_data_act_no_data_repair(self) -> None:
         """v2.12.2 (#393/#424) — raise/clear the "portal returned no data"
         repair issue for EU Data Act portal mode.
@@ -2551,6 +2653,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     self._update_data_act_no_data_repair()
                 except Exception:  # noqa: BLE001
                     pass  # a repair-issue update must never break the poll
+                # v2.31.0 — raise/clear the Škoda mandatory-consent Repair.
+                try:
+                    self._update_consent_repair()
+                except Exception:  # noqa: BLE001
+                    pass
                 # v1.14.0 (#24) — Trip Stats refresh, best-effort + cached
                 # 1h. Brand-restricted to audi/volkswagen inside helper.
                 # Runs after vehicle update so newest VINs are present
@@ -2585,6 +2692,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     await asyncio.gather(
                         *[self.refresh_fueling(vin) for vin in self.vehicles],
                         *[self.refresh_parking(vin) for vin in self.vehicles],
+                        *[self.refresh_predictive_maintenance(vin) for vin in self.vehicles],
+                        *[self.refresh_departure_timers(vin) for vin in self.vehicles],
+                        *[self.refresh_consents(vin) for vin in self.vehicles],
                         return_exceptions=True,
                     )
                 except Exception:  # noqa: BLE001
@@ -3970,6 +4080,74 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             v = self.vehicles.get(vin)
             if isinstance(v, dict):
                 v.update(parsed)
+
+    async def _refresh_skoda_cached(
+        self,
+        vin: str,
+        cache_attr: str,
+        method: str,
+        takes_vin: bool,
+        parse: Any,
+        force: bool = False,
+    ) -> None:
+        """v2.31.0 — shared best-effort Škoda read: brand-gate + 6h cache +
+        fetch + parse + merge into ``vehicles[vin]``. Stamps even on empty so a
+        non-supported account isn't re-hammered. Never breaks polling."""
+        try:
+            brand = str(self.entry.data.get(CONF_BRAND, "")).lower()
+        except Exception:  # noqa: BLE001
+            return
+        if brand not in self._FUELING_BRANDS:
+            return
+        store = getattr(self, cache_attr, None)
+        if store is None:
+            store = {}
+            setattr(self, cache_attr, store)
+        if not force:
+            last = store.get(vin)
+            if last is not None and (
+                datetime.now(tz=timezone.utc) - last < self._FUELING_REFRESH_INTERVAL
+            ):
+                return
+        client = self._cariad_client
+        fn = getattr(client, method, None) if client is not None else None
+        if fn is None:
+            return
+        try:
+            resp = await (fn(vin) if takes_vin else fn())
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("%s failed for %s: %s", method, mask_vin(vin), err)
+            return
+        store[vin] = datetime.now(tz=timezone.utc)
+        parsed = parse(resp)
+        if not parsed:
+            return
+        with self._vehicles_lock:
+            v = self.vehicles.get(vin)
+            if isinstance(v, dict):
+                v.update(parsed)
+
+    async def refresh_predictive_maintenance(self, vin: str, force: bool = False) -> None:
+        """v2.31.0 — Škoda service reminders (READ-ONLY), 6h cache."""
+        await self._refresh_skoda_cached(
+            vin, "_pm_fetched_at", "get_predictive_maintenance", True,
+            _parse_predictive_maintenance, force,
+        )
+
+    async def refresh_departure_timers(self, vin: str, force: bool = False) -> None:
+        """v2.31.0 — Škoda configured departure timers (READ-ONLY), 6h cache."""
+        await self._refresh_skoda_cached(
+            vin, "_dt_fetched_at", "get_departure_timers", True,
+            _parse_departure_timers, force,
+        )
+
+    async def refresh_consents(self, vin: str, force: bool = False) -> None:
+        """v2.31.0 — Škoda mandatory + marketing consent state (READ-ONLY),
+        6h cache. Consent CHANGES go through the PATCH/Repair flow, never here."""
+        await self._refresh_skoda_cached(
+            vin, "_consents_fetched_at", "get_consents", False,
+            _parse_consents, force,
+        )
 
     # ── v1.17.1 (Bruno-Collection) — SEAT/CUPRA Battery Care 1h cache ─
     _BATTERY_CARE_REFRESH_INTERVAL = timedelta(hours=1)

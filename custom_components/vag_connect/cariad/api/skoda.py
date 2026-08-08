@@ -332,6 +332,58 @@ class SkodaClient(CariadBaseClient):
             return []
         return data
 
+    async def get_predictive_maintenance(self, vin: str) -> dict[str, Any]:
+        """Service reminders (READ-ONLY) — MyŠkoda predictive maintenance.
+
+        ``GET api/v2/predictive-maintenance/vehicles/{vin}`` →
+        ``PredictiveMaintenanceDto{reminders: [ReminderDto{type, dueDate,
+        status, description, ...}]}``. type ∈ TECHNICAL_INSPECTION /
+        SEASONAL_TYRE_CHANGE / FIRST_AID_KIT / TYRE_REPAIR_KIT. Best-effort → {}.
+        """
+        try:
+            data = await self._get(
+                f"{_BASE}/api/v2/predictive-maintenance/vehicles/{vin}"
+            )
+        except Exception:  # noqa: BLE001
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    async def get_departure_timers(self, vin: str) -> dict[str, Any]:
+        """Configured departure timers (READ-ONLY).
+
+        ``GET api/v1/vehicle-automatization/{vin}/departure/timers`` →
+        ``DepartureTimersDto{timers: [DepartureTimerDto{id, time, type, enabled,
+        charging, climatisation, targetBatteryStateOfChargeInPercent, ...}]}``.
+        The two optional queries default null, so we omit them. Best-effort → {}.
+        """
+        try:
+            data = await self._get(
+                f"{_BASE}/api/v1/vehicle-automatization/{vin}/departure/timers"
+            )
+        except Exception:  # noqa: BLE001
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    async def get_consents(self) -> dict[str, Any]:
+        """Account consent state (READ-ONLY) — mandatory + marketing.
+
+        ``GET api/v2/consents/mandatory`` → ``{consented, termsAndConditionsLink,
+        dataPrivacyLink}`` and ``GET api/v2/consents/marketing`` → ``{consented,
+        title, text}`` (both account-level, no VIN). Returns
+        ``{"mandatory": {...}, "marketing": {...}}``; missing halves → absent.
+        Read-only: consent CHANGES go through the separate PATCH flow (a Repair),
+        never automatically. Best-effort per half.
+        """
+        out: dict[str, Any] = {}
+        for kind in ("mandatory", "marketing"):
+            try:
+                data = await self._get(f"{_BASE}/api/v2/consents/{kind}")
+            except Exception:  # noqa: BLE001
+                continue
+            if isinstance(data, dict):
+                out[kind] = data
+        return out
+
     async def get_capabilities(self, vin: str) -> dict[str, Any]:
         """Return the mysmob capabilities list for *vin*.
 

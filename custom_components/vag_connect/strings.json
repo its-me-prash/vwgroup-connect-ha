@@ -536,13 +536,13 @@
         "name": "Tire Pressure Rear Right"
       },
       "departure_timer_1_time": {
-        "name": "Departure Timer 1"
+        "name": "Departure timer 1"
       },
       "departure_timer_2_time": {
-        "name": "Departure Timer 2"
+        "name": "Departure timer 2"
       },
       "departure_timer_3_time": {
-        "name": "Departure Timer 3"
+        "name": "Departure timer 3"
       },
       "last_updated_at": {
         "name": "Last Update"
@@ -1227,6 +1227,18 @@
       },
       "parking_ended_at": {
         "name": "Parking ended"
+      },
+      "reminder_technical_inspection": {
+        "name": "Inspection reminder"
+      },
+      "reminder_seasonal_tyre_change": {
+        "name": "Tyre change reminder"
+      },
+      "reminder_first_aid_kit": {
+        "name": "First-aid kit reminder"
+      },
+      "reminder_tyre_repair_kit": {
+        "name": "Tyre repair kit reminder"
       }
     },
     "binary_sensor": {
@@ -1526,6 +1538,12 @@
       },
       "insufficient_battery_level_warning": {
         "name": "Insufficient Battery Level Warning"
+      },
+      "mandatory_consent_given": {
+        "name": "Mandatory consent given"
+      },
+      "marketing_consent_given": {
+        "name": "Marketing consent given"
       }
     },
     "switch": {
@@ -1768,6 +1786,10 @@
     "meb_commands_unavailable": {
       "title": "Remote commands aren't available for this car ({brand})",
       "description": "You enabled MBB remote commands when setting up {brand}, but this is an MEB / ID-family car (ID.3/4/5/7, Enyaq, Born, Q4). VW's MEB backend doesn't support the durable Car-Net command path — the durable login answered \"Unknown user\" — so lock, climate and charge commands can't be sent.\n\nThe entry was kept **read-only**: vehicle data still flows through the EU Data Act portal, you just won't see command entities. This is a known limitation of VW's MEB platform, not a setup error — you can dismiss this notice."
+    },
+    "mandatory_consent_missing": {
+      "title": "Škoda: mandatory consent not accepted",
+      "description": "Your {brand} account hasn't accepted a mandatory service consent, so some data or features may be unavailable. Open the MyŠkoda app and accept the required consent — this notice clears itself once you do."
     }
   },
   "selector": {

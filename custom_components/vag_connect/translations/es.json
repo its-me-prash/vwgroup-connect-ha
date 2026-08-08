@@ -1227,6 +1227,18 @@
       },
       "parking_ended_at": {
         "name": "Fin del estacionamiento"
+      },
+      "reminder_technical_inspection": {
+        "name": "Recordatorio de inspección"
+      },
+      "reminder_seasonal_tyre_change": {
+        "name": "Recordatorio de cambio de neumáticos"
+      },
+      "reminder_first_aid_kit": {
+        "name": "Recordatorio de botiquín"
+      },
+      "reminder_tyre_repair_kit": {
+        "name": "Recordatorio de kit de reparación"
       }
     },
     "binary_sensor": {
@@ -1526,6 +1538,12 @@
       },
       "insufficient_battery_level_warning": {
         "name": "Aviso de nivel de batería insuficiente"
+      },
+      "mandatory_consent_given": {
+        "name": "Consentimiento obligatorio otorgado"
+      },
+      "marketing_consent_given": {
+        "name": "Consentimiento de marketing otorgado"
       }
     },
     "switch": {
@@ -1768,6 +1786,10 @@
     "refresh_interval_too_frequent": {
       "title": "{brand}: intervalo de actualización demasiado frecuente",
       "description": "{brand} emite tokens de acceso de corta duración, por lo que con tu intervalo de actualización actual de **{current} minutos** casi todos los sondeos tienen que renovar el token. Eso activa la protección contra tormentas de renovación (un tope de la frecuencia con la que la integración puede renovar, para evitar que se bloquee la cuenta de la marca) y los datos dejan de actualizarse hasta que la protección se restablece.\n\nEste es un problema de frecuencia de sondeo, no un problema de inicio de sesión: volver a autenticarse no lo solucionará.\n\n**La solución:** aumenta el intervalo de actualización a **{recommended} minutos** o más en Ajustes → Dispositivos y servicios → VW Group Connect → Configurar. Eso mantiene las renovaciones de token por debajo del límite y los datos fluyendo.\n\nEsta advertencia desaparece automáticamente la primera vez que una renovación de token vuelve a tener éxito."
+    },
+    "mandatory_consent_missing": {
+      "title": "Škoda: consentimiento obligatorio no aceptado",
+      "description": "Tu cuenta {brand} no ha aceptado un consentimiento de servicio obligatorio, por lo que algunos datos o funciones pueden no estar disponibles. Abre la app MyŠkoda y acepta el consentimiento requerido; este aviso desaparece cuando lo hagas."
     }
   },
   "services": {

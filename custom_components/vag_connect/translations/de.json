@@ -1227,6 +1227,18 @@
       },
       "parking_ended_at": {
         "name": "Parken beendet"
+      },
+      "reminder_technical_inspection": {
+        "name": "Inspektion (Erinnerung)"
+      },
+      "reminder_seasonal_tyre_change": {
+        "name": "Reifenwechsel (Erinnerung)"
+      },
+      "reminder_first_aid_kit": {
+        "name": "Verbandskasten (Erinnerung)"
+      },
+      "reminder_tyre_repair_kit": {
+        "name": "Reifen-Reparaturset (Erinnerung)"
       }
     },
     "binary_sensor": {
@@ -1526,6 +1538,12 @@
       },
       "insufficient_battery_level_warning": {
         "name": "Warnung: Batteriestand zu niedrig"
+      },
+      "mandatory_consent_given": {
+        "name": "Pflichtzustimmung erteilt"
+      },
+      "marketing_consent_given": {
+        "name": "Marketing-Zustimmung erteilt"
       }
     },
     "switch": {
@@ -1768,6 +1786,10 @@
     "refresh_interval_too_frequent": {
       "title": "{brand}: Aktualisierungsintervall zu häufig",
       "description": "{brand} gibt nur kurzlebige Zugriffstokens aus, sodass bei deinem aktuellen Aktualisierungsintervall von **{current} Minuten** fast jede Abfrage das Token erneuern muss. Das löst den Schutz gegen Erneuerungs-Stürme aus — eine Obergrenze, wie oft die Integration erneuern darf, die verhindert, dass das Markenkonto gesperrt wird — und die Daten werden nicht mehr aktualisiert, bis der Schutz zurückgesetzt ist.\n\nDas ist ein Problem der Abfragehäufigkeit, kein Anmeldeproblem: Eine erneute Authentifizierung behebt es nicht.\n\n**Die Lösung:** Erhöhe das Aktualisierungsintervall auf **{recommended} Minuten** oder mehr unter Einstellungen → Geräte & Dienste → VW Group Connect → Konfigurieren. So bleiben die Token-Erneuerungen unter dem Limit und die Daten fließen weiter.\n\nDiese Warnung verschwindet automatisch, sobald eine Token-Erneuerung wieder erfolgreich ist."
+    },
+    "mandatory_consent_missing": {
+      "title": "Škoda: Pflichtzustimmung nicht akzeptiert",
+      "description": "Dein {brand}-Konto hat eine erforderliche Service-Zustimmung nicht akzeptiert, daher könnten einige Daten oder Funktionen fehlen. Öffne die MyŠkoda-App und akzeptiere die erforderliche Zustimmung — dieser Hinweis verschwindet danach von selbst."
     }
   },
   "selector": {

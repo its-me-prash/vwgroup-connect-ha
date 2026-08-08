@@ -1227,6 +1227,18 @@
       },
       "parking_ended_at": {
         "name": "Pysäköinti päättyi"
+      },
+      "reminder_technical_inspection": {
+        "name": "Katsastusmuistutus"
+      },
+      "reminder_seasonal_tyre_change": {
+        "name": "Rengasmuistutus"
+      },
+      "reminder_first_aid_kit": {
+        "name": "Ensiapupakkausmuistutus"
+      },
+      "reminder_tyre_repair_kit": {
+        "name": "Renkaankorjaussarjan muistutus"
       }
     },
     "binary_sensor": {
@@ -1526,6 +1538,12 @@
       },
       "insufficient_battery_level_warning": {
         "name": "Riittämättömän akkutason varoitus"
+      },
+      "mandatory_consent_given": {
+        "name": "Pakollinen suostumus annettu"
+      },
+      "marketing_consent_given": {
+        "name": "Markkinointisuostumus annettu"
       }
     },
     "switch": {
@@ -1768,6 +1786,10 @@
     "refresh_interval_too_frequent": {
       "title": "{brand}: päivitysväli liian tiheä",
       "description": "{brand} antaa lyhytikäisiä pääsytunnuksia, joten nykyisellä **{current} minuutin** päivitysvälilläsi lähes jokainen kysely joutuu uusimaan tunnuksen. Tämä laukaisee uusimismyrskyn suojan — rajan sille, kuinka usein integraatio saa uusia tunnuksen, joka estää merkkitilin lukkiutumisen — ja tietojen päivittyminen pysähtyy, kunnes suoja nollautuu.\n\nKyseessä on kyselytiheyden ongelma, ei kirjautumisongelma: uudelleentodennus ei korjaa tätä.\n\n**Korjaus:** nosta päivitysväli arvoon **{recommended} minuuttia** tai suuremmaksi kohdassa Asetukset → Laitteet ja palvelut → VW Group Connect → Määritä. Näin tunnusten uusimiset pysyvät rajan alapuolella ja tiedot päivittyvät edelleen.\n\nTämä varoitus poistuu automaattisesti heti, kun tunnuksen uusiminen onnistuu seuraavan kerran."
+    },
+    "mandatory_consent_missing": {
+      "title": "Škoda: pakollista suostumusta ei hyväksytty",
+      "description": "{brand}-tilisi ei ole hyväksynyt pakollista palvelusuostumusta, joten osa tiedoista tai toiminnoista voi olla poissa käytöstä. Avaa MyŠkoda-sovellus ja hyväksy vaadittu suostumus — tämä ilmoitus poistuu itsestään."
     }
   },
   "services": {

@@ -1227,6 +1227,18 @@
       },
       "parking_ended_at": {
         "name": "Konec parkování"
+      },
+      "reminder_technical_inspection": {
+        "name": "Připomínka technické prohlídky"
+      },
+      "reminder_seasonal_tyre_change": {
+        "name": "Připomínka přezutí pneumatik"
+      },
+      "reminder_first_aid_kit": {
+        "name": "Připomínka lékárničky"
+      },
+      "reminder_tyre_repair_kit": {
+        "name": "Připomínka opravné sady"
       }
     },
     "binary_sensor": {
@@ -1526,6 +1538,12 @@
       },
       "insufficient_battery_level_warning": {
         "name": "Varování nedostatečné úrovně baterie"
+      },
+      "mandatory_consent_given": {
+        "name": "Povinný souhlas udělen"
+      },
+      "marketing_consent_given": {
+        "name": "Marketingový souhlas udělen"
       }
     },
     "switch": {
@@ -1768,6 +1786,10 @@
     "refresh_interval_too_frequent": {
       "title": "{brand}: příliš častý interval aktualizace",
       "description": "{brand} vydává krátce platné přístupové tokeny, takže při vašem aktuálním intervalu aktualizace **{current} minut** musí token obnovit téměř každé dotazování. To spustí ochranu proti návalu obnovení (refresh-storm) — limit toho, jak často smí integrace obnovovat token, který má zabránit zablokování účtu značky — a data se přestanou aktualizovat, dokud se ochrana neresetuje.\n\nJde o problém s frekvencí dotazování, ne o problém s přihlášením: opětovné ověření to nevyřeší.\n\n**Řešení:** zvyšte interval aktualizace na **{recommended} minut** nebo více v Nastavení → Zařízení a služby → VW Group Connect → Konfigurovat. Tím udržíte obnovování tokenů pod limitem a data budou dál proudit.\n\nToto varování automaticky zmizí, jakmile obnovení tokenu opět proběhne úspěšně."
+    },
+    "mandatory_consent_missing": {
+      "title": "Škoda: povinný souhlas nebyl přijat",
+      "description": "Váš účet {brand} nepřijal povinný servisní souhlas, takže některá data nebo funkce nemusí být dostupné. Otevřete aplikaci MyŠkoda a přijměte požadovaný souhlas — toto upozornění poté samo zmizí."
     }
   },
   "services": {

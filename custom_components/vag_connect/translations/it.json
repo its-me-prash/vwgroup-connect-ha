@@ -1227,6 +1227,18 @@
       },
       "parking_ended_at": {
         "name": "Fine parcheggio"
+      },
+      "reminder_technical_inspection": {
+        "name": "Promemoria ispezione"
+      },
+      "reminder_seasonal_tyre_change": {
+        "name": "Promemoria cambio gomme"
+      },
+      "reminder_first_aid_kit": {
+        "name": "Promemoria kit pronto soccorso"
+      },
+      "reminder_tyre_repair_kit": {
+        "name": "Promemoria kit riparazione gomme"
       }
     },
     "binary_sensor": {
@@ -1526,6 +1538,12 @@
       },
       "insufficient_battery_level_warning": {
         "name": "Avviso livello batteria insufficiente"
+      },
+      "mandatory_consent_given": {
+        "name": "Consenso obbligatorio dato"
+      },
+      "marketing_consent_given": {
+        "name": "Consenso marketing dato"
       }
     },
     "switch": {
@@ -1768,6 +1786,10 @@
     "refresh_interval_too_frequent": {
       "title": "{brand}: intervallo di aggiornamento troppo frequente",
       "description": "{brand} emette token di accesso di breve durata, quindi con l'attuale intervallo di aggiornamento di **{current} minuti** quasi ogni interrogazione deve rinnovare il token. Questo fa scattare la protezione anti-tempesta di rinnovi — un limite sulla frequenza con cui l'integrazione può rinnovare il token, pensato per evitare che l'account del marchio venga bloccato — e i dati smettono di aggiornarsi finché la protezione non si reimposta.\n\nÈ un problema di frequenza di interrogazione, non un problema di accesso: ri-autenticarsi non lo risolverà.\n\n**La soluzione:** aumenta l'intervallo di aggiornamento a **{recommended} minuti** o più in Impostazioni → Dispositivi e servizi → VW Group Connect → Configura. In questo modo i rinnovi dei token restano sotto il limite e i dati continuano ad arrivare.\n\nQuesto avviso scompare automaticamente la prima volta che un rinnovo del token riesce di nuovo."
+    },
+    "mandatory_consent_missing": {
+      "title": "Škoda: consenso obbligatorio non accettato",
+      "description": "Il tuo account {brand} non ha accettato un consenso di servizio obbligatorio, quindi alcuni dati o funzioni potrebbero non essere disponibili. Apri l'app MyŠkoda e accetta il consenso richiesto — questo avviso scompare da solo."
     }
   },
   "services": {

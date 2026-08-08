@@ -1227,6 +1227,18 @@
       },
       "parking_ended_at": {
         "name": "Parkeren beëindigd"
+      },
+      "reminder_technical_inspection": {
+        "name": "Inspectieherinnering"
+      },
+      "reminder_seasonal_tyre_change": {
+        "name": "Bandenwissel-herinnering"
+      },
+      "reminder_first_aid_kit": {
+        "name": "EHBO-kit herinnering"
+      },
+      "reminder_tyre_repair_kit": {
+        "name": "Bandenreparatieset-herinnering"
       }
     },
     "binary_sensor": {
@@ -1526,6 +1538,12 @@
       },
       "insufficient_battery_level_warning": {
         "name": "Waarschuwing batterijniveau te laag"
+      },
+      "mandatory_consent_given": {
+        "name": "Verplichte toestemming gegeven"
+      },
+      "marketing_consent_given": {
+        "name": "Marketingtoestemming gegeven"
       }
     },
     "switch": {
@@ -1768,6 +1786,10 @@
     "refresh_interval_too_frequent": {
       "title": "{brand}: update-interval te frequent",
       "description": "{brand} geeft kortlevende access-tokens uit, dus bij je huidige update-interval van **{current} minuten** moet vrijwel elke poll het token vernieuwen. Dat activeert de refresh-storm-beveiliging — een limiet op hoe vaak de integratie mag vernieuwen, bedoeld om te voorkomen dat het merkaccount wordt vergrendeld — en de gegevens stoppen met bijwerken totdat de beveiliging wordt gereset.\n\nDit is een probleem met de pollingfrequentie, niet een inlogprobleem: opnieuw authenticeren lost het niet op.\n\n**De oplossing:** verhoog het update-interval naar **{recommended} minuten** of meer in Instellingen → Apparaten en services → VW Group Connect → Configureren. Zo blijven de tokenvernieuwingen onder de limiet en blijven de gegevens binnenkomen.\n\nDeze waarschuwing verdwijnt automatisch zodra een tokenvernieuwing weer voor het eerst slaagt."
+    },
+    "mandatory_consent_missing": {
+      "title": "Škoda: verplichte toestemming niet geaccepteerd",
+      "description": "Je {brand}-account heeft een verplichte servicetoestemming niet geaccepteerd, waardoor sommige gegevens of functies mogelijk niet beschikbaar zijn. Open de MyŠkoda-app en accepteer de vereiste toestemming — deze melding verdwijnt daarna vanzelf."
     }
   },
   "services": {

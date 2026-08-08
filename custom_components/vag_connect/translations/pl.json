@@ -437,13 +437,13 @@
         "name": "Klasa Wyniku Jazdy"
       },
       "departure_timer_1_time": {
-        "name": "Timer odjazdu 1"
+        "name": "Harmonogram odjazdu 1"
       },
       "departure_timer_2_time": {
-        "name": "Timer odjazdu 2"
+        "name": "Harmonogram odjazdu 2"
       },
       "departure_timer_3_time": {
-        "name": "Timer odjazdu 3"
+        "name": "Harmonogram odjazdu 3"
       },
       "last_updated_at": {
         "name": "Ostatnia aktualizacja"
@@ -1227,6 +1227,18 @@
       },
       "parking_ended_at": {
         "name": "Koniec parkowania"
+      },
+      "reminder_technical_inspection": {
+        "name": "Przypomnienie o przeglądzie"
+      },
+      "reminder_seasonal_tyre_change": {
+        "name": "Przypomnienie o zmianie opon"
+      },
+      "reminder_first_aid_kit": {
+        "name": "Przypomnienie o apteczce"
+      },
+      "reminder_tyre_repair_kit": {
+        "name": "Przypomnienie o zestawie naprawczym"
       }
     },
     "binary_sensor": {
@@ -1526,6 +1538,12 @@
       },
       "insufficient_battery_level_warning": {
         "name": "Ostrzeżenie o zbyt niskim poziomie baterii"
+      },
+      "mandatory_consent_given": {
+        "name": "Udzielono wymaganej zgody"
+      },
+      "marketing_consent_given": {
+        "name": "Udzielono zgody marketingowej"
       }
     },
     "switch": {
@@ -1768,6 +1786,10 @@
     "refresh_interval_too_frequent": {
       "title": "{brand}: zbyt częsty interwał aktualizacji",
       "description": "{brand} wydaje krótkotrwałe tokeny dostępu, więc przy Twoim obecnym interwale aktualizacji wynoszącym **{current} minut** niemal każde odpytywanie musi odświeżać token. To uruchamia zabezpieczenie przed burzą odświeżeń — limit tego, jak często integracja może odświeżać token, mający zapobiec zablokowaniu konta marki — i dane przestają się aktualizować, dopóki zabezpieczenie się nie zresetuje.\n\nTo problem z częstotliwością odpytywania, a nie z logowaniem: ponowne uwierzytelnienie go nie rozwiąże.\n\n**Rozwiązanie:** zwiększ interwał aktualizacji do **{recommended} minut** lub więcej w Ustawienia → Urządzenia i usługi → VW Group Connect → Konfiguruj. Dzięki temu odświeżenia tokenów pozostają poniżej limitu, a dane nadal napływają.\n\nTo ostrzeżenie znika automatycznie przy pierwszym ponownym udanym odświeżeniu tokenu."
+    },
+    "mandatory_consent_missing": {
+      "title": "Škoda: nie zaakceptowano wymaganej zgody",
+      "description": "Twoje konto {brand} nie zaakceptowało wymaganej zgody serwisowej, więc część danych lub funkcji może być niedostępna. Otwórz aplikację MyŠkoda i zaakceptuj wymaganą zgodę — to powiadomienie zniknie samo."
     }
   },
   "services": {
