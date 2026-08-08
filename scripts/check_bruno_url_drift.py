@@ -67,6 +67,12 @@ _PY_ENGINE_URL_RE = re.compile(
 _PY_BASE_FOR_VIN_RE = re.compile(
     r'f["\']\{self\._base_for_vin\([^)]*\)\}([^"\']+)["\']'
 )
+# v3.0.0 — {self._garage_base()}/... — market-aware garage-discovery base
+# (Audi NA #1092, US→na.bff / CA→emea.bff). Same path-suffix as {_BASE} from the
+# drift-check perspective; the host is resolved per market at runtime.
+_PY_GARAGE_BASE_RE = re.compile(
+    r'f["\']\{self\._garage_base\(\)\}([^"\']+)["\']'
+)
 # The literal value of _ENGINE_BASE in audi.py:32.
 _ENGINE_BASE_PREFIX = "/vehicle/v1/engine"
 
@@ -213,6 +219,12 @@ def _extract_python_urls(py_paths: list[str]) -> set[str]:
             raw.add(_normalise(_ENGINE_BASE_PREFIX + m.group(1)))
         # v2.1.0 — HomeRegion-aware {self._base_for_vin(vin)}/... captures.
         for m in _PY_BASE_FOR_VIN_RE.finditer(text):
+            url = _normalise(m.group(1))
+            if _is_skipped_template(url):
+                continue
+            raw.add(url)
+        # v3.0.0 — market-aware {self._garage_base()}/... captures (#1092).
+        for m in _PY_GARAGE_BASE_RE.finditer(text):
             url = _normalise(m.group(1))
             if _is_skipped_template(url):
                 continue
