@@ -1,0 +1,32 @@
+meta {
+  name: PUT set seat heating
+  type: http
+  seq: 46
+}
+
+put {
+  url: {{base_url}}/api/v2/air-conditioning/{{vin}}/settings/seats-heating
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "frontLeft": true,
+    "frontRight": false
+  }
+}
+
+docs {
+  Sets front/rear seat heating. Implementation:
+  SkodaClient.command_set_seat_heating().
+}

@@ -1,0 +1,34 @@
+meta {
+  name: POST send navigation destination
+  type: http
+  seq: 50
+}
+
+post {
+  url: {{base_url}}/api/v3/maps/navigation/destination
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "vin": "{{vin}}",
+    "latitude": 48.1,
+    "longitude": 11.5,
+    "name": "Muenchen"
+  }
+}
+
+docs {
+  Sends a destination to the car infotainment (SEAT/CUPRA/Skoda). Implementation:
+  SkodaClient.command_send_destination(). Closes issue #36.
+}

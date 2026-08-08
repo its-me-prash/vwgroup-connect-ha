@@ -1,0 +1,24 @@
+meta {
+  name: GET my parking sessions
+  type: http
+  seq: 41
+}
+
+get {
+  url: {{base_url}}/api/v1/parking/sessions/mine
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  READ-ONLY pay-to-park session (single ParkingSessionDto, not a list).
+  Implementation: SkodaClient.get_my_parking(). No write method exists.
+}

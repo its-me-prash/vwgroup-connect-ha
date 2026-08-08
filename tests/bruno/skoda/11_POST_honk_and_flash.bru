@@ -5,7 +5,7 @@ meta {
 }
 
 post {
-  url: {{base_url}}/api/v1/vehicle-access/{{vin}}/honk-and-flash
+  url: {{base_url}}/api/v2/vehicle-access/{{vin}}/honk-and-flash
   body: json
   auth: bearer
 }
@@ -26,6 +26,8 @@ body:json {
 }
 
 docs {
+  v3.0.0 (8.15.0 APK): migrated to the v2 route.
+
   Triggers the hazard lights to flash so the user can locate the car.
   We always send mode=FLASH_ONLY (no horn) — the integration exposes
   only the flash button, never the honk variant, to be neighbour-

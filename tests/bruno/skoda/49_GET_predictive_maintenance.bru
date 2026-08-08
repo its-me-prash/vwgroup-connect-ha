@@ -1,0 +1,24 @@
+meta {
+  name: GET predictive maintenance
+  type: http
+  seq: 49
+}
+
+get {
+  url: {{base_url}}/api/v2/predictive-maintenance/vehicles/{{vin}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  READ-ONLY service reminders (inspection, tyre change, kits). Implementation:
+  SkodaClient.get_predictive_maintenance().
+}

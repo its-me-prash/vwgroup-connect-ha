@@ -5,7 +5,7 @@ meta {
 }
 
 post {
-  url: {{base_url}}/api/v1/vehicle-access/{{vin}}/lock
+  url: {{base_url}}/api/v2/vehicle-access/{{vin}}/lock
   body: json
   auth: bearer
 }
@@ -24,6 +24,8 @@ body:json {
 }
 
 docs {
+  v3.0.0 (8.15.0 APK): migrated to the v2 route.
+
   Locks all doors. Empty JSON body — Skoda mysmob does NOT require
   the S-PIN for lock (unlike SEAT/CUPRA OLA which needs SecToken
   headers, and unlike CARIAD-BFF which needs the spin in the body).

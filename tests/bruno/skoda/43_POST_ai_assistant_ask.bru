@@ -1,0 +1,33 @@
+meta {
+  name: POST ask AI assistant (Laura)
+  type: http
+  seq: 43
+}
+
+post {
+  url: {{base_url}}/api/v2/ai-assistant/ask
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "userInput": "Reicht meine Ladung bis Muenchen?",
+    "vin": "{{vin}}"
+  }
+}
+
+docs {
+  MySkoda in-car AI assistant "Laura" (READ-ONLY advisory). Returns
+  {type, summary, sessionId, routeDetails}. Implementation:
+  SkodaClient.ask_assistant().
+}

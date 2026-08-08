@@ -1,0 +1,29 @@
+meta {
+  name: POST start camping mode
+  type: http
+  seq: 44
+}
+
+post {
+  url: {{base_url}}/api/v2/air-conditioning/{{vin}}/camping/start
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {}
+}
+
+docs {
+  Starts Skoda camping/sleep mode. Implementation:
+  SkodaClient.command_start_camping().
+}
