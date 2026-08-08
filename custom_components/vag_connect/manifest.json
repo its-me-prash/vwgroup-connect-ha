@@ -1,13 +1,13 @@
 {
   "domain": "vag_connect",
   "name": "VW Group Connect",
+  "after_dependencies": [
+    "llm"
+  ],
   "codeowners": [
     "@its-me-prash"
   ],
   "config_flow": true,
-  "after_dependencies": [
-    "llm"
-  ],
   "dependencies": [],
   "documentation": "https://github.com/its-me-prash/vwgroup-connect-ha",
   "integration_type": "hub",
