@@ -312,6 +312,26 @@ class SkodaClient(CariadBaseClient):
             return {}
         return data if isinstance(data, dict) else {}
 
+    async def get_my_parking(self) -> Any:
+        """The user's paid-parking sessions (READ-ONLY) — MyŠkoda pay-to-park.
+
+        ``GET api/v1/parking/sessions/mine`` → list of ``ParkingSessionDto``
+        (account-level, no VIN): ``{id, location{name}, priceAmount,
+        priceCurrency, startTime, stopTime, licencePlate}``. Surfaces where/when
+        you paid to park + the cost, and whether a session is still active
+        (``stopTime`` null). This read moves no money.
+
+        We NEVER call ``POST api/v1/parking/sessions`` — that starts/pays a
+        parking session (a financial transaction, house-rule prohibited); no
+        write method exists here. Best-effort: 404/403 (no pay-to-park enrolment
+        — most accounts) → ``[]``.
+        """
+        try:
+            data = await self._get(f"{_BASE}/api/v1/parking/sessions/mine")
+        except Exception:  # noqa: BLE001
+            return []
+        return data
+
     async def get_capabilities(self, vin: str) -> dict[str, Any]:
         """Return the mysmob capabilities list for *vin*.
 

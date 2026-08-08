@@ -603,6 +603,43 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:clock-outline",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # v2.31.0 (8.15.0 APK) — Škoda pay-to-park current/last session (read-only;
+    # phantom-gated → only spawns for pay-to-park users).
+    VagSensorDescription(
+        key="parking_location",
+        translation_key="parking_location",
+        data_key="parking_location",
+        icon="mdi:parking",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="parking_cost",
+        translation_key="parking_cost",
+        data_key="parking_cost",
+        icon="mdi:cash-multiple",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="parking_currency",
+        translation_key="parking_currency",
+        data_key="parking_currency",
+        icon="mdi:currency-eur",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="parking_started_at",
+        translation_key="parking_started_at",
+        data_key="parking_started_at",
+        icon="mdi:clock-start",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="parking_ended_at",
+        translation_key="parking_ended_at",
+        data_key="parking_ended_at",
+        icon="mdi:clock-end",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
 
 
     VagSensorDescription(
@@ -3264,6 +3301,12 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "last_refuel_fuel_type",
     "last_refuel_station",
     "last_refuel_at",
+    # v2.31.0 — Škoda pay-to-park; only present for enrolled users.
+    "parking_location",
+    "parking_cost",
+    "parking_currency",
+    "parking_started_at",
+    "parking_ended_at",
     "battery_temp_max",             # VW EU + Audi only (CARIAD-BFF)
     # v2.2.0 Phase 7 PR #2 — VW EU + Audi only (CARIAD-BFF
     # departureTimers block). Other brands' parsers don't populate

@@ -1212,6 +1212,21 @@
       },
       "last_refuel_at": {
         "name": "Ora ultimo rifornimento"
+      },
+      "parking_location": {
+        "name": "Luogo di parcheggio"
+      },
+      "parking_cost": {
+        "name": "Costo del parcheggio"
+      },
+      "parking_currency": {
+        "name": "Valuta del parcheggio"
+      },
+      "parking_started_at": {
+        "name": "Inizio parcheggio"
+      },
+      "parking_ended_at": {
+        "name": "Fine parcheggio"
       }
     },
     "binary_sensor": {

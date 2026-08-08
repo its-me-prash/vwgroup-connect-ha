@@ -566,6 +566,41 @@ def _parse_fueling(resp: Any) -> dict[str, Any]:
     return out
 
 
+def _parse_parking(resp: Any) -> dict[str, Any]:
+    """v2.31.0 (8.15.0 APK) — Škoda pay-to-park sessions (READ-ONLY) → the
+    current/most-recent one as flat ``vehicles[vin]`` fields. Prefers an ACTIVE
+    session (no ``stopTime``), else the newest by ``startTime``. Empty → ``{}``.
+    """
+    sessions = resp if isinstance(resp, list) else (
+        resp.get("sessions") if isinstance(resp, dict) else None
+    )
+    if not isinstance(sessions, list):
+        return {}
+    sessions = [s for s in sessions if isinstance(s, dict) and s.get("startTime")]
+    if not sessions:
+        return {}
+    active = [s for s in sessions if not s.get("stopTime")]
+    pick = (
+        active
+        or sorted(sessions, key=lambda s: str(s.get("startTime")), reverse=True)
+    )[0]
+    out: dict[str, Any] = {"parking_session_active": not pick.get("stopTime")}
+    loc = pick.get("location")
+    if isinstance(loc, dict) and isinstance(loc.get("name"), str) and loc["name"]:
+        out["parking_location"] = loc["name"]
+    for src, dst in (("startTime", "parking_started_at"), ("stopTime", "parking_ended_at")):
+        val = pick.get(src)
+        if isinstance(val, str) and val:
+            out[dst] = val
+    amt = pick.get("priceAmount")
+    if isinstance(amt, (int, float)) and not isinstance(amt, bool):
+        out["parking_cost"] = float(amt)
+    cur = pick.get("priceCurrency")
+    if isinstance(cur, str) and cur:
+        out["parking_currency"] = cur
+    return out
+
+
 def _parse_charging_profiles(resp: Any) -> dict[str, Any]:
     """v1.16.0 (#25, #31) — Pure parser for Skoda charging-profiles
     response. Returns dict ready to merge into ``coordinator.vehicles[vin]``.
@@ -2543,11 +2578,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     )
                 except Exception:  # noqa: BLE001
                     pass
-                # v2.31.0 — Škoda pay-at-pump last fill-up (READ-ONLY), 6h-cache.
-                # No-op for non-Škoda + accounts without pay-at-pump enrolment.
+                # v2.31.0 — Škoda pay-at-pump last fill-up + pay-to-park session
+                # (both READ-ONLY), 6h-cache. No-op for non-Škoda + accounts
+                # without the respective pay-in-app enrolment.
                 try:
                     await asyncio.gather(
                         *[self.refresh_fueling(vin) for vin in self.vehicles],
+                        *[self.refresh_parking(vin) for vin in self.vehicles],
                         return_exceptions=True,
                     )
                 except Exception:  # noqa: BLE001
@@ -3889,6 +3926,44 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # Stamp even on empty so a non-enrolled account isn't re-hammered.
         self._fueling_fetched_at[vin] = datetime.now(tz=timezone.utc)
         parsed = _parse_fueling(resp)
+        if not parsed:
+            return
+        with self._vehicles_lock:
+            v = self.vehicles.get(vin)
+            if isinstance(v, dict):
+                v.update(parsed)
+
+    async def refresh_parking(self, vin: str, force: bool = False) -> None:
+        """v2.31.0 — best-effort READ of the current/last MyŠkoda pay-to-park
+        session (location / cost / start-stop). Škoda-only, 6h cache. READ-ONLY:
+        never starts or pays for a parking session (that POST is a prohibited
+        financial transaction; no client method for it exists). Empty for
+        accounts without pay-to-park enrolment → the sensors never spawn.
+        """
+        try:
+            brand = str(self.entry.data.get(CONF_BRAND, "")).lower()
+        except Exception:  # noqa: BLE001
+            return
+        if brand not in self._FUELING_BRANDS:  # same brand set (mysmob Škoda)
+            return
+        if not hasattr(self, "_parking_fetched_at"):
+            self._parking_fetched_at: dict[str, datetime] = {}
+        if not force:
+            last = self._parking_fetched_at.get(vin)
+            if last is not None and (
+                datetime.now(tz=timezone.utc) - last < self._FUELING_REFRESH_INTERVAL
+            ):
+                return
+        client = self._cariad_client
+        if client is None or not hasattr(client, "get_my_parking"):
+            return
+        try:
+            resp = await client.get_my_parking()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Parking fetch failed for %s: %s", mask_vin(vin), err)
+            return
+        self._parking_fetched_at[vin] = datetime.now(tz=timezone.utc)
+        parsed = _parse_parking(resp)
         if not parsed:
             return
         with self._vehicles_lock:

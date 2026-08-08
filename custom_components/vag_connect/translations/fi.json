@@ -1212,6 +1212,21 @@
       },
       "last_refuel_at": {
         "name": "Viimeisin tankkausaika"
+      },
+      "parking_location": {
+        "name": "Pysäköintipaikka"
+      },
+      "parking_cost": {
+        "name": "Pysäköinnin hinta"
+      },
+      "parking_currency": {
+        "name": "Pysäköinnin valuutta"
+      },
+      "parking_started_at": {
+        "name": "Pysäköinti alkoi"
+      },
+      "parking_ended_at": {
+        "name": "Pysäköinti päättyi"
       }
     },
     "binary_sensor": {

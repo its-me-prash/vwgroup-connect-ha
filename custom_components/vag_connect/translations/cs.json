@@ -1212,6 +1212,21 @@
       },
       "last_refuel_at": {
         "name": "Čas posledního tankování"
+      },
+      "parking_location": {
+        "name": "Místo parkování"
+      },
+      "parking_cost": {
+        "name": "Cena parkování"
+      },
+      "parking_currency": {
+        "name": "Měna parkování"
+      },
+      "parking_started_at": {
+        "name": "Začátek parkování"
+      },
+      "parking_ended_at": {
+        "name": "Konec parkování"
       }
     },
     "binary_sensor": {

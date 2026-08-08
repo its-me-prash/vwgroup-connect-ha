@@ -1212,6 +1212,21 @@
       },
       "last_refuel_at": {
         "name": "Tidspunkt for siste fylling"
+      },
+      "parking_location": {
+        "name": "Parkeringssted"
+      },
+      "parking_cost": {
+        "name": "Parkeringskostnad"
+      },
+      "parking_currency": {
+        "name": "Parkeringsvaluta"
+      },
+      "parking_started_at": {
+        "name": "Parkering startet"
+      },
+      "parking_ended_at": {
+        "name": "Parkering avsluttet"
       }
     },
     "binary_sensor": {

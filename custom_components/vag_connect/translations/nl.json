@@ -1212,6 +1212,21 @@
       },
       "last_refuel_at": {
         "name": "Tijd laatste tankbeurt"
+      },
+      "parking_location": {
+        "name": "Parkeerlocatie"
+      },
+      "parking_cost": {
+        "name": "Parkeerkosten"
+      },
+      "parking_currency": {
+        "name": "Parkeervaluta"
+      },
+      "parking_started_at": {
+        "name": "Parkeren gestart"
+      },
+      "parking_ended_at": {
+        "name": "Parkeren beëindigd"
       }
     },
     "binary_sensor": {
