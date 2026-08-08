@@ -289,6 +289,29 @@ class SkodaClient(CariadBaseClient):
             return {}
         return resp if isinstance(resp, dict) else {}
 
+    async def get_latest_fueling(self) -> dict[str, Any]:
+        """Latest completed fill-up (READ-ONLY) — MyŠkoda pay-at-pump history.
+
+        ``GET api/v2/fueling/sessions/latest`` → ``FuelingSessionDto``
+        (account-level, no VIN). Surfaces past-consumption data only —
+        ``dateTime, fuelName, quantity/quantityUnit, price{total,currency,
+        pricePerUnit}, gasStation.name`` (the masked ``formattedCardName`` is
+        deliberately NOT read). This read moves no money.
+
+        We NEVER call ``POST api/v2/fueling/sessions`` — that starts a stored-card
+        pre-authorisation/charge at the pump via the ACI PayON gateway, i.e. a
+        financial transaction, which the house rules prohibit. There is no write
+        method in this client on purpose.
+
+        Best-effort: 404/403 (account without pay-at-pump enrolment — most
+        accounts) → ``{}``, so the sensors simply never spawn.
+        """
+        try:
+            data = await self._get(f"{_BASE}/api/v2/fueling/sessions/latest")
+        except Exception:  # noqa: BLE001
+            return {}
+        return data if isinstance(data, dict) else {}
+
     async def get_capabilities(self, vin: str) -> dict[str, Any]:
         """Return the mysmob capabilities list for *vin*.
 

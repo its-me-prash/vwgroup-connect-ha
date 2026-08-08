@@ -558,6 +558,51 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         condition="electric",
     ),
+    # v2.31.0 (8.15.0 APK) — Škoda pay-at-pump LAST fill-up (read-only
+    # consumption; phantom-gated → only spawns for pay-at-pump users).
+    VagSensorDescription(
+        key="last_refuel_quantity",
+        translation_key="last_refuel_quantity",
+        data_key="last_refuel_quantity",
+        native_unit_of_measurement="L",
+        icon="mdi:fuel",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="last_refuel_cost",
+        translation_key="last_refuel_cost",
+        data_key="last_refuel_cost",
+        icon="mdi:cash-multiple",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="last_refuel_currency",
+        translation_key="last_refuel_currency",
+        data_key="last_refuel_currency",
+        icon="mdi:currency-eur",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="last_refuel_fuel_type",
+        translation_key="last_refuel_fuel_type",
+        data_key="last_refuel_fuel_type",
+        icon="mdi:gas-station",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="last_refuel_station",
+        translation_key="last_refuel_station",
+        data_key="last_refuel_station",
+        icon="mdi:gas-station",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="last_refuel_at",
+        translation_key="last_refuel_at",
+        data_key="last_refuel_at",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
 
 
     VagSensorDescription(
@@ -3212,6 +3257,13 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "primary_engine_soc_pct",       # Skoda-only (driving-range)
     "steering_wheel_position",      # Skoda-only (air-conditioning)
     "preferred_charge_mode",        # Skoda-only (charging settings) — v2.31.0
+    # v2.31.0 — Škoda pay-at-pump last fill-up; only present for enrolled users.
+    "last_refuel_quantity",
+    "last_refuel_cost",
+    "last_refuel_currency",
+    "last_refuel_fuel_type",
+    "last_refuel_station",
+    "last_refuel_at",
     "battery_temp_max",             # VW EU + Audi only (CARIAD-BFF)
     # v2.2.0 Phase 7 PR #2 — VW EU + Audi only (CARIAD-BFF
     # departureTimers block). Other brands' parsers don't populate

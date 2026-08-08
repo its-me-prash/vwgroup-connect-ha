@@ -1194,6 +1194,24 @@
       },
       "preferred_charge_mode": {
         "name": "Ensisijainen lataustila"
+      },
+      "last_refuel_quantity": {
+        "name": "Viimeisin tankkausmäärä"
+      },
+      "last_refuel_cost": {
+        "name": "Viimeisin tankkauskustannus"
+      },
+      "last_refuel_currency": {
+        "name": "Viimeisimmän tankkauksen valuutta"
+      },
+      "last_refuel_fuel_type": {
+        "name": "Viimeisin polttoaine"
+      },
+      "last_refuel_station": {
+        "name": "Viimeisin huoltoasema"
+      },
+      "last_refuel_at": {
+        "name": "Viimeisin tankkausaika"
       }
     },
     "binary_sensor": {

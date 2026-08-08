@@ -1194,6 +1194,24 @@
       },
       "preferred_charge_mode": {
         "name": "Preferovaný režim nabíjení"
+      },
+      "last_refuel_quantity": {
+        "name": "Množství posledního tankování"
+      },
+      "last_refuel_cost": {
+        "name": "Cena posledního tankování"
+      },
+      "last_refuel_currency": {
+        "name": "Měna posledního tankování"
+      },
+      "last_refuel_fuel_type": {
+        "name": "Poslední palivo"
+      },
+      "last_refuel_station": {
+        "name": "Poslední čerpací stanice"
+      },
+      "last_refuel_at": {
+        "name": "Čas posledního tankování"
       }
     },
     "binary_sensor": {

@@ -1194,6 +1194,24 @@
       },
       "preferred_charge_mode": {
         "name": "Modalità di ricarica preferita"
+      },
+      "last_refuel_quantity": {
+        "name": "Quantità ultimo rifornimento"
+      },
+      "last_refuel_cost": {
+        "name": "Costo ultimo rifornimento"
+      },
+      "last_refuel_currency": {
+        "name": "Valuta ultimo rifornimento"
+      },
+      "last_refuel_fuel_type": {
+        "name": "Ultimo carburante"
+      },
+      "last_refuel_station": {
+        "name": "Ultima stazione"
+      },
+      "last_refuel_at": {
+        "name": "Ora ultimo rifornimento"
       }
     },
     "binary_sensor": {

@@ -532,6 +532,40 @@ def _parse_charging_history(resp: Any) -> dict[str, Any]:
     return out
 
 
+def _parse_fueling(resp: Any) -> dict[str, Any]:
+    """v2.31.0 (8.15.0 APK) — pure parser for the latest MyŠkoda pay-at-pump
+    fill-up (READ-ONLY consumption data). ``FuelingSessionDto`` → flat
+    ``vehicles[vin]`` fields. The masked ``formattedCardName`` is deliberately
+    NOT surfaced. Empty/garbage → ``{}`` so no sensor spawns.
+    """
+    if not isinstance(resp, dict) or not resp:
+        return {}
+    out: dict[str, Any] = {}
+    dt = resp.get("dateTime")
+    if isinstance(dt, str) and dt:
+        out["last_refuel_at"] = dt
+    fuel = resp.get("fuelName")
+    if isinstance(fuel, str) and fuel:
+        out["last_refuel_fuel_type"] = fuel
+    qty = resp.get("quantity")
+    if isinstance(qty, (int, float)) and not isinstance(qty, bool):
+        out["last_refuel_quantity"] = float(qty)
+    price = resp.get("price")
+    if isinstance(price, dict):
+        total = price.get("total")
+        if isinstance(total, (int, float)) and not isinstance(total, bool):
+            out["last_refuel_cost"] = float(total)
+        cur = price.get("currency")
+        if isinstance(cur, str) and cur:
+            out["last_refuel_currency"] = cur
+    station = resp.get("gasStation")
+    if isinstance(station, dict):
+        name = station.get("name")
+        if isinstance(name, str) and name:
+            out["last_refuel_station"] = name
+    return out
+
+
 def _parse_charging_profiles(resp: Any) -> dict[str, Any]:
     """v1.16.0 (#25, #31) — Pure parser for Skoda charging-profiles
     response. Returns dict ready to merge into ``coordinator.vehicles[vin]``.
@@ -2509,6 +2543,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     )
                 except Exception:  # noqa: BLE001
                     pass
+                # v2.31.0 — Škoda pay-at-pump last fill-up (READ-ONLY), 6h-cache.
+                # No-op for non-Škoda + accounts without pay-at-pump enrolment.
+                try:
+                    await asyncio.gather(
+                        *[self.refresh_fueling(vin) for vin in self.vehicles],
+                        return_exceptions=True,
+                    )
+                except Exception:  # noqa: BLE001
+                    pass
                 # v1.16.0 (#25, #31) — Skoda Charging Profiles 1h-cache.
                 # Same brand-restricted best-effort pattern.
                 try:
@@ -3806,6 +3849,52 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             parsed.get("total_charged_energy_kwh", 0),
             parsed.get("last_charging_session_start", "n/a"),
         )
+
+    # ── v2.31.0 — Škoda pay-at-pump last fill-up (READ-ONLY) 6h cache ──
+    _FUELING_REFRESH_INTERVAL = timedelta(hours=6)
+    _FUELING_BRANDS = ("skoda",)  # mysmob pay-at-pump product
+
+    async def refresh_fueling(self, vin: str, force: bool = False) -> None:
+        """v2.31.0 — best-effort READ of the latest MyŠkoda pay-at-pump fill-up
+        (litres / cost / station / fuel type). Škoda-only, 6h cache — fill-ups
+        happen at most a couple of times a week.
+
+        READ-ONLY: this never starts or pays for a fueling session (that POST is
+        a prohibited financial transaction and no client method for it exists).
+        Empty for accounts without pay-at-pump enrolment (most) → the sensors
+        never spawn.
+        """
+        try:
+            brand = str(self.entry.data.get(CONF_BRAND, "")).lower()
+        except Exception:  # noqa: BLE001
+            return
+        if brand not in self._FUELING_BRANDS:
+            return
+        if not hasattr(self, "_fueling_fetched_at"):
+            self._fueling_fetched_at: dict[str, datetime] = {}
+        if not force:
+            last = self._fueling_fetched_at.get(vin)
+            if last is not None and (
+                datetime.now(tz=timezone.utc) - last < self._FUELING_REFRESH_INTERVAL
+            ):
+                return
+        client = self._cariad_client
+        if client is None or not hasattr(client, "get_latest_fueling"):
+            return
+        try:
+            resp = await client.get_latest_fueling()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Fueling fetch failed for %s: %s", mask_vin(vin), err)
+            return
+        # Stamp even on empty so a non-enrolled account isn't re-hammered.
+        self._fueling_fetched_at[vin] = datetime.now(tz=timezone.utc)
+        parsed = _parse_fueling(resp)
+        if not parsed:
+            return
+        with self._vehicles_lock:
+            v = self.vehicles.get(vin)
+            if isinstance(v, dict):
+                v.update(parsed)
 
     # ── v1.17.1 (Bruno-Collection) — SEAT/CUPRA Battery Care 1h cache ─
     _BATTERY_CARE_REFRESH_INTERVAL = timedelta(hours=1)

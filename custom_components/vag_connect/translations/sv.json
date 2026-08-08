@@ -1194,6 +1194,24 @@
       },
       "preferred_charge_mode": {
         "name": "Föredraget laddningsläge"
+      },
+      "last_refuel_quantity": {
+        "name": "Senaste tankning – mängd"
+      },
+      "last_refuel_cost": {
+        "name": "Senaste tankning – kostnad"
+      },
+      "last_refuel_currency": {
+        "name": "Valuta för senaste tankning"
+      },
+      "last_refuel_fuel_type": {
+        "name": "Senaste bränsle"
+      },
+      "last_refuel_station": {
+        "name": "Senaste bensinstation"
+      },
+      "last_refuel_at": {
+        "name": "Tid för senaste tankning"
       }
     },
     "binary_sensor": {

@@ -1194,6 +1194,24 @@
       },
       "preferred_charge_mode": {
         "name": "Preferowany tryb ładowania"
+      },
+      "last_refuel_quantity": {
+        "name": "Ilość ostatniego tankowania"
+      },
+      "last_refuel_cost": {
+        "name": "Koszt ostatniego tankowania"
+      },
+      "last_refuel_currency": {
+        "name": "Waluta ostatniego tankowania"
+      },
+      "last_refuel_fuel_type": {
+        "name": "Ostatnie paliwo"
+      },
+      "last_refuel_station": {
+        "name": "Ostatnia stacja"
+      },
+      "last_refuel_at": {
+        "name": "Czas ostatniego tankowania"
       }
     },
     "binary_sensor": {
