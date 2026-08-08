@@ -72,14 +72,13 @@ class TestAudiNaTokenEndpoint:
         assert _NA_IDP_TOKEN_URL == "https://identity.na.vwgroup.io/oidc/v1/token"
         assert _NA_TOKEN_URL != _NA_IDP_TOKEN_URL
 
-    def test_reads_still_target_emea_bff(self) -> None:
-        # The fix must NOT move reads. The myAudi APK's only data BFF is the
-        # global emea.bff; na.bff is the auth proxy, supplied by the US market
-        # config at runtime (hence zero DEX hits for either it or the NA client id).
+    def test_us_reads_target_the_na_bff(self) -> None:
+        # The US market config supplies na.bff at runtime. A live device-grant
+        # bearer gets 200 there and 401 "expected user token" from emea.bff.
         from custom_components.vag_connect.cariad.api.audi_na import (
             BRAND_AUDI_NA,
             _NA_BFF_BASE,
         )
 
-        assert _NA_BFF_BASE == "https://emea.bff.cariad.digital"
-        assert BRAND_AUDI_NA.api_base == "https://emea.bff.cariad.digital"
+        assert _NA_BFF_BASE == "https://na.bff.cariad.digital"
+        assert BRAND_AUDI_NA.api_base == "https://na.bff.cariad.digital"
