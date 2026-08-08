@@ -248,6 +248,10 @@ class VWNAClient:
         self._country  = country.lower()
         self._base     = _COUNTRY_BASES.get(self._country, _COUNTRY_BASES["us"])
         self._tokens: TokenSet | None = None
+        # v3.0.0 — raw NA responses for the diagnostics export, so a US/CA
+        # reporter's "Download diagnostics" carries exactly what grounds a US
+        # read-path issue (#1082 / #659). Redacted at export time.
+        self.last_raw_responses: dict[str, Any] = {}
         # VW NA uses IDK auth but against a country-specific endpoint.
         # US and CA each ship their OWN MyVW authorize client_id (both real DEX
         # literals). N7 collapsed CA onto the US client; restored here because a
@@ -861,6 +865,16 @@ class VWNAClient:
         vehicle_raw = _unwrap_data(vehicle_raw)
         charge = _unwrap_data(charge)
         climate = _unwrap_data(climate)
+
+        # v3.0.0 — capture the raw (unwrapped) NA responses for the diagnostics
+        # export. Only real dicts (the gather uses return_exceptions=True, so a
+        # failed read is an Exception we skip). Defensive attr init covers tests
+        # that build the client via __new__.
+        if not hasattr(self, "last_raw_responses"):
+            self.last_raw_responses = {}
+        for _name, _obj in (("rvs", vehicle_raw), ("charge", charge), ("climate", climate)):
+            if isinstance(_obj, dict):
+                self.last_raw_responses[_name] = _obj
 
         # v2.15.3 (#503) — COMPACT shape-only DEBUG log so a user's DEBUG log
         # reveals the real response shape without ever logging values (privacy).

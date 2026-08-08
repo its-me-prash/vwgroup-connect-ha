@@ -1733,7 +1733,7 @@
     },
     "vehicle_data_scout_findings": {
       "title": "API-spanare — {count} nytt fält på {brand}",
-      "description": "API-spanaren upptäckte **{count}** nya fält i {brand}-API-svaret som VW Group Connect inte läser ännu.\n\nVanligtvis betyder det att ditt fordon har en funktion eller firmware-version vi inte har kartlagt — din hjälp lär integrationen att stödja den.\n\n**1-klick-rapport:**\n📤 Klicka på **Läs mer** nedan för att öppna ett förifyllt GitHub-ärende.\n\n**För Facebook / forum:** Inställningar → Enheter → VW Group Connect → Diagnostik → Ladda ner — klistra in den maskerade rapporten.\n\n_Integritet: VIN maskerade, GPS avrundad till 1 decimal, userIDs/JWT/e-post borttagna. Ingenting skickas automatiskt._"
+      "description": "API-spanaren hittade **{count}** nya fält i {brand}-API-svaret som VW Group Connect inte läser ännu.\n\nDet betyder oftast att din bil har en funktion eller firmware-version som vi inte har kartlagt — och **att skicka in den här rapporten är precis det som låter oss bygga stöd för den**, för din bil och alla andra med samma modell.\n\n**1-klick-rapport:** klicka på **Läs mer** nedan för att öppna ett förifyllt GitHub-ärende.\n\n**Ännu mer användbart:** bifoga din diagnostik — Inställningar → Enheter och tjänster → VW Group Connect → ⋮ → **Ladda ner diagnostik**. Den innehåller nu hela API-svaret med de nya fälten i sitt sammanhang, vilket är precis vad vi behöver för att göra dem till entiteter.\n\n_Allt maskeras automatiskt: VIN maskeras, GPS tas bort, tokens, användar-ID, e-postadresser och registreringsskyltar rensas bort. Ingenting delas någonsin om du inte bifogar det själv._"
     },
     "error_reporter_findings": {
       "title": "Felrapportör — {count} senaste fel på {brand}",

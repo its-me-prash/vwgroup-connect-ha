@@ -1733,7 +1733,7 @@
     },
     "vehicle_data_scout_findings": {
       "title": "Pozorovatel API — {count} nových polí v {brand}",
-      "description": "Pozorovatel API zjistil **{count}** nových polí v odpovědi API {brand}, která VW Group Connect zatím nečte.\n\nObvykle to znamená, že vaše vozidlo má funkci nebo verzi firmwaru, kterou jsme ještě nepřiřadili — vaše pomoc naučí integraci její podpoře.\n\n**Hlášení jedním kliknutím:**\n📤 Klikněte níže na **Více informací** a otevřete předvyplněný GitHub issue.\n\n**Pro Facebook / fórum:** Nastavení → Zařízení → VW Group Connect → Diagnostika → Stáhnout — vložte maskovanou zprávu.\n\n_Soukromí: VINy maskované, GPS zaokrouhleno na 1 desetinné místo, userIDs/JWT/e-maily odstraněny. Nic se neodesílá automaticky._"
+      "description": "Pozorovatel API našel **{count}** nových polí v odpovědi API {brand}, která VW Group Connect zatím nečte.\n\nObvykle to znamená, že vaše vozidlo má funkci nebo verzi firmwaru, kterou jsme ještě nepřiřadili — a **přeposlání tohoto hlášení je přesně to, co nám umožní přidat pro ni podporu**, pro vaše auto i pro všechny se stejným modelem.\n\n**Hlášení jedním kliknutím:** klikněte níže na **Více informací** a otevřete předvyplněný GitHub issue.\n\n**Ještě užitečnější:** přiložte diagnostiku — Nastavení → Zařízení a služby → VW Group Connect → ⋮ → **Stáhnout diagnostiku**. Nově obsahuje kompletní odpověď API s novými poli v kontextu, což je přesně to, co potřebujeme k jejich převedení na entity.\n\n_Vše se anonymizuje automaticky: VINy maskované, GPS odstraněno, tokeny, ID uživatelů, e-maily a registrační značky odstraněny. Nic se nikdy nesdílí, dokud to sami nepřiložíte._"
     },
     "error_reporter_findings": {
       "title": "Hlásič chyb — {count} nedávných chyb v {brand}",

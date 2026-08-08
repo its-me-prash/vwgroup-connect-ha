@@ -1733,7 +1733,7 @@
     },
     "vehicle_data_scout_findings": {
       "title": "Vehicle Data Scout — {count} new field(s) on {brand}",
-      "description": "The Vehicle Data Scout detected **{count}** new field(s) in the {brand} API response that VW Group Connect doesn't read yet.\n\nThis usually means your vehicle has a feature or firmware version we haven't mapped — your help would teach the integration to support it.\n\n**1-click report:**\n📤 Click **Learn more** below to open a pre-filled GitHub issue.\n\n**For Facebook / forum:** open Settings → Devices → VW Group Connect → Diagnostics → Download — paste the masked report.\n\n_Privacy: VINs masked, GPS rounded to 1 decimal, userIDs/JWTs/emails stripped. Nothing is sent automatically._"
+      "description": "The Vehicle Data Scout found **{count}** new field(s) in the {brand} API response that VW Group Connect doesn't read yet.\n\nThat usually means your car has a feature or firmware we haven't mapped — and **forwarding this report is exactly what lets us build support for it**, for your car and everyone with the same model.\n\n**1-click report:** click **Learn more** below to open a pre-filled GitHub issue.\n\n**Even more useful:** attach your diagnostics — Settings → Devices & Services → VW Group Connect → ⋮ → **Download diagnostics**. It now includes the full API response with the new fields in context, which is what we need to turn them into entities.\n\n_Everything is redacted automatically: VINs masked, GPS removed, tokens, user-IDs, e-mails and licence plates stripped. Nothing is ever shared unless you attach it yourself._"
     },
     "error_reporter_findings": {
       "title": "Error Reporter — {count} recent error(s) on {brand}",
