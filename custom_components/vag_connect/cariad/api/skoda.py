@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timedelta, timezone
 import logging
+import uuid
 from typing import Any
 
 from aiohttp import ClientSession
@@ -1752,6 +1753,99 @@ class SkodaClient(CariadBaseClient):
         await self._post(
             f"{_BASE}/api/v2/air-conditioning/{vin}/settings/seats-heating",
             json=body,
+        )
+
+    async def command_send_destination(
+        self,
+        vin: str,
+        latitude: float,
+        longitude: float,
+        name: str,
+        *,
+        city: str = "",
+        country: str = "",
+        state: str = "",  # noqa: ARG002 - Škoda's MapPositionAddressDto has no state
+        street: str = "",
+        house_number: str = "",
+        zip_code: str = "",
+    ) -> None:
+        """Send a navigation destination to the car (APK-GROUNDED, 8.15.0).
+
+        Endpoint ``POST api/v3/maps/navigation/destination``, @Body
+        ``SendDestinationRequestDto`` (Moshi, ``bff_maps/v3``). Required fields
+        ``id`` / ``type`` / ``vin``; ``name`` / ``coordinates`` / ``address`` /
+        ``savedLocationId`` optional. ``coordinates`` is ``GpsCoordinatesDto``
+        ``{latitude, longitude}`` (NOT the SEAT/CUPRA ``geoCoordinate`` shape at
+        their own ``/v1/users/vehicles/{vin}/destination`` — different endpoint,
+        do not reuse). ``address`` is ``MapPositionAddressDto``.
+
+        ``type`` is a Moshi String drawn from a closed place-kind vocabulary
+        (``wt0/l.smali``); for a raw coordinate the generic-point member is
+        ``"LOCATION"`` — never an off-vocabulary value (the app mapper rejects
+        it). ``id`` is a required free String; a real place has a backend id, so
+        for a HA-originated coordinate we mint a client UUID (accepted by the
+        non-null String contract; a captured real request is the only way to
+        fully confirm the backend tolerates an arbitrary id). LIVE-GATED.
+        """
+        body: dict[str, Any] = {
+            "id": str(uuid.uuid4()),
+            "type": "LOCATION",
+            "vin": vin,
+            "name": name,
+            "coordinates": {"latitude": latitude, "longitude": longitude},
+        }
+        address = {
+            k: val
+            for k, val in {
+                "city": city,
+                "country": country,
+                "houseNumber": house_number,
+                "street": street,
+                "zipCode": zip_code,
+            }.items()
+            if val
+        }
+        if address:
+            body["address"] = address
+        await self._post(
+            f"{_BASE}/api/v3/maps/navigation/destination", json=body
+        )
+
+    async def command_set_profile_target_soc(
+        self, vin: str, profile_id: int | str, target: int
+    ) -> None:
+        """Set the target SoC of ONE charging profile — per-location target (#25).
+
+        The global ``set-charge-limit`` sets a single SoC for the car; a
+        per-location target lives on a charging PROFILE. MyŠkoda updates a profile
+        by echoing the WHOLE profile back — there is no partial-PATCH DTO — so we
+        read the current profiles, find this one, mutate only
+        ``settings.targetStateOfChargeInPercent`` (NOT the global
+        ``targetSOCInPercent`` key), and PUT it. ``profile_id`` and the profile
+        come from ``get_charging_profiles``; its ``currentVehiclePositionProfile``
+        names the profile active at the car's GPS right now.
+
+        Endpoint ``PUT api/v1/charging/{vin}/profiles/{id}``, Body the full
+        ``ChargingProfileDto``. APK-grounded (8.15.0), LIVE-GATED.
+        """
+        data = await self.get_charging_profiles(vin)
+        profiles = data.get("chargingProfiles") or []
+        profile = next(
+            (
+                p for p in profiles
+                if isinstance(p, dict) and str(p.get("id")) == str(profile_id)
+            ),
+            None,
+        )
+        if profile is None:
+            raise ValueError(f"Skoda charging profile {profile_id!r} not found")
+        settings = profile.get("settings")
+        if not isinstance(settings, dict):
+            settings = {}
+            profile["settings"] = settings
+        settings["targetStateOfChargeInPercent"] = int(target)
+        await self._put(
+            f"{_BASE}/api/v1/charging/{vin}/profiles/{profile_id}", json=profile
         )
 
     # ── v2.20.0 — additional mysmob command routes ────────────────────────
