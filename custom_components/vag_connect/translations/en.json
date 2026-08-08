@@ -1522,6 +1522,12 @@
       },
       "battery_care_switch": {
         "name": "Battery care"
+      },
+      "camping_switch": {
+        "name": "Camping mode"
+      },
+      "auto_unlock_plug_switch": {
+        "name": "Auto-unlock charging plug"
       }
     },
     "number": {

@@ -1522,6 +1522,12 @@
       },
       "battery_care_switch": {
         "name": "Batterijbehoud"
+      },
+      "camping_switch": {
+        "name": "Kampeermodus"
+      },
+      "auto_unlock_plug_switch": {
+        "name": "Laadstekker automatisch ontgrendelen"
       }
     },
     "number": {

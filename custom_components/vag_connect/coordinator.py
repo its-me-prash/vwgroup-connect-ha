@@ -4858,6 +4858,29 @@ class VagConnectCoordinator(DataUpdateCoordinator):
     async def async_stop_ventilation(self, vin: str) -> None:
         await self._cariad_cmd(vin, "command_stop_ventilation")
 
+    async def async_start_camping(self, vin: str) -> None:
+        """v2.31.0 — Škoda camping mode (climate comfort while parked)."""
+        await self._cariad_cmd_optimistic(
+            vin, "command_start_camping", optimistic={"camping_mode": True},
+        )
+
+    async def async_stop_camping(self, vin: str) -> None:
+        await self._cariad_cmd_optimistic(
+            vin, "command_stop_camping", optimistic={"camping_mode": False},
+        )
+
+    async def async_set_auto_unlock_plug(self, vin: str, enabled: bool) -> None:
+        """v2.31.0 — Škoda: auto-unlock the charging plug once fully charged.
+
+        The read side (``auto_unlock_when_charged``) has shipped a while; the
+        client command maps the boolean to the mysmob ``PERMANENT``/``OFF`` enum.
+        """
+        await self._cariad_cmd_optimistic(
+            vin, "command_set_auto_unlock_plug",
+            optimistic={"auto_unlock_when_charged": enabled},
+            mode="PERMANENT" if enabled else "OFF",
+        )
+
     async def async_start_aux_heating(
         self,
         vin: str,

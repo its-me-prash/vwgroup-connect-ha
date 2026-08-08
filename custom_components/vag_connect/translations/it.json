@@ -1522,6 +1522,12 @@
       },
       "battery_care_switch": {
         "name": "Cura della batteria"
+      },
+      "camping_switch": {
+        "name": "Modalità campeggio"
+      },
+      "auto_unlock_plug_switch": {
+        "name": "Sblocco automatico della presa di ricarica"
       }
     },
     "number": {

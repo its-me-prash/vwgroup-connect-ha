@@ -1522,6 +1522,12 @@
       },
       "battery_care_switch": {
         "name": "Batterieschonung"
+      },
+      "camping_switch": {
+        "name": "Camping-Modus"
+      },
+      "auto_unlock_plug_switch": {
+        "name": "Ladestecker automatisch entriegeln"
       }
     },
     "number": {

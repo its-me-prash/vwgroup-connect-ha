@@ -1522,6 +1522,12 @@
       },
       "battery_care_switch": {
         "name": "Cuidado de la batería"
+      },
+      "camping_switch": {
+        "name": "Modo camping"
+      },
+      "auto_unlock_plug_switch": {
+        "name": "Desbloqueo automático del conector de carga"
       }
     },
     "number": {

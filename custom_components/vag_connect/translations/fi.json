@@ -1522,6 +1522,12 @@
       },
       "battery_care_switch": {
         "name": "Akun hoito"
+      },
+      "camping_switch": {
+        "name": "Leiritila"
+      },
+      "auto_unlock_plug_switch": {
+        "name": "Avaa latauspistoke automaattisesti"
       }
     },
     "number": {

@@ -1522,6 +1522,12 @@
       },
       "battery_care_switch": {
         "name": "Ochrona baterii"
+      },
+      "camping_switch": {
+        "name": "Tryb kempingowy"
+      },
+      "auto_unlock_plug_switch": {
+        "name": "Automatyczne odblokowanie wtyczki ładowania"
       }
     },
     "number": {

@@ -1522,6 +1522,12 @@
       },
       "battery_care_switch": {
         "name": "Batteripleje"
+      },
+      "camping_switch": {
+        "name": "Campingtilstand"
+      },
+      "auto_unlock_plug_switch": {
+        "name": "Lås ladestikket op automatisk"
       }
     },
     "number": {
