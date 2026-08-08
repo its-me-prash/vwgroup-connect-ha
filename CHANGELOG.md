@@ -5,6 +5,8 @@ All notable changes are documented here. / Alle wesentlichen Änderungen werden 
 Format: [Keep a Changelog 1.0.0](https://keepachangelog.com/en/1.0.0/)
 Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
+> ❤️ **Support this project:** VW Group Connect is a one-person effort kept alive against constant Volkswagen backend changes. If it's useful to you, please consider sponsoring continued maintenance — **[github.com/sponsors/its-me-prash](https://github.com/sponsors/its-me-prash)**. Every issue report, diagnostic, translation, code contribution and real-car test helps too; contributors are credited in **[CONTRIBUTORS.md](CONTRIBUTORS.md)**. Thank you 🙏
+
 > 📖 **Bi-lingual convention (v1.12.3 → v2.4.0 — DE-primary)**: section-titles were **DE / EN** joined by ` / ` and body content was German-only. Past entries are preserved as-is for historical accuracy.
 >
 > 📖 **Bi-lingual convention (v2.4.1+ — EN-primary, switched 2026-05-23)**: section-titles are now **EN / DE** joined by ` / `, body content is **English-primary** with German callouts where the original context was DACH-specific (Facebook-group threads, German tester names, brand-specific German terminology). The project's GitHub audience + the new "VW Group Connect" branding both lean international — English-primary makes the changelog readable for non-DACH users while keeping the DACH community's voice visible. Translations of individual body texts are available on request via [`docs/CHANGELOG_TECHNICAL.md`](docs/CHANGELOG_TECHNICAL.md) — same pattern.
@@ -60,9 +62,13 @@ A big Škoda-focused release: your car's own in-car assistant now lives inside H
 - **Charging power and rate now drop to zero the moment a charge stops (#1090).** Some cars — the Audi e-tron GT for one — keep reporting the last charging power for several minutes after charging has actually finished, and the integration showed that stale value and let it linger in your history. It now reads zero as soon as charging is definitively over, while still showing the real figure during normal and conservation charging.
 - **Volkswagen EU battery level no longer flips between two values on the data portal (#465).** On some cars the portal's data log carries the same battery reading more than once with no reliable per-point time of its own, and because Volkswagen re-orders that log between exports, a stale reading could inherit a newer-looking marker and out-rank the real one — so the state of charge oscillated (for example 57% vs 81% while the car actually sat near 80%). The integration now treats those order-dependent timestamps as unreliable and reconciles the reading against your last known value, so it settles on the plausible one instead of flipping. Thanks @Arno-MA-73 for pinning the exact mechanism.
 - **State of charge no longer sticks on a stale value when the data export lists it twice (#1088).** Some Volkswagen EU exports — seen on the ID.7 and e-Golf — carry the same battery field twice with different values and no timestamp to tell them apart, and the integration could pick the older one by position. It now flags the disagreement so the reading is reconciled against your last known value instead of guessing by order.
+- **Audi US accounts can now discover their vehicles after QR login (#13).** The login itself worked, but the integration sent the US access token to the EMEA vehicle service, which rejected it (`401 expected user token`). US vehicle requests now route through the regional host the myAudi market configuration specifies; Canada is unchanged. Thanks @pouwerkerk for the diagnosis, the fix, and a live test on a 2026 Q5.
 
 ### Translations
 - All the new sensors, switches, services and repairs are translated across all twelve languages (Czech, Danish, German, English, Spanish, Finnish, French, Italian, Norwegian, Dutch, Polish, Swedish).
+
+### Thanks
+- A community code contribution from **@pouwerkerk** (Audi US vehicle-discovery routing), plus every reporter, tester and diagnostic named above — this release is built on their work. If VW Group Connect is worth something to you, please consider **[sponsoring continued maintenance](https://github.com/sponsors/its-me-prash)**. 🙏
 
 ---
 
