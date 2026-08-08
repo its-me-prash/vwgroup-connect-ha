@@ -140,6 +140,15 @@ def _build_tools() -> list[llm.Tool]:
     return [cls() for cls in _TOOL_CLASSES]
 
 
+def _selector_serializer() -> Any:
+    """HA exposed ``selector_serializer`` publicly in 2026.x; older cores only
+    have the private ``_selector_serializer``. Fall back across versions — the
+    serializer is an OPTIONAL APIInstance field, so ``None`` is fine too."""
+    return getattr(llm, "selector_serializer", None) or getattr(
+        llm, "_selector_serializer", None
+    )
+
+
 class VagConnectLLMAPI(llm.API):
     """Custom LLM API (Path B) — selectable under any conversation agent's
     *Control Home Assistant* option. Works on all current HA versions."""
@@ -150,7 +159,7 @@ class VagConnectLLMAPI(llm.API):
             api_prompt=_PROMPT,
             llm_context=llm_context,
             tools=_build_tools(),
-            custom_serializer=llm.selector_serializer,
+            custom_serializer=_selector_serializer(),
         )
 
 

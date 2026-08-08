@@ -13,11 +13,17 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from homeassistant.core import Context
-from homeassistant.helpers import llm
 
-from custom_components.vag_connect import llm as vag_llm
-from custom_components.vag_connect.const import DOMAIN
+# The llm helper (and our llm.py) pull in HA's intent stack, which needs `hassil`;
+# a minimal HA test env (older CI matrix) may not have it. Skip cleanly rather
+# than erroring the whole collection.
+pytest.importorskip("homeassistant.helpers.llm")
+
+from homeassistant.core import Context  # noqa: E402
+from homeassistant.helpers import llm  # noqa: E402
+
+from custom_components.vag_connect import llm as vag_llm  # noqa: E402
+from custom_components.vag_connect.const import DOMAIN  # noqa: E402
 
 VIN = "TMBJJ7NX1M0000005"
 _ROOT = Path(__file__).resolve().parents[1] / "custom_components/vag_connect"
@@ -102,7 +108,10 @@ async def test_custom_api_instance_exposes_all_tools() -> None:
         "skoda_send_destination",
         "skoda_set_location_target_soc",
     }
-    assert inst.custom_serializer is llm.selector_serializer
+    expected = getattr(llm, "selector_serializer", None) or getattr(
+        llm, "_selector_serializer", None
+    )
+    assert inst.custom_serializer == expected
     assert "skoda_ask_assistant" in inst.api_prompt
 
 
