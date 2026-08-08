@@ -262,6 +262,26 @@ def _mbb_command_channel_client(coord: Any) -> Any | None:
     return cmd if cmd is not None else None
 
 
+def _static_info_model_year(info: dict[str, Any]) -> tuple[str | None, Any]:
+    """Extract (model, model_year) from a Škoda ``/vehicle-information`` payload.
+
+    Škoda's ``VehicleInfo`` nests ``model`` and ``modelYear`` under a
+    ``specification`` object — only ``devicePlatform`` sits at the top level
+    (grounded against the skodaconnect/myskoda ``Info`` model, 2026-08). A plain
+    top-level read therefore left every Škoda device's model + year blank. Prefer
+    a top-level value (for any other/forward-compat shape) and fall back to
+    ``specification`` so the real Škoda shape now fills in.
+    """
+    spec = info.get("specification")
+    spec = spec if isinstance(spec, dict) else {}
+    model = info.get("model")
+    if not (isinstance(model, str) and model):
+        cand = spec.get("model")
+        model = cand if isinstance(cand, str) and cand else None
+    year = info.get("modelYear") or spec.get("modelYear")
+    return model, year
+
+
 def _mbb_command_capability(
     coord: Any, vin: str, command_id: str
 ) -> bool | None:
@@ -3615,11 +3635,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         self._static_info_fetched_at[vin] = datetime.now(tz=timezone.utc)
         info = data.get("info") or {}
         equip = data.get("equipment") or []
+        _log_model, _log_year = _static_info_model_year(info)
         _LOGGER.debug(
             "Static info cached for %s — model=%r, year=%r, equipment=%d",
             mask_vin(vin),
-            info.get("model"),
-            info.get("modelYear"),
+            _log_model,
+            _log_year,
             len(equip),
         )
 
@@ -4091,10 +4112,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     plate = info.get("licensePlate")
                     if isinstance(plate, str) and plate:
                         data["license_plate"] = plate
-                if not data.get("model") and isinstance(info.get("model"), str):
-                    data["model"] = info["model"]
-                if not data.get("model_year") and info.get("modelYear"):
-                    data["model_year"] = info["modelYear"]
+                _static_model, _static_year = _static_info_model_year(info)
+                if not data.get("model") and _static_model:
+                    data["model"] = _static_model
+                if not data.get("model_year") and _static_year:
+                    data["model_year"] = _static_year
                 if not data.get("software_version") and isinstance(
                     info.get("softwareVersion"), str
                 ):
