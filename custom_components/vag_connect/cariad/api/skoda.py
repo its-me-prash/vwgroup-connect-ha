@@ -1677,6 +1677,58 @@ class SkodaClient(CariadBaseClient):
             f"{_BASE}/api/v2/air-conditioning/{vin}/auxiliary-heating/stop", json={}
         )
 
+    # ── 2.31.0 wave — camping + seat-heating (APK-GROUNDED gg LIVE 8.15.0) ─────
+    # Every route + JSON field below is a LITERAL from the decoded MyŠkoda
+    # 8.15.0 app (androguard/apktool, 2026-08): the AirConditioningApi Retrofit
+    # methods ``startCamping`` (POST ``camping/start``, @Body
+    # ``AirConditioningTargetTemperatureDto`` — same {temperatureValue, unitInCar}
+    # shape as target-temperature), ``stopCamping`` (POST ``camping/stop``, no
+    # body) and ``setAirConditioningSeatsHeating`` (POST
+    # ``settings/seats-heating``, @Body ``SeatHeatingSettingsDto`` with the four
+    # nullable Boolean seats frontLeft/frontRight/rearLeft/rearRight). LIVE-GATED:
+    # no Skoda tester has confirmed these against a car yet, so the tests pin the
+    # grounded wire shape and HA entity/service wiring is a follow-up once a
+    # status dump lands — the same staged approach as the v2.20.0 routes above.
+    async def command_start_camping(self, vin: str, temp_c: float = 20.0) -> None:
+        """Start camping mode. The app's ``camping/start`` carries a target
+        temperature (``AirConditioningTargetTemperatureDto``), identical to the
+        climate ``target-temperature`` body."""
+        await self._post(
+            f"{_BASE}/api/v2/air-conditioning/{vin}/camping/start",
+            json={"temperatureValue": temp_c, "unitInCar": "CELSIUS"},
+        )
+
+    async def command_stop_camping(self, vin: str) -> None:
+        """Stop camping mode. ``camping/stop`` takes no body."""
+        await self._post(
+            f"{_BASE}/api/v2/air-conditioning/{vin}/camping/stop", json={}
+        )
+
+    async def command_set_seat_heating(
+        self,
+        vin: str,
+        *,
+        front_left: bool | None = None,
+        front_right: bool | None = None,
+        rear_left: bool | None = None,
+        rear_right: bool | None = None,
+    ) -> None:
+        """Set seat-heating per seat. Only the seats passed (non-None) are sent,
+        so an automation can toggle one seat without disturbing the others."""
+        body: dict[str, bool] = {}
+        if front_left is not None:
+            body["frontLeft"] = front_left
+        if front_right is not None:
+            body["frontRight"] = front_right
+        if rear_left is not None:
+            body["rearLeft"] = rear_left
+        if rear_right is not None:
+            body["rearRight"] = rear_right
+        await self._post(
+            f"{_BASE}/api/v2/air-conditioning/{vin}/settings/seats-heating",
+            json=body,
+        )
+
     # ── v2.20.0 — additional mysmob command routes ────────────────────────
     # APK-GROUNDED. Each route + JSON DTO field below is a LITERAL string from
     # the decoded MyŠkoda 8.14.0 app: the route paths and the DTO wrappers
