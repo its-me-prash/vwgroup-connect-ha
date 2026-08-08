@@ -7,13 +7,16 @@ region — NOT the VW-NA con-veh backend. So ``AudiNAClient`` rides ``VWEUClient
 (exactly as the EU ``AudiClient`` does), with the NA host / IDP / client_id, and
 is deliberately NOT a ``VWNAClient``.
 
-These tests cover the WIRING + the real endpoints. They do NOT cover a live login
-or read: the CARIAD-BFF NA data plane is attestation-walled like EU Audi, so reads
-403 off-device until a data path exists (see audi_na.py / BRAND_AUDI_NA).
+The US data path was live-verified on 2026-08-08: the device-grant access token
+gets 401 from the EMEA garage but 200 from the NA garage. The current market
+configuration keeps Canada on EMEA, so discovery and per-VIN reads route by
+country.
 """
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from custom_components.vag_connect.cariad.api.audi_na import AudiNAClient
 from custom_components.vag_connect.cariad.api.vw_eu import VWEUClient
@@ -41,9 +44,7 @@ def test_brand_audi_na_has_live_na_endpoints() -> None:
         BRAND_AUDI_NA.client_id
         == "7c6b4634-f0c5-488b-a78f-b1a65414fb90@apps_vw-dilab_com"
     )
-    # v2.20.0 (APK audit) — myAudi 5.6.0 has no na.bff host; reads/token use the
-    # global emea.bff (only authorize is region-split at identity.na.vwgroup.io).
-    assert BRAND_AUDI_NA.api_base == "https://emea.bff.cariad.digital"
+    assert BRAND_AUDI_NA.api_base == "https://na.bff.cariad.digital"
 
 
 def test_factory_routes_audi_na() -> None:
@@ -53,9 +54,35 @@ def test_factory_routes_audi_na() -> None:
 
 
 def test_audi_na_reads_target_na_bff() -> None:
-    # v2.20.0 (APK audit) — reads hit the global emea.bff (the NA app has no
-    # na.bff host); the EU per-VIN HomeRegion split is still overridden off.
-    assert _client()._base_for_vin("WAUZZZ00000000000") == "https://emea.bff.cariad.digital"
+    assert _client("us")._base_for_vin("WAUZZZ00000000000") == (
+        "https://na.bff.cariad.digital"
+    )
+
+
+def test_audi_ca_reads_remain_on_emea_bff() -> None:
+    assert _client("ca")._base_for_vin("WAUZZZ00000000000") == (
+        "https://emea.bff.cariad.digital"
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("country", "base"),
+    (
+        ("us", "https://na.bff.cariad.digital"),
+        ("ca", "https://emea.bff.cariad.digital"),
+    ),
+)
+async def test_audi_na_vehicle_discovery_routes_by_market(
+    country: str, base: str
+) -> None:
+    client = _client(country)
+    client._get = AsyncMock(return_value={"data": []})
+    client._resolve_home_regions = AsyncMock()
+    client.fetch_images = AsyncMock()
+
+    assert await client.get_vehicles() == []
+    client._get.assert_awaited_once_with(f"{base}/vehicle/v1/vehicles")
 
 
 def test_audi_na_registered_in_brands() -> None:
