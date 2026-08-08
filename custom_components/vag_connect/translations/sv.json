@@ -1891,6 +1891,28 @@
           "name": "Höger bak"
         }
       }
+    },
+    "ask_assistant": {
+      "name": "Fråga Škodas AI-assistent (Laura)",
+      "description": "Skickar en fritextfråga till MyŠkoda AI-assistenten \"Laura\" (endast Škoda) och returnerar svaret via response_variable (summary = svarstext, session_id för uppföljning). Endast rådgivande — ruttplanering + produktfrågor, ingen fordonsstyrning.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN från kontot."
+        },
+        "prompt": {
+          "name": "Fråga / prompt",
+          "description": "Fritext till assistenten."
+        },
+        "timezone": {
+          "name": "Tidszon",
+          "description": "Valfritt (IANA, t.ex. Europe/Zurich). Standard är HA-systemets tidszon."
+        },
+        "session_id": {
+          "name": "Sessions-ID",
+          "description": "Valfritt. Från ett tidigare svar, för att fortsätta samma kontext."
+        }
+      }
     }
   },
   "exceptions": {

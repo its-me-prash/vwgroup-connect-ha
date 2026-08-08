@@ -4834,6 +4834,32 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         )
         return result
 
+    async def async_ask_assistant(
+        self,
+        vin: str,
+        prompt: str,
+        *,
+        timezone: str = "",
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
+        """v2.31.0 — ask the MyŠkoda AI assistant ("Laura"); returns its answer.
+
+        Škoda-only (mysmob ``ai-assistant/ask``); other brands raise
+        ``AttributeError`` → a clean service-response error. Read-only advisory
+        (route planning + product Q&A), never a vehicle command.
+        """
+        client = self._cariad_client
+        if not hasattr(client, "ask_assistant"):
+            raise AttributeError(
+                "ask_assistant is Škoda-only (MyŠkoda AI assistant)"
+            )
+        if not timezone:
+            timezone = getattr(self.hass.config, "time_zone", "") or ""
+        result: dict[str, Any] = await client.ask_assistant(
+            vin, prompt, user_timezone=timezone, session_id=session_id,
+        )
+        return result
+
     async def async_set_departure_timer(
         self,
         vin: str,

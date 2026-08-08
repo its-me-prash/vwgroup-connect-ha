@@ -1891,6 +1891,28 @@
           "name": "Tył prawy"
         }
       }
+    },
+    "ask_assistant": {
+      "name": "Zapytaj asystenta AI Škoda (Laura)",
+      "description": "Wysyła prompt tekstowy do asystenta AI MyŠkoda „Laura\" (tylko Škoda) i zwraca odpowiedź przez response_variable (summary = tekst odpowiedzi, session_id do kontynuacji). Wyłącznie doradczo — planowanie tras + pytania o produkt, bez sterowania pojazdem.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN z konta."
+        },
+        "prompt": {
+          "name": "Pytanie / prompt",
+          "description": "Dowolny tekst dla asystenta."
+        },
+        "timezone": {
+          "name": "Strefa czasowa",
+          "description": "Opcjonalnie (IANA, np. Europe/Zurich). Domyślnie strefa systemu HA."
+        },
+        "session_id": {
+          "name": "ID sesji",
+          "description": "Opcjonalnie. Z poprzedniej odpowiedzi, aby kontynuować ten sam kontekst."
+        }
+      }
     }
   },
   "exceptions": {

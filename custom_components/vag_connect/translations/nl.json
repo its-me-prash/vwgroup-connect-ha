@@ -1891,6 +1891,28 @@
           "name": "Rechtsachter"
         }
       }
+    },
+    "ask_assistant": {
+      "name": "De Škoda AI-assistent vragen (Laura)",
+      "description": "Stuur een vrije-tekstprompt naar de MyŠkoda AI-assistent \"Laura\" (alleen Škoda) en krijg het antwoord via response_variable (summary = antwoordtekst, session_id voor vervolgvragen). Alleen adviserend — routeplanning + productvragen, geen voertuigbesturing.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN van het account."
+        },
+        "prompt": {
+          "name": "Vraag / prompt",
+          "description": "Vrije tekst voor de assistent."
+        },
+        "timezone": {
+          "name": "Tijdzone",
+          "description": "Optioneel (IANA, bijv. Europe/Zurich). Standaard de HA-systeemtijdzone."
+        },
+        "session_id": {
+          "name": "Sessie-ID",
+          "description": "Optioneel. Uit een vorig antwoord, om dezelfde context voort te zetten."
+        }
+      }
     }
   },
   "exceptions": {

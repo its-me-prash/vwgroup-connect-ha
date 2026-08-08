@@ -1891,6 +1891,28 @@
           "name": "Posteriore destro"
         }
       }
+    },
+    "ask_assistant": {
+      "name": "Chiedi all'assistente IA Škoda (Laura)",
+      "description": "Invia un prompt in testo libero all'assistente IA MyŠkoda \"Laura\" (solo Škoda) e restituisce la risposta tramite response_variable (summary = testo della risposta, session_id per il seguito). Solo consultivo: pianificazione percorsi + domande sul prodotto, nessun comando al veicolo.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN dell'account."
+        },
+        "prompt": {
+          "name": "Domanda / prompt",
+          "description": "Testo libero per l'assistente."
+        },
+        "timezone": {
+          "name": "Fuso orario",
+          "description": "Opzionale (IANA, es. Europe/Zurich). Predefinito: fuso del sistema HA."
+        },
+        "session_id": {
+          "name": "ID sessione",
+          "description": "Opzionale. Da una risposta precedente, per continuare lo stesso contesto."
+        }
+      }
     }
   },
   "exceptions": {

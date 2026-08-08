@@ -1911,6 +1911,28 @@
           "name": "Rear right"
         }
       }
+    },
+    "ask_assistant": {
+      "name": "Ask the Škoda AI assistant (Laura)",
+      "description": "Send a free-text prompt to the MyŠkoda AI assistant \"Laura\" (Škoda only) and get the answer via response_variable (summary = answer text, session_id for follow-ups). Advisory only — route planning + product questions, no vehicle control.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN from the account."
+        },
+        "prompt": {
+          "name": "Question / prompt",
+          "description": "Free text for the assistant."
+        },
+        "timezone": {
+          "name": "Time zone",
+          "description": "Optional (IANA, e.g. Europe/Zurich). Defaults to the HA system time zone."
+        },
+        "session_id": {
+          "name": "Session ID",
+          "description": "Optional. From a previous answer, to continue the same context."
+        }
+      }
     }
   },
   "exceptions": {

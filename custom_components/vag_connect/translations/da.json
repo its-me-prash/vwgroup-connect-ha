@@ -1891,6 +1891,28 @@
           "name": "Bageste højre"
         }
       }
+    },
+    "ask_assistant": {
+      "name": "Spørg Škodas AI-assistent (Laura)",
+      "description": "Sender en fritekst-prompt til MyŠkoda AI-assistenten \"Laura\" (kun Škoda) og returnerer svaret via response_variable (summary = svartekst, session_id til opfølgning). Kun rådgivende — ruteplanlægning + produktspørgsmål, ingen køretøjsstyring.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN fra kontoen."
+        },
+        "prompt": {
+          "name": "Spørgsmål / prompt",
+          "description": "Fritekst til assistenten."
+        },
+        "timezone": {
+          "name": "Tidszone",
+          "description": "Valgfri (IANA, f.eks. Europe/Zurich). Standard er HA-systemets tidszone."
+        },
+        "session_id": {
+          "name": "Sessions-ID",
+          "description": "Valgfri. Fra et tidligere svar, for at fortsætte samme kontekst."
+        }
+      }
     }
   },
   "exceptions": {

@@ -811,6 +811,39 @@ def _register_services(hass: HomeAssistant) -> None:
         supports_response=SupportsResponse.OPTIONAL,
     )
 
+    async def _handle_ask_assistant(call: ServiceCall) -> ServiceResponse:
+        """v2.31.0 — MyŠkoda AI assistant ("Laura"): prompt in, answer out."""
+        coord = _coord_writeable(call.data["vin"])
+        try:
+            result = await coord.async_ask_assistant(
+                call.data["vin"],
+                str(call.data["prompt"]),
+                timezone=str(call.data.get("timezone", "")),
+                session_id=call.data.get("session_id"),
+            )
+        except AttributeError as exc:
+            raise ServiceValidationError(str(exc)) from exc
+        response: ServiceResponse = {
+            "summary": result.get("summary"),
+            "type": result.get("type"),
+            # keep the session id so a follow-up call can continue the thread
+            "session_id": result.get("sessionId"),
+        }
+        return response
+
+    hass.services.async_register(
+        DOMAIN,
+        "ask_assistant",
+        _handle_ask_assistant,
+        vol.Schema({
+            vol.Required("vin"):        cv.string,
+            vol.Required("prompt"):     cv.string,
+            vol.Optional("timezone"):   cv.string,
+            vol.Optional("session_id"): cv.string,
+        }),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+
     # v2.10.0 unified execute_vehicle_action dispatcher.
     # Pattern observed in arjenvrh/audi_connect_ha v2.1.0: instead of
     # the user scrolling through 10+ separate per-action services in

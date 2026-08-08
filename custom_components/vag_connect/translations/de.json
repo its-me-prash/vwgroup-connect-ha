@@ -1911,6 +1911,28 @@
           "name": "Hinten rechts"
         }
       }
+    },
+    "ask_assistant": {
+      "name": "Škoda AI-Assistenten fragen (Laura)",
+      "description": "Schickt einen Freitext-Prompt an den MyŠkoda AI-Assistenten „Laura\" (nur Škoda) und gibt die Antwort per response_variable zurück (summary = Antworttext, session_id für Folgefragen). Rein beratend — Routenplanung + Produktfragen, keine Fahrzeugsteuerung.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN aus dem Konto."
+        },
+        "prompt": {
+          "name": "Frage / Prompt",
+          "description": "Freitext an den Assistenten."
+        },
+        "timezone": {
+          "name": "Zeitzone",
+          "description": "Optional (IANA, z. B. Europe/Zurich). Standard = HA-Systemzeitzone."
+        },
+        "session_id": {
+          "name": "Session-ID",
+          "description": "Optional. Aus einer vorherigen Antwort, für Folgefragen im selben Kontext."
+        }
+      }
     }
   },
   "exceptions": {

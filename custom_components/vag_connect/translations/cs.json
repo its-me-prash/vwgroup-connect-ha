@@ -1891,6 +1891,28 @@
           "name": "Zadní pravé"
         }
       }
+    },
+    "ask_assistant": {
+      "name": "Zeptat se AI asistenta Škoda (Laura)",
+      "description": "Odešle textový prompt AI asistentovi MyŠkoda „Laura\" (jen Škoda) a vrátí odpověď přes response_variable (summary = text odpovědi, session_id pro navazující dotazy). Pouze poradní — plánování tras + dotazy na produkt, žádné ovládání vozidla.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN z účtu."
+        },
+        "prompt": {
+          "name": "Dotaz / prompt",
+          "description": "Volný text pro asistenta."
+        },
+        "timezone": {
+          "name": "Časové pásmo",
+          "description": "Volitelné (IANA, např. Europe/Zurich). Výchozí = časové pásmo systému HA."
+        },
+        "session_id": {
+          "name": "ID relace",
+          "description": "Volitelné. Z předchozí odpovědi, pro pokračování ve stejném kontextu."
+        }
+      }
     }
   },
   "exceptions": {

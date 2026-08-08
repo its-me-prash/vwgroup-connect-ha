@@ -1891,6 +1891,28 @@
           "name": "Takaoikea"
         }
       }
+    },
+    "ask_assistant": {
+      "name": "Kysy Škodan tekoälyavustajalta (Laura)",
+      "description": "Lähettää vapaan tekstin kehotteen MyŠkoda-tekoälyavustaja \"Lauralle\" (vain Škoda) ja palauttaa vastauksen response_variable-muuttujassa (summary = vastausteksti, session_id jatkokysymyksiin). Vain neuvova — reittisuunnittelu + tuotekysymykset, ei ajoneuvon ohjausta.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "Tilin VIN."
+        },
+        "prompt": {
+          "name": "Kysymys / kehote",
+          "description": "Vapaa teksti avustajalle."
+        },
+        "timezone": {
+          "name": "Aikavyöhyke",
+          "description": "Valinnainen (IANA, esim. Europe/Zurich). Oletus = HA-järjestelmän aikavyöhyke."
+        },
+        "session_id": {
+          "name": "Istunnon tunnus",
+          "description": "Valinnainen. Aiemmasta vastauksesta, saman kontekstin jatkamiseen."
+        }
+      }
     }
   },
   "exceptions": {

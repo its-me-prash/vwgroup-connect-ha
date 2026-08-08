@@ -65,3 +65,10 @@ def test_camping_without_endsat_leaves_it_none() -> None:
     d = _status({"campingMode": {"enabled": False}})
     assert d.camping_mode is False
     assert d.camping_ends_at is None
+
+
+def test_aux_heating_active_from_top_level_state() -> None:
+    # The top-level AirConditioningStateDto enum includes HEATING_AUXILIARY,
+    # so the aux-heating switch's read-state comes free from the AC GET.
+    assert _status({"state": "HEATING_AUXILIARY"}).aux_heating_active is True
+    assert _status({"state": "COOLING"}).aux_heating_active is False

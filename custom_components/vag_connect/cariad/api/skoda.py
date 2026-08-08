@@ -868,6 +868,16 @@ class SkodaClient(CariadBaseClient):
         if isinstance(ac, dict):
             d.climatisation_state = v(ac, "state")
             d.climatisation_active = d.climatisation_state not in (None, "OFF", "INVALID")
+            # v2.31.0 (8.15.0 APK) — the top-level AirConditioningStateDto enum
+            # includes HEATING_AUXILIARY, so aux-heating's active state derives
+            # from the state we already fetched (zero extra request). Fills the
+            # flag the Škoda aux-heating switch reads — it spawns (Škoda has
+            # command_start_aux_heating) but showed "unknown" because the Škoda
+            # parser never set aux_heating_active (only vw_eu did). PREHEATING (the
+            # warm-up sub-state) only shows on the .../auxiliary-heating sub-GET;
+            # this coarse flag is enough to make the switch reflect reality.
+            if isinstance(d.climatisation_state, str):
+                d.aux_heating_active = d.climatisation_state == "HEATING_AUXILIARY"
             # v1.10.1 (#58) — safe_float. Skoda firmwares have shipped
             # ``"21,5"`` (locale-comma) on EU accounts at least once.
             d.target_temperature = safe_float(
@@ -1905,6 +1915,36 @@ class SkodaClient(CariadBaseClient):
         await self._put(
             f"{_BASE}/api/v1/charging/{vin}/profiles/{profile_id}", json=profile
         )
+
+    async def ask_assistant(
+        self,
+        vin: str,
+        user_input: str,
+        *,
+        user_timezone: str = "",
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Ask the MyŠkoda AI assistant ("Laura") — APK-GROUNDED (8.15.0).
+
+        ``POST api/v2/ai-assistant/ask``, @Body ``AIAssistantRequestDto`` (all
+        fields optional: userInput, userTimezone, vin, sessionId, routePlanner).
+        Returns ``AIAssistantResponseDto{type, summary, sessionId, routeDetails}``
+        — the ``summary`` is standalone human-readable free text.
+
+        Read-only ADVISORY: EV trip/route planning + product Q&A. The
+        AiAssistantApi package has ZERO command DTOs (no lock/climate/charge), so
+        this never actuates the car. Uses the mysmob Bearer we already hold; no
+        Play-Integrity/attestation (only ``v2/auth/HttpBearerAuth``). Pass
+        ``session_id`` from a prior answer for multi-turn continuity. LIVE-GATED:
+        answer quality/latency unverified by statics.
+        """
+        body: dict[str, Any] = {"userInput": user_input, "vin": vin}
+        if user_timezone:
+            body["userTimezone"] = user_timezone
+        if session_id:
+            body["sessionId"] = session_id
+        data = await self._post(f"{_BASE}/api/v2/ai-assistant/ask", json=body)
+        return data if isinstance(data, dict) else {}
 
     # ── v2.20.0 — additional mysmob command routes ────────────────────────
     # APK-GROUNDED. Each route + JSON DTO field below is a LITERAL string from

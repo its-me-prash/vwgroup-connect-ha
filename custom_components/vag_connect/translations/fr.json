@@ -1891,6 +1891,28 @@
           "name": "Arrière droit"
         }
       }
+    },
+    "ask_assistant": {
+      "name": "Demander à l'assistant IA Škoda (Laura)",
+      "description": "Envoie un prompt en texte libre à l'assistant IA MyŠkoda « Laura » (Škoda uniquement) et renvoie la réponse via response_variable (summary = texte de réponse, session_id pour les suites). Consultatif uniquement — planification d'itinéraire + questions produit, aucune commande du véhicule.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN du compte."
+        },
+        "prompt": {
+          "name": "Question / prompt",
+          "description": "Texte libre pour l'assistant."
+        },
+        "timezone": {
+          "name": "Fuseau horaire",
+          "description": "Optionnel (IANA, ex. Europe/Zurich). Par défaut : fuseau du système HA."
+        },
+        "session_id": {
+          "name": "ID de session",
+          "description": "Optionnel. D'une réponse précédente, pour continuer le même contexte."
+        }
+      }
     }
   },
   "exceptions": {
