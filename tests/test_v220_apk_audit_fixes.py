@@ -28,8 +28,22 @@ def test_skoda_flash_is_FLASH_not_FLASH_ONLY() -> None:
     c._post = AsyncMock()  # type: ignore[method-assign]
     asyncio.run(c.command_flash("VIN1"))
     url, body = _url_body(c)
-    assert url.endswith("/api/v1/vehicle-access/VIN1/honk-and-flash")
+    # v2.31.0 — vehicle-access migrated to v2 (8.15.0 APK).
+    assert url.endswith("/api/v2/vehicle-access/VIN1/honk-and-flash")
     assert body == {"mode": "FLASH"}  # not FLASH_ONLY (EU/Audi value)
+
+
+def test_skoda_flash_attaches_vehicle_position_when_coords_given() -> None:
+    c = SkodaClient(MagicMock(), "u@t.de", "pw")
+    c._post = AsyncMock()  # type: ignore[method-assign]
+    asyncio.run(c.command_flash("VIN1", latitude=48.137, longitude=11.576, honk=True))
+    url, body = _url_body(c)
+    assert url.endswith("/api/v2/vehicle-access/VIN1/honk-and-flash")
+    # HonkAndFlashRequestDto requires vehiclePosition{latitude,longitude}.
+    assert body == {
+        "mode": "HONK_AND_FLASH",
+        "vehiclePosition": {"latitude": 48.137, "longitude": 11.576},
+    }
 
 
 def test_skoda_target_soc_field() -> None:

@@ -799,7 +799,16 @@ class SkodaClient(CariadBaseClient):
 
             settings = charging.get("settings", {})
             d.target_soc = v(settings, "targetStateOfChargeInPercent")
-            d.auto_unlock_charge = v(settings, "autoUnlockPlugWhenChargedAC") == "ON"
+            # v2.31.0 (8.15.0 APK) — Škoda's ChargingSettingsDto spells this the
+            # bare ``autoUnlockPlugWhenCharged`` (@Json name), value PERMANENT/OFF;
+            # the ``…AC`` suffix (VW-EU/CUPRA spelling) is absent from all 8.15.0
+            # DEX, so the old key read False forever on Škoda. Prefer the bare key
+            # and accept the PERMANENT enum; keep the AC key as a cross-brand
+            # fallback (this field is shared, settable cross-brand).
+            _au = v(settings, "autoUnlockPlugWhenCharged") or v(
+                settings, "autoUnlockPlugWhenChargedAC"
+            )
+            d.auto_unlock_charge = str(_au).upper() in ("ON", "PERMANENT")
             # v2.18.0 (Scout #781) — Skoda spells the AC current limit
             # ``maxChargeCurrentAcAmpere`` (integer amps): a third spelling
             # beside CUPRA/SEAT's ``maxChargeCurrentAcInAmperes`` and the
@@ -1542,18 +1551,25 @@ class SkodaClient(CariadBaseClient):
 
     # ── Commands ─────────────────────────────────────────────────────────────
 
-    async def command_lock(self, vin: str) -> None:
-        await self._post(f"{_BASE}/api/v1/vehicle-access/{vin}/lock", json={})
+    async def command_lock(self, vin: str, spin: str = "") -> None:
+        # v2.31.0 — MyŠkoda 8.15.0 migrated vehicle-access to v2: the app wires
+        # ONLY bff_vehicle_access/v2 (v1 VehicleAccessApi is compiled but has zero
+        # references tree-wide; Koin DI resolves the v2 interface). v2 lock takes
+        # AccessRequestDto{spin} (spin nullable → an empty body is structurally
+        # valid, but an S-PIN-enforcing car needs it — v1 even required it).
+        # Grounded: bff_vehicle_access/v2/VehicleAccessApi.smali (lockVehicle,
+        # POST api/v2/vehicle-access/{vin}/lock, Body AccessRequestDto),
+        # AccessRequestDto.smali @Json "spin".
+        pin = spin or self._spin
+        payload: dict[str, Any] = {"spin": pin} if pin else {}
+        await self._post(f"{_BASE}/api/v2/vehicle-access/{vin}/lock", json=payload)
 
     async def command_unlock(self, vin: str, spin: str = "") -> None:
-        payload: dict[str, Any] = {}
-        if spin or self._spin:
-            # b14 (RE myskoda 8.13.0) — the S-PIN body wire key is ``currentSpin``
-            # (DTO ``SpinDto{currentSpin}``); the live app never sends a bare
-            # ``spin`` key, so our old ``spin`` was rejected. Strictly safer —
-            # a strict backend is now fixed, a lenient one accepts it too.
-            payload["currentSpin"] = spin or self._spin
-        await self._post(f"{_BASE}/api/v1/vehicle-access/{vin}/unlock", json=payload)
+        # v2.31.0 — v2 route (see command_lock) + the wire key was renamed
+        # ``currentSpin`` (v1 SpinDto) → ``spin`` (v2 AccessRequestDto).
+        pin = spin or self._spin
+        payload: dict[str, Any] = {"spin": pin} if pin else {}
+        await self._post(f"{_BASE}/api/v2/vehicle-access/{vin}/unlock", json=payload)
 
     async def command_start_climate(self, vin: str) -> None:
         await self._post(f"{_BASE}/api/v2/air-conditioning/{vin}/start", json={})
@@ -1570,20 +1586,30 @@ class SkodaClient(CariadBaseClient):
     async def command_flash(
         self,
         vin: str,
-        latitude: float | None = None,  # noqa: ARG002
-        longitude: float | None = None,  # noqa: ARG002
+        latitude: float | None = None,
+        longitude: float | None = None,
         duration_s: int = 10,  # noqa: ARG002 - Skoda's DTO carries no duration
         honk: bool = False,
     ) -> None:
-        # v2.20.0 (APK audit) — Skoda's HonkAndFlashRequestDto$Mode enum (MyŠkoda
-        # 8.14.0) has only HONK_AND_FLASH / FLASH; "FLASH_ONLY" is the VW-EU/Audi
-        # value that was wrongly copied here and was rejected. Flash-only = FLASH.
-        # #1009 — the same enum carries HONK_AND_FLASH, so the horn option is
-        # grounded here too. There is no duration field in Skoda's DTO, so
-        # duration_s is accepted and ignored rather than invented.
+        # v2.20.0 (APK audit) — Skoda's HonkAndFlashRequestDto$Mode enum has only
+        # HONK_AND_FLASH / FLASH; "FLASH_ONLY" is the VW-EU/Audi value that was
+        # wrongly copied here and rejected. Flash-only = FLASH. No duration field.
+        # v2.31.0 (8.15.0 APK) — two grounded fixes:
+        #   (1) migrate to the v2 route (vehicle-access moved to v2 app-wide);
+        #   (2) HonkAndFlashRequestDto carries a REQUIRED ``vehiclePosition``
+        #       {latitude, longitude} (non-null on both v1 and v2) — we already
+        #       receive lat/lng and previously discarded them, so a strict
+        #       backend rejected the body. Grounded:
+        #       bff_vehicle_access/v2/VehicleAccessApi.smali (honkAndFlash, POST
+        #       api/v2/vehicle-access/{vin}/honk-and-flash, Body
+        #       HonkAndFlashRequestDto), GpsCoordinatesDto.smali (latitude/
+        #       longitude doubles).
+        body: dict[str, Any] = {"mode": "HONK_AND_FLASH" if honk else "FLASH"}
+        if latitude is not None and longitude is not None:
+            body["vehiclePosition"] = {"latitude": latitude, "longitude": longitude}
         await self._post(
-            f"{_BASE}/api/v1/vehicle-access/{vin}/honk-and-flash",
-            json={"mode": "HONK_AND_FLASH" if honk else "FLASH"},
+            f"{_BASE}/api/v2/vehicle-access/{vin}/honk-and-flash",
+            json=body,
         )
 
     async def command_wake(self, vin: str) -> None:
@@ -1655,21 +1681,20 @@ class SkodaClient(CariadBaseClient):
     # Skoda Webasto/Standheizung. Endpoint pattern from mysmob app traffic
     # (upstream iobroker.vw-connect Skoda + skodaconnect/myskoda v1.x reference).
     async def command_start_aux_heating(self, vin: str, spin: str = "") -> None:
-        """Start Webasto auxiliary heater. Some MY require SPIN; others don't.
+        """Start Webasto auxiliary heater.
 
-        Pragmatic: try without SecToken first; on 403/spin_error fall back
-        to SecToken-protected call. Same pattern as SEAT/CUPRA fallback.
+        v2.31.0 (8.15.0 APK) — the empty ``{}`` body was rejected: the
+        ``StartAuxiliaryHeatingConfigurationDto`` requires ``spin`` (non-null,
+        ``StartAuxiliaryHeatingConfigurationDto.smali`` @Json ``spin`` + the
+        ``<init>`` null-check), so aux heating never actually started. Send the
+        S-PIN. Optional DTO fields ``startMode`` / ``durationInSeconds`` /
+        ``targetTemperature`` are left off (defaulted server-side).
         """
-        url = f"{_BASE}/api/v2/air-conditioning/{vin}/auxiliary-heating/start"
-        try:
-            await self._post(url, json={})
-            return
-        except Exception:
-            # Retry with SPIN if available (MY24+ Skoda Connect requires it)
-            if spin:
-                # SecToken via mysmob /spin/verify (mirrors lock/unlock flow)
-                _LOGGER.debug("Skoda aux-heating: retry with SecToken")
-            raise
+        pin = spin or self._spin
+        await self._post(
+            f"{_BASE}/api/v2/air-conditioning/{vin}/auxiliary-heating/start",
+            json={"spin": pin} if pin else {},
+        )
 
     async def command_stop_aux_heating(self, vin: str) -> None:
         """Stop Webasto auxiliary heater. No SPIN required (matches SEAT/CUPRA)."""
@@ -1783,16 +1808,20 @@ class SkodaClient(CariadBaseClient):
         )
 
     async def command_start_active_ventilation(
-        self, vin: str, duration_min: int = 30
+        self, vin: str, duration_min: int = 30  # noqa: ARG002 - no writable duration
     ) -> None:
         """Start cabin active ventilation (airing without heating).
 
-        Route ``active-ventilation/start`` and the ``durationInSeconds`` field
-        are grounded in MyŠkoda 8.14.0 (v2 air-conditioning). LIVE-GATED.
+        v2.31.0 (8.15.0 APK) — ``startActiveVentilation`` takes NO request body
+        (``AirConditioningApi.smali``: ``@Path`` vin + Continuation only), so the
+        old ``{"durationInSeconds": …}`` body was fabricated. ``durationInSeconds``
+        is a READ-only field of the active-ventilation status, writable nowhere;
+        send an empty body like the other start/stop actions. ``duration_min`` is
+        accepted for signature compatibility and ignored.
         """
         await self._post(
             f"{_BASE}/api/v2/air-conditioning/{vin}/active-ventilation/start",
-            json={"durationInSeconds": int(duration_min) * 60},
+            json={},
         )
 
     async def command_stop_active_ventilation(self, vin: str) -> None:

@@ -85,18 +85,21 @@ def test_lock_gate_matches_the_clients_that_accept_spin() -> None:
         b for b in ("audi", "volkswagen", "seat", "cupra", "skoda", "porsche")
         if f'"{b}"' in src.split("cmd_kwargs")[1].split("_cariad_cmd_optimistic")[0]
     }
-    assert gate == {"audi", "volkswagen", "seat", "cupra"}, gate
+    # v2.31.0 — skoda joined the gate: MyŠkoda 8.15.0 moved lock to v2
+    # (AccessRequestDto{spin}), so Škoda lock accepts + wants the per-VIN S-PIN.
+    assert gate == {"audi", "volkswagen", "seat", "cupra", "skoda"}, gate
 
-    # audi/volkswagen are served by the vw_eu client; seat/cupra by seat_cupra.
-    # Both those clients' command_lock must accept spin.
+    # audi/volkswagen are served by the vw_eu client; seat/cupra by seat_cupra;
+    # skoda by skoda. Each of those clients' command_lock must accept spin.
     assert _command_lock_takes_spin("vw_eu")
     assert _command_lock_takes_spin("seat_cupra")
+    assert _command_lock_takes_spin("skoda")
 
-    # And the brands NOT in the gate must NOT be passed spin — skoda lock needs
-    # none, porsche/vw_na don't accept it. If a future edit adds spin to one of
-    # their signatures, that's fine; but if it adds one to the GATE without the
-    # signature, this test's gate assertion above already fails.
-    for module in ("skoda", "porsche", "vw_na", "base"):
+    # And the brands NOT in the gate must NOT be passed spin — porsche/vw_na
+    # don't accept it. If a future edit adds spin to one of their signatures,
+    # that's fine; but if it adds one to the GATE without the signature, this
+    # test's gate assertion above already fails.
+    for module in ("porsche", "vw_na", "base"):
         assert not _command_lock_takes_spin(module), (
             f"{module}.command_lock grew a spin param — if intended, add the "
             f"brand to the coordinator lock gate too, or the PIN is dropped"

@@ -14,12 +14,13 @@ from __future__ import annotations
 from custom_components.vag_connect.coordinator import _static_info_model_year
 
 
-def test_skoda_real_shape_reads_from_specification() -> None:
-    # The real MyŠkoda payload shape.
+def test_skoda_real_shape_reads_from_vehiclespecification() -> None:
+    # The real MyŠkoda 8.15.0 wire shape: VehicleInformationDto nests model +
+    # modelYear under `vehicleSpecification` (VehicleSpecificationDto).
     info = {
         "name": "Enyaq",
         "devicePlatform": "WCAR",
-        "specification": {
+        "vehicleSpecification": {
             "title": "Enyaq Coupé RS iV",
             "trimLevel": "RS",
             "model": "Enyaq",
@@ -29,6 +30,14 @@ def test_skoda_real_shape_reads_from_specification() -> None:
     model, year = _static_info_model_year(info)
     assert model == "Enyaq"
     assert year == "2024"
+
+
+def test_legacy_specification_key_still_works_as_fallback() -> None:
+    # Forward/backward-compat: the old `specification` key is still honoured.
+    info = {"specification": {"model": "Octavia", "modelYear": "2022"}}
+    model, year = _static_info_model_year(info)
+    assert model == "Octavia"
+    assert year == "2022"
 
 
 def test_top_level_still_wins_when_present() -> None:

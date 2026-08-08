@@ -62,19 +62,21 @@ def test_auto_unlock_plug_passes_mode_through() -> None:
     assert body == {"autoUnlockPlug": "PERMANENT"}
 
 
-def test_start_active_ventilation_default_duration() -> None:
+def test_start_active_ventilation_sends_no_body() -> None:
+    # v2.31.0 (8.15.0 APK) — startActiveVentilation takes NO @Body (vin @Path +
+    # Continuation only); the old durationInSeconds body was fabricated.
     client = _client()
     asyncio.run(client.command_start_active_ventilation("VIN1"))
     url, body = _call(client)
     assert url.endswith("/api/v2/air-conditioning/VIN1/active-ventilation/start")
-    assert body == {"durationInSeconds": 1800}  # default 30 min → seconds
+    assert body == {}
 
 
-def test_start_active_ventilation_custom_duration() -> None:
+def test_start_active_ventilation_ignores_duration_arg() -> None:
     client = _client()
     asyncio.run(client.command_start_active_ventilation("VIN1", duration_min=10))
     _, body = _call(client)
-    assert body == {"durationInSeconds": 600}
+    assert body == {}  # duration is a read-only status field, not writable
 
 
 def test_stop_active_ventilation() -> None:

@@ -265,14 +265,19 @@ def _mbb_command_channel_client(coord: Any) -> Any | None:
 def _static_info_model_year(info: dict[str, Any]) -> tuple[str | None, Any]:
     """Extract (model, model_year) from a Škoda ``/vehicle-information`` payload.
 
-    Škoda's ``VehicleInfo`` nests ``model`` and ``modelYear`` under a
-    ``specification`` object — only ``devicePlatform`` sits at the top level
-    (grounded against the skodaconnect/myskoda ``Info`` model, 2026-08). A plain
-    top-level read therefore left every Škoda device's model + year blank. Prefer
-    a top-level value (for any other/forward-compat shape) and fall back to
-    ``specification`` so the real Škoda shape now fills in.
+    Škoda's ``VehicleInformationDto`` nests ``model`` and ``modelYear`` under a
+    ``vehicleSpecification`` object — only ``devicePlatform`` and ``renders`` sit
+    at the top level. Grounded against the LIVE MyŠkoda 8.15.0 APK
+    (``VehicleInformationDto.smali`` @Json ``vehicleSpecification``,
+    ``VehicleSpecificationDto.smali`` @Json ``model`` / ``modelYear``). An earlier
+    fix keyed on ``specification`` (the skodaconnect/myskoda *Python attribute*
+    name, not the wire key), which never matched, so the Škoda device model +
+    year stayed blank. Prefer a top-level value (other/forward-compat shapes),
+    then ``vehicleSpecification``, then the old ``specification`` as a last resort.
     """
-    spec = info.get("specification")
+    spec = info.get("vehicleSpecification")
+    if not isinstance(spec, dict):
+        spec = info.get("specification")
     spec = spec if isinstance(spec, dict) else {}
     model = info.get("model")
     if not (isinstance(model, str) and model):
@@ -4533,12 +4538,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # v2.18.0 (#759) — seat/cupra added: their command_lock now takes a spin
         # (mirroring their command_unlock, which always has). Before this, the
         # per-VIN S-PIN was resolved and presence-checked above, then dropped
-        # here, so seat/cupra lock silently used the shared PIN. The brands
-        # whose command_lock does NOT accept spin (skoda lock needs none;
-        # porsche/vw_na) are correctly excluded — passing it would TypeError.
+        # here, so seat/cupra lock silently used the shared PIN.
+        # v2.31.0 — skoda added: MyŠkoda 8.15.0 migrated lock to v2
+        # (AccessRequestDto{spin}), so Škoda lock now accepts + wants the per-VIN
+        # S-PIN too. porsche/vw_na still excluded (their command_lock takes no
+        # spin — passing it would TypeError).
         cmd_kwargs = (
             {"spin": spin}
-            if (brand in ("audi", "volkswagen", "seat", "cupra") and spin)
+            if (brand in ("audi", "volkswagen", "seat", "cupra", "skoda") and spin)
             else {}
         )
         await self._cariad_cmd_optimistic(
