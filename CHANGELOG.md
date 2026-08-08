@@ -38,6 +38,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [2.30.3] - 2026-08-08
+
+### Fixed
+- **Audi US accounts can now discover their vehicles after QR login (#13).** The login itself already worked, but the integration sent the resulting US access token to the EMEA vehicle service, which rejected it with `401 expected user token`. The current myAudi market configuration routes US vehicle requests through `na.bff.cariad.digital`; using that host returned the account's vehicle and populated its Home Assistant entities in a live test with a 2026 Q5. Canada remains on its configured EMEA host.
+
 ## [2.30.2] - 2026-08-07
 
 ### Fixed
@@ -2601,4 +2606,3 @@ First release candidate for v2.8.0. Bundles the five action items from the 2026-
 - Erste Version: VW EU, Audi, Škoda, SEAT, CUPRA
 - Sensoren: Akkustand, Reichweite, Kilometerstand, GPS, Türen, Fenster, Klimatisierung,
 - Services: lock, unlock, start/stop Klimatisierung, flash, wake, refresh
-

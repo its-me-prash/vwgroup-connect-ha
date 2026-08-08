@@ -1,57 +1,30 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Audi North America (myAudi US / CA) — CARIAD-BFF NA login foundation.
+"""Audi North America (myAudi US / CA) — regional CARIAD-BFF client.
 
-LIVE-VERIFIED architecture (US myAudi market-config + NA OIDC discovery, sweep
-2026-07-18): US Audi is the **EU-Audi CARIAD-BFF stack in the NA region** — NOT
-the VW-NA ``con-veh`` backend. So this mirrors the EU ``AudiClient`` (itself a
-CARIAD-BFF client on ``VWEUClient``) with the NA host / IDP / client_id, exactly
-as ``AudiClient`` mirrors ``VWEUClient``:
+LIVE-VERIFIED architecture (US account, 2026-08-08): US Audi uses the
+EU-Audi CARIAD-BFF stack in the NA region, not the VW-NA ``con-veh`` backend.
+This client therefore mirrors EU ``AudiClient`` on ``VWEUClient`` with the NA
+IDP, public client ID, and US data host:
 
   · client_id  ``7c6b4634-…@apps_vw-dilab_com``   (``BRAND_AUDI_NA``)
   · authorize  ``identity.na.vwgroup.io/oidc/v1/authorize``
   · token      ``na.bff.cariad.digital/auth/v1/idk/oidc/token``
   · reads      ``na.bff.cariad.digital/vehicle/v1/vehicles/{vin}/selectivestatus``
 
-════════════════════════════════════════════════════════════════════════════
-  DATA PLANE IS ATTESTATION-WALLED — this is a LOGIN FOUNDATION, not a working
-  read path. ``na.bff.cariad.digital`` is the same CARIAD-BFF product as EU Audi,
-  so vehicle reads will very likely 403 on the Play-Integrity / ``x-qmauth`` wall
-  (#503/#464/#526) off-device — the same open problem as EU Audi, minus the EU
-  Data Act portal fallback (the US has none). Auth is wired + real; a live US-Audi
-  login is what confirms (1) the client_id is accepted and (2) whether the
-  attestation wall blocks the token exchange / reads.
-════════════════════════════════════════════════════════════════════════════
+The RFC-8628 device grant returns an identity.na access token with
+``jtt=access_token``. That token is accepted directly by the US data BFF. Sending
+the same token to the EMEA garage produces 401 ``expected user token``; exchanging
+it for an Audi retail/AZS token produces 403 ``invalid token type``. The 401 was
+therefore a region mismatch, not evidence of a missing token exchange.
 
-AUTH MODE — DAG is now WIRED (Prash's preferred clean auth): ``audi_na`` is in
-``DAG_ENABLED_BRANDS`` and the browser-login flow drives RFC-8628 against the NA
-IDP via ``dag_idp_urls`` + the per-instance URL overrides on
-``DeviceAuthorizationGrant``. This client also carries the IDK-PKCE (password)
-path as a fallback.
-
-READ-PATH — corrected understanding: a community HA Audi-NA reference reads NA
-vehicle data via the PASSWORD / authorization-code IDK bearer against
-``na.bff.cariad.digital`` with NO attestation on the reads — the Play-Integrity
-wall sits on the device-grant / registration flow, not the authcode read. So NA
-reads may well work. The open, LIVE-GATED questions (a real US-Audi tester settles
-all three): does the NA IDP expose ``/oidc/v1/device_authorization``, is client
-7c6b4634 device-code-capable, and does a device-grant token (vs the password one)
-read ``na.bff``.
-
-Country: only the US market-config is live-verified. CA is accepted for interface
-parity but currently reuses the US brand — a CA-specific market-config sweep
-(``.../market/CA/en``) is a follow-up before CA can be trusted.
-
-v2.29.1 — one CA question is now answered externally. A CA-account debug capture
-(audi_connect_ha #814, 2026-08-05) showed the Canadian market config carries
-``marketSupportsAppAttestation: True`` and its discovery document routes CA to
-``token_endpoint = emea.bff.cariad.digital`` with ``device_code`` present in
-``grant_types_supported``. So CA has attestation enforced, which is why a
-password login there fails at the token step with the EU "invalid assertion
-headers" body, and device-code is the way through — exactly the path this client
-already drives (``audi_na`` is in ``DAG_ENABLED_BRANDS``). CA should therefore
-use the browser/device-code login, not the password fallback; a live CA-Audi
-tester is still what confirms it end to end (#13).
+The market configuration is authoritative because these endpoints are supplied
+at runtime and need not appear in the APK DEX. Its
+``connectedVehicleVehicleServiceBaseURLProduction`` currently maps US to
+``na.bff.cariad.digital`` and CA to ``emea.bff.cariad.digital``. Route reads by
+the configured country so fixing US does not change the Canadian path. CA still
+uses browser/device-code login because its token endpoint is attestation-gated;
+a live Canadian read remains to be confirmed (#13).
 """
 
 from __future__ import annotations
@@ -62,11 +35,6 @@ from ..models import BRAND_AUDI_NA, VehicleData
 from ..auth.idk import IDKAuth
 from .vw_eu import VWEUClient
 
-# v2.20.0 (APK audit) — the current myAudi 5.6.0 app has NO ``na.bff.cariad.digital``
-# string anywhere; its ONLY data BFF is the global ``emea.bff.cariad.digital`` (same
-# host EU Audi uses). The NA split is ONLY at the IDP layer (authorize at
-# identity.na.vwgroup.io). READS go to emea.bff (global).
-#
 # v2.24.0 (#13) — TOKEN EXCHANGE: the endpoint was wrong, and that is the whole
 # reason NA login never worked. Both of these were probed live (unauthenticated,
 # a deliberately invalid code, same client id and body in each):
@@ -84,9 +52,8 @@ from .vw_eu import VWEUClient
 # not a missing credential. The CARIAD BFF proxy accepts the public client.
 # ``na.bff.cariad.digital`` has zero hits in the DEX because, like the NA client
 # id itself, it is supplied at runtime by the US market config.
-# STILL LIVE-GATED: the 400 proves the client is accepted, not that a real code
-# completes. Needs a confirming capture on a real US/CA Audi (#13).
-_NA_BFF_BASE = "https://emea.bff.cariad.digital"
+_NA_BFF_BASE = "https://na.bff.cariad.digital"
+_EMEA_BFF_BASE = "https://emea.bff.cariad.digital"
 _NA_IDP_BASE = "https://identity.na.vwgroup.io"
 _NA_AUTHORIZE_URL = f"{_NA_IDP_BASE}/oidc/v1/authorize"
 _NA_TOKEN_URL = "https://na.bff.cariad.digital/auth/v1/idk/oidc/token"
@@ -119,10 +86,17 @@ class AudiNAClient(VWEUClient):
             idk_base_override=_NA_IDP_BASE,
         )
 
+    def _market_bff_base(self) -> str:
+        """Return the data BFF advertised by the selected market."""
+        return _EMEA_BFF_BASE if self._country == "ca" else _NA_BFF_BASE
+
+    def _garage_base(self) -> str:
+        """Route vehicle discovery to the selected market's data BFF."""
+        return self._market_bff_base()
+
     def _base_for_vin(self, vin: str) -> str:  # noqa: ARG002
-        """All NA reads target na.bff.cariad.digital. Overrides VWEUClient's EU
-        per-VIN HomeRegion base (there is no EU HomeRegion split on the NA BFF)."""
-        return _NA_BFF_BASE
+        """Route vehicle reads without the EU per-VIN HomeRegion split."""
+        return self._market_bff_base()
 
     async def get_status(self, vin: str) -> VehicleData:  # type: ignore[override]
         """Inherit the CARIAD-BFF selectivestatus read (NA host via _base_for_vin);
