@@ -127,3 +127,33 @@ def test_vw_eu_surfaces_website_raw_responses() -> None:
     ).read_text(encoding="utf-8")
     # the early-return vw.de path must copy the connector's raw responses out
     assert "self.last_raw_responses = dict(getattr(web," in src
+
+
+def test_porsche_client_has_raw_responses_bucket() -> None:
+    from custom_components.vag_connect.cariad.api.porsche import PorscheClient
+
+    c = PorscheClient(MagicMock(), "synth@example.com", "pw")
+    assert c.last_raw_responses == {}
+
+
+def test_scout_raw_capture_wired_across_all_brands() -> None:
+    # Coverage guard: every active brand/market must surface raw API responses
+    # so the Scout can ground new fields. Standalone clients populate
+    # last_raw_responses directly; the others inherit a capturing get_status.
+    from pathlib import Path
+
+    api = (
+        Path(__file__).resolve().parents[1] / "custom_components/vag_connect/cariad/api"
+    )
+    for brand in ("skoda", "seat_cupra", "vw_eu", "vw_na", "porsche"):
+        src = (api / f"{brand}.py").read_text(encoding="utf-8")
+        assert "last_raw_responses" in src, f"{brand} lacks raw-response capture"
+    # audi / bentley / lambo inherit VWEUClient's capturing get_status; audi_na
+    # (US/CA) delegates to it explicitly; cupra_standalone inherits SeatCupra.
+    assert "super().get_status" in (api / "audi_na.py").read_text(encoding="utf-8")
+    for inheritor, parent in (
+        ("audi", "VWEUClient"), ("bentley", "VWEUClient"), ("lambo", "VWEUClient"),
+        ("cupra_standalone", "SeatCupraClient"),
+    ):
+        src = (api / f"{inheritor}.py").read_text(encoding="utf-8")
+        assert parent in src, f"{inheritor} no longer inherits {parent}"
