@@ -166,6 +166,43 @@ def _get_coordinator(hass: HomeAssistant, vin: str) -> VagConnectCoordinator | N
     return None
 
 
+_LLM_API_KEY = f"{DOMAIN}_llm_api"
+
+
+def _register_llm_api(hass: HomeAssistant) -> None:
+    """v3.0.0 — register the "VW Group Connect" LLM API once (Path B).
+
+    Exposes Škoda's in-car AI "Laura" + the key commands to every HA
+    conversation agent. The API is global (not per-entry), so this is
+    idempotent across multiple brand entries; the unregister callback lives in
+    ``hass.data`` and is dropped only when the last entry unloads. Fully guarded
+    so an older HA without the ``llm`` helper simply skips the AI surface.
+    """
+    if hass.data.get(_LLM_API_KEY) is not None:
+        return
+    try:
+        from homeassistant.helpers import llm  # noqa: PLC0415
+
+        from .llm import VagConnectLLMAPI  # noqa: PLC0415
+    except ImportError:
+        _LOGGER.debug("VAG Connect: llm helper unavailable — AI tools skipped")
+        return
+    try:
+        hass.data[_LLM_API_KEY] = llm.async_register_api(
+            hass,
+            VagConnectLLMAPI(hass=hass, id=DOMAIN, name="VW Group Connect"),
+        )
+    except Exception:  # noqa: BLE001  — HomeAssistantError if id already taken
+        _LOGGER.debug("VAG Connect: LLM API already registered")
+
+
+def _unregister_llm_api(hass: HomeAssistant) -> None:
+    """Drop the LLM API registration (called when the last entry unloads)."""
+    unregister = hass.data.pop(_LLM_API_KEY, None)
+    if unregister is not None:
+        unregister()
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) -> bool:
     """Set up a VAG Connect config entry."""
     coordinator = VagConnectCoordinator(hass, entry)
@@ -224,6 +261,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) -
 
     if not hass.services.has_service(DOMAIN, "lock"):
         _register_services(hass)
+
+    # v3.0.0 — expose Laura + key commands to any HA conversation agent (Path B).
+    _register_llm_api(hass)
 
     _LOGGER.info("VAG Connect ready: %d vehicle(s)", len(coordinator.vehicles))
     return True
@@ -828,6 +868,10 @@ def _register_services(hass: HomeAssistant) -> None:
             "type": result.get("type"),
             # keep the session id so a follow-up call can continue the thread
             "session_id": result.get("sessionId"),
+            # v3.0.0 — surface the structured route details (waypoints / charging
+            # stops) instead of dropping them, so a route→nav-to-car automation
+            # can read coordinates directly rather than parsing Laura's prose.
+            "route_details": result.get("routeDetails"),
         }
         return response
 
@@ -1004,9 +1048,15 @@ async def async_unload_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) 
             "update_charging_settings",
             # v2.15.5 — ABRP (A Better Routeplanner) telemetry push
             "abrp_send",
+            # v3.0.0 (Škoda Wave) — new Škoda services
+            "set_location_target_soc",
+            "set_seat_heating",
+            "ask_assistant",
         ]:
             if hass.services.has_service(DOMAIN, svc):
                 hass.services.async_remove(DOMAIN, svc)
+        # v3.0.0 — last entry gone: drop the LLM API registration too.
+        _unregister_llm_api(hass)
 
     return bool(unload_ok)
 

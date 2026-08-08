@@ -162,7 +162,7 @@ The portal initially serves only a **slice of fields**, and that slice **widens 
 
 ### Services
 
-The integration ships **30+ service calls** (`vag_connect.*`), many of them brand-specific — *availability depends on brand & model*. Among them: `lock` / `unlock`, `start_climatisation` / `stop_climatisation`, `start_charging` / `stop_charging`, `set_target_soc`, `set_climatisation_temperature`, `set_departure_timer`, `start_window_heating` / `stop_window_heating`, `flash_lights`, `wake_vehicle`, `refresh_vehicle`, `refresh_cloud_cache`, `find_charging_stations`, `start_climate_control`, `engine_start` / `engine_stop` (Audi ICE), `start_ventilation` / `stop_ventilation`, `start_aux_heating` / `stop_aux_heating` (SEAT/CUPRA Webasto), `send_destination` and `update_charging_settings` (SEAT/CUPRA), `open_app`, `execute_vehicle_action`, `abrp_send`, and the `show_vag` easter egg.
+The integration ships **30+ service calls** (`vag_connect.*`), many of them brand-specific — *availability depends on brand & model*. Among them: `lock` / `unlock`, `start_climatisation` / `stop_climatisation`, `start_charging` / `stop_charging`, `set_target_soc`, `set_climatisation_temperature`, `set_departure_timer`, `start_window_heating` / `stop_window_heating`, `flash_lights`, `wake_vehicle`, `refresh_vehicle`, `refresh_cloud_cache`, `find_charging_stations`, `start_climate_control`, `engine_start` / `engine_stop` (Audi ICE), `start_ventilation` / `stop_ventilation`, `start_aux_heating` / `stop_aux_heating` (SEAT/CUPRA Webasto), `send_destination` (SEAT/CUPRA/Škoda) and `update_charging_settings` (SEAT/CUPRA), the Škoda `ask_assistant` (see below), `set_location_target_soc` and `set_seat_heating`, `open_app`, `execute_vehicle_action`, `abrp_send`, and the `show_vag` easter egg.
 
 ---
 
@@ -190,6 +190,22 @@ You can push your car's live data to **[A Better Routeplanner](https://abetterro
 You can also call the **`vag_connect.abrp_send`** service directly (target a device or VIN; the api_key/token come from the options unless you pass them inline).
 
 > 🔒 **Privacy:** the telemetry includes GPS. It only leaves your network when `abrp_send` runs (i.e. when *you* trigger it / enable the blueprint). What we send: state of charge, charging state, GPS, heading, energy + capacity, estimated range, ambient + battery temperature, odometer. What we deliberately **don't** send: anything we can't measure reliably (speed, HV pack voltage/current, state-of-health) — omitted rather than guessed.
+
+---
+
+## Škoda AI assistant ("Laura") — new in 3.0.0
+
+MyŠkoda's own in-car assistant, **Laura**, is available inside Home Assistant.
+Ask her about range, charging and trips with the `vag_connect.ask_assistant`
+service (she returns a text answer you can notify, speak, or branch on), or hand
+her to a **conversation agent** — the built-in Assist in LLM mode, or OpenAI /
+Anthropic / Google / Ollama — as a tool it can call and chain (ask Laura → then
+`send_destination` to the car). She is **read-only, advisory, and Škoda only**;
+it's a **beta**, so feedback on answer quality is welcome.
+
+Setup, the voice ("ask Laura …") trigger, and ready-made example automations —
+including *car arrives home → top up + preheat + speak the range* — are in
+**[docs/AI_ASSISTANT.md](docs/AI_ASSISTANT.md)**.
 
 ---
 

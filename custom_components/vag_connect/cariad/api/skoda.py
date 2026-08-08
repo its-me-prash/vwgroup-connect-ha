@@ -313,23 +313,23 @@ class SkodaClient(CariadBaseClient):
         return data if isinstance(data, dict) else {}
 
     async def get_my_parking(self) -> Any:
-        """The user's paid-parking sessions (READ-ONLY) — MyŠkoda pay-to-park.
+        """The user's current paid-parking session (READ-ONLY) — pay-to-park.
 
-        ``GET api/v1/parking/sessions/mine`` → list of ``ParkingSessionDto``
-        (account-level, no VIN): ``{id, location{name}, priceAmount,
-        priceCurrency, startTime, stopTime, licencePlate}``. Surfaces where/when
-        you paid to park + the cost, and whether a session is still active
-        (``stopTime`` null). This read moves no money.
+        ``GET api/v1/parking/sessions/mine`` → a SINGLE ``ParkingSessionDto``
+        object (account-level, no VIN): ``{id, location{name}, priceAmount,
+        priceCurrency, startTime, stopTime, licencePlate}`` — NOT a list. Surfaces
+        where/when you paid to park + the cost, and whether the session is still
+        active (``stopTime`` null). This read moves no money.
 
         We NEVER call ``POST api/v1/parking/sessions`` — that starts/pays a
         parking session (a financial transaction, house-rule prohibited); no
         write method exists here. Best-effort: 404/403 (no pay-to-park enrolment
-        — most accounts) → ``[]``.
+        — most accounts) → ``{}``.
         """
         try:
             data = await self._get(f"{_BASE}/api/v1/parking/sessions/mine")
         except Exception:  # noqa: BLE001
-            return []
+            return {}
         return data
 
     async def get_predictive_maintenance(self, vin: str) -> dict[str, Any]:
@@ -1769,8 +1769,17 @@ class SkodaClient(CariadBaseClient):
         #       HonkAndFlashRequestDto), GpsCoordinatesDto.smali (latitude/
         #       longitude doubles).
         body: dict[str, Any] = {"mode": "HONK_AND_FLASH" if honk else "FLASH"}
-        if latitude is not None and longitude is not None:
-            body["vehiclePosition"] = {"latitude": latitude, "longitude": longitude}
+        if latitude is None or longitude is None:
+            # vehiclePosition is a REQUIRED non-null field (8.15.0
+            # HonkAndFlashRequestDto) — a position-less body is 400-rejected.
+            # Fail with an actionable message instead of emitting the doomed
+            # request, so the user knows to refresh/wake the car first.
+            raise ValueError(
+                "Škoda honk-and-flash needs the vehicle's GPS position, which "
+                "isn't cached yet — wake or refresh the car (so a location poll "
+                "lands) and try again."
+            )
+        body["vehiclePosition"] = {"latitude": latitude, "longitude": longitude}
         await self._post(
             f"{_BASE}/api/v2/vehicle-access/{vin}/honk-and-flash",
             json=body,

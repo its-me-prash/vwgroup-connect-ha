@@ -3765,6 +3765,10 @@ async def async_setup_entry(
 _ZERO_WHEN_IDLE: frozenset[str] = frozenset({
     "charging_power_kw",
     "charging_rate_kmh",
+    # #1090 — some backends (e.g. Audi e-tron GT) keep reporting the last
+    # non-zero rate for minutes after a charge stops; this is the CARIAD-BFF
+    # actual charge rate, zeroed on the same "charging definitively stopped" rule.
+    "actual_charge_rate_kw",
 })
 
 
@@ -3915,11 +3919,22 @@ class VagConnectSensor(VagConnectEntity, SensorEntity):
         # the {field: value} map lives in extra_state_attributes.
         if self.entity_description.key == "raw_api_fields":
             return len(val) if isinstance(val, dict) and val else None
-        # charging_power_kw + charging_rate_kmh: API omits these when not charging.
-        # Return 0 so the entity shows "0 kW / 0 km/h" instead of "unavailable".
-        if val is None and self.entity_description.key in _ZERO_WHEN_IDLE:
-            # Only return 0 if plug is connected (makes sense to show 0 kW)
-            if self._vehicle.get("plug_connected"):
+        # charging power / rate: the API either omits these when idle (None) OR,
+        # on some backends, keeps reporting the last non-zero value for minutes
+        # after a charge stops (#1090 — Audi e-tron GT). Force 0 in both cases,
+        # but only while the plug is connected (so a detached car reads
+        # "unavailable", not a fake 0) and only once charging is DEFINITIVELY
+        # over — is_charging explicitly False and not conservation charging,
+        # which legitimately draws a small amount of power to hold the SoC.
+        if self.entity_description.key in _ZERO_WHEN_IDLE and self._vehicle.get(
+            "plug_connected"
+        ):
+            state = str(self._vehicle.get("charging_state") or "").lower()
+            charging_stopped = (
+                self._vehicle.get("is_charging") is False
+                and "conservation" not in state
+            )
+            if val is None or charging_stopped:
                 return 0
 
         # DATE sensors: API may return int (days until event) or a date string.

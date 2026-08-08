@@ -38,6 +38,32 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [3.0.0] - 2026-08-08 — "Bazinga" (Škoda Wave)
+
+A big Škoda-focused release: your car's own in-car assistant now lives inside Home Assistant, alongside a wave of new Škoda commands and read-only sensors — every field read straight out of the current MyŠkoda app so the names match what your car actually sends. It also carries the EU Data Act feed fixes previously staged as 2.30.3 (see below).
+
+### Added
+- **"Laura", the MyŠkoda in-car assistant, now works from Home Assistant.** Ask it about range, charging or a trip and the answer comes back into Home Assistant — as a service you can call, and as a tool that any conversation agent (the built-in Assist, or OpenAI / Anthropic / Google / Ollama) can decide to use on its own. It is read-only advice and never drives the car. When it plans a route, the structured stops come back with it, so a route-to-car automation can read the coordinates directly instead of parsing text.
+- **Send a destination to a Škoda's navigation.** The "send destination" service now works on Škoda as well as SEAT/CUPRA, so an automation — or Laura — can push where you're going straight to the car.
+- **Per-location charging target on Škoda.** Set a different target charge level for a specific charging profile / location, the same idea Volkswagen and Audi already had.
+- **Camping mode and auto-unlock-when-charged, as switches.** Turn Škoda's camping/sleep mode on and off, and choose whether the charging plug releases automatically once charging finishes.
+- **Seat-heating control on Škoda.**
+- **A batch of read-only Škoda sensors.** Your last fill-up (fuel, amount, cost, station), your current paid-parking session (where, cost, whether it is still running), service reminders (inspection, seasonal tyre change, first-aid kit, tyre-repair kit), departure timers, and the preferred charge mode. There is nothing to set — they simply appear when your account has the data.
+- **Your Škoda data-sharing consents are visible**, and if the mandatory service agreement is missing you get a repair prompt so you know to accept it in the app.
+
+### Fixed
+- **Škoda now shows the right model and model year**, read from the field the app actually uses.
+- **Honk-and-flash on Škoda now includes the car's position, which the backend requires.** If the location isn't known yet it tells you to wake or refresh the car and try again, instead of silently failing on a rejected request.
+- **Your current paid-parking session now actually shows up.** The parking endpoint returns a single session rather than a list, a shape the reader didn't recognise, so the sensors never appeared even when there was a session.
+- **A round of Škoda command fixes** read out of the current app, so lock/unlock, flash and the climate/charge commands use the routes and fields the car expects.
+- **Charging power and rate now drop to zero the moment a charge stops (#1090).** Some cars — the Audi e-tron GT for one — keep reporting the last charging power for several minutes after charging has actually finished, and the integration showed that stale value and let it linger in your history. It now reads zero as soon as charging is definitively over, while still showing the real figure during normal and conservation charging.
+- **State of charge no longer sticks on a stale value when the data export lists it twice (#1088).** Some Volkswagen EU exports — seen on the ID.7 and e-Golf — carry the same battery field twice with different values and no timestamp to tell them apart, and the integration could pick the older one by position. It now flags the disagreement so the reading is reconciled against your last known value instead of guessing by order.
+
+### Translations
+- All the new sensors, switches, services and repairs are translated across all twelve languages (Czech, Danish, German, English, Spanish, Finnish, French, Italian, Norwegian, Dutch, Polish, Swedish).
+
+---
+
 ## [2.30.3] - 2026-08-07
 
 ### Added

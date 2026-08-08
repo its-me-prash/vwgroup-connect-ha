@@ -834,6 +834,20 @@ def _walk_fields(
             best[name] = (str(value), cand, True)  # real beats floor/unknown
         elif not cand_real and not prev_real:
             # #529 S5/S6: no real ts on either → append-ordered log ⇒ last wins.
+            # #1088: but when the two values DISAGREE and neither carries a real
+            # capture time, "last wins" is just array position — and the portal
+            # dialects don't agree on order (an ID.7 export appends the STALE
+            # sample last, surfacing e.g. 76 over the real 50). Record both so
+            # vehicle_cache.reconcile can pick the candidate closest to the last
+            # persisted value instead of trusting position. The pick below is
+            # unchanged (still last), so #529 is not regressed — this only adds a
+            # reconciliation hook for the previously-silent no-timestamp tie.
+            if (
+                str(value) != prev[0]
+                and _contested_out is not None
+                and not _is_envelope_noise(name)
+            ):
+                _contested_out.setdefault(name, set()).update({prev[0], str(value)})
             best[name] = (str(value), cand, False)
         # else: incumbent is real and candidate is not → keep the real one.
 
@@ -3699,8 +3713,9 @@ def parse_export_zip(raw: bytes, vin: str, name: str = "export.zip") -> VehicleD
     payload = _unzip_json(raw, name)
     field_ts: dict[str, float] = {}
     field_syn: dict[str, set[str]] = {}
-    fields = _walk_fields(payload, field_ts, field_syn)
+    contested: dict[str, set[str]] = {}  # #1088 — same as get_vehicle_data
+    fields = _walk_fields(payload, field_ts, field_syn, contested)
     if not fields:
         return d
     d.no_data = False  # real dataset parsed → mirror get_vehicle_data:3322
-    return map_dataset_to_vehicle_data(fields, d, field_ts, field_syn)
+    return map_dataset_to_vehicle_data(fields, d, field_ts, field_syn, contested)

@@ -571,9 +571,19 @@ def _parse_parking(resp: Any) -> dict[str, Any]:
     current/most-recent one as flat ``vehicles[vin]`` fields. Prefers an ACTIVE
     session (no ``stopTime``), else the newest by ``startTime``. Empty → ``{}``.
     """
-    sessions = resp if isinstance(resp, list) else (
-        resp.get("sessions") if isinstance(resp, dict) else None
-    )
+    # 8.15.0 ParkingApi.getParkingSession (GET api/v1/parking/sessions/mine)
+    # returns a SINGLE ParkingSessionDto object — not a list, not {sessions:[]}.
+    # Wrap that bare object so the newest/active selection below still works,
+    # while staying tolerant of a list / {sessions} shape if the API ever changes.
+    sessions: Any
+    if isinstance(resp, dict) and resp.get("startTime"):
+        sessions = [resp]
+    elif isinstance(resp, list):
+        sessions = resp
+    elif isinstance(resp, dict):
+        sessions = resp.get("sessions")
+    else:
+        sessions = None
     if not isinstance(sessions, list):
         return {}
     sessions = [s for s in sessions if isinstance(s, dict) and s.get("startTime")]

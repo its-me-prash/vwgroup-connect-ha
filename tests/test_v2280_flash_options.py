@@ -17,8 +17,13 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock
 
+import pytest
+
 from custom_components.vag_connect.cariad.api.skoda import SkodaClient
 from custom_components.vag_connect.cariad.api.vw_eu import VWEUClient
+
+# Škoda honk-and-flash requires vehiclePosition (8.15.0) — pass real coords.
+_LL = {"latitude": 48.1, "longitude": 11.5}
 
 
 def _vw() -> tuple[VWEUClient, AsyncMock]:
@@ -64,21 +69,32 @@ class TestSkoda:
 
     def test_flash_only_keeps_skodas_own_enum_value(self) -> None:
         """Skoda's value is FLASH, not the VW-EU FLASH_ONLY (that mismatch was
-        a real bug once)."""
+        a real bug once). vehiclePosition is required (8.15.0)."""
         c, post = self._client()
-        asyncio.run(c.command_flash("VIN"))
-        assert post.await_args.kwargs["json"] == {"mode": "FLASH"}
+        asyncio.run(c.command_flash("VIN", **_LL))
+        body = post.await_args.kwargs["json"]
+        assert body["mode"] == "FLASH"
+        assert body["vehiclePosition"] == _LL
 
     def test_horn_is_grounded_here_too(self) -> None:
         c, post = self._client()
-        asyncio.run(c.command_flash("VIN", honk=True))
-        assert post.await_args.kwargs["json"] == {"mode": "HONK_AND_FLASH"}
+        asyncio.run(c.command_flash("VIN", honk=True, **_LL))
+        assert post.await_args.kwargs["json"]["mode"] == "HONK_AND_FLASH"
 
     def test_duration_is_ignored_not_invented(self) -> None:
         """Skoda's DTO has no duration field, so we must not add one."""
         c, post = self._client()
-        asyncio.run(c.command_flash("VIN", duration_s=30))
+        asyncio.run(c.command_flash("VIN", duration_s=30, **_LL))
         assert "duration_s" not in post.await_args.kwargs["json"]
+
+    def test_flash_without_position_raises_not_400_body(self) -> None:
+        """8.15.0 makes vehiclePosition required — with no cached GPS we fail
+        with an actionable error instead of emitting the doomed position-less
+        body (matches the VW-EU sibling)."""
+        c, post = self._client()
+        with pytest.raises(ValueError, match="GPS"):
+            asyncio.run(c.command_flash("VIN"))
+        post.assert_not_awaited()
 
 
 class TestWiring:

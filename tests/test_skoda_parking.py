@@ -42,6 +42,19 @@ def test_parse_falls_back_to_newest_completed() -> None:
     assert out["parking_ended_at"] == "2026-08-01T14:00:00Z"
 
 
+def test_parse_accepts_single_object() -> None:
+    # 8.15.0 ParkingApi.getParkingSession returns a SINGLE ParkingSessionDto
+    # (a bare dict), NOT a list — this is the real production shape.
+    out = _parse_parking(_ACTIVE)
+    assert out["parking_session_active"] is True
+    assert out["parking_location"] == "Parkhaus Bahnhof"
+    assert out["parking_cost"] == 3.5
+    # a completed single session still parses (and reports its stop time)
+    done = _parse_parking(_DONE)
+    assert done["parking_session_active"] is False
+    assert done["parking_ended_at"] == "2026-08-01T14:00:00Z"
+
+
 def test_parse_accepts_wrapped_and_empty() -> None:
     assert _parse_parking({"sessions": [_ACTIVE]})["parking_location"] == "Parkhaus Bahnhof"
     assert _parse_parking([]) == {}
@@ -51,10 +64,17 @@ def test_parse_accepts_wrapped_and_empty() -> None:
 
 def test_client_read_hits_mine_route() -> None:
     c = SkodaClient(MagicMock(), "u@t.de", "pw")
-    c._get = AsyncMock(return_value=[_ACTIVE])  # type: ignore[method-assign]
+    # real endpoint returns a single ParkingSessionDto object, not a list
+    c._get = AsyncMock(return_value=_ACTIVE)  # type: ignore[method-assign]
     out = asyncio.run(c.get_my_parking())
     assert c._get.call_args.args[0].endswith("/api/v1/parking/sessions/mine")
-    assert out[0]["id"] == "p2"
+    assert out["id"] == "p2"
+
+
+def test_client_read_empty_on_error() -> None:
+    c = SkodaClient(MagicMock(), "u@t.de", "pw")
+    c._get = AsyncMock(side_effect=RuntimeError("403"))  # type: ignore[method-assign]
+    assert asyncio.run(c.get_my_parking()) == {}
 
 
 def test_no_parking_write_method_exists() -> None:

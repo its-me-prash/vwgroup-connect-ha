@@ -83,3 +83,67 @@ def test_service_registered_and_in_yaml() -> None:
     doc = yaml.safe_load((_ROOT / "services.yaml").read_text(encoding="utf-8"))
     assert "ask_assistant" in doc
     assert doc["ask_assistant"]["fields"]["prompt"]["required"] is True
+
+
+def _register_and_capture(monkeypatch: pytest.MonkeyPatch, coord: object) -> dict:
+    """Register all services against a mock hass, return {name: handler}, and
+    point _get_coordinator at the given stub coordinator."""
+    import custom_components.vag_connect as vag
+
+    handlers: dict = {}
+    hass = MagicMock()
+    hass.services.async_register = (
+        lambda domain, name, handler, *a, **k: handlers.__setitem__(name, handler)
+    )
+    hass.services.has_service = MagicMock(return_value=False)
+    vag._register_services(hass)
+    monkeypatch.setattr(vag, "_get_coordinator", lambda _h, _vin: coord)
+    return handlers
+
+
+@pytest.mark.asyncio
+async def test_ask_assistant_handler_remaps_wire_names(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """v3.0.0 behavioural cover: the handler remaps sessionId->session_id and
+    surfaces routeDetails->route_details (not just a source grep)."""
+    coord = MagicMock()
+    coord.is_read_only = MagicMock(return_value=False)
+    coord.async_ask_assistant = AsyncMock(return_value={
+        "type": "ROUTE", "summary": "You'll make it with 20% to spare.",
+        "sessionId": "sess-9", "routeDetails": {"chargingStops": 1},
+    })
+    handlers = _register_and_capture(monkeypatch, coord)
+
+    call = MagicMock()
+    call.data = {"vin": VIN, "prompt": "Reicht die Ladung bis München?"}
+    resp = await handlers["ask_assistant"](call)
+
+    assert resp == {
+        "summary": "You'll make it with 20% to spare.",
+        "type": "ROUTE",
+        "session_id": "sess-9",
+        "route_details": {"chargingStops": 1},
+    }
+    # timezone falls back to "" and session_id defaults to None when omitted
+    _, kwargs = coord.async_ask_assistant.call_args
+    assert kwargs["session_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_ask_assistant_handler_translates_attributeerror(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A non-Škoda coordinator raises AttributeError; the handler must convert it
+    to a user-facing ServiceValidationError, not leak the raw error."""
+    from homeassistant.exceptions import ServiceValidationError
+
+    coord = MagicMock()
+    coord.is_read_only = MagicMock(return_value=False)
+    coord.async_ask_assistant = AsyncMock(side_effect=AttributeError("Škoda-only"))
+    handlers = _register_and_capture(monkeypatch, coord)
+
+    call = MagicMock()
+    call.data = {"vin": VIN, "prompt": "x"}
+    with pytest.raises(ServiceValidationError):
+        await handlers["ask_assistant"](call)

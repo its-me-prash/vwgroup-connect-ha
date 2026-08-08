@@ -488,12 +488,12 @@ stop_aux_heating:
       selector:
         text:
 send_destination:
-  name: Navigationsziel senden (SEAT/CUPRA)
+  name: Navigationsziel senden (SEAT/CUPRA/Škoda)
   description: >-
-    Sendet eine Adresse + GPS-Koordinaten an die Fahrzeug-Navigation
-    (SEAT/CUPRA only). Schließt Issue #36. Bruno seq 34 —
-    PUT /v1/users/vehicles/{vin}/destination. Adress-Felder sind
-    optional; latitude + longitude + name sind Pflicht.
+    Sendet eine Adresse + GPS-Koordinaten an die Fahrzeug-Navigation.
+    SEAT/CUPRA (OLA) und ab v3.0.0 auch Škoda (mysmob
+    api/v3/maps/navigation/destination). Schließt Issue #36. Adress-Felder
+    sind optional; latitude + longitude + name sind Pflicht.
   fields:
     vin:
       name: VIN

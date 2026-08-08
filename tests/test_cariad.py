@@ -1601,9 +1601,11 @@ class TestSkodaGetStatus:
     def test_skoda_commands(self):
         client = self._client()
         for cmd in ["lock", "unlock", "start_climate", "stop_climate",
-                    "start_charging", "stop_charging", "flash", "wake"]:
+                    "start_charging", "stop_charging", "wake"]:
             fn = getattr(client, f"command_{cmd}")
             asyncio.run(fn("TMBTEST"))
+        # flash needs the required vehiclePosition (8.15.0)
+        asyncio.run(client.command_flash("TMBTEST", latitude=48.1, longitude=11.5))
         asyncio.run(client.command_set_target_soc("TMBTEST", 80))
         asyncio.run(client.command_set_climate_temperature("TMBTEST", 21.0))
 

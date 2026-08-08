@@ -26,11 +26,13 @@ def _url_body(client: object) -> tuple[str, dict]:
 def test_skoda_flash_is_FLASH_not_FLASH_ONLY() -> None:
     c = SkodaClient(MagicMock(), "u@t.de", "pw")
     c._post = AsyncMock()  # type: ignore[method-assign]
-    asyncio.run(c.command_flash("VIN1"))
+    # v2.31.0 — vehiclePosition is required (8.15.0), so pass coords.
+    asyncio.run(c.command_flash("VIN1", latitude=48.1, longitude=11.5))
     url, body = _url_body(c)
     # v2.31.0 — vehicle-access migrated to v2 (8.15.0 APK).
     assert url.endswith("/api/v2/vehicle-access/VIN1/honk-and-flash")
-    assert body == {"mode": "FLASH"}  # not FLASH_ONLY (EU/Audi value)
+    assert body["mode"] == "FLASH"  # not FLASH_ONLY (EU/Audi value)
+    assert body["vehiclePosition"] == {"latitude": 48.1, "longitude": 11.5}
 
 
 def test_skoda_flash_attaches_vehicle_position_when_coords_given() -> None:
