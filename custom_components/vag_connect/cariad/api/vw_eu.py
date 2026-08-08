@@ -289,6 +289,10 @@ class VWEUClient(CariadBaseClient):
         bases: dict[str, str] = getattr(self, "_vehicle_bases", {})
         return bases.get(vin, _BASE)
 
+    def _garage_base(self) -> str:
+        """Return the account garage base; regional subclasses may override."""
+        return _BASE
+
     async def get_vehicles(self) -> list[str]:
         """Return list of VINs from the CARIAD garage."""
         # v2.14.0 — OPT-IN website-authproxy mode (read-only beta). When the
@@ -356,7 +360,7 @@ class VWEUClient(CariadBaseClient):
         if self._tokens and self._tokens.strategy == "mbb":
             return await self._get_vehicles_via_mbb()
 
-        data = await self._get(f"{_BASE}/vehicle/v1/vehicles")
+        data = await self._get(f"{self._garage_base()}/vehicle/v1/vehicles")
         vehicles: list[dict[str, Any]] = data.get("data", [])
 
         # Cache nickname/model per VIN — used in _parse_status to set device name
