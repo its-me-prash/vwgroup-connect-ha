@@ -366,18 +366,22 @@ class TestDiagnosticsPolish:
 
 class TestSkodaCapabilities:
     def test_skoda_capabilities_url(self):
-        """Verify Skoda hits ``/api/v1/vehicle-access/{vin}/capabilities``
-        as documented in #56 / RESEARCH_NOTES_2026-04-29 §3."""
+        """v2.31.0 (8.15.0 APK) — the standalone vehicle-access capabilities GET
+        is gone; capabilities now come from the garage vehicle document
+        ``/api/v2/garage/vehicles/{vin}`` → VehicleDto.capabilities."""
         from custom_components.vag_connect.cariad.api.skoda import SkodaClient
 
         client = SkodaClient.__new__(SkodaClient)
-        client._get = AsyncMock(return_value={"capabilities": []})
+        client._get = AsyncMock(return_value={
+            "capabilities": {"capabilities": [], "errors": []},
+        })
 
         asyncio.run(
             client.get_capabilities("VINX")
         )
         called_url = client._get.await_args.args[0]
-        assert "/api/v1/vehicle-access/VINX/capabilities" in called_url
+        assert "/api/v2/garage/vehicles/VINX" in called_url
+        assert "/api/v1/vehicle-access/VINX/capabilities" not in called_url
 
     def test_skoda_capabilities_returns_dict_on_non_dict(self):
         """Defensive: garbage response → empty dict, never crash."""

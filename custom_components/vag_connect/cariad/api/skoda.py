@@ -290,35 +290,39 @@ class SkodaClient(CariadBaseClient):
         return resp if isinstance(resp, dict) else {}
 
     async def get_capabilities(self, vin: str) -> dict[str, Any]:
-        """Return mysmob capabilities document for *vin*.
+        """Return the mysmob capabilities list for *vin*.
 
-        v1.13.0 (#56 Phase 3 prerequisite) — Skoda mysmob capabilities
-        endpoint. Required so Capability-Filter Phase 3 can hide
-        unsupported entities for Skoda vehicles (without this, the
-        coordinator's ``vehicle_supports_capability`` returns ``None``
-        for every Skoda capability and Phase 3 falls through to the
-        Phase 2 post-failure-unavailable fallback).
+        v2.31.0 (8.15.0 APK) — the standalone ``vehicle-access/{vin}/capabilities``
+        GET no longer exists in 8.15.0 (grep of every ``*Api.smali`` for
+        "capabilit" matches ONLY GarageApi; the sole capabilities route is a POST
+        toggle). It returned ``{}`` on every poll, so capability gating silently
+        degraded to permissive. Capabilities now live embedded in the garage
+        vehicle document: ``GET api/v2/garage/vehicles/{vin}`` → ``VehicleDto``
+        → ``capabilities`` (``VehicleCapabilitiesDto{capabilities: [CapabilityDto
+        {id, serviceExpiration, statuses}], errors}``).
 
-        Endpoint: ``GET /api/v1/vehicle-access/{vin}/capabilities``
-        Schema (mysmob — different from CARIAD-BFF):
-            {
-              "capabilities": [
-                {"id": "<cap_id>", "active": true|false,
-                 "editable"?, "user-enabled"?, "status"?,
-                 "license-issue"?, "parameters"?}
-              ]
-            }
-        Verified via Issue #56 body + RESEARCH_NOTES_2026-04-29 §3
-        Skoda capability section.
-
-        Failure raises APIError (caller swallows — capabilities are
-        best-effort metadata, never load-bearing). The default cache
-        TTL (24h via coordinator) keeps this cheap.
+        We normalise to the ``{"capabilities": [{"id", "statuses"}]}`` shape the
+        coordinator's gate reads. We deliberately do NOT synthesise an ``active``
+        flag from ``statuses``: the 8.15.0 statics carry no groundable
+        status→available vocabulary, and defaulting to "supported" (no
+        ``active: False``) keeps the gate permissive — it can never wrongly HIDE a
+        control. Status-based hiding can be layered on once a live capabilities
+        sample pins the status enum. Best-effort: any failure → ``{}``.
         """
-        data = await self._get(
-            f"{_BASE}/api/v1/vehicle-access/{vin}/capabilities",
-        )
-        return data if isinstance(data, dict) else {}
+        data = await self._get(f"{_BASE}/api/v2/garage/vehicles/{vin}")
+        if not isinstance(data, dict):
+            return {}
+        caps = data.get("capabilities")
+        items = caps.get("capabilities") if isinstance(caps, dict) else None
+        if not isinstance(items, list):
+            return {}
+        return {
+            "capabilities": [
+                {"id": c.get("id"), "statuses": c.get("statuses") or []}
+                for c in items
+                if isinstance(c, dict) and isinstance(c.get("id"), str)
+            ]
+        }
 
     async def get_widget(self, vin: str) -> dict[str, Any]:
         """v1.20.0 (Bundle 2 Phase A) — Skoda lightweight widget endpoint.
@@ -797,6 +801,14 @@ class SkodaClient(CariadBaseClient):
                 if remaining:
                     d.charge_complete_eta = datetime.now(tz=timezone.utc) + timedelta(minutes=remaining)
             d.has_battery = d.battery_soc is not None
+            # v2.31.0 (8.15.0 APK) — BatteryStatusDto.remainingCruisingRangeInMeters
+            # (metres) as an electric-range FALLBACK. The driving-range endpoint
+            # below is the primary source and overwrites this when it has a value
+            # (see the guarded assignment there); this covers cars/polls where
+            # driving-range is absent but the charging block still carries range.
+            _crm = v(c, "battery", "remainingCruisingRangeInMeters")
+            if isinstance(_crm, (int, float)) and not isinstance(_crm, bool):
+                d.electric_range_km = int(_crm / 1000)
 
             settings = charging.get("settings", {})
             d.target_soc = v(settings, "targetStateOfChargeInPercent")
@@ -841,6 +853,16 @@ class SkodaClient(CariadBaseClient):
             care_target_pct = v(settings, "batteryCareModeTargetValueInPercent")
             if d.battery_care_target_soc_pct is None:  # don't clobber CUPRA/SEAT path
                 d.battery_care_target_soc_pct = safe_int(care_target_pct)
+            # v2.31.0 (8.15.0 APK) — ChargingSettingsDto.preferredChargeMode
+            # (String enum, e.g. MANUAL / TIMER / PREFERRED_CHARGING_TIMES) +
+            # availableChargeModes (List). Diagnostic — which charge mode the car
+            # is set to and which it offers.
+            pcm = v(settings, "preferredChargeMode")
+            if isinstance(pcm, str) and pcm:
+                d.preferred_charge_mode = pcm
+            acm = v(settings, "availableChargeModes")
+            if isinstance(acm, list) and acm:
+                d.available_charge_modes = [str(m) for m in acm if m is not None]
 
         # ── Air conditioning (also has plug state!) ──────────────────────────
         if isinstance(ac, dict):
@@ -853,8 +875,19 @@ class SkodaClient(CariadBaseClient):
             )
 
             wh = v(ac, "windowHeatingState") or {}
-            d.window_heating_front = v(wh, "front") == "ON"
-            d.window_heating_back = v(wh, "rear") == "ON"
+            # v2.31.0 (8.15.0 APK) — AirConditioningWindowHeatingStateDto carries
+            # front / rear / unspecified (all ON/OFF strings). Single-channel cars
+            # report only ``unspecified``; fold it into both so their window
+            # heating isn't stuck reading OFF when the channel is on.
+            _wh_front = v(wh, "front")
+            _wh_rear = v(wh, "rear")
+            _wh_uns = v(wh, "unspecified")
+            d.window_heating_front = (
+                _wh_front == "ON" or (_wh_front is None and _wh_uns == "ON")
+            )
+            d.window_heating_back = (
+                _wh_rear == "ON" or (_wh_rear is None and _wh_uns == "ON")
+            )
 
             # v2.1.0 — climate-ready-at (closes scout #186 + #188).
             # Skoda mysmob air-conditioning endpoint shippt
@@ -1070,7 +1103,11 @@ class SkodaClient(CariadBaseClient):
             # v1.24.2 (2026-05-08 audit): replaced 3 try/except wrappers
             # around int() with safe_int — same defensive shape, fewer
             # lines, and the NEVER-raise contract is property-tested.
-            d.electric_range_km = safe_int(electric)
+            # v2.31.0 — don't clobber the charging-block fallback (set above)
+            # with None when driving-range omits the electric figure.
+            _er = safe_int(electric)
+            if _er is not None:
+                d.electric_range_km = _er
             d.combustion_range_km = safe_int(combustion)
             d.total_range_km = safe_int(total)
             d.has_combustion = combustion is not None

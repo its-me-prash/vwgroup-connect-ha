@@ -549,6 +549,15 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         condition="electric",
     ),
+    # v2.31.0 (8.15.0 APK) — Škoda ChargingSettingsDto.preferredChargeMode.
+    VagSensorDescription(
+        key="preferred_charge_mode",
+        translation_key="preferred_charge_mode",
+        data_key="preferred_charge_mode",
+        icon="mdi:ev-station",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        condition="electric",
+    ),
 
 
     VagSensorDescription(
@@ -3202,6 +3211,7 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # restricted at the parser level; other brands stay None.
     "primary_engine_soc_pct",       # Skoda-only (driving-range)
     "steering_wheel_position",      # Skoda-only (air-conditioning)
+    "preferred_charge_mode",        # Skoda-only (charging settings) — v2.31.0
     "battery_temp_max",             # VW EU + Audi only (CARIAD-BFF)
     # v2.2.0 Phase 7 PR #2 — VW EU + Audi only (CARIAD-BFF
     # departureTimers block). Other brands' parsers don't populate

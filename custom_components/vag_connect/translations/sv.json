@@ -1191,6 +1191,9 @@
       },
       "calibration_failure_reason": {
         "name": "Orsak till kalibreringsfel"
+      },
+      "preferred_charge_mode": {
+        "name": "Föredraget laddningsläge"
       }
     },
     "binary_sensor": {

@@ -1191,6 +1191,9 @@
       },
       "calibration_failure_reason": {
         "name": "Przyczyna błędu kalibracji"
+      },
+      "preferred_charge_mode": {
+        "name": "Preferowany tryb ładowania"
       }
     },
     "binary_sensor": {
