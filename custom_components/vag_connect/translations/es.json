@@ -1848,6 +1848,46 @@
           "description": "Opcional. Sustituye el token del vehículo guardado. Nunca se registra."
         }
       }
+    },
+    "set_location_target_soc": {
+      "name": "Establecer objetivo de carga por ubicación",
+      "description": "Establece el objetivo de carga de un perfil de carga concreto (Škoda, según la ubicación).",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN del vehículo."
+        },
+        "profile_id": {
+          "name": "ID de perfil",
+          "description": "ID del perfil de carga (del sensor de perfiles de carga)."
+        },
+        "target": {
+          "name": "Objetivo de carga (%)",
+          "description": "Objetivo de carga entre 20 y 100 por ciento."
+        }
+      }
+    },
+    "set_seat_heating": {
+      "name": "Ajustar calefacción de asientos",
+      "description": "Activa la calefacción por asiento (Škoda). Solo cambian los asientos indicados.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN del vehículo."
+        },
+        "front_left": {
+          "name": "Delantero izquierdo"
+        },
+        "front_right": {
+          "name": "Delantero derecho"
+        },
+        "rear_left": {
+          "name": "Trasero izquierdo"
+        },
+        "rear_right": {
+          "name": "Trasero derecho"
+        }
+      }
     }
   },
   "exceptions": {

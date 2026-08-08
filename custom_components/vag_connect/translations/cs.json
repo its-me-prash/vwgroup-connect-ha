@@ -1848,6 +1848,46 @@
           "description": "Volitelné. Přepíše uložený token vozidla. Nikdy se neloguje."
         }
       }
+    },
+    "set_location_target_soc": {
+      "name": "Nastavit cílové nabití podle polohy",
+      "description": "Nastaví cílové nabití konkrétního nabíjecího profilu (Škoda, podle polohy).",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN vozidla."
+        },
+        "profile_id": {
+          "name": "ID profilu",
+          "description": "ID nabíjecího profilu (ze senzoru nabíjecích profilů)."
+        },
+        "target": {
+          "name": "Cílové nabití (%)",
+          "description": "Cílové nabití mezi 20 a 100 procenty."
+        }
+      }
+    },
+    "set_seat_heating": {
+      "name": "Nastavit vyhřívání sedadel",
+      "description": "Zapne vyhřívání jednotlivých sedadel (Škoda). Změní se jen zadaná sedadla.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN vozidla."
+        },
+        "front_left": {
+          "name": "Přední levé"
+        },
+        "front_right": {
+          "name": "Přední pravé"
+        },
+        "rear_left": {
+          "name": "Zadní levé"
+        },
+        "rear_right": {
+          "name": "Zadní pravé"
+        }
+      }
     }
   },
   "exceptions": {

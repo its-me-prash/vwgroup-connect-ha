@@ -1848,6 +1848,46 @@
           "description": "Valfritt. Ersätter den lagrade fordonstoken. Loggas aldrig."
         }
       }
+    },
+    "set_location_target_soc": {
+      "name": "Ange laddmål efter plats",
+      "description": "Anger laddmålet för en viss laddprofil (Škoda, platsbaserat).",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "Fordonets VIN."
+        },
+        "profile_id": {
+          "name": "Profil-ID",
+          "description": "ID för laddprofilen (från laddprofil-sensorn)."
+        },
+        "target": {
+          "name": "Laddmål (%)",
+          "description": "Laddmål mellan 20 och 100 procent."
+        }
+      }
+    },
+    "set_seat_heating": {
+      "name": "Ställ in sätesvärme",
+      "description": "Slår på sätesvärme per säte (Škoda). Endast de angivna sätena ändras.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "Fordonets VIN."
+        },
+        "front_left": {
+          "name": "Vänster fram"
+        },
+        "front_right": {
+          "name": "Höger fram"
+        },
+        "rear_left": {
+          "name": "Vänster bak"
+        },
+        "rear_right": {
+          "name": "Höger bak"
+        }
+      }
     }
   },
   "exceptions": {

@@ -1848,6 +1848,46 @@
           "description": "Optioneel. Vervangt het opgeslagen voertuigtoken. Wordt nooit gelogd."
         }
       }
+    },
+    "set_location_target_soc": {
+      "name": "Laaddoel per locatie instellen",
+      "description": "Stelt het laaddoel van een specifiek laadprofiel in (Škoda, locatiegebonden).",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN van het voertuig."
+        },
+        "profile_id": {
+          "name": "Profiel-ID",
+          "description": "ID van het laadprofiel (uit de laadprofielen-sensor)."
+        },
+        "target": {
+          "name": "Laaddoel (%)",
+          "description": "Laaddoel tussen 20 en 100 procent."
+        }
+      }
+    },
+    "set_seat_heating": {
+      "name": "Stoelverwarming instellen",
+      "description": "Schakelt de stoelverwarming per stoel (Škoda). Alleen de opgegeven stoelen veranderen.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN van het voertuig."
+        },
+        "front_left": {
+          "name": "Linksvoor"
+        },
+        "front_right": {
+          "name": "Rechtsvoor"
+        },
+        "rear_left": {
+          "name": "Linksachter"
+        },
+        "rear_right": {
+          "name": "Rechtsachter"
+        }
+      }
     }
   },
   "exceptions": {

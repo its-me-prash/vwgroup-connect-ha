@@ -1848,6 +1848,46 @@
           "description": "Optional. Overrides the stored per-vehicle token. Never logged."
         }
       }
+    },
+    "set_location_target_soc": {
+      "name": "Set location target SoC",
+      "description": "Set the target state of charge of a specific charging profile (Škoda, location-based).",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN of the vehicle."
+        },
+        "profile_id": {
+          "name": "Profile ID",
+          "description": "ID of the charging profile (from the charging-profiles sensor)."
+        },
+        "target": {
+          "name": "Target state of charge (%)",
+          "description": "Target state of charge between 20 and 100 percent."
+        }
+      }
+    },
+    "set_seat_heating": {
+      "name": "Set seat heating",
+      "description": "Toggle seat heating per seat (Škoda). Only the seats given are changed.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN of the vehicle."
+        },
+        "front_left": {
+          "name": "Front left"
+        },
+        "front_right": {
+          "name": "Front right"
+        },
+        "rear_left": {
+          "name": "Rear left"
+        },
+        "rear_right": {
+          "name": "Rear right"
+        }
+      }
     }
   },
   "exceptions": {

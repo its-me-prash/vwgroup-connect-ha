@@ -1848,6 +1848,46 @@
           "description": "Opcjonalnie. Zastępuje zapisany token pojazdu. Nigdy nie jest logowany."
         }
       }
+    },
+    "set_location_target_soc": {
+      "name": "Ustaw docelowe naładowanie dla lokalizacji",
+      "description": "Ustawia docelowe naładowanie konkretnego profilu ładowania (Škoda, zależnie od lokalizacji).",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN pojazdu."
+        },
+        "profile_id": {
+          "name": "ID profilu",
+          "description": "ID profilu ładowania (z czujnika profili ładowania)."
+        },
+        "target": {
+          "name": "Docelowe naładowanie (%)",
+          "description": "Docelowe naładowanie od 20 do 100 procent."
+        }
+      }
+    },
+    "set_seat_heating": {
+      "name": "Ustaw podgrzewanie foteli",
+      "description": "Włącza podgrzewanie poszczególnych foteli (Škoda). Zmieniają się tylko podane fotele.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN pojazdu."
+        },
+        "front_left": {
+          "name": "Przód lewy"
+        },
+        "front_right": {
+          "name": "Przód prawy"
+        },
+        "rear_left": {
+          "name": "Tył lewy"
+        },
+        "rear_right": {
+          "name": "Tył prawy"
+        }
+      }
     }
   },
   "exceptions": {

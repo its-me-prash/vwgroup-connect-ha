@@ -1848,6 +1848,46 @@
           "description": "Valinnainen. Ohittaa tallennetun ajoneuvokohtaisen tunnisteen. Ei koskaan lokiin."
         }
       }
+    },
+    "set_location_target_soc": {
+      "name": "Aseta sijaintikohtainen lataustavoite",
+      "description": "Asettaa tietyn latausprofiilin lataustavoitteen (Škoda, sijaintikohtainen).",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "Ajoneuvon VIN."
+        },
+        "profile_id": {
+          "name": "Profiilin ID",
+          "description": "Latausprofiilin ID (latausprofiilit-anturista)."
+        },
+        "target": {
+          "name": "Lataustavoite (%)",
+          "description": "Lataustavoite 20–100 prosenttia."
+        }
+      }
+    },
+    "set_seat_heating": {
+      "name": "Aseta istuinlämmitys",
+      "description": "Kytkee istuinlämmityksen istuinkohtaisesti (Škoda). Vain annetut istuimet muuttuvat.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "Ajoneuvon VIN."
+        },
+        "front_left": {
+          "name": "Etuvasen"
+        },
+        "front_right": {
+          "name": "Etuoikea"
+        },
+        "rear_left": {
+          "name": "Takavasen"
+        },
+        "rear_right": {
+          "name": "Takaoikea"
+        }
+      }
     }
   },
   "exceptions": {

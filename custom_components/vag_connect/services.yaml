@@ -287,6 +287,61 @@ set_target_soc:
           step: 5
           unit_of_measurement: "%"
 
+set_location_target_soc:
+  name: Standort-Ladeziel setzen
+  description: Setzt das Ladeziel eines bestimmten Lade-Profils (Škoda, standortabhängig).
+  fields:
+    vin:
+      name: VIN
+      required: true
+      selector:
+        text:
+    profile_id:
+      name: Profil-ID
+      description: ID des Lade-Profils (aus dem Lade-Profile-Sensor).
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 10
+          step: 1
+          mode: box
+    target:
+      name: Ladeziel (%)
+      required: true
+      selector:
+        number:
+          min: 20
+          max: 100
+          step: 5
+          unit_of_measurement: "%"
+
+set_seat_heating:
+  name: Sitzheizung setzen
+  description: Schaltet die Sitzheizung pro Sitz (Škoda). Nur angegebene Sitze werden geändert.
+  fields:
+    vin:
+      name: VIN
+      required: true
+      selector:
+        text:
+    front_left:
+      name: Vorne links
+      selector:
+        boolean:
+    front_right:
+      name: Vorne rechts
+      selector:
+        boolean:
+    rear_left:
+      name: Hinten links
+      selector:
+        boolean:
+    rear_right:
+      name: Hinten rechts
+      selector:
+        boolean:
+
 set_climatisation_temperature:
   name: Klimatemperatur setzen
   description: Setzt die Zieltemperatur der Vorklimatisierung.

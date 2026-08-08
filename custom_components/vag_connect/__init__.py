@@ -419,6 +419,22 @@ def _register_services(hass: HomeAssistant) -> None:
             call.data["vin"], int(call.data["target"])
         )
 
+    async def _handle_set_location_target_soc(call: ServiceCall) -> None:
+        """v2.31.0 (#25) — Škoda per-location target SoC (charging profile)."""
+        await _coord_writeable(call.data["vin"]).async_set_profile_target_soc(
+            call.data["vin"], call.data["profile_id"], int(call.data["target"])
+        )
+
+    async def _handle_set_seat_heating(call: ServiceCall) -> None:
+        """v2.31.0 — Škoda per-seat heating; only the seats given change."""
+        await _coord_writeable(call.data["vin"]).async_set_seat_heating(
+            call.data["vin"],
+            front_left=call.data.get("front_left"),
+            front_right=call.data.get("front_right"),
+            rear_left=call.data.get("rear_left"),
+            rear_right=call.data.get("rear_right"),
+        )
+
     async def _handle_set_clim_temp(call: ServiceCall) -> None:
         await _coord_writeable(call.data["vin"]).async_set_climatisation_temperature(
             call.data["vin"], float(call.data["temperature"])
@@ -655,6 +671,28 @@ def _register_services(hass: HomeAssistant) -> None:
                 vol.Required("vin"):    str,
                 vol.Required("target"): vol.All(vol.Coerce(int), vol.Range(20, 100)),
             })),
+        # v2.31.0 (#25) — Škoda per-location target SoC (a charging profile),
+        # distinct from the global set_target_soc above.
+        ("set_location_target_soc",        _handle_set_location_target_soc,
+            vol.Schema({
+                vol.Required("vin"):        cv.string,
+                vol.Required("profile_id"): vol.Coerce(int),
+                vol.Required("target"):     vol.All(vol.Coerce(int), vol.Range(20, 100)),
+            })),
+        # v2.31.0 — Škoda per-seat heating; at least one seat must be given.
+        ("set_seat_heating",               _handle_set_seat_heating,
+            vol.Schema(vol.All(
+                {
+                    vol.Required("vin"):         cv.string,
+                    vol.Optional("front_left"):  cv.boolean,
+                    vol.Optional("front_right"): cv.boolean,
+                    vol.Optional("rear_left"):   cv.boolean,
+                    vol.Optional("rear_right"):  cv.boolean,
+                },
+                cv.has_at_least_one_key(
+                    "front_left", "front_right", "rear_left", "rear_right"
+                ),
+            ))),
         ("set_climatisation_temperature",  _handle_set_clim_temp,
             vol.Schema({
                 vol.Required("vin"):         str,

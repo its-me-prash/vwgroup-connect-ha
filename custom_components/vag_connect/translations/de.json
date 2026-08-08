@@ -1868,6 +1868,46 @@
           "description": "Optional. Überschreibt den gespeicherten Fahrzeug-Token. Wird nie protokolliert."
         }
       }
+    },
+    "set_location_target_soc": {
+      "name": "Standort-Ladeziel setzen",
+      "description": "Setzt das Ladeziel eines bestimmten Lade-Profils (Škoda, standortabhängig).",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN des Fahrzeugs."
+        },
+        "profile_id": {
+          "name": "Profil-ID",
+          "description": "ID des Lade-Profils (aus dem Lade-Profile-Sensor)."
+        },
+        "target": {
+          "name": "Ladeziel (%)",
+          "description": "Ladeziel zwischen 20 und 100 Prozent."
+        }
+      }
+    },
+    "set_seat_heating": {
+      "name": "Sitzheizung setzen",
+      "description": "Schaltet die Sitzheizung pro Sitz (Škoda). Nur angegebene Sitze werden geändert.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN des Fahrzeugs."
+        },
+        "front_left": {
+          "name": "Vorne links"
+        },
+        "front_right": {
+          "name": "Vorne rechts"
+        },
+        "rear_left": {
+          "name": "Hinten links"
+        },
+        "rear_right": {
+          "name": "Hinten rechts"
+        }
+      }
     }
   },
   "exceptions": {

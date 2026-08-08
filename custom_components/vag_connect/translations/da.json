@@ -1848,6 +1848,46 @@
           "description": "Valgfrit. Tilsidesætter det gemte token pr. køretøj. Logges aldrig."
         }
       }
+    },
+    "set_location_target_soc": {
+      "name": "Indstil lademål efter placering",
+      "description": "Indstiller lademålet for en bestemt ladeprofil (Škoda, placeringsbaseret).",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "Køretøjets VIN."
+        },
+        "profile_id": {
+          "name": "Profil-ID",
+          "description": "ID for ladeprofilen (fra ladeprofil-sensoren)."
+        },
+        "target": {
+          "name": "Lademål (%)",
+          "description": "Lademål mellem 20 og 100 procent."
+        }
+      }
+    },
+    "set_seat_heating": {
+      "name": "Indstil sædevarme",
+      "description": "Slår sædevarme til pr. sæde (Škoda). Kun de angivne sæder ændres.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "Køretøjets VIN."
+        },
+        "front_left": {
+          "name": "Forreste venstre"
+        },
+        "front_right": {
+          "name": "Forreste højre"
+        },
+        "rear_left": {
+          "name": "Bageste venstre"
+        },
+        "rear_right": {
+          "name": "Bageste højre"
+        }
+      }
     }
   },
   "exceptions": {

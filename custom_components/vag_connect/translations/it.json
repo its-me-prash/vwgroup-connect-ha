@@ -1848,6 +1848,46 @@
           "description": "Facoltativo. Sostituisce il token per veicolo salvato. Mai registrato nei log."
         }
       }
+    },
+    "set_location_target_soc": {
+      "name": "Imposta obiettivo di carica per posizione",
+      "description": "Imposta l'obiettivo di carica di un profilo di ricarica specifico (Škoda, in base alla posizione).",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN del veicolo."
+        },
+        "profile_id": {
+          "name": "ID profilo",
+          "description": "ID del profilo di ricarica (dal sensore dei profili di ricarica)."
+        },
+        "target": {
+          "name": "Obiettivo di carica (%)",
+          "description": "Obiettivo di carica tra 20 e 100 percento."
+        }
+      }
+    },
+    "set_seat_heating": {
+      "name": "Imposta riscaldamento sedili",
+      "description": "Attiva il riscaldamento per sedile (Škoda). Cambiano solo i sedili indicati.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN del veicolo."
+        },
+        "front_left": {
+          "name": "Anteriore sinistro"
+        },
+        "front_right": {
+          "name": "Anteriore destro"
+        },
+        "rear_left": {
+          "name": "Posteriore sinistro"
+        },
+        "rear_right": {
+          "name": "Posteriore destro"
+        }
+      }
     }
   },
   "exceptions": {

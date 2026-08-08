@@ -4722,6 +4722,35 @@ class VagConnectCoordinator(DataUpdateCoordinator):
     async def async_set_target_soc(self, vin: str, target: int) -> None:
         await self._cariad_cmd(vin, "command_set_target_soc", target=target)
 
+    async def async_set_profile_target_soc(
+        self, vin: str, profile_id: int | str, target: int
+    ) -> None:
+        """v2.31.0 — Škoda per-location target SoC (#25).
+
+        Sets the target SoC of ONE charging profile (e.g. the profile active at
+        the car's current GPS, ``currentVehiclePositionProfile``), distinct from
+        the global ``set_target_soc``. The client echoes the whole profile back.
+        """
+        await self._cariad_cmd(
+            vin, "command_set_profile_target_soc",
+            profile_id=profile_id, target=target,
+        )
+
+    async def async_set_seat_heating(
+        self,
+        vin: str,
+        front_left: bool | None = None,
+        front_right: bool | None = None,
+        rear_left: bool | None = None,
+        rear_right: bool | None = None,
+    ) -> None:
+        """v2.31.0 — Škoda per-seat heating. Only the seats given are changed."""
+        await self._cariad_cmd(
+            vin, "command_set_seat_heating",
+            front_left=front_left, front_right=front_right,
+            rear_left=rear_left, rear_right=rear_right,
+        )
+
     async def async_set_battery_care(self, vin: str, enabled: bool) -> None:
         """v2.18.0 — toggle battery-care (preservation) mode.
 

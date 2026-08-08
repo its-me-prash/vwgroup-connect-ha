@@ -1848,6 +1848,46 @@
           "description": "Facultatif. Remplace le jeton de véhicule enregistré. Jamais journalisé."
         }
       }
+    },
+    "set_location_target_soc": {
+      "name": "Définir l'objectif de charge par lieu",
+      "description": "Définit l'objectif de charge d'un profil de charge précis (Škoda, selon le lieu).",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN du véhicule."
+        },
+        "profile_id": {
+          "name": "ID du profil",
+          "description": "ID du profil de charge (depuis le capteur des profils de charge)."
+        },
+        "target": {
+          "name": "Objectif de charge (%)",
+          "description": "Objectif de charge entre 20 et 100 pour cent."
+        }
+      }
+    },
+    "set_seat_heating": {
+      "name": "Régler le chauffage des sièges",
+      "description": "Active le chauffage siège par siège (Škoda). Seuls les sièges indiqués changent.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN du véhicule."
+        },
+        "front_left": {
+          "name": "Avant gauche"
+        },
+        "front_right": {
+          "name": "Avant droit"
+        },
+        "rear_left": {
+          "name": "Arrière gauche"
+        },
+        "rear_right": {
+          "name": "Arrière droit"
+        }
+      }
     }
   },
   "exceptions": {
