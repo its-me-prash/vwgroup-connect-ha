@@ -191,6 +191,14 @@ class VagCampingSwitch(VagConnectEntity, SwitchEntity):
         val = self._vehicle.get("camping_mode")
         return bool(val) if val is not None else None
 
+    def _platform_attributes(self) -> dict[str, object] | None:
+        # v2.31.0 — when camping mode will auto-stop (CampingModeDto.endsAt).
+        # Use the _platform_attributes hook, NOT extra_state_attributes: the
+        # base owns that property (merges image_url/source) and a subclass
+        # override would shadow the shared attributes.
+        ends = self._vehicle.get("camping_ends_at")
+        return {"ends_at": ends} if ends is not None else None
+
     async def async_turn_on(self, **kwargs: object) -> None:
         await self.coordinator.async_start_camping(self._vin)
 

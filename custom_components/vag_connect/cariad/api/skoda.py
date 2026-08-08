@@ -918,6 +918,27 @@ class SkodaClient(CariadBaseClient):
                         break
             elif isinstance(camping, str):
                 d.camping_mode = camping.lower() in ("on", "active", "enabled", "true")
+            # v2.31.0 (8.15.0 APK) — CampingModeDto carries {enabled, endsAt}
+            # (@Json names confirmed); expose the auto-stop time.
+            if isinstance(camping, dict):
+                ends = camping.get("endsAt")
+                if isinstance(ends, str) and len(ends) >= 10:
+                    try:
+                        d.camping_ends_at = datetime.fromisoformat(
+                            ends.replace("Z", "+00:00"))
+                    except (ValueError, TypeError):
+                        pass
+            # v2.31.0 (8.15.0 APK) — air-conditioning.seatHeatingActivated is a
+            # SeatHeatingSettingsDto {frontLeft, frontRight, rearLeft, rearRight}
+            # of nullable Booleans (same shape as the set command). Fill the
+            # single ``seat_heating`` binary-sensor flag = any seat currently
+            # heating; this makes the previously-phantom sensor spawn.
+            sh = v(ac, "seatHeatingActivated")
+            if isinstance(sh, dict):
+                _seats = [sh.get(k) for k in
+                          ("frontLeft", "frontRight", "rearLeft", "rearRight")]
+                if any(isinstance(s, bool) for s in _seats):
+                    d.seat_heating = any(s is True for s in _seats)
             # v2.2.0 Phase 7 PR #1 — steeringWheelPosition (LEFT/RIGHT).
             # LHD/RHD-aware automations + diagnostic for markets where
             # the same car ships both (UK, AU, JP). Defensive: only

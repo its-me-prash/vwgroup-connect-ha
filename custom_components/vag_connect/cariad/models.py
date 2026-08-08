@@ -1038,6 +1038,9 @@ class VehicleData:
     # ``enabled`` sub-key. Skoda-only today; mirror across brands when
     # CUPRA/SEAT firmware ships equivalent.
     camping_mode: bool | None = None
+    # v2.31.0 (8.15.0 APK) — CampingModeDto.endsAt: when camping mode will
+    # auto-stop. Surfaced as an attribute on the camping switch.
+    camping_ends_at: Any | None = None
 
     # v2.2.0 Phase 7 PR #1 — quick-wins batch from the silenced-but-
     # unwired scout-audit. Four fields silenced in `_unexpected_keys.py`
