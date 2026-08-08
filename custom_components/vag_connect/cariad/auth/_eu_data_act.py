@@ -786,12 +786,22 @@ def _walk_fields(
     ``front_left_tyre.soc``) are NEVER synonyms and can never cross-collapse — even
     if their values happen to be equal.
     """
-    # name -> (value_str, ts, ts_real); ts_real distinguishes a genuine
-    # per-point timestamp from the inherited dataset-level floor (-inf=unknown).
-    best: dict[str, tuple[str, float, bool]] = {}
+    # name -> (value_str, ts, ts_real, ts_inherited); ts_real distinguishes a
+    # genuine per-point timestamp from the inherited dataset-level floor
+    # (-inf=unknown). ts_inherited flags a "real" ts that a point INHERITED from
+    # a running ``car_captured_time`` marker in the flat event-log rather than
+    # its OWN sibling timestamp — that ts is order-dependent (VW reorders the log
+    # between exports), so it must not be trusted to decide a value conflict (#465).
+    best: dict[str, tuple[str, float, bool, bool]] = {}
     dataset_ts = _dataset_captured_ts(payload)  # a11: dataset-level freshness floor
 
-    def add(name: Any, value: Any, ts: float | None, ts_real: bool) -> None:
+    def add(
+        name: Any,
+        value: Any,
+        ts: float | None,
+        ts_real: bool,
+        ts_inherited: bool = False,
+    ) -> None:
         if not (isinstance(name, str) and name and value is not None):
             return
         if not isinstance(value, (str, int, float, bool)):
@@ -804,34 +814,41 @@ def _walk_fields(
         # time in first(), so no sentinel ever lands on a mapped target.
         cand = ts if ts is not None else float("-inf")
         cand_real = ts_real and ts is not None
+        cand_inh = bool(ts_inherited) and cand_real
         prev = best.get(name)
         if prev is None:
-            best[name] = (str(value), cand, cand_real)
+            best[name] = (str(value), cand, cand_real, cand_inh)
             return
         # #529: ALL fields (incl. monotonic odometer/mileage) resolve by genuine
         # freshness so they come from the same snapshot. Cross-poll monotonic
         # protection lives in vehicle_cache.reconcile, not here.
         prev_real = prev[2]
+        prev_inh = prev[3]
         if cand_real and prev_real:
             # >= not >: a newer real ts wins, AND on an EQUAL real ts (two samples
             # in the SAME snapshot block, #529 S6) the later-appended one wins —
             # the log is append-ordered, so last-in-block is the newer reading.
+            # #465 (Arno-MA-73): an INHERITED running-marker ts is order-dependent
+            # — VW reorders the flat log, so the same stale record can inherit a
+            # newer-looking marker and out-rank the real value (ID.4 SoC flipping
+            # 57<->81). So a conflict is contested not only on an EQUAL ts but
+            # whenever EITHER side's ts was inherited; reconcile-against-last
+            # (order-independent) then decides instead of the array ordering.
             if (
-                cand == prev[1]
-                and str(value) != prev[0]
+                str(value) != prev[0]
                 and _contested_out is not None
                 and not _is_envelope_noise(name)
+                and (cand == prev[1] or cand_inh or prev_inh)
             ):
-                # Same capture time, different values: the append order is the
-                # ONLY thing separating them, which is not evidence. Record both
-                # so a later layer that knows the previous poll can prefer the
-                # plausible one instead of us picking by array position. The
-                # choice below is unchanged, so this is observation only.
+                # The separating signal (append order OR an inherited marker) is
+                # not evidence. Record both so a later layer that knows the
+                # previous poll can prefer the plausible one. The pick below is
+                # unchanged, so this is observation only — reconcile overrides it.
                 _contested_out.setdefault(name, set()).update({prev[0], str(value)})
             if cand >= prev[1]:
-                best[name] = (str(value), cand, True)
+                best[name] = (str(value), cand, True, cand_inh)
         elif cand_real and not prev_real:
-            best[name] = (str(value), cand, True)  # real beats floor/unknown
+            best[name] = (str(value), cand, True, cand_inh)  # real beats floor
         elif not cand_real and not prev_real:
             # #529 S5/S6: no real ts on either → append-ordered log ⇒ last wins.
             # #1088: but when the two values DISAGREE and neither carries a real
@@ -848,7 +865,7 @@ def _walk_fields(
                 and not _is_envelope_noise(name)
             ):
                 _contested_out.setdefault(name, set()).update({prev[0], str(value)})
-            best[name] = (str(value), cand, False)
+            best[name] = (str(value), cand, False, False)
         # else: incumbent is real and candidate is not → keep the real one.
 
     def walk(
@@ -857,19 +874,21 @@ def _walk_fields(
         node_ts: float | None = None,
         node_ts_real: bool = False,
         in_array: bool = False,
+        node_ts_inherited: bool = False,
     ) -> None:
         if isinstance(node, dict):
-            ts, ts_real = node_ts, node_ts_real
+            ts, ts_real, ts_inh = node_ts, node_ts_real, node_ts_inherited
             for tk in _TS_KEYS:
                 if tk in node:
                     parsed = _parse_ts(node[tk])
                     if parsed is not None:
-                        ts, ts_real = parsed, True  # genuine per-point timestamp
+                        # OWN per-point timestamp — reliable, NOT inherited (#465).
+                        ts, ts_real, ts_inh = parsed, True, False
                         break
             # data-point shape: {dataFieldName|name: X, value: Y}
             fname = node.get("dataFieldName") or node.get("name")
             if fname is not None and "value" in node:
-                add(fname, node.get("value"), ts, ts_real)
+                add(fname, node.get("value"), ts, ts_real, ts_inh)
                 # v2.17.4/v2.17.5 — when the leaf name is a GENERIC token, also key
                 # by the per-point ``key`` UUID so points that collide on a bare
                 # name (many "value" points on MEB/ID.x) don't collapse and first()
@@ -919,7 +938,7 @@ def _walk_fields(
                 # synonym is reclaimed by first()'s synonym-collapse so it does not
                 # become a new chronic raw_unmapped re-reporter.
                 if prefix and not in_array:
-                    add(prefix, node.get("value"), ts, ts_real)
+                    add(prefix, node.get("value"), ts, ts_real, ts_inh)
                     # Record the bare/qualified pair as EXPLICIT synonyms of each
                     # other (bidirectional). They come from THIS one physical node,
                     # so first()'s synonym-collapse is precise: it never touches a
@@ -932,14 +951,14 @@ def _walk_fields(
                     continue
                 key = f"{prefix}.{k}" if prefix else str(k)
                 if isinstance(val, (str, int, float, bool)):
-                    add(key, val, ts, ts_real)
+                    add(key, val, ts, ts_real, ts_inh)
                     # b13 (#465): only emit the BARE name outside an array — a
                     # field inside e.g. chargingProfiles[] must not collapse
                     # onto the top-level key and clobber the active value.
                     if not in_array:
-                        add(str(k), val, ts, ts_real)
+                        add(str(k), val, ts, ts_real, ts_inh)
                 else:
-                    walk(val, key, ts, ts_real, in_array)
+                    walk(val, key, ts, ts_real, in_array, ts_inh)
         elif isinstance(node, list):
             # v2.15.1 (#465 RaAdNe): the portal ships a flat, ORDERED event-log
             # where each snapshot's capture time arrives as its OWN data-point
@@ -950,7 +969,7 @@ def _walk_fields(
             # snapshots (e.g. ``settings.target_soc`` 100 then 80 after battery-care
             # lowered it) ties on the dataset floor and first-seen wins — surfacing
             # the stale 100 instead of the current 80 the car/app actually show.
-            run_ts, run_real = node_ts, node_ts_real
+            run_ts, run_real, run_inh = node_ts, node_ts_real, node_ts_inherited
             for item in node:
                 if isinstance(item, dict):
                     ifn = item.get("dataFieldName") or item.get("name")
@@ -961,14 +980,22 @@ def _walk_fields(
                     ):
                         parsed = _parse_ts(item.get("value"))
                         if parsed is not None:
-                            run_ts, run_real = parsed, True
-                walk(item, prefix, run_ts, run_real, in_array=True)
+                            # #465: the following items INHERIT this running marker
+                            # ts by adjacency — order-dependent (VW reorders the
+                            # log), so flag it inherited. A conflict between two
+                            # inherited-ts values is then reconciled against the
+                            # last poll instead of trusting array order.
+                            run_ts, run_real, run_inh = parsed, True, True
+                walk(
+                    item, prefix, run_ts, run_real,
+                    in_array=True, node_ts_inherited=run_inh,
+                )
 
     walk(payload, node_ts=dataset_ts)  # a11: bare fields inherit dataset freshness
     if _ts_out is not None:
         # Expose only GENUINE (real) per-point capture timestamps; floor/unknown
         # (-inf) carry no snapshot identity and must not constrain last_seen.
-        for k, (_v, ts_v, ts_real_v) in best.items():
+        for k, (_v, ts_v, ts_real_v, _inh_v) in best.items():
             if ts_real_v:
                 _ts_out[k] = ts_v
     return {k: v[0] for k, v in best.items()}
