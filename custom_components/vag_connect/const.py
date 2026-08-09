@@ -331,3 +331,23 @@ def recommended_scan_interval(brand: str | None) -> int:
     caveat. Case-insensitive; tolerates ``None``.
     """
     return RECOMMENDED_SCAN_INTERVAL.get((brand or "").lower(), DEFAULT_SCAN_INTERVAL)
+
+
+# How much to step the advice up by when the user already meets our
+# recommendation but the storm guard still trips (#1115).
+_INTERVAL_STEP_UP_MIN = 15
+
+
+def advised_scan_interval(brand: str | None, current: int) -> int:
+    """The interval to ADVISE in the refresh-storm repair, given *current*.
+
+    #1115 (starwarsfan) — the flat per-brand recommendation told a user already
+    running 31 minutes to "raise it to 30", which reads as nonsense and leaves
+    them nothing to act on. The advice has to beat what they already run: once
+    the configured interval meets or exceeds the brand recommendation, step up
+    from THEIR value instead of repeating ours.
+    """
+    base = recommended_scan_interval(brand)
+    if not isinstance(current, int) or current < base:
+        return base
+    return current + _INTERVAL_STEP_UP_MIN

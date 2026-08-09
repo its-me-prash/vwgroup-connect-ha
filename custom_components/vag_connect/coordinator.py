@@ -42,7 +42,7 @@ from .const import (
     CONF_USERNAME,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
-    recommended_scan_interval,
+    advised_scan_interval,
 )
 from homeassistant.helpers import device_registry as dr
 from .cariad._error_reporter import ErrorRingBuffer, record_error
@@ -2904,10 +2904,19 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         if client is None:
             return
         # User-id is captured by the brand client after the first auth
-        # cycle; bail quietly if not yet available (next refresh re-tries).
+        # cycle; bail if not yet available (next refresh re-tries).
         user_id = getattr(client, "user_id", None) or getattr(client, "_user_id", None)
         vins = list(getattr(self, "vehicles", {}).keys())
         if not user_id or not vins:
+            # #602 (thiete) — this used to return in complete silence, which is
+            # how Škoda push stayed dead without a single log line: SkodaClient
+            # never defined user_id, so every setup bailed here and nothing said
+            # so. Say it, at debug, so the next gap of this shape is findable.
+            _LOGGER.debug(
+                "Push setup skipped: %s",
+                "no user_id captured by the brand client" if not user_id
+                else "no vehicles known yet",
+            )
             return
 
         async def _on_push_event(event: Any) -> None:
@@ -4633,11 +4642,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     self.entry.options.get(CONF_SCAN_INTERVAL)
                     or self.entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
                 )
+                # #1115 (starwarsfan) — advise an interval that actually beats
+                # the configured one (see ``advised_scan_interval``).
                 raise_issue_refresh_interval_too_frequent(
                     self.hass, self.entry.entry_id,
                     brand=brand,
                     current=current_min,
-                    recommended=recommended_scan_interval(brand),
+                    recommended=advised_scan_interval(brand, current_min),
                 )
             else:
                 clear_refresh_interval_issue(self.hass, self.entry.entry_id)

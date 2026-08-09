@@ -51,6 +51,7 @@ from ..exceptions import (
     TwoFactorRequiredError,
     UpstreamUnavailableError,
 )
+from .._util import drop_charge_sentinel
 from ..models import VehicleData
 from ._data_act_scraper import pick_active_15min_identifier
 
@@ -722,6 +723,7 @@ def _walk_fields(
     _ts_out: dict[str, float] | None = None,
     _syn_out: dict[str, set[str]] | None = None,
     _contested_out: dict[str, set[str]] | None = None,
+    _uuid_out: dict[str, set[str]] | None = None,
 ) -> dict[str, str]:
     """Flatten the EU Data Act dataset into ``{field_name: value}``.
 
@@ -904,6 +906,22 @@ def _walk_fields(
                 # regression). Lowercased to match the dictionary + mapping forms.
                 pkey = node.get("key")
                 pkey_l = pkey.strip().lower() if isinstance(pkey, str) else ""
+                # #1100-#1117 — record which content-UUID a GENERIC leaf came
+                # from, so the Scout report can name it. Ten different opening
+                # UUIDs share the bare ``open`` leaf, so a report that says only
+                # "open" is the same row for every reporter and nobody — us
+                # included — can tell which opening it belongs to. Ten people
+                # filed that identical row in a day. This does not change any
+                # field name or mapping (the value is annotated at report time,
+                # see raw_unmapped_fields); it just stops throwing away the one
+                # piece of information that makes the row actionable.
+                if (
+                    _uuid_out is not None
+                    and pkey_l
+                    and isinstance(fname, str)
+                    and fname.strip().lower() in _GENERIC_FIELD_NAMES
+                ):
+                    _uuid_out.setdefault(fname, set()).add(pkey_l)
                 # Alias by UUID for (a) generic-leaf points whose UUID we map, OR
                 # (b) the charge power / charge rate encoding UUIDs regardless of
                 # leaf name: the SAME dataFieldName (battery_state_report.charge_power
@@ -1248,6 +1266,7 @@ def map_dataset_to_vehicle_data(
     field_ts: dict[str, float] | None = None,
     field_syn: dict[str, set[str]] | None = None,
     contested: dict[str, set[str]] | None = None,
+    field_uuids: dict[str, set[str]] | None = None,
 ) -> VehicleData:
     """Map a curated subset of EU Data Act fields onto ``VehicleData``.
 
@@ -2071,20 +2090,18 @@ def map_dataset_to_vehicle_data(
             d.available_charge_modes.append(_label)
 
     # charge_type → charging_type (_shorten_enum, CHARGE_TYPE_ prefix added).
-    # #1104 (Lagaff86) — junk-filter AFTER shortening: an end-of-charge
-    # CHARGE_TYPE_INVALID shortens to "invalid", which Recorder would store as a
-    # real charging type and paint "invalid" history bands. Skip the sentinel so
-    # the field stays None (matching charging_mode/#764 and the connector states)
-    # until the backend sends a real type again — the check is on the SHORTENED
-    # value because the junk arrives prefixed (CHARGE_TYPE_INVALID), unlike the
-    # bare sentinels _charge_str() screens.
-    _ctype = first("charging_state_report.charge_type", "charge_type", "chargeType")
+    # #1104 (Lagaff86) — screen the no-reading sentinel: an end-of-charge
+    # CHARGE_TYPE_INVALID would otherwise reach Recorder as if it were a real
+    # charging type and paint "invalid" history bands. Uses the SHARED sentinel
+    # helper so the portal, the CARIAD BFF (vw_eu/Audi), Škoda and SEAT/CUPRA
+    # all screen the same tokens — the first fix only covered this one path and
+    # the reporter's Audi, which reads via the BFF, still leaked.
+    _ctype = drop_charge_sentinel(
+        first("charging_state_report.charge_type", "charge_type", "chargeType")
+    )
     if _ctype is not None:
-        _ctype_short = _shorten_enum(_ctype)
-        if (
-            _ctype_short is not None
-            and _ctype_short.strip().lower() not in _CHARGE_STATE_JUNK
-        ):
+        _ctype_short = drop_charge_sentinel(_shorten_enum(_ctype))
+        if _ctype_short is not None:
             d.charging_type = _ctype_short
 
     # charging_mode → charging_preferred_mode (guard is None so a BFF value
@@ -3062,9 +3079,32 @@ def map_dataset_to_vehicle_data(
                 "EU Data Act: withholding %d credential field(s) from discovery: %s",
                 len(withheld), ", ".join(withheld),
             )
+        def _discovery_value(key: str) -> str:
+            """The value the Scout shows, annotated with its source UUID.
+
+            #1100-#1117 — a generic leaf like ``open`` is shared by ~10 distinct
+            content-UUIDs (doors, windows, sunroof, trunk, bonnet), so a report
+            that says only ``open: true`` is literally the same row for every
+            reporter and cannot be acted on — ten people filed exactly that row
+            in one day. Naming the UUID makes each report identifiable and lets
+            us map the field the moment one of them is pinned down. The field
+            NAME is untouched (mappings key on it); only the displayed value
+            gains the suffix.
+            """
+            if key.rsplit(".", 1)[-1] in ("user_id", "vin"):
+                return "<redacted>"
+            raw_value = str(fields[key])
+            uuids = (field_uuids or {}).get(key) or (field_uuids or {}).get(
+                key.rsplit(".", 1)[-1]
+            )
+            if not uuids:
+                return raw_value
+            # Short form: the first 8 hex chars identify the dictionary entry.
+            marks = ", ".join(sorted(u.split("-")[0] for u in uuids))
+            return f"{raw_value} (uuid {marks})"
+
         d.raw_unmapped_fields = {
-            k: ("<redacted>" if k.rsplit(".", 1)[-1] in ("user_id", "vin")
-                else str(fields[k]))
+            k: _discovery_value(k)
             for k in unmapped[:_RAW_FIELD_CAP]
             if k.rsplit(".", 1)[-1] not in _CREDENTIAL_FIELDS
         }
@@ -3702,7 +3742,8 @@ class EUDataActConnector:
         field_ts: dict[str, float] = {}  # #529: resolved per-field capture ts
         field_syn: dict[str, set[str]] = {}  # v2.15.4: bare/qualified synonym map
         contested: dict[str, set[str]] = {}  # same capture time, disagreeing values
-        fields = _walk_fields(payload, field_ts, field_syn, contested)
+        field_uuids: dict[str, set[str]] = {}  # generic-leaf -> content UUID(s)
+        fields = _walk_fields(payload, field_ts, field_syn, contested, field_uuids)
         _LOGGER.debug(
             "EU Data Act portal: %s dataset carried %d fields", vin[-6:], len(fields)
         )
@@ -3724,7 +3765,9 @@ class EUDataActConnector:
                 self.on_raw_dataset(vin, raw, newest)
             except Exception:  # noqa: BLE001  # pragma: no cover - defensive
                 _LOGGER.debug("EU Data Act: raw-dataset archive hook failed")
-        return map_dataset_to_vehicle_data(fields, d, field_ts, field_syn, contested)
+        return map_dataset_to_vehicle_data(
+        fields, d, field_ts, field_syn, contested, field_uuids
+    )
 
     async def get_relation_nickname(self, vin: str) -> str | None:
         """Best-effort vehicle nickname from the relation endpoint."""
@@ -3781,8 +3824,11 @@ def parse_export_zip(raw: bytes, vin: str, name: str = "export.zip") -> VehicleD
     field_ts: dict[str, float] = {}
     field_syn: dict[str, set[str]] = {}
     contested: dict[str, set[str]] = {}  # #1088 — same as get_vehicle_data
-    fields = _walk_fields(payload, field_ts, field_syn, contested)
+    field_uuids: dict[str, set[str]] = {}  # generic-leaf -> content UUID(s)
+    fields = _walk_fields(payload, field_ts, field_syn, contested, field_uuids)
     if not fields:
         return d
     d.no_data = False  # real dataset parsed → mirror get_vehicle_data:3322
-    return map_dataset_to_vehicle_data(fields, d, field_ts, field_syn, contested)
+    return map_dataset_to_vehicle_data(
+        fields, d, field_ts, field_syn, contested, field_uuids
+    )

@@ -699,3 +699,59 @@ def workshop_phone_from_contact(contact: Any) -> str | None:
                 if isinstance(num, str) and num.strip():
                     return normalize_workshop_string(num)
     return None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# v3.0.2 (#1104) — no-reading sentinels on charge/plug STATE strings.
+#
+# Every brand backend has a token that means "no reading right now" rather than
+# an actual state, and each channel spells it differently: the EU Data Act
+# portal ships ``CHARGE_TYPE_INVALID``, the CARIAD BFF a bare ``invalid``, and
+# the BFF additionally uses ``unsupported`` for a capability the car lacks.
+# Surfacing any of them writes a phantom state into Recorder — @Lagaff86's
+# e-tron GT logged 90 ``invalid`` episodes, most of them a clean
+# ``off -> invalid -> off`` while parked and not charging.
+#
+# The parsers used to screen these ad hoc: ``vw_eu`` did it for plug and
+# climatisation state but not for charge type, ``_eu_data_act`` had its own set
+# that was missing ``unsupported``, and Škoda / SEAT / CUPRA screened nothing.
+# This is the single shared definition all of them now use.
+# ─────────────────────────────────────────────────────────────────────────────
+
+CHARGE_STATE_SENTINELS: frozenset[str] = frozenset(
+    {
+        "invalid",
+        "unavailable",
+        "notavailable",
+        "not_available",
+        "unsupported",
+        "error",
+        "unknown",
+    }
+)
+
+
+def drop_charge_sentinel(value: Any) -> Any:
+    """``None`` when *value* is a backend no-reading sentinel, else *value*.
+
+    Matches case-insensitively, and also matches a prefixed enum spelling by
+    its trailing segment, so ``CHARGE_TYPE_INVALID`` is caught as well as a
+    bare ``invalid``. ``CHARGE_TYPE_OFF`` is deliberately NOT a sentinel — "off"
+    is a real charging type and is exactly what the reporter's car shows on
+    either shoulder of an ``invalid`` episode.
+
+    Non-string values pass through untouched, so a caller can wrap a lookup
+    whose type it does not control.
+    """
+    if not isinstance(value, str):
+        return value
+    token = value.strip().lower()
+    if token in CHARGE_STATE_SENTINELS:
+        return None
+    # Prefixed dialects (CHARGE_TYPE_INVALID, CHARGING_STATE_UNSUPPORTED, …).
+    # Only the segment after the last underscore is tested, so a multi-word
+    # sentinel that is itself underscored (``not_available``) still relies on
+    # the whole-string test above rather than matching on ``available``.
+    if "_" in token and token.rsplit("_", 1)[-1] in CHARGE_STATE_SENTINELS:
+        return None
+    return value

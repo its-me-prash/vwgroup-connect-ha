@@ -20,6 +20,7 @@ from .._util import (
     compose_workshop_address,
     compute_connection_state,
     days_or_date_to_iso,
+    drop_charge_sentinel,
     normalize_workshop_string,
     safe_float,
     safe_int,
@@ -95,6 +96,43 @@ class SkodaClient(CariadBaseClient):
         self, session: ClientSession, email: str, password: str, spin: str = ""
     ) -> None:
         super().__init__(session, BRAND_SKODA, email, password, spin)
+        # #602 (thiete) — the MQTT push manager needs the account user-id: it is
+        # the MQTT username AND the topic prefix (``{user_id}/{vin}/#``). Škoda
+        # was the only push-capable brand that never captured one, and the
+        # coordinator's push setup bails out silently when it is missing — so
+        # the Škoda push channel could never arm, with nothing in the log to say
+        # why. SEAT/CUPRA and VW US/CA already carry this attribute.
+        self._user_id: str | None = None
+
+    async def authenticate(self, mfa_code: str | None = None) -> None:
+        """Authenticate, then capture the account user-id for the push channel.
+
+        #602 — mirrors ``vw_na._capture_user_id`` / ``seat_cupra._fetch_user_id``:
+        prefer the id the IDK redirect carried, otherwise decode the ``sub``
+        claim of the id_token (Škoda's scope includes ``openid``, so one is
+        always minted). Best-effort — a miss only leaves push unarmed, which is
+        the status quo, and must never fail the login.
+        """
+        await super().authenticate(mfa_code)
+        if self._user_id:
+            return
+        auth_uid = getattr(self._auth, "user_id", None)
+        if isinstance(auth_uid, str) and auth_uid:
+            self._user_id = auth_uid
+            return
+        if self._tokens and self._tokens.id_token:
+            try:
+                import base64  # noqa: PLC0415
+                import json as _json  # noqa: PLC0415
+
+                payload_b64 = self._tokens.id_token.split(".")[1]
+                payload_b64 += "=" * (4 - len(payload_b64) % 4)
+                payload = _json.loads(base64.urlsafe_b64decode(payload_b64))
+                sub = payload.get("sub")
+                if isinstance(sub, str) and sub:
+                    self._user_id = sub
+            except Exception:  # noqa: BLE001
+                _LOGGER.debug("Škoda: could not decode id_token sub claim")
 
     async def get_vehicles(self) -> list[str]:
         """Return VINs from Škoda garage."""
@@ -879,7 +917,8 @@ class SkodaClient(CariadBaseClient):
                 d.is_charging = d.charging_state.upper() == "CHARGING"
             d.charging_power_kw = v(c, "chargePowerInKw")
             d.charging_rate_kmh = v(c, "chargingRateInKilometersPerHour")
-            d.charging_type = v(c, "chargeType")
+            # v3.0.2 (#1104) — screen the no-reading sentinel (see vw_eu).
+            d.charging_type = drop_charge_sentinel(v(c, "chargeType"))
             fully_at = v(c, "fullyChargedAt")
             if isinstance(fully_at, str):
                 try:
