@@ -874,16 +874,39 @@ class WebsiteAuthProxyConnector:
                 continue
             morsel: Morsel[str] = Morsel()
             morsel.set(str(name), str(value), str(value))
-            # Deliberately do NOT copy the domain onto the morsel → the cookie
-            # binds host-only to each host we broadcast it to (matches the
-            # working rafaelhutter pattern).
+            # #923/#875/#966 — a DOMAIN cookie must be restored as a domain
+            # cookie. Dropping the domain and re-binding host-only to our two
+            # hosts means a cookie the IDP issued for ``.vwgroup.io`` is no
+            # longer sent to any OTHER *.vwgroup.io hop in the authorize chain,
+            # so the silent resume can fail even though the session is alive —
+            # the "signed in fine, reported expired seconds later" loop.
+            #
+            # The comment that used to sit here claimed this matched a working
+            # reference implementation. It matched that project's OLD code: they
+            # hit this same bug and now restore the domain, their own note
+            # saying the previous behaviour "silently broke the silent refresh
+            # and forced a re-login" — our exact symptom. Host-only entries
+            # (empty or non-dotted domain) keep the broadcast path below, which
+            # is what makes the host-only SSO cookie reachable.
+            _dotted = domain.startswith(".")
+            if _dotted:
+                try:
+                    morsel["domain"] = domain
+                except (KeyError, ValueError):
+                    _dotted = False
             for attr in ("path", "expires", "secure", "httponly"):
                 if attr in ck and ck[attr] not in (None, ""):
                     try:
                         morsel[attr] = ck[attr]
                     except (KeyError, ValueError):
                         pass
-            if str(name) in colliding:
+            targets: tuple[str, ...]
+            if _dotted:
+                # A true domain cookie is filed ONCE against its apex; aiohttp
+                # then serves it to every host under that domain, which is the
+                # whole point. Broadcasting it host-only would re-narrow it.
+                targets = (f"https://{domain.lstrip('.')}/",)
+            elif str(name) in colliding:
                 # Ambiguous name: send this value only to the host it came from.
                 targets = tuple(
                     h for h in _COOKIE_HOSTS if (URL(h).host or "") in domain
@@ -892,8 +915,24 @@ class WebsiteAuthProxyConnector:
                 targets = _COOKIE_HOSTS
             for host in targets:
                 try:
+                    # #923/#875/#966 — build a FRESH morsel per target. aiohttp
+                    # stamps the response host onto the morsel it is handed, so
+                    # re-using one object across the broadcast meant the second
+                    # host re-filed the cookie under the FIRST host's domain and
+                    # the jar kept only one copy. The host-only SSO cookie
+                    # therefore never reached identity.vwgroup.io — the exact
+                    # thing this broadcast exists to guarantee, silently not
+                    # happening since it was written.
+                    per_host: Morsel[str] = Morsel()
+                    per_host.set(str(name), str(value), str(value))
+                    for _a in ("domain", "path", "expires", "secure", "httponly"):
+                        if morsel[_a] not in (None, ""):
+                            try:
+                                per_host[_a] = morsel[_a]
+                            except (KeyError, ValueError):
+                                pass
                     self._session.cookie_jar.update_cookies(
-                        {str(name): morsel}, response_url=URL(host),
+                        {str(name): per_host}, response_url=URL(host),
                     )
                 except Exception:  # noqa: BLE001
                     continue
