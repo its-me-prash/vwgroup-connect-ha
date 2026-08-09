@@ -658,16 +658,42 @@ class WebsiteAuthProxyConnector:
         # back to begin_login() (that would start the interactive flow and make
         # the IDP email a fresh OTP every refresh). Raise → the caller surfaces
         # a graceful re-add instead. OTP only ever lives on the interactive path.
-        if "/u/login" in landed or "/signin-service" in landed:
+        # #923/#875/#966 — classify on the landed HOST + PATH, never on the raw
+        # URL. The old test was a bare substring match over the whole URL,
+        # query string included, so a resume that landed correctly back on
+        # volkswagen.de was still declared "SSO expired" whenever the callback
+        # carried an IDP path inside a query parameter (redirect_uri=…/
+        # signin-service/…). Three reporters described exactly that shape: the
+        # OTP login succeeds and the session is reported expired seconds later,
+        # so re-adding the channel produces new cookies and the very same
+        # verdict — an endless Repair loop. ``begin_login`` has always done the
+        # host-aware check (see its landing test); this brings ``refresh`` in
+        # line with it.
+        landed_parts = urlparse(landed)
+        landed_host = landed_parts.hostname or ""
+        landed_path = landed_parts.path or ""
+        on_portal = landed_parts.netloc == urlparse(_SITE_BASE).netloc
+        # Log the chain unconditionally — hostnames only, so no OAuth state or
+        # token ever reaches the log. Previously only the redirect-loop branch
+        # logged it, which left a reporter's debug log unable to show where the
+        # chain actually went: the single fact needed to tell a dead SSO from a
+        # misclassified good one.
+        _LOGGER.debug(
+            "Website authproxy refresh GET landed host=%s path=%s status=%s",
+            landed_host, landed_path, status,
+        )
+        if not on_portal and (
+            "/u/login" in landed_path or "/signin-service" in landed_path
+        ):
             raise AuthenticationError(
                 "Website authproxy: SSO session expired — full re-login required"
             )
-        sso_error = parse_qs(urlparse(landed).query).get("error", [None])[0]
+        sso_error = parse_qs(landed_parts.query).get("error", [None])[0]
         if sso_error:
             raise AuthenticationError(
                 f"Website authproxy: silent refresh failed (error={sso_error})"
             )
-        if status < 400 and urlparse(landed).netloc == urlparse(_SITE_BASE).netloc:
+        if status < 400 and on_portal and "/u/login" not in landed_path:
             self.logged_in = True
             _LOGGER.info(
                 "Website authproxy: silent refresh resumed the session"

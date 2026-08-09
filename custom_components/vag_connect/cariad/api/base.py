@@ -507,6 +507,18 @@ class CariadBaseClient:
         """Read one VIN from a website-authproxy connector with a single
         re-login retry. Fail-soft: any error returns None so a read-only
         supplementary channel can never sink the poll (the primary stands)."""
+        # #923/#875/#966 — keep the SSO session fresh instead of only reacting
+        # once a read has already failed. ``maybe_roll`` is debounced (10 min)
+        # and was wired only to the sole-mode channel, so on the supplementary
+        # slot the session aged untouched against the portal's own 30-minute
+        # timeout and its rotated cookies were never written back. Best-effort:
+        # a failure here must not stop the read below from trying.
+        try:
+            roll = getattr(connector, "maybe_roll", None)
+            if roll is not None:
+                await roll()
+        except Exception:  # noqa: BLE001
+            pass
         try:
             return await connector.get_vehicle_data(vin)  # type: ignore[no-any-return]
         except AuthenticationError:
