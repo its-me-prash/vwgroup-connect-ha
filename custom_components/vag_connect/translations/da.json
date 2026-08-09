@@ -53,7 +53,7 @@
       },
       "user": {
         "title": "Opsæt VW Group Connect",
-        "description": "Hvordan vil du logge ind?\n\n**Browser-login (anbefalet)** — åbn en URL på din telefon eller bærbare, log ind på din Brand ID-konto, og godkend enheden. Ingen adgangskode gemmes nogensinde i Home Assistant. Tilgængelig for Audi, Škoda, SEAT og CUPRA.\n\n**E-mail + adgangskode (ældre metode)** — indtast dine Brand ID-loginoplysninger direkte. Kræves for Volkswagen EU og Porsche.",
+        "description": "Hvordan vil du logge ind?\n\n**Browser-login (anbefalet)** — åbn en URL på din telefon eller bærbare, log ind på din Brand ID-konto, og godkend enheden. Ingen adgangskode gemmes nogensinde i Home Assistant. Tilgængelig for Audi, SEAT og CUPRA.\n\n**E-mail + adgangskode (ældre metode)** — indtast dine Brand ID-loginoplysninger direkte. Kræves for Volkswagen EU, Škoda og Porsche.",
         "menu_options": {
           "browser_login": "Browser-login (anbefalet)",
           "email_password": "E-mail + adgangskode (ældre metode)",
@@ -165,6 +165,7 @@
       "invalid_credentials": "E-mailadresse eller adgangskode er forkert.",
       "upstream_unavailable": "VW-backendet er midlertidigt utilgængeligt. Dette er et serverproblem hos VW, IKKE et problem med loginoplysninger. Vent venligst 5-15 minutter, og prøv igen. Konfigurer IKKE integrationen igen.",
       "brand_not_dag_eligible": "Det valgte mærke understøtter ikke browser-login. Brug flowet med e-mail + adgangskode i stedet.",
+      "skoda_qr_retired": "Škodas adgangskodefri login (QR) blev slået fra af Volkswagen og virker ikke længere. Gå tilbage, og vælg “E-mail + adgangskode (ældre metode)”, vælg derefter Škoda der, og log ind med din MyŠkoda-e-mail og adgangskode.",
       "portal_interaction_required": "EU Data Act-portalen kræver en engangshandling i din browser eller mærke-app (f.eks. accepter vilkår, bekræft samtykke, fuldfør onboarding/regionsvalg), før headless-adgang virker. Dette er IKKE et problem med forkert adgangskode — åbn portalen én gang i en browser, fuldfør anmodningen, og prøv igen.",
       "still_waiting_browser": "Venter stadig på browser-godkendelse. Åbn URL'en ovenfor, log ind, bekræft koden, og klik på Send igen.",
       "companion_cannot_connect": "Could not reach the phone over ADB. Check it is on the network, that ADB over Wi-Fi is on, and that you accepted the debugging prompt.",

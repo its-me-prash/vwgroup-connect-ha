@@ -278,7 +278,10 @@ DECLARED_CAPABILITIES: dict[str, dict[str, bool]] = {
         "brake_service": True,
         "ola_push": False,
         "fcm_push": False,
-        "dag_login": True,
+        # v3.0.1 — VW revoked Škoda's device_code grant (403 unauthorized_client),
+        # so the QR/browser login no longer works for Škoda. It signs in via
+        # email + password (IDK authorization-code) instead.
+        "dag_login": False,
         "mqtt_push": True,
     },
     "seat": {

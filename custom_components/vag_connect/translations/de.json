@@ -53,7 +53,7 @@
       },
       "user": {
         "title": "VW Group Connect einrichten",
-        "description": "Wie möchtest du dich anmelden?\n\n**Browser-Login (empfohlen)** — öffne eine URL auf Handy oder Laptop, melde dich mit deinem Brand-ID-Konto an, bestätige das Gerät. Kein Passwort wird in Home Assistant gespeichert. Verfügbar für Audi, Škoda, SEAT und CUPRA.\n\n**E-Mail + Passwort (Legacy)** — gib deine Brand-ID-Zugangsdaten direkt ein. Erforderlich für Volkswagen EU und Porsche.",
+        "description": "Wie möchtest du dich anmelden?\n\n**Browser-Login (empfohlen)** — öffne eine URL auf Handy oder Laptop, melde dich mit deinem Brand-ID-Konto an, bestätige das Gerät. Kein Passwort wird in Home Assistant gespeichert. Verfügbar für Audi, SEAT und CUPRA.\n\n**E-Mail + Passwort (Legacy)** — gib deine Brand-ID-Zugangsdaten direkt ein. Erforderlich für Volkswagen EU, Škoda und Porsche.",
         "menu_options": {
           "browser_login": "Browser-Login (empfohlen)",
           "email_password": "E-Mail + Passwort (Legacy)",
@@ -166,6 +166,7 @@
       "portal_interaction_required": "Das EU-Data-Act-Portal benötigt eine einmalige Aktion in deinem Browser oder der Marken-App (z. B. AGB akzeptieren, Einwilligung bestätigen, Onboarding/Region-Auswahl abschließen), bevor der headless-Zugriff funktioniert. Das ist KEIN Passwort-Problem — öffne das Portal einmal im Browser, schließe die Abfrage ab und versuche es erneut.",
       "upstream_unavailable": "VW-Backend vorübergehend nicht erreichbar. Das ist ein Server-Problem bei VW, KEIN Anmeldefehler. Bitte 5–15 Minuten warten und nochmal versuchen. Die Integration NICHT neu konfigurieren.",
       "brand_not_dag_eligible": "Diese Marke unterstützt kein Browser-Login. Nutze stattdessen E-Mail + Passwort.",
+      "skoda_qr_retired": "Škodas passwortloser (QR-)Login wurde von Volkswagen abgeschaltet und funktioniert nicht mehr. Geh zurück und wähle „E-Mail + Passwort (Legacy)“, dort dann Škoda auswählen und mit deiner MyŠkoda-E-Mail und deinem Passwort anmelden.",
       "still_waiting_browser": "Warte noch auf die Browser-Bestätigung. Öffne die URL oben, melde dich an, bestätige den Code und klick dann nochmal auf Senden.",
       "companion_cannot_connect": "Could not reach the phone over ADB. Check it is on the network, that ADB over Wi-Fi is on, and that you accepted the debugging prompt.",
       "companion_needs_addon": "Das sieht nach einem Android-11+-Telefon mit kabellosem Debugging aus, das die direkte Verbindung hier nicht nutzen kann (sie läuft über TLS + Pairing). Installiere das Add-on 'VW Group App ADB Bridge' (github.com/its-me-prash/vwgroup-app-adb-bridge) und verweise den Companion darauf. Ältere Telefone (Android 10 oder älter) verbinden sich hier direkt.",

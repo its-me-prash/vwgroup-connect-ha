@@ -41,7 +41,12 @@ This module implements the standard headless-device OAuth flow:
 ## Brand coverage
 
 - ✅ Audi (client_id ``09b6cbec-…`` + ``f4d0934f-…`` both whitelisted)
-- ✅ Skoda (client_id ``7f045eee-…``)
+- ❌ Skoda (client_id ``7f045eee-…``) — REVOKED 2026-08. VW pulled the
+  device_code grant for the Skoda client: ``/device_authorization`` now
+  returns ``403 unauthorized_client`` ("client is not allowed to use the
+  device_code grant"), and the alternate ``4fffed6b-…`` returns ``400``.
+  Live-confirmed against identity.vwgroup.io (Audi still 200). Skoda now
+  signs in via email + password (IDK authorization-code) instead.
 - ✅ SEAT (client_id ``99a5b77d-…``)
 - ✅ CUPRA (client_id ``3c756d46-…``)
 - ❌ Volkswagen EU (client_id ``a24fba63-…`` returns ``unauthorized_client``
@@ -461,7 +466,14 @@ class DeviceAuthorizationGrant:
 # client is still not whitelisted either way.)
 #
 # Update when VW expands the whitelist.
-DAG_ENABLED_BRANDS = frozenset({"audi", "skoda", "seat", "cupra", "audi_na"})
+#
+# v3.0.1 — "skoda" REMOVED. VW revoked the Skoda client's device_code grant
+# (2026-08): /device_authorization returns 403 unauthorized_client for
+# 7f045eee, 400 "legal entity" for the alternate 4fffed6b, while Audi still
+# returns 200 (live-probed). Offering the QR path for Skoda produced a silent
+# form reload for users. Skoda signs in via email + password (IDK
+# authorization-code) — a separate, unaffected path (base.py strategy chain).
+DAG_ENABLED_BRANDS = frozenset({"audi", "seat", "cupra", "audi_na"})
 
 # v2.19.0 — Audi US/CA (audi_na) drives the SAME RFC-8628 flow against the NA IDP
 # instead of the EU one (endpoints mirror EU on identity.na.vwgroup.io, from the

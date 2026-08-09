@@ -53,7 +53,7 @@
       },
       "user": {
         "title": "Määritä VW Group Connect",
-        "description": "Miten haluat kirjautua?\n\n**Selainkirjautuminen (suositeltu)** — avaa URL-osoite puhelimellasi tai kannettavallasi, kirjaudu Brand ID -tiliisi ja hyväksy laite. Salasanaa ei koskaan tallenneta Home Assistantiin. Saatavilla merkeille Audi, Škoda, SEAT ja CUPRA.\n\n**Sähköposti + salasana (vanha tapa)** — syötä Brand ID -kirjautumistietosi suoraan. Vaaditaan Volkswagen EU:lle ja Porschelle.",
+        "description": "Miten haluat kirjautua?\n\n**Selainkirjautuminen (suositeltu)** — avaa URL-osoite puhelimellasi tai kannettavallasi, kirjaudu Brand ID -tiliisi ja hyväksy laite. Salasanaa ei koskaan tallenneta Home Assistantiin. Saatavilla merkeille Audi, SEAT ja CUPRA.\n\n**Sähköposti + salasana (vanha tapa)** — syötä Brand ID -kirjautumistietosi suoraan. Vaaditaan Volkswagen EU:lle, Škodalle ja Porschelle.",
         "menu_options": {
           "browser_login": "Selainkirjautuminen (suositeltu)",
           "email_password": "Sähköposti + salasana (vanha tapa)",
@@ -165,6 +165,7 @@
       "invalid_credentials": "Sähköpostiosoite tai salasana väärin.",
       "upstream_unavailable": "VW-taustajärjestelmä tilapäisesti tavoittamattomissa. Tämä on palvelinpuolen ongelma VW:llä, EI kirjautumistieto-ongelma. Odota 5–15 minuuttia ja yritä uudelleen. ÄLÄ määritä integraatiota uudelleen.",
       "brand_not_dag_eligible": "Valittu merkki ei tue selainkirjautumista. Käytä sen sijaan sähköposti + salasana -kirjautumista.",
+      "skoda_qr_retired": "Volkswagen sammutti Škodan salasanattoman (QR) kirjautumisen, eikä se toimi enää. Palaa takaisin ja valitse ”Sähköposti + salasana (vanha tapa)”, valitse siellä Škoda ja kirjaudu MyŠkoda-sähköpostillasi ja -salasanallasi.",
       "portal_interaction_required": "EU Data Act -portaali vaatii kertaluonteisen toimenpiteen selaimessasi tai merkin sovelluksessa (esim. käyttöehtojen hyväksyminen, suostumuksen vahvistaminen, käyttöönoton/alueen valinnan viimeistely) ennen kuin selaimeton pääsy toimii. Tämä EI ole väärän salasanan ongelma — avaa portaali kerran selaimessa, suorita kehote loppuun ja yritä sitten uudelleen.",
       "still_waiting_browser": "Odotetaan yhä selaimen hyväksyntää. Avaa yllä oleva URL-osoite, kirjaudu sisään, vahvista koodi ja napsauta sitten Lähetä uudelleen.",
       "companion_cannot_connect": "Could not reach the phone over ADB. Check it is on the network, that ADB over Wi-Fi is on, and that you accepted the debugging prompt.",

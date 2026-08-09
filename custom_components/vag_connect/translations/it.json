@@ -53,7 +53,7 @@
       },
       "user": {
         "title": "Configura VW Group Connect",
-        "description": "Come vuoi accedere?\n\n**Login via browser (consigliato)** — apri un URL sul telefono o sul laptop, accedi al tuo account Brand ID e approva il dispositivo. Nessuna password viene mai salvata in Home Assistant. Disponibile per Audi, Škoda, SEAT e CUPRA.\n\n**Email + password (legacy)** — inserisci direttamente le credenziali Brand ID. Necessario per Volkswagen EU e Porsche.",
+        "description": "Come vuoi accedere?\n\n**Login via browser (consigliato)** — apri un URL sul telefono o sul laptop, accedi al tuo account Brand ID e approva il dispositivo. Nessuna password viene mai salvata in Home Assistant. Disponibile per Audi, SEAT e CUPRA.\n\n**Email + password (legacy)** — inserisci direttamente le credenziali Brand ID. Necessario per Volkswagen EU, Škoda e Porsche.",
         "menu_options": {
           "browser_login": "Login via browser (consigliato)",
           "email_password": "Email + password (legacy)",
@@ -165,6 +165,7 @@
       "invalid_credentials": "Indirizzo email o password errati.",
       "upstream_unavailable": "Backend VW temporaneamente non disponibile. Si tratta di un problema lato server di VW, NON di un problema di credenziali. Attendi 5–15 minuti e riprova. NON riconfigurare l'integrazione.",
       "brand_not_dag_eligible": "La marca selezionata non supporta il login via browser. Usa invece la procedura con email + password.",
+      "skoda_qr_retired": "Il login senza password (QR) di Škoda è stato disattivato da Volkswagen e non funziona più. Torna indietro e scegli “Email + password (legacy)”, poi seleziona lì Škoda e accedi con l'email e la password del tuo MyŠkoda.",
       "portal_interaction_required": "Il portale EU Data Act richiede un'azione una tantum nel tuo browser o nell'app della marca (ad es. accettare i termini, confermare il consenso, completare l'onboarding/la selezione della regione) prima che l'accesso headless funzioni. Questo NON è un problema di password errata — apri il portale una volta in un browser, completa la richiesta, poi riprova.",
       "still_waiting_browser": "In attesa dell'approvazione dal browser. Apri l'URL qui sopra, accedi, conferma il codice, poi clicca di nuovo su Invia.",
       "companion_cannot_connect": "Could not reach the phone over ADB. Check it is on the network, that ADB over Wi-Fi is on, and that you accepted the debugging prompt.",

@@ -407,8 +407,10 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         menu render correctly regardless of cache state.
         """
         # b12 — TWO login paths only. QR/browser-login (passwordless, two-way
-        # native) for Audi/Škoda/SEAT/CUPRA; Portal (email/pw) for Volkswagen
-        # EU / Porsche, which can opt into a durable-MBB command channel right
+        # native) for Audi/SEAT/CUPRA; Portal (email/pw) for Volkswagen EU /
+        # Škoda / Porsche (v3.0.1: VW revoked Škoda's device_code grant, so
+        # Škoda moved from QR to email+password), which can opt into a
+        # durable-MBB command channel right
         # in that step (the old standalone "mbb_login" + "website_authproxy"
         # menu entries are gone — MBB is now the Portal's command toggle, and
         # vw.de is an options-only supplementary read channel).
@@ -416,11 +418,11 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             step_id="user",
             menu_options={
                 "browser_login": (
-                    "Browser-Login (QR) — Audi / Škoda / SEAT / CUPRA "
+                    "Browser-Login (QR) — Audi / SEAT / CUPRA "
                     "(empfohlen, kein Passwort in HA)"
                 ),
                 "email_password": (
-                    "Portal (E-Mail + Passwort) — Volkswagen EU / Porsche "
+                    "Portal (E-Mail + Passwort) — Volkswagen EU / Škoda / Porsche "
                     "(+ Toggle: MBB-Fahrzeug → Fernbefehle)"
                 ),
                 # v3.0.0-alpha — experimental fourth source. Drives the official
@@ -954,7 +956,14 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
 
         if user_input is not None:
             brand = user_input[CONF_BRAND]
-            if brand not in DAG_ENABLED_BRANDS:
+            if brand == "skoda":
+                # v3.0.1 — VW revoked Škoda's device_code grant (403
+                # unauthorized_client on identity.vwgroup.io). QR is dead for
+                # Škoda only; the form no longer offers it, but a stale/crafted
+                # payload lands here — send the user to email + password with a
+                # clear reason instead of a silent form reload.
+                errors["base"] = "skoda_qr_retired"
+            elif brand not in DAG_ENABLED_BRANDS:
                 # Defence in depth — the form should have filtered these
                 # out already, but the user could send a crafted payload.
                 errors["base"] = "brand_not_dag_eligible"

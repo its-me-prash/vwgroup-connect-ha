@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Konfigurera VW Group Connect",
-        "description": "Anslut ditt fordon till Home Assistant.\n\nVälj ditt märke och ange inloggningsuppgifterna från tillverkarens app.",
+        "description": "Hur vill du logga in?\n\n**Webbläsarinloggning (rekommenderas)** — öppna en URL på din telefon eller dator, logga in på ditt Brand ID-konto och godkänn enheten. Inget lösenord lagras någonsin i Home Assistant. Tillgängligt för Audi, SEAT och CUPRA.\n\n**E-post + lösenord (äldre metod)** — ange dina Brand ID-uppgifter direkt. Krävs för Volkswagen EU, Škoda och Porsche.",
         "menu_options": {
           "browser_login": "Webbläsarinloggning (rekommenderas)",
           "email_password": "E-post + lösenord (äldre metod)",
@@ -166,6 +166,7 @@
       "portal_interaction_required": "EU Data Act-portalen kräver en engångsåtgärd i din webbläsare eller varumärkesapp (t.ex. godkänna villkor, bekräfta samtycke, slutföra onboarding/regionval) innan huvudlös åtkomst fungerar. Detta är INTE ett lösenordsproblem — öppna portalen en gång i en webbläsare, slutför uppmaningen och försök igen.",
       "upstream_unavailable": "VW backend tillfälligt otillgänglig. Detta är ett serverproblem hos VW, INTE ett autentiseringsfel. Vänta 5–15 minuter och försök igen. Konfigurera INTE om integrationen.",
       "brand_not_dag_eligible": "Det valda märket stöder inte webbläsarinloggning. Använd flödet för e-post + lösenord i stället.",
+      "skoda_qr_retired": "Škodas lösenordsfria inloggning (QR) inaktiverades av Volkswagen och fungerar inte längre. Gå tillbaka och välj ”E-post + lösenord (äldre metod)”, välj sedan Škoda där och logga in med din MyŠkoda-e-post och ditt lösenord.",
       "still_waiting_browser": "Väntar fortfarande på godkännande i webbläsaren. Öppna URL:en ovan, logga in, bekräfta koden och klicka sedan på Skicka igen.",
       "companion_cannot_connect": "Could not reach the phone over ADB. Check it is on the network, that ADB over Wi-Fi is on, and that you accepted the debugging prompt.",
       "companion_needs_addon": "Det här ser ut som en telefon med Android 11 eller nyare som använder trådlös felsökning, vilket den direkta anslutningen här inte klarar (den bygger på TLS och parkoppling). Installera tillägget 'VW Group App ADB Bridge' (github.com/its-me-prash/vwgroup-app-adb-bridge) och peka companion-anslutningen mot tillägget. Äldre telefoner (Android 10 eller tidigare) ansluter direkt här.",

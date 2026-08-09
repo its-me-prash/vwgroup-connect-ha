@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "VW Group Connect instellen",
-        "description": "Verbind je voertuig met Home Assistant.\n\nKies je merk en voer de inloggegevens van de fabrieksapp in.",
+        "description": "Hoe wil je je aanmelden?\n\n**Browser-login (aanbevolen)** — open een URL op je telefoon of laptop, meld je aan bij je Brand ID-account en keur het apparaat goed. Er wordt nooit een wachtwoord opgeslagen in Home Assistant. Beschikbaar voor Audi, SEAT en CUPRA.\n\n**E-mail + wachtwoord (verouderd)** — voer je Brand ID-inloggegevens rechtstreeks in. Vereist voor Volkswagen EU, Škoda en Porsche.",
         "menu_options": {
           "browser_login": "Browser-login (aanbevolen)",
           "email_password": "E-mail + wachtwoord (verouderd)",
@@ -166,6 +166,7 @@
       "portal_interaction_required": "Het EU Data Act-portaal vereist een eenmalige actie in je browser of merk-app (bijv. voorwaarden accepteren, toestemming bevestigen, onboarding/regiokeuze voltooien) voordat headless-toegang werkt. Dit is GEEN wachtwoordprobleem — open het portaal één keer in een browser, voltooi de melding en probeer het opnieuw.",
       "upstream_unavailable": "VW backend tijdelijk onbereikbaar. Dit is een serverprobleem bij VW, GEEN inlogfout. Wacht 5–15 minuten en probeer opnieuw. Configureer de integratie NIET opnieuw.",
       "brand_not_dag_eligible": "Het geselecteerde merk ondersteunt geen browser-login. Gebruik in plaats daarvan de e-mail + wachtwoord-methode.",
+      "skoda_qr_retired": "De wachtwoordloze (QR-)login van Škoda is door Volkswagen uitgeschakeld en werkt niet meer. Ga terug en kies “E-mail + wachtwoord (verouderd)”, selecteer daar Škoda en meld je aan met je MyŠkoda-e-mailadres en -wachtwoord.",
       "still_waiting_browser": "Nog steeds wachten op goedkeuring in de browser. Open de bovenstaande URL, meld je aan, bevestig de code en klik daarna opnieuw op Verzenden.",
       "companion_cannot_connect": "Could not reach the phone over ADB. Check it is on the network, that ADB over Wi-Fi is on, and that you accepted the debugging prompt.",
       "companion_needs_addon": "Dit lijkt een telefoon met Android 11 of nieuwer die draadloos debuggen gebruikt; de directe verbinding hier kan daar niet mee overweg (dat is TLS + koppelen). Installeer de add-on 'VW Group App ADB Bridge' (github.com/its-me-prash/vwgroup-app-adb-bridge) en laat de companion daarnaar wijzen. Oudere telefoons (Android 10 of ouder) verbinden hier rechtstreeks.",

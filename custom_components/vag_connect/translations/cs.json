@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Nastavit VW Group Connect",
-        "description": "Připojte své vozidlo k Home Assistant.\n\nVyberte značku a zadejte přihlašovací údaje z aplikace výrobce.",
+        "description": "Jak se chcete přihlásit?\n\n**Přihlášení přes prohlížeč (doporučeno)** — otevřete URL v telefonu nebo notebooku, přihlaste se ke svému účtu Brand ID a schvalte zařízení. V Home Assistant se nikdy neukládá žádné heslo. Dostupné pro Audi, SEAT a CUPRA.\n\n**E-mail + heslo (starší způsob)** — zadejte přihlašovací údaje Brand ID přímo. Vyžadováno pro Volkswagen EU, Škoda a Porsche.",
         "menu_options": {
           "browser_login": "Přihlášení přes prohlížeč (doporučeno)",
           "email_password": "E-mail + heslo (starší způsob)",
@@ -166,6 +166,7 @@
       "portal_interaction_required": "Portál EU Data Act vyžaduje jednorázovou akci ve vašem prohlížeči nebo aplikaci značky (např. přijmout podmínky, potvrdit souhlas, dokončit onboarding/výběr regionu), než začne fungovat bezhlavý přístup. Toto NENÍ problém se špatným heslem — otevřete portál jednou v prohlížeči, dokončete výzvu a zkuste to znovu.",
       "upstream_unavailable": "Backend VW dočasně nedostupný. Toto je problém na straně serveru VW, NIKOLI chyba přihlášení. Počkejte 5–15 minut a zkuste to znovu. Integraci znovu NEKONFIGURUJTE.",
       "brand_not_dag_eligible": "Vybraná značka nepodporuje přihlášení přes prohlížeč. Použijte místo toho přihlášení e-mailem + heslem.",
+      "skoda_qr_retired": "Bezheslové přihlášení Škoda (QR) společnost Volkswagen vypnula a už nefunguje. Vraťte se zpět a zvolte „E-mail + heslo (starší způsob)“, tam vyberte Škoda a přihlaste se svým e-mailem a heslem MyŠkoda.",
       "still_waiting_browser": "Stále se čeká na potvrzení v prohlížeči. Otevřete URL výše, přihlaste se, potvrďte kód a poté znovu klikněte na Odeslat.",
       "companion_cannot_connect": "Could not reach the phone over ADB. Check it is on the network, that ADB over Wi-Fi is on, and that you accepted the debugging prompt.",
       "companion_needs_addon": "Vypadá to na telefon s Androidem 11+ používající bezdrátové ladění, které zdejší přímé připojení neumí (vyžaduje TLS a párování). Nainstalujte doplněk 'VW Group App ADB Bridge' (github.com/its-me-prash/vwgroup-app-adb-bridge) a nasměrujte na něj companion. Starší telefony (Android 10 a starší) se připojí přímo zde.",

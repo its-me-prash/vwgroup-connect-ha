@@ -40,6 +40,17 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [3.0.1] - 2026-08-09 — Škoda login hotfix
+
+Right after the 3.0.0 launch, Škoda owners found the passwordless (QR) login didn't work — it just reloaded with no code. This hotfix fixes that.
+
+### Fixed
+- **Škoda's passwordless (QR) login no longer dead-ends — it points you to email + password instead.** Volkswagen switched off the device-code (QR) login for Škoda on their side, so the QR screen kept reloading with nothing to scan. Škoda is no longer offered that path: it now signs in with your MyŠkoda email and password — a separate login that VW's change doesn't affect — and if you somehow still land on the old QR option you get a clear message telling you exactly where to go instead of a silent reload. Existing Škoda setups that were created via QR move over to email + password automatically the next time they ask you to sign in, so nothing gets stuck. Audi, SEAT and CUPRA keep their QR login. Thanks to the Škoda owners who flagged this within hours of the 3.0.0 release.
+
+> If VW Group Connect is worth something to you, please consider **[sponsoring continued maintenance](https://github.com/sponsors/its-me-prash)**. 🙏
+
+---
+
 ## [3.0.0] - 2026-08-08 — "Bazinga" (Škoda Wave)
 
 A big Škoda-focused release: your car's own in-car assistant now lives inside Home Assistant, alongside a wave of new Škoda commands and read-only sensors — every field read straight out of the current MyŠkoda app so the names match what your car actually sends. It also carries the EU Data Act feed fixes previously staged as 2.30.3 (see below).

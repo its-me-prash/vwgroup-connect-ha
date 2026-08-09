@@ -53,7 +53,7 @@
       },
       "user": {
         "title": "Set up VW Group Connect",
-        "description": "How would you like to sign in?\n\n**Browser-Login (recommended)** — open a URL on your phone or laptop, sign in to your Brand ID account, approve the device. No password is ever stored in Home Assistant. Available for Audi, Škoda, SEAT and CUPRA.\n\n**Email + Password (legacy)** — enter your Brand ID credentials directly. Required for Volkswagen EU and Porsche.",
+        "description": "How would you like to sign in?\n\n**Browser-Login (recommended)** — open a URL on your phone or laptop, sign in to your Brand ID account, approve the device. No password is ever stored in Home Assistant. Available for Audi, SEAT and CUPRA.\n\n**Email + Password (legacy)** — enter your Brand ID credentials directly. Required for Volkswagen EU, Škoda and Porsche.",
         "menu_options": {
           "browser_login": "Browser-Login (recommended)",
           "email_password": "Email + Password (legacy)",
@@ -165,6 +165,7 @@
       "invalid_credentials": "Email address or password incorrect.",
       "upstream_unavailable": "VW backend temporarily unavailable. This is a server-side issue at VW, NOT a credentials problem. Please wait 5–15 minutes and try again. Do NOT reconfigure the integration.",
       "brand_not_dag_eligible": "Selected brand does not support browser login. Use the email + password flow instead.",
+      "skoda_qr_retired": "Škoda's passwordless (QR) login was switched off by Volkswagen and no longer works. Go back and choose “Email + Password (legacy)”, then pick Škoda there and sign in with your MyŠkoda email and password.",
       "portal_interaction_required": "The EU Data Act portal needs a one-time action in your browser or brand app (e.g. accept terms, confirm consent, finish onboarding/region selection) before headless access works. This is NOT a wrong-password problem — open the portal once in a browser, complete the prompt, then try again.",
       "still_waiting_browser": "Still waiting for browser approval. Open the URL above, sign in, confirm the code, then click Submit again.",
       "companion_cannot_connect": "Could not reach the phone over ADB. Check it is on the network, that ADB over Wi-Fi is on, and that you accepted the debugging prompt.",

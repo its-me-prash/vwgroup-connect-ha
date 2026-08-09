@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Configurar VW Group Connect",
-        "description": "Conecta tu vehículo a Home Assistant.\n\nElige tu marca e introduce las credenciales de la app del fabricante.",
+        "description": "¿Cómo quieres iniciar sesión?\n\n**Inicio de sesión por navegador (recomendado)** — abre una URL en tu teléfono o portátil, inicia sesión en tu cuenta Brand ID y aprueba el dispositivo. Nunca se almacena ninguna contraseña en Home Assistant. Disponible para Audi, SEAT y CUPRA.\n\n**Correo electrónico + contraseña (heredado)** — introduce directamente tus credenciales de Brand ID. Necesario para Volkswagen EU, Škoda y Porsche.",
         "menu_options": {
           "browser_login": "Inicio de sesión por navegador (recomendado)",
           "email_password": "Correo electrónico + contraseña (heredado)",
@@ -166,6 +166,7 @@
       "portal_interaction_required": "El portal de la EU Data Act necesita una acción única en tu navegador o en la app de la marca (p. ej. aceptar los términos, confirmar el consentimiento, completar el onboarding/selección de región) antes de que funcione el acceso sin interfaz. Esto NO es un problema de contraseña: abre el portal una vez en un navegador, completa el aviso y vuelve a intentarlo.",
       "upstream_unavailable": "Backend de VW temporalmente no disponible. Es un problema del servidor de VW, NO un problema de credenciales. Espera 5–15 minutos e inténtalo de nuevo. NO reconfigures la integración.",
       "brand_not_dag_eligible": "La marca seleccionada no admite el inicio de sesión por navegador. Usa el flujo de correo electrónico + contraseña en su lugar.",
+      "skoda_qr_retired": "El inicio de sesión sin contraseña (QR) de Škoda fue desactivado por Volkswagen y ya no funciona. Vuelve atrás y elige «Correo electrónico + contraseña (heredado)», después selecciona Škoda ahí e inicia sesión con tu correo y contraseña de MyŠkoda.",
       "still_waiting_browser": "Aún esperando la aprobación en el navegador. Abre la URL de arriba, inicia sesión, confirma el código y vuelve a hacer clic en Enviar.",
       "companion_cannot_connect": "Could not reach the phone over ADB. Check it is on the network, that ADB over Wi-Fi is on, and that you accepted the debugging prompt.",
       "companion_needs_addon": "Parece un teléfono con Android 11 o superior con depuración inalámbrica, que la conexión directa de aquí no admite (usa TLS y emparejamiento). Instala el complemento 'VW Group App ADB Bridge' (github.com/its-me-prash/vwgroup-app-adb-bridge) e indica aquí su dirección. Los teléfonos más antiguos (Android 10 o anterior) se conectan aquí directamente.",

@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Skonfiguruj VW Group Connect",
-        "description": "Połącz swój pojazd z Home Assistant.\n\nWybierz markę i wprowadź dane logowania z aplikacji producenta.",
+        "description": "Jak chcesz się zalogować?\n\n**Logowanie przez przeglądarkę (zalecane)** — otwórz adres URL na telefonie lub laptopie, zaloguj się na konto Brand ID i zatwierdź urządzenie. Żadne hasło nie jest przechowywane w Home Assistant. Dostępne dla Audi, SEAT i CUPRA.\n\n**E-mail + hasło (starsza metoda)** — wprowadź bezpośrednio dane logowania Brand ID. Wymagane dla Volkswagen EU, Škoda i Porsche.",
         "menu_options": {
           "browser_login": "Logowanie przez przeglądarkę (zalecane)",
           "email_password": "E-mail + hasło (starsza metoda)",
@@ -166,6 +166,7 @@
       "portal_interaction_required": "Portal EU Data Act wymaga jednorazowej czynności w przeglądarce lub aplikacji marki (np. zaakceptowania warunków, potwierdzenia zgody, dokończenia onboardingu/wyboru regionu), zanim zadziała dostęp bez interfejsu. To NIE jest problem z hasłem — otwórz portal raz w przeglądarce, wykonaj polecenie i spróbuj ponownie.",
       "upstream_unavailable": "Backend VW chwilowo niedostępny. To problem po stronie serwera VW, a NIE błąd uwierzytelniania. Poczekaj 5–15 minut i spróbuj ponownie. NIE konfiguruj integracji ponownie.",
       "brand_not_dag_eligible": "Wybrana marka nie obsługuje logowania przez przeglądarkę. Użyj zamiast tego metody e-mail + hasło.",
+      "skoda_qr_retired": "Logowanie bez hasła (QR) marki Škoda zostało wyłączone przez Volkswagena i już nie działa. Wróć i wybierz „E-mail + hasło (starsza metoda)”, a następnie wybierz tam markę Škoda i zaloguj się przy użyciu adresu e-mail i hasła do MyŠkoda.",
       "still_waiting_browser": "Nadal trwa oczekiwanie na zatwierdzenie w przeglądarce. Otwórz powyższy adres URL, zaloguj się, potwierdź kod, a następnie ponownie kliknij Zatwierdź.",
       "companion_cannot_connect": "Could not reach the phone over ADB. Check it is on the network, that ADB over Wi-Fi is on, and that you accepted the debugging prompt.",
       "companion_needs_addon": "To wygląda na telefon z Androidem 11 lub nowszym z debugowaniem bezprzewodowym, którego bezpośrednie połączenie stąd nie obsługuje (wymaga TLS i parowania). Zainstaluj dodatek „VW Group App ADB Bridge” (github.com/its-me-prash/vwgroup-app-adb-bridge) i wskaż go tutaj. Starsze telefony (Android 10 lub wcześniejszy) łączą się bezpośrednio.",
