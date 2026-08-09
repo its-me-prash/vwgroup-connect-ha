@@ -111,3 +111,81 @@ async def test_landing_on_a_foreign_host_still_raises() -> None:
     conn = _conn("https://example.invalid/whatever")
     with pytest.raises(AuthenticationError):
         await conn.refresh()
+
+
+# ── the second cause: the cookie round-trip used to narrow a domain cookie ──
+#
+# Proven by comparing against a comparable open-source client that shipped the
+# exact same two-host broadcast model, hit this bug, and moved off it — their
+# own note says the old behaviour "silently broke the silent refresh and forced
+# a re-login", which is the symptom all three reporters describe. Our code even
+# carried a comment claiming it matched theirs; it matched their OLD code.
+
+
+def _jar_domains(conn: WebsiteAuthProxyConnector) -> set[tuple[str, str]]:
+    return {
+        (c["domain"] or "", c.key) for c in conn._session.cookie_jar  # type: ignore[attr-defined]
+    }
+
+
+def _real_jar_conn() -> WebsiteAuthProxyConnector:
+    import aiohttp
+
+    session = aiohttp.ClientSession(cookie_jar=aiohttp.CookieJar(unsafe=True))
+    return WebsiteAuthProxyConnector(session, "u@x.z", "pw")  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_domain_cookie_survives_the_round_trip_as_a_domain_cookie() -> None:
+    """A `.vwgroup.io` cookie must still reach OTHER *.vwgroup.io hosts after a
+    restart — that is what the authorize chain needs."""
+    conn = _real_jar_conn()
+    try:
+        conn.import_cookies([
+            {"name": "SSO", "value": "v1", "domain": ".vwgroup.io", "path": "/"},
+        ])
+        # aiohttp normalises the leading dot away, so assert on BEHAVIOUR: the
+        # cookie must be filed on the apex, not on one of our two hosts.
+        domains = {d for d, _ in _jar_domains(conn)}
+        assert "vwgroup.io" in domains, (
+            f"domain cookie was re-bound host-only: {domains}"
+        )
+        # the practical check: a sibling host in the authorize chain gets it
+        from yarl import URL
+
+        served = conn._session.cookie_jar.filter_cookies(  # type: ignore[attr-defined]
+            URL("https://login.vwgroup.io/")
+        )
+        assert "SSO" in served, "sibling *.vwgroup.io host did not receive the cookie"
+    finally:
+        await conn._session.close()  # type: ignore[attr-defined]
+
+
+@pytest.mark.asyncio
+async def test_host_only_cookies_still_reach_both_hosts() -> None:
+    """The host-only broadcast is what makes the SSO cookie reachable — it must
+    keep working for entries without a dotted domain."""
+    from yarl import URL
+
+    conn = _real_jar_conn()
+    try:
+        conn.import_cookies([
+            {"name": "AUTH0", "value": "v2", "domain": "identity.vwgroup.io"},
+        ])
+        for host in ("https://www.volkswagen.de/", "https://identity.vwgroup.io/"):
+            served = conn._session.cookie_jar.filter_cookies(URL(host))  # type: ignore[attr-defined]
+            assert "AUTH0" in served, f"host-only cookie missing on {host}"
+    finally:
+        await conn._session.close()  # type: ignore[attr-defined]
+
+
+@pytest.mark.asyncio
+async def test_foreign_domains_are_still_rejected() -> None:
+    conn = _real_jar_conn()
+    try:
+        conn.import_cookies([
+            {"name": "EVIL", "value": "x", "domain": ".example.invalid"},
+        ])
+        assert "EVIL" not in {k for _, k in _jar_domains(conn)}
+    finally:
+        await conn._session.close()  # type: ignore[attr-defined]
