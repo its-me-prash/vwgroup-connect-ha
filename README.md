@@ -57,6 +57,7 @@ To keep working through Volkswagen's 2026 API changes it speaks **several read c
 
 - **9 selectable Volkswagen Group brands** in one integration: Audi, Volkswagen EU, Škoda, SEAT, CUPRA, VW US/Canada, Audi US/Canada, Porsche and Bentley.
 - **Two-way control where the brand's backend allows it**: lock/unlock, climate, charging, target SoC. This is **per brand, not universal**. Check the table below before you count on a command.
+- **Škoda's in-car assistant "Laura" in Home Assistant (new in 3.0.0)**: ask about range, charging and trips as a service, or hand it to any conversation agent (the built-in Assist, OpenAI, Anthropic, Google, Ollama) as a tool it can call and chain. Read-only advice your automations can act on.
 - **Passwordless login option** (browser/device-code) for Audi, Škoda, SEAT, CUPRA and Audi US/CA. No password stored in Home Assistant.
 - **Multi-channel with auto-fallback**: brand-native, EU Data Act portal, opt-in vw.de web, optional Tibber, durable Car-Net. One channel going down doesn't take your data dark.
 - **Companion channel (experimental, opt-in)**: when every backend path is shut, the integration can read your car by driving the official app on a spare Android phone over ADB. Volkswagen is verified against a real device; the other brands are read-only until a screen map is confirmed. Modern phones need the [ADB Bridge add-on](https://github.com/its-me-prash/vwgroup-app-adb-bridge); nothing is rooted and no app tokens are read.
@@ -64,7 +65,7 @@ To keep working through Volkswagen's 2026 API changes it speaks **several read c
 - **You control the poll rate**: a per-account **poll-interval slider** (a Number entity, in minutes) that automations can drive, created for every setup including read-only portal ones.
 - **GPS device tracker**, 100+ entities across multiple platforms, 30+ service calls, multi-vehicle per account, entity names in **12 languages**.
 - **Porsche runs on its own backend**, not the EU Data Act portal. The portal path structurally *excludes* Porsche, so portal-only tools can never cover it. The command code lives here, but the Porsche login itself is currently experimental (see the table).
-- **Vehicle Data Scout** auto-detects API drift and offers a one-click bug report. **Quality Scale: Platinum.**
+- **Vehicle Data Scout** auto-detects API drift and offers a one-click bug report — and from 3.0.0 its redacted diagnostics download carries the raw API responses too, so one attachment is everything needed to add support for a new field. **Quality Scale: Platinum.**
 
 ---
 
@@ -150,7 +151,7 @@ The portal initially serves only a **slice of fields**, and that slice **widens 
 
 ## What you get
 
-- **Sensors:** battery SoC, range (electric / combustion / total), fuel level, odometer, temperatures, charging power, charge rate (always in km/h, converted for you if your car reports miles per hour) and charge type, charge target, trip stats & lifetime aggregates, service & oil-service intervals, software version, connection state, last seen, and more.
+- **Sensors:** battery SoC, range (electric / combustion / total), fuel level, odometer, temperatures, charging power, charge rate (always in km/h, converted for you if your car reports miles per hour) and charge type, charge target, trip stats & lifetime aggregates, service & oil-service intervals, software version, connection state, last seen, and — on Škoda — last fill-up, current pay-to-park session, service reminders, departure timers and preferred charge mode, and more.
 - **Binary sensors:** doors locked, doors/windows/trunk/hood/sunroof open, plug connected, charging, OTA update available, lights, vehicle online, departure timers, alarm.
 - **Control:** lock/unlock, climate start/stop, charging start/stop, window heating, departure timers, set target SoC / temperature / max charge current, honk-and-flash (with a choice of duration, and lights-only or horn as well), wake, refresh, find charging stations *(availability depends on brand & model)*.
 - **Device tracker:** GPS position for the Home Assistant map. A poll that comes back without coordinates keeps the last known parking position instead of losing it.
