@@ -14,7 +14,13 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from .._mbb import MbbOperationList
 
-from .._util import compute_connection_state, first_not_none, safe_float, safe_int
+from .._util import (
+    compute_connection_state,
+    drop_charge_sentinel,
+    first_not_none,
+    safe_float,
+    safe_int,
+)
 from ..exceptions import (
     APIError,
     AuthenticationError,
@@ -3249,7 +3255,14 @@ class VWEUClient(CariadBaseClient):
             v(raw, "charging", "chargingSettings", "value", "autoUnlockPlugWhenChargedAC") == "ON"
         )
 
-        charging_type = v(raw, "charging", "chargingStatus", "value", "chargeType")
+        # v3.0.2 (#1104, Lagaff86) — screen the no-reading sentinel like the
+        # plug and climatisation states above already do. The BFF sends a bare
+        # ``invalid`` (and ``unsupported``) when it has no charge type, which
+        # used to land in Recorder as if it were a real type: an e-tron GT
+        # logged 90 such episodes, mostly ``off -> invalid -> off`` while parked.
+        charging_type = drop_charge_sentinel(
+            v(raw, "charging", "chargingStatus", "value", "chargeType")
+        )
         d.charging_type = charging_type
 
         # ── Drivetrain detection ───────────────────────────────────────────────

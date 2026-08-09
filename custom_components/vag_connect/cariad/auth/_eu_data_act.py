@@ -51,6 +51,7 @@ from ..exceptions import (
     TwoFactorRequiredError,
     UpstreamUnavailableError,
 )
+from .._util import drop_charge_sentinel
 from ..models import VehicleData
 from ._data_act_scraper import pick_active_15min_identifier
 
@@ -2071,20 +2072,18 @@ def map_dataset_to_vehicle_data(
             d.available_charge_modes.append(_label)
 
     # charge_type → charging_type (_shorten_enum, CHARGE_TYPE_ prefix added).
-    # #1104 (Lagaff86) — junk-filter AFTER shortening: an end-of-charge
-    # CHARGE_TYPE_INVALID shortens to "invalid", which Recorder would store as a
-    # real charging type and paint "invalid" history bands. Skip the sentinel so
-    # the field stays None (matching charging_mode/#764 and the connector states)
-    # until the backend sends a real type again — the check is on the SHORTENED
-    # value because the junk arrives prefixed (CHARGE_TYPE_INVALID), unlike the
-    # bare sentinels _charge_str() screens.
-    _ctype = first("charging_state_report.charge_type", "charge_type", "chargeType")
+    # #1104 (Lagaff86) — screen the no-reading sentinel: an end-of-charge
+    # CHARGE_TYPE_INVALID would otherwise reach Recorder as if it were a real
+    # charging type and paint "invalid" history bands. Uses the SHARED sentinel
+    # helper so the portal, the CARIAD BFF (vw_eu/Audi), Škoda and SEAT/CUPRA
+    # all screen the same tokens — the first fix only covered this one path and
+    # the reporter's Audi, which reads via the BFF, still leaked.
+    _ctype = drop_charge_sentinel(
+        first("charging_state_report.charge_type", "charge_type", "chargeType")
+    )
     if _ctype is not None:
-        _ctype_short = _shorten_enum(_ctype)
-        if (
-            _ctype_short is not None
-            and _ctype_short.strip().lower() not in _CHARGE_STATE_JUNK
-        ):
+        _ctype_short = drop_charge_sentinel(_shorten_enum(_ctype))
+        if _ctype_short is not None:
             d.charging_type = _ctype_short
 
     # charging_mode → charging_preferred_mode (guard is None so a BFF value

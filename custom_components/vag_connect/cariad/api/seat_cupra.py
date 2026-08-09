@@ -20,6 +20,7 @@ from .._util import (
     compose_workshop_address,
     compute_connection_state,
     days_or_date_to_iso,
+    drop_charge_sentinel,
     normalize_workshop_string,
     safe_float,
     safe_int,
@@ -1349,10 +1350,13 @@ class SeatCupraClient(CariadBaseClient):
             remaining_int = safe_int(remaining)
             if remaining_int:
                 d.charge_complete_eta = datetime.now(tz=timezone.utc) + timedelta(minutes=remaining_int)
-            d.charging_type = (
-                v(chg, "type")          # Rainer #109 shape B — verified
-                or v(chg, "chargeType")  # Legacy
-                or v(chg, "chargingType")  # Legacy
+            # v3.0.2 (#1104) — screen the no-reading sentinel per spelling, not
+            # once at the end: a sentinel in the first slot used to win the
+            # ``or`` chain outright and hide a real value in a legacy spelling.
+            d.charging_type = first_not_none(
+                drop_charge_sentinel(v(chg, "type")),  # Rainer #109 shape B
+                drop_charge_sentinel(v(chg, "chargeType")),  # Legacy
+                drop_charge_sentinel(v(chg, "chargingType")),  # Legacy
             )
 
             plug = v(charge_status, "plug") or {}

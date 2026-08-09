@@ -20,6 +20,7 @@ from .._util import (
     compose_workshop_address,
     compute_connection_state,
     days_or_date_to_iso,
+    drop_charge_sentinel,
     normalize_workshop_string,
     safe_float,
     safe_int,
@@ -879,7 +880,8 @@ class SkodaClient(CariadBaseClient):
                 d.is_charging = d.charging_state.upper() == "CHARGING"
             d.charging_power_kw = v(c, "chargePowerInKw")
             d.charging_rate_kmh = v(c, "chargingRateInKilometersPerHour")
-            d.charging_type = v(c, "chargeType")
+            # v3.0.2 (#1104) — screen the no-reading sentinel (see vw_eu).
+            d.charging_type = drop_charge_sentinel(v(c, "chargeType"))
             fully_at = v(c, "fullyChargedAt")
             if isinstance(fully_at, str):
                 try:
