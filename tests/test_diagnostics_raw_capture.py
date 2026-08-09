@@ -12,7 +12,13 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock
 
-from custom_components.vag_connect.diagnostics import _scrub_raw
+from custom_components.vag_connect.diagnostics import _scrub, _scrub_raw
+
+# A synthetic JWT used to check token-as-key masking (not a real token).
+_SYNTH_JWT = (
+    "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0."
+    "dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"
+)
 
 # A deliberately nasty raw payload: every kind of PII a brand backend can ship,
 # under the unpredictable camelCase keys a raw response actually uses.
@@ -78,6 +84,37 @@ def test_scrub_raw_is_none_safe() -> None:
     assert _scrub_raw(None) is None
     assert _scrub_raw({}) == {}
     assert _scrub_raw([]) == []
+
+
+def test_vin_as_a_dict_key_is_masked_raw() -> None:
+    """#923 / #1088 — a VIN used as a container KEY (e.g. ``data_act_identifiers``)
+    must not survive in plain text. The value-only scrub missed it and two
+    reporters had to hand-redact their download before posting."""
+    raw = {"data_act_identifiers": {"WVWZZZSYNTHET0001": {"lastSeen": "2026-08-09"}}}
+    out = _scrub_raw(raw)
+    assert "WVWZZZSYNTHET0001" not in json.dumps(out)
+    # the container structure survives (masked key still there, one entry)
+    assert "data_act_identifiers" in out
+    assert len(out["data_act_identifiers"]) == 1
+
+
+def test_vin_as_a_dict_key_is_masked_scrub() -> None:
+    """Same leak, the non-raw ``_scrub`` path (config-entry data)."""
+    data = {"data_act_identifiers": {"WVWZZZSYNTHET0001": {"seen": 1}}}
+    assert "WVWZZZSYNTHET0001" not in json.dumps(_scrub(data))
+
+
+def test_token_as_a_dict_key_is_masked() -> None:
+    """A JWT used as a key is masked too."""
+    assert "eyJhbGci" not in json.dumps(_scrub_raw({_SYNTH_JWT: {"x": 1}}))
+
+
+def test_uuid_key_is_kept_structural() -> None:
+    """UUID keys are structural grounding data (not PII) and must survive so a
+    UUID-keyed portal point stays discoverable."""
+    out = _scrub_raw({"0a18a053-1234-4abc-8def-0123456789ab": {"currentSoc": 61}})
+    assert "0a18a053-1234-4abc-8def-0123456789ab" in out
+    assert out["0a18a053-1234-4abc-8def-0123456789ab"]["currentSoc"] == 61
 
 
 def test_vwna_client_has_raw_responses_bucket() -> None:

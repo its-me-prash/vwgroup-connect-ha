@@ -189,6 +189,23 @@ _HASH_KEYS = frozenset({
 })
 
 
+def _mask_key(k: Any) -> Any:
+    """Mask PII that appears as a dict KEY, not just as a value.
+
+    v3.0.1 (#923, #1088) — some payloads key a container by the VIN itself
+    (e.g. ``data_act_identifiers: {"<VIN>": {...}}``). The recursive scrubbers
+    only ran the VIN/JWT regexes over string VALUES, so a VIN used as a key
+    survived in plain text — two reporters had to hand-redact their download
+    before posting. VIN + JWT are masked here; UUID keys are deliberately kept
+    (they are structural grounding data, not PII).
+    """
+    if not isinstance(k, str):
+        return k
+    masked = _VIN_RE.sub(lambda m: mask_vin(m.group(0)), k)
+    masked = _JWT_RE.sub("[token]", masked)
+    return masked
+
+
 def _scrub(value: Any, *, gps_round: bool = False) -> Any:
     """Recursively redact sensitive fields from diagnostics output.
 
@@ -203,25 +220,27 @@ def _scrub(value: Any, *, gps_round: bool = False) -> Any:
         for k, v in value.items():
             if k in ("_client", "_vehicle"):
                 continue
+            # v3.0.1 — mask PII in the KEY too (a VIN can be a container key).
+            sk = _mask_key(k)
             if k in _HASH_KEYS and isinstance(v, str):
                 # v1.15.0 — stable hash so repeat reporters cross-link
                 # without leaking the real ID. Pattern from myskoda.
-                scrubbed[k] = f"sha256:{_stable_hash(v)}" if v else "**REDACTED**"
+                scrubbed[sk] = f"sha256:{_stable_hash(v)}" if v else "**REDACTED**"
             elif k in _REDACT_KEYS:
-                scrubbed[k] = "**REDACTED**"
+                scrubbed[sk] = "**REDACTED**"
             elif k == "email" and isinstance(v, str):
                 # Partial mask preserves debug context.
-                scrubbed[k] = _mask_email(v)
+                scrubbed[sk] = _mask_email(v)
             elif k in ("latitude", "longitude"):
                 # Privacy-by-default: full removal. Opt-in 1-decimal
                 # rounding when user already opted into reverse-geocoding
                 # (signals comfort with GPS processing).
                 if gps_round and isinstance(v, (int, float)):
-                    scrubbed[k] = round(float(v), 1)
+                    scrubbed[sk] = round(float(v), 1)
                 else:
-                    scrubbed[k] = "**REDACTED**"
+                    scrubbed[sk] = "**REDACTED**"
             else:
-                scrubbed[k] = _scrub(v, gps_round=gps_round)
+                scrubbed[sk] = _scrub(v, gps_round=gps_round)
         return scrubbed
     if isinstance(value, list):
         return [_scrub(v, gps_round=gps_round) for v in value]
@@ -272,12 +291,14 @@ def _scrub_raw(value: Any) -> Any:
         out: dict[str, Any] = {}
         for k, v in value.items():
             kl = k.lower() if isinstance(k, str) else ""
+            # v3.0.1 — mask PII in the KEY too (a VIN can be a container key).
+            sk = _mask_key(k)
             if k in _REDACT_KEYS or kl in _RAW_REDACT_KEYS:
-                out[k] = "**REDACTED**"
+                out[sk] = "**REDACTED**"
             elif k in _HASH_KEYS and isinstance(v, str):
-                out[k] = f"sha256:{_stable_hash(v)}" if v else "**REDACTED**"
+                out[sk] = f"sha256:{_stable_hash(v)}" if v else "**REDACTED**"
             else:
-                out[k] = _scrub_raw(v)
+                out[sk] = _scrub_raw(v)
         return out
     if isinstance(value, list):
         return [_scrub_raw(v) for v in value]

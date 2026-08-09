@@ -40,9 +40,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
-## [3.0.1] - 2026-08-09 — Škoda login hotfix
+## [3.0.1] - 2026-08-09 — Škoda login + diagnostics-redaction hotfix
 
-Right after the 3.0.0 launch, Škoda owners found the passwordless (QR) login didn't work — it just reloaded with no code. This hotfix fixes that.
+Two quick fixes on the heels of 3.0.0: Škoda's passwordless login (which Volkswagen switched off on their side), and a VIN that could slip through the diagnostics redaction.
+
+### Security
+- **The "Download diagnostics" export no longer leaks your VIN when the car's data uses the VIN as a section key.** The auto-redaction masked VINs that appear as field *values*, but not when a VIN was used as a dictionary *key* (for example under `data_act_identifiers`) — so it could still show up in plain text in a file people attach to public issues. Dictionary keys are now masked too (VIN and tokens; harmless UUID keys are kept for troubleshooting). If you downloaded and attached a diagnostics file from 3.0.0, it's worth a look. Thanks @fight3 and @PeterPrelo, who both spotted this and hand-redacted their VIN before posting.
 
 ### Fixed
 - **Škoda's passwordless (QR) login no longer dead-ends — it points you to email + password instead.** Volkswagen switched off the device-code (QR) login for Škoda on their side, so the QR screen kept reloading with nothing to scan. Škoda is no longer offered that path: it now signs in with your MyŠkoda email and password — a separate login that VW's change doesn't affect — and if you somehow still land on the old QR option you get a clear message telling you exactly where to go instead of a silent reload. Existing Škoda setups that were created via QR move over to email + password automatically the next time they ask you to sign in, so nothing gets stuck. Audi, SEAT and CUPRA keep their QR login. Thanks to the Škoda owners who flagged this within hours of the 3.0.0 release.
