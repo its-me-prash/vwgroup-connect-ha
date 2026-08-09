@@ -57,6 +57,7 @@ Jotta se toimisi Volkswagenin vuoden 2026 API-muutosten läpi, se puhuu **useaa 
 
 - **9 valittavaa Volkswagen-konsernin merkkiä** yhdessä integraatiossa: Audi, Volkswagen EU, Škoda, SEAT, CUPRA, VW USA/Kanada, Audi USA/Kanada, Porsche ja Bentley.
 - **Kaksisuuntainen ohjaus siellä, missä merkin taustajärjestelmä sen sallii**: lukitus/avaus, ilmastointi, lataus, tavoite-SoC. Tämä on **merkkikohtaista, ei yleispätevää**. Katso alla oleva taulukko ennen kuin luotat johonkin komentoon.
+- **Škodan autonsisäinen avustaja "Laura" Home Assistantissa (uutta versiossa 3.0.0)**: kysy toimintamatkasta, latauksesta ja matkoista palveluna, tai luovuta se mille tahansa keskusteluagentille (sisäänrakennettu Assist, OpenAI, Anthropic, Google, Ollama) työkaluksi, jota se voi kutsua ja ketjuttaa. Vain luettavia neuvoja, joiden mukaan automaatiosi voivat toimia.
 - **Salasanaton kirjautumisvaihtoehto** (selain/laitekoodi) merkeille Audi, Škoda, SEAT, CUPRA ja Audi USA/CA. Home Assistantiin ei tallenneta salasanaa.
 - **Monikanavaisuus automaattisella vaihdolla**: merkin oma taustajärjestelmä, EU Data Act -portaali, valinnainen vw.de-verkkokanava, valinnainen Tibber, kestävä Car-Net. Yhden kanavan kaatuminen ei pimennä dataasi.
 - **Kumppanikanava (kokeellinen, valinnainen)**: kun kaikki taustajärjestelmäpolut ovat kiinni, integraatio voi lukea autoasi ohjaamalla virallista sovellusta ylimääräisessä Android-puhelimessa ADB:n kautta. Volkswagen on vahvistettu oikealla laitteella; muut merkit ovat vain luettavia, kunnes näyttökartta on vahvistettu. Uudemmat puhelimet tarvitsevat [ADB Bridge -lisäosan](https://github.com/its-me-prash/vwgroup-app-adb-bridge); mitään ei rootata eikä sovelluksen tunnisteita lueta.
@@ -64,7 +65,7 @@ Jotta se toimisi Volkswagenin vuoden 2026 API-muutosten läpi, se puhuu **useaa 
 - **Sinä päätät kyselytahdin**: tilikohtainen **kyselyvälin liukusäädin** (Number-entiteetti, minuutteina), jota automaatiot voivat ohjata, luodaan jokaiseen asennukseen, myös vain luettaviin portaaliasennuksiin.
 - **GPS-laitepaikannin**, yli 100 entiteettiä useilla alustoilla, yli 30 palvelukutsua, useita ajoneuvoja tiliä kohden, entiteettien nimet **12 kielellä**.
 - **Porsche toimii omalla taustajärjestelmällään**, ei EU Data Act -portaalilla. Portaalireitti *sulkee* Porschen rakenteellisesti pois, joten pelkkään portaaliin nojaavat työkalut eivät voi koskaan kattaa sitä. Komentokoodi on täällä, mutta itse Porsche-kirjautuminen on tällä hetkellä kokeellinen (katso taulukko).
-- **Vehicle Data Scout** havaitsee API-muutokset automaattisesti ja tarjoaa yhden napsautuksen vikailmoituksen. **Quality Scale: Platinum.**
+- **Vehicle Data Scout** havaitsee API-muutokset automaattisesti ja tarjoaa yhden napsautuksen vikailmoituksen — ja versiosta 3.0.0 alkaen sen sensuroitu diagnostiikkalataus sisältää myös raa'at API-vastaukset, joten yksi liite on kaikki mitä uuden kentän tuen lisäämiseen tarvitaan. **Quality Scale: Platinum.**
 
 ---
 
@@ -79,7 +80,7 @@ Jotta se toimisi Volkswagenin vuoden 2026 API-muutosten läpi, se puhuu **useaa 
 | **CUPRA / SEAT** | ⛔ VW estää komennot | ✅ EU Data Act -portaali | OLA-käyttöoikeus peruttiin palvelinpäässä vuonna 2026 ([#464](https://github.com/its-me-prash/vwgroup-connect-ha/issues/464)) |
 | **Bentley** | ⏳ Kaksisuuntaisuus odottaa live-testiä | ✅ Kirjautuminen + luku | My Bentley, toimii Audi/IDK-tenantilla |
 | **Porsche** | ⚠️ Kokeellinen | ⚠️ Kokeellinen | Porsche Connect, oma taustajärjestelmä. Porsche siirtyi *Porsche One* -sovellukseen, joten **kirjautumisen odotetaan epäonnistuvan nykyisillä tileillä**. Komentokoodi on olemassa mutta saavuttamattomissa, kunnes kirjautuminen on rakennettu uudelleen ([#666](https://github.com/its-me-prash/vwgroup-connect-ha/issues/666)) |
-| **Audi USA/CA** | ⚠️ Kokeellinen | ⚠️ Kokeellinen | Kirjautuminen on kytketty pohjoisamerikkalaiseen identiteetintarjoajaan, mutta sitä **ei ole vielä vahvistettu** oikealla USA/CA-tilillä. Testaajat tervetulleita ([#13](https://github.com/its-me-prash/vwgroup-connect-ha/issues/13)) |
+| **Audi USA/CA** | ⏳ Kaksisuuntaisuus odottaa live-testiä | ✅ Täysi | myAudi NA -taustajärjestelmä. USA lukee nyt alueellisesta `na`-ajoneuvopalvelusta ja on **vahvistettu toimivaksi oikealla yhdysvaltalaisella Audi Q5:llä** (58 entiteettiä) — kiitos @pouwerkerk ([#1092](https://github.com/its-me-prash/vwgroup-connect-ha/pull/1092)); Kanada käyttää EMEA-palvelua. Komennot perivät Audin kaksisuuntaiset polut, mutta niitä ei ole vielä erikseen live-vahvistettu NA:ssa ([#13](https://github.com/its-me-prash/vwgroup-connect-ha/issues/13)) |
 
 > **Rehellinen huomautus VW EU:n hallinnasta.** Volkswagen EU -ajoneuvot ovat **oletuksena vain luku**: saat täyden telemetrian EU Data Act -portaalin kautta, mutta et etäkomentoja. Etäkomennot VW EU:lle ovat olemassa **vain kokeellisena pysyvän MBB:n kaksisuuntaisena ALFANA**, ja vain **vanhoille MQB / Car-Net** -autoille — se on valinnainen kytkin, **ei** oletusominaisuus. **MEB / ID-perheen autoilla (ID.3/4/5/7, Enyaq, Born, Q4 e-tron) ei ole lainkaan komentopolkua** ja ne luodaan vain lukemista varten. MBB-alfaa seurataan issuessa **[#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)** — testaajat tervetulleita.
 
@@ -94,7 +95,7 @@ Muutamat asiat ovat **rakenteellisia** — ne johtuvat siitä, miten Volkswageni
 - **VW EU on oletuksena vain luku; komennot ovat MBB-alfa vain vanhoille autoille.** Katso merkin huomautus yllä. **MEB / ID-perheen autot ovat vain luku** — pysyvä Car-Net-komentopolku ei tunnista niitä (se vastaa "Unknown user"), eikä VW:n MEB-taustajärjestelmä tarjoa vastaavaa. Määritys havaitsee tämän ja luo **vain luku -kohteen** (korjausilmoituksen kera) epäonnistumisen sijaan, joten se on tunnettu rajoitus, ei hiljainen. ([#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584))
 - **CUPRA / SEAT -etäkomennot on estetty VW:n toimesta.** Näiden merkkien verkkopalveluiden (OLA) pääsy peruttiin palvelinpuolella vuonna 2026 (HTTP 403); uudelleenkirjautuminen tai sovellusversion päivitys ei palauta sitä. Data kulkee edelleen EU Data Act -portaalin kautta. ([#464](https://github.com/its-me-prash/vwgroup-connect-ha/issues/464))
 - **EU Data Act -portaalin data on ohutta ja vaihtelee autoittain.** VW julkaisee tänään vain siivun kentistä (usein matkamittari + lukitus + lataus, joskus paljon enemmän). Se laajenee ajan myötä, kun VW laajentaa portaalia ennen syyskuun 2026 määräaikaa — kentät, jotka lukevat tänään `unknown`, saattavat täyttyä itsestään, ilman muutosta. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465))
-- **Pohjois-Amerikka on enimmäkseen VW:tä; Audi on yhä kokeellinen.** **VW USA/CA toimii, Kanada mukaan lukien**, nyt vahvistettu oikealla kanadalaisella ID.4:llä: Kanada kirjautuu omalle palvelimelleen, ja datakuoren korjauksen jälkeen se näyttää täyttä telemetriaa ([#990](https://github.com/its-me-prash/vwgroup-connect-ha/issues/990)). **Audi USA/CA** -kirjautuminen on kytketty, mutta sitä ei ole koskaan vahvistettu oikealla tilillä ([#13](https://github.com/its-me-prash/vwgroup-connect-ha/issues/13)), joten käsittele pohjoisamerikkalaista Audia kokeellisena.
+- **Pohjois-Amerikka: sekä VW että Audi lukevat nyt — Audin komennot ovat viimeinen vahvistamaton pala.** **VW USA/CA toimii, Kanada mukaan lukien**, vahvistettu oikealla kanadalaisella ID.4:llä: Kanada kirjautuu omalle palvelimelleen, ja datakuoren korjauksen jälkeen se näyttää täyttä telemetriaa ([#990](https://github.com/its-me-prash/vwgroup-connect-ha/issues/990)). **Myös Audi USA/CA lukee nyt**: USA hakee alueellisesta `na`-ajoneuvopalvelusta, vahvistettu oikealla yhdysvaltalaisella Audi Q5:llä (kiitos @pouwerkerk, [#1092](https://github.com/its-me-prash/vwgroup-connect-ha/pull/1092)); Kanada käyttää EMEA-palvelua. Komennot perivät Audin kaksisuuntaiset polut, mutta niitä ei ole vielä erikseen live-vahvistettu pohjoisamerikkalaisilla tileillä ([#13](https://github.com/its-me-prash/vwgroup-connect-ha/issues/13)).
 - **Porsche-kirjautumisen odotetaan epäonnistuvan juuri nyt.** Porsche poisti käytöstä *My Porsche* -sovelluksen, jota vastaan tämä integraatio tunnistautuu, ja siirtyi *Porsche Oneen*. Luku ja komennot on toteutettu, mutta et todennäköisesti pääse kirjautumisen ohi ennen kuin se on rakennettu uudelleen. ([#666](https://github.com/its-me-prash/vwgroup-connect-ha/issues/666))
 - **Push-päivitykset (lähes reaaliaikaiset) ovat valinnainen BETA ja oletuksena pois päältä.** MQTT- (Škoda) ja Firebase-kanavat (Audi/VW, CUPRA/SEAT) on kytketty mutta ei validoitu tuotannossa, ja merkit suojaavat niitä yhä useammin sovellustodennuksella, jota ei voi täyttää laitteen ulkopuolella. Jätä ne pois päältä, ellet halua auttaa testaamisessa. Tavallinen kysely on tuettu tapa.
 
@@ -119,7 +120,7 @@ Muutamat asiat ovat **rakenteellisia** — ne johtuvat siitä, miten Volkswageni
 
 Integraation ensimmäinen näyttö tarjoaa **kaksi** kirjautumistapaa. Valitse se, jota merkkisi tukee:
 
-- **Selain / laitekoodi (salasanaton)** merkeille *Audi, Škoda, SEAT, CUPRA ja Audi USA/CA (kokeellinen)*. Kirjaudu puhelimella tai kannettavalla ja hyväksy laite; Home Assistantiin ei tallenneta salasanaa (se säilyttää aidon refresh-tunnisteen). Tämä vaihe tarjoaa myös valinnaisen **S-PIN**:n ja skannausvälin.
+- **Selain / laitekoodi (salasanaton)** merkeille *Audi, Škoda, SEAT, CUPRA ja Audi USA/CA*. Kirjaudu puhelimella tai kannettavalla ja hyväksy laite; Home Assistantiin ei tallenneta salasanaa (se säilyttää aidon refresh-tunnisteen). Tämä vaihe tarjoaa myös valinnaisen **S-PIN**:n ja skannausvälin.
 - **Portaali, sähköposti + salasana** merkeille *Volkswagen EU, Volkswagen USA/CA, Bentley ja Porsche (kokeellinen)*. Syötä merkkisi kirjautumistiedot. Tämä vaihe näyttää merkkivalitsimen, sähköpostin, salasanan, valinnaisen **S-PIN**:n, skannausvälin sekä kytkimen **"ota MBB-komennot käyttöön"** (joka vaikuttaa vain Volkswagen EU:hun, katso [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)). **Volkswagen USA/Kanadalle** ilmestyy tähän **maavalitsin (USA vai CA)**; se näkyy **vain** tälle merkille eikä mikään muu käytä sitä.
 
 > **EU Data Act -portaali ei ole kolmas kirjautumispainike.** Se on vain luettava strategia, johon koordinaattori automaattisesti palaa, ja sen voi lisäksi *lisätä* täydentäväksi lukukanavaksi kohdasta **Määritä → Asetukset**. Sama koskee `volkswagen.de`-verkkokanavaa (valinnainen beta, vain Asetusten kautta, vain luettava) ja valinnaista **Tibber**-kanavaa, joka täyttää kentät, jotka ensisijaiset kanavat jättivät tyhjiksi, eikä koskaan ylikirjoita tuoreempaa dataa.
@@ -150,7 +151,7 @@ Portaali tarjoaa aluksi vain **siivun kentistä**, ja tämä siivu **laajenee aj
 
 ## Mitä saat
 
-- **Anturit:** akun SoC, toimintamatka (sähkö / polttomoottori / kokonais), polttoainetaso, matkamittari, lämpötilat, latausteho, latausnopeus (aina km/h, muunnetaan jos autosi ilmoittaa mph) ja lataustyyppi, lataustavoite, matkatilastot & käyttöiän kertymät, huolto- & öljyhuoltovälit, ohjelmistoversio, yhteyden tila, viimeksi nähty ja muuta.
+- **Anturit:** akun SoC, toimintamatka (sähkö / polttomoottori / kokonais), polttoainetaso, matkamittari, lämpötilat, latausteho, latausnopeus (aina km/h, muunnetaan jos autosi ilmoittaa mph) ja lataustyyppi, lataustavoite, matkatilastot & käyttöiän kertymät, huolto- & öljyhuoltovälit, ohjelmistoversio, yhteyden tila, viimeksi nähty ja — Škodalla — viimeisin tankkaus, käynnissä oleva maksullinen pysäköintisessio, huoltomuistutukset, lähtöajastimet ja ensisijainen lataustila, ja muuta.
 - **Binäärianturit:** ovet lukittu, ovet/ikkunat/tavaratila/konepelti/kattoluukku auki, pistoke kytketty, latautuu, OTA-päivitys saatavilla, valot, ajoneuvo verkossa, lähtöajastimet, hälytys.
 - **Hallinta:** lukitus/avaus, ilmastoinnin käynnistys/pysäytys, latauksen käynnistys/pysäytys, ikkunanlämmitys, lähtöajastimet, tavoite-SoC:n / lämpötilan / suurimman latausvirran asetus, äänimerkki-ja-vilkutus (kesto valittavissa, samoin pelkät valot tai myös äänimerkki), herätys, päivitys, latausasemien haku *(saatavuus riippuu merkistä & mallista)*.
 - **Laitepaikannin:** GPS-sijainti Home Assistant -karttaan. Kysely, joka palaa ilman koordinaatteja, säilyttää viimeksi tunnetun pysäköintipaikan sen sijaan että menettäisi sen.
@@ -162,7 +163,7 @@ Portaali tarjoaa aluksi vain **siivun kentistä**, ja tämä siivu **laajenee aj
 
 ### Palvelut
 
-Integraatio toimittaa **30+ palvelukutsua** (`vag_connect.*`), monet niistä merkkikohtaisia — *saatavuus riippuu merkistä & mallista*. Niiden joukossa: `lock` / `unlock`, `start_climatisation` / `stop_climatisation`, `start_charging` / `stop_charging`, `set_target_soc`, `set_climatisation_temperature`, `set_departure_timer`, `start_window_heating` / `stop_window_heating`, `flash_lights`, `wake_vehicle`, `refresh_vehicle`, `refresh_cloud_cache`, `find_charging_stations`, `start_climate_control`, `engine_start` / `engine_stop` (Audi polttomoottori), `start_ventilation` / `stop_ventilation`, `start_aux_heating` / `stop_aux_heating` (SEAT/CUPRA Webasto), `send_destination` ja `update_charging_settings` (SEAT/CUPRA), `open_app`, `execute_vehicle_action`, `abrp_send`, ja `show_vag`-pääsiäismuna.
+Integraatio toimittaa **30+ palvelukutsua** (`vag_connect.*`), monet niistä merkkikohtaisia — *saatavuus riippuu merkistä & mallista*. Niiden joukossa: `lock` / `unlock`, `start_climatisation` / `stop_climatisation`, `start_charging` / `stop_charging`, `set_target_soc`, `set_climatisation_temperature`, `set_departure_timer`, `start_window_heating` / `stop_window_heating`, `flash_lights`, `wake_vehicle`, `refresh_vehicle`, `refresh_cloud_cache`, `find_charging_stations`, `start_climate_control`, `engine_start` / `engine_stop` (Audi polttomoottori), `start_ventilation` / `stop_ventilation`, `start_aux_heating` / `stop_aux_heating` (SEAT/CUPRA Webasto), `send_destination` (SEAT/CUPRA/Škoda) ja `update_charging_settings` (SEAT/CUPRA), Škodan `ask_assistant` (katso alla), `set_location_target_soc` ja `set_seat_heating`, `open_app`, `execute_vehicle_action`, `abrp_send`, ja `show_vag`-pääsiäismuna.
 
 ---
 
@@ -190,6 +191,23 @@ Voit pushata autosi live-datan **[A Better Routeplanner](https://abetterroutepla
 Voit myös kutsua palvelua **`vag_connect.abrp_send`** suoraan (kohdista laitteeseen tai VIN:iin; api_key/token tulevat asetuksista, ellet anna niitä suoraan kutsussa).
 
 > 🔒 **Yksityisyys:** telemetria sisältää GPS:n. Se lähtee verkostasi vain, kun `abrp_send` suoritetaan (eli kun *sinä* laukaiset sen / otat sinihahmon käyttöön). Mitä lähetämme: akun varaustila, latauksen tila, GPS, kulkusuunta, energia + kapasiteetti, arvioitu toimintamatka, ympäristön + akun lämpötila, matkamittari. Mitä tarkoituksella **emme** lähetä: mitään, mitä emme voi mitata luotettavasti (nopeus, HV-paketin jännite/virta, kunnon tila) — jätetty pois pikemminkin kuin arvattu.
+
+---
+
+## Škodan tekoälyavustaja ("Laura") — uutta versiossa 3.0.0
+
+MyŠkodan oma autonsisäinen avustaja, **Laura**, on käytettävissä Home Assistantissa.
+Kysy häneltä toimintamatkasta, latauksesta ja matkoista `vag_connect.ask_assistant`
+-palvelulla (hän palauttaa tekstivastauksen, jonka voit lähettää ilmoituksena, puhua
+ääneen tai käyttää haarautumisehtona), tai luovuta hänet **keskusteluagentille** —
+sisäänrakennettu Assist LLM-tilassa, tai OpenAI / Anthropic / Google / Ollama —
+työkaluksi, jota se voi kutsua ja ketjuttaa (kysy Lauralta → sitten `send_destination`
+autolle). Hän on **vain luettava, neuvoa-antava ja vain Škodalle**; kyseessä on
+**beta**, joten palaute vastausten laadusta on tervetullutta.
+
+Käyttöönotto, äänilaukaisin ("ask Laura …") ja valmiit esimerkkiautomaatiot —
+mukaan lukien *auto saapuu kotiin → täydennä lataus + esilämmitä + puhu toimintamatka
+ääneen* — ovat tiedostossa **[docs/AI_ASSISTANT.md](docs/AI_ASSISTANT.md)**.
 
 ---
 

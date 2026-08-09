@@ -57,6 +57,7 @@ Tam, gdzie backend marki wciąż na to pozwala, wysyła też polecenia zdalne, t
 
 - **9 wybieralnych marek koncernu Volkswagen** w jednej integracji: Audi, Volkswagen EU, Škoda, SEAT, CUPRA, VW USA/Kanada, Audi USA/Kanada, Porsche i Bentley.
 - **Sterowanie dwukierunkowe tam, gdzie backend marki na to pozwala**: zamykanie/otwieranie, klimatyzacja, ładowanie, docelowy SoC. To zależy **od marki, nie jest uniwersalne**. Zajrzyj do tabeli poniżej, zanim zaczniesz liczyć na jakieś polecenie.
+- **Pokładowy asystent Škody „Laura" w Home Assistant (nowość w 3.0.0)**: pytaj o zasięg, ładowanie i podróże jako usługę albo przekaż go dowolnemu agentowi konwersacyjnemu (wbudowany Assist, OpenAI, Anthropic, Google, Ollama) jako narzędzie, które może wywołać i połączyć w łańcuch. Porada tylko do odczytu, na którą mogą reagować twoje automatyzacje.
 - **Logowanie bez hasła** (przeglądarka/device-code) dla Audi, Škody, SEAT-a, CUPR-y i Audi USA/CA. W Home Assistant nie jest przechowywane żadne hasło.
 - **Wiele kanałów z automatycznym przełączaniem**: natywny backend marki, portal EU Data Act, opcjonalny web vw.de, opcjonalny Tibber, trwały Car-Net. Awaria jednego kanału nie gasi twoich danych.
 - **Kanał towarzyszący (eksperymentalny, opcjonalny)**: gdy wszystkie ścieżki backendowe są zamknięte, integracja potrafi odczytać dane twojego auta, sterując oficjalną aplikacją na zapasowym telefonie z Androidem przez ADB. Volkswagen jest zweryfikowany na prawdziwym urządzeniu; pozostałe marki są tylko do odczytu, dopóki mapa ekranów nie zostanie potwierdzona. Nowoczesne telefony wymagają [dodatku ADB Bridge](https://github.com/its-me-prash/vwgroup-app-adb-bridge); nic nie jest rootowane i nie są odczytywane żadne tokeny aplikacji.
@@ -64,7 +65,7 @@ Tam, gdzie backend marki wciąż na to pozwala, wysyła też polecenia zdalne, t
 - **To ty ustalasz częstotliwość odpytywania**: suwak **interwału odpytywania** na konto (encja Number, w minutach), którym mogą sterować automatyzacje, tworzony w każdej instalacji, także w tych tylko do odczytu przez portal.
 - **Tracker GPS**, ponad 100 encji na kilku platformach, ponad 30 wywołań usług, wiele pojazdów na koncie, nazwy encji w **12 językach**.
 - **Porsche działa na własnym backendzie**, nie na portalu EU Data Act. Ścieżka portalowa strukturalnie *wyklucza* Porsche, więc narzędzia oparte wyłącznie na portalu nigdy go nie obsłużą. Kod poleceń jest tutaj, ale samo logowanie do Porsche jest obecnie eksperymentalne (zobacz tabelę).
-- **Vehicle Data Scout** automatycznie wykrywa dryf API i proponuje zgłoszenie błędu jednym kliknięciem. **Quality Scale: Platinum.**
+- **Vehicle Data Scout** automatycznie wykrywa dryf API i proponuje zgłoszenie błędu jednym kliknięciem — a od 3.0.0 pobierany plik zredagowanej diagnostyki niesie też surowe odpowiedzi API, więc jeden załącznik to wszystko, czego potrzeba, żeby dodać obsługę nowego pola. **Quality Scale: Platinum.**
 
 ---
 
@@ -79,7 +80,7 @@ Tam, gdzie backend marki wciąż na to pozwala, wysyła też polecenia zdalne, t
 | **CUPRA / SEAT** | ⛔ Polecenia zablokowane przez VW | ✅ Portal EU Data Act | Dostęp OLA odebrany po stronie serwera w 2026 ([#464](https://github.com/its-me-prash/vwgroup-connect-ha/issues/464)) |
 | **Bentley** | ⏳ Dwukierunkowe zależne od testu na żywo | ✅ Logowanie + odczyt | My Bentley, działa na tenancie Audi/IDK |
 | **Porsche** | ⚠️ Eksperymentalne | ⚠️ Eksperymentalne | Porsche Connect, własny backend. Porsche przeszło na aplikację *Porsche One*, więc **logowanie na obecnych kontach najprawdopodobniej się nie powiedzie**. Kod poleceń jest, ale pozostaje nieosiągalny do czasu przebudowania logowania ([#666](https://github.com/its-me-prash/vwgroup-connect-ha/issues/666)) |
-| **Audi USA/CA** | ⚠️ Eksperymentalne | ⚠️ Eksperymentalne | Logowanie jest podpięte do północnoamerykańskiego dostawcy tożsamości, ale **nie zostało jeszcze potwierdzone** na prawdziwym koncie USA/CA. Testerzy mile widziani ([#13](https://github.com/its-me-prash/vwgroup-connect-ha/issues/13)) |
+| **Audi USA/CA** | ⏳ Dwukierunkowe zależne od testu na żywo | ✅ Pełne | backend myAudi NA. USA odczytuje teraz z regionalnej usługi pojazdów `na` i jest **potwierdzone jako działające na prawdziwym Audi Q5 z USA** (58 encji) — dzięki @pouwerkerk ([#1092](https://github.com/its-me-prash/vwgroup-connect-ha/pull/1092)); Kanada korzysta z usługi EMEA. Polecenia dziedziczą dwukierunkowe ścieżki Audi, ale nie zostały jeszcze osobno potwierdzone na żywo w NA ([#13](https://github.com/its-me-prash/vwgroup-connect-ha/issues/13)) |
 
 > **Szczera uwaga o sterowaniu VW EU.** Pojazdy Volkswagen EU są **domyślnie tylko do odczytu**: otrzymujesz pełną telemetrię przez portal EU Data Act, ale bez zdalnych poleceń. Zdalne polecenia dla VW EU istnieją **wyłącznie jako eksperymentalna, trwała dwukierunkowa MBB w wersji ALPHA**, i tylko dla samochodów **starszych MQB / Car-Net** — to opcjonalny przełącznik, **a nie** funkcja domyślna. **Samochody MEB / z rodziny ID (ID.3/4/5/7, Enyaq, Born, Q4 e-tron) nie mają żadnej ścieżki poleceń** i są tworzone jako tylko do odczytu. Alpha MBB jest śledzona w **[#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)** — testerzy mile widziani.
 
@@ -94,7 +95,7 @@ Kilka rzeczy jest **strukturalnych** — wynikają one z działania backendów V
 - **VW EU jest domyślnie tylko do odczytu; polecenia to alpha MBB tylko dla starszych samochodów.** Zobacz uwagę o marce powyżej. **Samochody MEB / z rodziny ID są tylko do odczytu** — trwała ścieżka poleceń Car-Net ich nie rozpoznaje (odpowiada „Unknown user"), a backend MEB Volkswagena nie udostępnia odpowiednika. Konfiguracja wykrywa to i tworzy **wpis tylko do odczytu** (z powiadomieniem naprawczym), zamiast się nie powieść, więc jest to znane ograniczenie, a nie ciche. ([#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584))
 - **Zdalne polecenia CUPRA / SEAT są zablokowane przez VW.** Dostęp do usług online (OLA) dla tych marek został cofnięty po stronie serwera w 2026 (HTTP 403); ponowne logowanie ani aktualizacja wersji aplikacji go nie przywróci. Dane nadal płyną przez portal EU Data Act. ([#464](https://github.com/its-me-prash/vwgroup-connect-ha/issues/464))
 - **Dane z portalu EU Data Act są skąpe i różnią się w zależności od samochodu.** VW publikuje dziś tylko wycinek pól (często przebieg + blokada + ładowanie, czasem znacznie więcej). Z czasem się to rozszerza, gdy VW poszerza zakres portalu przed terminem we wrześniu 2026 — pola, które dziś pokazują `unknown`, mogą wypełnić się same, bez żadnych zmian. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465))
-- **Ameryka Północna to głównie VW; Audi wciąż jest eksperymentalne.** **VW USA/CA działa, w tym Kanada**, teraz potwierdzone na prawdziwym kanadyjskim ID.4: Kanada loguje się na własnym serwerze, a od naprawy koperty danych pokazuje pełną telemetrię ([#990](https://github.com/its-me-prash/vwgroup-connect-ha/issues/990)). Logowanie **Audi USA/CA** jest podpięte, ale nigdy nie zostało potwierdzone na prawdziwym koncie ([#13](https://github.com/its-me-prash/vwgroup-connect-ha/issues/13)), więc traktuj Audi z Ameryki Północnej jako eksperymentalne.
+- **Ameryka Północna: VW i Audi już oba odczytują — polecenia Audi to ostatni niepotwierdzony element.** **VW USA/CA działa, w tym Kanada**, potwierdzone na prawdziwym kanadyjskim ID.4: Kanada loguje się na własnym serwerze, a od naprawy koperty danych pokazuje pełną telemetrię ([#990](https://github.com/its-me-prash/vwgroup-connect-ha/issues/990)). **Audi USA/CA teraz też odczytuje**: USA pobiera dane z regionalnej usługi pojazdów `na`, potwierdzone na prawdziwym Audi Q5 z USA (dzięki @pouwerkerk, [#1092](https://github.com/its-me-prash/vwgroup-connect-ha/pull/1092)); Kanada korzysta z usługi EMEA. Polecenia dziedziczą dwukierunkowe ścieżki Audi, ale nie zostały jeszcze osobno potwierdzone na żywo na kontach północnoamerykańskich ([#13](https://github.com/its-me-prash/vwgroup-connect-ha/issues/13)).
 - **Logowanie do Porsche najprawdopodobniej teraz zawiedzie.** Porsche wycofało aplikację *My Porsche*, wobec której ta integracja się uwierzytelnia, na rzecz *Porsche One*. Odczyty i polecenia są zaimplementowane, ale prawdopodobnie nie przejdziesz logowania, dopóki nie zostanie ono przebudowane. ([#666](https://github.com/its-me-prash/vwgroup-connect-ha/issues/666))
 - **Aktualizacje push (niemal w czasie rzeczywistym) to opcjonalna BETA, domyślnie wyłączona.** Kanały MQTT (Škoda) i Firebase (Audi/VW, CUPRA/SEAT) są podpięte, ale niesprawdzone na żywo, a marki coraz częściej zabezpieczają je atestacją aplikacji, której nie da się spełnić poza urządzeniem. Zostaw je wyłączone, chyba że chcesz pomóc w testach. Zwykłe odpytywanie to wspierana droga.
 
@@ -119,7 +120,7 @@ Kilka rzeczy jest **strukturalnych** — wynikają one z działania backendów V
 
 Pierwszy ekran integracji oferuje **dwie** metody logowania. Wybierz tę, którą obsługuje Twoja marka:
 
-- **Przeglądarka / device-code (bez hasła)** dla *Audi, Škody, SEAT-a, CUPR-y i Audi USA/CA (eksperymentalnie)*. Zaloguj się na telefonie lub laptopie i zatwierdź urządzenie; w Home Assistant nie jest przechowywane żadne hasło (trzyma prawdziwy refresh token). Ten krok oferuje też opcjonalny **S-PIN** i interwał skanowania.
+- **Przeglądarka / device-code (bez hasła)** dla *Audi, Škody, SEAT-a, CUPR-y i Audi USA/CA*. Zaloguj się na telefonie lub laptopie i zatwierdź urządzenie; w Home Assistant nie jest przechowywane żadne hasło (trzyma prawdziwy refresh token). Ten krok oferuje też opcjonalny **S-PIN** i interwał skanowania.
 - **Portal, e-mail + hasło** dla *Volkswagena EU, Volkswagena USA/CA, Bentleya i Porsche (eksperymentalnie)*. Podaj dane logowania swojej marki. Ten krok pokazuje wybór marki, e-mail, hasło, opcjonalny **S-PIN**, interwał skanowania oraz przełącznik **„włącz polecenia MBB"** (który działa tylko przy Volkswagenie EU, zobacz [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)). Dla **Volkswagena USA/Kanada** pojawia się tu **wybór kraju (USA lub CA)**; wyświetla się **tylko** dla tej marki i żadna inna go nie używa.
 
 > **Portal EU Data Act nie jest trzecim przyciskiem logowania.** To strategia tylko do odczytu, na którą koordynator przełącza się automatycznie, i którą można dodatkowo *dodać* jako uzupełniający kanał odczytu przez **Konfiguruj → Opcje**. To samo dotyczy kanału webowego `volkswagen.de` (opcjonalna beta, tylko przez Opcje, tylko do odczytu) oraz opcjonalnego kanału **Tibber**, który uzupełnia pola pozostawione puste przez kanały własne i nigdy nie nadpisuje świeższych danych.
@@ -150,7 +151,7 @@ Portal początkowo udostępnia tylko **wycinek pól**, a ten wycinek **z czasem 
 
 ## Co otrzymujesz
 
-- **Sensory:** SoC baterii, zasięg (elektryczny / spalinowy / łączny), poziom paliwa, przebieg, temperatury, moc ładowania, szybkość ładowania (zawsze w km/h, przeliczane jeśli auto raportuje w mph) i typ ładowania, cel ładowania, statystyki podróży i agregaty z całego okresu eksploatacji, interwały serwisowe i przeglądu oleju, wersja oprogramowania, stan połączenia, ostatnio widziany i więcej.
+- **Sensory:** SoC baterii, zasięg (elektryczny / spalinowy / łączny), poziom paliwa, przebieg, temperatury, moc ładowania, szybkość ładowania (zawsze w km/h, przeliczane jeśli auto raportuje w mph) i typ ładowania, cel ładowania, statystyki podróży i agregaty z całego okresu eksploatacji, interwały serwisowe i przeglądu oleju, wersja oprogramowania, stan połączenia, ostatnio widziany oraz — w Škodzie — ostatnie tankowanie, bieżąca sesja płatnego parkowania, przypomnienia serwisowe, timery odjazdu i preferowany tryb ładowania, i więcej.
 - **Sensory binarne:** drzwi zablokowane, drzwi/okna/bagażnik/maska/szyberdach otwarte, wtyczka podłączona, ładowanie, dostępna aktualizacja OTA, światła, pojazd online, timery odjazdu, alarm.
 - **Sterowanie:** blokada/odblokowanie, start/stop klimatyzacji, start/stop ładowania, ogrzewanie okien, timery odjazdu, ustawienie docelowego SoC / temperatury / maksymalnego prądu ładowania, klakson-i-światła (z wyborem czasu trwania oraz tego, czy zadziałają tylko światła, czy również klakson), wybudzenie, odświeżenie, wyszukiwanie stacji ładowania *(dostępność zależy od marki i modelu)*.
 - **Tracker urządzeń:** pozycja GPS dla mapy Home Assistant. Odpytanie, które wróci bez współrzędnych, zachowuje ostatnią znaną pozycję parkowania, zamiast ją tracić.
@@ -162,7 +163,7 @@ Portal początkowo udostępnia tylko **wycinek pól**, a ten wycinek **z czasem 
 
 ### Usługi
 
-Integracja dostarcza **ponad 30 wywołań usług** (`vag_connect.*`), wiele z nich specyficznych dla marki — *dostępność zależy od marki i modelu*. Wśród nich: `lock` / `unlock`, `start_climatisation` / `stop_climatisation`, `start_charging` / `stop_charging`, `set_target_soc`, `set_climatisation_temperature`, `set_departure_timer`, `start_window_heating` / `stop_window_heating`, `flash_lights`, `wake_vehicle`, `refresh_vehicle`, `refresh_cloud_cache`, `find_charging_stations`, `start_climate_control`, `engine_start` / `engine_stop` (Audi ICE), `start_ventilation` / `stop_ventilation`, `start_aux_heating` / `stop_aux_heating` (SEAT/CUPRA Webasto), `send_destination` i `update_charging_settings` (SEAT/CUPRA), `open_app`, `execute_vehicle_action`, `abrp_send` oraz easter egg `show_vag`.
+Integracja dostarcza **ponad 30 wywołań usług** (`vag_connect.*`), wiele z nich specyficznych dla marki — *dostępność zależy od marki i modelu*. Wśród nich: `lock` / `unlock`, `start_climatisation` / `stop_climatisation`, `start_charging` / `stop_charging`, `set_target_soc`, `set_climatisation_temperature`, `set_departure_timer`, `start_window_heating` / `stop_window_heating`, `flash_lights`, `wake_vehicle`, `refresh_vehicle`, `refresh_cloud_cache`, `find_charging_stations`, `start_climate_control`, `engine_start` / `engine_stop` (Audi ICE), `start_ventilation` / `stop_ventilation`, `start_aux_heating` / `stop_aux_heating` (SEAT/CUPRA Webasto), `send_destination` (SEAT/CUPRA/Škoda) i `update_charging_settings` (SEAT/CUPRA), `ask_assistant` Škody (zobacz poniżej), `set_location_target_soc` i `set_seat_heating`, `open_app`, `execute_vehicle_action`, `abrp_send` oraz easter egg `show_vag`.
 
 ---
 
@@ -190,6 +191,23 @@ Możesz przesyłać dane na żywo ze swojego samochodu do **[A Better Routeplann
 Możesz też wywołać usługę **`vag_connect.abrp_send`** bezpośrednio (skieruj na urządzenie lub VIN; api_key/token pochodzą z opcji, chyba że przekażesz je w wywołaniu).
 
 > 🔒 **Prywatność:** telemetria zawiera GPS. Opuszcza Twoją sieć tylko wtedy, gdy uruchamia się `abrp_send` (czyli gdy *Ty* to wyzwolisz / włączysz blueprint). Co wysyłamy: stan naładowania, stan ładowania, GPS, kurs, energia + pojemność, szacowany zasięg, temperatura otoczenia i baterii, przebieg. Czego celowo **nie** wysyłamy: niczego, czego nie potrafimy wiarygodnie zmierzyć (prędkość, napięcie/prąd pakietu HV, stan techniczny baterii) — pomijamy zamiast zgadywać.
+
+---
+
+## Asystent AI Škody („Laura") — nowość w 3.0.0
+
+Własny pokładowy asystent aplikacji MyŠkoda, **Laura**, jest dostępny w Home Assistant.
+Pytaj ją o zasięg, ładowanie i podróże przez usługę `vag_connect.ask_assistant`
+(zwraca odpowiedź tekstową, którą możesz wysłać jako powiadomienie, odczytać na głos
+albo wykorzystać w warunku), albo przekaż ją **agentowi konwersacyjnemu** — wbudowanemu
+Assist w trybie LLM lub OpenAI / Anthropic / Google / Ollama — jako narzędzie, które może
+wywołać i połączyć w łańcuch (zapytaj Laurę → następnie `send_destination` do auta). Jest
+**tylko do odczytu, doradcza i wyłącznie dla Škody**; to **beta**, więc opinie o jakości
+odpowiedzi są mile widziane.
+
+Konfiguracja, wyzwalacz głosowy („zapytaj Laurę …") oraz gotowe przykładowe automatyzacje —
+w tym *auto wraca do domu → doładuj + podgrzej + odczytaj zasięg na głos* — znajdują się w
+**[docs/AI_ASSISTANT.md](docs/AI_ASSISTANT.md)**.
 
 ---
 
