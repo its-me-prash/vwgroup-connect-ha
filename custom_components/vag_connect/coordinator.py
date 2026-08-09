@@ -2904,10 +2904,19 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         if client is None:
             return
         # User-id is captured by the brand client after the first auth
-        # cycle; bail quietly if not yet available (next refresh re-tries).
+        # cycle; bail if not yet available (next refresh re-tries).
         user_id = getattr(client, "user_id", None) or getattr(client, "_user_id", None)
         vins = list(getattr(self, "vehicles", {}).keys())
         if not user_id or not vins:
+            # #602 (thiete) — this used to return in complete silence, which is
+            # how Škoda push stayed dead without a single log line: SkodaClient
+            # never defined user_id, so every setup bailed here and nothing said
+            # so. Say it, at debug, so the next gap of this shape is findable.
+            _LOGGER.debug(
+                "Push setup skipped: %s",
+                "no user_id captured by the brand client" if not user_id
+                else "no vehicles known yet",
+            )
             return
 
         async def _on_push_event(event: Any) -> None:
