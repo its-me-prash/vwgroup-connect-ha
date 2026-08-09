@@ -28,8 +28,10 @@ from custom_components.vag_connect.cariad.models import BRANDS, BRAND_AUDI_NA
 
 def test_audi_na_is_dag_eligible() -> None:
     assert "audi_na" in DAG_ENABLED_BRANDS
-    # the EU brands are untouched
-    assert {"audi", "skoda", "seat", "cupra"} <= DAG_ENABLED_BRANDS
+    # the EU brands are untouched (v3.0.1: Škoda dropped — VW revoked its
+    # device_code grant; it now signs in via email + password)
+    assert {"audi", "seat", "cupra"} <= DAG_ENABLED_BRANDS
+    assert "skoda" not in DAG_ENABLED_BRANDS
 
 
 def test_dag_idp_urls_switches_na_vs_eu() -> None:
@@ -37,7 +39,7 @@ def test_dag_idp_urls_switches_na_vs_eu() -> None:
     assert dev == "https://identity.na.vwgroup.io/oidc/v1/device_authorization"
     assert tok == "https://identity.na.vwgroup.io/oidc/v1/token"
     # every other brand keeps the EU IDP
-    for eu in ("audi", "skoda", "seat", "cupra"):
+    for eu in ("audi", "seat", "cupra"):
         assert dag_idp_urls(eu) == (_IDP_DEVICE_AUTH_URL, _IDP_TOKEN_URL)
 
 

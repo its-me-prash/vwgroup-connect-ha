@@ -84,9 +84,13 @@ def test_dag_enabled_brands_unchanged():
     # v2.19.0 — audi_na (Audi US/CA, NA IDP) is a deliberate addition; the guard
     # that matters is that volkswagen never joins (routes to the dead EU BFF).
     assert dg.DAG_ENABLED_BRANDS == frozenset(
-        {"audi", "skoda", "seat", "cupra", "audi_na"}
+        {"audi", "seat", "cupra", "audi_na"}
     )
     assert "volkswagen" not in dg.DAG_ENABLED_BRANDS
+    # v3.0.1 — VW revoked Škoda's device_code grant (403 unauthorized_client on
+    # identity.vwgroup.io), so Škoda is deliberately removed from the QR path and
+    # now signs in via email + password (IDK authorization-code).
+    assert "skoda" not in dg.DAG_ENABLED_BRANDS
 
 
 def test_strategy_param_wired():
