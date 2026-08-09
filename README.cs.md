@@ -57,6 +57,7 @@ Aby fungovala i po změnách API Volkswagenu v roce 2026, mluví **několika čt
 
 - **9 volitelných značek koncernu Volkswagen** v jedné integraci: Audi, Volkswagen EU, Škoda, SEAT, CUPRA, VW USA/Kanada, Audi USA/Kanada, Porsche a Bentley.
 - **Obousměrné ovládání tam, kde to backend značky dovolí**: zamknout/odemknout, klimatizace, nabíjení, cílové SoC. Liší se to **podle značky, není to univerzální**. Než na nějaký příkaz vsadíte, mrkněte do tabulky níže.
+- **Palubní asistentka Škody „Laura" v Home Assistantu (novinka ve 3.0.0)**: ptejte se na dojezd, nabíjení a jízdy jako na službu, nebo ji předejte libovolnému konverzačnímu agentovi (vestavěný Assist, OpenAI, Anthropic, Google, Ollama) jako nástroj, který může volat a řetězit. Rady jen pro čtení, na které mohou vaše automatizace reagovat.
 - **Bezheslové přihlášení** (prohlížeč/device-code) pro Audi, Škodu, SEAT, CUPRA a Audi USA/CA. V Home Assistantu se neukládá žádné heslo.
 - **Více kanálů s automatickým přepnutím**: nativní backend značky, portál EU Data Act, volitelný web vw.de, volitelný Tibber, trvalý Car-Net. Když jeden kanál vypadne, vaše data nezhasnou.
 - **Doprovodný kanál (experimentální, volitelný)**: když jsou všechny backendové cesty zavřené, integrace dokáže vaše auto přečíst tak, že přes ADB ovládá oficiální aplikaci na náhradním telefonu s Androidem. Volkswagen je ověřený proti skutečnému zařízení, ostatní značky zůstávají jen pro čtení, dokud se nepotvrdí mapa obrazovek. Novější telefony potřebují [add-on ADB Bridge](https://github.com/its-me-prash/vwgroup-app-adb-bridge); nic se nerootuje a nečtou se žádné tokeny aplikace.
@@ -64,7 +65,7 @@ Aby fungovala i po změnách API Volkswagenu v roce 2026, mluví **několika čt
 - **Frekvenci dotazování řídíte vy**: posuvník **intervalu dotazování** na účet (entita Number, v minutách), který mohou řídit automatizace, vytvořený u každé instalace včetně těch portálových jen pro čtení.
 - **GPS sledovač polohy**, přes 100 entit napříč několika platformami, přes 30 volání služeb, více vozidel na účet, názvy entit ve **12 jazycích**.
 - **Porsche jede na vlastním backendu**, ne na portálu EU Data Act. Portálová cesta Porsche strukturálně *vylučuje*, takže nástroje postavené jen na portálu ho nikdy nepokryjí. Kód příkazů je tady, ale samotné přihlášení k Porsche je momentálně experimentální (viz tabulka).
-- **Vehicle Data Scout** automaticky odhalí drift API a nabídne hlášení chyby na jedno kliknutí. **Quality Scale: Platinum.**
+- **Vehicle Data Scout** automaticky odhalí drift API a nabídne hlášení chyby na jedno kliknutí — a od verze 3.0.0 nese jeho stažení anonymizované diagnostiky i syrové odpovědi API, takže jedna příloha obsahuje vše potřebné k přidání podpory nového pole. **Quality Scale: Platinum.**
 
 ---
 
@@ -79,7 +80,7 @@ Aby fungovala i po změnách API Volkswagenu v roce 2026, mluví **několika čt
 | **CUPRA / SEAT** | ⛔ Příkazy blokuje VW | ✅ Portál EU Data Act | Přístup OLA v roce 2026 odebrán na straně serveru ([#464](https://github.com/its-me-prash/vwgroup-connect-ha/issues/464)) |
 | **Bentley** | ⏳ Obousměrné čeká na test naživo | ✅ Přihlášení + čtení | My Bentley, běží na tenantu Audi/IDK |
 | **Porsche** | ⚠️ Experimentální | ⚠️ Experimentální | Porsche Connect, vlastní backend. Porsche přešlo na aplikaci *Porsche One*, takže **přihlášení na současných účtech nejspíš selže**. Kód příkazů tu je, ale je nedosažitelný, dokud se přihlášení nepostaví znovu ([#666](https://github.com/its-me-prash/vwgroup-connect-ha/issues/666)) |
-| **Audi USA/CA** | ⚠️ Experimentální | ⚠️ Experimentální | Přihlášení je zapojené proti severoamerickému poskytovateli identity, ale **zatím nebylo potvrzeno** na skutečném účtu USA/CA. Testeři vítáni ([#13](https://github.com/its-me-prash/vwgroup-connect-ha/issues/13)) |
+| **Audi USA/CA** | ⏳ Obousměrné čeká na test naživo | ✅ Plné | backend myAudi NA. USA teď čte z regionální vozidlové služby `na` a je **potvrzeno, že funguje na skutečném US Audi Q5** (58 entit) — díky @pouwerkerk ([#1092](https://github.com/its-me-prash/vwgroup-connect-ha/pull/1092)); Kanada používá službu EMEA. Příkazy dědí obousměrné cesty Audi, ale na NA zatím nejsou samostatně potvrzené naživo ([#13](https://github.com/its-me-prash/vwgroup-connect-ha/issues/13)) |
 
 > **Upřímná poznámka k ovládání VW EU.** Vozy Volkswagen EU jsou **ve výchozím stavu jen pro čtení**: dostanete plnou telemetrii přes portál EU Data Act, ale žádné vzdálené příkazy. Vzdálené příkazy pro VW EU existují **pouze jako experimentální obousměrná ALPHA přes trvalý MBB**, a to jen pro **starší vozy MQB / Car-Net** — je to volitelný přepínač, **ne** výchozí funkce. **Vozy řady MEB / ID (ID.3/4/5/7, Enyaq, Born, Q4 e-tron) nemají žádnou cestu pro příkazy** a jsou vytvořeny jen pro čtení. MBB alpha je sledována v **[#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)** — testeři vítáni.
 
@@ -94,7 +95,7 @@ Pár věcí je **strukturálních** — vyplývají z toho, jak fungují backend
 - **VW EU je ve výchozím stavu jen pro čtení; příkazy jsou MBB alpha jen pro starší vozy.** Viz poznámka ke značce výše. **Vozy řady MEB / ID jsou jen pro čtení** — cesta příkazů přes trvalý Car-Net je nerozpozná (odpovídá „Unknown user") a MEB backend Volkswagenu žádnou ekvivalentní cestu nevystavuje. Nastavení to rozpozná a místo selhání vytvoří **záznam jen pro čtení** (s opravným upozorněním), takže jde o známé omezení, ne o tiché. ([#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584))
 - **Vzdálené příkazy CUPRA / SEAT jsou blokované VW.** Přístup k online službám (OLA) pro tyto značky byl v roce 2026 zrušen na straně serveru (HTTP 403); opětovné přihlášení ani aktualizace verze aplikace ho neobnoví. Data stále tečou přes portál EU Data Act. ([#464](https://github.com/its-me-prash/vwgroup-connect-ha/issues/464))
 - **Data z portálu EU Data Act jsou skoupá a liší se vozidlo od vozidla.** VW dnes publikuje jen výsek polí (často tachometr + zamčení + nabíjení, někdy mnohem víc). Postupně se to rozšiřuje, jak VW rozšiřuje portál před zářijovým termínem 2026 — pole, která dnes čtou `unknown`, se mohou sama vyplnit, bez jakékoliv změny. ([#465](https://github.com/its-me-prash/vwgroup-connect-ha/issues/465))
-- **Severní Amerika je převážně VW; Audi je stále experimentální.** **VW USA/CA funguje, včetně Kanady**, teď potvrzeno na skutečném kanadském ID.4: Kanada se přihlašuje na vlastním serveru a od opravy datové obálky zobrazuje plnou telemetrii ([#990](https://github.com/its-me-prash/vwgroup-connect-ha/issues/990)). Přihlášení **Audi USA/CA** je zapojené, ale nikdy nebylo potvrzeno na skutečném účtu ([#13](https://github.com/its-me-prash/vwgroup-connect-ha/issues/13)), takže severoamerické Audi berte jako experimentální.
+- **Severní Amerika: VW i Audi teď obojí čtou — příkazy Audi jsou poslední nepotvrzený kousek.** **VW USA/CA funguje, včetně Kanady**, potvrzeno na skutečném kanadském ID.4: Kanada se přihlašuje na vlastním serveru a od opravy datové obálky zobrazuje plnou telemetrii ([#990](https://github.com/its-me-prash/vwgroup-connect-ha/issues/990)). **Audi USA/CA teď také čte**: USA čte z regionální vozidlové služby `na`, potvrzeno na skutečném US Audi Q5 (díky @pouwerkerk, [#1092](https://github.com/its-me-prash/vwgroup-connect-ha/pull/1092)); Kanada používá službu EMEA. Příkazy dědí obousměrné cesty Audi, ale na severoamerických účtech zatím nejsou samostatně potvrzené naživo ([#13](https://github.com/its-me-prash/vwgroup-connect-ha/issues/13)).
 - **Přihlášení k Porsche teď nejspíš selže.** Porsche vyřadilo aplikaci *My Porsche*, vůči které se tahle integrace ověřuje, ve prospěch *Porsche One*. Čtení i příkazy jsou naprogramované, ale přes přihlášení se nejspíš nedostanete, dokud se nepostaví znovu. ([#666](https://github.com/its-me-prash/vwgroup-connect-ha/issues/666))
 - **Push aktualizace (téměř v reálném čase) jsou volitelná BETA a ve výchozím stavu vypnuté.** Kanály MQTT (Škoda) a Firebase (Audi/VW, CUPRA/SEAT) jsou zapojené, ale neověřené naživo, a značky je čím dál víc zamykají za atestaci aplikace, kterou mimo zařízení nelze splnit. Nechte je vypnuté, pokud nechcete pomoct s testováním. Běžné dotazování je podporovaná cesta.
 
@@ -119,7 +120,7 @@ Pár věcí je **strukturálních** — vyplývají z toho, jak fungují backend
 
 První obrazovka integrace nabízí **dvě** metody přihlášení. Vyberte tu, kterou vaše značka podporuje:
 
-- **Prohlížeč / device-code (bezheslové)** pro *Audi, Škodu, SEAT, CUPRA a Audi USA/CA (experimentálně)*. Přihlaste se na telefonu nebo notebooku a schvalte zařízení; v Home Assistantu se neukládá žádné heslo (drží skutečný refresh token). Tento krok navíc nabízí volitelný **S-PIN** a interval skenování.
+- **Prohlížeč / device-code (bezheslové)** pro *Audi, Škodu, SEAT, CUPRA a Audi USA/CA*. Přihlaste se na telefonu nebo notebooku a schvalte zařízení; v Home Assistantu se neukládá žádné heslo (drží skutečný refresh token). Tento krok navíc nabízí volitelný **S-PIN** a interval skenování.
 - **Portál, e-mail + heslo** pro *Volkswagen EU, Volkswagen USA/CA, Bentley a Porsche (experimentálně)*. Zadejte přihlašovací údaje své značky. Tento krok ukáže výběr značky, e-mail, heslo, volitelný **S-PIN**, interval skenování a přepínač **„povolit příkazy MBB"** (který má vliv jen u Volkswagenu EU, viz [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)). Pro **Volkswagen USA/Kanada** se tu objeví **volba země (USA nebo CA)**; zobrazuje se **pouze** u této značky a žádná jiná ji nepoužívá.
 
 > **Portál EU Data Act není třetí přihlašovací tlačítko.** Je to strategie jen pro čtení, na kterou koordinátor automaticky přepíná, a lze ji navíc *přidat* jako doplňkový čtecí kanál přes **Konfigurovat → Možnosti**. Totéž platí pro webový kanál `volkswagen.de` (volitelná beta, jen přes Možnosti, jen pro čtení) a pro volitelný kanál **Tibber**, který doplňuje pole, jež první kanály nechaly prázdná, a nikdy nepřepíše čerstvější data.
@@ -150,7 +151,7 @@ Portál zpočátku poskytuje jen **výsek polí** a tento výsek se **postupně 
 
 ## Co dostanete
 
-- **Senzory:** SoC baterie, dojezd (elektrický / spalovací / celkový), úroveň paliva, tachometr, teploty, nabíjecí výkon, rychlost nabíjení (vždy v km/h, přepočteno pokud vaše auto hlásí v mph) a typ nabíjení, cíl nabíjení, statistiky jízd a celoživotní souhrny, intervaly servisu a výměny oleje, verze softwaru, stav připojení, naposledy viděno a další.
+- **Senzory:** SoC baterie, dojezd (elektrický / spalovací / celkový), úroveň paliva, tachometr, teploty, nabíjecí výkon, rychlost nabíjení (vždy v km/h, přepočteno pokud vaše auto hlásí v mph) a typ nabíjení, cíl nabíjení, statistiky jízd a celoživotní souhrny, intervaly servisu a výměny oleje, verze softwaru, stav připojení, naposledy viděno a — u Škody — poslední tankování, aktuální relace placeného parkování, servisní připomínky, časovače odjezdu a preferovaný režim nabíjení a další.
 - **Binární senzory:** zamčené dveře, otevřené dveře/okna/kufr/kapota/střešní okno, připojený konektor, nabíjení, dostupná OTA aktualizace, světla, vozidlo online, časovače odjezdu, alarm.
 - **Ovládání:** zamknutí/odemknutí, start/stop klimatizace, start/stop nabíjení, vyhřívání oken, časovače odjezdu, nastavení cílového SoC / teploty / max. nabíjecího proudu, troubení a blikání (s volbou délky trvání a možností jen světla, nebo i klakson), probuzení, obnovení, vyhledání nabíjecích stanic *(dostupnost závisí na značce a modelu)*.
 - **Sledovač polohy:** GPS poloha pro mapu Home Assistant. Dotaz, který se vrátí bez souřadnic, podrží poslední známou parkovací polohu místo toho, aby ji ztratil.
@@ -162,7 +163,7 @@ Portál zpočátku poskytuje jen **výsek polí** a tento výsek se **postupně 
 
 ### Služby
 
-Integrace přináší **30+ volání služeb** (`vag_connect.*`), z nichž mnohá jsou specifická pro značku — *dostupnost závisí na značce a modelu*. Mezi nimi: `lock` / `unlock`, `start_climatisation` / `stop_climatisation`, `start_charging` / `stop_charging`, `set_target_soc`, `set_climatisation_temperature`, `set_departure_timer`, `start_window_heating` / `stop_window_heating`, `flash_lights`, `wake_vehicle`, `refresh_vehicle`, `refresh_cloud_cache`, `find_charging_stations`, `start_climate_control`, `engine_start` / `engine_stop` (Audi se spalovacím motorem), `start_ventilation` / `stop_ventilation`, `start_aux_heating` / `stop_aux_heating` (SEAT/CUPRA Webasto), `send_destination` a `update_charging_settings` (SEAT/CUPRA), `open_app`, `execute_vehicle_action`, `abrp_send` a easter egg `show_vag`.
+Integrace přináší **30+ volání služeb** (`vag_connect.*`), z nichž mnohá jsou specifická pro značku — *dostupnost závisí na značce a modelu*. Mezi nimi: `lock` / `unlock`, `start_climatisation` / `stop_climatisation`, `start_charging` / `stop_charging`, `set_target_soc`, `set_climatisation_temperature`, `set_departure_timer`, `start_window_heating` / `stop_window_heating`, `flash_lights`, `wake_vehicle`, `refresh_vehicle`, `refresh_cloud_cache`, `find_charging_stations`, `start_climate_control`, `engine_start` / `engine_stop` (Audi se spalovacím motorem), `start_ventilation` / `stop_ventilation`, `start_aux_heating` / `stop_aux_heating` (SEAT/CUPRA Webasto), `send_destination` (SEAT/CUPRA/Škoda) a `update_charging_settings` (SEAT/CUPRA), `ask_assistant` pro Škodu (viz níže), `set_location_target_soc` a `set_seat_heating`, `open_app`, `execute_vehicle_action`, `abrp_send` a easter egg `show_vag`.
 
 ---
 
@@ -190,6 +191,23 @@ Hotové recepty pro `evcc.yaml` i jednorázové nastavení najdete v [docs/EVCC.
 Můžete také volat službu **`vag_connect.abrp_send`** přímo (cíleně na zařízení nebo VIN; api_key/token se berou z možností, pokud je nepředáte inline).
 
 > 🔒 **Soukromí:** telemetrie zahrnuje GPS. Z vaší sítě odejde jen tehdy, když se spustí `abrp_send` (tj. když ho *vy* spustíte / zapnete blueprint). Co posíláme: stav nabití, stav nabíjení, GPS, kurz, energii + kapacitu, odhadovaný dojezd, okolní + teplotu baterie, tachometr. Co záměrně **neposíláme**: cokoliv, co nedokážeme spolehlivě změřit (rychlost, napětí/proud HV baterie, stav opotřebení) — raději vynecháno než odhadnuto.
+
+---
+
+## Asistent AI Škoda („Laura") — novinka ve 3.0.0
+
+Vlastní palubní asistentka MyŠkoda, **Laura**, je dostupná přímo v Home Assistantu.
+Ptejte se jí na dojezd, nabíjení a jízdy pomocí služby `vag_connect.ask_assistant`
+(vrátí textovou odpověď, kterou můžete zobrazit v notifikaci, přečíst nahlas nebo
+podle ní větvit), nebo ji předejte **konverzačnímu agentovi** — vestavěnému Assistu
+v režimu LLM, nebo OpenAI / Anthropic / Google / Ollama — jako nástroj, který může
+volat a řetězit (zeptat se Laury → pak poslat `send_destination` do auta). Je
+**jen pro čtení, poradní a pouze pro Škodu**; jde o **betu**, takže zpětná vazba
+ke kvalitě odpovědí je vítána.
+
+Nastavení, hlasový spouštěč („ask Laura …") a hotové ukázkové automatizace —
+včetně *auto přijede domů → dobít + předehřát + přečíst dojezd* — najdete v
+**[docs/AI_ASSISTANT.md](docs/AI_ASSISTANT.md)**.
 
 ---
 
