@@ -43,6 +43,36 @@ class TestRecommendedInterval:
         assert recommended_scan_interval(None) == DEFAULT_SCAN_INTERVAL
 
 
+class TestAdvisedIntervalBeatsTheConfiguredOne:
+    """#1115 (starwarsfan) — a Škoda owner who had already raised the interval
+    to 31 minutes was still told to "raise it to 30 minutes or more", which
+    reads as nonsense and leaves nothing to act on. The advice must always
+    exceed what the user already runs."""
+
+    def test_below_recommendation_still_advises_the_recommendation(self) -> None:
+        from custom_components.vag_connect.const import advised_scan_interval
+
+        assert advised_scan_interval("skoda", 10) == 30
+        assert advised_scan_interval("skoda", 29) == 30
+
+    def test_at_or_above_recommendation_steps_up_from_the_user_value(self) -> None:
+        from custom_components.vag_connect.const import advised_scan_interval
+
+        # the reporter's exact case: 31 configured must never advise 30
+        assert advised_scan_interval("skoda", 31) > 31
+        assert advised_scan_interval("skoda", 30) > 30
+        assert advised_scan_interval("skoda", 60) > 60
+
+    def test_advice_always_exceeds_current(self) -> None:
+        from custom_components.vag_connect.const import advised_scan_interval
+
+        for brand in ("skoda", "audi", "volkswagen", None):
+            for current in (1, 5, 10, 30, 31, 45, 120):
+                assert advised_scan_interval(brand, current) > current, (
+                    f"{brand}/{current} advised an interval that is not an increase"
+                )
+
+
 class TestStormFlag:
     def test_data_storm_sets_the_flag(self) -> None:
         c = _client()
