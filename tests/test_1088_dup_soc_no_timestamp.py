@@ -41,3 +41,30 @@ def test_legacy_caller_without_contested_dict_is_safe() -> None:
     # a caller that passes no contested dict must not crash, and last still wins
     fields = _walk_fields(_dup("50", "76"))
     assert fields["battery_state_report.soc"] == "76"
+
+
+def _triple(v1: str, v2: str, v3: str) -> dict:
+    return {"data": [
+        {"dataFieldName": "battery_state_report.soc", "value": v1},
+        {"dataFieldName": "battery_state_report.soc", "value": v2},
+        {"dataFieldName": "battery_state_report.soc", "value": v3},
+    ]}
+
+
+def test_repeated_value_wins_by_mode_and_is_not_contested() -> None:
+    # @PeterPrelo's real ID export: soc appears three times as 71, 60, 60 with no
+    # timestamps. The repeated 60 is the real reading; the singleton 71 is the
+    # stale twin. The parser resolves to the mode and does NOT leave it contested,
+    # so reconcile can't latch the 71 when the last known value happens to be high.
+    contested: dict = {}
+    fields = _walk_fields(_triple("71", "60", "60"), {}, {}, contested)
+    assert fields["battery_state_report.soc"] == "60"
+    assert "battery_state_report.soc" not in contested
+
+
+def test_three_way_tie_without_a_mode_stays_contested() -> None:
+    # No majority (each distinct value once) → still ambiguous, stays contested
+    # for reconcile to settle against the last known value.
+    contested: dict = {}
+    _walk_fields(_triple("50", "60", "70"), {}, {}, contested)
+    assert contested.get("battery_state_report.soc") == {"50", "60", "70"}
