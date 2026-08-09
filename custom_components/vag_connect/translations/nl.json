@@ -210,7 +210,8 @@
           "remove_supplementary_tibber": "Tibber-leeskanaal verwijderen",
           "abrp_enable": "ABRP-telemetrie verzenden inschakelen",
           "abrp_api_key": "ABRP-api_key (ontwikkelaarssleutel)",
-          "abrp_user_token": "ABRP-token (per voertuig)"
+          "abrp_user_token": "ABRP-token (per voertuig)",
+          "keep_raw_datasets": "Ruwe EU Data Act-datasets bewaren (diagnose)"
         },
         "data_description": {
           "scan_interval": "Hoe vaak gegevens worden opgehaald (minuten). Minimum: 3.",
@@ -227,7 +228,8 @@
           "eu_data_act_auto_kickoff": "Alleen zinvol wanneer de integratie in de alleen-lezen EU Data Act-portalmodus draait (live BFF-strategieën zijn mislukt). Wanneer AAN, controleert de coördinator bij het opstarten per VIN op een actieve 15-minuten Custom Data Request en maakt er een aan als die niet bestaat. Het starten impliceert een data-abonnement van 1 maand op je account bij het portaal, dus dit is opt-in. Het portaal accepteert MAXIMAAL ÉÉN actieve custom request per VIN tegelijk. Standaard uit.",
           "abrp_enable": "Live telemetrie naar A Better Routeplanner sturen. Vereist een api_key en een token per voertuig. Uit = geen uitgaande oproepen.",
           "abrp_api_key": "Een ontwikkelaars-/partnersleutel die je bij iternio registreert (wij leveren er geen). Identificeert de integratie. Wordt nooit gelogd.",
-          "abrp_user_token": "Het 'Generic'-token uit de ABRP-app: Instellingen -> je auto -> Live Data. Wordt nooit gelogd."
+          "abrp_user_token": "Het 'Generic'-token uit de ABRP-app: Instellingen -> je auto -> Live Data. Wordt nooit gelogd.",
+          "keep_raw_datasets": "Alleen nuttig op het EU Data Act-portaalkanaal. Indien ingeschakeld worden de laatste paar ruwe dataset-ZIP's die het portaal levert op schijf bewaard (onder .storage, per voertuig en met een groottelimiet), zodat een verkeerde of ontbrekende waarde kan worden gereproduceerd uit precies de bytes die je auto heeft verzonden. Deze bestanden bevatten je GPS-locatie, VIN en telemetrie, dus standaard staat dit uit – schakel het alleen in tijdens het oplossen van problemen."
         }
       },
       "add_vwde": {
@@ -1189,6 +1191,54 @@
       },
       "calibration_failure_reason": {
         "name": "Reden kalibratiefout"
+      },
+      "preferred_charge_mode": {
+        "name": "Voorkeurslaadmodus"
+      },
+      "last_refuel_quantity": {
+        "name": "Laatste tankbeurt hoeveelheid"
+      },
+      "last_refuel_cost": {
+        "name": "Laatste tankbeurt kosten"
+      },
+      "last_refuel_currency": {
+        "name": "Valuta laatste tankbeurt"
+      },
+      "last_refuel_fuel_type": {
+        "name": "Laatste brandstof"
+      },
+      "last_refuel_station": {
+        "name": "Laatste tankstation"
+      },
+      "last_refuel_at": {
+        "name": "Tijd laatste tankbeurt"
+      },
+      "parking_location": {
+        "name": "Parkeerlocatie"
+      },
+      "parking_cost": {
+        "name": "Parkeerkosten"
+      },
+      "parking_currency": {
+        "name": "Parkeervaluta"
+      },
+      "parking_started_at": {
+        "name": "Parkeren gestart"
+      },
+      "parking_ended_at": {
+        "name": "Parkeren beëindigd"
+      },
+      "reminder_technical_inspection": {
+        "name": "Inspectieherinnering"
+      },
+      "reminder_seasonal_tyre_change": {
+        "name": "Bandenwissel-herinnering"
+      },
+      "reminder_first_aid_kit": {
+        "name": "EHBO-kit herinnering"
+      },
+      "reminder_tyre_repair_kit": {
+        "name": "Bandenreparatieset-herinnering"
       }
     },
     "binary_sensor": {
@@ -1488,6 +1538,12 @@
       },
       "insufficient_battery_level_warning": {
         "name": "Waarschuwing batterijniveau te laag"
+      },
+      "mandatory_consent_given": {
+        "name": "Verplichte toestemming gegeven"
+      },
+      "marketing_consent_given": {
+        "name": "Marketingtoestemming gegeven"
       }
     },
     "switch": {
@@ -1520,6 +1576,12 @@
       },
       "battery_care_switch": {
         "name": "Batterijbehoud"
+      },
+      "camping_switch": {
+        "name": "Kampeermodus"
+      },
+      "auto_unlock_plug_switch": {
+        "name": "Laadstekker automatisch ontgrendelen"
       }
     },
     "number": {
@@ -1671,7 +1733,7 @@
     },
     "vehicle_data_scout_findings": {
       "title": "API-waarnemer — {count} nieuw(e) veld(en) bij {brand}",
-      "description": "De API-waarnemer ontdekte **{count}** nieuw(e) veld(en) in de {brand}-API die VW Group Connect nog niet uitleest.\n\nMeestal betekent dit dat je voertuig een functie of firmwareversie heeft die we nog niet kennen — jouw hulp leert de integratie deze te ondersteunen.\n\n**1-klik rapport:**\n📤 Klik hieronder op **Meer info** om een vooraf ingevulde GitHub-issue te openen.\n\n**Voor Facebook / forum:** Instellingen → Apparaten → VW Group Connect → Diagnose → Downloaden — plak het gemaskeerde rapport.\n\n_Privacy: VINs gemaskeerd, GPS afgerond op 1 decimaal, userIDs/JWT/e-mails verwijderd. Er wordt niets automatisch verzonden._"
+      "description": "De Vehicle Data Scout heeft **{count}** nieuw(e) veld(en) gevonden in het API-antwoord van {brand} die VW Group Connect nog niet uitleest.\n\nDat betekent meestal dat je auto een functie of firmware heeft die we nog niet in kaart hebben gebracht — en **juist door dit rapport door te sturen kunnen we er ondersteuning voor bouwen**, voor jouw auto en voor iedereen met hetzelfde model.\n\n**1-klik rapport:** klik hieronder op **Meer info** om een vooraf ingevulde GitHub-issue te openen.\n\n**Nog nuttiger:** voeg je diagnosegegevens toe — Instellingen → Apparaten en diensten → VW Group Connect → ⋮ → **Diagnosegegevens downloaden**. Deze bevatten nu het volledige API-antwoord met de nieuwe velden in hun context, en dat is precies wat we nodig hebben om er entiteiten van te maken.\n\n_Alles wordt automatisch geanonimiseerd: VINs gemaskeerd, GPS verwijderd, tokens, gebruikers-ID's, e-mails en kentekens weggehaald. Er wordt nooit iets gedeeld, tenzij je het zelf bijvoegt._"
     },
     "error_reporter_findings": {
       "title": "Foutmelder — {count} recente fout(en) bij {brand}",
@@ -1724,6 +1786,10 @@
     "refresh_interval_too_frequent": {
       "title": "{brand}: update-interval te frequent",
       "description": "{brand} geeft kortlevende access-tokens uit, dus bij je huidige update-interval van **{current} minuten** moet vrijwel elke poll het token vernieuwen. Dat activeert de refresh-storm-beveiliging — een limiet op hoe vaak de integratie mag vernieuwen, bedoeld om te voorkomen dat het merkaccount wordt vergrendeld — en de gegevens stoppen met bijwerken totdat de beveiliging wordt gereset.\n\nDit is een probleem met de pollingfrequentie, niet een inlogprobleem: opnieuw authenticeren lost het niet op.\n\n**De oplossing:** verhoog het update-interval naar **{recommended} minuten** of meer in Instellingen → Apparaten en services → VW Group Connect → Configureren. Zo blijven de tokenvernieuwingen onder de limiet en blijven de gegevens binnenkomen.\n\nDeze waarschuwing verdwijnt automatisch zodra een tokenvernieuwing weer voor het eerst slaagt."
+    },
+    "mandatory_consent_missing": {
+      "title": "Škoda: verplichte toestemming niet geaccepteerd",
+      "description": "Je {brand}-account heeft een verplichte servicetoestemming niet geaccepteerd, waardoor sommige gegevens of functies mogelijk niet beschikbaar zijn. Open de MyŠkoda-app en accepteer de vereiste toestemming — deze melding verdwijnt daarna vanzelf."
     }
   },
   "services": {
@@ -1838,6 +1904,68 @@
         "token": {
           "name": "token overschrijven",
           "description": "Optioneel. Vervangt het opgeslagen voertuigtoken. Wordt nooit gelogd."
+        }
+      }
+    },
+    "set_location_target_soc": {
+      "name": "Laaddoel per locatie instellen",
+      "description": "Stelt het laaddoel van een specifiek laadprofiel in (Škoda, locatiegebonden).",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN van het voertuig."
+        },
+        "profile_id": {
+          "name": "Profiel-ID",
+          "description": "ID van het laadprofiel (uit de laadprofielen-sensor)."
+        },
+        "target": {
+          "name": "Laaddoel (%)",
+          "description": "Laaddoel tussen 20 en 100 procent."
+        }
+      }
+    },
+    "set_seat_heating": {
+      "name": "Stoelverwarming instellen",
+      "description": "Schakelt de stoelverwarming per stoel (Škoda). Alleen de opgegeven stoelen veranderen.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN van het voertuig."
+        },
+        "front_left": {
+          "name": "Linksvoor"
+        },
+        "front_right": {
+          "name": "Rechtsvoor"
+        },
+        "rear_left": {
+          "name": "Linksachter"
+        },
+        "rear_right": {
+          "name": "Rechtsachter"
+        }
+      }
+    },
+    "ask_assistant": {
+      "name": "De Škoda AI-assistent vragen (Laura)",
+      "description": "Stuur een vrije-tekstprompt naar de MyŠkoda AI-assistent \"Laura\" (alleen Škoda) en krijg het antwoord via response_variable (summary = antwoordtekst, session_id voor vervolgvragen). Alleen adviserend — routeplanning + productvragen, geen voertuigbesturing.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN van het account."
+        },
+        "prompt": {
+          "name": "Vraag / prompt",
+          "description": "Vrije tekst voor de assistent."
+        },
+        "timezone": {
+          "name": "Tijdzone",
+          "description": "Optioneel (IANA, bijv. Europe/Zurich). Standaard de HA-systeemtijdzone."
+        },
+        "session_id": {
+          "name": "Sessie-ID",
+          "description": "Optioneel. Uit een vorig antwoord, om dezelfde context voort te zetten."
         }
       }
     }

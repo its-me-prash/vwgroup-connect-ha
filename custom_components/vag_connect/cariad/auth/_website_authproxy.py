@@ -346,6 +346,27 @@ class WebsiteAuthProxyConnector:
         # wrong gdc makes every read 412. Empty string = "known, no backend
         # field" (→ WeConnect default) so it isn't re-probed every read.
         self._vin_backend: dict[str, str] = {}
+        # v3.0.0 — raw vw.de responses for the diagnostics export, so a vw.de
+        # reporter's one-click "Download diagnostics" grounds the location / auth
+        # issues (#923 / #966). Keyed by endpoint (VIN stripped from the key);
+        # the bodies are redacted at export time. Bounded — one per endpoint.
+        self.last_raw_responses: dict[str, Any] = {}
+
+    def _capture_raw(self, url: str, body: Any) -> None:
+        """Stash a raw vw.de response for diagnostics, keyed by endpoint with the
+        VIN stripped from the KEY (the body is redacted separately at export)."""
+        try:
+            import re  # noqa: PLC0415
+            from urllib.parse import urlsplit  # noqa: PLC0415
+
+            path = urlsplit(url).path
+            key = re.sub(r"[A-HJ-NPR-Z0-9]{17}", "{vin}", path)
+            key = key.split("/vehicles/")[-1]
+            if "{vin}/" in key:
+                key = key.split("{vin}/", 1)[-1]
+            self.last_raw_responses["vwde:" + key.strip("/")] = body
+        except Exception:  # noqa: BLE001 — capture must never break a read
+            pass
 
     # ── login ──────────────────────────────────────────────────────────────
 
@@ -972,7 +993,9 @@ class WebsiteAuthProxyConnector:
                     raise AuthenticationError(
                         f"Website authproxy GET {url} → HTTP {resp.status}"
                     )
-                return await resp.json(content_type=None)
+                body = await resp.json(content_type=None)
+                self._capture_raw(url, body)
+                return body
         return None
 
     async def list_vehicle_vins(self) -> list[str]:

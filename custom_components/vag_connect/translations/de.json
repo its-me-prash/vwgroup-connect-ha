@@ -210,7 +210,8 @@
           "remove_supplementary_tibber": "Tibber-Lesekanal entfernen",
           "abrp_enable": "ABRP-Telemetrie senden",
           "abrp_api_key": "ABRP-api_key (Entwicklerschlüssel)",
-          "abrp_user_token": "ABRP-Token (pro Fahrzeug)"
+          "abrp_user_token": "ABRP-Token (pro Fahrzeug)",
+          "keep_raw_datasets": "Rohe EU-Data-Act-Datensätze behalten (Diagnose)"
         },
         "data_description": {
           "enable_reverse_geocoding": "Sendet GPS der Parkposition an OpenStreetMap Nominatim, um Straße/Stadt zu ermitteln. Standard: aus (Datenschutz).",
@@ -227,7 +228,8 @@
           "eu_data_act_auto_kickoff": "Nur relevant wenn die Integration im Read-only EU Data Act Portal-Modus läuft (die Live BFF Strategien sind gescheitert). Wenn AN, prüft der Coordinator beim Start ob pro VIN ein aktiver 15-min Custom Data Request existiert und legt einen an wenn nicht. Der Kickoff impliziert ein 1-Monats Daten-Abo auf deinem Account beim Portal, deshalb opt-in. Das Portal akzeptiert HÖCHSTENS EINEN aktiven Custom Request pro VIN gleichzeitig. Standard: aus.",
           "abrp_enable": "Live-Telemetrie an A Better Routeplanner senden. Benötigt api_key und einen Token pro Fahrzeug. Aus = keine ausgehenden Aufrufe.",
           "abrp_api_key": "Ein Entwickler-/Partnerschlüssel, den du bei iternio registrierst (wir liefern keinen). Identifiziert die Integration. Wird nie protokolliert.",
-          "abrp_user_token": "Der 'Generic'-Token aus der ABRP-App: Einstellungen -> dein Auto -> Live Data. Wird nie protokolliert."
+          "abrp_user_token": "Der 'Generic'-Token aus der ABRP-App: Einstellungen -> dein Auto -> Live Data. Wird nie protokolliert.",
+          "keep_raw_datasets": "Nur auf dem EU-Data-Act-Portal-Kanal sinnvoll. Wenn aktiv, werden die letzten paar rohen Datensatz-ZIPs des Portals auf der Festplatte behalten (unter .storage, pro Fahrzeug und größenbegrenzt), damit sich ein falscher oder fehlender Wert aus genau den Bytes reproduzieren lässt, die dein Auto gesendet hat. Diese Dateien enthalten GPS, VIN und Telemetrie, deshalb ist die Option standardmäßig aus – schalte sie nur zur Fehlersuche ein."
         }
       },
       "add_vwde": {
@@ -1189,6 +1191,54 @@
       },
       "calibration_failure_reason": {
         "name": "Grund des Kalibrierungsfehlers"
+      },
+      "preferred_charge_mode": {
+        "name": "Bevorzugter Lademodus"
+      },
+      "last_refuel_quantity": {
+        "name": "Letzte Tankmenge"
+      },
+      "last_refuel_cost": {
+        "name": "Letzte Tankkosten"
+      },
+      "last_refuel_currency": {
+        "name": "Währung (letztes Tanken)"
+      },
+      "last_refuel_fuel_type": {
+        "name": "Letzter Kraftstoff"
+      },
+      "last_refuel_station": {
+        "name": "Letzte Tankstelle"
+      },
+      "last_refuel_at": {
+        "name": "Letztes Tanken (Zeit)"
+      },
+      "parking_location": {
+        "name": "Parkort"
+      },
+      "parking_cost": {
+        "name": "Parkkosten"
+      },
+      "parking_currency": {
+        "name": "Parkwährung"
+      },
+      "parking_started_at": {
+        "name": "Parken gestartet"
+      },
+      "parking_ended_at": {
+        "name": "Parken beendet"
+      },
+      "reminder_technical_inspection": {
+        "name": "Inspektion (Erinnerung)"
+      },
+      "reminder_seasonal_tyre_change": {
+        "name": "Reifenwechsel (Erinnerung)"
+      },
+      "reminder_first_aid_kit": {
+        "name": "Verbandskasten (Erinnerung)"
+      },
+      "reminder_tyre_repair_kit": {
+        "name": "Reifen-Reparaturset (Erinnerung)"
       }
     },
     "binary_sensor": {
@@ -1488,6 +1538,12 @@
       },
       "insufficient_battery_level_warning": {
         "name": "Warnung: Batteriestand zu niedrig"
+      },
+      "mandatory_consent_given": {
+        "name": "Pflichtzustimmung erteilt"
+      },
+      "marketing_consent_given": {
+        "name": "Marketing-Zustimmung erteilt"
       }
     },
     "switch": {
@@ -1520,6 +1576,12 @@
       },
       "battery_care_switch": {
         "name": "Batterieschonung"
+      },
+      "camping_switch": {
+        "name": "Camping-Modus"
+      },
+      "auto_unlock_plug_switch": {
+        "name": "Ladestecker automatisch entriegeln"
       }
     },
     "number": {
@@ -1671,7 +1733,7 @@
     },
     "vehicle_data_scout_findings": {
       "title": "API-Beobachter — {count} neue Felder bei {brand}",
-      "description": "Der API-Beobachter hat **{count}** neue Felder in der {brand}-API entdeckt, die VW Group Connect noch nicht ausliest.\n\nMeistens bedeutet das: Dein Fahrzeug hat eine Funktion oder Firmware-Version, die wir noch nicht kennen — deine Hilfe würde uns die Unterstützung beibringen.\n\n**1-Klick-Bericht:**\n📤 Klicke unten auf **Mehr erfahren**, um ein vorausgefülltes GitHub-Issue zu öffnen.\n\n**Für Facebook / Forum:** Einstellungen → Geräte → VW Group Connect → Diagnose → Herunterladen — dort den maskierten Bericht reinkopieren.\n\n_Datenschutz: VINs maskiert, GPS auf 1 Dezimalstelle gerundet, userIDs/JWTs/E-Mails entfernt. Es wird nichts automatisch gesendet._"
+      "description": "Der API-Beobachter hat **{count}** neue Felder in der {brand}-API-Antwort gefunden, die VW Group Connect noch nicht ausliest.\n\nDas heißt meistens: Dein Auto hat eine Funktion oder Firmware, die wir noch nicht zugeordnet haben — und **diesen Bericht weiterzuleiten ist genau das, womit wir die Unterstützung dafür einbauen können**, für dein Auto und für alle mit demselben Modell.\n\n**1-Klick-Bericht:** Klick unten auf **Mehr erfahren**, um ein vorausgefülltes GitHub-Issue zu öffnen.\n\n**Noch hilfreicher:** Häng deine Diagnosedaten an — Einstellungen → Geräte & Dienste → VW Group Connect → ⋮ → **Diagnose herunterladen**. Sie enthalten jetzt die vollständige API-Antwort mit den neuen Feldern im Kontext — genau das, was wir brauchen, um daraus Entitäten zu machen.\n\n_Alles wird automatisch geschwärzt: VINs maskiert, GPS entfernt, Tokens, Benutzer-IDs, E-Mails und Kennzeichen herausgefiltert. Nichts wird jemals geteilt, außer du hängst es selbst an._"
     },
     "error_reporter_findings": {
       "title": "Fehler-Berichter — {count} aktuelle Fehler bei {brand}",
@@ -1724,6 +1786,10 @@
     "refresh_interval_too_frequent": {
       "title": "{brand}: Aktualisierungsintervall zu häufig",
       "description": "{brand} gibt nur kurzlebige Zugriffstokens aus, sodass bei deinem aktuellen Aktualisierungsintervall von **{current} Minuten** fast jede Abfrage das Token erneuern muss. Das löst den Schutz gegen Erneuerungs-Stürme aus — eine Obergrenze, wie oft die Integration erneuern darf, die verhindert, dass das Markenkonto gesperrt wird — und die Daten werden nicht mehr aktualisiert, bis der Schutz zurückgesetzt ist.\n\nDas ist ein Problem der Abfragehäufigkeit, kein Anmeldeproblem: Eine erneute Authentifizierung behebt es nicht.\n\n**Die Lösung:** Erhöhe das Aktualisierungsintervall auf **{recommended} Minuten** oder mehr unter Einstellungen → Geräte & Dienste → VW Group Connect → Konfigurieren. So bleiben die Token-Erneuerungen unter dem Limit und die Daten fließen weiter.\n\nDiese Warnung verschwindet automatisch, sobald eine Token-Erneuerung wieder erfolgreich ist."
+    },
+    "mandatory_consent_missing": {
+      "title": "Škoda: Pflichtzustimmung nicht akzeptiert",
+      "description": "Dein {brand}-Konto hat eine erforderliche Service-Zustimmung nicht akzeptiert, daher könnten einige Daten oder Funktionen fehlen. Öffne die MyŠkoda-App und akzeptiere die erforderliche Zustimmung — dieser Hinweis verschwindet danach von selbst."
     }
   },
   "selector": {
@@ -1858,6 +1924,68 @@
         "token": {
           "name": "Token überschreiben",
           "description": "Optional. Überschreibt den gespeicherten Fahrzeug-Token. Wird nie protokolliert."
+        }
+      }
+    },
+    "set_location_target_soc": {
+      "name": "Standort-Ladeziel setzen",
+      "description": "Setzt das Ladeziel eines bestimmten Lade-Profils (Škoda, standortabhängig).",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN des Fahrzeugs."
+        },
+        "profile_id": {
+          "name": "Profil-ID",
+          "description": "ID des Lade-Profils (aus dem Lade-Profile-Sensor)."
+        },
+        "target": {
+          "name": "Ladeziel (%)",
+          "description": "Ladeziel zwischen 20 und 100 Prozent."
+        }
+      }
+    },
+    "set_seat_heating": {
+      "name": "Sitzheizung setzen",
+      "description": "Schaltet die Sitzheizung pro Sitz (Škoda). Nur angegebene Sitze werden geändert.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN des Fahrzeugs."
+        },
+        "front_left": {
+          "name": "Vorne links"
+        },
+        "front_right": {
+          "name": "Vorne rechts"
+        },
+        "rear_left": {
+          "name": "Hinten links"
+        },
+        "rear_right": {
+          "name": "Hinten rechts"
+        }
+      }
+    },
+    "ask_assistant": {
+      "name": "Škoda AI-Assistenten fragen (Laura)",
+      "description": "Schickt einen Freitext-Prompt an den MyŠkoda AI-Assistenten „Laura\" (nur Škoda) und gibt die Antwort per response_variable zurück (summary = Antworttext, session_id für Folgefragen). Rein beratend — Routenplanung + Produktfragen, keine Fahrzeugsteuerung.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN aus dem Konto."
+        },
+        "prompt": {
+          "name": "Frage / Prompt",
+          "description": "Freitext an den Assistenten."
+        },
+        "timezone": {
+          "name": "Zeitzone",
+          "description": "Optional (IANA, z. B. Europe/Zurich). Standard = HA-Systemzeitzone."
+        },
+        "session_id": {
+          "name": "Session-ID",
+          "description": "Optional. Aus einer vorherigen Antwort, für Folgefragen im selben Kontext."
         }
       }
     }

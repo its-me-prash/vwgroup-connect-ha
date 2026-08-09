@@ -1036,6 +1036,9 @@ class VehicleData:
     # ``enabled`` sub-key. Skoda-only today; mirror across brands when
     # CUPRA/SEAT firmware ships equivalent.
     camping_mode: bool | None = None
+    # v2.31.0 (8.15.0 APK) — CampingModeDto.endsAt: when camping mode will
+    # auto-stop. Surfaced as an attribute on the camping switch.
+    camping_ends_at: Any | None = None
 
     # v2.2.0 Phase 7 PR #1 — quick-wins batch from the silenced-but-
     # unwired scout-audit. Four fields silenced in `_unexpected_keys.py`
@@ -1476,6 +1479,9 @@ class VehicleData:
     # ``extra_state_attributes``. Stored as a plain list so the
     # JSON-safe attribute helper passes it through unchanged.
     available_charge_modes: list[str] = field(default_factory=list)
+    # v2.31.0 (8.15.0 APK) — ChargingSettingsDto.preferredChargeMode: the charge
+    # mode the car is currently set to (MANUAL / TIMER / …). Diagnostic sensor.
+    preferred_charge_mode: str | None = None
 
     # v2.15.0a10 — transient per-poll flag (NOT a sensor). Set True by a
     # connector when THIS poll produced no real data (e.g. EU Data Act portal

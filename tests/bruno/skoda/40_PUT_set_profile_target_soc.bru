@@ -1,0 +1,31 @@
+meta {
+  name: PUT set charging profile target SoC
+  type: http
+  seq: 40
+}
+
+put {
+  url: {{base_url}}/api/v1/charging/{{vin}}/profiles/{{profile_id}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "targetSOCInPercent": 80
+  }
+}
+
+docs {
+  Sets the target state of charge for one charging profile (per-location).
+  Implementation: SkodaClient.command_set_profile_target_soc().
+}

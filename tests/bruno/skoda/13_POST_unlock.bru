@@ -5,7 +5,7 @@ meta {
 }
 
 post {
-  url: {{base_url}}/api/v1/vehicle-access/{{vin}}/unlock
+  url: {{base_url}}/api/v2/vehicle-access/{{vin}}/unlock
   body: json
   auth: bearer
 }
@@ -26,6 +26,8 @@ body:json {
 }
 
 docs {
+  v3.0.0 (8.15.0 APK): migrated to the v2 route.
+
   Unlocks all doors. Skoda mysmob requires the user's 4-digit S-PIN
   in the JSON body (NOT a SecToken header like SEAT/CUPRA OLA).
   If no S-PIN is configured, the integration sends an empty body

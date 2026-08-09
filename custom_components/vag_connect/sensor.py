@@ -549,6 +549,149 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         condition="electric",
     ),
+    # v2.31.0 (8.15.0 APK) — Škoda ChargingSettingsDto.preferredChargeMode.
+    VagSensorDescription(
+        key="preferred_charge_mode",
+        translation_key="preferred_charge_mode",
+        data_key="preferred_charge_mode",
+        icon="mdi:ev-station",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        condition="electric",
+    ),
+    # v2.31.0 (8.15.0 APK) — Škoda pay-at-pump LAST fill-up (read-only
+    # consumption; phantom-gated → only spawns for pay-at-pump users).
+    VagSensorDescription(
+        key="last_refuel_quantity",
+        translation_key="last_refuel_quantity",
+        data_key="last_refuel_quantity",
+        native_unit_of_measurement="L",
+        icon="mdi:fuel",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="last_refuel_cost",
+        translation_key="last_refuel_cost",
+        data_key="last_refuel_cost",
+        icon="mdi:cash-multiple",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="last_refuel_currency",
+        translation_key="last_refuel_currency",
+        data_key="last_refuel_currency",
+        icon="mdi:currency-eur",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="last_refuel_fuel_type",
+        translation_key="last_refuel_fuel_type",
+        data_key="last_refuel_fuel_type",
+        icon="mdi:gas-station",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="last_refuel_station",
+        translation_key="last_refuel_station",
+        data_key="last_refuel_station",
+        icon="mdi:gas-station",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="last_refuel_at",
+        translation_key="last_refuel_at",
+        data_key="last_refuel_at",
+        icon="mdi:clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # v2.31.0 (8.15.0 APK) — Škoda pay-to-park current/last session (read-only;
+    # phantom-gated → only spawns for pay-to-park users).
+    VagSensorDescription(
+        key="parking_location",
+        translation_key="parking_location",
+        data_key="parking_location",
+        icon="mdi:parking",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="parking_cost",
+        translation_key="parking_cost",
+        data_key="parking_cost",
+        icon="mdi:cash-multiple",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="parking_currency",
+        translation_key="parking_currency",
+        data_key="parking_currency",
+        icon="mdi:currency-eur",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="parking_started_at",
+        translation_key="parking_started_at",
+        data_key="parking_started_at",
+        icon="mdi:clock-start",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="parking_ended_at",
+        translation_key="parking_ended_at",
+        data_key="parking_ended_at",
+        icon="mdi:clock-end",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # v2.31.0 (8.15.0 APK) — Škoda predictive-maintenance service reminders
+    # (read-only; state = due date if present else status). Phantom-gated.
+    VagSensorDescription(
+        key="reminder_technical_inspection",
+        translation_key="reminder_technical_inspection",
+        data_key="reminder_technical_inspection",
+        icon="mdi:car-wrench",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="reminder_seasonal_tyre_change",
+        translation_key="reminder_seasonal_tyre_change",
+        data_key="reminder_seasonal_tyre_change",
+        icon="mdi:tire",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="reminder_first_aid_kit",
+        translation_key="reminder_first_aid_kit",
+        data_key="reminder_first_aid_kit",
+        icon="mdi:medical-bag",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="reminder_tyre_repair_kit",
+        translation_key="reminder_tyre_repair_kit",
+        data_key="reminder_tyre_repair_kit",
+        icon="mdi:car-tire-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # v2.31.0 (8.15.0 APK) — Škoda departure-timer times (read-only).
+    VagSensorDescription(
+        key="departure_timer_1_time",
+        translation_key="departure_timer_1_time",
+        data_key="departure_timer_1_time",
+        icon="mdi:clock-time-four-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="departure_timer_2_time",
+        translation_key="departure_timer_2_time",
+        data_key="departure_timer_2_time",
+        icon="mdi:clock-time-four-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="departure_timer_3_time",
+        translation_key="departure_timer_3_time",
+        data_key="departure_timer_3_time",
+        icon="mdi:clock-time-four-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
 
 
     VagSensorDescription(
@@ -3202,6 +3345,28 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # restricted at the parser level; other brands stay None.
     "primary_engine_soc_pct",       # Skoda-only (driving-range)
     "steering_wheel_position",      # Skoda-only (air-conditioning)
+    "preferred_charge_mode",        # Skoda-only (charging settings) — v2.31.0
+    # v2.31.0 — Škoda pay-at-pump last fill-up; only present for enrolled users.
+    "last_refuel_quantity",
+    "last_refuel_cost",
+    "last_refuel_currency",
+    "last_refuel_fuel_type",
+    "last_refuel_station",
+    "last_refuel_at",
+    # v2.31.0 — Škoda pay-to-park; only present for enrolled users.
+    "parking_location",
+    "parking_cost",
+    "parking_currency",
+    "parking_started_at",
+    "parking_ended_at",
+    # v2.31.0 — Škoda service reminders + departure-timer times (Skoda-only).
+    "reminder_technical_inspection",
+    "reminder_seasonal_tyre_change",
+    "reminder_first_aid_kit",
+    "reminder_tyre_repair_kit",
+    "departure_timer_1_time",
+    "departure_timer_2_time",
+    "departure_timer_3_time",
     "battery_temp_max",             # VW EU + Audi only (CARIAD-BFF)
     # v2.2.0 Phase 7 PR #2 — VW EU + Audi only (CARIAD-BFF
     # departureTimers block). Other brands' parsers don't populate
@@ -3600,6 +3765,10 @@ async def async_setup_entry(
 _ZERO_WHEN_IDLE: frozenset[str] = frozenset({
     "charging_power_kw",
     "charging_rate_kmh",
+    # #1090 — some backends (e.g. Audi e-tron GT) keep reporting the last
+    # non-zero rate for minutes after a charge stops; this is the CARIAD-BFF
+    # actual charge rate, zeroed on the same "charging definitively stopped" rule.
+    "actual_charge_rate_kw",
 })
 
 
@@ -3750,11 +3919,22 @@ class VagConnectSensor(VagConnectEntity, SensorEntity):
         # the {field: value} map lives in extra_state_attributes.
         if self.entity_description.key == "raw_api_fields":
             return len(val) if isinstance(val, dict) and val else None
-        # charging_power_kw + charging_rate_kmh: API omits these when not charging.
-        # Return 0 so the entity shows "0 kW / 0 km/h" instead of "unavailable".
-        if val is None and self.entity_description.key in _ZERO_WHEN_IDLE:
-            # Only return 0 if plug is connected (makes sense to show 0 kW)
-            if self._vehicle.get("plug_connected"):
+        # charging power / rate: the API either omits these when idle (None) OR,
+        # on some backends, keeps reporting the last non-zero value for minutes
+        # after a charge stops (#1090 — Audi e-tron GT). Force 0 in both cases,
+        # but only while the plug is connected (so a detached car reads
+        # "unavailable", not a fake 0) and only once charging is DEFINITIVELY
+        # over — is_charging explicitly False and not conservation charging,
+        # which legitimately draws a small amount of power to hold the SoC.
+        if self.entity_description.key in _ZERO_WHEN_IDLE and self._vehicle.get(
+            "plug_connected"
+        ):
+            state = str(self._vehicle.get("charging_state") or "").lower()
+            charging_stopped = (
+                self._vehicle.get("is_charging") is False
+                and "conservation" not in state
+            )
+            if val is None or charging_stopped:
                 return 0
 
         # DATE sensors: API may return int (days until event) or a date string.

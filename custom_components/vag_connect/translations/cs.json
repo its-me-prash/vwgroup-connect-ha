@@ -210,7 +210,8 @@
           "remove_supplementary_tibber": "Odebrat čtecí kanál Tibber",
           "abrp_enable": "Povolit odesílání telemetrie ABRP",
           "abrp_api_key": "api_key ABRP (vývojářský klíč)",
-          "abrp_user_token": "Token ABRP (pro vozidlo)"
+          "abrp_user_token": "Token ABRP (pro vozidlo)",
+          "keep_raw_datasets": "Uchovávat surová data EU Data Act (diagnostika)"
         },
         "data_description": {
           "scan_interval": "Jak často se stahují data (minuty). Minimum: 3.",
@@ -227,7 +228,8 @@
           "eu_data_act_auto_kickoff": "Má smysl pouze tehdy, když integrace běží v režimu portálu EU Data Act jen pro čtení (živé strategie BFF selhaly). Pokud je zapnuto, koordinátor při spuštění kontroluje aktivní 15minutový Custom Data Request pro každé VIN a vytvoří jej, pokud žádný neexistuje. Toto spuštění znamená měsíční předplatné dat na vašem účtu na portálu, proto je volitelné (opt-in). Portál přijímá NEJVÝŠE JEDEN aktivní vlastní požadavek na VIN v daný okamžik. Ve výchozím stavu vypnuto.",
           "abrp_enable": "Odesílat živou telemetrii do A Better Routeplanner. Vyžaduje api_key a token pro každé vozidlo. Vypnuto = žádná odchozí volání.",
           "abrp_api_key": "Vývojářský/partnerský klíč, který si zaregistrujete u iternio (žádný nedodáváme). Identifikuje integraci. Nikdy se neloguje.",
-          "abrp_user_token": "Token 'Generic' z aplikace ABRP: Nastavení -> vaše auto -> Live Data. Nikdy se neloguje."
+          "abrp_user_token": "Token 'Generic' z aplikace ABRP: Nastavení -> vaše auto -> Live Data. Nikdy se neloguje.",
+          "keep_raw_datasets": "Užitečné pouze na kanálu portálu EU Data Act. Po zapnutí se posledních několik surových ZIP souborů s daty, které portál dodá, uchová na disku (v .storage, na vozidlo a s limitem velikosti), aby bylo možné chybnou nebo chybějící hodnotu reprodukovat z přesně těch bajtů, které vůz odeslal. Tyto soubory obsahují vaši GPS polohu, VIN a telemetrii, proto je funkce ve výchozím nastavení vypnutá – zapněte ji jen při řešení potíží."
         }
       },
       "add_vwde": {
@@ -1189,6 +1191,54 @@
       },
       "calibration_failure_reason": {
         "name": "Důvod chyby kalibrace"
+      },
+      "preferred_charge_mode": {
+        "name": "Preferovaný režim nabíjení"
+      },
+      "last_refuel_quantity": {
+        "name": "Množství posledního tankování"
+      },
+      "last_refuel_cost": {
+        "name": "Cena posledního tankování"
+      },
+      "last_refuel_currency": {
+        "name": "Měna posledního tankování"
+      },
+      "last_refuel_fuel_type": {
+        "name": "Poslední palivo"
+      },
+      "last_refuel_station": {
+        "name": "Poslední čerpací stanice"
+      },
+      "last_refuel_at": {
+        "name": "Čas posledního tankování"
+      },
+      "parking_location": {
+        "name": "Místo parkování"
+      },
+      "parking_cost": {
+        "name": "Cena parkování"
+      },
+      "parking_currency": {
+        "name": "Měna parkování"
+      },
+      "parking_started_at": {
+        "name": "Začátek parkování"
+      },
+      "parking_ended_at": {
+        "name": "Konec parkování"
+      },
+      "reminder_technical_inspection": {
+        "name": "Připomínka technické prohlídky"
+      },
+      "reminder_seasonal_tyre_change": {
+        "name": "Připomínka přezutí pneumatik"
+      },
+      "reminder_first_aid_kit": {
+        "name": "Připomínka lékárničky"
+      },
+      "reminder_tyre_repair_kit": {
+        "name": "Připomínka opravné sady"
       }
     },
     "binary_sensor": {
@@ -1488,6 +1538,12 @@
       },
       "insufficient_battery_level_warning": {
         "name": "Varování nedostatečné úrovně baterie"
+      },
+      "mandatory_consent_given": {
+        "name": "Povinný souhlas udělen"
+      },
+      "marketing_consent_given": {
+        "name": "Marketingový souhlas udělen"
       }
     },
     "switch": {
@@ -1520,6 +1576,12 @@
       },
       "battery_care_switch": {
         "name": "Ochrana baterie"
+      },
+      "camping_switch": {
+        "name": "Režim kempování"
+      },
+      "auto_unlock_plug_switch": {
+        "name": "Automatické odemknutí nabíjecí zástrčky"
       }
     },
     "number": {
@@ -1671,7 +1733,7 @@
     },
     "vehicle_data_scout_findings": {
       "title": "Pozorovatel API — {count} nových polí v {brand}",
-      "description": "Pozorovatel API zjistil **{count}** nových polí v odpovědi API {brand}, která VW Group Connect zatím nečte.\n\nObvykle to znamená, že vaše vozidlo má funkci nebo verzi firmwaru, kterou jsme ještě nepřiřadili — vaše pomoc naučí integraci její podpoře.\n\n**Hlášení jedním kliknutím:**\n📤 Klikněte níže na **Více informací** a otevřete předvyplněný GitHub issue.\n\n**Pro Facebook / fórum:** Nastavení → Zařízení → VW Group Connect → Diagnostika → Stáhnout — vložte maskovanou zprávu.\n\n_Soukromí: VINy maskované, GPS zaokrouhleno na 1 desetinné místo, userIDs/JWT/e-maily odstraněny. Nic se neodesílá automaticky._"
+      "description": "Pozorovatel API našel **{count}** nových polí v odpovědi API {brand}, která VW Group Connect zatím nečte.\n\nObvykle to znamená, že vaše vozidlo má funkci nebo verzi firmwaru, kterou jsme ještě nepřiřadili — a **přeposlání tohoto hlášení je přesně to, co nám umožní přidat pro ni podporu**, pro vaše auto i pro všechny se stejným modelem.\n\n**Hlášení jedním kliknutím:** klikněte níže na **Více informací** a otevřete předvyplněný GitHub issue.\n\n**Ještě užitečnější:** přiložte diagnostiku — Nastavení → Zařízení a služby → VW Group Connect → ⋮ → **Stáhnout diagnostiku**. Nově obsahuje kompletní odpověď API s novými poli v kontextu, což je přesně to, co potřebujeme k jejich převedení na entity.\n\n_Vše se anonymizuje automaticky: VINy maskované, GPS odstraněno, tokeny, ID uživatelů, e-maily a registrační značky odstraněny. Nic se nikdy nesdílí, dokud to sami nepřiložíte._"
     },
     "error_reporter_findings": {
       "title": "Hlásič chyb — {count} nedávných chyb v {brand}",
@@ -1724,6 +1786,10 @@
     "refresh_interval_too_frequent": {
       "title": "{brand}: příliš častý interval aktualizace",
       "description": "{brand} vydává krátce platné přístupové tokeny, takže při vašem aktuálním intervalu aktualizace **{current} minut** musí token obnovit téměř každé dotazování. To spustí ochranu proti návalu obnovení (refresh-storm) — limit toho, jak často smí integrace obnovovat token, který má zabránit zablokování účtu značky — a data se přestanou aktualizovat, dokud se ochrana neresetuje.\n\nJde o problém s frekvencí dotazování, ne o problém s přihlášením: opětovné ověření to nevyřeší.\n\n**Řešení:** zvyšte interval aktualizace na **{recommended} minut** nebo více v Nastavení → Zařízení a služby → VW Group Connect → Konfigurovat. Tím udržíte obnovování tokenů pod limitem a data budou dál proudit.\n\nToto varování automaticky zmizí, jakmile obnovení tokenu opět proběhne úspěšně."
+    },
+    "mandatory_consent_missing": {
+      "title": "Škoda: povinný souhlas nebyl přijat",
+      "description": "Váš účet {brand} nepřijal povinný servisní souhlas, takže některá data nebo funkce nemusí být dostupné. Otevřete aplikaci MyŠkoda a přijměte požadovaný souhlas — toto upozornění poté samo zmizí."
     }
   },
   "services": {
@@ -1838,6 +1904,68 @@
         "token": {
           "name": "Přepsat token",
           "description": "Volitelné. Přepíše uložený token vozidla. Nikdy se neloguje."
+        }
+      }
+    },
+    "set_location_target_soc": {
+      "name": "Nastavit cílové nabití podle polohy",
+      "description": "Nastaví cílové nabití konkrétního nabíjecího profilu (Škoda, podle polohy).",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN vozidla."
+        },
+        "profile_id": {
+          "name": "ID profilu",
+          "description": "ID nabíjecího profilu (ze senzoru nabíjecích profilů)."
+        },
+        "target": {
+          "name": "Cílové nabití (%)",
+          "description": "Cílové nabití mezi 20 a 100 procenty."
+        }
+      }
+    },
+    "set_seat_heating": {
+      "name": "Nastavit vyhřívání sedadel",
+      "description": "Zapne vyhřívání jednotlivých sedadel (Škoda). Změní se jen zadaná sedadla.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN vozidla."
+        },
+        "front_left": {
+          "name": "Přední levé"
+        },
+        "front_right": {
+          "name": "Přední pravé"
+        },
+        "rear_left": {
+          "name": "Zadní levé"
+        },
+        "rear_right": {
+          "name": "Zadní pravé"
+        }
+      }
+    },
+    "ask_assistant": {
+      "name": "Zeptat se AI asistenta Škoda (Laura)",
+      "description": "Odešle textový prompt AI asistentovi MyŠkoda „Laura\" (jen Škoda) a vrátí odpověď přes response_variable (summary = text odpovědi, session_id pro navazující dotazy). Pouze poradní — plánování tras + dotazy na produkt, žádné ovládání vozidla.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN z účtu."
+        },
+        "prompt": {
+          "name": "Dotaz / prompt",
+          "description": "Volný text pro asistenta."
+        },
+        "timezone": {
+          "name": "Časové pásmo",
+          "description": "Volitelné (IANA, např. Europe/Zurich). Výchozí = časové pásmo systému HA."
+        },
+        "session_id": {
+          "name": "ID relace",
+          "description": "Volitelné. Z předchozí odpovědi, pro pokračování ve stejném kontextu."
         }
       }
     }

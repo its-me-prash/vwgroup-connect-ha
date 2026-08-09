@@ -31,6 +31,7 @@ from .const import (
     CONF_ENABLE_REVERSE_GEOCODING,
     CONF_FORCE_PPE_CLIMATE,
     CONF_BATTERY_NOMINAL_KWH,
+    CONF_KEEP_RAW_DATASETS,
     CONF_MBB_COMMAND_CHANNEL,
     CONF_MEB_COMMANDS_UNAVAILABLE,
     CONF_PASSWORD,
@@ -259,6 +260,31 @@ def _mbb_command_channel_client(coord: Any) -> Any | None:
         return None
     cmd = getattr(client, "_mbb_command", None)
     return cmd if cmd is not None else None
+
+
+def _static_info_model_year(info: dict[str, Any]) -> tuple[str | None, Any]:
+    """Extract (model, model_year) from a Škoda ``/vehicle-information`` payload.
+
+    Škoda's ``VehicleInformationDto`` nests ``model`` and ``modelYear`` under a
+    ``vehicleSpecification`` object — only ``devicePlatform`` and ``renders`` sit
+    at the top level. Grounded against the LIVE MyŠkoda 8.15.0 APK
+    (``VehicleInformationDto.smali`` @Json ``vehicleSpecification``,
+    ``VehicleSpecificationDto.smali`` @Json ``model`` / ``modelYear``). An earlier
+    fix keyed on ``specification`` (the skodaconnect/myskoda *Python attribute*
+    name, not the wire key), which never matched, so the Škoda device model +
+    year stayed blank. Prefer a top-level value (other/forward-compat shapes),
+    then ``vehicleSpecification``, then the old ``specification`` as a last resort.
+    """
+    spec = info.get("vehicleSpecification")
+    if not isinstance(spec, dict):
+        spec = info.get("specification")
+    spec = spec if isinstance(spec, dict) else {}
+    model = info.get("model")
+    if not (isinstance(model, str) and model):
+        cand = spec.get("model")
+        model = cand if isinstance(cand, str) and cand else None
+    year = info.get("modelYear") or spec.get("modelYear")
+    return model, year
 
 
 def _mbb_command_capability(
@@ -503,6 +529,160 @@ def _parse_charging_history(resp: Any) -> dict[str, Any]:
             for s in all_sessions[:5]
         ]
 
+    return out
+
+
+def _parse_fueling(resp: Any) -> dict[str, Any]:
+    """v2.31.0 (8.15.0 APK) — pure parser for the latest MyŠkoda pay-at-pump
+    fill-up (READ-ONLY consumption data). ``FuelingSessionDto`` → flat
+    ``vehicles[vin]`` fields. The masked ``formattedCardName`` is deliberately
+    NOT surfaced. Empty/garbage → ``{}`` so no sensor spawns.
+    """
+    if not isinstance(resp, dict) or not resp:
+        return {}
+    out: dict[str, Any] = {}
+    dt = resp.get("dateTime")
+    if isinstance(dt, str) and dt:
+        out["last_refuel_at"] = dt
+    fuel = resp.get("fuelName")
+    if isinstance(fuel, str) and fuel:
+        out["last_refuel_fuel_type"] = fuel
+    qty = resp.get("quantity")
+    if isinstance(qty, (int, float)) and not isinstance(qty, bool):
+        out["last_refuel_quantity"] = float(qty)
+    price = resp.get("price")
+    if isinstance(price, dict):
+        total = price.get("total")
+        if isinstance(total, (int, float)) and not isinstance(total, bool):
+            out["last_refuel_cost"] = float(total)
+        cur = price.get("currency")
+        if isinstance(cur, str) and cur:
+            out["last_refuel_currency"] = cur
+    station = resp.get("gasStation")
+    if isinstance(station, dict):
+        name = station.get("name")
+        if isinstance(name, str) and name:
+            out["last_refuel_station"] = name
+    return out
+
+
+def _parse_parking(resp: Any) -> dict[str, Any]:
+    """v2.31.0 (8.15.0 APK) — Škoda pay-to-park sessions (READ-ONLY) → the
+    current/most-recent one as flat ``vehicles[vin]`` fields. Prefers an ACTIVE
+    session (no ``stopTime``), else the newest by ``startTime``. Empty → ``{}``.
+    """
+    # 8.15.0 ParkingApi.getParkingSession (GET api/v1/parking/sessions/mine)
+    # returns a SINGLE ParkingSessionDto object — not a list, not {sessions:[]}.
+    # Wrap that bare object so the newest/active selection below still works,
+    # while staying tolerant of a list / {sessions} shape if the API ever changes.
+    sessions: Any
+    if isinstance(resp, dict) and resp.get("startTime"):
+        sessions = [resp]
+    elif isinstance(resp, list):
+        sessions = resp
+    elif isinstance(resp, dict):
+        sessions = resp.get("sessions")
+    else:
+        sessions = None
+    if not isinstance(sessions, list):
+        return {}
+    sessions = [s for s in sessions if isinstance(s, dict) and s.get("startTime")]
+    if not sessions:
+        return {}
+    active = [s for s in sessions if not s.get("stopTime")]
+    pick = (
+        active
+        or sorted(sessions, key=lambda s: str(s.get("startTime")), reverse=True)
+    )[0]
+    out: dict[str, Any] = {"parking_session_active": not pick.get("stopTime")}
+    loc = pick.get("location")
+    if isinstance(loc, dict) and isinstance(loc.get("name"), str) and loc["name"]:
+        out["parking_location"] = loc["name"]
+    for src, dst in (("startTime", "parking_started_at"), ("stopTime", "parking_ended_at")):
+        val = pick.get(src)
+        if isinstance(val, str) and val:
+            out[dst] = val
+    amt = pick.get("priceAmount")
+    if isinstance(amt, (int, float)) and not isinstance(amt, bool):
+        out["parking_cost"] = float(amt)
+    cur = pick.get("priceCurrency")
+    if isinstance(cur, str) and cur:
+        out["parking_currency"] = cur
+    return out
+
+
+_REMINDER_KEYS = {
+    "TECHNICAL_INSPECTION": "reminder_technical_inspection",
+    "SEASONAL_TYRE_CHANGE": "reminder_seasonal_tyre_change",
+    "FIRST_AID_KIT": "reminder_first_aid_kit",
+    "TYRE_REPAIR_KIT": "reminder_tyre_repair_kit",
+}
+
+
+def _parse_predictive_maintenance(resp: Any) -> dict[str, Any]:
+    """v2.31.0 (8.15.0 APK) — service reminders → per-type flat field. State =
+    the ``dueDate`` (when it's due) if present, else the ``status``. Empty → {}.
+    """
+    reminders = resp.get("reminders") if isinstance(resp, dict) else None
+    if not isinstance(reminders, list):
+        return {}
+    out: dict[str, Any] = {}
+    for r in reminders:
+        if not isinstance(r, dict):
+            continue
+        key = _REMINDER_KEYS.get(str(r.get("type")))
+        if not key:
+            continue
+        due = r.get("dueDate")
+        status = r.get("status")
+        val = (
+            due if isinstance(due, str) and due
+            else (status if isinstance(status, str) and status else None)
+        )
+        if val:
+            out[key] = val
+    return out
+
+
+def _parse_departure_timers(resp: Any) -> dict[str, Any]:
+    """v2.31.0 (8.15.0 APK) — configured departure timers → per-timer time +
+    enabled-count. Timer ids 1..3. Empty → {}."""
+    timers = resp.get("timers") if isinstance(resp, dict) else None
+    if not isinstance(timers, list):
+        return {}
+    out: dict[str, Any] = {}
+    count = 0
+    for t in timers:
+        if not isinstance(t, dict):
+            continue
+        tid = t.get("id")
+        if not isinstance(tid, int) or isinstance(tid, bool) or not 1 <= tid <= 3:
+            continue
+        tm = t.get("time")
+        if isinstance(tm, str) and tm:
+            out[f"departure_timer_{tid}_time"] = tm
+        if t.get("enabled") is True:
+            count += 1
+    if out:
+        out["departure_timer_enabled_count"] = count
+    return out
+
+
+def _parse_consents(resp: Any) -> dict[str, Any]:
+    """v2.31.0 (8.15.0 APK) — mandatory + marketing consent state (read-only).
+    Empty → {}."""
+    if not isinstance(resp, dict):
+        return {}
+    out: dict[str, Any] = {}
+    m = resp.get("mandatory")
+    if isinstance(m, dict) and isinstance(m.get("consented"), bool):
+        out["mandatory_consent_given"] = m["consented"]
+        link = m.get("termsAndConditionsLink")
+        if isinstance(link, str) and link:
+            out["mandatory_consent_link"] = link
+    mk = resp.get("marketing")
+    if isinstance(mk, dict) and isinstance(mk.get("consented"), bool):
+        out["marketing_consent_given"] = mk["consented"]
     return out
 
 
@@ -1771,6 +1951,65 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             },
         )
 
+    def _wire_dataset_archive(self) -> None:
+        """P1-5 — point every EU-DA portal connector's raw-dataset hook at a
+        bounded on-disk ring buffer, but only when the user opted in.
+
+        Idempotent and cheap, so it is safe to call on every poll: it re-attaches
+        the hook to whatever portal connector objects currently exist (primary or
+        supplementary, armed at different times). When the option is off it is a
+        no-op and no raw bytes ever touch the disk.
+        """
+        entry = getattr(self, "entry", None)
+        if entry is None or not entry.data.get(CONF_KEEP_RAW_DATASETS):
+            return
+        archive = getattr(self, "_dataset_archive", None)
+        if archive is None:
+            from .cariad.dataset_archive import DatasetArchive  # noqa: PLC0415
+
+            base = self.hass.config.path(
+                ".storage", "vag_connect_datasets", self.entry.entry_id
+            )
+            archive = DatasetArchive(base)
+            self._dataset_archive = archive
+
+        def _hook(vin: str, raw: bytes, _name: str) -> None:
+            # Fire-and-forget: the write + prune runs off the event loop. store()
+            # never raises, so the un-awaited job resolves cleanly.
+            self.hass.async_add_executor_job(archive.store, vin, raw)
+
+        for attr in ("_eu_portal", "_supplementary_eu_portal"):
+            portal = getattr(self._cariad_client, attr, None)
+            if portal is not None and hasattr(portal, "on_raw_dataset"):
+                portal.on_raw_dataset = _hook
+
+    def _update_consent_repair(self) -> None:
+        """v2.31.0 — surface a Repair when the Škoda account's MANDATORY consent
+        is not granted (read from ``GET api/v2/consents/mandatory``). Non-fixable
+        warning pointing the user to accept it in the MyŠkoda app; clears itself
+        once granted. Marketing consent is optional → never a Repair, only the
+        binary_sensor.
+        """
+        from homeassistant.helpers import issue_registry as ir  # noqa: PLC0415
+
+        issue_id = f"mandatory_consent_{self.entry.entry_id}"
+        missing = False
+        with self._vehicles_lock:
+            for v in self.vehicles.values():
+                if isinstance(v, dict) and v.get("mandatory_consent_given") is False:
+                    missing = True
+                    break
+        if not missing:
+            ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+            return
+        ir.async_create_issue(
+            self.hass, DOMAIN, issue_id,
+            is_fixable=False, is_persistent=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="mandatory_consent_missing",
+            translation_placeholders={"brand": self.entry.data.get(CONF_BRAND, "")},
+        )
+
     def _update_data_act_no_data_repair(self) -> None:
         """v2.12.2 (#393/#424) — raise/clear the "portal returned no data"
         repair issue for EU Data Act portal mode.
@@ -2424,6 +2663,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     self._update_data_act_no_data_repair()
                 except Exception:  # noqa: BLE001
                     pass  # a repair-issue update must never break the poll
+                # v2.31.0 — raise/clear the Škoda mandatory-consent Repair.
+                try:
+                    self._update_consent_repair()
+                except Exception:  # noqa: BLE001
+                    pass
                 # v1.14.0 (#24) — Trip Stats refresh, best-effort + cached
                 # 1h. Brand-restricted to audi/volkswagen inside helper.
                 # Runs after vehicle update so newest VINs are present
@@ -2447,6 +2691,20 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                             self.refresh_charging_history(vin)
                             for vin in self.vehicles
                         ],
+                        return_exceptions=True,
+                    )
+                except Exception:  # noqa: BLE001
+                    pass
+                # v2.31.0 — Škoda pay-at-pump last fill-up + pay-to-park session
+                # (both READ-ONLY), 6h-cache. No-op for non-Škoda + accounts
+                # without the respective pay-in-app enrolment.
+                try:
+                    await asyncio.gather(
+                        *[self.refresh_fueling(vin) for vin in self.vehicles],
+                        *[self.refresh_parking(vin) for vin in self.vehicles],
+                        *[self.refresh_predictive_maintenance(vin) for vin in self.vehicles],
+                        *[self.refresh_departure_timers(vin) for vin in self.vehicles],
+                        *[self.refresh_consents(vin) for vin in self.vehicles],
                         return_exceptions=True,
                     )
                 except Exception:  # noqa: BLE001
@@ -3582,11 +3840,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         self._static_info_fetched_at[vin] = datetime.now(tz=timezone.utc)
         info = data.get("info") or {}
         equip = data.get("equipment") or []
+        _log_model, _log_year = _static_info_model_year(info)
         _LOGGER.debug(
             "Static info cached for %s — model=%r, year=%r, equipment=%d",
             mask_vin(vin),
-            info.get("model"),
-            info.get("modelYear"),
+            _log_model,
+            _log_year,
             len(equip),
         )
 
@@ -3746,6 +4005,158 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             mask_vin(vin),
             parsed.get("total_charged_energy_kwh", 0),
             parsed.get("last_charging_session_start", "n/a"),
+        )
+
+    # ── v2.31.0 — Škoda pay-at-pump last fill-up (READ-ONLY) 6h cache ──
+    _FUELING_REFRESH_INTERVAL = timedelta(hours=6)
+    _FUELING_BRANDS = ("skoda",)  # mysmob pay-at-pump product
+
+    async def refresh_fueling(self, vin: str, force: bool = False) -> None:
+        """v2.31.0 — best-effort READ of the latest MyŠkoda pay-at-pump fill-up
+        (litres / cost / station / fuel type). Škoda-only, 6h cache — fill-ups
+        happen at most a couple of times a week.
+
+        READ-ONLY: this never starts or pays for a fueling session (that POST is
+        a prohibited financial transaction and no client method for it exists).
+        Empty for accounts without pay-at-pump enrolment (most) → the sensors
+        never spawn.
+        """
+        try:
+            brand = str(self.entry.data.get(CONF_BRAND, "")).lower()
+        except Exception:  # noqa: BLE001
+            return
+        if brand not in self._FUELING_BRANDS:
+            return
+        if not hasattr(self, "_fueling_fetched_at"):
+            self._fueling_fetched_at: dict[str, datetime] = {}
+        if not force:
+            last = self._fueling_fetched_at.get(vin)
+            if last is not None and (
+                datetime.now(tz=timezone.utc) - last < self._FUELING_REFRESH_INTERVAL
+            ):
+                return
+        client = self._cariad_client
+        if client is None or not hasattr(client, "get_latest_fueling"):
+            return
+        try:
+            resp = await client.get_latest_fueling()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Fueling fetch failed for %s: %s", mask_vin(vin), err)
+            return
+        # Stamp even on empty so a non-enrolled account isn't re-hammered.
+        self._fueling_fetched_at[vin] = datetime.now(tz=timezone.utc)
+        parsed = _parse_fueling(resp)
+        if not parsed:
+            return
+        with self._vehicles_lock:
+            v = self.vehicles.get(vin)
+            if isinstance(v, dict):
+                v.update(parsed)
+
+    async def refresh_parking(self, vin: str, force: bool = False) -> None:
+        """v2.31.0 — best-effort READ of the current/last MyŠkoda pay-to-park
+        session (location / cost / start-stop). Škoda-only, 6h cache. READ-ONLY:
+        never starts or pays for a parking session (that POST is a prohibited
+        financial transaction; no client method for it exists). Empty for
+        accounts without pay-to-park enrolment → the sensors never spawn.
+        """
+        try:
+            brand = str(self.entry.data.get(CONF_BRAND, "")).lower()
+        except Exception:  # noqa: BLE001
+            return
+        if brand not in self._FUELING_BRANDS:  # same brand set (mysmob Škoda)
+            return
+        if not hasattr(self, "_parking_fetched_at"):
+            self._parking_fetched_at: dict[str, datetime] = {}
+        if not force:
+            last = self._parking_fetched_at.get(vin)
+            if last is not None and (
+                datetime.now(tz=timezone.utc) - last < self._FUELING_REFRESH_INTERVAL
+            ):
+                return
+        client = self._cariad_client
+        if client is None or not hasattr(client, "get_my_parking"):
+            return
+        try:
+            resp = await client.get_my_parking()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Parking fetch failed for %s: %s", mask_vin(vin), err)
+            return
+        self._parking_fetched_at[vin] = datetime.now(tz=timezone.utc)
+        parsed = _parse_parking(resp)
+        if not parsed:
+            return
+        with self._vehicles_lock:
+            v = self.vehicles.get(vin)
+            if isinstance(v, dict):
+                v.update(parsed)
+
+    async def _refresh_skoda_cached(
+        self,
+        vin: str,
+        cache_attr: str,
+        method: str,
+        takes_vin: bool,
+        parse: Any,
+        force: bool = False,
+    ) -> None:
+        """v2.31.0 — shared best-effort Škoda read: brand-gate + 6h cache +
+        fetch + parse + merge into ``vehicles[vin]``. Stamps even on empty so a
+        non-supported account isn't re-hammered. Never breaks polling."""
+        try:
+            brand = str(self.entry.data.get(CONF_BRAND, "")).lower()
+        except Exception:  # noqa: BLE001
+            return
+        if brand not in self._FUELING_BRANDS:
+            return
+        store = getattr(self, cache_attr, None)
+        if store is None:
+            store = {}
+            setattr(self, cache_attr, store)
+        if not force:
+            last = store.get(vin)
+            if last is not None and (
+                datetime.now(tz=timezone.utc) - last < self._FUELING_REFRESH_INTERVAL
+            ):
+                return
+        client = self._cariad_client
+        fn = getattr(client, method, None) if client is not None else None
+        if fn is None:
+            return
+        try:
+            resp = await (fn(vin) if takes_vin else fn())
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("%s failed for %s: %s", method, mask_vin(vin), err)
+            return
+        store[vin] = datetime.now(tz=timezone.utc)
+        parsed = parse(resp)
+        if not parsed:
+            return
+        with self._vehicles_lock:
+            v = self.vehicles.get(vin)
+            if isinstance(v, dict):
+                v.update(parsed)
+
+    async def refresh_predictive_maintenance(self, vin: str, force: bool = False) -> None:
+        """v2.31.0 — Škoda service reminders (READ-ONLY), 6h cache."""
+        await self._refresh_skoda_cached(
+            vin, "_pm_fetched_at", "get_predictive_maintenance", True,
+            _parse_predictive_maintenance, force,
+        )
+
+    async def refresh_departure_timers(self, vin: str, force: bool = False) -> None:
+        """v2.31.0 — Škoda configured departure timers (READ-ONLY), 6h cache."""
+        await self._refresh_skoda_cached(
+            vin, "_dt_fetched_at", "get_departure_timers", True,
+            _parse_departure_timers, force,
+        )
+
+    async def refresh_consents(self, vin: str, force: bool = False) -> None:
+        """v2.31.0 — Škoda mandatory + marketing consent state (READ-ONLY),
+        6h cache. Consent CHANGES go through the PATCH/Repair flow, never here."""
+        await self._refresh_skoda_cached(
+            vin, "_consents_fetched_at", "get_consents", False,
+            _parse_consents, force,
         )
 
     # ── v1.17.1 (Bruno-Collection) — SEAT/CUPRA Battery Care 1h cache ─
@@ -4058,10 +4469,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     plate = info.get("licensePlate")
                     if isinstance(plate, str) and plate:
                         data["license_plate"] = plate
-                if not data.get("model") and isinstance(info.get("model"), str):
-                    data["model"] = info["model"]
-                if not data.get("model_year") and info.get("modelYear"):
-                    data["model_year"] = info["modelYear"]
+                _static_model, _static_year = _static_info_model_year(info)
+                if not data.get("model") and _static_model:
+                    data["model"] = _static_model
+                if not data.get("model_year") and _static_year:
+                    data["model_year"] = _static_year
                 if not data.get("software_version") and isinstance(
                     info.get("softwareVersion"), str
                 ):
@@ -4384,6 +4796,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # right after Reconfigure). The captured object stays valid (or fails
         # cleanly as a closed session, handled by the except → cached data).
         client = self._cariad_client
+        # P1-5 — attach the opt-in raw-dataset archive hook (no-op when off).
+        self._wire_dataset_archive()
         try:
             # v2.20.0 — keep the durable-MBB operationList warm so the command
             # pre-test stays authoritative and a VIN whose earlier fetch failed
@@ -4476,12 +4890,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # v2.18.0 (#759) — seat/cupra added: their command_lock now takes a spin
         # (mirroring their command_unlock, which always has). Before this, the
         # per-VIN S-PIN was resolved and presence-checked above, then dropped
-        # here, so seat/cupra lock silently used the shared PIN. The brands
-        # whose command_lock does NOT accept spin (skoda lock needs none;
-        # porsche/vw_na) are correctly excluded — passing it would TypeError.
+        # here, so seat/cupra lock silently used the shared PIN.
+        # v2.31.0 — skoda added: MyŠkoda 8.15.0 migrated lock to v2
+        # (AccessRequestDto{spin}), so Škoda lock now accepts + wants the per-VIN
+        # S-PIN too. porsche/vw_na still excluded (their command_lock takes no
+        # spin — passing it would TypeError).
         cmd_kwargs = (
             {"spin": spin}
-            if (brand in ("audi", "volkswagen", "seat", "cupra") and spin)
+            if (brand in ("audi", "volkswagen", "seat", "cupra", "skoda") and spin)
             else {}
         )
         await self._cariad_cmd_optimistic(
@@ -4658,6 +5074,35 @@ class VagConnectCoordinator(DataUpdateCoordinator):
     async def async_set_target_soc(self, vin: str, target: int) -> None:
         await self._cariad_cmd(vin, "command_set_target_soc", target=target)
 
+    async def async_set_profile_target_soc(
+        self, vin: str, profile_id: int | str, target: int
+    ) -> None:
+        """v2.31.0 — Škoda per-location target SoC (#25).
+
+        Sets the target SoC of ONE charging profile (e.g. the profile active at
+        the car's current GPS, ``currentVehiclePositionProfile``), distinct from
+        the global ``set_target_soc``. The client echoes the whole profile back.
+        """
+        await self._cariad_cmd(
+            vin, "command_set_profile_target_soc",
+            profile_id=profile_id, target=target,
+        )
+
+    async def async_set_seat_heating(
+        self,
+        vin: str,
+        front_left: bool | None = None,
+        front_right: bool | None = None,
+        rear_left: bool | None = None,
+        rear_right: bool | None = None,
+    ) -> None:
+        """v2.31.0 — Škoda per-seat heating. Only the seats given are changed."""
+        await self._cariad_cmd(
+            vin, "command_set_seat_heating",
+            front_left=front_left, front_right=front_right,
+            rear_left=rear_left, rear_right=rear_right,
+        )
+
     async def async_set_battery_care(self, vin: str, enabled: bool) -> None:
         """v2.18.0 — toggle battery-care (preservation) mode.
 
@@ -4741,6 +5186,32 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         )
         return result
 
+    async def async_ask_assistant(
+        self,
+        vin: str,
+        prompt: str,
+        *,
+        timezone: str = "",
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
+        """v2.31.0 — ask the MyŠkoda AI assistant ("Laura"); returns its answer.
+
+        Škoda-only (mysmob ``ai-assistant/ask``); other brands raise
+        ``AttributeError`` → a clean service-response error. Read-only advisory
+        (route planning + product Q&A), never a vehicle command.
+        """
+        client = self._cariad_client
+        if not hasattr(client, "ask_assistant"):
+            raise AttributeError(
+                "ask_assistant is Škoda-only (MyŠkoda AI assistant)"
+            )
+        if not timezone:
+            timezone = getattr(self.hass.config, "time_zone", "") or ""
+        result: dict[str, Any] = await client.ask_assistant(
+            vin, prompt, user_timezone=timezone, session_id=session_id,
+        )
+        return result
+
     async def async_set_departure_timer(
         self,
         vin: str,
@@ -4793,6 +5264,29 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
     async def async_stop_ventilation(self, vin: str) -> None:
         await self._cariad_cmd(vin, "command_stop_ventilation")
+
+    async def async_start_camping(self, vin: str) -> None:
+        """v2.31.0 — Škoda camping mode (climate comfort while parked)."""
+        await self._cariad_cmd_optimistic(
+            vin, "command_start_camping", optimistic={"camping_mode": True},
+        )
+
+    async def async_stop_camping(self, vin: str) -> None:
+        await self._cariad_cmd_optimistic(
+            vin, "command_stop_camping", optimistic={"camping_mode": False},
+        )
+
+    async def async_set_auto_unlock_plug(self, vin: str, enabled: bool) -> None:
+        """v2.31.0 — Škoda: auto-unlock the charging plug once fully charged.
+
+        The read side (``auto_unlock_when_charged``) has shipped a while; the
+        client command maps the boolean to the mysmob ``PERMANENT``/``OFF`` enum.
+        """
+        await self._cariad_cmd_optimistic(
+            vin, "command_set_auto_unlock_plug",
+            optimistic={"auto_unlock_when_charged": enabled},
+            mode="PERMANENT" if enabled else "OFF",
+        )
 
     async def async_start_aux_heating(
         self,

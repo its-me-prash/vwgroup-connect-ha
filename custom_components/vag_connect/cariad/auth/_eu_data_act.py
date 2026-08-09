@@ -35,6 +35,7 @@ import logging
 import re
 import uuid
 import zipfile
+from collections.abc import Callable
 from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import urljoin, urlparse
@@ -51,6 +52,7 @@ from ..exceptions import (
     UpstreamUnavailableError,
 )
 from ..models import VehicleData
+from ._data_act_scraper import pick_active_15min_identifier
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -784,12 +786,22 @@ def _walk_fields(
     ``front_left_tyre.soc``) are NEVER synonyms and can never cross-collapse — even
     if their values happen to be equal.
     """
-    # name -> (value_str, ts, ts_real); ts_real distinguishes a genuine
-    # per-point timestamp from the inherited dataset-level floor (-inf=unknown).
-    best: dict[str, tuple[str, float, bool]] = {}
+    # name -> (value_str, ts, ts_real, ts_inherited); ts_real distinguishes a
+    # genuine per-point timestamp from the inherited dataset-level floor
+    # (-inf=unknown). ts_inherited flags a "real" ts that a point INHERITED from
+    # a running ``car_captured_time`` marker in the flat event-log rather than
+    # its OWN sibling timestamp — that ts is order-dependent (VW reorders the log
+    # between exports), so it must not be trusted to decide a value conflict (#465).
+    best: dict[str, tuple[str, float, bool, bool]] = {}
     dataset_ts = _dataset_captured_ts(payload)  # a11: dataset-level freshness floor
 
-    def add(name: Any, value: Any, ts: float | None, ts_real: bool) -> None:
+    def add(
+        name: Any,
+        value: Any,
+        ts: float | None,
+        ts_real: bool,
+        ts_inherited: bool = False,
+    ) -> None:
         if not (isinstance(name, str) and name and value is not None):
             return
         if not isinstance(value, (str, int, float, bool)):
@@ -802,37 +814,58 @@ def _walk_fields(
         # time in first(), so no sentinel ever lands on a mapped target.
         cand = ts if ts is not None else float("-inf")
         cand_real = ts_real and ts is not None
+        cand_inh = bool(ts_inherited) and cand_real
         prev = best.get(name)
         if prev is None:
-            best[name] = (str(value), cand, cand_real)
+            best[name] = (str(value), cand, cand_real, cand_inh)
             return
         # #529: ALL fields (incl. monotonic odometer/mileage) resolve by genuine
         # freshness so they come from the same snapshot. Cross-poll monotonic
         # protection lives in vehicle_cache.reconcile, not here.
         prev_real = prev[2]
+        prev_inh = prev[3]
         if cand_real and prev_real:
             # >= not >: a newer real ts wins, AND on an EQUAL real ts (two samples
             # in the SAME snapshot block, #529 S6) the later-appended one wins —
             # the log is append-ordered, so last-in-block is the newer reading.
+            # #465 (Arno-MA-73): an INHERITED running-marker ts is order-dependent
+            # — VW reorders the flat log, so the same stale record can inherit a
+            # newer-looking marker and out-rank the real value (ID.4 SoC flipping
+            # 57<->81). So a conflict is contested not only on an EQUAL ts but
+            # whenever EITHER side's ts was inherited; reconcile-against-last
+            # (order-independent) then decides instead of the array ordering.
             if (
-                cand == prev[1]
-                and str(value) != prev[0]
+                str(value) != prev[0]
+                and _contested_out is not None
+                and not _is_envelope_noise(name)
+                and (cand == prev[1] or cand_inh or prev_inh)
+            ):
+                # The separating signal (append order OR an inherited marker) is
+                # not evidence. Record both so a later layer that knows the
+                # previous poll can prefer the plausible one. The pick below is
+                # unchanged, so this is observation only — reconcile overrides it.
+                _contested_out.setdefault(name, set()).update({prev[0], str(value)})
+            if cand >= prev[1]:
+                best[name] = (str(value), cand, True, cand_inh)
+        elif cand_real and not prev_real:
+            best[name] = (str(value), cand, True, cand_inh)  # real beats floor
+        elif not cand_real and not prev_real:
+            # #529 S5/S6: no real ts on either → append-ordered log ⇒ last wins.
+            # #1088: but when the two values DISAGREE and neither carries a real
+            # capture time, "last wins" is just array position — and the portal
+            # dialects don't agree on order (an ID.7 export appends the STALE
+            # sample last, surfacing e.g. 76 over the real 50). Record both so
+            # vehicle_cache.reconcile can pick the candidate closest to the last
+            # persisted value instead of trusting position. The pick below is
+            # unchanged (still last), so #529 is not regressed — this only adds a
+            # reconciliation hook for the previously-silent no-timestamp tie.
+            if (
+                str(value) != prev[0]
                 and _contested_out is not None
                 and not _is_envelope_noise(name)
             ):
-                # Same capture time, different values: the append order is the
-                # ONLY thing separating them, which is not evidence. Record both
-                # so a later layer that knows the previous poll can prefer the
-                # plausible one instead of us picking by array position. The
-                # choice below is unchanged, so this is observation only.
                 _contested_out.setdefault(name, set()).update({prev[0], str(value)})
-            if cand >= prev[1]:
-                best[name] = (str(value), cand, True)
-        elif cand_real and not prev_real:
-            best[name] = (str(value), cand, True)  # real beats floor/unknown
-        elif not cand_real and not prev_real:
-            # #529 S5/S6: no real ts on either → append-ordered log ⇒ last wins.
-            best[name] = (str(value), cand, False)
+            best[name] = (str(value), cand, False, False)
         # else: incumbent is real and candidate is not → keep the real one.
 
     def walk(
@@ -841,19 +874,21 @@ def _walk_fields(
         node_ts: float | None = None,
         node_ts_real: bool = False,
         in_array: bool = False,
+        node_ts_inherited: bool = False,
     ) -> None:
         if isinstance(node, dict):
-            ts, ts_real = node_ts, node_ts_real
+            ts, ts_real, ts_inh = node_ts, node_ts_real, node_ts_inherited
             for tk in _TS_KEYS:
                 if tk in node:
                     parsed = _parse_ts(node[tk])
                     if parsed is not None:
-                        ts, ts_real = parsed, True  # genuine per-point timestamp
+                        # OWN per-point timestamp — reliable, NOT inherited (#465).
+                        ts, ts_real, ts_inh = parsed, True, False
                         break
             # data-point shape: {dataFieldName|name: X, value: Y}
             fname = node.get("dataFieldName") or node.get("name")
             if fname is not None and "value" in node:
-                add(fname, node.get("value"), ts, ts_real)
+                add(fname, node.get("value"), ts, ts_real, ts_inh)
                 # v2.17.4/v2.17.5 — when the leaf name is a GENERIC token, also key
                 # by the per-point ``key`` UUID so points that collide on a bare
                 # name (many "value" points on MEB/ID.x) don't collapse and first()
@@ -903,7 +938,7 @@ def _walk_fields(
                 # synonym is reclaimed by first()'s synonym-collapse so it does not
                 # become a new chronic raw_unmapped re-reporter.
                 if prefix and not in_array:
-                    add(prefix, node.get("value"), ts, ts_real)
+                    add(prefix, node.get("value"), ts, ts_real, ts_inh)
                     # Record the bare/qualified pair as EXPLICIT synonyms of each
                     # other (bidirectional). They come from THIS one physical node,
                     # so first()'s synonym-collapse is precise: it never touches a
@@ -916,14 +951,14 @@ def _walk_fields(
                     continue
                 key = f"{prefix}.{k}" if prefix else str(k)
                 if isinstance(val, (str, int, float, bool)):
-                    add(key, val, ts, ts_real)
+                    add(key, val, ts, ts_real, ts_inh)
                     # b13 (#465): only emit the BARE name outside an array — a
                     # field inside e.g. chargingProfiles[] must not collapse
                     # onto the top-level key and clobber the active value.
                     if not in_array:
-                        add(str(k), val, ts, ts_real)
+                        add(str(k), val, ts, ts_real, ts_inh)
                 else:
-                    walk(val, key, ts, ts_real, in_array)
+                    walk(val, key, ts, ts_real, in_array, ts_inh)
         elif isinstance(node, list):
             # v2.15.1 (#465 RaAdNe): the portal ships a flat, ORDERED event-log
             # where each snapshot's capture time arrives as its OWN data-point
@@ -934,7 +969,7 @@ def _walk_fields(
             # snapshots (e.g. ``settings.target_soc`` 100 then 80 after battery-care
             # lowered it) ties on the dataset floor and first-seen wins — surfacing
             # the stale 100 instead of the current 80 the car/app actually show.
-            run_ts, run_real = node_ts, node_ts_real
+            run_ts, run_real, run_inh = node_ts, node_ts_real, node_ts_inherited
             for item in node:
                 if isinstance(item, dict):
                     ifn = item.get("dataFieldName") or item.get("name")
@@ -945,14 +980,22 @@ def _walk_fields(
                     ):
                         parsed = _parse_ts(item.get("value"))
                         if parsed is not None:
-                            run_ts, run_real = parsed, True
-                walk(item, prefix, run_ts, run_real, in_array=True)
+                            # #465: the following items INHERIT this running marker
+                            # ts by adjacency — order-dependent (VW reorders the
+                            # log), so flag it inherited. A conflict between two
+                            # inherited-ts values is then reconciled against the
+                            # last poll instead of trusting array order.
+                            run_ts, run_real, run_inh = parsed, True, True
+                walk(
+                    item, prefix, run_ts, run_real,
+                    in_array=True, node_ts_inherited=run_inh,
+                )
 
     walk(payload, node_ts=dataset_ts)  # a11: bare fields inherit dataset freshness
     if _ts_out is not None:
         # Expose only GENUINE (real) per-point capture timestamps; floor/unknown
         # (-inf) carry no snapshot identity and must not constrain last_seen.
-        for k, (_v, ts_v, ts_real_v) in best.items():
+        for k, (_v, ts_v, ts_real_v, _inh_v) in best.items():
             if ts_real_v:
                 _ts_out[k] = ts_v
     return {k: v[0] for k, v in best.items()}
@@ -1291,6 +1334,13 @@ def map_dataset_to_vehicle_data(
     # (a stale 57 vs the fresh 81); resolve it by capture time, not list order.
     soc = _to_int(first_freshest("battery_state_report.soc", "soc", "stateOfChargeInPercent",
                         "state_of_charge",
+                        # self-audit (Enyaq / MEB-Entry, e-up): these cars ship the
+                        # traction SoC under a bespoke leaf "currentSoc" whose
+                        # per-point UUID (0a18a053…) is in _MAPPED_UUIDS but is
+                        # never aliased into the flat dict because the leaf is not
+                        # generic (see the alias gate above). Matching the leaf by
+                        # name recovers their SoC; inert for cars that don't send it.
+                        "currentSoc", "current_soc", "currentsoc",
                         # b13 (#504) — legacy Car-Net charger dialect: the HV
                         # battery level IS the traction SoC. Kept LAST so the
                         # canonical sources win when a car reports both, and
@@ -1772,17 +1822,25 @@ def map_dataset_to_vehicle_data(
     # b5 — flat MQB maintenance intervals + lock + window-heating that the raw
     # field discovery surfaced in real Golf-class portal payloads. Mapping them
     # gives the portal channel real service/lock telemetry without the (OTP-bound)
-    # vw.de channel. Values are portal-reported; a negative interval = overdue.
-    # The portal reports these as NEGATIVE remaining-until-due (e.g. -155 =
-    # "due in 155 days", -14900 = "due in 14900 km"); negate so the sensors read
-    # as a positive countdown (a value that goes negative = genuinely overdue).
+    # vw.de channel.
+    #
+    # SELF-AUDIT (TommiG1 #39/#36): the portal reports the "until service"
+    # interval with an INCONSISTENT sign. Most cars send it NEGATIVE (e.g. -155 =
+    # "155 days remaining"), but some send it already POSITIVE (also remaining).
+    # We used to negate UNCONDITIONALLY, which flipped the positive-sign cars to a
+    # false "overdue". Normalise to a positive countdown by negating only the
+    # negative-sign readings; a genuinely-overdue value is ambiguous across the
+    # two conventions, so we surface the magnitude rather than a wrong sign.
+    def _svc(v: int) -> int:
+        return -v if v < 0 else v
+
     svc_km = _to_int(first("maintenance_interval_distance_until_inspection"))
     if svc_km is not None and d.service_km is None:
-        d.service_km = -svc_km
+        d.service_km = _svc(svc_km)
     svc_days = _to_int(first("maintenance_interval__time_until_inspection"))
     if svc_days is not None:
         if d.service_due_in_days is None:
-            d.service_due_in_days = -svc_days
+            d.service_due_in_days = _svc(svc_days)
         # v2.15.13 — also feed the existing DATE sensor (``service_due_at``)
         # on the EU-Data-Act path. Until now the portal reader set only the
         # int day-counter, so portal users saw "in N days" but the absolute
@@ -1790,16 +1848,16 @@ def map_dataset_to_vehicle_data(
         # the portal path didn't). Store the raw int day-offset; sensor.py
         # native_value converts int→``date.today()+N`` (local midnight).
         if d.service_due_at is None:
-            d.service_due_at = -svc_days
+            d.service_due_at = _svc(svc_days)
     oil_km = _to_int(first("maintenance_interval_distance_until_oil_change"))
     if oil_km is not None and d.oil_service_km is None:
-        d.oil_service_km = -oil_km
+        d.oil_service_km = _svc(oil_km)
     oil_days = _to_int(first("maintenance_interval__time_until_oil_change"))
     if oil_days is not None:
         if d.oil_service_due_in_days is None:
-            d.oil_service_due_in_days = -oil_days
+            d.oil_service_due_in_days = _svc(oil_days)
         if d.oil_service_at is None:
-            d.oil_service_at = -oil_days
+            d.oil_service_at = _svc(oil_days)
 
     lock = first("lock_state", "central_lock_state")
     if lock is not None and d.doors_locked is None:
@@ -3030,6 +3088,13 @@ class EUDataActConnector:
         # access_token, aud=portal client) instead of the cookie-scrape session,
         # and login() becomes a no-op. None → legacy cookie mode (unchanged).
         self._bearer: str | None = access_token
+        # P1-5 — optional raw-dataset archive hook. When the user opts into the
+        # diagnostic archive, the coordinator sets this to a fire-and-forget
+        # callback ``(vin, raw_zip_bytes, filename) -> None`` that schedules a
+        # bounded on-disk write in an executor. Left None (the default) means no
+        # raw bytes ever touch the disk. Kept as a plain callback so the
+        # connector stays Home-Assistant-free.
+        self.on_raw_dataset: Callable[[str, bytes, str], None] | None = None
 
     def set_bearer(self, token: str) -> None:
         """Inject / refresh the device-grant access_token for Bearer mode.
@@ -3441,7 +3506,20 @@ class EUDataActConnector:
             f"{_PORTAL_BASE}{meta_path.format(vin=vin)}", soft=True,
         )
         identifier = ""
-        if isinstance(meta, dict):
+        if request_type != "all":
+            # #957/#966 — the 15-min poll now shares the SAME descriptor walk
+            # the kickoff/coordinator path uses (``pick_active_15min_identifier``)
+            # instead of a dict-only read. A list-shaped metadata payload (the
+            # portal's actual shape) used to skip the ``isinstance(meta, dict)``
+            # branch entirely, so ``identifier`` stayed empty and every poll
+            # reported ``no_request`` even with an active feed. The walker also
+            # skips expired descriptors and — since metadata is re-fetched each
+            # poll — re-adopts a rotated Identifier automatically (delete+recreate
+            # in the portal self-heals on the next poll, no restart needed).
+            identifier = pick_active_15min_identifier(meta) or ""
+        if not identifier and isinstance(meta, dict):
+            # Legacy "all" export dialect + bare-dict responses carry the
+            # identifier at the top level (no 15-min descriptor to walk).
             identifier = (
                 meta.get("identifier")
                 or meta.get("Identifier")
@@ -3597,6 +3675,15 @@ class EUDataActConnector:
         self.last_no_data_reason = ""
         d.no_data = False  # real dataset parsed → this is a genuine good poll
         d.connection_state = "online"
+        # P1-5 — hand the RAW dataset ZIP to the opt-in diagnostic archive, but
+        # only for a genuine dataset (fields parsed). Fire-and-forget: the
+        # callback schedules a bounded executor write and any failure there must
+        # never disturb the poll, so it is fully guarded.
+        if self.on_raw_dataset is not None:
+            try:
+                self.on_raw_dataset(vin, raw, newest)
+            except Exception:  # noqa: BLE001  # pragma: no cover - defensive
+                _LOGGER.debug("EU Data Act: raw-dataset archive hook failed")
         return map_dataset_to_vehicle_data(fields, d, field_ts, field_syn, contested)
 
     async def get_relation_nickname(self, vin: str) -> str | None:
@@ -3653,8 +3740,9 @@ def parse_export_zip(raw: bytes, vin: str, name: str = "export.zip") -> VehicleD
     payload = _unzip_json(raw, name)
     field_ts: dict[str, float] = {}
     field_syn: dict[str, set[str]] = {}
-    fields = _walk_fields(payload, field_ts, field_syn)
+    contested: dict[str, set[str]] = {}  # #1088 — same as get_vehicle_data
+    fields = _walk_fields(payload, field_ts, field_syn, contested)
     if not fields:
         return d
     d.no_data = False  # real dataset parsed → mirror get_vehicle_data:3322
-    return map_dataset_to_vehicle_data(fields, d, field_ts, field_syn)
+    return map_dataset_to_vehicle_data(fields, d, field_ts, field_syn, contested)

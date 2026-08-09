@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timedelta, timezone
 import logging
+import uuid
 from typing import Any
 
 from aiohttp import ClientSession
@@ -288,36 +289,135 @@ class SkodaClient(CariadBaseClient):
             return {}
         return resp if isinstance(resp, dict) else {}
 
-    async def get_capabilities(self, vin: str) -> dict[str, Any]:
-        """Return mysmob capabilities document for *vin*.
+    async def get_latest_fueling(self) -> dict[str, Any]:
+        """Latest completed fill-up (READ-ONLY) — MyŠkoda pay-at-pump history.
 
-        v1.13.0 (#56 Phase 3 prerequisite) — Skoda mysmob capabilities
-        endpoint. Required so Capability-Filter Phase 3 can hide
-        unsupported entities for Skoda vehicles (without this, the
-        coordinator's ``vehicle_supports_capability`` returns ``None``
-        for every Skoda capability and Phase 3 falls through to the
-        Phase 2 post-failure-unavailable fallback).
+        ``GET api/v2/fueling/sessions/latest`` → ``FuelingSessionDto``
+        (account-level, no VIN). Surfaces past-consumption data only —
+        ``dateTime, fuelName, quantity/quantityUnit, price{total,currency,
+        pricePerUnit}, gasStation.name`` (the masked ``formattedCardName`` is
+        deliberately NOT read). This read moves no money.
 
-        Endpoint: ``GET /api/v1/vehicle-access/{vin}/capabilities``
-        Schema (mysmob — different from CARIAD-BFF):
-            {
-              "capabilities": [
-                {"id": "<cap_id>", "active": true|false,
-                 "editable"?, "user-enabled"?, "status"?,
-                 "license-issue"?, "parameters"?}
-              ]
-            }
-        Verified via Issue #56 body + RESEARCH_NOTES_2026-04-29 §3
-        Skoda capability section.
+        We NEVER call ``POST api/v2/fueling/sessions`` — that starts a stored-card
+        pre-authorisation/charge at the pump via the ACI PayON gateway, i.e. a
+        financial transaction, which the house rules prohibit. There is no write
+        method in this client on purpose.
 
-        Failure raises APIError (caller swallows — capabilities are
-        best-effort metadata, never load-bearing). The default cache
-        TTL (24h via coordinator) keeps this cheap.
+        Best-effort: 404/403 (account without pay-at-pump enrolment — most
+        accounts) → ``{}``, so the sensors simply never spawn.
         """
-        data = await self._get(
-            f"{_BASE}/api/v1/vehicle-access/{vin}/capabilities",
-        )
+        try:
+            data = await self._get(f"{_BASE}/api/v2/fueling/sessions/latest")
+        except Exception:  # noqa: BLE001
+            return {}
         return data if isinstance(data, dict) else {}
+
+    async def get_my_parking(self) -> Any:
+        """The user's current paid-parking session (READ-ONLY) — pay-to-park.
+
+        ``GET api/v1/parking/sessions/mine`` → a SINGLE ``ParkingSessionDto``
+        object (account-level, no VIN): ``{id, location{name}, priceAmount,
+        priceCurrency, startTime, stopTime, licencePlate}`` — NOT a list. Surfaces
+        where/when you paid to park + the cost, and whether the session is still
+        active (``stopTime`` null). This read moves no money.
+
+        We NEVER call ``POST api/v1/parking/sessions`` — that starts/pays a
+        parking session (a financial transaction, house-rule prohibited); no
+        write method exists here. Best-effort: 404/403 (no pay-to-park enrolment
+        — most accounts) → ``{}``.
+        """
+        try:
+            data = await self._get(f"{_BASE}/api/v1/parking/sessions/mine")
+        except Exception:  # noqa: BLE001
+            return {}
+        return data
+
+    async def get_predictive_maintenance(self, vin: str) -> dict[str, Any]:
+        """Service reminders (READ-ONLY) — MyŠkoda predictive maintenance.
+
+        ``GET api/v2/predictive-maintenance/vehicles/{vin}`` →
+        ``PredictiveMaintenanceDto{reminders: [ReminderDto{type, dueDate,
+        status, description, ...}]}``. type ∈ TECHNICAL_INSPECTION /
+        SEASONAL_TYRE_CHANGE / FIRST_AID_KIT / TYRE_REPAIR_KIT. Best-effort → {}.
+        """
+        try:
+            data = await self._get(
+                f"{_BASE}/api/v2/predictive-maintenance/vehicles/{vin}"
+            )
+        except Exception:  # noqa: BLE001
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    async def get_departure_timers(self, vin: str) -> dict[str, Any]:
+        """Configured departure timers (READ-ONLY).
+
+        ``GET api/v1/vehicle-automatization/{vin}/departure/timers`` →
+        ``DepartureTimersDto{timers: [DepartureTimerDto{id, time, type, enabled,
+        charging, climatisation, targetBatteryStateOfChargeInPercent, ...}]}``.
+        The two optional queries default null, so we omit them. Best-effort → {}.
+        """
+        try:
+            data = await self._get(
+                f"{_BASE}/api/v1/vehicle-automatization/{vin}/departure/timers"
+            )
+        except Exception:  # noqa: BLE001
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    async def get_consents(self) -> dict[str, Any]:
+        """Account consent state (READ-ONLY) — mandatory + marketing.
+
+        ``GET api/v2/consents/mandatory`` → ``{consented, termsAndConditionsLink,
+        dataPrivacyLink}`` and ``GET api/v2/consents/marketing`` → ``{consented,
+        title, text}`` (both account-level, no VIN). Returns
+        ``{"mandatory": {...}, "marketing": {...}}``; missing halves → absent.
+        Read-only: consent CHANGES go through the separate PATCH flow (a Repair),
+        never automatically. Best-effort per half.
+        """
+        out: dict[str, Any] = {}
+        for kind in ("mandatory", "marketing"):
+            try:
+                data = await self._get(f"{_BASE}/api/v2/consents/{kind}")
+            except Exception:  # noqa: BLE001
+                continue
+            if isinstance(data, dict):
+                out[kind] = data
+        return out
+
+    async def get_capabilities(self, vin: str) -> dict[str, Any]:
+        """Return the mysmob capabilities list for *vin*.
+
+        v2.31.0 (8.15.0 APK) — the standalone ``vehicle-access/{vin}/capabilities``
+        GET no longer exists in 8.15.0 (grep of every ``*Api.smali`` for
+        "capabilit" matches ONLY GarageApi; the sole capabilities route is a POST
+        toggle). It returned ``{}`` on every poll, so capability gating silently
+        degraded to permissive. Capabilities now live embedded in the garage
+        vehicle document: ``GET api/v2/garage/vehicles/{vin}`` → ``VehicleDto``
+        → ``capabilities`` (``VehicleCapabilitiesDto{capabilities: [CapabilityDto
+        {id, serviceExpiration, statuses}], errors}``).
+
+        We normalise to the ``{"capabilities": [{"id", "statuses"}]}`` shape the
+        coordinator's gate reads. We deliberately do NOT synthesise an ``active``
+        flag from ``statuses``: the 8.15.0 statics carry no groundable
+        status→available vocabulary, and defaulting to "supported" (no
+        ``active: False``) keeps the gate permissive — it can never wrongly HIDE a
+        control. Status-based hiding can be layered on once a live capabilities
+        sample pins the status enum. Best-effort: any failure → ``{}``.
+        """
+        data = await self._get(f"{_BASE}/api/v2/garage/vehicles/{vin}")
+        if not isinstance(data, dict):
+            return {}
+        caps = data.get("capabilities")
+        items = caps.get("capabilities") if isinstance(caps, dict) else None
+        if not isinstance(items, list):
+            return {}
+        return {
+            "capabilities": [
+                {"id": c.get("id"), "statuses": c.get("statuses") or []}
+                for c in items
+                if isinstance(c, dict) and isinstance(c.get("id"), str)
+            ]
+        }
 
     async def get_widget(self, vin: str) -> dict[str, Any]:
         """v1.20.0 (Bundle 2 Phase A) — Skoda lightweight widget endpoint.
@@ -796,10 +896,27 @@ class SkodaClient(CariadBaseClient):
                 if remaining:
                     d.charge_complete_eta = datetime.now(tz=timezone.utc) + timedelta(minutes=remaining)
             d.has_battery = d.battery_soc is not None
+            # v2.31.0 (8.15.0 APK) — BatteryStatusDto.remainingCruisingRangeInMeters
+            # (metres) as an electric-range FALLBACK. The driving-range endpoint
+            # below is the primary source and overwrites this when it has a value
+            # (see the guarded assignment there); this covers cars/polls where
+            # driving-range is absent but the charging block still carries range.
+            _crm = v(c, "battery", "remainingCruisingRangeInMeters")
+            if isinstance(_crm, (int, float)) and not isinstance(_crm, bool):
+                d.electric_range_km = int(_crm / 1000)
 
             settings = charging.get("settings", {})
             d.target_soc = v(settings, "targetStateOfChargeInPercent")
-            d.auto_unlock_charge = v(settings, "autoUnlockPlugWhenChargedAC") == "ON"
+            # v2.31.0 (8.15.0 APK) — Škoda's ChargingSettingsDto spells this the
+            # bare ``autoUnlockPlugWhenCharged`` (@Json name), value PERMANENT/OFF;
+            # the ``…AC`` suffix (VW-EU/CUPRA spelling) is absent from all 8.15.0
+            # DEX, so the old key read False forever on Škoda. Prefer the bare key
+            # and accept the PERMANENT enum; keep the AC key as a cross-brand
+            # fallback (this field is shared, settable cross-brand).
+            _au = v(settings, "autoUnlockPlugWhenCharged") or v(
+                settings, "autoUnlockPlugWhenChargedAC"
+            )
+            d.auto_unlock_charge = str(_au).upper() in ("ON", "PERMANENT")
             # v2.18.0 (Scout #781) — Skoda spells the AC current limit
             # ``maxChargeCurrentAcAmpere`` (integer amps): a third spelling
             # beside CUPRA/SEAT's ``maxChargeCurrentAcInAmperes`` and the
@@ -831,11 +948,31 @@ class SkodaClient(CariadBaseClient):
             care_target_pct = v(settings, "batteryCareModeTargetValueInPercent")
             if d.battery_care_target_soc_pct is None:  # don't clobber CUPRA/SEAT path
                 d.battery_care_target_soc_pct = safe_int(care_target_pct)
+            # v2.31.0 (8.15.0 APK) — ChargingSettingsDto.preferredChargeMode
+            # (String enum, e.g. MANUAL / TIMER / PREFERRED_CHARGING_TIMES) +
+            # availableChargeModes (List). Diagnostic — which charge mode the car
+            # is set to and which it offers.
+            pcm = v(settings, "preferredChargeMode")
+            if isinstance(pcm, str) and pcm:
+                d.preferred_charge_mode = pcm
+            acm = v(settings, "availableChargeModes")
+            if isinstance(acm, list) and acm:
+                d.available_charge_modes = [str(m) for m in acm if m is not None]
 
         # ── Air conditioning (also has plug state!) ──────────────────────────
         if isinstance(ac, dict):
             d.climatisation_state = v(ac, "state")
             d.climatisation_active = d.climatisation_state not in (None, "OFF", "INVALID")
+            # v2.31.0 (8.15.0 APK) — the top-level AirConditioningStateDto enum
+            # includes HEATING_AUXILIARY, so aux-heating's active state derives
+            # from the state we already fetched (zero extra request). Fills the
+            # flag the Škoda aux-heating switch reads — it spawns (Škoda has
+            # command_start_aux_heating) but showed "unknown" because the Škoda
+            # parser never set aux_heating_active (only vw_eu did). PREHEATING (the
+            # warm-up sub-state) only shows on the .../auxiliary-heating sub-GET;
+            # this coarse flag is enough to make the switch reflect reality.
+            if isinstance(d.climatisation_state, str):
+                d.aux_heating_active = d.climatisation_state == "HEATING_AUXILIARY"
             # v1.10.1 (#58) — safe_float. Skoda firmwares have shipped
             # ``"21,5"`` (locale-comma) on EU accounts at least once.
             d.target_temperature = safe_float(
@@ -843,8 +980,19 @@ class SkodaClient(CariadBaseClient):
             )
 
             wh = v(ac, "windowHeatingState") or {}
-            d.window_heating_front = v(wh, "front") == "ON"
-            d.window_heating_back = v(wh, "rear") == "ON"
+            # v2.31.0 (8.15.0 APK) — AirConditioningWindowHeatingStateDto carries
+            # front / rear / unspecified (all ON/OFF strings). Single-channel cars
+            # report only ``unspecified``; fold it into both so their window
+            # heating isn't stuck reading OFF when the channel is on.
+            _wh_front = v(wh, "front")
+            _wh_rear = v(wh, "rear")
+            _wh_uns = v(wh, "unspecified")
+            d.window_heating_front = (
+                _wh_front == "ON" or (_wh_front is None and _wh_uns == "ON")
+            )
+            d.window_heating_back = (
+                _wh_rear == "ON" or (_wh_rear is None and _wh_uns == "ON")
+            )
 
             # v2.1.0 — climate-ready-at (closes scout #186 + #188).
             # Skoda mysmob air-conditioning endpoint shippt
@@ -908,6 +1056,27 @@ class SkodaClient(CariadBaseClient):
                         break
             elif isinstance(camping, str):
                 d.camping_mode = camping.lower() in ("on", "active", "enabled", "true")
+            # v2.31.0 (8.15.0 APK) — CampingModeDto carries {enabled, endsAt}
+            # (@Json names confirmed); expose the auto-stop time.
+            if isinstance(camping, dict):
+                ends = camping.get("endsAt")
+                if isinstance(ends, str) and len(ends) >= 10:
+                    try:
+                        d.camping_ends_at = datetime.fromisoformat(
+                            ends.replace("Z", "+00:00"))
+                    except (ValueError, TypeError):
+                        pass
+            # v2.31.0 (8.15.0 APK) — air-conditioning.seatHeatingActivated is a
+            # SeatHeatingSettingsDto {frontLeft, frontRight, rearLeft, rearRight}
+            # of nullable Booleans (same shape as the set command). Fill the
+            # single ``seat_heating`` binary-sensor flag = any seat currently
+            # heating; this makes the previously-phantom sensor spawn.
+            sh = v(ac, "seatHeatingActivated")
+            if isinstance(sh, dict):
+                _seats = [sh.get(k) for k in
+                          ("frontLeft", "frontRight", "rearLeft", "rearRight")]
+                if any(isinstance(s, bool) for s in _seats):
+                    d.seat_heating = any(s is True for s in _seats)
             # v2.2.0 Phase 7 PR #1 — steeringWheelPosition (LEFT/RIGHT).
             # LHD/RHD-aware automations + diagnostic for markets where
             # the same car ships both (UK, AU, JP). Defensive: only
@@ -1039,7 +1208,11 @@ class SkodaClient(CariadBaseClient):
             # v1.24.2 (2026-05-08 audit): replaced 3 try/except wrappers
             # around int() with safe_int — same defensive shape, fewer
             # lines, and the NEVER-raise contract is property-tested.
-            d.electric_range_km = safe_int(electric)
+            # v2.31.0 — don't clobber the charging-block fallback (set above)
+            # with None when driving-range omits the electric figure.
+            _er = safe_int(electric)
+            if _er is not None:
+                d.electric_range_km = _er
             d.combustion_range_km = safe_int(combustion)
             d.total_range_km = safe_int(total)
             d.has_combustion = combustion is not None
@@ -1542,18 +1715,25 @@ class SkodaClient(CariadBaseClient):
 
     # ── Commands ─────────────────────────────────────────────────────────────
 
-    async def command_lock(self, vin: str) -> None:
-        await self._post(f"{_BASE}/api/v1/vehicle-access/{vin}/lock", json={})
+    async def command_lock(self, vin: str, spin: str = "") -> None:
+        # v2.31.0 — MyŠkoda 8.15.0 migrated vehicle-access to v2: the app wires
+        # ONLY bff_vehicle_access/v2 (v1 VehicleAccessApi is compiled but has zero
+        # references tree-wide; Koin DI resolves the v2 interface). v2 lock takes
+        # AccessRequestDto{spin} (spin nullable → an empty body is structurally
+        # valid, but an S-PIN-enforcing car needs it — v1 even required it).
+        # Grounded: bff_vehicle_access/v2/VehicleAccessApi.smali (lockVehicle,
+        # POST api/v2/vehicle-access/{vin}/lock, Body AccessRequestDto),
+        # AccessRequestDto.smali @Json "spin".
+        pin = spin or self._spin
+        payload: dict[str, Any] = {"spin": pin} if pin else {}
+        await self._post(f"{_BASE}/api/v2/vehicle-access/{vin}/lock", json=payload)
 
     async def command_unlock(self, vin: str, spin: str = "") -> None:
-        payload: dict[str, Any] = {}
-        if spin or self._spin:
-            # b14 (RE myskoda 8.13.0) — the S-PIN body wire key is ``currentSpin``
-            # (DTO ``SpinDto{currentSpin}``); the live app never sends a bare
-            # ``spin`` key, so our old ``spin`` was rejected. Strictly safer —
-            # a strict backend is now fixed, a lenient one accepts it too.
-            payload["currentSpin"] = spin or self._spin
-        await self._post(f"{_BASE}/api/v1/vehicle-access/{vin}/unlock", json=payload)
+        # v2.31.0 — v2 route (see command_lock) + the wire key was renamed
+        # ``currentSpin`` (v1 SpinDto) → ``spin`` (v2 AccessRequestDto).
+        pin = spin or self._spin
+        payload: dict[str, Any] = {"spin": pin} if pin else {}
+        await self._post(f"{_BASE}/api/v2/vehicle-access/{vin}/unlock", json=payload)
 
     async def command_start_climate(self, vin: str) -> None:
         await self._post(f"{_BASE}/api/v2/air-conditioning/{vin}/start", json={})
@@ -1570,20 +1750,39 @@ class SkodaClient(CariadBaseClient):
     async def command_flash(
         self,
         vin: str,
-        latitude: float | None = None,  # noqa: ARG002
-        longitude: float | None = None,  # noqa: ARG002
+        latitude: float | None = None,
+        longitude: float | None = None,
         duration_s: int = 10,  # noqa: ARG002 - Skoda's DTO carries no duration
         honk: bool = False,
     ) -> None:
-        # v2.20.0 (APK audit) — Skoda's HonkAndFlashRequestDto$Mode enum (MyŠkoda
-        # 8.14.0) has only HONK_AND_FLASH / FLASH; "FLASH_ONLY" is the VW-EU/Audi
-        # value that was wrongly copied here and was rejected. Flash-only = FLASH.
-        # #1009 — the same enum carries HONK_AND_FLASH, so the horn option is
-        # grounded here too. There is no duration field in Skoda's DTO, so
-        # duration_s is accepted and ignored rather than invented.
+        # v2.20.0 (APK audit) — Skoda's HonkAndFlashRequestDto$Mode enum has only
+        # HONK_AND_FLASH / FLASH; "FLASH_ONLY" is the VW-EU/Audi value that was
+        # wrongly copied here and rejected. Flash-only = FLASH. No duration field.
+        # v2.31.0 (8.15.0 APK) — two grounded fixes:
+        #   (1) migrate to the v2 route (vehicle-access moved to v2 app-wide);
+        #   (2) HonkAndFlashRequestDto carries a REQUIRED ``vehiclePosition``
+        #       {latitude, longitude} (non-null on both v1 and v2) — we already
+        #       receive lat/lng and previously discarded them, so a strict
+        #       backend rejected the body. Grounded:
+        #       bff_vehicle_access/v2/VehicleAccessApi.smali (honkAndFlash, POST
+        #       api/v2/vehicle-access/{vin}/honk-and-flash, Body
+        #       HonkAndFlashRequestDto), GpsCoordinatesDto.smali (latitude/
+        #       longitude doubles).
+        body: dict[str, Any] = {"mode": "HONK_AND_FLASH" if honk else "FLASH"}
+        if latitude is None or longitude is None:
+            # vehiclePosition is a REQUIRED non-null field (8.15.0
+            # HonkAndFlashRequestDto) — a position-less body is 400-rejected.
+            # Fail with an actionable message instead of emitting the doomed
+            # request, so the user knows to refresh/wake the car first.
+            raise ValueError(
+                "Škoda honk-and-flash needs the vehicle's GPS position, which "
+                "isn't cached yet — wake or refresh the car (so a location poll "
+                "lands) and try again."
+            )
+        body["vehiclePosition"] = {"latitude": latitude, "longitude": longitude}
         await self._post(
-            f"{_BASE}/api/v1/vehicle-access/{vin}/honk-and-flash",
-            json={"mode": "HONK_AND_FLASH" if honk else "FLASH"},
+            f"{_BASE}/api/v2/vehicle-access/{vin}/honk-and-flash",
+            json=body,
         )
 
     async def command_wake(self, vin: str) -> None:
@@ -1655,27 +1854,201 @@ class SkodaClient(CariadBaseClient):
     # Skoda Webasto/Standheizung. Endpoint pattern from mysmob app traffic
     # (upstream iobroker.vw-connect Skoda + skodaconnect/myskoda v1.x reference).
     async def command_start_aux_heating(self, vin: str, spin: str = "") -> None:
-        """Start Webasto auxiliary heater. Some MY require SPIN; others don't.
+        """Start Webasto auxiliary heater.
 
-        Pragmatic: try without SecToken first; on 403/spin_error fall back
-        to SecToken-protected call. Same pattern as SEAT/CUPRA fallback.
+        v2.31.0 (8.15.0 APK) — the empty ``{}`` body was rejected: the
+        ``StartAuxiliaryHeatingConfigurationDto`` requires ``spin`` (non-null,
+        ``StartAuxiliaryHeatingConfigurationDto.smali`` @Json ``spin`` + the
+        ``<init>`` null-check), so aux heating never actually started. Send the
+        S-PIN. Optional DTO fields ``startMode`` / ``durationInSeconds`` /
+        ``targetTemperature`` are left off (defaulted server-side).
         """
-        url = f"{_BASE}/api/v2/air-conditioning/{vin}/auxiliary-heating/start"
-        try:
-            await self._post(url, json={})
-            return
-        except Exception:
-            # Retry with SPIN if available (MY24+ Skoda Connect requires it)
-            if spin:
-                # SecToken via mysmob /spin/verify (mirrors lock/unlock flow)
-                _LOGGER.debug("Skoda aux-heating: retry with SecToken")
-            raise
+        pin = spin or self._spin
+        await self._post(
+            f"{_BASE}/api/v2/air-conditioning/{vin}/auxiliary-heating/start",
+            json={"spin": pin} if pin else {},
+        )
 
     async def command_stop_aux_heating(self, vin: str) -> None:
         """Stop Webasto auxiliary heater. No SPIN required (matches SEAT/CUPRA)."""
         await self._post(
             f"{_BASE}/api/v2/air-conditioning/{vin}/auxiliary-heating/stop", json={}
         )
+
+    # ── 2.31.0 wave — camping + seat-heating (APK-GROUNDED gg LIVE 8.15.0) ─────
+    # Every route + JSON field below is a LITERAL from the decoded MyŠkoda
+    # 8.15.0 app (androguard/apktool, 2026-08): the AirConditioningApi Retrofit
+    # methods ``startCamping`` (POST ``camping/start``, @Body
+    # ``AirConditioningTargetTemperatureDto`` — same {temperatureValue, unitInCar}
+    # shape as target-temperature), ``stopCamping`` (POST ``camping/stop``, no
+    # body) and ``setAirConditioningSeatsHeating`` (POST
+    # ``settings/seats-heating``, @Body ``SeatHeatingSettingsDto`` with the four
+    # nullable Boolean seats frontLeft/frontRight/rearLeft/rearRight). LIVE-GATED:
+    # no Skoda tester has confirmed these against a car yet, so the tests pin the
+    # grounded wire shape and HA entity/service wiring is a follow-up once a
+    # status dump lands — the same staged approach as the v2.20.0 routes above.
+    async def command_start_camping(self, vin: str, temp_c: float = 20.0) -> None:
+        """Start camping mode. The app's ``camping/start`` carries a target
+        temperature (``AirConditioningTargetTemperatureDto``), identical to the
+        climate ``target-temperature`` body."""
+        await self._post(
+            f"{_BASE}/api/v2/air-conditioning/{vin}/camping/start",
+            json={"temperatureValue": temp_c, "unitInCar": "CELSIUS"},
+        )
+
+    async def command_stop_camping(self, vin: str) -> None:
+        """Stop camping mode. ``camping/stop`` takes no body."""
+        await self._post(
+            f"{_BASE}/api/v2/air-conditioning/{vin}/camping/stop", json={}
+        )
+
+    async def command_set_seat_heating(
+        self,
+        vin: str,
+        *,
+        front_left: bool | None = None,
+        front_right: bool | None = None,
+        rear_left: bool | None = None,
+        rear_right: bool | None = None,
+    ) -> None:
+        """Set seat-heating per seat. Only the seats passed (non-None) are sent,
+        so an automation can toggle one seat without disturbing the others."""
+        body: dict[str, bool] = {}
+        if front_left is not None:
+            body["frontLeft"] = front_left
+        if front_right is not None:
+            body["frontRight"] = front_right
+        if rear_left is not None:
+            body["rearLeft"] = rear_left
+        if rear_right is not None:
+            body["rearRight"] = rear_right
+        await self._post(
+            f"{_BASE}/api/v2/air-conditioning/{vin}/settings/seats-heating",
+            json=body,
+        )
+
+    async def command_send_destination(
+        self,
+        vin: str,
+        latitude: float,
+        longitude: float,
+        name: str,
+        *,
+        city: str = "",
+        country: str = "",
+        state: str = "",  # noqa: ARG002 - Škoda's MapPositionAddressDto has no state
+        street: str = "",
+        house_number: str = "",
+        zip_code: str = "",
+    ) -> None:
+        """Send a navigation destination to the car (APK-GROUNDED, 8.15.0).
+
+        Endpoint ``POST api/v3/maps/navigation/destination``, @Body
+        ``SendDestinationRequestDto`` (Moshi, ``bff_maps/v3``). Required fields
+        ``id`` / ``type`` / ``vin``; ``name`` / ``coordinates`` / ``address`` /
+        ``savedLocationId`` optional. ``coordinates`` is ``GpsCoordinatesDto``
+        ``{latitude, longitude}`` (NOT the SEAT/CUPRA ``geoCoordinate`` shape at
+        their own ``/v1/users/vehicles/{vin}/destination`` — different endpoint,
+        do not reuse). ``address`` is ``MapPositionAddressDto``.
+
+        ``type`` is a Moshi String drawn from a closed place-kind vocabulary
+        (``wt0/l.smali``); for a raw coordinate the generic-point member is
+        ``"LOCATION"`` — never an off-vocabulary value (the app mapper rejects
+        it). ``id`` is a required free String; a real place has a backend id, so
+        for a HA-originated coordinate we mint a client UUID (accepted by the
+        non-null String contract; a captured real request is the only way to
+        fully confirm the backend tolerates an arbitrary id). LIVE-GATED.
+        """
+        body: dict[str, Any] = {
+            "id": str(uuid.uuid4()),
+            "type": "LOCATION",
+            "vin": vin,
+            "name": name,
+            "coordinates": {"latitude": latitude, "longitude": longitude},
+        }
+        address = {
+            k: val
+            for k, val in {
+                "city": city,
+                "country": country,
+                "houseNumber": house_number,
+                "street": street,
+                "zipCode": zip_code,
+            }.items()
+            if val
+        }
+        if address:
+            body["address"] = address
+        await self._post(
+            f"{_BASE}/api/v3/maps/navigation/destination", json=body
+        )
+
+    async def command_set_profile_target_soc(
+        self, vin: str, profile_id: int | str, target: int
+    ) -> None:
+        """Set the target SoC of ONE charging profile — per-location target (#25).
+
+        The global ``set-charge-limit`` sets a single SoC for the car; a
+        per-location target lives on a charging PROFILE. MyŠkoda updates a profile
+        by echoing the WHOLE profile back — there is no partial-PATCH DTO — so we
+        read the current profiles, find this one, mutate only
+        ``settings.targetStateOfChargeInPercent`` (NOT the global
+        ``targetSOCInPercent`` key), and PUT it. ``profile_id`` and the profile
+        come from ``get_charging_profiles``; its ``currentVehiclePositionProfile``
+        names the profile active at the car's GPS right now.
+
+        Endpoint ``PUT api/v1/charging/{vin}/profiles/{id}``, Body the full
+        ``ChargingProfileDto``. APK-grounded (8.15.0), LIVE-GATED.
+        """
+        data = await self.get_charging_profiles(vin)
+        profiles = data.get("chargingProfiles") or []
+        profile = next(
+            (
+                p for p in profiles
+                if isinstance(p, dict) and str(p.get("id")) == str(profile_id)
+            ),
+            None,
+        )
+        if profile is None:
+            raise ValueError(f"Skoda charging profile {profile_id!r} not found")
+        settings = profile.get("settings")
+        if not isinstance(settings, dict):
+            settings = {}
+            profile["settings"] = settings
+        settings["targetStateOfChargeInPercent"] = int(target)
+        await self._put(
+            f"{_BASE}/api/v1/charging/{vin}/profiles/{profile_id}", json=profile
+        )
+
+    async def ask_assistant(
+        self,
+        vin: str,
+        user_input: str,
+        *,
+        user_timezone: str = "",
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Ask the MyŠkoda AI assistant ("Laura") — APK-GROUNDED (8.15.0).
+
+        ``POST api/v2/ai-assistant/ask``, @Body ``AIAssistantRequestDto`` (all
+        fields optional: userInput, userTimezone, vin, sessionId, routePlanner).
+        Returns ``AIAssistantResponseDto{type, summary, sessionId, routeDetails}``
+        — the ``summary`` is standalone human-readable free text.
+
+        Read-only ADVISORY: EV trip/route planning + product Q&A. The
+        AiAssistantApi package has ZERO command DTOs (no lock/climate/charge), so
+        this never actuates the car. Uses the mysmob Bearer we already hold; no
+        Play-Integrity/attestation (only ``v2/auth/HttpBearerAuth``). Pass
+        ``session_id`` from a prior answer for multi-turn continuity. LIVE-GATED:
+        answer quality/latency unverified by statics.
+        """
+        body: dict[str, Any] = {"userInput": user_input, "vin": vin}
+        if user_timezone:
+            body["userTimezone"] = user_timezone
+        if session_id:
+            body["sessionId"] = session_id
+        data = await self._post(f"{_BASE}/api/v2/ai-assistant/ask", json=body)
+        return data if isinstance(data, dict) else {}
 
     # ── v2.20.0 — additional mysmob command routes ────────────────────────
     # APK-GROUNDED. Each route + JSON DTO field below is a LITERAL string from
@@ -1731,16 +2104,20 @@ class SkodaClient(CariadBaseClient):
         )
 
     async def command_start_active_ventilation(
-        self, vin: str, duration_min: int = 30
+        self, vin: str, duration_min: int = 30  # noqa: ARG002 - no writable duration
     ) -> None:
         """Start cabin active ventilation (airing without heating).
 
-        Route ``active-ventilation/start`` and the ``durationInSeconds`` field
-        are grounded in MyŠkoda 8.14.0 (v2 air-conditioning). LIVE-GATED.
+        v2.31.0 (8.15.0 APK) — ``startActiveVentilation`` takes NO request body
+        (``AirConditioningApi.smali``: ``@Path`` vin + Continuation only), so the
+        old ``{"durationInSeconds": …}`` body was fabricated. ``durationInSeconds``
+        is a READ-only field of the active-ventilation status, writable nowhere;
+        send an empty body like the other start/stop actions. ``duration_min`` is
+        accepted for signature compatibility and ignored.
         """
         await self._post(
             f"{_BASE}/api/v2/air-conditioning/{vin}/active-ventilation/start",
-            json={"durationInSeconds": int(duration_min) * 60},
+            json={},
         )
 
     async def command_stop_active_ventilation(self, vin: str) -> None:

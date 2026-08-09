@@ -39,8 +39,13 @@ class TestParserRecordsCandidates:
         # The parser's own pick is deliberately unchanged.
         assert fields["battery_state_report.soc"] == "50"
 
-    def test_distinct_capture_times_are_not_contested(self) -> None:
-        """Genuinely newer wins outright, so there is nothing to resolve."""
+    def test_distinct_inherited_capture_times_are_contested(self) -> None:
+        """#465 (Arno-MA-73): these capture times are INHERITED from running
+        markers in the flat log, and VW reorders that log between exports — so a
+        distinct inherited ts is NOT proof of which value is newer. The walk
+        still surfaces the later-by-this-order value, but the disagreement is now
+        recorded contested so reconcile-against-last (order-independent) decides.
+        (Before this fix the field was trusted and the SoC flipped 57<->81.)"""
         contested: dict[str, set[str]] = {}
         fields = _walk_fields(_log([
             ("car_captured_time", "2026-07-29T05:00:00Z"),
@@ -48,8 +53,8 @@ class TestParserRecordsCandidates:
             ("car_captured_time", "2026-07-29T06:00:00Z"),
             ("battery_state_report.soc", "55"),
         ]), {}, {}, contested)
-        assert "battery_state_report.soc" not in contested
-        assert fields["battery_state_report.soc"] == "55"
+        assert contested.get("battery_state_report.soc") == {"40", "55"}
+        assert fields["battery_state_report.soc"] == "55"  # walk pick unchanged
 
     def test_envelope_keys_are_not_reported_as_contested(self) -> None:
         """Per-point UUIDs and message ids legitimately differ; they are not

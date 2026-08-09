@@ -349,6 +349,48 @@ class TestChargingRateZeroFix:
         })
         assert sensor.native_value == 85.5
 
+    def test_charging_power_zeroed_when_stale_after_stop(self):
+        """#1090 — backend keeps a stale non-zero power after charging stops;
+        force 0 once is_charging is explicitly False (plug still in)."""
+        sensor = self._make_sensor("charging_power_kw", {
+            "charging_power_kw": 7.0,  # stale
+            "plug_connected": True,
+            "is_charging": False,
+            "charging_state": "readyForCharging",
+        })
+        assert sensor.native_value == 0
+
+    def test_actual_charge_rate_zeroed_when_stale_after_stop(self):
+        """#1090 also covers the CARIAD-BFF actual_charge_rate_kw sensor."""
+        sensor = self._make_sensor("actual_charge_rate_kw", {
+            "actual_charge_rate_kw": 11.0,  # stale
+            "plug_connected": True,
+            "is_charging": False,
+            "charging_state": "chargePurposeReachedAndConservation",
+        })
+        # conservation charging draws real power → must NOT be zeroed
+        assert sensor.native_value == 11.0
+
+    def test_charging_power_preserved_during_conservation(self):
+        """Conservation charging is real low-power charging — keep the value."""
+        sensor = self._make_sensor("charging_power_kw", {
+            "charging_power_kw": 1.5,
+            "plug_connected": True,
+            "is_charging": False,
+            "charging_state": "conservationCharging",
+        })
+        assert sensor.native_value == 1.5
+
+    def test_charging_power_preserved_while_actively_charging(self):
+        """Actively charging (is_charging True) → real value, never zeroed."""
+        sensor = self._make_sensor("charging_power_kw", {
+            "charging_power_kw": 22.0,
+            "plug_connected": True,
+            "is_charging": True,
+            "charging_state": "charging",
+        })
+        assert sensor.native_value == 22.0
+
 
 # ── Fix #927: Options-Flow ohne Reload ─────────────────────────────────────
 

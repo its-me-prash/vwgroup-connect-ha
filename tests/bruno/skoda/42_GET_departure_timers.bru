@@ -1,0 +1,24 @@
+meta {
+  name: GET departure timers
+  type: http
+  seq: 42
+}
+
+get {
+  url: {{base_url}}/api/v1/vehicle-automatization/{{vin}}/departure/timers
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  READ-ONLY departure timers.
+  Implementation: SkodaClient.get_departure_timers().
+}

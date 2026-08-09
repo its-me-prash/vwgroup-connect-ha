@@ -210,7 +210,8 @@
           "remove_supplementary_tibber": "Poista Tibber-lukukanava",
           "abrp_enable": "Ota käyttöön ABRP-telemetrian lähetys",
           "abrp_api_key": "ABRP api_key (kehittäjäavain)",
-          "abrp_user_token": "ABRP-tunniste (ajoneuvokohtainen)"
+          "abrp_user_token": "ABRP-tunniste (ajoneuvokohtainen)",
+          "keep_raw_datasets": "Säilytä EU Data Act -raakadatajoukot (diagnostiikka)"
         },
         "data_description": {
           "scan_interval": "Kuinka usein tietoja haetaan (minuutteja). Vähintään: 3.",
@@ -227,7 +228,8 @@
           "eu_data_act_auto_kickoff": "Merkityksellinen vain, kun integraatio toimii vain lukemiseen tarkoitetussa EU Data Act -portaalitilassa (live-BFF-strategiat ovat epäonnistuneet). Käytössä ollessaan koordinaattori tarkistaa käynnistyksessä, onko VIN-kohtaisesti aktiivinen 15 minuutin mukautettu datapyyntö, ja luo sellaisen jos yhtään ei ole. Aloitus tarkoittaa 1 kuukauden datatilausta tilillesi portaalissa, joten tämä on valinnainen. Portaali hyväksyy KORKEINTAAN YHDEN aktiivisen mukautetun pyynnön VIN-numeroa kohti kerrallaan. Oletuksena pois päältä.",
           "abrp_enable": "Lähetä live-telemetriaa A Better Routeplannerille. Tarvitsee sekä api_keyn että ajoneuvokohtaisen tunnisteen alla. Pois = ei lähteviä kutsuja.",
           "abrp_api_key": "Kehittäjä-/kumppaniavain, jonka rekisteröit iterniolla (emme toimita sellaista). Tunnistaa integraation. Ei koskaan lokiin.",
-          "abrp_user_token": "'Generic'-tunniste ABRP-sovelluksesta: Asetukset -> autosi -> Live Data. Ei koskaan lokiin."
+          "abrp_user_token": "'Generic'-tunniste ABRP-sovelluksesta: Asetukset -> autosi -> Live Data. Ei koskaan lokiin.",
+          "keep_raw_datasets": "Hyödyllinen vain EU Data Act -portaalikanavalla. Kun käytössä, portaalin toimittamat viimeisimmät raa'at datajoukko-ZIP-tiedostot säilytetään levyllä (.storage-kansiossa, ajoneuvokohtaisesti ja kokorajoitettuna), jotta väärä tai puuttuva arvo voidaan toistaa juuri niistä tavuista, jotka autosi lähetti. Nämä tiedostot sisältävät GPS-sijaintisi, VIN-numerosi ja telemetriasi, joten oletuksena se on pois päältä – ota se käyttöön vain vianmäärityksen ajaksi."
         }
       },
       "add_vwde": {
@@ -1189,6 +1191,54 @@
       },
       "calibration_failure_reason": {
         "name": "Kalibrointivirheen syy"
+      },
+      "preferred_charge_mode": {
+        "name": "Ensisijainen lataustila"
+      },
+      "last_refuel_quantity": {
+        "name": "Viimeisin tankkausmäärä"
+      },
+      "last_refuel_cost": {
+        "name": "Viimeisin tankkauskustannus"
+      },
+      "last_refuel_currency": {
+        "name": "Viimeisimmän tankkauksen valuutta"
+      },
+      "last_refuel_fuel_type": {
+        "name": "Viimeisin polttoaine"
+      },
+      "last_refuel_station": {
+        "name": "Viimeisin huoltoasema"
+      },
+      "last_refuel_at": {
+        "name": "Viimeisin tankkausaika"
+      },
+      "parking_location": {
+        "name": "Pysäköintipaikka"
+      },
+      "parking_cost": {
+        "name": "Pysäköinnin hinta"
+      },
+      "parking_currency": {
+        "name": "Pysäköinnin valuutta"
+      },
+      "parking_started_at": {
+        "name": "Pysäköinti alkoi"
+      },
+      "parking_ended_at": {
+        "name": "Pysäköinti päättyi"
+      },
+      "reminder_technical_inspection": {
+        "name": "Katsastusmuistutus"
+      },
+      "reminder_seasonal_tyre_change": {
+        "name": "Rengasmuistutus"
+      },
+      "reminder_first_aid_kit": {
+        "name": "Ensiapupakkausmuistutus"
+      },
+      "reminder_tyre_repair_kit": {
+        "name": "Renkaankorjaussarjan muistutus"
       }
     },
     "binary_sensor": {
@@ -1488,6 +1538,12 @@
       },
       "insufficient_battery_level_warning": {
         "name": "Riittämättömän akkutason varoitus"
+      },
+      "mandatory_consent_given": {
+        "name": "Pakollinen suostumus annettu"
+      },
+      "marketing_consent_given": {
+        "name": "Markkinointisuostumus annettu"
       }
     },
     "switch": {
@@ -1520,6 +1576,12 @@
       },
       "battery_care_switch": {
         "name": "Akun hoito"
+      },
+      "camping_switch": {
+        "name": "Leiritila"
+      },
+      "auto_unlock_plug_switch": {
+        "name": "Avaa latauspistoke automaattisesti"
       }
     },
     "number": {
@@ -1671,7 +1733,7 @@
     },
     "vehicle_data_scout_findings": {
       "title": "Ajoneuvon dataluotain — {count} uutta kenttää merkille {brand}",
-      "description": "Ajoneuvon dataluotain havaitsi **{count}** uutta kenttää {brand}-API-vastauksessa, joita VW Group Connect ei vielä lue.\n\nTämä tarkoittaa yleensä, että ajoneuvossasi on ominaisuus tai laiteohjelmistoversio, jota emme ole kartoittaneet — apusi opettaisi integraation tukemaan sitä.\n\n**1-klikkauksen raportti:**\n📤 Napsauta alla **Lue lisää** avataksesi valmiiksi täytetyn GitHub-issuen.\n\n**Facebookia / foorumia varten:** avaa Asetukset → Laitteet → VW Group Connect → Diagnostiikka → Lataa — liitä peitetty raportti.\n\n_Yksityisyys: VIN-numerot peitetty, GPS pyöristetty 1 desimaaliin, käyttäjätunnukset/JWT:t/sähköpostit poistettu. Mitään ei lähetetä automaattisesti._"
+      "description": "Ajoneuvon dataluotain havaitsi **{count}** uutta kenttää {brand}-API-vastauksessa, joita VW Group Connect ei vielä lue.\n\nSe tarkoittaa yleensä, että autossasi on ominaisuus tai laiteohjelmistoversio, jota emme ole vielä kartoittaneet — ja **juuri tämän raportin lähettäminen auttaa meitä rakentamaan sille tuen**, sekä sinun autollesi että kaikille muille, joilla on sama malli.\n\n**Raportti yhdellä klikkauksella:** napsauta alla **Lue lisää** avataksesi valmiiksi täytetyn GitHub-issuen.\n\n**Vielä hyödyllisempää:** liitä diagnostiikkatietosi — Asetukset → Laitteet ja palvelut → VW Group Connect → ⋮ → **Lataa diagnostiikka**. Ne sisältävät nyt koko API-vastauksen uusine kenttineen kontekstissaan — juuri sitä tarvitsemme muuttaaksemme ne entiteeteiksi.\n\n_Kaikki peitetään automaattisesti: VIN-numerot peitetään, GPS poistetaan, tunnisteet, käyttäjätunnukset, sähköpostit ja rekisterikilvet poistetaan. Mitään ei koskaan jaeta, ellet liitä sitä itse._"
     },
     "error_reporter_findings": {
       "title": "Virheraportoija — {count} tuoretta virhettä merkillä {brand}",
@@ -1724,6 +1786,10 @@
     "refresh_interval_too_frequent": {
       "title": "{brand}: päivitysväli liian tiheä",
       "description": "{brand} antaa lyhytikäisiä pääsytunnuksia, joten nykyisellä **{current} minuutin** päivitysvälilläsi lähes jokainen kysely joutuu uusimaan tunnuksen. Tämä laukaisee uusimismyrskyn suojan — rajan sille, kuinka usein integraatio saa uusia tunnuksen, joka estää merkkitilin lukkiutumisen — ja tietojen päivittyminen pysähtyy, kunnes suoja nollautuu.\n\nKyseessä on kyselytiheyden ongelma, ei kirjautumisongelma: uudelleentodennus ei korjaa tätä.\n\n**Korjaus:** nosta päivitysväli arvoon **{recommended} minuuttia** tai suuremmaksi kohdassa Asetukset → Laitteet ja palvelut → VW Group Connect → Määritä. Näin tunnusten uusimiset pysyvät rajan alapuolella ja tiedot päivittyvät edelleen.\n\nTämä varoitus poistuu automaattisesti heti, kun tunnuksen uusiminen onnistuu seuraavan kerran."
+    },
+    "mandatory_consent_missing": {
+      "title": "Škoda: pakollista suostumusta ei hyväksytty",
+      "description": "{brand}-tilisi ei ole hyväksynyt pakollista palvelusuostumusta, joten osa tiedoista tai toiminnoista voi olla poissa käytöstä. Avaa MyŠkoda-sovellus ja hyväksy vaadittu suostumus — tämä ilmoitus poistuu itsestään."
     }
   },
   "services": {
@@ -1838,6 +1904,68 @@
         "token": {
           "name": "tunnisteen ohitus",
           "description": "Valinnainen. Ohittaa tallennetun ajoneuvokohtaisen tunnisteen. Ei koskaan lokiin."
+        }
+      }
+    },
+    "set_location_target_soc": {
+      "name": "Aseta sijaintikohtainen lataustavoite",
+      "description": "Asettaa tietyn latausprofiilin lataustavoitteen (Škoda, sijaintikohtainen).",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "Ajoneuvon VIN."
+        },
+        "profile_id": {
+          "name": "Profiilin ID",
+          "description": "Latausprofiilin ID (latausprofiilit-anturista)."
+        },
+        "target": {
+          "name": "Lataustavoite (%)",
+          "description": "Lataustavoite 20–100 prosenttia."
+        }
+      }
+    },
+    "set_seat_heating": {
+      "name": "Aseta istuinlämmitys",
+      "description": "Kytkee istuinlämmityksen istuinkohtaisesti (Škoda). Vain annetut istuimet muuttuvat.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "Ajoneuvon VIN."
+        },
+        "front_left": {
+          "name": "Etuvasen"
+        },
+        "front_right": {
+          "name": "Etuoikea"
+        },
+        "rear_left": {
+          "name": "Takavasen"
+        },
+        "rear_right": {
+          "name": "Takaoikea"
+        }
+      }
+    },
+    "ask_assistant": {
+      "name": "Kysy Škodan tekoälyavustajalta (Laura)",
+      "description": "Lähettää vapaan tekstin kehotteen MyŠkoda-tekoälyavustaja \"Lauralle\" (vain Škoda) ja palauttaa vastauksen response_variable-muuttujassa (summary = vastausteksti, session_id jatkokysymyksiin). Vain neuvova — reittisuunnittelu + tuotekysymykset, ei ajoneuvon ohjausta.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "Tilin VIN."
+        },
+        "prompt": {
+          "name": "Kysymys / kehote",
+          "description": "Vapaa teksti avustajalle."
+        },
+        "timezone": {
+          "name": "Aikavyöhyke",
+          "description": "Valinnainen (IANA, esim. Europe/Zurich). Oletus = HA-järjestelmän aikavyöhyke."
+        },
+        "session_id": {
+          "name": "Istunnon tunnus",
+          "description": "Valinnainen. Aiemmasta vastauksesta, saman kontekstin jatkamiseen."
         }
       }
     }

@@ -210,7 +210,8 @@
           "remove_supplementary_tibber": "Remove the Tibber read channel",
           "abrp_enable": "Enable ABRP telemetry push",
           "abrp_api_key": "ABRP api_key (developer key)",
-          "abrp_user_token": "ABRP token (per vehicle)"
+          "abrp_user_token": "ABRP token (per vehicle)",
+          "keep_raw_datasets": "Keep raw EU Data Act datasets (diagnostics)"
         },
         "data_description": {
           "scan_interval": "How often data is fetched (minutes). Minimum: 3.",
@@ -227,7 +228,8 @@
           "eu_data_act_auto_kickoff": "Only meaningful when the integration is operating in read-only EU Data Act portal mode (live BFF strategies have failed). When ON, the coordinator checks for an active 15-min Custom Data Request per VIN at startup and creates one when none exists. The kickoff implies a 1-month data subscription on your account at the portal, so this is opt-in. The portal accepts AT MOST ONE active custom request per VIN at a time. Off by default.",
           "abrp_enable": "Send live telemetry to A Better Routeplanner. Needs both an api_key and a per-vehicle token below. Off = no outbound calls.",
           "abrp_api_key": "A developer/partner key you register with iternio (we don't ship one). Identifies the integration. Never logged.",
-          "abrp_user_token": "The 'Generic' token from the ABRP app: Settings -> your car -> Live Data. Never logged."
+          "abrp_user_token": "The 'Generic' token from the ABRP app: Settings -> your car -> Live Data. Never logged.",
+          "keep_raw_datasets": "Only useful on the EU Data Act portal channel. When on, the last few raw dataset ZIPs the portal delivers are kept on disk (under .storage, per vehicle and size-capped) so a wrong or missing value can be reproduced from the exact bytes your car sent. These files contain your GPS, VIN and telemetry, so it is off by default; turn it on only while troubleshooting."
         }
       },
       "add_vwde": {
@@ -534,13 +536,13 @@
         "name": "Tire Pressure Rear Right"
       },
       "departure_timer_1_time": {
-        "name": "Departure Timer 1"
+        "name": "Departure timer 1"
       },
       "departure_timer_2_time": {
-        "name": "Departure Timer 2"
+        "name": "Departure timer 2"
       },
       "departure_timer_3_time": {
-        "name": "Departure Timer 3"
+        "name": "Departure timer 3"
       },
       "last_updated_at": {
         "name": "Last Update"
@@ -1189,6 +1191,54 @@
       },
       "calibration_failure_reason": {
         "name": "Calibration failure reason"
+      },
+      "preferred_charge_mode": {
+        "name": "Preferred charge mode"
+      },
+      "last_refuel_quantity": {
+        "name": "Last fill-up amount"
+      },
+      "last_refuel_cost": {
+        "name": "Last fill-up cost"
+      },
+      "last_refuel_currency": {
+        "name": "Last fill-up currency"
+      },
+      "last_refuel_fuel_type": {
+        "name": "Last fuel type"
+      },
+      "last_refuel_station": {
+        "name": "Last fuel station"
+      },
+      "last_refuel_at": {
+        "name": "Last fill-up time"
+      },
+      "parking_location": {
+        "name": "Parking location"
+      },
+      "parking_cost": {
+        "name": "Parking cost"
+      },
+      "parking_currency": {
+        "name": "Parking currency"
+      },
+      "parking_started_at": {
+        "name": "Parking started"
+      },
+      "parking_ended_at": {
+        "name": "Parking ended"
+      },
+      "reminder_technical_inspection": {
+        "name": "Inspection reminder"
+      },
+      "reminder_seasonal_tyre_change": {
+        "name": "Tyre change reminder"
+      },
+      "reminder_first_aid_kit": {
+        "name": "First-aid kit reminder"
+      },
+      "reminder_tyre_repair_kit": {
+        "name": "Tyre repair kit reminder"
       }
     },
     "binary_sensor": {
@@ -1488,6 +1538,12 @@
       },
       "insufficient_battery_level_warning": {
         "name": "Insufficient Battery Level Warning"
+      },
+      "mandatory_consent_given": {
+        "name": "Mandatory consent given"
+      },
+      "marketing_consent_given": {
+        "name": "Marketing consent given"
       }
     },
     "switch": {
@@ -1520,6 +1576,12 @@
       },
       "battery_care_switch": {
         "name": "Battery care"
+      },
+      "camping_switch": {
+        "name": "Camping mode"
+      },
+      "auto_unlock_plug_switch": {
+        "name": "Auto-unlock charging plug"
       }
     },
     "number": {
@@ -1671,7 +1733,7 @@
     },
     "vehicle_data_scout_findings": {
       "title": "Vehicle Data Scout — {count} new field(s) on {brand}",
-      "description": "The Vehicle Data Scout detected **{count}** new field(s) in the {brand} API response that VW Group Connect doesn't read yet.\n\nThis usually means your vehicle has a feature or firmware version we haven't mapped — your help would teach the integration to support it.\n\n**1-click report:**\n📤 Click **Learn more** below to open a pre-filled GitHub issue.\n\n**For Facebook / forum:** open Settings → Devices → VW Group Connect → Diagnostics → Download — paste the masked report.\n\n_Privacy: VINs masked, GPS rounded to 1 decimal, userIDs/JWTs/emails stripped. Nothing is sent automatically._"
+      "description": "The Vehicle Data Scout found **{count}** new field(s) in the {brand} API response that VW Group Connect doesn't read yet.\n\nThat usually means your car has a feature or firmware we haven't mapped — and **forwarding this report is exactly what lets us build support for it**, for your car and everyone with the same model.\n\n**1-click report:** click **Learn more** below to open a pre-filled GitHub issue.\n\n**Even more useful:** attach your diagnostics — Settings → Devices & Services → VW Group Connect → ⋮ → **Download diagnostics**. It now includes the full API response with the new fields in context, which is what we need to turn them into entities.\n\n_Everything is redacted automatically: VINs masked, GPS removed, tokens, user-IDs, e-mails and licence plates stripped. Nothing is ever shared unless you attach it yourself._"
     },
     "error_reporter_findings": {
       "title": "Error Reporter — {count} recent error(s) on {brand}",
@@ -1724,6 +1786,10 @@
     "meb_commands_unavailable": {
       "title": "Remote commands aren't available for this car ({brand})",
       "description": "You enabled MBB remote commands when setting up {brand}, but this is an MEB / ID-family car (ID.3/4/5/7, Enyaq, Born, Q4). VW's MEB backend doesn't support the durable Car-Net command path — the durable login answered \"Unknown user\" — so lock, climate and charge commands can't be sent.\n\nThe entry was kept **read-only**: vehicle data still flows through the EU Data Act portal, you just won't see command entities. This is a known limitation of VW's MEB platform, not a setup error — you can dismiss this notice."
+    },
+    "mandatory_consent_missing": {
+      "title": "Škoda: mandatory consent not accepted",
+      "description": "Your {brand} account hasn't accepted a mandatory service consent, so some data or features may be unavailable. Open the MyŠkoda app and accept the required consent — this notice clears itself once you do."
     }
   },
   "selector": {
@@ -1858,6 +1924,68 @@
         "token": {
           "name": "token override",
           "description": "Optional. Overrides the stored per-vehicle token. Never logged."
+        }
+      }
+    },
+    "set_location_target_soc": {
+      "name": "Set location target SoC",
+      "description": "Set the target state of charge of a specific charging profile (Škoda, location-based).",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN of the vehicle."
+        },
+        "profile_id": {
+          "name": "Profile ID",
+          "description": "ID of the charging profile (from the charging-profiles sensor)."
+        },
+        "target": {
+          "name": "Target state of charge (%)",
+          "description": "Target state of charge between 20 and 100 percent."
+        }
+      }
+    },
+    "set_seat_heating": {
+      "name": "Set seat heating",
+      "description": "Toggle seat heating per seat (Škoda). Only the seats given are changed.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN of the vehicle."
+        },
+        "front_left": {
+          "name": "Front left"
+        },
+        "front_right": {
+          "name": "Front right"
+        },
+        "rear_left": {
+          "name": "Rear left"
+        },
+        "rear_right": {
+          "name": "Rear right"
+        }
+      }
+    },
+    "ask_assistant": {
+      "name": "Ask the Škoda AI assistant (Laura)",
+      "description": "Send a free-text prompt to the MyŠkoda AI assistant \"Laura\" (Škoda only) and get the answer via response_variable (summary = answer text, session_id for follow-ups). Advisory only — route planning + product questions, no vehicle control.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN from the account."
+        },
+        "prompt": {
+          "name": "Question / prompt",
+          "description": "Free text for the assistant."
+        },
+        "timezone": {
+          "name": "Time zone",
+          "description": "Optional (IANA, e.g. Europe/Zurich). Defaults to the HA system time zone."
+        },
+        "session_id": {
+          "name": "Session ID",
+          "description": "Optional. From a previous answer, to continue the same context."
         }
       }
     }

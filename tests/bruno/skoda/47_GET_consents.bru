@@ -1,0 +1,24 @@
+meta {
+  name: GET consents
+  type: http
+  seq: 47
+}
+
+get {
+  url: {{base_url}}/api/v2/consents/{{kind}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  READ-ONLY data-sharing consents (mandatory / marketing). Implementation:
+  SkodaClient.get_consents(). Backs the consent binary_sensors + repair.
+}

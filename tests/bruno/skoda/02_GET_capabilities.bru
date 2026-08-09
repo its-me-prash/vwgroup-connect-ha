@@ -5,7 +5,7 @@ meta {
 }
 
 get {
-  url: {{base_url}}/api/v1/vehicle-access/{{vin}}/capabilities
+  url: {{base_url}}/api/v2/garage/vehicles/{{vin}}
   body: none
   auth: bearer
 }
@@ -19,6 +19,8 @@ headers {
 }
 
 docs {
+  v3.0.0 (8.15.0 APK): migrated to the v2 route.
+
   Returns Skoda's capabilities document — different schema from
   CARIAD-BFF and OLA. Format:
 

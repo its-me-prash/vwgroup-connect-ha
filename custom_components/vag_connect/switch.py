@@ -40,6 +40,14 @@ async def async_setup_entry(
             entities.append(VagVentilationSwitch(coordinator, vin))
         if _supported(vin, "command_start_aux_heating"):
             entities.append(VagAuxHeatingSwitch(coordinator, vin))
+        # v2.31.0 — Škoda camping mode. Gate on the READ having produced a value
+        # (a car that reports camping state has the feature), not just the client
+        # method — mirrors battery-care below.
+        if (
+            _supported(vin, "command_start_camping")
+            and vehicle.get("camping_mode") is not None
+        ):
+            entities.append(VagCampingSwitch(coordinator, vin))
         if vehicle.get("has_battery"):  # EV + PHEV
             if _supported(vin, "command_start_charging"):
                 entities.append(VagChargingSwitch(coordinator, vin))
@@ -53,6 +61,14 @@ async def async_setup_entry(
             # is a car whose backend has the feature.
             if vehicle.get("battery_care_enabled") is not None:
                 entities.append(VagBatteryCareSwitch(coordinator, vin))
+            # v2.31.0 — Škoda auto-unlock the charging plug when charged. Read
+            # (auto_unlock_when_charged) gates it; the command maps the boolean
+            # to the PERMANENT/OFF enum.
+            if (
+                _supported(vin, "command_set_auto_unlock_plug")
+                and vehicle.get("auto_unlock_when_charged") is not None
+            ):
+                entities.append(VagAutoUnlockPlugSwitch(coordinator, vin))
         return entities
 
     register_dynamic_spawner(entry, coordinator, async_add_entities, _build_for_vin)
@@ -154,6 +170,66 @@ class VagBatteryCareSwitch(VagConnectEntity, SwitchEntity):
 
     async def async_turn_off(self, **kwargs: object) -> None:
         await self.coordinator.async_set_battery_care(self._vin, False)
+
+
+class VagCampingSwitch(VagConnectEntity, SwitchEntity):
+    """Škoda camping mode — cabin climate comfort while parked.
+
+    v2.31.0 — the read (``camping_mode``) has shipped; this makes it settable.
+    Start carries the car's default target temperature.
+    """
+
+    _attr_translation_key = "camping_switch"
+    _attr_icon = "mdi:tent"
+    _command_id = "command_start_camping"
+
+    def __init__(self, coordinator: VagConnectCoordinator, vin: str) -> None:
+        super().__init__(coordinator, vin, "camping_switch")
+
+    @property
+    def is_on(self) -> bool | None:
+        val = self._vehicle.get("camping_mode")
+        return bool(val) if val is not None else None
+
+    def _platform_attributes(self) -> dict[str, object] | None:
+        # v2.31.0 — when camping mode will auto-stop (CampingModeDto.endsAt).
+        # Use the _platform_attributes hook, NOT extra_state_attributes: the
+        # base owns that property (merges image_url/source) and a subclass
+        # override would shadow the shared attributes.
+        ends = self._vehicle.get("camping_ends_at")
+        return {"ends_at": ends} if ends is not None else None
+
+    async def async_turn_on(self, **kwargs: object) -> None:
+        await self.coordinator.async_start_camping(self._vin)
+
+    async def async_turn_off(self, **kwargs: object) -> None:
+        await self.coordinator.async_stop_camping(self._vin)
+
+
+class VagAutoUnlockPlugSwitch(VagConnectEntity, SwitchEntity):
+    """Auto-unlock the charging plug once the car is fully charged (Škoda).
+
+    v2.31.0 — the read (``auto_unlock_when_charged``) has shipped; the command
+    maps the boolean to the mysmob ``PERMANENT``/``OFF`` enum.
+    """
+
+    _attr_translation_key = "auto_unlock_plug_switch"
+    _attr_icon = "mdi:ev-plug-type2"
+    _command_id = "command_set_auto_unlock_plug"
+
+    def __init__(self, coordinator: VagConnectCoordinator, vin: str) -> None:
+        super().__init__(coordinator, vin, "auto_unlock_plug_switch")
+
+    @property
+    def is_on(self) -> bool | None:
+        val = self._vehicle.get("auto_unlock_when_charged")
+        return bool(val) if val is not None else None
+
+    async def async_turn_on(self, **kwargs: object) -> None:
+        await self.coordinator.async_set_auto_unlock_plug(self._vin, True)
+
+    async def async_turn_off(self, **kwargs: object) -> None:
+        await self.coordinator.async_set_auto_unlock_plug(self._vin, False)
 
 
 class VagWindowHeatingSwitch(VagConnectEntity, SwitchEntity):

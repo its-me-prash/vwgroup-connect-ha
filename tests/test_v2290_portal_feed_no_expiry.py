@@ -58,9 +58,16 @@ class _ScriptedSession:
         return _Resp(self.statuses[index])
 
 
-def _scraper(sess: Any) -> DataActScraper:
+def _scraper(sess: Any, readback: Any = "READBACK_IDENTIFIER_0001") -> DataActScraper:
     s = DataActScraper(sess, brand_name="volkswagen")
     s._fetch_csrf_token = AsyncMock(return_value="csrf")  # type: ignore[method-assign]
+    # #957/#966 — kickoff now reads the request back after a 2xx to confirm it
+    # actually landed. Default: the create is confirmed. Tests that exercise the
+    # accepted-but-inert path pass readback=None or a side_effect list.
+    s.get_active_custom_request_identifier = AsyncMock(  # type: ignore[method-assign]
+        return_value=readback if not isinstance(readback, list) else None,
+        side_effect=readback if isinstance(readback, list) else None,
+    )
     return s
 
 
@@ -74,13 +81,24 @@ async def test_no_expiry_is_asked_for_first() -> None:
 
 
 @pytest.mark.asyncio
-async def test_the_window_does_not_contradict_no_expiry() -> None:
-    """A one-month EndDate next to a no-expiry Duration would be the very
-    thing that stops the feed, wearing the label that says it will not."""
+async def test_no_expiry_sends_no_enddate() -> None:
+    """#957/#966 — the portal UI's "unlimited" sends NO EndDate; pairing
+    "No Expiry" with a literal 10-year EndDate was the self-contradicting shape.
+    The no-expiry body must omit EndDate entirely."""
     sess = _ScriptedSession([201])
     await _scraper(sess).kickoff_custom_data_request(_VIN)
     body = sess.post_calls[0][1]["json"]
-    assert body["EndDate"][:4] >= str(int(body["StartDate"][:4]) + 5)
+    assert body["Duration"] == "No Expiry"
+    assert "EndDate" not in body
+
+
+@pytest.mark.asyncio
+async def test_one_month_fallback_keeps_an_enddate() -> None:
+    sess = _ScriptedSession([400, 201])
+    await _scraper(sess).kickoff_custom_data_request(_VIN)
+    body = sess.post_calls[1][1]["json"]
+    assert body["Duration"] == "One Month"
+    assert "EndDate" in body
 
 
 @pytest.mark.asyncio
@@ -92,6 +110,27 @@ async def test_a_rejected_no_expiry_falls_back_instead_of_giving_up() -> None:
     assert ident, "fallback did not produce a feed"
     assert len(sess.post_calls) == 2
     assert sess.post_calls[1][1]["json"]["Duration"] == "One Month"
+
+
+@pytest.mark.asyncio
+async def test_2xx_but_inert_request_falls_back_to_one_month() -> None:
+    """#957/#966 — a 2xx that does not actually register a request (readback
+    finds nothing) must fall through to the proven "One Month", not be trusted."""
+    sess = _ScriptedSession([201, 201])
+    # attempt 1 readback: nothing landed; attempt 2 readback: it did.
+    s = _scraper(sess, readback=[None, "READBACK_IDENTIFIER_0002"])
+    ident = await s.kickoff_custom_data_request(_VIN)
+    assert ident == "READBACK_IDENTIFIER_0002"
+    assert len(sess.post_calls) == 2
+    assert sess.post_calls[1][1]["json"]["Duration"] == "One Month"
+
+
+@pytest.mark.asyncio
+async def test_2xx_but_inert_on_both_reports_no_feed() -> None:
+    sess = _ScriptedSession([201, 201])
+    s = _scraper(sess, readback=None)
+    assert await s.kickoff_custom_data_request(_VIN) is None
+    assert len(sess.post_calls) == 2
 
 
 @pytest.mark.asyncio

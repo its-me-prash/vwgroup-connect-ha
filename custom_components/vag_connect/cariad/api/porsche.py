@@ -61,6 +61,10 @@ class PorscheClient:
         self.last_rate_limit_remaining: int | None = None
         self.last_rate_limit_limit: int | None = None
         self.last_rate_limit_reset_at: int | None = None
+        # v3.0.0 — raw responses for the Vehicle Data Scout + diagnostics export,
+        # so a Porsche reporter's "Download diagnostics" surfaces its API shape
+        # for grounding once the read path is unblocked. Redacted at export time.
+        self.last_raw_responses: dict[str, Any] = {}
 
     async def authenticate(self, mfa_code: str | None = None) -> None:
         """Auth0 PKCE login."""
@@ -103,6 +107,14 @@ class PorscheClient:
             return_exceptions=True,
         )
         vehicle_data, measurements = results
+
+        # v3.0.0 — capture the raw Porsche responses for the Scout + diagnostics
+        # (only real dicts/lists; the gather uses return_exceptions=True).
+        if not hasattr(self, "last_raw_responses"):
+            self.last_raw_responses = {}
+        for _name, _obj in (("vehicles", vehicle_data), ("measurements", measurements)):
+            if isinstance(_obj, (dict, list)):
+                self.last_raw_responses[_name] = _obj
 
         # ── Vehicle meta ─────────────────────────────────────────────────────
         if isinstance(vehicle_data, dict):

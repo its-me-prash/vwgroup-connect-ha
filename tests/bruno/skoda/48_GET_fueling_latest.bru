@@ -1,0 +1,24 @@
+meta {
+  name: GET latest fueling session
+  type: http
+  seq: 48
+}
+
+get {
+  url: {{base_url}}/api/v2/fueling/sessions/latest
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+docs {
+  READ-ONLY last pay-at-pump fill-up (consumption data only, no payment).
+  Implementation: SkodaClient.get_latest_fueling().
+}

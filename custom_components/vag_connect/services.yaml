@@ -287,6 +287,61 @@ set_target_soc:
           step: 5
           unit_of_measurement: "%"
 
+set_location_target_soc:
+  name: Standort-Ladeziel setzen
+  description: Setzt das Ladeziel eines bestimmten Lade-Profils (Škoda, standortabhängig).
+  fields:
+    vin:
+      name: VIN
+      required: true
+      selector:
+        text:
+    profile_id:
+      name: Profil-ID
+      description: ID des Lade-Profils (aus dem Lade-Profile-Sensor).
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 10
+          step: 1
+          mode: box
+    target:
+      name: Ladeziel (%)
+      required: true
+      selector:
+        number:
+          min: 20
+          max: 100
+          step: 5
+          unit_of_measurement: "%"
+
+set_seat_heating:
+  name: Sitzheizung setzen
+  description: Schaltet die Sitzheizung pro Sitz (Škoda). Nur angegebene Sitze werden geändert.
+  fields:
+    vin:
+      name: VIN
+      required: true
+      selector:
+        text:
+    front_left:
+      name: Vorne links
+      selector:
+        boolean:
+    front_right:
+      name: Vorne rechts
+      selector:
+        boolean:
+    rear_left:
+      name: Hinten links
+      selector:
+        boolean:
+    rear_right:
+      name: Hinten rechts
+      selector:
+        boolean:
+
 set_climatisation_temperature:
   name: Klimatemperatur setzen
   description: Setzt die Zieltemperatur der Vorklimatisierung.
@@ -433,12 +488,12 @@ stop_aux_heating:
       selector:
         text:
 send_destination:
-  name: Navigationsziel senden (SEAT/CUPRA)
+  name: Navigationsziel senden (SEAT/CUPRA/Škoda)
   description: >-
-    Sendet eine Adresse + GPS-Koordinaten an die Fahrzeug-Navigation
-    (SEAT/CUPRA only). Schließt Issue #36. Bruno seq 34 —
-    PUT /v1/users/vehicles/{vin}/destination. Adress-Felder sind
-    optional; latitude + longitude + name sind Pflicht.
+    Sendet eine Adresse + GPS-Koordinaten an die Fahrzeug-Navigation.
+    SEAT/CUPRA (OLA) und ab v3.0.0 auch Škoda (mysmob
+    api/v3/maps/navigation/destination). Schließt Issue #36. Adress-Felder
+    sind optional; latitude + longitude + name sind Pflicht.
   fields:
     vin:
       name: VIN
@@ -548,6 +603,43 @@ find_charging_stations:
           min: 1
           max: 100
           step: 1
+
+ask_assistant:
+  name: Škoda AI-Assistenten fragen (Laura)
+  description: >-
+    Schickt einen Freitext-Prompt an den MyŠkoda AI-Assistenten „Laura"
+    (nur Škoda) und gibt die Antwort per ``response_variable`` zurück
+    (``summary`` = Antworttext, ``session_id`` für Folgefragen). Rein
+    beratend — Routenplanung + Produkt-Fragen, keine Fahrzeug-Steuerung.
+    Beispiel: ``action: vag_connect.ask_assistant`` mit ``data: {vin:
+    TMB..., prompt: "Reicht meine Ladung bis München?"}`` und
+    ``response_variable: laura``.
+  fields:
+    vin:
+      name: VIN
+      description: VIN aus dem Konto.
+      required: true
+      selector:
+        text:
+    prompt:
+      name: Frage / Prompt
+      description: Freitext an den Assistenten.
+      required: true
+      selector:
+        text:
+          multiline: true
+    timezone:
+      name: Zeitzone
+      description: Optional (IANA, z. B. Europe/Zurich). Standard = HA-Systemzeitzone.
+      required: false
+      selector:
+        text:
+    session_id:
+      name: Session-ID
+      description: Optional. Aus einer vorherigen Antwort, für Folgefragen im selben Kontext.
+      required: false
+      selector:
+        text:
 
 # v2.8.0 quick-win B — open the brand's native mobile app via deeplink.
 # This service does NOT open anything itself; it fires the event

@@ -235,6 +235,62 @@ def _scrub(value: Any, *, gps_round: bool = False) -> Any:
     return value
 
 
+# v3.0.0 — extra PII keys that only turn up in RAW brand API payloads (the
+# key-based _scrub above targets OUR own field names). Matched case-insensitively
+# because raw wire keys are camelCase. GPS is always removed in raw payloads,
+# never rounded — a raw capture is the most sensitive thing we export.
+_RAW_REDACT_KEYS = frozenset({
+    # NOTE: bare "id" is deliberately NOT here — it catches harmless
+    # profile/enum ids and costs grounding value, while VIN/JWT/UUID regexes
+    # already mask real identifiers in the VALUES below.
+    "vin", "carid", "vehicleid", "userid", "accountid", "customerid",
+    "gpscoordinates", "carcapturedgpscoordinates", "coordinates",
+    "latitude", "longitude", "lat", "lng", "lon",
+    "licenceplate", "licenseplate", "numberplate", "registrationnumber",
+    "nickname", "firstname", "lastname", "givenname", "familyname", "fullname",
+    "dateofbirth", "birthdate", "phone", "phonenumber", "mobile",
+    "email", "emailaddress", "salutation",
+    "street", "streetname", "housenumber", "zipcode", "postalcode", "city",
+    "address", "formattedaddress",
+})
+
+
+def _scrub_raw(value: Any) -> Any:
+    """Aggressively redact a RAW brand API payload before it goes into the
+    downloadable diagnostics. Single pass that combines every rule we trust:
+
+    * the key-based ``_REDACT_KEYS`` / ``_HASH_KEYS`` rules from ``_scrub``;
+    * a raw-only PII key set (``_RAW_REDACT_KEYS``, case-insensitive) for wire
+      names we don't use ourselves (licencePlate, gpsCoordinates, nickname…);
+    * regex masking of VIN / JWT / UUID in EVERY string value, because raw
+      payloads embed identifiers in URLs and free text under unpredictable keys.
+
+    Keeps field NAMES and non-PII sample values intact — that structure is
+    exactly what lets us map a new field into a feature. GPS is always removed.
+    """
+    if isinstance(value, dict):
+        out: dict[str, Any] = {}
+        for k, v in value.items():
+            kl = k.lower() if isinstance(k, str) else ""
+            if k in _REDACT_KEYS or kl in _RAW_REDACT_KEYS:
+                out[k] = "**REDACTED**"
+            elif k in _HASH_KEYS and isinstance(v, str):
+                out[k] = f"sha256:{_stable_hash(v)}" if v else "**REDACTED**"
+            else:
+                out[k] = _scrub_raw(v)
+        return out
+    if isinstance(value, list):
+        return [_scrub_raw(v) for v in value]
+    if isinstance(value, str):
+        s = _mask_email(value)
+        s = _mask_location_qs(s, gps_round=False)
+        s = _VIN_RE.sub(lambda m: mask_vin(m.group(0)), s)
+        s = _JWT_RE.sub("[token]", s)
+        s = _UUID_RE.sub("[uuid]", s)
+        return s
+    return value
+
+
 async def async_get_config_entry_diagnostics(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -319,6 +375,20 @@ async def async_get_config_entry_diagnostics(
         except Exception as err:  # noqa: BLE001
             capabilities = {"error": f"{type(err).__name__}: {err}"}
 
+    # v3.0.0 — the RAW brand API responses (aggressively redacted). The Scout
+    # already surfaces the unmapped field NAMES; this adds the surrounding
+    # structure + sample values so a maintainer can turn a new field into a
+    # feature without asking the reporter to capture anything by hand. This is
+    # what the "help build features" repair points people at.
+    raw_responses: dict[str, Any] = {}
+    raw = getattr(client, "last_raw_responses", None) if client is not None else None
+    if isinstance(raw, dict):
+        for channel, payload in raw.items():
+            try:
+                raw_responses[str(channel)] = _scrub_raw(payload)
+            except Exception as err:  # noqa: BLE001 — never let one channel break the export
+                raw_responses[str(channel)] = {"error": f"{type(err).__name__}"}
+
     return {
         "config": config_diag,
         "options": options_diag,
@@ -329,6 +399,7 @@ async def async_get_config_entry_diagnostics(
         "push_states": coordinator.push_states,
         "polling_active": coordinator.is_active,
         "unexpected_findings": unexpected,
+        "raw_responses": raw_responses,
         "error_buffer": error_records,
         "parser_stats": parser_stats_diag,
         "capabilities": capabilities,

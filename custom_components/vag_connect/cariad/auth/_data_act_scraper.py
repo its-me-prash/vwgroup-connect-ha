@@ -194,6 +194,89 @@ _BROWSER_NAV_TIMEOUT_S = 90
 _EMPTY_STREAK_HINT_AT = 4
 
 
+def descriptor_expired(desc: dict[str, Any]) -> bool:
+    """True only when a metadata/partial descriptor clearly reports it is
+    past its window / no longer active. Unknown or unparseable -> False, so
+    we never drop a possibly-valid request on a shape we don't recognise.
+
+    The portal's window-end field is ``EndDate`` (a "No Expiry" request has
+    none or a portal-assigned far-future one, a "One Month" one ~31 days out),
+    so a past EndDate is the reliable "this feed has lapsed" signal; a MISSING
+    EndDate is treated as not-lapsed. A few alternate key names plus an
+    explicit status field are checked defensively.
+
+    Module-level (not a method) so both the kickoff path
+    (``DataActScraper.get_active_custom_request_identifier``) and the 15-min
+    poll path (``EUDataActConnector.get_vehicle_data``) share ONE expiry rule
+    and can never diverge (#957/#966).
+    """
+    from datetime import datetime, timezone  # noqa: PLC0415
+
+    status = str(
+        desc.get("Status") or desc.get("State") or desc.get("RequestState") or ""
+    ).upper()
+    if status in (
+        "EXPIRED", "INACTIVE", "COMPLETED", "CANCELLED", "CANCELED",
+        "CLOSED", "FINISHED", "TERMINATED",
+    ):
+        return True
+    now = datetime.now(tz=timezone.utc)
+    for key in (
+        "EndDate", "ExpiryDate", "ExpiresAt", "ValidUntil",
+        "ExpirationDate", "ValidTo",
+    ):
+        raw = desc.get(key)
+        if not isinstance(raw, str) or len(raw) < 10:
+            continue
+        try:
+            dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            continue
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        if dt < now:
+            return True
+    return False
+
+
+def pick_active_15min_identifier(payload: Any) -> str | None:
+    """Return the Identifier of the first active (non-expired) 15-min Custom
+    Request in a metadata/partial *payload*, or ``None``.
+
+    Pure — no I/O. The portal returns the descriptors either as a bare list,
+    a dict wrapping them under ``items`` / ``requests`` / ``data``, or a single
+    descriptor dict; all three shapes are walked defensively. Only a descriptor
+    whose ``Frequency`` is ``15mins`` with a plausible ``Identifier`` (>= 16
+    chars) and that is not expired is adopted.
+
+    Shared by the kickoff path and the poll path so a list-shaped payload can
+    never again read as ``no_request`` on the poll while the kickoff walker
+    sees the same list correctly (#957/#966).
+    """
+    candidates: list[dict[str, Any]] = []
+    if isinstance(payload, list):
+        candidates = [p for p in payload if isinstance(p, dict)]
+    elif isinstance(payload, dict):
+        for key in ("items", "requests", "data"):
+            inner = payload.get(key)
+            if isinstance(inner, list):
+                candidates = [p for p in inner if isinstance(p, dict)]
+                break
+        if not candidates and payload.get("Identifier"):
+            # Single-dict response variant.
+            candidates = [payload]
+    for c in candidates:
+        if str(c.get("Frequency", "")).lower() != "15mins":
+            continue
+        identifier = c.get("Identifier")
+        if not (isinstance(identifier, str) and len(identifier) >= 16):
+            continue
+        if descriptor_expired(c):
+            continue
+        return identifier
+    return None
+
+
 class DataActScraperError(Exception):
     """Raised by ``DataActScraper`` when a fetch fails in an explicit way.
 
@@ -818,83 +901,27 @@ class DataActScraper:
             return None
 
         # Payload shape captured 2026-06-03: either a list of request
-        # descriptors directly OR a dict with a key like "items" /
-        # "requests" wrapping them. Walk both shapes defensively.
-        candidates: list[dict[str, Any]] = []
-        if isinstance(payload, list):
-            candidates = [p for p in payload if isinstance(p, dict)]
-        elif isinstance(payload, dict):
-            for key in ("items", "requests", "data"):
-                inner = payload.get(key)
-                if isinstance(inner, list):
-                    candidates = [p for p in inner if isinstance(p, dict)]
-                    break
-            if not candidates:
-                # Single-dict response variant - treat the top-level
-                # dict itself as a candidate if it carries Identifier.
-                if payload.get("Identifier"):
-                    candidates = [payload]
-        for c in candidates:
-            if str(c.get("Frequency", "")).lower() != "15mins":
-                continue
-            identifier = c.get("Identifier")
-            if not (isinstance(identifier, str) and len(identifier) >= 16):
-                continue
-            # v2.29.x (#465) — skip an EXPIRED descriptor. The portal keeps
-            # expired requests in metadata/partial, so adopting the first 15-min
-            # one meant that once an old "One Month" request lapsed (~4 weeks
-            # after setup) we never kicked off a fresh feed and the data silently
-            # stopped while the stale request still showed up here. A "No Expiry"
-            # request keeps its EndDate ~10 years out (_NO_EXPIRY_WINDOW_DAYS) so
-            # it is never seen as expired; only a genuinely lapsed window is.
-            if self._descriptor_expired(c):
-                _LOGGER.debug(
-                    "metadata/partial: 15-min request %s… for VIN %s is expired "
-                    "— ignoring it so a fresh feed is kicked off",
-                    identifier[:8], _mask_vin(vin),
-                )
-                continue
-            return identifier
-        return None
+        # descriptors directly, a dict wrapping them under "items"/"requests"/
+        # "data", or a single descriptor dict. The walk (incl. the #465
+        # expired-descriptor skip) lives in the module-level
+        # ``pick_active_15min_identifier`` so the poll path shares it verbatim.
+        identifier = pick_active_15min_identifier(payload)
+        if identifier is None:
+            _LOGGER.debug(
+                "metadata/partial: no active 15-min request for VIN %s",
+                _mask_vin(vin),
+            )
+        return identifier
 
     @staticmethod
     def _descriptor_expired(desc: dict[str, Any]) -> bool:
-        """True only when a metadata/partial descriptor clearly reports it is
-        past its window / no longer active. Unknown or unparseable -> False, so
-        we never drop a possibly-valid request on a shape we don't recognise.
+        """Back-compat shim → module-level :func:`descriptor_expired`.
 
-        The portal's window-end field is ``EndDate`` (a "No Expiry" request keeps
-        an EndDate ~10 years out, a "One Month" one ~31 days out), so a past
-        EndDate is the reliable "this feed has lapsed" signal. A few alternate key
-        names plus an explicit status field are checked defensively.
+        Kept because tests and internal callers reference
+        ``DataActScraper._descriptor_expired``; the logic now lives at module
+        level so the poll path can share it (#957/#966).
         """
-        from datetime import datetime, timezone  # noqa: PLC0415
-
-        status = str(
-            desc.get("Status") or desc.get("State") or desc.get("RequestState") or ""
-        ).upper()
-        if status in (
-            "EXPIRED", "INACTIVE", "COMPLETED", "CANCELLED", "CANCELED",
-            "CLOSED", "FINISHED", "TERMINATED",
-        ):
-            return True
-        now = datetime.now(tz=timezone.utc)
-        for key in (
-            "EndDate", "ExpiryDate", "ExpiresAt", "ValidUntil",
-            "ExpirationDate", "ValidTo",
-        ):
-            raw = desc.get(key)
-            if not isinstance(raw, str) or len(raw) < 10:
-                continue
-            try:
-                dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-            except (ValueError, TypeError):
-                continue
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
-            if dt < now:
-                return True
-        return False
+        return descriptor_expired(desc)
 
     async def kickoff_custom_data_request(
         self,
@@ -928,11 +955,8 @@ class DataActScraper:
         now = datetime.now(timezone.utc).replace(microsecond=0)
         clusters = list(data_clusters or _DEFAULT_DATA_CLUSTERS)
 
-        def _body(duration: str, days: int) -> dict[str, Any]:
-            end = (now + timedelta(days=days)).replace(
-                hour=23, minute=59, second=59
-            )
-            return {
+        def _body(duration: str, days: int | None) -> dict[str, Any]:
+            body: dict[str, Any] = {
                 "Name": name,
                 "Identifier": identifier,
                 "Frequency": "15mins",
@@ -942,11 +966,24 @@ class DataActScraper:
                 # 2026-07-12). StartDate/EndDate must not contradict it.
                 "Duration": duration,
                 "StartDate": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "EndDate": end.strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "DataClusters": clusters,
                 "EmailFrequency": "No notification",
                 "LastNotificationDate": None,
             }
+            # #957/#966 — "No Expiry" is the portal UI's "unlimited" duration,
+            # which sends NO EndDate. We previously paired it with a literal
+            # EndDate = now + 3650 days (10 years, well outside the portal's
+            # ~12-month continuous grant): a self-contradicting shape no human
+            # ever creates, plausibly accepted-but-inert. Mirror the UI and omit
+            # EndDate for the no-expiry duration (our own kickoff_historical_export
+            # already POSTs EndDate=None, so the layer accepts it). Finite
+            # durations keep an explicit EndDate.
+            if days is not None:
+                end = (now + timedelta(days=days)).replace(
+                    hour=23, minute=59, second=59
+                )
+                body["EndDate"] = end.strftime("%Y-%m-%dT%H:%M:%SZ")
+            return body
 
         # Every feed used to be created as "One Month", so the data
         # stopped roughly four weeks after setup and the sensors went quiet
@@ -957,9 +994,9 @@ class DataActScraper:
         # no-expiry body shape against the live portal from here, and a
         # rejected kickoff means NO data feed at all. Asking for less is far
         # better than asking for nothing.
-        attempts: list[tuple[str, int]] = [
-            ("No Expiry", _NO_EXPIRY_WINDOW_DAYS),
-            ("One Month", duration_days),
+        attempts: list[tuple[str, int | None]] = [
+            ("No Expiry", None),            # UI-native: null EndDate, not now+3650d
+            ("One Month", duration_days),   # proven-emitting finite fallback
         ]
         url = _PORTAL_BASE + _CUSTOM_REQUEST_POST_PATH.format(vin=vin)
         for index, (duration, days) in enumerate(attempts):
@@ -984,7 +1021,42 @@ class DataActScraper:
                             "requests/partial returned 401 - portal session expired"
                         )
                     if resp.status in (200, 201, 202):
-                        break
+                        # #957/#966 — a 2xx does NOT prove a working request
+                        # landed: a non-native body can be accepted-but-inert, in
+                        # which case the old status-only break trusted it blindly
+                        # and never tried the proven "One Month". Read it back: the
+                        # created request must show up as the active one. If it
+                        # doesn't, treat this attempt as failed and fall through to
+                        # the next duration. Turns "12h of silent nothing" into a
+                        # one-cycle detected failure.
+                        try:
+                            confirmed = await self.get_active_custom_request_identifier(vin)
+                        except DataActSessionExpiredError:
+                            raise
+                        except Exception:  # noqa: BLE001
+                            confirmed = None
+                        if confirmed:
+                            _LOGGER.info(
+                                "EU Data Act Custom Request kicked off for VIN %s "
+                                "(Identifier=%s..., Duration=%s, frequency=15min)",
+                                _mask_vin(vin), str(confirmed)[:8], duration,
+                            )
+                            return confirmed
+                        if not last:
+                            _LOGGER.info(
+                                "kickoff_custom_data_request: Duration=%r returned "
+                                "%s but no active request appeared on readback — "
+                                "retrying with %r",
+                                duration, resp.status, attempts[index + 1][0],
+                            )
+                            continue
+                        _LOGGER.warning(
+                            "kickoff_custom_data_request: created (HTTP %s) but no "
+                            "active request appeared for VIN %s — no data feed will "
+                            "start until this is resolved.",
+                            resp.status, _mask_vin(vin),
+                        )
+                        return None
                     body_text = await resp.text(errors="replace")
                     if not last:
                         _LOGGER.info(
@@ -1009,15 +1081,9 @@ class DataActScraper:
             except Exception as exc:  # noqa: BLE001
                 _LOGGER.debug("kickoff_custom_data_request failed: %s", exc)
                 return None
-        else:  # pragma: no cover - the loop always breaks or returns
-            return None
-
-        _LOGGER.info(
-            "EU Data Act Custom Request kicked off for VIN %s "
-            "(Identifier=%s..., duration=%s, frequency=15min)",
-            _mask_vin(vin), identifier[:8], duration,
-        )
-        return identifier
+        # Every attempt now returns inside the loop (success via readback, or a
+        # detected failure); this is only reached if the attempt list were empty.
+        return None  # pragma: no cover
 
     async def kickoff_historical_export(self, vin: str) -> bool:
         """Create a ONE-TIME historical export for ``vin`` (Phase C).

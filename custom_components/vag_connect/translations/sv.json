@@ -210,7 +210,8 @@
           "remove_supplementary_tibber": "Ta bort Tibber-läskanalen",
           "abrp_enable": "Aktivera ABRP-telemetri",
           "abrp_api_key": "ABRP-api_key (utvecklarnyckel)",
-          "abrp_user_token": "ABRP-token (per fordon)"
+          "abrp_user_token": "ABRP-token (per fordon)",
+          "keep_raw_datasets": "Behåll rå EU Data Act-datauppsättningar (diagnostik)"
         },
         "data_description": {
           "scan_interval": "Hur ofta data hämtas (minuter). Minimum: 3.",
@@ -227,7 +228,8 @@
           "eu_data_act_auto_kickoff": "Endast meningsfullt när integrationen körs i skrivskyddat EU Data Act-portalläge (live-BFF-strategier har misslyckats). När den är PÅ kontrollerar koordinatorn vid start om det finns en aktiv 15-minuters Custom Data Request per VIN och skapar en om ingen finns. Igångsättningen innebär en 1-månads dataprenumeration på ditt konto i portalen, så detta är opt-in. Portalen accepterar HÖGST EN aktiv anpassad begäran per VIN åt gången. Av som standard.",
           "abrp_enable": "Skicka livetelemetri till A Better Routeplanner. Kräver en api_key och en token per fordon. Av = inga utgående anrop.",
           "abrp_api_key": "En utvecklar-/partnernyckel som du registrerar hos iternio (vi levererar ingen). Identifierar integrationen. Loggas aldrig.",
-          "abrp_user_token": "'Generic'-token från ABRP-appen: Inställningar -> din bil -> Live Data. Loggas aldrig."
+          "abrp_user_token": "'Generic'-token från ABRP-appen: Inställningar -> din bil -> Live Data. Loggas aldrig.",
+          "keep_raw_datasets": "Endast användbart på EU Data Act-portalkanalen. När det är på sparas de senaste råa dataset-ZIP-filerna som portalen levererar på disken (under .storage, per fordon och med en storleksgräns), så att ett felaktigt eller saknat värde kan återskapas från exakt de byte som din bil skickade. Dessa filer innehåller din GPS-position, VIN och telemetri, så det är avstängt som standard – slå bara på det vid felsökning."
         }
       },
       "add_vwde": {
@@ -1189,6 +1191,54 @@
       },
       "calibration_failure_reason": {
         "name": "Orsak till kalibreringsfel"
+      },
+      "preferred_charge_mode": {
+        "name": "Föredraget laddningsläge"
+      },
+      "last_refuel_quantity": {
+        "name": "Senaste tankning – mängd"
+      },
+      "last_refuel_cost": {
+        "name": "Senaste tankning – kostnad"
+      },
+      "last_refuel_currency": {
+        "name": "Valuta för senaste tankning"
+      },
+      "last_refuel_fuel_type": {
+        "name": "Senaste bränsle"
+      },
+      "last_refuel_station": {
+        "name": "Senaste bensinstation"
+      },
+      "last_refuel_at": {
+        "name": "Tid för senaste tankning"
+      },
+      "parking_location": {
+        "name": "Parkeringsplats"
+      },
+      "parking_cost": {
+        "name": "Parkeringskostnad"
+      },
+      "parking_currency": {
+        "name": "Parkeringsvaluta"
+      },
+      "parking_started_at": {
+        "name": "Parkering startade"
+      },
+      "parking_ended_at": {
+        "name": "Parkering avslutades"
+      },
+      "reminder_technical_inspection": {
+        "name": "Besiktningspåminnelse"
+      },
+      "reminder_seasonal_tyre_change": {
+        "name": "Däckbytespåminnelse"
+      },
+      "reminder_first_aid_kit": {
+        "name": "Påminnelse om första hjälpen"
+      },
+      "reminder_tyre_repair_kit": {
+        "name": "Påminnelse om däckreparationssats"
       }
     },
     "binary_sensor": {
@@ -1488,6 +1538,12 @@
       },
       "insufficient_battery_level_warning": {
         "name": "Varning för låg batterinivå"
+      },
+      "mandatory_consent_given": {
+        "name": "Obligatoriskt samtycke givet"
+      },
+      "marketing_consent_given": {
+        "name": "Marknadsföringssamtycke givet"
       }
     },
     "switch": {
@@ -1520,6 +1576,12 @@
       },
       "battery_care_switch": {
         "name": "Batterivård"
+      },
+      "camping_switch": {
+        "name": "Campingläge"
+      },
+      "auto_unlock_plug_switch": {
+        "name": "Lås upp laddkontakten automatiskt"
       }
     },
     "number": {
@@ -1671,7 +1733,7 @@
     },
     "vehicle_data_scout_findings": {
       "title": "API-spanare — {count} nytt fält på {brand}",
-      "description": "API-spanaren upptäckte **{count}** nya fält i {brand}-API-svaret som VW Group Connect inte läser ännu.\n\nVanligtvis betyder det att ditt fordon har en funktion eller firmware-version vi inte har kartlagt — din hjälp lär integrationen att stödja den.\n\n**1-klick-rapport:**\n📤 Klicka på **Läs mer** nedan för att öppna ett förifyllt GitHub-ärende.\n\n**För Facebook / forum:** Inställningar → Enheter → VW Group Connect → Diagnostik → Ladda ner — klistra in den maskerade rapporten.\n\n_Integritet: VIN maskerade, GPS avrundad till 1 decimal, userIDs/JWT/e-post borttagna. Ingenting skickas automatiskt._"
+      "description": "API-spanaren hittade **{count}** nya fält i {brand}-API-svaret som VW Group Connect inte läser ännu.\n\nDet betyder oftast att din bil har en funktion eller firmware-version som vi inte har kartlagt — och **att skicka in den här rapporten är precis det som låter oss bygga stöd för den**, för din bil och alla andra med samma modell.\n\n**1-klick-rapport:** klicka på **Läs mer** nedan för att öppna ett förifyllt GitHub-ärende.\n\n**Ännu mer användbart:** bifoga din diagnostik — Inställningar → Enheter och tjänster → VW Group Connect → ⋮ → **Ladda ner diagnostik**. Den innehåller nu hela API-svaret med de nya fälten i sitt sammanhang, vilket är precis vad vi behöver för att göra dem till entiteter.\n\n_Allt maskeras automatiskt: VIN maskeras, GPS tas bort, tokens, användar-ID, e-postadresser och registreringsskyltar rensas bort. Ingenting delas någonsin om du inte bifogar det själv._"
     },
     "error_reporter_findings": {
       "title": "Felrapportör — {count} senaste fel på {brand}",
@@ -1724,6 +1786,10 @@
     "refresh_interval_too_frequent": {
       "title": "{brand}: uppdateringsintervallet är för tätt",
       "description": "{brand} utfärdar kortlivade åtkomsttoken, så vid ditt nuvarande uppdateringsintervall på **{current} minuter** måste nästan varje hämtning förnya token. Det utlöser skyddet mot förnyelsestormar — en gräns för hur ofta integrationen får förnya, som finns för att förhindra att märkeskontot låses — och data slutar uppdateras tills skyddet återställs.\n\nDetta är ett problem med pollningsfrekvensen, inte ett inloggningsproblem: att autentisera på nytt löser det inte.\n\n**Lösningen:** höj uppdateringsintervallet till **{recommended} minuter** eller mer i Inställningar → Enheter och tjänster → VW Group Connect → Konfigurera. Det håller token-förnyelserna under gränsen och data flödande.\n\nDenna varning försvinner automatiskt första gången en token-förnyelse lyckas igen."
+    },
+    "mandatory_consent_missing": {
+      "title": "Škoda: obligatoriskt samtycke ej accepterat",
+      "description": "Ditt {brand}-konto har inte accepterat ett obligatoriskt tjänstesamtycke, så vissa data eller funktioner kan vara otillgängliga. Öppna MyŠkoda-appen och acceptera det begärda samtycket — den här notisen försvinner av sig själv."
     }
   },
   "services": {
@@ -1838,6 +1904,68 @@
         "token": {
           "name": "Åsidosätt token",
           "description": "Valfritt. Ersätter den lagrade fordonstoken. Loggas aldrig."
+        }
+      }
+    },
+    "set_location_target_soc": {
+      "name": "Ange laddmål efter plats",
+      "description": "Anger laddmålet för en viss laddprofil (Škoda, platsbaserat).",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "Fordonets VIN."
+        },
+        "profile_id": {
+          "name": "Profil-ID",
+          "description": "ID för laddprofilen (från laddprofil-sensorn)."
+        },
+        "target": {
+          "name": "Laddmål (%)",
+          "description": "Laddmål mellan 20 och 100 procent."
+        }
+      }
+    },
+    "set_seat_heating": {
+      "name": "Ställ in sätesvärme",
+      "description": "Slår på sätesvärme per säte (Škoda). Endast de angivna sätena ändras.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "Fordonets VIN."
+        },
+        "front_left": {
+          "name": "Vänster fram"
+        },
+        "front_right": {
+          "name": "Höger fram"
+        },
+        "rear_left": {
+          "name": "Vänster bak"
+        },
+        "rear_right": {
+          "name": "Höger bak"
+        }
+      }
+    },
+    "ask_assistant": {
+      "name": "Fråga Škodas AI-assistent (Laura)",
+      "description": "Skickar en fritextfråga till MyŠkoda AI-assistenten \"Laura\" (endast Škoda) och returnerar svaret via response_variable (summary = svarstext, session_id för uppföljning). Endast rådgivande — ruttplanering + produktfrågor, ingen fordonsstyrning.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN från kontot."
+        },
+        "prompt": {
+          "name": "Fråga / prompt",
+          "description": "Fritext till assistenten."
+        },
+        "timezone": {
+          "name": "Tidszon",
+          "description": "Valfritt (IANA, t.ex. Europe/Zurich). Standard är HA-systemets tidszon."
+        },
+        "session_id": {
+          "name": "Sessions-ID",
+          "description": "Valfritt. Från ett tidigare svar, för att fortsätta samma kontext."
         }
       }
     }

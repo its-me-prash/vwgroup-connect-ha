@@ -5,6 +5,8 @@ All notable changes are documented here. / Alle wesentlichen Änderungen werden 
 Format: [Keep a Changelog 1.0.0](https://keepachangelog.com/en/1.0.0/)
 Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
+> ❤️ **Support this project:** VW Group Connect is a one-person effort kept alive against constant Volkswagen backend changes. If it's useful to you, please consider sponsoring continued maintenance — **[github.com/sponsors/its-me-prash](https://github.com/sponsors/its-me-prash)**. Every issue report, diagnostic, translation, code contribution and real-car test helps too; contributors are credited in **[CONTRIBUTORS.md](CONTRIBUTORS.md)**. Thank you 🙏
+
 > 📖 **Bi-lingual convention (v1.12.3 → v2.4.0 — DE-primary)**: section-titles were **DE / EN** joined by ` / ` and body content was German-only. Past entries are preserved as-is for historical accuracy.
 >
 > 📖 **Bi-lingual convention (v2.4.1+ — EN-primary, switched 2026-05-23)**: section-titles are now **EN / DE** joined by ` / `, body content is **English-primary** with German callouts where the original context was DACH-specific (Facebook-group threads, German tester names, brand-specific German terminology). The project's GitHub audience + the new "VW Group Connect" branding both lean international — English-primary makes the changelog readable for non-DACH users while keeping the DACH community's voice visible. Translations of individual body texts are available on request via [`docs/CHANGELOG_TECHNICAL.md`](docs/CHANGELOG_TECHNICAL.md) — same pattern.
@@ -38,10 +40,48 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
-## [2.30.3] - 2026-08-08
+## [3.0.0] - 2026-08-08 — "Bazinga" (Škoda Wave)
+
+A big Škoda-focused release: your car's own in-car assistant now lives inside Home Assistant, alongside a wave of new Škoda commands and read-only sensors — every field read straight out of the current MyŠkoda app so the names match what your car actually sends. It also carries the EU Data Act feed fixes previously staged as 2.30.3 (see below).
+
+### Added
+- **"Laura", the MyŠkoda in-car assistant, now works from Home Assistant.** Ask it about range, charging or a trip and the answer comes back into Home Assistant — as a service you can call, and as a tool that any conversation agent (the built-in Assist, or OpenAI / Anthropic / Google / Ollama) can decide to use on its own. It is read-only advice and never drives the car. When it plans a route, the structured stops come back with it, so a route-to-car automation can read the coordinates directly instead of parsing text.
+- **Send a destination to a Škoda's navigation.** The "send destination" service now works on Škoda as well as SEAT/CUPRA, so an automation — or Laura — can push where you're going straight to the car.
+- **Per-location charging target on Škoda.** Set a different target charge level for a specific charging profile / location, the same idea Volkswagen and Audi already had.
+- **Camping mode and auto-unlock-when-charged, as switches.** Turn Škoda's camping/sleep mode on and off, and choose whether the charging plug releases automatically once charging finishes.
+- **Seat-heating control on Škoda.**
+- **A batch of read-only Škoda sensors.** Your last fill-up (fuel, amount, cost, station), your current paid-parking session (where, cost, whether it is still running), service reminders (inspection, seasonal tyre change, first-aid kit, tyre-repair kit), departure timers, and the preferred charge mode. There is nothing to set — they simply appear when your account has the data.
+- **Your Škoda data-sharing consents are visible**, and if the mandatory service agreement is missing you get a repair prompt so you know to accept it in the app.
+- **Help build support for your own car, straight from Home Assistant.** When the integration spots data your car sends that it doesn't map yet, the "Vehicle Data Scout" repair now says plainly that forwarding your report is what lets us build support for it. Your **Download diagnostics** file now includes the full API response with those new fields in context — aggressively redacted, with VINs, GPS, tokens, e-mails and licence plates removed — so attaching it to a GitHub issue is all it takes to turn a new field into an entity. Volkswagen US/Canada responses and the `volkswagen.de` web-channel responses are captured for this now too, which is what we need to sort out the US read-path and the vw.de location/login reports.
 
 ### Fixed
-- **Audi US accounts can now discover their vehicles after QR login (#13).** The login itself already worked, but the integration sent the resulting US access token to the EMEA vehicle service, which rejected it with `401 expected user token`. The current myAudi market configuration routes US vehicle requests through `na.bff.cariad.digital`; using that host returned the account's vehicle and populated its Home Assistant entities in a live test with a 2026 Q5. Canada remains on its configured EMEA host.
+- **Škoda now shows the right model and model year**, read from the field the app actually uses.
+- **Honk-and-flash on Škoda now includes the car's position, which the backend requires.** If the location isn't known yet it tells you to wake or refresh the car and try again, instead of silently failing on a rejected request.
+- **Your current paid-parking session now actually shows up.** The parking endpoint returns a single session rather than a list, a shape the reader didn't recognise, so the sensors never appeared even when there was a session.
+- **A round of Škoda command fixes** read out of the current app, so lock/unlock, flash and the climate/charge commands use the routes and fields the car expects.
+- **Charging power and rate now drop to zero the moment a charge stops (#1090).** Some cars — the Audi e-tron GT for one — keep reporting the last charging power for several minutes after charging has actually finished, and the integration showed that stale value and let it linger in your history. It now reads zero as soon as charging is definitively over, while still showing the real figure during normal and conservation charging.
+- **Volkswagen EU battery level no longer flips between two values on the data portal (#465).** On some cars the portal's data log carries the same battery reading more than once with no reliable per-point time of its own, and because Volkswagen re-orders that log between exports, a stale reading could inherit a newer-looking marker and out-rank the real one — so the state of charge oscillated (for example 57% vs 81% while the car actually sat near 80%). The integration now treats those order-dependent timestamps as unreliable and reconciles the reading against your last known value, so it settles on the plausible one instead of flipping. Thanks @Arno-MA-73 for pinning the exact mechanism.
+- **State of charge no longer sticks on a stale value when the data export lists it twice (#1088).** Some Volkswagen EU exports — seen on the ID.7 and e-Golf — carry the same battery field twice with different values and no timestamp to tell them apart, and the integration could pick the older one by position. It now flags the disagreement so the reading is reconciled against your last known value instead of guessing by order.
+- **Audi US accounts can now discover their vehicles after QR login (#13).** The login itself worked, but the integration sent the US access token to the EMEA vehicle service, which rejected it (`401 expected user token`). US vehicle requests now route through the regional host the myAudi market configuration specifies; Canada is unchanged. Thanks @pouwerkerk for the diagnosis, the fix, and a live test on a 2026 Q5.
+
+### Translations
+- All the new sensors, switches, services and repairs are translated across all twelve languages (Czech, Danish, German, English, Spanish, Finnish, French, Italian, Norwegian, Dutch, Polish, Swedish).
+
+### Thanks
+- A community code contribution from **@pouwerkerk** (Audi US vehicle-discovery routing), plus every reporter, tester and diagnostic named above — this release is built on their work. If VW Group Connect is worth something to you, please consider **[sponsoring continued maintenance](https://github.com/sponsors/its-me-prash)**. 🙏
+
+---
+
+## [2.30.3] - 2026-08-07
+
+### Added
+- **Optional diagnostic archive of raw EU Data Act datasets.** A new advanced option keeps the last few raw dataset files the portal delivers on disk, per vehicle and size-capped, so if a value ever reads wrong or goes missing it can be reproduced from the exact data your car sent, instead of asking you to extract and share it by hand. It is off by default and only does anything on the EU Data Act portal channel — the files contain your location, VIN and telemetry, so you turn it on knowingly, and only while troubleshooting. Your recorded values already survive a restart without this; it exists purely to make problems reproducible.
+
+### Fixed
+- **Service and oil-change "distance/time to service" no longer shows a wrong "overdue" on some cars.** The EU Data Act portal reports the remaining interval with an inconsistent sign: most cars send it as a negative number, but some send it already positive. The integration negated it unconditionally, so the positive-sign cars flipped to a false "overdue". It now normalises to a positive countdown either way.
+- **State of charge now reads on Enyaq and e-up cars that report it under a bespoke field.** Those cars ship the traction SoC under a `currentSoc` field that the mapper did not recognise, so the battery level stayed empty on the read-only portal channel; it is recognised now.
+- **The EU Data Act 15-minute feed is more reliable to set up (#957, #966).** When the integration creates the continuous data request for you, two things could leave you with no feed and no error. It asked for an "unlimited" request but attached a contradictory ten-year end date, a shape the portal never produces itself, and it trusted the portal's "created" response without checking the request actually landed. Now the unlimited request is created the way the portal's own website does it (no end date), and after creating one the integration reads it back to confirm it exists, falling back to a one-month request if it does not, instead of going quiet for hours. Thanks @Ra72xx and @PeterSchroederPaderborn for the diagnosis.
+- **The 15-minute feed no longer stays stuck on "no data request yet" when one actually exists (#957, #966).** The portal returns your active request as a list, but the poll only recognised it in one other shape, so on some accounts every poll reported "no data-request set up yet" even though the feed was live — and worse, the setup path and the poll path could disagree about the very same request. Both now share one reader, so the list shape is always recognised. As a bonus, if you delete and re-create the request in the portal, the next poll picks up the new one on its own without a restart.
 
 ## [2.30.2] - 2026-08-07
 
@@ -2606,3 +2646,4 @@ First release candidate for v2.8.0. Bundles the five action items from the 2026-
 - Erste Version: VW EU, Audi, Škoda, SEAT, CUPRA
 - Sensoren: Akkustand, Reichweite, Kilometerstand, GPS, Türen, Fenster, Klimatisierung,
 - Services: lock, unlock, start/stop Klimatisierung, flash, wake, refresh
+

@@ -35,6 +35,7 @@ from .const import (
     CONF_ABRP_ENABLE,
     CONF_ABRP_USER_TOKEN,
     CONF_BATTERY_NOMINAL_KWH,
+    CONF_KEEP_RAW_DATASETS,
     CONF_BRAND,
     CONF_CLIENT_ID_OVERRIDE,
     CONF_COUNTRY,
@@ -1940,6 +1941,18 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                     default=current_options.get(
                         CONF_READ_ONLY,
                         current_data.get(CONF_READ_ONLY, False),
+                    ),
+                ): _BOOL_SELECTOR,
+                # P1-5 — opt-in diagnostic archive of raw EU Data Act dataset
+                # ZIPs. Default OFF: raw datasets carry GPS + VIN + telemetry, so
+                # keeping the last few on disk is a privacy trade the user makes
+                # knowingly. Only meaningful on the EU Data Act portal channel;
+                # harmless toggle on other channels (nothing writes it).
+                vol.Optional(
+                    CONF_KEEP_RAW_DATASETS,
+                    default=current_options.get(
+                        CONF_KEEP_RAW_DATASETS,
+                        current_data.get(CONF_KEEP_RAW_DATASETS, False),
                     ),
                 ): _BOOL_SELECTOR,
                 # v1.14.0 (#29 + #51 Facelift) — PPE/PPC Climate body.

@@ -210,7 +210,8 @@
           "remove_supplementary_tibber": "Rimuovi il canale di lettura Tibber",
           "abrp_enable": "Abilita l'invio di telemetria ad ABRP",
           "abrp_api_key": "ABRP api_key (chiave sviluppatore)",
-          "abrp_user_token": "Token ABRP (per veicolo)"
+          "abrp_user_token": "Token ABRP (per veicolo)",
+          "keep_raw_datasets": "Conserva i set di dati grezzi EU Data Act (diagnostica)"
         },
         "data_description": {
           "scan_interval": "Con quale frequenza vengono recuperati i dati (minuti). Minimo: 3.",
@@ -227,7 +228,8 @@
           "eu_data_act_auto_kickoff": "Ha senso solo quando l'integrazione opera in modalità portale EU Data Act in sola lettura (le strategie BFF live hanno fallito). Quando è ATTIVO, il coordinatore verifica all'avvio la presenza di una Custom Data Request attiva a 15 minuti per ogni VIN e ne crea una quando non ne esiste alcuna. L'avvio implica un abbonamento ai dati di 1 mese sul tuo account nel portale, quindi è opt-in. Il portale accetta AL MASSIMO UNA custom request attiva per VIN alla volta. Disattivato per impostazione predefinita.",
           "abrp_enable": "Invia telemetria in tempo reale ad A Better Routeplanner. Richiede sia una api_key sia un token per veicolo qui sotto. Disattivato = nessuna chiamata in uscita.",
           "abrp_api_key": "Una chiave sviluppatore/partner che registri presso iternio (non ne forniamo una). Identifica l'integrazione. Mai registrata nei log.",
-          "abrp_user_token": "Il token 'Generic' dell'app ABRP: Impostazioni -> la tua auto -> Live Data. Mai registrato nei log."
+          "abrp_user_token": "Il token 'Generic' dell'app ABRP: Impostazioni -> la tua auto -> Live Data. Mai registrato nei log.",
+          "keep_raw_datasets": "Utile solo sul canale del portale EU Data Act. Se attivo, gli ultimi file ZIP di dati grezzi forniti dal portale vengono conservati su disco (in .storage, per veicolo e con un limite di dimensione) così un valore errato o mancante può essere riprodotto dai byte esatti inviati dalla tua auto. Questi file contengono la posizione GPS, il VIN e la telemetria, quindi è disattivato per impostazione predefinita: attivalo solo durante la risoluzione dei problemi."
         }
       },
       "add_vwde": {
@@ -1189,6 +1191,54 @@
       },
       "calibration_failure_reason": {
         "name": "Motivo dell'errore di calibrazione"
+      },
+      "preferred_charge_mode": {
+        "name": "Modalità di ricarica preferita"
+      },
+      "last_refuel_quantity": {
+        "name": "Quantità ultimo rifornimento"
+      },
+      "last_refuel_cost": {
+        "name": "Costo ultimo rifornimento"
+      },
+      "last_refuel_currency": {
+        "name": "Valuta ultimo rifornimento"
+      },
+      "last_refuel_fuel_type": {
+        "name": "Ultimo carburante"
+      },
+      "last_refuel_station": {
+        "name": "Ultima stazione"
+      },
+      "last_refuel_at": {
+        "name": "Ora ultimo rifornimento"
+      },
+      "parking_location": {
+        "name": "Luogo di parcheggio"
+      },
+      "parking_cost": {
+        "name": "Costo del parcheggio"
+      },
+      "parking_currency": {
+        "name": "Valuta del parcheggio"
+      },
+      "parking_started_at": {
+        "name": "Inizio parcheggio"
+      },
+      "parking_ended_at": {
+        "name": "Fine parcheggio"
+      },
+      "reminder_technical_inspection": {
+        "name": "Promemoria ispezione"
+      },
+      "reminder_seasonal_tyre_change": {
+        "name": "Promemoria cambio gomme"
+      },
+      "reminder_first_aid_kit": {
+        "name": "Promemoria kit pronto soccorso"
+      },
+      "reminder_tyre_repair_kit": {
+        "name": "Promemoria kit riparazione gomme"
       }
     },
     "binary_sensor": {
@@ -1488,6 +1538,12 @@
       },
       "insufficient_battery_level_warning": {
         "name": "Avviso livello batteria insufficiente"
+      },
+      "mandatory_consent_given": {
+        "name": "Consenso obbligatorio dato"
+      },
+      "marketing_consent_given": {
+        "name": "Consenso marketing dato"
       }
     },
     "switch": {
@@ -1520,6 +1576,12 @@
       },
       "battery_care_switch": {
         "name": "Cura della batteria"
+      },
+      "camping_switch": {
+        "name": "Modalità campeggio"
+      },
+      "auto_unlock_plug_switch": {
+        "name": "Sblocco automatico della presa di ricarica"
       }
     },
     "number": {
@@ -1671,7 +1733,7 @@
     },
     "vehicle_data_scout_findings": {
       "title": "Vehicle Data Scout — {count} nuovo/i campo/i su {brand}",
-      "description": "Il Vehicle Data Scout ha rilevato **{count}** nuovo/i campo/i nella risposta dell'API {brand} che VW Group Connect non legge ancora.\n\nDi solito significa che il tuo veicolo ha una funzione o una versione firmware che non abbiamo ancora mappato — il tuo aiuto insegnerebbe all'integrazione a supportarla.\n\n**Segnalazione con 1 clic:**\n📤 Clicca su **Scopri di più** qui sotto per aprire un issue GitHub precompilato.\n\n**Per Facebook / forum:** apri Impostazioni → Dispositivi → VW Group Connect → Diagnostica → Scarica — incolla il report mascherato.\n\n_Privacy: VIN mascherati, GPS arrotondato a 1 decimale, userID/JWT/email rimossi. Nulla viene inviato automaticamente._"
+      "description": "Il Vehicle Data Scout ha rilevato **{count}** nuovo/i campo/i nella risposta dell'API {brand} che VW Group Connect non legge ancora.\n\nDi solito significa che la tua auto ha una funzione o un firmware che non abbiamo ancora mappato — e **inoltrarci questa segnalazione è esattamente ciò che ci permette di aggiungerne il supporto**, per la tua auto e per tutti quelli che hanno lo stesso modello.\n\n**Segnalazione con 1 clic:** clicca su **Scopri di più** qui sotto per aprire un issue GitHub precompilato.\n\n**Ancora più utile:** allega la tua diagnostica — Impostazioni → Dispositivi e servizi → VW Group Connect → ⋮ → **Scarica diagnostica**. Ora include la risposta completa dell'API con i nuovi campi nel loro contesto, che è proprio ciò che ci serve per trasformarli in entità.\n\n_Tutto viene oscurato automaticamente: VIN mascherati, GPS rimosso, token, user-ID, e-mail e targhe eliminati. Nulla viene mai condiviso, a meno che tu non lo alleghi di persona._"
     },
     "error_reporter_findings": {
       "title": "Segnalatore errori — {count} errore/i recente/i su {brand}",
@@ -1724,6 +1786,10 @@
     "refresh_interval_too_frequent": {
       "title": "{brand}: intervallo di aggiornamento troppo frequente",
       "description": "{brand} emette token di accesso di breve durata, quindi con l'attuale intervallo di aggiornamento di **{current} minuti** quasi ogni interrogazione deve rinnovare il token. Questo fa scattare la protezione anti-tempesta di rinnovi — un limite sulla frequenza con cui l'integrazione può rinnovare il token, pensato per evitare che l'account del marchio venga bloccato — e i dati smettono di aggiornarsi finché la protezione non si reimposta.\n\nÈ un problema di frequenza di interrogazione, non un problema di accesso: ri-autenticarsi non lo risolverà.\n\n**La soluzione:** aumenta l'intervallo di aggiornamento a **{recommended} minuti** o più in Impostazioni → Dispositivi e servizi → VW Group Connect → Configura. In questo modo i rinnovi dei token restano sotto il limite e i dati continuano ad arrivare.\n\nQuesto avviso scompare automaticamente la prima volta che un rinnovo del token riesce di nuovo."
+    },
+    "mandatory_consent_missing": {
+      "title": "Škoda: consenso obbligatorio non accettato",
+      "description": "Il tuo account {brand} non ha accettato un consenso di servizio obbligatorio, quindi alcuni dati o funzioni potrebbero non essere disponibili. Apri l'app MyŠkoda e accetta il consenso richiesto — questo avviso scompare da solo."
     }
   },
   "services": {
@@ -1838,6 +1904,68 @@
         "token": {
           "name": "override token",
           "description": "Facoltativo. Sostituisce il token per veicolo salvato. Mai registrato nei log."
+        }
+      }
+    },
+    "set_location_target_soc": {
+      "name": "Imposta obiettivo di carica per posizione",
+      "description": "Imposta l'obiettivo di carica di un profilo di ricarica specifico (Škoda, in base alla posizione).",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN del veicolo."
+        },
+        "profile_id": {
+          "name": "ID profilo",
+          "description": "ID del profilo di ricarica (dal sensore dei profili di ricarica)."
+        },
+        "target": {
+          "name": "Obiettivo di carica (%)",
+          "description": "Obiettivo di carica tra 20 e 100 percento."
+        }
+      }
+    },
+    "set_seat_heating": {
+      "name": "Imposta riscaldamento sedili",
+      "description": "Attiva il riscaldamento per sedile (Škoda). Cambiano solo i sedili indicati.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN del veicolo."
+        },
+        "front_left": {
+          "name": "Anteriore sinistro"
+        },
+        "front_right": {
+          "name": "Anteriore destro"
+        },
+        "rear_left": {
+          "name": "Posteriore sinistro"
+        },
+        "rear_right": {
+          "name": "Posteriore destro"
+        }
+      }
+    },
+    "ask_assistant": {
+      "name": "Chiedi all'assistente IA Škoda (Laura)",
+      "description": "Invia un prompt in testo libero all'assistente IA MyŠkoda \"Laura\" (solo Škoda) e restituisce la risposta tramite response_variable (summary = testo della risposta, session_id per il seguito). Solo consultivo: pianificazione percorsi + domande sul prodotto, nessun comando al veicolo.",
+      "fields": {
+        "vin": {
+          "name": "VIN",
+          "description": "VIN dell'account."
+        },
+        "prompt": {
+          "name": "Domanda / prompt",
+          "description": "Testo libero per l'assistente."
+        },
+        "timezone": {
+          "name": "Fuso orario",
+          "description": "Opzionale (IANA, es. Europe/Zurich). Predefinito: fuso del sistema HA."
+        },
+        "session_id": {
+          "name": "ID sessione",
+          "description": "Opzionale. Da una risposta precedente, per continuare lo stesso contesto."
         }
       }
     }

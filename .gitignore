@@ -23,6 +23,10 @@ tests/bruno/**/environments/*.local.bru
 .claude/
 .release_notes_*
 
+# Local research / probe scratch — RE + endpoint experiments, never shipped
+scratch_*.js
+scripts/probe_*.py
+
 # pb-datenschutz — sensitive local artifacts, never commit
 # Contains: real credentials, APK binaries, smali decompilation, forensic
 # captures, canary logs. Everything under _private/ stays on disk only.

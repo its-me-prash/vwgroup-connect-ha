@@ -1,0 +1,29 @@
+meta {
+  name: POST stop camping mode
+  type: http
+  seq: 45
+}
+
+post {
+  url: {{base_url}}/api/v2/air-conditioning/{{vin}}/camping/stop
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {}
+}
+
+docs {
+  Stops Skoda camping/sleep mode. Implementation:
+  SkodaClient.command_stop_camping().
+}

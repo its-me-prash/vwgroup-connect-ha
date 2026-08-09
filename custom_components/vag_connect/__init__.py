@@ -166,6 +166,43 @@ def _get_coordinator(hass: HomeAssistant, vin: str) -> VagConnectCoordinator | N
     return None
 
 
+_LLM_API_KEY = f"{DOMAIN}_llm_api"
+
+
+def _register_llm_api(hass: HomeAssistant) -> None:
+    """v3.0.0 — register the "VW Group Connect" LLM API once (Path B).
+
+    Exposes Škoda's in-car AI "Laura" + the key commands to every HA
+    conversation agent. The API is global (not per-entry), so this is
+    idempotent across multiple brand entries; the unregister callback lives in
+    ``hass.data`` and is dropped only when the last entry unloads. Fully guarded
+    so an older HA without the ``llm`` helper simply skips the AI surface.
+    """
+    if hass.data.get(_LLM_API_KEY) is not None:
+        return
+    try:
+        from homeassistant.helpers import llm  # noqa: PLC0415
+
+        from .llm import VagConnectLLMAPI  # noqa: PLC0415
+    except ImportError:
+        _LOGGER.debug("VAG Connect: llm helper unavailable — AI tools skipped")
+        return
+    try:
+        hass.data[_LLM_API_KEY] = llm.async_register_api(
+            hass,
+            VagConnectLLMAPI(hass=hass, id=DOMAIN, name="VW Group Connect"),
+        )
+    except Exception:  # noqa: BLE001  — HomeAssistantError if id already taken
+        _LOGGER.debug("VAG Connect: LLM API already registered")
+
+
+def _unregister_llm_api(hass: HomeAssistant) -> None:
+    """Drop the LLM API registration (called when the last entry unloads)."""
+    unregister = hass.data.pop(_LLM_API_KEY, None)
+    if unregister is not None:
+        unregister()
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) -> bool:
     """Set up a VAG Connect config entry."""
     coordinator = VagConnectCoordinator(hass, entry)
@@ -224,6 +261,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) -
 
     if not hass.services.has_service(DOMAIN, "lock"):
         _register_services(hass)
+
+    # v3.0.0 — expose Laura + key commands to any HA conversation agent (Path B).
+    _register_llm_api(hass)
 
     _LOGGER.info("VAG Connect ready: %d vehicle(s)", len(coordinator.vehicles))
     return True
@@ -417,6 +457,22 @@ def _register_services(hass: HomeAssistant) -> None:
     async def _handle_set_target_soc(call: ServiceCall) -> None:
         await _coord_writeable(call.data["vin"]).async_set_target_soc(
             call.data["vin"], int(call.data["target"])
+        )
+
+    async def _handle_set_location_target_soc(call: ServiceCall) -> None:
+        """v2.31.0 (#25) — Škoda per-location target SoC (charging profile)."""
+        await _coord_writeable(call.data["vin"]).async_set_profile_target_soc(
+            call.data["vin"], call.data["profile_id"], int(call.data["target"])
+        )
+
+    async def _handle_set_seat_heating(call: ServiceCall) -> None:
+        """v2.31.0 — Škoda per-seat heating; only the seats given change."""
+        await _coord_writeable(call.data["vin"]).async_set_seat_heating(
+            call.data["vin"],
+            front_left=call.data.get("front_left"),
+            front_right=call.data.get("front_right"),
+            rear_left=call.data.get("rear_left"),
+            rear_right=call.data.get("rear_right"),
         )
 
     async def _handle_set_clim_temp(call: ServiceCall) -> None:
@@ -655,6 +711,28 @@ def _register_services(hass: HomeAssistant) -> None:
                 vol.Required("vin"):    str,
                 vol.Required("target"): vol.All(vol.Coerce(int), vol.Range(20, 100)),
             })),
+        # v2.31.0 (#25) — Škoda per-location target SoC (a charging profile),
+        # distinct from the global set_target_soc above.
+        ("set_location_target_soc",        _handle_set_location_target_soc,
+            vol.Schema({
+                vol.Required("vin"):        cv.string,
+                vol.Required("profile_id"): vol.Coerce(int),
+                vol.Required("target"):     vol.All(vol.Coerce(int), vol.Range(20, 100)),
+            })),
+        # v2.31.0 — Škoda per-seat heating; at least one seat must be given.
+        ("set_seat_heating",               _handle_set_seat_heating,
+            vol.Schema(vol.All(
+                {
+                    vol.Required("vin"):         cv.string,
+                    vol.Optional("front_left"):  cv.boolean,
+                    vol.Optional("front_right"): cv.boolean,
+                    vol.Optional("rear_left"):   cv.boolean,
+                    vol.Optional("rear_right"):  cv.boolean,
+                },
+                cv.has_at_least_one_key(
+                    "front_left", "front_right", "rear_left", "rear_right"
+                ),
+            ))),
         ("set_climatisation_temperature",  _handle_set_clim_temp,
             vol.Schema({
                 vol.Required("vin"):         str,
@@ -770,6 +848,43 @@ def _register_services(hass: HomeAssistant) -> None:
         # service is account-level (VIN in data, not a target). With
         # OPTIONAL the response variable still works for callers but
         # Hassfest is happy.
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+
+    async def _handle_ask_assistant(call: ServiceCall) -> ServiceResponse:
+        """v2.31.0 — MyŠkoda AI assistant ("Laura"): prompt in, answer out."""
+        coord = _coord_writeable(call.data["vin"])
+        try:
+            result = await coord.async_ask_assistant(
+                call.data["vin"],
+                str(call.data["prompt"]),
+                timezone=str(call.data.get("timezone", "")),
+                session_id=call.data.get("session_id"),
+            )
+        except AttributeError as exc:
+            raise ServiceValidationError(str(exc)) from exc
+        response: ServiceResponse = {
+            "summary": result.get("summary"),
+            "type": result.get("type"),
+            # keep the session id so a follow-up call can continue the thread
+            "session_id": result.get("sessionId"),
+            # v3.0.0 — surface the structured route details (waypoints / charging
+            # stops) instead of dropping them, so a route→nav-to-car automation
+            # can read coordinates directly rather than parsing Laura's prose.
+            "route_details": result.get("routeDetails"),
+        }
+        return response
+
+    hass.services.async_register(
+        DOMAIN,
+        "ask_assistant",
+        _handle_ask_assistant,
+        vol.Schema({
+            vol.Required("vin"):        cv.string,
+            vol.Required("prompt"):     cv.string,
+            vol.Optional("timezone"):   cv.string,
+            vol.Optional("session_id"): cv.string,
+        }),
         supports_response=SupportsResponse.OPTIONAL,
     )
 
@@ -933,9 +1048,15 @@ async def async_unload_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) 
             "update_charging_settings",
             # v2.15.5 — ABRP (A Better Routeplanner) telemetry push
             "abrp_send",
+            # v3.0.0 (Škoda Wave) — new Škoda services
+            "set_location_target_soc",
+            "set_seat_heating",
+            "ask_assistant",
         ]:
             if hass.services.has_service(DOMAIN, svc):
                 hass.services.async_remove(DOMAIN, svc)
+        # v3.0.0 — last entry gone: drop the LLM API registration too.
+        _unregister_llm_api(hass)
 
     return bool(unload_ok)
 
