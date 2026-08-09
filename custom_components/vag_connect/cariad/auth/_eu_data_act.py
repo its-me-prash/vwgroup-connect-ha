@@ -2071,9 +2071,21 @@ def map_dataset_to_vehicle_data(
             d.available_charge_modes.append(_label)
 
     # charge_type → charging_type (_shorten_enum, CHARGE_TYPE_ prefix added).
+    # #1104 (Lagaff86) — junk-filter AFTER shortening: an end-of-charge
+    # CHARGE_TYPE_INVALID shortens to "invalid", which Recorder would store as a
+    # real charging type and paint "invalid" history bands. Skip the sentinel so
+    # the field stays None (matching charging_mode/#764 and the connector states)
+    # until the backend sends a real type again — the check is on the SHORTENED
+    # value because the junk arrives prefixed (CHARGE_TYPE_INVALID), unlike the
+    # bare sentinels _charge_str() screens.
     _ctype = first("charging_state_report.charge_type", "charge_type", "chargeType")
     if _ctype is not None:
-        d.charging_type = _shorten_enum(_ctype)
+        _ctype_short = _shorten_enum(_ctype)
+        if (
+            _ctype_short is not None
+            and _ctype_short.strip().lower() not in _CHARGE_STATE_JUNK
+        ):
+            d.charging_type = _ctype_short
 
     # charging_mode → charging_preferred_mode (guard is None so a BFF value
     # is never clobbered). #764 — drop the portal 'invalid'/etc. junk sentinels

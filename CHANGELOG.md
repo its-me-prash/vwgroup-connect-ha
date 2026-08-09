@@ -44,6 +44,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Fixed
 - **A battery level that shows up several times in one data export now settles on the value the export repeats, not a lone stale copy.** Some Volkswagen EU exports list the state of charge more than twice under one capture time with no per-point clock to separate them — for example 71 once and 60 twice. The integration now treats a value the export repeats as the real reading and keeps it, instead of possibly latching onto the single odd-one-out when your last known level happened to sit near it. A genuine two-way tie (each value once) is unchanged and still reconciles against your last known value. Thanks @PeterPrelo for the export that showed the three-way case.
+- **The charging-type sensor no longer flashes "invalid" at the end of a session.** Around the moment a charge finishes, the backend briefly sends an `invalid` placeholder for the charge type; it was being shown as if it were a real charging type, so the history/timeline painted "invalid" bands after every session. It's now dropped like the other backend placeholders, so the sensor stays clear until a real type comes back. Thanks @Lagaff86 for the detailed timeline that pinned it down.
 
 ## [3.0.1] - 2026-08-09 — Škoda login + diagnostics-redaction hotfix
 
