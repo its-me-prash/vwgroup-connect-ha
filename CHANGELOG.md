@@ -40,6 +40,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [Unreleased]
+
+### Fixed
+- **A battery level that shows up several times in one data export now settles on the value the export repeats, not a lone stale copy.** Some Volkswagen EU exports list the state of charge more than twice under one capture time with no per-point clock to separate them — for example 71 once and 60 twice. The integration now treats a value the export repeats as the real reading and keeps it, instead of possibly latching onto the single odd-one-out when your last known level happened to sit near it. A genuine two-way tie (each value once) is unchanged and still reconciles against your last known value. Thanks @PeterPrelo for the export that showed the three-way case.
+
 ## [3.0.1] - 2026-08-09 — Škoda login + diagnostics-redaction hotfix
 
 Two quick fixes on the heels of 3.0.0: Škoda's passwordless login (which Volkswagen switched off on their side), and a VIN that could slip through the diagnostics redaction.

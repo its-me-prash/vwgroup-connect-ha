@@ -793,6 +793,10 @@ def _walk_fields(
     # its OWN sibling timestamp — that ts is order-dependent (VW reorders the log
     # between exports), so it must not be trusted to decide a value conflict (#465).
     best: dict[str, tuple[str, float, bool, bool]] = {}
+    # #1088 — per-name value occurrence counts, so a contest with a clear
+    # majority (the same reading repeated) can be resolved by mode instead of
+    # left ambiguous. Only consulted for names that end up contested.
+    counts: dict[str, dict[str, int]] = {}
     dataset_ts = _dataset_captured_ts(payload)  # a11: dataset-level freshness floor
 
     def add(
@@ -806,6 +810,8 @@ def _walk_fields(
             return
         if not isinstance(value, (str, int, float, bool)):
             return
+        vc = counts.setdefault(name, {})
+        vc[str(value)] = vc.get(str(value), 0) + 1
         # NO-SUPPRESSION (hard rule): sentinels ("no reading" / uint-max) must
         # NOT be dropped from the flattened surface here — that removed the
         # field from raw_unmapped (Scout) entirely, even for fields we never
@@ -992,6 +998,28 @@ def _walk_fields(
                 )
 
     walk(payload, node_ts=dataset_ts)  # a11: bare fields inherit dataset freshness
+    # #1088 — mode-aware contest resolution. When one field turns up several
+    # times under a single capture time (a name-collision across UUIDs), a value
+    # the export REPEATS is the real reading and a singleton twin is the stale
+    # one (@PeterPrelo's ID export: 71 once vs 60 twice → 60). If one contested
+    # value has a strictly higher occurrence count, resolve to it here and drop
+    # it from the contested set: it is no longer genuinely ambiguous, so
+    # reconcile's closest-to-last must not second-guess it and possibly latch the
+    # stale twin. A true tie (each value once, e.g. #465's 57 vs 81) has no mode
+    # and stays contested for reconcile to settle against the last known value.
+    if _contested_out is not None:
+        for name in list(_contested_out.keys()):
+            vc = counts.get(name) or {}
+            ranked = sorted(
+                ((vc.get(v, 0), v) for v in _contested_out[name]),
+                reverse=True,
+            )
+            if len(ranked) >= 2 and ranked[0][0] > ranked[1][0]:
+                winner = ranked[0][1]
+                prev = best.get(name)
+                if prev is not None:
+                    best[name] = (winner, prev[1], prev[2], prev[3])
+                del _contested_out[name]
     if _ts_out is not None:
         # Expose only GENUINE (real) per-point capture timestamps; floor/unknown
         # (-inf) carry no snapshot identity and must not constrain last_seen.
