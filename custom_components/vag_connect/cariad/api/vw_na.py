@@ -198,6 +198,40 @@ def _na_correlation_id(resp: Any) -> str | None:
     return None
 
 
+def _na_measurement(node: Any) -> Any:
+    """Unwrap a VW NA ``{value, unit, measurementState}`` reading.
+
+    #1082 (fg877khkv8-maker) — the NA backend wraps some readings in a small
+    object instead of shipping a bare scalar, and this client already SENDS that
+    shape when setting the climate temperature (``{temperature, unit}``) without
+    ever knowing how to read it back. His raw response carried the target as
+    ``70.0`` °F with ``measurementState: "valid"`` while the entity stayed empty.
+
+    A wrapper whose ``measurementState`` says the reading is not valid resolves
+    to ``None`` — that state is the backend's way of saying "no reading", so
+    surfacing the number anyway would invent data. A plain scalar passes through,
+    so every existing flat-key caller is unaffected.
+    """
+    if not isinstance(node, dict):
+        return node
+    state = node.get("measurementState")
+    if isinstance(state, str) and state.strip().lower() not in ("valid", "measured"):
+        return None
+    for key in ("value", "temperature", "content"):
+        if key in node:
+            return node[key]
+    return None
+
+
+def _na_measurement_unit(node: Any) -> str:
+    """The lowercased ``unit`` of a NA measurement wrapper ("" when absent)."""
+    if isinstance(node, dict):
+        unit = node.get("unit") or node.get("unitInCar")
+        if isinstance(unit, str):
+            return unit.strip().lower()
+    return ""
+
+
 def _na_command_outcome(hist: Any) -> int | None:
     """Terminal outcome int from the ro-history response, or ``None`` when it is
     not yet terminal / the shape is unrecognised.
@@ -1056,13 +1090,27 @@ class VWNAClient:
                 or v(vehicle_raw, "doorStatus")
                 or {}
             )
+            # #1082 (fg877khkv8-maker) — his raw US ID.4 response carried the
+            # lock state three ways (``lockStatus: LOCKED``, ``secure: SECURE``,
+            # and all four doors ``LOCKED``) and HA still showed Unknown: we
+            # only looked for ``lockStatus`` at the payload ROOT, never read
+            # ``secure`` at all, and never rolled the per-door values up. Widen
+            # the lookup to where the sibling fields already live.
             overall_lock = (
                 v(vehicle_raw, "exteriorStatus", "doorLockStatus")
                 or v(door_status, "overallStatus")
                 or v(vehicle_raw, "lockStatus")
+                or v(vehicle_raw, "exteriorStatus", "lockStatus")
+                or v(door_status, "lockStatus")
+                or v(vehicle_raw, "secure")
+                or v(vehicle_raw, "exteriorStatus", "secure")
             )
             if isinstance(overall_lock, str):
-                d.doors_locked = overall_lock.upper() == "LOCKED"
+                token = overall_lock.strip().upper()
+                if token in ("LOCKED", "SECURE", "SECURED"):
+                    d.doors_locked = True
+                elif token in ("UNLOCKED", "INSECURE", "UNSECURED", "OPEN"):
+                    d.doors_locked = False
             # zackcornelius iterates the doorStatus dict items so
             # firmware-specific door-id sets work without an enum list.
             # We keep both: explicit ID list first for the legacy
@@ -1078,6 +1126,16 @@ class VWNAClient:
                 d.doors_open = any(
                     isinstance(s, str) and s.upper() == "OPEN" for s in door_states
                 )
+                # #1082 — roll the per-door values up when no overall lock field
+                # was found. Only decided when EVERY door reports a lock state:
+                # a partial view could call a car locked while a door isn't.
+                if d.doors_locked is None:
+                    lock_tokens = [
+                        s.strip().upper() for s in door_states if isinstance(s, str)
+                    ]
+                    known = [t for t in lock_tokens if t in ("LOCKED", "UNLOCKED")]
+                    if known and len(known) == len(lock_tokens):
+                        d.doors_locked = all(t == "LOCKED" for t in known)
             trunk = v(door_status, "trunk")
             if isinstance(trunk, str):
                 d.trunk_open = trunk.upper() == "OPEN"
@@ -1307,25 +1365,53 @@ class VWNAClient:
             settings = (
                 v(climate, "climateSettings")
                 or v(climate, "climatisationSettings")
+                # #1082 — some cars carry the setting in the status report
+                # instead of a separate settings block.
+                or v(climate, "climateStatusReport")
                 or {}
             )
             if isinstance(settings, dict):
                 # Try Celsius first (already converted), then Kelvin (EU
                 # historical), then Fahrenheit (NA user-pref case).
-                temp_c = settings.get("targetTemperatureInCelsius")
-                if isinstance(temp_c, (int, float)):
-                    d.target_temperature = float(temp_c)
+                temp_c = safe_float(_na_measurement(settings.get(
+                    "targetTemperatureInCelsius"
+                )))
+                if temp_c is not None:
+                    d.target_temperature = temp_c
                 else:
-                    temp_k_val = settings.get("targetTemperature_K") or settings.get(
-                        "targetTemperatureInKelvin"
+                    temp_k_val = _na_measurement(
+                        settings.get("targetTemperature_K")
+                        or settings.get("targetTemperatureInKelvin")
                     )
                     temp_k = safe_float(temp_k_val) if temp_k_val is not None else None
                     if temp_k is not None and temp_k > 200:
                         d.target_temperature = round(temp_k - 273.15, 1)
                     else:
-                        temp_f = settings.get("targetTemperatureInFahrenheit")
-                        if isinstance(temp_f, (int, float)):
+                        # #1082 (fg877khkv8-maker) — a US ID.4 carries the target
+                        # as a nested {value, unit, measurementState} wrapper
+                        # under the BARE ``targetTemperature`` key, which is the
+                        # very shape this client SENDS when setting the
+                        # temperature but never knew how to read back: the raw
+                        # response showed 70.0 °F with measurementState "valid"
+                        # while the entity stayed at None.
+                        temp_f = safe_float(_na_measurement(
+                            settings.get("targetTemperatureInFahrenheit")
+                        ))
+                        if temp_f is not None:
                             d.target_temperature = round((temp_f - 32) * 5 / 9, 1)
+                        else:
+                            bare = settings.get("targetTemperature")
+                            bare_val = safe_float(_na_measurement(bare))
+                            if bare_val is not None:
+                                unit = _na_measurement_unit(bare)
+                                if unit.startswith("f"):
+                                    d.target_temperature = round(
+                                        (bare_val - 32) * 5 / 9, 1
+                                    )
+                                elif bare_val > 200:  # Kelvin
+                                    d.target_temperature = round(bare_val - 273.15, 1)
+                                else:
+                                    d.target_temperature = bare_val
 
         d.is_electric    = d.has_battery and not d.has_combustion
         d.is_hybrid      = d.has_battery and d.has_combustion
