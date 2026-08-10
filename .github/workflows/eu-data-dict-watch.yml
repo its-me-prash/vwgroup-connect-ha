@@ -60,6 +60,19 @@ jobs:
           if [ -z "$(git status --porcelain docs/)" ]; then
             echo "page changed but generated doc is identical — nothing to PR"; exit 0
           fi
+          # Belt-and-suspenders: the regenerator stamps today's date into the
+          # ``Extracted:`` line, so a cosmetic re-run is never byte-clean. If the
+          # ONLY dictionary-doc change is that date line, there is no real content
+          # change — discard and skip the PR (this is what defeated the guard above
+          # and produced no-op PR #1124).
+          MEANINGFUL=$(git diff -U0 -- docs/EU_DATA_ACT_DATA_DICTIONARY.md \
+            | grep -E '^[+-]' | grep -vE '^(\+\+\+|---) ' \
+            | grep -vE '^[+-]- \*\*Extracted:\*\*' || true)
+          if [ -z "$MEANINGFUL" ]; then
+            echo "only the extraction date changed — no dictionary content change, not opening a PR"
+            git checkout -- docs/ 2>/dev/null || true
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           BRANCH="chore/eu-data-dict-v${VERSION}"
