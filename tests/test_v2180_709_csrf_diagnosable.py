@@ -123,3 +123,121 @@ async def test_the_token_value_never_reaches_the_log(
     resp = _Resp(200, {"csrf_token": "SUPER-SECRET-VALUE", "expires": 1})
     await _scraper(resp)._fetch_csrf_token()
     assert "SUPER-SECRET-VALUE" not in caplog.text
+
+
+# ── #966 (Jradon001): the empty-body case is now diagnosable AND retried ─────
+#
+# His log showed `HTTP 200 but no usable token. Keys present: []`, which read as
+# "VW renamed the field". Probing the live portal showed otherwise: an anonymous
+# request gets exactly that body plus `x-sky-isauth: 0`. The portal runs two
+# independent auth layers on one host — our session is valid at /proxy_api/*
+# (his reads work, and the metadata call answered 404, not 401) while being
+# anonymous at /libs/granite/* where the token lives. Those two causes need
+# opposite responses, and the old code could not tell them apart.
+
+
+class _HeaderResp(_Resp):
+    """A response that also carries headers, like the real portal edge."""
+
+    def __init__(self, status: int, payload: Any = None,
+                 headers: dict[str, str] | None = None) -> None:
+        super().__init__(status, payload)
+        self.headers = headers or {}
+        self.url = "https://eu-data-act.drivesomethinggreater.com/de/en/user.html"
+
+
+class _SeqSession:
+    """Returns a different response per call, so a retry can be observed."""
+
+    def __init__(self, *responses: Any) -> None:
+        self._responses = list(responses)
+        self.calls: list[str] = []
+
+    def get(self, url: str, **kw: Any) -> Any:
+        self.calls.append(url)
+        return self._responses.pop(0) if self._responses else _HeaderResp(200, {})
+
+
+def _seq_scraper(*responses: Any) -> Any:
+    s = _data_act_scraper.DataActScraper.__new__(_data_act_scraper.DataActScraper)
+    s._session = _SeqSession(*responses)  # type: ignore[attr-defined]
+    return s
+
+
+@pytest.mark.asyncio
+async def test_anonymous_at_aem_is_named_in_the_log(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level("DEBUG")
+    s = _seq_scraper(
+        _HeaderResp(200, {}, {"x-sky-isauth": "0"}),   # token fetch: anonymous
+        _HeaderResp(200, {}),                           # the page GET
+        _HeaderResp(200, {}, {"x-sky-isauth": "0"}),   # retry: still anonymous
+    )
+    assert await s._fetch_csrf_token() is None
+    assert "ANONYMOUS" in caplog.text
+    assert "x-sky-isauth=0" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_anonymous_triggers_one_page_load_and_a_retry() -> None:
+    """The page GET is the same request a browser makes when opening the portal
+    — our best effort at reviving the AEM leg before giving up."""
+    s = _seq_scraper(
+        _HeaderResp(200, {}, {"x-sky-isauth": "0"}),
+        _HeaderResp(200, {}),
+        _HeaderResp(200, {"token": "revived"}, {"x-sky-isauth": "1"}),
+    )
+    assert await s._fetch_csrf_token() == "revived"
+    calls = s._session.calls  # type: ignore[attr-defined]
+    assert any("/de/en/user.html" in c for c in calls), calls
+    assert sum("token.json" in c for c in calls) == 2, calls
+
+
+@pytest.mark.asyncio
+async def test_authenticated_but_empty_does_not_retry(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Authenticated at AEM and still empty IS the renamed-field case. Loading
+    the page cannot help, so it must not fire — that would be a pointless extra
+    request on every poll."""
+    caplog.set_level("DEBUG")
+    s = _seq_scraper(_HeaderResp(200, {}, {"x-sky-isauth": "1"}))
+    assert await s._fetch_csrf_token() is None
+    assert s._session.calls == [  # type: ignore[attr-defined]
+        "https://eu-data-act.drivesomethinggreater.com/libs/granite/csrf/token.json"
+    ]
+    assert "authenticated at the AEM layer" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_a_hard_http_error_does_not_trigger_the_page_load() -> None:
+    """403/404 are not the anonymous case; retrying the page helps neither."""
+    s = _seq_scraper(_HeaderResp(403, None, {}))
+    assert await s._fetch_csrf_token() is None
+    assert len(s._session.calls) == 1  # type: ignore[attr-defined]
+
+
+@pytest.mark.asyncio
+async def test_cookie_names_are_logged_but_never_values(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Which cookies we hold is the other half of the diagnosis; a value here
+    would be a live session token."""
+    caplog.set_level("DEBUG")
+
+    class _Cookie(dict):
+        def __init__(self, key: str, domain: str) -> None:
+            super().__init__({"domain": domain})
+            self.key = key
+
+    s = _seq_scraper(
+        _HeaderResp(200, {}, {"x-sky-isauth": "0"}),
+        _HeaderResp(200, {}),
+        _HeaderResp(200, {}, {"x-sky-isauth": "0"}),
+    )
+    s._session.cookie_jar = [  # type: ignore[attr-defined]
+        _Cookie("login-token", "eu-data-act.drivesomethinggreater.com"),
+    ]
+    await s._fetch_csrf_token()
+    assert "login-token" in caplog.text
