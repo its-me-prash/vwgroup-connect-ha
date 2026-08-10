@@ -212,7 +212,8 @@
           "abrp_enable": "Aktiver ABRP-telemetripush",
           "abrp_api_key": "ABRP api_key (utviklernøkkel)",
           "abrp_user_token": "ABRP-token (per kjøretøy)",
-          "keep_raw_datasets": "Behold rå EU Data Act-datasett (diagnostikk)"
+          "keep_raw_datasets": "Behold rå EU Data Act-datasett (diagnostikk)",
+          "test_cohort": "Hjelp oss å forbedre VW Group Connect (frivillig testgruppe)"
         },
         "data_description": {
           "scan_interval": "Hvor ofte data hentes (minutter). Minimum: 3.",
@@ -230,7 +231,8 @@
           "abrp_enable": "Send sanntidstelemetri til A Better Routeplanner. Trenger både en api_key og et token per kjøretøy nedenfor. Av = ingen utgående kall.",
           "abrp_api_key": "En utvikler-/partnernøkkel du registrerer hos iternio (vi leverer ingen). Identifiserer integrasjonen. Logges aldri.",
           "abrp_user_token": "«Generic»-tokenet fra ABRP-appen: Innstillinger -> bilen din -> Live Data. Logges aldri.",
-          "keep_raw_datasets": "Bare nyttig på EU Data Act-portalkanalen. Når det er på, lagres de siste rå datasett-ZIP-filene portalen leverer på disk (under .storage, per kjøretøy og med en størrelsesgrense), slik at en feil eller manglende verdi kan gjenskapes fra nøyaktig de bytene bilen din sendte. Disse filene inneholder GPS-posisjon, VIN og telemetri, så det er av som standard – slå det på bare under feilsøking."
+          "keep_raw_datasets": "Bare nyttig på EU Data Act-portalkanalen. Når det er på, lagres de siste rå datasett-ZIP-filene portalen leverer på disk (under .storage, per kjøretøy og med en størrelsesgrense), slik at en feil eller manglende verdi kan gjenskapes fra nøyaktig de bytene bilen din sendte. Disse filene inneholder GPS-posisjon, VIN og telemetri, så det er av som standard – slå det på bare under feilsøking.",
+          "test_cohort": "Avslått som standard. Slå den på for å la integrasjonen prøve eksperimentelle avlesninger fra bilen din — for eksempel det pågående forsøket på å hente GPS-posisjon for Volkswagen-biler i EU — og av og til vise et varsel du kan lukke, der du blir bedt om å dele en diagnostikkfil så en ny funksjon kan bekreftes for modellen din. Alt som deles blir automatisk sladdet før det forlater systemet ditt: verken VIN, GPS, tokens eller e-post er noen gang med. Det er slik nye funksjoner låses opp for bilen din og for alle andre som kjører samme modell, og du kan slå det av igjen når som helst."
         }
       },
       "add_vwde": {
@@ -1791,6 +1793,10 @@
     "mandatory_consent_missing": {
       "title": "Škoda: obligatorisk samtykke ikke akseptert",
       "description": "{brand}-kontoen din har ikke akseptert et obligatorisk tjenestesamtykke, så noen data eller funksjoner kan være utilgjengelige. Åpne MyŠkoda-appen og godta det nødvendige samtykket — dette varselet forsvinner av seg selv."
+    },
+    "test_cohort_share_request": {
+      "title": "Hjelp oss å bekrefte en ny funksjon — vil du dele testresultatet ditt?",
+      "description": "Takk for at du er med i den frivillige testgruppen. Bilen din ble en del av et eksperiment — akkurat nå forsøket på å hente GPS-posisjon for Volkswagen-biler i EU via volkswagen.de-kanalen. For å bekrefte resultatet på tvers av ulike modeller og plattformer ville det være til stor hjelp om du delte en diagnostikkfil: gå til Innstillinger → Enheter og tjenester → VW Group Connect → trepunktsmenyen → Last ned diagnostikk, og legg deretter filen ved GitHub-sak #923.\n\nEksporten blir automatisk sladdet før du laster den ned — verken VIN, GPS, tokens eller e-post er med — så det er trygt å legge den ut offentlig. Du ser dette bare fordi du har meldt deg på; du kan lukke det, og hvis du slår av testgruppen igjen i integrasjonens innstillinger, stopper disse varslene helt. Takk for at du bidrar til å låse opp funksjoner for alle som kjører samme modell som deg."
     }
   },
   "services": {

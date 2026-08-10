@@ -212,7 +212,8 @@
           "abrp_enable": "ABRP-telemetrie verzenden inschakelen",
           "abrp_api_key": "ABRP-api_key (ontwikkelaarssleutel)",
           "abrp_user_token": "ABRP-token (per voertuig)",
-          "keep_raw_datasets": "Ruwe EU Data Act-datasets bewaren (diagnose)"
+          "keep_raw_datasets": "Ruwe EU Data Act-datasets bewaren (diagnose)",
+          "test_cohort": "Help VW Group Connect verbeteren (opt-in testgroep)"
         },
         "data_description": {
           "scan_interval": "Hoe vaak gegevens worden opgehaald (minuten). Minimum: 3.",
@@ -230,7 +231,8 @@
           "abrp_enable": "Live telemetrie naar A Better Routeplanner sturen. Vereist een api_key en een token per voertuig. Uit = geen uitgaande oproepen.",
           "abrp_api_key": "Een ontwikkelaars-/partnersleutel die je bij iternio registreert (wij leveren er geen). Identificeert de integratie. Wordt nooit gelogd.",
           "abrp_user_token": "Het 'Generic'-token uit de ABRP-app: Instellingen -> je auto -> Live Data. Wordt nooit gelogd.",
-          "keep_raw_datasets": "Alleen nuttig op het EU Data Act-portaalkanaal. Indien ingeschakeld worden de laatste paar ruwe dataset-ZIP's die het portaal levert op schijf bewaard (onder .storage, per voertuig en met een groottelimiet), zodat een verkeerde of ontbrekende waarde kan worden gereproduceerd uit precies de bytes die je auto heeft verzonden. Deze bestanden bevatten je GPS-locatie, VIN en telemetrie, dus standaard staat dit uit – schakel het alleen in tijdens het oplossen van problemen."
+          "keep_raw_datasets": "Alleen nuttig op het EU Data Act-portaalkanaal. Indien ingeschakeld worden de laatste paar ruwe dataset-ZIP's die het portaal levert op schijf bewaard (onder .storage, per voertuig en met een groottelimiet), zodat een verkeerde of ontbrekende waarde kan worden gereproduceerd uit precies de bytes die je auto heeft verzonden. Deze bestanden bevatten je GPS-locatie, VIN en telemetrie, dus standaard staat dit uit – schakel het alleen in tijdens het oplossen van problemen.",
+          "test_cohort": "Standaard uitgeschakeld. Zet dit aan om de integratie experimenteel gegevens van je auto te laten uitlezen — zoals de lopende poging om de GPS-locatie van Volkswagen EU-auto's terug te halen — en af en toe een melding te tonen die je kunt wegklikken, met de vraag of je een diagnosebestand wilt delen zodat een nieuwe functie voor jouw model bevestigd kan worden. Alles wat je deelt wordt automatisch geanonimiseerd voordat het je systeem verlaat: er zit nooit een VIN, GPS, token of e-mailadres in. Zo worden nieuwe functies ontgrendeld voor jouw auto en voor iedereen die hetzelfde model rijdt — en je kunt het op elk moment weer uitzetten."
         }
       },
       "add_vwde": {
@@ -1791,6 +1793,10 @@
     "mandatory_consent_missing": {
       "title": "Škoda: verplichte toestemming niet geaccepteerd",
       "description": "Je {brand}-account heeft een verplichte servicetoestemming niet geaccepteerd, waardoor sommige gegevens of functies mogelijk niet beschikbaar zijn. Open de MyŠkoda-app en accepteer de vereiste toestemming — deze melding verdwijnt daarna vanzelf."
+    },
+    "test_cohort_share_request": {
+      "title": "Help een nieuwe functie bevestigen — deel je testresultaat?",
+      "description": "Bedankt dat je meedoet aan de opt-in testgroep. Jouw auto is meegenomen in een experiment — op dit moment de poging om de GPS-locatie van Volkswagen EU-auto's terug te halen via het volkswagen.de-kanaal. Om het resultaat over verschillende modellen en platforms te bevestigen, zou het echt helpen als je een diagnosebestand deelt: ga naar Instellingen → Apparaten en services → VW Group Connect → het menu met drie puntjes → Diagnostische gegevens downloaden, en voeg het bestand toe aan GitHub-issue #923.\n\nDe export wordt automatisch geanonimiseerd voordat je hem downloadt — er zit geen VIN, GPS, token of e-mailadres in — dus je kunt hem gerust openbaar delen. Je ziet dit alleen omdat je je hebt aangemeld; je kunt het wegklikken, en als je de testgroep weer uitzet in de opties van de integratie, stoppen deze meldingen helemaal. Bedankt dat je helpt om functies te ontgrendelen voor iedereen die jouw model rijdt."
     }
   },
   "services": {

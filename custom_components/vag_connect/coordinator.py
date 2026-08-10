@@ -1279,6 +1279,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             if not vins:
                 return False
 
+            # #923 — propagate the opt-in test-cohort flag to the vw.de
+            # connector(s) (gates the experimental parkingposition probe) and
+            # raise/clear the dismissible share-request Repair to match. Runs after
+            # both arm paths; idempotent, fail-soft.
+            try:
+                await self._apply_test_cohort()
+            except Exception:  # noqa: BLE001
+                _LOGGER.debug("test-cohort apply skipped", exc_info=True)
+
             # Fetch status for all vehicles
             results = await asyncio.gather(
                 *[self._cariad_client.get_status(vin) for vin in vins],
@@ -2098,6 +2107,34 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         if getattr(self._cariad_client, "_eu_portal", None) is not None:
             return "eu_data_act"
         return str(data.get(CONF_BRAND, "")) or "primary"
+
+    async def _apply_test_cohort(self) -> None:
+        """#923 — wire the opt-in test-cohort flag to the vw.de connector(s) and
+        the dismissible share Repair. The flag is read from ``entry.data`` (the
+        options listener folds options → data; ``entry.options`` is always {} at
+        read time). The experimental parkingposition probe runs ONLY when this is
+        on. The Repair is raised only when the user is BOTH opted in AND actually
+        has a vw.de channel to test — otherwise it's cleared, so a non-vw.de or
+        opted-out user never sees it."""
+        from .const import CONF_TEST_COHORT  # noqa: PLC0415
+        from .repairs import (  # noqa: PLC0415
+            clear_issue_test_cohort_share,
+            raise_issue_test_cohort_share,
+        )
+
+        cohort = bool(self.entry.data.get(CONF_TEST_COHORT))
+        client = self._cariad_client
+        has_web = False
+        for attr in ("_website_proxy", "_supplementary_authproxy"):
+            conn = getattr(client, attr, None)
+            if conn is not None and hasattr(conn, "probe_position"):
+                conn.probe_position = cohort
+                has_web = True
+
+        if cohort and has_web:
+            raise_issue_test_cohort_share(self.hass, self.entry.entry_id)
+        else:
+            clear_issue_test_cohort_share(self.hass, self.entry.entry_id)
 
     async def _arm_supplementary_channels(self) -> None:
         """v2.15.0b1 (C1) — arm configured supplementary read channels on the

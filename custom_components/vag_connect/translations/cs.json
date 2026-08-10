@@ -212,7 +212,8 @@
           "abrp_enable": "Povolit odesílání telemetrie ABRP",
           "abrp_api_key": "api_key ABRP (vývojářský klíč)",
           "abrp_user_token": "Token ABRP (pro vozidlo)",
-          "keep_raw_datasets": "Uchovávat surová data EU Data Act (diagnostika)"
+          "keep_raw_datasets": "Uchovávat surová data EU Data Act (diagnostika)",
+          "test_cohort": "Pomozte vylepšit VW Group Connect (dobrovolná testovací skupina)"
         },
         "data_description": {
           "scan_interval": "Jak často se stahují data (minuty). Minimum: 3.",
@@ -230,7 +231,8 @@
           "abrp_enable": "Odesílat živou telemetrii do A Better Routeplanner. Vyžaduje api_key a token pro každé vozidlo. Vypnuto = žádná odchozí volání.",
           "abrp_api_key": "Vývojářský/partnerský klíč, který si zaregistrujete u iternio (žádný nedodáváme). Identifikuje integraci. Nikdy se neloguje.",
           "abrp_user_token": "Token 'Generic' z aplikace ABRP: Nastavení -> vaše auto -> Live Data. Nikdy se neloguje.",
-          "keep_raw_datasets": "Užitečné pouze na kanálu portálu EU Data Act. Po zapnutí se posledních několik surových ZIP souborů s daty, které portál dodá, uchová na disku (v .storage, na vozidlo a s limitem velikosti), aby bylo možné chybnou nebo chybějící hodnotu reprodukovat z přesně těch bajtů, které vůz odeslal. Tyto soubory obsahují vaši GPS polohu, VIN a telemetrii, proto je funkce ve výchozím nastavení vypnutá – zapněte ji jen při řešení potíží."
+          "keep_raw_datasets": "Užitečné pouze na kanálu portálu EU Data Act. Po zapnutí se posledních několik surových ZIP souborů s daty, které portál dodá, uchová na disku (v .storage, na vozidlo a s limitem velikosti), aby bylo možné chybnou nebo chybějící hodnotu reprodukovat z přesně těch bajtů, které vůz odeslal. Tyto soubory obsahují vaši GPS polohu, VIN a telemetrii, proto je funkce ve výchozím nastavení vypnutá – zapněte ji jen při řešení potíží.",
+          "test_cohort": "Ve výchozím nastavení vypnuto. Když tuto možnost zapnete, integrace bude moci na vašem voze zkoušet experimentální čtení dat — třeba právě probíhající pokus o získání polohy GPS u vozů Volkswagen v EU — a občas vám zobrazí upozornění (které lze zavřít) s prosbou o sdílení diagnostického souboru, aby se pro váš model mohla potvrdit nová funkce. Vše, co sdílíte, se automaticky anonymizuje ještě předtím, než to opustí váš systém: nikdy to neobsahuje VIN, GPS, tokeny ani e-mail. Právě takto se odemykají nové funkce pro váš vůz i pro všechny, kdo jezdí stejným modelem — a kdykoli to zase můžete vypnout."
         }
       },
       "add_vwde": {
@@ -1791,6 +1793,10 @@
     "mandatory_consent_missing": {
       "title": "Škoda: povinný souhlas nebyl přijat",
       "description": "Váš účet {brand} nepřijal povinný servisní souhlas, takže některá data nebo funkce nemusí být dostupné. Otevřete aplikaci MyŠkoda a přijměte požadovaný souhlas — toto upozornění poté samo zmizí."
+    },
+    "test_cohort_share_request": {
+      "title": "Pomozte potvrdit novou funkci — podělíte se o výsledek testu?",
+      "description": "Děkujeme, že jste se přidali do dobrovolné testovací skupiny. Váš vůz byl zařazen do experimentu — právě teď jde o pokus získat polohu GPS u vozů Volkswagen v EU přes kanál volkswagen.de. Abychom výsledek mohli potvrdit napříč různými modely a platformami, moc by nám pomohlo, kdybyste sdíleli diagnostický soubor: přejděte do Nastavení → Zařízení a služby → VW Group Connect → nabídka se třemi tečkami → Stáhnout diagnostiku a soubor pak připojte ke GitHub issue #923.\n\nExport se automaticky anonymizuje ještě předtím, než si ho stáhnete — neobsahuje VIN, GPS, tokeny ani e-mail —, takže ho můžete klidně zveřejnit. Tuto zprávu vidíte jen proto, že jste se sami přihlásili; můžete ji zavřít a vypnutím testovací skupiny v nastavení integrace tato upozornění úplně zastavíte. Děkujeme, že pomáháte odemykat funkce pro všechny, kdo jezdí stejným modelem jako vy."
     }
   },
   "services": {

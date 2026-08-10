@@ -212,7 +212,8 @@
           "abrp_enable": "Enable ABRP telemetry push",
           "abrp_api_key": "ABRP api_key (developer key)",
           "abrp_user_token": "ABRP token (per vehicle)",
-          "keep_raw_datasets": "Keep raw EU Data Act datasets (diagnostics)"
+          "keep_raw_datasets": "Keep raw EU Data Act datasets (diagnostics)",
+          "test_cohort": "Help improve VW Group Connect (opt-in test cohort)"
         },
         "data_description": {
           "scan_interval": "How often data is fetched (minutes). Minimum: 3.",
@@ -230,7 +231,8 @@
           "abrp_enable": "Send live telemetry to A Better Routeplanner. Needs both an api_key and a per-vehicle token below. Off = no outbound calls.",
           "abrp_api_key": "A developer/partner key you register with iternio (we don't ship one). Identifies the integration. Never logged.",
           "abrp_user_token": "The 'Generic' token from the ABRP app: Settings -> your car -> Live Data. Never logged.",
-          "keep_raw_datasets": "Only useful on the EU Data Act portal channel. When on, the last few raw dataset ZIPs the portal delivers are kept on disk (under .storage, per vehicle and size-capped) so a wrong or missing value can be reproduced from the exact bytes your car sent. These files contain your GPS, VIN and telemetry, so it is off by default; turn it on only while troubleshooting."
+          "keep_raw_datasets": "Only useful on the EU Data Act portal channel. When on, the last few raw dataset ZIPs the portal delivers are kept on disk (under .storage, per vehicle and size-capped) so a wrong or missing value can be reproduced from the exact bytes your car sent. These files contain your GPS, VIN and telemetry, so it is off by default; turn it on only while troubleshooting.",
+          "test_cohort": "Off by default. Turn this on to let the integration try experimental reads on your car — such as the ongoing attempt to recover GPS location for Volkswagen EU cars — and occasionally show a dismissible notification asking you to share a diagnostics file so a new capability can be confirmed for your model. Everything shared is redacted automatically before it leaves your system: no VIN, GPS, tokens or email is ever included. It is how new features get unlocked for your car and everyone driving the same model, and you can switch it off again at any time."
         }
       },
       "add_vwde": {
@@ -1791,6 +1793,10 @@
     "mandatory_consent_missing": {
       "title": "Škoda: mandatory consent not accepted",
       "description": "Your {brand} account hasn't accepted a mandatory service consent, so some data or features may be unavailable. Open the MyŠkoda app and accept the required consent — this notice clears itself once you do."
+    },
+    "test_cohort_share_request": {
+      "title": "Help confirm a new capability — share your test result?",
+      "description": "Thanks for joining the opt-in test cohort. Your car was included in an experiment — right now, the attempt to recover GPS location for Volkswagen EU cars over the volkswagen.de channel. To confirm the result across different models and platforms, it would genuinely help if you shared a diagnostics file: go to Settings → Devices & Services → VW Group Connect → the three-dot menu → Download diagnostics, then attach the file to GitHub issue #923.\n\nThe export is redacted automatically before you download it — no VIN, GPS, tokens or email are included — so it is safe to post publicly. You are only seeing this because you opted in; you can dismiss it, and turning the test cohort back off in the integration's options stops these notifications entirely. Thank you for helping unlock features for everyone driving your model."
     }
   },
   "services": {
