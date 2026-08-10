@@ -10,7 +10,7 @@ the official VW-Group **SVK DataDictionary** exposed by the portal operator.
 - **Source:** <https://eu-data-act.drivesomethinggreater.com/content/euda/de/de/service/data-dictionary>
 - **Continuous Data** (15-minute live feed): internal version `1.0.0`, dated `11.09.2025` — 1141 keys.
 - **Historical Data** (one-time export): internal version `1.0.0`, dated `11.09.2025` — 5139 keys.
-- **Extracted:** 2026-07-22
+- **Extracted:** 2026-08-10
 - **Update watch:** `.github/workflows/eu-data-dict-watch.yml` checks the source page on a schedule and opens an issue when a newer dictionary is published, so we can pull the fresh PDFs and re-run the generator.
 
 **Column meaning** (from the source docs): *Key* = the UUID the feed ships; *Data Point Name* = the descriptive name (may repeat across keys — e.g. `windows.[*].open` has one key per window index); *Description* = what it represents; *Unit* = measurement unit; *Type* = technical data type (boolean/int/enum/string/…); *Cluster* = the data area/category.
