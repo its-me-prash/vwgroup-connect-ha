@@ -51,7 +51,7 @@ from ..exceptions import (
     TwoFactorRequiredError,
     UpstreamUnavailableError,
 )
-from .._util import drop_charge_sentinel
+from .._util import drop_charge_sentinel, drop_odometer_sentinel
 from ..models import VehicleData
 from ._data_act_scraper import pick_active_15min_identifier
 
@@ -1427,7 +1427,9 @@ def map_dataset_to_vehicle_data(
                         "41c0805c-43e5-313e-9dfb-356cb8d20f7c",
                         "30cc36fd-71ca-3c09-9296-e94ebd47bd2b"))
     if odo is not None:
-        d.odometer_km = odo
+        # v3.0.2 (#1122) — _GLOBAL_SENTINELS drops the RAW uint32 sentinel here,
+        # but not its 0.1-km-scaled form (429_496_729); the shared guard does.
+        d.odometer_km = drop_odometer_sentinel(odo)
 
     # ── b14 (#555 Passat GTE 1.4 eHybrid / #565 Tiguan eHybrid) ─────────────
     # PHEV electric/combustion range disambiguation.

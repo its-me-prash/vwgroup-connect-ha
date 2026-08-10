@@ -17,7 +17,7 @@ from typing import Any
 
 from aiohttp import ClientConnectionError, ClientSession
 
-from .._util import first_not_none
+from .._util import drop_odometer_sentinel, first_not_none
 from .._util import mask_vin as _mask_vin
 from .._util import safe_float, safe_int
 from ..models import VehicleData
@@ -1049,10 +1049,10 @@ class VWNAClient:
             # instead of) the legacy ``powerStatus.odometer`` nested
             # path. Try both, root-level first since that is what
             # current firmware sends.
-            d.odometer_km = first_not_none(
+            d.odometer_km = drop_odometer_sentinel(first_not_none(
                 v(vehicle_raw, "currentMileage"),
                 v(power, "odometer"),
-            )
+            ))
             d.fuel_level  = v(power, "fuelPercentRemaining")
             # v2.11.0 (zackcornelius source-verified) - cruiseRangeUnits
             # is "KM" or "MI"; pre-v2.11.0 we unconditionally treated
