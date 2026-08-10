@@ -98,6 +98,58 @@ def build_warninglights_url(vin: str, gdc: str | None = None) -> str:
     )
 
 
+def build_parkingposition_url(vin: str, gdc: str | None = None) -> str:
+    """Last-parked GPS position (``parkingposition``) — EXPERIMENTAL / UNCONFIRMED.
+
+    Mirrors the warning-lights recipe exactly (WeConnect realm + live VCF host +
+    per-platform ``gdc``), on the theory that the reverse-proxy which already
+    passes charging + warning-lights may also pass position. This is NOT confirmed:
+    the myVolkswagen website has no "where's my car" map, so the proxy allowlist
+    very likely excludes the position service — expect 403/404/412. Wired
+    best-effort behind a live probe (#923); if a portal-enrolled car returns
+    ``{"data": {"lat", "lon"}}`` here, it becomes real live GPS for every VW EU
+    authproxy user. The underlying source of truth is the CARIAD BFF
+    ``/vehicle/v1/vehicles/{vin}/parkingposition`` (attestation-walled, 403 for VW
+    EU post-lockdown), so this proxy path is the only remaining attestation-free
+    lever.
+    """
+    return build_authproxy_url(
+        f"vehicles/{vin}/parkingposition",
+        realm=_REALM_WECONNECT,
+        resource_host=_HOST_VCF_LIVE,
+        gdc=gdc or _GDC_WCAR,
+    )
+
+
+def parse_parking_position(
+    body: object,
+) -> tuple[float, float, str | None] | None:
+    """Extract ``(lat, lon, carCapturedTimestamp)`` from a parkingposition body.
+
+    Same shape contract as the CARIAD-BFF read (vw_eu.py): coordinates live under
+    ``data`` (``{"data": {"lat", "lon", "carCapturedTimestamp"}}``), with a
+    top-level fallback for legacy/alternate firmwares. Returns ``None`` unless the
+    body carries BOTH a numeric lat and lon — a degraded 200 with an empty data
+    node must not overwrite a good last-known position with None (#923). The
+    timestamp is returned as the raw ISO string (or None), matching how the BFF
+    path stores ``position_captured_at``.
+    """
+    if not isinstance(body, dict):
+        return None
+    node = body.get("data")
+    if not isinstance(node, dict):
+        node = body  # top-level fallback
+    lat = node.get("lat")
+    lon = node.get("lon")
+    if not isinstance(lat, (int, float)) or not isinstance(lon, (int, float)):
+        return None
+    if isinstance(lat, bool) or isinstance(lon, bool):  # bool is an int subclass
+        return None
+    ts = node.get("carCapturedTimestamp")
+    ts_str = ts if isinstance(ts, str) and ts else None
+    return float(lat), float(lon), ts_str
+
+
 def build_transactionhistory_url(vin: str, gdc: str | None = None) -> str:
     """Remote-command history (lock/unlock lives here). Realm ``vw-de``.
 

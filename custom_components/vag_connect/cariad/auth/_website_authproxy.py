@@ -1193,6 +1193,40 @@ class WebsiteAuthProxyConnector:
         )
         return count
 
+    async def get_parking_position(
+        self, vin: str,
+    ) -> tuple[float, float, str | None] | None:
+        """Last-parked ``(lat, lon, carCapturedTimestamp)`` for *vin* — EXPERIMENTAL.
+
+        Attempts the parkingposition read through the same WeConnect reverse-proxy
+        realm that already carries charging + warning-lights. This is the one
+        remaining attestation-free lever for VW EU GPS (#923): the CARIAD app
+        backend's position endpoint is attestation-walled and 403 for EU passenger
+        cars, and the EU Data Act live feed has no coordinate field. UNCONFIRMED —
+        the proxy allowlist very likely excludes the position service, so this is
+        fail-soft + optional exactly like ``get_warning_lights``: any 4xx / empty /
+        parse-miss returns None and never forces a re-login. Returns coordinates
+        only when the body actually carries a numeric lat+lon.
+        """
+        from .._authproxy import (  # noqa: PLC0415
+            build_parkingposition_url,
+            parse_parking_position,
+        )
+
+        await self._ensure_backend(vin)
+        body = await self._get_json(
+            build_parkingposition_url(vin, self._gdc(vin)),
+            accept="*/*", soft=True, optional=True,
+        )
+        if body is None:
+            return None
+        parsed = parse_parking_position(body)
+        _LOGGER.debug(
+            "Website authproxy parkingposition %s → %s", vin[-6:],
+            "coords" if parsed else "no coordinates in body",
+        )
+        return parsed
+
     async def get_last_lock_action(self, vin: str) -> tuple[str, str | None] | None:
         """Last confirmed remote lock/unlock command for *vin*.
 
@@ -1384,14 +1418,29 @@ class WebsiteAuthProxyConnector:
                 exc_info=True,
             )
 
-        # #923: the vw.de web channel exposes NO vehicle-position endpoint (unlike
-        # the CARIAD app backend), so a VW EU device_tracker on this channel stays
-        # "unknown". Say so at debug, so a reporter's log explains the absence
-        # rather than it looking like a silently dropped position read.
-        _LOGGER.debug(
-            "vw.de channel carries no position endpoint; device_tracker stays "
-            "unknown for %s (see #923)", vin[-6:],
-        )
+        # #923 — EXPERIMENTAL: attempt parkingposition through the same WeConnect
+        # proxy realm that already carries charging + warning-lights. This is the
+        # only remaining attestation-free lever for VW EU GPS (the CARIAD app
+        # backend's position endpoint is attestation-walled + 403 for EU passenger
+        # cars, and the EU Data Act live feed has no coordinate field). The proxy
+        # allowlist very likely excludes it, so it is fail-soft and never forces a
+        # re-login; if it DOES return coordinates, the device_tracker gets a real
+        # live position on this channel.
+        try:
+            pos = await self.get_parking_position(vin)
+            if pos is not None:
+                d.latitude, d.longitude, _pos_ts = pos
+                if _pos_ts:
+                    d.position_captured_at = _pos_ts
+                got_data = True
+        except AuthenticationError:
+            raise
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug(
+                "Website authproxy parkingposition read skipped for %s", vin[-6:],
+                exc_info=True,
+            )
+
         if got_data:
             d.connection_state = "online"
         return d
