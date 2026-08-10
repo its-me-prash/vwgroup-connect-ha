@@ -122,6 +122,19 @@ _DATASET_LIST_PATH = (
     _EUDA_APIM + "/datadelivery/vehicles/{vin}/{identifier}/list"
 )
 _CSRF_TOKEN_PATH = "/libs/granite/csrf/token.json"
+# The portal runs TWO independent auth layers on one host, which is the whole
+# reason data-request creation can fail while reads work fine:
+#   * ``/proxy_api/*``  → the APIM reverse proxy. Our portal login authenticates
+#     HERE, and this is where every read goes.
+#   * ``/libs/granite/*``, ``/services/*``, ``/content/*`` → the AEM publish
+#     tier. The CSRF token lives here, and Adobe's own CSRF clientlib says the
+#     endpoint returns a blank body "during non-authenticated requests".
+# A session can therefore be perfectly valid for reads and anonymous for the
+# token, which surfaces as HTTP 200 with an empty ``{}`` body. Probing the AEM
+# leg tells the two apart; the page GET is the same request a browser makes when
+# the user opens the portal, and is our best-effort attempt to revive that leg.
+_AEM_PERMISSION_CHECK_PATH = "/services/permissioncheck"
+_AEM_SESSION_PAGE_PATH = "/de/en/user.html"
 
 # Canonical Data Clusters, spelled as the portal UI sends them. The SET matters
 # (the six exact strings); the ORDER does NOT — a real portal-UI trace
@@ -794,6 +807,22 @@ class DataActScraper:
 
     # ── v2.10.5 Phase C: Custom Data Request (live-trace based) ──────────────
 
+    def _portal_cookie_names(self) -> list[str]:
+        """Cookie NAMES on the portal jar — never values.
+
+        Which cookies we hold is the other half of the anonymous-at-AEM
+        diagnosis (the AEM session rides its own cookie), and the names alone
+        are safe to log. A value here would be a live session token.
+        """
+        try:
+            return sorted({
+                c.key for c in self._session.cookie_jar
+                if "drivesomethinggreater" in (c["domain"] or "")
+                or "vwgroup" in (c["domain"] or "")
+            })[:12]
+        except Exception:  # noqa: BLE001
+            return []
+
     async def _fetch_csrf_token(self) -> str | None:
         """Return a fresh CSRF token, or None if the portal did not
         deliver one. CSRF expires per-session so callers re-fetch
@@ -816,41 +845,99 @@ class DataActScraper:
         from aiohttp import ClientTimeout  # noqa: PLC0415
 
         url = _PORTAL_BASE + _CSRF_TOKEN_PATH
+        token, anonymous_at_aem = await self._csrf_get(url)
+        if token is not None:
+            return token
+        if not anonymous_at_aem:
+            # Either a hard HTTP error, or authenticated at AEM and still no
+            # token (the renamed-field / moved-endpoint case the docstring
+            # warns about). Loading the page helps with neither, so stop here
+            # and let the log above stand as the diagnosis.
+            return None
+        # Empty body + anonymous at AEM: the AEM leg of the session is missing
+        # or lapsed while the proxy leg still works. Load the portal page once,
+        # exactly as a browser does, then retry. Best-effort — if the AEM leg
+        # cannot be revived from the cookies we hold, this simply fails again
+        # and the log above has already recorded why.
+        _LOGGER.debug(
+            "CSRF token fetch: session is anonymous at the AEM layer — "
+            "loading %s once to try to revive it", _AEM_SESSION_PAGE_PATH,
+        )
+        try:
+            async with self._session.get(
+                _PORTAL_BASE + _AEM_SESSION_PAGE_PATH,
+                timeout=ClientTimeout(total=15),
+                allow_redirects=True,
+            ) as page:
+                _LOGGER.debug(
+                    "CSRF token fetch: portal page GET landed %s (HTTP %s)",
+                    str(page.url).split("?")[0][:100], page.status,
+                )
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.debug(
+                "CSRF token fetch: portal page GET raised %s: %s",
+                type(exc).__name__, exc,
+            )
+            return None
+        token, _ = await self._csrf_get(url)
+        return token
+
+    async def _csrf_get(self, url: str) -> tuple[str | None, bool]:
+        """One CSRF fetch → ``(token, anonymous_at_aem)``.
+
+        The second element is what makes an empty body diagnosable: the portal
+        edge stamps ``x-sky-isauth`` on the response, so a ``200 {}`` with
+        ``x-sky-isauth: 0`` means "anonymous at AEM", not "the field was
+        renamed". Those two need completely different responses from us and the
+        old code could not tell them apart. It is ``True`` ONLY for that
+        anonymous-empty-body case, so a hard HTTP error never triggers a retry.
+        """
+        from aiohttp import ClientTimeout  # noqa: PLC0415
+
         try:
             async with self._session.get(
                 url,
                 timeout=ClientTimeout(total=10),
                 headers={"Accept": "application/json"},
             ) as resp:
+                # getattr: a response object without headers must not turn a
+                # readable failure into an AttributeError traceback.
+                is_auth_hdr = getattr(resp, "headers", {}).get("x-sky-isauth")
                 if resp.status != 200:
                     _LOGGER.debug(
                         "CSRF token fetch: %s returned HTTP %s (portal session "
                         "expired, or the endpoint moved)",
                         _CSRF_TOKEN_PATH, resp.status,
                     )
-                    return None
+                    return None, False
                 data = await resp.json(content_type=None)
         except Exception as exc:  # noqa: BLE001
             _LOGGER.debug(
                 "CSRF token fetch: %s raised %s: %s",
                 _CSRF_TOKEN_PATH, type(exc).__name__, exc,
             )
-            return None
+            return None, False
+        # ``token`` is the field the portal's own Granite clientlib reads.
         if isinstance(data, dict):
             token = data.get("token") or data.get("csrfToken")
             if isinstance(token, str) and token:
-                return token
+                return token, False
+            anonymous = str(is_auth_hdr or "0").strip() == "0"
             _LOGGER.debug(
-                "CSRF token fetch: HTTP 200 but no usable token in the "
-                "response. Keys present: %s",
+                "CSRF token fetch: HTTP 200 but no usable token. "
+                "Keys present: %s | x-sky-isauth=%s (%s at the AEM layer) | "
+                "portal cookies held: %s",
                 sorted(data)[:12],
+                is_auth_hdr if is_auth_hdr is not None else "absent",
+                "ANONYMOUS" if anonymous else "authenticated",
+                self._portal_cookie_names(),
             )
-            return None
+            return None, anonymous
         _LOGGER.debug(
             "CSRF token fetch: HTTP 200 but the body is %s, not an object",
             type(data).__name__,
         )
-        return None
+        return None, False
 
     async def get_active_custom_request_identifier(
         self, vin: str
@@ -1009,8 +1096,10 @@ class DataActScraper:
                     headers={
                         "Accept": "application/json",
                         "Content-Type": "application/json",
+                        # The portal's own Granite CSRF clientlib sets exactly
+                        # this one header on every non-GET same-origin request.
+                        # ``X-CSRF-Token`` was ours, and is not a thing here.
                         "CSRF-Token": csrf,
-                        "X-CSRF-Token": csrf,  # belt and braces
                         # Required by the euda-apim layer (see metadata GET
                         # above); without it the POST 503s at the AEM edge.
                         "traceId": uuid.uuid4().hex,
@@ -1132,8 +1221,8 @@ class DataActScraper:
                     # are carried defensively (the requests/partial POST proves
                     # the AEM edge accepts them).
                     "Origin": _PORTAL_BASE,
+                    # One header, matching the portal's own CSRF clientlib.
                     "CSRF-Token": csrf,
-                    "X-CSRF-Token": csrf,
                     "traceId": uuid.uuid4().hex,
                 },
             ) as resp:
