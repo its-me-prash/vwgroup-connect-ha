@@ -654,8 +654,12 @@ class VWEUClient(CariadBaseClient):
                 parking = await self._get(
                     f"{base}/vehicle/v1/vehicles/{vin}/parkingposition"
                 )
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as exc:  # noqa: BLE001
+            # Best-effort: parkingposition is a separate endpoint that is
+            # attestation/ACL-closed (403 XID_APP_VW) for VW EU passenger cars
+            # post-lockdown. Log at debug so a #923-class diagnostic shows the
+            # attempt+failure instead of a silent gap.
+            _LOGGER.debug("parkingposition fetch failed for %s: %s", vin[-6:], exc)
 
         # v2.7.0b11 — Trip statistics (separate endpoint, two query
         # types). Lifetime and last-trip stats live here, NOT in

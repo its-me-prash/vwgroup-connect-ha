@@ -4662,16 +4662,25 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 "is_charging reset to False — plug not connected (defensive fix #32)"
             )
 
-        # Derive vehicle_state if not set by client
+        # Derive vehicle_state if not set by client. is_online is TRI-STATE:
+        # True (online), False (explicitly offline), or None (unknown — the vw.de
+        # authproxy and EU-Data-Act channels never report it; to_dict/asdict keeps
+        # the key present as None). #923: the old `not is_online` test read None as
+        # falsy and stamped OFFLINE on every VW EU authproxy car even while it was
+        # answering reads. Only an explicit False is OFFLINE now; when is_online is
+        # unknown and there is no driving/charging signal, leave vehicle_state
+        # unset rather than fabricate a state (Hard Rule #8).
         if not data.get("vehicle_state"):
-            if not data.get("is_online", True):
+            online = data.get("is_online")
+            if online is False:
                 data["vehicle_state"] = "OFFLINE"
             elif data.get("is_driving"):
                 data["vehicle_state"] = "DRIVING"
             elif data.get("is_charging"):
                 data["vehicle_state"] = "CHARGING"
-            else:
+            elif online is True:
                 data["vehicle_state"] = "PARKED"
+            # else: is_online unknown + no driving/charging → leave unset (unknown)
 
         # Derive is_driving from vehicle_state if client didn't set it
         if not data.get("is_driving") and data.get("vehicle_state") == "DRIVING":

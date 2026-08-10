@@ -178,6 +178,31 @@ class TestEnrich:
         result = asyncio.run(coord._enrich(data))
         assert result["vehicle_state"] == "CHARGING"
 
+    def test_vehicle_state_unknown_online_is_not_offline(self):
+        """#923: is_online=None means UNKNOWN, not offline. The vw.de authproxy
+        and EU-Data-Act channels never set is_online, and to_dict()/asdict keeps
+        the key present as None — the old `not is_online` test read that as falsy
+        and stamped OFFLINE on cars that were answering reads. Unknown online +
+        no driving/charging signal must NOT become OFFLINE; it is left unset."""
+        import asyncio
+        coord = self._make_coord()
+        data = {"is_online": None, "is_driving": False, "is_charging": False,
+                "latitude": None, "longitude": None}
+        result = asyncio.run(coord._enrich(data))
+        assert result.get("vehicle_state") != "OFFLINE"
+        assert result.get("vehicle_state") is None  # unknown, not fabricated
+
+    def test_vehicle_state_unknown_online_still_derives_charging(self):
+        """An active charging signal wins even when is_online is unknown, so an
+        EV on the authproxy channel still reads CHARGING rather than unknown."""
+        import asyncio
+        coord = self._make_coord()
+        data = {"is_online": None, "is_driving": False, "is_charging": True,
+                "plug_connected": True,
+                "latitude": None, "longitude": None}
+        result = asyncio.run(coord._enrich(data))
+        assert result["vehicle_state"] == "CHARGING"
+
     def test_existing_vehicle_state_preserved(self):
         """Client-set vehicle_state must not be overwritten."""
         import asyncio
