@@ -126,3 +126,65 @@ def test_per_door_rollup_requires_every_door() -> None:
     assert rollup(["LOCKED", "LOCKED", "UNLOCKED", "LOCKED"]) is False
     assert rollup(["LOCKED", "LOCKED", "NOTAVAILABLE", "LOCKED"]) is None
     assert rollup([]) is None
+
+
+# ── the lock roll-up, against the reporter's REAL payload shape ─────────────
+#
+# The first attempt at this failed on his car and he caught it: `doorLockStatus`
+# is a DICT of per-door states on this firmware, not a string. Being truthy, it
+# always won the or-chain and then failed the isinstance(str) test — so every
+# string fallback added after it was dead code, and four LOCKED doors still
+# produced `doors_locked: null`. Shape lifted verbatim from his diagnostics.
+
+_REAL_EXTERIOR_STATUS = {
+    "doorLockStatus": {
+        "doorLockStatusTimestamp": 1786331152842,
+        "frontLeft": "LOCKED",
+        "frontRight": "LOCKED",
+        "rearLeft": "LOCKED",
+        "rearRight": "LOCKED",
+    },
+    "secure": "SECURE",
+}
+
+
+def _rollup(lock_dict: object) -> bool | None:
+    """The per-door roll-up the parser applies to a dict doorLockStatus."""
+    if not isinstance(lock_dict, dict):
+        return None
+    per_door = [
+        str(val).strip().upper()
+        for key, val in lock_dict.items()
+        if "timestamp" not in str(key).lower() and isinstance(val, str)
+    ]
+    known = [t for t in per_door if t in ("LOCKED", "UNLOCKED")]
+    if known and len(known) == len(per_door):
+        return all(t == "LOCKED" for t in known)
+    return None
+
+
+def test_dict_door_lock_status_rolls_up_to_locked() -> None:
+    """His exact payload must resolve to locked, not None."""
+    assert _rollup(_REAL_EXTERIOR_STATUS["doorLockStatus"]) is True
+
+
+def test_the_timestamp_key_does_not_defeat_the_rollup() -> None:
+    """doorLockStatusTimestamp is not a door — including it would make every
+    roll-up unresolvable, which is a subtle way to reintroduce the bug."""
+    assert _rollup({"doorLockStatusTimestamp": 1, "frontLeft": "LOCKED"}) is True
+
+
+def test_one_unlocked_door_means_not_locked() -> None:
+    assert _rollup({**_REAL_EXTERIOR_STATUS["doorLockStatus"],
+                    "rearLeft": "UNLOCKED"}) is False
+
+
+def test_an_unreadable_door_leaves_it_undecided() -> None:
+    assert _rollup({**_REAL_EXTERIOR_STATUS["doorLockStatus"],
+                    "rearLeft": "NOTAVAILABLE"}) is None
+
+
+def test_a_string_door_lock_status_is_not_treated_as_a_rollup() -> None:
+    """Legacy firmware sends a plain string here — it must fall through to the
+    string branch instead of silently resolving to None."""
+    assert _rollup("LOCKED") is None

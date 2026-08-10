@@ -1096,21 +1096,41 @@ class VWNAClient:
             # only looked for ``lockStatus`` at the payload ROOT, never read
             # ``secure`` at all, and never rolled the per-door values up. Widen
             # the lookup to where the sibling fields already live.
-            overall_lock = (
-                v(vehicle_raw, "exteriorStatus", "doorLockStatus")
-                or v(door_status, "overallStatus")
-                or v(vehicle_raw, "lockStatus")
-                or v(vehicle_raw, "exteriorStatus", "lockStatus")
-                or v(door_status, "lockStatus")
-                or v(vehicle_raw, "secure")
-                or v(vehicle_raw, "exteriorStatus", "secure")
-            )
-            if isinstance(overall_lock, str):
-                token = overall_lock.strip().upper()
-                if token in ("LOCKED", "SECURE", "SECURED"):
-                    d.doors_locked = True
-                elif token in ("UNLOCKED", "INSECURE", "UNSECURED", "OPEN"):
-                    d.doors_locked = False
+            # ``doorLockStatus`` is a DICT of per-door states on this firmware —
+            # {"frontLeft": "LOCKED", …, "doorLockStatusTimestamp": …} — not a
+            # string. It is truthy, so it always won the or-chain below and then
+            # failed the isinstance(str) test, which is why every string
+            # fallback after it was dead code and the lock stayed Unknown even
+            # with four LOCKED doors in the payload. Take the per-door roll-up
+            # from that dict FIRST, then fall back to the string spellings.
+            lock_dict = v(vehicle_raw, "exteriorStatus", "doorLockStatus")
+            if isinstance(lock_dict, dict):
+                per_door = [
+                    str(val).strip().upper()
+                    for key, val in lock_dict.items()
+                    if "timestamp" not in str(key).lower() and isinstance(val, str)
+                ]
+                known = [t for t in per_door if t in ("LOCKED", "UNLOCKED")]
+                # Only decide when EVERY reported door is known: a partial view
+                # must never call a car locked.
+                if known and len(known) == len(per_door):
+                    d.doors_locked = all(t == "LOCKED" for t in known)
+            if d.doors_locked is None:
+                overall_lock = first_not_none(
+                    lock_dict if isinstance(lock_dict, str) else None,
+                    v(door_status, "overallStatus"),
+                    v(vehicle_raw, "lockStatus"),
+                    v(vehicle_raw, "exteriorStatus", "lockStatus"),
+                    v(door_status, "lockStatus"),
+                    v(vehicle_raw, "secure"),
+                    v(vehicle_raw, "exteriorStatus", "secure"),
+                )
+                if isinstance(overall_lock, str):
+                    token = overall_lock.strip().upper()
+                    if token in ("LOCKED", "SECURE", "SECURED"):
+                        d.doors_locked = True
+                    elif token in ("UNLOCKED", "INSECURE", "UNSECURED", "OPEN"):
+                        d.doors_locked = False
             # zackcornelius iterates the doorStatus dict items so
             # firmware-specific door-id sets work without an enum list.
             # We keep both: explicit ID list first for the legacy
