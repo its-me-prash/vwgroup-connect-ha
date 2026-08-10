@@ -352,6 +352,33 @@ class WebsiteAuthProxyConnector:
         # issues (#923 / #966). Keyed by endpoint (VIN stripped from the key);
         # the bodies are redacted at export time. Bounded — one per endpoint.
         self.last_raw_responses: dict[str, Any] = {}
+        # #923 — EXPERIMENTAL parkingposition probe, gated on the opt-in test
+        # cohort (set by the coordinator from entry.data at arm time). Self-
+        # limiting: it stops after a few no-coordinate polls so we never hammer
+        # VW's proxy with a doomed request forever. If coordinates DO come back,
+        # ``_position_available`` latches True and the read continues every poll
+        # (it's a real feature at that point).
+        self.probe_position: bool = False
+        self._position_probe_tries: int = 0
+        self._position_available: bool = False
+
+    _POSITION_PROBE_MAX_TRIES = 4
+
+    def _should_probe_position(self) -> bool:
+        """Whether to attempt the experimental parkingposition read this poll.
+
+        True once coordinates have been seen at least once (it latches on as a
+        real feature), or while the user is opted into the test cohort and still
+        within the self-limiting probe budget. False otherwise — so an opted-out
+        user never issues the request, and an opted-in car whose proxy keeps
+        refusing stops after ``_POSITION_PROBE_MAX_TRIES`` polls.
+        """
+        if self._position_available:
+            return True
+        return (
+            self.probe_position
+            and self._position_probe_tries < self._POSITION_PROBE_MAX_TRIES
+        )
 
     def _capture_raw(self, url: str, body: Any) -> None:
         """Stash a raw vw.de response for diagnostics, keyed by endpoint with the
@@ -1193,6 +1220,40 @@ class WebsiteAuthProxyConnector:
         )
         return count
 
+    async def get_parking_position(
+        self, vin: str,
+    ) -> tuple[float, float, str | None] | None:
+        """Last-parked ``(lat, lon, carCapturedTimestamp)`` for *vin* — EXPERIMENTAL.
+
+        Attempts the parkingposition read through the same WeConnect reverse-proxy
+        realm that already carries charging + warning-lights. This is the one
+        remaining attestation-free lever for VW EU GPS (#923): the CARIAD app
+        backend's position endpoint is attestation-walled and 403 for EU passenger
+        cars, and the EU Data Act live feed has no coordinate field. UNCONFIRMED —
+        the proxy allowlist very likely excludes the position service, so this is
+        fail-soft + optional exactly like ``get_warning_lights``: any 4xx / empty /
+        parse-miss returns None and never forces a re-login. Returns coordinates
+        only when the body actually carries a numeric lat+lon.
+        """
+        from .._authproxy import (  # noqa: PLC0415
+            build_parkingposition_url,
+            parse_parking_position,
+        )
+
+        await self._ensure_backend(vin)
+        body = await self._get_json(
+            build_parkingposition_url(vin, self._gdc(vin)),
+            accept="*/*", soft=True, optional=True,
+        )
+        if body is None:
+            return None
+        parsed = parse_parking_position(body)
+        _LOGGER.debug(
+            "Website authproxy parkingposition %s → %s", vin[-6:],
+            "coords" if parsed else "no coordinates in body",
+        )
+        return parsed
+
     async def get_last_lock_action(self, vin: str) -> tuple[str, str | None] | None:
         """Last confirmed remote lock/unlock command for *vin*.
 
@@ -1384,14 +1445,34 @@ class WebsiteAuthProxyConnector:
                 exc_info=True,
             )
 
-        # #923: the vw.de web channel exposes NO vehicle-position endpoint (unlike
-        # the CARIAD app backend), so a VW EU device_tracker on this channel stays
-        # "unknown". Say so at debug, so a reporter's log explains the absence
-        # rather than it looking like a silently dropped position read.
-        _LOGGER.debug(
-            "vw.de channel carries no position endpoint; device_tracker stays "
-            "unknown for %s (see #923)", vin[-6:],
-        )
+        # #923 — EXPERIMENTAL parkingposition read, gated on the opt-in test
+        # cohort (``probe_position``, set by the coordinator from entry.data).
+        # Attempts the same WeConnect proxy realm that already carries charging +
+        # warning-lights — the only remaining attestation-free lever for VW EU GPS
+        # (the CARIAD app position endpoint is attestation-walled + 403 for EU
+        # passenger cars, and the EU Data Act live feed has no coordinate field).
+        # Fail-soft, never forces a re-login. Self-limiting: it stops after a few
+        # no-coordinate polls so a doomed request isn't sent forever; the moment
+        # coordinates come back it latches on and keeps reading as a real feature.
+        if self._should_probe_position():
+            if not self._position_available:
+                self._position_probe_tries += 1
+            try:
+                pos = await self.get_parking_position(vin)
+                if pos is not None:
+                    d.latitude, d.longitude, _pos_ts = pos
+                    if _pos_ts:
+                        d.position_captured_at = _pos_ts
+                    got_data = True
+                    self._position_available = True
+            except AuthenticationError:
+                raise
+            except Exception:  # noqa: BLE001
+                _LOGGER.debug(
+                    "Website authproxy parkingposition read skipped for %s",
+                    vin[-6:], exc_info=True,
+                )
+
         if got_data:
             d.connection_state = "online"
         return d

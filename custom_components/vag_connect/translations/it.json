@@ -212,7 +212,8 @@
           "abrp_enable": "Abilita l'invio di telemetria ad ABRP",
           "abrp_api_key": "ABRP api_key (chiave sviluppatore)",
           "abrp_user_token": "Token ABRP (per veicolo)",
-          "keep_raw_datasets": "Conserva i set di dati grezzi EU Data Act (diagnostica)"
+          "keep_raw_datasets": "Conserva i set di dati grezzi EU Data Act (diagnostica)",
+          "test_cohort": "Aiutaci a migliorare VW Group Connect (gruppo di test ad adesione volontaria)"
         },
         "data_description": {
           "scan_interval": "Con quale frequenza vengono recuperati i dati (minuti). Minimo: 3.",
@@ -230,7 +231,8 @@
           "abrp_enable": "Invia telemetria in tempo reale ad A Better Routeplanner. Richiede sia una api_key sia un token per veicolo qui sotto. Disattivato = nessuna chiamata in uscita.",
           "abrp_api_key": "Una chiave sviluppatore/partner che registri presso iternio (non ne forniamo una). Identifica l'integrazione. Mai registrata nei log.",
           "abrp_user_token": "Il token 'Generic' dell'app ABRP: Impostazioni -> la tua auto -> Live Data. Mai registrato nei log.",
-          "keep_raw_datasets": "Utile solo sul canale del portale EU Data Act. Se attivo, gli ultimi file ZIP di dati grezzi forniti dal portale vengono conservati su disco (in .storage, per veicolo e con un limite di dimensione) così un valore errato o mancante può essere riprodotto dai byte esatti inviati dalla tua auto. Questi file contengono la posizione GPS, il VIN e la telemetria, quindi è disattivato per impostazione predefinita: attivalo solo durante la risoluzione dei problemi."
+          "keep_raw_datasets": "Utile solo sul canale del portale EU Data Act. Se attivo, gli ultimi file ZIP di dati grezzi forniti dal portale vengono conservati su disco (in .storage, per veicolo e con un limite di dimensione) così un valore errato o mancante può essere riprodotto dai byte esatti inviati dalla tua auto. Questi file contengono la posizione GPS, il VIN e la telemetria, quindi è disattivato per impostazione predefinita: attivalo solo durante la risoluzione dei problemi.",
+          "test_cohort": "Disattivato per impostazione predefinita. Attivalo per permettere all'integrazione di provare letture sperimentali sulla tua auto — come il tentativo, tuttora in corso, di recuperare la posizione GPS per le auto Volkswagen europee — e di mostrarti ogni tanto una notifica (che puoi chiudere) in cui ti chiede di condividere un file di diagnostica, così da confermare una nuova funzionalità per il tuo modello. Tutto ciò che condividi viene oscurato automaticamente prima di lasciare il tuo sistema: non vengono mai inclusi VIN, GPS, token o indirizzo email. È così che si sbloccano nuove funzioni per la tua auto e per tutti quelli che guidano lo stesso modello, e puoi disattivarlo di nuovo in qualsiasi momento."
         }
       },
       "add_vwde": {
@@ -1791,6 +1793,10 @@
     "mandatory_consent_missing": {
       "title": "Škoda: consenso obbligatorio non accettato",
       "description": "Il tuo account {brand} non ha accettato un consenso di servizio obbligatorio, quindi alcuni dati o funzioni potrebbero non essere disponibili. Apri l'app MyŠkoda e accetta il consenso richiesto — questo avviso scompare da solo."
+    },
+    "test_cohort_share_request": {
+      "title": "Aiutaci a confermare una nuova funzionalità — condividi il risultato del tuo test?",
+      "description": "Grazie per aver aderito al gruppo di test ad adesione volontaria. La tua auto è stata inclusa in un esperimento — in questo momento, il tentativo di recuperare la posizione GPS per le auto Volkswagen europee tramite il canale volkswagen.de. Per confermare il risultato su modelli e piattaforme diversi, ci saresti davvero d'aiuto condividendo un file di diagnostica: vai su Impostazioni → Dispositivi e servizi → VW Group Connect → il menu a tre puntini → Scarica diagnostica, poi allega il file alla segnalazione GitHub #923.\n\nL'esportazione viene oscurata automaticamente prima che tu la scarichi — non contiene VIN, GPS, token o email — quindi puoi pubblicarla senza problemi. Vedi questo messaggio solo perché hai scelto di aderire; puoi ignorarlo, e disattivando di nuovo il gruppo di test nelle opzioni dell'integrazione queste notifiche spariranno del tutto. Grazie per contribuire a sbloccare nuove funzioni per tutti quelli che guidano il tuo stesso modello."
     }
   },
   "services": {

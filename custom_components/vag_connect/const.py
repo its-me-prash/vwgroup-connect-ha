@@ -198,6 +198,13 @@ CONF_WEBSITE_COOKIES          = "website_cookies"
 # read-only source that the coordinator unions onto the primary snapshot via
 # merge_channels. Absent / False = single-channel behaviour, unchanged.
 CONF_SUPPLEMENTARY_AUTHPROXY         = "supplementary_authproxy"
+# Opt-in test cohort. When a user ticks this, the integration may run EXPERIMENTAL
+# reads/probes on their car (e.g. the vw.de parkingposition GPS lever, #923) and
+# surface a dismissible Repair asking them to share aggressively-redacted
+# diagnostics so a new capability can be confirmed for their model. Default off;
+# read ONLY via entry.data (the options listener folds options → data, and
+# entry.options is always {} at read time — see [[vag-connect-entry-options-trap]]).
+CONF_TEST_COHORT                     = "test_cohort"
 # v2.15.0b8 (C1) — supplementary EU Data Act PORTAL read channel (email/pw,
 # no OTP) merged onto a command-capable primary like MBB to fill the reads MBB
 # can't. Creds stored separately from the primary's (an MBB-QR entry has none).

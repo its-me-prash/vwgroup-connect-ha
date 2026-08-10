@@ -212,7 +212,8 @@
           "abrp_enable": "Activer l'envoi de télémétrie ABRP",
           "abrp_api_key": "api_key ABRP (clé développeur)",
           "abrp_user_token": "Jeton ABRP (par véhicule)",
-          "keep_raw_datasets": "Conserver les jeux de données EU Data Act bruts (diagnostic)"
+          "keep_raw_datasets": "Conserver les jeux de données EU Data Act bruts (diagnostic)",
+          "test_cohort": "Aider à améliorer VW Group Connect (groupe de test volontaire)"
         },
         "data_description": {
           "scan_interval": "Fréquence de mise à jour (minutes). Minimum: 3.",
@@ -230,7 +231,8 @@
           "abrp_enable": "Envoyer la télémétrie en direct à A Better Routeplanner. Nécessite une api_key et un jeton par véhicule. Désactivé = aucun appel sortant.",
           "abrp_api_key": "Une clé développeur/partenaire que vous enregistrez auprès d'iternio (nous n'en fournissons pas). Identifie l'intégration. Jamais journalisée.",
           "abrp_user_token": "Le jeton « Generic » de l'application ABRP : Paramètres -> votre voiture -> Live Data. Jamais journalisé.",
-          "keep_raw_datasets": "Utile uniquement sur le canal du portail EU Data Act. Une fois activé, les derniers fichiers ZIP de données bruts fournis par le portail sont conservés sur le disque (sous .storage, par véhicule et avec une limite de taille) afin qu'une valeur erronée ou manquante puisse être reproduite à partir des octets exacts envoyés par votre voiture. Ces fichiers contiennent votre position GPS, votre VIN et votre télémétrie ; l'option est donc désactivée par défaut – ne l'activez que pour le dépannage."
+          "keep_raw_datasets": "Utile uniquement sur le canal du portail EU Data Act. Une fois activé, les derniers fichiers ZIP de données bruts fournis par le portail sont conservés sur le disque (sous .storage, par véhicule et avec une limite de taille) afin qu'une valeur erronée ou manquante puisse être reproduite à partir des octets exacts envoyés par votre voiture. Ces fichiers contiennent votre position GPS, votre VIN et votre télémétrie ; l'option est donc désactivée par défaut – ne l'activez que pour le dépannage.",
+          "test_cohort": "Désactivé par défaut. Activez cette option pour autoriser l'intégration à tenter des relevés expérimentaux sur votre voiture — comme la tentative en cours de récupérer la position GPS des Volkswagen de l'UE — et à afficher de temps en temps une notification, que vous pouvez fermer, vous proposant de partager un fichier de diagnostic afin de confirmer une nouvelle fonctionnalité pour votre modèle. Tout ce qui est partagé est automatiquement expurgé avant de quitter votre système : ni VIN, ni GPS, ni jetons, ni adresse e-mail n'y figurent jamais. C'est ainsi que de nouvelles fonctionnalités sont débloquées pour votre voiture et pour tous ceux qui conduisent le même modèle — et vous pouvez la désactiver à tout moment."
         }
       },
       "add_vwde": {
@@ -1791,6 +1793,10 @@
     "mandatory_consent_missing": {
       "title": "Škoda : consentement obligatoire non accepté",
       "description": "Votre compte {brand} n'a pas accepté un consentement de service obligatoire ; certaines données ou fonctions peuvent être indisponibles. Ouvrez l'application MyŠkoda et acceptez le consentement requis — cet avis disparaît ensuite tout seul."
+    },
+    "test_cohort_share_request": {
+      "title": "Aidez-nous à confirmer une nouvelle fonctionnalité — partager votre résultat de test ?",
+      "description": "Merci d'avoir rejoint le groupe de test volontaire. Votre voiture a été incluse dans une expérimentation — en ce moment, la tentative de récupérer la position GPS des Volkswagen de l'UE via le canal volkswagen.de. Pour confirmer le résultat sur différents modèles et plateformes, cela nous aiderait vraiment que vous partagiez un fichier de diagnostic : allez dans Paramètres → Appareils et services → VW Group Connect → le menu à trois points → Télécharger les diagnostics, puis joignez le fichier au ticket GitHub #923.\n\nL'export est automatiquement expurgé avant même que vous ne le téléchargiez — ni VIN, ni GPS, ni jetons, ni adresse e-mail n'y figurent — vous pouvez donc le publier sans crainte. Vous voyez ce message uniquement parce que vous avez choisi de participer ; vous pouvez le fermer, et désactiver le groupe de test dans les options de l'intégration met complètement fin à ces notifications. Merci de nous aider à débloquer des fonctionnalités pour tous ceux qui conduisent votre modèle."
     }
   },
   "services": {

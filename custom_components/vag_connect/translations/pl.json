@@ -212,7 +212,8 @@
           "abrp_enable": "Włącz wysyłanie telemetrii ABRP",
           "abrp_api_key": "api_key ABRP (klucz dewelopera)",
           "abrp_user_token": "Token ABRP (na pojazd)",
-          "keep_raw_datasets": "Zachowuj surowe zestawy danych EU Data Act (diagnostyka)"
+          "keep_raw_datasets": "Zachowuj surowe zestawy danych EU Data Act (diagnostyka)",
+          "test_cohort": "Pomóż ulepszać VW Group Connect (dobrowolna grupa testowa)"
         },
         "data_description": {
           "scan_interval": "Jak często pobierane są dane (minuty). Minimum: 3.",
@@ -230,7 +231,8 @@
           "abrp_enable": "Wysyłaj telemetrię na żywo do A Better Routeplanner. Wymaga api_key oraz tokenu na pojazd. Wyłączone = brak połączeń wychodzących.",
           "abrp_api_key": "Klucz dewelopera/partnera rejestrowany w iternio (nie dostarczamy go). Identyfikuje integrację. Nigdy nie jest logowany.",
           "abrp_user_token": "Token 'Generic' z aplikacji ABRP: Ustawienia -> Twój samochód -> Live Data. Nigdy nie jest logowany.",
-          "keep_raw_datasets": "Przydatne tylko na kanale portalu EU Data Act. Po włączeniu ostatnie surowe pliki ZIP z danymi dostarczane przez portal są przechowywane na dysku (w .storage, na pojazd i z limitem rozmiaru), aby błędną lub brakującą wartość można było odtworzyć z dokładnie tych bajtów, które wysłał samochód. Te pliki zawierają Twoją lokalizację GPS, VIN i telemetrię, dlatego domyślnie są wyłączone – włącz je tylko podczas rozwiązywania problemów."
+          "keep_raw_datasets": "Przydatne tylko na kanale portalu EU Data Act. Po włączeniu ostatnie surowe pliki ZIP z danymi dostarczane przez portal są przechowywane na dysku (w .storage, na pojazd i z limitem rozmiaru), aby błędną lub brakującą wartość można było odtworzyć z dokładnie tych bajtów, które wysłał samochód. Te pliki zawierają Twoją lokalizację GPS, VIN i telemetrię, dlatego domyślnie są wyłączone – włącz je tylko podczas rozwiązywania problemów.",
+          "test_cohort": "Domyślnie wyłączone. Włącz tę opcję, aby integracja mogła próbować eksperymentalnych odczytów danych z Twojego samochodu — na przykład trwającej próby odzyskania pozycji GPS w samochodach Volkswagena z UE — i od czasu do czasu wyświetlać powiadomienie (które możesz zamknąć) z prośbą o udostępnienie pliku diagnostycznego, dzięki czemu nowa funkcja może zostać potwierdzona dla Twojego modelu. Wszystko, co udostępniasz, jest automatycznie anonimizowane, zanim opuści Twój system: nigdy nie zawiera numeru VIN, danych GPS, tokenów ani adresu e-mail. Właśnie w ten sposób odblokowywane są nowe funkcje — dla Twojego samochodu i wszystkich, którzy jeżdżą tym samym modelem — a w każdej chwili możesz ją z powrotem wyłączyć."
         }
       },
       "add_vwde": {
@@ -1791,6 +1793,10 @@
     "mandatory_consent_missing": {
       "title": "Škoda: nie zaakceptowano wymaganej zgody",
       "description": "Twoje konto {brand} nie zaakceptowało wymaganej zgody serwisowej, więc część danych lub funkcji może być niedostępna. Otwórz aplikację MyŠkoda i zaakceptuj wymaganą zgodę — to powiadomienie zniknie samo."
+    },
+    "test_cohort_share_request": {
+      "title": "Pomóż potwierdzić nową funkcję — udostępnisz wynik testu?",
+      "description": "Dziękujemy za dołączenie do dobrowolnej grupy testowej. Twój samochód został objęty eksperymentem — w tej chwili chodzi o próbę odzyskania pozycji GPS w samochodach Volkswagena z UE za pośrednictwem kanału volkswagen.de. Aby potwierdzić wynik na różnych modelach i platformach, ogromną pomocą byłoby udostępnienie pliku diagnostycznego: przejdź do Ustawienia → Urządzenia i usługi → VW Group Connect → menu z trzema kropkami → Pobierz diagnostykę, a następnie dołącz plik do zgłoszenia #923 na GitHubie.\n\nEksport jest automatycznie anonimizowany, zanim go pobierzesz — nie zawiera numeru VIN, danych GPS, tokenów ani adresu e-mail — więc bez obaw możesz go opublikować. Widzisz to powiadomienie tylko dlatego, że dołączenie do grupy testowej było Twoją własną decyzją; możesz je zamknąć, a wyłączenie grupy testowej w opcjach integracji całkowicie zatrzyma tego typu powiadomienia. Dziękujemy, że pomagasz odblokowywać funkcje dla wszystkich, którzy jeżdżą Twoim modelem."
     }
   },
   "services": {

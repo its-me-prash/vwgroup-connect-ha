@@ -187,6 +187,30 @@ def clear_supplementary_reauth_issue(hass: HomeAssistant, entry_id: str) -> None
     ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_supplementary_reauth")
 
 
+def raise_issue_test_cohort_share(hass: HomeAssistant, entry_id: str) -> None:
+    """#923 — the user opted INTO the test cohort; ask them once (dismissibly) to
+    share aggressively-redacted diagnostics so an experimental capability (right
+    now the vw.de GPS lever) can be confirmed across models/platforms. Not
+    auto-fixable (the user shares the file); WARNING is the lowest HA severity;
+    idempotent (HA de-dupes by issue id). Only ever raised when the cohort flag is
+    on — cleared the moment it's turned off."""
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        f"{entry_id}_test_cohort_share",
+        is_fixable=False,
+        is_persistent=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="test_cohort_share_request",
+        learn_more_url="https://github.com/its-me-prash/vwgroup-connect-ha/issues/923",
+    )
+
+
+def clear_issue_test_cohort_share(hass: HomeAssistant, entry_id: str) -> None:
+    """Clear the test-cohort share request (cohort opted out)."""
+    ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_test_cohort_share")
+
+
 def raise_issue_requirements_conflict(hass: HomeAssistant) -> None:
     """Raise a repair issue for configuration problems."""
     ir.async_create_issue(

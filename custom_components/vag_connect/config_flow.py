@@ -57,6 +57,7 @@ from .const import (
     CONF_HIDE_EMPTY_ENTITIES,
     CONF_SUPPLEMENTARY_AUTHPROXY,
     CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES,
+    CONF_TEST_COHORT,
     CONF_SUPPLEMENTARY_EU_PORTAL,
     CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD,
     CONF_SUPPLEMENTARY_EU_PORTAL_USERNAME,
@@ -1950,6 +1951,19 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                     default=current_options.get(
                         CONF_READ_ONLY,
                         current_data.get(CONF_READ_ONLY, False),
+                    ),
+                ): _BOOL_SELECTOR,
+                # #923 — opt-in test cohort. When ticked, the integration may run
+                # experimental reads/probes (e.g. the vw.de parkingposition GPS
+                # lever) and surface a dismissible Repair asking the user to share
+                # aggressively-redacted diagnostics so a capability can be
+                # confirmed for their model. Persistent bool, default OFF; read
+                # via entry.data (options are folded into data by the listener).
+                vol.Optional(
+                    CONF_TEST_COHORT,
+                    default=current_options.get(
+                        CONF_TEST_COHORT,
+                        current_data.get(CONF_TEST_COHORT, False),
                     ),
                 ): _BOOL_SELECTOR,
                 # P1-5 — opt-in diagnostic archive of raw EU Data Act dataset

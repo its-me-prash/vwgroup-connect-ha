@@ -42,11 +42,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **New opt-in "test cohort" option — help unlock features for your car.** A new tick-box in the integration's options (off by default). When you turn it on, the integration may run experimental reads on your car — the first one being an attempt to recover **GPS location for Volkswagen EU cars** over the volkswagen.de channel — and, occasionally, show a dismissible notification asking you to share a diagnostics file so a new capability can be confirmed for your exact model. Everything shared is redacted automatically before it leaves your system (no VIN, GPS, tokens or e-mail), and turning the option back off stops the experiments and the notifications. It's how features like location get proven across the many different VW EU platforms without one person's single car having to represent them all. (#923)
+
 ### Fixed
 - **A Volkswagen EU car read over the volkswagen.de channel no longer falsely shows OFFLINE.** That channel (and the EU Data Act one) can't tell the integration whether the car is online, and an *unknown* online state was being treated as *offline* — so a car that was answering its reads perfectly well still reported OFFLINE. It now says OFFLINE only when the backend actually reports the car as offline, and otherwise leaves the state unknown rather than inventing one. Thanks @fight3, whose T-Roc showed this alongside the separate, still-open missing-GPS question in #923.
 
 ### Internal
-- **VW EU position reads now explain themselves in the debug log.** When a GPS coordinate can't be produced — the CARIAD parking-position endpoint being closed for EU passenger cars, and the volkswagen.de channel having no position endpoint at all — the log now says so instead of leaving a silent gap, so a "device_tracker stays unknown" report (#923) is diagnosable rather than looking like a dropped read.
+- **VW EU position reads now explain themselves in the debug log.** The CARIAD parking-position endpoint being closed for EU passenger cars (403) is logged at debug instead of being swallowed silently, so a "device_tracker stays unknown" report (#923) is diagnosable rather than looking like a dropped read.
 
 ## [3.0.2] - 2026-08-10 — the reporter batch (cross-brand reliability)
 

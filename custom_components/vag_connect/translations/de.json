@@ -212,7 +212,8 @@
           "abrp_enable": "ABRP-Telemetrie senden",
           "abrp_api_key": "ABRP-api_key (Entwicklerschlüssel)",
           "abrp_user_token": "ABRP-Token (pro Fahrzeug)",
-          "keep_raw_datasets": "Rohe EU-Data-Act-Datensätze behalten (Diagnose)"
+          "keep_raw_datasets": "Rohe EU-Data-Act-Datensätze behalten (Diagnose)",
+          "test_cohort": "Hilf mit, VW Group Connect zu verbessern (freiwillige Testgruppe)"
         },
         "data_description": {
           "enable_reverse_geocoding": "Sendet GPS der Parkposition an OpenStreetMap Nominatim, um Straße/Stadt zu ermitteln. Standard: aus (Datenschutz).",
@@ -230,7 +231,8 @@
           "abrp_enable": "Live-Telemetrie an A Better Routeplanner senden. Benötigt api_key und einen Token pro Fahrzeug. Aus = keine ausgehenden Aufrufe.",
           "abrp_api_key": "Ein Entwickler-/Partnerschlüssel, den du bei iternio registrierst (wir liefern keinen). Identifiziert die Integration. Wird nie protokolliert.",
           "abrp_user_token": "Der 'Generic'-Token aus der ABRP-App: Einstellungen -> dein Auto -> Live Data. Wird nie protokolliert.",
-          "keep_raw_datasets": "Nur auf dem EU-Data-Act-Portal-Kanal sinnvoll. Wenn aktiv, werden die letzten paar rohen Datensatz-ZIPs des Portals auf der Festplatte behalten (unter .storage, pro Fahrzeug und größenbegrenzt), damit sich ein falscher oder fehlender Wert aus genau den Bytes reproduzieren lässt, die dein Auto gesendet hat. Diese Dateien enthalten GPS, VIN und Telemetrie, deshalb ist die Option standardmäßig aus – schalte sie nur zur Fehlersuche ein."
+          "keep_raw_datasets": "Nur auf dem EU-Data-Act-Portal-Kanal sinnvoll. Wenn aktiv, werden die letzten paar rohen Datensatz-ZIPs des Portals auf der Festplatte behalten (unter .storage, pro Fahrzeug und größenbegrenzt), damit sich ein falscher oder fehlender Wert aus genau den Bytes reproduzieren lässt, die dein Auto gesendet hat. Diese Dateien enthalten GPS, VIN und Telemetrie, deshalb ist die Option standardmäßig aus – schalte sie nur zur Fehlersuche ein.",
+          "test_cohort": "Standardmäßig aus. Wenn du das einschaltest, darf die Integration experimentelle Abfragen an deinem Auto ausprobieren — etwa den laufenden Versuch, den GPS-Standort für Volkswagen-EU-Fahrzeuge auszulesen — und dir hin und wieder eine wegklickbare Benachrichtigung zeigen, die dich bittet, eine Diagnosedatei zu teilen, damit eine neue Funktion für dein Modell bestätigt werden kann. Alles, was du teilst, wird automatisch anonymisiert, bevor es dein System verlässt: Weder VIN noch GPS, Tokens oder E-Mail sind je enthalten. So werden neue Funktionen für dein Auto und für alle freigeschaltet, die dasselbe Modell fahren — und du kannst es jederzeit wieder ausschalten."
         }
       },
       "add_vwde": {
@@ -1791,6 +1793,10 @@
     "mandatory_consent_missing": {
       "title": "Škoda: Pflichtzustimmung nicht akzeptiert",
       "description": "Dein {brand}-Konto hat eine erforderliche Service-Zustimmung nicht akzeptiert, daher könnten einige Daten oder Funktionen fehlen. Öffne die MyŠkoda-App und akzeptiere die erforderliche Zustimmung — dieser Hinweis verschwindet danach von selbst."
+    },
+    "test_cohort_share_request": {
+      "title": "Hilf mit, eine neue Funktion zu bestätigen — teilst du dein Testergebnis?",
+      "description": "Danke, dass du bei der freiwilligen Testgruppe mitmachst. Dein Auto war Teil eines Experiments — im Moment der Versuch, den GPS-Standort für Volkswagen-EU-Fahrzeuge über den volkswagen.de-Kanal auszulesen. Damit sich das Ergebnis über verschiedene Modelle und Plattformen hinweg bestätigen lässt, würde es wirklich helfen, wenn du eine Diagnosedatei teilst: Geh zu Einstellungen → Geräte & Dienste → VW Group Connect → das Drei-Punkte-Menü → Diagnose herunterladen und häng die Datei an das GitHub-Issue #923 an.\n\nDer Export wird automatisch anonymisiert, bevor du ihn herunterlädst — weder VIN noch GPS, Tokens oder E-Mail sind enthalten —, sodass du ihn bedenkenlos öffentlich posten kannst. Du siehst das nur, weil du dich dafür entschieden hast; du kannst es einfach wegklicken, und wenn du die Testgruppe in den Optionen der Integration wieder ausschaltest, hören diese Benachrichtigungen ganz auf. Danke, dass du hilfst, Funktionen für alle freizuschalten, die dein Modell fahren."
     }
   },
   "selector": {

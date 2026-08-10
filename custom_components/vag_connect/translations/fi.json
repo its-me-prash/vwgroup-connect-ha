@@ -212,7 +212,8 @@
           "abrp_enable": "Ota käyttöön ABRP-telemetrian lähetys",
           "abrp_api_key": "ABRP api_key (kehittäjäavain)",
           "abrp_user_token": "ABRP-tunniste (ajoneuvokohtainen)",
-          "keep_raw_datasets": "Säilytä EU Data Act -raakadatajoukot (diagnostiikka)"
+          "keep_raw_datasets": "Säilytä EU Data Act -raakadatajoukot (diagnostiikka)",
+          "test_cohort": "Auta parantamaan VW Group Connectia (vapaaehtoinen testiryhmä)"
         },
         "data_description": {
           "scan_interval": "Kuinka usein tietoja haetaan (minuutteja). Vähintään: 3.",
@@ -230,7 +231,8 @@
           "abrp_enable": "Lähetä live-telemetriaa A Better Routeplannerille. Tarvitsee sekä api_keyn että ajoneuvokohtaisen tunnisteen alla. Pois = ei lähteviä kutsuja.",
           "abrp_api_key": "Kehittäjä-/kumppaniavain, jonka rekisteröit iterniolla (emme toimita sellaista). Tunnistaa integraation. Ei koskaan lokiin.",
           "abrp_user_token": "'Generic'-tunniste ABRP-sovelluksesta: Asetukset -> autosi -> Live Data. Ei koskaan lokiin.",
-          "keep_raw_datasets": "Hyödyllinen vain EU Data Act -portaalikanavalla. Kun käytössä, portaalin toimittamat viimeisimmät raa'at datajoukko-ZIP-tiedostot säilytetään levyllä (.storage-kansiossa, ajoneuvokohtaisesti ja kokorajoitettuna), jotta väärä tai puuttuva arvo voidaan toistaa juuri niistä tavuista, jotka autosi lähetti. Nämä tiedostot sisältävät GPS-sijaintisi, VIN-numerosi ja telemetriasi, joten oletuksena se on pois päältä – ota se käyttöön vain vianmäärityksen ajaksi."
+          "keep_raw_datasets": "Hyödyllinen vain EU Data Act -portaalikanavalla. Kun käytössä, portaalin toimittamat viimeisimmät raa'at datajoukko-ZIP-tiedostot säilytetään levyllä (.storage-kansiossa, ajoneuvokohtaisesti ja kokorajoitettuna), jotta väärä tai puuttuva arvo voidaan toistaa juuri niistä tavuista, jotka autosi lähetti. Nämä tiedostot sisältävät GPS-sijaintisi, VIN-numerosi ja telemetriasi, joten oletuksena se on pois päältä – ota se käyttöön vain vianmäärityksen ajaksi.",
+          "test_cohort": "Oletuksena pois päältä. Kun otat tämän käyttöön, integraatio saa tehdä autoosi kokeellisia lukupyyntöjä — kuten parhaillaan käynnissä olevaa yritystä hakea GPS-sijainti Volkswagenin EU-autoille — ja näyttää silloin tällöin suljettavan ilmoituksen, jossa sinua pyydetään jakamaan diagnostiikkatiedosto, jotta uusi ominaisuus voidaan varmistaa juuri sinun automallillesi. Kaikki jaettavat tiedot puhdistetaan automaattisesti ennen kuin ne lähtevät järjestelmästäsi: mukana ei koskaan ole VIN-tunnusta, GPS-sijaintia, tokeneita eikä sähköpostia. Juuri näin uudet ominaisuudet avautuvat sekä sinun autoosi että kaikille muille samaa mallia ajaville, ja voit halutessasi kytkeä sen milloin tahansa takaisin pois päältä."
         }
       },
       "add_vwde": {
@@ -1791,6 +1793,10 @@
     "mandatory_consent_missing": {
       "title": "Škoda: pakollista suostumusta ei hyväksytty",
       "description": "{brand}-tilisi ei ole hyväksynyt pakollista palvelusuostumusta, joten osa tiedoista tai toiminnoista voi olla poissa käytöstä. Avaa MyŠkoda-sovellus ja hyväksy vaadittu suostumus — tämä ilmoitus poistuu itsestään."
+    },
+    "test_cohort_share_request": {
+      "title": "Auta varmistamaan uusi ominaisuus — jaatko testituloksesi?",
+      "description": "Kiitos, että liityit vapaaehtoiseen testiryhmään. Autosi oli mukana kokeilussa — tällä hetkellä kyseessä on yritys hakea GPS-sijainti Volkswagenin EU-autoille volkswagen.de-kanavan kautta. Jotta tulos saadaan varmistettua eri malleissa ja alustoilla, siitä olisi todella suuri apu, jos jakaisit diagnostiikkatiedoston: mene kohtaan Asetukset → Laitteet ja palvelut → VW Group Connect → kolmen pisteen valikko → Lataa vianmääritystiedot ja liitä tiedosto sitten GitHub-issueen #923.\n\nVientitiedosto puhdistetaan automaattisesti ennen kuin lataat sen — mukana ei ole VIN-tunnusta, GPS-sijaintia, tokeneita eikä sähköpostia — joten sen voi turvallisesti julkaista. Näet tämän vain siksi, että liityit testiryhmään; voit ohittaa tämän, ja kun kytket testiryhmän integraation asetuksista takaisin pois päältä, nämä ilmoitukset loppuvat kokonaan. Kiitos, että autat avaamaan ominaisuuksia kaikille samaa mallia ajaville."
     }
   },
   "services": {
