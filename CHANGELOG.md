@@ -42,6 +42,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [3.0.2] - 2026-08-10 — the reporter batch (cross-brand reliability)
+
+A round of fixes driven entirely by reporter diagnostics in the hours after 3.0.0: two cross-brand sentinel screens (charging type and odometer), Volkswagen US climate + door-lock mapping, volkswagen.de sessions that finally survive a restart, a diagnosable EU data-request creation, and the Škoda push channel that can now actually start. Thank you to everyone who sent logs and diagnostics.
+
 ### Fixed
 - **A battery level that shows up several times in one data export now settles on the value the export repeats, not a lone stale copy.** Some Volkswagen EU exports list the state of charge more than twice under one capture time with no per-point clock to separate them — for example 71 once and 60 twice. The integration now treats a value the export repeats as the real reading and keeps it, instead of possibly latching onto the single odd-one-out when your last known level happened to sit near it. A genuine two-way tie (each value once) is unchanged and still reconciles against your last known value. Thanks @PeterPrelo for the export that showed the three-way case.
 - **Volkswagen US/Canada: the climate temperature and the door-lock state now show up.** Both were in the data the car sent all along. The target temperature arrives wrapped together with its unit (70 °F, for example) and the reader only understood a plain number, so it came out empty — the same wrapped shape this integration itself sends when you set the temperature. The lock state is reported per door on this firmware, in a form the reader mistook for a single value and then discarded, so the lock showed Unknown even with all four doors reporting locked. Thanks @fg877khkv8-maker for the diagnostics that showed exactly this.
