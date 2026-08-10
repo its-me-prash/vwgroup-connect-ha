@@ -6,20 +6,23 @@
 The official SVK DataDictionary PDFs live behind the portal operator's page:
   https://eu-data-act.drivesomethinggreater.com/content/euda/de/de/service/data-dictionary
 
-The actual PDF downloads are JS-triggered and login-gated, so they have no stable
-public URL a CI runner can fetch — automated *download* is not possible. What we
-CAN do: fetch the public page, look for any version/filename/change signal, and
-compare it to a committed baseline (``docs/eu_data_act_source.lock``). When
-anything changes, the workflow opens an issue so a human pulls the fresh PDFs and
-re-runs ``scripts/build_eu_data_dict_doc.py``.
+The page embeds the DAM asset name (date-prefix + version), and that DAM asset IS
+publicly downloadable (verified: HTTP 200, application/pdf, no login). So we fetch
+the page, extract the versioned filename + download URLs, and compare against a
+committed baseline (``docs/eu_data_act_source.lock``). On a genuinely new
+dictionary the workflow auto-downloads the fresh PDFs and regenerates
+``docs/EU_DATA_ACT_DATA_DICTIONARY.md`` into a PR.
 
-Signals checked (best-effort, in order of confidence):
-  1. any ``SVK_DataDictionary_V<x>`` filename exposed in the HTML,
-  2. any ``Version: <x>`` / date string,
-  3. a sha256 of the normalised page HTML (catches structural/content changes).
+What TRIGGERS a PR vs. what is merely informational (see ``_classify``):
+  * a new ``SVK_DataDictionary_V<x>`` version, or a changed download URL, IS a new
+    dictionary — the PDFs are versioned in their own filename, so real content can
+    only arrive with a version/URL bump. These TRIGGER a regenerate + PR.
+  * a bare page-HTML hash change with the SAME version and URLs is a cosmetic AEM
+    redeploy (nonce/markup/CDN churn). It is recorded as INFORMATIONAL and does
+    NOT open a PR — that false-positive produced the no-op PR #1124.
 
 Exit code is always 0; the ``changed`` verdict is written to ``$GITHUB_OUTPUT``
-(and printed) so the workflow can decide whether to open an issue.
+(and printed) so the workflow can decide whether to regenerate + open a PR.
 
 Usage:
   py scripts/check_eu_data_dict.py                # check, report changed=true/false
@@ -80,6 +83,44 @@ def _signals(html: str) -> dict[str, object]:
     }
 
 
+def _classify(
+    now: dict[str, object], base: dict[str, object]
+) -> tuple[bool, list[str], list[str]]:
+    """Split the signals into what warrants a PR vs. what is merely informational.
+
+    A genuinely new dictionary always bumps the SVK version inside the DAM filename
+    (``…_V4.0_…`` → ``…_V4.1_…``) and therefore the download URLs, because the PDFs
+    are versioned in their own name — VW cannot ship different content at the exact
+    same versioned URL. So the version/URL signals **trigger** a regenerate + PR.
+
+    A bare ``page_sha256`` change with the SAME version and URLs is a cosmetic AEM
+    redeploy of the landing page (markup churn the normaliser did not strip). It is
+    reported as **informational** only and must NOT open a PR — that is exactly the
+    false-positive that produced the no-op PR #1124.
+
+    Returns ``(should_pr, trigger_diffs, info_diffs)``.
+    """
+    trigger: list[str] = []
+    info: list[str] = []
+    if now.get("svk_versions") != base.get("svk_versions"):
+        trigger.append(
+            f"SVK version: {base.get('svk_versions')} -> {now.get('svk_versions')}"
+            "  (NEW DICTIONARY VERSION)"
+        )
+    if now.get("download_urls") != base.get("download_urls"):
+        trigger.append(
+            f"download URLs changed -> {json.dumps(now.get('download_urls') or {})}"
+        )
+    if now.get("page_sha256") != base.get("page_sha256"):
+        info.append(
+            f"page content hash changed "
+            f"({str(base.get('page_sha256', '?'))[:12]} -> "
+            f"{str(now.get('page_sha256', '?'))[:12]}) — cosmetic redeploy, "
+            "version + URLs unchanged"
+        )
+    return bool(trigger), trigger, info
+
+
 def _emit(changed: bool, summary: str) -> None:
     print(("CHANGED — " if changed else "unchanged — ") + summary)
     out = os.environ.get("GITHUB_OUTPUT")
@@ -119,22 +160,24 @@ def main() -> int:
             fh.write(f"continuous_url={urls.get('continuous','')}\n")
             fh.write(f"historical_url={urls.get('historical','')}\n")
 
-    diffs = []
-    if now["svk_versions"] != base.get("svk_versions"):
-        diffs.append(f"SVK version: {base.get('svk_versions')} -> {now['svk_versions']}  (NEW DICTIONARY VERSION)")
-    if now["download_urls"] != base.get("download_urls"):
-        diffs.append(f"download URLs changed -> {json.dumps(urls)}")
-    if now["page_sha256"] != base.get("page_sha256"):
-        diffs.append(f"page content hash changed ({base.get('page_sha256','?')[:12]} -> {now['page_sha256'][:12]})")
+    should_pr, trigger, info = _classify(now, base)
 
-    if diffs:
+    if should_pr:
         summary = ("The EU Data Act data-dictionary page changed — a new SVK DataDictionary "
                    "is likely published. The workflow will auto-download the fresh PDFs from the "
                    "public DAM URLs and regenerate `docs/EU_DATA_ACT_DATA_DICTIONARY.md` into a PR. "
-                   "Source: " + URL + "\n\nDetected:\n- " + "\n- ".join(diffs))
+                   "Source: " + URL + "\n\nDetected:\n- " + "\n- ".join(trigger + info))
         _emit(True, summary)
+    elif info:
+        # Page redeployed but the SVK version and PDF URLs are unchanged: the actual
+        # dictionary cannot have changed (the PDFs are versioned in their filename),
+        # so this is a cosmetic AEM redeploy. Report it, but do NOT open a PR — this
+        # is the #1124 no-op guard.
+        _emit(False,
+              "page redeployed but SVK version + PDF URLs unchanged — not opening a PR ("
+              + "; ".join(info) + ")")
     else:
-        _emit(False, f"no change (sha {now['page_sha256'][:12]})")
+        _emit(False, f"no change (sha {str(now.get('page_sha256', '?'))[:12]})")
     return 0
 
 

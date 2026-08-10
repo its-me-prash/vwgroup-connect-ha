@@ -53,6 +53,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **The "update interval too short" message no longer asks you to raise an interval you already exceed.** A Škoda owner who had already gone up to 31 minutes kept being told to raise it to 30 minutes or more, which reads as nonsense. The suggestion now always steps up from the value you actually have configured. Thanks @starwarsfan.
 - **The charging-type sensor no longer shows "invalid".** When the backend has no charge type to report it sends an `invalid` placeholder, and that was being shown as if it were a real charging type — so the history painted "invalid" bands, often for ten minutes at a time while the car sat parked and not charging. It's now dropped on **every brand**: Volkswagen, Audi, Škoda, SEAT, CUPRA, Bentley, whether the data comes from the brand backend or the EU data portal. The sensor simply stays clear until a real type comes back. Thanks @Lagaff86, whose Recorder audit of 90 occurrences pinned the pattern down — and who caught that the first attempt only covered one of the four data paths and left his own car unfixed.
 
+### Internal
+- **The data-dictionary watcher no longer opens an empty pull request when Volkswagen only re-publishes the source page.** The automation that watches the EU-Data-Act dictionary was treating any change to the source page as a new dictionary, even a cosmetic re-deploy — which produced a pull request whose only real difference was the date. It now regenerates only when the dictionary's *version* or download links actually change (the PDFs are versioned in their own filename), and treats a same-version page change as noise. No user-facing effect.
+
 ## [3.0.1] - 2026-08-09 — Škoda login + diagnostics-redaction hotfix
 
 Two quick fixes on the heels of 3.0.0: Škoda's passwordless login (which Volkswagen switched off on their side), and a VIN that could slip through the diagnostics redaction.
