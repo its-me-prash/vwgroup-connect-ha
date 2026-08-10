@@ -21,6 +21,7 @@ from .._util import (
     compute_connection_state,
     days_or_date_to_iso,
     drop_charge_sentinel,
+    drop_odometer_sentinel,
     normalize_workshop_string,
     safe_float,
     safe_int,
@@ -1338,7 +1339,7 @@ class SkodaClient(CariadBaseClient):
         # ── Maintenance ──────────────────────────────────────────────────────
         if isinstance(maintenance, dict):
             report = v(maintenance, "maintenanceReport") or maintenance
-            d.odometer_km = v(report, "mileageInKm")
+            d.odometer_km = drop_odometer_sentinel(v(report, "mileageInKm"))
             d.service_km = v(report, "inspectionDueInKm")
             d.service_due_at = v(report, "inspectionDueInDays")
             d.oil_service_km = v(report, "oilServiceDueInKm")

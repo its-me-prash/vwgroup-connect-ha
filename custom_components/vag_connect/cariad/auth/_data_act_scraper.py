@@ -86,6 +86,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from aiohttp import ClientSession
 
+from .._util import drop_odometer_sentinel
 from ..models import VehicleData
 
 _LOGGER = logging.getLogger(__name__)
@@ -746,7 +747,7 @@ class DataActScraper:
                 measurements.get("odometer"),
             )
             if odo is not None:
-                out.odometer_km = odo
+                out.odometer_km = drop_odometer_sentinel(odo)
             rng = _first_int(
                 _nested(measurements, "rangeStatus", "totalRange_km"),
                 _nested(measurements, "rangeStatus", "value", "totalRange_km"),

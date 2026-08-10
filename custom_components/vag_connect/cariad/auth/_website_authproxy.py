@@ -50,6 +50,7 @@ from urllib.parse import parse_qs, urlparse
 from aiohttp import ClientError, ClientSession, ClientTimeout, TooManyRedirects
 
 from ..._canaries import CANARY_WEBSITE_AUTHPROXY
+from .._util import drop_odometer_sentinel
 from ..exceptions import AuthenticationError
 from ..models import VehicleData
 from ._eu_data_act import _login_fields, _login_error, _resolve_action
@@ -268,7 +269,7 @@ def map_maintenance_to_vehicle_data(payload: Any, d: VehicleData) -> VehicleData
 
     odo = _to_int(node.get("mileage_km"))
     if odo is not None:
-        d.odometer_km = odo
+        d.odometer_km = drop_odometer_sentinel(odo)
 
     insp_km = _to_int(node.get("inspectionDue_km"))
     if insp_km is not None:

@@ -98,7 +98,14 @@ def test_no_truthy_chain_behind_a_zero_valid_field(brand: str, assignment: str) 
     # Positive: the assignment exists and is built from the zero-safe helper.
     # Without this half the test would pass on a file where the assignment had
     # simply been deleted, or renamed, and would prove nothing at all.
-    assert re.search(rf"^\s*(?:d\.)?{name} = first_not_none\(", src, re.MULTILINE), (
+    # v3.0.2 (#1122): an optional ``drop_odometer_sentinel(`` wrapper is tolerated
+    # — it screens the uint32 sentinel AFTER first_not_none has picked the
+    # zero-safe value, so the anti-truthy-or guarantee is unchanged (a real 0 km
+    # still survives: drop_odometer_sentinel(0) == 0).
+    assert re.search(
+        rf"^\s*(?:d\.)?{name} = (?:drop_odometer_sentinel\()?first_not_none\(",
+        src, re.MULTILINE,
+    ), (
         f"{brand}.{assignment} is not assigned via first_not_none"
     )
 

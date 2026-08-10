@@ -16,6 +16,7 @@ from typing import Any
 
 from aiohttp import ClientSession, ClientTimeout
 
+from .._util import drop_odometer_sentinel
 from .._util import mask_vin as _mask_vin
 from ..auth.porsche import PorscheAuth
 from ..exceptions import APIError, AuthenticationError, TokenExpiredError
@@ -156,7 +157,7 @@ class PorscheClient:
                 d.combustion_range_km = int(combustion_range)
             d.range_km      = electric_range or combustion_range
             d.fuel_level    = v(m, "FUEL_LEVEL", "percent")
-            d.odometer_km   = v(m, "MILEAGE", "mileage")
+            d.odometer_km   = drop_odometer_sentinel(v(m, "MILEAGE", "mileage"))
 
             # Charging
             ch = m.get("CHARGING_SUMMARY", {})

@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 from .._util import (
     compute_connection_state,
     drop_charge_sentinel,
+    drop_odometer_sentinel,
     first_not_none,
     safe_float,
     safe_int,
@@ -3497,7 +3498,8 @@ class VWEUClient(CariadBaseClient):
         d.adblue_range_km = safe_int(adblue)
 
         # ── Measurements ──────────────────────────────────────────────────────
-        d.odometer_km = v(raw, "measurements", "odometerStatus", "value", "odometer")
+        d.odometer_km = drop_odometer_sentinel(
+            v(raw, "measurements", "odometerStatus", "value", "odometer"))
         # v2.7.0b11 — outside temp ships under different key variants
         # depending on model year and brand. Try the canonical Cariad
         # name first, then Audi MY24+ variants observed in user logs.

@@ -755,3 +755,45 @@ def drop_charge_sentinel(value: Any) -> Any:
     if "_" in token and token.rsplit("_", 1)[-1] in CHARGE_STATE_SENTINELS:
         return None
     return value
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# v3.0.2 (#1122) — implausible odometer sentinels.
+#
+# A Golf 8 mHeV surfaced 429_496_729 km — that is 0xFFFFFFFF / 10, the uint32
+# "no value" sentinel scaled by the odometer field's 0.1 km unit. The EU Data Act
+# path already drops the RAW 4294967295 (its ``_GLOBAL_SENTINELS`` set), but not
+# the /10-scaled form, and none of the brand-backend odometer paths (vw_eu BFF,
+# vw.de authproxy, Škoda, SEAT/CUPRA, Porsche, VW NA) screened it at all — the
+# same write-path trap as the #1104 charge sentinel. One shared guard now wraps
+# every odometer write so the path the reading arrives on no longer matters.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# No connected passenger or commercial vehicle reaches this; anything at or above
+# it is a backend sentinel, not a reading. The uint sentinels that surface here
+# sit 200×+ above it (0xFFFFFFFF/10 = 429_496_729, 0xFFFFFFFF = 4_294_967_295,
+# INT32_MAX = 2_147_483_647), so the ceiling catches them all with enormous
+# headroom for a genuine high-mileage taxi or van. The 0xFFFF/10 = 6553.5 case is
+# a plausible reading and is deliberately NOT screened.
+_ODOMETER_CEILING_KM = 2_000_000.0
+
+
+def drop_odometer_sentinel(value: Any) -> Any:
+    """``None`` when *value* is an implausible odometer sentinel, else *value*.
+
+    Screens a reading at or above a 2,000,000 km ceiling (and any negative),
+    which catches the uint32 "no value" sentinel and its 0.1-km-scaled form
+    (429_496_729) that #1122 surfaced, without touching a value any real vehicle
+    could report. Non-numeric or unparseable values pass through untouched so a
+    caller can wrap a lookup whose type it does not control, and the ORIGINAL
+    object (not a coerced float) is returned on success so callers keep their
+    own int/str type.
+    """
+    if value is None:
+        return None
+    num = safe_float(value)
+    if num is None:
+        return value  # not a number we can judge — leave it to the caller
+    if num < 0 or num >= _ODOMETER_CEILING_KM:
+        return None
+    return value

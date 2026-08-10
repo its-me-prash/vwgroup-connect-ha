@@ -21,6 +21,7 @@ from .._util import (
     compute_connection_state,
     days_or_date_to_iso,
     drop_charge_sentinel,
+    drop_odometer_sentinel,
     normalize_workshop_string,
     safe_float,
     safe_int,
@@ -748,7 +749,7 @@ class SeatCupraClient(CariadBaseClient):
         # ── Main vehicle data (mycar) ────────────────────────────────────────
         if isinstance(mycar, dict):
             measurements = v(mycar, "measurements") or {}
-            d.odometer_km = v(measurements, "mileage", "value")
+            d.odometer_km = drop_odometer_sentinel(v(measurements, "mileage", "value"))
             d.fuel_level = v(measurements, "fuelLevelStatus", "value", "currentFuelLevel_pct")
             d.battery_soc = v(measurements, "batteryStatus", "value", "currentSOC_pct")
             d.has_battery = d.battery_soc is not None
@@ -2373,11 +2374,12 @@ class SeatCupraClient(CariadBaseClient):
                 or v(mileage_v1, "value")
             )
             if isinstance(odo, (int, float)) and odo > 0:
-                d.odometer_km = int(odo)
-                _LOGGER.debug(
-                    "OLA v1 mileage fallback (%s): odometer_km=%d (mycar was null)",
-                    vin[-6:], d.odometer_km,
-                )
+                d.odometer_km = drop_odometer_sentinel(int(odo))
+                if d.odometer_km is not None:
+                    _LOGGER.debug(
+                        "OLA v1 mileage fallback (%s): odometer_km=%d (mycar was null)",
+                        vin[-6:], d.odometer_km,
+                    )
 
         # ── v2.5.3 — doors_locked consistency safeguard (#306 follow-on) ────
         # When the OLA backend serves stale-cached data (typical when the
