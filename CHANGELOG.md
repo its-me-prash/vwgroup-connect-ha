@@ -42,6 +42,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **A Volkswagen EU car read over the volkswagen.de channel no longer falsely shows OFFLINE.** That channel (and the EU Data Act one) can't tell the integration whether the car is online, and an *unknown* online state was being treated as *offline* — so a car that was answering its reads perfectly well still reported OFFLINE. It now says OFFLINE only when the backend actually reports the car as offline, and otherwise leaves the state unknown rather than inventing one. Thanks @fight3, whose T-Roc showed this alongside the separate, still-open missing-GPS question in #923.
+
+### Internal
+- **VW EU position reads now explain themselves in the debug log.** When a GPS coordinate can't be produced — the CARIAD parking-position endpoint being closed for EU passenger cars, and the volkswagen.de channel having no position endpoint at all — the log now says so instead of leaving a silent gap, so a "device_tracker stays unknown" report (#923) is diagnosable rather than looking like a dropped read.
+
 ## [3.0.2] - 2026-08-10 — the reporter batch (cross-brand reliability)
 
 A round of fixes driven entirely by reporter diagnostics in the hours after 3.0.0: two cross-brand sentinel screens (charging type and odometer), Volkswagen US climate + door-lock mapping, volkswagen.de sessions that finally survive a restart, a diagnosable EU data-request creation, and the Škoda push channel that can now actually start. Thank you to everyone who sent logs and diagnostics.

@@ -1384,6 +1384,14 @@ class WebsiteAuthProxyConnector:
                 exc_info=True,
             )
 
+        # #923: the vw.de web channel exposes NO vehicle-position endpoint (unlike
+        # the CARIAD app backend), so a VW EU device_tracker on this channel stays
+        # "unknown". Say so at debug, so a reporter's log explains the absence
+        # rather than it looking like a silently dropped position read.
+        _LOGGER.debug(
+            "vw.de channel carries no position endpoint; device_tracker stays "
+            "unknown for %s (see #923)", vin[-6:],
+        )
         if got_data:
             d.connection_state = "online"
         return d
