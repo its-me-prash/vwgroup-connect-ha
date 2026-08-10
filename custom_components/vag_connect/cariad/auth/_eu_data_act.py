@@ -1431,6 +1431,22 @@ def map_dataset_to_vehicle_data(
         # but not its 0.1-km-scaled form (429_496_729); the shared guard does.
         d.odometer_km = drop_odometer_sentinel(odo)
 
+    # #465 (zdravac) — vehicleIsStandingStill (dict UUID 0010398f-5fda-39af-9e7a-
+    # 25db8c2e623a, cluster "Parking Data", boolean "current motion state").
+    # Cataloged in the dictionary but never wired; surfaces via the existing
+    # is_driving sensor, inverted (standing still ⇒ not driving). Not every VIN
+    # sends it (a data-availability gap on VW's side, not a parsing one — zdravac's
+    # own car omits it), so it's fail-soft: only set when actually present, and
+    # only when a brand parser hasn't already resolved is_driving.
+    _still = first("vehicleIsStandingStill",
+                   "0010398f-5fda-39af-9e7a-25db8c2e623a")
+    if _still is not None and d.is_driving is None:
+        _sv = str(_still).strip().lower()
+        if _sv in ("false", "0", "no"):
+            d.is_driving = True
+        elif _sv in ("true", "1", "yes"):
+            d.is_driving = False
+
     # ── b14 (#555 Passat GTE 1.4 eHybrid / #565 Tiguan eHybrid) ─────────────
     # PHEV electric/combustion range disambiguation.
     #
