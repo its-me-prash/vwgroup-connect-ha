@@ -53,7 +53,7 @@ from ..._canaries import CANARY_WEBSITE_AUTHPROXY
 from .._util import drop_odometer_sentinel
 from ..exceptions import AuthenticationError
 from ..models import VehicleData
-from ._eu_data_act import _login_fields, _login_error, _resolve_action
+from ._eu_data_act import _login_fields, _login_error, _resolve_action, _TC_MARKERS
 
 if TYPE_CHECKING:
     from .._authproxy import (
@@ -506,6 +506,19 @@ class WebsiteAuthProxyConnector:
         if host.endswith("volkswagen.de") and "/u/login" not in login_url:
             self._finalise_login(login_url)
             return "ok"
+
+        # #632 parity — a mandatory terms-and-conditions wall in the resume path
+        # is NOT a dead session: the account has to accept an updated VW T&C once,
+        # in a browser. Surface that actionable message instead of a generic
+        # "session expired", which would otherwise loop the user forever.
+        if any(m in (login_url + " " + login_html).lower() for m in _TC_MARKERS):
+            raise AuthenticationError(
+                "Website authproxy: Volkswagen is showing a terms-and-conditions "
+                "wall that must be accepted before data flows again. Open "
+                "volkswagen.de in a browser, sign in, accept the updated terms, "
+                "then re-add the Volkswagen.de read channel from the integration "
+                "options."
+            )
 
         if "/u/login" not in login_url and "signin-service" not in login_url:
             raise AuthenticationError(
