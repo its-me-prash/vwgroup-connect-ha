@@ -45,6 +45,11 @@ from custom_components.vag_connect.cariad.exceptions import AuthenticationError
         ("MBB", _GDC_MBB),
         ("mbb", _GDC_MBB),
         (" Mbb ", _GDC_MBB),
+        # #632 parity — the real relations sentinel is suffixed; an exact "== MBB"
+        # mis-routed these Car-Net cars to the WeConnect gdc and 412'd every read.
+        ("MBB_ODP", _GDC_MBB),
+        ("mbb_odp", _GDC_MBB),
+        (" MBB_ODP ", _GDC_MBB),
         ("MEB", _GDC_WCAR),
         ("WCAR", _GDC_WCAR),
         ("", _GDC_WCAR),

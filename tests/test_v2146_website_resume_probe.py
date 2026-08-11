@@ -28,6 +28,7 @@ import pytest
 from aiohttp import ClientError, TooManyRedirects
 
 from custom_components.vag_connect.cariad.auth._website_authproxy import (
+    _MAX_SSO_REDIRECTS,
     WebsiteAuthProxyConnector,
 )
 from custom_components.vag_connect.cariad.exceptions import AuthenticationError
@@ -228,7 +229,7 @@ async def test_refresh_uses_the_same_redirect_budget_as_begin_login() -> None:
         await conn.refresh()
     except Exception:  # noqa: BLE001 - the landing decision is not under test
         pass
-    assert seen.get("max_redirects") == 20, (
+    assert seen.get("max_redirects") == _MAX_SSO_REDIRECTS, (
         "resume must use the same redirect budget as begin_login"
     )
 
