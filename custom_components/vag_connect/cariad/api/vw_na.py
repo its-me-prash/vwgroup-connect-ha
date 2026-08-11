@@ -198,6 +198,23 @@ def _na_correlation_id(resp: Any) -> str | None:
     return None
 
 
+def _na_range_km(range_raw: Any, unit: str) -> int | None:
+    """Normalise a VW US/Canada range reading to whole km, or ``None``.
+
+    #1082 (fg877khkv8-maker, US ID.4) — VW US/Canada sends ``cruiseRange = -1``
+    (and the EV ``cruisingRange.range`` can do the same) as a "no value"
+    sentinel. Taken literally it surfaced Range = -1 and, because the field was
+    then set, it blocked the valid EV range from filling it. Any negative
+    reading is screened to ``None`` so the EV fallback can supply the real one;
+    ``0`` is a genuine reading (empty tank/battery) and passes through.
+    """
+    if not isinstance(range_raw, (int, float)) or range_raw < 0:
+        return None
+    if str(unit).upper() == "MI":
+        return int(range_raw * 1.609344)
+    return int(range_raw)
+
+
 def _na_measurement(node: Any) -> Any:
     """Unwrap a VW NA ``{value, unit, measurementState}`` reading.
 
@@ -1066,11 +1083,11 @@ class VWNAClient:
             if range_raw is None:
                 range_raw = v(power, "cruiseRangeFirst")
             range_unit = (v(power, "cruiseRangeUnits") or "KM").upper()
-            if isinstance(range_raw, (int, float)):
-                if range_unit == "MI":
-                    d.range_km = int(range_raw * 1.609344)
-                else:
-                    d.range_km = int(range_raw)
+            # #1082 — screen the -1 "no value" sentinel; leaving range_km None
+            # here lets the EV cruisingRange fallback below supply the real range.
+            _rng = _na_range_km(range_raw, range_unit)
+            if _rng is not None:
+                d.range_km = _rng
 
             # v2.15.3 (#503, MyVW APK DEX-verified) — the OLD rvs.batteryStatus
             # read lived here. RvsResponse carries NO batteryStatus object, so it
@@ -1335,11 +1352,12 @@ class VWNAClient:
                 d.has_battery = True
             # BatteryStatus.cruisingRange = {engineType, range} (km on NA EV)
             cr_range = v(bs, "cruisingRange", "range")
-            if isinstance(cr_range, (int, float)):
+            _cr = _na_range_km(cr_range, "KM")  # #1082 — screen -1 sentinel here too
+            if _cr is not None:
                 if d.range_km is None:
-                    d.range_km = int(cr_range)
+                    d.range_km = _cr
                 if d.electric_range_km is None:
-                    d.electric_range_km = int(cr_range)
+                    d.electric_range_km = _cr
             # v2.15.3 — BatteryStatus.chargeEnergy is the CURRENT-charge (per-
             # session) value, not a lifetime total (matches the EU data-dict
             # battery_state_report.charge_energy: a 0..1000 kWh gauge that reads
