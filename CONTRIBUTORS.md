@@ -29,6 +29,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding, requested 
 - @BASTAHT
 - @Beeky2022
 - @begga77
+- @BengtKR79
 - @BennoJinx
 - @BentChr
 - @beolink
@@ -113,6 +114,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding, requested 
 - @fg877khkv8-maker
 - @fight3
 - @fightboy89
+- @Fishermanjb
 - @Flieger37
 - @Flux1959
 - @foobarth
@@ -177,6 +179,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding, requested 
 - @Juhapt
 - @julianteufel96-pixel
 - @juluga
+- @JustAnotherDud
 - @jwaeles
 - @jwmaas
 - @kaledii
@@ -418,6 +421,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding, requested 
 - @zaphod25
 - @zarengagmbh
 - @zax-29
+- @zdravac
 - @zemanchester-tech
 - @zopyx
 - @Zwergnase94
