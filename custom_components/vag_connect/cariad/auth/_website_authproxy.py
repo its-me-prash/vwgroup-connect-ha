@@ -126,6 +126,13 @@ _RETRY_DELAYS = (3.0, 6.0)
 # given read (401/403) can't force a re-login loop either.
 _AUTH_FAIL_STATUSES = frozenset({401, 403, 428})
 
+# #632 — VW's silent SSO (prompt=none) now chains TWO OAuth dances through Auth0
+# federation, so the resume redirect chain runs long — past aiohttp's default cap
+# of 10 and, for some regional accounts, past our old 20. A too-low cap aborts a
+# perfectly good resume with TooManyRedirects. 30 gives the federation chain room
+# while still bounding a genuine redirect loop.
+_MAX_SSO_REDIRECTS = 30
+
 # v2.15.13 — PROACTIVE session-roll debounce. The vw.de authproxy session's
 # downstream tokens expire ~30 min after the last login (our own
 # ``sessionTimeout=1800``) and are NOT renewed by data reads, and the identity
@@ -463,7 +470,7 @@ class WebsiteAuthProxyConnector:
                 params=_LOGIN_PARAMS,
                 headers=self._headers(),
                 allow_redirects=True,
-                max_redirects=20,
+                max_redirects=_MAX_SSO_REDIRECTS,
                 timeout=ClientTimeout(total=_TIMEOUT_S),
             ) as resp:
                 login_url = str(resp.url)
@@ -526,7 +533,7 @@ class WebsiteAuthProxyConnector:
                 data=fields,
                 headers=self._headers({"Referer": login_url}),
                 allow_redirects=True,
-                max_redirects=20,
+                max_redirects=_MAX_SSO_REDIRECTS,
                 timeout=ClientTimeout(total=_TIMEOUT_S),
             ) as resp:
                 landed = str(resp.url)
@@ -662,7 +669,7 @@ class WebsiteAuthProxyConnector:
                 params=_LOGIN_PARAMS,
                 headers=self._headers(),
                 allow_redirects=True,
-                max_redirects=20,
+                max_redirects=_MAX_SSO_REDIRECTS,
                 timeout=ClientTimeout(total=_TIMEOUT_S),
             ) as resp:
                 landed = str(resp.url)
@@ -824,7 +831,7 @@ class WebsiteAuthProxyConnector:
         from yarl import URL  # noqa: PLC0415
 
         out: list[dict[str, Any]] = []
-        seen: set[tuple[str, str]] = set()
+        seen: set[tuple[str, str, str]] = set()
         try:
             jar = self._session.cookie_jar
         except Exception:  # noqa: BLE001
@@ -836,7 +843,18 @@ class WebsiteAuthProxyConnector:
                 continue
             host_name = URL(host).host or ""
             for name, morsel in filtered.items():
-                key = (str(name), str(morsel.value))
+                _ck_domain = str(morsel["domain"] or host_name)
+                _ck_path = str(morsel["path"] or "/")
+                # #632 — key the de-dup by (domain, name, path), NOT (name, value).
+                # VW reuses cookie names (auth0 / auth0_compat / did / idkit_p / …)
+                # across identity.vwgroup.io AND www.volkswagen.de with DIFFERENT
+                # values; collapsing on name(+value) drops one host's copy, and on
+                # the restore round-trip the identity-host SSO cookie is lost — the
+                # silent resume then lands on /u/login. Per-account because which
+                # value wins the collapse is iteration/value-dependent. (Grounded:
+                # the reference vw.de website-portal project hit this exact failure
+                # and converged on a (domain, name)-keyed export.)
+                key = (_ck_domain, str(name), _ck_path)
                 if key in seen:
                     continue
                 seen.add(key)
@@ -844,8 +862,8 @@ class WebsiteAuthProxyConnector:
                     out.append({
                         "name": str(name),
                         "value": str(morsel.value),
-                        "domain": str(morsel["domain"] or host_name),
-                        "path": str(morsel["path"] or "/"),
+                        "domain": _ck_domain,
+                        "path": _ck_path,
                         "expires": str(morsel["expires"] or ""),
                         "secure": bool(morsel["secure"]),
                         "httponly": bool(morsel["httponly"]),
@@ -898,7 +916,15 @@ class WebsiteAuthProxyConnector:
             # SSO cookie now carries domain="identity.vwgroup.io" from export,
             # so it passes this guard (it was the empty-domain drop that broke).
             domain = str(ck.get("domain") or "")
-            if "volkswagen.de" not in domain and "vwgroup.io" not in domain:
+            # #632 — exact host / registrable-suffix check, NOT a substring test.
+            # The old `"vwgroup.io" not in domain` would wrongly ADMIT a foreign
+            # `vwgroup.io.attacker.com`; a boundary check only accepts our two
+            # cookie domains and their true subdomains.
+            _d = domain.lstrip(".").lower()
+            if not (
+                _d == "volkswagen.de" or _d.endswith(".volkswagen.de")
+                or _d == "vwgroup.io" or _d.endswith(".vwgroup.io")
+            ):
                 continue
             morsel: Morsel[str] = Morsel()
             morsel.set(str(name), str(value), str(value))

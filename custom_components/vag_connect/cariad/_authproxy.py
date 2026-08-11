@@ -56,7 +56,15 @@ def gdc_for_backend(mod_backend: str | None) -> str:
     app itself calls ``…/tripdata/cyclic/last?gdc=myvw-mbb-prod``). Unknown /
     missing backend falls back to the WeConnect gdc (the historical default).
     """
-    return _GDC_MBB if (mod_backend or "").strip().upper() == "MBB" else _GDC_WCAR
+    # #632 parity — the relations sentinel is SUFFIXED on real cars (e.g.
+    # "MBB_ODP"), not a bare "MBB". An exact `== "MBB"` mis-routed those Car-Net
+    # cars to the WeConnect gdc and 412'd every live-status read (no
+    # warning-lights / lock-history / maintenance). Match the MBB prefix instead.
+    return (
+        _GDC_MBB
+        if (mod_backend or "").strip().upper().startswith("MBB")
+        else _GDC_WCAR
+    )
 
 
 def build_authproxy_url(

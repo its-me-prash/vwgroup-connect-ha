@@ -30,6 +30,7 @@ import pytest
 from yarl import URL
 
 from custom_components.vag_connect.cariad.auth._website_authproxy import (
+    _MAX_SSO_REDIRECTS,
     WebsiteAuthProxyConnector,
 )
 from custom_components.vag_connect.cariad.exceptions import AuthenticationError
@@ -85,16 +86,39 @@ def test_export_captures_host_only_sso_cookie() -> None:
     assert auth0["value"] == "ssotoken"
 
 
-def test_export_dedupes_cookie_present_on_both_hosts() -> None:
-    """A cookie returned for both hosts is emitted once."""
-    shared = SimpleCookie()
-    shared["common"] = "v"
+def test_export_dedupes_only_a_truly_identical_cookie() -> None:
+    """#632 — de-dup is keyed by (domain, name, path), not (name, value). A cookie
+    that is genuinely the same (same explicit domain) collapses to one entry."""
+    same = SimpleCookie()
+    same["shared"] = "v"
+    same["shared"]["domain"] = ".vwgroup.io"
+    same["shared"]["path"] = "/"
     jar = _FilterJar({
-        "www.volkswagen.de": shared,
-        "identity.vwgroup.io": shared,
+        "www.volkswagen.de": same,
+        "identity.vwgroup.io": same,
     })
     out = _conn(_Sess(jar)).export_cookies()
-    assert [c["name"] for c in out].count("common") == 1
+    assert [c["name"] for c in out].count("shared") == 1
+
+
+def test_export_keeps_a_cross_host_name_reuse_per_host() -> None:
+    """#632 (the fix) — VW reuses cookie names (auth0/did/idkit_p/…) across
+    identity.vwgroup.io AND www.volkswagen.de with DIFFERENT values. The old
+    (name,value) de-dup collapsed one, and on the restore round-trip the identity
+    SSO cookie was lost -> silent resume landed on /u/login. Both are now kept,
+    each stamped with its own host, so neither is dropped."""
+    www = SimpleCookie()
+    www["auth0"] = "www-value"
+    idp = SimpleCookie()
+    idp["auth0"] = "idp-value"
+    jar = _FilterJar({
+        "www.volkswagen.de": www,
+        "identity.vwgroup.io": idp,
+    })
+    out = [c for c in _conn(_Sess(jar)).export_cookies() if c["name"] == "auth0"]
+    assert len(out) == 2  # not collapsed
+    assert {c["domain"] for c in out} == {"www.volkswagen.de", "identity.vwgroup.io"}
+    assert {c["value"] for c in out} == {"www-value", "idp-value"}
 
 
 # ── import broadcasts to BOTH hosts ────────────────────────────────────────
@@ -126,6 +150,32 @@ def test_import_skips_malformed_entries() -> None:
     )
     names = {name for _h, name in jar.updates}
     assert names == {"ok"}
+
+
+def test_import_rejects_a_lookalike_domain_632() -> None:
+    """#632 — the scope guard is an exact host/suffix check now, so a foreign
+    look-alike that merely CONTAINS our domain as a substring is rejected, while
+    our real hosts and their `.vwgroup.io` domain cookies still pass."""
+    jar = _FilterJar({})
+    _conn(_Sess(jar)).import_cookies(
+        [
+            {"name": "evil", "value": "v", "domain": "vwgroup.io.attacker.com"},
+            {"name": "evil2", "value": "v", "domain": "notvolkswagen.de.evil"},
+            {"name": "ok_idp", "value": "v", "domain": "identity.vwgroup.io"},
+            {"name": "ok_dot", "value": "v", "domain": ".vwgroup.io"},
+            {"name": "ok_www", "value": "v", "domain": "www.volkswagen.de"},
+        ]
+    )
+    names = {name for _h, name in jar.updates}
+    assert names == {"ok_idp", "ok_dot", "ok_www"}
+    assert "evil" not in names and "evil2" not in names
+
+
+def test_redirect_budget_accommodates_the_auth0_federation_632() -> None:
+    """#632 — VW's silent SSO chains two Auth0 federation dances; the redirect cap
+    must exceed aiohttp's default 10 and our old 20 so a good resume in a region
+    with extra federation hops isn't aborted as a loop."""
+    assert _MAX_SSO_REDIRECTS >= 30
 
 
 # ── round-trip: SSO cookie survives export → import ────────────────────────
