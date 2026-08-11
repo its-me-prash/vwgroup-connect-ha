@@ -10,6 +10,10 @@
 # service records the fingerprint on success, which flips the sensor back
 # OFF — so the same snapshot is never uploaded twice.
 #
+# v3.0.3 (#1135) — add a periodic re-check (time_pattern) so a flag left stuck
+# ON by an upload that failed on its single OFF->ON edge self-heals instead of
+# stranding all further uploads. Reported by @Fishermanjb.
+#
 # The api_key + token are read from the integration options by default; the
 # inputs below let you override them inline if you'd rather keep them in the
 # automation. Leave them blank to use the stored options.
@@ -70,16 +74,32 @@ mode: single
 max_exceeded: silent
 
 trigger:
+  # Genuine data-changed edge — the normal, immediate path.
   - platform: state
     entity_id: !input data_changed_sensor
     to: "on"
+  # v3.0.3 (#1135) — periodic safety net. The sensor only clears on a
+  # SUCCESSFUL upload, so if the single upload on the edge above fails (a
+  # transient ABRP / network error), the sensor stays welded ON and — with an
+  # edge-only trigger — never fires again, silently stranding every later
+  # upload. This re-checks every few minutes and re-attempts while the sensor
+  # is still ON, so a stuck flag self-heals on the next tick.
+  - platform: time_pattern
+    minutes: "/5"
 
-# Only act on a genuine OFF/unknown -> ON edge (skip restarts / attribute-
-# only updates that re-fire the state trigger with the same "on" state).
 condition:
+  # There must be genuinely unsent data. For the edge trigger this is true by
+  # definition; for the periodic re-check it IS the gate — only act on a flag
+  # that is still ON. This is what lets a stuck-ON flag self-heal (#1135).
+  - condition: state
+    entity_id: !input data_changed_sensor
+    state: "on"
+  # Skip attribute-only re-fires of the state trigger (same on -> on). The
+  # periodic trigger has no from/to state, so it always passes this check.
   - condition: template
     value_template: >
-      {{ trigger.from_state is none
+      {{ trigger.platform == 'time_pattern'
+         or trigger.from_state is none
          or trigger.from_state.state != trigger.to_state.state }}
 
 action:
