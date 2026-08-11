@@ -411,6 +411,25 @@ async def _host_discovery(
                              url, mbb.access_token, cid, uid, full=True)
 
 
+async def _vsr_probe(
+    session: Any, bearer: str, client_id: str, vin: str, country: str,
+) -> None:
+    """Probe the legacy fs-car VSR (vehicle status report) read for one country.
+
+    This is the data-plane read whose ``403 'no permission for systemId
+    XID_APP_VW'`` signals the token has NO legacy MBB enrolment (vs a real
+    Car-Net car, which answers 200). Reconstructs the fs-car status URL the same
+    way ``_host_discovery``'s legacy fallback does (VW ``Vw`` segment on the
+    classic mal-1a gateway). (#584 — this helper had gone missing, so
+    ``_systemid_experiment`` NameError'd mid-run; reported by @JustAnotherDud.)
+    """
+    url = (
+        f"https://mal-1a.prd.ece.vwg-connect.com/fs-car/bs/vsr/v1/Vw/{country}"
+        f"/vehicles/{vin.upper()}/status"
+    )
+    await _probe_get(session, f"VSR status /{country}", url, bearer, client_id)
+
+
 async def _systemid_experiment(session: Any, id_token: str, vin: str) -> None:
     """The decisive experiment: register under BOTH app identities (e-Remote
     vs We Connect), exchange each for a bearer, and do a real VSR read. Tells
