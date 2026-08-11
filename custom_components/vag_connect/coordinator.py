@@ -5542,6 +5542,18 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         client = getattr(self, "_cariad_client", None)
         if client is None or not hasattr(client, "get_website_proxy_cookies"):
             return
+        # #632 parity — never overwrite a good persisted cookie set with a set
+        # captured from a DEAD session. If the connector isn't logged in (e.g. a
+        # mid-poll refresh failed), its jar can be missing the identity SSO cookie;
+        # saving that would guarantee the next restart also lands on the login
+        # page. Keep the last known-good set instead.
+        _web = getattr(client, "_website_proxy", None)
+        if _web is not None and getattr(_web, "logged_in", True) is False:
+            _LOGGER.debug(
+                "VAG Connect: skipped website-authproxy cookie persist — session "
+                "not logged in; keeping the last good set (#632)."
+            )
+            return
         try:
             fresh: list[dict[str, Any]] = client.get_website_proxy_cookies()
         except Exception as err:  # noqa: BLE001
