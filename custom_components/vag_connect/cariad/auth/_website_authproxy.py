@@ -152,6 +152,21 @@ _PROACTIVE_ROLL_INTERVAL_S = 600.0
 # session-resume can't re-establish and every restart loops / re-prompts OTP.
 _COOKIE_HOSTS = (f"{_SITE_BASE}/", f"{_IDENTITY_BASE}/")
 
+
+def _redacted_cookie_summary(cookies: list[dict[str, Any]]) -> str:
+    """A value-free, one-line summary of a cookie set for debug logging (#966).
+
+    Lists each cookie's name, host and path plus expiry — but NEVER its value —
+    so a resume that dies ~20-30s after a restart (@Jradon001) can be diagnosed
+    from the cookie diff between the successful reload and the failing one,
+    without ever writing a session secret to the log.
+    """
+    return ", ".join(
+        f"{c.get('name', '?')}@{c.get('domain', '?')}{c.get('path', '')}"
+        f" exp={c.get('expires') or '-'}"
+        for c in cookies
+    ) or "(none)"
+
 _VIN_RE = re.compile(r'"vin"\s*:\s*"([A-HJ-NPR-Z0-9]{17})"')
 
 
@@ -883,6 +898,11 @@ class WebsiteAuthProxyConnector:
                     })
                 except Exception:  # noqa: BLE001
                     continue
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug(
+                "authproxy cookie export: %d cookie(s) — %s",
+                len(out), _redacted_cookie_summary(out),
+            )
         return out
 
     def import_cookies(self, cookies: list[dict[str, Any]]) -> None:
@@ -899,6 +919,11 @@ class WebsiteAuthProxyConnector:
         """
         if not cookies:
             return
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug(
+                "authproxy cookie import: %d cookie(s) — %s",
+                len(cookies), _redacted_cookie_summary(cookies),
+            )
         try:
             from http.cookies import Morsel  # noqa: PLC0415
             from yarl import URL  # noqa: PLC0415
