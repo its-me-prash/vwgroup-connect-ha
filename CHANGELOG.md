@@ -42,6 +42,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Internal
+- **Diagnostics now flag a "no legacy MBB enrolment" car (#584).** When a car set up on the durable-MBB channel gets the definitive `gw.error.authentication` reject on its service list — the fingerprint of a car/account with no legacy Car-Net enrolment (reads still work over the EU Data Act / volkswagen.de channel, but MBB commands never will) — the config-entry diagnostics now list that VIN under `mbb_no_legacy`. So a report of "MBB set up but no commands appear" is answerable straight from the diagnostics instead of asking for a debug log, and the verdict clears the moment the car's service list succeeds again (e.g. after becoming the primary user in the brand app). Grounded in the B8 Passat GTE reports (@Mattheisen87, @BengtKR79) and @JustAnotherDud's Polo probing.
+
 ## [3.0.3] - 2026-08-11 — vw.de session resilience + reporter fixes
 
 ### Added

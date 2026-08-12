@@ -1727,6 +1727,14 @@ class VWEUClient(CariadBaseClient):
         # single poll, spamming the log and burning a request per poll forever.
         if not hasattr(self, "_mbb_oplist_denied"):
             self._mbb_oplist_denied: dict[str, datetime] = {}
+        if not hasattr(self, "mbb_no_legacy_vins"):
+            # #584 — VINs whose MBB operationList returned the definitive
+            # ``gw.error.authentication`` verdict: no legacy Car-Net enrolment
+            # for this car↔account (reads still work via EU-DA / vw.de; MBB
+            # commands do not). Public so diagnostics can surface it and a
+            # #584-class report is triageable at a glance instead of asking
+            # for a debug log.
+            self.mbb_no_legacy_vins: set[str] = set()
         now = datetime.now(tz=timezone.utc)
         cached = self._mbb_oplist_cache.get(vin)
         if not force_refresh and cached and cached[1] > now:
@@ -1773,6 +1781,10 @@ class VWEUClient(CariadBaseClient):
                 # poll is pure log noise. Subsequent hits stay at DEBUG.
                 first_denial = vin not in self._mbb_oplist_denied
                 self._mbb_oplist_denied[vin] = now + _MBB_OPLIST_DENY_TTL
+                # #584 — record the durable no-legacy-enrolment verdict so
+                # diagnostics can show it (this is the definitive verdict, not
+                # the transient bare-401/403 backoff handled below).
+                self.mbb_no_legacy_vins.add(vin)
                 _LOGGER.log(
                     logging.WARNING if first_denial else logging.DEBUG,
                     "MBB operationList ***%s → 401 gw.error.authentication: the "
@@ -1819,6 +1831,7 @@ class VWEUClient(CariadBaseClient):
             # #909 — a successful list means the denial is over (e.g. the user
             # became primary user in the app), so drop the negative cache.
             self._mbb_oplist_denied.pop(vin, None)
+            self.mbb_no_legacy_vins.discard(vin)  # #584 — enrolment recovered
             self._mbb_oplist_cache[vin] = (oplist, now + timedelta(hours=12))
             enabled = [s for s in oplist.services.values() if s.enabled]
             _LOGGER.info(
