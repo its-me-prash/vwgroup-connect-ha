@@ -410,6 +410,19 @@ async def async_get_config_entry_diagnostics(
             except Exception as err:  # noqa: BLE001 — never let one channel break the export
                 raw_responses[str(channel)] = {"error": f"{type(err).__name__}"}
 
+    # #584 — surface the durable "no legacy MBB enrolment" verdict. These VINs
+    # got the definitive ``gw.error.authentication`` reject on the MBB
+    # operationList, i.e. the car/account is read-only (EU-DA / vw.de) and MBB
+    # commands are unavailable — so a #584-class report is triageable straight
+    # from the diagnostics instead of asking the reporter for a debug log.
+    mbb_no_legacy: list[str] = []
+    _nl = getattr(client, "mbb_no_legacy_vins", None) if client is not None else None
+    if _nl:
+        try:
+            mbb_no_legacy = sorted(mask_vin(v) for v in _nl)
+        except Exception:  # noqa: BLE001
+            mbb_no_legacy = []
+
     return {
         "config": config_diag,
         "options": options_diag,
@@ -424,4 +437,5 @@ async def async_get_config_entry_diagnostics(
         "error_buffer": error_records,
         "parser_stats": parser_stats_diag,
         "capabilities": capabilities,
+        "mbb_no_legacy": mbb_no_legacy,
     }
