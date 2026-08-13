@@ -42,6 +42,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [3.0.4] - 2026-08-13 — odometer self-heal + attestation-free SoH probe
+
 ### Fixed
 - **Odometer frozen at 429,496,729 km now clears itself (#1122).** v3.0.2 added a guard that drops this implausible reading — the uint32 "no value" sentinel scaled by the odometer's 0.1 km unit — on every channel, but a car that had already cached the bad value before updating kept showing it: the last-known-value layer both refilled it whenever a poll omitted the odometer, AND — because an odometer only ever counts up — treated the real, much lower reading as "went backwards" and kept the sentinel. The merge now purges a sentinel from the restored snapshot first, so the cache self-heals on the next poll and the true mileage lands. Thanks to @dpk1987 (Golf 8 mHEV) for catching that the first fix hadn't taken, with the exact before/after values.
 
