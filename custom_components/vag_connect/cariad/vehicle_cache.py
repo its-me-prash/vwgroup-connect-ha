@@ -15,6 +15,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from ._util import drop_odometer_sentinel
+
 VEHICLE_CACHE_VERSION = 1
 
 
@@ -112,6 +114,27 @@ _CONTESTED_ATTR: dict[str, str] = {
 }
 
 
+def _heal_cached_sentinels(previous: dict[str, Any]) -> dict[str, Any]:
+    """Purge a poisoned sentinel from a restored snapshot so it neither carries
+    forward nor blocks a fresh reading (#1122).
+
+    A pre-fix cache can hold an implausible odometer (``429_496_729`` km, the
+    uint32/10 "no value" sentinel) written before ``drop_odometer_sentinel``
+    existed. Left in ``previous`` it does DOUBLE damage in :func:`reconcile`: it
+    is carried forward whenever a poll drops the sentinel to ``None`` (endlessly
+    resurrecting itself), AND — because ``odometer_km`` is monotonic-increasing —
+    it out-ranks the real low reading (``1_794 < 429_496_729`` → "went backwards,
+    kept old"), actively blocking the true value from ever landing. Dropping it
+    here lets the cache self-heal on the next poll, on ANY channel. Returns a
+    shallow copy only when something was purged, else the original untouched.
+    """
+    odo = previous.get("odometer_km")
+    if odo is not None and drop_odometer_sentinel(odo) is None:
+        previous = dict(previous)
+        previous.pop("odometer_km", None)
+    return previous
+
+
 def strip_runtime(data: dict[str, Any]) -> dict[str, Any]:
     """Drop runtime-only keys (``_client``, ``_poll_failed``, ``_restored``, …)
     so the snapshot is JSON-serialisable for the on-disk store."""
@@ -132,6 +155,9 @@ def reconcile(
     """
     if not previous:
         return fresh, []
+    # #1122 — a snapshot poisoned with a pre-fix odometer sentinel must not
+    # resurrect itself (carry-forward) or block the real reading (monotonic).
+    previous = _heal_cached_sentinels(previous)
     merged = dict(fresh)
     notes: list[str] = []
     for field in CARRY_FORWARD_FIELDS:
