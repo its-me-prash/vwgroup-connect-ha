@@ -158,6 +158,84 @@ def parse_parking_position(
     return float(lat), float(lon), ts_str
 
 
+# Candidate vw.de reverse-proxy subpaths for the We Connect 4.3.2
+# ``batteryHealthState`` capability, ranked most-likely-first. UNCONFIRMED — the
+# app fetches SoH via the BFF selectivestatus job (Play-Integrity-walled, 403 for
+# VW EU); whether the attestation-free vw.de proxy exposes it, and under which
+# subpath, is exactly what the opt-in SoH probe discovers. (1) the exact app form
+# in case the proxy passes selectivestatus through; (2)/(3) dedicated
+# per-capability subpaths mirroring the warninglights / parkingposition shape.
+_SOH_PROBE_SUBPATHS: tuple[str, ...] = (
+    "selectivestatus?jobs=batteryHealthState",
+    "batteryhealthstate",
+    "batteryhealth",
+)
+
+
+def build_batteryhealth_url(vin: str, subpath: str, gdc: str | None = None) -> str:
+    """One candidate vw.de battery-SoH probe URL for *vin* — EXPERIMENTAL/UNCONFIRMED.
+
+    *subpath* is one of :data:`_SOH_PROBE_SUBPATHS` and may carry its own query
+    (the selectivestatus candidate does: ``?jobs=batteryHealthState``); that query
+    is merged AFTER the proxy's own ``gdc``/``resourceHost`` params so the URL
+    stays single-``?``. WeConnect realm + live VCF host + per-platform ``gdc``,
+    exactly like the warning-lights / parkingposition probes — the only remaining
+    attestation-free lever, since the BFF selectivestatus path that actually serves
+    ``stateOfHealth.ubeIndicator_pct`` is Play-Integrity-walled (4.3.2 RE
+    2026-08-12: ``GET /vehicle/v1/vehicles/{vin}/selectivestatus?jobs=batteryHealthState``).
+    """
+    base_path, _, query = subpath.partition("?")
+    url = build_authproxy_url(
+        f"vehicles/{vin}/{base_path}",
+        realm=_REALM_WECONNECT,
+        resource_host=_HOST_VCF_LIVE,
+        gdc=gdc or _GDC_WCAR,
+    )
+    if query:
+        url += ("&" if "?" in url else "?") + query
+    return url
+
+
+def parse_battery_health(body: object) -> float | None:
+    """Extract the battery State-of-Health % from a vw.de SoH-probe body.
+
+    We Connect 4.3.2 reads SoH via the BFF selectivestatus job
+    ``batteryHealthState``; the value lives at ``stateOfHealth.ubeIndicator_pct``
+    (a %, "usable battery energy" — there is NO separate numeric ``stateOfHealth``
+    scalar, ``ubeIndicator_pct`` IS the SoH figure). Because the vw.de proxy subpath
+    (if it serves this at all) is UNCONFIRMED and may wrap the value differently than
+    the BFF envelope, this WALKS the response for the first numeric
+    ``ubeIndicator_pct`` rather than assuming a fixed nesting. Returns None unless a
+    plausible percentage (0 < x ≤ 100, non-bool) is found — a degraded 200 with an
+    empty node must never masquerade as a real reading. (The raw body is captured for
+    diagnostics upstream regardless, so a parse-miss still leaves the real shape
+    inspectable.)
+    """
+    def _walk(node: object) -> float | None:
+        if isinstance(node, dict):
+            for k, v in node.items():
+                if (
+                    k == "ubeIndicator_pct"
+                    and isinstance(v, (int, float))
+                    and not isinstance(v, bool)
+                ):
+                    return float(v)
+                found = _walk(v)
+                if found is not None:
+                    return found
+        elif isinstance(node, list):
+            for item in node:
+                found = _walk(item)
+                if found is not None:
+                    return found
+        return None
+
+    val = _walk(body)
+    if val is not None and 0 < val <= 100:
+        return val
+    return None
+
+
 def build_transactionhistory_url(vin: str, gdc: str | None = None) -> str:
     """Remote-command history (lock/unlock lives here). Realm ``vw-de``.
 
