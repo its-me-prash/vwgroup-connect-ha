@@ -2129,6 +2129,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             conn = getattr(client, attr, None)
             if conn is not None and hasattr(conn, "probe_position"):
                 conn.probe_position = cohort
+                if hasattr(conn, "probe_soh"):
+                    conn.probe_soh = cohort  # 4.3.2 SoH probe, same opt-in
                 has_web = True
 
         if cohort and has_web:

@@ -384,7 +384,29 @@ class WebsiteAuthProxyConnector:
         self._position_probe_tries: int = 0
         self._position_available: bool = False
 
+        # SoH probe (4.3.2 batteryHealthState) — same opt-in test-cohort gate as
+        # the GPS probe, own independent budget. ``_soh_subpath`` pins the first
+        # candidate that returns a real %, so later polls issue a single request.
+        self.probe_soh: bool = False
+        self._soh_probe_tries: int = 0
+        self._soh_available: bool = False
+        self._soh_subpath: str | None = None
+
     _POSITION_PROBE_MAX_TRIES = 4
+    _SOH_PROBE_MAX_TRIES = 4
+
+    def _should_probe_soh(self) -> bool:
+        """Whether to attempt the experimental vw.de battery-SoH read this poll.
+
+        Latches on once a candidate subpath returns a real % (it becomes a real
+        read), else runs while the user is opted into the test cohort and still
+        within the self-limiting budget — so an opted-out user never issues the
+        request, and an opted-in car whose proxy keeps refusing stops after
+        ``_SOH_PROBE_MAX_TRIES`` polls.
+        """
+        if self._soh_available:
+            return True
+        return self.probe_soh and self._soh_probe_tries < self._SOH_PROBE_MAX_TRIES
 
     def _should_probe_position(self) -> bool:
         """Whether to attempt the experimental parkingposition read this poll.
@@ -1318,6 +1340,50 @@ class WebsiteAuthProxyConnector:
         )
         return parsed
 
+    async def get_battery_health(self, vin: str) -> float | None:
+        """Battery State-of-Health % for *vin* via the vw.de proxy — EXPERIMENTAL.
+
+        We Connect 4.3.2 added a native ``batteryHealthState`` capability, but the
+        app reads it through the CARIAD BFF selectivestatus job
+        (``stateOfHealth.ubeIndicator_pct``) which is Play-Integrity-walled (403 for
+        VW EU passenger cars). Whether the attestation-free vw.de reverse-proxy
+        exposes the same value — and at which subpath — is UNCONFIRMED, so this tries
+        the ranked candidates in ``_SOH_PROBE_SUBPATHS`` and stops at the first that
+        parses to a plausible %. Fail-soft + optional exactly like
+        ``get_parking_position``: any 4xx / empty / parse-miss returns None and never
+        forces a re-login. The raw body of every attempt is captured (VIN-stripped)
+        into diagnostics by ``_get_json`` regardless, so a maintainer can inspect the
+        real shape even when the parser declines. Once a candidate hits, its subpath
+        is pinned so later polls issue a single request.
+        """
+        from .._authproxy import (  # noqa: PLC0415
+            _SOH_PROBE_SUBPATHS,
+            build_batteryhealth_url,
+            parse_battery_health,
+        )
+
+        await self._ensure_backend(vin)
+        candidates = (
+            (self._soh_subpath,) if self._soh_subpath else _SOH_PROBE_SUBPATHS
+        )
+        for subpath in candidates:
+            body = await self._get_json(
+                build_batteryhealth_url(vin, subpath, self._gdc(vin)),
+                accept="*/*", soft=True, optional=True,
+            )
+            if body is None:
+                continue
+            soh = parse_battery_health(body)
+            if soh is not None:
+                self._soh_subpath = subpath
+                _LOGGER.debug(
+                    "Website authproxy SoH %s via %s → %.1f%%",
+                    vin[-6:], subpath.split("?")[0], soh,
+                )
+                return soh
+        _LOGGER.debug("Website authproxy SoH probe %s → no usable value", vin[-6:])
+        return None
+
     async def get_last_lock_action(self, vin: str) -> tuple[str, str | None] | None:
         """Last confirmed remote lock/unlock command for *vin*.
 
@@ -1534,6 +1600,28 @@ class WebsiteAuthProxyConnector:
             except Exception:  # noqa: BLE001
                 _LOGGER.debug(
                     "Website authproxy parkingposition read skipped for %s",
+                    vin[-6:], exc_info=True,
+                )
+
+        # SoH probe (4.3.2 batteryHealthState) — same opt-in test-cohort gate as
+        # the GPS probe. The app reads SoH via the attestation-walled BFF
+        # selectivestatus job; this checks whether the attestation-free vw.de proxy
+        # serves the same ``stateOfHealth.ubeIndicator_pct``. DIAGNOSTICS-ONLY: the
+        # raw body is captured (redacted) for the shared cohort diagnostics; we do
+        # NOT feed it to the SoH entity (which stays the user-nominal estimate) until
+        # a real value is confirmed across cars. Fail-soft, self-limiting like GPS.
+        if self._should_probe_soh():
+            if not self._soh_available:
+                self._soh_probe_tries += 1
+            try:
+                _soh = await self.get_battery_health(vin)
+                if _soh is not None:
+                    self._soh_available = True
+            except AuthenticationError:
+                raise
+            except Exception:  # noqa: BLE001
+                _LOGGER.debug(
+                    "Website authproxy SoH probe skipped for %s",
                     vin[-6:], exc_info=True,
                 )
 
