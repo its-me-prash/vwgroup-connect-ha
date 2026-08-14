@@ -2505,6 +2505,20 @@ def map_dataset_to_vehicle_data(
                   "charging_scenario", "chargingScenario")
     if _cscn is not None:
         d.charging_scenario = _shorten_enum(_cscn)
+        # #632 (@gr6803, CUPRA) — this portal firmware ships charging_scenario but
+        # NOT current_charge_state, so the cs-derived is_charging above stayed OFF
+        # while an *_ACTIVE scenario proved the car was charging (plug_connected
+        # read null too). The three in-progress scenarios all end _ACTIVE
+        # (IMMEDIATELY_CHARGING_ACTIVE / CHARGING_TO_DEPARTURE_TIME_ACTIVE /
+        # OPTIMISED_CHARGING_ACTIVE); OFF / INVALID / *_FINISHED are idle. Lift
+        # ONLY (never clear) so a correctly-read car is untouched; an _ACTIVE
+        # scenario also proves the cable is in, so infer plug_connected only when
+        # the granular plug field was absent (read null).
+        if isinstance(d.charging_scenario, str) and \
+                d.charging_scenario.upper().endswith("_ACTIVE"):
+            d.is_charging = True
+            if d.plug_connected is None:
+                d.plug_connected = True
 
     _icas = first("charging_state_report.immediate_action_state",
                   "immediate_charge_action_state", "immediate_action_state")
@@ -2783,7 +2797,13 @@ def map_dataset_to_vehicle_data(
     if _scr is not None and d.adblue_range_km is None:
         d.adblue_range_km = _scr
     # fuel_level__accuracy (double underscore): 0=measured 1=calculated.
-    _fla = _to_int(first("fuel_level__accuracy"))
+    # #1164 (@morpheusbdf) — tank_accuracy (672acc16) is the tank-dialect twin of
+    # the same 0/1 byte ("Accuracy of the fuel level with 0 or 1"); alias it as a
+    # fallback so it is CONSUMED (leaves the Scout) and reuses the existing
+    # fuel_level_estimated diagnostic — no new entity. Same 0=measured/1=calculated
+    # polarity assumed from the parallel wording; would invert only if a live
+    # payload proves otherwise.
+    _fla = _to_int(first("fuel_level__accuracy", "tank_accuracy"))
     if _fla is not None:
         d.fuel_level_estimated = _fla == 1
 
@@ -3059,6 +3079,22 @@ def map_dataset_to_vehicle_data(
     _zarr = _setting_bool(first("state_zone_active_rear_right"))
     if _zarr is not None and d.climate_zone_active_rear_right is None:
         d.climate_zone_active_rear_right = _zarr
+    # #1164 (@morpheusbdf) — STATIC per-zone availability (state_ext_cond_available_*,
+    # dict type=string → _setting_bool). Consumed whenever present so the field
+    # leaves raw_unmapped_fields (Scout stops re-flagging) and is visible in
+    # diagnostics; no dedicated entity (see models.py note).
+    _eafl = _setting_bool(first("state_ext_cond_available_front_left"))
+    if _eafl is not None and d.climate_zone_available_front_left is None:
+        d.climate_zone_available_front_left = _eafl
+    _eafr = _setting_bool(first("state_ext_cond_available_front_right"))
+    if _eafr is not None and d.climate_zone_available_front_right is None:
+        d.climate_zone_available_front_right = _eafr
+    _earl = _setting_bool(first("state_ext_cond_available_rear_left"))
+    if _earl is not None and d.climate_zone_available_rear_left is None:
+        d.climate_zone_available_rear_left = _earl
+    _earr = _setting_bool(first("state_ext_cond_available_rear_right"))
+    if _earr is not None and d.climate_zone_available_rear_right is None:
+        d.climate_zone_available_rear_right = _earr
 
     # start_stop_action — dict type=string, "Indicates the action related to
     # charging". No dict-listed enum values → no confirmed prefix; _shorten_enum
