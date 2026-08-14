@@ -318,6 +318,7 @@ DEEPLINK_SCHEMES: dict[str, str] = {
 # at upgrade — only the default for fresh installs changes.
 DEFAULT_SCAN_INTERVAL = 10   # minutes (was 5 — see v1.17.0 reasoning)
 MIN_SCAN_INTERVAL     = 5    # minutes (was 3 — quota protection)
+MAX_SCAN_INTERVAL     = 60   # minutes — the config-flow selectable ceiling (#1115)
 
 # #1078 — some brands hand out short-lived access tokens, so at the default
 # 10-min poll almost every cycle triggers a token refresh. The refresh-storm
@@ -348,13 +349,19 @@ _INTERVAL_STEP_UP_MIN = 15
 def advised_scan_interval(brand: str | None, current: int) -> int:
     """The interval to ADVISE in the refresh-storm repair, given *current*.
 
-    #1115 (starwarsfan) — the flat per-brand recommendation told a user already
-    running 31 minutes to "raise it to 30", which reads as nonsense and leaves
-    them nothing to act on. The advice has to beat what they already run: once
-    the configured interval meets or exceeds the brand recommendation, step up
-    from THEIR value instead of repeating ours.
+    #1115 (starwarsfan / Reluca / christianmhz) — the flat per-brand
+    recommendation told a user already running 31 minutes to "raise it to 30",
+    which reads as nonsense and leaves them nothing to act on. The advice has to
+    beat what they already run: once the configured interval meets or exceeds the
+    brand recommendation, step up from THEIR value instead of repeating ours.
+
+    ALWAYS clamped to ``MAX_SCAN_INTERVAL`` — the config-flow selectable ceiling.
+    The first pass stepped up unclamped and advised 61/75 minutes when the picker
+    caps at 60, i.e. an interval the user physically cannot select. When the
+    result equals ``current`` the caller sees there is no headroom left to advise
+    and suppresses the "raise it" repair instead of asking the impossible.
     """
-    base = recommended_scan_interval(brand)
+    base = min(recommended_scan_interval(brand), MAX_SCAN_INTERVAL)
     if not isinstance(current, int) or current < base:
         return base
-    return current + _INTERVAL_STEP_UP_MIN
+    return min(current + _INTERVAL_STEP_UP_MIN, MAX_SCAN_INTERVAL)

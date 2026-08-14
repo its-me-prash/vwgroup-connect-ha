@@ -42,6 +42,17 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [3.0.5] - 2026-08-14 — cohort probe observability + SoC / interval fixes
+
+### Fixed
+- **Battery SoC no longer sticks on a stale value on some EU cars (#1088).** A few cars (ID. Buzz) ship `battery_state_report.soc` twice — and VW stamps the *stale* value with the *newer* capture time, so the freshness resolver picked the wrong one and the contested-reading guard never noticed (the timestamps genuinely differ, so it isn't a tie). When VW marks the HV battery level `VALID`, that single, unambiguous reading is now trusted over the contested SoC leaf. Grounded in @ggfbrkt6mc-max's raw export (36 VALID vs the stale 18). Inert for cars that don't ship the HV pair.
+- **The "raise your update interval" tip no longer suggests an interval you can't select (#1115).** The advice is now clamped to the 60-minute maximum the options picker allows; when you're already at the ceiling the tip is suppressed instead of asking you to set 61 or 75 minutes. Thanks @Reluca and @christianmhz.
+- **Audi aux-heating request-queue field no longer re-flagged by the Scout (#1154).** `climatisation.auxiliaryHeatingStatus.requests` (an internal empty-list counter) is now silenced — it had slipped past the existing wildcards. Thanks @neuweddemer.
+
+### Internal
+- **Experimental vw.de probes now record their outcome in diagnostics (#923/#1157).** The opt-in GPS (parkingposition) and battery State-of-Health probes run fail-soft, so a 403/404/412 refusal or an empty 200 previously left no trace — the test cohort was flying blind. A new `probe_outcomes` block in the config-entry diagnostics now shows each probe's status (`404`, `412`, `200 no-coords`, …), merged up from the supplementary connector. Bare status labels only, no PII.
+- **`battery_charging_status_soc` wired as a last-resort SoC source (#1164).** A charging-status HV SoC (`%`) recovers the reading for a car that ships nothing else, ranked below the canonical sources. Thanks @morpheusbdf.
+
 ## [3.0.4] - 2026-08-13 — odometer self-heal + attestation-free SoH probe
 
 ### Fixed
