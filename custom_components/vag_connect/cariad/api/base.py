@@ -243,6 +243,11 @@ class CariadBaseClient:
         # ``"vehicle-status"``); values are the unparsed dict from the
         # backend. Re-populated per poll — never accumulates across polls.
         self.last_raw_responses: dict[str, dict[str, Any]] = {}
+        # #923/#1157 — last outcome of each experimental vw.de probe
+        # (parkingposition / SoH), merged up from the supplementary connector so
+        # the test cohort's diagnostics show WHY a probe yielded nothing. Bare
+        # status labels only ("404"/"412"/"200 no-value") — no PII.
+        self.probe_outcomes: dict[str, str] = {}
         # v1.19.1 — Pycupra-style API quota visibility. Most VAG backends
         # send X-RateLimit-Remaining (and sometimes X-RateLimit-Limit /
         # X-RateLimit-Reset) on successful responses. We capture the
@@ -520,15 +525,25 @@ class CariadBaseClient:
         except Exception:  # noqa: BLE001
             pass
         try:
-            return await connector.get_vehicle_data(vin)  # type: ignore[no-any-return]
-        except AuthenticationError:
             try:
-                await connector.refresh()
                 return await connector.get_vehicle_data(vin)  # type: ignore[no-any-return]
+            except AuthenticationError:
+                try:
+                    await connector.refresh()
+                    return await connector.get_vehicle_data(vin)  # type: ignore[no-any-return]
+                except Exception:  # noqa: BLE001
+                    return None
             except Exception:  # noqa: BLE001
                 return None
-        except Exception:  # noqa: BLE001
-            return None
+        finally:
+            # #923/#1157 — surface the connector's probe outcomes even when the
+            # read itself fail-softed to None, so the cohort's diagnostics show
+            # WHY a probe yielded nothing (403/404/412 vs 200-no-value vs never).
+            _outc = getattr(connector, "probe_outcomes", None)
+            if _outc:
+                if not isinstance(getattr(self, "probe_outcomes", None), dict):
+                    self.probe_outcomes = {}
+                self.probe_outcomes.update(_outc)
 
     async def _read_eu_portal(
         self, connector: Any, vin: str

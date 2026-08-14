@@ -410,6 +410,14 @@ async def async_get_config_entry_diagnostics(
             except Exception as err:  # noqa: BLE001 — never let one channel break the export
                 raw_responses[str(channel)] = {"error": f"{type(err).__name__}"}
 
+    # #923/#1157 — surface the experimental vw.de probe outcomes so the test
+    # cohort can see WHY a probe yielded nothing (a 403/404/412 refusal vs an
+    # empty 200 vs a never-fired probe). Bare status labels only — no PII.
+    probe_outcomes: dict[str, str] = {}
+    _po = getattr(client, "probe_outcomes", None) if client is not None else None
+    if isinstance(_po, dict):
+        probe_outcomes = {str(k): str(v) for k, v in _po.items()}
+
     # #584 — surface the durable "no legacy MBB enrolment" verdict. These VINs
     # got the definitive ``gw.error.authentication`` reject on the MBB
     # operationList, i.e. the car/account is read-only (EU-DA / vw.de) and MBB
@@ -434,6 +442,7 @@ async def async_get_config_entry_diagnostics(
         "polling_active": coordinator.is_active,
         "unexpected_findings": unexpected,
         "raw_responses": raw_responses,
+        "probe_outcomes": probe_outcomes,
         "error_buffer": error_records,
         "parser_stats": parser_stats_diag,
         "capabilities": capabilities,

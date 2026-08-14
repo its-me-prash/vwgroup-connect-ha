@@ -392,6 +392,13 @@ class WebsiteAuthProxyConnector:
         self._soh_available: bool = False
         self._soh_subpath: str | None = None
 
+        # #923/#1157 — last outcome of each experimental probe, surfaced in
+        # diagnostics so the test cohort can see WHY a probe yielded nothing (a
+        # 403/404/412 refusal vs a never-fired probe vs an empty 200). Values are
+        # bare status labels only ("404", "412", "200 no-value") — no PII. Without
+        # this a fail-soft probe left zero trace and the whole cohort was blind.
+        self.probe_outcomes: dict[str, str] = {}
+
     _POSITION_PROBE_MAX_TRIES = 4
     _SOH_PROBE_MAX_TRIES = 4
 
@@ -1107,6 +1114,7 @@ class WebsiteAuthProxyConnector:
         accept: str = "application/json",
         soft: bool = False,
         optional: bool = False,
+        record_as: str | None = None,
     ) -> Any:
         """GET a reverse-proxy endpoint and parse JSON.
 
@@ -1143,6 +1151,8 @@ class WebsiteAuthProxyConnector:
                         "Website authproxy GET %s → 412 precondition "
                         "(no data this poll)", url,
                     )
+                    if record_as:
+                        self.probe_outcomes[record_as] = "412 precondition (wrong-platform gdc?)"
                     return None
                 if resp.status in _AUTH_FAIL_STATUSES:
                     if optional:
@@ -1151,6 +1161,8 @@ class WebsiteAuthProxyConnector:
                             "unavailable for this car — not a session failure)",
                             url, resp.status,
                         )
+                        if record_as:
+                            self.probe_outcomes[record_as] = str(resp.status)
                         return None
                     raise AuthenticationError(
                         f"Website authproxy GET {url} → HTTP {resp.status}"
@@ -1168,12 +1180,18 @@ class WebsiteAuthProxyConnector:
                             "Website authproxy GET %s → HTTP %s "
                             "(soft; no data this poll)", url, resp.status,
                         )
+                        if record_as:
+                            self.probe_outcomes[record_as] = str(resp.status)
                         return None
                     raise AuthenticationError(
                         f"Website authproxy GET {url} → HTTP {resp.status}"
                     )
                 body = await resp.json(content_type=None)
                 self._capture_raw(url, body)
+                if record_as:
+                    # provisional; the caller refines to "200 no-value" when the
+                    # body carries no usable reading (a degraded 200).
+                    self.probe_outcomes[record_as] = "200"
                 return body
         return None
 
@@ -1329,11 +1347,13 @@ class WebsiteAuthProxyConnector:
         await self._ensure_backend(vin)
         body = await self._get_json(
             build_parkingposition_url(vin, self._gdc(vin)),
-            accept="*/*", soft=True, optional=True,
+            accept="*/*", soft=True, optional=True, record_as="parkingposition",
         )
         if body is None:
             return None
         parsed = parse_parking_position(body)
+        if parsed is None:  # a degraded 200 that carried no coordinates
+            self.probe_outcomes["parkingposition"] = "200 no-coords"
         _LOGGER.debug(
             "Website authproxy parkingposition %s → %s", vin[-6:],
             "coords" if parsed else "no coordinates in body",
@@ -1367,9 +1387,10 @@ class WebsiteAuthProxyConnector:
             (self._soh_subpath,) if self._soh_subpath else _SOH_PROBE_SUBPATHS
         )
         for subpath in candidates:
+            base = subpath.split("?")[0]
             body = await self._get_json(
                 build_batteryhealth_url(vin, subpath, self._gdc(vin)),
-                accept="*/*", soft=True, optional=True,
+                accept="*/*", soft=True, optional=True, record_as=f"soh:{base}",
             )
             if body is None:
                 continue
@@ -1378,9 +1399,10 @@ class WebsiteAuthProxyConnector:
                 self._soh_subpath = subpath
                 _LOGGER.debug(
                     "Website authproxy SoH %s via %s → %.1f%%",
-                    vin[-6:], subpath.split("?")[0], soh,
+                    vin[-6:], base, soh,
                 )
                 return soh
+            self.probe_outcomes[f"soh:{base}"] = "200 no-value"
         _LOGGER.debug("Website authproxy SoH probe %s → no usable value", vin[-6:])
         return None
 
