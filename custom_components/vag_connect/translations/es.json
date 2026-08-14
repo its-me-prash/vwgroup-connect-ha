@@ -1803,8 +1803,7 @@
     },
     "stale_data": {
       "title": "{vin}: los datos del vehículo no se actualizan desde hace {age} h",
-      "description": "Los últimos datos que comunicó tu coche se registraron hace unas **{age} horas**, aunque la integración sigue consultando sin problemas. Esto puede deberse a dos motivos: puede que el coche esté simplemente aparcado y en reposo (algo normal, no hay nada que hacer) o que su fuente de datos del EU Data Act haya caducado y haya dejado de enviar lecturas nuevas.\n\nLos valores que ves ahora son los últimos conocidos, no datos en tiempo real. Si has conducido o enchufado el coche desde entonces y este aviso sigue apareciendo, lo más probable es que la fuente de datos haya caducado: abre volkswagen.de → los ajustes de datos de tu coche y renueva o vuelve a solicitar el uso compartido de datos, o vuelve a añadir el canal.\n\nEste aviso desaparece automáticamente en cuanto llega una lectura más reciente.",
-      "learn_more_url": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/465"
+      "description": "Los últimos datos que comunicó tu coche se registraron hace unas **{age} horas**, aunque la integración sigue consultando sin problemas. Esto puede deberse a dos motivos: puede que el coche esté simplemente aparcado y en reposo (algo normal, no hay nada que hacer) o que su fuente de datos del EU Data Act haya caducado y haya dejado de enviar lecturas nuevas.\n\nLos valores que ves ahora son los últimos conocidos, no datos en tiempo real. Si has conducido o enchufado el coche desde entonces y este aviso sigue apareciendo, lo más probable es que la fuente de datos haya caducado: abre volkswagen.de → los ajustes de datos de tu coche y renueva o vuelve a solicitar el uso compartido de datos, o vuelve a añadir el canal.\n\nEste aviso desaparece automáticamente en cuanto llega una lectura más reciente."
     }
   },
   "services": {

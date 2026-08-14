@@ -1803,8 +1803,7 @@
     },
     "stale_data": {
       "title": "{vin} : les données du véhicule n'ont pas été actualisées depuis {age} h",
-      "description": "Les dernières données transmises par votre voiture datent d'environ **{age} heures**, alors que l'intégration continue pourtant d'interroger le véhicule avec succès. Deux causes sont possibles : soit la voiture est tout simplement garée et en veille (c'est normal — rien à faire), soit son flux de données EU Data Act s'est interrompu et ne fournit plus de relevés récents.\n\nLes valeurs que vous voyez actuellement sont les dernières connues, pas des données en direct. Si la voiture a roulé ou a été branchée depuis et que cet avertissement persiste, c'est très probablement que le flux de données a expiré : ouvrez volkswagen.de → les paramètres de données de votre voiture et renouvelez/redemandez le partage de données, ou rajoutez le canal.\n\nCet avertissement disparaît automatiquement dès qu'un relevé plus récent arrive.",
-      "learn_more_url": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/465"
+      "description": "Les dernières données transmises par votre voiture datent d'environ **{age} heures**, alors que l'intégration continue pourtant d'interroger le véhicule avec succès. Deux causes sont possibles : soit la voiture est tout simplement garée et en veille (c'est normal — rien à faire), soit son flux de données EU Data Act s'est interrompu et ne fournit plus de relevés récents.\n\nLes valeurs que vous voyez actuellement sont les dernières connues, pas des données en direct. Si la voiture a roulé ou a été branchée depuis et que cet avertissement persiste, c'est très probablement que le flux de données a expiré : ouvrez volkswagen.de → les paramètres de données de votre voiture et renouvelez/redemandez le partage de données, ou rajoutez le canal.\n\nCet avertissement disparaît automatiquement dès qu'un relevé plus récent arrive."
     }
   },
   "services": {

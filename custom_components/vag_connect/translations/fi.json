@@ -1803,8 +1803,7 @@
     },
     "stale_data": {
       "title": "{vin}: ajoneuvon tiedot eivät ole päivittyneet {age} tuntiin",
-      "description": "Auton viimeksi raportoimat tiedot kerättiin noin **{age} tuntia sitten**, vaikka integraatio hakee tietoja edelleen onnistuneesti. Tähän voi olla kaksi syytä: auto voi yksinkertaisesti olla pysäköitynä ja lepotilassa (normaalia — ei tarvitse tehdä mitään), tai sen EU Data Act -tietosyöte on saattanut vanhentua eikä toimita enää tuoreita lukemia.\n\nNäkemäsi arvot ovat viimeisimmät tunnetut, eivät reaaliaikaiset. Jos autoa on ajettu tai se on kytketty lataukseen tämän jälkeen eikä varoitus poistu, tietosyöte on mitä todennäköisimmin vanhentunut: avaa volkswagen.de → auton tietoasetukset ja uusi tai pyydä tietojen jakaminen uudelleen, tai lisää kanava uudelleen.\n\nTämä varoitus poistuu automaattisesti heti, kun tuoreempi lukema saapuu.",
-      "learn_more_url": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/465"
+      "description": "Auton viimeksi raportoimat tiedot kerättiin noin **{age} tuntia sitten**, vaikka integraatio hakee tietoja edelleen onnistuneesti. Tähän voi olla kaksi syytä: auto voi yksinkertaisesti olla pysäköitynä ja lepotilassa (normaalia — ei tarvitse tehdä mitään), tai sen EU Data Act -tietosyöte on saattanut vanhentua eikä toimita enää tuoreita lukemia.\n\nNäkemäsi arvot ovat viimeisimmät tunnetut, eivät reaaliaikaiset. Jos autoa on ajettu tai se on kytketty lataukseen tämän jälkeen eikä varoitus poistu, tietosyöte on mitä todennäköisimmin vanhentunut: avaa volkswagen.de → auton tietoasetukset ja uusi tai pyydä tietojen jakaminen uudelleen, tai lisää kanava uudelleen.\n\nTämä varoitus poistuu automaattisesti heti, kun tuoreempi lukema saapuu."
     }
   },
   "services": {

@@ -1763,8 +1763,7 @@
     },
     "stale_data": {
       "title": "{vin}: vehicle data hasn't refreshed in {age}h",
-      "description": "The last data your car reported was captured about **{age} hours ago**, even though the integration is still polling successfully. Two things can cause this: the car may simply be parked and asleep (normal — nothing to do), or its EU Data Act data feed may have lapsed and stopped delivering fresh readings.\n\nThe values you currently see are the last known ones, not live. If the car has been driven or plugged in since then and this warning stays, the data feed has most likely expired: open volkswagen.de → your car's data settings and renew/re-request the data sharing, or re-add the channel.\n\nThis warning auto-clears the moment a fresher reading arrives.",
-      "learn_more_url": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/465"
+      "description": "The last data your car reported was captured about **{age} hours ago**, even though the integration is still polling successfully. Two things can cause this: the car may simply be parked and asleep (normal — nothing to do), or its EU Data Act data feed may have lapsed and stopped delivering fresh readings.\n\nThe values you currently see are the last known ones, not live. If the car has been driven or plugged in since then and this warning stays, the data feed has most likely expired: open volkswagen.de → your car's data settings and renew/re-request the data sharing, or re-add the channel.\n\nThis warning auto-clears the moment a fresher reading arrives."
     },
     "ola_headers_outdated": {
       "title": "{brand} commands blocked by VW (device attestation) — {count} consecutive 403 errors",

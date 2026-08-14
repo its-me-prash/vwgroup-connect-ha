@@ -545,6 +545,9 @@ def raise_issue_stale_data(
         severity=ir.IssueSeverity.WARNING,
         translation_key="stale_data",
         translation_placeholders={"vin": masked_vin, "age": str(age_hours)},
+        # learn_more_url belongs on the issue, NOT in the translations schema
+        # (Hassfest rejects it there).
+        learn_more_url="https://github.com/its-me-prash/vwgroup-connect-ha/issues/465",
     )
 
 

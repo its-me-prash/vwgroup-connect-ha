@@ -1803,8 +1803,7 @@
     },
     "stale_data": {
       "title": "{vin}: dane pojazdu nie odświeżyły się od {age} h",
-      "description": "Ostatnie dane przesłane przez Twój samochód zostały zarejestrowane około **{age} godz. temu**, mimo że integracja nadal poprawnie odpytuje serwer. Mogą być tego dwie przyczyny: samochód może być po prostu zaparkowany i uśpiony (to normalne — nie musisz nic robić) albo jego kanał danych w ramach EU Data Act wygasł i przestał dostarczać świeże odczyty.\n\nWartości, które teraz widzisz, to ostatnie znane, a nie dane na żywo. Jeśli od tego czasu samochód był używany lub podłączony do ładowania, a to ostrzeżenie wciąż się wyświetla, kanał danych najprawdopodobniej wygasł: otwórz volkswagen.de → ustawienia danych swojego samochodu i odnów/ponownie zażądaj udostępniania danych albo dodaj kanał od nowa.\n\nTo ostrzeżenie zniknie automatycznie w chwili, gdy nadejdzie świeższy odczyt.",
-      "learn_more_url": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/465"
+      "description": "Ostatnie dane przesłane przez Twój samochód zostały zarejestrowane około **{age} godz. temu**, mimo że integracja nadal poprawnie odpytuje serwer. Mogą być tego dwie przyczyny: samochód może być po prostu zaparkowany i uśpiony (to normalne — nie musisz nic robić) albo jego kanał danych w ramach EU Data Act wygasł i przestał dostarczać świeże odczyty.\n\nWartości, które teraz widzisz, to ostatnie znane, a nie dane na żywo. Jeśli od tego czasu samochód był używany lub podłączony do ładowania, a to ostrzeżenie wciąż się wyświetla, kanał danych najprawdopodobniej wygasł: otwórz volkswagen.de → ustawienia danych swojego samochodu i odnów/ponownie zażądaj udostępniania danych albo dodaj kanał od nowa.\n\nTo ostrzeżenie zniknie automatycznie w chwili, gdy nadejdzie świeższy odczyt."
     }
   },
   "services": {

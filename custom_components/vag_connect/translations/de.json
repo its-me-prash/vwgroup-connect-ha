@@ -1803,8 +1803,7 @@
     },
     "stale_data": {
       "title": "{vin}: Fahrzeugdaten seit {age} h nicht mehr aktualisiert",
-      "description": "Die letzten Daten, die dein Auto gemeldet hat, wurden vor etwa **{age} Stunden** erfasst – obwohl die Integration weiterhin erfolgreich abfragt. Dafür gibt es zwei mögliche Gründe: Entweder steht das Auto einfach geparkt und im Ruhezustand (völlig normal – da musst du nichts tun), oder sein Datenstrom nach dem EU Data Act ist ausgelaufen und liefert keine frischen Werte mehr.\n\nDie Werte, die du gerade siehst, sind die zuletzt bekannten – nicht die aktuellen. Wenn das Auto seitdem gefahren oder geladen wurde und diese Warnung bestehen bleibt, ist der Datenstrom höchstwahrscheinlich abgelaufen: Öffne volkswagen.de → die Dateneinstellungen deines Autos und erneuere die Datenfreigabe bzw. fordere sie neu an, oder füge den Kanal einfach noch einmal hinzu.\n\nDiese Warnung verschwindet automatisch, sobald ein aktuellerer Wert eintrifft.",
-      "learn_more_url": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/465"
+      "description": "Die letzten Daten, die dein Auto gemeldet hat, wurden vor etwa **{age} Stunden** erfasst – obwohl die Integration weiterhin erfolgreich abfragt. Dafür gibt es zwei mögliche Gründe: Entweder steht das Auto einfach geparkt und im Ruhezustand (völlig normal – da musst du nichts tun), oder sein Datenstrom nach dem EU Data Act ist ausgelaufen und liefert keine frischen Werte mehr.\n\nDie Werte, die du gerade siehst, sind die zuletzt bekannten – nicht die aktuellen. Wenn das Auto seitdem gefahren oder geladen wurde und diese Warnung bestehen bleibt, ist der Datenstrom höchstwahrscheinlich abgelaufen: Öffne volkswagen.de → die Dateneinstellungen deines Autos und erneuere die Datenfreigabe bzw. fordere sie neu an, oder füge den Kanal einfach noch einmal hinzu.\n\nDiese Warnung verschwindet automatisch, sobald ein aktuellerer Wert eintrifft."
     }
   },
   "selector": {

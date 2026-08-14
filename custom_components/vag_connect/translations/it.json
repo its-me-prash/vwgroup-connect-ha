@@ -1803,8 +1803,7 @@
     },
     "stale_data": {
       "title": "{vin}: i dati del veicolo non si aggiornano da {age}h",
-      "description": "Gli ultimi dati trasmessi dalla tua auto risalgono a circa **{age} ore fa**, anche se l'integrazione continua a interrogarla correttamente. Le cause possono essere due: l'auto potrebbe semplicemente essere parcheggiata e in stand-by (è normale, non devi fare nulla), oppure il suo flusso dati EU Data Act potrebbe essersi interrotto e aver smesso di fornire letture aggiornate.\n\nI valori che vedi ora sono gli ultimi noti, non in tempo reale. Se da allora hai guidato o messo in carica l'auto e questo avviso resta, con ogni probabilità il flusso dati è scaduto: apri volkswagen.de → le impostazioni dati della tua auto e rinnova/richiedi di nuovo la condivisione dei dati, oppure aggiungi di nuovo il canale.\n\nQuesto avviso scompare automaticamente non appena arriva una lettura più recente.",
-      "learn_more_url": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/465"
+      "description": "Gli ultimi dati trasmessi dalla tua auto risalgono a circa **{age} ore fa**, anche se l'integrazione continua a interrogarla correttamente. Le cause possono essere due: l'auto potrebbe semplicemente essere parcheggiata e in stand-by (è normale, non devi fare nulla), oppure il suo flusso dati EU Data Act potrebbe essersi interrotto e aver smesso di fornire letture aggiornate.\n\nI valori che vedi ora sono gli ultimi noti, non in tempo reale. Se da allora hai guidato o messo in carica l'auto e questo avviso resta, con ogni probabilità il flusso dati è scaduto: apri volkswagen.de → le impostazioni dati della tua auto e rinnova/richiedi di nuovo la condivisione dei dati, oppure aggiungi di nuovo il canale.\n\nQuesto avviso scompare automaticamente non appena arriva una lettura più recente."
     }
   },
   "services": {

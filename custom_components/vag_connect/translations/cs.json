@@ -1803,8 +1803,7 @@
     },
     "stale_data": {
       "title": "{vin}: data vozidla se {age} h neaktualizovala",
-      "description": "Poslední data, která vaše auto nahlásilo, byla zaznamenána zhruba **před {age} hodinami**, přestože samotné dotazování stále probíhá úspěšně. Můžou za tím být dvě věci: auto je nejspíš jen zaparkované a spí (normální stav — není třeba nic dělat), nebo jeho přísun dat podle EU Data Act vypršel a přestal dodávat čerstvé hodnoty.\n\nHodnoty, které teď vidíte, jsou poslední známé, ne aktuální. Pokud jste od té doby s autem jeli nebo ho připojili k nabíjení a toto upozornění nezmizí, nejspíš vypršel přísun dat: otevřete volkswagen.de → nastavení dat vašeho vozu a obnovte/znovu vyžádejte sdílení dat, nebo kanál přidejte znovu.\n\nToto upozornění zmizí samo ve chvíli, kdy dorazí čerstvější údaj.",
-      "learn_more_url": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/465"
+      "description": "Poslední data, která vaše auto nahlásilo, byla zaznamenána zhruba **před {age} hodinami**, přestože samotné dotazování stále probíhá úspěšně. Můžou za tím být dvě věci: auto je nejspíš jen zaparkované a spí (normální stav — není třeba nic dělat), nebo jeho přísun dat podle EU Data Act vypršel a přestal dodávat čerstvé hodnoty.\n\nHodnoty, které teď vidíte, jsou poslední známé, ne aktuální. Pokud jste od té doby s autem jeli nebo ho připojili k nabíjení a toto upozornění nezmizí, nejspíš vypršel přísun dat: otevřete volkswagen.de → nastavení dat vašeho vozu a obnovte/znovu vyžádejte sdílení dat, nebo kanál přidejte znovu.\n\nToto upozornění zmizí samo ve chvíli, kdy dorazí čerstvější údaj."
     }
   },
   "services": {

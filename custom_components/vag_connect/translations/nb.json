@@ -1803,8 +1803,7 @@
     },
     "stale_data": {
       "title": "{vin}: bildataene er ikke oppdatert på {age} timer",
-      "description": "De siste dataene bilen din rapporterte inn, ble registrert for omtrent **{age} timer siden** – selv om integrasjonen fortsatt henter inn data uten problemer. To ting kan være årsaken: bilen står kanskje bare parkert og i dvale (helt normalt – ingenting å gjøre), eller EU Data Act-datastrømmen kan ha løpt ut og sluttet å levere ferske avlesninger.\n\nVerdiene du ser nå, er de sist kjente – ikke sanntidsverdier. Hvis bilen har blitt kjørt eller satt til lading siden da, og denne advarselen fortsatt vises, har datastrømmen mest sannsynlig utløpt: åpne volkswagen.de → datainnstillingene for bilen din, og forny / be om datadelingen på nytt, eller legg til kanalen på nytt.\n\nDenne advarselen forsvinner av seg selv så snart en ferskere avlesning kommer inn.",
-      "learn_more_url": "https://github.com/its-me-prash/vwgroup-connect-ha/issues/465"
+      "description": "De siste dataene bilen din rapporterte inn, ble registrert for omtrent **{age} timer siden** – selv om integrasjonen fortsatt henter inn data uten problemer. To ting kan være årsaken: bilen står kanskje bare parkert og i dvale (helt normalt – ingenting å gjøre), eller EU Data Act-datastrømmen kan ha løpt ut og sluttet å levere ferske avlesninger.\n\nVerdiene du ser nå, er de sist kjente – ikke sanntidsverdier. Hvis bilen har blitt kjørt eller satt til lading siden da, og denne advarselen fortsatt vises, har datastrømmen mest sannsynlig utløpt: åpne volkswagen.de → datainnstillingene for bilen din, og forny / be om datadelingen på nytt, eller legg til kanalen på nytt.\n\nDenne advarselen forsvinner av seg selv så snart en ferskere avlesning kommer inn."
     }
   },
   "services": {
