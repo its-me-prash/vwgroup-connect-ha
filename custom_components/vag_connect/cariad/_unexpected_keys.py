@@ -946,6 +946,13 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             "climatisation.auxiliaryHeatingStatus.value.*",
             "climatisation.auxiliaryHeatingStatus.error",
             "climatisation.auxiliaryHeatingStatus.error.*",
+            # #1154 (neuweddemer, Audi) — an internal request-queue counter that
+            # arrives as an empty list; not telemetry, no user value. The nested
+            # ``.requests`` was NOT covered by the 2-seg leaf or the 4-seg
+            # ``.value.*``/``.error.*`` globs (``_path_matches`` is exact / equal-
+            # length, not prefix), so the Scout kept re-flagging it. Silence it.
+            "climatisation.auxiliaryHeatingStatus.requests",
+            "climatisation.auxiliaryHeatingStatus.requests.*",
             "climatisationTimers.auxiliaryHeatingTimersStatus",
             "climatisationTimers.auxiliaryHeatingTimersStatus.value",
             "climatisationTimers.auxiliaryHeatingTimersStatus.value.*",
