@@ -457,6 +457,9 @@
       "last_updated_at": {
         "name": "Viimeisin päivitys"
       },
+      "last_seen_at": {
+        "name": "Ajoneuvo viimeksi raportoinut"
+      },
       "adblue_range_km": {
         "name": "AdBlue-toimintamatka"
       },

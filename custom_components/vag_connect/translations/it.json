@@ -457,6 +457,9 @@
       "last_updated_at": {
         "name": "Ultimo aggiornamento"
       },
+      "last_seen_at": {
+        "name": "Veicolo ultimo report"
+      },
       "adblue_range_km": {
         "name": "Autonomia AdBlue"
       },

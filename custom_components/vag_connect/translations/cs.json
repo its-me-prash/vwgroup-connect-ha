@@ -451,6 +451,9 @@
       "last_updated_at": {
         "name": "Naposledy aktualizováno"
       },
+      "last_seen_at": {
+        "name": "Vozidlo naposledy nahlášeno"
+      },
       "adblue_range_km": {
         "name": "Dojezd AdBlue"
       },
