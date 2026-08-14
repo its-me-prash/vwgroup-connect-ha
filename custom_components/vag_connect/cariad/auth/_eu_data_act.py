@@ -1377,9 +1377,28 @@ def map_dataset_to_vehicle_data(
             )
         return best[3]
 
+    # #1088 (ggfbrkt6mc-max, ID.Buzz) — some cars ship battery_state_report.soc
+    # TWICE, and VW stamps the STALE value with the NEWER capture time, so the
+    # freshness resolver below picks the wrong one AND contested_fields never
+    # flags it (the two timestamps genuinely differ, so it is not a tie). The
+    # battery_level_HV pair is single-occurrence and VW marks it VALID/INVALID:
+    # when VALID it is the authoritative HV SoC (verified on the reporter's export
+    # — value 36 VALID vs the contested leaf's stale 18). Prefer it. Inert for the
+    # vast majority of cars that don't ship the HV pair or mark it non-VALID
+    # (falls through to the existing freshness resolution unchanged).
+    _hv_state = first("battery_level_HV.state")
+    _hv_val = _to_int(first("battery_level_HV.value",
+                            "battery_level_HV.battery_level_HV.value"))
+    _hv_soc = (
+        _hv_val
+        if (isinstance(_hv_state, str) and _hv_state.strip().upper() == "VALID"
+            and _hv_val is not None and 0 <= _hv_val <= 100)
+        else None
+    )
+
     # #465 — SoC is the one field observed to ship under disagreeing aliases
     # (a stale 57 vs the fresh 81); resolve it by capture time, not list order.
-    soc = _to_int(first_freshest("battery_state_report.soc", "soc", "stateOfChargeInPercent",
+    soc = _hv_soc if _hv_soc is not None else _to_int(first_freshest("battery_state_report.soc", "soc", "stateOfChargeInPercent",
                         "state_of_charge",
                         # self-audit (Enyaq / MEB-Entry, e-up): these cars ship the
                         # traction SoC under a bespoke leaf "currentSoc" whose
@@ -1402,6 +1421,16 @@ def map_dataset_to_vehicle_data(
                         # soc/battery_state_report.soc keys; just widens
                         # coverage for cars that report nothing else.
                         "hv_soc",
+                        # #1164 (morpheusbdf) — the charging-status message
+                        # carries its own HV SoC (dict: "Indicates the current
+                        # charging status for the battery", type number, unit %;
+                        # UUID 081f3121-0f89-3553-b7a2-f79bd5537479). Kept LAST-
+                        # resort like the other charger-dialect aliases so the
+                        # canonical soc / hv_soc keys always win when a car reports
+                        # both — that also makes it safe if a car ever ships it as
+                        # a setpoint rather than the live pack SoC (it can never
+                        # out-compete a real reading, only widen coverage).
+                        "battery_charging_status_soc",
                         # v2.18.0 (#702) — Touareg-era legacy Car-Net export.
                         # These cars ship a flat {dataFieldName, value} dataset
                         # whose names are fully qualified (RBC.*/RTS.*/RDT.*),
