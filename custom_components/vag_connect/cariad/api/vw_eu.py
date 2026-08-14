@@ -610,6 +610,8 @@ class VWEUClient(CariadBaseClient):
             # otherwise a vw.de reporter's diagnostics carries no raw data to
             # ground the location / auth issues (#923 / #966).
             self.last_raw_responses = dict(getattr(web, "last_raw_responses", {}))
+            # #923/#1157 — surface the sole-mode probe outcomes too.
+            self.probe_outcomes = dict(getattr(web, "probe_outcomes", {}))
             return web_data
 
         # v2.12.0 — EU Data Act portal mode (read-only fallback). When the

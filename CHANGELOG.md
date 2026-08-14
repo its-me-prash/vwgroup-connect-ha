@@ -42,8 +42,25 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [3.0.5] - 2026-08-14 — cohort probe observability + SoC / interval fixes
+
+### Fixed
+- **Battery SoC no longer sticks on a stale value on some EU cars (#1088).** A few cars (ID. Buzz) ship `battery_state_report.soc` twice — and VW stamps the *stale* value with the *newer* capture time, so the freshness resolver picked the wrong one and the contested-reading guard never noticed (the timestamps genuinely differ, so it isn't a tie). When VW marks the HV battery level `VALID`, that single, unambiguous reading is now trusted over the contested SoC leaf. Grounded in @ggfbrkt6mc-max's raw export (36 VALID vs the stale 18). Inert for cars that don't ship the HV pair.
+- **The "raise your update interval" tip no longer suggests an interval you can't select (#1115).** The advice is now clamped to the 60-minute maximum the options picker allows; when you're already at the ceiling the tip is suppressed instead of asking you to set 61 or 75 minutes. Thanks @Reluca and @christianmhz.
+- **Audi aux-heating request-queue field no longer re-flagged by the Scout (#1154).** `climatisation.auxiliaryHeatingStatus.requests` (an internal empty-list counter) is now silenced — it had slipped past the existing wildcards. Thanks @neuweddemer.
+
+### Internal
+- **Experimental vw.de probes now record their outcome in diagnostics (#923/#1157).** The opt-in GPS (parkingposition) and battery State-of-Health probes run fail-soft, so a 403/404/412 refusal or an empty 200 previously left no trace — the test cohort was flying blind. A new `probe_outcomes` block in the config-entry diagnostics now shows each probe's status (`404`, `412`, `200 no-coords`, …), merged up from the supplementary connector. Bare status labels only, no PII.
+- **`battery_charging_status_soc` wired as a last-resort SoC source (#1164).** A charging-status HV SoC (`%`) recovers the reading for a car that ships nothing else, ranked below the canonical sources. Thanks @morpheusbdf.
+
+## [3.0.4] - 2026-08-13 — odometer self-heal + attestation-free SoH probe
+
+### Fixed
+- **Odometer frozen at 429,496,729 km now clears itself (#1122).** v3.0.2 added a guard that drops this implausible reading — the uint32 "no value" sentinel scaled by the odometer's 0.1 km unit — on every channel, but a car that had already cached the bad value before updating kept showing it: the last-known-value layer both refilled it whenever a poll omitted the odometer, AND — because an odometer only ever counts up — treated the real, much lower reading as "went backwards" and kept the sentinel. The merge now purges a sentinel from the restored snapshot first, so the cache self-heals on the next poll and the true mileage lands. Thanks to @dpk1987 (Golf 8 mHEV) for catching that the first fix hadn't taken, with the exact before/after values.
+
 ### Internal
 - **Diagnostics now flag a "no legacy MBB enrolment" car (#584).** When a car set up on the durable-MBB channel gets the definitive `gw.error.authentication` reject on its service list — the fingerprint of a car/account with no legacy Car-Net enrolment (reads still work over the EU Data Act / volkswagen.de channel, but MBB commands never will) — the config-entry diagnostics now list that VIN under `mbb_no_legacy`. So a report of "MBB set up but no commands appear" is answerable straight from the diagnostics instead of asking for a debug log, and the verdict clears the moment the car's service list succeeds again (e.g. after becoming the primary user in the brand app). Grounded in the B8 Passat GTE reports (@Mattheisen87, @BengtKR79) and @JustAnotherDud's Polo probing.
+- **Opt-in probe for an attestation-free battery State-of-Health reading (We Connect 4.3.2).** VW's 4.3.2 app added a native `batteryHealthState` capability (`stateOfHealth.ubeIndicator_pct`, "usable battery energy" %), but the app reads it through the Play-Integrity-walled CARIAD backend (403 for VW EU passenger cars). Test-cohort users on the volkswagen.de channel now run a self-limiting, fail-soft probe that checks whether the attestation-free vw.de reverse-proxy exposes the same value (ranked candidate subpaths; the raw response lands VIN/token-redacted in the shared diagnostics so the real shape is inspectable). Diagnostics-only — the State-of-Health sensor stays the user-nominal estimate until a real value is confirmed across cars, and there is no effect at all for users not opted into the test cohort.
 
 ## [3.0.3] - 2026-08-11 — vw.de session resilience + reporter fixes
 

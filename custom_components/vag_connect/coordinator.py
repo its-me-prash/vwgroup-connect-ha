@@ -2129,6 +2129,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             conn = getattr(client, attr, None)
             if conn is not None and hasattr(conn, "probe_position"):
                 conn.probe_position = cohort
+                if hasattr(conn, "probe_soh"):
+                    conn.probe_soh = cohort  # 4.3.2 SoH probe, same opt-in
                 has_web = True
 
         if cohort and has_web:
@@ -4679,14 +4681,23 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     self.entry.options.get(CONF_SCAN_INTERVAL)
                     or self.entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
                 )
-                # #1115 (starwarsfan) — advise an interval that actually beats
-                # the configured one (see ``advised_scan_interval``).
-                raise_issue_refresh_interval_too_frequent(
-                    self.hass, self.entry.entry_id,
-                    brand=brand,
-                    current=current_min,
-                    recommended=advised_scan_interval(brand, current_min),
-                )
+                # #1115 (starwarsfan / Reluca / christianmhz) — advise an
+                # interval that actually beats the configured one AND is
+                # selectable (advised_scan_interval clamps to MAX_SCAN_INTERVAL).
+                # When the user is already at the ceiling there is no higher value
+                # to advise, so suppress the repair rather than telling them to set
+                # an interval the picker can't reach — the storm guard already
+                # backs the polling off on its own.
+                advised = advised_scan_interval(brand, current_min)
+                if advised > current_min:
+                    raise_issue_refresh_interval_too_frequent(
+                        self.hass, self.entry.entry_id,
+                        brand=brand,
+                        current=current_min,
+                        recommended=advised,
+                    )
+                else:
+                    clear_refresh_interval_issue(self.hass, self.entry.entry_id)
             else:
                 clear_refresh_interval_issue(self.hass, self.entry.entry_id)
 

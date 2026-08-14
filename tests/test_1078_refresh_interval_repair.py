@@ -61,13 +61,33 @@ class TestAdvisedIntervalBeatsTheConfiguredOne:
         # the reporter's exact case: 31 configured must never advise 30
         assert advised_scan_interval("skoda", 31) > 31
         assert advised_scan_interval("skoda", 30) > 30
-        assert advised_scan_interval("skoda", 60) > 60
 
-    def test_advice_always_exceeds_current(self) -> None:
+    def test_advice_never_exceeds_the_selectable_maximum(self) -> None:
+        """#1115 (Reluca / christianmhz) — the step-up must be clamped to the
+        config-flow ceiling; advising 61/75 min when the picker caps at 60 is an
+        instruction the user physically cannot follow. At the ceiling the advice
+        equals the max (the caller then suppresses the impossible repair)."""
+        from custom_components.vag_connect.const import (
+            MAX_SCAN_INTERVAL,
+            advised_scan_interval,
+        )
+
+        assert MAX_SCAN_INTERVAL == 60
+        for brand in ("skoda", "audi", "volkswagen", None):
+            for current in (1, 5, 10, 30, 31, 45, 55, 60, 120):
+                advised = advised_scan_interval(brand, current)
+                assert advised <= MAX_SCAN_INTERVAL, (
+                    f"{brand}/{current} advised {advised} above the {MAX_SCAN_INTERVAL} max"
+                )
+        # at the ceiling there is no headroom: advice pins to the max, not above
+        assert advised_scan_interval("skoda", 60) == 60
+        assert advised_scan_interval("skoda", 120) == 60
+
+    def test_advice_exceeds_current_while_headroom_remains(self) -> None:
         from custom_components.vag_connect.const import advised_scan_interval
 
         for brand in ("skoda", "audi", "volkswagen", None):
-            for current in (1, 5, 10, 30, 31, 45, 120):
+            for current in (1, 5, 10, 30, 31, 44):  # all below the 60 ceiling
                 assert advised_scan_interval(brand, current) > current, (
                     f"{brand}/{current} advised an interval that is not an increase"
                 )
