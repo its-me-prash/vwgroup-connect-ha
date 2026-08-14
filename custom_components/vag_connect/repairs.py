@@ -511,6 +511,51 @@ def clear_refresh_interval_issue(hass: HomeAssistant, entry_id: str) -> None:
     ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_refresh_interval_too_frequent")
 
 
+# #465 (@TomJonesGreggs) — how old the car's own data-capture time may get before
+# we flag it. 72 h = 3× the 24 h "offline" threshold in compute_connection_state:
+# a healthy PARKED car with a sleeping OCU legitimately goes ~a day between
+# captures, so a shorter floor false-positives on normal parking. 3 days without a
+# single fresh capture is well past that heartbeat and points to a frozen EU-DA
+# feed, not the car. The poll keeps succeeding (last_updated_at stays fresh) — this
+# is the only signal that the DATA under it has stopped moving.
+STALE_DATA_MIN_AGE_S = 72 * 3600
+
+
+def raise_issue_stale_data(
+    hass: HomeAssistant,
+    entry_id: str,
+    vin: str,
+    *,
+    masked_vin: str,
+    age_hours: int,
+) -> None:
+    """Surface a car whose data has not refreshed in a long time (per-VIN).
+
+    WARNING, not error: last-known values still show, it is not a hard failure —
+    the car may simply be parked and asleep, or its EU Data Act feed may have
+    lapsed. Dismissible; auto-clears the moment a fresher capture arrives. Keyed
+    per VIN so a multi-car account isolates the stale one.
+    """
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        f"{entry_id}_stale_data_{vin}",
+        is_fixable=False,
+        is_persistent=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="stale_data",
+        translation_placeholders={"vin": masked_vin, "age": str(age_hours)},
+        # learn_more_url belongs on the issue, NOT in the translations schema
+        # (Hassfest rejects it there).
+        learn_more_url="https://github.com/its-me-prash/vwgroup-connect-ha/issues/465",
+    )
+
+
+def clear_stale_data_issue(hass: HomeAssistant, entry_id: str, vin: str) -> None:
+    """Clear the per-VIN stale-data repair once a fresher capture arrives."""
+    ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_stale_data_{vin}")
+
+
 # ─── v2.0.0 Repair-Flow Handler ──────────────────────────────────────────
 class _AuthRepairFlow(RepairsFlow):
     """v2.0.0 — Generic repair flow for auth-related issues.

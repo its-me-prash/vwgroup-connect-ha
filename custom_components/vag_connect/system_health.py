@@ -41,20 +41,16 @@ async def _system_health_info(hass: HomeAssistant) -> dict[str, Any]:
     if not entries:
         return info
 
-    # Integration version from manifest
+    # Integration version from manifest. (HA audit — dropped a dead first branch
+    # that called `hass.helpers.aiohttp_client.async_get_loaded_integration`, which
+    # isn't a real API and always raised into this fallback; also `hass.helpers` is
+    # deprecated. `async_get_integration` is the correct, only path.)
     try:
-        integration = await hass.helpers.aiohttp_client.async_get_loaded_integration(  # type: ignore[attr-defined]
-            DOMAIN
-        )
+        from homeassistant.loader import async_get_integration  # noqa: PLC0415
+        integration = await async_get_integration(hass, DOMAIN)
         info["version"] = integration.version
     except Exception:  # noqa: BLE001
-        # Fallback — read manifest directly
-        try:
-            from homeassistant.loader import async_get_integration  # noqa: PLC0415
-            integration = await async_get_integration(hass, DOMAIN)
-            info["version"] = integration.version
-        except Exception:  # noqa: BLE001
-            info["version"] = "unknown"
+        info["version"] = "unknown"
 
     # Per-entry brand + last poll + quota + push status
     brands: list[str] = []

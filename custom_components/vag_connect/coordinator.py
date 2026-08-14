@@ -58,6 +58,30 @@ from .cariad.models import VehicleData
 _LOGGER = logging.getLogger(__name__)
 
 
+def _capture_age_s(data: dict[str, Any]) -> float | None:
+    """Seconds since the car's own data was captured (``last_seen_at``), or None.
+
+    ``last_seen_at`` is channel-heterogeneous — a ``datetime`` from the BFF/Škoda
+    paths, an ISO string from the EU Data Act portal (the very channel that
+    freezes), or absent. Handle both real types; anything else / missing → None so
+    the caller does not flag it. A future-dated OCU clock yields a negative age
+    (< any threshold) → no false alarm. (#465)
+    """
+    raw = data.get("last_seen_at")
+    if isinstance(raw, datetime):
+        ts = raw if raw.tzinfo else raw.replace(tzinfo=timezone.utc)
+    elif isinstance(raw, str) and raw:
+        try:
+            ts = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+    else:
+        return None
+    return (datetime.now(tz=timezone.utc) - ts).total_seconds()
+
+
 def _is_selfhealing_poll_error(err: object) -> bool:
     """True for a poll error that must NOT be escalated to the public Error
     Reporter, because it self-heals and is not our bug:
@@ -2133,7 +2157,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     conn.probe_soh = cohort  # 4.3.2 SoH probe, same opt-in
                 has_web = True
 
-        if cohort and has_web:
+        # #912 — the BFF/Audi primary client captures a command's pendingrequests
+        # body when opted in (to sample the PPE E:CV.PA.31 rejection). Flag it too,
+        # and count it toward the share prompt: a PPE reporter (Audi, no vw.de
+        # channel) must still be asked to share, or the capture never reaches us.
+        has_bff = client is not None and hasattr(client, "command_captures")
+        if has_bff:
+            client._test_cohort = cohort
+
+        if cohort and (has_web or has_bff):
             raise_issue_test_cohort_share(self.hass, self.entry.entry_id)
         else:
             clear_issue_test_cohort_share(self.hass, self.entry.entry_id)
@@ -4700,6 +4732,34 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     clear_refresh_interval_issue(self.hass, self.entry.entry_id)
             else:
                 clear_refresh_interval_issue(self.hass, self.entry.entry_id)
+
+        # #465 (@TomJonesGreggs) — CAPTURE-age staleness (complementary to the
+        # poll-failure watchdog): the poll keeps succeeding and last_updated_at
+        # stays fresh, but the car's own data-capture time (last_seen_at) has
+        # frozen — a lapsed EU-DA feed presenting days-old data as live. Flag it
+        # per VIN once the capture age passes a generous floor (72 h, well past a
+        # parked car's sleep heartbeat), auto-clear when a fresher capture lands.
+        _vin_sd = data.get("vin")
+        if isinstance(_vin_sd, str) and _vin_sd:
+            from .repairs import (  # noqa: PLC0415
+                STALE_DATA_MIN_AGE_S,
+                clear_stale_data_issue,
+                raise_issue_stale_data,
+            )
+            _interval_s = max(
+                int(self.entry.options.get(CONF_SCAN_INTERVAL)
+                    or self.entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)) * 60,
+                _CC_MIN_INTERVAL_S,
+            )
+            _threshold_s = max(STALE_DATA_MIN_AGE_S, 8 * _interval_s)
+            _age = _capture_age_s(data)
+            if _age is not None and _age >= _threshold_s:
+                raise_issue_stale_data(
+                    self.hass, self.entry.entry_id, _vin_sd,
+                    masked_vin=mask_vin(_vin_sd), age_hours=int(_age // 3600),
+                )
+            else:
+                clear_stale_data_issue(self.hass, self.entry.entry_id, _vin_sd)
 
         # Fix #32: Defensive is_charging reset.
         # When plug is disconnected, charging MUST be False regardless of API state.

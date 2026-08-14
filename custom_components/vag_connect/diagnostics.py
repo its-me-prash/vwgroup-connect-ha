@@ -409,6 +409,16 @@ async def async_get_config_entry_diagnostics(
                 raw_responses[str(channel)] = _scrub_raw(payload)
             except Exception as err:  # noqa: BLE001 — never let one channel break the export
                 raw_responses[str(channel)] = {"error": f"{type(err).__name__}"}
+    # #912 — opt-in command-result captures (e.g. the BFF pendingrequests body for
+    # a PPE climate command). Same redaction path; survives the per-poll wipe of
+    # last_raw_responses because it lives in its own dict.
+    cc = getattr(client, "command_captures", None) if client is not None else None
+    if isinstance(cc, dict):
+        for k, payload in cc.items():
+            try:
+                raw_responses[f"command:{k}"] = _scrub_raw(payload)
+            except Exception as err:  # noqa: BLE001
+                raw_responses[f"command:{k}"] = {"error": f"{type(err).__name__}"}
 
     # #923/#1157 — surface the experimental vw.de probe outcomes so the test
     # cohort can see WHY a probe yielded nothing (a 403/404/412 refusal vs an

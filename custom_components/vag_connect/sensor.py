@@ -1308,6 +1308,10 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         data_key="lifetime_travel_time_min",
         native_unit_of_measurement=UnitOfTime.MINUTES,
         device_class=SensorDeviceClass.DURATION,
+        # HA audit — a lifetime cumulative counter (like its lifetime_distance_km /
+        # lifetime_zero_emission_km siblings) had no state_class, so it got zero
+        # long-term statistics. TOTAL_INCREASING enables them (HA handles resets).
+        state_class=SensorStateClass.TOTAL_INCREASING,
         icon="mdi:timer-outline",
         suggested_display_precision=0,
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -1474,6 +1478,9 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         translation_key="primary_engine_soc_pct",
         data_key="primary_engine_soc_pct",
         native_unit_of_measurement="%",
+        # HA audit — a battery state-of-charge %, so tag it BATTERY like its
+        # aux_battery_energy_pct sibling (icon/UX; MEASUREMENT already gives history).
+        device_class=SensorDeviceClass.BATTERY,
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:car-battery",
         entity_category=EntityCategory.DIAGNOSTIC,

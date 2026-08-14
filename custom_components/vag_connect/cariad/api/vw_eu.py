@@ -2366,6 +2366,12 @@ class VWEUClient(CariadBaseClient):
                 )
             except Exception:  # noqa: BLE001
                 return  # poll unavailable → keep the old (accept) behaviour
+            # #912 — opt-in: keep the raw pendingrequests body so a PPE reporter's
+            # diagnostics carry the exact rejection shape (E:CV.PA.31) we can't map
+            # yet. Reuses the already-fetched response — no extra request. Off for
+            # everyone not in the test cohort; redacted at export.
+            if getattr(self, "_test_cohort", False):
+                self.command_captures["bff_pendingrequests"] = pend
             status = _bff_status_for(pend, request_id)
             if status is None:
                 continue  # not listed yet / unknown → keep polling
