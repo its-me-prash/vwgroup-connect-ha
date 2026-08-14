@@ -67,6 +67,34 @@ ISSUE_ID_UNEXPECTED_KEYS = "vehicle_data_scout_findings"
 ISSUE_ID_ERROR_REPORTER = "error_reporter_findings"
 
 
+# ── Intentional-skip allowlist — REPAIR suppression, NOT data suppression ──
+# Matching findings stay fully Scout-VISIBLE in diagnostics (they remain in
+# VehicleData.raw_unmapped_fields → the raw_api_fields sensor, and in the
+# coordinator's unexpected_findings count) but are kept OUT of the user-facing
+# Scout repair, so they stop prompting every reporter to hand-file the same
+# already-investigated issue. Distinct from EXPECTED_KEYS / EU-DA first()-reclaim,
+# which remove the field from raw_unmapped_fields entirely — these must NOT be
+# data-suppressed (scope_potential_total is intentionally-unmapped-but-visible per
+# _eu_data_act.py; the ownerless openings are kept Scout-visible per #1100).
+# Spam so far: scope_potential_total → #1151/#1156/#1164/#1166/#1167;
+#              c0bb1348/d5dc7c87 → #1140/#1149/#1152/#1161/#1168.
+_SCOUT_REPAIR_SKIP_LEAVES: frozenset[str] = frozenset({"scope_potential_total"})
+# Substring match on the (masked) sample: #1100's UUID annotation rides in the
+# value as ``... (uuid c0bb1348)``; keying on the UUID (not the eu_data_act.open
+# PATH) preserves discovery — a genuinely-new opening UUID on the same leaf still
+# raises the repair.
+_SCOUT_REPAIR_SKIP_UUIDS: frozenset[str] = frozenset({"c0bb1348", "d5dc7c87"})
+
+
+def _is_scout_repair_skipped(f: UnexpectedField) -> bool:
+    """True if a finding is known/intentionally-unmapped and must not spawn the
+    user-facing Scout repair. It stays in raw_unmapped_fields regardless."""
+    if f.path.rsplit(".", 1)[-1] in _SCOUT_REPAIR_SKIP_LEAVES:
+        return True
+    sample = f.sample_masked or ""
+    return any(u in sample for u in _SCOUT_REPAIR_SKIP_UUIDS)
+
+
 # ---------------------------------------------------------------------------
 # Privacy guard — the model-name choke point
 # ---------------------------------------------------------------------------
@@ -316,7 +344,11 @@ def ensure_unexpected_keys_issue(
     report. The Markdown body is also embedded in the description so
     Facebook/forum users can copy-paste without leaving HA.
     """
-    findings_list = list(findings)
+    # Drop the intentional-skip set from the REPAIR only (they stay in
+    # raw_unmapped_fields / diagnostics). If a poll's findings are *only* the
+    # skipped set, findings_list is empty and the empty-case below deletes the
+    # repair — no more per-user spam for scope_potential_total / c0bb1348.
+    findings_list = [f for f in findings if not _is_scout_repair_skipped(f)]
     issue_id = f"{entry_id}_{ISSUE_ID_UNEXPECTED_KEYS}"
 
     if not findings_list:

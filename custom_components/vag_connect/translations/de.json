@@ -466,6 +466,9 @@
       "last_updated_at": {
         "name": "Letzte Aktualisierung"
       },
+      "last_seen_at": {
+        "name": "Fahrzeug zuletzt gemeldet"
+      },
       "adblue_range_km": {
         "name": "AdBlue Reichweite"
       },

@@ -451,6 +451,9 @@
       "last_updated_at": {
         "name": "Senast uppdaterad"
       },
+      "last_seen_at": {
+        "name": "Fordon senast rapporterat"
+      },
       "adblue_range_km": {
         "name": "AdBlue-räckvidd"
       },

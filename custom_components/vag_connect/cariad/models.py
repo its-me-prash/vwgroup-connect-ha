@@ -1805,6 +1805,16 @@ class VehicleData:
     climate_zone_active_front_right: bool | None = None
     climate_zone_active_rear_left: bool | None = None
     climate_zone_active_rear_right: bool | None = None
+    # #1164 (@morpheusbdf) — static per-zone extended-conditioning AVAILABILITY
+    # (state_ext_cond_available_*): whether the zone physically exists on this car.
+    # Never changes per VIN → mapped to named fields (so they leave the Scout and
+    # show in diagnostics) but deliberately not surfaced as their own entities
+    # (four static capability flags would be entity clutter with no automation
+    # value). The third sibling of the *_enabled / *_active twins above.
+    climate_zone_available_front_left: bool | None = None
+    climate_zone_available_front_right: bool | None = None
+    climate_zone_available_rear_left: bool | None = None
+    climate_zone_available_rear_right: bool | None = None
     # Charging-related action (start_stop_action — dict type=string, no enum
     # list; _shorten_enum passes unprefixed values through). LOW —
     # disabled-by-default. sensor, diagnostic.
