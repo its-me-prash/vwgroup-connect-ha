@@ -850,6 +850,20 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:clock-check-outline",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # #465 (@TomJonesGreggs) — the car's own data-capture time, distinct from the
+    # poll time above. On a frozen-but-non-empty EU-DA feed the poll keeps
+    # succeeding (last_updated_at stays fresh) while the car's data is days old;
+    # HA renders this TIMESTAMP as a relative age, so "last reported 2 days ago"
+    # next to "last updated 1 minute ago" makes a silent freeze obvious. The value
+    # is already captured (last_seen_at) on every channel — this just surfaces it.
+    VagSensorDescription(
+        key="last_seen_at",
+        translation_key="last_seen_at",
+        data_key="last_seen_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:car-clock",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
 
     VagSensorDescription(
         key="departure_timer_1_time",

@@ -451,6 +451,9 @@
       "last_updated_at": {
         "name": "Ostatnia aktualizacja"
       },
+      "last_seen_at": {
+        "name": "Pojazd ostatnio zgłoszony"
+      },
       "adblue_range_km": {
         "name": "Zasięg AdBlue"
       },

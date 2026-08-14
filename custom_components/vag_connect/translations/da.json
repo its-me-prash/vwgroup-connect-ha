@@ -457,6 +457,9 @@
       "last_updated_at": {
         "name": "Seneste opdatering"
       },
+      "last_seen_at": {
+        "name": "Køretøj sidst rapporteret"
+      },
       "adblue_range_km": {
         "name": "AdBlue-rækkevidde"
       },

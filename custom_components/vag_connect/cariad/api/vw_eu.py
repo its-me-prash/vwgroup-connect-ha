@@ -993,8 +993,17 @@ class VWEUClient(CariadBaseClient):
             body["climatizationAtUnlock"] = bool(climatisation_at_unlock)
         if climatisation_mode is not None:
             body["climatisationMode"] = str(climatisation_mode)
-        url = f"{self._base_for_vin(vin)}/vehicle/v1/vehicles/{vin}/climatisation/start"
-        await self._post(url, json=body)
+        base = self._base_for_vin(vin)
+        url = f"{base}/vehicle/v1/vehicles/{vin}/climatisation/start"
+        resp = await self._post(url, json=body)
+        # #912 (@Mirjam9, Audi A6 PPE) — the *basic* climate command confirms via
+        # the pendingrequests poll, but this rich path used a raw _post and skipped
+        # it, so an async backend rejection (e.g. the PPE E:CV.PA.31) surfaced as a
+        # false "OK". Route it through the same confirmation the basic path already
+        # trusts. Best-effort: only raises on an EXPLICIT terminal rejection, so it
+        # can never regress a working command (a rejection whose payload shape we
+        # can't yet sample just falls through to accept, exactly as today).
+        await self._await_bff_command(vin, base, resp)
 
     async def command_stop_climate(self, vin: str) -> None:
         """Stop pre-conditioning — separate endpoint (primary), combined 404-fallback."""

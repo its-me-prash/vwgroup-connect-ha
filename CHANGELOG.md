@@ -42,6 +42,19 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [3.0.6] - 2026-08-14 — charging state, climate confirm, staleness + Scout tidy-up
+
+### Fixed
+- **CUPRA (and other EU-DA cars) no longer show "not charging" while actively charging (#632).** Some portal firmwares send a charge *scenario* but not the raw charge-state, so `is_charging` stayed off and the plug read "not connected" mid-charge. An in-progress scenario (`…_ACTIVE`) now lifts charging and infers the plug — without ever overriding a real reading. Thanks @gr6803.
+- **Audi PPE climate no longer reports a false "OK" when the car rejects it (#912).** The rich `start_climate_control` path skipped the command-confirmation poll the basic climate command already runs, so an asynchronous backend rejection (e.g. `E:CV.PA.31` on A6/Q6 e-tron) looked like success. It now confirms through the same poll — best-effort, so it can't regress a working command. Thanks @Mirjam9 (and #940 @loeildubush).
+
+### Added
+- **"Vehicle Last Reported" diagnostic sensor (#465).** Shows the car's own data-capture time, distinct from the poll time ("Last Update"). On a frozen-but-non-empty EU Data Act feed the poll keeps succeeding while the data is days old — now "reported 2 days ago" next to "updated 1 minute ago" makes a silent freeze obvious. Reporter's own idea; thanks @TomJonesGreggs.
+
+### Internal
+- **The Scout stops spamming a new GitHub issue per user for fields we intentionally never map (#1151/#1156/#1164/#1166/#1167, #1140/#1149/#1152/#1161/#1168).** `scope_potential_total` (PPE-opaque) and the ownerless opening UUIDs `c0bb1348`/`d5dc7c87` are kept out of the user-facing "report this" repair while staying fully Scout-visible in diagnostics; a genuinely-new field or opening UUID still raises it.
+- **Mapped the remaining Scout fields from #1164 (@morpheusbdf).** `state_ext_cond_available_*` (static per-zone climate availability) and `tank_accuracy` (folds into the existing fuel-level-estimated flag) are now consumed, so the Scout stops re-flagging them.
+
 ## [3.0.5] - 2026-08-14 — cohort probe observability + SoC / interval fixes
 
 ### Fixed
