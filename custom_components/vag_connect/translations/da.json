@@ -1710,6 +1710,39 @@
       "door_lock": {
         "name": "Centrallås"
       }
+    },
+    "event": {
+      "push_event": {
+        "name": "Push-hændelse",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "operation-request": "Betjeningsanmodning",
+              "service-event": "Service-hændelse",
+              "account-event": "Kontohændelse",
+              "vehicle-event": "Køretøjshændelse",
+              "alarm": "Alarm",
+              "other": "Andet",
+              "lock_state": "Låsetilstand",
+              "charging_state": "Opladningstilstand",
+              "climate_state": "Klimatilstand"
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "software_update": {
+        "name": "Softwareopdatering"
+      }
+    },
+    "calendar": {
+      "charging_schedule": {
+        "name": "Opladningsplan"
+      },
+      "service": {
+        "name": "Serviceplan"
+      }
     }
   },
   "issues": {

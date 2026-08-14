@@ -1710,6 +1710,39 @@
       "door_lock": {
         "name": "Central Locking"
       }
+    },
+    "event": {
+      "push_event": {
+        "name": "Push event",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "operation-request": "Operation request",
+              "service-event": "Service event",
+              "account-event": "Account event",
+              "vehicle-event": "Vehicle event",
+              "alarm": "Alarm",
+              "other": "Other",
+              "lock_state": "Lock state",
+              "charging_state": "Charging state",
+              "climate_state": "Climate state"
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "software_update": {
+        "name": "Software update"
+      }
+    },
+    "calendar": {
+      "charging_schedule": {
+        "name": "Charging schedule"
+      },
+      "service": {
+        "name": "Service schedule"
+      }
     }
   },
   "issues": {

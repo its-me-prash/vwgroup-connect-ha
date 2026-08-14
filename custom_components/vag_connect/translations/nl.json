@@ -1710,6 +1710,39 @@
       "door_lock": {
         "name": "Deurslot"
       }
+    },
+    "event": {
+      "push_event": {
+        "name": "Push-gebeurtenis",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "operation-request": "Bedieningsverzoek",
+              "service-event": "Service-gebeurtenis",
+              "account-event": "Account-gebeurtenis",
+              "vehicle-event": "Voertuiggebeurtenis",
+              "alarm": "Alarm",
+              "other": "Overig",
+              "lock_state": "Vergrendelingsstatus",
+              "charging_state": "Laadstatus",
+              "climate_state": "Klimaatstatus"
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "software_update": {
+        "name": "Software-update"
+      }
+    },
+    "calendar": {
+      "charging_schedule": {
+        "name": "Laadschema"
+      },
+      "service": {
+        "name": "Serviceschema"
+      }
     }
   },
   "issues": {

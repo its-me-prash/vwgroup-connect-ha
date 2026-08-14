@@ -1710,6 +1710,39 @@
       "door_lock": {
         "name": "Verrouillage"
       }
+    },
+    "event": {
+      "push_event": {
+        "name": "Événement push",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "operation-request": "Demande d'opération",
+              "service-event": "Événement d'entretien",
+              "account-event": "Événement de compte",
+              "vehicle-event": "Événement du véhicule",
+              "alarm": "Alarme",
+              "other": "Autre",
+              "lock_state": "État de verrouillage",
+              "charging_state": "État de charge",
+              "climate_state": "État de climatisation"
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "software_update": {
+        "name": "Mise à jour logicielle"
+      }
+    },
+    "calendar": {
+      "charging_schedule": {
+        "name": "Programmation de charge"
+      },
+      "service": {
+        "name": "Calendrier d'entretien"
+      }
     }
   },
   "issues": {

@@ -44,6 +44,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Added
 - **"Data hasn't refreshed" warning for a frozen vehicle feed (#465).** When the integration keeps polling successfully but the car's own data-capture time stops advancing (a lapsed EU Data Act feed presenting days-old data as live), a dismissible per-vehicle Repair now points it out — and explains it may just be a parked, sleeping car. Auto-clears the moment a fresher reading arrives. Grounded in @TomJonesGreggs's ID. Buzz freeze; complements the new "Vehicle Last Reported" sensor from 3.0.6.
+- **Push events are now first-class HA entities.** Manufacturer push notifications (Škoda / Audi / VW / CUPRA / SEAT) already fired on the event bus; each vehicle now also gets a proper `event` entity, so they show in the Logbook, drive automations without a YAML bus filter, and keep per-car history. Unknown backend event types are preserved verbatim under an `event_type_raw` attribute.
+- **Firmware `update` entity.** The car's installed software version + "update available" status now render as a native HA update card (with a release-notes link where provided) — read-only, since VAG firmware is flashed by the car, not by HA. Škoda today.
+- **Charging & service calendars.** Two read-only calendars per vehicle: a *charging schedule* (departure timers + charge/climate ETAs) and a *service schedule* (service/oil/brake due dates) — the scheduling data on a timeline instead of scattered across time/date sensors.
+- **Per-device diagnostics download.** You can now download diagnostics for a single car (from its device page) instead of the whole account — smaller, and easier to share for a bug report. Same redaction as the full export.
 
 ### Fixed
 - **Lifetime travel-time now records long-term statistics.** It was missing a `state_class`, so it produced no history — corrected to `TOTAL_INCREASING` like its distance siblings. (HA feature-coverage audit.)

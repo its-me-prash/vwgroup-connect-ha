@@ -1710,6 +1710,39 @@
       "door_lock": {
         "name": "Zámek dveří"
       }
+    },
+    "event": {
+      "push_event": {
+        "name": "Push událost",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "operation-request": "Požadavek operace",
+              "service-event": "Servisní událost",
+              "account-event": "Událost účtu",
+              "vehicle-event": "Událost vozidla",
+              "alarm": "Alarm",
+              "other": "Ostatní",
+              "lock_state": "Stav zamčení",
+              "charging_state": "Stav nabíjení",
+              "climate_state": "Stav klimatizace"
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "software_update": {
+        "name": "Aktualizace softwaru"
+      }
+    },
+    "calendar": {
+      "charging_schedule": {
+        "name": "Plán nabíjení"
+      },
+      "service": {
+        "name": "Plán servisu"
+      }
     }
   },
   "issues": {

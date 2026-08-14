@@ -1710,6 +1710,39 @@
       "door_lock": {
         "name": "Cerradura"
       }
+    },
+    "event": {
+      "push_event": {
+        "name": "Evento push",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "operation-request": "Solicitud de operación",
+              "service-event": "Evento de servicio",
+              "account-event": "Evento de cuenta",
+              "vehicle-event": "Evento del vehículo",
+              "alarm": "Alarma",
+              "other": "Otro",
+              "lock_state": "Estado de bloqueo",
+              "charging_state": "Estado de carga",
+              "climate_state": "Estado de climatización"
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "software_update": {
+        "name": "Actualización de software"
+      }
+    },
+    "calendar": {
+      "charging_schedule": {
+        "name": "Programación de carga"
+      },
+      "service": {
+        "name": "Programación de servicio"
+      }
     }
   },
   "issues": {

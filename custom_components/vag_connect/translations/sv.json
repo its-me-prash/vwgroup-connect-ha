@@ -1710,6 +1710,39 @@
       "door_lock": {
         "name": "Dörrlås"
       }
+    },
+    "event": {
+      "push_event": {
+        "name": "Push-händelse",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "operation-request": "Åtgärdsbegäran",
+              "service-event": "Servicehändelse",
+              "account-event": "Kontohändelse",
+              "vehicle-event": "Fordonshändelse",
+              "alarm": "Larm",
+              "other": "Övrigt",
+              "lock_state": "Låsstatus",
+              "charging_state": "Laddningsstatus",
+              "climate_state": "Klimatstatus"
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "software_update": {
+        "name": "Programvaruuppdatering"
+      }
+    },
+    "calendar": {
+      "charging_schedule": {
+        "name": "Laddningsschema"
+      },
+      "service": {
+        "name": "Serviceschema"
+      }
     }
   },
   "issues": {

@@ -1710,6 +1710,39 @@
       "door_lock": {
         "name": "Chiusura centralizzata"
       }
+    },
+    "event": {
+      "push_event": {
+        "name": "Evento push",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "operation-request": "Richiesta operazione",
+              "service-event": "Evento assistenza",
+              "account-event": "Evento account",
+              "vehicle-event": "Evento veicolo",
+              "alarm": "Allarme",
+              "other": "Altro",
+              "lock_state": "Stato blocco",
+              "charging_state": "Stato ricarica",
+              "climate_state": "Stato clima"
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "software_update": {
+        "name": "Aggiornamento software"
+      }
+    },
+    "calendar": {
+      "charging_schedule": {
+        "name": "Programmazione ricarica"
+      },
+      "service": {
+        "name": "Programmazione assistenza"
+      }
     }
   },
   "issues": {
