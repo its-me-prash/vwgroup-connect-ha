@@ -4,6 +4,10 @@
 
 DOMAIN = "vag_connect"
 
+# Bus event fired by coordinator._on_push_event for each manufacturer push
+# notification; consumed by the event platform (per-vehicle EventEntity).
+EVENT_PUSH = "vag_connect_push_event"
+
 # Config entry keys
 CONF_BRAND                    = "brand"
 CONF_USERNAME                 = "username"

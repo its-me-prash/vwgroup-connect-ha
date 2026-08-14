@@ -1710,6 +1710,39 @@
       "door_lock": {
         "name": "Keskuslukitus"
       }
+    },
+    "event": {
+      "push_event": {
+        "name": "Push-tapahtuma",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "operation-request": "Toimintopyyntö",
+              "service-event": "Huoltotapahtuma",
+              "account-event": "Tilitapahtuma",
+              "vehicle-event": "Ajoneuvotapahtuma",
+              "lockState": "Lukituksen tila",
+              "chargingState": "Latauksen tila",
+              "climateState": "Ilmastoinnin tila",
+              "alarm": "Hälytys",
+              "other": "Muu"
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "software_update": {
+        "name": "Ohjelmistopäivitys"
+      }
+    },
+    "calendar": {
+      "charging_schedule": {
+        "name": "Latausaikataulu"
+      },
+      "service": {
+        "name": "Huoltoaikataulu"
+      }
     }
   },
   "issues": {

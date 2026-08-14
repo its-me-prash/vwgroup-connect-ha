@@ -1710,6 +1710,39 @@
       "door_lock": {
         "name": "Zentralverriegelung"
       }
+    },
+    "event": {
+      "push_event": {
+        "name": "Push-Ereignis",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "operation-request": "Vorgangsanfrage",
+              "service-event": "Serviceereignis",
+              "account-event": "Kontoereignis",
+              "vehicle-event": "Fahrzeugereignis",
+              "lockState": "Verriegelungsstatus",
+              "chargingState": "Ladestatus",
+              "climateState": "Klimastatus",
+              "alarm": "Alarm",
+              "other": "Sonstiges"
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "software_update": {
+        "name": "Software-Update"
+      }
+    },
+    "calendar": {
+      "charging_schedule": {
+        "name": "Ladeplan"
+      },
+      "service": {
+        "name": "Serviceplan"
+      }
     }
   },
   "issues": {

@@ -36,7 +36,10 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS: list[Platform] = [
     Platform.SENSOR,
     Platform.BINARY_SENSOR,
+    Platform.CALENDAR,
     Platform.DEVICE_TRACKER,
+    Platform.EVENT,
+    Platform.UPDATE,
     Platform.SWITCH,
     Platform.BUTTON,
     Platform.CLIMATE,

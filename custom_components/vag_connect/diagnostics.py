@@ -25,6 +25,7 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceEntry
 
 from .cariad._error_reporter import serialise_for_diagnostics
 # v2.8.0 quick win D — reuse the Scout module's PII regexes (VIN / JWT
@@ -45,6 +46,7 @@ from .const import (
     CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD,
     CONF_SUPPLEMENTARY_EU_PORTAL_USERNAME,
     CONF_USERNAME,
+    DOMAIN,
 )
 from .coordinator import VagConnectCoordinator
 
@@ -457,4 +459,52 @@ async def async_get_config_entry_diagnostics(
         "parser_stats": parser_stats_diag,
         "capabilities": capabilities,
         "mbb_no_legacy": mbb_no_legacy,
+    }
+
+
+async def async_get_device_diagnostics(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    device: DeviceEntry,
+) -> dict[str, Any]:
+    """Per-device (single-VIN) slice of the config-entry diagnostics.
+
+    Lets a reporter share ONE car instead of the whole account. Built by slicing
+    the already-redacted config-entry payload — identical redaction, no
+    duplication. Only the genuinely VIN-keyed sections are sliced (``vehicles`` /
+    ``unexpected_findings`` / ``mbb_no_legacy``, all keyed by ``mask_vin(vin)``);
+    the channel/probe/command-keyed sections carry no VIN dimension and are
+    account-scoped, so they are dropped from a single-car file rather than leaking
+    another car's data.
+    """
+    full = await async_get_config_entry_diagnostics(hass, entry)
+
+    vin = next((str(v) for d, v in device.identifiers if d == DOMAIN), None)
+    # The options/settings device (number.py) shares the DOMAIN but is not a car.
+    if not vin or vin.endswith("_settings"):
+        return {
+            "device_note": "non-vehicle device — no per-VIN slice",
+            "config": full.get("config"),
+            "options": full.get("options"),
+        }
+
+    masked = mask_vin(vin)  # the per-VIN diag sections are keyed by the masked VIN
+    veh = full.get("vehicles", {})
+    unexpected = full.get("unexpected_findings", {})
+    return {
+        "device_vin_masked": masked,
+        "config": full.get("config"),
+        "options": full.get("options"),
+        "vehicles": {masked: veh[masked]} if masked in veh else {},
+        "vehicle_count": 1 if masked in veh else 0,
+        "unexpected_findings": (
+            {masked: unexpected[masked]} if masked in unexpected else {}
+        ),
+        "mbb_no_legacy": (
+            [masked] if masked in full.get("mbb_no_legacy", []) else []
+        ),
+        "last_update_success": full.get("last_update_success"),
+        "cloud_push_active": full.get("cloud_push_active"),
+        "push_states": full.get("push_states"),
+        "polling_active": full.get("polling_active"),
     }

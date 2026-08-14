@@ -42,6 +42,7 @@ from .const import (
     CONF_USERNAME,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    EVENT_PUSH,
     advised_scan_interval,
 )
 from homeassistant.helpers import device_registry as dr
@@ -3009,7 +3010,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # failure cannot break the refresh path.
             try:
                 self.hass.bus.async_fire(
-                    "vag_connect_push_event",
+                    EVENT_PUSH,
                     {
                         "vin": event.vin,
                         "event_type": event.event_type,

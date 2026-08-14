@@ -1710,6 +1710,39 @@
       "door_lock": {
         "name": "Sentrallås"
       }
+    },
+    "event": {
+      "push_event": {
+        "name": "Push-hendelse",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "operation-request": "Operasjonsforespørsel",
+              "service-event": "Servicehendelse",
+              "account-event": "Kontohendelse",
+              "vehicle-event": "Kjøretøyhendelse",
+              "lockState": "Låsestatus",
+              "chargingState": "Ladestatus",
+              "climateState": "Klimastatus",
+              "alarm": "Alarm",
+              "other": "Annet"
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "software_update": {
+        "name": "Programvareoppdatering"
+      }
+    },
+    "calendar": {
+      "charging_schedule": {
+        "name": "Ladeplan"
+      },
+      "service": {
+        "name": "Serviceplan"
+      }
     }
   },
   "issues": {

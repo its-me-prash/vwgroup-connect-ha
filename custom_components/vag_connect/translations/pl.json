@@ -1710,6 +1710,39 @@
       "door_lock": {
         "name": "Zamek drzwi"
       }
+    },
+    "event": {
+      "push_event": {
+        "name": "Zdarzenie push",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "operation-request": "Żądanie operacji",
+              "service-event": "Zdarzenie serwisowe",
+              "account-event": "Zdarzenie konta",
+              "vehicle-event": "Zdarzenie pojazdu",
+              "lockState": "Stan zamków",
+              "chargingState": "Stan ładowania",
+              "climateState": "Stan klimatyzacji",
+              "alarm": "Alarm",
+              "other": "Inne"
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "software_update": {
+        "name": "Aktualizacja oprogramowania"
+      }
+    },
+    "calendar": {
+      "charging_schedule": {
+        "name": "Harmonogram ładowania"
+      },
+      "service": {
+        "name": "Harmonogram serwisowy"
+      }
     }
   },
   "issues": {
