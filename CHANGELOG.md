@@ -42,6 +42,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-08-14 — Logbook events, firmware & calendar cards, freeze warning + HA coverage sweep
+
 ### Added
 - **"Data hasn't refreshed" warning for a frozen vehicle feed (#465).** When the integration keeps polling successfully but the car's own data-capture time stops advancing (a lapsed EU Data Act feed presenting days-old data as live), a dismissible per-vehicle Repair now points it out — and explains it may just be a parked, sleeping car. Auto-clears the moment a fresher reading arrives. Grounded in @TomJonesGreggs's ID. Buzz freeze; complements the new "Vehicle Last Reported" sensor from 3.0.6.
 - **Push events are now first-class HA entities.** Manufacturer push notifications (Škoda / Audi / VW / CUPRA / SEAT) already fired on the event bus; each vehicle now also gets a proper `event` entity, so they show in the Logbook, drive automations without a YAML bus filter, and keep per-car history. Unknown backend event types are preserved verbatim under an `event_type_raw` attribute.
