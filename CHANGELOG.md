@@ -42,6 +42,17 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **"Data hasn't refreshed" warning for a frozen vehicle feed (#465).** When the integration keeps polling successfully but the car's own data-capture time stops advancing (a lapsed EU Data Act feed presenting days-old data as live), a dismissible per-vehicle Repair now points it out — and explains it may just be a parked, sleeping car. Auto-clears the moment a fresher reading arrives. Grounded in @TomJonesGreggs's ID. Buzz freeze; complements the new "Vehicle Last Reported" sensor from 3.0.6.
+
+### Fixed
+- **Lifetime travel-time now records long-term statistics.** It was missing a `state_class`, so it produced no history — corrected to `TOTAL_INCREASING` like its distance siblings. (HA feature-coverage audit.)
+- **12 V starter-battery SoC now tagged as a battery.** Added the `battery` device class for a correct icon/UX. (HA audit.)
+- **system_health version lookup cleaned up** — dropped a dead branch that always raised into the fallback. (HA audit.)
+
+### Internal
+- **Opt-in capture of a command's backend result (#912).** For test-cohort users, a command's `pendingrequests` response is kept (redacted) in diagnostics, so an Audi PPE reporter can hand over the exact rejection shape (`E:CV.PA.31`) needed to teach the confirmation logic. Off for everyone else; no extra request. The test-cohort share prompt now also reaches BFF/Audi users, and its text is generalised (no longer GPS-specific).
+
 ## [3.0.6] - 2026-08-14 — charging state, climate confirm, staleness + Scout tidy-up
 
 ### Fixed

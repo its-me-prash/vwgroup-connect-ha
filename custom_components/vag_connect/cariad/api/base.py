@@ -248,6 +248,15 @@ class CariadBaseClient:
         # the test cohort's diagnostics show WHY a probe yielded nothing. Bare
         # status labels only ("404"/"412"/"200 no-value") — no PII.
         self.probe_outcomes: dict[str, str] = {}
+        # #912 — opt-in test-cohort capture of a command's async result body (the
+        # BFF pendingrequests poll), so a PPE reporter can hand us the exact
+        # rejection shape (e.g. Audi E:CV.PA.31) we can't otherwise sample. Held
+        # in its OWN dict, NOT last_raw_responses, because get_status wipes the
+        # latter each poll and would clobber a one-shot command capture before the
+        # user pulls diagnostics. Single overwriting key → bounded. Redacted at
+        # export. Gated on ``_test_cohort`` (default off → never captures).
+        self.command_captures: dict[str, Any] = {}
+        self._test_cohort: bool = False
         # v1.19.1 — Pycupra-style API quota visibility. Most VAG backends
         # send X-RateLimit-Remaining (and sometimes X-RateLimit-Limit /
         # X-RateLimit-Reset) on successful responses. We capture the
