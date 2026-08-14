@@ -1721,11 +1721,11 @@
               "service-event": "Servicehändelse",
               "account-event": "Kontohändelse",
               "vehicle-event": "Fordonshändelse",
-              "lockState": "Låsstatus",
-              "chargingState": "Laddningsstatus",
-              "climateState": "Klimatstatus",
               "alarm": "Larm",
-              "other": "Övrigt"
+              "other": "Övrigt",
+              "lock_state": "Låsstatus",
+              "charging_state": "Laddningsstatus",
+              "climate_state": "Klimatstatus"
             }
           }
         }

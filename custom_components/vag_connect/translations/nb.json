@@ -1721,11 +1721,11 @@
               "service-event": "Servicehendelse",
               "account-event": "Kontohendelse",
               "vehicle-event": "Kjøretøyhendelse",
-              "lockState": "Låsestatus",
-              "chargingState": "Ladestatus",
-              "climateState": "Klimastatus",
               "alarm": "Alarm",
-              "other": "Annet"
+              "other": "Annet",
+              "lock_state": "Låsestatus",
+              "charging_state": "Ladestatus",
+              "climate_state": "Klimastatus"
             }
           }
         }

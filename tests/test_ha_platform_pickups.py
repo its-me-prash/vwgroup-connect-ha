@@ -83,14 +83,16 @@ def _bus_event(data: dict):
     return SimpleNamespace(data=data)
 
 
-def test_event_known_type_passes_through() -> None:
-    e = _evt(["chargingState", EVENT_TYPE_OTHER])
+def test_event_known_type_is_normalized_and_passes_through() -> None:
+    e = _evt(["charging_state", EVENT_TYPE_OTHER])
     e._handle_push_event(_bus_event({"vin": VIN, "event_type": "chargingState"}))
-    assert e._trigger_event.call_args.args[0] == "chargingState"
+    typ, attrs = e._trigger_event.call_args.args
+    assert typ == "charging_state"                     # camelCase → snake for HA
+    assert attrs["event_type_raw"] == "chargingState"  # original preserved
 
 
 def test_event_unknown_type_coerced_to_other_with_raw_preserved() -> None:
-    e = _evt(["chargingState", EVENT_TYPE_OTHER])
+    e = _evt(["charging_state", EVENT_TYPE_OTHER])
     e._handle_push_event(_bus_event({"vin": VIN, "event_type": "some-backend-kebab"}))
     typ, attrs = e._trigger_event.call_args.args
     assert typ == EVENT_TYPE_OTHER

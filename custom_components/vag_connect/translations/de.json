@@ -1721,11 +1721,11 @@
               "service-event": "Serviceereignis",
               "account-event": "Kontoereignis",
               "vehicle-event": "Fahrzeugereignis",
-              "lockState": "Verriegelungsstatus",
-              "chargingState": "Ladestatus",
-              "climateState": "Klimastatus",
               "alarm": "Alarm",
-              "other": "Sonstiges"
+              "other": "Sonstiges",
+              "lock_state": "Verriegelungsstatus",
+              "charging_state": "Ladestatus",
+              "climate_state": "Klimastatus"
             }
           }
         }

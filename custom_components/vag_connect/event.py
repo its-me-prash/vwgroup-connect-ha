@@ -32,14 +32,23 @@ from .entity_base import VagConnectEntity, register_dynamic_spawner
 # EventEntity._trigger_event (which rejects any type not in event_types).
 EVENT_TYPE_OTHER = "other"
 
+# HA translation state keys must match [a-z0-9-_], so the Audi/VW FCM
+# camelCase fallback keys are normalised to snake_case for the entity's declared
+# types; the original value is still preserved verbatim in ``event_type_raw``.
+_NORMALIZE: dict[str, str] = {
+    "lockState": "lock_state",
+    "chargingState": "charging_state",
+    "climateState": "climate_state",
+}
+
 # Grounded event_type values per brand. ``other`` is appended as the safety net.
 _BRAND_EVENT_TYPES: dict[str, list[str]] = {
     # Skoda MQTT topic category (myskoda BaseEvent categories).
     "skoda": ["operation-request", "service-event", "account-event", "vehicle-event"],
-    # Audi/VW FCM legacy fallback keys; the primary kebab ``type`` is
-    # backend-defined → handled via OTHER.
-    "audi": ["lockState", "chargingState", "climateState", "alarm"],
-    "volkswagen": ["lockState", "chargingState", "climateState", "alarm"],
+    # Audi/VW FCM legacy fallback keys (normalised to snake_case via _NORMALIZE);
+    # the primary kebab ``type`` is backend-defined → handled via OTHER.
+    "audi": ["lock_state", "charging_state", "climate_state", "alarm"],
+    "volkswagen": ["lock_state", "charging_state", "climate_state", "alarm"],
     # CUPRA/SEAT OLA ``type`` is backend-defined and not enumerable from the
     # codebase → declared empty; everything arrives via OTHER + event_type_raw.
     "cupra": [],
@@ -121,6 +130,7 @@ class VagConnectPushEventEntity(VagConnectEntity, EventEntity):
         if isinstance(payload, dict):
             attributes["payload"] = json_safe_dict(payload)
 
-        event_type = raw_type if raw_type in self.event_types else EVENT_TYPE_OTHER
+        norm = _NORMALIZE.get(raw_type, raw_type)
+        event_type = norm if norm in self.event_types else EVENT_TYPE_OTHER
         self._trigger_event(event_type, attributes)
         self.async_write_ha_state()

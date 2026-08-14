@@ -1721,11 +1721,11 @@
               "service-event": "Zdarzenie serwisowe",
               "account-event": "Zdarzenie konta",
               "vehicle-event": "Zdarzenie pojazdu",
-              "lockState": "Stan zamków",
-              "chargingState": "Stan ładowania",
-              "climateState": "Stan klimatyzacji",
               "alarm": "Alarm",
-              "other": "Inne"
+              "other": "Inne",
+              "lock_state": "Stan zamków",
+              "charging_state": "Stan ładowania",
+              "climate_state": "Stan klimatyzacji"
             }
           }
         }

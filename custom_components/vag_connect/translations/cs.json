@@ -1721,11 +1721,11 @@
               "service-event": "Servisní událost",
               "account-event": "Událost účtu",
               "vehicle-event": "Událost vozidla",
-              "lockState": "Stav zamčení",
-              "chargingState": "Stav nabíjení",
-              "climateState": "Stav klimatizace",
               "alarm": "Alarm",
-              "other": "Ostatní"
+              "other": "Ostatní",
+              "lock_state": "Stav zamčení",
+              "charging_state": "Stav nabíjení",
+              "climate_state": "Stav klimatizace"
             }
           }
         }

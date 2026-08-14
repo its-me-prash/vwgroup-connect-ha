@@ -1721,11 +1721,11 @@
               "service-event": "Evento de servicio",
               "account-event": "Evento de cuenta",
               "vehicle-event": "Evento del vehículo",
-              "lockState": "Estado de bloqueo",
-              "chargingState": "Estado de carga",
-              "climateState": "Estado de climatización",
               "alarm": "Alarma",
-              "other": "Otro"
+              "other": "Otro",
+              "lock_state": "Estado de bloqueo",
+              "charging_state": "Estado de carga",
+              "climate_state": "Estado de climatización"
             }
           }
         }

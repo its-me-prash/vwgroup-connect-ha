@@ -1721,11 +1721,11 @@
               "service-event": "Service-hændelse",
               "account-event": "Kontohændelse",
               "vehicle-event": "Køretøjshændelse",
-              "lockState": "Låsetilstand",
-              "chargingState": "Opladningstilstand",
-              "climateState": "Klimatilstand",
               "alarm": "Alarm",
-              "other": "Andet"
+              "other": "Andet",
+              "lock_state": "Låsetilstand",
+              "charging_state": "Opladningstilstand",
+              "climate_state": "Klimatilstand"
             }
           }
         }

@@ -1721,11 +1721,11 @@
               "service-event": "Service-gebeurtenis",
               "account-event": "Account-gebeurtenis",
               "vehicle-event": "Voertuiggebeurtenis",
-              "lockState": "Vergrendelingsstatus",
-              "chargingState": "Laadstatus",
-              "climateState": "Klimaatstatus",
               "alarm": "Alarm",
-              "other": "Overig"
+              "other": "Overig",
+              "lock_state": "Vergrendelingsstatus",
+              "charging_state": "Laadstatus",
+              "climate_state": "Klimaatstatus"
             }
           }
         }

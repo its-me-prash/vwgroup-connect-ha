@@ -1721,11 +1721,11 @@
               "service-event": "Huoltotapahtuma",
               "account-event": "Tilitapahtuma",
               "vehicle-event": "Ajoneuvotapahtuma",
-              "lockState": "Lukituksen tila",
-              "chargingState": "Latauksen tila",
-              "climateState": "Ilmastoinnin tila",
               "alarm": "Hälytys",
-              "other": "Muu"
+              "other": "Muu",
+              "lock_state": "Lukituksen tila",
+              "charging_state": "Latauksen tila",
+              "climate_state": "Ilmastoinnin tila"
             }
           }
         }

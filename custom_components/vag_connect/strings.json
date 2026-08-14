@@ -298,11 +298,11 @@
               "service-event": "Service event",
               "account-event": "Account event",
               "vehicle-event": "Vehicle event",
-              "lockState": "Lock state",
-              "chargingState": "Charging state",
-              "climateState": "Climate state",
               "alarm": "Alarm",
-              "other": "Other"
+              "other": "Other",
+              "lock_state": "Lock state",
+              "charging_state": "Charging state",
+              "climate_state": "Climate state"
             }
           }
         }
