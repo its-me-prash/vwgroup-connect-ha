@@ -114,6 +114,62 @@ _CONTESTED_ATTR: dict[str, str] = {
 }
 
 
+def _resolve_contested_soc(
+    numeric: list[float],
+    old_val: float,
+    fresh: dict[str, Any],
+    previous: dict[str, Any],
+) -> float:
+    """Pick the correct value among contested SoC candidates (#1195, Fishermanjb).
+
+    The default "closest to the last-known value" rule LATCHES on a stale reading:
+    once the sensor is stuck on the old value, that value is both the anchor AND a
+    candidate, so it keeps winning and a genuinely changed SoC can never land. We
+    break the tie with independent LIVE evidence instead:
+
+    1. **Energy-content ratio** — ``battery_available_kwh / battery_cap_kwh`` is the
+       actual charge in the pack, is not part of the contested set, and is
+       *stateless*, so it can override a stuck latch. Pick the candidate nearest
+       that ratio when it clearly favours one.
+    2. **Change-by-exclusion** — the odometer is monotonic and uncontested, so if
+       it advanced since the last poll the car demonstrably moved and the SoC must
+       have changed; a candidate still equal to the frozen last value is therefore
+       the stale one and is excluded.
+    3. Otherwise fall back to closest-to-last (unchanged behaviour).
+
+    Only ``fresh`` values are consulted, so a carried-forward stale energy/odometer
+    reading never drives the choice.
+    """
+    # 1) energy-content ratio (only fresh values; must be a plausible 0..100 %).
+    avail = fresh.get("battery_available_kwh")
+    cap = fresh.get("battery_cap_kwh")
+    if (
+        isinstance(avail, (int, float)) and not isinstance(avail, bool)
+        and isinstance(cap, (int, float)) and not isinstance(cap, bool)
+        and cap > 0 and avail >= 0
+    ):
+        ratio = avail / cap * 100.0
+        if 0.0 <= ratio <= 100.0:
+            by_ratio = min(numeric, key=lambda v: abs(v - ratio))
+            others = [v for v in numeric if v != by_ratio]
+            if others and all(abs(by_ratio - ratio) < abs(o - ratio) for o in others):
+                return by_ratio
+    # 2) the car moved (odometer advanced) → a candidate still equal to the frozen
+    #    last value is stale; drop it and choose from the rest.
+    prev_odo = previous.get("odometer_km")
+    fresh_odo = fresh.get("odometer_km")
+    if (
+        isinstance(prev_odo, (int, float)) and not isinstance(prev_odo, bool)
+        and isinstance(fresh_odo, (int, float)) and not isinstance(fresh_odo, bool)
+        and fresh_odo > prev_odo
+    ):
+        non_frozen = [v for v in numeric if v != old_val]
+        if non_frozen and len(non_frozen) < len(numeric):
+            return min(non_frozen, key=lambda v: abs(v - old_val))
+    # 3) unchanged: closest to the last-known value.
+    return min(numeric, key=lambda v: abs(v - old_val))
+
+
 def _heal_cached_sentinels(previous: dict[str, Any]) -> dict[str, Any]:
     """Purge a poisoned sentinel from a restored snapshot so it neither carries
     forward nor blocks a fresh reading (#1122).
@@ -204,7 +260,15 @@ def reconcile(
                     continue
             if len(numeric) < 2:
                 continue
-            best_val = min(numeric, key=lambda v: abs(v - float(old_val)))
+            if attr == "battery_soc":
+                # #1195 — break a stuck-on-stale SoC latch with live evidence
+                # (energy-content ratio / the car having moved), not just
+                # closest-to-last which freezes on the old value.
+                best_val = _resolve_contested_soc(
+                    numeric, float(old_val), fresh, previous
+                )
+            else:
+                best_val = min(numeric, key=lambda v: abs(v - float(old_val)))
             current = merged.get(attr)
             if isinstance(current, (int, float)) and not isinstance(current, bool):
                 if float(current) != best_val:
