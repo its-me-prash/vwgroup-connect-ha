@@ -42,6 +42,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **Stopped the Vehicle Data Scout from re-filing the same already-mapped SoC field (#1179-#1184).** On EVs that report a VALID high-voltage battery level, the State-of-Charge resolver correctly took that value (per #1088) but short-circuited past the step that marks the co-present `battery_state_report.soc` leaf as consumed — so it re-surfaced as an "undiscovered field" every poll and opened a fresh Scout issue per car (six in a day). The resolver now runs its alias-consumption step unconditionally; the SoC reading is unchanged, the duplicate reports stop. A genuinely-new field still surfaces.
+
 ## [3.1.0] - 2026-08-14 — Logbook events, firmware & calendar cards, freeze warning + HA coverage sweep
 
 ### Added

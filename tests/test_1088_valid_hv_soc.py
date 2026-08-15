@@ -70,3 +70,42 @@ def test_out_of_range_hv_value_is_ignored() -> None:
         "battery_level_HV.state": "VALID",
     })
     assert d.battery_soc == 44
+
+
+def test_valid_hv_does_not_leak_the_soc_leaf_to_the_scout() -> None:
+    """#1179-1183 — a VALID HV pair used to SHORT-CIRCUIT first_freshest, so the
+    co-present ``battery_state_report.soc`` leaf was never consumed and leaked to
+    the Vehicle Data Scout as a "new field" every poll (six duplicate issues in a
+    day). first_freshest now runs unconditionally for its consumption side effect;
+    the HV value still wins the VALUE."""
+    d = _map({
+        "battery_state_report.soc": "18",
+        "battery_level_HV.value": "36.0",
+        "battery_level_HV.state": "VALID",
+    })
+    assert d.battery_soc == 36  # HV value still wins (#1088 unchanged)
+    assert "battery_state_report.soc" not in d.raw_unmapped_fields
+    assert "soc" not in d.raw_unmapped_fields
+
+
+def test_valid_hv_equal_leaf_also_reclaimed() -> None:
+    """Amredage's shape: HV and the leaf agree (both 79) — still must not leak."""
+    d = _map({
+        "battery_state_report.soc": "79",
+        "battery_level_HV.value": "79",
+        "battery_level_HV.state": "VALID",
+    })
+    assert d.battery_soc == 79
+    assert "battery_state_report.soc" not in d.raw_unmapped_fields
+
+
+def test_valid_hv_does_not_over_suppress_a_genuinely_new_field() -> None:
+    """The reclaim must not hide unrelated unmapped fields — only the SoC aliases
+    are consumed; anything else still surfaces to the Scout."""
+    d = _map({
+        "battery_state_report.soc": "79",
+        "battery_level_HV.value": "79",
+        "battery_level_HV.state": "VALID",
+        "some_brand_new_leaf": "42",
+    })
+    assert d.raw_unmapped_fields.get("some_brand_new_leaf") == "42"
