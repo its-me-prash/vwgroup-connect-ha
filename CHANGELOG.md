@@ -42,6 +42,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [3.1.1] - 2026-08-15 — iOS charging Live Activity, PPE false-OK fix, Scout SoC de-dup + docs/i18n polish
+
 ### Added
 - **iOS Live Activity — charging countdown on the Lock Screen + Dynamic Island.** A shipped automation blueprint (*"Live Activity — EV charging countdown (iOS)"*) drives a native iOS Live Activity from the existing charging sensors: a live-ticking countdown to the absolute `charge_target_time`, plus a state-of-charge progress bar. Starts when charging begins, refreshes as the ETA / SoC move, clears when it stops. Needs the Companion app's Live Activities (iOS 17.2+, HA Core 2026.7+ — currently a Labs/TestFlight feature); ships now so it's ready the day it goes public.
 
