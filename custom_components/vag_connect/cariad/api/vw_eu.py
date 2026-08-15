@@ -2351,13 +2351,18 @@ class VWEUClient(CariadBaseClient):
         The BFF 202-accepts, then runs the command asynchronously. We poll the
         matching request to a terminal status and raise VehicleCommandError on an
         explicit failure so the coordinator's optimistic revert fires. SAFE /
-        best-effort: raises ONLY on an explicit failure for the matching request
-        id; on no request id, a poll error, an unexpected shape, or a timeout
-        without a terminal status it returns silently — never worse than the old
+        best-effort: raises on an explicit failure for the matching request id,
+        AND when the request was seen but stayed non-terminal for the WHOLE poll
+        window (#912/#940 — the PPE "vehicle does not answer" / e:CV.PA.29 signature:
+        the car never actuates and no rejection code ever reaches pendingrequests,
+        only a perpetual in_progress). On no request id, a poll error, an unexpected
+        shape, or a request that never appears at all (a fast command that cleared
+        before we polled) it returns silently — never worse than the old
         fire-and-forget behaviour."""
         request_id = _bff_request_id(resp)
         if not request_id:
             return
+        saw_in_progress = False
         for _ in range(_BFF_CONFIRM_ATTEMPTS):
             await asyncio.sleep(_BFF_CONFIRM_SLEEP_S)
             try:
@@ -2384,8 +2389,26 @@ class VWEUClient(CariadBaseClient):
                 )
             if low in _BFF_OK_STATES:
                 return
-            # any other value = still in progress → keep polling within the bound
-        return  # bound reached without a terminal status → accept (optimistic)
+            # any other value = the request is listed but has not terminalised
+            # yet; remember we saw it and keep polling within the bound.
+            saw_in_progress = True
+        # Bound reached without a terminal status — two very different cases:
+        if saw_in_progress:
+            # #912 / #940 — the request was accepted and stayed non-terminal for
+            # the ENTIRE window. That is the PPE "vehicle does not answer"
+            # (e:CV.PA.29) signature: the car never actuates, and that code never
+            # appears in pendingrequests, only a perpetual in_progress. Report it
+            # as UNCONFIRMED so _cariad_cmd_optimistic reverts the optimistic UI
+            # instead of leaving a false "OK". Distinct from the explicit rejection
+            # above, and from the fast-clear case below (request never listed), so
+            # a normally-fast command is never affected.
+            raise VehicleCommandError(
+                "command",
+                "the vehicle did not confirm the command within "
+                f"{int(_BFF_CONFIRM_ATTEMPTS * _BFF_CONFIRM_SLEEP_S)}s "
+                "(it may be asleep or unreachable)",
+            )
+        return  # never listed → keep the old optimistic-accept behaviour
 
     async def _post_command_with_fallback_paths(
         self,
