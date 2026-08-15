@@ -1365,7 +1365,8 @@ class CariadBaseClient:
                 f"rate-limit lockout active — {locked}s remaining (account cooldown)",
             )
         headers = kwargs.pop("headers", {})
-        headers["Authorization"] = f"Bearer {self._access_token}"
+        token_used = self._access_token
+        headers["Authorization"] = f"Bearer {token_used}"
         headers["Accept"] = "application/json"
         headers["Content-Type"] = headers.get("Content-Type", "application/json")
         # v2.14.11 — setdefault, not unconditional assignment. The OLA brands
@@ -1380,7 +1381,7 @@ class CariadBaseClient:
                 method, url, headers=headers, timeout=ClientTimeout(total=_REQUEST_TIMEOUT), **kwargs
             ) as resp:
                 if resp.status == 401 and retry:
-                    await self._refresh_tokens()
+                    await self._refresh_tokens(stale_access_token=token_used)
                     return await self._request(method, url, retry=False, **kwargs)
                 if resp.status == 429 and _attempt < 3:
                     wait = (2 ** _attempt) * 5
@@ -1425,7 +1426,9 @@ class CariadBaseClient:
                 )
             raise APIError(0, url, f"transient: {type(err).__name__}: {err}") from err
 
-    async def _refresh_tokens(self, *, for_command: bool = False) -> None:
+    async def _refresh_tokens(
+        self, *, for_command: bool = False, stale_access_token: str | None = None
+    ) -> None:
         """Attempt token refresh; fall back to full re-login.
 
         Uses a lock to prevent concurrent refresh attempts from racing.
@@ -1448,6 +1451,25 @@ class CariadBaseClient:
         if self._refresh_lock is None:
             self._refresh_lock = asyncio.Lock()
         async with self._refresh_lock:
+            # #1078 single-flight: one Škoda poll fires ~14 concurrent GETs
+            # (get_status asyncio.gather); on a just-expired bearer they all 401
+            # at once and each lands here. They serialise on this lock, but
+            # without this guard each still books a refresh, so a SINGLE expiry
+            # event spends the whole _REFRESH_MAX_PER_HOUR budget in seconds and
+            # self-trips the storm guard at a perfectly healthy interval. If a
+            # concurrent waiter already rotated the bearer while we queued, our
+            # 401 is already resolved: return so the caller retries with the fresh
+            # token, without counting an attempt. A genuine storm (refresh fails,
+            # or the new bearer is itself rejected) leaves the token unchanged, so
+            # this never suppresses a real one. Only the reactive _request 401
+            # path passes stale_access_token; the command/pre-flight callers keep
+            # stale_access_token=None and are unchanged.
+            if (
+                stale_access_token is not None
+                and self._tokens is not None
+                and self._tokens.access_token != stale_access_token
+            ):
+                return
             now = time.monotonic()
             cutoff = now - _REFRESH_WINDOW_S
             history = (

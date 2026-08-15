@@ -43,7 +43,7 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     EVENT_PUSH,
-    advised_scan_interval,
+    advised_scan_interval_from_budget,
 )
 from homeassistant.helpers import device_registry as dr
 from .cariad._error_reporter import ErrorRingBuffer, record_error
@@ -4721,7 +4721,18 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 # to advise, so suppress the repair rather than telling them to set
                 # an interval the picker can't reach — the storm guard already
                 # backs the polling off on its own.
-                advised = advised_scan_interval(brand, current_min)
+                # #1078 — when VW's real per-account budget is visible (the
+                # X-RateLimit-Remaining header, already captured on the client),
+                # advise from that instead of the blunt guard; falls back to the
+                # guard byte-for-byte when the header was never seen.
+                import time  # noqa: PLC0415
+                advised = advised_scan_interval_from_budget(
+                    getattr(client, "last_rate_limit_remaining", None),
+                    getattr(client, "last_rate_limit_reset_at", None),
+                    time.time(),
+                    current_min,
+                    brand=brand,
+                )
                 if advised > current_min:
                     raise_issue_refresh_interval_too_frequent(
                         self.hass, self.entry.entry_id,

@@ -45,6 +45,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ### Added
 - **CUPRA remaining-charge-time now reads (#1202).** SEAT/CUPRA ship the time-until-charging-finishes as a `remaining_time_finished` value + `TIME_UNIT_*` unit pair (a dictionary field that wasn't wired to a sensor). It now feeds the remaining-charge-time sensor, converted to minutes from whatever unit the car sends — as a last-resort fallback that never overrides a canonical `remaining_charging_time`. Both leaves are consumed so they stop surfacing to the Scout. First surfaced by a CUPRA Raval.
 
+### Fixed
+- **Škoda sensors no longer drop to "unknown" from a false token-refresh storm (#1078).** A single poll fans out ~14 concurrent requests; when they all hit a just-expired token at once, each one independently refreshed it, so one expiry event burned the whole "3 refreshes/hour" safety budget in seconds and tripped the storm guard at a perfectly healthy 30-minute interval. Refreshes now coalesce — a request that finds the token already rotated by a sibling reuses it instead of refreshing again, so one expiry costs one refresh. A genuine storm (a refresh that keeps failing) still trips. Grounded in @foobarth's report.
+
+### Changed
+- **The "raise your update interval" advice now uses VW's real per-account budget when it's available (#1078).** Instead of a blunt fixed step-up, when VW sends its `X-RateLimit-Remaining` header (already surfaced as the "requests remaining today" sensor) the recommendation spreads the remaining calls over the time until the budget resets. It can only tighten the advice, never drop it below the existing guard, and falls back to the guard unchanged when the header isn't present.
+
 ## [3.1.1] - 2026-08-15 — iOS charging Live Activity, PPE false-OK fix, Scout SoC de-dup + docs/i18n polish
 
 ### Added

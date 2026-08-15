@@ -145,3 +145,53 @@ class TestRepair:
         with patch.object(repairs.ir, "async_delete_issue") as m:
             repairs.clear_refresh_interval_issue(hass, "entry1")
         m.assert_called_once()
+
+
+class TestBudgetAwareAdvice:
+    """#1078 — advise from VW's real X-RateLimit budget when we have it, and
+    fall back byte-for-byte to the blunt guard when we don't."""
+
+    def _fn(self):
+        from custom_components.vag_connect.const import (
+            advised_scan_interval_from_budget,
+        )
+        return advised_scan_interval_from_budget
+
+    def test_tight_budget_widens_beyond_the_blunt_guard(self) -> None:
+        now = 1_700_000_000.0
+        # 10 calls left, resets in 10 h → 600 min / 10 = 60; guard(skoda,30)=45.
+        assert self._fn()(10, now + 10 * 3600, now, 30, brand="skoda") == 60
+
+    def test_epoch_iso_and_delta_reset_parse_alike(self) -> None:
+        from datetime import datetime, timezone
+
+        now = 1_700_000_000.0
+        reset = now + 3600  # +1 h → spread 1 → clamps up to the guard floor (30)
+        assert self._fn()(60, reset, now, 10, brand="skoda") == 30       # epoch
+        assert self._fn()(60, 3600, now, 10, brand="skoda") == 30        # delta-s
+        iso = datetime.fromtimestamp(reset, tz=timezone.utc).isoformat()
+        assert self._fn()(60, iso, now, 10, brand="skoda") == 30         # ISO-8601
+
+    def test_exhausted_budget_backs_off_to_max(self) -> None:
+        from custom_components.vag_connect.const import MAX_SCAN_INTERVAL
+
+        now = 1_700_000_000.0
+        assert self._fn()(0, now + 3600, now, 10, brand="skoda") == MAX_SCAN_INTERVAL
+
+    def test_fallback_when_header_never_seen(self) -> None:
+        from custom_components.vag_connect.const import advised_scan_interval
+
+        now = 1_700_000_000.0
+        for brand in ("skoda", "audi", None):
+            for cur in (10, 30, 31, 60):
+                assert self._fn()(None, now + 3600, now, cur, brand=brand) == \
+                    advised_scan_interval(brand, cur)
+
+    def test_fallback_when_reset_unusable(self) -> None:
+        from custom_components.vag_connect.const import advised_scan_interval
+
+        now = 1_700_000_000.0
+        g = advised_scan_interval("skoda", 30)
+        assert self._fn()(10, "not-a-time", now, 30, brand="skoda") == g  # unparseable
+        assert self._fn()(10, now - 60, now, 30, brand="skoda") == g      # reset passed
+        assert self._fn()(10, None, now, 30, brand="skoda") == g          # missing
