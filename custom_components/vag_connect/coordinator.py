@@ -5405,6 +5405,22 @@ class VagConnectCoordinator(DataUpdateCoordinator):
     async def async_stop_ventilation(self, vin: str) -> None:
         await self._cariad_cmd(vin, "command_stop_ventilation")
 
+    async def async_start_active_ventilation(self, vin: str) -> None:
+        """Škoda cabin active ventilation (airing without heating). Optimistic:
+        the Škoda read never parses active_ventilation_state, so we set the
+        running token here and _cariad_cmd_optimistic reverts it on a failed
+        POST."""
+        await self._cariad_cmd_optimistic(
+            vin, "command_start_active_ventilation",
+            optimistic={"active_ventilation_state": "ventilation"},
+        )
+
+    async def async_stop_active_ventilation(self, vin: str) -> None:
+        await self._cariad_cmd_optimistic(
+            vin, "command_stop_active_ventilation",
+            optimistic={"active_ventilation_state": "off"},
+        )
+
     async def async_start_camping(self, vin: str) -> None:
         """v2.31.0 — Škoda camping mode (climate comfort while parked)."""
         await self._cariad_cmd_optimistic(
@@ -6145,6 +6161,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # accepts both concurrently.
         "command_start_ventilation": "ventilation",
         "command_stop_ventilation": "ventilation",
+        # Škoda active ventilation — own lock class (a Škoda car never also
+        # carries the SEAT/CUPRA "ventilation" command).
+        "command_start_active_ventilation": "active_ventilation",
+        "command_stop_active_ventilation": "active_ventilation",
         # v1.17.1 (Bruno-Collection + pycupra) — Webasto aux heating.
         # SEAT/CUPRA only. Separate "aux_heating" class so it doesn't
         # block normal climatisation commands.

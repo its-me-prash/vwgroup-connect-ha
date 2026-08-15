@@ -1588,6 +1588,9 @@
       },
       "auto_unlock_plug_switch": {
         "name": "Automatické odemknutí nabíjecí zástrčky"
+      },
+      "active_ventilation_switch": {
+        "name": "Aktivní větrání"
       }
     },
     "number": {

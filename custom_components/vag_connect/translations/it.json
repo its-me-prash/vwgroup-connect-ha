@@ -1588,6 +1588,9 @@
       },
       "auto_unlock_plug_switch": {
         "name": "Sblocco automatico della presa di ricarica"
+      },
+      "active_ventilation_switch": {
+        "name": "Ventilazione attiva"
       }
     },
     "number": {

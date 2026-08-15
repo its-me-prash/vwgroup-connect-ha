@@ -1588,6 +1588,9 @@
       },
       "auto_unlock_plug_switch": {
         "name": "Lås upp laddkontakten automatiskt"
+      },
+      "active_ventilation_switch": {
+        "name": "Aktiv ventilation"
       }
     },
     "number": {

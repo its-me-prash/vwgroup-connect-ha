@@ -1588,6 +1588,9 @@
       },
       "auto_unlock_plug_switch": {
         "name": "Déverrouillage auto de la prise de charge"
+      },
+      "active_ventilation_switch": {
+        "name": "Ventilation active"
       }
     },
     "number": {

@@ -7,6 +7,8 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .cariad._capabilities import DECLARED_CAPABILITIES
+from .const import CONF_BRAND
 from .coordinator import VagConnectCoordinator
 from .entity_base import VagConnectEntity, register_dynamic_spawner
 
@@ -22,11 +24,35 @@ async def async_setup_entry(
     if coordinator.is_read_only():
         return
     client = coordinator._cariad_client
+    brand = str(entry.data.get(CONF_BRAND, "")).lower()
+    # Brands whose baseline declares NO fuel-fired aux heater (today only Škoda);
+    # every other brand keeps the existing capability-doc arbitration.
+    aux_declared = DECLARED_CAPABILITIES.get(brand, {}).get("auxiliary_heating", True)
 
     def _supported(vin: str, command_id: str) -> bool:
         cap_supported = coordinator.command_capability_supported(vin, command_id) is not False
         client_has_method = client is not None and hasattr(client, command_id)
         return cap_supported and client_has_method
+
+    def _has_aux_heater(vin: str, vehicle: dict) -> bool:
+        """Don't spawn a Standheizung switch on a car with no aux heater (a Škoda
+        diesel reported this via the HA Tipps und Tricks FB group). VW/Audi/Bentley
+        declare auxiliary_heating=True and SEAT/CUPRA carry a mapped
+        'auxiliary-heating' cap-id, so the backend capabilities doc already
+        arbitrates them via ``_supported()`` — leave those untouched. Škoda
+        declares False, has NO aux-heating cap-id (command_capability_supported →
+        None = don't-hide) AND derives aux_heating_active from the generic AC
+        state, so every Škoda reports a non-None ``False``. For a declared-False
+        brand, require positive evidence the car actually has the heater."""
+        if aux_declared is not False:
+            return True
+        if coordinator.command_capability_supported(
+            vin, "command_start_aux_heating"
+        ) is True:
+            return True
+        if vehicle.get("auxiliary_heating_status") is not None:
+            return True
+        return vehicle.get("aux_heating_active") is True
 
     def _build_for_vin(vin: str, vehicle: dict) -> list:
         entities: list = []
@@ -38,7 +64,7 @@ async def async_setup_entry(
             entities.append(VagWindowHeatingSwitch(coordinator, vin))
         if _supported(vin, "command_start_ventilation"):
             entities.append(VagVentilationSwitch(coordinator, vin))
-        if _supported(vin, "command_start_aux_heating"):
+        if _supported(vin, "command_start_aux_heating") and _has_aux_heater(vin, vehicle):
             entities.append(VagAuxHeatingSwitch(coordinator, vin))
         # v2.31.0 — Škoda camping mode. Gate on the READ having produced a value
         # (a car that reports camping state has the feature), not just the client
@@ -48,6 +74,14 @@ async def async_setup_entry(
             and vehicle.get("camping_mode") is not None
         ):
             entities.append(VagCampingSwitch(coordinator, vin))
+        # Škoda active ventilation (airing without heating). The backend command
+        # command_start_active_ventilation lives ONLY on SkodaClient, so
+        # _supported()'s hasattr() confines this to Škoda and it can never double
+        # up with VagVentilationSwitch (command_start_ventilation is a SEAT/CUPRA
+        # command). Top-level, not gated on has_battery: airing is a climate
+        # feature on ICE/PHEV/EV. Optimistic state (Škoda never parses one).
+        if _supported(vin, "command_start_active_ventilation"):
+            entities.append(VagActiveVentilationSwitch(coordinator, vin))
         if vehicle.get("has_battery"):  # EV + PHEV
             if _supported(vin, "command_start_charging"):
                 entities.append(VagChargingSwitch(coordinator, vin))
@@ -306,6 +340,36 @@ class VagVentilationSwitch(VagConnectEntity, SwitchEntity):
 
     async def async_turn_off(self, **kwargs: object) -> None:
         await self.coordinator.async_stop_ventilation(self._vin)
+
+
+class VagActiveVentilationSwitch(VagConnectEntity, SwitchEntity):
+    """Škoda active ventilation — cabin airing without heating.
+
+    Distinct from the SEAT/CUPRA VagVentilationSwitch: the Škoda command is
+    ``command_start_active_ventilation`` (v2 air-conditioning route), defined only
+    on SkodaClient. Optimistic state — the Škoda read path never parses
+    ``active_ventilation_state`` — so it's set on dispatch and reverted on failure.
+    """
+
+    _attr_translation_key = "active_ventilation_switch"
+    _attr_icon = "mdi:fan"
+    _command_id = "command_start_active_ventilation"
+
+    def __init__(self, coordinator: VagConnectCoordinator, vin: str) -> None:
+        super().__init__(coordinator, vin, "active_ventilation_switch")
+
+    @property
+    def is_on(self) -> bool | None:
+        state = self._vehicle.get("active_ventilation_state")
+        if state is None:
+            return None
+        return str(state).lower() not in ("off", "stopped", "invalid", "")
+
+    async def async_turn_on(self, **kwargs: object) -> None:
+        await self.coordinator.async_start_active_ventilation(self._vin)
+
+    async def async_turn_off(self, **kwargs: object) -> None:
+        await self.coordinator.async_stop_active_ventilation(self._vin)
 
 
 class VagAuxHeatingSwitch(VagConnectEntity, SwitchEntity):

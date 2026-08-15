@@ -1588,6 +1588,9 @@
       },
       "auto_unlock_plug_switch": {
         "name": "Ladestecker automatisch entriegeln"
+      },
+      "active_ventilation_switch": {
+        "name": "Aktive Belüftung"
       }
     },
     "number": {

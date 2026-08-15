@@ -1621,6 +1621,9 @@
       },
       "auto_unlock_plug_switch": {
         "name": "Auto-unlock charging plug"
+      },
+      "active_ventilation_switch": {
+        "name": "Active ventilation"
       }
     },
     "number": {

@@ -1588,6 +1588,9 @@
       },
       "auto_unlock_plug_switch": {
         "name": "Desbloqueo automático del conector de carga"
+      },
+      "active_ventilation_switch": {
+        "name": "Ventilación activa"
       }
     },
     "number": {
