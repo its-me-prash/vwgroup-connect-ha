@@ -42,6 +42,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **CUPRA remaining-charge-time now reads (#1202).** SEAT/CUPRA ship the time-until-charging-finishes as a `remaining_time_finished` value + `TIME_UNIT_*` unit pair (a dictionary field that wasn't wired to a sensor). It now feeds the remaining-charge-time sensor, converted to minutes from whatever unit the car sends — as a last-resort fallback that never overrides a canonical `remaining_charging_time`. Both leaves are consumed so they stop surfacing to the Scout. First surfaced by a CUPRA Raval.
+
 ## [3.1.1] - 2026-08-15 — iOS charging Live Activity, PPE false-OK fix, Scout SoC de-dup + docs/i18n polish
 
 ### Added
