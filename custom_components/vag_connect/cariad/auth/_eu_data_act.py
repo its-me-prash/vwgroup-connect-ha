@@ -1080,6 +1080,33 @@ def _dur_to_min(raw: str | None) -> int | None:
     return int(f) if f is not None else None
 
 
+# #1202 (CUPRA Raval) — SEAT/CUPRA ship the remaining charge time as a value+unit
+# pair, the unit being the dictionary enum TIME_UNIT_* (not the "2400s" form that
+# _dur_to_min handles).
+_TIME_UNIT_TO_MIN: dict[str, float] = {
+    "time_unit_milliseconds": 1.0 / 60000.0,
+    "time_unit_seconds": 1.0 / 60.0,
+    "time_unit_minutes": 1.0,
+    "time_unit_hours": 60.0,
+    "time_unit_days": 1440.0,
+}
+
+
+def _finished_time_to_min(value: str | None, unit: str | None) -> int | None:
+    """Convert a ``remaining_time_finished`` value+unit pair to whole minutes.
+
+    #1202 (CUPRA Raval) — the SEAT/CUPRA dialect for "time until charging
+    finishes": a number plus a separate ``TIME_UNIT_*`` enum. An unknown or
+    ``TIME_UNIT_UNDEFINED`` unit is treated as minutes (the portal's usual scale
+    for a bare number), matching ``_dur_to_min``.
+    """
+    f = _to_float(value)
+    if f is None:
+        return None
+    factor = _TIME_UNIT_TO_MIN.get(str(unit or "").strip().lower(), 1.0)
+    return int(f * factor)
+
+
 def _epoch_or_iso(raw: str | None) -> str | None:
     """Normalise a capture timestamp to ISO-8601 UTC.
 
@@ -2113,6 +2140,17 @@ def map_dataset_to_vehicle_data(
     ))
     if _rch is not None and d.remaining_charge_time_min is None:
         d.remaining_charge_time_min = _rch
+    # #1202 (CUPRA Raval) — SEAT/CUPRA dialect: remaining_time_finished is a
+    # value+unit pair (TIME_UNIT_* enum) for the time until charging completes.
+    # Consume BOTH leaves unconditionally (so they leave raw_unmapped / the Scout
+    # even when a canonical source already set the value), but only USE it as a
+    # LAST fallback so it never out-competes a real remaining_charging_time.
+    _rtf_val = first("remaining_time_finished.remaining_time_finished_value")
+    _rtf_unit = first("remaining_time_finished.remaining_time_finished_unit")
+    if d.remaining_charge_time_min is None:
+        _rtf = _finished_time_to_min(_rtf_val, _rtf_unit)
+        if _rtf is not None:
+            d.remaining_charge_time_min = _rtf
 
     # b1/A2 — distance-unit conversion. UK/US cars report distances in miles
     # plus a companion unit field; our sensors are km-typed, so convert once
