@@ -134,22 +134,22 @@
         }
       },
       "companion_adb": {
-        "title": "Companion phone (ADB) — experimental",
-        "description": "Read and control your car by driving the official app on a spare Android phone over ADB. This is EXPERIMENTAL and opt-in. You need a second phone that stays signed into the brand app, with ADB over Wi-Fi enabled. Volkswagen is verified; the other brands are read-only for now until a screen map from a real device is confirmed. Nothing is rooted and no app tokens are read — the integration only reads the screen and taps buttons.",
+        "title": "Téléphone compagnon (ADB) — expérimental",
+        "description": "Consultez et contrôlez votre voiture en actionnant l'application officielle sur un téléphone Android d'appoint via ADB. Cette fonction est EXPÉRIMENTALE et facultative. Vous avez besoin d'un deuxième téléphone qui reste connecté à l'application de la marque, avec ADB par Wi-Fi activé. Un téléphone plus ancien (Android 10 ou antérieur) se connecte directement ici ; un téléphone récent (Android 11+, débogage sans fil) nécessite le module complémentaire « VW Group App ADB Bridge », vers lequel vous faites alors pointer cette intégration. Volkswagen est vérifié ; les autres marques sont en lecture seule pour l'instant, jusqu'à ce qu'une cartographie d'écran issue d'un appareil réel soit confirmée. Rien n'est rooté et aucun jeton d'application n'est lu — l'intégration se contente de lire l'écran et d'appuyer sur les boutons.",
         "data": {
-          "brand": "Vehicle brand",
-          "adb_host": "Phone IP address",
-          "adb_port": "ADB port",
-          "vin": "VIN (the car the app shows)",
-          "spin": "S-PIN (optional)",
+          "brand": "Marque du véhicule",
+          "adb_host": "Adresse IP du téléphone",
+          "adb_port": "Port ADB",
+          "vin": "VIN (la voiture affichée par l'application)",
+          "spin": "S-PIN (facultatif)",
           "companion_use_addon": "Se connecter via le module complémentaire ADB Bridge",
           "companion_addon_token": "Jeton du module complémentaire"
         },
         "data_description": {
-          "adb_host": "The phone's address on your network, e.g. 192.168.1.42.",
-          "adb_port": "Usually 5555 for ADB over Wi-Fi.",
-          "vin": "The 17-character VIN of the car shown in the app.",
-          "companion_use_addon": "À cocher pour un téléphone Android 11 ou plus récent, qui ne propose que le débogage sans fil. Saisissez ensuite ci-dessus l'adresse du MODULE COMPLÉMENTAIRE, pas celle du téléphone.",
+          "adb_host": "L'adresse du téléphone sur votre réseau, par ex. 192.168.1.42.",
+          "adb_port": "Généralement 5555 pour ADB par Wi-Fi.",
+          "vin": "Le VIN à 17 caractères de la voiture affichée dans l'application.",
+          "companion_use_addon": "Cochez cette case pour un téléphone Android 11 ou plus récent, qui ne propose que le débogage sans fil. Saisissez ensuite l'adresse du MODULE COMPLÉMENTAIRE ci-dessus, et non celle du téléphone.",
           "companion_addon_token": "Nécessaire uniquement si vous avez défini api_token dans le module complémentaire."
         }
       }
@@ -168,10 +168,10 @@
       "brand_not_dag_eligible": "La marque sélectionnée ne prend pas en charge la connexion via navigateur. Utilisez plutôt le flux e-mail + mot de passe.",
       "skoda_qr_retired": "La connexion sans mot de passe (QR) de Škoda a été désactivée par Volkswagen et ne fonctionne plus. Revenez en arrière et choisissez « E-mail + mot de passe (ancienne méthode) », puis sélectionnez-y Škoda et connectez-vous avec votre e-mail et votre mot de passe MyŠkoda.",
       "still_waiting_browser": "En attente de l'approbation dans le navigateur. Ouvrez l'URL ci-dessus, connectez-vous, confirmez le code, puis cliquez à nouveau sur Valider.",
-      "companion_cannot_connect": "Could not reach the phone over ADB. Check it is on the network, that ADB over Wi-Fi is on, and that you accepted the debugging prompt.",
+      "companion_cannot_connect": "Impossible de joindre le téléphone via ADB. Vérifiez qu'il est bien sur le réseau, qu'ADB par Wi-Fi est activé et que vous avez accepté l'invite de débogage.",
       "companion_needs_addon": "Ce téléphone semble être un Android 11 ou plus récent en débogage sans fil, que la connexion directe d'ici ne peut pas utiliser (TLS + appairage). Installez le module complémentaire « VW Group App ADB Bridge » (github.com/its-me-prash/vwgroup-app-adb-bridge) et indiquez son adresse ici. Les téléphones plus anciens (Android 10 ou antérieur) se connectent directement ici.",
-      "companion_app_not_found": "Connected to the phone, but the brand app is not installed on it.",
-      "companion_unknown_brand": "That brand has no companion preset yet."
+      "companion_app_not_found": "Connexion au téléphone établie, mais l'application de la marque n'y est pas installée.",
+      "companion_unknown_brand": "Cette marque ne dispose pas encore de préréglage compagnon."
     },
     "abort": {
       "already_configured": "Ce compte est déjà configuré.",
