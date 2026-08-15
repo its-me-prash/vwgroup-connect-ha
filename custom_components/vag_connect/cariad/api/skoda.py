@@ -34,6 +34,20 @@ from .base import CariadBaseClient
 _LOGGER = logging.getLogger(__name__)
 _BASE = "https://mysmob.api.connect.skoda-auto.cz"
 
+# driving-range.carType enum values that are pure-combustion (no HV battery, no
+# plug). EVs report "electric", PHEVs "hybrid" — deliberately absent, so a plug-in
+# car is NEVER matched. Used to skip the battery-only /charging read on a confirmed
+# combustion Škoda (stops the permanent 403 storm — a diesel Octavia reported this
+# via the HA Tipps und Tricks Facebook group).
+_COMBUSTION_ONLY_CAR_TYPES = frozenset({"diesel", "gasoline", "petrol", "cng", "gas"})
+_CHARGING_SKIPPED: object = object()  # sentinel: /charging deliberately not attempted
+
+
+async def _skipped_charging() -> object:
+    """Placeholder awaitable so the /charging slot keeps its gather index when the
+    read is skipped on a combustion car (performs no network I/O)."""
+    return _CHARGING_SKIPPED
+
 
 def parse_skoda_warning_lights(lights: Any) -> dict[str, Any]:
     """Reduce a Škoda health `warningLights` list to warning flags.
@@ -104,6 +118,11 @@ class SkodaClient(CariadBaseClient):
         # the Škoda push channel could never arm, with nothing in the log to say
         # why. SEAT/CUPRA and VW US/CA already carry this attribute.
         self._user_id: str | None = None
+        # Per-VIN powertrain learned from driving-range.carType. Lets get_status
+        # skip the battery-only /charging read on a confirmed combustion car so it
+        # stops 403-hammering that endpoint. Empty on a fresh restart → charging is
+        # attempted once, carType is learned, then skipped from poll 2 on.
+        self._powertrain: dict[str, str] = {}
 
     async def authenticate(self, mfa_code: str | None = None) -> None:
         """Authenticate, then capture the account user-id for the push channel.
@@ -641,9 +660,15 @@ class SkodaClient(CariadBaseClient):
         v = self._val
         d = VehicleData(vin=vin)
 
+        # A Škoda diesel keeps 403ing /charging (no HV battery). Once a prior
+        # poll's driving-range told us carType is pure-combustion, stop calling it.
+        # POSITIVE-only: skip solely on a confirmed combustion carType, so an
+        # EV/PHEV (electric/hybrid, or unknown) is always polled.
+        skip_charging = self._powertrain.get(vin) in _COMBUSTION_ONLY_CAR_TYPES
         results = await asyncio.gather(
             self._get(f"{_BASE}/api/v2/vehicle-status/{vin}"),
-            self._get(f"{_BASE}/api/v1/charging/{vin}"),
+            (_skipped_charging() if skip_charging
+             else self._get(f"{_BASE}/api/v1/charging/{vin}")),
             self._get(f"{_BASE}/api/v2/air-conditioning/{vin}"),
             self._get(f"{_BASE}/api/v3/maps/positions/vehicles/{vin}/parking"),
             self._get(f"{_BASE}/api/v2/vehicle-status/{vin}/driving-range"),
@@ -736,7 +761,8 @@ class SkodaClient(CariadBaseClient):
                 self._note_parser_job(job, present=isinstance(payload, dict))
 
         _note("vehicle_status", status)
-        _note("charging", charging)
+        if charging is not _CHARGING_SKIPPED:
+            _note("charging", charging)
         _note("climatisation", ac)
         _note("parking_position", parking)
         _note("service_care", maintenance)
@@ -1332,6 +1358,9 @@ class SkodaClient(CariadBaseClient):
             car_type = v(driving_range, "carType")
             if isinstance(car_type, str) and car_type:
                 d.car_type = car_type
+                # Remember the authoritative powertrain so the NEXT poll can skip
+                # /charging on a pure-combustion car (see get_status head).
+                self._powertrain[vin] = car_type.strip().lower()
 
         d.is_electric = d.has_battery and not d.has_combustion
         d.is_hybrid = d.has_battery and d.has_combustion
