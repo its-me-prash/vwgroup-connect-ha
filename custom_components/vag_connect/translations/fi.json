@@ -134,23 +134,23 @@
         }
       },
       "companion_adb": {
-        "title": "Companion phone (ADB) — experimental",
-        "description": "Read and control your car by driving the official app on a spare Android phone over ADB. This is EXPERIMENTAL and opt-in. You need a second phone that stays signed into the brand app, with ADB over Wi-Fi enabled. Volkswagen is verified; the other brands are read-only for now until a screen map from a real device is confirmed. Nothing is rooted and no app tokens are read — the integration only reads the screen and taps buttons.",
+        "title": "Apupuhelin (ADB) — kokeellinen",
+        "description": "Lue autosi tietoja ja ohjaa sitä käyttämällä virallista sovellusta ylimääräisessä Android-puhelimessa ADB:n kautta. Tämä on KOKEELLINEN ja erikseen käyttöön otettava ominaisuus. Tarvitset toisen puhelimen, joka pysyy kirjautuneena merkin sovellukseen ja jossa ADB Wi-Fin yli on käytössä. Vanhempi puhelin (Android 10 tai vanhempi) yhdistyy tähän suoraan; uudempi puhelin (Android 11+, langaton virheenkorjaus) tarvitsee \"VW Group App ADB Bridge\" -lisäosan, johon tämä sitten osoitetaan. Volkswagen on vahvistettu; muut merkit ovat toistaiseksi vain luettavissa, kunnes näyttökartta oikeasta laitteesta on vahvistettu. Mitään ei rootata eikä sovelluksen tunnuksia lueta — integraatio vain lukee näyttöä ja painaa painikkeita.",
         "data": {
-          "brand": "Vehicle brand",
-          "adb_host": "Phone IP address",
-          "adb_port": "ADB port",
-          "vin": "VIN (the car the app shows)",
-          "spin": "S-PIN (optional)",
+          "brand": "Ajoneuvon merkki",
+          "adb_host": "Puhelimen IP-osoite",
+          "adb_port": "ADB-portti",
+          "vin": "VIN (sovelluksessa näkyvä auto)",
+          "spin": "S-PIN (valinnainen)",
           "companion_use_addon": "Yhdistä ADB Bridge -lisäosan kautta",
-          "companion_addon_token": "Lisäosan tunniste"
+          "companion_addon_token": "Lisäosan token"
         },
         "data_description": {
-          "adb_host": "The phone's address on your network, e.g. 192.168.1.42.",
-          "adb_port": "Usually 5555 for ADB over Wi-Fi.",
-          "vin": "The 17-character VIN of the car shown in the app.",
-          "companion_use_addon": "Rastita tämä, jos puhelin on Android 11 tai uudempi ja tarjoaa vain langattoman virheenkorjauksen. Syötä sitten yllä LISÄOSAN osoite puhelimen osoitteen sijaan.",
-          "companion_addon_token": "Tarvitaan vain, jos olet asettanut lisäosassa api_token-arvon."
+          "adb_host": "Puhelimen osoite verkossasi, esim. 192.168.1.42.",
+          "adb_port": "Yleensä 5555, kun ADB toimii Wi-Fin yli.",
+          "vin": "Sovelluksessa näkyvän auton 17-merkkinen VIN.",
+          "companion_use_addon": "Valitse tämä Android 11:tä tai uudempaa puhelinta varten, joka tarjoaa vain langattoman virheenkorjauksen. Syötä sitten yllä LISÄOSAN osoite puhelimen osoitteen sijaan.",
+          "companion_addon_token": "Tarvitaan vain, jos määritit api_token-arvon lisäosassa."
         }
       }
     },
@@ -168,10 +168,10 @@
       "skoda_qr_retired": "Volkswagen sammutti Škodan salasanattoman (QR) kirjautumisen, eikä se toimi enää. Palaa takaisin ja valitse ”Sähköposti + salasana (vanha tapa)”, valitse siellä Škoda ja kirjaudu MyŠkoda-sähköpostillasi ja -salasanallasi.",
       "portal_interaction_required": "EU Data Act -portaali vaatii kertaluonteisen toimenpiteen selaimessasi tai merkin sovelluksessa (esim. käyttöehtojen hyväksyminen, suostumuksen vahvistaminen, käyttöönoton/alueen valinnan viimeistely) ennen kuin selaimeton pääsy toimii. Tämä EI ole väärän salasanan ongelma — avaa portaali kerran selaimessa, suorita kehote loppuun ja yritä sitten uudelleen.",
       "still_waiting_browser": "Odotetaan yhä selaimen hyväksyntää. Avaa yllä oleva URL-osoite, kirjaudu sisään, vahvista koodi ja napsauta sitten Lähetä uudelleen.",
-      "companion_cannot_connect": "Could not reach the phone over ADB. Check it is on the network, that ADB over Wi-Fi is on, and that you accepted the debugging prompt.",
+      "companion_cannot_connect": "Puhelimeen ei saatu yhteyttä ADB:n kautta. Tarkista, että se on verkossa, että ADB Wi-Fin yli on käytössä ja että hyväksyit virheenkorjauskehotteen.",
       "companion_needs_addon": "Tämä näyttää Android 11 -puhelimelta tai uudemmalta, joka käyttää langatonta virheenkorjausta. Suora yhteys tästä ei toimi sen kanssa (se vaatii TLS:n ja parituksen). Asenna 'VW Group App ADB Bridge' -lisäosa (github.com/its-me-prash/vwgroup-app-adb-bridge) ja anna sen osoite tähän. Vanhemmat puhelimet (Android 10 tai vanhempi) yhdistyvät suoraan.",
-      "companion_app_not_found": "Connected to the phone, but the brand app is not installed on it.",
-      "companion_unknown_brand": "That brand has no companion preset yet."
+      "companion_app_not_found": "Yhteys puhelimeen muodostettiin, mutta merkin sovellusta ei ole asennettu siihen.",
+      "companion_unknown_brand": "Kyseiselle merkille ei ole vielä apupuhelimen esiasetusta."
     },
     "abort": {
       "already_configured": "Tämä tili on jo määritetty.",
