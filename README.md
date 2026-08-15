@@ -194,6 +194,16 @@ You can also call the **`vag_connect.abrp_send`** service directly (target a dev
 
 ---
 
+## iOS Live Activity — charging countdown on the Lock Screen
+
+A native **Live Activity** (Lock Screen + Dynamic Island) that counts down to your car finishing its charge, with a state-of-charge progress bar. The integration already exposes an **absolute** *charge target time* (`sensor.*_charge_target_time`), so iOS can tick the countdown on its own — no per-second push.
+
+**Import the shipped blueprint** *"Live Activity — EV charging countdown (iOS)"* (`blueprints/automation/vag_connect/live_activity_charging_countdown.yaml`), pick your vehicle's charging / SoC / charge-target-time sensors and your phone's `notify.mobile_app_*` service. It starts when charging begins, refreshes as the ETA and SoC move, and clears when charging stops.
+
+> 📱 **Requirements:** the Home Assistant Companion app with **Live Activities** enabled (iOS 17.2+, HA Core 2026.7+). Live Activities are currently a **Labs** feature in the app's **TestFlight** build — enable them under Labs. A Live Activity needs a token handshake between the app and Home Assistant, so your phone has to be able to reach HA (locally or via a remote connection) when charging starts. This ships now so you're ready the day it leaves TestFlight.
+
+---
+
 ## Škoda AI assistant ("Laura") — new in 3.0.0
 
 MyŠkoda's own in-car assistant, **Laura**, is available inside Home Assistant.

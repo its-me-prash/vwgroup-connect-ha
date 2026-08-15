@@ -1,0 +1,173 @@
+# Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# v3.1.x — iOS Live Activity: an EV charging countdown on the Lock Screen and in
+# the Dynamic Island, driven entirely by this integration's charging sensors.
+#
+# Requirements: the Home Assistant Companion app with Live Activities enabled
+# (iOS 17.2+, HA Core 2026.7+). As of writing this is a Labs feature available in
+# the TestFlight build — this blueprint is here so you're ready the moment it is.
+#
+# How it works: the integration already exposes an ABSOLUTE "charge target time"
+# timestamp (sensor.*_charge_target_time — when the pack expects to reach its
+# target SoC). iOS renders a live-ticking countdown to that instant with the
+# companion app's `chronometer` + `when` fields, so the Lock Screen counts down
+# on its own without a push per second. A SoC progress bar rides alongside it.
+# The activity starts when charging begins, refreshes as the ETA / SoC move, and
+# clears when charging stops.
+blueprint:
+  name: "Live Activity — EV charging countdown (iOS)"
+  description: >
+    Show a native iOS Live Activity (Lock Screen + Dynamic Island) that counts
+    down to your car finishing its charge, with a state-of-charge progress bar.
+    Driven by this integration's charging sensors — no templating required.
+
+
+    Requires the Home Assistant Companion app with Live Activities (iOS 17.2 or
+    later, HA Core 2026.7 or later). Live Activities are currently a Labs feature
+    in the TestFlight build of the app; enable them under the app's Labs section.
+    A Live Activity needs a token handshake between the app and Home Assistant,
+    so your phone must be able to reach HA (locally or via a remote connection)
+    when charging starts.
+  domain: automation
+  author: VW Group Connect (@its-me-prash)
+  input:
+    charging_sensor:
+      name: "Charging sensor"
+      description: >
+        The vehicle's charging binary sensor (binary_sensor.*_charging). Starting
+        it drives the Live Activity; turning off clears it.
+      selector:
+        entity:
+          filter:
+            - integration: vag_connect
+              domain: binary_sensor
+    finish_time_sensor:
+      name: "Charge target-time sensor"
+      description: >
+        The vehicle's "charge target time" timestamp sensor
+        (sensor.*_charge_target_time) — the absolute time it expects to reach the
+        target SoC. Drives the live countdown. If it's unavailable the activity
+        still shows the progress bar, just without the ticking timer.
+      selector:
+        entity:
+          filter:
+            - integration: vag_connect
+              domain: sensor
+    soc_sensor:
+      name: "State-of-charge sensor"
+      description: >
+        The vehicle's battery state-of-charge sensor (sensor.*_battery), used for
+        the progress bar and the "NN%" text.
+      selector:
+        entity:
+          filter:
+            - integration: vag_connect
+              domain: sensor
+    target_soc_sensor:
+      name: "Target SoC sensor (optional)"
+      description: >
+        The charge target-SoC sensor, used as the progress-bar maximum and shown
+        as "→ NN%". Leave blank to use 100%.
+      default: ""
+      selector:
+        entity:
+          filter:
+            - integration: vag_connect
+              domain: sensor
+    notify_service:
+      name: "Mobile notify service"
+      description: >
+        Your phone's notify service, e.g. notify.mobile_app_iphone — the device
+        the Live Activity appears on (must be running the Companion app with Live
+        Activities enabled). You can type it with or without the "notify." prefix.
+      selector:
+        text:
+    car_name:
+      name: "Car name"
+      description: "Shown as the Live Activity title, e.g. \"ID.4\"."
+      default: "Car"
+      selector:
+        text:
+
+# restart: a fresh SoC / ETA edge supersedes the in-flight update instead of
+# queueing; the latest state always wins.
+mode: restart
+max_exceeded: silent
+
+trigger:
+  - platform: state
+    entity_id: !input charging_sensor
+    to: "on"
+    id: start
+  - platform: state
+    entity_id: !input charging_sensor
+    to: "off"
+    id: stop
+  # The ETA or the SoC moved while charging → refresh the activity.
+  - platform: state
+    entity_id: !input finish_time_sensor
+    id: update
+  - platform: state
+    entity_id: !input soc_sensor
+    id: update
+  # Safety refresh so the countdown / progress can't drift if an edge is missed.
+  - platform: time_pattern
+    minutes: "/15"
+    id: update
+
+variables:
+  charging_sensor: !input charging_sensor
+  finish_time_sensor: !input finish_time_sensor
+  soc_sensor: !input soc_sensor
+  target_soc_sensor: !input target_soc_sensor
+  notify_service: !input notify_service
+  car_name: !input car_name
+  # Accept the service typed with or without the "notify." prefix.
+  svc: "{{ (notify_service | default('', true)) | replace('notify.', '') }}"
+  soc: "{{ states(soc_sensor) | int(0) }}"
+  target: >
+    {{ states(target_soc_sensor) | int(100)
+       if (target_soc_sensor | default('', true)) else 100 }}
+  # Absolute finish time as a Unix timestamp (0 when unknown/unavailable).
+  finish_ts: >
+    {{ as_timestamp(states(finish_time_sensor), 0) | int
+       if (finish_time_sensor | default('', true)) else 0 }}
+  # A stable, schema-safe tag (letters/numbers/hyphens/underscores, ≤64 chars):
+  # slugified car name so start and clear target the same activity.
+  activity_tag: "vagc_charge_{{ car_name | slugify }}"
+
+action:
+  - choose:
+      # ── Charging stopped → clear the Live Activity ──────────────────────────
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.id == 'stop' }}"
+        sequence:
+          - service: "notify.{{ svc }}"
+            data:
+              message: clear_notification
+              data:
+                tag: "{{ activity_tag }}"
+    # ── Charging start / update → show or refresh the countdown ───────────────
+    default:
+      # Only ever push while the car is actually charging (guards the periodic
+      # and sensor-edge triggers from firing an activity when idle).
+      - condition: state
+        entity_id: !input charging_sensor
+        state: "on"
+      - service: "notify.{{ svc }}"
+        data:
+          title: "{{ car_name }}"
+          message: "{{ soc }}%{{ ' → ' ~ target ~ '%' if target else '' }}"
+          data:
+            tag: "{{ activity_tag }}"
+            live_update: true
+            notification_icon: "mdi:ev-station"
+            notification_icon_color: "#2196F3"
+            progress: "{{ soc }}"
+            progress_max: "{{ target }}"
+            # Live-ticking countdown to the charge target time, when we have one.
+            chronometer: "{{ finish_ts > 0 }}"
+            when: "{{ finish_ts }}"
+            when_relative: false
