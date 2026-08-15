@@ -2,6 +2,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Constants for VAG Connect."""
 
+import math
+from datetime import datetime, timezone
+
 DOMAIN = "vag_connect"
 
 # Bus event fired by coordinator._on_push_event for each manufacturer push
@@ -369,3 +372,77 @@ def advised_scan_interval(brand: str | None, current: int) -> int:
     if not isinstance(current, int) or current < base:
         return base
     return min(current + _INTERVAL_STEP_UP_MIN, MAX_SCAN_INTERVAL)
+
+
+# An X-RateLimit-Reset at/above this looks like an absolute epoch second (year
+# 2001+); a smaller numeric is treated as delta-seconds-until-reset.
+_RESET_EPOCH_THRESHOLD = 1_000_000_000
+
+
+def _seconds_until_reset(
+    reset_at: str | int | float | None, now: float
+) -> float | None:
+    """Normalise an opaque ``X-RateLimit-Reset`` value to seconds from *now*.
+
+    Accepts what the clients actually store: epoch seconds (int/float, or a
+    numeric string — base.py stores ``str``, porsche.py an ``int``), an ISO-8601
+    timestamp, or a small delta-seconds value. Returns ``None`` when unusable.
+    Pure: *now* (epoch seconds) is injected so it is clock-free and testable.
+    """
+    if reset_at is None:
+        return None
+    num: float | None
+    if isinstance(reset_at, (int, float)):
+        num = float(reset_at)
+    else:
+        try:
+            num = float(str(reset_at).strip())
+        except (TypeError, ValueError):
+            num = None
+    if num is not None:
+        return (num - now) if num >= _RESET_EPOCH_THRESHOLD else num
+    text = str(reset_at).strip().replace("Z", "+00:00")
+    try:
+        dt = datetime.fromisoformat(text)
+    except (TypeError, ValueError):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.timestamp() - now
+
+
+def advised_scan_interval_from_budget(
+    remaining: int | None,
+    reset_at: str | int | float | None,
+    now: float,
+    current: int,
+    *,
+    brand: str | None = None,
+) -> int:
+    """Budget-aware interval advice: spread the REAL remaining calls over the
+    time left until the rate-limit window resets.
+
+    Falls back to :func:`advised_scan_interval` (unchanged) whenever the live
+    signal is missing — ``remaining is None`` (the ``X-RateLimit-Remaining``
+    header was never seen, the default for most installs), or ``reset_at`` gives
+    no positive horizon. The budget may only ever *tighten* the advice, never
+    drop it below the storm guard (``max(guard, budget_advice)``), so the
+    refresh-storm Repair fires in exactly the same cases as before. Clamped to
+    ``[MIN_SCAN_INTERVAL, MAX_SCAN_INTERVAL]``.
+
+    NOTE: the model assumes ~1 API call per poll cycle; a fan-out poll spends
+    more, so this advice is a *lower bound* on the safe interval — safe because
+    it can never advise below the guard, but a future ``calls_per_poll`` factor
+    could tighten it further.
+    """
+    guard = advised_scan_interval(brand, current)
+    if remaining is None:
+        return guard
+    seconds = _seconds_until_reset(reset_at, now)
+    if seconds is None or seconds <= 0:
+        return guard
+    if remaining <= 0:
+        return MAX_SCAN_INTERVAL
+    spread = math.ceil((seconds / 60.0) / remaining)
+    budget_advice = max(MIN_SCAN_INTERVAL, min(spread, MAX_SCAN_INTERVAL))
+    return max(guard, budget_advice)
