@@ -1398,7 +1398,7 @@ def map_dataset_to_vehicle_data(
 
     # #465 — SoC is the one field observed to ship under disagreeing aliases
     # (a stale 57 vs the fresh 81); resolve it by capture time, not list order.
-    soc = _hv_soc if _hv_soc is not None else _to_int(first_freshest("battery_state_report.soc", "soc", "stateOfChargeInPercent",
+    _leaf_soc = _to_int(first_freshest("battery_state_report.soc", "soc", "stateOfChargeInPercent",
                         "state_of_charge",
                         # self-audit (Enyaq / MEB-Entry, e-up): these cars ship the
                         # traction SoC under a bespoke leaf "currentSoc" whose
@@ -1447,6 +1447,15 @@ def map_dataset_to_vehicle_data(
                         "0a18a053-b4b0-3db1-be44-a6c5dba629b1",
                         "f89ed652-d104-3fa6-b7e2-ab7543309e7b",
                         "506cb83e-f99f-3af3-bbeb-0429b69a78d9"))
+    # #1179-1183 — evaluate first_freshest() UNCONDITIONALLY so every SoC alias
+    # present in the dataset is consumed into ``used`` (and thus leaves
+    # raw_unmapped_fields / the Scout), even when the VALID-gated HV level below
+    # overrides the VALUE. The old ``_hv_soc if ... else first_freshest(...)``
+    # short-circuit meant a car shipping a VALID battery_level_HV pair never ran
+    # first_freshest, leaking its co-present battery_state_report.soc leaf to the
+    # Scout as a "new field" on every poll (six duplicate issues in a day). #1088
+    # value-preference (VALID HV wins) is unchanged.
+    soc = _hv_soc if _hv_soc is not None else _leaf_soc
     if soc is not None:
         d.battery_soc = soc
         d.has_battery = True

@@ -93,7 +93,21 @@ def test_poll_error_is_best_effort() -> None:
     asyncio.run(c._post_command("VINX", "access/lock", json={}))  # must NOT raise
 
 
-def test_in_progress_times_out_without_raising() -> None:
+def test_in_progress_through_whole_window_raises_unconfirmed() -> None:
+    """#912/#940 — a request the car accepts but never terminalises (perpetual
+    in_progress, the PPE e:CV.PA.29 "vehicle does not answer" signature) is now
+    reported as UNCONFIRMED so the optimistic UI reverts, instead of leaving a
+    false "OK". Distinct from the never-listed fast-clear case below."""
     c = _client({"data": {"requestID": "R1"}},
                 get_resp={"data": [{"id": "R1", "status": "inProgress"}]})
-    asyncio.run(c._post_command("VINX", "access/lock", json={}))  # accept after bound
+    with pytest.raises(VehicleCommandError):
+        asyncio.run(c._post_command("VINX", "access/lock", json={}))
+
+
+def test_never_listed_request_times_out_without_raising() -> None:
+    """A fast command that cleared before we polled (its id never appears in
+    pendingrequests) still returns optimistically — unchanged, so a normal quick
+    command is never turned into a false failure."""
+    c = _client({"data": {"requestID": "R1"}},
+                get_resp={"data": []})  # request id never listed → status None
+    asyncio.run(c._post_command("VINX", "access/lock", json={}))  # must NOT raise
