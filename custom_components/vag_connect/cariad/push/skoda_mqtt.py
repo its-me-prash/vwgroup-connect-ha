@@ -32,17 +32,22 @@ Three coupled pieces:
    "persisted across restarts via HA's ``Store`` helper". There is no
    Store anywhere in this package; the claim was false.)
 
-   LIVE-GATED, and worse than merely unvalidated: upstream myskoda
-   abandoned exactly this ``firebase-messaging`` high-level
-   registration path in their PR #584 (2026-06-05) because Skoda's
-   Firebase project stopped minting usable tokens for it, and switched
-   to an emulated Android-native ``register3`` flow. Our creds are
-   copied from myskoda's pre-#584 values, not independently reverse-
-   engineered, so this token acquisition is very likely already broken
-   on the live broker. Rewriting it to the #584 flow is a real task,
-   but it needs a live Skoda tester and tracks a moving app-version
-   fingerprint — do not treat "the code is here" as "the channel
-   works".
+   v3.2.2 — a Škoda tester's log finally pinned the real failure: the
+   registration was hitting Firebase with the wrong ``project_id`` (the
+   sender/project *number* ``678067506455`` instead of the project SLUG
+   ``myskoda-ng``), so ``firebase-messaging`` built
+   ``.../projects/678067506455/installations`` and every attempt died with
+   "Unable to register with fcm". ``firebase-messaging`` 0.4.x already uses
+   the ``c2dm/register3`` endpoint (so the earlier "myskoda abandoned this
+   path in #584, tokens can't be minted" note was a misdiagnosis — the four
+   google-services values match the live 8.15.0 APK verbatim; only our
+   project_id was the number, not the slug). Fixed by using the slug.
+   STILL LIVE-GATED: pending a tester confirming the broker accepts the
+   resulting token end-to-end. Intermittent GCM check-in failures
+   ("Unable to establish subscription with Google Cloud Messaging") can
+   still occur under Google's registration rate-limit when the breaker
+   retries fast; once one registration succeeds the token is cached for the
+   session, so that pressure clears itself.
 
 3. **Coordinator callback** — each MQTT message is decoded into a
    ``PushUpdateEvent`` and forwarded to the coordinator via the
@@ -118,11 +123,18 @@ _BROKER_HOST = "mqtt.messagehub.de"
 _BROKER_PORT = 8883
 _MQTT_KEEPALIVE = 60
 
-# Firebase project for the Skoda Android app's FCM registration —
-# VERIFIED against the raw APK + myskoda const.py. Public
-# google-services.json values (no secrets). Cariad rotates these; a
-# live tester confirms validity at activation time.
-_FCM_PROJECT_ID = "678067506455"
+# Firebase project for the Skoda app's FCM registration — the four
+# ``google-services`` values, verified verbatim against the raw MySkoda
+# 8.15.0 APK (res/values/strings.xml). Public config, no secrets.
+#
+# v3.2.2 FIX: ``project_id`` is the Firebase project SLUG ``myskoda-ng``,
+# NOT the sender/project *number* 678067506455. ``firebase-messaging`` keys
+# the FCM installation + registration URLs on it
+# (``.../projects/{project_id}/installations``), so the old numeric value
+# made every FCM registration 404 → "Unable to register with fcm", which is
+# exactly what a Škoda tester's log showed. The number is the sender id; the
+# slug is the project id — they are different fields and were conflated here.
+_FCM_PROJECT_ID = "myskoda-ng"
 _FCM_SENDER_ID = "678067506455"
 _FCM_API_KEY = "AIzaSyBlJdDfVR6ltRhKpA87F3SmCe2hHqhyEd8"
 _FCM_APP_ID = "1:678067506455:android:4afca86c91d6d4c235bb52"

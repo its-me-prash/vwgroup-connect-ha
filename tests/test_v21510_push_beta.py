@@ -166,7 +166,8 @@ class TestResolverPerBrand:
     def test_skoda_creds(self):
         from custom_components.vag_connect.cariad.push import skoda_mqtt as sk
 
-        assert sk._FCM_PROJECT_ID == "678067506455"
+        # v3.2.2 — project_id is the Firebase SLUG, not the sender number.
+        assert sk._FCM_PROJECT_ID == "myskoda-ng"
         assert sk._FCM_SENDER_ID == "678067506455"
         assert sk._FCM_API_KEY == "AIzaSyBlJdDfVR6ltRhKpA87F3SmCe2hHqhyEd8"
         assert sk._FCM_APP_ID == "1:678067506455:android:4afca86c91d6d4c235bb52"
