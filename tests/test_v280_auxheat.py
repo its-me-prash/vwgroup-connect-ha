@@ -324,10 +324,16 @@ class TestCapabilityMap:
         assert cap_id_for(brand, "command_start_aux_heating") == "auxiliaryHeating"
         assert cap_id_for(brand, "command_stop_aux_heating") == "auxiliaryHeating"
 
-    @pytest.mark.parametrize("brand", ["skoda", "volkswagen_na", "porsche"])
+    @pytest.mark.parametrize("brand", ["volkswagen_na", "porsche"])
     def test_unsupported_brands(self, brand):
         from custom_components.vag_connect.cariad._capabilities import cap_id_for
         assert cap_id_for(brand, "command_start_aux_heating") is None
+
+    def test_skoda_uses_real_mysmob_aux_capability(self):
+        # v3.2.1 — Škoda's aux heating IS gated, on the androguard-verified
+        # mysmob CapabilityId (not the old "no cap-id" assumption).
+        from custom_components.vag_connect.cariad._capabilities import cap_id_for
+        assert cap_id_for("skoda", "command_start_aux_heating") == "AUXILIARY_HEATING"
 
 
 # ---------------------------------------------------------------------------

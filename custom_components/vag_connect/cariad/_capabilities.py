@@ -153,16 +153,32 @@ CAPABILITY_MAP: Final[dict[str, dict[str, str]]] = {
         # report; treat as inferred and let Phase 2 catch failures.
         "command_flash": "honk-and-flash",
         "command_wake": "vehicleWakeUpTrigger",
-        "command_start_climate": "air-conditioning",   # mysmob endpoint name
-        "command_stop_climate": "air-conditioning",
+        # v3.2.1 — real mysmob CapabilityId values, androguard-verified against
+        # the 8.15.0 CapabilityId enum (cz.skodaauto.myskoda DEX class Lnj0/b;)
+        # instead of the old inferred kebab guesses. The garage-doc capability
+        # list (get_capabilities) uses these UPPER_SNAKE ids, so the kebab
+        # guesses could never match and — once the cache populated —
+        # vehicle_supports_capability wrongly reported "absent" (False) and hid
+        # the switch. When the list is empty (degraded / 403 accounts) the
+        # lookup is None and the switch is shown anyway (never hide on unknown).
+        "command_start_climate": "AIR_CONDITIONING",
+        "command_stop_climate": "AIR_CONDITIONING",
         "command_start_charging": "charging",
         "command_stop_charging": "charging",
         "command_set_target_soc": "charging",
         "command_set_charge_mode": "charging",
         "command_set_min_soc": "charging",
-        "command_start_window_heating": "air-conditioning",
-        "command_stop_window_heating": "air-conditioning",
-        "command_set_climate_temperature": "air-conditioning",
+        "command_start_window_heating": "WINDOW_HEATING",
+        "command_stop_window_heating": "WINDOW_HEATING",
+        "command_set_climate_temperature": "AIR_CONDITIONING",
+        # Fuel-fired Standheizung + airing-without-heat (Škoda-only commands).
+        "command_start_aux_heating": "AUXILIARY_HEATING",
+        "command_stop_aux_heating": "AUXILIARY_HEATING",
+        "command_start_active_ventilation": "ACTIVE_VENTILATION",
+        # NOTE: charging / access / wake ids below stay inferred (kebab) until a
+        # live populated capabilities sample confirms the exact enum value —
+        # CHARGING vs CHARGING_MEB differs by platform, so we do NOT guess here
+        # (a wrong guess would hide charging on MEB Škodas once a cache lands).
         "command_set_departure_timer": "departure-timers",
         # v1.15.0 — Skoda Modernization. New cap-ids observed in
         # ``skodaconnect/myskoda`` PRs #533/#540/#541/#543/#557/#560

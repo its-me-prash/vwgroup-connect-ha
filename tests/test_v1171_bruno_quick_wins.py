@@ -380,17 +380,20 @@ class TestCapabilityMapV1171:
         from custom_components.vag_connect.cariad._capabilities import cap_id_for
         assert cap_id_for(brand, command_id) == expected
 
-    def test_skoda_does_not_have_aux_heating(self):
-        """Aux heating is not in skoda's capability table.
+    def test_skoda_aux_heating_uses_real_mysmob_capability(self):
+        """Škoda aux heating IS gated — on the real mysmob CapabilityId.
 
-        v2.8.0 extended the integration to Audi + VW EU (Standheizung)
-        so those brands now carry the ``auxiliaryHeating`` cap-id. Skoda
-        still has no aux heating endpoint on mysmob, so the assertion
-        for that brand stays None.
+        v2.8.0 gave Audi + VW EU the ``auxiliaryHeating`` cap-id. Škoda was
+        assumed to have "no aux endpoint" and left unmapped, so the spawn gate
+        fell through to a fragile heuristic that hid the Standheizung on
+        aux-equipped Octavias in a degraded/INVALID auth state. v3.2.1 maps it
+        to the androguard-verified mysmob CapabilityId ``AUXILIARY_HEATING``
+        (8.15.0 enum), so the switch is capability-grounded when the per-VIN
+        list populates and shown otherwise (never hide on unknown).
         """
         from custom_components.vag_connect.cariad._capabilities import cap_id_for
-        assert cap_id_for("skoda", "command_start_aux_heating") is None
-        # v2.8.0 - volkswagen + audi now carry the cap-id.
+        assert cap_id_for("skoda", "command_start_aux_heating") == "AUXILIARY_HEATING"
+        # v2.8.0 - volkswagen + audi carry the CARIAD cap-id.
         assert cap_id_for("volkswagen", "command_start_aux_heating") == "auxiliaryHeating"
         assert cap_id_for("audi", "command_start_aux_heating") == "auxiliaryHeating"
 

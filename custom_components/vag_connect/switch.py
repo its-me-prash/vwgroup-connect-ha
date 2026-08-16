@@ -7,8 +7,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .cariad._capabilities import DECLARED_CAPABILITIES
-from .const import CONF_BRAND
 from .coordinator import VagConnectCoordinator
 from .entity_base import VagConnectEntity, register_dynamic_spawner
 
@@ -24,35 +22,11 @@ async def async_setup_entry(
     if coordinator.is_read_only():
         return
     client = coordinator._cariad_client
-    brand = str(entry.data.get(CONF_BRAND, "")).lower()
-    # Brands whose baseline declares NO fuel-fired aux heater (today only Škoda);
-    # every other brand keeps the existing capability-doc arbitration.
-    aux_declared = DECLARED_CAPABILITIES.get(brand, {}).get("auxiliary_heating", True)
 
     def _supported(vin: str, command_id: str) -> bool:
         cap_supported = coordinator.command_capability_supported(vin, command_id) is not False
         client_has_method = client is not None and hasattr(client, command_id)
         return cap_supported and client_has_method
-
-    def _has_aux_heater(vin: str, vehicle: dict) -> bool:
-        """Don't spawn a Standheizung switch on a car with no aux heater (a Škoda
-        diesel reported this via the HA Tipps und Tricks FB group). VW/Audi/Bentley
-        declare auxiliary_heating=True and SEAT/CUPRA carry a mapped
-        'auxiliary-heating' cap-id, so the backend capabilities doc already
-        arbitrates them via ``_supported()`` — leave those untouched. Škoda
-        declares False, has NO aux-heating cap-id (command_capability_supported →
-        None = don't-hide) AND derives aux_heating_active from the generic AC
-        state, so every Škoda reports a non-None ``False``. For a declared-False
-        brand, require positive evidence the car actually has the heater."""
-        if aux_declared is not False:
-            return True
-        if coordinator.command_capability_supported(
-            vin, "command_start_aux_heating"
-        ) is True:
-            return True
-        if vehicle.get("auxiliary_heating_status") is not None:
-            return True
-        return vehicle.get("aux_heating_active") is True
 
     def _build_for_vin(vin: str, vehicle: dict) -> list:
         entities: list = []
@@ -64,7 +38,14 @@ async def async_setup_entry(
             entities.append(VagWindowHeatingSwitch(coordinator, vin))
         if _supported(vin, "command_start_ventilation"):
             entities.append(VagVentilationSwitch(coordinator, vin))
-        if _supported(vin, "command_start_aux_heating") and _has_aux_heater(vin, vehicle):
+        # Aux heating (fuel-fired Standheizung). Gated like every other switch:
+        # shown unless the per-VIN capability list explicitly lacks
+        # AUXILIARY_HEATING. The old "positive-evidence" heuristic wrongly hid
+        # it on aux-equipped Škodas whose AC subsystem reports INVALID during a
+        # transient degraded/403 auth state (both the diesel reporter and a
+        # gasoline Octavia owner presented byte-identical telemetry — there is
+        # no groundable "no aux heater" signal in that state, so we never hide).
+        if _supported(vin, "command_start_aux_heating"):
             entities.append(VagAuxHeatingSwitch(coordinator, vin))
         # v2.31.0 — Škoda camping mode. Gate on the READ having produced a value
         # (a car that reports camping state has the feature), not just the client
