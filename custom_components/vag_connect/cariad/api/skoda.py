@@ -156,6 +156,27 @@ class SkodaClient(CariadBaseClient):
             )
         return self._user_id
 
+    async def _capture_user_id(self) -> None:
+        """Fetch the account user-id from the mysmob ``/v1/users`` endpoint.
+
+        This is where the MySkoda app and the ``myskoda`` library get it
+        (``GET /api/v1/users`` -> ``.id``), and it is the MQTT username + topic
+        prefix (``{user_id}/{vin}/#``). #602: decoding the id_token ``sub`` was
+        unreliable on a classic mysmob login — it came back empty, so the push
+        channel silently never armed (Marco Schmidt, HA Tipps und Tricks
+        Facebook group; still dead on v3.2.0 with the sub-only capture).
+        Best-effort: a miss only leaves push unarmed, never breaks a poll.
+        """
+        if self._user_id:
+            return
+        try:
+            data = await self._get(f"{_BASE}/api/v1/users")
+            uid = data.get("id") if isinstance(data, dict) else None
+            if isinstance(uid, str) and uid:
+                self._user_id = uid
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug("Škoda: /v1/users user-id fetch failed", exc_info=True)
+
     async def authenticate(self, mfa_code: str | None = None) -> None:
         """Authenticate, then capture the account user-id for the push channel.
 
@@ -199,6 +220,10 @@ class SkodaClient(CariadBaseClient):
         data = await self._get(f"{_BASE}/api/v2/garage", params=params)
         vehicles: list[dict[str, Any]] = data.get("vehicles", [])
         vins = [v["vin"] for v in vehicles if v.get("vin")]
+        # #602 — capture the push user-id from /v1/users while we are on the
+        # native backend and authenticated, so it is set before the push manager
+        # arms after the first refresh. Runs once (guarded on _user_id).
+        await self._capture_user_id()
         await self.fetch_images()
         return vins
 
