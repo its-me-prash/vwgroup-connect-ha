@@ -889,6 +889,18 @@ class WebsiteAuthProxyConnector:
 
         out: list[dict[str, Any]] = []
         seen: set[tuple[str, str, str]] = set()
+        # #966 — a host-only cookie that import_cookies() broadcast to BOTH hosts
+        # comes back from filter_cookies() for EACH host, and line "domain or
+        # host_name" then stamps it with the filter-host, so the (domain,name,path)
+        # key below sees two DIFFERENT domains and keeps both. That doubles the
+        # host-only set every persist cycle (Arno-MA-73's watertight repro: an
+        # 11-cookie login round-tripped to a 22-cookie restore, and the superseded
+        # twin clobbered the still-good identity.vwgroup.io SSO cookie -> 401 on
+        # the second restart). Collapse on (name, path, VALUE) too: a broadcast
+        # twin is byte-identical so it folds to one, while #632's genuinely
+        # different-per-host values (auth0 www vs idp) differ in value and are
+        # still both kept. import re-broadcasts the survivor to both hosts anyway.
+        seen_nv: set[tuple[str, str, str]] = set()
         try:
             jar = self._session.cookie_jar
         except Exception:  # noqa: BLE001
@@ -902,6 +914,12 @@ class WebsiteAuthProxyConnector:
             for name, morsel in filtered.items():
                 _ck_domain = str(morsel["domain"] or host_name)
                 _ck_path = str(morsel["path"] or "/")
+                _ck_value = str(morsel.value)
+                # #966 — fold the broadcast twin (same name+path+value, different
+                # fabricated domain) before the #632 (domain,name,path) key.
+                nv_key = (str(name), _ck_path, _ck_value)
+                if nv_key in seen_nv:
+                    continue
                 # #632 — key the de-dup by (domain, name, path), NOT (name, value).
                 # VW reuses cookie names (auth0 / auth0_compat / did / idkit_p / …)
                 # across identity.vwgroup.io AND www.volkswagen.de with DIFFERENT
@@ -915,6 +933,7 @@ class WebsiteAuthProxyConnector:
                 if key in seen:
                     continue
                 seen.add(key)
+                seen_nv.add(nv_key)
                 try:
                     out.append({
                         "name": str(name),
