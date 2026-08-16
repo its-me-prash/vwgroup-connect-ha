@@ -3793,6 +3793,23 @@ _ZERO_WHEN_IDLE: frozenset[str] = frozenset({
 })
 
 
+# Charge-session "minutes remaining" ETAs that must not keep a stale reading once
+# the charge is over. Same freeze as _ZERO_WHEN_IDLE (backend keeps sending the
+# last value, or the field stops arriving and last-known-value persistence holds
+# it), but observed on EU-Data-Act portal cars too — a real capture on gr6803's
+# VW ID.7 (#632) showed remaining_charge_time_min = 70 while the car sat at
+# NOT_READY_FOR_CHARGING (also seen at 5 and 115 min on other portal VWs). Those
+# cars never report plug_connected, so unlike _ZERO_WHEN_IDLE this rule can't gate
+# on the plug; it keys on is_charging being *explicitly* False (never None /
+# unknown, where the car might actually be charging). A charge ETA with no charge
+# in progress is 0 by definition.
+_ZERO_REMAINING_WHEN_NOT_CHARGING: frozenset[str] = frozenset({
+    "remaining_charge_time_min",
+    "remaining_charge_time_nav_min",
+    "remaining_charge_time_bulk_min",
+})
+
+
 class VagConnectSensor(VagConnectEntity, SensorEntity):
     entity_description: VagSensorDescription
 
@@ -3957,6 +3974,18 @@ class VagConnectSensor(VagConnectEntity, SensorEntity):
             )
             if val is None or charging_stopped:
                 return 0
+
+        # Charge-session "minutes remaining" ETA that froze on its last value
+        # after the charge ended (#632 gr6803: 70 min while NOT_READY_FOR_CHARGING).
+        # Only override an actual stale reading (val present) once charging is
+        # explicitly False — never when is_charging is None/unknown, where the car
+        # may still be charging and the ETA is real.
+        if (
+            self.entity_description.key in _ZERO_REMAINING_WHEN_NOT_CHARGING
+            and val is not None
+            and self._vehicle.get("is_charging") is False
+        ):
+            return 0
 
         # DATE sensors: API may return int (days until event) or a date string.
         # HA SensorDeviceClass.DATE requires datetime.date — convert if needed.
