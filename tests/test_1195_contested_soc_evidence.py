@@ -91,3 +91,55 @@ def test_guard_spurious_twin_on_parked_car_unchanged() -> None:
 def test_guard_follows_closest_to_last_unchanged() -> None:
     """v2.29.0 test_it_follows_a_car_that_is_actually_charging: prev 60 → 65."""
     assert _soc({"battery_soc": 60}, {"battery_soc": 50, **_contest(50, 65)}) == 65
+
+
+# ── charge-aware: charged without driving (v3.2.2, Fishermanjb re-test) ───────
+
+def test_charged_without_driving_prefers_the_higher_value() -> None:
+    """Fishermanjb's v3.2.0 diag verbatim: plugged, charged 94→99, did NOT drive.
+    The energy ratio (67.45/73.45 ≈ 92 %) lagged the charge and sat nearer 94, so
+    the old step-1 latched 94. Plugged + odometer-unchanged now prefers the
+    post-charge 99 (charging can only raise SoC; driving is ruled out)."""
+    assert _soc(
+        {"battery_soc": 94, "odometer_km": 48768},
+        {"battery_soc": 94, **_contest(94, 99), "odometer_km": 48768,
+         "charging_state": "READY_FOR_CHARGING",
+         "battery_available_kwh": 67.45, "battery_cap_kwh": 73.45},
+    ) == 99
+
+
+def test_is_charging_true_prefers_higher_without_charging_state() -> None:
+    """A live ``is_charging`` is enough on its own (no charging_state string)."""
+    assert _soc(
+        {"battery_soc": 50, "odometer_km": 100},
+        {"battery_soc": 50, **_contest(50, 62), "odometer_km": 100,
+         "is_charging": True},
+    ) == 62
+
+
+def test_unplugged_parked_car_does_not_prefer_higher() -> None:
+    """Guard: odometer unchanged but NOT plugged (charging_state 'off') → the rule
+    must NOT jump to the higher twin — the v2.29.0 spurious-twin guard still wins."""
+    assert _soc(
+        {"battery_soc": 94, "odometer_km": 48768},
+        {"battery_soc": 94, **_contest(94, 99), "odometer_km": 48768,
+         "charging_state": "off"},
+    ) == 94
+
+
+def test_charge_aware_needs_a_candidate_above_the_frozen_value() -> None:
+    """Plugged + not driven but no candidate exceeds the frozen value → inert."""
+    assert _soc(
+        {"battery_soc": 94, "odometer_km": 48768},
+        {"battery_soc": 90, **_contest(90, 94), "odometer_km": 48768,
+         "charging_state": "READY_FOR_CHARGING"},
+    ) == 94
+
+
+def test_charge_aware_needs_a_known_odometer_baseline() -> None:
+    """No previous odometer → cannot prove 'didn't drive' → rule stays inert."""
+    assert _soc(
+        {"battery_soc": 94},
+        {"battery_soc": 94, **_contest(94, 99),
+         "charging_state": "READY_FOR_CHARGING"},
+    ) == 94

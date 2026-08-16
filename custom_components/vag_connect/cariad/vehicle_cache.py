@@ -114,6 +114,17 @@ _CONTESTED_ATTR: dict[str, str] = {
 }
 
 
+# #1195 — charging_state normalises inconsistently across paths ("charging" /
+# "off" / raw "READY_FOR_CHARGING"), so "plugged" is inferred as "not one of the
+# clearly-unplugged states". Deliberately conservative: an ambiguous "off" is
+# treated as NOT plugged so the charge-aware rule never fires on a stable
+# unplugged car (better to under-fire than to wrongly prefer the higher twin).
+_SOC_UNPLUGGED_STATES = frozenset({
+    "", "off", "not_ready_for_charging", "unplugged", "disconnected",
+    "none", "unknown", "error", "invalid",
+})
+
+
 def _resolve_contested_soc(
     numeric: list[float],
     old_val: float,
@@ -140,6 +151,25 @@ def _resolve_contested_soc(
     Only ``fresh`` values are consulted, so a carried-forward stale energy/odometer
     reading never drives the choice.
     """
+    # 0) charge-aware (#1195, Fishermanjb): a car that demonstrably did NOT move
+    #    (odometer unchanged) but is plugged in can only have GAINED charge —
+    #    driving is the only thing that quickly drops SoC — so when a candidate
+    #    higher than the frozen value exists, that higher one is the post-charge
+    #    reading. This is exactly the case the energy-ratio step below gets WRONG:
+    #    right after a charge the derived ``battery_available_kwh`` still lags the
+    #    old SoC, so the ratio points back at the stale value and latches it. (He
+    #    charged 94→99 without driving; available 67.45/73.45 ≈ 92 % sat nearer 94.)
+    prev_odo = previous.get("odometer_km")
+    fresh_odo = fresh.get("odometer_km")
+    _not_driven = (
+        isinstance(prev_odo, (int, float)) and not isinstance(prev_odo, bool)
+        and isinstance(fresh_odo, (int, float)) and not isinstance(fresh_odo, bool)
+        and fresh_odo <= prev_odo
+    )
+    _cs = str(fresh.get("charging_state") or "").strip().lower()
+    _plugged = bool(fresh.get("is_charging")) or _cs not in _SOC_UNPLUGGED_STATES
+    if _not_driven and _plugged and max(numeric) > old_val:
+        return max(numeric)
     # 1) energy-content ratio (only fresh values; must be a plausible 0..100 %).
     avail = fresh.get("battery_available_kwh")
     cap = fresh.get("battery_cap_kwh")

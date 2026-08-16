@@ -40,6 +40,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [Unreleased]
+
+### Fixed
+- **The volkswagen.de session survives more than one restart (#966).** The supplementary volkswagen.de channel could resume fine on the first restart and then fail on the second. A host-only sign-in cookie is broadcast to both VW hosts on load; on the next save it came back once per host and the set kept both copies, so the cookie set doubled every cycle (an 11-cookie login became a 22-cookie restore) and the superseded twin overwrote the still-good `identity.vwgroup.io` sign-in cookie — which looks like an expired session but is really the integration clobbering its own cookie. The save now folds a byte-identical broadcast twin, so the set no longer grows and the good cookie survives. Grounded in @Arno-MA-73's exact 11→22 reproduction; also covers the second-restart loop @bobbasli reported in #875.
+- **A frozen State-of-Charge now recovers after charging a parked car (#1195).** The v3.2.0 recover-from-stale fix leaned on either the odometer advancing or the energy reading being fresh — but neither holds when you charge without driving: the car didn't move, and the derived available-energy figure still lags the charge, so it pointed back at the pre-charge value and stayed stuck (a plugged ID.4 charged to 99 % kept showing 94 %). When the car is plugged in and demonstrably hasn't moved, SoC can only have risen, so the higher of the two disagreeing values is now taken. Unplugged/parked cars are untouched, so the spurious-twin guards still hold. Grounded in @Fishermanjb's v3.2.0 diagnostics.
+
 ## [3.2.2] - 2026-08-16 — Škoda push FCM registration fix + diagnostics say why a push channel didn't connect
 
 ### Fixed
