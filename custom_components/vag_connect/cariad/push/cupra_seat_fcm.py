@@ -262,7 +262,9 @@ class CupraSeatPushManager(PushManager):
                 # v2.2.0 PR #13/20 — record this strike. After 3
                 # consecutive failures the breaker trips and we
                 # exit the outer loop (check below after backoff).
-                self._record_failure(f"connect-loop: {type(err).__name__}")
+                self._record_failure(
+                    f"connect-loop: {type(err).__name__}: {str(err)[:160]}"
+                )
                 try:
                     await asyncio.wait_for(
                         self._stop_event.wait(),

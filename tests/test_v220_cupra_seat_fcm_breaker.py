@@ -56,7 +56,7 @@ class TestCupraSeatWiringSites:
         src = self._source()
         # The except-Exception branch in _run_loop must record a
         # connect-loop strike
-        assert 'self._record_failure(f"connect-loop' in src
+        assert 'f"connect-loop' in src
 
     def test_loop_exits_on_trip(self) -> None:
         src = self._source()

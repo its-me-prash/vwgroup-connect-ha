@@ -134,6 +134,11 @@ class PushManager(ABC):
         # strike-counting + trip + auto-reset arithmetic.
         self._strike_count: int = 0
         self._tripped_at: datetime | None = None
+        # v3.2.2 — remember WHY the last connect attempt failed so the
+        # config-entry diagnostics can show it (a value-safe reason string,
+        # never a token). Cleared on the next success. Saves asking a reporter
+        # to hunt through the HA log for the connection error.
+        self._last_failure_reason: str = ""
         # v2.2.0 Phase 5a PR #18/20 — backoff state extracted from
         # per-brand duplication. Identical bounds across all push
         # managers; centralised here so a single tuning change
@@ -174,6 +179,17 @@ class PushManager(ABC):
         return self._strike_count
 
     @property
+    def last_failure_reason(self) -> str:
+        """Value-safe reason for the most recent connect failure (or "").
+
+        v3.2.2 — surfaced in diagnostics so a ``tripped`` push channel says
+        *why* (broker refused, FCM registration failed, missing dep, …) without
+        the reporter having to dig the WARNING line out of the HA log. Cleared
+        on the next successful connect.
+        """
+        return self._last_failure_reason
+
+    @property
     def is_tripped(self) -> bool:
         """Convenience property — True when circuit-breaker has tripped.
 
@@ -193,12 +209,13 @@ class PushManager(ABC):
         keep it short and free of secrets.
         """
         self._strike_count += 1
+        self._last_failure_reason = reason or "no-reason-given"
         _LOGGER.warning(
             "Push manager %s: strike %d/%d (%s)",
             self.__class__.__name__,
             self._strike_count,
             CIRCUIT_BREAKER_MAX_STRIKES,
-            reason or "no-reason-given",
+            self._last_failure_reason,
         )
         if self._strike_count >= CIRCUIT_BREAKER_MAX_STRIKES:
             self._tripped_at = datetime.now(tz=timezone.utc)
@@ -228,6 +245,7 @@ class PushManager(ABC):
             )
         self._strike_count = 0
         self._tripped_at = None
+        self._last_failure_reason = ""
 
     def reset_circuit_breaker(self) -> None:
         """Manual reset — re-enable the manager after a tripped breaker.

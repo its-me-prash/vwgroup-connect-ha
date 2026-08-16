@@ -3228,6 +3228,22 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         return {name: str(mgr.state) for name, mgr in self._push_managers().items()}
 
     @property
+    def push_last_errors(self) -> dict[str, str]:
+        """Per-channel value-safe reason for the last push connect failure.
+
+        v3.2.2 — pairs with ``push_states`` so a ``tripped`` / ``reconnecting``
+        channel in the diagnostics dump says *why* (broker refused the TOTP,
+        FCM registration failed, missing dependency, …) instead of leaving the
+        reporter to dig the WARNING line out of the HA log. Only channels with a
+        recorded failure appear; a healthy/connected channel is omitted.
+        """
+        return {
+            name: mgr.last_failure_reason
+            for name, mgr in self._push_managers().items()
+            if getattr(mgr, "last_failure_reason", "")
+        }
+
+    @property
     def cloud_push_active(self) -> bool:
         """Return True when at least one push channel is actually connected.
 

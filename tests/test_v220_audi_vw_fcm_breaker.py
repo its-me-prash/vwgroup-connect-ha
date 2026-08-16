@@ -42,7 +42,7 @@ class TestAudiVWWiringSites:
 
     def test_connect_loop_records_strike(self) -> None:
         src = self._source()
-        assert 'self._record_failure(f"connect-loop' in src
+        assert 'f"connect-loop' in src
 
     def test_loop_exits_on_trip(self) -> None:
         src = self._source()

@@ -291,7 +291,9 @@ class SkodaPushManager(PushManager):
                 # consecutive failures the breaker trips and the next
                 # iteration of the outer loop will exit (we check
                 # is_tripped after the backoff sleep below).
-                self._record_failure(f"connect-loop: {type(err).__name__}")
+                self._record_failure(
+                    f"connect-loop: {type(err).__name__}: {str(err)[:160]}"
+                )
                 # Sleep with cancellation support
                 try:
                     await asyncio.wait_for(

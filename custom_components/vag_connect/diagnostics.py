@@ -451,6 +451,7 @@ async def async_get_config_entry_diagnostics(
         "last_update_success": coordinator.last_update_success,
         "cloud_push_active": coordinator.cloud_push_active,
         "push_states": coordinator.push_states,
+        "push_last_errors": coordinator.push_last_errors,
         "polling_active": coordinator.is_active,
         "unexpected_findings": unexpected,
         "raw_responses": raw_responses,
@@ -506,5 +507,6 @@ async def async_get_device_diagnostics(
         "last_update_success": full.get("last_update_success"),
         "cloud_push_active": full.get("cloud_push_active"),
         "push_states": full.get("push_states"),
+        "push_last_errors": full.get("push_last_errors"),
         "polling_active": full.get("polling_active"),
     }
