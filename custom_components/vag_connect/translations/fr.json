@@ -1810,8 +1810,8 @@
       "title": "Commandes {brand} bloquées par VW (attestation d'appareil) — {count} erreurs 403 consécutives"
     },
     "vw_na_data_forbidden": {
-      "title": "Volkswagen US/CA : données du véhicule bloquées (abonnement)",
-      "description": "Votre compte Volkswagen s'est connecté et votre garage a été lu, mais les demandes de données par véhicule (état, recharge, climatisation) sont refusées avec une erreur HTTP 403 Forbidden.\n\nLa cause la plus fréquente est un **abonnement Car-Net / VW Connect inactif** sur ce véhicule. Les mêmes données reviendraient si l'abonnement était renouvelé.\n\n**Que faire :**\n\n1. Ouvrez l'application officielle MyVW et vérifiez que votre abonnement Remote Access / Car-Net est actif pour cette voiture.\n2. S'il a expiré, renouvelez-le auprès de VW, puis attendez la prochaine interrogation.\n\nL'intégration continue d'afficher les dernières données mises en cache. Cet avertissement disparaît tout seul dès qu'une demande de données aboutit de nouveau."
+      "title": "Volkswagen US/CA : données du véhicule bloquées (HTTP 403)",
+      "description": "Votre compte Volkswagen s'est connecté et votre garage a été lu, mais les demandes de données par véhicule (état, recharge, climatisation) sont refusées avec une erreur HTTP 403 Forbidden.\n\nUne cause fréquente est un abonnement Car-Net / VW Connect inactif. Mais cela arrive aussi lorsque l'abonnement est actif et que l'app MyVW affiche des données à jour. Dans ce cas, VW n'autorise tout simplement pas ce client tiers à lire le véhicule, et il n'y a rien à changer de votre côté.\n\n**Que faire :**\n\n1. Ouvrez l'application officielle MyVW et vérifiez que votre abonnement Remote Access / Car-Net est actif pour cette voiture.\n2. S'il a expiré, renouvelez-le auprès de VW, puis attendez la prochaine interrogation.\n\nL'intégration continue d'afficher les dernières données mises en cache. Cet avertissement disparaît tout seul dès qu'une demande de données aboutit de nouveau."
     },
     "vw_na_data_forbidden_attestation": {
       "title": "Volkswagen US/CA : données du véhicule bloquées par VW (attestation de l'appareil)",

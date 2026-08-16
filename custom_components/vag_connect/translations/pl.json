@@ -1810,8 +1810,8 @@
       "title": "Polecenia {brand} zablokowane przez VW (atestacja urządzenia) — {count} kolejnych błędów 403"
     },
     "vw_na_data_forbidden": {
-      "title": "Volkswagen US/CA: dane pojazdu zablokowane (subskrypcja)",
-      "description": "Twoje konto Volkswagen zalogowało się i odczytano Twój garaż, ale żądania danych dla pojazdu (status, ładowanie, klimatyzacja) są odrzucane z błędem HTTP 403 Forbidden.\n\nNajczęstszą przyczyną jest **nieaktywna subskrypcja Car-Net / VW Connect** dla tego pojazdu. Te same dane znów by napływały po odnowieniu subskrypcji.\n\n**Co zrobić:**\n\n1. Otwórz oficjalną aplikację MyVW i sprawdź, czy Twoja subskrypcja Remote Access / Car-Net jest aktywna dla tego auta.\n2. Jeśli wygasła, odnów ją przez VW, a następnie poczekaj na kolejne odpytanie.\n\nIntegracja nadal pokazuje ostatnie dane zapisane w pamięci podręcznej. To ostrzeżenie zniknie samo, gdy tylko żądanie danych znów się powiedzie."
+      "title": "Volkswagen US/CA: dane pojazdu zablokowane (HTTP 403)",
+      "description": "Twoje konto Volkswagen zalogowało się i odczytano Twój garaż, ale żądania danych dla pojazdu (status, ładowanie, klimatyzacja) są odrzucane z błędem HTTP 403 Forbidden.\n\nCzęstą przyczyną jest nieaktywna subskrypcja Car-Net / VW Connect. Ale zdarza się to również, gdy subskrypcja jest aktywna, a aplikacja MyVW pokazuje aktualne dane. W takim przypadku VW po prostu nie autoryzuje tego klienta innej firmy do odczytu pojazdu i po Twojej stronie nie ma nic do zmiany.\n\n**Co zrobić:**\n\n1. Otwórz oficjalną aplikację MyVW i sprawdź, czy Twoja subskrypcja Remote Access / Car-Net jest aktywna dla tego auta.\n2. Jeśli wygasła, odnów ją przez VW, a następnie poczekaj na kolejne odpytanie.\n\nIntegracja nadal pokazuje ostatnie dane zapisane w pamięci podręcznej. To ostrzeżenie zniknie samo, gdy tylko żądanie danych znów się powiedzie."
     },
     "vw_na_data_forbidden_attestation": {
       "title": "Volkswagen US/CA: dane pojazdu zablokowane przez VW (atestacja urządzenia)",

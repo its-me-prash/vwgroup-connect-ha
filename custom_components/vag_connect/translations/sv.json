@@ -1810,8 +1810,8 @@
       "title": "{brand}-kommandon blockerade av VW (enhetsattestering) — {count} 403-fel i rad"
     },
     "vw_na_data_forbidden": {
-      "title": "Volkswagen US/CA: fordonsdata blockerad (abonnemang)",
-      "description": "Ditt Volkswagen-konto loggade in och ditt garage lästes, men databegärandena per fordon (status, laddning, klimat) avvisas med HTTP 403 Forbidden.\n\nDen vanligaste orsaken är ett **inaktivt Car-Net-/VW Connect-abonnemang** för det här fordonet. Samma data skulle strömma in igen om abonnemanget förnyas.\n\n**Vad du gör:**\n\n1. Öppna den officiella MyVW-appen och kontrollera att ditt Remote Access-/Car-Net-abonnemang är aktivt för den här bilen.\n2. Om det har löpt ut, förnya det via VW och vänta sedan på nästa avläsning.\n\nIntegrationen fortsätter visa den senast cachade datan. Den här varningen försvinner av sig själv så snart en databegäran lyckas igen."
+      "title": "Volkswagen US/CA: fordonsdata blockerad (HTTP 403)",
+      "description": "Ditt Volkswagen-konto loggade in och ditt garage lästes, men databegärandena per fordon (status, laddning, klimat) avvisas med HTTP 403 Forbidden.\n\nEn vanlig orsak är ett inaktivt Car-Net-/VW Connect-abonnemang. Men det händer också när abonnemanget är aktivt och MyVW-appen visar aktuella data. I så fall tillåter VW helt enkelt inte den här tredjepartsklienten att läsa fordonet, och det finns inget att ändra på din sida.\n\n**Vad du gör:**\n\n1. Öppna den officiella MyVW-appen och kontrollera att ditt Remote Access-/Car-Net-abonnemang är aktivt för den här bilen.\n2. Om det har löpt ut, förnya det via VW och vänta sedan på nästa avläsning.\n\nIntegrationen fortsätter visa den senast cachade datan. Den här varningen försvinner av sig själv så snart en databegäran lyckas igen."
     },
     "vw_na_data_forbidden_attestation": {
       "title": "Volkswagen US/CA: fordonsdata blockerad av VW (enhetsattestering)",

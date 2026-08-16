@@ -1810,8 +1810,8 @@
       "title": "Comandos de {brand} bloqueados por VW (atestación de dispositivo) — {count} errores 403 consecutivos"
     },
     "vw_na_data_forbidden": {
-      "title": "Volkswagen US/CA: datos del vehículo bloqueados (suscripción)",
-      "description": "Tu cuenta de Volkswagen inició sesión y se leyó tu garaje, pero las solicitudes de datos por vehículo (estado, carga, climatización) se rechazan con un error HTTP 403 Forbidden.\n\nLa causa más habitual es una **suscripción a Car-Net / VW Connect inactiva** en este vehículo. Los mismos datos volverían a fluir si se renueva la suscripción.\n\n**Qué hacer:**\n\n1. Abre la app oficial MyVW y confirma que tu suscripción de Remote Access / Car-Net está activa para este coche.\n2. Si caducó, renévala con VW y luego espera a la siguiente consulta.\n\nLa integración sigue mostrando los últimos datos que guardó en caché. Este aviso desaparece solo en cuanto una solicitud de datos vuelve a tener éxito."
+      "title": "Volkswagen US/CA: datos del vehículo bloqueados (HTTP 403)",
+      "description": "Tu cuenta de Volkswagen inició sesión y se leyó tu garaje, pero las solicitudes de datos por vehículo (estado, carga, climatización) se rechazan con un error HTTP 403 Forbidden.\n\nUna causa habitual es una suscripción a Car-Net / VW Connect inactiva. Pero también ocurre cuando la suscripción está activa y la app MyVW muestra datos en vivo. En ese caso VW simplemente no autoriza a este cliente de terceros a leer el vehículo, y no hay nada que cambiar por tu parte.\n\n**Qué hacer:**\n\n1. Abre la app oficial MyVW y confirma que tu suscripción de Remote Access / Car-Net está activa para este coche.\n2. Si caducó, renévala con VW y luego espera a la siguiente consulta.\n\nLa integración sigue mostrando los últimos datos que guardó en caché. Este aviso desaparece solo en cuanto una solicitud de datos vuelve a tener éxito."
     },
     "vw_na_data_forbidden_attestation": {
       "title": "Volkswagen US/CA: datos del vehículo bloqueados por VW (atestación del dispositivo)",

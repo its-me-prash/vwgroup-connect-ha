@@ -3975,6 +3975,23 @@ class VagConnectSensor(VagConnectEntity, SensorEntity):
             if val is None or charging_stopped:
                 return 0
 
+        # EU-Data-Act portal cars never report plug_connected, so the plug-gated
+        # block above can't zero a charge power/rate the feed keeps sending after
+        # a session ends (#632 gr6803 ID.7: charging_rate_kmh stuck at 29 while
+        # idle at READY_FOR_CHARGING). Mirror the remaining-time rule below:
+        # override an actual stale reading once charging is explicitly off, but
+        # never fabricate a 0 on a car that simply never reported one (val None
+        # stays unavailable) or while charging state is unknown (is_charging None).
+        if (
+            self.entity_description.key in _ZERO_WHEN_IDLE
+            and val is not None
+            and self._vehicle.get("is_charging") is False
+            and "conservation" not in str(
+                self._vehicle.get("charging_state") or ""
+            ).lower()
+        ):
+            return 0
+
         # Charge-session "minutes remaining" ETA that froze on its last value
         # after the charge ended (#632 gr6803: 70 min while NOT_READY_FOR_CHARGING).
         # Only override an actual stale reading (val present) once charging is

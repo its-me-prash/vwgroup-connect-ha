@@ -1810,8 +1810,8 @@
       "title": "{brand}-komennot estetty VW:n toimesta (laitetodennus) — {count} peräkkäistä 403-virhettä"
     },
     "vw_na_data_forbidden": {
-      "title": "Volkswagen US/CA: ajoneuvon tiedot estetty (tilaus)",
-      "description": "Volkswagen-tilisi kirjautui sisään ja autotallisi luettiin, mutta ajoneuvokohtaiset datapyynnöt (tila, lataus, ilmastointi) hylätään HTTP 403 Forbidden -virheellä.\n\nYleisin syy on tämän ajoneuvon **passiivinen Car-Net / VW Connect -tilaus**. Samat tiedot kulkisivat taas, jos tilaus uusitaan.\n\n**Mitä tehdä:**\n\n1. Avaa virallinen MyVW-sovellus ja vahvista, että Remote Access / Car-Net -tilauksesi on aktiivinen tälle autolle.\n2. Jos se on rauennut, uusi se VW:n kautta ja odota sitten seuraavaa kyselyä.\n\nIntegraatio näyttää edelleen viimeksi välimuistiin tallentamansa tiedot. Tämä varoitus poistuu itsestään heti, kun datapyyntö onnistuu jälleen."
+      "title": "Volkswagen US/CA: ajoneuvon tiedot estetty (HTTP 403)",
+      "description": "Volkswagen-tilisi kirjautui sisään ja autotallisi luettiin, mutta ajoneuvokohtaiset datapyynnöt (tila, lataus, ilmastointi) hylätään HTTP 403 Forbidden -virheellä.\n\nYleinen syy on passiivinen Car-Net / VW Connect -tilaus. Mutta näin käy myös silloin, kun tilaus on aktiivinen ja MyVW-sovellus näyttää ajantasaiset tiedot. Siinä tapauksessa VW ei yksinkertaisesti valtuuta tätä kolmannen osapuolen asiakasohjelmaa lukemaan ajoneuvoa, eikä sinun puolellasi ole mitään muutettavaa.\n\n**Mitä tehdä:**\n\n1. Avaa virallinen MyVW-sovellus ja vahvista, että Remote Access / Car-Net -tilauksesi on aktiivinen tälle autolle.\n2. Jos se on rauennut, uusi se VW:n kautta ja odota sitten seuraavaa kyselyä.\n\nIntegraatio näyttää edelleen viimeksi välimuistiin tallentamansa tiedot. Tämä varoitus poistuu itsestään heti, kun datapyyntö onnistuu jälleen."
     },
     "vw_na_data_forbidden_attestation": {
       "title": "Volkswagen US/CA: ajoneuvon tiedot estetty VW:n toimesta (laitetodennus)",

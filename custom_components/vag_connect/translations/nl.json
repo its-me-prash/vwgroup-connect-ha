@@ -1810,8 +1810,8 @@
       "title": "{brand}-opdrachten geblokkeerd door VW (apparaat-attestatie) — {count} opeenvolgende 403-fouten"
     },
     "vw_na_data_forbidden": {
-      "title": "Volkswagen US/CA: voertuiggegevens geblokkeerd (abonnement)",
-      "description": "Je Volkswagen-account is ingelogd en je garage is gelezen, maar de gegevensverzoeken per voertuig (status, laden, klimaat) worden geweigerd met HTTP 403 Forbidden.\n\nDe meest voorkomende oorzaak is een **inactief Car-Net-/VW Connect-abonnement** voor dit voertuig. Dezelfde gegevens zouden weer binnenkomen zodra het abonnement wordt verlengd.\n\n**Wat te doen:**\n\n1. Open de officiële MyVW-app en controleer of je Remote Access-/Car-Net-abonnement actief is voor deze auto.\n2. Is het verlopen, verleng het dan via VW en wacht op de volgende uitlezing.\n\nDe integratie blijft de laatst opgeslagen gegevens tonen. Deze waarschuwing verdwijnt vanzelf zodra een gegevensverzoek weer slaagt."
+      "title": "Volkswagen US/CA: voertuiggegevens geblokkeerd (HTTP 403)",
+      "description": "Je Volkswagen-account is ingelogd en je garage is gelezen, maar de gegevensverzoeken per voertuig (status, laden, klimaat) worden geweigerd met HTTP 403 Forbidden.\n\nEen veelvoorkomende oorzaak is een inactief Car-Net-/VW Connect-abonnement. Maar het gebeurt ook wanneer het abonnement actief is en de MyVW-app actuele gegevens toont. In dat geval geeft VW deze externe client simpelweg geen toestemming om het voertuig uit te lezen, en is er aan jouw kant niets te wijzigen.\n\n**Wat te doen:**\n\n1. Open de officiële MyVW-app en controleer of je Remote Access-/Car-Net-abonnement actief is voor deze auto.\n2. Is het verlopen, verleng het dan via VW en wacht op de volgende uitlezing.\n\nDe integratie blijft de laatst opgeslagen gegevens tonen. Deze waarschuwing verdwijnt vanzelf zodra een gegevensverzoek weer slaagt."
     },
     "vw_na_data_forbidden_attestation": {
       "title": "Volkswagen US/CA: voertuiggegevens geblokkeerd door VW (apparaatattestatie)",

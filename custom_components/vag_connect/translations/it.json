@@ -1810,8 +1810,8 @@
       "title": "Comandi {brand} bloccati da VW (attestazione dispositivo) — {count} errori 403 consecutivi"
     },
     "vw_na_data_forbidden": {
-      "title": "Volkswagen USA/CA: dati del veicolo bloccati (abbonamento)",
-      "description": "Il tuo account Volkswagen ha effettuato l'accesso e il tuo garage è stato letto, ma le richieste di dati per singolo veicolo (stato, ricarica, clima) vengono rifiutate con HTTP 403 Forbidden.\n\nLa causa più comune è un **abbonamento Car-Net / VW Connect inattivo** su questo veicolo. Gli stessi dati tornerebbero a fluire se l'abbonamento viene rinnovato.\n\n**Cosa fare:**\n\n1. Apri l'app ufficiale MyVW e verifica che il tuo abbonamento Remote Access / Car-Net sia attivo per questa auto.\n2. Se è scaduto, rinnovalo tramite VW, poi attendi la prossima interrogazione.\n\nL'integrazione continua a mostrare gli ultimi dati che ha memorizzato. Questo avviso si cancella da solo nel momento in cui una richiesta di dati ha di nuovo successo."
+      "title": "Volkswagen USA/CA: dati del veicolo bloccati (HTTP 403)",
+      "description": "Il tuo account Volkswagen ha effettuato l'accesso e il tuo garage è stato letto, ma le richieste di dati per singolo veicolo (stato, ricarica, clima) vengono rifiutate con HTTP 403 Forbidden.\n\nUna causa comune è un abbonamento Car-Net / VW Connect inattivo. Ma accade anche quando l'abbonamento è attivo e l'app MyVW mostra dati aggiornati. In quel caso VW semplicemente non autorizza questo client di terze parti a leggere il veicolo, e non c'è nulla da cambiare dalla tua parte.\n\n**Cosa fare:**\n\n1. Apri l'app ufficiale MyVW e verifica che il tuo abbonamento Remote Access / Car-Net sia attivo per questa auto.\n2. Se è scaduto, rinnovalo tramite VW, poi attendi la prossima interrogazione.\n\nL'integrazione continua a mostrare gli ultimi dati che ha memorizzato. Questo avviso si cancella da solo nel momento in cui una richiesta di dati ha di nuovo successo."
     },
     "vw_na_data_forbidden_attestation": {
       "title": "Volkswagen USA/CA: dati del veicolo bloccati da VW (attestazione dispositivo)",

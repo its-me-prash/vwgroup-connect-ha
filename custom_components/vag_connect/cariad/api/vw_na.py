@@ -966,6 +966,27 @@ class VWNAClient:
                         )
             _LOGGER.debug("VW NA get_status shapes: climate=%s", _shape(climate))
 
+            # #1082 (jarmbruster74) — one value-safe entitlement fingerprint on
+            # EVERY poll, not just the 403 path below. A non-403 empty/OFFLINE
+            # read (login + garage OK, all reads return {} or non-dicts, no 403)
+            # otherwise leaves zero trace of WHY: whether the S-PIN carnet read
+            # path engaged, which country client/scope was used, and the
+            # privileges outcome. All fields are labels / bools / ints / an HTTP
+            # status — no VIN / UUID / token / username (same bar as the shape
+            # log above and the 403 discriminator below).
+            _priv_fp = privileges if isinstance(privileges, dict) else None
+            _LOGGER.debug(
+                "VW NA read fingerprint: carnet_read=%s client=%s scope=%s "
+                "privileges_status=%s subscription_active=%s "
+                "capabilities_count=%s",
+                carnet_token is not None,
+                getattr(self, "_country", "us").upper(),
+                BRAND_VW_NA.scope,
+                self._last_privileges_status,
+                _priv_fp.get("subscription_active") if _priv_fp else None,
+                _priv_fp.get("capabilities_count") if _priv_fp else None,
+            )
+
         # ── #503 read-path 403 triage + entitlement surfacing ──────────────────
         # login + garage succeed but the per-vehicle reads (rvs / charge /
         # climate) 403. Until now the only signal was the type+numeric-status
@@ -1593,6 +1614,41 @@ class VWNAClient:
             # queued (1) or any other non-terminal value → keep polling in-bound
         return  # bound reached without a terminal outcome → optimistic accept
 
+    async def _lockunlock(self, vin: str, lock: bool) -> None:
+        """PUT ``{lock: bool}`` to LockUnlockService with the carnet token.
+
+        #1082 (fg877khkv8-maker): on a 2023 US ID.4 this returns
+        ``500 INTERNAL_SERVER_ERROR`` from ``LockUnlockService`` while the lock
+        *read* stays healthy (HA shows the correct Locked/Unlocked state). VW's
+        US docs list remote lock/unlock as requiring a newer vehicle software
+        level than some cars ship with, so the write can be refused even though
+        the state reads fine. We can't tell "not provisioned" apart from a real
+        transient 500 from the HTTP layer alone, and the project never hides a
+        control on an unconfirmed 500 (a genuine hiccup must not permanently
+        remove a working button). So keep the control and turn the bare 500 into
+        an actionable message instead, so the failure reads as a likely vehicle
+        capability limit rather than an integration bug worth retrying forever.
+        """
+        uuid = self._vin_to_uuid.get(vin, vin)
+        try:
+            await self._carnet_command(
+                "PUT",
+                f"{self._base}/lockunlock/v1/vehicle/{uuid}",
+                vin,
+                json={"lock": lock},
+            )
+        except APIError as err:
+            if getattr(err, "status", None) == 500:
+                raise VehicleCommandError(
+                    "lock" if lock else "unlock",
+                    "Volkswagen refused the command (HTTP 500 from "
+                    "LockUnlockService). Remote lock/unlock may not be "
+                    "provisioned for this vehicle's software level even though "
+                    "the lock state still reads correctly — a vehicle "
+                    "capability limit, not an integration error.",
+                ) from err
+            raise
+
     async def command_lock(self, vin: str) -> None:
         """NA lock — v2.29.x (sstur/vwapp): PUT ``{lock: true}`` with the
         carnetVehicleToken as Bearer.
@@ -1602,13 +1658,7 @@ class VWNAClient:
         never actuated. VW's own app PUTs ``{lock: boolean}`` to
         ``/lockunlock/v1/vehicle/{uuid}`` with the carnet token as the bearer.
         """
-        uuid = self._vin_to_uuid.get(vin, vin)
-        await self._carnet_command(
-            "PUT",
-            f"{self._base}/lockunlock/v1/vehicle/{uuid}",
-            vin,
-            json={"lock": True},
-        )
+        await self._lockunlock(vin, True)
 
     async def command_unlock(self, vin: str, spin: str = "") -> None:  # noqa: ARG002
         """NA unlock — v2.29.x (sstur/vwapp): PUT ``{lock: false}`` with the
@@ -1620,13 +1670,7 @@ class VWNAClient:
         with an ``X-Spin-Session`` header and ``{"action":"unlock"}`` body never
         actuated (VW ignores the unknown ``action`` field).
         """
-        uuid = self._vin_to_uuid.get(vin, vin)
-        await self._carnet_command(
-            "PUT",
-            f"{self._base}/lockunlock/v1/vehicle/{uuid}",
-            vin,
-            json={"lock": False},
-        )
+        await self._lockunlock(vin, False)
 
     async def command_start_climate(self, vin: str) -> None:
         """NA pre-trip climate start.

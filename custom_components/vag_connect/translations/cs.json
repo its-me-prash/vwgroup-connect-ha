@@ -1810,8 +1810,8 @@
       "title": "Příkazy {brand} zablokovány VW (atestace zařízení) — {count} po sobě jdoucích chyb 403"
     },
     "vw_na_data_forbidden": {
-      "title": "Volkswagen US/CA: data vozidla zablokována (předplatné)",
-      "description": "Vaše konto Volkswagen se přihlásilo a vaše garáž byla načtena, ale požadavky na data jednotlivých vozidel (stav, nabíjení, klimatizace) jsou odmítány s chybou HTTP 403 Forbidden.\n\nNejčastější příčinou je **neaktivní předplatné Car-Net / VW Connect** u tohoto vozidla. Stejná data by začala opět proudít, jakmile se předplatné obnoví.\n\n**Co dělat:**\n\n1. Otevřete oficiální aplikaci MyVW a ověřte, že vaše předplatné Remote Access / Car-Net je pro toto auto aktivní.\n2. Pokud vypršelo, obnovte ho u VW a pak počkejte na další dotaz.\n\nIntegrace dál zobrazuje poslední data uložená v mezipaměti. Toto upozornění zmizí samo, jakmile požadavek na data opět uspěje."
+      "title": "Volkswagen US/CA: data vozidla zablokována (HTTP 403)",
+      "description": "Vaše konto Volkswagen se přihlásilo a vaše garáž byla načtena, ale požadavky na data jednotlivých vozidel (stav, nabíjení, klimatizace) jsou odmítány s chybou HTTP 403 Forbidden.\n\nČastou příčinou je neaktivní předplatné Car-Net / VW Connect. Stává se to ale i v případě, že je předplatné aktivní a aplikace MyVW zobrazuje aktuální data. V takovém případě VW tomuto klientovi třetí strany jednoduše nepovoluje čtení vozidla a na vaší straně není co měnit.\n\n**Co dělat:**\n\n1. Otevřete oficiální aplikaci MyVW a ověřte, že vaše předplatné Remote Access / Car-Net je pro toto auto aktivní.\n2. Pokud vypršelo, obnovte ho u VW a pak počkejte na další dotaz.\n\nIntegrace dál zobrazuje poslední data uložená v mezipaměti. Toto upozornění zmizí samo, jakmile požadavek na data opět uspěje."
     },
     "vw_na_data_forbidden_attestation": {
       "title": "Volkswagen US/CA: data vozidla zablokována ze strany VW (atestace zařízení)",

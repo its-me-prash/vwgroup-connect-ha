@@ -1814,8 +1814,8 @@
       "title": "{brand} commands blocked by VW (device attestation) — {count} consecutive 403 errors"
     },
     "vw_na_data_forbidden": {
-      "title": "Volkswagen US/CA: vehicle data blocked (subscription)",
-      "description": "Your Volkswagen account signed in and your garage was read, but the per-vehicle data requests (status, charging, climate) are being refused with HTTP 403 Forbidden.\n\nThe most common cause is an **inactive Car-Net / VW Connect subscription** on this vehicle. The same data would flow again if the subscription is renewed.\n\n**What to do:**\n\n1. Open the official MyVW app and confirm your Remote Access / Car-Net subscription is active for this car.\n2. If it lapsed, renew it via VW, then wait for the next poll.\n\nThe integration keeps showing the last data it cached. This warning clears by itself the moment a data request succeeds again."
+      "title": "Volkswagen US/CA: vehicle data blocked (HTTP 403)",
+      "description": "Your Volkswagen account signed in and your garage was read, but the per-vehicle data requests (status, charging, climate) are being refused with HTTP 403 Forbidden.\n\nOne common cause is an inactive Car-Net / VW Connect subscription. But it also happens when the subscription is active and the MyVW app shows live data. In that case VW is simply not authorising this third-party client to read the vehicle, and there is nothing to change on your side.\n\n**What to do:**\n\n1. Open the official MyVW app and confirm your Remote Access / Car-Net subscription is active for this car.\n2. If it lapsed, renew it via VW, then wait for the next poll.\n\nThe integration keeps showing the last data it cached. This warning clears by itself the moment a data request succeeds again."
     },
     "vw_na_data_forbidden_attestation": {
       "title": "Volkswagen US/CA: vehicle data blocked by VW (device attestation)",

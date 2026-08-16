@@ -1810,8 +1810,8 @@
       "title": "{brand}-Befehle von VW gesperrt (Geräte-Attestierung) — {count} aufeinanderfolgende 403-Fehler"
     },
     "vw_na_data_forbidden": {
-      "title": "Volkswagen US/CA: Fahrzeugdaten gesperrt (Abonnement)",
-      "description": "Dein Volkswagen-Konto hat sich angemeldet und deine Garage wurde gelesen, aber die fahrzeugbezogenen Datenanfragen (Status, Laden, Klima) werden mit HTTP 403 Forbidden abgewiesen.\n\nDie häufigste Ursache ist ein **inaktives Car-Net-/VW-Connect-Abonnement** für dieses Fahrzeug. Dieselben Daten würden wieder fließen, sobald das Abonnement erneuert wird.\n\n**Was tun:**\n\n1. Öffne die offizielle MyVW-App und prüfe, ob dein Remote-Access-/Car-Net-Abonnement für dieses Auto aktiv ist.\n2. Ist es abgelaufen, erneuere es bei VW und warte dann auf die nächste Abfrage.\n\nDie Integration zeigt weiterhin die zuletzt zwischengespeicherten Daten an. Diese Warnung verschwindet von selbst, sobald eine Datenanfrage wieder erfolgreich ist."
+      "title": "Volkswagen US/CA: Fahrzeugdaten gesperrt (HTTP 403)",
+      "description": "Dein Volkswagen-Konto hat sich angemeldet und deine Garage wurde gelesen, aber die fahrzeugbezogenen Datenanfragen (Status, Laden, Klima) werden mit HTTP 403 Forbidden abgewiesen.\n\nEine häufige Ursache ist ein inaktives Car-Net-/VW-Connect-Abonnement. Es tritt aber auch auf, wenn das Abonnement aktiv ist und die MyVW-App aktuelle Daten zeigt. In dem Fall autorisiert VW diesen Drittanbieter-Client schlicht nicht zum Auslesen des Fahrzeugs, und auf deiner Seite gibt es nichts zu ändern.\n\n**Was tun:**\n\n1. Öffne die offizielle MyVW-App und prüfe, ob dein Remote-Access-/Car-Net-Abonnement für dieses Auto aktiv ist.\n2. Ist es abgelaufen, erneuere es bei VW und warte dann auf die nächste Abfrage.\n\nDie Integration zeigt weiterhin die zuletzt zwischengespeicherten Daten an. Diese Warnung verschwindet von selbst, sobald eine Datenanfrage wieder erfolgreich ist."
     },
     "vw_na_data_forbidden_attestation": {
       "title": "Volkswagen US/CA: Fahrzeugdaten von VW gesperrt (Geräte-Attestierung)",

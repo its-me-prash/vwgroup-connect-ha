@@ -2732,6 +2732,19 @@ def map_dataset_to_vehicle_data(
             str(_bcam_act).upper().endswith("ACTIVATED")
             and "DEACTIVATED" not in str(_bcam_act).upper()
         )
+    # #632 (gr6803 VW ID.7): the headline settings.target_soc is the raw
+    # profile/cell ceiling (reads 100), but when Battery Care is active the car
+    # stops at the lower Battery-Care threshold (80), so the target the user
+    # actually set and sees is whichever binds first. Reconcile to that ceiling.
+    # Gated on care being active and only ever LOWERS a present target, so cars
+    # without Battery Care, or with it off, are untouched — and it never
+    # resurrects a target that was gap-filled from the same threshold above.
+    if (
+        d.battery_care_mode_active
+        and d.battery_care_target_soc_pct is not None
+        and d.target_soc is not None
+    ):
+        d.target_soc = min(d.target_soc, d.battery_care_target_soc_pct)
     # charge_bulk_threshold (% SoC at which charging slows bulk→trickle).
     _cbt = _to_int(first("battery_state_report.charge_bulk_threshold",
                          "charge_bulk_threshold"))
