@@ -67,6 +67,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding, requested 
 - @coreywillwhat
 - @Cruiser1989
 - @crusader85
+- @CupraRaval
 - @cwh58
 - @CyberChris79
 - @D1zz3H
@@ -162,6 +163,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding, requested 
 - @jandebeule
 - @janez78
 - @jangoetz
+- @jarmbruster74
 - @jaybee077
 - @jebeke65
 - @jebissell
@@ -342,6 +344,7 @@ Everyone below has reported an issue or a Vehicle Data Scout finding, requested 
 - @roberttco
 - @rocksandclouds
 - @roeleert
+- @rogie67
 - @RoryH
 - @rudolfsychra-ops
 - @Sacha72
