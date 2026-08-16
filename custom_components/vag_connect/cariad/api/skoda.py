@@ -124,6 +124,38 @@ class SkodaClient(CariadBaseClient):
         # attempted once, carType is learned, then skipped from poll 2 on.
         self._powertrain: dict[str, str] = {}
 
+    @staticmethod
+    def _sub_from_id_token(id_token: str | None) -> str | None:
+        """Decode the ``sub`` claim of an id_token (the account user-id)."""
+        if not isinstance(id_token, str) or not id_token:
+            return None
+        try:
+            import base64  # noqa: PLC0415
+            import json as _json  # noqa: PLC0415
+
+            payload_b64 = id_token.split(".")[1]
+            payload_b64 += "=" * (4 - len(payload_b64) % 4)
+            sub = _json.loads(base64.urlsafe_b64decode(payload_b64)).get("sub")
+            return sub if isinstance(sub, str) and sub else None
+        except Exception:  # noqa: BLE001
+            return None
+
+    @property
+    def user_id(self) -> str | None:
+        """Account user-id for the push channel (MQTT username + topic prefix).
+
+        #602 — ``authenticate()`` captures it on an *interactive* login, but a
+        persisted-token restart never runs that path, so the id was lost and the
+        Škoda push channel silently never armed after a restart (Marco Schmidt,
+        HA Tipps und Tricks Facebook group). Decode the id_token ``sub`` lazily
+        here too, off whatever tokens are loaded, and cache it.
+        """
+        if not self._user_id:
+            self._user_id = self._sub_from_id_token(
+                getattr(getattr(self, "_tokens", None), "id_token", None)
+            )
+        return self._user_id
+
     async def authenticate(self, mfa_code: str | None = None) -> None:
         """Authenticate, then capture the account user-id for the push channel.
 
@@ -140,19 +172,9 @@ class SkodaClient(CariadBaseClient):
         if isinstance(auth_uid, str) and auth_uid:
             self._user_id = auth_uid
             return
-        if self._tokens and self._tokens.id_token:
-            try:
-                import base64  # noqa: PLC0415
-                import json as _json  # noqa: PLC0415
-
-                payload_b64 = self._tokens.id_token.split(".")[1]
-                payload_b64 += "=" * (4 - len(payload_b64) % 4)
-                payload = _json.loads(base64.urlsafe_b64decode(payload_b64))
-                sub = payload.get("sub")
-                if isinstance(sub, str) and sub:
-                    self._user_id = sub
-            except Exception:  # noqa: BLE001
-                _LOGGER.debug("Škoda: could not decode id_token sub claim")
+        self._user_id = self._sub_from_id_token(
+            getattr(self._tokens, "id_token", None)
+        )
 
     async def get_vehicles(self) -> list[str]:
         """Return VINs from Škoda garage."""

@@ -23,6 +23,15 @@ from .presets import (
 )
 
 
+def _rid_matches(node_rid: str | None, sel_rid: str) -> bool:
+    """Match a selector resource-id against a node's, tolerant of the package
+    prefix. Some builds render the full ``com.pkg:id/rangeArcBatterySoc``,
+    others (e.g. plainmad's Mk8 dump, #968) the bare ``rangeArcBatterySoc``."""
+    if not node_rid:
+        return False
+    return node_rid == sel_rid or node_rid.endswith("/" + sel_rid)
+
+
 @dataclass(frozen=True)
 class UiNode:
     """One node of the accessibility tree, flattened to what we match on."""
@@ -95,7 +104,7 @@ def _iter_field_raws(nodes: list[UiNode], sel: FieldSelector) -> Iterator[str]:
     # 1) resource-id — the value is the node's own text.
     if sel.resource_id:
         for n in nodes:
-            if n.resource_id == sel.resource_id:
+            if _rid_matches(n.resource_id, sel.resource_id):
                 v = n.text or n.content_desc
                 if v:
                     yield v
@@ -268,7 +277,7 @@ def find_node_for(nodes: list[UiNode], spec: "ActionSelector") -> UiNode | None:
     candidates: list[UiNode] = []
     for n in nodes:
         hit = False
-        if spec.resource_id and n.resource_id == spec.resource_id:
+        if spec.resource_id and _rid_matches(n.resource_id, spec.resource_id):
             hit = True
         elif spec.content_desc_re and n.content_desc and re.search(
             spec.content_desc_re, n.content_desc, re.I

@@ -199,7 +199,8 @@ _VW = BrandPreset(
             target="battery_soc",
             content_desc_re=(
                 r"(?:Batterie(?:ladung)?|Battery(?:\s*charge(?:\s*level)?|\s*level)?"
-                r"|State of charge|Ladezustand|Ladung)\D*(\d{1,3})\s*%"
+                r"|State of charge|Ladezustand|Ladung)\D*(\d{1,3})\s*"
+                r"(?:%|Prozent|per\s*cent|percent)"
             ),
             label_re=r"^(?:Batterie(?:ladung)?|Battery(?:\s*charge)?|Ladung|Charge|State of charge)$",
             value_from="sibling",
@@ -212,6 +213,9 @@ _VW = BrandPreset(
                 # The app narrates the unit in words, not as a symbol: a real
                 # We Connect 4.2.1 tile reads "Batteriereichweite: 253
                 # Kilometer". Matching only "km" read nothing at all here.
+                # NOTE (#968): a Mk8 on imperial units narrates "14 miles" — not
+                # read here yet; a unit-aware range parse is a follow-up so we
+                # never mislabel miles as km.
                 r"\D*(\d{1,4})\s*(?:km\b|[Kk]ilomet)"
             ),
             label_re=r"^(?:Batteriereichweite|Battery range|Electric range|Reichweite|Range)$",
@@ -264,6 +268,23 @@ _VW = BrandPreset(
                 content_desc_re=r"(?:Batteriereichweite|Battery range|Electric range)",
             ),
             values=(
+                # #968 (plainmad, Mk8 Golf GTE) — on the Mk8 the state-of-charge
+                # and range live on THIS charge-detail sheet, not the overview
+                # (overview shows only the range tile). ``rangeArcBatterySoc``
+                # carries text "Battery 41 %"; the content-desc reads "Battery
+                # charge level: 41 per cent". Range is captured number+unit so
+                # range_km converts imperial. A nav-read reads only its own
+                # values, so SoC/range must be listed here to be seen at all.
+                FieldSelector(
+                    target="battery_soc",
+                    resource_id="rangeArcBatterySoc",
+                    content_desc_re=(
+                        r"(?:Battery charge level|Batterie(?:ladung)?|Ladezustand"
+                        r"|State of charge)\D*(\d{1,3})\s*"
+                        r"(?:%|Prozent|per\s*cent|percent)"
+                    ),
+                    parse="percent",
+                ),
                 FieldSelector(
                     target="target_soc",
                     content_desc_re=(
