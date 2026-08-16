@@ -1039,6 +1039,14 @@ class SkodaClient(CariadBaseClient):
             # this coarse flag is enough to make the switch reflect reality.
             if isinstance(d.climatisation_state, str):
                 d.aux_heating_active = d.climatisation_state == "HEATING_AUXILIARY"
+            # "INVALID" is the AC endpoint's no-valid-state marker (e.g. a
+            # combustion car whose remote-climate data is invalid, or the system
+            # simply off): show the climate-state sensor as unavailable instead of
+            # the raw "INVALID" noise. Done AFTER the active/aux derivation above,
+            # both of which already treat INVALID as not-active. Reported by
+            # Marco Schmidt via the Home Assistant Tipps und Tricks Facebook group.
+            if d.climatisation_state == "INVALID":
+                d.climatisation_state = None
             # v1.10.1 (#58) — safe_float. Skoda firmwares have shipped
             # ``"21,5"`` (locale-comma) on EU accounts at least once.
             d.target_temperature = safe_float(

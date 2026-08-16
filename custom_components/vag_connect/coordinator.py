@@ -1313,6 +1313,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             except Exception:  # noqa: BLE001
                 _LOGGER.debug("test-cohort apply skipped", exc_info=True)
 
+            # Skip vehicles the user has disabled in HA so a deactivated car
+            # stops consuming the daily request budget. Reassigning here means
+            # both the gather and the zip below use the filtered list.
+            vins = self._active_vins(vins)
             # Fetch status for all vehicles
             results = await asyncio.gather(
                 *[self._cariad_client.get_status(vin) for vin in vins],
@@ -3269,6 +3273,32 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 return True
         # Truly unavailable — past tolerance and stale-cache window.
         return False
+
+    def _active_vins(self, vins: list[str]) -> list[str]:
+        """Drop VINs whose HA device the user has disabled, so a deactivated
+        vehicle stops being polled and stops consuming the daily request budget.
+
+        Reported by Marco Schmidt via the Home Assistant Tipps und Tricks
+        Facebook group: he disabled his second car but it kept updating, because
+        disabling a device removes its entities without stopping the coordinator
+        from polling the VIN. A vehicle with no device yet (first run) is always
+        polled; polling resumes automatically when the device is re-enabled.
+        """
+        try:
+            registry = dr.async_get(self.hass)
+        except Exception:  # noqa: BLE001
+            return vins
+        active = [
+            vin
+            for vin in vins
+            if (dev := registry.async_get_device(identifiers={(DOMAIN, vin)})) is None
+            or not isinstance(dev.disabled_by, dr.DeviceEntryDisabler)
+        ]
+        if len(active) != len(vins):
+            _LOGGER.debug(
+                "Skipping %d disabled vehicle(s) this poll", len(vins) - len(active)
+            )
+        return active
 
     # ── Capabilities & feature-state plumbing (Session 2A foundation) ──────
 
