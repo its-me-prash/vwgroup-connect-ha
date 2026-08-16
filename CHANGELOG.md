@@ -40,7 +40,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
-## [Unreleased]
+## [3.2.3] - 2026-08-16 — vw.de survives repeated restarts + SoC recovers after charging a parked car
 
 ### Fixed
 - **The volkswagen.de session survives more than one restart (#966).** The supplementary volkswagen.de channel could resume fine on the first restart and then fail on the second. A host-only sign-in cookie is broadcast to both VW hosts on load; on the next save it came back once per host and the set kept both copies, so the cookie set doubled every cycle (an 11-cookie login became a 22-cookie restore) and the superseded twin overwrote the still-good `identity.vwgroup.io` sign-in cookie — which looks like an expired session but is really the integration clobbering its own cookie. The save now folds a byte-identical broadcast twin, so the set no longer grows and the good cookie survives. Grounded in @Arno-MA-73's exact 11→22 reproduction; also covers the second-restart loop @bobbasli reported in #875.
