@@ -31,9 +31,13 @@ def test_other_fcm_values_match_the_live_apk():
 def test_register_config_receives_project_id_first():
     # FcmRegisterConfig(project_id, app_id, api_key, messaging_sender_id) — the
     # first positional arg must be the slug, or the install URL 404s.
-    from firebase_messaging import FcmRegisterConfig
+    # firebase-messaging is a RUNTIME-only dependency (lazy-imported in the code,
+    # not in the CI test image), so skip when it isn't importable — the
+    # constant-value guards above already lock the fix on every environment.
+    import pytest
 
-    cfg = FcmRegisterConfig(
+    fm = pytest.importorskip("firebase_messaging")
+    cfg = fm.FcmRegisterConfig(
         sm._FCM_PROJECT_ID, sm._FCM_APP_ID, sm._FCM_API_KEY, sm._FCM_SENDER_ID
     )
     assert cfg.project_id == "myskoda-ng"
