@@ -40,6 +40,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [3.2.2] - 2026-08-16 — Diagnostics say why a push channel didn't connect
+
+### Added
+- **A push channel that won't connect now says why in the diagnostics.** When a cloud-push channel shows up as `tripped` / `reconnecting` in the diagnostics dump, it was impossible to tell *why* without digging the WARNING line out of the Home Assistant log — the export only carried the state, not the reason. The circuit-breaker now remembers a value-safe reason for the last failed connect (the error type plus a short message, never a token), and it's exported as `push_last_errors` alongside `push_states`. So a Škoda MQTT channel that trips because the broker refused the credentials, or because the FCM registration failed, now says so right in the diagnostics. Prompted by Marco Schmidt's push testing via the Home Assistant *Tipps und Tricks* Facebook group.
+
 ## [3.2.1] - 2026-08-16 — Škoda Standheizung back + push user-id from the right place
 
 ### Fixed
