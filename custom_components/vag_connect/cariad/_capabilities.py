@@ -44,7 +44,11 @@ from typing import Final
 # When a row is missing from a brand's table, ``command_capability_supported``
 # returns ``None`` (= unknown, don't filter). That's the safe default —
 # Phase 2's runtime filter catches missing capabilities post-failure.
-CAPABILITY_MAP: Final[dict[str, dict[str, str]]] = {
+# A value may be a single cap-id or a tuple of platform-variant ids (Škoda
+# charging = CHARGING/CHARGING_MEB, lock = ACCESS/ACCESS_WITHOUT_SPIN, …);
+# ``cap_id_for`` returns it as-is and ``command_capability_supported`` matches
+# a tuple with "supported if the car advertises ANY".
+CAPABILITY_MAP: Final[dict[str, dict[str, "str | tuple[str, ...]"]]] = {
     # ─────────────────────────────────────────────────────────────────
     # VW EU CARIAD-BFF — capabilities endpoint:
     #   GET /vehicle/v1/vehicles/{vin}/capabilities
@@ -145,29 +149,30 @@ CAPABILITY_MAP: Final[dict[str, dict[str, str]]] = {
     # optional "status" array. See vehicle_supports_capability for the
     # schema-compatibility logic.
     # ─────────────────────────────────────────────────────────────────
+    # ─────────────────────────────────────────────────────────────────
+    # v3.2.1 — the ENTIRE Škoda table is now androguard-verified against the
+    # real MySkoda 8.15.0 ``CapabilityId`` enum (DEX class ``Lnj0/b;``, 156
+    # members, dumped from its own <clinit>). The old kebab/camel guesses
+    # (``access`` / ``honk-and-flash`` / ``charging`` / ``departure-timers``)
+    # never match what the garage-doc capability list actually sends, so once
+    # the per-VIN cache populates ``vehicle_supports_capability`` reported them
+    # "absent" (False) and hid the control. Every value below is a verbatim
+    # enum member. Where a feature has genuine platform variants, the value is
+    # a tuple → supported if the car advertises ANY (see ``cap_id_for``), so a
+    # variant never wrongly hides a control. Empty cache → None → shown.
+    # ─────────────────────────────────────────────────────────────────
     "skoda": {
-        "command_lock": "access",
-        "command_unlock": "access",
-        # ️ [Inference] — kebab-case Skoda pattern matches OLA convention.
-        # Real Skoda capabilities response not yet captured in a Scout
-        # report; treat as inferred and let Phase 2 catch failures.
-        "command_flash": "honk-and-flash",
-        "command_wake": "vehicleWakeUpTrigger",
-        # v3.2.1 — real mysmob CapabilityId values, androguard-verified against
-        # the 8.15.0 CapabilityId enum (cz.skodaauto.myskoda DEX class Lnj0/b;)
-        # instead of the old inferred kebab guesses. The garage-doc capability
-        # list (get_capabilities) uses these UPPER_SNAKE ids, so the kebab
-        # guesses could never match and — once the cache populated —
-        # vehicle_supports_capability wrongly reported "absent" (False) and hid
-        # the switch. When the list is empty (degraded / 403 accounts) the
-        # lookup is None and the switch is shown anyway (never hide on unknown).
+        "command_lock": ("ACCESS", "ACCESS_WITHOUT_SPIN"),
+        "command_unlock": ("ACCESS", "ACCESS_WITHOUT_SPIN"),
+        "command_flash": "HONK_AND_FLASH",
+        "command_wake": ("VEHICLE_WAKE_UP", "VEHICLE_WAKE_UP_TRIGGER"),
         "command_start_climate": "AIR_CONDITIONING",
         "command_stop_climate": "AIR_CONDITIONING",
-        "command_start_charging": "charging",
-        "command_stop_charging": "charging",
-        "command_set_target_soc": "charging",
-        "command_set_charge_mode": "charging",
-        "command_set_min_soc": "charging",
+        "command_start_charging": ("CHARGING", "CHARGING_MEB"),
+        "command_stop_charging": ("CHARGING", "CHARGING_MEB"),
+        "command_set_target_soc": ("CHARGING", "CHARGING_MEB"),
+        "command_set_charge_mode": ("CHARGING", "CHARGING_MEB"),
+        "command_set_min_soc": ("CHARGING", "CHARGING_MEB"),
         "command_start_window_heating": "WINDOW_HEATING",
         "command_stop_window_heating": "WINDOW_HEATING",
         "command_set_climate_temperature": "AIR_CONDITIONING",
@@ -175,26 +180,24 @@ CAPABILITY_MAP: Final[dict[str, dict[str, str]]] = {
         "command_start_aux_heating": "AUXILIARY_HEATING",
         "command_stop_aux_heating": "AUXILIARY_HEATING",
         "command_start_active_ventilation": "ACTIVE_VENTILATION",
-        # NOTE: charging / access / wake ids below stay inferred (kebab) until a
-        # live populated capabilities sample confirms the exact enum value —
-        # CHARGING vs CHARGING_MEB differs by platform, so we do NOT guess here
-        # (a wrong guess would hide charging on MEB Škodas once a cache lands).
-        "command_set_departure_timer": "departure-timers",
-        # v1.15.0 — Skoda Modernization. New cap-ids observed in
-        # ``skodaconnect/myskoda`` PRs #533/#540/#541/#543/#557/#560
-        # (merged 2026-03 → 2026-04). These are READ-only / metadata
-        # capabilities — no command bindings yet, just registered so
-        # Phase 3's ``vehicle_supports_capability`` can answer cleanly
-        # for whichever entities we add later (driving-score sensors,
-        # OTA binary-sensor, charging-history sensor, etc.).
-        "command_software_update": "VEHICLE_HEALTH_INSPECTION",  # OTA via vhi
-        "command_charging_history": "CHARGING",                  # umbrella cap
-        "command_charging_profiles": "EXTENDED_CHARGING_SETTINGS",
-        "command_driving_score": "DRIVING_SCORE",
-        "command_readiness": "READINESS",
+        "command_set_departure_timer": "DEPARTURE_TIMERS",
+        # Read-only / metadata capabilities (no command binding yet — registered
+        # so vehicle_supports_capability answers cleanly for future entities).
+        # Every id verified present in the 8.15.0 enum. ``command_readiness``
+        # was dropped: no ``READINESS`` member exists — it was a pure guess, and
+        # leaving it would hide a future readiness entity the moment a cache
+        # lands. Re-add it only when the real id is grounded.
+        "command_charging_history": ("CHARGING", "CHARGING_MEB"),
+        "command_charging_profiles": ("CHARGING_PROFILES", "EXTENDED_CHARGING_SETTINGS"),
+        "command_driving_score": "DRIVING_SCORE_WITH_BONUS",
         "command_plug_and_charge": "PLUG_AND_CHARGE",
         "command_route_planning": "EV_ROUTE_PLANNING",
         "command_battery_charging_care": "BATTERY_CHARGING_CARE",
+        # OTA software update: the enum carries both ONLINE_REMOTE_UPDATE (the
+        # OTA channel) and VEHICLE_HEALTH_INSPECTION (a service check). Which one
+        # gates the OTA entity isn't grounded from a live sample yet, so accept
+        # either rather than guess one and risk hiding it.
+        "command_software_update": ("ONLINE_REMOTE_UPDATE", "VEHICLE_HEALTH_INSPECTION"),
     },
     # ─────────────────────────────────────────────────────────────────
     # VW NA + Porsche — different backends, capabilities not yet
@@ -222,8 +225,15 @@ CAPABILITY_MAP["audi"]["command_engine_start"] = "engineRemoteStart"
 CAPABILITY_MAP["audi"]["command_engine_stop"] = "engineRemoteStart"
 
 
-def cap_id_for(brand: str, command_id: str) -> str | None:
+def cap_id_for(brand: str, command_id: str) -> str | tuple[str, ...] | None:
     """Return the brand-specific capability-id for a command, or None.
+
+    A **tuple** means the feature is advertised under any of several
+    platform-variant ids (e.g. Škoda charging = ``CHARGING`` on classic cars,
+    ``CHARGING_MEB`` on MEB EVs; lock = ``ACCESS`` / ``ACCESS_WITHOUT_SPIN``).
+    ``command_capability_supported`` treats a tuple as "supported if the car
+    advertises ANY of them", so a real platform variant never wrongly hides a
+    control.
 
     None means the command-id has no registered capability mapping for
     this brand. Phase 3 in the platform setup interprets this as "don't

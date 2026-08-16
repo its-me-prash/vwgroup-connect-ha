@@ -3578,6 +3578,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         cap_id = cap_id_for(brand, command_id) if brand else None
         if cap_id is None:
             return None
+        if isinstance(cap_id, tuple):
+            # First variant that carries a decoded gating reason wins.
+            for c in cap_id:
+                reason = self.capability_gating_reason(vin, c)
+                if reason is not None:
+                    return reason
+            return None
         return self.capability_gating_reason(vin, cap_id)
 
     async def _refresh_mbb_command_capabilities(self) -> None:
@@ -3698,6 +3705,16 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         if cap_id is None:
             # No mapping registered → don't filter (Phase 2 fallback)
             return None
+        if isinstance(cap_id, tuple):
+            # Platform-variant ids (e.g. CHARGING / CHARGING_MEB): supported if
+            # the car advertises ANY. True wins; all-unknown stays None (don't
+            # hide); only an all-explicitly-absent set gates the control off.
+            results = [self.vehicle_supports_capability(vin, c) for c in cap_id]
+            if any(r is True for r in results):
+                return True
+            if all(r is None for r in results):
+                return None
+            return False
         return self.vehicle_supports_capability(vin, cap_id)
 
     # v2.8.0 quick win E — declared vs observed capability snapshot.

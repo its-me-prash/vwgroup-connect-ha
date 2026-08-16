@@ -131,21 +131,21 @@ class TestCommandCapabilitySupported:
         """Skoda mysmob schema: ``active=False`` → not supported."""
         coord = self._coord(
             brand="skoda",
-            capabilities=[{"id": "honk-and-flash", "active": False}],
+            capabilities=[{"id": "HONK_AND_FLASH", "active": False}],
         )
         assert coord.command_capability_supported("VINX", "command_flash") is False
 
     def test_skoda_user_enabled_false_returns_false(self):
         coord = self._coord(
             brand="skoda",
-            capabilities=[{"id": "access", "user-enabled": False}],
+            capabilities=[{"id": "ACCESS", "user-enabled": False}],
         )
         assert coord.command_capability_supported("VINX", "command_lock") is False
 
     def test_skoda_license_issue_returns_false(self):
         coord = self._coord(
             brand="skoda",
-            capabilities=[{"id": "charging", "license-issue": "expired"}],
+            capabilities=[{"id": "CHARGING", "license-issue": "expired"}],
         )
         assert coord.command_capability_supported("VINX", "command_start_charging") is False
 

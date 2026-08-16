@@ -348,12 +348,13 @@ class TestUserIdHashingInScrub:
 class TestSkodaCapabilityMap:
     """v1.15.0 — 8 new Skoda cap-ids registered."""
 
+    # v3.2.1 — values re-grounded against the real 8.15.0 CapabilityId enum
+    # (androguard). Tuples = platform variants matched via "any".
     @pytest.mark.parametrize("command_id,cap_id", [
-        ("command_software_update", "VEHICLE_HEALTH_INSPECTION"),
-        ("command_charging_history", "CHARGING"),
-        ("command_charging_profiles", "EXTENDED_CHARGING_SETTINGS"),
-        ("command_driving_score", "DRIVING_SCORE"),
-        ("command_readiness", "READINESS"),
+        ("command_software_update", ("ONLINE_REMOTE_UPDATE", "VEHICLE_HEALTH_INSPECTION")),
+        ("command_charging_history", ("CHARGING", "CHARGING_MEB")),
+        ("command_charging_profiles", ("CHARGING_PROFILES", "EXTENDED_CHARGING_SETTINGS")),
+        ("command_driving_score", "DRIVING_SCORE_WITH_BONUS"),
         ("command_plug_and_charge", "PLUG_AND_CHARGE"),
         ("command_route_planning", "EV_ROUTE_PLANNING"),
         ("command_battery_charging_care", "BATTERY_CHARGING_CARE"),
@@ -362,11 +363,16 @@ class TestSkodaCapabilityMap:
         from custom_components.vag_connect.cariad._capabilities import cap_id_for
         assert cap_id_for("skoda", command_id) == cap_id
 
-    def test_existing_skoda_caps_unchanged(self):
+    def test_readiness_dropped_no_such_enum_member(self):
+        # There is no READINESS member in the real enum — it was a guess, now
+        # unmapped (None -> never hides a future readiness entity).
         from custom_components.vag_connect.cariad._capabilities import cap_id_for
-        # Sanity: v1.13.0 cap-ids still resolve.
-        assert cap_id_for("skoda", "command_lock") == "access"
-        assert cap_id_for("skoda", "command_flash") == "honk-and-flash"
+        assert cap_id_for("skoda", "command_readiness") is None
+
+    def test_existing_skoda_caps_grounded(self):
+        from custom_components.vag_connect.cariad._capabilities import cap_id_for
+        assert cap_id_for("skoda", "command_lock") == ("ACCESS", "ACCESS_WITHOUT_SPIN")
+        assert cap_id_for("skoda", "command_flash") == "HONK_AND_FLASH"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
