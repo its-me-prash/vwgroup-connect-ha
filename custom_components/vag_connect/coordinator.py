@@ -2375,7 +2375,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             return annotate_provenance(self._primary_channel_name(), primary)
         from .cariad._channel_merge import gather_and_merge  # noqa: PLC0415
         try:
-            return await gather_and_merge(
+            merged = await gather_and_merge(
                 self._primary_channel_name(), primary, suppliers,
             )
         except Exception as err:  # noqa: BLE001
@@ -2386,6 +2386,21 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # Still attribute what we did get — losing provenance exactly when
             # a channel misbehaves is when it's most worth having.
             return annotate_provenance(self._primary_channel_name(), primary)
+        # #966 — the suppliers just ran a vw.de read, which may have silently
+        # refreshed the session and rotated its cookie jar. Persist the rotated
+        # cookies now, after EVERY supplementary read, not only at arm and once at
+        # the end of the poll loop. The setup-time "immediate full read" rotates
+        # the SSO cookie ~3.5 s after arming on a path the post-loop persist never
+        # reaches, so the entry kept the pre-refresh snapshot and the next restart
+        # replayed a superseded SSO cookie -> "SSO session expired" (Arno-MA-73's
+        # v3.2.3 repro). OUTSIDE the merge try + fail-soft so a persistence hiccup
+        # can never discard the merged result; idempotent equality guard no-ops
+        # unless the jar actually moved.
+        try:
+            self._persist_supplementary_cookies()
+        except Exception:  # noqa: BLE001
+            pass
+        return merged
 
     async def _revive_from_supplementary(
         self, vin: str, empty_primary: VehicleData
