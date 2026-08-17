@@ -42,6 +42,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [3.3.0b1] - 2026-08-17 — data-quality beta (SoC arbitration, freshness, cabin temp, scout noise)
+
 ### Changed
 - **Fewer Vehicle Data Scout prompts on the EU Data Act portal.** The portal's "is this field populated" envelope flags (`mileage.is_set`, `hvbatterytemperature.is_set`, `trunk.is_set`, …) no longer prompt a report — they carry no value beyond what a present/absent reading already shows. Surfaced by @Schraube11 (#465) and #1216.
 
