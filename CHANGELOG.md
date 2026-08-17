@@ -42,6 +42,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Changed
+- **Fewer Vehicle Data Scout prompts on the EU Data Act portal.** The portal's "is this field populated" envelope flags (`mileage.is_set`, `hvbatterytemperature.is_set`, `trunk.is_set`, …) no longer prompt a report — they carry no value beyond what a present/absent reading already shows. Surfaced by @Schraube11 (#465) and #1216.
+
 ### Fixed
 - **A stuck, implausible interior temperature is no longer shown (#465).** On the EU Data Act portal a "no reading" placeholder encodes right at the bottom of the temperature range, so it surfaced as a fixed, impossible cabin temperature (a -43.9 °C that never changed). The interior temperature is now kept only when it is physically plausible, so the placeholder reads as unavailable instead of a real -44 °C. Reported by @Schraube11.
 

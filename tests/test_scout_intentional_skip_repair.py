@@ -33,6 +33,14 @@ def test_ownerless_opening_uuids_are_repair_skipped() -> None:
     assert _is_scout_repair_skipped(_f("eu_data_act.open", "true (uuid d5dc7c87)"))
 
 
+def test_is_set_envelope_flags_are_repair_skipped() -> None:
+    # #465/#1216 — every EU-DA `*.is_set` present-flag is envelope metadata; the
+    # leaf match catches them all in one allowlist entry.
+    assert _is_scout_repair_skipped(_f("eu_data_act.mileage.is_set", "true"))
+    assert _is_scout_repair_skipped(_f("eu_data_act.hvbatterytemperature.is_set", "true"))
+    assert _is_scout_repair_skipped(_f("eu_data_act.trunk.is_set", "true"))
+
+
 def test_a_new_opening_uuid_still_raises_the_repair() -> None:
     """Keying on the UUID (not the `open` path) preserves discovery."""
     assert not _is_scout_repair_skipped(_f("eu_data_act.open", "true (uuid deadbeef)"))

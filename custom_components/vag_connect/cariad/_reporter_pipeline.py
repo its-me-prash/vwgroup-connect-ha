@@ -77,8 +77,14 @@ ISSUE_ID_ERROR_REPORTER = "error_reporter_findings"
 # data-suppressed (scope_potential_total is intentionally-unmapped-but-visible per
 # _eu_data_act.py; the ownerless openings are kept Scout-visible per #1100).
 # Spam so far: scope_potential_total → #1151/#1156/#1164/#1166/#1167;
-#              c0bb1348/d5dc7c87 → #1140/#1149/#1152/#1161/#1168.
-_SCOUT_REPAIR_SKIP_LEAVES: frozenset[str] = frozenset({"scope_potential_total"})
+#              c0bb1348/d5dc7c87 → #1140/#1149/#1152/#1161/#1168;
+#              *.is_set → #465/#1216 (and every EU-DA portal car).
+# ``is_set`` is the EU-DA envelope "is this field populated" boolean that rides
+# alongside many fields (mileage.is_set, hvbatterytemperature.is_set, trunk.is_set
+# …). It carries no value we surface (absence is already ``None``), and the leaf
+# match here catches every ``*.is_set`` in one entry, so no portal car keeps
+# getting prompted to file it. Stays Scout-visible in diagnostics like the rest.
+_SCOUT_REPAIR_SKIP_LEAVES: frozenset[str] = frozenset({"scope_potential_total", "is_set"})
 # Substring match on the (masked) sample: #1100's UUID annotation rides in the
 # value as ``... (uuid c0bb1348)``; keying on the UUID (not the eu_data_act.open
 # PATH) preserves discovery — a genuinely-new opening UUID on the same leaf still
