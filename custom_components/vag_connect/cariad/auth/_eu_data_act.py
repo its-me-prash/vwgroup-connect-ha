@@ -1404,6 +1404,46 @@ def map_dataset_to_vehicle_data(
             )
         return best[3]
 
+    def freshest_by_value(*names: str) -> str | None:
+        """Pick the capture-timestamp field whose VALUE is the newest, not the
+        first in list order (#1218, Lagaff86). These fields ARE timestamps, so a
+        packet that mixes subreports from different capture times — a fresh
+        ``car_captured_time`` next to a much older ``car_captured_utc_timestamp``
+        — must anchor freshness on the newest instant present, or a stale sibling
+        latches ``last_seen_at`` and the car is falsely reported hours/days old
+        (``first()`` took ``utc_timestamp`` first and latched it). Mirrors
+        ``_dataset_captured_ts`` (max of capture values) but scoped to these named
+        fields, with the same sentinel-skip + consume bookkeeping as ``first()``
+        so every present alias is still reclaimed from the Scout. A value that
+        does not parse cannot rank, but is kept as a last-resort fallback so this
+        never returns None where ``first()`` would have found something. NOTE:
+        instants are compared as parsed; a naive-local vs UTC spelling can skew by
+        a few hours, immaterial next to the multi-hour/-day gap this guards."""
+        first_present: str | None = None
+        best_val: str | None = None
+        best_ts = float("-inf")
+        for n in names:
+            if n not in fields:
+                continue
+            val = fields[n]
+            if _is_sentinel(n, val):
+                used.add(n)
+                for other in syn.get(n, frozenset()):
+                    if other in fields:
+                        used.add(other)
+                continue
+            used.add(n)
+            for other in syn.get(n, frozenset()):
+                if other in fields:
+                    used.add(other)
+            if first_present is None:
+                first_present = val
+            ts = _parse_ts(val)
+            if ts is not None and ts > best_ts:
+                best_ts = ts
+                best_val = val
+        return best_val if best_val is not None else first_present
+
     # #1088 (ggfbrkt6mc-max, ID.Buzz) — some cars ship battery_state_report.soc
     # TWICE, and VW stamps the STALE value with the NEWER capture time, so the
     # freshness resolver below picks the wrong one AND contested_fields never
@@ -2497,7 +2537,13 @@ def map_dataset_to_vehicle_data(
     # never marked used, so it resurfaced as a "new field" on every single
     # poll. That is what put profile_state_report.car_captured_time in front
     # of a reporter (#790) for a field we have read since v2.15.1.
-    _cap = first(
+    # #1218 (Lagaff86) — anchor on the FRESHEST capture instant present, not the
+    # first name in this list. A mixed-capture export carries a fresh
+    # car_captured_time next to a stale car_captured_utc_timestamp; first() latched
+    # the stale one and reported the feed ~91 h old while same-day captures were
+    # right there. freshest_by_value() takes the newest value (same log-reordering
+    # quirk family as the #465 SoC work).
+    _cap = freshest_by_value(
         "car_captured_utc_timestamp", "car_captured_time", "instrument_cluster_time",
         "profile_state_report.car_captured_utc_timestamp",
         "profile_state_report.car_captured_time",
