@@ -40,7 +40,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
-## [Unreleased]
+## [3.2.4] - 2026-08-17 — vw.de session persists across every refresh
 
 ### Changed
 - **Quieter Vehicle Data Scout on Audi.** The Audi charge-care request queue (`batteryChargingCare.chargingCareSettings.requests`) is internal metadata alongside the already-handled charge-care feature, so it no longer trips the Scout. Reported by @lexathon (#1214).
