@@ -93,23 +93,11 @@ def test_guard_follows_closest_to_last_unchanged() -> None:
     assert _soc({"battery_soc": 60}, {"battery_soc": 50, **_contest(50, 65)}) == 65
 
 
-# ── charge-aware: charged without driving (v3.2.2, Fishermanjb re-test) ───────
-
-def test_charged_without_driving_prefers_the_higher_value() -> None:
-    """Fishermanjb's v3.2.0 diag verbatim: plugged, charged 94→99, did NOT drive.
-    The energy ratio (67.45/73.45 ≈ 92 %) lagged the charge and sat nearer 94, so
-    the old step-1 latched 94. Plugged + odometer-unchanged now prefers the
-    post-charge 99 (charging can only raise SoC; driving is ruled out)."""
-    assert _soc(
-        {"battery_soc": 94, "odometer_km": 48768},
-        {"battery_soc": 94, **_contest(94, 99), "odometer_km": 48768,
-         "charging_state": "READY_FOR_CHARGING",
-         "battery_available_kwh": 67.45, "battery_cap_kwh": 73.45},
-    ) == 99
-
+# ── actively charging: SoC can only rise ─────────────────────────────────────
 
 def test_is_charging_true_prefers_higher_without_charging_state() -> None:
-    """A live ``is_charging`` is enough on its own (no charging_state string)."""
+    """A live ``is_charging`` is enough on its own (no charging_state string):
+    charging can only raise SoC, so the higher contested candidate is the fresh one."""
     assert _soc(
         {"battery_soc": 50, "odometer_km": 100},
         {"battery_soc": 50, **_contest(50, 62), "odometer_km": 100,
@@ -118,8 +106,9 @@ def test_is_charging_true_prefers_higher_without_charging_state() -> None:
 
 
 def test_unplugged_parked_car_does_not_prefer_higher() -> None:
-    """Guard: odometer unchanged but NOT plugged (charging_state 'off') → the rule
-    must NOT jump to the higher twin — the v2.29.0 spurious-twin guard still wins."""
+    """Guard: a parked car, not charging, no energy evidence → a spurious high twin
+    must NOT win. Falls back to closest-to-last, so the v2.29.0 spurious-twin guard
+    still holds (94, not the fabricated 99)."""
     assert _soc(
         {"battery_soc": 94, "odometer_km": 48768},
         {"battery_soc": 94, **_contest(94, 99), "odometer_km": 48768,
@@ -127,8 +116,8 @@ def test_unplugged_parked_car_does_not_prefer_higher() -> None:
     ) == 94
 
 
-def test_charge_aware_needs_a_candidate_above_the_frozen_value() -> None:
-    """Plugged + not driven but no candidate exceeds the frozen value → inert."""
+def test_no_energy_and_no_movement_stays_closest_to_last() -> None:
+    """Plugged but no candidate exceeds the frozen value and no energy → inert (94)."""
     assert _soc(
         {"battery_soc": 94, "odometer_km": 48768},
         {"battery_soc": 90, **_contest(90, 94), "odometer_km": 48768,
@@ -136,10 +125,116 @@ def test_charge_aware_needs_a_candidate_above_the_frozen_value() -> None:
     ) == 94
 
 
-def test_charge_aware_needs_a_known_odometer_baseline() -> None:
-    """No previous odometer → cannot prove 'didn't drive' → rule stays inert."""
+def test_no_odometer_baseline_and_no_energy_stays_inert() -> None:
+    """No previous odometer and no energy → no evidence → closest-to-last (94)."""
     assert _soc(
         {"battery_soc": 94},
         {"battery_soc": 94, **_contest(94, 99),
          "charging_state": "READY_FOR_CHARGING"},
+    ) == 94
+
+
+# ── the accepted trade-off: charged-idle with LAGGING energy (transient) ──────
+
+def test_charged_idle_with_lagging_energy_is_a_self_correcting_transient() -> None:
+    """Fishermanjb v3.2.0 verbatim: charged 94→99 without driving, but the energy
+    reading still lagged (67.45/73.45 ≈ 92 %), so NOTHING fresh proves the 99 yet
+    (not contested-vs-energy: |94−92|=2 < 15; not actively charging; odometer flat).
+
+    The old "plugged + not-moved → prefer the higher twin" guessed 99 but was a
+    REGRESSION: a car driven DOWN then parked-and-plugged matches the exact same
+    shape, so it latched the high stale value (Fishermanjb's real .4 below: it would
+    have shown 94 while the car was at ~73). We removed it. We now take the
+    energy-nearest 94 for a poll or two, until ``available_kwh`` catches up to the
+    charge — then the same rule yields 99. A brief transient-low beats a persistent
+    stuck-high."""
+    # while the energy reading still lags the finished charge → energy-nearest 94.
+    assert _soc(
+        {"battery_soc": 94, "odometer_km": 48768},
+        {"battery_soc": 94, **_contest(94, 99), "odometer_km": 48768,
+         "charging_state": "READY_FOR_CHARGING",
+         "battery_available_kwh": 67.45, "battery_cap_kwh": 73.45},
+    ) == 94
+    # once the pack energy reflects the charge (~99 %), the SAME rule yields 99.
+    assert _soc(
+        {"battery_soc": 94, "odometer_km": 48768},
+        {"battery_soc": 94, **_contest(94, 99), "odometer_km": 48768,
+         "charging_state": "READY_FOR_CHARGING",
+         "battery_available_kwh": 72.7, "battery_cap_kwh": 73.45},
+    ) == 99
+
+
+# ── Fishermanjb's REAL diagnostic values (v3.2.3 exports .4 and .5) ───────────
+
+def test_fishermanjb_diag4_contested_drove_down_prefers_energy_73() -> None:
+    """Real .4 export: soc contested ['73','94'], pack energy 49.15/73.35 ≈ 67 %,
+    is_charging False, READY_FOR_CHARGING, odometer unchanged in-poll. He drove the
+    car down; 94 is the stale twin. The stale anchor (94) disagrees with the fresh
+    67 % energy by 27 (≥ 15) → trust the measurement → the nearest candidate, 73.
+    This is exactly the case the removed step-0 got WRONG (it would have kept 94)."""
+    assert _soc(
+        {"battery_soc": 94, "odometer_km": 48768},
+        {"battery_soc": 94, **_contest(73, 94), "odometer_km": 48768,
+         "charging_state": "READY_FOR_CHARGING", "is_charging": False,
+         "battery_available_kwh": 49.15, "battery_cap_kwh": 73.35},
+    ) == 73
+
+
+def test_fishermanjb_diag5_single_stale_soc_uses_energy_68() -> None:
+    """Real .5 export: soc NOT contested (single stale 94), pack energy
+    49.6/73.4 ≈ 67.6 %, is_charging False, NOT_READY_FOR_CHARGING. No candidate list
+    to arbitrate — the single stale value sits 26 above the fresh energy on a
+    not-charging car → the single-value sanity replaces it with round(67.6) = 68."""
+    assert _soc(
+        {"battery_soc": 94, "odometer_km": 48768},
+        {"battery_soc": 94, "odometer_km": 48768,
+         "charging_state": "NOT_READY_FOR_CHARGING", "is_charging": False,
+         "battery_available_kwh": 49.6, "battery_cap_kwh": 73.4},
+    ) == 68
+
+
+# ── single-value sanity: guards against false overrides ───────────────────────
+
+def test_single_value_small_gap_is_left_untouched() -> None:
+    """A normal car: soc 80 with pack energy 78 % (gap 2 < 15) → untouched."""
+    assert _soc(
+        {"battery_soc": 82},
+        {"battery_soc": 80, "battery_available_kwh": 57.3, "battery_cap_kwh": 73.4},
+    ) == 80
+
+
+def test_single_value_soc_below_energy_is_not_overridden() -> None:
+    """Directional guard: soc 60 BELOW energy 80 % (a charge just topped the pack,
+    soc not yet risen) must NOT be dragged UP — energy trails, it does not lead in a
+    way we trust for a single value. Left at the fresh 60."""
+    assert _soc(
+        {"battery_soc": 55},
+        {"battery_soc": 60, "battery_available_kwh": 58.7, "battery_cap_kwh": 73.4},
+    ) == 60
+
+
+def test_single_value_override_skipped_while_charging() -> None:
+    """Charge-lag guard: actively charging, soc 94 fresh over a lagging 60 % energy
+    → the large gap is the normal charge shape, NOT a stale reading → left at 94."""
+    assert _soc(
+        {"battery_soc": 50},
+        {"battery_soc": 94, "is_charging": True, "charging_state": "CHARGING",
+         "battery_available_kwh": 44.0, "battery_cap_kwh": 73.4},
+    ) == 94
+
+
+def test_single_value_override_skipped_when_charging_state_charging() -> None:
+    """Same guard via the charging_state string alone (no is_charging key)."""
+    assert _soc(
+        {"battery_soc": 50},
+        {"battery_soc": 94, "charging_state": "CHARGING",
+         "battery_available_kwh": 44.0, "battery_cap_kwh": 73.4},
+    ) == 94
+
+
+def test_single_value_override_needs_fresh_energy() -> None:
+    """No fresh energy (only a carried-forward previous reading) → no override."""
+    assert _soc(
+        {"battery_soc": 94, "battery_available_kwh": 49.6, "battery_cap_kwh": 73.4},
+        {"battery_soc": 94, "charging_state": "NOT_READY_FOR_CHARGING"},
     ) == 94

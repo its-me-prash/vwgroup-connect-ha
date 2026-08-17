@@ -114,15 +114,32 @@ _CONTESTED_ATTR: dict[str, str] = {
 }
 
 
-# #1195 — charging_state normalises inconsistently across paths ("charging" /
-# "off" / raw "READY_FOR_CHARGING"), so "plugged" is inferred as "not one of the
-# clearly-unplugged states". Deliberately conservative: an ambiguous "off" is
-# treated as NOT plugged so the charge-aware rule never fires on a stable
-# unplugged car (better to under-fire than to wrongly prefer the higher twin).
-_SOC_UNPLUGGED_STATES = frozenset({
-    "", "off", "not_ready_for_charging", "unplugged", "disconnected",
-    "none", "unknown", "error", "invalid",
-})
+# #1195 — the energy-content ratio (battery_available_kwh / battery_cap_kwh) is a
+# DIRECT physical measurement of the pack charge. Across the whole diagnostics
+# archive it tracks battery_soc to ~1 % (p50) / 4.3 % (p75); a gap this large
+# (>= 15 %) only ever appeared on the one car whose SoC latched stale-high, so it
+# is a safe, evidence-grounded threshold for "the SoC reading is wrong, trust the
+# measurement". Below it, normal cars are never touched. (Behavioural signals —
+# GPS, time-of-day, "charges at home" — were considered and rejected: they are
+# proxies that would be strictly worse than this direct measurement, and add
+# state, privacy exposure and failure modes for no gain.)
+_SOC_ENERGY_LARGE_GAP = 15.0
+
+
+def _energy_ratio(fresh: dict[str, Any]) -> float | None:
+    """Fresh pack charge as a 0..100 % ratio, or None. Only ``fresh`` values, so a
+    carried-forward stale energy reading never drives the choice."""
+    avail = fresh.get("battery_available_kwh")
+    cap = fresh.get("battery_cap_kwh")
+    if (
+        isinstance(avail, (int, float)) and not isinstance(avail, bool)
+        and isinstance(cap, (int, float)) and not isinstance(cap, bool)
+        and cap > 0 and avail >= 0
+    ):
+        ratio = avail / cap * 100.0
+        if 0.0 <= ratio <= 100.0:
+            return ratio
+    return None
 
 
 def _resolve_contested_soc(
@@ -133,58 +150,35 @@ def _resolve_contested_soc(
 ) -> float:
     """Pick the correct value among contested SoC candidates (#1195, Fishermanjb).
 
-    The default "closest to the last-known value" rule LATCHES on a stale reading:
-    once the sensor is stuck on the old value, that value is both the anchor AND a
-    candidate, so it keeps winning and a genuinely changed SoC can never land. We
-    break the tie with independent LIVE evidence instead:
+    "Closest to the last-known value" LATCHES on a stale reading, so we break the
+    tie with the energy-content ratio — a direct, stateless measurement of the
+    pack charge that the archive shows tracks SoC to ~1 %:
 
-    1. **Energy-content ratio** — ``battery_available_kwh / battery_cap_kwh`` is the
-       actual charge in the pack, is not part of the contested set, and is
-       *stateless*, so it can override a stuck latch. Pick the candidate nearest
-       that ratio when it clearly favours one.
-    2. **Change-by-exclusion** — the odometer is monotonic and uncontested, so if
-       it advanced since the last poll the car demonstrably moved and the SoC must
-       have changed; a candidate still equal to the frozen last value is therefore
-       the stale one and is excluded.
-    3. Otherwise fall back to closest-to-last (unchanged behaviour).
-
-    Only ``fresh`` values are consulted, so a carried-forward stale energy/odometer
-    reading never drives the choice.
+    1. **Large disagreement → trust energy.** When the stale anchor disagrees with
+       the fresh energy ratio by >= _SOC_ENERGY_LARGE_GAP the SoC is wrong (driven
+       down, or the portal shipping a stale value) → take the candidate nearest the
+       energy ratio. (The earlier "plugged + not-moved → prefer the higher" step
+       was a regression: a car driven down then parked-and-plugged also matched it,
+       so it wrongly latched the high stale value — Fishermanjb 94 while really ~73.)
+    2. **Actively charging → SoC can only rise** → the higher candidate is real.
+    3. **Energy ratio picks the nearest** on a small, clearly-discriminating gap.
+    4. **Odometer advanced** → drop a candidate still equal to the frozen value.
+    5. Otherwise closest-to-last (unchanged).
     """
-    # 0) charge-aware (#1195, Fishermanjb): a car that demonstrably did NOT move
-    #    (odometer unchanged) but is plugged in can only have GAINED charge —
-    #    driving is the only thing that quickly drops SoC — so when a candidate
-    #    higher than the frozen value exists, that higher one is the post-charge
-    #    reading. This is exactly the case the energy-ratio step below gets WRONG:
-    #    right after a charge the derived ``battery_available_kwh`` still lags the
-    #    old SoC, so the ratio points back at the stale value and latches it. (He
-    #    charged 94→99 without driving; available 67.45/73.45 ≈ 92 % sat nearer 94.)
-    prev_odo = previous.get("odometer_km")
-    fresh_odo = fresh.get("odometer_km")
-    _not_driven = (
-        isinstance(prev_odo, (int, float)) and not isinstance(prev_odo, bool)
-        and isinstance(fresh_odo, (int, float)) and not isinstance(fresh_odo, bool)
-        and fresh_odo <= prev_odo
-    )
-    _cs = str(fresh.get("charging_state") or "").strip().lower()
-    _plugged = bool(fresh.get("is_charging")) or _cs not in _SOC_UNPLUGGED_STATES
-    if _not_driven and _plugged and max(numeric) > old_val:
+    ratio = _energy_ratio(fresh)
+    # 1) energy anchor, large gap → the stale SoC is wrong; trust the measurement.
+    if ratio is not None and abs(old_val - ratio) >= _SOC_ENERGY_LARGE_GAP:
+        return min(numeric, key=lambda v: abs(v - ratio))
+    # 2) actively charging → SoC only rises → the higher candidate is the fresh one.
+    if fresh.get("is_charging") is True and max(numeric) > old_val:
         return max(numeric)
-    # 1) energy-content ratio (only fresh values; must be a plausible 0..100 %).
-    avail = fresh.get("battery_available_kwh")
-    cap = fresh.get("battery_cap_kwh")
-    if (
-        isinstance(avail, (int, float)) and not isinstance(avail, bool)
-        and isinstance(cap, (int, float)) and not isinstance(cap, bool)
-        and cap > 0 and avail >= 0
-    ):
-        ratio = avail / cap * 100.0
-        if 0.0 <= ratio <= 100.0:
-            by_ratio = min(numeric, key=lambda v: abs(v - ratio))
-            others = [v for v in numeric if v != by_ratio]
-            if others and all(abs(by_ratio - ratio) < abs(o - ratio) for o in others):
-                return by_ratio
-    # 2) the car moved (odometer advanced) → a candidate still equal to the frozen
+    # 3) energy ratio picks the nearest candidate when it clearly favours one.
+    if ratio is not None:
+        by_ratio = min(numeric, key=lambda v: abs(v - ratio))
+        others = [v for v in numeric if v != by_ratio]
+        if others and all(abs(by_ratio - ratio) < abs(o - ratio) for o in others):
+            return by_ratio
+    # 4) the car moved (odometer advanced) → a candidate still equal to the frozen
     #    last value is stale; drop it and choose from the rest.
     prev_odo = previous.get("odometer_km")
     fresh_odo = fresh.get("odometer_km")
@@ -196,7 +190,7 @@ def _resolve_contested_soc(
         non_frozen = [v for v in numeric if v != old_val]
         if non_frozen and len(non_frozen) < len(numeric):
             return min(non_frozen, key=lambda v: abs(v - old_val))
-    # 3) unchanged: closest to the last-known value.
+    # 5) unchanged: closest to the last-known value.
     return min(numeric, key=lambda v: abs(v - old_val))
 
 
@@ -274,6 +268,7 @@ def reconcile(
     # all). This ONLY runs where the parser already had to guess, so a reading
     # that was never contested is untouched.
     contested = fresh.get("contested_fields") or {}
+    soc_was_contested = False
     if isinstance(contested, dict):
         for raw_name, candidates in contested.items():
             attr = _CONTESTED_ATTR.get(raw_name)
@@ -291,6 +286,7 @@ def reconcile(
             if len(numeric) < 2:
                 continue
             if attr == "battery_soc":
+                soc_was_contested = True
                 # #1195 — break a stuck-on-stale SoC latch with live evidence
                 # (energy-content ratio / the car having moved), not just
                 # closest-to-last which freezes on the old value.
@@ -311,6 +307,37 @@ def reconcile(
                         int(best_val) if float(old_val).is_integer()
                         and best_val.is_integer() else best_val
                     )
+
+    # #1195 — single-value energy sanity. A battery_soc that was NOT contested this
+    # poll but sits a large margin ABOVE the fresh energy anchor on a car that is
+    # NOT charging is a stale-stuck reading (Fishermanjb .5: soc 94 while the pack
+    # energy is 67.6 %). The archive shows a >= 15 % gap only ever on that one car,
+    # never a normal one. Trust the measurement: round() the ratio — it reads
+    # ~usable/gross, a few % low, still far closer to reality than the stale value.
+    #
+    # Gated deliberately:
+    #   * directional (soc - energy, not abs) — energy TRAILS soc during a charge,
+    #     so a fresh-high soc over a lagging-low energy is the normal charge shape,
+    #     NOT a stale reading; only soc ABOVE energy on a settled car is suspect;
+    #   * not charging — the same charge-lag guard from the other side; and
+    #   * skipped when soc was already contest-resolved above (that path has the
+    #     candidate list and its own, richer evidence).
+    if not soc_was_contested:
+        _soc = merged.get("battery_soc")
+        _sr = _energy_ratio(fresh)
+        _cs = str(fresh.get("charging_state") or "").strip().upper()
+        _charging = fresh.get("is_charging") is True or _cs == "CHARGING"
+        if (
+            isinstance(_soc, (int, float)) and not isinstance(_soc, bool)
+            and _sr is not None and not _charging
+            and _soc - _sr >= _SOC_ENERGY_LARGE_GAP
+        ):
+            notes.append(
+                f"battery_soc {_soc} sat >= {_SOC_ENERGY_LARGE_GAP:.0f} above the "
+                f"pack energy ({_sr:.0f}%) on a not-charging car; used the "
+                f"energy-derived {round(_sr)}"
+            )
+            merged["battery_soc"] = round(_sr)
 
     for field in MONOTONIC_INCREASING_FIELDS:
         new = merged.get(field)
