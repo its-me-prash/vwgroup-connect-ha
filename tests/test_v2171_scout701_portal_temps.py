@@ -68,9 +68,20 @@ def test_cabin_temperature_no_state_still_accepted() -> None:
 
 
 def test_cabin_temperature_fahrenheit_subrange_converted() -> None:
-    # raw 1461 = -51 °F (dict) → -46.1 °C.
-    d = _map({"in_cabin_temperature.temperature": "1461"})
-    assert d.cabin_temp == -46.1
+    # raw > 1460 = the 0.25 °F alternative sub-range. raw 1937 → 20.0 °C, a
+    # plausible cabin, exercising the Fahrenheit conversion path.
+    d = _map({"in_cabin_temperature.temperature": "1937"})
+    assert d.cabin_temp == 20.0
+
+
+def test_cabin_temperature_implausible_sentinel_screened() -> None:
+    # #465 (Schraube11) — a bottom-of-range sentinel (raw ~21 → -43.9 °C) and the
+    # F-range floor (raw 1461 → -46.1 °C) are physically impossible cabin temps,
+    # so they are screened to None instead of surfacing as a real ~-44 °C.
+    assert _map({"in_cabin_temperature.temperature": "21"}).cabin_temp is None
+    assert _map({"in_cabin_temperature.temperature": "1461"}).cabin_temp is None
+    # a hot but still plausible cabin passes.
+    assert _map({"in_cabin_temperature.temperature": "1060"}).cabin_temp == 60.0
 
 
 def test_cabin_temperature_invalid_state_skipped() -> None:

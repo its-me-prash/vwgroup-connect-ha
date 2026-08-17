@@ -40,6 +40,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [Unreleased]
+
+### Fixed
+- **A stuck, implausible interior temperature is no longer shown (#465).** On the EU Data Act portal a "no reading" placeholder encodes right at the bottom of the temperature range, so it surfaced as a fixed, impossible cabin temperature (a -43.9 °C that never changed). The interior temperature is now kept only when it is physically plausible, so the placeholder reads as unavailable instead of a real -44 °C. Reported by @Schraube11.
+
 ## [3.2.4] - 2026-08-17 — vw.de session persists across every refresh
 
 ### Changed

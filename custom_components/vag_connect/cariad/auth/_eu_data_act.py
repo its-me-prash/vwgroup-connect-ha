@@ -1921,10 +1921,16 @@ def map_dataset_to_vehicle_data(
         not in ("invalid", "error", "measurement_invalid", "not_available")
     ):
         if cabin_t <= 1460:
-            d.cabin_temp = round(cabin_t * 0.1 - 46.0, 1)
+            _ct = round(cabin_t * 0.1 - 46.0, 1)
         else:
-            _cf = ((cabin_t - 1461) * 0.25 - 51.0 - 32.0) * 5.0 / 9.0
-            d.cabin_temp = round(_cf, 1)
+            _ct = round(((cabin_t - 1461) * 0.25 - 51.0 - 32.0) * 5.0 / 9.0, 1)
+        # #465 (Schraube11) — the encoding floor is -46 °C, and a "no reading"
+        # sentinel lands right at the bottom (raw ~21 → -43.9 °C, a value his
+        # cabin never actually reaches and that never changed). Keep the reading
+        # only when it is a physically plausible cabin temperature, so a stuck
+        # bottom-of-range sentinel doesn't surface as a real -44 °C.
+        if -40.0 <= _ct <= 90.0:
+            d.cabin_temp = _ct
 
     # `battery_state_report.charge_target_time` — ISO-8601 ts the pack
     # reaches its charge target (charging analog of climatisation_ready_at).
