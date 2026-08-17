@@ -866,6 +866,15 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             "batteryChargingCare.chargingCareSettings.error.*",
             "charging.chargingCareSettings.error",
             "charging.chargingCareSettings.error.*",
+            # (#1214 lexathon 2026-08-16, Audi) — the charge-care REQUEST
+            # queue: a list of pending charge-care setting changes ("[N items]").
+            # The charge-care feature itself is already surfaced (charging_care_*);
+            # this sibling of .error is internal request-queue metadata, not a new
+            # value to sensor-ise, so expect it (both the container + its items).
+            "batteryChargingCare.chargingCareSettings.requests",
+            "batteryChargingCare.chargingCareSettings.requests.*",
+            "charging.chargingCareSettings.requests",
+            "charging.chargingCareSettings.requests.*",
             # v2.8.2 (#384 moltke69 2026-06-02) — same .error envelope
             # one level deeper for vehicleHealthWarnings.warningLights.
             # Cariad BFF wraps the warningLights value in an error

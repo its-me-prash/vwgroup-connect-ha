@@ -42,6 +42,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Changed
+- **Quieter Vehicle Data Scout on Audi.** The Audi charge-care request queue (`batteryChargingCare.chargingCareSettings.requests`) is internal metadata alongside the already-handled charge-care feature, so it no longer trips the Scout. Reported by @lexathon (#1214).
+
 ### Fixed
 - **The volkswagen.de session now survives a restart even hours later (#966).** v3.2.3 stopped the cookie set from doubling, but the session could still expire shortly after a restart: the rotated cookies were saved when the channel first armed, but the immediate follow-up read a few seconds later silently refreshed the session again and rotated the sign-in cookie without saving it, so a restart replayed the older, already-superseded cookie. The rotated cookies are now saved after every supplementary read, so the persisted session is always the current one. Grounded in @Arno-MA-73's precise v3.2.3 re-test.
 
