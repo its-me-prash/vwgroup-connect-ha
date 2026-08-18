@@ -5,6 +5,16 @@ on:
     tags:
       - "v*"
 
+# Serialise runs for the same tag. A single tag push can occasionally spawn two
+# Release runs; without this they race on "Create Release" (one wins, one fails
+# 422 already-exists) and the loser can leave the release without its
+# vag_connect.zip asset. cancel-in-progress:false lets the second run finish
+# after the first and idempotently update the release (softprops re-uploads the
+# zip) instead of racing.
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
 

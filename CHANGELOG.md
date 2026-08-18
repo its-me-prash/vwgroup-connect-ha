@@ -42,6 +42,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Changed
+- **VW EU Two-Way is now the authoritative data source when it's on, with EU Data Act as a gap-filler.** While two-way is active, the live CARIAD reading wins every field it provides and the EU Data Act portal only fills in fields two-way doesn't offer, so a slower portal export can never overwrite a fresh two-way value with an older one. If two-way drops out (a backend hiccup), the integration now falls back to the EU Data Act portal in the *same* poll instead of freezing on the last value, and resumes on two-way automatically when it recovers. Turning two-way on for a portal-based setup now keeps the portal wired as that gap-filler (and turning two-way back off cleans it up).
+
+### Fixed
+- **Release asset could be missing after a tag.** A single tag push occasionally started two release jobs that raced, and the loser could leave the GitHub release without its `vag_connect.zip`. The release workflow now serialises per tag, so the asset is always attached.
+
 ## [4.0.0b2] - 2026-08-18 — Volkswagen grounding wave (capability foundation + first commands)
 
 _Second 4.0.0 beta. Builds the capabilities-first foundation for the deep VW

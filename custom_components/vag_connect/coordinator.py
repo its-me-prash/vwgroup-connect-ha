@@ -2500,6 +2500,34 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         )
         return merged
 
+    async def _revive_after_hard_failure(self, vin: str) -> "VehicleData | None":
+        """v4.0.0 — when the PRIMARY ``get_status()`` RAISED (a *hard* failure —
+        e.g. the two-way CARIAD-BFF read hit an auth / 5xx / network error), fall
+        back to the read-only supplementary channels so the entry resumes on EU
+        Data Act / vw.de **immediately** instead of freezing on last-known data.
+
+        This closes the asymmetry the soft-empty path already handled: a bare
+        ``no_data`` primary revives via :meth:`_revive_from_supplementary`, but an
+        exception used to skip straight to stale-cache. It is exactly the
+        "two-way fails/drops → EU Data Act immediately resumes" behaviour: the
+        healthy case is untouched (BFF stays authoritative — this only runs when
+        the BFF read raised), and single-channel entries have no suppliers so it
+        is a no-op. Fail-soft: any error → ``None`` and the caller keeps
+        last-known-good exactly as before.
+        """
+        client = self._cariad_client
+        readers = getattr(client, "supplementary_readers", None)
+        if readers is None or not readers(vin):
+            return None
+        try:
+            return await self._revive_from_supplementary(vin, VehicleData(vin=vin))
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "hard-failure supplementary revive failed for %s: %s",
+                mask_vin(vin), err,
+            )
+            return None
+
     async def _poll_loop(self) -> None:
         """Background polling loop — runs independently of HA scheduler.
 
@@ -2569,6 +2597,18 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 if not hasattr(self, "vehicle_last_good_at"):
                     self.vehicle_last_good_at = {}
                 for vin, result in zip(vins, results):
+                    if isinstance(result, Exception):
+                        # v4.0.0 — hard primary failure (e.g. the two-way
+                        # CARIAD-BFF read raised): try the read-only supplementary
+                        # channels BEFORE falling back to stale cache, so a
+                        # two-way outage resumes on EU Data Act / vw.de
+                        # immediately instead of freezing on last-known data.
+                        # Fail-soft + no-op without suppliers; a revived snapshot
+                        # then flows through the normal VehicleData path below
+                        # (reconcile, provenance, entity update).
+                        _revived = await self._revive_after_hard_failure(vin)
+                        if _revived is not None:
+                            result = _revived
                     if isinstance(result, Exception):
                         _LOGGER.debug("Poll failed for %s: %s", mask_vin(vin), result)
                         old = self.vehicles.get(vin, {})
@@ -5113,6 +5153,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # until the next poll tick — data we already had, thrown away.
             refreshed: list[tuple[str, dict[str, Any]]] = []
             for vin, result in zip(vins, results):
+                if isinstance(result, Exception):
+                    # v4.0.0 — hard primary failure on the command-refresh path:
+                    # revive from the read-only supplementary channels (EU Data
+                    # Act / vw.de) so a two-way BFF outage resumes there
+                    # immediately instead of keeping stale data. Fail-soft.
+                    _revived = await self._revive_after_hard_failure(vin)
+                    if _revived is not None:
+                        result = _revived
                 if isinstance(result, Exception):
                     _LOGGER.debug("Refresh failed for %s: %s", mask_vin(vin), result)
                     continue

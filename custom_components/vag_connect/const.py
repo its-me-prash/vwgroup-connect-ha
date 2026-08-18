@@ -84,6 +84,7 @@ CONF_VWEU_TWOWAY_COOKIES      = "vweu_twoway_cookies"      # cached 24h/1yr re-a
 CONF_VWEU_TWOWAY_STORE_PASSWORD = "vweu_twoway_store_password"  # bool: opt-in stored-password auto-confirm fallback
 CONF_VWEU_TWOWAY_EMAIL        = "vweu_twoway_email"        # login email for the headless re-mint
 CONF_VWEU_TWOWAY_PASSWORD     = "vweu_twoway_password"     # login password (opt-in, stored only if user consents)
+CONF_VWEU_TWOWAY_ADDED_EU_PORTAL = "vweu_twoway_added_eu_portal"  # bool: EU-DA supplementary was auto-carried when two-way was enabled (so removal cleans it up)
 CONF_SCAN_INTERVAL            = "scan_interval"
 CONF_ENABLE_REVERSE_GEOCODING = "enable_reverse_geocoding"
 # Optional nameplate NET battery capacity (kWh). VW never reports it and even the

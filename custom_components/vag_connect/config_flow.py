@@ -61,6 +61,7 @@ from .const import (
     CONF_SUPPLEMENTARY_EU_PORTAL,
     CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD,
     CONF_SUPPLEMENTARY_EU_PORTAL_USERNAME,
+    CONF_VWEU_TWOWAY_ADDED_EU_PORTAL,
     CONF_SUPPLEMENTARY_TIBBER,
     CONF_SUPPLEMENTARY_TIBBER_TOKENS,
     CONF_WEBSITE_AUTHPROXY,
@@ -1910,6 +1911,15 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                     CONF_VWEU_TWOWAY_COOKIES,
                 ):
                     new_data.pop(_vk, None)
+                # v4.0.0 — if enabling two-way auto-carried the EU Data Act
+                # portal over as a supplementary gap-filler, remove THAT here so
+                # reverting to EU-DA-primary doesn't leave EU-DA armed twice
+                # (primary + redundant supplementary). Only the auto-carried one
+                # (marker) is touched — a user's own supplementary stays.
+                if new_data.pop(CONF_VWEU_TWOWAY_ADDED_EU_PORTAL, False):
+                    new_data.pop(CONF_SUPPLEMENTARY_EU_PORTAL, None)
+                    new_data.pop(CONF_SUPPLEMENTARY_EU_PORTAL_USERNAME, None)
+                    new_data.pop(CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD, None)
                 self.hass.config_entries.async_update_entry(
                     self._config_entry, data=new_data,
                 )
@@ -2643,21 +2653,46 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                     # yet. Keep the current channel untouched and tell the user.
                     errors["base"] = "vweu_no_bff_data"
                 else:
-                    self.hass.config_entries.async_update_entry(
-                        self._config_entry,
-                        data={
-                            **self._config_entry.data,
-                            CONF_VWEU_DEVICE_GRANT: True,
-                            CONF_VWEU_TWOWAY_TOKENS: {
-                                "access_token": tokens.access_token,
-                                "refresh_token": tokens.refresh_token,
-                                "id_token": tokens.id_token,
-                                "expires_at": tokens.expires_at,
-                                "strategy": "device_grant",
-                            },
-                            CONF_VWEU_TWOWAY_EMAIL: email,
-                            CONF_VWEU_TWOWAY_PASSWORD: password,
+                    _new_data = {
+                        **self._config_entry.data,
+                        CONF_VWEU_DEVICE_GRANT: True,
+                        CONF_VWEU_TWOWAY_TOKENS: {
+                            "access_token": tokens.access_token,
+                            "refresh_token": tokens.refresh_token,
+                            "id_token": tokens.id_token,
+                            "expires_at": tokens.expires_at,
+                            "strategy": "device_grant",
                         },
+                        CONF_VWEU_TWOWAY_EMAIL: email,
+                        CONF_VWEU_TWOWAY_PASSWORD: password,
+                    }
+                    # v4.0.0 — if this entry's PRIMARY read was the EU Data Act
+                    # portal, activating two-way makes device_grant the primary
+                    # and would otherwise silently DROP EU-DA (authenticate() is
+                    # skipped for device_grant, so _eu_portal is never armed).
+                    # Carry EU-DA over as a read-only SUPPLEMENTARY gap-filler
+                    # (same Volkswagen ID the user just authenticated), so it
+                    # keeps filling fields the BFF doesn't provide and the
+                    # hard-failure revive can fall back to it when two-way drops.
+                    # Only when EU-DA was primary and no supplementary portal is
+                    # already configured (never override the user's own choice).
+                    _strategy = (
+                        self._config_entry.data.get("dag_initial_tokens") or {}
+                    ).get("strategy")
+                    if (
+                        _strategy in ("data_act_portal", "device_grant_portal")
+                        and not self._config_entry.data.get(
+                            CONF_SUPPLEMENTARY_EU_PORTAL
+                        )
+                    ):
+                        _new_data[CONF_SUPPLEMENTARY_EU_PORTAL] = True
+                        _new_data[CONF_SUPPLEMENTARY_EU_PORTAL_USERNAME] = email
+                        _new_data[CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD] = password
+                        # marker so removing two-way later also removes THIS
+                        # auto-carried supplementary (not a user's own).
+                        _new_data[CONF_VWEU_TWOWAY_ADDED_EU_PORTAL] = True
+                    self.hass.config_entries.async_update_entry(
+                        self._config_entry, data=_new_data,
                     )
                     self.hass.async_create_task(
                         self.hass.config_entries.async_reload(
