@@ -203,6 +203,7 @@
           "client_id_override": "OAuth client_id override (power users)",
           "eu_data_act_auto_kickoff": "EU Data Act: auto-kickoff Custom Data Request",
           "supplementary_authproxy": "Add a Volkswagen.de read channel (merge extra data)",
+          "vweu_device_grant": "Add VW EU Two-Way — commands + live reads (BETA)",
           "hide_empty_entities": "Hide entities without data",
           "supplementary_eu_portal": "Add an EU Data Act portal read channel",
           "remove_supplementary_authproxy": "Remove the vw.de read channel",
@@ -231,6 +232,7 @@
           "abrp_enable": "Send live telemetry to A Better Routeplanner. Needs both an api_key and a per-vehicle token below. Off = no outbound calls.",
           "abrp_api_key": "A developer/partner key you register with iternio (we don't ship one). Identifies the integration. Never logged.",
           "abrp_user_token": "The 'Generic' token from the ABRP app: Settings -> your car -> Live Data. Never logged.",
+          "vweu_device_grant": "Volkswagen only, BETA. Adds two-way control (lock/unlock, climate, charging) and live CARIAD reads by signing in with your Volkswagen ID. Volkswagen only issues a 1-hour token here, so your password is stored to renew it automatically — it is sent only to Volkswagen's own login server and is never written to logs or diagnostics. If you would rather not store a password, use the read-only channels instead. Ticking this opens the sign-in step.",
           "keep_raw_datasets": "Only useful on the EU Data Act portal channel. When on, the last few raw dataset ZIPs the portal delivers are kept on disk (under .storage, per vehicle and size-capped) so a wrong or missing value can be reproduced from the exact bytes your car sent. These files contain your GPS, VIN and telemetry, so it is off by default; turn it on only while troubleshooting.",
           "test_cohort": "Off by default. Turn this on to let the integration try experimental reads on your car — such as the ongoing attempt to recover GPS location for Volkswagen EU cars — and occasionally show a dismissible notification asking you to share a diagnostics file so a new capability can be confirmed for your model. Everything shared is redacted automatically before it leaves your system: no VIN, GPS, tokens or email is ever included. It is how new features get unlocked for your car and everyone driving the same model, and you can switch it off again at any time."
         }
@@ -257,6 +259,18 @@
         },
         "data_description": {
           "mfa_code": "Code from your email inbox — valid for a few minutes."
+        }
+      },
+      "add_vweu_twoway": {
+        "title": "VW EU Two-Way (commands + live reads, BETA)",
+        "description": "**Experimental, opt-in — Volkswagen only.** Adds two-way control (lock/unlock, climate, charging) and live CARIAD reads by signing in with your Volkswagen ID. Because Volkswagen only issues a 1-hour token on this path, your password is **stored** so the integration can renew it automatically. It is sent only to Volkswagen's own login server and is never written to logs or diagnostics. Prefer not to store a password? Use the read-only channels instead. **Prerequisite:** your Volkswagen ID must be the vehicle's primary user.",
+        "data": {
+          "username": "Email Address",
+          "password": "Password"
+        },
+        "data_description": {
+          "username": "The email of your Volkswagen ID / myVolkswagen account.",
+          "password": "Your Volkswagen ID password. Used only to renew the 1-hour access token against Volkswagen's login server; never logged and redacted from diagnostics."
         }
       },
       "add_portal": {
