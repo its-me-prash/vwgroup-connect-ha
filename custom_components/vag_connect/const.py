@@ -82,6 +82,8 @@ CONF_VWEU_DEVICE_GRANT        = "vweu_device_grant"        # bool: 650d46ca BFF 
 CONF_VWEU_TWOWAY_TOKENS       = "vweu_twoway_tokens"       # dag-shaped dict (strategy=device_grant)
 CONF_VWEU_TWOWAY_COOKIES      = "vweu_twoway_cookies"      # cached 24h/1yr re-auth cookies for silent re-mint
 CONF_VWEU_TWOWAY_STORE_PASSWORD = "vweu_twoway_store_password"  # bool: opt-in stored-password auto-confirm fallback
+CONF_VWEU_TWOWAY_EMAIL        = "vweu_twoway_email"        # login email for the headless re-mint
+CONF_VWEU_TWOWAY_PASSWORD     = "vweu_twoway_password"     # login password (opt-in, stored only if user consents)
 CONF_SCAN_INTERVAL            = "scan_interval"
 CONF_ENABLE_REVERSE_GEOCODING = "enable_reverse_geocoding"
 # Optional nameplate NET battery capacity (kWh). VW never reports it and even the

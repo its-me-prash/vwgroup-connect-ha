@@ -1204,6 +1204,31 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 # up on a subsequent config_flow update.
                 await self._token_storage.save(persisted)
 
+        # VW EU Two-Way (650d46ca): when armed, the modern-BFF device-grant token
+        # is the PRIMARY. Activate it from entry.data on the config_flow reload
+        # (overriding an older primary); once the re-mint has saved a device_grant
+        # token to storage, that fresher one wins on later restarts.
+        from .const import (  # noqa: PLC0415
+            CONF_VWEU_DEVICE_GRANT,
+            CONF_VWEU_TWOWAY_EMAIL,
+            CONF_VWEU_TWOWAY_PASSWORD,
+            CONF_VWEU_TWOWAY_TOKENS,
+        )
+        if self.entry.data.get(CONF_VWEU_DEVICE_GRANT) and (
+            persisted is None
+            or getattr(persisted, "strategy", "") != "device_grant"
+        ):
+            _tw = self.entry.data.get(CONF_VWEU_TWOWAY_TOKENS) or {}
+            if isinstance(_tw, dict) and _tw.get("access_token"):
+                from .cariad.models import TokenSet  # noqa: PLC0415
+                persisted = TokenSet(
+                    access_token=str(_tw.get("access_token", "")),
+                    refresh_token=str(_tw.get("refresh_token", "")),
+                    id_token=str(_tw.get("id_token", "")),
+                    expires_at=float(_tw.get("expires_at", 0.0)),
+                    strategy="device_grant",
+                )
+
         if persisted is not None:
             self._cariad_client.set_persisted_tokens(persisted)
             # v2.15.0 — thread the registered MBB X-Client-Id into the client
@@ -1225,6 +1250,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         if v.strip()
                     ]
                 self._cariad_client._mbb_manual_vins = list(mbb_vins)
+            # VW EU Two-Way (650d46ca): thread the stored credentials so the
+            # base.py re-mint branch can headlessly renew the 1h token.
+            if self.entry.data.get(CONF_VWEU_DEVICE_GRANT):
+                self._cariad_client._vweu_email = self.entry.data.get(
+                    CONF_VWEU_TWOWAY_EMAIL, ""
+                )
+                self._cariad_client._vweu_password = self.entry.data.get(
+                    CONF_VWEU_TWOWAY_PASSWORD, ""
+                )
         # Fire-and-forget save callback — never blocks API path.
         self._cariad_client.on_tokens_changed = self._token_storage.save
 

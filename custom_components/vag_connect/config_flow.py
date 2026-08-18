@@ -1813,6 +1813,8 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
         self._ovw_cookies: list[dict[str, Any]] = []
         self._ovw_username: str = ""
         self._ovw_pending_options: dict[str, Any] = {}
+        # VW EU Two-Way (650d46ca) opt-in: options stashed while the login sub-flow runs
+        self._vweu_pending_options: dict[str, Any] = {}
         # b8/C1 — state for the "add EU Data Act portal read channel" sub-flow.
         self._oportal_pending_options: dict[str, Any] = {}
         # v2.19.0 — state for the "add Tibber read channel" OAuth2 sub-flow.
@@ -1826,6 +1828,8 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
         """Options: scan interval, S-PIN, reverse geocoding opt-in."""
+        from .const import CONF_VWEU_DEVICE_GRANT  # noqa: PLC0415
+
         errors: dict[str, str] = {}
         if user_input is not None:
             # v2.15.5 — ABRP: if the user flipped the master switch on, both
@@ -1867,6 +1871,13 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
             if user_input.pop(CONF_SUPPLEMENTARY_AUTHPROXY, False):
                 self._ovw_pending_options = dict(user_input)
                 return await self.async_step_add_vwde()
+            # VW EU Two-Way (650d46ca): opt-in two-way commands + modern BFF reads
+            # via a headless device-grant login. Ticking it routes to the login
+            # sub-flow; the remaining options are saved when it completes.
+            # Volkswagen-gated on submit; default False = no change.
+            if user_input.pop(CONF_VWEU_DEVICE_GRANT, False):
+                self._vweu_pending_options = dict(user_input)
+                return await self.async_step_add_vweu_twoway()
             # b8/C1 — add the EU Data Act portal as a supplementary read channel
             # (email/pw, no OTP) to fill the reads a command primary (MBB) lacks.
             if user_input.pop(CONF_SUPPLEMENTARY_EU_PORTAL, False):
@@ -2118,6 +2129,13 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                 # gated to volkswagen on submit.
                 vol.Optional(
                     CONF_SUPPLEMENTARY_AUTHPROXY,
+                    default=False,
+                ): _BOOL_SELECTOR,
+                # VW EU Two-Way (650d46ca): opt-in two-way (lock/climate/charge)
+                # + modern CARIAD-BFF reads via a headless device-grant login.
+                # Volkswagen-gated on submit; default False = no change.
+                vol.Optional(
+                    CONF_VWEU_DEVICE_GRANT,
                     default=False,
                 ): _BOOL_SELECTOR,
                 # b8/C1 — opt-in: add the EU Data Act portal as a supplementary
@@ -2537,6 +2555,80 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
             self.hass.config_entries.async_reload(self._config_entry.entry_id)
         )
         return self.async_create_entry(title="", data=self._ovw_pending_options)
+
+    # ── VW EU Two-Way (650d46ca) opt-in sub-flow ────────────────────────────
+
+    async def async_step_add_vweu_twoway(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Collect VW ID credentials and mint a VW EU Two-Way (650d46ca) token via
+        a headless device-grant login (Volkswagen only). The 1h token is
+        non-refreshable, so the login password is stored to re-mint it unattended:
+        an explicit opt-in feature, the password is only ever sent to VW's own
+        identity server and is masked in diagnostics. Persists the token + creds
+        and reloads so the coordinator activates the two-way channel."""
+        from .const import (  # noqa: PLC0415
+            CONF_VWEU_DEVICE_GRANT,
+            CONF_VWEU_TWOWAY_EMAIL,
+            CONF_VWEU_TWOWAY_PASSWORD,
+            CONF_VWEU_TWOWAY_TOKENS,
+        )
+
+        errors: dict[str, str] = {}
+        if self._config_entry.data.get(CONF_BRAND) != "volkswagen":
+            return self.async_abort(reason="not_volkswagen")
+
+        if user_input is not None:
+            email = str(user_input[CONF_USERNAME]).strip()
+            password = str(user_input[CONF_PASSWORD])
+            import aiohttp  # noqa: PLC0415
+
+            from .cariad.auth._vweu_twoway_login import (  # noqa: PLC0415
+                VwEuTwoWayLogin,
+            )
+            from .cariad.exceptions import AuthenticationError  # noqa: PLC0415
+
+            try:
+                async with aiohttp.ClientSession() as session:
+                    tokens = await VwEuTwoWayLogin(session).login(email, password)
+            except AuthenticationError as err:
+                errors["base"] = _map_error(str(err))
+            except Exception:  # noqa: BLE001 — surface any transport hiccup as a retry
+                errors["base"] = "unknown"
+            else:
+                self.hass.config_entries.async_update_entry(
+                    self._config_entry,
+                    data={
+                        **self._config_entry.data,
+                        CONF_VWEU_DEVICE_GRANT: True,
+                        CONF_VWEU_TWOWAY_TOKENS: {
+                            "access_token": tokens.access_token,
+                            "refresh_token": tokens.refresh_token,
+                            "id_token": tokens.id_token,
+                            "expires_at": tokens.expires_at,
+                            "strategy": "device_grant",
+                        },
+                        CONF_VWEU_TWOWAY_EMAIL: email,
+                        CONF_VWEU_TWOWAY_PASSWORD: password,
+                    },
+                )
+                self.hass.async_create_task(
+                    self.hass.config_entries.async_reload(
+                        self._config_entry.entry_id
+                    )
+                )
+                return self.async_create_entry(
+                    title="", data=self._vweu_pending_options
+                )
+
+        return self.async_show_form(
+            step_id="add_vweu_twoway",
+            data_schema=vol.Schema({
+                vol.Required(CONF_USERNAME): _USERNAME_SELECTOR,
+                vol.Required(CONF_PASSWORD): _PASSWORD_SELECTOR,
+            }),
+            errors=errors,
+        )
 
     async def _ovw_begin_login(self, username: str, password: str) -> bool:
         """Drive the vw.de authproxy login; True if an OTP step is needed.
