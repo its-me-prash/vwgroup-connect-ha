@@ -42,6 +42,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.0.0b3] - 2026-08-18 — VW EU Two-Way source priority + auto-fallback
+
+_Third 4.0.0 beta. Makes two-way the authoritative data source when it's on and
+falls back to the EU Data Act portal the instant two-way drops. Includes
+everything from v4.0.0b2 (capability foundation + first commands) and v4.0.0b1
+(VW EU Two-Way)._
+
 ### Changed
 - **VW EU Two-Way is now the authoritative data source when it's on, with EU Data Act as a gap-filler.** While two-way is active, the live CARIAD reading wins every field it provides and the EU Data Act portal only fills in fields two-way doesn't offer, so a slower portal export can never overwrite a fresh two-way value with an older one. If two-way drops out (a backend hiccup), the integration now falls back to the EU Data Act portal in the *same* poll instead of freezing on the last value, and resumes on two-way automatically when it recovers. Turning two-way on for a portal-based setup now keeps the portal wired as that gap-filler (and turning two-way back off cleans it up).
 
