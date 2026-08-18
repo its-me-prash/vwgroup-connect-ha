@@ -36,6 +36,9 @@ from .entity_base import VagConnectEntity, register_dynamic_spawner
 class VagNumberDescription(NumberEntityDescription):
     data_key: str = ""
     condition: str | None = None  # "electric" | "auxheat" | "battery_care" | None
+    # v4.0.0 grounding wave — optional capability-id (or tuple of variants);
+    # None = ungated. See coordinator.read_capability_hidden.
+    capability: "str | tuple[str, ...] | None" = None
 
 
 NUMBER_DESCRIPTIONS: tuple[VagNumberDescription, ...] = (
@@ -202,6 +205,12 @@ async def async_setup_entry(
             if desc.condition == "electric" and not has_battery:
                 continue
             if desc.condition == "auxheat" and not auxheat_supported_brand:
+                continue
+            # v4.0.0 grounding wave — soft capability gate (opt-in via
+            # desc.capability; hidden only on an explicitly-absent cap).
+            if desc.capability is not None and coordinator.read_capability_hidden(
+                vin, desc.capability
+            ):
                 continue
             # v2.18.0 — gate on the READ having produced a value rather than on
             # the brand: every client inherits the command stub from the base

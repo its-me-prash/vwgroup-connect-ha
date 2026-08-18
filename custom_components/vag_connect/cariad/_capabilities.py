@@ -90,6 +90,34 @@ CAPABILITY_MAP: Final[dict[str, dict[str, "str | tuple[str, ...]"]]] = {
         # if the cap row is absent, so vehicles without a published
         # capability still get the entities.
         "command_trip_stats": "tripStatistics",
+        # ── 4.0.0 full-grounding wave (androguard We Connect 4.3.2) ──────
+        # Every cap-id below is a verbatim member of the app's 87-strong
+        # ``Lcom/volkswagen/common/capabilitiesfinder/Capability;`` enum.
+        # New two-way command bindings (client methods + entities land in
+        # the P1 command wave; the cap rows are registered now so the
+        # gate answers cleanly the moment those entities appear):
+        "command_battery_support_toggle": "batterySupport",
+        # battery-care write (the switch/number use these exact command-ids)
+        "command_set_battery_care": "batteryChargingCare",
+        "command_set_battery_care_target": "batteryChargingCare",
+        "command_start_active_ventilation": "activeVentilation",
+        "command_stop_active_ventilation": "activeVentilation",
+        "command_unlock_trunk": "access",
+        # Read-only / metadata cap-ids pre-registered (Škoda-block pattern):
+        # no command binding, but registered so a future capability-gated
+        # read entity resolves cleanly instead of guessing. A tuple accepts
+        # any advertised variant so a platform variant never wrongly hides.
+        "command_battery_health": "batteryHealthState",
+        "command_parking_position": "parkingPosition",
+        "command_warning_lights": "warningLights",
+        "command_theft_warning": "theftWarning",
+        "command_plug_and_charge": "plugAndCharge",
+        "command_charging_profiles": "chargingProfiles",
+        "command_vehicle_health": (
+            "vehicleHealth",
+            "vehicleHealthInspection",
+            "vehicleHealthWarnings",
+        ),
     },
     # ─────────────────────────────────────────────────────────────────
     # Audi inherits VW EU's CARIAD-BFF capabilities (AudiClient(VWEUClient)).

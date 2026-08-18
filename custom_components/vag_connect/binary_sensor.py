@@ -23,6 +23,9 @@ from .entity_base import VagConnectEntity, register_dynamic_spawner
 class VagBinarySensorDescription(BinarySensorEntityDescription):
     data_key: str = ""
     condition: str | None = None
+    # v4.0.0 grounding wave — optional capability-id (or tuple of variants);
+    # None = ungated. See coordinator.read_capability_hidden.
+    capability: "str | tuple[str, ...] | None" = None
 
 
 BINARY_DESCRIPTIONS: tuple[VagBinarySensorDescription, ...] = (
@@ -994,6 +997,12 @@ async def async_setup_entry(
         # 1) Description-driven binary sensors
         for desc in BINARY_DESCRIPTIONS:
             if desc.condition == "electric" and not has_battery:
+                continue
+            # v4.0.0 grounding wave — soft capability gate (opt-in via
+            # desc.capability; hidden only on an explicitly-absent cap).
+            if desc.capability is not None and coordinator.read_capability_hidden(
+                vin, desc.capability
+            ):
                 continue
             # v1.11.0 (#91) — phantom-entity prevention.
             if (

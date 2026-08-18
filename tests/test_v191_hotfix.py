@@ -143,13 +143,48 @@ class TestVWEUWake:
 
     def test_wake_uses_post_command_dispatcher(self):
         """The wake endpoint goes through ``_post_command`` (not bare
-        ``_post``) so its v1 → v2 retry takes effect on 404."""
+        ``_post``) so its v1 → v2 retry takes effect on 404. 4.0.0: the first
+        grounded suffix is ``vehiclewakeuptrigger`` (androguard We Connect
+        4.3.2), not the bare ``vehiclewakeup`` which the app has no resource for."""
         client = _vw_eu_client()
         client._post_command = AsyncMock(return_value=None)
         asyncio.run(client.command_wake("VINX"))
         client._post_command.assert_awaited_once_with(
-            "VINX", "vehiclewakeup", json={}
+            "VINX", "vehiclewakeuptrigger", json={}
         )
+
+    def test_wake_cascades_to_grounded_suffixes_on_404(self):
+        """A per-endpoint 404 on the first grounded suffix advances to the next
+        grounded suffix (access/wakeup), then to the legacy vehiclewakeup, before
+        giving up — so a firmware that only serves one spelling still wakes."""
+        from custom_components.vag_connect.cariad.exceptions import APIError
+
+        client = _vw_eu_client()
+        # trigger 404, access/wakeup 404, legacy vehiclewakeup succeeds
+        client._post_command = AsyncMock(side_effect=[
+            APIError(404, "/v1/vehiclewakeuptrigger", "Not Found"),
+            APIError(404, "/v1/access/wakeup", "Not Found"),
+            None,
+        ])
+        asyncio.run(client.command_wake("VINX"))
+        suffixes = [c.args[1] for c in client._post_command.await_args_list]
+        assert suffixes == ["vehiclewakeuptrigger", "access/wakeup", "vehiclewakeup"]
+
+    def test_wake_wrapper_404_switches_to_mbb_without_trying_all_suffixes(self):
+        """A Cariad-wrapper-404 means the whole car speaks MBB, so we stop
+        trying CARIAD suffixes immediately and switch to the legacy stack."""
+        from custom_components.vag_connect.cariad.exceptions import APIError
+
+        client = _vw_eu_client()
+        client._post_command = AsyncMock(
+            side_effect=APIError(404, "/v1/vehiclewakeuptrigger",
+                                 "Upstream service responded ... retry:true")
+        )
+        client._command_wake_mbb = AsyncMock(return_value=None)
+        asyncio.run(client.command_wake("VINX"))
+        # only the FIRST suffix was tried before switching to MBB
+        assert client._post_command.await_count == 1
+        client._command_wake_mbb.assert_awaited_once_with("VINX")
 
     def test_wake_v1_404_falls_back_to_v2(self):
         """Real path: v1 returns 404, v2 succeeds, VIN flips to v2-active."""

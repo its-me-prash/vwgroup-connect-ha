@@ -42,6 +42,23 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.0.0b2] - 2026-08-18 — Volkswagen grounding wave (capability foundation + first commands)
+
+_Second 4.0.0 beta. Builds the capabilities-first foundation for the deep VW
+grounding (androguard against We Connect 4.3.2) and lands the first grounded
+commands. Carries everything from v4.0.0b1 (VW EU Two-Way) and the v3.3.0b1
+data-quality beta._
+
+### Added
+- **Capability-first foundation for the Volkswagen grounding wave.** Read entities can now be gated on the car's advertised capabilities (not just on whether data is present), using the same capabilities document the command entities already consult. The gate is deliberately soft: a sensor is hidden only when the car's capabilities list is loaded and explicitly says the feature is absent, never when that list is missing or still loading, so nothing that works today can disappear. Grounded against the We Connect app so app-only features (media, maps, web apps) are never turned into entities.
+- **Remote cabin ventilation for Volkswagen & Audi.** The "active ventilation" switch (airing the cabin without heating) now works on VW/Audi, not just Škoda, using the app's grounded `activeventilation/start|stop` commands.
+
+### Fixed
+- **Battery-care mode is now actually settable on Volkswagen & Audi.** The battery-care switch and its target-charge slider appeared but did nothing on VW/Audi (the command was never implemented for the CARIAD backend). They now send the app's real battery-care commands, so preserving the high-voltage battery works from Home Assistant.
+
+### Changed
+- **Vehicle wake now tries the paths the official app actually uses.** Grounding the Volkswagen app showed it wakes the car via `vehiclewakeuptrigger` / `access/wakeup`; the integration now tries those first and keeps the previous path as a fallback, so a car that only accepts the app's spelling wakes reliably instead of silently failing.
+
 ## [4.0.0b1] - 2026-08-18 — VW EU Two-Way (opt-in two-way commands + live CARIAD reads)
 
 _First beta of the 4.0.0 line — the deep Volkswagen grounding wave. b1 lands the

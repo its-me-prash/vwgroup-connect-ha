@@ -35,6 +35,16 @@ _LOGGER = logging.getLogger(__name__)
 
 _BASE = "https://emea.bff.cariad.digital"
 
+# The core set below is the We Connect ``SelectiveStatusJob`` enum (androguard,
+# com.volkswagen.weconnect 4.3.2: ``Lcom/volkswagen/common/utilsmodel/
+# SelectiveStatusJob;`` = 21 members) PLUS ``lvBattery`` + ``tyrePressure``, which
+# the current We Connect app no longer lists but which we keep on purpose: both are
+# grounded (lvBattery parses ``lvBatteryStatus.value.batteryVoltage_V``, #23; tyre
+# came in via cross-brand JOBS2QUERY) and the BFF ignores unknown job tokens, so
+# keeping them is a harmless no-op on firmware that dropped them and still delivers
+# 12V/tyre data on firmware that keeps them. NB: windowHeating / honkAndFlash /
+# batteryHealthState / parkingBrake are NOT selectivestatus jobs — they are their
+# own endpoints; do not add them here.
 _SELECTIVE_STATUS_JOBS = ",".join([
     "access",
     # v2.11.0 (cross-brand upstream audit): activeVentilation job was
@@ -60,7 +70,7 @@ _SELECTIVE_STATUS_JOBS = ",".join([
     # v1.12.0 (#23) — 12V starter battery status. Critical for older
     # vehicles with degrading 12V batteries that cause silent
     # API-no-response weeks before total failure. The CARIAD BFF
-    # publishes voltage + warning state here.
+    # publishes voltage + warning state here on firmware that ships it.
     "lvBattery",
     "measurements",
     # v2.7.0b10 — Audi parity fix. Promoted from _v3_probes.py after
@@ -1207,32 +1217,42 @@ class VWEUClient(CariadBaseClient):
             await self._command_wake_mbb(vin)
             return
 
-        # Step 2: try Cariad-BFF (existing v1→v2 fallback)
-        try:
-            # #752 audit — the BFF resource is all-lowercase 'vehiclewakeup'
-            # (the reference client's proven spelling; the CARIAD BFF is
-            # case-sensitive, cf. the auxiliaryheating fix). camelCase
-            # 'vehicleWakeup' risks a 404 our wrapper mis-reads as "MBB-backed",
-            # wrongly routing every CARIAD car's wake through the legacy stack.
-            await self._post_command(vin, "vehiclewakeup", json={})
-            # Success — mark VIN as Cariad-backed if not already
-            if cached_backend != "cariad":
-                self._mbb_backend_cache.set(vin, "cariad")
-            return
-        except APIError as err:
-            # APIError's message includes body[:200] — use str(err)
-            # for marker detection (no separate .body attribute).
-            body = str(err)
-            if not is_cariad_wrapper_404(body):
-                # Real failure — propagate (could be auth, real
-                # missing endpoint, etc.)
+        # Step 2: try Cariad-BFF (each suffix keeps the v1→v2 fallback).
+        # 4.0.0 grounding (androguard, We Connect 4.3.2): the app has NO bare
+        # 'vehiclewakeup' resource — it wakes via 'vehiclewakeuptrigger' (cap
+        # vehicleWakeUpTrigger) and 'access/wakeup'. We try those grounded
+        # spellings first, then keep the historical all-lowercase 'vehiclewakeup'
+        # (#752 "proven" on the reference client) as a final fallback so no
+        # working car regresses. A per-endpoint 404 advances to the next
+        # spelling; a Cariad-wrapper-404 means the whole car is MBB-backed, so we
+        # stop trying CARIAD suffixes and switch stacks; any other error (auth,
+        # 5xx) or a 404 on the last suffix is a real failure and propagates.
+        _wake_suffixes = ("vehiclewakeuptrigger", "access/wakeup", "vehiclewakeup")
+        for _idx, _suffix in enumerate(_wake_suffixes):
+            try:
+                await self._post_command(vin, _suffix, json={})
+                # Success — mark VIN as Cariad-backed if not already
+                if cached_backend != "cariad":
+                    self._mbb_backend_cache.set(vin, "cariad")
+                return
+            except APIError as err:
+                # APIError's message includes body[:200]; use str(err) for the
+                # wrapper-404 marker detection (no separate .body attribute).
+                if is_cariad_wrapper_404(str(err)):
+                    break  # whole vehicle speaks MBB → switch to the legacy stack
+                if (
+                    getattr(err, "status", None) == 404
+                    and _idx < len(_wake_suffixes) - 1
+                ):
+                    continue  # this spelling isn't served here — try the next
                 raise
-            _LOGGER.info(
-                "VAG wake: Cariad-wrapper-404 for vin ***%s — "
-                "marking as MBB-backed and retrying via legacy path",
-                vin[-6:],
-            )
 
+        # Reached only via the wrapper-404 break: the vehicle is MBB-backed.
+        _LOGGER.info(
+            "VAG wake: Cariad-wrapper-404 for vin ***%s — "
+            "marking as MBB-backed and retrying via legacy path",
+            vin[-6:],
+        )
         # Step 3: detected MBB — cache the flag and retry
         self._mbb_backend_cache.set(vin, "mbb")
         await self._command_wake_mbb(vin)
@@ -2572,6 +2592,52 @@ class VWEUClient(CariadBaseClient):
             command_name="set_charge_mode",
         )
 
+    async def command_set_battery_care(self, vin: str, enabled: bool) -> None:
+        """Toggle battery-care (charging-care) mode on the CARIAD BFF.
+
+        v4.0.0 (androguard We Connect 4.3.2) — the app writes to
+        ``charging/care/settings`` with ``BatteryCareModeRequest`` = the
+        ``batteryCareMode`` enum ``ACTIVATED``/``DEACTIVATED`` (both strings
+        confirmed in the DEX string pool alongside the ``BatteryCareModeRequest``
+        JsonAdapter). Overrides the base ``NotImplementedError`` stub so the
+        VW/Audi ``VagBatteryCareSwitch`` (spawned whenever the car reports a
+        battery-care state) actually toggles instead of raising. No legacy
+        Car-Net equivalent → a durable-MBB entry fails cleanly.
+        """
+        if self._mbb_command_target() is not None:
+            raise VehicleCommandError(
+                "command_set_battery_care",
+                "battery care is not available on the legacy Car-Net two-way "
+                "path — this vehicle uses MBB, which has no battery-care command",
+            )
+        mode = "ACTIVATED" if enabled else "DEACTIVATED"
+        await self._settings_put_with_fallback(
+            vin, "charging/care/settings",
+            put_body={"batteryCareMode": mode},
+            post_body={"batteryCareMode": mode},
+            command_name="set_battery_care",
+        )
+
+    async def command_set_battery_care_target(self, vin: str, target_pct: int) -> None:
+        """Set the battery-care top-charge target on the CARIAD BFF.
+
+        v4.0.0 (androguard) — same ``charging/care/settings`` route, body
+        ``{"batteryCareTargetSOC_pct": <int>}`` (wire-key confirmed in the DEX).
+        Overrides the base stub. MBB has no equivalent → fail cleanly there.
+        """
+        if self._mbb_command_target() is not None:
+            raise VehicleCommandError(
+                "command_set_battery_care_target",
+                "battery care is not available on the legacy Car-Net two-way "
+                "path — this vehicle uses MBB, which has no battery-care command",
+            )
+        await self._settings_put_with_fallback(
+            vin, "charging/care/settings",
+            put_body={"batteryCareTargetSOC_pct": int(target_pct)},
+            post_body={"batteryCareTargetSOC_pct": int(target_pct)},
+            command_name="set_battery_care_target",
+        )
+
     async def command_set_min_soc(self, vin: str, min_soc: int) -> None:
         """Set minimum SoC for PHEV (0–100%).
 
@@ -2633,6 +2699,36 @@ class VWEUClient(CariadBaseClient):
             await _tgt._command_mbb_op(vin, "window_heat_stop")
             return
         await self._post_command(vin, "windowheating/stop", json={})
+
+    async def command_start_active_ventilation(self, vin: str) -> None:
+        """Start cabin active ventilation — airing without heating.
+
+        v4.0.0 (androguard We Connect 4.3.2) — the app POSTs the one-word
+        ``activeventilation/start`` route (cap ``activeVentilation``), empty
+        body, exactly like ``windowheating/start``. ``_post_command`` adds the
+        v1→v2 404 fallback + pendingrequests confirmation. This is a modern
+        CARIAD-BFF feature with no legacy Car-Net equivalent, so a durable-MBB
+        entry fails cleanly rather than leaking its bearer to the BFF.
+        """
+        if self._mbb_command_target() is not None:
+            raise VehicleCommandError(
+                "command_start_active_ventilation",
+                "active ventilation is not available on the legacy Car-Net "
+                "two-way path — this vehicle uses MBB, which has no active "
+                "ventilation command",
+            )
+        await self._post_command(vin, "activeventilation/start", json={})
+
+    async def command_stop_active_ventilation(self, vin: str) -> None:
+        """Stop cabin active ventilation (see ``command_start_active_ventilation``)."""
+        if self._mbb_command_target() is not None:
+            raise VehicleCommandError(
+                "command_stop_active_ventilation",
+                "active ventilation is not available on the legacy Car-Net "
+                "two-way path — this vehicle uses MBB, which has no active "
+                "ventilation command",
+            )
+        await self._post_command(vin, "activeventilation/stop", json={})
 
     # v2.8.0 - Auxiliary heating (Standheizung).
     async def command_start_aux_heating(

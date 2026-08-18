@@ -67,6 +67,11 @@ class VagSensorDescription(SensorEntityDescription):
 
     data_key: str = ""
     condition: str | None = None  # "electric" | "combustion" | None
+    # v4.0.0 grounding wave — optional capability-id (or tuple of platform
+    # variants) that must not be explicitly absent for this sensor to appear.
+    # None = ungated (data-presence only, unchanged). See
+    # coordinator.read_capability_hidden for the soft-gate semantics.
+    capability: "str | tuple[str, ...] | None" = None
     suggested_display_precision: int | None = None
 
 
@@ -3728,6 +3733,15 @@ async def async_setup_entry(
             if desc.condition == "electric" and not has_battery:
                 continue
             if desc.condition == "combustion" and not has_combustion:
+                continue
+            # v4.0.0 grounding wave — soft capability gate. Only descriptions
+            # that opt in via ``desc.capability`` are affected; a sensor is
+            # hidden ONLY when the capabilities document is loaded and the cap
+            # is explicitly absent (unknown/supported keep it). Existing
+            # descriptions leave ``capability`` None → unchanged behaviour.
+            if desc.capability is not None and coordinator.read_capability_hidden(
+                vin, desc.capability
+            ):
                 continue
             # v2.23.1 — de-duplicate the range family on single-energy cars. The
             # parser collapses range_km to the total on any non-hybrid, so on a

@@ -324,12 +324,16 @@ class VagVentilationSwitch(VagConnectEntity, SwitchEntity):
 
 
 class VagActiveVentilationSwitch(VagConnectEntity, SwitchEntity):
-    """Škoda active ventilation — cabin airing without heating.
+    """Cabin active ventilation — airing without heating (Škoda + VW/Audi).
 
-    Distinct from the SEAT/CUPRA VagVentilationSwitch: the Škoda command is
-    ``command_start_active_ventilation`` (v2 air-conditioning route), defined only
-    on SkodaClient. Optimistic state — the Škoda read path never parses
-    ``active_ventilation_state`` — so it's set on dispatch and reverted on failure.
+    Distinct from the SEAT/CUPRA VagVentilationSwitch: the command is
+    ``command_start_active_ventilation``. On Škoda (mysmob v2 air-conditioning
+    route) the read path never parses ``active_ventilation_state`` so the state
+    is optimistic; on VW/Audi (v4.0.0 grounding — CARIAD-BFF
+    ``activeventilation/start|stop``) the selectivestatus parser DOES surface
+    ``active_ventilation_state``, so ``is_on`` reflects the real reading there.
+    Both are gated by cap ``activeVentilation`` / ``ACTIVE_VENTILATION`` + the
+    client owning the method (hasattr), so they never double up.
     """
 
     _attr_translation_key = "active_ventilation_switch"

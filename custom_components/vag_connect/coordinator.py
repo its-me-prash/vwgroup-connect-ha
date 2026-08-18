@@ -3604,6 +3604,29 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # Cache is populated but capability isn't listed — explicit absence.
         return False
 
+    def read_capability_hidden(
+        self, vin: str, capability: "str | tuple[str, ...]"
+    ) -> bool:
+        """Soft capability gate for READ entities (v4.0.0 grounding wave).
+
+        Returns ``True`` only when a capability-tagged read entity should be
+        HIDDEN — i.e. the capabilities document is loaded AND every advertised
+        variant of ``capability`` is explicitly absent/limited (``False``).
+        Unknown (``None`` — no cache / failed prefetch) or supported (``True``)
+        never hides, so a missing or stale capabilities document can never
+        remove a working sensor. A tuple is "supported if the car advertises
+        ANY variant" (mirrors ``cap_id_for`` platform-variant semantics).
+
+        Read platforms consult this ONLY for descriptions that set the optional
+        ``capability`` field; descriptions without it keep the existing
+        data-presence gate untouched (zero behaviour change for current
+        entities).
+        """
+        caps = capability if isinstance(capability, tuple) else (capability,)
+        results = [self.vehicle_supports_capability(vin, c) for c in caps]
+        # Hide only when the doc is loaded and NO variant is supported/unknown.
+        return bool(results) and all(r is False for r in results)
+
     def capability_gating_reason(
         self, vin: str, capability_id: str
     ) -> tuple[str, str] | None:
