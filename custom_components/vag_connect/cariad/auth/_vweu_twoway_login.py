@@ -2,6 +2,11 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """VW EU Two-Way — headless device-grant login for client 650d46ca.
 
+Credit: the ``650d46ca`` VW-EU device-authorization client was first surfaced by
+**magicus** in the volkswagencarnet *VWLoginFlow* (PR #340). We independently
+probed and confirmed it against a live account and re-implemented the flow here
+(never copied), with our own multi-channel + security design. See ATTRIBUTION.md.
+
 650d46ca is a VW-EU app client ("Volkswagen OneApp") that is BOTH
 device-code-mintable AND CARIAD-BFF-whitelisted, so its Bearer drives the modern
 BFF read/command surface in ``vw_eu.py`` directly (strategy ``device_grant``).

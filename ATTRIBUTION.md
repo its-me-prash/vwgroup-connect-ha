@@ -44,8 +44,14 @@ shapes and flows were cross-checked against their sources for grounding:
   portal readers; their read-only design + issue history informed our
   auto-provisioning approach (we create the data request they require by hand).
 - **WeConnect-python**, **CarConnectivity-connector-audi/-volkswagen/-seatcupra**,
-  **volkswagencarnet**, **pycupra**, **evcc** — CARIAD-BFF /
-  MBB / OLA endpoint + `client_id` grounding.
+  **pycupra**, **evcc** — CARIAD-BFF / MBB / OLA endpoint + `client_id` grounding.
+- **volkswagencarnet** — CARIAD-BFF / MBB endpoint grounding, and specifically
+  the *VWLoginFlow* work by contributor **magicus** (PR #340), which first
+  surfaced the `650d46ca` VW-EU device-authorization client. Our opt-in **VW EU
+  Two-Way** channel builds on that discovery: we independently probed and
+  confirmed the client against a live account and re-implemented the login flow
+  (never copied) with our own multi-channel + security design. Credit to magicus
+  for surfacing the device-grant client.
 
 ## 3. Name / trademark
 
