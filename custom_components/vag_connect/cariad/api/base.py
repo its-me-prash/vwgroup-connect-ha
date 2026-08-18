@@ -199,6 +199,12 @@ class CariadBaseClient:
         # every MBB token refresh + VSR read + RLU command (a mismatch 403s).
         # Empty for every non-MBB entry → no behaviour change.
         self._mbb_client_id: str = ""
+        # 2026-08 — VW EU Two-Way (650d46ca): stored credentials for the headless
+        # RE-MINT of the 1h non-refreshable device-grant token. Populated by the
+        # coordinator from entry.data on a VW EU Two-Way entry; empty otherwise
+        # (no behaviour change for any other entry).
+        self._vweu_email: str = ""
+        self._vweu_password: str = ""
         # v2.15.0 — user-supplied VIN(s) for the MBB strategy. The fal-scoped
         # MBB bearer can't list the account garage (usermanagement 403s), so
         # the config flow lets the user enter their VIN(s) directly; these are
@@ -1559,6 +1565,30 @@ class CariadBaseClient:
                     await self._notify_tokens_changed()
                     self.refresh_storm_detected = False
                     return
+
+            # 2026-08 — VW EU Two-Way (650d46ca): the 1h Bearer is NON-refreshable
+            # (public client → refresh 401 invalid_client), so RE-MINT via a fresh
+            # headless device-grant login rather than self._auth.refresh (which
+            # would 401 and route VW to the dead CARIAD BFF). The stored password
+            # drives the login; the shared session's cookie jar carries the 24h
+            # re-auth cookie, so most re-mints take the password-free QUICK route
+            # (silent confirm). On failure the error propagates → coordinator reauth.
+            if (
+                self._tokens
+                and self._tokens.strategy == "device_grant"
+                and self._brand.name == "volkswagen"
+                and self._vweu_password
+            ):
+                from ..auth._vweu_twoway_login import VwEuTwoWayLogin  # noqa: PLC0415
+
+                self._tokens = await VwEuTwoWayLogin(self._session).login(
+                    self._vweu_email, self._vweu_password
+                )
+                await self._notify_tokens_changed()
+                self.account_lock_detected = False
+                self.refresh_storm_detected = False
+                self._lock_history.clear()
+                return
 
             if self._tokens and self._tokens.refresh_token:
                 try:
