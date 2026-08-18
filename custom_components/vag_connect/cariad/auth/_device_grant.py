@@ -578,3 +578,41 @@ def mbb_dag_config(brand_name: str) -> tuple[str, str] | None:
     if brand_name.lower() not in MBB_DAG_BRANDS:
         return None
     return MBB_DAG_CLIENT_ID, MBB_DAG_SCOPE
+
+
+# ── VW EU Two-Way (modern CARIAD BFF) — device-grant client 650d46ca ──────────
+# 2026-08-18 — a VW-EU app client that is BOTH device-code-mintable AND
+# CARIAD-BFF-whitelisted, unlike the DAG-dead app client (a24fba63) and the
+# read-only portal client (9b58543e). Its device-flow Bearer is accepted by
+# ``emea.bff.cariad.digital`` for the full two-way surface (selectivestatus
+# reads + lock/climate/charge commands) that ``cariad/api/vw_eu.py`` already
+# drives. Confirmed LIVE 2026-08-18 on a real VW EU account via a passwordless
+# browser-approve: BFF ``/vehicle/v2/vehicles`` + ``/vehicle/v1/.../capabilities``
+# returned HTTP 200 with command operations (charging.postChargingStart, ...).
+#
+# Two hard differences from the MBB client above:
+#  * NOT exchanged/registered — this is a DIRECT BFF Bearer. The minted token
+#    carries strategy tag ``device_grant`` so vw_eu.py falls through to the BFF
+#    read/command path, NOT the legacy Car-Net VSR/RLU path (which needs the
+#    ``mbb``-aud id_token). So it never touches _mbboauth.
+#  * NOT refreshable — public client, no client_secret → refresh returns
+#    ``401 invalid_client``. The runtime must RE-MINT via a fresh device grant
+#    on expiry (cookie-cached silent confirm, or an opt-in stored password),
+#    NOT ``self._auth.refresh`` (which hits the attestation-walled CARIAD IDK).
+VWEU_DAG_CLIENT_ID = "650d46ca-2475-4384-85c2-6af3bf3d52f1@apps_vw-dilab_com"
+VWEU_DAG_SCOPE = "openid profile badge cars dealers vin offline_access"
+VWEU_DAG_BRANDS = frozenset({"volkswagen"})
+
+
+def vweu_dag_config(brand_name: str) -> tuple[str, str] | None:
+    """``(client_id, scope)`` for the VW EU Two-Way device grant (modern CARIAD
+    BFF, client ``650d46ca``), or ``None`` for brands outside ``VWEU_DAG_BRANDS``.
+
+    Single source of truth for the config flow + the re-mint path. The minted
+    token carries strategy ``device_grant`` so vw_eu.py routes it to the BFF
+    read/command surface. Preferred over the durable-but-Car-Net-only MBB grant
+    (:func:`mbb_dag_config`) for VW EU two-way; MBB stays the fallback.
+    """
+    if brand_name.lower() not in VWEU_DAG_BRANDS:
+        return None
+    return VWEU_DAG_CLIENT_ID, VWEU_DAG_SCOPE

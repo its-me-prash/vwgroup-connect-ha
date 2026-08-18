@@ -72,6 +72,16 @@ CONF_MBB_COMMAND_CHANNEL      = "mbb_command_channel"      # bool: armed?
 CONF_MBB_COMMAND_TOKENS       = "mbb_command_tokens"       # dag-shaped dict (strategy=mbb)
 CONF_MBB_COMMAND_CLIENT_ID    = "mbb_command_client_id"    # registered X-Client-Id
 CONF_MEB_COMMANDS_UNAVAILABLE = "meb_commands_unavailable"  # bool: MEB/ID car, commands requested but impossible
+# 2026-08 — VW EU Two-Way (modern CARIAD BFF) via device-grant client 650d46ca.
+# Its 1h Bearer is BFF-whitelisted for reads+commands (the surface vw_eu.py
+# drives), unlike the DAG-dead app client / read-only portal client. Because the
+# token is NON-refreshable (public client), the runtime RE-MINTS on expiry via a
+# cookie-cached silent device-grant confirm (passwordless default) or an opt-in
+# stored password. MBB (CONF_MBB_COMMAND_*) stays the Car-Net fallback.
+CONF_VWEU_DEVICE_GRANT        = "vweu_device_grant"        # bool: 650d46ca BFF two-way armed?
+CONF_VWEU_TWOWAY_TOKENS       = "vweu_twoway_tokens"       # dag-shaped dict (strategy=device_grant)
+CONF_VWEU_TWOWAY_COOKIES      = "vweu_twoway_cookies"      # cached 24h/1yr re-auth cookies for silent re-mint
+CONF_VWEU_TWOWAY_STORE_PASSWORD = "vweu_twoway_store_password"  # bool: opt-in stored-password auto-confirm fallback
 CONF_SCAN_INTERVAL            = "scan_interval"
 CONF_ENABLE_REVERSE_GEOCODING = "enable_reverse_geocoding"
 # Optional nameplate NET battery capacity (kWh). VW never reports it and even the
