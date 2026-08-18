@@ -214,7 +214,8 @@
           "abrp_user_token": "ABRP-token (per voertuig)",
           "keep_raw_datasets": "Ruwe EU Data Act-datasets bewaren (diagnose)",
           "test_cohort": "Help VW Group Connect verbeteren (opt-in testgroep)",
-          "vweu_device_grant": "Add VW EU Two-Way — commands + live reads (BETA)"
+          "vweu_device_grant": "Add VW EU Two-Way — commands + live reads (BETA)",
+          "remove_vweu_twoway": "Remove VW EU Two-Way (revert to the previous channel)"
         },
         "data_description": {
           "scan_interval": "Hoe vaak gegevens worden opgehaald (minuten). Minimum: 3.",
@@ -298,7 +299,14 @@
       }
     },
     "error": {
-      "abrp_credentials_required": "Om ABRP in te schakelen moet je zowel de api_key als het voertuigtoken invoeren."
+      "abrp_credentials_required": "Om ABRP in te schakelen moet je zowel de api_key als het voertuigtoken invoeren.",
+      "invalid_auth": "Sign-in failed. Check your Volkswagen ID email and password.",
+      "cannot_connect": "Could not reach Volkswagen. Please try again.",
+      "vweu_mfa_unsupported": "This account needs an email or authenticator code, which VW EU Two-Way cannot handle yet. Use the read-only channels instead.",
+      "vweu_no_bff_data": "Signed in, but Volkswagen returned no live data for this car on the modern backend yet, so VW EU Two-Way was not enabled and your current channel is unchanged. Please try again later, or share a diagnostics so we can look into it."
+    },
+    "abort": {
+      "not_volkswagen": "This channel is only available for Volkswagen."
     }
   },
   "entity": {

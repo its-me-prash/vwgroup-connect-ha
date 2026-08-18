@@ -1828,7 +1828,13 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
         """Options: scan interval, S-PIN, reverse geocoding opt-in."""
-        from .const import CONF_VWEU_DEVICE_GRANT  # noqa: PLC0415
+        from .const import (  # noqa: PLC0415
+            CONF_VWEU_DEVICE_GRANT,
+            CONF_VWEU_TWOWAY_COOKIES,
+            CONF_VWEU_TWOWAY_EMAIL,
+            CONF_VWEU_TWOWAY_PASSWORD,
+            CONF_VWEU_TWOWAY_TOKENS,
+        )
 
         errors: dict[str, str] = {}
         if user_input is not None:
@@ -1894,6 +1900,23 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
             # so a stuck/dead/redundant supplementary kept failing every restart
             # with no way to remove it. Ticking a remove-toggle clears it from
             # entry.data + reloads. Shown in the schema only when it's active.
+            # VW EU Two-Way rollback: clear the flag + all stored creds/tokens
+            # and reload; the coordinator then reverts to the normal auth chain.
+            if user_input.pop("remove_vweu_twoway", False):
+                new_data = {**self._config_entry.data}
+                for _vk in (
+                    CONF_VWEU_DEVICE_GRANT, CONF_VWEU_TWOWAY_TOKENS,
+                    CONF_VWEU_TWOWAY_EMAIL, CONF_VWEU_TWOWAY_PASSWORD,
+                    CONF_VWEU_TWOWAY_COOKIES,
+                ):
+                    new_data.pop(_vk, None)
+                self.hass.config_entries.async_update_entry(
+                    self._config_entry, data=new_data,
+                )
+                self.hass.async_create_task(
+                    self.hass.config_entries.async_reload(self._config_entry.entry_id)
+                )
+                return self.async_create_entry(title="", data=dict(user_input))
             remove_web = user_input.pop("remove_supplementary_authproxy", False)
             remove_portal = user_input.pop("remove_supplementary_eu_portal", False)
             remove_tibber = user_input.pop("remove_supplementary_tibber", False)
@@ -2131,13 +2154,6 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                     CONF_SUPPLEMENTARY_AUTHPROXY,
                     default=False,
                 ): _BOOL_SELECTOR,
-                # VW EU Two-Way (650d46ca): opt-in two-way (lock/climate/charge)
-                # + modern CARIAD-BFF reads via a headless device-grant login.
-                # Volkswagen-gated on submit; default False = no change.
-                vol.Optional(
-                    CONF_VWEU_DEVICE_GRANT,
-                    default=False,
-                ): _BOOL_SELECTOR,
                 # b8/C1 — opt-in: add the EU Data Act portal as a supplementary
                 # read channel (email/pw, no OTP) to fill the reads a command
                 # primary (MBB) can't. Default False = no change.
@@ -2169,6 +2185,18 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
             schema[vol.Optional(
                 "remove_supplementary_tibber", default=False,
             )] = _BOOL_SELECTOR
+        # VW EU Two-Way (650d46ca): Volkswagen-only. Show the add-toggle for a VW
+        # entry that has not armed it, and a remove-toggle once armed (so it can
+        # be rolled back without deleting the integration).
+        if current_data.get(CONF_BRAND) == "volkswagen":
+            if current_data.get(CONF_VWEU_DEVICE_GRANT):
+                schema[vol.Optional(
+                    "remove_vweu_twoway", default=False,
+                )] = _BOOL_SELECTOR
+            else:
+                schema[vol.Optional(
+                    CONF_VWEU_DEVICE_GRANT, default=False,
+                )] = _BOOL_SELECTOR
         # v2.17.5 (#759) — one optional S-PIN field per known VIN, shown only
         # when the account has more than one vehicle (each may carry its own
         # S-PIN). Empty leaves that vehicle on the shared CONF_SPIN above; values
@@ -2588,38 +2616,57 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
             )
             from .cariad.exceptions import AuthenticationError  # noqa: PLC0415
 
+            tokens = None
+            serves = False
             try:
                 async with aiohttp.ClientSession() as session:
                     tokens = await VwEuTwoWayLogin(session).login(email, password)
-            except AuthenticationError as err:
-                errors["base"] = _map_error(str(err))
-            except Exception:  # noqa: BLE001 — surface any transport hiccup as a retry
-                errors["base"] = "unknown"
-            else:
-                self.hass.config_entries.async_update_entry(
-                    self._config_entry,
-                    data={
-                        **self._config_entry.data,
-                        CONF_VWEU_DEVICE_GRANT: True,
-                        CONF_VWEU_TWOWAY_TOKENS: {
-                            "access_token": tokens.access_token,
-                            "refresh_token": tokens.refresh_token,
-                            "id_token": tokens.id_token,
-                            "expires_at": tokens.expires_at,
-                            "strategy": "device_grant",
-                        },
-                        CONF_VWEU_TWOWAY_EMAIL: email,
-                        CONF_VWEU_TWOWAY_PASSWORD: password,
-                    },
-                )
-                self.hass.async_create_task(
-                    self.hass.config_entries.async_reload(
-                        self._config_entry.entry_id
+                    # Verify the car actually SERVES data on the modern CARIAD BFF
+                    # before committing — the login can succeed while the car's
+                    # live data still 4103s (not yet provisioned on the modern
+                    # plane). Activating then would swap a working primary for an
+                    # empty one. Per-car, empirical: no assumption about MQB vs MEB.
+                    serves = await self._vweu_bff_serves_data(
+                        session, tokens.access_token
                     )
+            except AuthenticationError as err:
+                msg = str(err)
+                errors["base"] = (
+                    "vweu_mfa_unsupported" if msg.startswith("MFA_UNSUPPORTED")
+                    else "invalid_auth"
                 )
-                return self.async_create_entry(
-                    title="", data=self._vweu_pending_options
-                )
+            except Exception:  # noqa: BLE001 — surface any transport hiccup as a retry
+                errors["base"] = "cannot_connect"
+            if tokens is not None and not errors:
+                if not serves:
+                    # Login worked but the BFF returns no live data for this car
+                    # yet. Keep the current channel untouched and tell the user.
+                    errors["base"] = "vweu_no_bff_data"
+                else:
+                    self.hass.config_entries.async_update_entry(
+                        self._config_entry,
+                        data={
+                            **self._config_entry.data,
+                            CONF_VWEU_DEVICE_GRANT: True,
+                            CONF_VWEU_TWOWAY_TOKENS: {
+                                "access_token": tokens.access_token,
+                                "refresh_token": tokens.refresh_token,
+                                "id_token": tokens.id_token,
+                                "expires_at": tokens.expires_at,
+                                "strategy": "device_grant",
+                            },
+                            CONF_VWEU_TWOWAY_EMAIL: email,
+                            CONF_VWEU_TWOWAY_PASSWORD: password,
+                        },
+                    )
+                    self.hass.async_create_task(
+                        self.hass.config_entries.async_reload(
+                            self._config_entry.entry_id
+                        )
+                    )
+                    return self.async_create_entry(
+                        title="", data=self._vweu_pending_options
+                    )
 
         return self.async_show_form(
             step_id="add_vweu_twoway",
@@ -2629,6 +2676,55 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
             }),
             errors=errors,
         )
+
+    async def _vweu_bff_serves_data(self, session: Any, access_token: str) -> bool:
+        """True if the CARIAD BFF returns real live data (not an all-error 4103)
+        for the first vehicle on this token — i.e. the car is actually usable on
+        the modern plane. Per-car empirical check; makes NO assumption about MQB
+        vs MEB (a properly-provisioned MQB serves data here and passes)."""
+        import aiohttp  # noqa: PLC0415
+
+        base = "https://emea.bff.cariad.digital"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "User-Agent": "Volkswagen/3.61.0-android/14",
+            "Accept": "application/json",
+        }
+        timeout = aiohttp.ClientTimeout(total=20)
+        try:
+            async with session.get(
+                f"{base}/vehicle/v2/vehicles", headers=headers, timeout=timeout,
+            ) as resp:
+                if resp.status != 200:
+                    return False
+                garage = await resp.json(content_type=None)
+            rows = garage.get("data") if isinstance(garage, dict) else None
+            vin = next(
+                (r.get("vin") for r in (rows or [])
+                 if isinstance(r, dict) and r.get("vin")),
+                None,
+            )
+            if not vin:
+                return False
+            async with session.get(
+                f"{base}/vehicle/v1/vehicles/{vin}/selectivestatus",
+                params={"jobs": "access,charging,fuelStatus,measurements"},
+                headers=headers, timeout=timeout,
+            ) as resp2:
+                if resp2.status not in (200, 207):
+                    return False
+                status = await resp2.json(content_type=None)
+        except Exception:  # noqa: BLE001
+            return False
+        # Real data = at least one job sub-block that is NOT an {"error": ...}.
+        if not isinstance(status, dict):
+            return False
+        for job in status.values():
+            if isinstance(job, dict):
+                for sub in job.values():
+                    if isinstance(sub, dict) and "error" not in sub:
+                        return True
+        return False
 
     async def _ovw_begin_login(self, username: str, password: str) -> bool:
         """Drive the vw.de authproxy login; True if an OTP step is needed.

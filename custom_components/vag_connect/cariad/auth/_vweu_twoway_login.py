@@ -142,9 +142,16 @@ class VwEuTwoWayLogin:
             f = _extract_idk(page)
             stage = f.get("template", "")
         if stage != "codeConfirmation":
+            low = stage.lower()
+            if any(k in low for k in
+                   ("mfa", "otp", "authenticator", "verify", "twofactor", "2fa")):
+                raise AuthenticationError(
+                    "MFA_UNSUPPORTED: this Volkswagen account needs an email or "
+                    "authenticator code, which VW EU Two-Way cannot handle yet"
+                )
             raise AuthenticationError(
                 f"VW EU Two-Way login: expected a confirm page, got stage "
-                f"{stage!r} (login likely failed — bad credentials or MFA)"
+                f"{stage!r} (login failed — most likely the wrong password)"
             )
         await self._confirm_device(page, url)
         return await self._poll_token(device_code)
@@ -203,10 +210,16 @@ class VwEuTwoWayLogin:
             raise AuthenticationError(
                 "VW EU Two-Way login: confirm page had no form action"
             )
-        if not action.startswith("http"):
-            from urllib.parse import urljoin  # noqa: PLC0415
+        from urllib.parse import urljoin, urlparse  # noqa: PLC0415
 
+        if not action.startswith("http"):
             action = urljoin(url, action)
+        # Defence-in-depth: the confirm POST carries the authenticated session,
+        # so never follow a scraped form action off VW's own identity host.
+        if urlparse(action).hostname != urlparse(_IDP).hostname:
+            raise AuthenticationError(
+                "VW EU Two-Way login: confirm action pointed off identity.vwgroup.io"
+            )
         body = dict(hidden)
         body["allow"] = ""
         page4, _landed = await self._post_form(action, body)

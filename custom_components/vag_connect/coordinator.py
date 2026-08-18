@@ -1214,20 +1214,36 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             CONF_VWEU_TWOWAY_PASSWORD,
             CONF_VWEU_TWOWAY_TOKENS,
         )
-        if self.entry.data.get(CONF_VWEU_DEVICE_GRANT) and (
-            persisted is None
-            or getattr(persisted, "strategy", "") != "device_grant"
-        ):
+        if self.entry.data.get(CONF_VWEU_DEVICE_GRANT):
             _tw = self.entry.data.get(CONF_VWEU_TWOWAY_TOKENS) or {}
             if isinstance(_tw, dict) and _tw.get("access_token"):
-                from .cariad.models import TokenSet  # noqa: PLC0415
-                persisted = TokenSet(
-                    access_token=str(_tw.get("access_token", "")),
-                    refresh_token=str(_tw.get("refresh_token", "")),
-                    id_token=str(_tw.get("id_token", "")),
-                    expires_at=float(_tw.get("expires_at", 0.0)),
-                    strategy="device_grant",
+                _tw_exp = float(_tw.get("expires_at", 0.0) or 0.0)
+                _p_dg = (
+                    persisted is not None
+                    and getattr(persisted, "strategy", "") == "device_grant"
                 )
+                _p_exp = float(getattr(persisted, "expires_at", 0.0) or 0.0)
+                # Activate the entry.data token when storage has no device_grant
+                # token yet, OR when the entry.data token is FRESHER — a re-arm
+                # (config_flow just minted a newer one) must not be shadowed by a
+                # stale stored token from a prior account/password.
+                if not _p_dg or _tw_exp > _p_exp:
+                    from .cariad.models import TokenSet  # noqa: PLC0415
+                    persisted = TokenSet(
+                        access_token=str(_tw.get("access_token", "")),
+                        refresh_token=str(_tw.get("refresh_token", "")),
+                        id_token=str(_tw.get("id_token", "")),
+                        expires_at=_tw_exp,
+                        strategy="device_grant",
+                    )
+        elif (
+            persisted is not None
+            and getattr(persisted, "strategy", "") == "device_grant"
+        ):
+            # Rollback: the user removed VW EU Two-Way, but a device_grant token is
+            # still in storage. Discard it so the entry re-authenticates via the
+            # normal chain instead of silently keeping the removed channel alive.
+            persisted = None
 
         if persisted is not None:
             self._cariad_client.set_persisted_tokens(persisted)
