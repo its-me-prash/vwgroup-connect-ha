@@ -1,6 +1,6 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Coordinator for VAG Connect — async polling via own CARIAD API client.
+"""Coordinator for VW Group Connect — async polling via own CARIAD API client.
 
 Data flow:
   CARIAD client polls VAG API → poll_loop pushes to HA via async_set_updated_data
@@ -1101,7 +1101,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 True, cookies=persisted_cookies,
             )
             _LOGGER.info(
-                "VAG Connect: volkswagen.de website-authproxy mode enabled "
+                "VW Group Connect: volkswagen.de website-authproxy mode enabled "
                 "(opt-in, read-only beta) for this entry%s.",
                 " — resuming from persisted cookies" if persisted_cookies
                 else "",
@@ -1159,7 +1159,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         restored["_poll_failed"] = False
                         self.vehicles[vin] = restored
             _LOGGER.debug(
-                "VAG Connect portal-safety: restored %d cached vehicle(s) "
+                "VW Group Connect portal-safety: restored %d cached vehicle(s) "
                 "for %s", len(self.vehicles), brand,
             )
 
@@ -1197,7 +1197,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     strategy=str(dag_initial.get("strategy", "")),
                 )
                 _LOGGER.debug(
-                    "VAG Connect: bootstrapping with DAG initial tokens "
+                    "VW Group Connect: bootstrapping with DAG initial tokens "
                     "for %s (strategy=%s)", brand, persisted.strategy,
                 )
                 # Save immediately so the entry.data copy can be cleaned
@@ -1316,7 +1316,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 self._persist_website_cookies()
             else:
                 _LOGGER.debug(
-                    "VAG Connect: using persisted IDK tokens for %s "
+                    "VW Group Connect: using persisted IDK tokens for %s "
                     "— skipping fresh login",
                     brand,
                 )
@@ -1347,7 +1347,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 if persisted is None or persisted_is_portal:
                     raise
                 _LOGGER.info(
-                    "VAG Connect: persisted tokens for %s no longer refresh "
+                    "VW Group Connect: persisted tokens for %s no longer refresh "
                     "(VW attestation wall) — falling back to a fresh login and "
                     "retrying vehicle enumeration",
                     brand,
@@ -1432,7 +1432,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         if hasattr(self, "vehicle_success"):
                             self.vehicle_success[vin] = False
                         _LOGGER.debug(
-                            "VAG Connect portal-safety %s: setup poll returned "
+                            "VW Group Connect portal-safety %s: setup poll returned "
                             "no data; keeping the restored snapshot",
                             mask_vin(vin),
                         )
@@ -1442,7 +1442,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     )
                     if _setup_disc:
                         _LOGGER.debug(
-                            "VAG Connect portal-safety %s (setup): %s",
+                            "VW Group Connect portal-safety %s (setup): %s",
                             mask_vin(vin), "; ".join(_setup_disc),
                         )
                     self.vehicles[vin] = self._apply_optimistic_hold(vin, prepared_data)
@@ -1451,7 +1451,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
             self._started = True
             found = len(self.vehicles)
-            _LOGGER.info("VAG Connect: setup complete — %d vehicle(s)", found)
+            _LOGGER.info("VW Group Connect: setup complete — %d vehicle(s)", found)
 
             # #909 — the capabilities / static-info / MBB-command prefetches and
             # the Data Act kickoff are all best-effort ("never blocks setup"), but
@@ -1487,7 +1487,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                             exc_info=True,
                         )
                 except Exception:  # noqa: BLE001 - a background task must not die silently
-                    _LOGGER.exception("VAG Connect: background setup finish failed")
+                    _LOGGER.exception("VW Group Connect: background setup finish failed")
                 # Start background polling — after the prefetches, as it was inline.
                 self.hass.async_create_background_task(
                     self._poll_loop(), f"{DOMAIN}_poll"
@@ -1529,11 +1529,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # user's email and a working access token. Log type only at
             # ERROR; route the message to DEBUG for triage.
             _LOGGER.error(
-                "VAG Connect setup failed: %s "
+                "VW Group Connect setup failed: %s "
                 "(message redacted, see DEBUG for details)",
                 type(err).__name__,
             )
-            _LOGGER.debug("VAG Connect setup failed details: %s", err)
+            _LOGGER.debug("VW Group Connect setup failed details: %s", err)
             return False
 
     def _trigger_reauth(self, reason: str) -> None:
@@ -1551,7 +1551,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         except Exception:  # noqa: BLE001
             # entry may not support reauth in tests; the loop stop is enough.
             pass
-        _LOGGER.error("VAG Connect: stopping poll loop, reauth required (%s)", reason)
+        _LOGGER.error("VW Group Connect: stopping poll loop, reauth required (%s)", reason)
 
     # v2.9.0 - provenance canary, see ``_canaries.py``. Class-level
     # attribute so any port of the silent-recovery watchdog logic
@@ -1619,7 +1619,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             return
 
         _LOGGER.info(
-            "VAG Connect: hybrid_full watchdog — every VIN stale for "
+            "VW Group Connect: hybrid_full watchdog — every VIN stale for "
             ">%ds with >=2 consecutive failures. Triggering silent "
             "re-authenticate before next poll attempt.",
             stale_threshold_s,
@@ -1628,7 +1628,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             await self._cariad_client.authenticate()
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning(
-                "VAG Connect: watchdog silent re-auth raised %s. "
+                "VW Group Connect: watchdog silent re-auth raised %s. "
                 "Falling through to standard poll behaviour; if the "
                 "next poll also fails, the existing reauth handler "
                 "will surface to the user.",
@@ -1641,7 +1641,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         for vin in list(self.vehicle_failure_count.keys()):
             self.vehicle_failure_count[vin] = 0
         _LOGGER.info(
-            "VAG Connect: watchdog silent re-auth succeeded, "
+            "VW Group Connect: watchdog silent re-auth succeeded, "
             "failure counts cleared. Next poll should recover."
         )
 
@@ -1790,13 +1790,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             persistent_notification.async_create(
                 self.hass,
                 (
-                    "VAG Connect enabled a **continuous 15-minute data request** "
+                    "VW Group Connect enabled a **continuous 15-minute data request** "
                     "on your VW Group EU Data Act portal account so the "
                     "integration can receive data. The first delivery can take "
                     "15–60 minutes. You can turn automatic provisioning off under "
                     "the integration's **Configure → EU Data Act auto-kickoff**."
                 ),
-                title="VAG Connect: data request created",
+                title="VW Group Connect: data request created",
                 notification_id=f"vag_connect_dataact_kickoff_{vin[-6:]}",
             )
         except Exception:  # noqa: BLE001
@@ -2254,7 +2254,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 armed = bool(await arm_web(cookies))
             except Exception as err:  # noqa: BLE001
                 _LOGGER.warning(
-                    "VAG Connect: supplementary vw.de arming failed (%s)"
+                    "VW Group Connect: supplementary vw.de arming failed (%s)"
                     " — primary channel unaffected.", type(err).__name__,
                 )
             # v2.25.0 (#966/#632) — arming runs refresh(), which rotates the
@@ -2291,7 +2291,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 )
             except Exception as err:  # noqa: BLE001
                 _LOGGER.warning(
-                    "VAG Connect: supplementary portal arming failed (%s)"
+                    "VW Group Connect: supplementary portal arming failed (%s)"
                     " — primary channel unaffected.", type(err).__name__,
                 )
 
@@ -2310,7 +2310,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         src.on_tokens_changed = self._persist_tibber_tokens
             except Exception as err:  # noqa: BLE001
                 _LOGGER.warning(
-                    "VAG Connect: supplementary Tibber arming failed (%s)"
+                    "VW Group Connect: supplementary Tibber arming failed (%s)"
                     " — primary channel unaffected.", type(err).__name__,
                 )
 
@@ -2359,7 +2359,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     await self._refresh_mbb_command_capabilities()
             except Exception as err:  # noqa: BLE001
                 _LOGGER.warning(
-                    "VAG Connect: MBB command channel arming failed (%s)"
+                    "VW Group Connect: MBB command channel arming failed (%s)"
                     " — reads unaffected.", type(err).__name__,
                 )
 
@@ -2567,7 +2567,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             except Exception as wd_err:  # noqa: BLE001
                 # Watchdog must NEVER break the poll loop.
                 _LOGGER.debug(
-                    "VAG Connect: stale watchdog itself raised %s, "
+                    "VW Group Connect: stale watchdog itself raised %s, "
                     "ignored.",
                     type(wd_err).__name__,
                 )
@@ -2742,7 +2742,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                             enriched = await self._enrich(data)
                         except Exception as parse_err:  # noqa: BLE001
                             _LOGGER.warning(
-                                "VAG Connect: post-parse failure for %s — "
+                                "VW Group Connect: post-parse failure for %s — "
                                 "keeping previous data: %s",
                                 mask_vin(vin), parse_err,
                             )
@@ -2779,7 +2779,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         )
                         if _discrepancies:
                             _LOGGER.debug(
-                                "VAG Connect portal-safety %s: %s",
+                                "VW Group Connect portal-safety %s: %s",
                                 mask_vin(vin), "; ".join(_discrepancies),
                             )
                         # Reconcile against any pending optimistic hold, exactly
@@ -2989,10 +2989,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 is_transient_upstream = _is_selfhealing_poll_error(err)
                 if is_transient_upstream:
                     _LOGGER.warning(
-                        "VAG Connect: VW backend temporarily unavailable — %s", err
+                        "VW Group Connect: VW backend temporarily unavailable — %s", err
                     )
                 else:
-                    _LOGGER.error("VAG Connect poll error: %s", err)
+                    _LOGGER.error("VW Group Connect poll error: %s", err)
                     # v1.9.0 — Error Reporter: outer poll-loop crash gets a
                     # buffer entry too. Critical because these are the kind of
                     # errors users hit and never know about (silent except).
@@ -3047,7 +3047,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             except Exception:  # noqa: BLE001
                 pass
         self._cariad_client = None
-        _LOGGER.debug("VAG Connect: shutdown complete")
+        _LOGGER.debug("VW Group Connect: shutdown complete")
 
     # ── v2.0.0 (Big-Bang) — Push-manager lifecycle ────────────────────────
     # Wired in __init__ to None; instantiated lazily after the first
@@ -3559,7 +3559,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         self.vehicle_command_profile[vin] = profile
         if previous is not profile:
             _LOGGER.info(
-                "VAG Connect: command profile for %s = %s (was %s)",
+                "VW Group Connect: command profile for %s = %s (was %s)",
                 mask_vin(vin),
                 profile.value,
                 previous.value,
@@ -4585,7 +4585,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         if success:
             if not self._was_available:
                 _LOGGER.info(
-                    "VAG Connect: vehicle reachable again (%s)",
+                    "VW Group Connect: vehicle reachable again (%s)",
                     mask_email(self.entry.data.get("username", "")),
                 )
                 self._was_available = True
@@ -4594,11 +4594,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             await self._async_remove_stale_devices(set(data.keys()))
 
             self.async_set_updated_data(data)
-            _LOGGER.debug("VAG Connect: pushed %d vehicle(s) to HA", len(data))
+            _LOGGER.debug("VW Group Connect: pushed %d vehicle(s) to HA", len(data))
         else:
             if self._was_available:
                 _LOGGER.warning(
-                    "VAG Connect: vehicle unreachable — entities set to unavailable (%s)",
+                    "VW Group Connect: vehicle unreachable — entities set to unavailable (%s)",
                     mask_email(self.entry.data.get("username", "")),
                 )
                 self._was_available = False
@@ -4634,7 +4634,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             )
             if device_entry is not None:
                 _LOGGER.warning(
-                    "VAG Connect: vehicle %s removed from account — "
+                    "VW Group Connect: vehicle %s removed from account — "
                     "device + entities will be deleted",
                     mask_vin(stale_vin),
                 )
@@ -4659,7 +4659,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                             f"bleibt erhalten und kann nach erneutem "
                             f"Hinzufügen weiterverwendet werden."
                         ),
-                        title="VAG Connect — Fahrzeug entfernt",
+                        title="VW Group Connect — Fahrzeug entfernt",
                         notification_id=f"vag_connect_vehicle_removed_{stale_vin}",
                     )
                 except Exception:  # noqa: BLE001
@@ -5200,10 +5200,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # v2.26.0 (ckomma #21) — persist a companion rate-limit backoff if a
             # write during this manual refresh tripped it. No-op otherwise.
             self._persist_companion_rate_limit()
-            _LOGGER.debug("VAG Connect: Manual refresh OK")
+            _LOGGER.debug("VW Group Connect: Manual refresh OK")
             return dict(self.vehicles)
         except Exception as err:  # noqa: BLE001
-            _LOGGER.error("VAG Connect: Manual refresh failed: %s", err)
+            _LOGGER.error("VW Group Connect: Manual refresh failed: %s", err)
             with self._vehicles_lock:
                 return dict(self.vehicles)
 
@@ -5338,7 +5338,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         """
         if self._cariad_client is None:
             _LOGGER.error(
-                "VAG Connect: no CARIAD client - cannot execute "
+                "VW Group Connect: no CARIAD client - cannot execute "
                 "command_start_climate_control"
             )
             return
@@ -5852,7 +5852,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         _web = getattr(client, "_website_proxy", None)
         if _web is not None and getattr(_web, "logged_in", True) is False:
             _LOGGER.debug(
-                "VAG Connect: skipped website-authproxy cookie persist — session "
+                "VW Group Connect: skipped website-authproxy cookie persist — session "
                 "not logged in; keeping the last good set (#632)."
             )
             return
@@ -5860,7 +5860,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             fresh: list[dict[str, Any]] = client.get_website_proxy_cookies()
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
-                "VAG Connect: website-authproxy cookie export failed (%s) "
+                "VW Group Connect: website-authproxy cookie export failed (%s) "
                 "— session still valid in-memory", type(err).__name__,
             )
             return
@@ -5874,12 +5874,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 data={**self.entry.data, CONF_WEBSITE_COOKIES: fresh},
             )
             _LOGGER.debug(
-                "VAG Connect: persisted %d refreshed website-authproxy "
+                "VW Group Connect: persisted %d refreshed website-authproxy "
                 "cookie(s) back to the entry.", len(fresh),
             )
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
-                "VAG Connect: could not persist website-authproxy cookies "
+                "VW Group Connect: could not persist website-authproxy cookies "
                 "(%s) — will retry next login.", type(err).__name__,
             )
 
@@ -5962,7 +5962,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             fresh: list[dict[str, Any]] = client.get_supplementary_proxy_cookies()
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
-                "VAG Connect: supplementary vw.de cookie export failed (%s) "
+                "VW Group Connect: supplementary vw.de cookie export failed (%s) "
                 "— session still valid in-memory", type(err).__name__,
             )
             return
@@ -5976,12 +5976,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 data={**self.entry.data, CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES: fresh},
             )
             _LOGGER.debug(
-                "VAG Connect: persisted %d refreshed supplementary vw.de "
+                "VW Group Connect: persisted %d refreshed supplementary vw.de "
                 "cookie(s) back to the entry.", len(fresh),
             )
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
-                "VAG Connect: could not persist supplementary vw.de cookies "
+                "VW Group Connect: could not persist supplementary vw.de cookies "
                 "(%s) — will retry next poll.", type(err).__name__,
             )
 
@@ -6405,7 +6405,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         once they pile up).
         """
         if self._cariad_client is None:
-            _LOGGER.error("VAG Connect: no CARIAD client — cannot execute %s", method)
+            _LOGGER.error("VW Group Connect: no CARIAD client — cannot execute %s", method)
             return
         # v1.13.0 (#63 Phase 2) — acquire per-VIN per-class lock.
         # Different classes (lock / climate / charging / etc.) can run
@@ -6420,7 +6420,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     await self._dispatch_cmd_locked(vin, method, **kwargs)
         except TimeoutError:
             _LOGGER.warning(
-                "VAG Connect: %s(%s) lock timeout (%ss) — proceeding without lock",
+                "VW Group Connect: %s(%s) lock timeout (%ss) — proceeding without lock",
                 method, mask_vin(vin), _COMMAND_LOCK_TIMEOUT,
             )
             await self._dispatch_cmd_locked(vin, method, **kwargs)
@@ -6440,7 +6440,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 self.record_command_success(vin, method)
             except Exception:  # noqa: BLE001
                 pass  # bookkeeping must never affect command outcome
-            _LOGGER.debug("VAG Connect: %s(%s) OK", method, mask_vin(vin))
+            _LOGGER.debug("VW Group Connect: %s(%s) OK", method, mask_vin(vin))
         except Exception as err:  # noqa: BLE001
             from .cariad.exceptions import classify_command_failure  # noqa: PLC0415
 
@@ -6448,12 +6448,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 reason = classify_command_failure(err)
                 self.record_command_failure(vin, method, reason)
                 _LOGGER.info(
-                    "VAG Connect: %s(%s) classified as %s",
+                    "VW Group Connect: %s(%s) classified as %s",
                     method, mask_vin(vin), reason.value,
                 )
             except Exception:  # noqa: BLE001
                 pass
-            _LOGGER.error("VAG Connect: %s(%s) failed: %s", method, mask_vin(vin), err)
+            _LOGGER.error("VW Group Connect: %s(%s) failed: %s", method, mask_vin(vin), err)
             # v2.18.0 (#659) — surface the failure instead of letting the raw
             # APIError escape. HA doesn't know our exception types, so it logged
             # "Unexpected exception" and showed the user a Python traceback for
@@ -6588,7 +6588,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         if last_at is not None and (now - last_at) < _WAKE_COOLDOWN:
             remaining_s = int((_WAKE_COOLDOWN - (now - last_at)).total_seconds())
             _LOGGER.warning(
-                "VAG Connect: wake cooldown active for %s (%ds remaining). "
+                "VW Group Connect: wake cooldown active for %s (%ds remaining). "
                 "Last wake at %s. Refusing to spare 12V battery.",
                 mask_vin(vin), remaining_s, last_at.isoformat(timespec="seconds"),
             )
@@ -6609,7 +6609,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             last_date = today
         if count >= _WAKE_BUDGET_PER_DAY:
             _LOGGER.warning(
-                "VAG Connect: wake budget exhausted for %s (%d/%d today). "
+                "VW Group Connect: wake budget exhausted for %s (%d/%d today). "
                 "Refusing further wake calls until midnight UTC to protect "
                 "the 12V battery. See sensor.wake_count_today.",
                 mask_vin(vin), count, _WAKE_BUDGET_PER_DAY,

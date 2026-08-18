@@ -1,6 +1,6 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Image entities for VAG Connect — 7 vehicle render images per vehicle.
+"""Image entities for VW Group Connect — 7 vehicle render images per vehicle.
 
 Creates one ImageEntity per MediaType per vehicle:
   image.{vehicle}_render_icon       (MS_MYP3,   76 KB)

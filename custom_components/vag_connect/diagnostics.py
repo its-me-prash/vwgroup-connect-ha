@@ -1,6 +1,6 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Diagnostics for VAG Connect.
+"""Diagnostics for VW Group Connect.
 
 v1.13.0 (#62) — expanded redaction:
 - Token fields (access_token / refresh_token / id_token) explicitly

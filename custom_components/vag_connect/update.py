@@ -1,6 +1,6 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Update platform for VAG Connect — read-only vehicle-firmware status.
+"""Update platform for VW Group Connect — read-only vehicle-firmware status.
 
 The car reports its installed software version and whether an over-the-air update
 is available (Škoda's software-version endpoint today). This surfaces that as a

@@ -1,4 +1,4 @@
-# Dependabot configuration for VAG Connect.
+# Dependabot configuration for VW Group Connect.
 # We have no Python runtime dependencies (`requirements: []`), so the
 # only ecosystem worth watching is GitHub Actions itself — to catch
 # Node version deprecations before they break CI.

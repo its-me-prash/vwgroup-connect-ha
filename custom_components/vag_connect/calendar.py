@@ -1,6 +1,6 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Calendar platform for VAG Connect — charging/departure schedule + service dates.
+"""Calendar platform for VW Group Connect — charging/departure schedule + service dates.
 
 Two read-only calendars per vehicle:
 - ``charging_schedule`` — departure timers, the next charge window, and charge /

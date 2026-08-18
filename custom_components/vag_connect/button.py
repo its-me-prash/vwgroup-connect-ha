@@ -1,6 +1,6 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Button entities for VAG Connect (flash lights, force refresh, wake)."""
+"""Button entities for VW Group Connect (flash lights, force refresh, wake)."""
 
 from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry

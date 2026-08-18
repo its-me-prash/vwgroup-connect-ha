@@ -1,6 +1,6 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Config flow for VAG Connect — setup, reconfigure, and re-authentication."""
+"""Config flow for VW Group Connect — setup, reconfigure, and re-authentication."""
 
 from __future__ import annotations
 
@@ -205,12 +205,12 @@ async def _validate_credentials(
             # incident, NOT bad credentials. Surface as a distinct error
             # so users do not reconfigure their integration in a panic.
             _LOGGER.warning(
-                "VAG Connect (%s): upstream VW backend unavailable: %s",
+                "VW Group Connect (%s): upstream VW backend unavailable: %s",
                 brand, err,
             )
             raise ValueError("upstream_unavailable") from err
         except AuthenticationError as err:
-            _LOGGER.warning("VAG Connect auth failed (%s): %s", brand, err)
+            _LOGGER.warning("VW Group Connect auth failed (%s): %s", brand, err)
             raise ValueError("invalid_credentials") from err
         except Exception as err:  # noqa: BLE001
             # v1.24.1 (2026-05-08 audit): one-line ERROR with type only,
@@ -220,11 +220,11 @@ async def _validate_credentials(
             # vector while DEBUG remains available for triage.
             import traceback  # noqa: PLC0415
             _LOGGER.error(
-                "VAG Connect unexpected error during %s auth: %s",
+                "VW Group Connect unexpected error during %s auth: %s",
                 brand, type(err).__name__,
             )
             _LOGGER.debug(
-                "VAG Connect %s auth traceback: %s\n%s",
+                "VW Group Connect %s auth traceback: %s\n%s",
                 brand, err,
                 "".join(traceback.format_tb(err.__traceback__)),
             )
@@ -316,7 +316,7 @@ def _credentials_schema(
 # ── Config Flow ───────────────────────────────────────────────────────────────
 
 class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
-    """Handle a config flow for VAG Connect."""
+    """Handle a config flow for VW Group Connect."""
 
     VERSION = 1
 

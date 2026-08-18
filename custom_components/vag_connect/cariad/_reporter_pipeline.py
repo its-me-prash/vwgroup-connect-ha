@@ -310,7 +310,7 @@ def github_issue_url(
     if len(body) > body_max:
         body = body[: body_max - 80] + (
             "\n\n_… truncated — full report available via "
-            "Settings → Devices → VAG Connect → Diagnostics._"
+            "Settings → Devices → VW Group Connect → Diagnostics._"
         )
     params: list[tuple[str, str]] = [("title", title), ("body", body)]
     if labels:

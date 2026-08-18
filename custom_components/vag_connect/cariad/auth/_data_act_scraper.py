@@ -1015,7 +1015,7 @@ class DataActScraper:
         self,
         vin: str,
         *,
-        name: str = "VAG Connect HA Integration",
+        name: str = "VW Group Connect HA Integration",
         duration_days: int = 31,
         data_clusters: tuple[str, ...] | None = None,
     ) -> str | None:

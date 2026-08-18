@@ -1,6 +1,6 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Lock platform for VAG Connect — proper HA LockEntity for door lock/unlock."""
+"""Lock platform for VW Group Connect — proper HA LockEntity for door lock/unlock."""
 
 from __future__ import annotations
 

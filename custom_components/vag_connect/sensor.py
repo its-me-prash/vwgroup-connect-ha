@@ -1,6 +1,6 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Sensor platform for VAG Connect.
+"""Sensor platform for VW Group Connect.
 
 The VagSensorDescription.condition field gates sensor creation:
   "electric"  — EV and PHEV only (has_battery=True)
@@ -4082,7 +4082,7 @@ class VagConnectSensor(VagConnectEntity, SensorEntity):
             coerced = safe_float(val)
             if coerced is None:
                 _LOGGER.warning(
-                    "VAG Connect: %s received the non-numeric value %r, so it "
+                    "VW Group Connect: %s received the non-numeric value %r, so it "
                     "reports unknown. This usually means the backend changed "
                     "the field's type.",
                     self.entity_description.key, val,

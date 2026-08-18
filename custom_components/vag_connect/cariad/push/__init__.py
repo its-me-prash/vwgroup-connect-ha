@@ -1,8 +1,8 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Push-update infrastructure for VAG Connect.
+"""Push-update infrastructure for VW Group Connect.
 
-Today VAG Connect polls each backend every N minutes (default 10 min).
+Today VW Group Connect polls each backend every N minutes (default 10 min).
 Push updates would let the integration receive change events in
 seconds rather than minutes — eliminating the 12V wake-cycle for
 real-time status changes.

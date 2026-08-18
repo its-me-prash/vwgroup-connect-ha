@@ -1,6 +1,6 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Event platform for VAG Connect — first-class push events per vehicle.
+"""Event platform for VW Group Connect — first-class push events per vehicle.
 
 The coordinator already fires manufacturer push notifications onto the HA bus as
 ``vag_connect_push_event`` (``coordinator._on_push_event``). This platform gives

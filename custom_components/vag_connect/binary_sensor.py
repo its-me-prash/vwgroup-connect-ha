@@ -1,6 +1,6 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Binary sensors for VAG Connect — correct data keys from coordinator."""
+"""Binary sensors for VW Group Connect — correct data keys from coordinator."""
 
 from dataclasses import dataclass
 from typing import Any

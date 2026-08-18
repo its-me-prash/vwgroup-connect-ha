@@ -1,6 +1,6 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Base entity class for all VAG Connect entities."""
+"""Base entity class for all VW Group Connect entities."""
 
 from __future__ import annotations
 from typing import Any
@@ -23,7 +23,7 @@ def _device_name(vehicle: dict, brand: str) -> str:
 
 
 class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
-    """Base entity shared by all VAG Connect platforms.
+    """Base entity shared by all VW Group Connect platforms.
 
     parallel_updates=0: the coordinator's background poll loop owns all API
     calls.  HA entities never initiate requests directly.

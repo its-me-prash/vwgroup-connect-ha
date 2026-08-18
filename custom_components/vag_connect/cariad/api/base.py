@@ -633,7 +633,7 @@ class CariadBaseClient:
                 # and never a URL, so it is safe to show in full.
                 self._supplementary_needs_reauth = True
                 _LOGGER.warning(
-                    "VAG Connect: supplementary vw.de channel could not silently"
+                    "VW Group Connect: supplementary vw.de channel could not silently"
                     " resume: %s — re-add it from the integration options; the"
                     " primary channel is unaffected.", err,
                 )
@@ -648,7 +648,7 @@ class CariadBaseClient:
                 # the user's email and a working token. Message goes to DEBUG.
                 self._supplementary_needs_reauth = True
                 _LOGGER.warning(
-                    "VAG Connect: supplementary vw.de channel could not silently"
+                    "VW Group Connect: supplementary vw.de channel could not silently"
                     " resume (%s, message redacted, see DEBUG) — re-add it from"
                     " the integration options; the primary channel is"
                     " unaffected.", type(err).__name__,
@@ -661,13 +661,13 @@ class CariadBaseClient:
             self._supplementary_authproxy = connector
             self._supplementary_session = session
             _LOGGER.info(
-                "VAG Connect: supplementary vw.de read channel armed"
+                "VW Group Connect: supplementary vw.de read channel armed"
                 " (read-only, merged onto the primary)."
             )
             return True
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning(
-                "VAG Connect: could not arm supplementary vw.de channel (%s)"
+                "VW Group Connect: could not arm supplementary vw.de channel (%s)"
                 " — primary channel unaffected.", type(err).__name__,
             )
             self._supplementary_authproxy = None
@@ -694,13 +694,13 @@ class CariadBaseClient:
             self._supplementary_eu_portal = connector
             self._supplementary_eu_portal_creds = (email, password or "")
             _LOGGER.info(
-                "VAG Connect: supplementary EU Data Act portal read channel"
+                "VW Group Connect: supplementary EU Data Act portal read channel"
                 " armed (read-only, merged onto the primary)."
             )
             return True
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning(
-                "VAG Connect: could not arm supplementary EU Data Act portal"
+                "VW Group Connect: could not arm supplementary EU Data Act portal"
                 " (%s) — primary channel unaffected.", type(err).__name__,
             )
             self._supplementary_eu_portal = None
@@ -732,13 +732,13 @@ class CariadBaseClient:
             self._tibber_cache = {}
             self._tibber_cache_at = 0.0
             _LOGGER.info(
-                "VAG Connect: supplementary Tibber read channel armed"
+                "VW Group Connect: supplementary Tibber read channel armed"
                 " (read-only, lowest-trust gap-fill onto the primary)."
             )
             return True
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning(
-                "VAG Connect: could not arm supplementary Tibber channel (%s)"
+                "VW Group Connect: could not arm supplementary Tibber channel (%s)"
                 " — primary channel unaffected.", type(err).__name__,
             )
             self._supplementary_tibber = None

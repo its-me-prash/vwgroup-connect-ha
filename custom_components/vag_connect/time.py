@@ -1,6 +1,6 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Time platform for VAG Connect — Departure-Timer editing UI.
+"""Time platform for VW Group Connect — Departure-Timer editing UI.
 
 v1.16.0 (#26) — closes the long-standing UX gap that users had to call
 the ``vag_connect.set_departure_timer`` service manually to change a

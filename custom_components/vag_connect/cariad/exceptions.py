@@ -1,6 +1,6 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Exceptions for the VAG Connect CARIAD API client."""
+"""Exceptions for the VW Group Connect CARIAD API client."""
 
 from __future__ import annotations
 

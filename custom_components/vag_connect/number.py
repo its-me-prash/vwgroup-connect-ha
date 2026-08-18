@@ -1,6 +1,6 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Number entities for VAG Connect (target SOC, climatisation temperature)."""
+"""Number entities for VW Group Connect (target SOC, climatisation temperature)."""
 
 from dataclasses import dataclass
 

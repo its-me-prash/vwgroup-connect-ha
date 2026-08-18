@@ -1,6 +1,6 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Select entities for VAG Connect — Lademodus."""
+"""Select entities for VW Group Connect — Lademodus."""
 
 from __future__ import annotations
 

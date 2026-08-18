@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Token persistence via HA's Store helper.
 
-Closes #118 (eismarkt) — "After every update of VAG Connect, the
+Closes #118 (eismarkt) — "After every update of VW Group Connect, the
 password must be entered again". Root cause was that we never
 persisted IDK tokens between integration restarts (HACS update,
 HA restart, config-entry reload). Every fresh setup ran the full

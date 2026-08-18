@@ -47,6 +47,8 @@ _TRANSLATIONS_DIR = _REPO_ROOT / "custom_components" / "vag_connect" / "translat
 _CONST_PY = _REPO_ROOT / "custom_components" / "vag_connect" / "const.py"
 _MIGRATION = _REPO_ROOT / "MIGRATION.md"
 _README_MD = _REPO_ROOT / "README.md"
+_SRC_DIR = _REPO_ROOT / "custom_components" / "vag_connect"
+_RELEASE_YML = _REPO_ROOT / ".github" / "workflows" / "release.yml"
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -90,6 +92,37 @@ class TestDisplayNameRenamed:
         """Sanity check the new name is actually present."""
         text = (_TRANSLATIONS_DIR / f"{lang}.json").read_text(encoding="utf-8")
         assert "VW Group Connect" in text
+
+
+class TestNoVagConnectInCodeOrRelease:
+    """The v2.4.0 guard above only covered manifest/hacs/strings/translations,
+    so the display name quietly crept BACK into log messages, docstrings and the
+    release-workflow title — which is exactly what surfaced "VAG Connect v4.0.0bX"
+    on the GitHub release page + the Facebook post (2026-08). Guard the code and
+    the release workflow too so it can never drift back. Note: bare "VAG"
+    (VAG account / VAG IDP / VAG Group as the manufacturer) is fine — only the
+    "VAG Connect" display name is banned.
+    """
+
+    def test_release_workflow_says_vw_group_connect(self) -> None:
+        text = _RELEASE_YML.read_text(encoding="utf-8")
+        assert "VAG Connect" not in text, (
+            "release.yml still emits 'VAG Connect' — the release title + notes "
+            "header must say 'VW Group Connect' (this is what shows on GitHub)."
+        )
+        assert "VW Group Connect" in text
+
+    def test_no_vag_connect_display_name_in_python_source(self) -> None:
+        offenders: list[str] = []
+        for py in _SRC_DIR.rglob("*.py"):
+            if "__pycache__" in py.parts:
+                continue
+            if "VAG Connect" in py.read_text(encoding="utf-8"):
+                offenders.append(str(py.relative_to(_REPO_ROOT)))
+        assert not offenders, (
+            "Display name 'VAG Connect' crept back into: " + ", ".join(offenders)
+            + " — use 'VW Group Connect' in log messages / docstrings / strings."
+        )
 
 
 # ──────────────────────────────────────────────────────────────────────

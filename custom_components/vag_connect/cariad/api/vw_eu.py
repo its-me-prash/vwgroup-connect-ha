@@ -800,13 +800,13 @@ class VWEUClient(CariadBaseClient):
             cmd._mbb_manual_vins = list(vins or [])
             self._mbb_command = cmd
             _LOGGER.info(
-                "VAG Connect: MBB command channel armed alongside the"
+                "VW Group Connect: MBB command channel armed alongside the"
                 " read-only primary (commands → MBB, reads → primary)."
             )
             return True
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning(
-                "VAG Connect: could not arm MBB command channel (%s) —"
+                "VW Group Connect: could not arm MBB command channel (%s) —"
                 " primary unaffected.", type(err).__name__,
             )
             self._mbb_command = None

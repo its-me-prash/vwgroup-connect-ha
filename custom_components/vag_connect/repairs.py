@@ -1,7 +1,7 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """
-VAG Connect Repair-Flows für Auth-Probleme + Quota-Warnings.
+VW Group Connect Repair-Flows für Auth-Probleme + Quota-Warnings.
 
 Wenn Login fehlschlägt (2FA, T&C, gesperrter Account) ODER die API-Quota
 zur Neige geht, erscheint eine persistente Warnung im HA UI unter
@@ -147,7 +147,7 @@ def raise_issue_auth_required(
         data={"entry_id": entry_id, "reason": reason},
     )
     _LOGGER.warning(
-        "VAG Connect repair issue created: %s (brand=%s, fixable=%s)",
+        "VW Group Connect repair issue created: %s (brand=%s, fixable=%s)",
         reason, brand, is_fixable,
     )
 
@@ -177,7 +177,7 @@ def raise_issue_supplementary_reauth(hass: HomeAssistant, entry_id: str) -> None
         learn_more_url="https://github.com/its-me-prash/vag-connect-ha/blob/main/docs/FAQ.md",
     )
     _LOGGER.info(
-        "VAG Connect: supplementary vw.de channel needs re-login — Repair issue"
+        "VW Group Connect: supplementary vw.de channel needs re-login — Repair issue"
         " raised for entry %s", entry_id,
     )
 
@@ -281,7 +281,7 @@ def raise_issue_quota_low(
         learn_more_url="https://github.com/its-me-prash/vag-connect-ha/blob/main/docs/FAQ.md#api-quota",
     )
     _LOGGER.info(
-        "VAG Connect quota-warning repair issue created: %d remaining "
+        "VW Group Connect quota-warning repair issue created: %d remaining "
         "(critical=%s)",
         remaining, critical,
     )

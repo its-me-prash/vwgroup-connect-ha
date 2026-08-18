@@ -1,6 +1,6 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""VAG Connect — Home Assistant integration for Audi, VW, Škoda, SEAT and CUPRA.
+"""VW Group Connect — Home Assistant integration for Audi, VW, Škoda, SEAT and CUPRA.
 
 Architecture:
   The CARIAD API client polls the VAG API at a
@@ -188,7 +188,7 @@ def _register_llm_api(hass: HomeAssistant) -> None:
 
         from .llm import VagConnectLLMAPI  # noqa: PLC0415
     except ImportError:
-        _LOGGER.debug("VAG Connect: llm helper unavailable — AI tools skipped")
+        _LOGGER.debug("VW Group Connect: llm helper unavailable — AI tools skipped")
         return
     try:
         hass.data[_LLM_API_KEY] = llm.async_register_api(
@@ -196,7 +196,7 @@ def _register_llm_api(hass: HomeAssistant) -> None:
             VagConnectLLMAPI(hass=hass, id=DOMAIN, name="VW Group Connect"),
         )
     except Exception:  # noqa: BLE001  — HomeAssistantError if id already taken
-        _LOGGER.debug("VAG Connect: LLM API already registered")
+        _LOGGER.debug("VW Group Connect: LLM API already registered")
 
 
 def _unregister_llm_api(hass: HomeAssistant) -> None:
@@ -207,7 +207,7 @@ def _unregister_llm_api(hass: HomeAssistant) -> None:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) -> bool:
-    """Set up a VAG Connect config entry."""
+    """Set up a VW Group Connect config entry."""
     coordinator = VagConnectCoordinator(hass, entry)
 
     try:
@@ -227,7 +227,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) -
             from .repairs import raise_issue_requirements_conflict  # noqa: PLC0415
             raise_issue_requirements_conflict(hass)
             raise ConfigEntryNotReady(
-                "VAG Connect setup failed. Check logs for details."
+                "VW Group Connect setup failed. Check logs for details."
             ) from err
         raise ConfigEntryNotReady(str(err)) from err
 
@@ -259,7 +259,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) -
         await coordinator.async_start_push_managers()
     except Exception:  # noqa: BLE001
         _LOGGER.exception(
-            "VAG Connect: push manager startup failed — falling back to polling"
+            "VW Group Connect: push manager startup failed — falling back to polling"
         )
 
     if not hass.services.has_service(DOMAIN, "lock"):
@@ -268,7 +268,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) -
     # v3.0.0 — expose Laura + key commands to any HA conversation agent (Path B).
     _register_llm_api(hass)
 
-    _LOGGER.info("VAG Connect ready: %d vehicle(s)", len(coordinator.vehicles))
+    _LOGGER.info("VW Group Connect ready: %d vehicle(s)", len(coordinator.vehicles))
     return True
 
 
@@ -316,7 +316,7 @@ async def async_migrate_entry(
 
 
 def _register_services(hass: HomeAssistant) -> None:
-    """Register all VAG Connect action services."""
+    """Register all VW Group Connect action services."""
 
     def _coord(vin: str) -> VagConnectCoordinator:
         c = _get_coordinator(hass, vin)
@@ -402,7 +402,7 @@ def _register_services(hass: HomeAssistant) -> None:
             if ident_domain == DOMAIN:
                 return str(ident_value)
         raise ServiceValidationError(
-            f"Device '{device_id}' is not a VAG Connect vehicle.",
+            f"Device '{device_id}' is not a VW Group Connect vehicle.",
             translation_domain=DOMAIN,
             translation_key="vehicle_not_found",
         )
@@ -901,7 +901,7 @@ def _register_services(hass: HomeAssistant) -> None:
     #
     # The service is device-targeted (uses ``device_id``, not ``vin``)
     # to fit the HA Lovelace UX. We resolve device_id to VIN via the
-    # device registry. Every VAG Connect device is keyed by
+    # device registry. Every VW Group Connect device is keyed by
     # ``identifiers={(DOMAIN, vin)}`` (see ``entity_base.device_info``)
     # so the resolution is a single registry lookup.
     async def _handle_execute_vehicle_action(call: ServiceCall) -> None:
@@ -930,7 +930,7 @@ def _register_services(hass: HomeAssistant) -> None:
                 break
         if vin is None:
             raise ServiceValidationError(
-                f"Device '{device_id}' is not a VAG Connect vehicle.",
+                f"Device '{device_id}' is not a VW Group Connect vehicle.",
                 translation_domain=DOMAIN,
                 translation_key="vehicle_not_found",
             )
@@ -1088,7 +1088,7 @@ async def _async_update_listener(
     }
 
     if changed:
-        _LOGGER.info("VAG Connect: config changed (%s) — reloading", changed)
+        _LOGGER.info("VW Group Connect: config changed (%s) — reloading", changed)
         await hass.config_entries.async_reload(entry.entry_id)
     else:
         # Soft update: merge options into entry data so coordinator picks them up
@@ -1096,7 +1096,7 @@ async def _async_update_listener(
         hass.config_entries.async_update_entry(entry, data=new_data, options={})
         if coordinator:
             _LOGGER.debug(
-                "VAG Connect: settings applied live (no restart needed)"
+                "VW Group Connect: settings applied live (no restart needed)"
             )
             # v2.17.x (#666) — push a later-edited S-PIN into an already-armed
             # MBB command connector so it takes effect without a restart.

@@ -76,7 +76,7 @@ jobs:
           lines: list[str] = []
 
           # ── EN-first headline ────────────────────────────────────────────
-          lines.append(f"# VAG Connect v{version}")
+          lines.append(f"# VW Group Connect v{version}")
           lines.append("")
           lines.append("Home Assistant integration for Audi · VW · Škoda · SEAT · CUPRA · Porsche · VW US/CA.")
           lines.append("")
@@ -166,7 +166,7 @@ jobs:
         with:
           files: vag_connect.zip
           body_path: /tmp/release_notes.md
-          name: "VAG Connect v${{ steps.version.outputs.version }}"
+          name: "VW Group Connect v${{ steps.version.outputs.version }}"
           draft: false
           # Mark as prerelease for long names (alpha/beta/rc/pre) AND
           # for PEP 440 short markers (vX.Y.ZbN / vX.Y.ZaN / vX.Y.ZrcN).
