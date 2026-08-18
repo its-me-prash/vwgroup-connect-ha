@@ -12,7 +12,7 @@
         }
       },
       "mbb_login": {
-        "title": "Volkswagen EU — Duurzame login (MBB, ALPHA)",
+        "title": "Volkswagen EU — Duurzame login (MBB, BETA)",
         "description": "**Experimenteel, opt-in — alleen Volkswagen EU.** Een bevestiging in de browser (geen wachtwoord opgeslagen in Home Assistant) maakt via de oude MBB-backend een duurzaam, vernieuwbaar token aan. Anders dan het alleen-lezen portaal overleeft dit herstarts en ondersteunt het tweerichtings vergrendelen/ontgrendelen op afstand. **Voer je VIN in** (het MBB-token kan je garage niet zelf opsommen) en voeg je S-PIN toe om vergrendelen/ontgrendelen mogelijk te maken. In het volgende scherm zie je een korte code en een URL om op een willekeurig apparaat te openen.",
         "data": {
           "mbb_vins": "VIN (voertuigidentificatienummer)",
@@ -306,7 +306,8 @@
       "vweu_no_bff_data": "Signed in, but Volkswagen returned no live data for this car on the modern backend yet, so VW EU Two-Way was not enabled and your current channel is unchanged. Please try again later, or share a diagnostics so we can look into it."
     },
     "abort": {
-      "not_volkswagen": "This channel is only available for Volkswagen."
+      "not_volkswagen": "This channel is only available for Volkswagen.",
+      "vweu_twoway_vw_disabled": "Volkswagen disabled the login this channel used on 2026-08-18, so it can no longer be set up. Live reads keep working through the EU Data Act portal, and a durable command channel via the classic Car-Net backend is in beta — see issue #584."
     }
   },
   "entity": {
@@ -1771,6 +1772,10 @@
     }
   },
   "issues": {
+    "vweu_twoway_disabled": {
+      "title": "VW EU Two-Way: disabled by Volkswagen",
+      "description": "On 2026-08-18 Volkswagen disabled the login that the VW EU Two-Way (modern CARIAD backend) channel used, so its 1-hour token can no longer be renewed and two-way commands via that channel have stopped. This is a Volkswagen-side change \u2014 nothing is misconfigured on your side, and your account is not at risk (the failure happens before any password is sent).\n\n**Your live reads keep working** through the EU Data Act portal, so your sensors are unaffected.\n\n**For two-way commands (lock/unlock, climate, charging):** a durable replacement via the classic Car-Net (MBB) backend \u2014 which Volkswagen has NOT disabled \u2014 is now in beta. See issue #584 for how to enable and test it.\n\nYou can remove the now-inactive channel any time under the integration's options (VW EU Two-Way \u2192 remove). This message is informational; the integration keeps running on your read channels.\n\n**Tip:** enable only ONE two-way integration for a given car at a time. VW rate-limits and can temporarily lock an account that several apps hammer at once \u2014 when that happens even the official VW app can't control the car, which is the tell that it's an account lockout, not this integration."
+    },
     "two_factor_required": {
       "title": "Tweestapsverificatie vereist — {brand}",
       "description": "Je {brand}-account ({username}) vereist een e-mailverificatiecode.\n\n**Eenmalige oplossing:**\n1. Open de **{brand}-app** op je telefoon\n2. Log handmatig in\n3. Bevestig de code die per e-mail is verstuurd\n4. Herstart Home Assistant\n\nNa deze eenmalige stap bewaart de integratie het login-token — je hoeft dit niet te herhalen."

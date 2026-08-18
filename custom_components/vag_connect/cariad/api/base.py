@@ -82,6 +82,12 @@ _PROBE_CB_THRESHOLD  = 3
 # be more polling. The hold is per-client = per-account (one client per entry).
 _LOCKOUT_429_S = 1800   # 30 min once 429 retries are exhausted
 _LOCKOUT_430_S = 7200   # 2 h on a hard 430 (explicit lockout signal)
+# VW EU Two-Way (650d46ca): the ~1 h device-grant Bearer is NON-refreshable, and
+# an EXPIRED bearer can come back 403 (not 401) from the CARIAD BFF, so the
+# reactive 401-retry re-mint can miss it and the entry freezes after ~1 h
+# (leMineGaming, #1217). Re-mint PROACTIVELY once the token is within this skew
+# of expiry so a request never rides an expired bearer.
+_DEVICE_GRANT_REMINT_SKEW_S = 300   # 5 min before expiry
 
 
 class _AuthStormSignal(Exception):
@@ -1370,6 +1376,28 @@ class CariadBaseClient:
                 429, url,
                 f"rate-limit lockout active — {locked}s remaining (account cooldown)",
             )
+        # VW EU Two-Way (#1217) — re-mint the ~1 h device-grant Bearer BEFORE it
+        # expires so no request rides an expired token. The reactive 401-retry
+        # below cannot be relied on alone: an expired bearer can come back 403
+        # (not 401) from the CARIAD BFF, which would silently freeze the entry
+        # after ~1 h. Only on the first attempt, VW device-grant with a stored
+        # password; coalesced via stale_access_token so concurrent requests
+        # re-mint once; fail-soft so a re-mint hiccup falls through to the
+        # reactive path rather than sinking the request.
+        _tok = self._tokens
+        if (
+            _attempt == 0
+            and _tok is not None
+            and getattr(_tok, "strategy", "") == "device_grant"
+            and self._brand.name == "volkswagen"
+            and self._vweu_password
+            and (getattr(_tok, "expires_at", 0.0) or 0.0) - time.time()
+            < _DEVICE_GRANT_REMINT_SKEW_S
+        ):
+            try:
+                await self._refresh_tokens(stale_access_token=self._access_token)
+            except Exception as _e:  # noqa: BLE001 — reactive 401 path still backs us up
+                _LOGGER.debug("proactive device_grant re-mint failed: %s", _e)
         headers = kwargs.pop("headers", {})
         token_used = self._access_token
         headers["Authorization"] = f"Bearer {token_used}"

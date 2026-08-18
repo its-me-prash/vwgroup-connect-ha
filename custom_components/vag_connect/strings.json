@@ -58,12 +58,12 @@
           "browser_login": "Browser-Login (recommended)",
           "email_password": "Email + Password (legacy)",
           "website_authproxy": "Volkswagen.de website (beta — read-only)",
-          "mbb_login": "Volkswagen EU — Durable Login (MBB, two-way alpha)"
+          "mbb_login": "Volkswagen EU — Durable Login (MBB, two-way beta)"
         }
       },
       "mbb_login": {
-        "title": "Volkswagen EU — Durable Login (MBB, ALPHA)",
-        "description": "**Experimental, opt-in — Volkswagen EU only.** A browser confirmation (no password stored in Home Assistant) mints a durable, refreshable token via the legacy MBB backend. Unlike the read-only portal, this survives restarts and supports two-way remote lock/unlock. **Enter your VIN** (the MBB token can't list your garage by itself), and add your S-PIN to enable lock/unlock. On the next screen you will see a short code and a URL to open on any device.",
+        "title": "Volkswagen EU — Durable Login (MBB, BETA)",
+        "description": "**Opt-in beta — Volkswagen EU only.** A browser confirmation (no password stored in Home Assistant) mints a durable, refreshable token via the legacy MBB backend. Unlike the read-only portal, this survives restarts and supports two-way remote lock/unlock. **Enter your VIN** (the MBB token can't list your garage by itself), and add your S-PIN to enable lock/unlock. On the next screen you will see a short code and a URL to open on any device.",
         "data": {
           "mbb_vins": "VIN (vehicle identification number)",
           "spin": "S-PIN",
@@ -306,7 +306,8 @@
       "vweu_no_bff_data": "Signed in, but Volkswagen returned no live data for this car on the modern backend yet, so VW EU Two-Way was not enabled and your current channel is unchanged. Please try again later, or share a diagnostics so we can look into it."
     },
     "abort": {
-      "not_volkswagen": "This channel is only available for Volkswagen."
+      "not_volkswagen": "This channel is only available for Volkswagen.",
+      "vweu_twoway_vw_disabled": "Volkswagen disabled the login this channel used on 2026-08-18, so it can no longer be set up. Live reads keep working through the EU Data Act portal, and a durable command channel via the classic Car-Net backend is in beta — see issue #584."
     }
   },
   "entity": {
@@ -1838,6 +1839,10 @@
     "data_act_no_data": {
       "title": "EU Data Act portal: no vehicle data yet ({brand})",
       "description": "The EU Data Act portal signed in for {brand} but isn't returning any vehicle data yet.\n\nThe integration creates the continuous data request for you automatically, so the usual reasons for an empty feed are:\n\n1. **Data-sharing consent not granted for this car.** On the portal you grant the EU Data Act data-sharing consent per vehicle, once. Until you do, the request is created but stays empty — this is the most common cause.\n2. **The car hasn't sent anything new yet.** A fresh dataset is only published after the car has been driven, charged, or locked/unlocked, so a brand-new request can take 15-60 minutes (or a short drive) to start filling.\n3. **A VW-side outage.** VW reported an all-brands EU Data Act portal outage from late May 2026; while it lasts the portal returns empty data for every tool, recovering brand by brand.\n\n**Quickest check:** open `eu-data-act.drivesomethinggreater.com`, sign in, and confirm (a) the data-sharing consent is granted for this car and (b) there is an active continuous (15-minute) data request with all clusters ticked. If you see no data there either, it's the VW side — nothing this integration can do until VW restores it.\n\nThis is the read-only portal beta — the warning clears by itself once data arrives."
+    },
+    "vweu_twoway_disabled": {
+      "title": "VW EU Two-Way: disabled by Volkswagen",
+      "description": "On 2026-08-18 Volkswagen disabled the login that the VW EU Two-Way (modern CARIAD backend) channel used, so its 1-hour token can no longer be renewed and two-way commands via that channel have stopped. This is a Volkswagen-side change — nothing is misconfigured on your side, and your account is not at risk (the failure happens before any password is sent).\n\n**Your live reads keep working** through the EU Data Act portal, so your sensors are unaffected.\n\n**For two-way commands (lock/unlock, climate, charging):** a durable replacement via the classic Car-Net (MBB) backend — which Volkswagen has NOT disabled — is now in beta. See issue #584 for how to enable and test it.\n\nYou can remove the now-inactive channel any time under the integration's options (VW EU Two-Way → remove). This message is informational; the integration keeps running on your read channels.\n\n**Tip:** enable only ONE two-way integration for a given car at a time. VW rate-limits and can temporarily lock an account that several apps hammer at once \u2014 when that happens even the official VW app can't control the car, which is the tell that it's an account lockout, not this integration."
     },
     "vw_na_data_forbidden": {
       "title": "Volkswagen US/CA: vehicle data blocked (HTTP 403)",

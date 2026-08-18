@@ -58,11 +58,11 @@
           "browser_login": "Browser-Login (empfohlen)",
           "email_password": "E-Mail + Passwort (Legacy)",
           "website_authproxy": "Volkswagen.de Website (Beta — nur Lesen)",
-          "mbb_login": "Volkswagen EU — Dauerhafter Login (MBB, Zwei-Wege-Alpha)"
+          "mbb_login": "Volkswagen EU — Dauerhafter Login (MBB, Zwei-Wege-Beta)"
         }
       },
       "mbb_login": {
-        "title": "Volkswagen EU — Dauerhafter Login (MBB, ALPHA)",
+        "title": "Volkswagen EU — Dauerhafter Login (MBB, BETA)",
         "description": "**Experimentell, freiwillig — nur Volkswagen EU.** Eine Browser-Bestätigung (kein Passwort in Home Assistant) erzeugt über das Legacy-MBB-Backend ein dauerhaftes, erneuerbares Token. Anders als das nur-lesende Portal übersteht dies Neustarts und unterstützt Zwei-Wege-Fernverriegelung. **Trage deine VIN ein** (das MBB-Token kann deine Garage nicht selbst auflisten) und deine S-PIN für Ver-/Entriegeln. Im nächsten Schritt siehst du einen kurzen Code und eine URL für ein beliebiges Gerät.",
         "data": {
           "mbb_vins": "VIN (Fahrgestellnummer)",
@@ -306,7 +306,8 @@
       "vweu_no_bff_data": "Signed in, but Volkswagen returned no live data for this car on the modern backend yet, so VW EU Two-Way was not enabled and your current channel is unchanged. Please try again later, or share a diagnostics so we can look into it."
     },
     "abort": {
-      "not_volkswagen": "This channel is only available for Volkswagen."
+      "not_volkswagen": "This channel is only available for Volkswagen.",
+      "vweu_twoway_vw_disabled": "Volkswagen hat den Login, den dieser Kanal nutzte, am 18.08.2026 abgeschaltet — er kann daher nicht mehr eingerichtet werden. Live-Daten laufen weiter über das EU-Data-Act-Portal, und ein dauerhafter Befehlskanal über das klassische Car-Net-Backend ist in der Beta — siehe Issue #584."
     }
   },
   "entity": {
@@ -1771,6 +1772,10 @@
     }
   },
   "issues": {
+    "vweu_twoway_disabled": {
+      "title": "VW EU Two-Way: von Volkswagen abgeschaltet",
+      "description": "Am 18.08.2026 hat Volkswagen den Login abgeschaltet, den der VW-EU-Two-Way (modernes CARIAD-Backend) nutzte \u2014 der 1-Stunden-Token kann nicht mehr erneuert werden, die Befehle \u00fcber diesen Kanal sind gestoppt. Das ist eine Volkswagen-seitige \u00c4nderung \u2014 bei dir ist nichts falsch konfiguriert, und dein Konto ist nicht gef\u00e4hrdet (der Fehler passiert, bevor \u00fcberhaupt ein Passwort gesendet wird).\n\n**Deine Live-Daten laufen weiter** \u00fcber das EU-Data-Act-Portal, deine Sensoren sind also nicht betroffen.\n\n**F\u00fcr Zwei-Wege-Befehle (Ver-/Entriegeln, Klima, Laden):** ein dauerhafter Ersatz \u00fcber das klassische Car-Net-(MBB-)Backend \u2014 das Volkswagen NICHT abgeschaltet hat \u2014 ist jetzt in der Beta. Wie du ihn aktivierst und testest, steht in Issue #584.\n\nDen inaktiven Kanal kannst du jederzeit in den Integrations-Optionen entfernen (VW EU Two-Way \u2192 entfernen). Diese Meldung ist rein informativ; die Integration l\u00e4uft auf deinen Lese-Kan\u00e4len weiter.\n\n**Tipp:** aktiviere pro Auto immer nur EINEN Two-Way-Zugang gleichzeitig. VW drosselt und sperrt Konten zeitweise, wenn mehrere Apps es gleichzeitig bombardieren \u2014 dann kann selbst die offizielle VW-App das Auto nicht steuern, und genau das ist das Zeichen f\u00fcr eine Konto-Sperre, nicht die Integration."
+    },
     "two_factor_required": {
       "title": "Zwei-Faktor-Anmeldung erforderlich — {brand}",
       "description": "Dein {brand}-Konto ({username}) verlangt eine Bestätigung per E-Mail-Code.\n\n**Einmalige Lösung:**\n1. Öffne die **{brand}-App** auf deinem Handy\n2. Melde dich dort manuell an\n3. Bestätige den Code, der per E-Mail kommt\n4. Starte Home Assistant neu\n\nNach diesem einmaligen Schritt speichert die Integration das Login-Token — du musst das nicht wiederholen."

@@ -1273,12 +1273,32 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # VW EU Two-Way (650d46ca): thread the stored credentials so the
             # base.py re-mint branch can headlessly renew the 1h token.
             if self.entry.data.get(CONF_VWEU_DEVICE_GRANT):
-                self._cariad_client._vweu_email = self.entry.data.get(
-                    CONF_VWEU_TWOWAY_EMAIL, ""
+                from .cariad.auth._device_grant import (  # noqa: PLC0415
+                    VWEU_TWOWAY_DISABLED,
                 )
-                self._cariad_client._vweu_password = self.entry.data.get(
-                    CONF_VWEU_TWOWAY_PASSWORD, ""
-                )
+                if VWEU_TWOWAY_DISABLED:
+                    # VW disabled the 650d46ca grant on 2026-08-18, so a re-mint
+                    # can only 403. Do NOT thread the password (that keeps
+                    # base.py from spending its 3/h re-mint budget on a dead
+                    # login) and raise a one-time informational Repair so an
+                    # existing user learns why + how to move on (MBB beta / EU-DA
+                    # reads / remove the dead channel in options).
+                    ir.async_create_issue(
+                        self.hass,
+                        DOMAIN,
+                        f"vweu_twoway_disabled_{self.entry.entry_id}",
+                        is_fixable=False,
+                        is_persistent=False,
+                        severity=ir.IssueSeverity.WARNING,
+                        translation_key="vweu_twoway_disabled",
+                    )
+                else:
+                    self._cariad_client._vweu_email = self.entry.data.get(
+                        CONF_VWEU_TWOWAY_EMAIL, ""
+                    )
+                    self._cariad_client._vweu_password = self.entry.data.get(
+                        CONF_VWEU_TWOWAY_PASSWORD, ""
+                    )
         # Fire-and-forget save callback — never blocks API path.
         self._cariad_client.on_tokens_changed = self._token_storage.save
 

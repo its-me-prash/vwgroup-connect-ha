@@ -1,0 +1,32 @@
+meta {
+  name: GET user id
+  type: http
+  seq: 51
+}
+
+get {
+  url: {{base_url}}/api/v1/users
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+  User-Agent: vag-connect-ha-tests/1.17.3
+}
+
+docs {
+  Fetches the account user-id from the mysmob ``/v1/users`` endpoint
+  (``GET /api/v1/users`` -> ``.id``). The user-id is the MQTT push
+  username + topic segment, so it must be captured before arming the
+  Skoda push channel.
+
+  Implementation: SkodaClient user-id fetch in
+  custom_components/vag_connect/cariad/api/skoda.py (~line 173).
+
+  See #602 (Skoda MQTT push user_id capture) for why this is needed.
+}

@@ -606,6 +606,16 @@ VWEU_DAG_CLIENT_ID = "650d46ca-2475-4384-85c2-6af3bf3d52f1@apps_vw-dilab_com"
 VWEU_DAG_SCOPE = "openid profile badge cars dealers vin offline_access"
 VWEU_DAG_BRANDS = frozenset({"volkswagen"})
 
+# ── VW EU Two-Way (BFF) kill-switch — 2026-08-18 ────────────────────────────
+# VW disabled the device_code grant for 650d46ca on 2026-08-18: POST
+# /oidc/v1/device_authorization now returns 403 unauthorized_client, so the BFF
+# two-way token can no longer be minted (#1217 / #584). The ENTIRE flow is kept
+# intact and merely disabled behind this one switch — the config-flow add-toggle
+# is hidden and the mint step aborts honestly. To RE-ACTIVATE the moment a
+# working BFF-whitelisted client turns up: flip this to ``False`` and point
+# ``VWEU_DAG_CLIENT_ID`` at that client. Nothing else needs to change.
+VWEU_TWOWAY_DISABLED = True
+
 
 def vweu_dag_config(brand_name: str) -> tuple[str, str] | None:
     """``(client_id, scope)`` for the VW EU Two-Way device grant (modern CARIAD

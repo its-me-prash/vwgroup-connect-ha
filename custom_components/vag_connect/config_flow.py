@@ -2197,13 +2197,20 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
             )] = _BOOL_SELECTOR
         # VW EU Two-Way (650d46ca): Volkswagen-only. Show the add-toggle for a VW
         # entry that has not armed it, and a remove-toggle once armed (so it can
-        # be rolled back without deleting the integration).
+        # be rolled back without deleting the integration). The add-toggle is
+        # hidden while VWEU_TWOWAY_DISABLED — VW disabled the 650d46ca device_code
+        # grant on 2026-08-18 (device_authorization → 403 unauthorized_client), so
+        # a fresh channel can't mint. All the flow code is preserved; flipping
+        # VWEU_TWOWAY_DISABLED back to False re-offers the toggle unchanged.
         if current_data.get(CONF_BRAND) == "volkswagen":
+            from .cariad.auth._device_grant import (  # noqa: PLC0415
+                VWEU_TWOWAY_DISABLED,
+            )
             if current_data.get(CONF_VWEU_DEVICE_GRANT):
                 schema[vol.Optional(
                     "remove_vweu_twoway", default=False,
                 )] = _BOOL_SELECTOR
-            else:
+            elif not VWEU_TWOWAY_DISABLED:
                 schema[vol.Optional(
                     CONF_VWEU_DEVICE_GRANT, default=False,
                 )] = _BOOL_SELECTOR
@@ -2615,6 +2622,16 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
         errors: dict[str, str] = {}
         if self._config_entry.data.get(CONF_BRAND) != "volkswagen":
             return self.async_abort(reason="not_volkswagen")
+        # Kill-switch guard (2026-08-18): VW disabled the 650d46ca device_code
+        # grant, so a mint here is guaranteed to 403. While disabled the
+        # add-toggle is hidden so this step is unreachable from the UI — this is
+        # defence-in-depth for a stale in-flight flow. Flipping
+        # VWEU_TWOWAY_DISABLED to False re-enables the whole path unchanged.
+        from .cariad.auth._device_grant import (  # noqa: PLC0415
+            VWEU_TWOWAY_DISABLED,
+        )
+        if VWEU_TWOWAY_DISABLED:
+            return self.async_abort(reason="vweu_twoway_vw_disabled")
 
         if user_input is not None:
             email = str(user_input[CONF_USERNAME]).strip()

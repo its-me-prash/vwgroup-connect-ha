@@ -42,6 +42,27 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.0.0b4] - 2026-08-19 — durable Car-Net two-way after VW pulled the modern login
+
+_Fourth 4.0.0 beta. On 2026-08-18 Volkswagen disabled the login that the modern
+(CARIAD) VW EU Two-Way used, so that channel can no longer be set up. This beta
+greys it out honestly and leans on the durable replacement — two-way commands
+over the classic Car-Net (MBB) backend, which VW has NOT disabled. Includes
+everything from v4.0.0b3._
+
+### Changed
+- **The modern VW EU Two-Way add-toggle is greyed out.** VW disabled its login on 2026-08-18, so a fresh setup could only fail — the toggle is hidden until a working login turns up, and existing users get a one-time notice: your live reads keep coming through the EU Data Act portal, and the classic Car-Net two-way is the durable replacement for commands. All the code is kept, so it flips back on in a single line the moment VW reopens it.
+- **The durable Car-Net (MBB) two-way is now beta, not alpha.** It mints a refreshable token VW has not blocked and drives remote lock/unlock, climate and charging.
+
+### Added
+- **Two tester probes** (in `scripts/`): one for VW EU two-way commands + live reads (posts back to #584), one for the North-America attestation situation (#1215). Both use a browser login (no password ever in the script), mask VIN/tokens, and print a paste-safe block for the issue thread.
+
+### Fixed
+- **Bruno CI is green again** — a Škoda `/api/v1/users` endpoint had no matching Bruno file, which failed the strict URL-drift check on every push; added the file.
+
+### Note
+- If a two-way command does nothing and the **official VW app also can't control the car**, the account is rate-limited or temporarily locked — enable only one two-way integration per car at a time.
+
 ## [4.0.0b3] - 2026-08-18 — VW EU Two-Way source priority + auto-fallback
 
 _Third 4.0.0 beta. Makes two-way the authoritative data source when it's on and
