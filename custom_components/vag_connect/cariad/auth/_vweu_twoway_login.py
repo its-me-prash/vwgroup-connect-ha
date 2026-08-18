@@ -112,6 +112,27 @@ def _hidden_inputs(page: str) -> dict[str, str]:
     return out
 
 
+def bff_selectivestatus_has_data(status: object) -> bool:
+    """True if a CARIAD-BFF ``selectivestatus`` body carries at least one real
+    value block (a ``{"value": ...}`` sub-object), not just error envelopes.
+
+    Used to confirm a car actually SERVES live data on the modern plane before
+    activating VW EU Two-Way (a car that only 4103s must not be activated, or the
+    entry would swap a working primary for an empty one). Requiring a ``value``
+    key — rather than merely 'no error' — rejects BOTH a field-level
+    ``{"error": ...}`` block AND a job-level ``{"error": {...}}`` envelope whose
+    inner ``{code, message}`` dict would otherwise read as error-free.
+    """
+    if not isinstance(status, dict):
+        return False
+    for job in status.values():
+        if isinstance(job, dict):
+            for sub in job.values():
+                if isinstance(sub, dict) and "value" in sub and "error" not in sub:
+                    return True
+    return False
+
+
 class VwEuTwoWayLogin:
     """Headless 650d46ca device-grant login. Reuses the passed aiohttp session so
     its cookie jar is the 24h re-auth cache: hydrate the jar with cached cookies

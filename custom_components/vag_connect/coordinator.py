@@ -1237,12 +1237,16 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         strategy="device_grant",
                     )
         elif (
-            persisted is not None
+            brand == "volkswagen"
+            and persisted is not None
             and getattr(persisted, "strategy", "") == "device_grant"
         ):
             # Rollback: the user removed VW EU Two-Way, but a device_grant token is
             # still in storage. Discard it so the entry re-authenticates via the
             # normal chain instead of silently keeping the removed channel alive.
+            # BRAND-GATED to volkswagen: 'device_grant' is ALSO the normal durable
+            # strategy for Audi/Škoda/SEAT/CUPRA DAG entries — discarding theirs
+            # here would throw away their refreshable token every restart (#118).
             persisted = None
 
         if persisted is not None:

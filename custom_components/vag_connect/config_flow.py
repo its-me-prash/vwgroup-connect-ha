@@ -2716,15 +2716,11 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                 status = await resp2.json(content_type=None)
         except Exception:  # noqa: BLE001
             return False
-        # Real data = at least one job sub-block that is NOT an {"error": ...}.
-        if not isinstance(status, dict):
-            return False
-        for job in status.values():
-            if isinstance(job, dict):
-                for sub in job.values():
-                    if isinstance(sub, dict) and "error" not in sub:
-                        return True
-        return False
+        from .cariad.auth._vweu_twoway_login import (  # noqa: PLC0415
+            bff_selectivestatus_has_data,
+        )
+
+        return bff_selectivestatus_has_data(status)
 
     async def _ovw_begin_login(self, username: str, password: str) -> bool:
         """Drive the vw.de authproxy login; True if an OTP step is needed.

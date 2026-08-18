@@ -18,7 +18,44 @@ from custom_components.vag_connect.cariad.auth._vweu_twoway_login import (
     _extract_idk,
     _form_action,
     _hidden_inputs,
+    bff_selectivestatus_has_data,
 )
+
+
+# ── the dark-entry safety gate: only activate when the BFF SERVES real data ───
+
+def test_serves_data_true_on_a_real_value_block() -> None:
+    status = {"charging": {"batteryStatus": {
+        "value": {"currentSOC_pct": 80}, "carCapturedTimestamp": "t"}}}
+    assert bff_selectivestatus_has_data(status) is True
+
+
+def test_serves_data_false_when_every_field_is_an_error() -> None:
+    status = {
+        "access": {"accessStatus": {"error": {"code": 4103}}},
+        "charging": {"batteryStatus": {"error": {"code": 4103}}},
+    }
+    assert bff_selectivestatus_has_data(status) is False
+
+
+def test_serves_data_false_on_a_job_level_dict_error() -> None:
+    # The re-review caveat: a job-level {"error": {...}} envelope must NOT read as
+    # data (its inner {code,message} dict has no 'error' key of its own).
+    status = {"access": {"error": {"code": 4103, "message": "Not Found"}}}
+    assert bff_selectivestatus_has_data(status) is False
+
+
+def test_serves_data_false_on_non_dict() -> None:
+    for junk in (None, [], "x", 42):
+        assert bff_selectivestatus_has_data(junk) is False
+
+
+def test_serves_data_true_when_at_least_one_job_has_a_value() -> None:
+    status = {
+        "access": {"accessStatus": {"error": {"code": 4103}}},
+        "measurements": {"odometerStatus": {"value": {"odometer": 48768}}},
+    }
+    assert bff_selectivestatus_has_data(status) is True
 
 _CLIENT = "650d46ca-2475-4384-85c2-6af3bf3d52f1@apps_vw-dilab_com"
 
