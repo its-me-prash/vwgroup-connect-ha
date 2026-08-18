@@ -599,9 +599,9 @@ def mbb_dag_config(brand_name: str) -> tuple[str, str] | None:
 #    ``401 invalid_client``. The runtime must RE-MINT via a fresh device grant
 #    on expiry (cookie-cached silent confirm, or an opt-in stored password),
 #    NOT ``self._auth.refresh`` (which hits the attestation-walled CARIAD IDK).
-# Credit: this client was first surfaced by magicus in the volkswagencarnet
-# VWLoginFlow (PR #340); we independently probed + confirmed it live and
-# re-implemented the flow (never copied). See ATTRIBUTION.md.
+# Credit: this client was first surfaced by community researcher @magicus; we
+# independently probed + confirmed it live and re-implemented the flow (never
+# copied). See ATTRIBUTION.md.
 VWEU_DAG_CLIENT_ID = "650d46ca-2475-4384-85c2-6af3bf3d52f1@apps_vw-dilab_com"
 VWEU_DAG_SCOPE = "openid profile badge cars dealers vin offline_access"
 VWEU_DAG_BRANDS = frozenset({"volkswagen"})
