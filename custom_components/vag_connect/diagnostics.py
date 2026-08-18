@@ -46,6 +46,10 @@ from .const import (
     CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD,
     CONF_SUPPLEMENTARY_EU_PORTAL_USERNAME,
     CONF_USERNAME,
+    CONF_VWEU_TWOWAY_COOKIES,
+    CONF_VWEU_TWOWAY_EMAIL,
+    CONF_VWEU_TWOWAY_PASSWORD,
+    CONF_VWEU_TWOWAY_TOKENS,
     DOMAIN,
 )
 from .coordinator import VagConnectCoordinator
@@ -89,6 +93,13 @@ _REDACT_KEYS = frozenset({
     CONF_SUPPLEMENTARY_EU_PORTAL_PASSWORD,
     CONF_SUPPLEMENTARY_EU_PORTAL_USERNAME,
     CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES,
+    # VW EU Two-Way (650d46ca): the stored login password, email, the minted
+    # device_grant token dict, and the re-auth cookies MUST never appear in a
+    # diagnostics download (the file users attach to GitHub issues).
+    CONF_VWEU_TWOWAY_PASSWORD,
+    CONF_VWEU_TWOWAY_EMAIL,
+    CONF_VWEU_TWOWAY_TOKENS,
+    CONF_VWEU_TWOWAY_COOKIES,
 })
 
 # v1.13.0 (#62) — email partial-mask. Keeps domain TLD shape (e.g.
