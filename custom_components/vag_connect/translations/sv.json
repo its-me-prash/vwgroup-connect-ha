@@ -213,7 +213,8 @@
           "abrp_api_key": "ABRP-api_key (utvecklarnyckel)",
           "abrp_user_token": "ABRP-token (per fordon)",
           "keep_raw_datasets": "Behåll rå EU Data Act-datauppsättningar (diagnostik)",
-          "test_cohort": "Hjälp till att förbättra VW Group Connect (frivillig testgrupp)"
+          "test_cohort": "Hjälp till att förbättra VW Group Connect (frivillig testgrupp)",
+          "vweu_device_grant": "Add VW EU Two-Way — commands + live reads (BETA)"
         },
         "data_description": {
           "scan_interval": "Hur ofta data hämtas (minuter). Minimum: 3.",
@@ -232,7 +233,8 @@
           "abrp_api_key": "En utvecklar-/partnernyckel som du registrerar hos iternio (vi levererar ingen). Identifierar integrationen. Loggas aldrig.",
           "abrp_user_token": "'Generic'-token från ABRP-appen: Inställningar -> din bil -> Live Data. Loggas aldrig.",
           "keep_raw_datasets": "Endast användbart på EU Data Act-portalkanalen. När det är på sparas de senaste råa dataset-ZIP-filerna som portalen levererar på disken (under .storage, per fordon och med en storleksgräns), så att ett felaktigt eller saknat värde kan återskapas från exakt de byte som din bil skickade. Dessa filer innehåller din GPS-position, VIN och telemetri, så det är avstängt som standard – slå bara på det vid felsökning.",
-          "test_cohort": "Avstängt som standard. Slå på det här så får integrationen prova experimentella avläsningar från din bil — till exempel det pågående försöket att få fram GPS-position för Volkswagen-bilar i EU — och då och då visa en avisering, som du enkelt kan stänga, där du ombeds dela en diagnostikfil så att en ny funktion kan bekräftas för just din modell. Allt som delas rensas automatiskt innan det lämnar ditt system: inget VIN, ingen GPS, inga tokens och ingen e-post skickas någonsin med. Det är så nya funktioner låses upp — för din bil och för alla andra som kör samma modell — och du kan stänga av det igen när du vill."
+          "test_cohort": "Avstängt som standard. Slå på det här så får integrationen prova experimentella avläsningar från din bil — till exempel det pågående försöket att få fram GPS-position för Volkswagen-bilar i EU — och då och då visa en avisering, som du enkelt kan stänga, där du ombeds dela en diagnostikfil så att en ny funktion kan bekräftas för just din modell. Allt som delas rensas automatiskt innan det lämnar ditt system: inget VIN, ingen GPS, inga tokens och ingen e-post skickas någonsin med. Det är så nya funktioner låses upp — för din bil och för alla andra som kör samma modell — och du kan stänga av det igen när du vill.",
+          "vweu_device_grant": "Volkswagen only, BETA. Adds two-way control (lock/unlock, climate, charging) and live CARIAD reads by signing in with your Volkswagen ID. Volkswagen only issues a 1-hour token here, so your password is stored to renew it automatically — it is sent only to Volkswagen's own login server and is never written to logs or diagnostics. If you would rather not store a password, use the read-only channels instead. Ticking this opens the sign-in step."
         }
       },
       "add_vwde": {
@@ -280,6 +282,18 @@
         "description": "Öppna denna URL i en webbläsare, logga in på Tibber och tillåt åtkomst:\n\n{authorize_url}\n\nNär du har tillåtit åtkomst omdirigeras din webbläsare till en my.home-assistant.io-sida. Kopiera HELA adressen från adressfältet (den innehåller ?code=…) och klistra in den nedan.",
         "data": {
           "tibber_auth_response": "Omdirigerad URL (eller koden)"
+        }
+      },
+      "add_vweu_twoway": {
+        "title": "VW EU Two-Way (commands + live reads, BETA)",
+        "description": "**Experimental, opt-in — Volkswagen only.** Adds two-way control (lock/unlock, climate, charging) and live CARIAD reads by signing in with your Volkswagen ID. Because Volkswagen only issues a 1-hour token on this path, your password is **stored** so the integration can renew it automatically. It is sent only to Volkswagen's own login server and is never written to logs or diagnostics. Prefer not to store a password? Use the read-only channels instead. **Prerequisite:** your Volkswagen ID must be the vehicle's primary user.",
+        "data": {
+          "username": "Email Address",
+          "password": "Password"
+        },
+        "data_description": {
+          "username": "The email of your Volkswagen ID / myVolkswagen account.",
+          "password": "Your Volkswagen ID password. Used only to renew the 1-hour access token against Volkswagen's login server; never logged and redacted from diagnostics."
         }
       }
     },

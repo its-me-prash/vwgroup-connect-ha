@@ -42,6 +42,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [3.3.0b2] - 2026-08-18 — VW EU Two-Way beta (opt-in commands + live reads)
+
+### Added
+- **VW EU Two-Way (opt-in, BETA) — real two-way control for Volkswagen EU cars.** A new opt-in channel signs in with your Volkswagen ID and unlocks remote commands (lock/unlock, climate, charging) plus live CARIAD reads, alongside the existing read-only channels. Turn it on under the integration's options ("Add VW EU Two-Way"). Volkswagen only issues a 1-hour token on this path, so your password is stored to renew it automatically — it is sent only to Volkswagen's own login server and is never logged or included in diagnostics. Credit to **@magicus** for surfacing the device-grant client this builds on. Reads and commands depend on your car being enrolled on the modern CARIAD backend; where a read comes back empty, the durable Car-Net (MBB) and EU Data Act channels remain as fallbacks. Feedback wanted: after enabling it, please share a Download diagnostics so we can confirm which models work end-to-end.
+
 ## [3.3.0b1] - 2026-08-17 — data-quality beta (SoC arbitration, freshness, cabin temp, scout noise)
 
 ### Changed

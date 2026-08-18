@@ -213,7 +213,8 @@
           "abrp_api_key": "ABRP api_key (kehittäjäavain)",
           "abrp_user_token": "ABRP-tunniste (ajoneuvokohtainen)",
           "keep_raw_datasets": "Säilytä EU Data Act -raakadatajoukot (diagnostiikka)",
-          "test_cohort": "Auta parantamaan VW Group Connectia (vapaaehtoinen testiryhmä)"
+          "test_cohort": "Auta parantamaan VW Group Connectia (vapaaehtoinen testiryhmä)",
+          "vweu_device_grant": "Add VW EU Two-Way — commands + live reads (BETA)"
         },
         "data_description": {
           "scan_interval": "Kuinka usein tietoja haetaan (minuutteja). Vähintään: 3.",
@@ -232,7 +233,8 @@
           "abrp_api_key": "Kehittäjä-/kumppaniavain, jonka rekisteröit iterniolla (emme toimita sellaista). Tunnistaa integraation. Ei koskaan lokiin.",
           "abrp_user_token": "'Generic'-tunniste ABRP-sovelluksesta: Asetukset -> autosi -> Live Data. Ei koskaan lokiin.",
           "keep_raw_datasets": "Hyödyllinen vain EU Data Act -portaalikanavalla. Kun käytössä, portaalin toimittamat viimeisimmät raa'at datajoukko-ZIP-tiedostot säilytetään levyllä (.storage-kansiossa, ajoneuvokohtaisesti ja kokorajoitettuna), jotta väärä tai puuttuva arvo voidaan toistaa juuri niistä tavuista, jotka autosi lähetti. Nämä tiedostot sisältävät GPS-sijaintisi, VIN-numerosi ja telemetriasi, joten oletuksena se on pois päältä – ota se käyttöön vain vianmäärityksen ajaksi.",
-          "test_cohort": "Oletuksena pois päältä. Kun otat tämän käyttöön, integraatio saa tehdä autoosi kokeellisia lukupyyntöjä — kuten parhaillaan käynnissä olevaa yritystä hakea GPS-sijainti Volkswagenin EU-autoille — ja näyttää silloin tällöin suljettavan ilmoituksen, jossa sinua pyydetään jakamaan diagnostiikkatiedosto, jotta uusi ominaisuus voidaan varmistaa juuri sinun automallillesi. Kaikki jaettavat tiedot puhdistetaan automaattisesti ennen kuin ne lähtevät järjestelmästäsi: mukana ei koskaan ole VIN-tunnusta, GPS-sijaintia, tokeneita eikä sähköpostia. Juuri näin uudet ominaisuudet avautuvat sekä sinun autoosi että kaikille muille samaa mallia ajaville, ja voit halutessasi kytkeä sen milloin tahansa takaisin pois päältä."
+          "test_cohort": "Oletuksena pois päältä. Kun otat tämän käyttöön, integraatio saa tehdä autoosi kokeellisia lukupyyntöjä — kuten parhaillaan käynnissä olevaa yritystä hakea GPS-sijainti Volkswagenin EU-autoille — ja näyttää silloin tällöin suljettavan ilmoituksen, jossa sinua pyydetään jakamaan diagnostiikkatiedosto, jotta uusi ominaisuus voidaan varmistaa juuri sinun automallillesi. Kaikki jaettavat tiedot puhdistetaan automaattisesti ennen kuin ne lähtevät järjestelmästäsi: mukana ei koskaan ole VIN-tunnusta, GPS-sijaintia, tokeneita eikä sähköpostia. Juuri näin uudet ominaisuudet avautuvat sekä sinun autoosi että kaikille muille samaa mallia ajaville, ja voit halutessasi kytkeä sen milloin tahansa takaisin pois päältä.",
+          "vweu_device_grant": "Volkswagen only, BETA. Adds two-way control (lock/unlock, climate, charging) and live CARIAD reads by signing in with your Volkswagen ID. Volkswagen only issues a 1-hour token here, so your password is stored to renew it automatically — it is sent only to Volkswagen's own login server and is never written to logs or diagnostics. If you would rather not store a password, use the read-only channels instead. Ticking this opens the sign-in step."
         }
       },
       "add_vwde": {
@@ -280,6 +282,18 @@
         "description": "Avaa tämä URL-osoite selaimessa, kirjaudu Tibberiin ja salli pääsy:\n\n{authorize_url}\n\nKun sallit pääsyn, selaimesi ohjataan my.home-assistant.io-sivulle. Kopioi KOKO osoite osoiterivistä (se sisältää ?code=…) ja liitä se alle.",
         "data": {
           "tibber_auth_response": "Uudelleenohjattu URL-osoite (tai koodi)"
+        }
+      },
+      "add_vweu_twoway": {
+        "title": "VW EU Two-Way (commands + live reads, BETA)",
+        "description": "**Experimental, opt-in — Volkswagen only.** Adds two-way control (lock/unlock, climate, charging) and live CARIAD reads by signing in with your Volkswagen ID. Because Volkswagen only issues a 1-hour token on this path, your password is **stored** so the integration can renew it automatically. It is sent only to Volkswagen's own login server and is never written to logs or diagnostics. Prefer not to store a password? Use the read-only channels instead. **Prerequisite:** your Volkswagen ID must be the vehicle's primary user.",
+        "data": {
+          "username": "Email Address",
+          "password": "Password"
+        },
+        "data_description": {
+          "username": "The email of your Volkswagen ID / myVolkswagen account.",
+          "password": "Your Volkswagen ID password. Used only to renew the 1-hour access token against Volkswagen's login server; never logged and redacted from diagnostics."
         }
       }
     },
