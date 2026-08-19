@@ -43,6 +43,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ## [Unreleased]
 
 ### Fixed
+- **The companion range now reads imperial units correctly (#968).** The We Connect app narrates the range unit in words, and a car on imperial units reads "14 miles" while a metric one reads "253 Kilometer". The companion read only matched "km", so an imperial car read no range at all (or would have stored 14 and mislabelled it km). It now captures the number and the unit and converts miles to km. Thanks @kgroshert and @plainmad for the dumps.
 - **The EU Data Act identifier is no longer written in clear text in diagnostics (#923, #1222).** The per-VIN portal identifier map masked the VIN used as its key but left the identifier value in plaintext, so it went out in the download people attach to public issues. The values are now redacted while the map shape (how many cars are enrolled) is kept. Thanks @ggfbrkt6mc-max.
 - **Parking address now carries the suburb and state, not just the city.** The reverse geocoder only surfaced the city, so a car parked in a suburb showed the wrong locality (e.g. `Sydney` instead of `Summer Hill`) and dropped the state/postcode the brand app shows. It now reads the suburb (with neighbourhood/borough fallbacks), state and postcode, prefers the suburb for the parking locality (falling back to the city where a locale has none, so nowhere regresses to blank), and puts the house number before the road outside the German-order countries — DE/AT/CH/LI keep `Straße 12` (#1219).
 

@@ -51,7 +51,7 @@ class FieldSelector:
     value_from: str = "self"
     # Turns the raw on-screen text into the typed value. Defaults to a plain
     # string; the channel applies the field's own coercion on top.
-    parse: str = "str"  # str, percent, int_km, bool_charging, kw, bool_locked, bool_ignition
+    parse: str = "str"  # str, percent, int_km, range_km, bool_charging, kw, bool_locked, bool_ignition, hm_minutes
 
 
 @dataclass(frozen=True)
@@ -226,14 +226,14 @@ _VW = BrandPreset(
                 # The app narrates the unit in words, not as a symbol: a real
                 # We Connect 4.2.1 tile reads "Batteriereichweite: 253
                 # Kilometer". Matching only "km" read nothing at all here.
-                # NOTE (#968): a Mk8 on imperial units narrates "14 miles" — not
-                # read here yet; a unit-aware range parse is a follow-up so we
-                # never mislabel miles as km.
-                r"\D*(\d{1,4})\s*(?:km\b|[Kk]ilomet)"
+                # #968: a Mk8 on imperial units narrates "14 miles". Capture the
+                # number AND the unit into one group so ``range_km`` can convert
+                # miles -> km and never mislabel 14 miles as 14 km.
+                r"\D*(\d{1,4}\s*(?:km\b|[Kk]ilomet\w*|miles?\b|mi\b|[Mm]eilen?))"
             ),
             label_re=r"^(?:Batteriereichweite|Battery range|Electric range|Reichweite|Range)$",
             value_from="sibling",
-            parse="int_km",
+            parse="range_km",
         ),
         FieldSelector(
             target="charging_state",
@@ -532,6 +532,17 @@ def coerce(parse: str, raw: str | None) -> object | None:
             return None
         if parse == "percent" and not (0 <= val <= 100):
             return None  # a "%" that is not a plausible SoC is a mis-match
+        return val
+    if parse == "range_km":
+        # #968 — the app narrates the range unit in words, and a car on imperial
+        # units reads "14 miles" while a metric one reads "253 Kilometer". The
+        # selector captures the number AND the unit, so convert miles -> km here
+        # instead of storing 14 and mislabelling it km. (kgroshert/plainmad Mk8.)
+        val = _first_int(raw)
+        if val is None:
+            return None
+        if re.search(r"mile|meile|\bmi\b", raw, re.I):
+            return round(val * 1.60934)
         return val
     if parse == "bool_charging":
         return bool(re.search(r"(?:Lädt|Wird geladen|Charging)", raw, re.I))

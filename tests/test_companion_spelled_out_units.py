@@ -21,7 +21,7 @@ import re
 
 import pytest
 
-from custom_components.vag_connect.companion.presets import PRESETS
+from custom_components.vag_connect.companion.presets import PRESETS, coerce
 
 _ID4_RANGE = "Übersicht Reichweite. Batteriereichweite: 253 Kilometer. Details öffnen"
 _EUP_RANGE = "Übersicht Reichweite. Batteriereichweite: 41 Kilometer. Details öffnen"
@@ -31,28 +31,43 @@ _EUP_TRIP = (
 )
 
 
-def _selector(target: str):
+def _field(target: str):
     vw = PRESETS["volkswagen"]
     for field in vw.fields:
         if field.target == target:
-            return re.compile(field.content_desc_re)
+            return field
     raise AssertionError(f"no {target} selector on the volkswagen preset")
 
 
+def _selector(target: str):
+    return re.compile(_field(target).content_desc_re)
+
+
 class TestRangeReadsTheSpelledOutUnit:
+    # #968 — the range selector now captures the number AND the spelled-out unit
+    # into group(1) so ``range_km`` can convert imperial; assert the coerced km
+    # value (the real contract), not the raw capture.
     @pytest.mark.parametrize(("desc", "expected"), [
-        (_ID4_RANGE, "253"),
-        (_EUP_RANGE, "41"),
+        (_ID4_RANGE, 253),
+        (_EUP_RANGE, 41),
     ])
-    def test_real_dumps_parse(self, desc: str, expected: str) -> None:
-        match = _selector("electric_range_km").search(desc)
+    def test_real_dumps_parse(self, desc: str, expected: int) -> None:
+        field = _field("electric_range_km")
+        match = re.compile(field.content_desc_re).search(desc)
         assert match is not None, "the verified preset still cannot read its own app"
-        assert match.group(1) == expected
+        assert coerce(field.parse, match.group(1)) == expected
 
     def test_the_symbol_still_works(self) -> None:
         """English builds and the older wording used the symbol; both must read."""
-        match = _selector("electric_range_km").search("Battery range 320 km")
-        assert match is not None and match.group(1) == "320"
+        field = _field("electric_range_km")
+        match = re.compile(field.content_desc_re).search("Battery range 320 km")
+        assert match is not None and coerce(field.parse, match.group(1)) == 320
+
+    def test_imperial_miles_convert_to_km(self) -> None:
+        """#968 — a Mk8 on imperial units narrates miles; it must read as km."""
+        field = _field("electric_range_km")
+        match = re.compile(field.content_desc_re).search("Battery range 14 miles")
+        assert match is not None and coerce(field.parse, match.group(1)) == 23
 
 
 class TestTheTripTileIsNotTheOdometer:
