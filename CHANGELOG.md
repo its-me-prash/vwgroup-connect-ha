@@ -42,6 +42,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.0.0b5] - 2026-08-19 — a dead VW login no longer takes the whole car offline
+
+_Fifth 4.0.0 beta. Brings the v3.2.5 stable fail-soft fix onto the beta line too,
+plus a recovered range reading on newer platforms. Includes everything from
+v4.0.0b4._
+
+### Fixed
+- **A dead upstream VW sign-in no longer tears down the whole entry.** Since VW disabled the modern VW EU login on 2026-08-18, an affected car could fail setup with "Invalid credentials" and take *every* entity offline with it — including the EU Data Act sensors that never used that login. Setup now keeps the entry alive by reading your vehicle list from the EU Data Act portal, so those sensors keep serving and only the dead channel is degraded (#1222).
+- **Primary range comes back on newer platforms (e.g. CUPRA Raval).** These cars report the range under a newer official field name the parser wasn't reading, so the range sensor silently stayed empty. It's picked up now (#1220).
+
 ## [4.0.0b4] - 2026-08-19 — durable Car-Net two-way after VW pulled the modern login
 
 _Fourth 4.0.0 beta. On 2026-08-18 Volkswagen disabled the login that the modern

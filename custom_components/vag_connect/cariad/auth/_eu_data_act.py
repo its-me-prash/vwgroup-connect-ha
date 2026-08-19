@@ -1583,6 +1583,12 @@ def map_dataset_to_vehicle_data(
     et = (et_raw or "").upper()
     primary_raw = _to_int(first(
         "cruising_range_primary_engine", "primaryEngineRange",
+        # #1220 (CUPRA Raval, new platform) — the primary range ships under the
+        # OFFICIAL EU-DA dict leaf ``estimatedcruisingrangeprimary(.value)``, which
+        # the chain never consumed, so the range silently dropped and only
+        # ``.is_set`` poked through to the Scout. A named source AFTER the
+        # canonical spellings, so cars that ship both keep their existing value.
+        "estimatedcruisingrangeprimary.value", "estimatedcruisingrangeprimary",
         # v2.17.4 — MEB/ID.x ships the primary range as a UUID-only "value" point.
         # The engine-type logic below still routes it correctly (electric on a
         # BEV, combustion on a PHEV), so wiring it here needs no orientation care.
@@ -1591,7 +1597,11 @@ def map_dataset_to_vehicle_data(
         "153e8c40-4c6c-3c17-a11b-0ecc35d55b81",
         "0ca40e18-0564-3eda-bcc0-7aee9ef44f04",
     ))
-    secondary_raw = _to_int(first("cruising_range_secondary_engine"))
+    secondary_raw = _to_int(first(
+        "cruising_range_secondary_engine",
+        # #1220 — official secondary-range dict leaf (PHEV combustion range).
+        "estimatedcruisingrangesecondary.value", "estimatedcruisingrangesecondary",
+    ))
     has_fuel = (
         first("fuel_level_current_level", "tank_current_level",
               "fuelLevel_pct", "fuel_level") is not None
@@ -1625,6 +1635,9 @@ def map_dataset_to_vehicle_data(
     # so the existing range_km behaviour is preserved for every car.
     rng = _to_int(first("range", "cruising_range_primary_engine",
                         "totalRange_km", "primaryEngineRange",
+                        # #1220 (CUPRA Raval) — official primary-range dict leaf.
+                        "estimatedcruisingrangeprimary.value",
+                        "estimatedcruisingrangeprimary",
                         "153e8c40-4c6c-3c17-a11b-0ecc35d55b81",
                         "0ca40e18-0564-3eda-bcc0-7aee9ef44f04"))
     if rng is not None:
