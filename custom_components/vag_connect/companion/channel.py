@@ -382,6 +382,9 @@ class CompanionChannel:
         want = self._preset.verified_app_version
         if want is None:
             return False
+        # #968 — accept a SET of known-compatible versions (We Connect reports its
+        # version inconsistently); a bare string stays a one-element set.
+        want_set: tuple[str, ...] = (want,) if isinstance(want, str) else tuple(want)
         if live_version is None:
             # Could not read the version → do not risk a tap.
             _LOGGER.debug(
@@ -389,12 +392,12 @@ class CompanionChannel:
                 "nav reads) disabled until it is confirmed", self._preset.brand,
             )
             return False
-        if live_version != want:
+        if live_version not in want_set:
             _LOGGER.warning(
                 "companion %s: app is %s but this preset was built for %s; "
                 "taps (writes and nav reads) are disabled until the preset is "
                 "confirmed against the new version. Overview reads keep working.",
-                self._preset.brand, live_version, want,
+                self._preset.brand, live_version, "/".join(want_set),
             )
             return False
         return True
@@ -428,11 +431,13 @@ class CompanionChannel:
             except CompanionTransportError as err:
                 raise CompanionWriteBlocked(str(err)) from err
         if not self._version_ok:
+            _want = self._preset.verified_app_version
+            _want_str = _want if isinstance(_want, str) else " / ".join(_want or ())
             raise CompanionWriteBlocked(
                 f"writes are disabled for {self._preset.brand}: the app version "
                 f"on the phone ({self._live_app_version or 'unknown'}) does not "
                 f"match the one this preset was verified against "
-                f"({self._preset.verified_app_version}). Reads still work."
+                f"({_want_str}). Reads still work."
             )
         # v2.26.0 (ckomma #21) — if a rate-limit backoff is active, do not send.
         if self._is_rate_limited():

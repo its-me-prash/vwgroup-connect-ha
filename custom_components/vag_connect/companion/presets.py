@@ -110,10 +110,15 @@ class BrandPreset:
     brand: str
     package: str  # the Android package name of the app
     verified: bool  # True only when confirmed against a real device
-    # The app version this preset was built against. The channel refuses writes
-    # when the live app version differs (reads still run); mirrors the
-    # app-version quarantine idea from the prior-art projects.
-    verified_app_version: str | None
+    # The app version(s) this preset was built against. The channel refuses
+    # writes/nav-taps when the live app version is not one of these (plain reads
+    # still run); mirrors the app-version quarantine idea from the prior-art
+    # projects. A TUPLE accepts several known-compatible versions at once, which
+    # matters because We Connect reports its version inconsistently (a Play
+    # marketing "4.3.2" vs an internal versionName like "3.63.2"/"3.64.0" that all
+    # ship the SAME accessibility tree), so pinning a single string re-quarantines
+    # users on every patch. A bare string still works for the read-only brands.
+    verified_app_version: str | tuple[str, ...] | None
     fields: tuple[FieldSelector, ...]
     actions: tuple[ActionSelector, ...] = ()
     # v2.26.0 (C9) — values behind a detail screen, read by tapping a tile and
@@ -186,7 +191,15 @@ _VW = BrandPreset(
     brand="volkswagen",
     package="com.volkswagen.weconnect",
     verified=True,
-    verified_app_version="4.2.1",
+    # #968 (Philip-Wiege) — We Connect updated 4.2.1 → 4.3.2 and the single-value
+    # quarantine then disabled every nav-read ("app 4.3.2 > preset 4.2.1"). The
+    # 4.3.2 accessibility tree keeps the SAME stable resource-ids this preset
+    # already reads (rangeArcBatterySoc / rangeTile / rangeArcRangeAndUnit — the
+    # prior-art connector reads exactly these on 4.3.2), so this is a version
+    # widening, not a selector rewrite. Accept the Play "4.3.2" and the internal
+    # versionName forms ("3.64.0" / "3.63.2") that report the same UI, so a patch
+    # bump no longer re-quarantines readers.
+    verified_app_version=("4.3.2", "3.64.0", "3.63.2", "4.2.1"),
     # v2.26.0 — READ vocabulary re-grounded against ckomma/charge-app-connector-vw
     # (real-device VW app 4.2.x). The old words ("Ladezustand", "Reichweite",
     # "Zielladung") did NOT match what We Connect actually narrates in its
@@ -265,6 +278,10 @@ _VW = BrandPreset(
             name="charge_detail",
             tile=ActionSelector(
                 action="open_charge_detail",
+                # #968 — resource-id first (the most stable handle, unchanged on
+                # 4.3.2 per the prior-art connector); the narration fallback keeps
+                # older/localised builds working.
+                resource_id="rangeTile",
                 content_desc_re=r"(?:Batteriereichweite|Battery range|Electric range)",
             ),
             values=(
