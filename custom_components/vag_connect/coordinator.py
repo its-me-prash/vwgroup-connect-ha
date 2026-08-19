@@ -1290,17 +1290,30 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 # login we skipped and retry once. Portal-persisted / no-persisted
                 # entries already did their fresh login above, so for them the
                 # failure is genuine → re-raise unchanged.
-                if persisted is None or persisted_is_portal:
-                    raise
-                _LOGGER.info(
-                    "VAG Connect: persisted tokens for %s no longer refresh "
-                    "(VW attestation wall) — falling back to a fresh login and "
-                    "retrying vehicle enumeration",
-                    brand,
-                )
-                await self._cariad_client.authenticate()
-                await self._arm_supplementary_channels()
-                vins = await self._cariad_client.get_vehicles()
+                # #1222 — if that retry (or a portal / no-persisted primary) is
+                # ALSO dead upstream (VW disabled the login on 2026-08-18), do NOT
+                # tear the whole entry down: fall back to enumerating via the EU
+                # Data Act portal, which serves reads independently of this
+                # sign-in, so the eu_data_act sensors stay live and only the dead
+                # channel is degraded (per-VIN reads resume via the poll loop's
+                # supplementary revive). No EU Data Act channel → [] → re-raise →
+                # original invalid_credentials behaviour (strict no-op).
+                try:
+                    if persisted is None or persisted_is_portal:
+                        raise
+                    _LOGGER.info(
+                        "VAG Connect: persisted tokens for %s no longer refresh "
+                        "(VW attestation wall) — falling back to a fresh login and "
+                        "retrying vehicle enumeration",
+                        brand,
+                    )
+                    await self._cariad_client.authenticate()
+                    await self._arm_supplementary_channels()
+                    vins = await self._cariad_client.get_vehicles()
+                except AuthenticationError:
+                    vins = await self._enumerate_via_eu_data_act_fallback()
+                    if not vins:
+                        raise
             if not vins:
                 return False
 
@@ -2445,6 +2458,45 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             mask_vin(vin), merged.source_channel,
         )
         return merged
+
+    async def _enumerate_via_eu_data_act_fallback(self) -> list[str]:
+        """#1222 setup fail-soft — when the PRIMARY sign-in is dead UPSTREAM (VW
+        disabled the login that renews the token, 2026-08-18), keep the whole
+        entry alive by enumerating VINs from the EU Data Act portal, which serves
+        reads independently of that sign-in. The per-VIN reads then resume through
+        the poll loop's supplementary revive on the first tick.
+
+        Returns ``[]`` when no EU Data Act channel is configured or it cannot
+        enumerate — the caller then keeps the ORIGINAL ``invalid_credentials``
+        behaviour, so entries WITHOUT an EU Data Act channel are byte-for-byte
+        unchanged (strict no-op). Fail-soft: any error → ``[]``.
+        """
+        client = self._cariad_client
+        portal = (getattr(client, "_supplementary_eu_portal", None)
+                  or getattr(client, "_eu_portal", None))
+        if portal is None:
+            # Primary auth may have raised before _arm_supplementary_channels
+            # ran, so the portal is not armed yet — arm it now (fail-soft).
+            try:
+                await self._arm_supplementary_channels()
+            except Exception:  # noqa: BLE001
+                pass
+            portal = getattr(client, "_supplementary_eu_portal", None)
+        if portal is None or not hasattr(portal, "list_vehicle_vins"):
+            return []
+        try:
+            vins = await portal.list_vehicle_vins()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("#1222 EU Data Act enumeration fallback failed: %s", err)
+            return []
+        if vins:
+            _LOGGER.warning(
+                "VAG Connect: primary sign-in is dead upstream, but the EU Data "
+                "Act portal still serves %d vehicle(s) — keeping the entry live "
+                "on EU Data Act and flagging the dead channel for re-auth.",
+                len(vins),
+            )
+        return list(vins or [])
 
     async def _poll_loop(self) -> None:
         """Background polling loop — runs independently of HA scheduler.
