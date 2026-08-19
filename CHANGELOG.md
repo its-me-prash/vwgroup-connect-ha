@@ -40,6 +40,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [3.2.5] - 2026-08-19 — a dead VW login no longer takes the whole car offline
+
+_Stable hotfix. On 2026-08-18 Volkswagen disabled the login that renews the
+token, and a valid-credential entry then failed to set up with "Invalid
+credentials" — which took **every** entity offline, including EU Data Act data
+that never used that login (#1222)._
+
+### Fixed
+- **A dead-upstream VW sign-in no longer tears down the whole entry.** When the primary login can no longer be refreshed because Volkswagen disabled it server-side, the integration now keeps the entry live by reading your vehicle list from the EU Data Act portal — so your EU Data Act sensors keep working and only the dead channel is degraded, instead of the whole car going unavailable and a re-auth prompt asking you to re-enter a password that is actually fine. Entries without an EU Data Act channel are unchanged.
+
 ## [3.2.4] - 2026-08-17 — vw.de session persists across every refresh
 
 ### Changed
