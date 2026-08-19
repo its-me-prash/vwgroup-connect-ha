@@ -42,6 +42,23 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.0.0b6] - 2026-08-19 — MBB is the VW two-way now: clearer in setup, plus a backup client and the 4.3.2 companion
+
+_Sixth 4.0.0 beta. Now that VW pulled the modern login, the durable Car-Net (MBB)
+channel is the way to send commands to a Volkswagen — so the setup flow says so
+plainly. Also adds a backup client so the MBB channel survives VW pulling a single
+client, and brings the companion up to the current We Connect app. Includes
+everything from v4.0.0b5._
+
+### Changed
+- **MBB is presented as the VW two-way, not a footnote.** In setup, the Volkswagen portal path now spells out that durable two-way commands (lock/unlock, climate, charging) ride along via the classic Car-Net (MBB) backend, and the toggle explains when it fits — Car-Net cars (most PHEV / combustion, pre-ID); newer ID / MEB models aren't eligible, so leave it off there. Same wording in all twelve languages.
+
+### Added
+- **A backup MBB client.** The durable Car-Net two-way rode a single VW client; if VW pulled it, the whole channel would die — exactly what happened to the modern login on 2026-08-18. Setup now fails over automatically to a second, live-verified client.
+
+### Fixed
+- **The companion accepts We Connect 4.3.2.** The app updated 4.2.1 → 4.3.2 and the version check then disabled every screen-read ("app newer than preset"); it now accepts the current app plus the internal build strings that ship the same screen layout, and the charge-detail tile is pinned to a stable node so it survives the update (#968).
+
 ## [4.0.0b5] - 2026-08-19 — a dead VW login no longer takes the whole car offline
 
 _Fifth 4.0.0 beta. Brings the v3.2.5 stable fail-soft fix onto the beta line too,
