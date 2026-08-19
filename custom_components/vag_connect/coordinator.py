@@ -5140,29 +5140,59 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             return None
 
         addr = payload.get("address", {}) if isinstance(payload, dict) else {}
-        road = addr.get("road") or addr.get("pedestrian") or addr.get("path", "")
-        house = addr.get("house_number", "")
+        display = payload.get("display_name", "") if isinstance(payload, dict) else ""
+        result = self._compose_parking_location(addr, display)
+        self._geocode_cache[cache_key] = result
+        return result
+
+    @staticmethod
+    def _compose_parking_location(
+        addr: dict[str, Any], display: str = ""
+    ) -> dict[str, str | None]:
+        """Turn a Nominatim address block into ``{address, city}``.
+
+        The parking locality prefers the ``suburb`` so it matches the brand app
+        (#1219, @mhanline: the Audi app shows the suburb ``Summer Hill``, not the
+        metro ``Sydney``), falling back through broader levels so locales without
+        a suburb (e.g. large US metros) never regress to blank. House-number
+        placement is locale-specific — en/AU/UK/US write ``12 Main St``, DACH
+        writes ``Hauptstraße 12`` — so house-before-road is used only outside the
+        German-order countries, leaving existing DE/AT/CH users unchanged.
+        """
+        road = addr.get("road") or addr.get("pedestrian") or addr.get("path") or ""
+        house = addr.get("house_number") or ""
+        suburb = (
+            addr.get("suburb")
+            or addr.get("neighbourhood")
+            or addr.get("borough")
+            or addr.get("quarter")
+            or addr.get("city_district")
+            or ""
+        )
         city = (
             addr.get("city")
             or addr.get("town")
             or addr.get("village")
-            or addr.get("municipality", "")
+            or addr.get("municipality")
+            or ""
         )
-        display = payload.get("display_name", "") if isinstance(payload, dict) else ""
+        state = addr.get("state") or addr.get("province") or ""
+        postcode = addr.get("postcode") or ""
+        locality = suburb or city
 
-        street = f"{road} {house}".strip() if house else road
-        address = (
-            f"{street}, {city}".strip(", ")
-            if street and city
-            else (city or display[:60])
-        )
+        country_code = str(addr.get("country_code") or "").lower()
+        road_house_order = country_code in {"de", "at", "ch", "li"}
+        if house and road:
+            street = f"{road} {house}" if road_house_order else f"{house} {road}"
+        else:
+            street = house or road
 
-        result: dict[str, str | None] = {
-            "address": address or None,
-            "city": city or None,
-        }
-        self._geocode_cache[cache_key] = result
-        return result
+        state_zip = " ".join(p for p in (state, postcode) if p)
+        address = ", ".join(p for p in (street, suburb, state_zip) if p)
+        if not address:
+            address = locality or (display[:60] if display else "")
+
+        return {"address": address or None, "city": locality or None}
 
     def _save_vehicle_cache(self) -> None:
         """Persist the last-known-good vehicle snapshot (debounced 30s).
