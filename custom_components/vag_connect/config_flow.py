@@ -1322,7 +1322,31 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                     device_auth_url=_dev_auth_url,
                     token_url=_tok_url,
                 )
-            code = await self._dag_client.request_device_code()
+            try:
+                code = await self._dag_client.request_device_code()
+            except Exception as _dc_err:  # noqa: BLE001 — MBB failover only
+                # MBB failover — if VW disabled the primary MBB client's device
+                # grant (the way they killed 650d46ca on 2026-08-18), fall back to
+                # the backup MBB client, which mints the same mbb-scoped token.
+                # ONLY for the MBB flow and ONLY on an unauthorized_client-class
+                # rejection; anything else re-raises unchanged.
+                if not (self._dag_mbb and "unauthorized" in str(_dc_err).lower()):
+                    raise
+                from .cariad.auth._device_grant import (  # noqa: PLC0415
+                    mbb_dag_backup_config,
+                )
+                _bk = mbb_dag_backup_config(self._dag_brand)
+                if _bk is None:
+                    raise
+                _LOGGER.warning(
+                    "MBB primary device-grant client rejected (%s) — failing over "
+                    "to the backup MBB client",
+                    type(_dc_err).__name__,
+                )
+                self._dag_client = DeviceAuthorizationGrant(
+                    self._dag_session, _bk[0], scope=_bk[1], strategy="mbb",
+                )
+                code = await self._dag_client.request_device_code()
             self._dag_device_code = code.device_code
             self._dag_user_code = code.user_code
             self._dag_verification_uri = code.verification_uri_complete

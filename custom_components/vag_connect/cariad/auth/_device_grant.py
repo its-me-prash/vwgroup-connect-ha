@@ -580,6 +580,31 @@ def mbb_dag_config(brand_name: str) -> tuple[str, str] | None:
     return MBB_DAG_CLIENT_ID, MBB_DAG_SCOPE
 
 
+# Failover MBB device-grant client (2026-08-19). If VW disables the primary MBB
+# client's device grant the way they killed 650d46ca on 2026-08-18, this fresh
+# VW client (harvested from the app inventory, brand=volkswagen, device-grant-
+# allowed) mints the SAME mbb-scoped id_token (aud VWGMBB01DELIV1) and was
+# live-verified to register→exchange into a durable XID_APP_VW bearer with the
+# same aud (mal.prd.ece + ha-5a vwautocloud). Same scope → a drop-in failover:
+# the config flow retries with it when the primary is rejected, keeping the
+# durable Car-Net two-way alive past a single-client shutdown — resilience the
+# modern BFF two-way (one whitelisted client) never had. See
+# ``vag_connect_mbb_twoway_restore`` memory.
+MBB_DAG_CLIENT_ID_BACKUP = "40945ec0-b870-4bb1-8583-a99325f99c65@apps_vw-dilab_com"
+
+
+def mbb_dag_backup_config(brand_name: str) -> tuple[str, str] | None:
+    """``(client_id, scope)`` for the FAILOVER MBB device grant, or ``None``.
+
+    Used only when the primary :func:`mbb_dag_config` client is rejected with
+    ``unauthorized_client`` (VW disabled its device grant). Same ``mbb`` scope,
+    so every downstream step (register → exchange → refresh) is identical.
+    """
+    if brand_name.lower() not in MBB_DAG_BRANDS:
+        return None
+    return MBB_DAG_CLIENT_ID_BACKUP, MBB_DAG_SCOPE
+
+
 # ── VW EU Two-Way (modern CARIAD BFF) — device-grant client 650d46ca ──────────
 # 2026-08-18 — a VW-EU app client that is BOTH device-code-mintable AND
 # CARIAD-BFF-whitelisted, unlike the DAG-dead app client (a24fba63) and the
