@@ -38,6 +38,7 @@ from .const import (
     CONF_ABRP_API_KEY,
     CONF_ABRP_USER_TOKEN,
     CONF_BRAND,
+    CONF_DATA_ACT_IDENTIFIERS,
     CONF_ENABLE_REVERSE_GEOCODING,
     CONF_PASSWORD,
     CONF_SPIN,
@@ -219,6 +220,22 @@ def _mask_key(k: Any) -> Any:
     return masked
 
 
+def _redact_identifier_map(value: Any) -> Any:
+    """Redact the VALUES of a ``{VIN: identifier}`` map, keeping the masked keys.
+
+    The EU-Data-Act identifier map (#923 / #1222) is keyed by VIN with the portal
+    Custom-Data-Request identifier string as the value. v3.0.1 masked the VIN used
+    as the key, but the identifier value stayed clear-text — the config scrubber
+    only runs the email/GPS regexes over string values, so a per-VIN portal
+    identifier went out in plaintext in the download users attach to public
+    issues. Keep the container (the enrolment count stays useful) but redact each
+    value. Reported by @ggfbrkt6mc-max.
+    """
+    if isinstance(value, dict):
+        return {_mask_key(k): "**REDACTED**" for k in value}
+    return "**REDACTED**"
+
+
 def _scrub(value: Any, *, gps_round: bool = False) -> Any:
     """Recursively redact sensitive fields from diagnostics output.
 
@@ -252,6 +269,10 @@ def _scrub(value: Any, *, gps_round: bool = False) -> Any:
                     scrubbed[sk] = round(float(v), 1)
                 else:
                     scrubbed[sk] = "**REDACTED**"
+            elif k == CONF_DATA_ACT_IDENTIFIERS:
+                # #923/#1222 — mask the {VIN: portal-identifier} values, which
+                # the string branch below would otherwise pass through.
+                scrubbed[sk] = _redact_identifier_map(v)
             else:
                 scrubbed[sk] = _scrub(v, gps_round=gps_round)
         return scrubbed
@@ -310,6 +331,8 @@ def _scrub_raw(value: Any) -> Any:
                 out[sk] = "**REDACTED**"
             elif k in _HASH_KEYS and isinstance(v, str):
                 out[sk] = f"sha256:{_stable_hash(v)}" if v else "**REDACTED**"
+            elif k == CONF_DATA_ACT_IDENTIFIERS:
+                out[sk] = _redact_identifier_map(v)
             else:
                 out[sk] = _scrub_raw(v)
         return out
