@@ -41,9 +41,10 @@
           "spin": "S-PIN",
           "country": "Region (kun Volkswagen US/Canada)",
           "scan_interval": "Oppdateringsintervall",
-          "enable_mbb_commands": "Aktiver MBB-fjernkommandoer (kun Volkswagen — legger til en QR-bekreftelse)"
+          "enable_mbb_commands": "Aktiver varige toveiskommandoer (MBB) — Car-Net Volkswagen / eldre Audi"
         },
         "data_description": {
+          "enable_mbb_commands": "Den varige måten å sende fjernkommandoer (lås/lås opp, klima) til en Volkswagen — via den eldre Car-Net/MBB-backenden, så den overlever omstarter. For Car-Net-biler (de fleste PHEV/forbrenning, før ID); nyere ID/MEB-modeller er ikke støttet, så la det være av der. Avlesninger kommer fortsatt fra portalen over; dette legger bare til kommandokanalen og en engangsbekreftelse i nettleseren (ingen ekstra passord lagres).",
           "brand": "Velg merke — myAudi, WeConnect ID, MyŠkoda, SEAT, CUPRA, VW US/CA eller Porsche.",
           "username": "E-postadresse fra produsentens app.",
           "password": "Passord fra appen.",

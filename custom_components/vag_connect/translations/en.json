@@ -41,14 +41,15 @@
           "spin": "S-PIN",
           "country": "Region (Volkswagen US/Canada only)",
           "scan_interval": "Update Interval",
-          "enable_mbb_commands": "Enable MBB remote commands (Volkswagen only — adds a QR confirm)"
+          "enable_mbb_commands": "Enable durable two-way commands (MBB) — Car-Net Volkswagen / legacy Audi"
         },
         "data_description": {
           "brand": "Choose your brand — myAudi, WeConnect ID, MyŠkoda, SEAT, CUPRA, VW US/CA or Porsche.",
           "username": "Email address from the manufacturer app.",
           "password": "Password from the app.",
           "spin": "Only needed for locking. App → Security → S-PIN.",
-          "scan_interval": "How often data is fetched. Default: 5 min. Minimum: 3 min."
+          "scan_interval": "How often data is fetched. Default: 5 min. Minimum: 3 min.",
+          "enable_mbb_commands": "The durable way to send remote commands (lock/unlock, climate) to a Volkswagen — via the legacy Car-Net/MBB backend, so it survives restarts. For Car-Net cars (most PHEV/combustion, pre-ID); newer ID/MEB models aren't eligible, so leave it off there. Reads still come from the portal above; this only adds the command channel and a one-time browser confirmation (no extra password stored)."
         }
       },
       "user": {

@@ -41,9 +41,10 @@
           "spin": "S-PIN",
           "country": "Regione (solo Volkswagen USA/Canada)",
           "scan_interval": "Intervallo di aggiornamento",
-          "enable_mbb_commands": "Abilita i comandi remoti MBB (solo Volkswagen — aggiunge una conferma QR)"
+          "enable_mbb_commands": "Attiva i comandi bidirezionali durevoli (MBB) — Volkswagen Car-Net / Audi legacy"
         },
         "data_description": {
+          "enable_mbb_commands": "Il modo duraturo per inviare comandi remoti (blocca/sblocca, clima) a una Volkswagen — tramite il vecchio backend Car-Net/MBB, quindi sopravvive ai riavvii. Per le auto Car-Net (la maggior parte PHEV/termiche, precedenti a ID); i modelli più recenti ID/MEB non sono idonei, quindi lascialo disattivato per quelli. Le letture arrivano ancora dal portale qui sopra; questo aggiunge solo il canale dei comandi e una conferma una tantum nel browser (nessuna password aggiuntiva viene memorizzata).",
           "brand": "Scegli la tua marca — myAudi, WeConnect ID, MyŠkoda, SEAT, CUPRA, VW USA/CA o Porsche.",
           "username": "Indirizzo email dell'app del produttore.",
           "password": "Password dell'app.",

@@ -89,9 +89,10 @@
           "spin": "S-PIN",
           "country": "Region (tylko Volkswagen USA/Kanada)",
           "scan_interval": "Interwał aktualizacji",
-          "enable_mbb_commands": "Włącz zdalne polecenia MBB (tylko Volkswagen — dodatkowe QR)"
+          "enable_mbb_commands": "Włącz trwałe polecenia dwukierunkowe (MBB) — Car-Net Volkswagen / starsze Audi"
         },
         "data_description": {
+          "enable_mbb_commands": "Trwały sposób wysyłania poleceń zdalnych (zablokuj/odblokuj, klimatyzacja) do Volkswagena — przez starszy backend Car-Net/MBB, więc przetrwa ponowne uruchomienia. Dla samochodów Car-Net (większość PHEV/spalinowych, sprzed ID); nowsze modele ID/MEB nie są obsługiwane, więc zostaw to wyłączone. Odczyty nadal pochodzą z portalu powyżej; to dodaje jedynie kanał poleceń i jednorazowe potwierdzenie w przeglądarce (żadne dodatkowe hasło nie jest przechowywane).",
           "brand": "Wybierz markę — myAudi, WeConnect ID, MyŠkoda, SEAT, CUPRA, VW US/CA lub Porsche.",
           "username": "Adres e-mail z aplikacji producenta.",
           "password": "Hasło z aplikacji.",

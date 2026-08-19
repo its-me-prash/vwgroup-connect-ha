@@ -89,9 +89,10 @@
           "spin": "S-PIN",
           "country": "Regio (alleen Volkswagen VS/Canada)",
           "scan_interval": "Update-interval",
-          "enable_mbb_commands": "MBB-afstandsbediening inschakelen (alleen Volkswagen — extra QR-bevestiging)"
+          "enable_mbb_commands": "Duurzame tweerichtingscommando's (MBB) inschakelen — Car-Net Volkswagen / oudere Audi"
         },
         "data_description": {
+          "enable_mbb_commands": "De duurzame manier om afstandsbedieningscommando's (vergrendelen/ontgrendelen, klimaat) naar een Volkswagen te sturen — via de oudere Car-Net/MBB-backend, dus het overleeft herstarts. Voor Car-Net-auto's (de meeste PHEV/verbranding, van vóór ID); nieuwere ID/MEB-modellen komen niet in aanmerking, laat het daar dus uit. Uitlezingen komen nog steeds van het portaal hierboven; dit voegt alleen het commandokanaal en een eenmalige browserbevestiging toe (er wordt geen extra wachtwoord opgeslagen).",
           "brand": "Kies je merk — myAudi, WeConnect ID, MyŠkoda, SEAT, CUPRA, VW US/CA of Porsche.",
           "username": "E-mailadres uit de app van de fabrikant.",
           "password": "Wachtwoord uit de app.",

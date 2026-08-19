@@ -89,9 +89,10 @@
           "spin": "S-PIN",
           "country": "Région (Volkswagen US/Canada uniquement)",
           "scan_interval": "Intervalle de mise à jour",
-          "enable_mbb_commands": "Activer les commandes à distance MBB (Volkswagen uniquement — confirmation QR)"
+          "enable_mbb_commands": "Activer les commandes bidirectionnelles durables (MBB) — Volkswagen Car-Net / anciennes Audi"
         },
         "data_description": {
+          "enable_mbb_commands": "Le moyen durable d'envoyer des commandes à distance (verrouiller/déverrouiller, climatisation) à une Volkswagen — via l'ancien backend Car-Net/MBB, ce qui lui permet de survivre aux redémarrages. Pour les voitures Car-Net (la plupart des PHEV/thermiques, avant ID) ; les modèles plus récents ID/MEB ne sont pas éligibles, laissez-le donc désactivé pour ceux-ci. Les lectures proviennent toujours du portail ci-dessus ; ceci n'ajoute que le canal de commandes et une confirmation unique dans le navigateur (aucun mot de passe supplémentaire n'est stocké).",
           "brand": "Choisissez votre marque — myAudi, WeConnect ID, MyŠkoda, SEAT, CUPRA, VW US/CA ou Porsche.",
           "username": "Adresse e-mail de l'application du constructeur.",
           "password": "Mot de passe de l'application.",

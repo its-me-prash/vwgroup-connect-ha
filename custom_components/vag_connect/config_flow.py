@@ -425,7 +425,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 ),
                 "email_password": (
                     "Portal (E-Mail + Passwort) — Volkswagen EU / Škoda / Porsche "
-                    "(+ Toggle: MBB-Fahrzeug → Fernbefehle)"
+                    "· VW: dauerhafte Zwei-Wege-Befehle (MBB) gleich mit aktivierbar"
                 ),
                 # v3.0.0-alpha — experimental fourth source. Drives the official
                 # app on a spare phone over ADB; last-resort two-way where the

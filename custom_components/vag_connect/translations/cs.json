@@ -89,9 +89,10 @@
           "spin": "S-PIN",
           "country": "Region (pouze Volkswagen USA/Kanada)",
           "scan_interval": "Interval aktualizace",
-          "enable_mbb_commands": "Povolit vzdálené příkazy MBB (jen Volkswagen — potvrzení QR)"
+          "enable_mbb_commands": "Zapnout trvalé obousměrné příkazy (MBB) — Car-Net Volkswagen / starší Audi"
         },
         "data_description": {
+          "enable_mbb_commands": "Trvalý způsob, jak posílat vzdálené příkazy (zamknout/odemknout, klimatizace) do Volkswagenu — přes starší backend Car-Net/MBB, takže přežije restart. Pro vozy Car-Net (většina PHEV/spalovacích, před ID); novější modely ID/MEB nejsou způsobilé, u nich to nechte vypnuté. Čtení dat stále probíhá přes portál výše; toto pouze přidává příkazový kanál a jednorázové potvrzení v prohlížeči (žádné další heslo se neukládá).",
           "brand": "Vyberte svou značku — myAudi, WeConnect ID, MyŠkoda, SEAT, CUPRA, VW US/CA nebo Porsche.",
           "username": "E-mailová adresa z aplikace výrobce.",
           "password": "Heslo z aplikace.",

@@ -41,9 +41,10 @@
           "spin": "S-PIN",
           "country": "Alue (vain Volkswagen US/Kanada)",
           "scan_interval": "Päivitysväli",
-          "enable_mbb_commands": "Ota käyttöön MBB-etäkomennot (vain Volkswagen — lisää QR-vahvistuksen)"
+          "enable_mbb_commands": "Ota käyttöön pysyvät kaksisuuntaiset komennot (MBB) — Car-Net Volkswagen / vanhat Audit"
         },
         "data_description": {
+          "enable_mbb_commands": "Pysyvä tapa lähettää etäkomentoja (lukitse/avaa, ilmastointi) Volkswagenille — vanhan Car-Net/MBB-taustajärjestelmän kautta, joten se säilyy uudelleenkäynnistyksissä. Car-Net-autoille (useimmat PHEV/polttomoottori, ennen ID:tä); uudemmat ID/MEB-mallit eivät ole tuettuja, joten jätä se niissä pois päältä. Lukemat tulevat edelleen yllä olevasta portaalista; tämä lisää vain komentokanavan ja kertaluonteisen selainvahvistuksen (ylimääräistä salasanaa ei tallenneta).",
           "brand": "Valitse merkkisi — myAudi, WeConnect ID, MyŠkoda, SEAT, CUPRA, VW US/CA tai Porsche.",
           "username": "Valmistajan sovelluksen sähköpostiosoite.",
           "password": "Sovelluksen salasana.",
