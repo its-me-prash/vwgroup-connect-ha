@@ -42,106 +42,39 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
-### Fixed
-- **The companion range now reads imperial units correctly (#968).** The We Connect app narrates the range unit in words, and a car on imperial units reads "14 miles" while a metric one reads "253 Kilometer". The companion read only matched "km", so an imperial car read no range at all (or would have stored 14 and mislabelled it km). It now captures the number and the unit and converts miles to km. Thanks @kgroshert and @plainmad for the dumps.
-- **The EU Data Act identifier is no longer written in clear text in diagnostics (#923, #1222).** The per-VIN portal identifier map masked the VIN used as its key but left the identifier value in plaintext, so it went out in the download people attach to public issues. The values are now redacted while the map shape (how many cars are enrolled) is kept. Thanks @ggfbrkt6mc-max.
-- **Parking address now carries the suburb and state, not just the city.** The reverse geocoder only surfaced the city, so a car parked in a suburb showed the wrong locality (e.g. `Sydney` instead of `Summer Hill`) and dropped the state/postcode the brand app shows. It now reads the suburb (with neighbourhood/borough fallbacks), state and postcode, prefers the suburb for the parking locality (falling back to the city where a locale has none, so nowhere regresses to blank), and puts the house number before the road outside the German-order countries — DE/AT/CH/LI keep `Straße 12` (#1219).
+## [4.0.0] - 2026-08-20 — the Volkswagen grounding wave: durable Car-Net (MBB) two-way, deeper reads, and a data-quality pass
 
-## [4.0.0b6] - 2026-08-19 — MBB is the VW two-way now: clearer in setup, plus a backup client and the 4.3.2 companion
-
-_Sixth 4.0.0 beta. Now that VW pulled the modern login, the durable Car-Net (MBB)
-channel is the way to send commands to a Volkswagen — so the setup flow says so
-plainly. Also adds a backup client so the MBB channel survives VW pulling a single
-client, and brings the companion up to the current We Connect app. Includes
-everything from v4.0.0b5._
-
-### Changed
-- **MBB is presented as the VW two-way, not a footnote.** In setup, the Volkswagen portal path now spells out that durable two-way commands (lock/unlock, climate, charging) ride along via the classic Car-Net (MBB) backend, and the toggle explains when it fits — Car-Net cars (most PHEV / combustion, pre-ID); newer ID / MEB models aren't eligible, so leave it off there. Same wording in all twelve languages.
+_The 4.0.0 line is a deep pass over the Volkswagen side of the integration, grounded field-by-field against the We Connect app (androguard vs We Connect 4.3.2). Midway through, on **2026-08-18 Volkswagen disabled the login** the modern (CARIAD) two-way used — so this release ships that channel **greyed out** (all its code kept) and leans on the **durable Car-Net (MBB) two-way** as the way to send commands to a Volkswagen. Alongside the two-way work: a capabilities-first read foundation, grounded VW/Audi commands, a data-quality pass on the EU Data Act portal, and the companion brought up to the current app. Consolidates the v4.0.0b1–b6 betas and the v3.3.0b1 data-quality beta._
 
 ### Added
-- **A backup MBB client.** The durable Car-Net two-way rode a single VW client; if VW pulled it, the whole channel would die — exactly what happened to the modern login on 2026-08-18. Setup now fails over automatically to a second, live-verified client.
-
-### Fixed
-- **The companion accepts We Connect 4.3.2.** The app updated 4.2.1 → 4.3.2 and the version check then disabled every screen-read ("app newer than preset"); it now accepts the current app plus the internal build strings that ship the same screen layout, and the charge-detail tile is pinned to a stable node so it survives the update (#968).
-
-## [4.0.0b5] - 2026-08-19 — a dead VW login no longer takes the whole car offline
-
-_Fifth 4.0.0 beta. Brings the v3.2.5 stable fail-soft fix onto the beta line too,
-plus a recovered range reading on newer platforms. Includes everything from
-v4.0.0b4._
-
-### Fixed
-- **A dead upstream VW sign-in no longer tears down the whole entry.** Since VW disabled the modern VW EU login on 2026-08-18, an affected car could fail setup with "Invalid credentials" and take *every* entity offline with it — including the EU Data Act sensors that never used that login. Setup now keeps the entry alive by reading your vehicle list from the EU Data Act portal, so those sensors keep serving and only the dead channel is degraded (#1222).
-- **Primary range comes back on newer platforms (e.g. CUPRA Raval).** These cars report the range under a newer official field name the parser wasn't reading, so the range sensor silently stayed empty. It's picked up now (#1220).
-
-## [4.0.0b4] - 2026-08-19 — durable Car-Net two-way after VW pulled the modern login
-
-_Fourth 4.0.0 beta. On 2026-08-18 Volkswagen disabled the login that the modern
-(CARIAD) VW EU Two-Way used, so that channel can no longer be set up. This beta
-greys it out honestly and leans on the durable replacement — two-way commands
-over the classic Car-Net (MBB) backend, which VW has NOT disabled. Includes
-everything from v4.0.0b3._
+- **Durable Car-Net (MBB) two-way for Volkswagen — the VW command channel (opt-in, BETA).** Remote lock/unlock, climate and charging for **legacy MQB / Car-Net** Volkswagens, riding a refreshable token VW has not blocked. It's presented in setup as the recommended VW two-way (all twelve languages), with guidance on which cars it fits — most PHEV / combustion, pre-ID; **MEB / ID-family cars (ID.3/4/5/7, Enyaq, Born, Q4 e-tron) aren't eligible**. A backup client is included so the channel survives VW pulling a single one. Testers welcome in **#584**.
+- **VW EU Two-Way (modern CARIAD, opt-in) — added, then disabled by VW.** b1 shipped an opt-in Volkswagen-ID channel for live CARIAD reads and commands; on 2026-08-18 VW disabled the login it renews, so it is **greyed out** in this release — all the code is kept, so it flips back on in a single line the moment VW reopens it, and existing users get a one-time notice that their reads keep flowing through the EU Data Act portal. Credit to **@magicus** for surfacing the device-grant client this builds on.
+- **Capability-first read foundation.** Read entities can now be gated on the car's advertised capabilities (not just on whether data is present), using the same capabilities document the command entities consult. The gate is deliberately soft — a sensor is hidden only when the capabilities list is loaded and explicitly says the feature is absent, never when it's missing or loading — and it's grounded against the app so app-only features (media, maps, web apps) never become entities.
+- **Remote cabin ventilation for Volkswagen & Audi.** The "active ventilation" switch (airing the cabin without heating) now works on VW/Audi, not just Škoda, using the app's grounded `activeventilation/start|stop` commands.
+- **Two tester probes** (in `scripts/`): one for VW EU two-way commands + live reads (#584), one for the North-America attestation situation (#1215). Both use a browser login (no password ever in the script), mask VIN/tokens, and print a paste-safe block for the issue thread.
 
 ### Changed
-- **The modern VW EU Two-Way add-toggle is greyed out.** VW disabled its login on 2026-08-18, so a fresh setup could only fail — the toggle is hidden until a working login turns up, and existing users get a one-time notice: your live reads keep coming through the EU Data Act portal, and the classic Car-Net two-way is the durable replacement for commands. All the code is kept, so it flips back on in a single line the moment VW reopens it.
-- **The durable Car-Net (MBB) two-way is now beta, not alpha.** It mints a refreshable token VW has not blocked and drives remote lock/unlock, climate and charging.
-
-### Added
-- **Two tester probes** (in `scripts/`): one for VW EU two-way commands + live reads (posts back to #584), one for the North-America attestation situation (#1215). Both use a browser login (no password ever in the script), mask VIN/tokens, and print a paste-safe block for the issue thread.
+- **Two-way is the authoritative data source when it's on, with EU Data Act as a gap-filler.** While two-way is active, the live reading wins every field it provides and the portal only fills fields two-way doesn't offer, so a slower portal export can never overwrite a fresh value with an older one. If two-way drops out, the integration falls back to the portal in the *same* poll instead of freezing, and resumes automatically when it recovers.
+- **MBB is presented as the VW two-way in setup, not a footnote.** The Volkswagen portal path spells out that durable two-way commands ride along via the classic Car-Net (MBB) backend, and the toggle explains when it fits. Same wording in all twelve languages.
+- **Vehicle wake tries the paths the official app actually uses.** Grounding the app showed it wakes the car via `vehiclewakeuptrigger` / `access/wakeup`; the integration tries those first and keeps the previous path as a fallback, so a car that only accepts the app's spelling wakes reliably.
+- **Fewer Vehicle Data Scout prompts on the EU Data Act portal.** The portal's "is this field populated" envelope flags (`mileage.is_set`, `hvbatterytemperature.is_set`, `trunk.is_set`, …) no longer prompt a report — they carry no value beyond what a present/absent reading already shows. Surfaced by @Schraube11 (#465) and #1216.
+- **The Volkswagen two-way setup strings are localized in all twelve languages.** The VW EU Two-Way options, their auth errors, the channel-disabled notice and the repair message were shipping as English placeholders in the non-English UI; they read in the user's own language now. The translated READMEs also gained the cross-brand auxiliary-heating and per-session charging-history notes.
 
 ### Fixed
-- **Bruno CI is green again** — a Škoda `/api/v1/users` endpoint had no matching Bruno file, which failed the strict URL-drift check on every push; added the file.
+- **A dead upstream VW sign-in no longer tears down the whole entry (#1222).** Since VW disabled the modern VW EU login, an affected car could fail setup with "Invalid credentials" and take *every* entity offline — including the EU Data Act sensors that never used that login. Setup now keeps the entry alive by reading the vehicle list from the portal, so those sensors keep serving and only the dead channel is degraded. Reported by @ggfbrkt6mc-max.
+- **Battery-care mode is now actually settable on Volkswagen & Audi.** The battery-care switch and its target-charge slider appeared but did nothing on VW/Audi (the command was never implemented for the CARIAD backend); they now send the app's real battery-care commands.
+- **Primary range comes back on newer platforms (e.g. CUPRA Raval) (#1220).** These cars report the range under a newer official field name the parser wasn't reading, so the range sensor silently stayed empty. It's picked up now.
+- **Battery percentage no longer sticks at an old value while the pack tells a different story (#1195).** When the portal shipped the charge level twice under one timestamp with different numbers, we could latch a stale value (@Fishermanjb's ID.4 sat at 94 % while the car was really around 67 %). We now cross-check against the pack's own energy content: when the shown percentage sits well above what the pack actually holds on a car that isn't charging, we trust the measurement. Thanks @Fishermanjb for the repeated fresh diagnostics.
+- **Vehicle data no longer looks days old when it isn't (#1218).** A single portal export can carry several capture timestamps; the "last reported" age used to lock onto one by field name, so a stale sibling could make the data look ~91 hours old. It now anchors on the freshest capture time actually present. Thanks @Lagaff86 for the precise timestamp breakdown.
+- **A stuck, implausible interior temperature is no longer shown (#465).** The portal's "no reading" placeholder encodes at the floor of the temperature range, so it surfaced as a fixed, impossible cabin temperature (a −43.9 °C that never changed). It's kept only when physically plausible now. Reported by @Schraube11.
+- **The companion accepts We Connect 4.3.2 and reads imperial range correctly (#968).** The app version check disabled every screen-read after 4.2.1 → 4.3.2; it now accepts the current app (and the internal build strings that ship the same layout), pins the charge-detail tile to a stable node, and converts a range narrated in miles to km instead of storing the bare number. Thanks @Philip-Wiege, @plainmad and @kgroshert.
+- **The EU Data Act identifier is no longer written in clear text in diagnostics (#923, #1222).** The per-VIN identifier map masked the VIN used as its key but left the identifier value in plaintext, so it went out in the download people attach to public issues. The values are redacted now while the map shape stays. Thanks @ggfbrkt6mc-max.
+- **Parking address carries the suburb and state, not just the city (#1219).** The reverse geocoder only surfaced the city, so a car parked in a suburb showed the wrong locality and dropped the state/postcode the brand app shows. It now reads the suburb (with fallbacks), state and postcode, and orders the house number correctly outside the German-order countries. Thanks @mhanline.
+- **Bruno CI is green again** — a Škoda `/api/v1/users` endpoint had no matching Bruno file, which failed the strict URL-drift check on every push.
+- **Release asset could be missing after a tag** — a single tag push occasionally started two racing release jobs and the loser could leave the release without its `vag_connect.zip`; the workflow now serialises per tag.
 
 ### Note
 - If a two-way command does nothing and the **official VW app also can't control the car**, the account is rate-limited or temporarily locked — enable only one two-way integration per car at a time.
-
-## [4.0.0b3] - 2026-08-18 — VW EU Two-Way source priority + auto-fallback
-
-_Third 4.0.0 beta. Makes two-way the authoritative data source when it's on and
-falls back to the EU Data Act portal the instant two-way drops. Includes
-everything from v4.0.0b2 (capability foundation + first commands) and v4.0.0b1
-(VW EU Two-Way)._
-
-### Changed
-- **VW EU Two-Way is now the authoritative data source when it's on, with EU Data Act as a gap-filler.** While two-way is active, the live CARIAD reading wins every field it provides and the EU Data Act portal only fills in fields two-way doesn't offer, so a slower portal export can never overwrite a fresh two-way value with an older one. If two-way drops out (a backend hiccup), the integration now falls back to the EU Data Act portal in the *same* poll instead of freezing on the last value, and resumes on two-way automatically when it recovers. Turning two-way on for a portal-based setup now keeps the portal wired as that gap-filler (and turning two-way back off cleans it up).
-
-### Fixed
-- **Release asset could be missing after a tag.** A single tag push occasionally started two release jobs that raced, and the loser could leave the GitHub release without its `vag_connect.zip`. The release workflow now serialises per tag, so the asset is always attached.
-
-## [4.0.0b2] - 2026-08-18 — Volkswagen grounding wave (capability foundation + first commands)
-
-_Second 4.0.0 beta. Builds the capabilities-first foundation for the deep VW
-grounding (androguard against We Connect 4.3.2) and lands the first grounded
-commands. Carries everything from v4.0.0b1 (VW EU Two-Way) and the v3.3.0b1
-data-quality beta._
-
-### Added
-- **Capability-first foundation for the Volkswagen grounding wave.** Read entities can now be gated on the car's advertised capabilities (not just on whether data is present), using the same capabilities document the command entities already consult. The gate is deliberately soft: a sensor is hidden only when the car's capabilities list is loaded and explicitly says the feature is absent, never when that list is missing or still loading, so nothing that works today can disappear. Grounded against the We Connect app so app-only features (media, maps, web apps) are never turned into entities.
-- **Remote cabin ventilation for Volkswagen & Audi.** The "active ventilation" switch (airing the cabin without heating) now works on VW/Audi, not just Škoda, using the app's grounded `activeventilation/start|stop` commands.
-
-### Fixed
-- **Battery-care mode is now actually settable on Volkswagen & Audi.** The battery-care switch and its target-charge slider appeared but did nothing on VW/Audi (the command was never implemented for the CARIAD backend). They now send the app's real battery-care commands, so preserving the high-voltage battery works from Home Assistant.
-
-### Changed
-- **Vehicle wake now tries the paths the official app actually uses.** Grounding the Volkswagen app showed it wakes the car via `vehiclewakeuptrigger` / `access/wakeup`; the integration now tries those first and keeps the previous path as a fallback, so a car that only accepts the app's spelling wakes reliably instead of silently failing.
-
-## [4.0.0b1] - 2026-08-18 — VW EU Two-Way (opt-in two-way commands + live CARIAD reads)
-
-_First beta of the 4.0.0 line — the deep Volkswagen grounding wave. b1 lands the
-two-way channel; later 4.0.0 betas add the APK-grounded command/read surface._
-
-### Added
-- **VW EU Two-Way (opt-in, BETA) — real two-way control for Volkswagen EU cars.** A new opt-in channel signs in with your Volkswagen ID and unlocks remote commands (lock/unlock, climate, charging) plus live CARIAD reads, alongside the existing read-only channels. Turn it on under the integration's options ("Add VW EU Two-Way"). Volkswagen only issues a 1-hour token on this path, so your password is stored to renew it automatically — it is sent only to Volkswagen's own login server and is never logged or included in diagnostics. Credit to **@magicus** for surfacing the device-grant client this builds on. Reads and commands depend on your car being enrolled on the modern CARIAD backend; where a read comes back empty, the durable Car-Net (MBB) and EU Data Act channels remain as fallbacks. Feedback wanted: after enabling it, please share a Download diagnostics so we can confirm which models work end-to-end.
-
-## [3.3.0b1] - 2026-08-17 — data-quality beta (SoC arbitration, freshness, cabin temp, scout noise)
-
-### Changed
-- **Fewer Vehicle Data Scout prompts on the EU Data Act portal.** The portal's "is this field populated" envelope flags (`mileage.is_set`, `hvbatterytemperature.is_set`, `trunk.is_set`, …) no longer prompt a report — they carry no value beyond what a present/absent reading already shows. Surfaced by @Schraube11 (#465) and #1216.
-
-### Fixed
-- **A stuck, implausible interior temperature is no longer shown (#465).** On the EU Data Act portal a "no reading" placeholder encodes right at the bottom of the temperature range, so it surfaced as a fixed, impossible cabin temperature (a -43.9 °C that never changed). The interior temperature is now kept only when it is physically plausible, so the placeholder reads as unavailable instead of a real -44 °C. Reported by @Schraube11.
-- **Vehicle data no longer looks days old when it isn't (#1218).** On the EU Data Act portal a single export can carry several capture timestamps from different moments. The "last reported" age used to lock onto one of them by field name, so a stale sibling timestamp could make the data look about 91 hours old even though same-day readings were right there in the same download. It now anchors on the freshest capture time actually present, so a mixed-capture export reads its true age. Thanks @Lagaff86 for the precise timestamp breakdown that pinned it down.
-- **Battery percentage no longer sticks at an old value while the pack tells a different story (#1195).** When VW's portal shipped the charge level twice under one timestamp with different numbers, we used to keep whichever was closest to the last reading — which quietly latched a stale value (@Fishermanjb's ID.4 sat at 94 % while the car was really around 67 %). We now cross-check against the pack's own energy content (available vs. usable kWh): when the shown percentage sits well above what the pack actually holds on a car that isn't charging, we trust the measurement instead of the stale number. The earlier "plugged in and hasn't moved → assume it charged up" guess is gone — it also fired for a car that had been driven down and then plugged in, so it latched the high value the wrong way. Thanks @Fishermanjb for the repeated fresh diagnostics that pinned it down.
 
 ## [3.2.4] - 2026-08-17 — vw.de session persists across every refresh
 
