@@ -55,6 +55,15 @@ _SELECTIVE_STATUS_JOBS = ",".join([
     "activeVentilation",
     "automation",
     "auxiliaryHeating",
+    # 4.0.x (androguard, We Connect 4.3.2) — PHEVs (Golf/Passat GTE etc.) report
+    # their parking-/pre-heater under a DISTINCT SelectiveStatusJob from the BEV
+    # "auxiliaryHeating": "hybridCarAuxiliaryHeating" (verified enum member,
+    # sibling of auxiliaryHeating above; fields hybridCarAuxiliaryHeating*). We
+    # requested only the BEV variant, so PHEV aux-heat status was never fetched.
+    # The BFF ignores job tokens a car doesn't support (proven: lvBattery/oilLevel
+    # above are not in the 4.3.2 enum yet reads still succeed), so this is safe
+    # cross-firmware.
+    "hybridCarAuxiliaryHeating",
     "batteryChargingCare",
     # v2.11.0: also missing - batterySupport, chargingProfiles,
     # chargingTimers per audi_services.JOBS2QUERY + CC-VW connector jobs.
@@ -4281,11 +4290,20 @@ class VWEUClient(CariadBaseClient):
         # HeatingStatus.value.climatisationState` (parent = climatisation,
         # NOT auxiliaryHeating). audi_connect_ha references this legacy
         # path; we missed it pre-v2.11.0.
+        # 4.0.x — PHEVs answer the "hybridCarAuxiliaryHeating" job (now requested)
+        # under the parallel "hybridCarAuxiliaryHeatingStatus" block; the value
+        # shape mirrors the BEV one. Tried last so a car reporting both prefers
+        # the canonical path; a firmware that names it differently simply falls
+        # through and the field stays Scout-visible for a reporter to pin down.
         aux_state = (
             v(raw, "auxiliaryHeating", "auxiliaryHeatingStatus", "value", "operationMode")
             or v(raw, "auxiliaryHeating", "auxiliaryHeatingStatus", "value", "climatisationState")
             or v(raw, "climatisation", "auxiliaryHeatingStatus", "value", "climatisationState")
             or v(raw, "climatisation", "auxiliaryHeatingStatus", "value", "operationMode")
+            or v(raw, "hybridCarAuxiliaryHeating", "hybridCarAuxiliaryHeatingStatus",
+                 "value", "operationMode")
+            or v(raw, "hybridCarAuxiliaryHeating", "hybridCarAuxiliaryHeatingStatus",
+                 "value", "climatisationState")
         )
         if isinstance(aux_state, str) and aux_state:
             d.auxiliary_heating_status = aux_state
@@ -4297,6 +4315,8 @@ class VWEUClient(CariadBaseClient):
               "remainingTime_min")
             or v(raw, "climatisation", "auxiliaryHeatingStatus", "value",
                  "remainingTime_min")
+            or v(raw, "hybridCarAuxiliaryHeating", "hybridCarAuxiliaryHeatingStatus",
+                 "value", "remainingTime_min")
         )
         if isinstance(aux_rem, (int, float)):
             d.auxiliary_heating_remaining_min = int(aux_rem)

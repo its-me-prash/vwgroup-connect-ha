@@ -42,6 +42,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **Plug-in hybrid parking/pre-heater status (Volkswagen & Audi).** PHEVs (Golf/Passat GTE and the like) report their auxiliary heater under a distinct `hybridCarAuxiliaryHeating` job that the integration wasn't requesting, so their aux-heat status never populated. Grounded against the We Connect app, that job is now fetched and its `hybridCarAuxiliaryHeatingStatus` mapped onto the same aux-heating status/active/remaining fields the BEV path uses.
+
 ### Fixed
 - **A parked car's battery percentage no longer jumps to a stale value on a partial poll (#1195, #465).** On the EU Data Act portal the reliable SoC is a single-occurrence, VALID `battery_level_HV` reading; a poll that omits it carries only a `battery_state_report.soc` leaf that can be the frozen value from the last stop-charging report, stamped with a fresh-looking capture time. On a car that normally reports the HV reading, such a poll now holds the recorded value instead of publishing that stale leaf, so the percentage stops showing phantom ups and downs while parked. Thanks @soulriding for the 16-dataset analysis and @Arno-MA-73 for the corroborating case. (Cars that never report the HV pair — e.g. some ID.4 firmware — are untouched by this and still rely on the energy cross-check, which is being improved separately.)
 
