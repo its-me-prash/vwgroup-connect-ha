@@ -100,16 +100,23 @@ async def main(vin: str) -> int:
         lines.append(f"  {host_label:<46} HTTP {status:<4} {verdict} {note}")
 
     async with ClientSession() as session:
+        # #1215 (mvasilakis) — the default device-grant endpoints are the EU IDP
+        # (identity.vwgroup.io), which does not recognise a North-America VW ID
+        # (it offers a new-account flow with EU-only countries). North America has
+        # its own IDP plane, so the NA probe must target identity.na.vwgroup.io.
         dag = DeviceAuthorizationGrant(
-            session, MBB_DAG_CLIENT_ID, scope=MBB_DAG_SCOPE, strategy="mbb"
+            session, MBB_DAG_CLIENT_ID, scope=MBB_DAG_SCOPE, strategy="mbb",
+            device_auth_url="https://identity.na.vwgroup.io/oidc/v1/device_authorization",
+            token_url="https://identity.na.vwgroup.io/oidc/v1/token",
         )
-        print("[*] Requesting device code from identity.vwgroup.io …", flush=True)
+        print("[*] Requesting device code from identity.na.vwgroup.io …", flush=True)
         try:
             dc = await dag.request_device_code()
         except Exception as exc:  # noqa: BLE001
             print(f"[!] device_code request failed: {_mask(exc)}")
             print(f"    (This itself is a useful result — please paste it into {ISSUE}:")
-            print("     it may mean US accounts must use identity.na.vwgroup.io.)")
+            print("     a failure here against identity.na.vwgroup.io tells us whether")
+            print("     the NA IDP even issues an MBB device grant for this account.)")
             return 1
         print("\n" + "=" * 64)
         print("  OPEN THIS LINK IN YOUR BROWSER AND CONFIRM THE LOGIN:")
