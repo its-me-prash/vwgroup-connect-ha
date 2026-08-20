@@ -418,6 +418,13 @@ class VehicleData:
 
     # Range & energy
     battery_soc: int | None = None
+    # #1195 — provenance of ``battery_soc`` for the partial-dataset guard in
+    # ``vehicle_cache.reconcile``: True when it came from the single-occurrence,
+    # VALID ``battery_level_HV`` pair (the reliable live source), False when it
+    # fell back to the ``battery_state_report.soc`` leaf. A poll that omits the HV
+    # pair carries only the frozen leaf, so on a car that normally reports HV the
+    # reconcile holds the recorded value instead of publishing the stale leaf.
+    battery_soc_from_hv: bool | None = None
     battery_available_kwh: float | None = None
     battery_cap_kwh: float | None = None
     # Battery State of Health (%). Only computed when the user supplied the car's

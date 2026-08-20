@@ -1526,6 +1526,11 @@ def map_dataset_to_vehicle_data(
     if soc is not None:
         d.battery_soc = soc
         d.has_battery = True
+        # #1195 — record whether this SoC came from the reliable VALID HV pair or
+        # only the battery_state_report.soc leaf, so reconcile can hold the
+        # recorded value when a partial poll drops the HV pair and leaves only the
+        # frozen leaf (soulriding's CUPRA Born datasets 11/13/14; #465 Arno-MA-73).
+        d.battery_soc_from_hv = _hv_soc is not None
 
     odo = _to_int(first("mileage.value", "mileage", "odometer", "totalMileage",
                         # v2.29.x — UUID last-resort (openWB vweuda catalog).

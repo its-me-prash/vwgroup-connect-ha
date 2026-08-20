@@ -42,6 +42,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **A parked car's battery percentage no longer jumps to a stale value on a partial poll (#1195, #465).** On the EU Data Act portal the reliable SoC is a single-occurrence, VALID `battery_level_HV` reading; a poll that omits it carries only a `battery_state_report.soc` leaf that can be the frozen value from the last stop-charging report, stamped with a fresh-looking capture time. On a car that normally reports the HV reading, such a poll now holds the recorded value instead of publishing that stale leaf, so the percentage stops showing phantom ups and downs while parked. Thanks @soulriding for the 16-dataset analysis and @Arno-MA-73 for the corroborating case. (Cars that never report the HV pair — e.g. some ID.4 firmware — are untouched by this and still rely on the energy cross-check, which is being improved separately.)
+
 ## [4.0.0] - 2026-08-20 — the Volkswagen grounding wave: durable Car-Net (MBB) two-way, deeper reads, and a data-quality pass
 
 _The 4.0.0 line is a deep pass over the Volkswagen side of the integration, grounded field-by-field against the We Connect app (androguard vs We Connect 4.3.2). Midway through, on **2026-08-18 Volkswagen disabled the login** the modern (CARIAD) two-way used — so this release ships that channel **greyed out** (all its code kept) and leans on the **durable Car-Net (MBB) two-way** as the way to send commands to a Volkswagen. Alongside the two-way work: a capabilities-first read foundation, grounded VW/Audi commands, a data-quality pass on the EU Data Act portal, and the companion brought up to the current app. Consolidates the v4.0.0b1–b6 betas and the v3.3.0b1 data-quality beta._

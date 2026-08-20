@@ -243,6 +243,36 @@ def reconcile(
     for field in CARRY_FORWARD_FIELDS:
         if merged.get(field) is None and previous.get(field) is not None:
             merged[field] = previous[field]
+    # #1195 partial-dataset SoC guard. The reliable live SoC is the single-
+    # occurrence VALID ``battery_level_HV`` pair; a poll that OMITS it carries
+    # only the ``battery_state_report.soc`` leaf, which VW stamps with a fresh-
+    # looking capture time even when it is the frozen value from the last stop-
+    # charging report. So on a car that normally reports HV, a leaf-only poll
+    # would publish that stale leaf as a phantom SoC up/down while parked
+    # (soulriding's CUPRA Born datasets 11/13/14; Arno-MA-73's 35-field poll #465).
+    # When the recorded SoC came from HV and this poll's SoC is leaf-only, treat
+    # the leaf as unreliable and hold the recorded value — exactly like an omitted
+    # field. Inert for cars that never ship the HV pair (their SoC always reads as
+    # leaf-only, so the recorded provenance is never HV and this never fires).
+    _fresh_from_hv = merged.get("battery_soc_from_hv")
+    _prev_from_hv = previous.get("battery_soc_from_hv")
+    if (
+        _prev_from_hv is True
+        and _fresh_from_hv is False
+        and previous.get("battery_soc") is not None
+    ):
+        if merged.get("battery_soc") != previous.get("battery_soc"):
+            notes.append(
+                f"battery_soc {merged.get('battery_soc')} came from the leaf only "
+                f"(no HV pair this poll); held recorded {previous['battery_soc']} "
+                "(partial dataset, #1195)"
+            )
+        merged["battery_soc"] = previous["battery_soc"]
+    # Provenance is sticky-True: a car that ever shipped a VALID HV pair reports
+    # it normally, so remember that across partial polls (and across the carry-
+    # forward above, where the fresh poll had no SoC at all).
+    if _prev_from_hv is True or _fresh_from_hv is True:
+        merged["battery_soc_from_hv"] = True
     # Position — carried as ONE group and only when the fresh poll has no
     # coordinates at all. Topping a fresh position up with the previous
     # address would pin last week's street name onto this minute's
@@ -286,10 +316,18 @@ def reconcile(
             if len(numeric) < 2:
                 continue
             if attr == "battery_soc":
+                # #1195 — when this poll's SoC came from the single-occurrence,
+                # VALID battery_level_HV pair, it is already authoritative: do NOT
+                # let the contested LEAF candidates (which ship the live AND the
+                # frozen value under one capture time) override it. Leave
+                # soc_was_contested False so the energy-sanity guard below still
+                # catches a stale-high HV value (Fishermanjb .5, soc 94 vs 67%).
+                if merged.get("battery_soc_from_hv") is True:
+                    continue
                 soc_was_contested = True
-                # #1195 — break a stuck-on-stale SoC latch with live evidence
-                # (energy-content ratio / the car having moved), not just
-                # closest-to-last which freezes on the old value.
+                # break a stuck-on-stale SoC latch with live evidence (energy-
+                # content ratio / the car having moved), not just closest-to-last
+                # which freezes on the old value.
                 best_val = _resolve_contested_soc(
                     numeric, float(old_val), fresh, previous
                 )
