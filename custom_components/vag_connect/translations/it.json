@@ -215,8 +215,8 @@
           "abrp_user_token": "Token ABRP (per veicolo)",
           "keep_raw_datasets": "Conserva i set di dati grezzi EU Data Act (diagnostica)",
           "test_cohort": "Aiutaci a migliorare VW Group Connect (gruppo di test ad adesione volontaria)",
-          "vweu_device_grant": "Add VW EU Two-Way — commands + live reads (BETA)",
-          "remove_vweu_twoway": "Remove VW EU Two-Way (revert to the previous channel)"
+          "vweu_device_grant": "Aggiungi VW EU Two-Way — comandi + letture in tempo reale (BETA)",
+          "remove_vweu_twoway": "Rimuovi VW EU Two-Way (torna al canale precedente)"
         },
         "data_description": {
           "scan_interval": "Con quale frequenza vengono recuperati i dati (minuti). Minimo: 3.",
@@ -236,7 +236,7 @@
           "abrp_user_token": "Il token 'Generic' dell'app ABRP: Impostazioni -> la tua auto -> Live Data. Mai registrato nei log.",
           "keep_raw_datasets": "Utile solo sul canale del portale EU Data Act. Se attivo, gli ultimi file ZIP di dati grezzi forniti dal portale vengono conservati su disco (in .storage, per veicolo e con un limite di dimensione) così un valore errato o mancante può essere riprodotto dai byte esatti inviati dalla tua auto. Questi file contengono la posizione GPS, il VIN e la telemetria, quindi è disattivato per impostazione predefinita: attivalo solo durante la risoluzione dei problemi.",
           "test_cohort": "Disattivato per impostazione predefinita. Attivalo per permettere all'integrazione di provare letture sperimentali sulla tua auto — come il tentativo, tuttora in corso, di recuperare la posizione GPS per le auto Volkswagen europee — e di mostrarti ogni tanto una notifica (che puoi chiudere) in cui ti chiede di condividere un file di diagnostica, così da confermare una nuova funzionalità per il tuo modello. Tutto ciò che condividi viene oscurato automaticamente prima di lasciare il tuo sistema: non vengono mai inclusi VIN, GPS, token o indirizzo email. È così che si sbloccano nuove funzioni per la tua auto e per tutti quelli che guidano lo stesso modello, e puoi disattivarlo di nuovo in qualsiasi momento.",
-          "vweu_device_grant": "Volkswagen only, BETA. Adds two-way control (lock/unlock, climate, charging) and live CARIAD reads by signing in with your Volkswagen ID. Volkswagen only issues a 1-hour token here, so your password is stored to renew it automatically — it is sent only to Volkswagen's own login server and is never written to logs or diagnostics. If you would rather not store a password, use the read-only channels instead. Ticking this opens the sign-in step."
+          "vweu_device_grant": "Solo Volkswagen, BETA. Aggiunge il controllo bidirezionale (blocca/sblocca, clima, ricarica) e le letture CARIAD in tempo reale accedendo con il tuo Volkswagen ID. Qui Volkswagen rilascia solo un token di 1 ora, quindi la tua password viene memorizzata per rinnovarlo automaticamente — è inviata solo al server di login di Volkswagen e non viene mai scritta nei log o nella diagnostica. Se preferisci non memorizzare una password, usa invece i canali in sola lettura. Selezionando questa opzione si apre il passaggio di accesso."
         }
       },
       "add_vwde": {
@@ -287,28 +287,28 @@
         }
       },
       "add_vweu_twoway": {
-        "title": "VW EU Two-Way (commands + live reads, BETA)",
-        "description": "**Experimental, opt-in — Volkswagen only.** Adds two-way control (lock/unlock, climate, charging) and live CARIAD reads by signing in with your Volkswagen ID. Because Volkswagen only issues a 1-hour token on this path, your password is **stored** so the integration can renew it automatically. It is sent only to Volkswagen's own login server and is never written to logs or diagnostics. Prefer not to store a password? Use the read-only channels instead. **Prerequisite:** your Volkswagen ID must be the vehicle's primary user.",
+        "title": "VW EU Two-Way (comandi + letture in tempo reale, BETA)",
+        "description": "**Sperimentale, opt-in — solo Volkswagen.** Aggiunge il controllo bidirezionale (blocca/sblocca, clima, ricarica) e le letture CARIAD in tempo reale accedendo con il tuo Volkswagen ID. Poiché su questo percorso Volkswagen rilascia solo un token di 1 ora, la tua password viene **memorizzata** così che l'integrazione possa rinnovarlo automaticamente. È inviata solo al server di login di Volkswagen e non viene mai scritta nei log o nella diagnostica. Preferisci non memorizzare una password? Usa invece i canali in sola lettura. **Requisito:** il tuo Volkswagen ID deve essere l'utente principale del veicolo.",
         "data": {
           "username": "Email Address",
           "password": "Password"
         },
         "data_description": {
-          "username": "The email of your Volkswagen ID / myVolkswagen account.",
-          "password": "Your Volkswagen ID password. Used only to renew the 1-hour access token against Volkswagen's login server; never logged and redacted from diagnostics."
+          "username": "L'email del tuo account Volkswagen ID / myVolkswagen.",
+          "password": "La password del tuo Volkswagen ID. Usata solo per rinnovare il token di accesso di 1 ora sul server di login di Volkswagen; mai registrata nei log e oscurata dalla diagnostica."
         }
       }
     },
     "error": {
       "abrp_credentials_required": "Per abilitare ABRP devi inserire sia la api_key sia il token per veicolo.",
-      "invalid_auth": "Sign-in failed. Check your Volkswagen ID email and password.",
-      "cannot_connect": "Could not reach Volkswagen. Please try again.",
-      "vweu_mfa_unsupported": "This account needs an email or authenticator code, which VW EU Two-Way cannot handle yet. Use the read-only channels instead.",
-      "vweu_no_bff_data": "Signed in, but Volkswagen returned no live data for this car on the modern backend yet, so VW EU Two-Way was not enabled and your current channel is unchanged. Please try again later, or share a diagnostics so we can look into it."
+      "invalid_auth": "Accesso non riuscito. Controlla l'email e la password del tuo Volkswagen ID.",
+      "cannot_connect": "Impossibile raggiungere Volkswagen. Riprova.",
+      "vweu_mfa_unsupported": "Questo account richiede un codice via email o dall'app di autenticazione, che VW EU Two-Way non \u00e8 ancora in grado di gestire. Usa invece i canali in sola lettura.",
+      "vweu_no_bff_data": "Accesso riuscito, ma Volkswagen non ha ancora restituito dati in tempo reale per quest'auto sul backend moderno, quindi VW EU Two-Way non \u00e8 stato attivato e il tuo canale attuale resta invariato. Riprova pi\u00f9 tardi, oppure condividi una diagnostica cos\u00ec possiamo esaminarla."
     },
     "abort": {
-      "not_volkswagen": "This channel is only available for Volkswagen.",
-      "vweu_twoway_vw_disabled": "Volkswagen disabled the login this channel used on 2026-08-18, so it can no longer be set up. Live reads keep working through the EU Data Act portal, and a durable command channel via the classic Car-Net backend is in beta — see issue #584."
+      "not_volkswagen": "Questo canale \u00e8 disponibile solo per Volkswagen.",
+      "vweu_twoway_vw_disabled": "Volkswagen ha disattivato il login usato da questo canale il 18/08/2026, quindi non può più essere configurato. Le letture in tempo reale continuano a funzionare tramite il portale EU Data Act, e un canale di comandi durevole tramite il backend classico Car-Net è in beta — vedi la issue #584."
     }
   },
   "entity": {
@@ -1774,8 +1774,8 @@
   },
   "issues": {
     "vweu_twoway_disabled": {
-      "title": "VW EU Two-Way: disabled by Volkswagen",
-      "description": "On 2026-08-18 Volkswagen disabled the login that the VW EU Two-Way (modern CARIAD backend) channel used, so its 1-hour token can no longer be renewed and two-way commands via that channel have stopped. This is a Volkswagen-side change \u2014 nothing is misconfigured on your side, and your account is not at risk (the failure happens before any password is sent).\n\n**Your live reads keep working** through the EU Data Act portal, so your sensors are unaffected.\n\n**For two-way commands (lock/unlock, climate, charging):** a durable replacement via the classic Car-Net (MBB) backend \u2014 which Volkswagen has NOT disabled \u2014 is now in beta. See issue #584 for how to enable and test it.\n\nYou can remove the now-inactive channel any time under the integration's options (VW EU Two-Way \u2192 remove). This message is informational; the integration keeps running on your read channels.\n\n**Tip:** enable only ONE two-way integration for a given car at a time. VW rate-limits and can temporarily lock an account that several apps hammer at once \u2014 when that happens even the official VW app can't control the car, which is the tell that it's an account lockout, not this integration."
+      "title": "VW EU Two-Way: disattivato da Volkswagen",
+      "description": "Il 18/08/2026 Volkswagen ha disattivato il login usato dal canale VW EU Two-Way (backend moderno CARIAD), quindi il suo token di 1 ora non pu\u00f2 pi\u00f9 essere rinnovato e i comandi bidirezionali tramite quel canale si sono interrotti. Si tratta di una modifica lato Volkswagen \u2014 non c'\u00e8 nulla di configurato male dalla tua parte, e il tuo account non \u00e8 a rischio (l'errore si verifica prima che venga inviata qualsiasi password).\n\n**Le tue letture in tempo reale continuano a funzionare** tramite il portale EU Data Act, quindi i tuoi sensori non ne risentono.\n\n**Per i comandi bidirezionali (blocca/sblocca, clima, ricarica):** un sostituto durevole tramite il backend classico Car-Net (MBB) \u2014 che Volkswagen NON ha disattivato \u2014 \u00e8 ora in beta. Vedi la issue #584 per sapere come attivarlo e testarlo.\n\nPuoi rimuovere il canale ora inattivo in qualsiasi momento dalle opzioni dell'integrazione (VW EU Two-Way \u2192 rimuovi). Questo messaggio \u00e8 puramente informativo; l'integrazione continua a funzionare sui tuoi canali di lettura.\n\n**Suggerimento:** attiva UNA sola integrazione bidirezionale per una data auto alla volta. VW applica limiti di frequenza e pu\u00f2 bloccare temporaneamente un account tempestato di richieste da pi\u00f9 app contemporaneamente \u2014 quando succede, nemmeno l'app ufficiale VW riesce a controllare l'auto, ed \u00e8 questo il segnale che si tratta di un blocco dell'account e non di questa integrazione."
     },
     "two_factor_required": {
       "title": "Autenticazione a due fattori richiesta — {brand}",

@@ -215,8 +215,8 @@
           "abrp_user_token": "Token ABRP (pro vozidlo)",
           "keep_raw_datasets": "Uchovávat surová data EU Data Act (diagnostika)",
           "test_cohort": "Pomozte vylepšit VW Group Connect (dobrovolná testovací skupina)",
-          "vweu_device_grant": "Add VW EU Two-Way — commands + live reads (BETA)",
-          "remove_vweu_twoway": "Remove VW EU Two-Way (revert to the previous channel)"
+          "vweu_device_grant": "Přidat VW EU Two-Way — příkazy + živé čtení dat (BETA)",
+          "remove_vweu_twoway": "Odebrat VW EU Two-Way (n\u00e1vrat k p\u0159edchoz\u00edmu kan\u00e1lu)"
         },
         "data_description": {
           "scan_interval": "Jak často se stahují data (minuty). Minimum: 3.",
@@ -236,7 +236,7 @@
           "abrp_user_token": "Token 'Generic' z aplikace ABRP: Nastavení -> vaše auto -> Live Data. Nikdy se neloguje.",
           "keep_raw_datasets": "Užitečné pouze na kanálu portálu EU Data Act. Po zapnutí se posledních několik surových ZIP souborů s daty, které portál dodá, uchová na disku (v .storage, na vozidlo a s limitem velikosti), aby bylo možné chybnou nebo chybějící hodnotu reprodukovat z přesně těch bajtů, které vůz odeslal. Tyto soubory obsahují vaši GPS polohu, VIN a telemetrii, proto je funkce ve výchozím nastavení vypnutá – zapněte ji jen při řešení potíží.",
           "test_cohort": "Ve výchozím nastavení vypnuto. Když tuto možnost zapnete, integrace bude moci na vašem voze zkoušet experimentální čtení dat — třeba právě probíhající pokus o získání polohy GPS u vozů Volkswagen v EU — a občas vám zobrazí upozornění (které lze zavřít) s prosbou o sdílení diagnostického souboru, aby se pro váš model mohla potvrdit nová funkce. Vše, co sdílíte, se automaticky anonymizuje ještě předtím, než to opustí váš systém: nikdy to neobsahuje VIN, GPS, tokeny ani e-mail. Právě takto se odemykají nové funkce pro váš vůz i pro všechny, kdo jezdí stejným modelem — a kdykoli to zase můžete vypnout.",
-          "vweu_device_grant": "Volkswagen only, BETA. Adds two-way control (lock/unlock, climate, charging) and live CARIAD reads by signing in with your Volkswagen ID. Volkswagen only issues a 1-hour token here, so your password is stored to renew it automatically — it is sent only to Volkswagen's own login server and is never written to logs or diagnostics. If you would rather not store a password, use the read-only channels instead. Ticking this opens the sign-in step."
+          "vweu_device_grant": "Pouze Volkswagen, BETA. Přidává obousměrné ovládání (zamknout/odemknout, klimatizace, nabíjení) a živé čtení dat z CARIAD po přihlášení pomocí vašeho Volkswagen ID. Volkswagen zde vydává pouze hodinový token, takže se vaše heslo uloží, aby jej integrace mohla automaticky obnovovat — odesílá se výhradně na přihlašovací server samotného Volkswagenu a nikdy se nezapisuje do logů ani diagnostiky. Pokud heslo raději ukládat nechcete, použijte místo toho kanály jen pro čtení. Zaškrtnutím této volby se otevře krok přihlášení."
         }
       },
       "add_vwde": {
@@ -287,28 +287,28 @@
         }
       },
       "add_vweu_twoway": {
-        "title": "VW EU Two-Way (commands + live reads, BETA)",
-        "description": "**Experimental, opt-in — Volkswagen only.** Adds two-way control (lock/unlock, climate, charging) and live CARIAD reads by signing in with your Volkswagen ID. Because Volkswagen only issues a 1-hour token on this path, your password is **stored** so the integration can renew it automatically. It is sent only to Volkswagen's own login server and is never written to logs or diagnostics. Prefer not to store a password? Use the read-only channels instead. **Prerequisite:** your Volkswagen ID must be the vehicle's primary user.",
+        "title": "VW EU Two-Way (p\u0159\u00edkazy + \u017eiv\u00e9 \u010dten\u00ed dat, BETA)",
+        "description": "**Experimentální, dobrovolné — pouze Volkswagen.** Přidává obousměrné ovládání (zamknout/odemknout, klimatizace, nabíjení) a živé čtení dat z CARIAD po přihlášení pomocí vašeho Volkswagen ID. Protože Volkswagen na této cestě vydává pouze hodinový token, vaše heslo se **uloží**, aby jej integrace mohla automaticky obnovovat. Odesílá se výhradně na přihlašovací server samotného Volkswagenu a nikdy se nezapisuje do logů ani diagnostiky. Nechcete heslo ukládat? Použijte místo toho kanály jen pro čtení. **Předpoklad:** vaše Volkswagen ID musí být hlavním uživatelem vozidla.",
         "data": {
           "username": "Email Address",
           "password": "Password"
         },
         "data_description": {
-          "username": "The email of your Volkswagen ID / myVolkswagen account.",
-          "password": "Your Volkswagen ID password. Used only to renew the 1-hour access token against Volkswagen's login server; never logged and redacted from diagnostics."
+          "username": "E-mail va\u0161eho \u00fa\u010dtu Volkswagen ID / myVolkswagen.",
+          "password": "Heslo k va\u0161emu Volkswagen ID. Pou\u017e\u00edv\u00e1 se pouze k obnoven\u00ed hodinov\u00e9ho p\u0159\u00edstupov\u00e9ho tokenu v\u016f\u010di p\u0159ihla\u0161ovac\u00edmu serveru Volkswagenu; nikdy se neloguje a z diagnostiky je odstran\u011bno."
         }
       }
     },
     "error": {
       "abrp_credentials_required": "Pro povolení ABRP musíte zadat jak api_key, tak token vozidla.",
-      "invalid_auth": "Sign-in failed. Check your Volkswagen ID email and password.",
-      "cannot_connect": "Could not reach Volkswagen. Please try again.",
-      "vweu_mfa_unsupported": "This account needs an email or authenticator code, which VW EU Two-Way cannot handle yet. Use the read-only channels instead.",
-      "vweu_no_bff_data": "Signed in, but Volkswagen returned no live data for this car on the modern backend yet, so VW EU Two-Way was not enabled and your current channel is unchanged. Please try again later, or share a diagnostics so we can look into it."
+      "invalid_auth": "P\u0159ihl\u00e1\u0161en\u00ed selhalo. Zkontrolujte e-mail a heslo sv\u00e9ho Volkswagen ID.",
+      "cannot_connect": "Volkswagen se nepoda\u0159ilo kontaktovat. Zkuste to pros\u00edm znovu.",
+      "vweu_mfa_unsupported": "Tento \u00fa\u010det vy\u017eaduje k\u00f3d z e-mailu nebo z ov\u011b\u0159ovac\u00ed aplikace, kter\u00fd VW EU Two-Way zat\u00edm neum\u00ed zpracovat. Pou\u017eijte m\u00edsto toho kan\u00e1ly jen pro \u010dten\u00ed.",
+      "vweu_no_bff_data": "P\u0159ihl\u00e1\u0161en\u00ed prob\u011bhlo, ale Volkswagen pro tento v\u016fz na modern\u00edm backendu zat\u00edm nevr\u00e1til \u017e\u00e1dn\u00e1 \u017eiv\u00e1 data, tak\u017ee VW EU Two-Way nebyl zapnut a v\u00e1\u0161 st\u00e1vaj\u00edc\u00ed kan\u00e1l z\u016fst\u00e1v\u00e1 beze zm\u011bny. Zkuste to pros\u00edm pozd\u011bji, nebo sd\u00edlejte diagnostiku, abychom se na to mohli pod\u00edvat."
     },
     "abort": {
-      "not_volkswagen": "This channel is only available for Volkswagen.",
-      "vweu_twoway_vw_disabled": "Volkswagen disabled the login this channel used on 2026-08-18, so it can no longer be set up. Live reads keep working through the EU Data Act portal, and a durable command channel via the classic Car-Net backend is in beta — see issue #584."
+      "not_volkswagen": "Tento kan\u00e1l je dostupn\u00fd pouze pro Volkswagen.",
+      "vweu_twoway_vw_disabled": "Volkswagen dne 18. 8. 2026 vypnul přihlášení, které tento kanál používal, takže jej už nelze nastavit. Živé čtení dat dál funguje přes portál EU Data Act a trvalý příkazový kanál přes klasický backend Car-Net je v betě — viz issue #584."
     }
   },
   "entity": {
@@ -1774,8 +1774,8 @@
   },
   "issues": {
     "vweu_twoway_disabled": {
-      "title": "VW EU Two-Way: disabled by Volkswagen",
-      "description": "On 2026-08-18 Volkswagen disabled the login that the VW EU Two-Way (modern CARIAD backend) channel used, so its 1-hour token can no longer be renewed and two-way commands via that channel have stopped. This is a Volkswagen-side change \u2014 nothing is misconfigured on your side, and your account is not at risk (the failure happens before any password is sent).\n\n**Your live reads keep working** through the EU Data Act portal, so your sensors are unaffected.\n\n**For two-way commands (lock/unlock, climate, charging):** a durable replacement via the classic Car-Net (MBB) backend \u2014 which Volkswagen has NOT disabled \u2014 is now in beta. See issue #584 for how to enable and test it.\n\nYou can remove the now-inactive channel any time under the integration's options (VW EU Two-Way \u2192 remove). This message is informational; the integration keeps running on your read channels.\n\n**Tip:** enable only ONE two-way integration for a given car at a time. VW rate-limits and can temporarily lock an account that several apps hammer at once \u2014 when that happens even the official VW app can't control the car, which is the tell that it's an account lockout, not this integration."
+      "title": "VW EU Two-Way: vypnuto Volkswagenem",
+      "description": "Dne 18. 8. 2026 Volkswagen vypnul p\u0159ihl\u00e1\u0161en\u00ed, kter\u00e9 kan\u00e1l VW EU Two-Way (modern\u00ed backend CARIAD) pou\u017e\u00edval, tak\u017ee jeho hodinov\u00fd token u\u017e nelze obnovit a obousm\u011brn\u00e9 p\u0159\u00edkazy p\u0159es tento kan\u00e1l p\u0159estaly fungovat. Jde o zm\u011bnu na stran\u011b Volkswagenu \u2014 na va\u0161\u00ed stran\u011b nen\u00ed nic \u0161patn\u011b nastaveno a v\u00e1\u0161 \u00fa\u010det nen\u00ed ohro\u017een (selh\u00e1n\u00ed nast\u00e1v\u00e1 je\u0161t\u011b p\u0159edt\u00edm, ne\u017e se ode\u0161le jak\u00e9koli heslo).\n\n**Va\u0161e \u017eiv\u00e9 \u010dten\u00ed dat funguje d\u00e1l** p\u0159es port\u00e1l EU Data Act, tak\u017ee va\u0161e senzory to nijak neovlivn\u00ed.\n\n**Pro obousm\u011brn\u00e9 p\u0159\u00edkazy (zamknout/odemknout, klimatizace, nab\u00edjen\u00ed):** trval\u00e1 n\u00e1hrada p\u0159es klasick\u00fd backend Car-Net (MBB) \u2014 kter\u00fd Volkswagen NEVYPNUL \u2014 je nyn\u00ed v bet\u011b. Postup, jak ji zapnout a otestovat, najdete v issue #584.\n\nNyn\u00ed neaktivn\u00ed kan\u00e1l m\u016f\u017eete kdykoli odebrat v nastaven\u00ed integrace (VW EU Two-Way \u2192 odebrat). Tato zpr\u00e1va je pouze informativn\u00ed; integrace b\u011b\u017e\u00ed d\u00e1l p\u0159es va\u0161e \u010dtec\u00ed kan\u00e1ly.\n\n**Tip:** pro dan\u00fd v\u016fz m\u011bjte sou\u010dasn\u011b zapnutou v\u017edy jen JEDNU obousm\u011brnou integraci. VW omezuje po\u010det po\u017eadavk\u016f a m\u016f\u017ee do\u010dasn\u011b zablokovat \u00fa\u010det, na kter\u00fd n\u011bkolik aplikac\u00ed \u00fato\u010d\u00ed najednou \u2014 kdy\u017e k tomu dojde, nedok\u00e1\u017ee v\u016fz ovl\u00e1dat ani ofici\u00e1ln\u00ed aplikace VW, co\u017e je sign\u00e1l, \u017ee jde o zablokov\u00e1n\u00ed \u00fa\u010dtu, nikoli o chybu t\u00e9to integrace."
     },
     "two_factor_required": {
       "title": "Vyžadováno dvoufázové ověření — {brand}",
