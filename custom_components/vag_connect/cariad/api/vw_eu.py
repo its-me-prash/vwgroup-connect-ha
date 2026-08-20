@@ -720,11 +720,33 @@ class VWEUClient(CariadBaseClient):
         except Exception:  # noqa: BLE001
             pass
 
+        # 4.0.x — battery State-of-Health. We Connect 4.3.2 reads it via the BFF
+        # sub-job ``selectivestatus?jobs=batteryHealthState`` (RE 2026-08-12), NOT
+        # inside the main selectivestatus bundle. Attestation-walled (403) for VW
+        # EU passenger cars post-lockdown, but Audi device-grant reads serve it, so
+        # this fetch gives Audi a real SoH sensor. Best-effort: a 403 (VW EU) or 404
+        # (a car without the capability) leaves battery_soh_pct at its default and
+        # never breaks the poll.
+        soh_raw: dict[str, Any] = {}
+        try:
+            with self._parser_job("battery_health"):
+                soh_raw = await self._get(url, params={"jobs": "batteryHealthState"})
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.debug("batteryHealthState fetch failed for %s: %s", vin[-6:], exc)
+
         d = self._parse_status(vin, raw, parking)
         self._parse_trip_statistics(d, trip_short, trip_long)
         # v2.10.0 - refuel-trip parse. Separate method to keep the
         # shortTerm + longTerm parser untouched and ship a focused diff.
         self._parse_refuel_trip(d, trip_refuel)
+        # SoH from the batteryHealthState sub-job above (value lives at
+        # ``stateOfHealth.ubeIndicator_pct``; parse_battery_health walks for it).
+        if soh_raw:
+            from .._authproxy import parse_battery_health  # noqa: PLC0415
+
+            _soh = parse_battery_health(soh_raw)
+            if _soh is not None:
+                d.battery_soh_pct = int(round(_soh))
 
         # v1.25.0 PR-G — MBB VSR Phase 2 read-side fallback (Golf 7 GTE
         # Tank-Level use case). Triggers when:
@@ -755,6 +777,8 @@ class VWEUClient(CariadBaseClient):
             self.last_raw_responses["selectivestatus"] = raw
         if isinstance(parking, dict):
             self.last_raw_responses["parkingposition"] = parking
+        if isinstance(soh_raw, dict) and soh_raw:
+            self.last_raw_responses["batteryHealthState"] = soh_raw
 
         # ── carCapturedTimestamp → connection_state (v1.8.12 Multi-Brand) ────
         # CARIAD-BFF returns ``carCapturedTimestamp`` on the .value of every

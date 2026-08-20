@@ -43,6 +43,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ## [Unreleased]
 
 ### Added
+- **Battery State-of-Health read (Audi).** We Connect 4.3.2 exposes SoH through a separate `batteryHealthState` BFF read (not part of the main status bundle); the integration now fetches it best-effort and maps the usable-battery-energy percentage onto the State-of-Health sensor. This read is attestation-walled for Volkswagen EU passenger cars (unchanged, fails soft), but Audi device-grant entries now get a real SoH value.
 - **Plug-in hybrid parking/pre-heater status (Volkswagen & Audi).** PHEVs (Golf/Passat GTE and the like) report their auxiliary heater under a distinct `hybridCarAuxiliaryHeating` job that the integration wasn't requesting, so their aux-heat status never populated. Grounded against the We Connect app, that job is now fetched and its `hybridCarAuxiliaryHeatingStatus` mapped onto the same aux-heating status/active/remaining fields the BEV path uses.
 
 ### Fixed
