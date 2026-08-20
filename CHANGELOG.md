@@ -40,7 +40,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
-## [Unreleased]
+## [4.1.0b1] - 2026-08-20 — Audi battery health, PHEV pre-heater, and parked-battery stability
 
 ### Added
 - **Battery State-of-Health read (Audi).** We Connect 4.3.2 exposes SoH through a separate `batteryHealthState` BFF read (not part of the main status bundle); the integration now fetches it best-effort and maps the usable-battery-energy percentage onto the State-of-Health sensor. This read is attestation-walled for Volkswagen EU passenger cars (unchanged, fails soft), but Audi device-grant entries now get a real SoH value. The measured reading always wins over the optional nominal-capacity estimate, so setting a nominal on an Audi never overwrites the car's own number.
