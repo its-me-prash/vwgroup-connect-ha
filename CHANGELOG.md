@@ -40,6 +40,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [4.1.0b2] - 2026-08-20 — CNG tank level over the portal + the VW EU GPS gap, documented
+
+### Added
+- **CNG tank level now reads over the EU Data Act portal (Scout #1225).** Volkswagen TGI / natural-gas cars publish `cng_gas_level` (%) through the portal, but the portal reader wasn't picking it up. It now feeds the existing CNG-level sensor — the same one already populated on the SEAT/CUPRA and VW-EU app paths — so a gas car read only through the portal finally gets its tank gauge. Thanks @ChibiDanjo for the Scout report.
+
+### Documentation
+- **Documented the VW EU GPS limitation — now confirmed by VW itself.** Volkswagen Group Info Services confirmed in writing that the EU Data Act continuous-export Data Dictionary lists a *Vehicle Location Tracking* cluster but no defined data point for a car's current GPS coordinates, so a VW EU car read only through the portal shows its location as `unknown`. This is documented in the README's *Known limitations* in all 12 languages, citing VW's reply. Thanks @mathep34 for chasing the portal support team down.
+
 ## [4.1.0b1] - 2026-08-20 — Audi battery health, PHEV pre-heater, and parked-battery stability
 
 ### Added
