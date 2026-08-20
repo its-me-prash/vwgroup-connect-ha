@@ -1849,6 +1849,14 @@ def map_dataset_to_vehicle_data(
     if fuel is not None:
         d.fuel_level = fuel
 
+    # Scout #1225 (ChibiDanjo, VW TGI) — cng_gas_level is the EU-portal leaf for
+    # the CNG tank level (dict UUID c129d05d, "Gas level in percentage"). Feeds the
+    # existing cng_level_pct field/sensor already populated on the SEAT/CUPRA and
+    # VW-EU OLA paths; first() consumes the leaf so it stops surfacing in the Scout.
+    cng = _to_int(first("cng_gas_level", "cngLevel_pct", "cng_level_pct"))
+    if cng is not None:
+        d.cng_level_pct = cng
+
     v12 = _to_float(first("boardnetBatteryVoltageIndication", "boardnet_battery_voltage"))
     if v12 is not None:
         d.voltage_12v = v12
