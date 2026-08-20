@@ -4753,19 +4753,23 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # Always stamp when we fetched
         data["last_updated_at"] = datetime.now(tz=timezone.utc)
 
-        # Battery State of Health, only when the user supplied the car's nameplate
-        # NET capacity (CONF_BATTERY_NOMINAL_KWH). VW ships no SoH field and even
-        # the official app derives none, and one model name maps to several
-        # battery options, so we never guess it. SoH% = current max capacity /
-        # nominal. The plausibility band means a nominal only applies to the car it
-        # actually fits, so on a multi-car account the others simply get no SoH
+        # Battery State of Health. Audi device-grant cars now carry a REAL SoH read
+        # from the batteryHealthState BFF job (set upstream in the API layer), so we
+        # only ever derive one here as a FALLBACK when the backend gave none — never
+        # overwrite the measured value with the estimate. The derived path needs the
+        # user's nameplate NET capacity (CONF_BATTERY_NOMINAL_KWH): VW passenger cars
+        # ship no SoH field and the official app derives none, and one model name maps
+        # to several battery options, so we never guess it. SoH% = current max
+        # capacity / nominal. The plausibility band means a nominal only applies to the
+        # car it actually fits, so on a multi-car account the others simply get no SoH
         # rather than a wrong one.
-        _soh = _battery_soh_pct(
-            data.get("battery_cap_kwh"),
-            self.entry.data.get(CONF_BATTERY_NOMINAL_KWH),
-        )
-        if _soh is not None:
-            data["battery_soh_pct"] = _soh
+        if data.get("battery_soh_pct") is None:
+            _soh = _battery_soh_pct(
+                data.get("battery_cap_kwh"),
+                self.entry.data.get(CONF_BATTERY_NOMINAL_KWH),
+            )
+            if _soh is not None:
+                data["battery_soh_pct"] = _soh
 
         # v2.22.0 (evcc) — normalized IEC-61851 charge status for the evcc
         # connector (see docs/EVCC.md). Only set for cars that report charging

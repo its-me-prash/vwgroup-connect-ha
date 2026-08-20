@@ -2866,10 +2866,11 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         suggested_display_precision=1,
     ),
-    # Battery State of Health (%). Only produced when the user set the car's
-    # nameplate net capacity in the options (CONF_BATTERY_NOMINAL_KWH) -- VW ships
-    # no SoH field, so we never guess it. Disabled by default: the user opts in by
-    # enabling this + supplying the nominal, then it reads current-max / nominal.
+    # Battery State of Health (%). Two sources: Audi device-grant cars carry a REAL
+    # SoH from the batteryHealthState BFF read; everyone else can opt in by setting
+    # the car's nameplate net capacity (CONF_BATTERY_NOMINAL_KWH), from which we
+    # derive current-max / nominal. The measured value always wins over the estimate.
+    # Disabled by default so it only appears when one of those sources exists.
     VagSensorDescription(
         key="battery_soh_pct",
         translation_key="battery_soh_pct",
