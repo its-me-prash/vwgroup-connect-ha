@@ -264,6 +264,14 @@ class AuthenticationError(CariadError):
     """Login failed — wrong credentials or account issue."""
 
 
+class NorthAmericaAttestationError(AuthenticationError):
+    """#1165/#659 — VW North America blocks the sign-in token exchange behind
+    Play-Integrity device attestation (~2026-07-30). The con-veh host 401s with a
+    CarnetSP INVALID_REQUEST body BEFORE any vehicle read, so it looks identical to
+    a wrong password and NA owners loop re-entering credentials. Raised so the
+    config flow can surface the real reason instead of ``invalid_credentials``."""
+
+
 class TermsAndConditionsError(AuthenticationError):
     """Terms and conditions must be accepted in the app before API access."""
 

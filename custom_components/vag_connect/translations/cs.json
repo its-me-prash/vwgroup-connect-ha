@@ -166,6 +166,7 @@
       "invalid_credentials": "Nesprávná e-mailová adresa nebo heslo.",
       "portal_interaction_required": "Portál EU Data Act vyžaduje jednorázovou akci ve vašem prohlížeči nebo aplikaci značky (např. přijmout podmínky, potvrdit souhlas, dokončit onboarding/výběr regionu), než začne fungovat bezhlavý přístup. Toto NENÍ problém se špatným heslem — otevřete portál jednou v prohlížeči, dokončete výzvu a zkuste to znovu.",
       "upstream_unavailable": "Backend VW dočasně nedostupný. Toto je problém na straně serveru VW, NIKOLI chyba přihlášení. Počkejte 5–15 minut a zkuste to znovu. Integraci znovu NEKONFIGURUJTE.",
+      "na_signin_attestation": "Vaše e-mailová adresa a heslo jsou v pořádku — Volkswagen Severní Amerika nyní blokuje toto přihlášení kontrolou atestace zařízení od Googlu (Play Integrity), kterou dokáže projít pouze oficiální aplikace na opravdovém telefonu. Opětovné zadání hesla nepomůže; jde o zámek na straně serveru VW, nikoli o problém s přihlašovacími údaji. (Sledováno: #1165.)",
       "brand_not_dag_eligible": "Vybraná značka nepodporuje přihlášení přes prohlížeč. Použijte místo toho přihlášení e-mailem + heslem.",
       "skoda_qr_retired": "Bezheslové přihlášení Škoda (QR) společnost Volkswagen vypnula a už nefunguje. Vraťte se zpět a zvolte „E-mail + heslo (starší způsob)“, tam vyberte Škoda a přihlaste se svým e-mailem a heslem MyŠkoda.",
       "still_waiting_browser": "Stále se čeká na potvrzení v prohlížeči. Otevřete URL výše, přihlaste se, potvrďte kód a poté znovu klikněte na Odeslat.",

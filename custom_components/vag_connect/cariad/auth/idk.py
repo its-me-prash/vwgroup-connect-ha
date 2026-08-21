@@ -31,6 +31,7 @@ from ..exceptions import (
     AuthenticationError,
     EmailTwoFactorRequiredError,
     MarketingConsentError,
+    NorthAmericaAttestationError,
     TermsAndConditionsError,
     TwoFactorRequiredError,
     RateLimitError,
@@ -1814,6 +1815,28 @@ class IDKAuth:
                         )
                         raise UpstreamUnavailableError(
                             resp.status, brand=self._brand.name,
+                        )
+                    # #1165/#659 — VW North America put its con-veh SIGN-IN token
+                    # exchange behind Play-Integrity attestation (~2026-07-30). It
+                    # 401s with a CarnetSP INVALID_REQUEST body BEFORE any vehicle
+                    # read, so without this it looked exactly like a wrong password
+                    # and NA owners looped re-entering credentials. Fail fast (no
+                    # client_id retry beats an attestation wall) with a dedicated
+                    # error so the config flow can show the real reason.
+                    if (
+                        resp.status in (400, 401)
+                        and "con-veh" in token_url
+                        and "CarnetSP" in body
+                    ):
+                        _LOGGER.warning(
+                            "Token exchange (%s): VW North America sign-in blocked "
+                            "by device attestation (HTTP %d, CarnetSP). Not a "
+                            "credentials issue.",
+                            self._brand.name, resp.status,
+                        )
+                        raise NorthAmericaAttestationError(
+                            "VW North America sign-in blocked by device "
+                            f"attestation (HTTP {resp.status})"
                         )
                     # 4xx → try next (client_id, qmauth) attempt.
                     if 400 <= resp.status < 500 and idx < len(attempts) - 1:

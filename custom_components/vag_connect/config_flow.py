@@ -176,6 +176,7 @@ async def _validate_credentials(
     from .cariad.exceptions import (  # noqa: PLC0415
         AuthenticationError,
         MarketingConsentError,
+        NorthAmericaAttestationError,
         RateLimitError,
         TermsAndConditionsError,
         TwoFactorRequiredError,
@@ -209,6 +210,16 @@ async def _validate_credentials(
                 brand, err,
             )
             raise ValueError("upstream_unavailable") from err
+        except NorthAmericaAttestationError as err:
+            # #1165/#659 — NA sign-in blocked by VW Play-Integrity, NOT a wrong
+            # password. Surface the real reason so NA owners stop looping on the
+            # credentials step. Must precede the generic AuthenticationError catch
+            # (it is a subclass).
+            _LOGGER.warning(
+                "VW Group Connect (%s): North America sign-in blocked by VW "
+                "device attestation (not a credentials problem): %s", brand, err,
+            )
+            raise ValueError("na_signin_attestation") from err
         except AuthenticationError as err:
             _LOGGER.warning("VW Group Connect auth failed (%s): %s", brand, err)
             raise ValueError("invalid_credentials") from err
@@ -239,6 +250,7 @@ def _map_error(err_code: str) -> str:
         "upstream_unavailable",  # v2.5.7 — 5xx from VW backend
         "brand_not_dag_eligible",  # v2.7.0 — user picked non-DAG brand for browser login
         "portal_interaction_required",  # v2.15.4 (#527) — non-credential portal stop
+        "na_signin_attestation",  # #1165/#659 — VW NA Play-Integrity sign-in wall
     } else "cannot_connect"
 
 

@@ -40,6 +40,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [Unreleased]
+
+### Fixed
+- **North-America sign-in no longer looks like a wrong password (#1165, #659).** Since VW switched on Play-Integrity attestation on the North-America sign-in (~2026-07-30), the token exchange fails before any vehicle read — and the integration reported that as "email or password incorrect", so US/CA owners kept re-entering their credentials in a loop. It now detects that specific VW-side lock and shows a clear message explaining it's a device-attestation block, not a credentials problem, so people stop fighting the login. Translated across all 12 languages. Thanks @fg877khkv8-maker and @briancmoses for the logs.
+
 ## [4.1.0b2] - 2026-08-20 — CNG tank level over the portal + the VW EU GPS gap, documented
 
 ### Added

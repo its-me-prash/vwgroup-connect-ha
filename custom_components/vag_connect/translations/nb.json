@@ -165,6 +165,7 @@
       "too_many_requests": "Kontoen er midlertidig sperret (for mange påloggingsforsøk). Vent i 15 minutter.",
       "invalid_credentials": "E-postadresse eller passord er feil.",
       "upstream_unavailable": "VW-baksystemet er midlertidig utilgjengelig. Dette er et problem på VWs side, IKKE et problem med påloggingsinformasjonen. Vent 5–15 minutter og prøv igjen. IKKE konfigurer integrasjonen på nytt.",
+      "na_signin_attestation": "E-postadressen og passordet ditt er i orden — Volkswagen North America blokkerer nå denne påloggingen bak en enhetsattestering fra Google (Play Integrity) som bare den offisielle appen på en ekte telefon kan bestå. Å skrive inn passordet på nytt hjelper ikke; dette er en sperre på VWs side, ikke et problem med påloggingsinformasjonen. (Følges i issue #1165.)",
       "brand_not_dag_eligible": "Det valgte merket støtter ikke nettleserpålogging. Bruk e-post + passord-flyten i stedet.",
       "skoda_qr_retired": "Volkswagen har slått av Škodas passordløse innlogging (QR), og den fungerer ikke lenger. Gå tilbake og velg «E-post + passord (eldre metode)», velg deretter Škoda der og logg inn med e-postadressen og passordet til MyŠkoda-kontoen din.",
       "portal_interaction_required": "EU Data Act-portalen trenger en engangshandling i nettleseren din eller merkeappen (f.eks. godta vilkår, bekrefte samtykke, fullføre onboarding/regionvalg) før tilgang uten nettleser fungerer. Dette er IKKE et problem med feil passord — åpne portalen én gang i en nettleser, fullfør oppgaven, og prøv igjen.",
