@@ -602,6 +602,9 @@
       "warning_messages": {
         "name": "Voertuig waarschuwingen"
       },
+      "service_campaigns": {
+        "name": "Serviceacties"
+      },
       "auxiliary_heating_remaining_min": {
         "name": "Standkachel resterende tijd"
       },

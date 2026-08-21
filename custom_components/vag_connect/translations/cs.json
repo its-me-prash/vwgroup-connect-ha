@@ -602,6 +602,9 @@
       "warning_messages": {
         "name": "Varování vozidla"
       },
+      "service_campaigns": {
+        "name": "Servisní akce"
+      },
       "auxiliary_heating_remaining_min": {
         "name": "Nezávislé topení, zbývající čas"
       },

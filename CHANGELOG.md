@@ -40,6 +40,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [Unreleased]
+
+### Fixed
+- **Dashboard warning lights work again on current Audi/BFF firmware.** VW's newer firmware wraps the warning lights in a `{warningLights: […], campaigns: […]}` object instead of a plain list, and labels each fault under `category`/`type` instead of the old `warningType`. The integration only understood the old shape, so it silently dropped every warning — an Audi Q6 with four real active faults (lighting failures) reported *zero*. It now reads both shapes, so the warning count, the warning-active flag and the messages sensor light up again. Found by mining the diagnostic archive.
+
+### Added
+- **Service & recall campaigns sensor.** The same warnings block carries the dealer/software-update campaigns the manufacturer app shows the owner (e.g. a pending "Combined software update"). These are now surfaced in a new **Service Campaigns** sensor (diagnostic, off by default). Translated across all 12 languages.
+- **Charging scenario now populates on the app-backend path too.** The `charging_scenario` sensor was only ever filled by the EU Data Act portal; the CARIAD-BFF read path never set it, so it stayed unavailable on Audi and other BFF-primary cars. It now reads on both paths.
+
 ## [4.1.0] - 2026-08-21 — Audi battery health, PHEV pre-heater, parked-battery stability, CNG level & a clearer North-America sign-in
 
 _Consolidates the 4.1.0b1–b2 betas plus the North-America sign-in fix into one stable release._

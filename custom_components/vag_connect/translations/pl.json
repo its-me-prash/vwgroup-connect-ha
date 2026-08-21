@@ -602,6 +602,9 @@
       "warning_messages": {
         "name": "Ostrzeżenia pojazdu"
       },
+      "service_campaigns": {
+        "name": "Akcje serwisowe"
+      },
       "auxiliary_heating_remaining_min": {
         "name": "Ogrzewanie postojowe, pozostały czas"
       },

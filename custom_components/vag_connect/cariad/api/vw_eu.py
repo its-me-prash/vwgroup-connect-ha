@@ -3157,6 +3157,12 @@ class VWEUClient(CariadBaseClient):
         # when charging_state is missing (preserves "unknown" semantics).
         if isinstance(d.charging_state, str):
             d.is_charging = d.charging_state.upper() == "CHARGING"
+        # The charging_scenario sensor exists and the EU-DA portal populates it,
+        # but the BFF path never read chargingScenario — so it was permanently dark
+        # on every BFF-primary car (Audi EU, audi_na, VW-EU-BFF). Read it here.
+        _scenario = v(raw, "charging", "chargingStatus", "value", "chargingScenario")
+        if isinstance(_scenario, str) and _scenario:
+            d.charging_scenario = _scenario.strip().upper()
         d.charging_power_kw = v(raw, "charging", "chargingStatus", "value", "chargePower_kW")
         d.charging_rate_kmh = v(raw, "charging", "chargingStatus", "value", "chargeRate_kmph")
 
@@ -4373,32 +4379,50 @@ class VWEUClient(CariadBaseClient):
         # leave None when the field itself is genuinely absent from the
         # response (backend hiccup / capability-gated).
         warnings_raw = v(raw, "vehicleHealthWarnings", "warningLights", "value")
-        if isinstance(warnings_raw, list):
-            # Each warning: {warningType, iconId, text}
+        # Current CARIAD-BFF firmware (Audi Q6 PPE, audi_na) wraps the warnings in a
+        # dict {warningLights: [...], campaigns: [...]} instead of a bare list, and
+        # the items now key the class under `category`/`type` (e.g. "LIGHTING" /
+        # "stoWarning") rather than the old `warningType`. The previous
+        # `isinstance(list)` + `warningType` code silently dropped every warning on
+        # this firmware — a Q6 with 4 real active faults reported warning_count=0.
+        # Unwrap BOTH shapes and read the class from category/type/warningType.
+        warn_list: list = []
+        campaigns_raw: list = []
+        have_warnings_block = False
+        if isinstance(warnings_raw, dict):
+            have_warnings_block = True
+            _wl = warnings_raw.get("warningLights")
+            warn_list = _wl if isinstance(_wl, list) else []
+            _cp = warnings_raw.get("campaigns")
+            campaigns_raw = _cp if isinstance(_cp, list) else []
+        elif isinstance(warnings_raw, list):  # older firmware: bare list
+            have_warnings_block = True
+            warn_list = warnings_raw
+        if have_warnings_block:
+            # The class token arrives under category, type, or the legacy
+            # warningType depending on firmware — collect all three.
             warning_types = {
-                w.get("warningType", "").upper()
-                for w in warnings_raw
-                if w.get("warningType")
+                str(t).upper()
+                for w in warn_list if isinstance(w, dict)
+                for t in (w.get("category"), w.get("type"), w.get("warningType"))
+                if t
             }
             d.warning_oil     = "OIL" in warning_types or "OIL_LEVEL" in warning_types
             d.warning_engine  = "ENGINE" in warning_types or "CHECK_ENGINE" in warning_types
             d.warning_tyre    = any("TYR" in t or "TIRE" in t for t in warning_types)
-            d.warning_brakes  = "BRAKE" in warning_types
-            d.warning_count   = len(warnings_raw)
-            d.warning_active  = len(warnings_raw) > 0
-            # v2.7.0b11 — generic warning surfacer. The hardcoded set
-            # above misses real warnings users care about (the myAudi
-            # email body shows things like "STO-Warning, Please check
-            # towing bracket" which doesn't match any of OIL/ENGINE/
-            # BRAKE/TYR). Pack everything backend reports into a
-            # comma-joined string sensor so the user always sees what
-            # the manufacturer app would show. Each item is
-            # "type: text" when text is present, else "type".
+            d.warning_brakes  = any("BRAKE" in t for t in warning_types)
+            d.warning_count   = len(warn_list)
+            d.warning_active  = len(warn_list) > 0
+            # v2.7.0b11 — generic warning surfacer. The hardcoded set above misses
+            # real warnings users care about (myAudi shows "STO-Warning, check towing
+            # bracket", lighting faults, etc). Pack everything the backend reports
+            # into a comma-joined string so the user sees what the app would show.
             messages = []
-            for w in warnings_raw:
+            for w in warn_list:
                 if not isinstance(w, dict):
                     continue
-                wtype = (w.get("warningType") or "").strip()
+                wtype = (w.get("category") or w.get("type")
+                         or w.get("warningType") or "").strip()
                 wtext = (w.get("text") or w.get("message") or "").strip()
                 if wtype and wtext:
                     messages.append(f"{wtype}: {wtext}")
@@ -4407,6 +4431,15 @@ class VWEUClient(CariadBaseClient):
                 elif wtext:
                     messages.append(wtext)
             d.warning_messages = ", ".join(messages) if messages else ""
+            # Service / recall campaigns the app shows the owner (dealer actions +
+            # software-update campaigns). Item: {eventId, text, type, timeOfOccurrence}.
+            camp_texts = [
+                (c.get("text") or "").strip()
+                for c in campaigns_raw
+                if isinstance(c, dict) and (c.get("text") or "").strip()
+            ]
+            d.service_campaign_count = len(camp_texts)
+            d.service_campaigns = " | ".join(camp_texts) if camp_texts else ""
 
         # v2.7.0b10 — oilLevel job, parity with upstream.
         # CARIAD-BFF ships either a discrete status string (most

@@ -626,6 +626,9 @@
       "warning_messages": {
         "name": "Ajoneuvon varoitusviestit"
       },
+      "service_campaigns": {
+        "name": "Huoltokampanjat"
+      },
       "adblue_level_pct": {
         "name": "AdBlue-taso"
       },

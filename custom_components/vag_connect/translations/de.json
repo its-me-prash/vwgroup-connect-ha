@@ -626,6 +626,9 @@
       "warning_messages": {
         "name": "Fahrzeug-Warnungen"
       },
+      "service_campaigns": {
+        "name": "Serviceaktionen"
+      },
       "adblue_level_pct": {
         "name": "AdBlue-Füllstand"
       },

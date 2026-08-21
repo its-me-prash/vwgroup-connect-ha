@@ -401,6 +401,13 @@ class VehicleData:
     # when no warnings active, None when the warning endpoint failed.
     warning_messages: str | None = None
 
+    # Service / recall campaigns the manufacturer app shows the owner (dealer
+    # actions + software-update campaigns). Ships alongside the warning lights on
+    # the CARIAD-BFF (vehicleHealthWarnings.warningLights.value.campaigns[]). Empty
+    # string when none active, None when the warnings block is absent.
+    service_campaigns: str | None = None
+    service_campaign_count: int | None = None
+
     media_short_name: str | None = None  # e.g. "Q4 e-tron"
     media_long_name: str | None = None   # e.g. "Audi Q4 50 e-tron quattro"
     media_exterior_color: str | None = None

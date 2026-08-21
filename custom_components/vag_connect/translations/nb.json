@@ -626,6 +626,9 @@
       "warning_messages": {
         "name": "Kjøretøyvarsler"
       },
+      "service_campaigns": {
+        "name": "Servicekampanjer"
+      },
       "adblue_level_pct": {
         "name": "AdBlue-nivå"
       },

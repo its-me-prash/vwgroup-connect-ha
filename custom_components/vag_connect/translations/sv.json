@@ -602,6 +602,9 @@
       "warning_messages": {
         "name": "Fordonsvarningar"
       },
+      "service_campaigns": {
+        "name": "Serviceåtgärder"
+      },
       "auxiliary_heating_remaining_min": {
         "name": "Parkeringsvärmare, återstående tid"
       },

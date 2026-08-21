@@ -602,6 +602,9 @@
       "warning_messages": {
         "name": "Avertissements véhicule"
       },
+      "service_campaigns": {
+        "name": "Campagnes de service"
+      },
       "auxiliary_heating_remaining_min": {
         "name": "Chauffage d'appoint, temps restant"
       },

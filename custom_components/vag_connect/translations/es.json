@@ -602,6 +602,9 @@
       "warning_messages": {
         "name": "Avisos del vehículo"
       },
+      "service_campaigns": {
+        "name": "Campañas de servicio"
+      },
       "auxiliary_heating_remaining_min": {
         "name": "Calefacción auxiliar, tiempo restante"
       },

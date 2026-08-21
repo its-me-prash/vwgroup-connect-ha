@@ -1420,6 +1420,17 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:alert-decagram-outline",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # Service / recall campaigns the manufacturer app shows (dealer actions +
+    # software-update campaigns), from the CARIAD-BFF warnings block. Text-only
+    # diagnostic sensor, disabled by default (most cars have none).
+    VagSensorDescription(
+        key="service_campaigns",
+        translation_key="service_campaigns",
+        data_key="service_campaigns",
+        icon="mdi:bullhorn-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     # v1.26.0 Welle-6 Feature Backlog (#173) — new sensors from scout reports.
     VagSensorDescription(
         key="secondary_engine_range_km",
