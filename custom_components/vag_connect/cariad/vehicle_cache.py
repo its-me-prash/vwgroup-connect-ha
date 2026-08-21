@@ -79,6 +79,14 @@ def _parse_iso(raw: Any) -> datetime | None:
     return parsed
 
 
+def _as_aware_dt(raw: Any) -> datetime | None:
+    """Coerce a capture timestamp to an aware datetime — it may be a ``datetime``
+    (BFF / Škoda paths) or an ISO string (EU Data Act portal). ``None`` otherwise."""
+    if isinstance(raw, datetime):
+        return raw if raw.tzinfo else raw.replace(tzinfo=timezone.utc)
+    return _parse_iso(raw)
+
+
 def position_age_seconds(previous: dict[str, Any]) -> float | None:
     """Age of a recorded position, or ``None`` when it cannot be established.
 
@@ -389,4 +397,22 @@ def reconcile(
         ):
             notes.append(f"{field} went backwards {old}->{new}; kept {old}")
             merged[field] = old
+
+    # #465 (shaarkys) — last_seen_at is the car's OWN data-capture time; it only
+    # moves forward. On the EU Data Act portal that timestamp arrives contested (a
+    # fresh block next to a frozen one from an old stop-charging report); a poll
+    # that ships only the OLDER stamp must NOT regress the recorded newer
+    # last_seen_at, or the staleness repair fires a false "data is N hours old"
+    # even though fresher readings are present (shaarkys: a stale 138h-old
+    # car_captured_time latched while live values were current). Hold the newer
+    # recorded value; a genuinely fresher reading (> recorded) still wins and
+    # auto-clears the warning.
+    _fresh_seen = _as_aware_dt(merged.get("last_seen_at"))
+    _prev_seen = _as_aware_dt(previous.get("last_seen_at"))
+    if _fresh_seen is not None and _prev_seen is not None and _fresh_seen < _prev_seen:
+        notes.append(
+            f"last_seen_at went backwards {previous.get('last_seen_at')} -> "
+            f"{merged.get('last_seen_at')}; kept the newer recorded value (#465)"
+        )
+        merged["last_seen_at"] = previous["last_seen_at"]
     return merged, notes

@@ -40,6 +40,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [Unreleased]
+
+### Fixed
+- **No more false "vehicle data hasn't refreshed in N hours" warnings (#465).** On the EU Data Act portal the car's capture timestamp arrives contested — a fresh reading next to a frozen one from an old stop-charging report. A poll that carried only the stale stamp could drag the "last reported" time backwards and fire a false staleness warning (one owner saw "138 hours" while live values were current). The last-reported time is now held monotonically — an older stamp never overwrites a newer recorded one, and a genuinely fresher reading still clears the warning. Thanks @shaarkys for the diagnostic.
+
 ## [4.1.1] - 2026-08-21 — dashboard warning lights work again on current Audi firmware
 
 ### Fixed
