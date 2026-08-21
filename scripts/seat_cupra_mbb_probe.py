@@ -111,12 +111,19 @@ async def main(vin: str) -> int:
         lines.append(f"  {host_label:<48} HTTP {status:<4} {verdict} {note}")
 
     async with ClientSession() as session:
-        # EU IDP — SEAT (seatid) and CUPRA (cupraid) accounts federate through
-        # identity.vwgroup.io, which is the DeviceAuthorizationGrant default.
+        # SEAT and CUPRA accounts authenticate on the cupraid.vwgroup.io realm
+        # ("cupraid.vwgroup.io — CUPRA portal-redirect for SEAT/Cupra"), NOT the VW
+        # realm. Pointing the device grant at identity.vwgroup.io (the default) sent
+        # a CUPRA tester to a VW login that didn't know his account and forced a new
+        # VW signup (@TinusNL, #464). Target the SEAT/CUPRA realm so you sign in with
+        # your real SEAT ID / CUPRA ID.
+        realm = "https://cupraid.vwgroup.io"
         dag = DeviceAuthorizationGrant(
             session, MBB_DAG_CLIENT_ID, scope=MBB_DAG_SCOPE, strategy="mbb",
+            device_auth_url=f"{realm}/oidc/v1/device_authorization",
+            token_url=f"{realm}/oidc/v1/token",
         )
-        print("[*] Requesting MBB device code from identity.vwgroup.io …", flush=True)
+        print(f"[*] Requesting MBB device code from {realm} …", flush=True)
         try:
             dc = await dag.request_device_code()
         except Exception as exc:  # noqa: BLE001
@@ -146,8 +153,16 @@ async def main(vin: str) -> int:
             mbb, cid = await _mbboauth.mint_mbb_bearer(session, tokens.id_token)
         except Exception as exc:  # noqa: BLE001
             print(f"[!] MBB bearer mint failed: {_mask(exc)}")
-            print(f"    (Please still paste THIS message into {ISSUE} — a mint")
-            print("     failure means the MBB plane rejects SEAT/CUPRA accounts.)")
+            _e = str(exc).lower()
+            if "certificate_verify_failed" in _e or "self-signed" in _e or "self signed" in _e:
+                print("    NOTE: that's a TLS-interception error from YOUR network —")
+                print("    a corporate proxy or antivirus is re-signing HTTPS traffic to")
+                print("    mbboauth-1d.prd.ece.vwg-connect.com. It's not a backend reject.")
+                print("    Please re-run from a network without SSL inspection (e.g. a")
+                print("    phone hotspot) so we get the real answer.")
+            else:
+                print(f"    (Please still paste THIS message into {ISSUE} — a mint")
+                print("     failure means the MBB plane rejects SEAT/CUPRA accounts.)")
             return 1
         bc = _claims(mbb.access_token)
         uid = str(bc.get("sub", ""))
