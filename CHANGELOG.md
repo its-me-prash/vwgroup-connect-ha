@@ -40,7 +40,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
-## [Unreleased]
+## [4.1.1] - 2026-08-21 — dashboard warning lights work again on current Audi firmware
 
 ### Fixed
 - **Dashboard warning lights work again on current Audi/BFF firmware.** VW's newer firmware wraps the warning lights in a `{warningLights: […], campaigns: […]}` object instead of a plain list, and labels each fault under `category`/`type` instead of the old `warningType`. The integration only understood the old shape, so it silently dropped every warning — an Audi Q6 with four real active faults (lighting failures) reported *zero*. It now reads both shapes, so the warning count, the warning-active flag and the messages sensor light up again. Found by mining the diagnostic archive.
