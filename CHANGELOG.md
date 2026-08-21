@@ -40,28 +40,22 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
-## [Unreleased]
+## [4.1.0] - 2026-08-21 — Audi battery health, PHEV pre-heater, parked-battery stability, CNG level & a clearer North-America sign-in
 
-### Fixed
-- **North-America sign-in no longer looks like a wrong password (#1165, #659).** Since VW switched on Play-Integrity attestation on the North-America sign-in (~2026-07-30), the token exchange fails before any vehicle read — and the integration reported that as "email or password incorrect", so US/CA owners kept re-entering their credentials in a loop. It now detects that specific VW-side lock and shows a clear message explaining it's a device-attestation block, not a credentials problem, so people stop fighting the login. Translated across all 12 languages. Thanks @fg877khkv8-maker and @briancmoses for the logs.
-
-## [4.1.0b2] - 2026-08-20 — CNG tank level over the portal + the VW EU GPS gap, documented
-
-### Added
-- **CNG tank level now reads over the EU Data Act portal (Scout #1225).** Volkswagen TGI / natural-gas cars publish `cng_gas_level` (%) through the portal, but the portal reader wasn't picking it up. It now feeds the existing CNG-level sensor — the same one already populated on the SEAT/CUPRA and VW-EU app paths — so a gas car read only through the portal finally gets its tank gauge. Thanks @ChibiDanjo for the Scout report.
-
-### Documentation
-- **Documented the VW EU GPS limitation — now confirmed by VW itself.** Volkswagen Group Info Services confirmed in writing that the EU Data Act continuous-export Data Dictionary lists a *Vehicle Location Tracking* cluster but no defined data point for a car's current GPS coordinates, so a VW EU car read only through the portal shows its location as `unknown`. This is documented in the README's *Known limitations* in all 12 languages, citing VW's reply. Thanks @mathep34 for chasing the portal support team down.
-
-## [4.1.0b1] - 2026-08-20 — Audi battery health, PHEV pre-heater, and parked-battery stability
+_Consolidates the 4.1.0b1–b2 betas plus the North-America sign-in fix into one stable release._
 
 ### Added
 - **Battery State-of-Health read (Audi).** We Connect 4.3.2 exposes SoH through a separate `batteryHealthState` BFF read (not part of the main status bundle); the integration now fetches it best-effort and maps the usable-battery-energy percentage onto the State-of-Health sensor. This read is attestation-walled for Volkswagen EU passenger cars (unchanged, fails soft), but Audi device-grant entries now get a real SoH value. The measured reading always wins over the optional nominal-capacity estimate, so setting a nominal on an Audi never overwrites the car's own number.
 - **Plug-in hybrid parking/pre-heater status (Volkswagen & Audi).** PHEVs (Golf/Passat GTE and the like) report their auxiliary heater under a distinct `hybridCarAuxiliaryHeating` job that the integration wasn't requesting, so their aux-heat status never populated. Grounded against the We Connect app, that job is now fetched and its `hybridCarAuxiliaryHeatingStatus` mapped onto the same aux-heating status/active/remaining fields the BEV path uses.
+- **CNG tank level now reads over the EU Data Act portal (Scout #1225).** Volkswagen TGI / natural-gas cars publish `cng_gas_level` (%) through the portal, but the portal reader wasn't picking it up. It now feeds the existing CNG-level sensor — the same one already populated on the SEAT/CUPRA and VW-EU app paths — so a gas car read only through the portal finally gets its tank gauge. Thanks @ChibiDanjo for the Scout report.
 
 ### Fixed
+- **North-America sign-in no longer looks like a wrong password (#1165, #659).** Since VW switched on Play-Integrity attestation on the North-America sign-in (~2026-07-30), the token exchange fails before any vehicle read — and the integration reported that as "email or password incorrect", so US/CA owners kept re-entering their credentials in a loop. It now detects that specific VW-side lock and shows a clear message explaining it's a device-attestation block, not a credentials problem, so people stop fighting the login. Translated across all 12 languages. Thanks @fg877khkv8-maker and @briancmoses for the logs.
 - **The North-America MBB tester probe now targets the NA login server (#1215).** `scripts/vw_na_mbb_probe.py` was building its device grant against the EU IDP (`identity.vwgroup.io`), which doesn't recognise a North-America Volkswagen ID; it now points at `identity.na.vwgroup.io` so US/CA testers can actually probe the legacy Car-Net path. Thanks @mvasilakis for the debugging and the fix.
 - **A parked car's battery percentage no longer jumps to a stale value on a partial poll (#1195, #465).** On the EU Data Act portal the reliable SoC is a single-occurrence, VALID `battery_level_HV` reading; a poll that omits it carries only a `battery_state_report.soc` leaf that can be the frozen value from the last stop-charging report, stamped with a fresh-looking capture time. On a car that normally reports the HV reading, such a poll now holds the recorded value instead of publishing that stale leaf, so the percentage stops showing phantom ups and downs while parked. Thanks @soulriding for the 16-dataset analysis and @Arno-MA-73 for the corroborating case. (Cars that never report the HV pair — e.g. some ID.4 firmware — are untouched by this and still rely on the energy cross-check, which is being improved separately.)
+
+### Documentation
+- **Documented the VW EU GPS limitation — now confirmed by VW itself.** Volkswagen Group Info Services confirmed in writing that the EU Data Act continuous-export Data Dictionary lists a *Vehicle Location Tracking* cluster but no defined data point for a car's current GPS coordinates, so a VW EU car read only through the portal shows its location as `unknown`. This is documented in the README's *Known limitations* in all 12 languages, citing VW's reply. Thanks @mathep34 for chasing the portal support team down.
 
 ## [4.0.0] - 2026-08-20 — the Volkswagen grounding wave: durable Car-Net (MBB) two-way, deeper reads, and a data-quality pass
 
