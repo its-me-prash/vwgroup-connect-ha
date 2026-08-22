@@ -332,6 +332,17 @@ async def main(vin: str) -> int:
             lines.append(
                 f"  MBB exchange (old/durable)  minted=yes  durable_refresh={durable}  aud={mbb_aud}")
 
+            # #464 client-MIX — the MBB/VWAC exchange bearer (aud includes
+            # ha-5a…vwautocloud.net) tested against the MODERN planes, not just
+            # mal-1a. If the CARIAD BFF or OLA accept this exchanged bearer, the
+            # VW-style "MBB mix" opens a read/command path for SEAT/CUPRA.
+            _st, _b = await _hit_bff(session, mbb.access_token,
+                                     f"{BFF_BASE}/vehicle/v2/vehicles")
+            rec("MIX bff /vehicle/v2/vehicles (MBB bearer)", _st, body=_b)
+            _st, _b = await _hit_ola(session, mbb.access_token,
+                                     f"{OLA_BASE}/v1/vehicles")
+            rec("MIX ola /v1/vehicles (MBB bearer)", _st, "(403=wall)", _b)
+
             # account-level plane acceptance (no VIN needed): the usermanagement
             # vehicles list. 200 (even empty) = the durable MBB bearer is accepted
             # by the SEAT/CUPRA Car-Net plane; 401 = the bearer is rejected there.
