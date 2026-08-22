@@ -274,8 +274,21 @@ class TestGarageEnumeration:
 
 
 class TestJwtAud:
-    def test_list_aud_returns_first(self) -> None:
+    def test_list_aud_prefers_mbb_delivery_audience(self) -> None:
+        # VW shape: the MBB delivery audience already sits first.
         tok = _make_jwt({"aud": ["VWGMBB01DELIV1", "other"]})
+        assert _mbboauth.jwt_aud(tok) == "VWGMBB01DELIV1"
+
+    def test_multi_aud_with_client_first_picks_mbb(self) -> None:
+        # Multi-audience shape where aud[0] is the OAuth client id and the MBB
+        # audiences sit later in the list. jwt_aud must pick VWGMBB01DELIV1, else
+        # the MBB register/exchange 400s ("unknown audience"). Red without the fix.
+        tok = _make_jwt({"aud": [
+            "00000000-0000-4000-8000-000000000000@apps_vw-dilab_com",
+            "https://api.example.invalid/data",
+            "VWGMBBOIDCAPP1",
+            "VWGMBB01DELIV1",
+        ]})
         assert _mbboauth.jwt_aud(tok) == "VWGMBB01DELIV1"
 
     def test_string_aud(self) -> None:

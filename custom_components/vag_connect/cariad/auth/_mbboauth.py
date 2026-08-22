@@ -241,7 +241,24 @@ def jwt_aud(id_token: str) -> str | None:
         return None
     aud = claims.get("aud")
     if isinstance(aud, list):
-        return aud[0] if aud else None
+        if not aud:
+            return None
+        # The mbb-scoped id_token is multi-audience. On Volkswagen the MBB
+        # backend audience happens to sit at aud[0], but on SEAT/CUPRA (#464)
+        # aud[0] is the OAuth client id (…@apps_vw-dilab_com) and the MBB
+        # audiences sit later ([…, VWGMBBOIDCAPP1, VWGMBB01DELIV1]). Pinning the
+        # register/exchange to aud[0] there makes the MBB backend answer
+        # 400 invalid_grant ("unknown audience"). Select the MBB *delivery*
+        # audience (…DELIV1) when present, then any VWGMBB* audience, then fall
+        # back to the first entry so single-brand/legacy shapes are unchanged.
+        strs = [a for a in aud if isinstance(a, str) and a]
+        deliv = [a for a in strs if a.upper().endswith("DELIV1")]
+        if deliv:
+            return deliv[0]
+        mbb = [a for a in strs if a.upper().startswith("VWGMBB")]
+        if mbb:
+            return mbb[0]
+        return strs[0] if strs else None
     return aud if isinstance(aud, str) else None
 
 
