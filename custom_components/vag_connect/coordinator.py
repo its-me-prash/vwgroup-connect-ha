@@ -4787,30 +4787,55 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # MyŠkoda app, software update, retrofit).
         vin = data.get("vin")
         if isinstance(vin, str) and vin:
-            # v2.19.0 — rich device model from the vgql image fetch. The
-            # userVehicles GraphQL (already fetched for render images) returns
-            # ``media.longName`` ("Audi S6 Avant TDI quattro tiptronic") +
-            # ``core.modelYear`` — far richer than the garage nickname a portal-
-            # only car falls back to. Prefer it whenever available (zero extra
-            # auth: it rides the image fetch that already ran).
+            # #1229 — device model prefers the richest MEDIA name across ALL
+            # brands. The marketing long name ("Audi Q4 50 e-tron quattro") is the
+            # best label and arrives from two places depending on brand: the vgql
+            # image fetch (``_image_data.long_name``, VW/Audi) OR ``media_long_name``
+            # (SEAT/CUPRA set it from their own image fetch). Resolve one priority
+            # chain — media long → media short → whatever brand-specific model the
+            # client already set (Skoda spec title / SEAT factoryModel / Porsche
+            # modelName / VW-NA garage / VW carModel). This makes every brand show
+            # the long name consistently and stops Audi/VW falling back to the bare
+            # brand ("Audi") or a garage nickname. (v2.19.0 was vgql-only.)
             _img_map = getattr(self._cariad_client, "_image_data", None)
-            if isinstance(_img_map, dict):
-                _vimg = _img_map.get(vin)
-                _long = getattr(_vimg, "long_name", None) if _vimg else None
-                _short = getattr(_vimg, "short_name", None) if _vimg else None
-                _iyear = getattr(_vimg, "model_year", None) if _vimg else None
-                # Prefer the rich long name ("Audi S6 Avant TDI quattro
-                # tiptronic"); fall back to the short model name ("S6 Avant").
-                # Some cars (e.g. the Audi S6 Avant) return core.modelYear +
-                # media.shortName but a NULL media.longName — long_name-only
-                # left the model empty, so the device page fell back to the
-                # bare brand ("Audi") even though shortName held the model.
-                if isinstance(_long, str) and _long.strip():
-                    data["model"] = _long.strip()
-                elif isinstance(_short, str) and _short.strip():
-                    data["model"] = _short.strip()
-                if _iyear and not data.get("model_year"):
-                    data["model_year"] = _iyear
+            _vimg = _img_map.get(vin) if isinstance(_img_map, dict) else None
+            _img_long = getattr(_vimg, "long_name", None) if _vimg else None
+            _img_short = getattr(_vimg, "short_name", None) if _vimg else None
+            _img_year = getattr(_vimg, "model_year", None) if _vimg else None
+
+            def _first_str(*cands: Any) -> str | None:
+                for _c in cands:
+                    if isinstance(_c, str) and _c.strip():
+                        return _c.strip()
+                return None
+
+            _best_model = _first_str(
+                _img_long,                     # vgql media long name (VW/Audi)
+                data.get("media_long_name"),   # media long name (SEAT/CUPRA)
+                _img_short,                    # vgql media short name
+                data.get("media_short_name"),  # media short name
+                data.get("model"),             # brand-specific model already set
+            )
+            if _best_model:
+                data["model"] = _best_model
+            if _img_year and not data.get("model_year"):
+                data["model_year"] = _img_year
+
+            # #1229 — surface the render images from _image_data as entities.
+            # _image_data carries image_urls for Audi (vgql renderPictures) and now
+            # VW (the v2/vehicle-images BFF endpoint); merge them into
+            # data["image_urls"], the dict image.py turns into one Image entity per
+            # key. SEAT/CUPRA/Skoda feed image_urls their own way; this fills the
+            # previously-missing vgql/BFF link (VW showed zero pictures before).
+            _vimg_urls = getattr(_vimg, "image_urls", None) if _vimg else None
+            if isinstance(_vimg_urls, dict) and _vimg_urls:
+                _existing_iu = data.get("image_urls")
+                _merged_iu = dict(_existing_iu) if isinstance(_existing_iu, dict) else {}
+                for _ik, _iu in _vimg_urls.items():
+                    if isinstance(_ik, str) and _ik and isinstance(_iu, str) and _iu:
+                        _merged_iu.setdefault(_ik, _iu)
+                if _merged_iu:
+                    data["image_urls"] = _merged_iu
             static = getattr(self, "vehicle_static_info", {}).get(vin)
             if isinstance(static, dict):
                 info = static.get("info") or {}

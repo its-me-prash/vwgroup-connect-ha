@@ -154,17 +154,7 @@ query GET_USER_VEHICLES {
         exteriorColor
         interiorColor
       }
-      renderPictures(
-        mediaTypes: [
-          "MYAAN8NB"
-          "MYAPN8NB"
-          "MYAAN3NB"
-          "MYAPN3NB"
-          "MS_MYP3"
-          "MS_MYP4"
-          "MS_MYP5"
-        ]
-      ) {
+      renderPictures {
         mediaType
         url
       }
