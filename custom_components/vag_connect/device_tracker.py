@@ -87,6 +87,9 @@ class VagConnectTracker(VagConnectEntity, TrackerEntity):
 
     _attr_icon = "mdi:car"
     _attr_translation_key = "position"
+    # #1229 — the tracker is the one entity that keeps the vehicle render (map
+    # marker + the device page's default picture); all other entities show icons.
+    _show_vehicle_picture = True
 
     def __init__(self, coordinator: VagConnectCoordinator, vin: str) -> None:
         super().__init__(coordinator, vin, "position")

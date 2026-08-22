@@ -163,10 +163,14 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
             # No model name available (e.g. a VW-EU portal-only car, whose feed
             # carries no model field at all) — fall back to a clean brand label
             # rather than the generic "VAG Vehicle".
-            _model_str = (
+            _brand_label = (
                 brand.replace("_", " ").title() if brand and brand != "vag"
                 else "VAG Vehicle"
             )
+            # #1229 — never render the bare brand alone when we at least know the
+            # model year; qualify it ("Audi (2024)") so the device page is more
+            # specific than "Audi" even while the richer model name is missing.
+            _model_str = f"{_brand_label} ({_year})" if _year else _brand_label
 
         return DeviceInfo(
             identifiers={(DOMAIN, self._vin)},
@@ -180,14 +184,24 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
             suggested_area="Garage",
         )
 
+    # #1229 (Ra72xx) — the vehicle render is exposed as its own Image entity
+    # (image.py) and, for the entities that opt in below, as the device/map
+    # picture. Previously EVERY entity returned it, which replaced the icon of
+    # all 100+ sensors in dashboards (mushroom/glance) with the car photo — noisy
+    # and unwanted. Now only entities that set ``_show_vehicle_picture = True``
+    # (the device tracker, so the device page + map marker keep the car photo)
+    # carry it; every other entity falls back to its own icon.
+    _show_vehicle_picture: bool = False
+
     @property
     def entity_picture(self) -> str | None:
-        """Return vehicle render image URL as entity picture.
+        """Vehicle render as entity picture, only for opt-in entities.
 
-        Shows the car photo on the entity detail page and in dashboards
-        that display entity pictures (e.g. mushroom cards, glance, etc.).
-        Falls back to None so HA uses the entity's icon instead.
+        Returns None for regular entities so HA uses their icon; the dedicated
+        Image entity (image.py) is the way to display the render on a dashboard.
         """
+        if not self._show_vehicle_picture:
+            return None
         vehicle = self._vehicle
         image_urls: dict = vehicle.get("image_urls") or {}
         return VehicleImageFetcher.best_url(image_urls) if image_urls else None
