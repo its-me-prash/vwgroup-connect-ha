@@ -34,3 +34,6 @@ _private/
 .app-atlas-apk-cache/
 canary-credentials.env
 canary-log.jsonl
+
+# local-only SEAT/CUPRA web client id (never commit)
+scripts/.seatcupra_client.local
