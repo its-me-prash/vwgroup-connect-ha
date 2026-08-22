@@ -72,8 +72,24 @@ ISSUE = "#464"  # CUPRA/SEAT OLA-403 tracker
 # — see memory vag_connect_seatcupra_764_lever). It is read at runtime from
 # ``VAGC_SEATCUPRA_CLIENT`` or a local, gitignored private file. It graduates into
 # the integration only once a tester confirms the minted token reaches a backend.
+def _normalize_client_id(raw: str) -> str:
+    """Tolerate the common paste mistakes when supplying the client id.
+
+    A tester who drops the whole ``VAGC_SEATCUPRA_CLIENT=<id>`` line into the
+    local file (instead of just the bare id) would otherwise send that entire
+    string as the client id — VW then answers ``400 invalid_request: The legal
+    entity is missing or invalid`` (a confusing message for a malformed client;
+    reproduced live, #464). A real client id never contains ``=``, so if we see
+    one we keep only the part after it. Also strips wrapping quotes/whitespace.
+    """
+    s = raw.strip().strip('"').strip("'").strip()
+    if "=" in s:
+        s = s.split("=", 1)[1].strip().strip('"').strip("'").strip()
+    return s
+
+
 def _load_client_id() -> str:
-    v = os.environ.get("VAGC_SEATCUPRA_CLIENT", "").strip()
+    v = _normalize_client_id(os.environ.get("VAGC_SEATCUPRA_CLIENT", ""))
     if v:
         return v
     for _p in (
@@ -82,14 +98,16 @@ def _load_client_id() -> str:
     ):
         try:
             with open(_p, encoding="utf-8") as _fh:
-                _s = _fh.read().strip()
+                _s = _normalize_client_id(_fh.read())
                 if _s:
                     return _s
         except OSError:
             pass
     raise SystemExit(
-        "[!] SEAT/CUPRA web client id not found. Put it (one line) in\n"
-        "    ~/.claude/private/seatcupra_client.txt  or set VAGC_SEATCUPRA_CLIENT.")
+        "[!] SEAT/CUPRA web client id not found. Put JUST the id (one line, no\n"
+        "    'VAGC_SEATCUPRA_CLIENT=' prefix and no quotes) in\n"
+        "    ~/.claude/private/seatcupra_client.txt or scripts/.seatcupra_client.local,\n"
+        "    or set the VAGC_SEATCUPRA_CLIENT environment variable.")
 
 
 # Same load-bearing ``mbb`` scope that mints the VWGMBB01DELIV1-aud id_token on
