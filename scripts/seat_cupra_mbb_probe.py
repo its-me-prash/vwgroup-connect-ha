@@ -182,10 +182,11 @@ async def _hit(session: Any, bearer: str, cid: str, uid: str, url: str,
         return 0
 
 
-async def _hit_bff(session: Any, bearer: str, url: str) -> int:
-    """Minimal CARIAD-BFF GET — status only. No attestation headers are sent on
-    purpose: we want to know whether a bearer ALONE is enough (it is not, for the
-    walled app clients — the question is whether the web client differs)."""
+async def _hit_bff(session: Any, bearer: str, url: str) -> tuple[int, str]:
+    """Minimal CARIAD-BFF GET → (status, short body). No attestation headers are
+    sent on purpose: we want to know whether a bearer ALONE is enough. The body
+    on a non-200 tells the reasons apart (clientId-not-whitelisted vs no-vehicle
+    vs a transient 5xx)."""
     headers = {
         "Authorization": f"Bearer {bearer}",
         "Accept": "application/json",
@@ -193,15 +194,20 @@ async def _hit_bff(session: Any, bearer: str, url: str) -> int:
     }
     try:
         async with session.get(url, headers=headers) as r:
-            return r.status
+            body = ""
+            try:
+                body = (await r.text())[:600]
+            except Exception:  # noqa: BLE001
+                pass
+            return r.status, body
     except Exception:  # noqa: BLE001
-        return 0
+        return 0, ""
 
 
-async def _hit_ola(session: Any, bearer: str, url: str) -> int:
-    """Minimal OLA GET — status only. No App-Check / WAF token is sent (we do not
-    have one without the attested app), so a 403 is expected; a 200 or a 401 is
-    the informative outcome."""
+async def _hit_ola(session: Any, bearer: str, url: str) -> tuple[int, str]:
+    """Minimal OLA GET → (status, short body). No App-Check / WAF token is sent
+    (we do not have one without the attested app), so a 403 is expected; a 200 or
+    a 401 is the informative outcome."""
     headers = {
         "Authorization": f"Bearer {bearer}",
         "Accept": "application/json",
@@ -209,9 +215,14 @@ async def _hit_ola(session: Any, bearer: str, url: str) -> int:
     }
     try:
         async with session.get(url, headers=headers) as r:
-            return r.status
+            body = ""
+            try:
+                body = (await r.text())[:600]
+            except Exception:  # noqa: BLE001
+                pass
+            return r.status, body
     except Exception:  # noqa: BLE001
-        return 0
+        return 0, ""
 
 
 async def main(vin: str) -> int:
@@ -230,7 +241,7 @@ async def main(vin: str) -> int:
     # enrollment more than the exact app-name. Probe a couple of variants.
     app_names = ["SEATCarNetEU", "CupraCarNetEU", "cz.skodaauto.connect"]
 
-    def rec(host_label: str, status: int, note: str = "") -> None:
+    def rec(host_label: str, status: int, note: str = "", body: str = "") -> None:
         verdict = {
             0: "conn-error (host unreachable from you)",
             200: "ACCEPTED + data",
@@ -238,7 +249,10 @@ async def main(vin: str) -> int:
             403: "token accepted, no permission / not enrolled (403)",
             404: "token accepted, path/car not found (404)",
         }.get(status, "see status")
-        lines.append(f"  {host_label:<48} HTTP {status:<4} {verdict} {note}")
+        line = f"  {host_label:<48} HTTP {status:<4} {verdict} {note}".rstrip()
+        if status != 200 and body:
+            line += f"  body={_mask(body).strip()[:450]}"
+        lines.append(line)
 
     client_id = _load_client_id()
     # #464 — client AND scope are overridable so we can test the device-code-
@@ -354,29 +368,29 @@ async def main(vin: str) -> int:
         # empty) list = the web-client bearer is BFF-whitelisted; 403 = valid but
         # not whitelisted; 401 = token rejected. Ideal for a no-car account.
         if tokens.access_token:
-            st = await _hit_bff(session, tokens.access_token,
-                                f"{BFF_BASE}/vehicle/v2/vehicles")
-            rec("bff /vehicle/v2/vehicles (list, no car needed)", st)
+            st, body = await _hit_bff(session, tokens.access_token,
+                                      f"{BFF_BASE}/vehicle/v2/vehicles")
+            rec("bff /vehicle/v2/vehicles (list, no car needed)", st, body=body)
             if has_vin:
-                st = await _hit_bff(session, tokens.access_token,
-                                    f"{BFF_BASE}/vehicle/v1/vehicles/{V}/selectivestatus?jobs=userCapabilities")
-                rec("bff /vehicle/v1/.../selectivestatus", st)
+                st, body = await _hit_bff(session, tokens.access_token,
+                                          f"{BFF_BASE}/vehicle/v1/vehicles/{V}/selectivestatus?jobs=userCapabilities")
+                rec("bff /vehicle/v1/.../selectivestatus", st, body=body)
 
         # ── OLA path (what the app actually drives) ──────────────────────────
         # /v1/vehicles is the list endpoint. OLA is attestation-walled, so a 403
         # is the expected wall response; a 200 would mean the web-client bearer
         # sails past the App-Check/WAF wall; a 401 means the token is rejected.
         if tokens.access_token:
-            st = await _hit_ola(session, tokens.access_token,
-                                f"{OLA_BASE}/v1/vehicles")
-            rec("ola /v1/vehicles (list, no car needed)", st, "(403=wall expected)")
+            st, body = await _hit_ola(session, tokens.access_token,
+                                      f"{OLA_BASE}/v1/vehicles")
+            rec("ola /v1/vehicles (list, no car needed)", st, "(403=wall expected)", body)
             if has_vin:
-                st = await _hit_ola(session, tokens.access_token,
-                                    f"{OLA_BASE}/v2/vehicles/{V}/status")
-                rec("ola /v2/vehicles/{vin}/status", st, "(403=wall expected)")
-                st = await _hit_ola(session, tokens.access_token,
-                                    f"{OLA_BASE}/v1/vehicles/{V}/permissions")
-                rec("ola /v1/vehicles/{vin}/permissions", st, "(403=wall expected)")
+                st, body = await _hit_ola(session, tokens.access_token,
+                                          f"{OLA_BASE}/v2/vehicles/{V}/status")
+                rec("ola /v2/vehicles/{vin}/status", st, "(403=wall expected)", body)
+                st, body = await _hit_ola(session, tokens.access_token,
+                                          f"{OLA_BASE}/v1/vehicles/{V}/permissions")
+                rec("ola /v1/vehicles/{vin}/permissions", st, "(403=wall expected)", body)
 
     print("\n\n" + "=" * 64)
     print(f"  COPY EVERYTHING BETWEEN THE LINES INTO THE GITHUB THREAD ({ISSUE})")
@@ -387,6 +401,8 @@ async def main(vin: str) -> int:
     print(f"scope             : {scope}")
     print(f"mode              : {'full (with car)' if has_vin else 'login-only (no car on account)'}")
     print(f"id_token_aud      : {id_aud}")
+    print(f"access_token_aud  : {_aud_str(acc_claims)}")
+    print(f"access_token_scope: {_mask(acc_claims.get('scope') or '') or '(opaque / not a JWT)'}")
     print(f"granted_scope     : {granted_scope or '(not present in token)'}")
     print(f"device_refresh    : {has_refresh}")
     print("results:")
