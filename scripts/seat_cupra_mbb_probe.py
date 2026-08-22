@@ -122,6 +122,11 @@ IDP = "https://identity.vwgroup.io"
 
 # legacy MBB discovery/setter host (same EU plane VW uses)
 DISCOVERY_BASE = "https://mal-1a.prd.ece.vwg-connect.com"
+# #464 — the MBB exchange bearer's aud is actually ``mal.prd.ece`` (NOT ``-1a``,
+# which is only the VW setter) + ``ha-5a…vwautocloud.net``. bbr111's mal-1a reads
+# came back 403/404; those may be a wrong-host artifact, so we also hit the host
+# the bearer is genuinely audienced for.
+DISCOVERY_BASE_ALT = "https://mal.prd.ece.vwg-connect.com"
 # modern CARIAD BFF — the attestation-walled plane; we probe it only to record
 # whether the device-grant bearer is accepted (200) or walled (401/403).
 BFF_BASE = "https://emea.bff.cariad.digital"
@@ -351,14 +356,25 @@ async def main(vin: str) -> int:
                                 f"{DISCOVERY_BASE}/fs-car/usermanagement/users/v1/{brand}/DE/vehicles",
                                 app_names[0])
                 rec(f"mal-1a /usermanagement/{brand}/DE/vehicles", st)
+            # #464 — same reads against mal.prd.ece (the bearer's ACTUAL aud host,
+            # not the -1a setter). A 200/404 here where mal-1a gave 403 would mean
+            # we were just hitting the wrong host all along.
+            for brand in ("Seat", "Cupra"):
+                st = await _hit(session, mbb.access_token, cid, uid,
+                                f"{DISCOVERY_BASE_ALT}/fs-car/usermanagement/users/v1/{brand}/DE/vehicles",
+                                app_names[0])
+                rec(f"mal.prd.ece /usermanagement/{brand}/DE/vehicles", st)
 
             if has_vin:
                 # homeRegion — does the MBB plane KNOW this SEAT/CUPRA VIN?
-                for app in app_names:
-                    st = await _hit(session, mbb.access_token, cid, uid,
-                                    f"{DISCOVERY_BASE}/api/cs/vds/v1/vehicles/{V}/homeRegion",
-                                    app)
-                    rec(f"mal-1a /homeRegion  (X-App-Name={app})", st)
+                # Try BOTH the setter host and the bearer's aud host.
+                for base_label, base in (("mal-1a", DISCOVERY_BASE),
+                                         ("mal.prd.ece", DISCOVERY_BASE_ALT)):
+                    for app in app_names:
+                        st = await _hit(session, mbb.access_token, cid, uid,
+                                        f"{base}/api/cs/vds/v1/vehicles/{V}/homeRegion",
+                                        app)
+                        rec(f"{base_label} /homeRegion  (X-App-Name={app})", st)
                 # operation list — which commands the car OFFERS (no command sent)
                 st = await _hit(session, mbb.access_token, cid, uid,
                                 f"{DISCOVERY_BASE}/api/rolesrights/operationlist/v3/vehicles/{V}",
