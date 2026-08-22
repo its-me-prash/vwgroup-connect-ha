@@ -40,6 +40,18 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 > — mit jeder geänderten Datei, jeder Zeile, jeder Issue-Referenz und der
 > Methodik dahinter.
 
+## [Unreleased]
+
+### Added
+- **VW cars now show their photos (#1229).** VW EU render images were never fetched — the app-backend image endpoint is blocked for portal / volkswagen.de cars — so VW devices had no picture at all. We now pull the exterior renders over the volkswagen.de channel that those cars already read from, and each angle becomes its own image entity with the car photo on the device. Thanks @Ra72xx.
+- **More Audi angles.** Audi render images are no longer limited to a fixed handful; every angle the backend offers is surfaced as its own image entity.
+
+### Changed
+- **The device model name is now the full marketing name, consistently across every brand.** The device page prefers the long name ("Audi Q4 50 e-tron quattro") — Audi/VW pull it from the render fetch, SEAT/CUPRA from their media data — instead of each brand showing a different, shorter label (or, for Audi, sometimes just "Audi"). It falls back through the short name and the brand-specific model, and never shows the bare brand alone.
+
+### Fixed
+- **The car photo no longer replaces every entity's icon (#1229).** The vehicle render now lives on the device and the map, and the ~100 sensors keep their own icons in dashboards instead of all showing the car image. The render is still available as its own image entity. Thanks @Ra72xx.
+
 ## [4.1.2] - 2026-08-21 — no more false "stale data" warnings from a frozen capture timestamp
 
 ### Fixed

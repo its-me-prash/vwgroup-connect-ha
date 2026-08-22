@@ -1668,4 +1668,27 @@ class WebsiteAuthProxyConnector:
 
         if got_data:
             d.connection_state = "online"
+
+        # #1229 (Ra72xx) — surface the vw.de exterior renders as image entities.
+        # This is the render source for VW-EU cars read over vw.de/portal, whose
+        # CARIAD-BFF image endpoint is walled. get_exterior_images() already existed
+        # but was never called; wire its {url, angle, viewDirection} list into
+        # image_urls (one Image entity per view). Best-effort — never blocks the read.
+        try:
+            _imgs = await self.get_exterior_images(vin)
+            _urls: dict[str, str] = {}
+            for _i, _img in enumerate(_imgs):
+                if not isinstance(_img.url, str) or not _img.url:
+                    continue
+                _parts = [p for p in (_img.view_direction, _img.angle) if p]
+                _key = "_".join(_parts).strip().lower().replace(" ", "_") or f"view_{_i}"
+                # keep every distinct URL even if two share a label
+                if _key in _urls and _urls[_key] != _img.url:
+                    _key = f"{_key}_{_i}"
+                _urls[_key] = _img.url
+            if _urls:
+                d.image_urls = _urls
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug("vw.de exterior images skipped for %s", vin[-6:])
+
         return d
