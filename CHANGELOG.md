@@ -43,11 +43,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ## [Unreleased]
 
 ### Added
-- **VW cars now show their photos (#1229).** VW EU render images were never fetched — the app-backend image endpoint is blocked for portal / volkswagen.de cars — so VW devices had no picture at all. We now pull the exterior renders over the volkswagen.de channel that those cars already read from, and each angle becomes its own image entity with the car photo on the device. Thanks @Ra72xx.
+- **VW cars can show their photos now (#1229).** VW EU render images were never fetched, so VW devices had no picture at all (the app-backend image endpoint is blocked for these cars, and the EU Data Act portal carries no images). If you've enabled the optional **volkswagen.de** channel, we now pull the exterior renders from it — each angle becomes its own image entity with the car photo on the device. Portal-only cars still have no render source on VW's side. Thanks @Ra72xx.
 - **More Audi angles.** Audi render images are no longer limited to a fixed handful; every angle the backend offers is surfaced as its own image entity.
 
 ### Changed
 - **The device model name is now the full marketing name, consistently across every brand.** The device page prefers the long name ("Audi Q4 50 e-tron quattro") — Audi/VW pull it from the render fetch, SEAT/CUPRA from their media data — instead of each brand showing a different, shorter label (or, for Audi, sometimes just "Audi"). It falls back through the short name and the brand-specific model, and never shows the bare brand alone.
+- **Diagnostics now record why a car has no data (#1227).** When the EU Data Act portal delivers nothing, the download now carries the reason — `no_request` (no continuous data request set up for the car yet), `empty` (a transient VW-side portal error) or `no_content` (the request is live but the car hasn't fed telemetry in yet) — so a "no data" report is triageable straight from the diagnostics instead of a round-trip to read the log. Thanks @ccsnet.
 
 ### Fixed
 - **The car photo no longer replaces every entity's icon (#1229).** The vehicle render now lives on the device and the map, and the ~100 sensors keep their own icons in dashboards instead of all showing the car image. The render is still available as its own image entity. Thanks @Ra72xx.

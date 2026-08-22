@@ -348,6 +348,27 @@ def _scrub_raw(value: Any) -> Any:
     return value
 
 
+def _portal_no_data_reason(client: Any) -> str | None:
+    """The EU-Data-Act portal's last "why no data" reason, or None.
+
+    #1227 — the portal records ``last_no_data_reason`` (``no_request`` /
+    ``empty`` / ``no_content``) each poll and it drives the ``data_act_no_data``
+    Repair, but it was never in the diagnostics download, so a "no data" report
+    cost a round-trip to read the HA log to learn which of the three it was.
+    Surfacing it here makes such a report self-diagnosing. Bare enum label — no
+    PII. Resolves the portal the same way the coordinator does (primary, then
+    supplementary); ``getattr`` guards keep older/partial clients export-safe.
+    """
+    if client is None:
+        return None
+    portal = (
+        getattr(client, "_eu_portal", None)
+        or getattr(client, "_supplementary_eu_portal", None)
+    )
+    reason = getattr(portal, "last_no_data_reason", None) if portal is not None else None
+    return reason or None
+
+
 async def async_get_config_entry_diagnostics(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -483,6 +504,7 @@ async def async_get_config_entry_diagnostics(
         "vehicles": vehicles_diag,
         "vehicle_count": len(coordinator.vehicles),
         "last_update_success": coordinator.last_update_success,
+        "portal_no_data_reason": _portal_no_data_reason(client),
         "cloud_push_active": coordinator.cloud_push_active,
         "push_states": coordinator.push_states,
         "push_last_errors": coordinator.push_last_errors,
