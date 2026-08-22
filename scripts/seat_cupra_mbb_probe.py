@@ -241,12 +241,19 @@ async def main(vin: str) -> int:
         lines.append(f"  {host_label:<48} HTTP {status:<4} {verdict} {note}")
 
     client_id = _load_client_id()
+    # #464 — client AND scope are overridable so we can test the device-code-
+    # capable SEAT/CUPRA *app* clients (3c756d46 / 99a5b77d), not just the web
+    # client. Their tokens are audienced for the CARIAD BFF / OLA (unlike the web
+    # client's VAS/MBB aud), so a BFF-style scope may mint a BFF-whitelisted
+    # bearer — the VW-EU 650d46ca precedent. Set VAGC_SCOPE to experiment, e.g.
+    # "openid profile badge cars dealers vin offline_access".
+    scope = os.environ.get("VAGC_SCOPE", "").strip() or SEATCUPRA_MBB_SCOPE
     async with ClientSession() as session:
-        # Device grant on the SEAT realm via the web client. The verification page
-        # is branded SEAT (identity.vwgroup.io/oidc/device/seat) but a CUPRA ID
-        # signs in there just the same — it is the shared SEAT/CUPRA web client.
+        # Device grant on the SEAT realm. The verification page is branded SEAT
+        # (identity.vwgroup.io/oidc/device/seat) but a CUPRA ID signs in there
+        # just the same — the web + app clients share the SEAT realm.
         dag = DeviceAuthorizationGrant(
-            session, client_id, scope=SEATCUPRA_MBB_SCOPE,
+            session, client_id, scope=scope,
             strategy="mbb",
             device_auth_url=f"{IDP}/oidc/v1/device_authorization",
             token_url=f"{IDP}/oidc/v1/token",
@@ -376,7 +383,8 @@ async def main(vin: str) -> int:
     print("  (it contains NO password, NO VIN, NO personal data)")
     print("=" * 64)
     print("----8<---- vag-connect SEAT/CUPRA MBB-mix + BFF probe ----8<----")
-    print(f"client            : SEAT/CUPRA web SSO (attestation-free)")
+    print(f"client            : {client_id[:8]}… (SEAT/CUPRA, attestation-free device grant)")
+    print(f"scope             : {scope}")
     print(f"mode              : {'full (with car)' if has_vin else 'login-only (no car on account)'}")
     print(f"id_token_aud      : {id_aud}")
     print(f"granted_scope     : {granted_scope or '(not present in token)'}")
