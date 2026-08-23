@@ -42,6 +42,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.2.0] - 2026-08-23 — VW render photos, consistent full model names across brands & self-diagnosing "no data" downloads
+
 ### Added
 - **VW cars can show their photos now (#1229).** VW EU render images were never fetched, so VW devices had no picture at all (the app-backend image endpoint is blocked for these cars, and the EU Data Act portal carries no images). If you've enabled the optional **volkswagen.de** channel, we now pull the exterior renders from it — each angle becomes its own image entity with the car photo on the device. Portal-only cars still have no render source on VW's side. Thanks @Ra72xx.
 - **More Audi angles.** Audi render images are no longer limited to a fixed handful; every angle the backend offers is surfaced as its own image entity.
