@@ -29,6 +29,7 @@ plane — it is its own silo.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
 from aiohttp import ClientSession, ClientTimeout
@@ -40,6 +41,26 @@ from ..models import BrandConfig, TokenSet, VehicleData
 _LOGGER = logging.getLogger(__name__)
 
 _TIMEOUT = ClientTimeout(total=30)
+
+# carport ``brandCode`` → proper manufacturer name (A = Audi, confirmed live).
+_ACPP_BRAND_CODES = {"A": "Audi", "V": "Volkswagen"}
+
+
+def _epoch_ms_to_date(val: Any) -> str | None:
+    """acpp carport dates (deliveryDate/warranty) are epoch-millisecond strings.
+
+    Return the ISO date (``YYYY-MM-DD``), or None on anything unparseable.
+    """
+    try:
+        ms = int(str(val))
+    except (TypeError, ValueError):
+        return None
+    if ms <= 0:
+        return None
+    try:
+        return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).date().isoformat()
+    except (OverflowError, OSError, ValueError):
+        return None
 
 
 class PlugAndPlayCloudClient:
@@ -90,6 +111,9 @@ class PlugAndPlayCloudClient:
         headers = {
             "Authorization": f"Bearer {self._tokens.access_token}",
             "Accept": "application/json",
+            # The carport (master-data) endpoint 500s without an Accept-Language;
+            # all other endpoints ignore it, so send it on every request.
+            "Accept-Language": "de-DE, en-US;q=0.9",
             "User-Agent": self._brand.user_agent,
         }
         async with self._session.get(
@@ -130,6 +154,9 @@ class PlugAndPlayCloudClient:
             ("warning_lights", f"vehicle/{vin}/warning-lights"),
             ("last_parking_position", f"vehicle/{vin}/last-parking-position"),
             ("app_services", f"vehicle/{vin}/vehicle_app_services"),
+            # carport = factory master data (model, engine, fuel, power) for the
+            # proper "ab Haus" model designation.
+            ("carport", f"vehicle/{vin}/carport"),
         ):
             try:
                 s, b = await self._get(sub)
@@ -207,6 +234,39 @@ class PlugAndPlayCloudClient:
         ):
             data.latitude = float(lat)
             data.longitude = float(lon)
+
+        # Absolute fuel in the tank (litres) — the dongle reports litres, not %.
+        tank = veh.get("tankFuelAmount")
+        if isinstance(tank, (int, float)) and not isinstance(tank, bool) and tank >= 0:
+            data.fuel_level_liters = float(tank)
+
+        # Factory ("ab Haus") model designation from the carport master-data
+        # record — e.g. brandCode "A" + modelDesc "A5" + engType "TDI CR".
+        cp = snap.get("carport") or {}
+        if isinstance(cp, dict):
+            brand_name = _ACPP_BRAND_CODES.get(str(cp.get("brandCode") or "").upper())
+            if brand_name:
+                data.manufacturer = brand_name
+            desc = str(cp.get("modelDesc") or "").strip()
+            eng = str(cp.get("engType") or "").strip()
+            hp: int | None = None
+            for p in (cp.get("power") or []):
+                if (isinstance(p, dict)
+                        and str(p.get("unit") or "").lower() in ("hp", "ps")
+                        and isinstance(p.get("value"), (int, float))
+                        and not isinstance(p.get("value"), bool)):
+                    hp = int(round(p["value"]))
+            model = " ".join(x for x in (desc, eng) if x)
+            if model and hp:
+                model = f"{model} · {hp} PS"   # e.g. "A5 TDI CR · 239 PS"
+            if model:
+                data.model = model
+            # deliveryDate = the real first-delivery date (epoch-ms string, e.g.
+            # 2008 for this A5) — reliable, unlike the /vehicles registrationDate
+            # which is just the dongle-enrollment time. Feeds the service calendar.
+            reg = _epoch_ms_to_date(cp.get("deliveryDate"))
+            if reg:
+                data.registration_date = reg
         return data
 
 

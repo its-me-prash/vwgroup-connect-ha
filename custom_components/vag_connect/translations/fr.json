@@ -531,6 +531,9 @@
       "fuel_tank_capacity_liters": {
         "name": "Capacité réservoir"
       },
+      "fuel_level_liters": {
+        "name": "Niveau de carburant (litres)"
+      },
       "climate_running_requests_count": {
         "name": "Requêtes climat en attente"
       },

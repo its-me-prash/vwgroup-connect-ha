@@ -537,6 +537,9 @@
       "fuel_tank_capacity_liters": {
         "name": "Capacità serbatoio carburante"
       },
+      "fuel_level_liters": {
+        "name": "Livello carburante (litri)"
+      },
       "climate_running_requests_count": {
         "name": "Richieste clima in sospeso"
       },

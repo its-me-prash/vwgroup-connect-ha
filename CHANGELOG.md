@@ -42,6 +42,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **Audi plug&play (OBD dongle) now surfaces the real vehicle identity and fuel level.** The dongle's factory master-data record gives the proper "ab Haus" model designation — e.g. **"A5 TDI CR · 239 PS"** — and a clean manufacturer (**Audi**, not "Audi_Acpp"), so the device is named correctly. Also adds a **fuel-level sensor in litres** (localized in all 12 languages) and surfaces the real **first-registration / delivery date** as a service-calendar event. (acpp exposes no vehicle image, and no reliable inspection date, so those are deliberately omitted.)
+
 ## [4.3.0b2] - 2026-08-24 — Live telemetry beats the stale portal feed
 
 ### Fixed

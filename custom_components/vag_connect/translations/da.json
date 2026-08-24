@@ -537,6 +537,9 @@
       "fuel_tank_capacity_liters": {
         "name": "Tankkapacitet"
       },
+      "fuel_level_liters": {
+        "name": "Brændstofmængde (liter)"
+      },
       "climate_running_requests_count": {
         "name": "Klimaanmodninger afventende"
       },

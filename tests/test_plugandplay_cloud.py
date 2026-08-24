@@ -148,6 +148,50 @@ async def test_get_status_zero_voltage_and_null_island_ignored():
 
 # ── integration wiring: factory + brand registration ─────────────────────────
 
+async def test_get_status_enriches_from_carport():
+    # carport master-data → clean "ab Haus" model (with PS), manufacturer, and
+    # the real first-delivery date; /vehicles → fuel litres.
+    c = _client()
+    _stub_get(c, {
+        f"vehicle/{VIN_2009}": (200, {
+            "vehicle": {"vin": VIN_2009, "carPlatform": "KWP2000"},
+            "odometer": 369290.0, "batteryVoltage": 11.76, "tankFuelAmount": 3.0}),
+        f"vehicle/{VIN_2009}/warning-lights": (200, {"warningLights": []}),
+        f"vehicle/{VIN_2009}/carport": (200, {
+            "brandCode": "A", "modelDesc": "A5", "engType": "TDI CR",
+            "fuelType": "Diesel", "power": [{"unit": "kW", "value": 176},
+                                            {"unit": "hp", "value": 239}],
+            "deliveryDate": "1219795200000"}),  # 2008-08-27
+    })
+    data = await c.get_status(VIN_2009)
+    assert data.model == "A5 TDI CR · 239 PS"
+    assert data.manufacturer == "Audi"
+    assert data.fuel_level_liters == 3.0
+    assert data.registration_date == "2008-08-27"
+
+
+async def test_get_status_carport_missing_is_graceful():
+    c = _client()
+    _stub_get(c, {
+        f"vehicle/{VIN_2020}": (200, {"vehicle": {"vin": VIN_2020}, "odometer": 12000}),
+        f"vehicle/{VIN_2020}/warning-lights": (200, {"warningLights": []}),
+        # no carport stub → 404 → no model/manufacturer, but no crash
+    })
+    data = await c.get_status(VIN_2020)
+    assert data.model is None
+    assert data.manufacturer is None
+    assert data.odometer_km == 12000  # the rest still maps
+
+
+def test_epoch_ms_to_date():
+    from custom_components.vag_connect.cariad.api.plugandplay import _epoch_ms_to_date
+    assert _epoch_ms_to_date("1219795200000") == "2008-08-27"
+    assert _epoch_ms_to_date("0") is None
+    assert _epoch_ms_to_date("") is None
+    assert _epoch_ms_to_date(None) is None
+    assert _epoch_ms_to_date("not-a-number") is None
+
+
 def test_factory_creates_acpp_client():
     from custom_components.vag_connect.cariad.api.factory import CariadClientFactory
     client = CariadClientFactory.create("audi_acpp", MagicMock(), "u@e.com", "pw")

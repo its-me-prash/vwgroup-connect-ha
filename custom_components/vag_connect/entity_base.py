@@ -176,7 +176,10 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
             identifiers={(DOMAIN, self._vin)},
             name=name,
             model=_model_str,
-            manufacturer=brand.title(),
+            # Prefer an explicit manufacturer the reader resolved (e.g. acpp maps
+            # brandCode "A" → "Audi"); else the config brand, title-cased. This
+            # avoids ugly labels like "Audi_Acpp" for the plug&play source.
+            manufacturer=vehicle.get("manufacturer") or brand.title(),
             serial_number=self._vin,
             hw_version=(str(_year) if _year else None),
             sw_version=vehicle.get("firmware_version"),
