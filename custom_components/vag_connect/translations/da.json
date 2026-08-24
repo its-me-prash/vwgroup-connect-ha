@@ -217,7 +217,7 @@
           "keep_raw_datasets": "Behold rå EU Data Act-datasæt (diagnostik)",
           "test_cohort": "Vær med til at forbedre VW Group Connect (frivillig testgruppe)",
           "vweu_device_grant": "Tilføj VW EU To-vejs — kommandoer + live-aflæsninger (BETA)",
-          "remove_vweu_twoway": "Fjern VW EU To-vejs (g\u00e5 tilbage til den forrige kanal)"
+          "remove_vweu_twoway": "Fjern VW EU To-vejs (gå tilbage til den forrige kanal)"
         },
         "data_description": {
           "scan_interval": "Hvor ofte data hentes (minutter). Minimum: 3.",
@@ -288,7 +288,7 @@
         }
       },
       "add_vweu_twoway": {
-        "title": "VW EU To-vejs (kommandoer + live-afl\u00e6sninger, BETA)",
+        "title": "VW EU To-vejs (kommandoer + live-aflæsninger, BETA)",
         "description": "**Eksperimentel, tilvalg — kun Volkswagen.** Tilføjer to-vejs-styring (lås/lås op, klima, opladning) og live CARIAD-aflæsninger ved at logge ind med dit Volkswagen ID. Da Volkswagen kun udsteder et token på 1 time ad denne vej, **gemmes** din adgangskode, så integrationen kan forny det automatisk. Den sendes kun til Volkswagens egen loginserver og skrives aldrig til logfiler eller diagnostik. Vil du hellere ikke gemme en adgangskode? Brug de skrivebeskyttede kanaler i stedet. **Forudsætning:** din Volkswagen ID skal være køretøjets primære bruger.",
         "data": {
           "username": "Email Address",
@@ -296,19 +296,19 @@
         },
         "data_description": {
           "username": "E-mailen til din Volkswagen ID- / myVolkswagen-konto.",
-          "password": "Din Volkswagen ID-adgangskode. Bruges kun til at forny adgangstokenet p\u00e5 1 time mod Volkswagens loginserver; logges aldrig og fjernes fra diagnostik."
+          "password": "Din Volkswagen ID-adgangskode. Bruges kun til at forny adgangstokenet på 1 time mod Volkswagens loginserver; logges aldrig og fjernes fra diagnostik."
         }
       }
     },
     "error": {
       "abrp_credentials_required": "For at aktivere ABRP skal du indtaste både api_key og tokenet pr. køretøj.",
       "invalid_auth": "Login mislykkedes. Tjek din Volkswagen ID-e-mail og adgangskode.",
-      "cannot_connect": "Kunne ikke f\u00e5 forbindelse til Volkswagen. Pr\u00f8v venligst igen.",
-      "vweu_mfa_unsupported": "Denne konto kr\u00e6ver en e-mail- eller authenticator-kode, som VW EU To-vejs endnu ikke kan h\u00e5ndtere. Brug de skrivebeskyttede kanaler i stedet.",
-      "vweu_no_bff_data": "Logget ind, men Volkswagen returnerede endnu ingen live-data for denne bil p\u00e5 det moderne backend, s\u00e5 VW EU To-vejs blev ikke aktiveret, og din nuv\u00e6rende kanal er u\u00e6ndret. Pr\u00f8v venligst igen senere, eller del en diagnostikfil, s\u00e5 vi kan unders\u00f8ge det."
+      "cannot_connect": "Kunne ikke få forbindelse til Volkswagen. Prøv venligst igen.",
+      "vweu_mfa_unsupported": "Denne konto kræver en e-mail- eller authenticator-kode, som VW EU To-vejs endnu ikke kan håndtere. Brug de skrivebeskyttede kanaler i stedet.",
+      "vweu_no_bff_data": "Logget ind, men Volkswagen returnerede endnu ingen live-data for denne bil på det moderne backend, så VW EU To-vejs blev ikke aktiveret, og din nuværende kanal er uændret. Prøv venligst igen senere, eller del en diagnostikfil, så vi kan undersøge det."
     },
     "abort": {
-      "not_volkswagen": "Denne kanal er kun tilg\u00e6ngelig for Volkswagen.",
+      "not_volkswagen": "Denne kanal er kun tilgængelig for Volkswagen.",
       "vweu_twoway_vw_disabled": "Volkswagen slog det login fra, som denne kanal brugte, den 2026-08-18, så den kan ikke længere opsættes. Live-aflæsninger virker fortsat via EU Data Act-portalen, og en vedvarende kommandokanal via det klassiske Car-Net-backend er i beta — se issue #584."
     }
   },
@@ -339,7 +339,11 @@
         "name": "Ladestatus"
       },
       "plug_state": {
-        "name": "Ladeport"
+        "name": "Ladeport",
+        "state": {
+          "connected": "Tilsluttet",
+          "disconnected": "Frakoblet"
+        }
       },
       "target_soc": {
         "name": "Lademål"
@@ -1778,8 +1782,8 @@
   },
   "issues": {
     "vweu_twoway_disabled": {
-      "title": "VW EU To-vejs: sl\u00e5et fra af Volkswagen",
-      "description": "Den 2026-08-18 slog Volkswagen det login fra, som kanalen VW EU To-vejs (det moderne CARIAD-backend) brugte, s\u00e5 dens token p\u00e5 1 time ikke l\u00e6ngere kan fornyes, og to-vejs-kommandoer via den kanal er stoppet. Dette er en \u00e6ndring p\u00e5 Volkswagens side \u2014 der er ikke noget forkert konfigureret hos dig, og din konto er ikke i fare (fejlen sker, f\u00f8r nogen adgangskode sendes).\n\n**Dine live-afl\u00e6sninger virker fortsat** via EU Data Act-portalen, s\u00e5 dine sensorer er up\u00e5virkede.\n\n**Til to-vejs-kommandoer (l\u00e5s/l\u00e5s op, klima, opladning):** en vedvarende erstatning via det klassiske Car-Net (MBB)-backend \u2014 som Volkswagen IKKE har sl\u00e5et fra \u2014 er nu i beta. Se issue #584 for, hvordan du aktiverer og tester den.\n\nDu kan n\u00e5r som helst fjerne den nu inaktive kanal under integrationens indstillinger (VW EU To-vejs \u2192 fjern). Denne besked er kun til orientering; integrationen k\u00f8rer videre p\u00e5 dine l\u00e6sekanaler.\n\n**Tip:** aktiv\u00e9r kun \u00c9N to-vejs-integration for en given bil ad gangen. VW har hastighedsgr\u00e6nser og kan midlertidigt sp\u00e6rre en konto, som flere apps hamrer p\u00e5 samtidig \u2014 n\u00e5r det sker, kan selv den officielle VW-app ikke styre bilen, hvilket er tegnet p\u00e5, at det er en kontosp\u00e6rring og ikke denne integration."
+      "title": "VW EU To-vejs: slået fra af Volkswagen",
+      "description": "Den 2026-08-18 slog Volkswagen det login fra, som kanalen VW EU To-vejs (det moderne CARIAD-backend) brugte, så dens token på 1 time ikke længere kan fornyes, og to-vejs-kommandoer via den kanal er stoppet. Dette er en ændring på Volkswagens side — der er ikke noget forkert konfigureret hos dig, og din konto er ikke i fare (fejlen sker, før nogen adgangskode sendes).\n\n**Dine live-aflæsninger virker fortsat** via EU Data Act-portalen, så dine sensorer er upåvirkede.\n\n**Til to-vejs-kommandoer (lås/lås op, klima, opladning):** en vedvarende erstatning via det klassiske Car-Net (MBB)-backend — som Volkswagen IKKE har slået fra — er nu i beta. Se issue #584 for, hvordan du aktiverer og tester den.\n\nDu kan når som helst fjerne den nu inaktive kanal under integrationens indstillinger (VW EU To-vejs → fjern). Denne besked er kun til orientering; integrationen kører videre på dine læsekanaler.\n\n**Tip:** aktivér kun ÉN to-vejs-integration for en given bil ad gangen. VW har hastighedsgrænser og kan midlertidigt spærre en konto, som flere apps hamrer på samtidig — når det sker, kan selv den officielle VW-app ikke styre bilen, hvilket er tegnet på, at det er en kontospærring og ikke denne integration."
     },
     "two_factor_required": {
       "title": "To-faktor-godkendelse påkrævet — {brand}",

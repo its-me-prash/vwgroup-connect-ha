@@ -217,7 +217,7 @@
           "keep_raw_datasets": "Conserver les jeux de données EU Data Act bruts (diagnostic)",
           "test_cohort": "Aider à améliorer VW Group Connect (groupe de test volontaire)",
           "vweu_device_grant": "Ajouter VW EU bidirectionnel — commandes + lectures en direct (BÊTA)",
-          "remove_vweu_twoway": "Supprimer VW EU bidirectionnel (revenir au canal pr\u00e9c\u00e9dent)"
+          "remove_vweu_twoway": "Supprimer VW EU bidirectionnel (revenir au canal précédent)"
         },
         "data_description": {
           "scan_interval": "Fréquence de mise à jour (minutes). Minimum: 3.",
@@ -288,7 +288,7 @@
         }
       },
       "add_vweu_twoway": {
-        "title": "VW EU bidirectionnel (commandes + lectures en direct, B\u00caTA)",
+        "title": "VW EU bidirectionnel (commandes + lectures en direct, BÊTA)",
         "description": "**Expérimental, sur option — Volkswagen uniquement.** Ajoute le contrôle bidirectionnel (verrouillage/déverrouillage, climatisation, charge) et les lectures CARIAD en direct en vous connectant avec votre Volkswagen ID. Comme Volkswagen n'émet qu'un jeton d'une heure sur ce canal, votre mot de passe est **stocké** afin que l'intégration puisse le renouveler automatiquement. Il est envoyé uniquement au serveur de connexion de Volkswagen et n'est jamais écrit dans les journaux ni les diagnostics. Vous préférez ne pas stocker de mot de passe ? Utilisez plutôt les canaux en lecture seule. **Prérequis :** votre Volkswagen ID doit être l'utilisateur principal du véhicule.",
         "data": {
           "username": "Email Address",
@@ -296,16 +296,16 @@
         },
         "data_description": {
           "username": "L'e-mail de votre compte Volkswagen ID / myVolkswagen.",
-          "password": "Le mot de passe de votre Volkswagen ID. Utilis\u00e9 uniquement pour renouveler le jeton d'acc\u00e8s d'une heure aupr\u00e8s du serveur de connexion de Volkswagen ; jamais journalis\u00e9 et expurg\u00e9 des diagnostics."
+          "password": "Le mot de passe de votre Volkswagen ID. Utilisé uniquement pour renouveler le jeton d'accès d'une heure auprès du serveur de connexion de Volkswagen ; jamais journalisé et expurgé des diagnostics."
         }
       }
     },
     "error": {
       "abrp_credentials_required": "Pour activer ABRP, vous devez saisir à la fois l'api_key et le jeton du véhicule.",
-      "invalid_auth": "\u00c9chec de la connexion. V\u00e9rifiez l'e-mail et le mot de passe de votre Volkswagen ID.",
-      "cannot_connect": "Impossible de joindre Volkswagen. Veuillez r\u00e9essayer.",
-      "vweu_mfa_unsupported": "Ce compte n\u00e9cessite un code par e-mail ou d'une application d'authentification, que VW EU bidirectionnel ne prend pas encore en charge. Utilisez plut\u00f4t les canaux en lecture seule.",
-      "vweu_no_bff_data": "Connexion r\u00e9ussie, mais Volkswagen n'a pas encore renvoy\u00e9 de donn\u00e9es en direct pour cette voiture sur le backend moderne ; VW EU bidirectionnel n'a donc pas \u00e9t\u00e9 activ\u00e9 et votre canal actuel reste inchang\u00e9. Veuillez r\u00e9essayer plus tard, ou partagez un fichier de diagnostic pour que nous puissions examiner le probl\u00e8me."
+      "invalid_auth": "Échec de la connexion. Vérifiez l'e-mail et le mot de passe de votre Volkswagen ID.",
+      "cannot_connect": "Impossible de joindre Volkswagen. Veuillez réessayer.",
+      "vweu_mfa_unsupported": "Ce compte nécessite un code par e-mail ou d'une application d'authentification, que VW EU bidirectionnel ne prend pas encore en charge. Utilisez plutôt les canaux en lecture seule.",
+      "vweu_no_bff_data": "Connexion réussie, mais Volkswagen n'a pas encore renvoyé de données en direct pour cette voiture sur le backend moderne ; VW EU bidirectionnel n'a donc pas été activé et votre canal actuel reste inchangé. Veuillez réessayer plus tard, ou partagez un fichier de diagnostic pour que nous puissions examiner le problème."
     },
     "abort": {
       "not_volkswagen": "Ce canal est disponible uniquement pour Volkswagen.",
@@ -339,7 +339,11 @@
         "name": "État de charge"
       },
       "plug_state": {
-        "name": "Prise de charge"
+        "name": "Prise de charge",
+        "state": {
+          "connected": "Branché",
+          "disconnected": "Débranché"
+        }
       },
       "target_soc": {
         "name": "Objectif de charge"
@@ -1778,8 +1782,8 @@
   },
   "issues": {
     "vweu_twoway_disabled": {
-      "title": "VW EU bidirectionnel : d\u00e9sactiv\u00e9 par Volkswagen",
-      "description": "Le 18 ao\u00fbt 2026, Volkswagen a d\u00e9sactiv\u00e9 la connexion qu'utilisait le canal VW EU bidirectionnel (backend CARIAD moderne) ; son jeton d'une heure ne peut donc plus \u00eatre renouvel\u00e9 et les commandes bidirectionnelles via ce canal ont cess\u00e9 de fonctionner. Il s'agit d'un changement c\u00f4t\u00e9 Volkswagen \u2014 rien n'est mal configur\u00e9 chez vous, et votre compte n'est pas en danger (l'\u00e9chec se produit avant l'envoi de tout mot de passe).\n\n**Vos lectures en direct continuent de fonctionner** via le portail EU Data Act, vos capteurs ne sont donc pas affect\u00e9s.\n\n**Pour les commandes bidirectionnelles (verrouillage/d\u00e9verrouillage, climatisation, charge) :** un remplacement durable via l'ancien backend Car-Net (MBB) \u2014 que Volkswagen n'a PAS d\u00e9sactiv\u00e9 \u2014 est d\u00e9sormais en b\u00eata. Voir le ticket #584 pour savoir comment l'activer et le tester.\n\nVous pouvez supprimer \u00e0 tout moment le canal d\u00e9sormais inactif dans les options de l'int\u00e9gration (VW EU bidirectionnel \u2192 supprimer). Ce message est purement informatif ; l'int\u00e9gration continue de fonctionner sur vos canaux de lecture.\n\n**Conseil :** n'activez qu'UNE seule int\u00e9gration bidirectionnelle \u00e0 la fois pour une m\u00eame voiture. VW limite le nombre de requ\u00eates et peut verrouiller temporairement un compte que plusieurs applications sollicitent en m\u00eame temps \u2014 quand cela arrive, m\u00eame l'application officielle VW ne peut plus contr\u00f4ler la voiture, ce qui est le signe d'un verrouillage de compte, et non d'un probl\u00e8me de cette int\u00e9gration."
+      "title": "VW EU bidirectionnel : désactivé par Volkswagen",
+      "description": "Le 18 août 2026, Volkswagen a désactivé la connexion qu'utilisait le canal VW EU bidirectionnel (backend CARIAD moderne) ; son jeton d'une heure ne peut donc plus être renouvelé et les commandes bidirectionnelles via ce canal ont cessé de fonctionner. Il s'agit d'un changement côté Volkswagen — rien n'est mal configuré chez vous, et votre compte n'est pas en danger (l'échec se produit avant l'envoi de tout mot de passe).\n\n**Vos lectures en direct continuent de fonctionner** via le portail EU Data Act, vos capteurs ne sont donc pas affectés.\n\n**Pour les commandes bidirectionnelles (verrouillage/déverrouillage, climatisation, charge) :** un remplacement durable via l'ancien backend Car-Net (MBB) — que Volkswagen n'a PAS désactivé — est désormais en bêta. Voir le ticket #584 pour savoir comment l'activer et le tester.\n\nVous pouvez supprimer à tout moment le canal désormais inactif dans les options de l'intégration (VW EU bidirectionnel → supprimer). Ce message est purement informatif ; l'intégration continue de fonctionner sur vos canaux de lecture.\n\n**Conseil :** n'activez qu'UNE seule intégration bidirectionnelle à la fois pour une même voiture. VW limite le nombre de requêtes et peut verrouiller temporairement un compte que plusieurs applications sollicitent en même temps — quand cela arrive, même l'application officielle VW ne peut plus contrôler la voiture, ce qui est le signe d'un verrouillage de compte, et non d'un problème de cette intégration."
     },
     "two_factor_required": {
       "title": "Double authentification requise — {brand}",

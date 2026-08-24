@@ -217,7 +217,7 @@
           "keep_raw_datasets": "Behold rå EU Data Act-datasett (diagnostikk)",
           "test_cohort": "Hjelp oss å forbedre VW Group Connect (frivillig testgruppe)",
           "vweu_device_grant": "Legg til VW EU Two-Way — kommandoer + sanntidsavlesninger (BETA)",
-          "remove_vweu_twoway": "Fjern VW EU Two-Way (g\u00e5 tilbake til forrige kanal)"
+          "remove_vweu_twoway": "Fjern VW EU Two-Way (gå tilbake til forrige kanal)"
         },
         "data_description": {
           "scan_interval": "Hvor ofte data hentes (minutter). Minimum: 3.",
@@ -296,16 +296,16 @@
         },
         "data_description": {
           "username": "E-posten til Volkswagen ID- / myVolkswagen-kontoen din.",
-          "password": "Passordet til Volkswagen ID-en din. Brukes kun til \u00e5 fornye tilgangstokenet som er gyldig i \u00e9n time mot Volkswagens p\u00e5loggingsserver; logges aldri og sladdes i diagnostikk."
+          "password": "Passordet til Volkswagen ID-en din. Brukes kun til å fornye tilgangstokenet som er gyldig i én time mot Volkswagens påloggingsserver; logges aldri og sladdes i diagnostikk."
         }
       }
     },
     "error": {
       "abrp_credentials_required": "For å aktivere ABRP må du skrive inn både api_key og token per kjøretøy.",
-      "invalid_auth": "P\u00e5logging mislyktes. Sjekk e-postadressen og passordet til Volkswagen ID-en din.",
-      "cannot_connect": "Kunne ikke n\u00e5 Volkswagen. Pr\u00f8v igjen.",
-      "vweu_mfa_unsupported": "Denne kontoen krever en e-post- eller autentiseringskode, som VW EU Two-Way ikke kan h\u00e5ndtere enn\u00e5. Bruk de skrivebeskyttede kanalene i stedet.",
-      "vweu_no_bff_data": "Logget inn, men Volkswagen har enn\u00e5 ikke returnert sanntidsdata for denne bilen p\u00e5 det moderne baksystemet, s\u00e5 VW EU Two-Way ble ikke aktivert og din n\u00e5v\u00e6rende kanal er uendret. Pr\u00f8v igjen senere, eller del en diagnostikkfil s\u00e5 vi kan se n\u00e6rmere p\u00e5 det."
+      "invalid_auth": "Pålogging mislyktes. Sjekk e-postadressen og passordet til Volkswagen ID-en din.",
+      "cannot_connect": "Kunne ikke nå Volkswagen. Prøv igjen.",
+      "vweu_mfa_unsupported": "Denne kontoen krever en e-post- eller autentiseringskode, som VW EU Two-Way ikke kan håndtere ennå. Bruk de skrivebeskyttede kanalene i stedet.",
+      "vweu_no_bff_data": "Logget inn, men Volkswagen har ennå ikke returnert sanntidsdata for denne bilen på det moderne baksystemet, så VW EU Two-Way ble ikke aktivert og din nåværende kanal er uendret. Prøv igjen senere, eller del en diagnostikkfil så vi kan se nærmere på det."
     },
     "abort": {
       "not_volkswagen": "Denne kanalen er kun tilgjengelig for Volkswagen.",
@@ -339,7 +339,11 @@
         "name": "Ladestatus"
       },
       "plug_state": {
-        "name": "Ladeport"
+        "name": "Ladeport",
+        "state": {
+          "connected": "Tilkoblet",
+          "disconnected": "Frakoblet"
+        }
       },
       "target_soc": {
         "name": "Lademål"
@@ -1779,7 +1783,7 @@
   "issues": {
     "vweu_twoway_disabled": {
       "title": "VW EU Two-Way: deaktivert av Volkswagen",
-      "description": "Den 2026-08-18 slo Volkswagen av p\u00e5loggingen som VW EU Two-Way-kanalen (det moderne CARIAD-baksystemet) brukte, s\u00e5 tokenet som er gyldig i \u00e9n time kan ikke lenger fornyes, og toveiskommandoer via den kanalen har sluttet \u00e5 fungere. Dette er en endring p\u00e5 Volkswagens side \u2014 ingenting er feilkonfigurert hos deg, og kontoen din er ikke i fare (feilen skjer f\u00f8r noe passord sendes).\n\n**Sanntidsavlesningene dine fungerer fortsatt** via EU Data Act-portalen, s\u00e5 sensorene dine p\u00e5virkes ikke.\n\n**For toveiskommandoer (l\u00e5s/l\u00e5s opp, klima, lading):** en varig erstatning via det klassiske Car-Net (MBB)-baksystemet \u2014 som Volkswagen IKKE har sl\u00e5tt av \u2014 er n\u00e5 i beta. Se issue #584 for hvordan du aktiverer og tester den.\n\nDu kan n\u00e5r som helst fjerne den n\u00e5 inaktive kanalen under integrasjonens innstillinger (VW EU Two-Way \u2192 fjern). Denne meldingen er kun til informasjon; integrasjonen fortsetter \u00e5 kj\u00f8re p\u00e5 lesekanalene dine.\n\n**Tips:** aktiver kun \u00c9N toveisintegrasjon for \u00e9n og samme bil om gangen. VW har hastighetsbegrensninger og kan midlertidig sperre en konto som flere apper bombarderer samtidig \u2014 n\u00e5r det skjer, kan selv den offisielle VW-appen ikke styre bilen, og det er tegnet p\u00e5 at det er en kontosperre og ikke denne integrasjonen."
+      "description": "Den 2026-08-18 slo Volkswagen av påloggingen som VW EU Two-Way-kanalen (det moderne CARIAD-baksystemet) brukte, så tokenet som er gyldig i én time kan ikke lenger fornyes, og toveiskommandoer via den kanalen har sluttet å fungere. Dette er en endring på Volkswagens side — ingenting er feilkonfigurert hos deg, og kontoen din er ikke i fare (feilen skjer før noe passord sendes).\n\n**Sanntidsavlesningene dine fungerer fortsatt** via EU Data Act-portalen, så sensorene dine påvirkes ikke.\n\n**For toveiskommandoer (lås/lås opp, klima, lading):** en varig erstatning via det klassiske Car-Net (MBB)-baksystemet — som Volkswagen IKKE har slått av — er nå i beta. Se issue #584 for hvordan du aktiverer og tester den.\n\nDu kan når som helst fjerne den nå inaktive kanalen under integrasjonens innstillinger (VW EU Two-Way → fjern). Denne meldingen er kun til informasjon; integrasjonen fortsetter å kjøre på lesekanalene dine.\n\n**Tips:** aktiver kun ÉN toveisintegrasjon for én og samme bil om gangen. VW har hastighetsbegrensninger og kan midlertidig sperre en konto som flere apper bombarderer samtidig — når det skjer, kan selv den offisielle VW-appen ikke styre bilen, og det er tegnet på at det er en kontosperre og ikke denne integrasjonen."
     },
     "two_factor_required": {
       "title": "Tofaktorautentisering kreves — {brand}",

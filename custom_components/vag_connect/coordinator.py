@@ -4753,6 +4753,17 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # Always stamp when we fetched
         data["last_updated_at"] = datetime.now(tz=timezone.utc)
 
+        # #1055 (@ChristophCaina) — normalize the plug-connection text state so the
+        # enum sensor can localize it. Brands emit different casings (Škoda
+        # CONNECTED, VW/SEAT connected) and VW/CARIAD occasionally sends an
+        # 'invalid'/'unsupported' sentinel. Lowercase it and keep only the two
+        # real values; anything else → None (unavailable) rather than an
+        # untranslatable raw string. plug_connected (the boolean) is unaffected.
+        _plug_state = data.get("plug_state")
+        if isinstance(_plug_state, str):
+            _psl = _plug_state.strip().lower()
+            data["plug_state"] = _psl if _psl in ("connected", "disconnected") else None
+
         # Battery State of Health. Audi device-grant cars now carry a REAL SoH read
         # from the batteryHealthState BFF job (set upstream in the API layer), so we
         # only ever derive one here as a FALLBACK when the backend gave none — never

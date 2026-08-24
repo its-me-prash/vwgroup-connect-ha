@@ -174,6 +174,10 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         data_key="plug_state",
         icon="mdi:power-plug",
         condition="electric",
+        # #1055 — enum sensor so HA localizes the state label. Values are
+        # normalized to this set in coordinator._enrich (anything else → None).
+        device_class=SensorDeviceClass.ENUM,
+        options=["connected", "disconnected"],
     ),
     # v2.22.0 (evcc) — normalized IEC-61851 charge status (A=unplugged /
     # B=plugged-idle / C=charging) for the evcc connector's custom-vehicle

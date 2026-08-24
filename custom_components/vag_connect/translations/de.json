@@ -217,7 +217,7 @@
           "keep_raw_datasets": "Rohe EU-Data-Act-Datensätze behalten (Diagnose)",
           "test_cohort": "Hilf mit, VW Group Connect zu verbessern (freiwillige Testgruppe)",
           "vweu_device_grant": "VW EU Two-Way hinzufügen — Befehle + Live-Daten (BETA)",
-          "remove_vweu_twoway": "VW EU Two-Way entfernen (zur\u00fcck zum vorherigen Kanal)"
+          "remove_vweu_twoway": "VW EU Two-Way entfernen (zurück zum vorherigen Kanal)"
         },
         "data_description": {
           "enable_reverse_geocoding": "Sendet GPS der Parkposition an OpenStreetMap Nominatim, um Straße/Stadt zu ermitteln. Standard: aus (Datenschutz).",
@@ -302,13 +302,13 @@
     },
     "error": {
       "abrp_credentials_required": "Zum Aktivieren von ABRP musst du sowohl den api_key als auch den Fahrzeug-Token eingeben.",
-      "invalid_auth": "Anmeldung fehlgeschlagen. Pr\u00fcfe E-Mail-Adresse und Passwort deiner Volkswagen ID.",
+      "invalid_auth": "Anmeldung fehlgeschlagen. Prüfe E-Mail-Adresse und Passwort deiner Volkswagen ID.",
       "cannot_connect": "Volkswagen konnte nicht erreicht werden. Bitte erneut versuchen.",
-      "vweu_mfa_unsupported": "Dieses Konto ben\u00f6tigt einen E-Mail- oder Authenticator-Code, den VW EU Two-Way noch nicht verarbeiten kann. Nutze stattdessen die nur-lesenden Kan\u00e4le.",
-      "vweu_no_bff_data": "Angemeldet, aber Volkswagen hat f\u00fcr dieses Auto auf dem modernen Backend noch keine Live-Daten geliefert. VW EU Two-Way wurde daher nicht aktiviert und dein aktueller Kanal bleibt unver\u00e4ndert. Bitte versuche es sp\u00e4ter erneut oder teile eine Diagnose, damit wir uns das ansehen k\u00f6nnen."
+      "vweu_mfa_unsupported": "Dieses Konto benötigt einen E-Mail- oder Authenticator-Code, den VW EU Two-Way noch nicht verarbeiten kann. Nutze stattdessen die nur-lesenden Kanäle.",
+      "vweu_no_bff_data": "Angemeldet, aber Volkswagen hat für dieses Auto auf dem modernen Backend noch keine Live-Daten geliefert. VW EU Two-Way wurde daher nicht aktiviert und dein aktueller Kanal bleibt unverändert. Bitte versuche es später erneut oder teile eine Diagnose, damit wir uns das ansehen können."
     },
     "abort": {
-      "not_volkswagen": "Dieser Kanal ist nur f\u00fcr Volkswagen verf\u00fcgbar.",
+      "not_volkswagen": "Dieser Kanal ist nur für Volkswagen verfügbar.",
       "vweu_twoway_vw_disabled": "Volkswagen hat den Login, den dieser Kanal nutzte, am 18.08.2026 abgeschaltet — er kann daher nicht mehr eingerichtet werden. Live-Daten laufen weiter über das EU-Data-Act-Portal, und ein dauerhafter Befehlskanal über das klassische Car-Net-Backend ist in der Beta — siehe Issue #584."
     }
   },
@@ -339,7 +339,11 @@
         "name": "Ladestatus"
       },
       "plug_state": {
-        "name": "Ladeanschluss"
+        "name": "Ladeanschluss",
+        "state": {
+          "connected": "Verbunden",
+          "disconnected": "Getrennt"
+        }
       },
       "target_soc": {
         "name": "Ladeziel"
@@ -1779,7 +1783,7 @@
   "issues": {
     "vweu_twoway_disabled": {
       "title": "VW EU Two-Way: von Volkswagen abgeschaltet",
-      "description": "Am 18.08.2026 hat Volkswagen den Login abgeschaltet, den der VW-EU-Two-Way (modernes CARIAD-Backend) nutzte \u2014 der 1-Stunden-Token kann nicht mehr erneuert werden, die Befehle \u00fcber diesen Kanal sind gestoppt. Das ist eine Volkswagen-seitige \u00c4nderung \u2014 bei dir ist nichts falsch konfiguriert, und dein Konto ist nicht gef\u00e4hrdet (der Fehler passiert, bevor \u00fcberhaupt ein Passwort gesendet wird).\n\n**Deine Live-Daten laufen weiter** \u00fcber das EU-Data-Act-Portal, deine Sensoren sind also nicht betroffen.\n\n**F\u00fcr Zwei-Wege-Befehle (Ver-/Entriegeln, Klima, Laden):** ein dauerhafter Ersatz \u00fcber das klassische Car-Net-(MBB-)Backend \u2014 das Volkswagen NICHT abgeschaltet hat \u2014 ist jetzt in der Beta. Wie du ihn aktivierst und testest, steht in Issue #584.\n\nDen inaktiven Kanal kannst du jederzeit in den Integrations-Optionen entfernen (VW EU Two-Way \u2192 entfernen). Diese Meldung ist rein informativ; die Integration l\u00e4uft auf deinen Lese-Kan\u00e4len weiter.\n\n**Tipp:** aktiviere pro Auto immer nur EINEN Two-Way-Zugang gleichzeitig. VW drosselt und sperrt Konten zeitweise, wenn mehrere Apps es gleichzeitig bombardieren \u2014 dann kann selbst die offizielle VW-App das Auto nicht steuern, und genau das ist das Zeichen f\u00fcr eine Konto-Sperre, nicht die Integration."
+      "description": "Am 18.08.2026 hat Volkswagen den Login abgeschaltet, den der VW-EU-Two-Way (modernes CARIAD-Backend) nutzte — der 1-Stunden-Token kann nicht mehr erneuert werden, die Befehle über diesen Kanal sind gestoppt. Das ist eine Volkswagen-seitige Änderung — bei dir ist nichts falsch konfiguriert, und dein Konto ist nicht gefährdet (der Fehler passiert, bevor überhaupt ein Passwort gesendet wird).\n\n**Deine Live-Daten laufen weiter** über das EU-Data-Act-Portal, deine Sensoren sind also nicht betroffen.\n\n**Für Zwei-Wege-Befehle (Ver-/Entriegeln, Klima, Laden):** ein dauerhafter Ersatz über das klassische Car-Net-(MBB-)Backend — das Volkswagen NICHT abgeschaltet hat — ist jetzt in der Beta. Wie du ihn aktivierst und testest, steht in Issue #584.\n\nDen inaktiven Kanal kannst du jederzeit in den Integrations-Optionen entfernen (VW EU Two-Way → entfernen). Diese Meldung ist rein informativ; die Integration läuft auf deinen Lese-Kanälen weiter.\n\n**Tipp:** aktiviere pro Auto immer nur EINEN Two-Way-Zugang gleichzeitig. VW drosselt und sperrt Konten zeitweise, wenn mehrere Apps es gleichzeitig bombardieren — dann kann selbst die offizielle VW-App das Auto nicht steuern, und genau das ist das Zeichen für eine Konto-Sperre, nicht die Integration."
     },
     "two_factor_required": {
       "title": "Zwei-Faktor-Anmeldung erforderlich — {brand}",
