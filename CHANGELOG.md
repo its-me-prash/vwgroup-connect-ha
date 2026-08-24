@@ -42,6 +42,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Changed
+- **The charging-port sensor now shows a translated Connected / Disconnected label (#1055).** `plug_state` ("Charging Port") is now a proper enum sensor with localized states in all 12 languages, instead of passing VW's raw English word straight through. The value is normalized across brands (e.g. Škoda sends it uppercase), and VW's occasional `invalid`/`unsupported` placeholder now reads as unavailable rather than a stray raw label. Thanks @ChristophCaina.
+
 ## [4.2.0] - 2026-08-23 — VW render photos, consistent full model names across brands & self-diagnosing "no data" downloads
 
 ### Added

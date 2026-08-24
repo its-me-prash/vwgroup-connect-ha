@@ -295,20 +295,20 @@
           "password": "Password"
         },
         "data_description": {
-          "username": "El correo electr\u00f3nico de tu cuenta Volkswagen ID / myVolkswagen.",
-          "password": "La contrase\u00f1a de tu Volkswagen ID. Se usa solo para renovar el token de acceso de 1 hora contra el servidor de inicio de sesi\u00f3n de Volkswagen; nunca se registra y se oculta en los diagn\u00f3sticos."
+          "username": "El correo electrónico de tu cuenta Volkswagen ID / myVolkswagen.",
+          "password": "La contraseña de tu Volkswagen ID. Se usa solo para renovar el token de acceso de 1 hora contra el servidor de inicio de sesión de Volkswagen; nunca se registra y se oculta en los diagnósticos."
         }
       }
     },
     "error": {
       "abrp_credentials_required": "Para activar ABRP debes introducir tanto la api_key como el token del vehículo.",
-      "invalid_auth": "Error al iniciar sesi\u00f3n. Comprueba el correo electr\u00f3nico y la contrase\u00f1a de tu Volkswagen ID.",
-      "cannot_connect": "No se pudo contactar con Volkswagen. Int\u00e9ntalo de nuevo.",
-      "vweu_mfa_unsupported": "Esta cuenta necesita un c\u00f3digo por correo electr\u00f3nico o de la app de autenticaci\u00f3n, que VW EU bidireccional a\u00fan no puede gestionar. Usa los canales de solo lectura en su lugar.",
-      "vweu_no_bff_data": "Sesi\u00f3n iniciada, pero Volkswagen a\u00fan no ha devuelto datos en vivo para este coche en el backend moderno, por lo que VW EU bidireccional no se ha activado y tu canal actual no cambia. Int\u00e9ntalo de nuevo m\u00e1s tarde o comparte un diagn\u00f3stico para que podamos investigarlo."
+      "invalid_auth": "Error al iniciar sesión. Comprueba el correo electrónico y la contraseña de tu Volkswagen ID.",
+      "cannot_connect": "No se pudo contactar con Volkswagen. Inténtalo de nuevo.",
+      "vweu_mfa_unsupported": "Esta cuenta necesita un código por correo electrónico o de la app de autenticación, que VW EU bidireccional aún no puede gestionar. Usa los canales de solo lectura en su lugar.",
+      "vweu_no_bff_data": "Sesión iniciada, pero Volkswagen aún no ha devuelto datos en vivo para este coche en el backend moderno, por lo que VW EU bidireccional no se ha activado y tu canal actual no cambia. Inténtalo de nuevo más tarde o comparte un diagnóstico para que podamos investigarlo."
     },
     "abort": {
-      "not_volkswagen": "Este canal solo est\u00e1 disponible para Volkswagen.",
+      "not_volkswagen": "Este canal solo está disponible para Volkswagen.",
       "vweu_twoway_vw_disabled": "Volkswagen desactivó el 18 de agosto de 2026 el inicio de sesión que usaba este canal, por lo que ya no se puede configurar. Las lecturas en vivo siguen funcionando a través del portal EU Data Act, y un canal de comandos duradero a través del backend clásico Car-Net está en beta — consulta la incidencia #584."
     }
   },
@@ -339,7 +339,11 @@
         "name": "Estado de carga"
       },
       "plug_state": {
-        "name": "Enchufe de carga"
+        "name": "Enchufe de carga",
+        "state": {
+          "connected": "Conectado",
+          "disconnected": "Desconectado"
+        }
       },
       "target_soc": {
         "name": "Objetivo de carga"
@@ -1779,7 +1783,7 @@
   "issues": {
     "vweu_twoway_disabled": {
       "title": "VW EU bidireccional: desactivado por Volkswagen",
-      "description": "El 18 de agosto de 2026 Volkswagen desactiv\u00f3 el inicio de sesi\u00f3n que usaba el canal VW EU bidireccional (backend moderno CARIAD), por lo que su token de 1 hora ya no puede renovarse y los comandos bidireccionales a trav\u00e9s de ese canal han dejado de funcionar. Se trata de un cambio del lado de Volkswagen \u2014 no hay nada mal configurado por tu parte y tu cuenta no corre ning\u00fan riesgo (el fallo ocurre antes de que se env\u00ede ninguna contrase\u00f1a).\n\n**Tus lecturas en vivo siguen funcionando** a trav\u00e9s del portal EU Data Act, por lo que tus sensores no se ven afectados.\n\n**Para los comandos bidireccionales (bloqueo/desbloqueo, climatizaci\u00f3n, carga):** ya est\u00e1 en beta un reemplazo duradero a trav\u00e9s del backend cl\u00e1sico Car-Net (MBB), que Volkswagen NO ha desactivado. Consulta la incidencia #584 para saber c\u00f3mo activarlo y probarlo.\n\nPuedes eliminar el canal ahora inactivo en cualquier momento en las opciones de la integraci\u00f3n (VW EU bidireccional \u2192 eliminar). Este mensaje es solo informativo; la integraci\u00f3n sigue funcionando con tus canales de lectura.\n\n**Consejo:** activa solo UNA integraci\u00f3n bidireccional para un mismo coche a la vez. VW aplica l\u00edmites de frecuencia y puede bloquear temporalmente una cuenta que varias apps saturan a la vez \u2014 cuando eso ocurre, ni siquiera la app oficial de VW puede controlar el coche, que es la se\u00f1al de que se trata de un bloqueo de cuenta y no de un problema de esta integraci\u00f3n."
+      "description": "El 18 de agosto de 2026 Volkswagen desactivó el inicio de sesión que usaba el canal VW EU bidireccional (backend moderno CARIAD), por lo que su token de 1 hora ya no puede renovarse y los comandos bidireccionales a través de ese canal han dejado de funcionar. Se trata de un cambio del lado de Volkswagen — no hay nada mal configurado por tu parte y tu cuenta no corre ningún riesgo (el fallo ocurre antes de que se envíe ninguna contraseña).\n\n**Tus lecturas en vivo siguen funcionando** a través del portal EU Data Act, por lo que tus sensores no se ven afectados.\n\n**Para los comandos bidireccionales (bloqueo/desbloqueo, climatización, carga):** ya está en beta un reemplazo duradero a través del backend clásico Car-Net (MBB), que Volkswagen NO ha desactivado. Consulta la incidencia #584 para saber cómo activarlo y probarlo.\n\nPuedes eliminar el canal ahora inactivo en cualquier momento en las opciones de la integración (VW EU bidireccional → eliminar). Este mensaje es solo informativo; la integración sigue funcionando con tus canales de lectura.\n\n**Consejo:** activa solo UNA integración bidireccional para un mismo coche a la vez. VW aplica límites de frecuencia y puede bloquear temporalmente una cuenta que varias apps saturan a la vez — cuando eso ocurre, ni siquiera la app oficial de VW puede controlar el coche, que es la señal de que se trata de un bloqueo de cuenta y no de un problema de esta integración."
     },
     "two_factor_required": {
       "title": "Autenticación de dos factores — {brand}",

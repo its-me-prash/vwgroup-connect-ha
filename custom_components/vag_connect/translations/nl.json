@@ -288,7 +288,7 @@
         }
       },
       "add_vweu_twoway": {
-        "title": "VW EU Two-Way (commando's + live uitlezingen, B\u00c8TA)",
+        "title": "VW EU Two-Way (commando's + live uitlezingen, BÈTA)",
         "description": "**Experimenteel, opt-in — alleen Volkswagen.** Voegt tweerichtingsbediening (vergrendelen/ontgrendelen, klimaat, laden) en live CARIAD-uitlezingen toe door je aan te melden met je Volkswagen ID. Omdat Volkswagen via deze weg maar een token van 1 uur afgeeft, wordt je wachtwoord **opgeslagen** zodat de integratie het automatisch kan vernieuwen. Het wordt alleen naar de eigen loginserver van Volkswagen verzonden en nooit vastgelegd in logboeken of diagnose. Liever geen wachtwoord opslaan? Gebruik dan de alleen-lezen kanalen. **Vereiste:** je Volkswagen ID moet de hoofdgebruiker van het voertuig zijn.",
         "data": {
           "username": "Email Address",
@@ -339,7 +339,11 @@
         "name": "Laadstatus"
       },
       "plug_state": {
-        "name": "Laadstekker"
+        "name": "Laadstekker",
+        "state": {
+          "connected": "Aangesloten",
+          "disconnected": "Losgekoppeld"
+        }
       },
       "target_soc": {
         "name": "Laaddoel"
@@ -1779,7 +1783,7 @@
   "issues": {
     "vweu_twoway_disabled": {
       "title": "VW EU Two-Way: uitgeschakeld door Volkswagen",
-      "description": "Op 2026-08-18 heeft Volkswagen de login uitgeschakeld die het VW EU Two-Way-kanaal (moderne CARIAD-backend) gebruikte, waardoor het token van 1 uur niet meer kan worden vernieuwd en tweerichtingscommando's via dat kanaal zijn gestopt. Dit is een wijziging aan de kant van Volkswagen \u2014 er is bij jou niets verkeerd geconfigureerd en je account loopt geen risico (de fout treedt op v\u00f3\u00f3rdat er een wachtwoord wordt verzonden).\n\n**Je live uitlezingen blijven werken** via het EU Data Act-portaal, dus je sensoren worden niet be\u00efnvloed.\n\n**Voor tweerichtingscommando's (vergrendelen/ontgrendelen, klimaat, laden):** een duurzame vervanging via de klassieke Car-Net (MBB)-backend \u2014 die Volkswagen NIET heeft uitgeschakeld \u2014 is nu in b\u00e8ta. Zie issue #584 voor hoe je het inschakelt en test.\n\nJe kunt het nu inactieve kanaal op elk moment verwijderen via de opties van de integratie (VW EU Two-Way \u2192 verwijderen). Dit bericht is alleen ter informatie; de integratie blijft draaien op je leeskanalen.\n\n**Tip:** schakel per auto slechts \u00c9\u00c9N tweerichtingsintegratie tegelijk in. VW beperkt het aantal verzoeken en kan een account tijdelijk blokkeren wanneer meerdere apps het tegelijk bestoken \u2014 als dat gebeurt, kan zelfs de offici\u00eble VW-app de auto niet meer bedienen, en d\u00e1t is het teken dat het om een accountblokkering gaat en niet om deze integratie."
+      "description": "Op 2026-08-18 heeft Volkswagen de login uitgeschakeld die het VW EU Two-Way-kanaal (moderne CARIAD-backend) gebruikte, waardoor het token van 1 uur niet meer kan worden vernieuwd en tweerichtingscommando's via dat kanaal zijn gestopt. Dit is een wijziging aan de kant van Volkswagen — er is bij jou niets verkeerd geconfigureerd en je account loopt geen risico (de fout treedt op vóórdat er een wachtwoord wordt verzonden).\n\n**Je live uitlezingen blijven werken** via het EU Data Act-portaal, dus je sensoren worden niet beïnvloed.\n\n**Voor tweerichtingscommando's (vergrendelen/ontgrendelen, klimaat, laden):** een duurzame vervanging via de klassieke Car-Net (MBB)-backend — die Volkswagen NIET heeft uitgeschakeld — is nu in bèta. Zie issue #584 voor hoe je het inschakelt en test.\n\nJe kunt het nu inactieve kanaal op elk moment verwijderen via de opties van de integratie (VW EU Two-Way → verwijderen). Dit bericht is alleen ter informatie; de integratie blijft draaien op je leeskanalen.\n\n**Tip:** schakel per auto slechts ÉÉN tweerichtingsintegratie tegelijk in. VW beperkt het aantal verzoeken en kan een account tijdelijk blokkeren wanneer meerdere apps het tegelijk bestoken — als dat gebeurt, kan zelfs de officiële VW-app de auto niet meer bedienen, en dát is het teken dat het om een accountblokkering gaat en niet om deze integratie."
     },
     "two_factor_required": {
       "title": "Tweestapsverificatie vereist — {brand}",

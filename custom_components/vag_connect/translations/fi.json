@@ -295,20 +295,20 @@
           "password": "Password"
         },
         "data_description": {
-          "username": "Volkswagen ID- / myVolkswagen-tilisi s\u00e4hk\u00f6posti.",
-          "password": "Volkswagen ID -salasanasi. K\u00e4ytet\u00e4\u00e4n vain 1 tunnin tunnisteen uusimiseen Volkswagenin kirjautumispalvelinta vasten; ei koskaan lokiin ja peitet\u00e4\u00e4n diagnostiikassa."
+          "username": "Volkswagen ID- / myVolkswagen-tilisi sähköposti.",
+          "password": "Volkswagen ID -salasanasi. Käytetään vain 1 tunnin tunnisteen uusimiseen Volkswagenin kirjautumispalvelinta vasten; ei koskaan lokiin ja peitetään diagnostiikassa."
         }
       }
     },
     "error": {
       "abrp_credentials_required": "ABRP:n käyttöönotto edellyttää sekä api_keyn että ajoneuvokohtaisen tunnisteen syöttämistä.",
-      "invalid_auth": "Kirjautuminen ep\u00e4onnistui. Tarkista Volkswagen ID -s\u00e4hk\u00f6postisi ja -salasanasi.",
-      "cannot_connect": "Volkswageniin ei saatu yhteytt\u00e4. Yrit\u00e4 uudelleen.",
-      "vweu_mfa_unsupported": "T\u00e4m\u00e4 tili vaatii s\u00e4hk\u00f6posti- tai todennussovelluskoodin, jota VW EU Two-Way ei viel\u00e4 osaa k\u00e4sitell\u00e4. K\u00e4yt\u00e4 sen sijaan vain luku -kanavia.",
-      "vweu_no_bff_data": "Kirjautuminen onnistui, mutta Volkswagen ei viel\u00e4 palauttanut t\u00e4lle autolle live-tietoja modernissa taustaj\u00e4rjestelm\u00e4ss\u00e4, joten VW EU Two-Way ei aktivoitunut ja nykyinen kanavasi s\u00e4ilyy ennallaan. Yrit\u00e4 my\u00f6hemmin uudelleen tai jaa diagnostiikkatiedosto, jotta voimme selvitt\u00e4\u00e4 asiaa."
+      "invalid_auth": "Kirjautuminen epäonnistui. Tarkista Volkswagen ID -sähköpostisi ja -salasanasi.",
+      "cannot_connect": "Volkswageniin ei saatu yhteyttä. Yritä uudelleen.",
+      "vweu_mfa_unsupported": "Tämä tili vaatii sähköposti- tai todennussovelluskoodin, jota VW EU Two-Way ei vielä osaa käsitellä. Käytä sen sijaan vain luku -kanavia.",
+      "vweu_no_bff_data": "Kirjautuminen onnistui, mutta Volkswagen ei vielä palauttanut tälle autolle live-tietoja modernissa taustajärjestelmässä, joten VW EU Two-Way ei aktivoitunut ja nykyinen kanavasi säilyy ennallaan. Yritä myöhemmin uudelleen tai jaa diagnostiikkatiedosto, jotta voimme selvittää asiaa."
     },
     "abort": {
-      "not_volkswagen": "T\u00e4m\u00e4 kanava on k\u00e4ytett\u00e4viss\u00e4 vain Volkswagenille.",
+      "not_volkswagen": "Tämä kanava on käytettävissä vain Volkswagenille.",
       "vweu_twoway_vw_disabled": "Volkswagen poisti käytöstä tämän kanavan käyttämän kirjautumisen 18.8.2026, joten sitä ei voi enää määrittää. Live-lukemat toimivat edelleen EU Data Act -portaalin kautta, ja pysyvä komentokanava klassisen Car-Net-taustajärjestelmän kautta on betavaiheessa — katso issue #584."
     }
   },
@@ -339,7 +339,11 @@
         "name": "Latauksen tila"
       },
       "plug_state": {
-        "name": "Latausportti"
+        "name": "Latausportti",
+        "state": {
+          "connected": "Kytketty",
+          "disconnected": "Irrotettu"
+        }
       },
       "target_soc": {
         "name": "Lataustavoite"
@@ -1778,8 +1782,8 @@
   },
   "issues": {
     "vweu_twoway_disabled": {
-      "title": "VW EU Two-Way: Volkswagen poisti k\u00e4yt\u00f6st\u00e4",
-      "description": "Volkswagen poisti 18.8.2026 k\u00e4yt\u00f6st\u00e4 kirjautumisen, jota VW EU Two-Way (moderni CARIAD-taustaj\u00e4rjestelm\u00e4) -kanava k\u00e4ytti, joten sen 1 tunnin tunnistetta ei voi en\u00e4\u00e4 uusia ja kaksisuuntaiset komennot t\u00e4m\u00e4n kanavan kautta ovat lakanneet toimimasta. T\u00e4m\u00e4 on Volkswagenin puolella tehty muutos \u2014 mit\u00e4\u00e4n ei ole m\u00e4\u00e4ritetty v\u00e4\u00e4rin sinun puolellasi, eik\u00e4 tilisi ole vaarassa (virhe tapahtuu ennen kuin mit\u00e4\u00e4n salasanaa l\u00e4hetet\u00e4\u00e4n).\n\n**Live-lukemasi toimivat edelleen** EU Data Act -portaalin kautta, joten t\u00e4m\u00e4 ei vaikuta antureihisi.\n\n**Kaksisuuntaisiin komentoihin (lukitus/avaus, ilmastointi, lataus):** pysyv\u00e4 korvaaja klassisen Car-Net (MBB) -taustaj\u00e4rjestelm\u00e4n kautta \u2014 jota Volkswagen EI ole poistanut k\u00e4yt\u00f6st\u00e4 \u2014 on nyt betavaiheessa. Katso issue #584, miten se otetaan k\u00e4ytt\u00f6\u00f6n ja testataan.\n\nVoit poistaa nyt k\u00e4yt\u00f6st\u00e4 poistuneen kanavan milloin tahansa integraation asetuksista (VW EU Two-Way \u2192 poista). T\u00e4m\u00e4 viesti on vain tiedoksi; integraatio jatkaa toimintaansa lukukanavillasi.\n\n**Vinkki:** ota k\u00e4ytt\u00f6\u00f6n vain YKSI kaksisuuntainen integraatio kutakin autoa kohti kerrallaan. VW rajoittaa pyynt\u00f6tahtia ja voi tilap\u00e4isesti lukita tilin, jota useat sovellukset kuormittavat yht\u00e4 aikaa \u2014 kun n\u00e4in k\u00e4y, edes virallinen VW-sovellus ei pysty ohjaamaan autoa, mik\u00e4 on merkki tilin lukituksesta eik\u00e4 t\u00e4st\u00e4 integraatiosta."
+      "title": "VW EU Two-Way: Volkswagen poisti käytöstä",
+      "description": "Volkswagen poisti 18.8.2026 käytöstä kirjautumisen, jota VW EU Two-Way (moderni CARIAD-taustajärjestelmä) -kanava käytti, joten sen 1 tunnin tunnistetta ei voi enää uusia ja kaksisuuntaiset komennot tämän kanavan kautta ovat lakanneet toimimasta. Tämä on Volkswagenin puolella tehty muutos — mitään ei ole määritetty väärin sinun puolellasi, eikä tilisi ole vaarassa (virhe tapahtuu ennen kuin mitään salasanaa lähetetään).\n\n**Live-lukemasi toimivat edelleen** EU Data Act -portaalin kautta, joten tämä ei vaikuta antureihisi.\n\n**Kaksisuuntaisiin komentoihin (lukitus/avaus, ilmastointi, lataus):** pysyvä korvaaja klassisen Car-Net (MBB) -taustajärjestelmän kautta — jota Volkswagen EI ole poistanut käytöstä — on nyt betavaiheessa. Katso issue #584, miten se otetaan käyttöön ja testataan.\n\nVoit poistaa nyt käytöstä poistuneen kanavan milloin tahansa integraation asetuksista (VW EU Two-Way → poista). Tämä viesti on vain tiedoksi; integraatio jatkaa toimintaansa lukukanavillasi.\n\n**Vinkki:** ota käyttöön vain YKSI kaksisuuntainen integraatio kutakin autoa kohti kerrallaan. VW rajoittaa pyyntötahtia ja voi tilapäisesti lukita tilin, jota useat sovellukset kuormittavat yhtä aikaa — kun näin käy, edes virallinen VW-sovellus ei pysty ohjaamaan autoa, mikä on merkki tilin lukituksesta eikä tästä integraatiosta."
     },
     "two_factor_required": {
       "title": "Kaksivaiheinen todennus vaaditaan — {brand}",
