@@ -1730,7 +1730,12 @@ def map_dataset_to_vehicle_data(
             "charging", "chargingacactive", "chargingdcactive",
             "charginghvbattery", "active",
         )
-        d.charging_state = _shorten_enum(cs)
+        # #923-sweep — never publish the no-reading sentinel; is_charging above
+        # is derived from raw cs and is unaffected. Assign only a real value so a
+        # sentinel can't clobber a good reading from another channel.
+        _cs_clean = drop_charge_sentinel(_shorten_enum(cs))
+        if _cs_clean is not None:
+            d.charging_state = _cs_clean
 
     else:
         # v2.18.0 (#702) — the Touareg-era legacy export reports charging as a
@@ -2626,8 +2631,13 @@ def map_dataset_to_vehicle_data(
     # car that ships the flat dict-name key surfaced it unmapped. Add the dotted
     # alias FIRST (mirrors the charge_mode pattern above) so both the report-
     # shaped and bare-leaf spellings resolve onto the same existing entity.
-    _cscn = first("charging_state_report.charging_scenario",
-                  "charging_scenario", "chargingScenario")
+    # #923-sweep — drop the no-reading sentinel at the source so a bare/prefixed
+    # 'invalid' never reaches the sensor (and the _ACTIVE side-effect below stays
+    # correct: INVALID is idle by the dictionary's own semantics).
+    _cscn = drop_charge_sentinel(
+        first("charging_state_report.charging_scenario",
+              "charging_scenario", "chargingScenario")
+    )
     if _cscn is not None:
         d.charging_scenario = _shorten_enum(_cscn)
         # #632 (@gr6803, CUPRA) — this portal firmware ships charging_scenario but
@@ -2650,11 +2660,12 @@ def map_dataset_to_vehicle_data(
     if _icas is not None:
         d.immediate_charge_action_state = _shorten_enum(_icas)
 
-    _pcr = first(
+    # #923-sweep — sentinel-guard at the source (bare + prefixed 'invalid').
+    _pcr = drop_charge_sentinel(first(
         "profile_charge_reason", "charge_reason",
         # v2.26.0 (#978) — the container-qualified spelling the portal also ships.
         "charging_state_report.profile_charge_reason",
-    )
+    ))
     if _pcr is not None:
         d.profile_charge_reason = _shorten_enum(_pcr)
 
@@ -2753,7 +2764,7 @@ def map_dataset_to_vehicle_data(
 
     # ── v2.15.2 — EU Data Act portal "charger detail" fields (#513 Scout) ────
     # All additive, guarded, EU-Data-Act-dialect only.
-    _eps = first("external_power_supply_state")
+    _eps = drop_charge_sentinel(first("external_power_supply_state"))  # #923-sweep
     if _eps is not None:
         d.external_power_supply_state = _shorten_enum(_eps)
 
@@ -2838,7 +2849,8 @@ def map_dataset_to_vehicle_data(
     if _cbt is not None:
         d.charge_bulk_threshold_pct = _cbt
     # charge_rate_unit — LOW, disabled-by-default companion enum for the rate.
-    _cru = first("battery_state_report.charge_rate_unit", "charge_rate_unit")
+    _cru = drop_charge_sentinel(  # #923-sweep
+        first("battery_state_report.charge_rate_unit", "charge_rate_unit"))
     if _cru is not None:
         d.charge_rate_unit = _shorten_enum(_cru)
 
@@ -3246,14 +3258,14 @@ def map_dataset_to_vehicle_data(
     # start_stop_action — dict type=string, "Indicates the action related to
     # charging". No dict-listed enum values → no confirmed prefix; _shorten_enum
     # passes unprefixed values through unchanged (so it is safe to apply).
-    _ssa = first("start_stop_action")
+    _ssa = drop_charge_sentinel(first("start_stop_action"))  # #923-sweep
     if _ssa is not None and d.start_stop_action is None:
         d.start_stop_action = _shorten_enum(_ssa)
 
     # start_stop_modification — dict type=string, "Contains the detail related
     # to start stop modification". Distinct field from start_stop_action; no
     # dict-listed enum → _shorten_enum passes unprefixed values through.
-    _ssm = first("start_stop_modification")
+    _ssm = drop_charge_sentinel(first("start_stop_modification"))  # #923-sweep
     if _ssm is not None and d.start_stop_modification is None:
         d.start_stop_modification = _shorten_enum(_ssm)
 

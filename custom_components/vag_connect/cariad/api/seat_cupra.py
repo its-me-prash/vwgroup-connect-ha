@@ -759,7 +759,8 @@ class SeatCupraClient(CariadBaseClient):
             # ``mycar.services.charging.preferredChargeMode``. Known
             # enum values: "manual", "preferredChargingTimes",
             # "automaticUnlocked". Empty string means unset.
-            pref_mode = v(mycar, "services", "charging", "preferredChargeMode")
+            pref_mode = drop_charge_sentinel(  # #923-sweep
+                v(mycar, "services", "charging", "preferredChargeMode"))
             if isinstance(pref_mode, str) and pref_mode.strip():
                 d.charging_preferred_mode = pref_mode
 

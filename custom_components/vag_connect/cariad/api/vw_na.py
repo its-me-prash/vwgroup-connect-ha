@@ -17,7 +17,7 @@ from typing import Any
 
 from aiohttp import ClientConnectionError, ClientSession
 
-from .._util import drop_odometer_sentinel, first_not_none
+from .._util import drop_charge_sentinel, drop_odometer_sentinel, first_not_none
 from .._util import mask_vin as _mask_vin
 from .._util import safe_float, safe_int
 from ..models import VehicleData
@@ -1333,7 +1333,7 @@ class VWNAClient:
             #   currentChargeState (NOT chargingState)
             #   chargePower (NOT chargePower_kW)
             #   chargeSettings.targetSOCPercentage (NOT chargingSettings.targetSOC_pct)
-            d.charging_state    = (
+            d.charging_state    = drop_charge_sentinel(  # #923-sweep
                 v(charge, "chargingStatus", "currentChargeState")
                 or v(charge, "chargingStatus", "chargingState")
             )

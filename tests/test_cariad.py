@@ -710,13 +710,17 @@ class TestVWEUStatusParsing:
         when climatisation can't start — e.g. low battery). It must read as
         inactive: the old check only caught OFF /
         CLIMATISATION_STATUS_UNAVAILABLE, so "invalid" was a false-positive on.
+
+        #923-sweep: the raw sentinel is now also dropped at the source, so the
+        state sensor reads unavailable (None) instead of the literal 'invalid',
+        while the inactive result the #442 fix guarantees is unchanged.
         """
         import copy
         payload = copy.deepcopy(self._ev_payload())
         payload["climatisation"]["climatisationStatus"]["value"][
             "climatisationState"] = "invalid"
         result = self._client()._parse_status("VIN1", payload, {})
-        assert result.climatisation_state == "invalid"
+        assert result.climatisation_state is None
         assert result.climatisation_active is False
 
     def test_climatisation_active_state_still_on(self):

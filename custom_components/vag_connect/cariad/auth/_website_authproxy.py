@@ -50,7 +50,7 @@ from urllib.parse import parse_qs, urlparse
 from aiohttp import ClientError, ClientSession, ClientTimeout, TooManyRedirects
 
 from ..._canaries import CANARY_WEBSITE_AUTHPROXY
-from .._util import drop_odometer_sentinel
+from .._util import drop_charge_sentinel, drop_odometer_sentinel
 from ..exceptions import AuthenticationError
 from ..models import VehicleData
 from ._eu_data_act import _login_fields, _login_error, _resolve_action, _TC_MARKERS
@@ -230,7 +230,7 @@ def map_charging_to_vehicle_data(payload: Any, d: VehicleData) -> VehicleData:
     if btemp is not None:
         d.battery_temp_c = btemp
 
-    state = charging.get("chargingState")
+    state = drop_charge_sentinel(charging.get("chargingState"))  # #923-sweep
     if isinstance(state, str) and state:
         d.charging_state = state
         d.is_charging = state.lower() in ("charging", "chargepurposereachedandconservation")

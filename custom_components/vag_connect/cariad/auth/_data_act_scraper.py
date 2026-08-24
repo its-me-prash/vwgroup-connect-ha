@@ -86,7 +86,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from aiohttp import ClientSession
 
-from .._util import drop_odometer_sentinel
+from .._util import drop_charge_sentinel, drop_odometer_sentinel
 from ..models import VehicleData
 
 _LOGGER = logging.getLogger(__name__)
@@ -736,7 +736,9 @@ class DataActScraper:
                 _nested(charging, "chargingStatus", "value", "chargingState"),
             )
             if state is not None:
-                out.charging_state = state
+                _cs = drop_charge_sentinel(state)  # #923-sweep
+                if _cs is not None:
+                    out.charging_state = _cs
 
         # Measurements block - odometer, range, fuel.
         measurements = _safe_dict(parsed.get("measurements"))
