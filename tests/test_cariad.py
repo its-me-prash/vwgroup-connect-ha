@@ -39,6 +39,8 @@ class TestModels:
             "bentley",
             # v2.19.0 — Audi US/CA (CARIAD-BFF NA login foundation).
             "audi_na",
+            # plug&play OBD-dongle cloud reader (Audi acpp; read-only silo).
+            "audi_acpp",
         }
 
     def test_brand_vw_client_id(self):

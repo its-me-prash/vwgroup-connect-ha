@@ -314,6 +314,20 @@ DECLARED_CAPABILITIES: dict[str, dict[str, bool]] = {
         "fcm_push": True,
         "dag_login": False,
     },
+    "audi_acpp": {
+        # plug&play OBD-dongle cloud reader — a read-only snapshot silo (its
+        # token is not BFF/DAG-whitelisted, there is no command backend and no
+        # push). It declares nothing: every capability is False so diagnostics
+        # never imply a command it can't do.
+        "auxiliary_heating": False,
+        "charging": False,
+        "climatisation": False,
+        "trip_statistics": False,
+        "brake_service": False,
+        "ola_push": False,
+        "fcm_push": False,
+        "dag_login": False,
+    },
     "volkswagen": {
         "auxiliary_heating": True,
         "charging": True,

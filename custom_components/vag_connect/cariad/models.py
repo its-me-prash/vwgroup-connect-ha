@@ -336,6 +336,10 @@ BRANDS: dict[str, BrandConfig] = {
     "porsche":       BRAND_PORSCHE,
     # v2.14.11 — Bentley wired (login+read; runs on the Audi IDK client/tenant).
     "bentley":       BRAND_BENTLEY,
+    # plug&play OBD-dongle cloud reader (Audi acpp) — read-only, its own silo
+    # (token is NOT BFF-whitelisted). For pre-connectivity Audi cars paired with
+    # a TEXA dongle, the only cloud read path. Live-validated on a real A5 B8.
+    "audi_acpp":     BRAND_AUDI_ACPP,
 }
 
 
