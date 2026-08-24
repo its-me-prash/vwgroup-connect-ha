@@ -42,6 +42,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **The Vehicle Data Scout no longer re-flags a climatisation-timer field it already reads (#1237).** On some Audis the singular `automation.climatisationTimer.requests` queue counter kept surfacing as a "new field" even though its value is already parsed into the climatisation-timers sensor — a silencer-registry gap, not a missing feature. Thanks @arcticMariner.
+
 ## [4.3.0b1] - 2026-08-24 — Audi plug&play (OBD dongle), beta
 
 ### Added
