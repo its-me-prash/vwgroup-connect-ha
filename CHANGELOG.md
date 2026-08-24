@@ -47,6 +47,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Fixed
 - **Empty fields in a diagnostics download no longer masquerade as redacted data (#923).** Privacy-masked fields — position, parking address and the like — were printed as `**REDACTED**` even when they were actually empty, so "the car never reported a position" looked identical to "position is present but hidden". That quietly sent triage down the wrong path. Empty values now stay visibly empty and only real values are masked, so the `field_sources` list stays the honest signal for what a channel actually populated. Thanks @naked-head for the precise diagnosis.
+- **Two more charging fields no longer show the raw `invalid` / `unsupported` placeholder (#923).** On cars that don't expose them (MQB-schema residue), the charging *reason* surfaced a literal `invalid` and the target-SoC remaining-time surfaced `unsupported`, instead of reading unavailable. Both now drop the no-reading sentinel the same way the charge-type field already does. Thanks @naked-head.
 
 ## [4.2.0] - 2026-08-23 — VW render photos, consistent full model names across brands & self-diagnosing "no data" downloads
 

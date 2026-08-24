@@ -2761,9 +2761,15 @@ def map_dataset_to_vehicle_data(
     if _eflow is not None:
         d.energy_flow_active = str(_eflow).lower() in ("on", "true", "1", "active")
 
-    _creason = first("charging_reason_trigger")
+    # #923 (@naked-head) — the portal ships a bare 'invalid' here on cars that
+    # don't expose a charging reason (MQB-schema residue), the same junk the
+    # charge_type path already drops. Screen it before AND after the enum
+    # shortening, since it can also arrive prefixed (CHARGING_REASON_INVALID).
+    _creason = drop_charge_sentinel(first("charging_reason_trigger"))
     if _creason is not None:
-        d.charging_reason = _shorten_enum(_creason)
+        _creason_short = drop_charge_sentinel(_shorten_enum(_creason))
+        if _creason_short is not None:
+            d.charging_reason = _creason_short
 
     # charging_state_error_code — "0"/"0.0"/"#0" are the "no error" sentinels → None.
     # v2.15.3: normalise numerically so a float-typed "0.0" is also dropped.
@@ -2777,7 +2783,10 @@ def map_dataset_to_vehicle_data(
         if _cerrs and _cerrs != "#0" and _cerrn != 0:
             d.charging_error_code = _cerrs
 
-    _rtts = first("remaining_charging_time_target_soc")
+    # #923 — 'unsupported' is a no-reading sentinel here (a real value is a
+    # minutes count); drop it so the target-SoC time sensor reads unavailable
+    # rather than the literal word. Non-string values pass through untouched.
+    _rtts = drop_charge_sentinel(first("remaining_charging_time_target_soc"))
     if _rtts is not None:
         d.remaining_time_target_soc = _rtts
 
