@@ -3165,6 +3165,22 @@ class VWEUClient(CariadBaseClient):
         meta = getattr(self, "_vehicle_metadata", {}).get(vin, {})
         if meta.get("model"):
             d.model = meta["model"]
+        # The REST vehicles-list often carries NO model name (e.g. an Audi S6
+        # returns an empty ``model``, so the device fell back to "Audi (2021)").
+        # The vgql media block we already fetch for render images also carries
+        # the proper localized designation — media.longName ("S6 Avant TDI") —
+        # plus the exterior colour. Surface those, and fall back the model to the
+        # media long/short name when the REST list gave nothing.
+        img = getattr(self, "_image_data", {}).get(vin)
+        if img is not None:
+            if img.short_name and not d.media_short_name:
+                d.media_short_name = img.short_name
+            if img.long_name and not d.media_long_name:
+                d.media_long_name = img.long_name
+            if not d.model and (img.long_name or img.short_name):
+                d.model = img.long_name or img.short_name
+            if img.exterior_color and not d.exterior_color:
+                d.exterior_color = img.exterior_color
         # v1.10.1 (#58) — safe_int. The model_year metadata sometimes
         # arrives as a 4-digit string and sometimes as int depending on
         # how the auth flow normalised the user profile JSON.
