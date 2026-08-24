@@ -608,6 +608,55 @@ class VWEUClient(CariadBaseClient):
                 return v[: int(max_results)]
         return []
 
+    async def _fetch_trip_statistics(
+        self, vin: str, base: str
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        """Fetch shortTerm/longTerm/cyclic trip statistics, throttled + cached.
+
+        Trip stats change per-ignition at most, and for the vast majority of
+        cars post-lockdown the CARIAD-BFF ``tripstatistics`` endpoint is dead
+        (404). Firing all three query types on EVERY poll (3 GETs) only spammed
+        404s and polluted the parser-health telemetry. So we fetch at most once
+        per hour per VIN and cache the raw responses, then reuse them on the
+        polls in between — the downstream parse still runs every poll, so the
+        trip fields never flicker to empty between fetches. (coordinator's
+        ``refresh_trip_statistics`` does the guarded shortTerm+longTerm refresh
+        for the sensor values; this keeps get_status()'s own parse cheap+quiet.)
+
+        Best-effort throughout: any failure yields empty dicts so the parsers
+        leave the trip fields at their dataclass defaults and never break a poll.
+        """
+        if not hasattr(self, "_trip_stats_raw_cache"):
+            self._trip_stats_raw_cache: dict[
+                str, tuple[datetime, dict[str, Any], dict[str, Any], dict[str, Any]]
+            ] = {}
+        cached = self._trip_stats_raw_cache.get(vin)
+        now = datetime.now(tz=timezone.utc)
+        if cached is not None and (now - cached[0]) < timedelta(hours=1):
+            return cached[1], cached[2], cached[3]
+
+        trip_short: dict[str, Any] = {}
+        trip_long: dict[str, Any] = {}
+        trip_refuel: dict[str, Any] = {}
+        url = f"{base}/vehicle/v1/vehicles/{vin}/tripstatistics"
+        try:
+            with self._parser_job("trip_statistics"):
+                trip_short = await self._get(url, params={"type": "shortTerm"})
+                trip_long = await self._get(url, params={"type": "longTerm"})
+                # v2.10.0 — "cyclic" = since-refuel / since-recharge aggregator
+                # (an Energy-Dashboard building block). Newer-firmware capability;
+                # some pre-2024 vehicles 404 it, so treat a miss as a soft-fail.
+                try:
+                    trip_refuel = await self._get(url, params={"type": "cyclic"})
+                except Exception:  # noqa: BLE001
+                    pass
+        except Exception:  # noqa: BLE001
+            pass
+        # Cache whatever we got — including empties on a dead endpoint, so a 404
+        # host is not re-hit every poll for the next hour.
+        self._trip_stats_raw_cache[vin] = (now, trip_short, trip_long, trip_refuel)
+        return trip_short, trip_long, trip_refuel
+
     async def get_status(self, vin: str) -> VehicleData:
         """Fetch full vehicle status via selectivestatus."""
         # v2.14.0 — OPT-IN website-authproxy mode (read-only beta). Routed
@@ -682,43 +731,13 @@ class VWEUClient(CariadBaseClient):
             # attempt+failure instead of a silent gap.
             _LOGGER.debug("parkingposition fetch failed for %s: %s", vin[-6:], exc)
 
-        # v2.7.0b11 — Trip statistics (separate endpoint, two query
-        # types). Lifetime and last-trip stats live here, NOT in
-        # selectivestatus. Best-effort: any failure leaves the trip
-        # fields at their dataclass defaults so older firmwares /
-        # capability-gated vehicles don't crash the whole poll.
-        trip_short: dict[str, Any] = {}
-        trip_long: dict[str, Any] = {}
-        trip_refuel: dict[str, Any] = {}
-        try:
-            with self._parser_job("trip_statistics"):
-                trip_short = await self._get(
-                    f"{base}/vehicle/v1/vehicles/{vin}/tripstatistics",
-                    params={"type": "shortTerm"},
-                )
-                trip_long = await self._get(
-                    f"{base}/vehicle/v1/vehicles/{vin}/tripstatistics",
-                    params={"type": "longTerm"},
-                )
-                # v2.10.0 - "cyclic" category = since-refuel / since-recharge
-                # aggregator. CARIAD BFF exposes this alongside shortTerm
-                # and longTerm at the same endpoint. Pattern observed in
-                # volkswagencarnet's TRIP_REFUEL service constant and
-                # mirrored here with our own parser. Energy-Dashboard-
-                # friendly: total-consumption-per-tank/charge is a missing
-                # building block in the HA VAG ecosystem today.
-                try:
-                    trip_refuel = await self._get(
-                        f"{base}/vehicle/v1/vehicles/{vin}/tripstatistics",
-                        params={"type": "cyclic"},
-                    )
-                except Exception:  # noqa: BLE001
-                    # cyclic is a newer firmware capability; some pre-2024
-                    # vehicles 404 it. Treat as soft-fail to keep the rest
-                    # of the parse working unchanged.
-                    pass
-        except Exception:  # noqa: BLE001
-            pass
+        # v2.7.0b11 — Trip statistics (separate endpoint, shortTerm/longTerm/
+        # cyclic). Lifetime and last-trip stats live here, NOT in
+        # selectivestatus. Throttled + cached once per hour per VIN so a dead
+        # (404) endpoint is not hit on every poll — see _fetch_trip_statistics.
+        trip_short, trip_long, trip_refuel = await self._fetch_trip_statistics(
+            vin, base
+        )
 
         # 4.0.x — battery State-of-Health. We Connect 4.3.2 reads it via the BFF
         # sub-job ``selectivestatus?jobs=batteryHealthState`` (RE 2026-08-12), NOT
@@ -3152,7 +3171,10 @@ class VWEUClient(CariadBaseClient):
         d.model_year = safe_int(meta.get("model_year"), default=d.model_year)
 
         # ── Charging ──────────────────────────────────────────────────────────
-        d.charging_state = v(raw, "charging", "chargingStatus", "value", "chargingState")
+        # #923-sweep — drop the no-reading sentinel so 'invalid' never reaches the
+        # sensor; is_charging below then correctly stays unknown (isinstance(None)).
+        d.charging_state = drop_charge_sentinel(
+            v(raw, "charging", "chargingStatus", "value", "chargingState"))
         # v2.0.1 (#131 follow-up) — defensive: keep is_charging None
         # when charging_state is missing (preserves "unknown" semantics).
         if isinstance(d.charging_state, str):
@@ -3160,7 +3182,8 @@ class VWEUClient(CariadBaseClient):
         # The charging_scenario sensor exists and the EU-DA portal populates it,
         # but the BFF path never read chargingScenario — so it was permanently dark
         # on every BFF-primary car (Audi EU, audi_na, VW-EU-BFF). Read it here.
-        _scenario = v(raw, "charging", "chargingStatus", "value", "chargingScenario")
+        _scenario = drop_charge_sentinel(  # #923-sweep
+            v(raw, "charging", "chargingStatus", "value", "chargingScenario"))
         if isinstance(_scenario, str) and _scenario:
             d.charging_scenario = _scenario.strip().upper()
         d.charging_power_kw = v(raw, "charging", "chargingStatus", "value", "chargePower_kW")
@@ -3198,6 +3221,7 @@ class VWEUClient(CariadBaseClient):
             or v(raw, "charging", "plugStatus", "value", "plugLedColor")
             or v(raw, "charging", "chargingStatus", "value", "plugLedColor")
         )
+        led_color = drop_charge_sentinel(led_color)  # #923-sweep — 'invalid' → None
         if isinstance(led_color, str) and led_color:
             d.plug_led_color = led_color
 
@@ -3371,6 +3395,7 @@ class VWEUClient(CariadBaseClient):
                 raw, "chargingProfiles", "chargingProfilesStatus", "value",
                 "nextChargingTimer", "targetSOCreachable",
             )
+        nct_target = drop_charge_sentinel(nct_target)  # #923-sweep — 'invalid' → None
         if isinstance(nct_target, str) and nct_target:
             d.next_charging_timer_target_soc_reachable = nct_target
 
@@ -3423,7 +3448,8 @@ class VWEUClient(CariadBaseClient):
         # real backend additions (independent of the auth crisis). Values
         # observed: "manual", "timer", "preferredChargingTimes",
         # "timerChargingWithClimatisation".
-        preferred = v(raw, "charging", "chargeMode", "value", "preferredChargeMode")
+        preferred = drop_charge_sentinel(  # #923-sweep
+            v(raw, "charging", "chargeMode", "value", "preferredChargeMode"))
         if isinstance(preferred, str) and preferred:
             d.charging_preferred_mode = preferred
         available = v(raw, "charging", "chargeMode", "value", "availableChargeModes")
@@ -4077,7 +4103,11 @@ class VWEUClient(CariadBaseClient):
             d.windows_open = False
 
         # ── Climatisation ─────────────────────────────────────────────────────
-        d.climatisation_state = v(raw, "climatisation", "climatisationStatus", "value", "climatisationState")
+        # #923-sweep — drop the no-reading sentinel ('invalid'/unavailable) so it
+        # never reaches the sensor; the active-derivation below (None → False)
+        # stays correct and the #442 case-normalisation is now belt-and-suspenders.
+        d.climatisation_state = drop_charge_sentinel(
+            v(raw, "climatisation", "climatisationStatus", "value", "climatisationState"))
         # v2.15.0a9 — #442 (nekas123, Audi e-tron): the car can report
         # ``climatisationState = "invalid"`` (a degraded/no-data sentinel — seen
         # when climatisation can't start, e.g. at a low battery level). The old
