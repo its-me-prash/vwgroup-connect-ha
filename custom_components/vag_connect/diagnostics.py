@@ -103,6 +103,18 @@ _REDACT_KEYS = frozenset({
     CONF_VWEU_TWOWAY_COOKIES,
 })
 
+
+def _is_empty_value(v: Any) -> bool:
+    """#923 — True for a value that carries no information worth masking.
+
+    Redacting an empty field to ``**REDACTED**`` hides the fact that it was
+    empty, so a reporter can't distinguish "no data" from "present but hidden".
+    We treat ``None``, empty string and empty container as empty; ``0``/``False``
+    are real values and are left to the normal redaction path.
+    """
+    return v is None or v == "" or v == [] or v == {}
+
+
 # v1.13.0 (#62) — email partial-mask. Keeps domain TLD shape (e.g.
 # ``.com``/``.de``) for debug context but redacts the local-part and
 # domain name.
@@ -257,7 +269,13 @@ def _scrub(value: Any, *, gps_round: bool = False) -> Any:
                 # without leaking the real ID. Pattern from myskoda.
                 scrubbed[sk] = f"sha256:{_stable_hash(v)}" if v else "**REDACTED**"
             elif k in _REDACT_KEYS:
-                scrubbed[sk] = "**REDACTED**"
+                # #923 (@naked-head) — only mask when there is actually a value
+                # to hide. Masking an empty field as "**REDACTED**" makes it
+                # indistinguishable from a redacted *real* value, which misleads
+                # triage: a reporter (or I) cannot tell "no position / no address"
+                # from "present but hidden". Preserve empties so the diagnostic
+                # stays truthful; ``field_sources`` then remains the honest signal.
+                scrubbed[sk] = "**REDACTED**" if not _is_empty_value(v) else v
             elif k == "email" and isinstance(v, str):
                 # Partial mask preserves debug context.
                 scrubbed[sk] = _mask_email(v)
@@ -265,7 +283,11 @@ def _scrub(value: Any, *, gps_round: bool = False) -> Any:
                 # Privacy-by-default: full removal. Opt-in 1-decimal
                 # rounding when user already opted into reverse-geocoding
                 # (signals comfort with GPS processing).
-                if gps_round and isinstance(v, (int, float)):
+                # #923 — an empty coordinate stays visibly empty, never a fake
+                # redaction (see the _REDACT_KEYS note above).
+                if _is_empty_value(v):
+                    scrubbed[sk] = v
+                elif gps_round and isinstance(v, (int, float)):
                     scrubbed[sk] = round(float(v), 1)
                 else:
                     scrubbed[sk] = "**REDACTED**"
