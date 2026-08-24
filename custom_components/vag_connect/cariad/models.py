@@ -70,6 +70,37 @@ BRAND_VW_EU = BrandConfig(
     android_package_name="de.volkswagen.weconnect",
 )
 
+# ── DataPlug / plug&play cloud (OBD-dongle cars WITHOUT built-in connectivity) ──
+# A separate read source served by api/plugandplay.py. Reaches OLD dongle-equipped
+# cars that the BFF + EU-Data-Act portal do not serve. Auth is plain
+# authorization_code+PKCE exchanged at the plug&play backend's OWN /token endpoint
+# (no Play-Integrity/x-qmauth). ``name`` is deliberately NOT 'audi'/'volkswagen' so
+# IDKAuth._exchange_code() takes the plain-OAuth branch. See
+# docs/research/plugandplay_cloud_reader.md.
+#
+# Audi (acpp): LIVE-VALIDATED 2026-08-24 against an enrolled A5 B8.
+BRAND_AUDI_ACPP = BrandConfig(
+    name="audi_acpp",
+    client_id="ec6198b1-b31e-41ec-9a69-95d42d6497ed@apps_vw-dilab_com",
+    redirect_uri="acpp://de.audi.connectplugandplay/oauth2redirect/identitykit",
+    user_agent="Audi-connect-plug-and-play/3.6.4-android",
+    api_base="https://prod.acpp.cariad.digital",
+    # 'openid email profile' ONLY — adding 'https://audiid.vwgroup.io/account'
+    # (also present in the APK) makes /authorize return consent_required.
+    scope="openid email profile",
+    android_package_name="de.audi.connectplugandplay",
+)
+# VW (wcg): TESTER-GATED — legacy signin-service login not wired (see WCGCloudClient).
+BRAND_VW_WCG = BrandConfig(
+    name="vw_wcg",
+    client_id="ac42b0fa-3b11-48a0-a941-43a399e7ef84@apps_vw-dilab_com",
+    redirect_uri="vwconnect://de.volkswagen.vwconnect/oauth2redirect/identitykit",
+    user_agent="WeConnect-Go/2.28.5-android",
+    api_base="https://prod.wcg.cariad.digital",
+    scope="openid profile address email phone",
+    android_package_name="de.volkswagen.vwconnect",
+)
+
 # b13 (RE dismantle 2026-06) — known-good FALLBACK OAuth client_ids harvested
 # from the current brand APKs. Each app ships more dilab clients than we model;
 # if VW ever blocklists a primary client_id, a user can set one of these via the
