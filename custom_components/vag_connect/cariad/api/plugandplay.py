@@ -139,6 +139,27 @@ class PlugAndPlayCloudClient:
                 _LOGGER.debug("plug&play sub-resource %s failed: %s", sub, exc)
         return snap
 
+    async def get_vehicles(self) -> list[str]:
+        """Return the VINs enrolled in this account (the coordinator's entry point).
+
+        acpp exposes no per-user ``user/…`` garage resource (all data endpoints
+        are VIN-addressed). The enrolled cars are listed by ``GET /vehicles``
+        — grounded live against a real account, 2026-08-24 — which returns an
+        array of the same snapshot shape as ``vehicle/{vin}``. We take just the
+        VINs; the coordinator then calls :meth:`get_status` per car.
+        """
+        status, body = await self._get("vehicles")
+        if status != 200 or not isinstance(body, list):
+            return []
+        vins: list[str] = []
+        for entry in body:
+            if not isinstance(entry, dict):
+                continue
+            vin = (entry.get("vehicle") or {}).get("vin")
+            if isinstance(vin, str) and vin:
+                vins.append(vin)
+        return vins
+
     async def get_status(self, vin: str) -> VehicleData:
         """Map the acpp snapshot onto :class:`VehicleData` (fields acpp actually provides).
 
@@ -166,6 +187,26 @@ class PlugAndPlayCloudClient:
         my = _vin_model_year(vin)
         if my is not None:
             data.model_year = my
+
+        # 12V battery voltage — the dongle reads the OBD 12V rail on sync
+        # (observed 11.76 on the B8). A real reading is a positive float; a
+        # missing/zero value means the dongle had no sample.
+        bv = veh.get("batteryVoltage")
+        if isinstance(bv, (int, float)) and not isinstance(bv, bool) and bv > 0:
+            data.voltage_12v = float(bv)
+
+        # Last parking position the dongle uploaded. Some dongles report 0/0
+        # ("null island") when they never got a fix — treat that as no position
+        # so the device tracker stays unknown instead of pinning to the Atlantic.
+        gps = (snap.get("last_parking_position") or {}).get("gpsLocation") or {}
+        lat, lon = gps.get("latitude"), gps.get("longitude")
+        if (
+            isinstance(lat, (int, float)) and not isinstance(lat, bool)
+            and isinstance(lon, (int, float)) and not isinstance(lon, bool)
+            and (lat, lon) != (0, 0)
+        ):
+            data.latitude = float(lat)
+            data.longitude = float(lon)
         return data
 
 

@@ -15,6 +15,7 @@ from .porsche import PorscheClient
 from .vw_na import VWNAClient
 from .audi_na import AudiNAClient
 from .bentley import BentleyClient
+from .plugandplay import PlugAndPlayCloudClient
 
 
 class CariadClientFactory:
@@ -30,7 +31,7 @@ class CariadClientFactory:
         country: str = "us",
         ola_app_version_override: str | None = None,
         ola_user_agent_override: str | None = None,
-    ) -> CariadBaseClient | PorscheClient | VWNAClient:
+    ) -> CariadBaseClient | PorscheClient | VWNAClient | PlugAndPlayCloudClient:
         """Return an authenticated-ready client for the given brand.
 
         Supported brands:
@@ -75,6 +76,14 @@ class CariadClientFactory:
             # v2.14.11 — Bentley on the Audi IDK client/tenant; read-only
             # until the qmauth two-way gates include "bentley" (live-test).
             return BentleyClient(session, email, password, spin)
+        if lower == "audi_acpp":
+            # plug&play OBD-dongle cloud reader (Audi acpp). Read-only and its
+            # own silo (token is NOT BFF-whitelisted). Takes a BrandConfig, not a
+            # brand string, so IDKAuth uses the plain-OAuth (no x-qmauth) branch.
+            from ..models import BRAND_AUDI_ACPP
+            return PlugAndPlayCloudClient(
+                session, BRAND_AUDI_ACPP, email, password, spin
+            )
         raise ValueError(
             f"Unknown brand '{brand}'. Supported: "
             "volkswagen, audi, skoda, seat, cupra, volkswagen_na, audi_na, "

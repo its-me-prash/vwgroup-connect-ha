@@ -293,6 +293,7 @@ BRANDS = {
     "volkswagen_na":  "Volkswagen US/CA",
     "audi_na":        "Audi US/CA",
     "porsche":        "Porsche (My Porsche)",
+    "audi_acpp":      "Audi plug&play (OBD dongle)",
 }
 
 # v2.8.0 quick-win B — native-app deeplink schemes per brand. Used by
@@ -324,6 +325,7 @@ DEEPLINK_SCHEMES: dict[str, str] = {
     "porsche":       "porsche-app://",     # DEX: Porsche One 12.24.27 (was myporsche://)
     "volkswagen_na": "myvw://",            # DEX: myVW 2026.5.27 (was vwapp://)
     "audi_na":       "myaudi://",          # US Audi = same global myAudi app
+    "audi_acpp":     "acpp://",            # Audi connect plug&play (de.audi.connectplugandplay)
 }
 
 # Polling interval limits

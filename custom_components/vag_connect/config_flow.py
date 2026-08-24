@@ -96,6 +96,8 @@ _BRAND_OPTIONS: list[SelectOptionDict] = [
     SelectOptionDict(value="porsche",       label="Porsche (My Porsche) — experimental, login may fail"),
     # v2.14.11 — Bentley (login+read; Audi IDK tenant). Two-way live-test gated.
     SelectOptionDict(value="bentley",       label="Bentley (My Bentley)"),
+    # plug&play OBD-dongle cloud reader for pre-connectivity Audi cars (read-only).
+    SelectOptionDict(value="audi_acpp",     label="Audi plug&play — OBD dongle (older cars)"),
 ]
 
 _BRAND_SELECTOR = SelectSelector(

@@ -88,3 +88,77 @@ async def test_wcg_login_is_tester_gated():
     assert c.API_BASE == "https://prod.wcg.cariad.digital"
     with pytest.raises(NotImplementedError):
         await c.authenticate()
+
+
+# ── get_vehicles — grounded GET /vehicles (no per-user garage resource) ───────
+
+async def test_get_vehicles_parses_the_list():
+    c = _client()
+    _stub_get(c, {
+        "vehicles": (200, [
+            {"vehicle": {"id": 1, "vin": VIN_2009, "carPlatform": "KWP2000"}, "odometer": 100},
+            {"vehicle": {"id": 2, "vin": VIN_2020}},
+        ]),
+    })
+    assert await c.get_vehicles() == [VIN_2009, VIN_2020]
+
+
+async def test_get_vehicles_empty_on_unexpected_shape():
+    c = _client()
+    _stub_get(c, {"vehicles": (200, {"message": "not a list"})})
+    assert await c.get_vehicles() == []
+
+
+async def test_get_vehicles_empty_on_error():
+    c = _client()
+    _stub_get(c, {"vehicles": (503, "upstream down")})
+    assert await c.get_vehicles() == []
+
+
+# ── get_status: 12V battery + last-parking GPS ───────────────────────────────
+
+async def test_get_status_maps_12v_and_parking_gps():
+    c = _client()
+    _stub_get(c, {
+        f"vehicle/{VIN_2020}": (200, {
+            "vehicle": {"vin": VIN_2020}, "odometer": 1000, "batteryVoltage": 12.4}),
+        f"vehicle/{VIN_2020}/warning-lights": (200, {"warningLights": []}),
+        f"vehicle/{VIN_2020}/last-parking-position": (
+            200, {"gpsLocation": {"latitude": 48.137, "longitude": 11.575}}),
+    })
+    data = await c.get_status(VIN_2020)
+    assert data.voltage_12v == 12.4
+    assert data.latitude == 48.137
+    assert data.longitude == 11.575
+
+
+async def test_get_status_zero_voltage_and_null_island_ignored():
+    c = _client()
+    _stub_get(c, {
+        f"vehicle/{VIN_2020}": (200, {"vehicle": {"vin": VIN_2020}, "batteryVoltage": 0}),
+        f"vehicle/{VIN_2020}/warning-lights": (200, {"warningLights": []}),
+        f"vehicle/{VIN_2020}/last-parking-position": (
+            200, {"gpsLocation": {"latitude": 0, "longitude": 0}}),
+    })
+    data = await c.get_status(VIN_2020)
+    assert data.voltage_12v is None     # a zero reading = no dongle sample
+    assert data.latitude is None        # 0/0 = "null island" = no GPS fix
+    assert data.longitude is None
+
+
+# ── integration wiring: factory + brand registration ─────────────────────────
+
+def test_factory_creates_acpp_client():
+    from custom_components.vag_connect.cariad.api.factory import CariadClientFactory
+    client = CariadClientFactory.create("audi_acpp", MagicMock(), "u@e.com", "pw")
+    assert isinstance(client, PlugAndPlayCloudClient)
+    assert client._brand.name == "audi_acpp"
+
+
+def test_audi_acpp_registered_across_wiring():
+    from custom_components.vag_connect.const import BRANDS as CONST_BRANDS
+    from custom_components.vag_connect.cariad.models import BRANDS as MODEL_BRANDS
+    from custom_components.vag_connect.config_flow import _BRAND_OPTIONS
+    assert "audi_acpp" in CONST_BRANDS
+    assert "audi_acpp" in MODEL_BRANDS
+    assert any(o["value"] == "audi_acpp" for o in _BRAND_OPTIONS)
