@@ -46,6 +46,35 @@ _SKIP_FIELDS = frozenset(
      "has_combustion", "is_electric", "is_hybrid"}
 )
 
+# The EU Data Act portal's continuous feed is a ~15-minute BATCH export that
+# ships frozen stop-charging blocks (a snapshot from the last charge, re-sent —
+# sometimes re-stamped with a fresh capture time). Every other channel (vw.de
+# web, the CARIAD BFF, MBB, SEAT/CUPRA OLA, the brand-native reads) is a LIVE
+# read. For live telemetry — SoC, charging, plug, range, climate — a live
+# channel's reading must therefore always beat the batch feed's, regardless of
+# which channel is configured as primary; otherwise a stale batch value wins the
+# gap-fill and the reading jumps backwards mid-charge (Ra72xx, #1195-family).
+# This mirrors a competing integration's portal-supersedes-EU-DA dedup, but is
+# brand-agnostic (keyed on channel + field, never on brand).
+_BATCH_SOURCES = frozenset({"eu_data_act"})
+
+_LIVE_TELEMETRY = frozenset({
+    # battery / SoC / range
+    "battery_soc", "target_soc", "electric_range_km",
+    # charging live state
+    "charging_state", "is_charging", "charging_scenario", "charging_reason",
+    "charging_preferred_mode",
+    # charge power / rate / time / energy
+    "charging_power_kw", "charging_rate_kmh", "actual_charge_rate_kw",
+    "charge_complete_eta", "remaining_time_target_soc", "charge_session_energy_kwh",
+    # plug / connector
+    "plug_state", "plug_connected", "connector_locked",
+    # power flow
+    "external_power_supply_state", "energy_flow_active",
+    # climate live state
+    "climatisation_state", "climatisation_active",
+})
+
 
 def merge_channels(
     sources: list[tuple[str, "VehicleData"]],
@@ -104,6 +133,26 @@ def merge_channels(
                     contributors.add(name)
                     # This channel filled the gap, so it owns the reading.
                     field_sources[f.name] = name
+
+    # Live-telemetry supersede: a stale EU-DA batch value must never outrank a
+    # live channel's reading. For every live-telemetry field the batch feed
+    # currently owns, hand it to the highest-priority live channel that actually
+    # has a reading. No-op when no live channel is present (EU-DA-only cars keep
+    # their value) or when a live channel already owns the field. Order-preserving
+    # (walks ``sources`` in priority order) and provenance-correct.
+    if any(nm not in _BATCH_SOURCES for nm, _ in sources):
+        for f_name in _LIVE_TELEMETRY:
+            if field_sources.get(f_name) not in _BATCH_SOURCES:
+                continue  # a live channel already owns it, or nobody set it
+            for nm, vd in sources:
+                if nm in _BATCH_SOURCES:
+                    continue
+                live_val = getattr(vd, f_name, None)
+                if not _unset(f_name, live_val):
+                    setattr(merged, f_name, copy.deepcopy(live_val))
+                    field_sources[f_name] = nm
+                    contributors.add(nm)
+                    break
 
     _merge_drivetrain(merged, sources)
 
