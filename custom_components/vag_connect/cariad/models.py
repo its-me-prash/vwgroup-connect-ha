@@ -475,6 +475,9 @@ class VehicleData:
     battery_soh_pct: int | None = None
     battery_temp: float | None = None
     fuel_level: int | None = None
+    # acpp plug&play — absolute fuel in the tank (litres). Distinct from the
+    # percentage ``fuel_level``; the dongle reports litres, not a %.
+    fuel_level_liters: float | None = None
     range_km: int | None = None
     # v1.10.0 (#94 — PHEV range triple).
     # ``range_km`` stays as the headline number (back-compat — existing
@@ -807,6 +810,10 @@ class VehicleData:
     service_due_at: Any | None = None
     oil_service_km: int | None = None
     oil_service_at: Any | None = None
+    # acpp plug&play — main inspection (HU / TÜV) + first-registration dates from
+    # the dongle's carport record; surfaced as service-calendar events.
+    main_inspection_due_at: Any | None = None
+    registration_date: Any | None = None
     # v1.11.0 (#91 closure) — explicit "raw int days" sensors complementing
     # the existing DATE sensors. The DATE conversion (sensor.py) loses the
     # exact day count; users who want "5 days remaining" instead of

@@ -35,6 +35,8 @@ _CHARGE_FIELDS = (
 _SERVICE_FIELDS = (
     "service_due_at", "oil_service_at", "brake_fluid_change_due_at",
     "brake_pads_front_inspection_due_at", "brake_pads_rear_inspection_due_at",
+    # acpp plug&play — main inspection (HU/TÜV) + first registration.
+    "main_inspection_due_at", "registration_date",
 )
 
 
@@ -177,6 +179,8 @@ class VagServiceCalendar(VagConnectEntity, CalendarEntity):
             ("brake_fluid_change_due_at", "Brake fluid change"),
             ("brake_pads_front_inspection_due_at", "Front brake pads inspection"),
             ("brake_pads_rear_inspection_due_at", "Rear brake pads inspection"),
+            ("main_inspection_due_at", "Main inspection (HU / TÜV)"),
+            ("registration_date", "First registration"),
         ):
             d = _parse_date(v.get(field))
             if d is not None:

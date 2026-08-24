@@ -531,6 +531,9 @@
       "fuel_tank_capacity_liters": {
         "name": "Tankinhoud"
       },
+      "fuel_level_liters": {
+        "name": "Brandstofniveau (liter)"
+      },
       "climate_running_requests_count": {
         "name": "Klimaatverzoeken in behandeling"
       },

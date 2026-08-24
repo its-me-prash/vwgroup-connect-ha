@@ -531,6 +531,9 @@
       "fuel_tank_capacity_liters": {
         "name": "Pojemność baku"
       },
+      "fuel_level_liters": {
+        "name": "Poziom paliwa (litry)"
+      },
       "climate_running_requests_count": {
         "name": "Oczekujące żądania klimatyzacji"
       },

@@ -1572,6 +1572,16 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         suggested_display_precision=0,
         condition="combustion",
     ),
+    # acpp plug&play — absolute fuel in the tank (litres) from the OBD dongle.
+    VagSensorDescription(
+        key="fuel_level_liters",
+        translation_key="fuel_level_liters",
+        data_key="fuel_level_liters",
+        native_unit_of_measurement="L",
+        icon="mdi:gas-station",
+        suggested_display_precision=1,
+        condition="combustion",
+    ),
     # v2.2.0 Phase 7 PR #4 — Skoda tier-B from scout-audit.
     # Climate-timer count (parity to VW EU/Audi PR #2 departure
     # timer count) + running-requests count (diagnostic for

@@ -531,6 +531,9 @@
       "fuel_tank_capacity_liters": {
         "name": "Capacidad depósito"
       },
+      "fuel_level_liters": {
+        "name": "Nivel de combustible (litros)"
+      },
       "climate_running_requests_count": {
         "name": "Solicitudes climatización pendientes"
       },

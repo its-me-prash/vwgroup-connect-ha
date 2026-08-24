@@ -537,6 +537,9 @@
       "fuel_tank_capacity_liters": {
         "name": "Drivstofftankkapasitet"
       },
+      "fuel_level_liters": {
+        "name": "Drivstoffnivå (liter)"
+      },
       "climate_running_requests_count": {
         "name": "Klimaforespørsler ventende"
       },
