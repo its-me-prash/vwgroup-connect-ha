@@ -194,6 +194,7 @@
           "scan_interval": "Uppdateringsintervall",
           "spin": "S-PIN",
           "battery_nominal_kwh": "Batteriets märkkapacitet (kWh, för hälsotillstånd)",
+          "fuel_tank_capacity": "Tankvolym (liter, för bränsle-%)",
           "enable_reverse_geocoding": "Omvänd geokodning (parkeringsadress)",
           "read_only_mode": "Skrivskyddat läge",
           "companion_read_charge_detail": "Companion: läs laddningsmål (navigerar i appen)",
@@ -1280,6 +1281,18 @@
       },
       "reminder_tyre_repair_kit": {
         "name": "Påminnelse om däckreparationssats"
+      },
+      "exterior_color": {
+        "name": "Utvändig färg"
+      },
+      "engine_power_kw": {
+        "name": "Motoreffekt"
+      },
+      "engine_torque_nm": {
+        "name": "Vridmoment"
+      },
+      "engine_cylinders": {
+        "name": "Cylindrar"
       }
     },
     "binary_sensor": {

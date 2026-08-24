@@ -251,11 +251,15 @@ class PlugAndPlayCloudClient:
             eng = str(cp.get("engType") or "").strip()
             hp: int | None = None
             for p in (cp.get("power") or []):
-                if (isinstance(p, dict)
-                        and str(p.get("unit") or "").lower() in ("hp", "ps")
+                if not (isinstance(p, dict)
                         and isinstance(p.get("value"), (int, float))
                         and not isinstance(p.get("value"), bool)):
+                    continue
+                unit = str(p.get("unit") or "").lower()
+                if unit in ("hp", "ps"):
                     hp = int(round(p["value"]))
+                elif unit == "kw":
+                    data.engine_power_kw = int(round(p["value"]))
             model = " ".join(x for x in (desc, eng) if x)
             if model and hp:
                 model = f"{model} · {hp} PS"   # e.g. "A5 TDI CR · 239 PS"
@@ -267,6 +271,19 @@ class PlugAndPlayCloudClient:
             reg = _epoch_ms_to_date(cp.get("deliveryDate"))
             if reg:
                 data.registration_date = reg
+            # bonus master-data
+            col = str(cp.get("exteriorColor") or "").strip()
+            if col:
+                data.exterior_color = col
+            tq = cp.get("torque")
+            if isinstance(tq, (int, float)) and not isinstance(tq, bool):
+                data.engine_torque_nm = int(round(tq))
+            cyl = cp.get("cylinderCount")
+            if isinstance(cyl, int) and not isinstance(cyl, bool):
+                data.engine_cylinders = cyl
+            war = _epoch_ms_to_date(cp.get("warranty"))
+            if war:
+                data.warranty_until = war
         return data
 
 

@@ -35,6 +35,7 @@ from .const import (
     CONF_ABRP_ENABLE,
     CONF_ABRP_USER_TOKEN,
     CONF_BATTERY_NOMINAL_KWH,
+    CONF_FUEL_TANK_CAPACITY,
     CONF_KEEP_RAW_DATASETS,
     CONF_BRAND,
     CONF_CLIENT_ID_OVERRIDE,
@@ -159,6 +160,16 @@ _KWH_SELECTOR = NumberSelector(
         step=0.1,
         mode=NumberSelectorMode.BOX,
         unit_of_measurement="kWh",
+    )
+)
+
+_LITERS_SELECTOR = NumberSelector(
+    NumberSelectorConfig(
+        min=0,
+        max=200,
+        step=1,
+        mode=NumberSelectorMode.BOX,
+        unit_of_measurement="L",
     )
 )
 
@@ -2018,6 +2029,15 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                         current_data.get(CONF_BATTERY_NOMINAL_KWH, 0),
                     ),
                 ): _KWH_SELECTOR,
+                # Optional fuel-tank capacity (litres) so a litres-only source
+                # (acpp plug&play) can show a fuel-level %. 0 = off (litres only).
+                vol.Optional(
+                    CONF_FUEL_TANK_CAPACITY,
+                    default=current_options.get(
+                        CONF_FUEL_TANK_CAPACITY,
+                        current_data.get(CONF_FUEL_TANK_CAPACITY, 0),
+                    ),
+                ): _LITERS_SELECTOR,
                 vol.Optional(
                     CONF_ENABLE_REVERSE_GEOCODING,
                     default=current_options.get(

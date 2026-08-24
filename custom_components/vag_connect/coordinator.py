@@ -31,6 +31,7 @@ from .const import (
     CONF_ENABLE_REVERSE_GEOCODING,
     CONF_FORCE_PPE_CLIMATE,
     CONF_BATTERY_NOMINAL_KWH,
+    CONF_FUEL_TANK_CAPACITY,
     CONF_KEEP_RAW_DATASETS,
     CONF_MBB_COMMAND_CHANNEL,
     CONF_MEB_COMMANDS_UNAVAILABLE,
@@ -4763,6 +4764,20 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         if isinstance(_plug_state, str):
             _psl = _plug_state.strip().lower()
             data["plug_state"] = _psl if _psl in ("connected", "disconnected") else None
+
+        # Fuel-level % from a user-configured tank capacity + the litres reading.
+        # acpp plug&play reports litres, not a %, and the tank size isn't in the
+        # feed — so the user supplies it in Options (0 = off, litres only). Only
+        # fills fuel_level when the source gave none; never overwrites a real %.
+        _tank_cap = self.entry.data.get(CONF_FUEL_TANK_CAPACITY, 0)
+        _fuel_l = data.get("fuel_level_liters")
+        if (isinstance(_tank_cap, (int, float)) and not isinstance(_tank_cap, bool)
+                and _tank_cap > 0 and isinstance(_fuel_l, (int, float))
+                and not isinstance(_fuel_l, bool) and _fuel_l >= 0):
+            data["fuel_tank_capacity_liters"] = int(round(_tank_cap))
+            if data.get("fuel_level") is None:
+                data["fuel_level"] = max(
+                    0, min(100, int(round(_fuel_l / _tank_cap * 100))))
 
         # Battery State of Health. Audi device-grant cars now carry a REAL SoH read
         # from the batteryHealthState BFF job (set upstream in the API layer), so we

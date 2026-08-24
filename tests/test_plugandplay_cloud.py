@@ -161,13 +161,21 @@ async def test_get_status_enriches_from_carport():
             "brandCode": "A", "modelDesc": "A5", "engType": "TDI CR",
             "fuelType": "Diesel", "power": [{"unit": "kW", "value": 176},
                                             {"unit": "hp", "value": 239}],
-            "deliveryDate": "1219795200000"}),  # 2008-08-27
+            "deliveryDate": "1219795200000",  # 2008-08-27
+            "exteriorColor": "Phantom Black Pearlescent", "torque": 500,
+            "cylinderCount": 6, "warranty": "1282867200000"}),  # 2010-08-27
     })
     data = await c.get_status(VIN_2009)
     assert data.model == "A5 TDI CR · 239 PS"
     assert data.manufacturer == "Audi"
     assert data.fuel_level_liters == 3.0
     assert data.registration_date == "2008-08-27"
+    # bonus master-data
+    assert data.exterior_color == "Phantom Black Pearlescent"
+    assert data.engine_power_kw == 176
+    assert data.engine_torque_nm == 500
+    assert data.engine_cylinders == 6
+    assert data.warranty_until == "2010-08-27"
 
 
 async def test_get_status_carport_missing_is_graceful():

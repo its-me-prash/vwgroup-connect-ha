@@ -194,6 +194,7 @@
           "scan_interval": "Interval aktualizace",
           "spin": "S-PIN",
           "battery_nominal_kwh": "Jmenovitá kapacita baterie (kWh, pro State of Health)",
+          "fuel_tank_capacity": "Objem nádrže (litry, pro % paliva)",
           "enable_reverse_geocoding": "Reverzní geokódování (adresa parkování)",
           "read_only_mode": "Režim jen pro čtení",
           "companion_read_charge_detail": "Companion: číst cíl nabíjení (naviguje v aplikaci)",
@@ -1280,6 +1281,18 @@
       },
       "reminder_tyre_repair_kit": {
         "name": "Připomínka opravné sady"
+      },
+      "exterior_color": {
+        "name": "Barva karoserie"
+      },
+      "engine_power_kw": {
+        "name": "Výkon motoru"
+      },
+      "engine_torque_nm": {
+        "name": "Točivý moment"
+      },
+      "engine_cylinders": {
+        "name": "Válce"
       }
     },
     "binary_sensor": {

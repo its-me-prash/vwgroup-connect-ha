@@ -1582,6 +1582,29 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         suggested_display_precision=1,
         condition="combustion",
     ),
+    # acpp plug&play — factory master-data (carport) bonus sensors.
+    VagSensorDescription(
+        key="exterior_color", translation_key="exterior_color",
+        data_key="exterior_color", icon="mdi:palette",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="engine_power_kw", translation_key="engine_power_kw",
+        data_key="engine_power_kw", native_unit_of_measurement="kW",
+        icon="mdi:engine", entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=0,
+    ),
+    VagSensorDescription(
+        key="engine_torque_nm", translation_key="engine_torque_nm",
+        data_key="engine_torque_nm", native_unit_of_measurement="Nm",
+        icon="mdi:engine", entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=0,
+    ),
+    VagSensorDescription(
+        key="engine_cylinders", translation_key="engine_cylinders",
+        data_key="engine_cylinders", icon="mdi:engine",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
     # v2.2.0 Phase 7 PR #4 — Skoda tier-B from scout-audit.
     # Climate-timer count (parity to VW EU/Audi PR #2 departure
     # timer count) + running-requests count (diagnostic for

@@ -92,6 +92,9 @@ CONF_ENABLE_REVERSE_GEOCODING = "enable_reverse_geocoding"
 # model name maps to several battery options). When the user supplies it we
 # publish battery_soh_pct = current max capacity / nominal. 0 / unset = no SoH.
 CONF_BATTERY_NOMINAL_KWH      = "battery_nominal_kwh"
+# Optional fuel-tank capacity (litres) — lets a litres-only source (acpp
+# plug&play) derive a fuel-level percentage. 0 = off (litres only).
+CONF_FUEL_TANK_CAPACITY       = "fuel_tank_capacity"
 # P1-5 — opt-in diagnostic archive of raw EU Data Act dataset ZIPs. Default
 # off: a raw dataset carries GPS + VIN + telemetry, so keeping the last few on
 # disk is a privacy cost the user opts into knowingly. When on, the coordinator
