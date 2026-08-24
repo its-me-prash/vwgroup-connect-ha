@@ -42,6 +42,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.3.0b2] - 2026-08-24 — Live telemetry beats the stale portal feed
+
 ### Fixed
 - **Battery, charging and climate readings no longer step backwards when the EU Data Act portal re-sends a stale block (D#1231, #1195-family).** The portal's 15-minute feed re-sends a frozen "stop-charging" snapshot — sometimes re-stamped with a fresh timestamp — which could out-rank a genuinely live channel (volkswagen.de, the brand app backend) in the cross-channel merge. That let state-of-charge, charge power/rate, remaining time, plug state, range and climate state jump backwards mid-charge while a live channel had the correct value. A live channel's reading now always supersedes the batch feed's for those fields, across every brand; cars that only have the portal are unchanged.
 - **The Vehicle Data Scout no longer re-flags a climatisation-timer field it already reads (#1237).** On some Audis the singular `automation.climatisationTimer.requests` queue counter kept surfacing as a "new field" even though its value is already parsed into the climatisation-timers sensor — a silencer-registry gap, not a missing feature. Thanks @arcticMariner.
