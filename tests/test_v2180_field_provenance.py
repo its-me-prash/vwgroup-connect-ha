@@ -41,12 +41,15 @@ def test_gap_filled_field_is_attributed_to_the_filler() -> None:
 
 
 def test_primary_keeps_ownership_when_both_carry_the_field() -> None:
-    # A supplementary never overwrites the primary, so it never owns the field.
-    primary = VehicleData(vin="V", battery_soc=55)
-    supp = VehicleData(vin="V", battery_soc=99)
+    # A supplementary never overwrites the primary for an ordinary field, so it
+    # never owns it. (Live-telemetry fields like battery_soc are the deliberate
+    # exception — a live channel supersedes the EU-DA batch feed there; see
+    # test_live_telemetry_supersede.py. odometer is not live-telemetry.)
+    primary = VehicleData(vin="V", odometer_km=55000)
+    supp = VehicleData(vin="V", odometer_km=99000)
     m = merge_channels([("eu_data_act", primary), ("vw_de", supp)])
-    assert m.battery_soc == 55
-    assert m.field_sources["battery_soc"] == "eu_data_act"
+    assert m.odometer_km == 55000
+    assert m.field_sources["odometer_km"] == "eu_data_act"
 
 
 def test_unset_fields_are_absent_not_guessed() -> None:
