@@ -42,6 +42,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.3.0b1] - 2026-08-24 — Audi plug&play (OBD dongle), beta
+
 ### Added
 - **New source: Audi plug&play (OBD dongle) — cloud reads for pre-connectivity Audi cars.** Older Audis with no built-in connectivity that use a TEXA OBD dongle (pre-connectivity A4/A5/Golf, Touareg, e-up!, …) are invisible to the modern CARIAD backend and the EU Data Act portal — until now the integration had no way to reach them. Pick **"Audi plug&play — OBD dongle"** at setup and it reads the dongle's cloud snapshot: odometer, 12V battery voltage, warning lights and last parking position. Vehicles are discovered automatically, and it's read-only (no commands, its own token silo). Live-validated on a real enrolled car. VW We Connect Go dongles are mapped too but stay tester-gated for now — their legacy login isn't wired yet.
 
