@@ -42,8 +42,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.3.0b3] - 2026-08-25 — Real model names & plug&play master-data
+
 ### Added
-- **Audi plug&play (OBD dongle) now surfaces the real vehicle identity and fuel level.** The dongle's factory master-data record gives the proper "ab Haus" model designation — e.g. **"A5 TDI CR · 239 PS"** — and a clean manufacturer (**Audi**, not "Audi_Acpp"), so the device is named correctly. Also adds a **fuel-level sensor in litres** (localized in all 12 languages) and surfaces the real **first-registration / delivery date** as a service-calendar event. (acpp exposes no vehicle image, and no reliable inspection date, so those are deliberately omitted.)
+- **Audi plug&play (OBD dongle) now surfaces the real vehicle identity and fuel level.** The dongle's factory master-data record gives the proper "ab Haus" model designation — e.g. **"A5 TDI CR · 239 PS"** — and a clean manufacturer (**Audi**, not "Audi_Acpp"), so the device is named correctly. Also adds a **fuel-level sensor in litres** (localized in all 12 languages), the **exterior colour, engine power (kW), torque and cylinder count** as diagnostic sensors, and the real **first-registration / delivery date** plus the **warranty-end date** as service-calendar events. (acpp exposes no vehicle image, and no reliable inspection date, so those are deliberately omitted.)
+- **Optional fuel-level percentage for litres-only sources.** A new **fuel-tank capacity (litres)** option lets the plug&play reader — which reports litres, not a percentage — derive a fuel-level % for the nicer gauge/bar UX. Off by default; it only fills the percentage when the car itself reports none.
+
+### Fixed
+- **Audi and VW EU cars now show their real model name instead of just "Audi (2024)".** When the vehicles-list gave no model name (e.g. an Audi S6 returned an empty one), the device fell back to the brand + year. The proper localized designation ("S6 Avant TDI") — and the exterior colour — are already fetched from the vgql media block for render images; those are now used as the model name and colour when the list has none.
 
 ## [4.3.0b2] - 2026-08-24 — Live telemetry beats the stale portal feed
 

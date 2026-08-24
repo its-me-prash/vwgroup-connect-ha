@@ -411,6 +411,12 @@ class VehicleData:
     manufacturer: str | None = None
     firmware_version: str | None = None
     license_plate: str | None = None
+    # acpp plug&play — factory master-data (carport) bonus fields.
+    exterior_color: str | None = None
+    engine_power_kw: int | None = None
+    engine_torque_nm: int | None = None
+    engine_cylinders: int | None = None
+    warranty_until: Any | None = None
 
     # Render images — dict of mediaType → public URL (fetched via GraphQL, no auth needed to GET)
     # e.g. {"MYAPN8NB": "https://mediaservice.audi.com/media/fast/v3_...", ...}

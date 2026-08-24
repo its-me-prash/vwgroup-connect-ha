@@ -194,6 +194,7 @@
           "scan_interval": "Intervalle de mise à jour",
           "spin": "S-PIN",
           "battery_nominal_kwh": "Capacité nominale de la batterie (kWh, pour l'état de santé)",
+          "fuel_tank_capacity": "Capacité du réservoir (litres, pour % carburant)",
           "enable_reverse_geocoding": "Géocodage inverse (adresse de stationnement)",
           "read_only_mode": "Mode lecture seule",
           "companion_read_charge_detail": "Companion : lire l'objectif de charge (navigue dans l'application)",
@@ -1280,6 +1281,18 @@
       },
       "reminder_tyre_repair_kit": {
         "name": "Rappel kit réparation pneus"
+      },
+      "exterior_color": {
+        "name": "Couleur extérieure"
+      },
+      "engine_power_kw": {
+        "name": "Puissance moteur"
+      },
+      "engine_torque_nm": {
+        "name": "Couple moteur"
+      },
+      "engine_cylinders": {
+        "name": "Cylindres"
       }
     },
     "binary_sensor": {

@@ -194,6 +194,7 @@
           "scan_interval": "Oppdateringsintervall",
           "spin": "S-PIN",
           "battery_nominal_kwh": "Nominell batterikapasitet (kWh, for helsetilstand)",
+          "fuel_tank_capacity": "Tankkapasitet (liter, for drivstoff %)",
           "enable_reverse_geocoding": "Omvendt geokoding (parkeringsadresse)",
           "read_only_mode": "Skrivebeskyttet modus",
           "companion_read_charge_detail": "Companion: les lademål (navigerer i appen)",
@@ -1280,6 +1281,18 @@
       },
       "reminder_tyre_repair_kit": {
         "name": "Påminnelse om dekkreparasjonssett"
+      },
+      "exterior_color": {
+        "name": "Utvendig farge"
+      },
+      "engine_power_kw": {
+        "name": "Motoreffekt"
+      },
+      "engine_torque_nm": {
+        "name": "Dreiemoment"
+      },
+      "engine_cylinders": {
+        "name": "Sylindre"
       }
     },
     "binary_sensor": {

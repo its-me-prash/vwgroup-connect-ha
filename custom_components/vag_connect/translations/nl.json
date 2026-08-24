@@ -194,6 +194,7 @@
           "scan_interval": "Update-interval",
           "spin": "S-PIN",
           "battery_nominal_kwh": "Nominale accucapaciteit (kWh, voor State of Health)",
+          "fuel_tank_capacity": "Tankinhoud (liter, voor brandstof %)",
           "enable_reverse_geocoding": "Reverse geocoding (parkeeradres)",
           "read_only_mode": "Alleen-lezen modus",
           "companion_read_charge_detail": "Companion: laaddoel lezen (navigeert in de app)",
@@ -1280,6 +1281,18 @@
       },
       "reminder_tyre_repair_kit": {
         "name": "Bandenreparatieset-herinnering"
+      },
+      "exterior_color": {
+        "name": "Exterieurkleur"
+      },
+      "engine_power_kw": {
+        "name": "Motorvermogen"
+      },
+      "engine_torque_nm": {
+        "name": "Koppel"
+      },
+      "engine_cylinders": {
+        "name": "Cilinders"
       }
     },
     "binary_sensor": {

@@ -194,6 +194,7 @@
           "scan_interval": "Päivitysväli",
           "spin": "S-PIN",
           "battery_nominal_kwh": "Akun nimelliskapasiteetti (kWh, SoH-laskentaan)",
+          "fuel_tank_capacity": "Polttoainesäiliön tilavuus (litraa, polttoaine-%)",
           "enable_reverse_geocoding": "Käänteinen geokoodaus (pysäköintiosoite)",
           "read_only_mode": "Vain luku -tila",
           "companion_read_charge_detail": "Companion: lue lataustavoite (navigoi sovelluksessa)",
@@ -1280,6 +1281,18 @@
       },
       "reminder_tyre_repair_kit": {
         "name": "Renkaankorjaussarjan muistutus"
+      },
+      "exterior_color": {
+        "name": "Ulkoväri"
+      },
+      "engine_power_kw": {
+        "name": "Moottorin teho"
+      },
+      "engine_torque_nm": {
+        "name": "Vääntömomentti"
+      },
+      "engine_cylinders": {
+        "name": "Sylinterit"
       }
     },
     "binary_sensor": {
