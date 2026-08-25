@@ -1285,7 +1285,7 @@
       "exterior_color": {
         "name": "Barva karoserie"
       },
-      "engine_power_kw": {
+      "engine_power": {
         "name": "Výkon motoru"
       },
       "engine_torque_nm": {
@@ -1293,6 +1293,21 @@
       },
       "engine_cylinders": {
         "name": "Válce"
+      },
+      "engine_displacement_ccm": {
+        "name": "Zdvihový objem"
+      },
+      "engine_code": {
+        "name": "Kód motoru"
+      },
+      "fuel_type": {
+        "name": "Typ paliva"
+      },
+      "transmission": {
+        "name": "Převodovka"
+      },
+      "interior_color": {
+        "name": "Barva interiéru"
       }
     },
     "binary_sensor": {

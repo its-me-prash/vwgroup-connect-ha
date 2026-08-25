@@ -1285,7 +1285,7 @@
       "exterior_color": {
         "name": "Udvendig farve"
       },
-      "engine_power_kw": {
+      "engine_power": {
         "name": "Motoreffekt"
       },
       "engine_torque_nm": {
@@ -1293,6 +1293,21 @@
       },
       "engine_cylinders": {
         "name": "Cylindre"
+      },
+      "engine_displacement_ccm": {
+        "name": "Slagvolumen"
+      },
+      "engine_code": {
+        "name": "Motorkode"
+      },
+      "fuel_type": {
+        "name": "Brændstoftype"
+      },
+      "transmission": {
+        "name": "Gearkasse"
+      },
+      "interior_color": {
+        "name": "Indvendig farve"
       }
     },
     "binary_sensor": {
