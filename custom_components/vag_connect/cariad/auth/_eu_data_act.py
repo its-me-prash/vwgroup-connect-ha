@@ -361,6 +361,19 @@ _RATELIMIT_MARKERS = ("too-many", "rate-limit", "ratelimit", "throttl")
 _GENERIC_CONSENT_MARKERS = ("/signin-service/v1/consent/", "/consent/users/")
 _GENERIC_CONSENT_PAGETYPES = ("consent",)
 
+# #1234 (@eddieari, ID.7 GTX) — pageTypes that must NOT be bucketed as
+# "invalid_credentials". A genuine wrong password re-renders a login step WITH a
+# password errorCode (caught by the cred_codes branch below); these are different
+# failure modes and telling the user to "check your password" sends them down the
+# wrong path. Confirmed live: the same, re-verified credentials cycled through
+# loginIdentifier / loginAuthenticate (status 200) and browserFeaturesMissingError
+# / generalErrorBranded (400) across polls — the IDP was blocking the automated
+# login, not rejecting the password.
+#   • login-flow STEP pages re-served at status 200 = the flow never completed
+_LOGIN_FLOW_STEP_PAGETYPES = ("loginidentifier", "loginauthenticate")
+#   • the IDP's own block/error pages (browser-feature / bot detection, generic)
+_NONCRED_ERROR_PAGETYPES = ("browserfeaturesmissingerror", "generalerrorbranded")
+
 
 def _is_generic_consent_page(
     landing_url: str, page_type: str, blob: str
@@ -417,6 +430,14 @@ def classify_portal_login_failure(
 
     blob = f"{haystack} {str(err_code).lower()} {str(page_type).lower()}"
 
+    # #1234 — a DEBUG line at the classification point itself. The failure path
+    # used to emit only the caller's single WARNING with no preceding DEBUG, so a
+    # reporter who enabled debug logging saw nothing about WHY it was classified.
+    _LOGGER.debug(
+        "EU-DA portal login classify: pageType=%r errorCode=%r url=%s",
+        str(page_type)[:80], str(err_code)[:80], landing_url[:100],
+    )
+
     # 1. Interstitials we recognise — reuse the main-chain exceptions.
     if any(m in blob for m in _TC_MARKERS):
         log_ctx.setdefault("classified", "terms_and_conditions")
@@ -469,6 +490,35 @@ def classify_portal_login_failure(
             PortalInteractionRequiredError(f"portal error {err_code}"),
             log_ctx,
         )
+
+    # 2b. #1234 — a login-flow STEP page or an IDP block/error page, WITHOUT a
+    #     password errorCode (those are caught above). These are not a wrong
+    #     password: the flow simply never completed, or the IDP blocked the
+    #     automated login. Surface the real reason instead of "check your
+    #     password" so the reporter isn't sent to re-enter correct credentials.
+    #     GUARD: only when there is NO credential errorCode — a genuine wrong
+    #     password re-renders the authenticate step WITH ``password_invalid``
+    #     (err_code_l is in cred_codes), and that must still be invalid_credentials.
+    _page_l = str(page_type).lower()
+    if err_code_l not in cred_codes:
+        if _page_l in _LOGIN_FLOW_STEP_PAGETYPES:
+            log_ctx.setdefault("classified", "portal_interaction_required")
+            return (
+                PortalInteractionRequiredError(
+                    f"login flow did not complete — the IDP re-served the "
+                    f"{page_type} step (not a wrong password)"
+                ),
+                log_ctx,
+            )
+        if _page_l in _NONCRED_ERROR_PAGETYPES:
+            log_ctx.setdefault("classified", "portal_interaction_required")
+            return (
+                PortalInteractionRequiredError(
+                    f"VW login was blocked before the password could be checked "
+                    f"({page_type})"
+                ),
+                log_ctx,
+            )
 
     # 3. Genuine bad-credential re-render (or no machine-readable reason at
     #    all): let the caller raise the credential catch-all.
