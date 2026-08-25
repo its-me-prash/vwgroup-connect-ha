@@ -1303,6 +1303,9 @@
       "fuel_type": {
         "name": "Typ paliva"
       },
+      "data_captured_at": {
+        "name": "Stav dat"
+      },
       "transmission": {
         "name": "Převodovka"
       },

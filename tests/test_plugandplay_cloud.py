@@ -155,7 +155,9 @@ async def test_get_status_enriches_from_carport():
     _stub_get(c, {
         f"vehicle/{VIN_2009}": (200, {
             "vehicle": {"vin": VIN_2009, "carPlatform": "KWP2000"},
-            "odometer": 369290.0, "batteryVoltage": 11.76, "tankFuelAmount": 3.0}),
+            "odometer": 369290.0, "batteryVoltage": 11.76, "tankFuelAmount": 3.0,
+            "registrationDate": "2026-08-23T16:40:06.000Z",  # dongle last-sync
+            "mainCheck": "2026-08-23T16:40:06.000Z"}),
         f"vehicle/{VIN_2009}/warning-lights": (200, {"warningLights": []}),
         f"vehicle/{VIN_2009}/carport": (200, {
             "brandCode": "A", "modelDesc": "A5", "engType": "TDI CR",
@@ -165,6 +167,7 @@ async def test_get_status_enriches_from_carport():
             "capacity": [{"unit": "ccm", "value": 2967},
                          {"unit": "ccs", "value": 2967000}],
             "engCode": "CCW", "transmissionType": "Manual",
+            "transmissionCode": "KMU",
             "interiorColor": "black/black-black/black/star silver",
             "deliveryDate": "1219795200000",  # 2008-08-27
             "exteriorColor": "Phantom Black Pearlescent", "torque": 500,
@@ -185,8 +188,10 @@ async def test_get_status_enriches_from_carport():
     assert data.engine_displacement_ccm == 2967
     assert data.engine_code == "CCW"
     assert data.fuel_type == "Diesel"
-    assert data.transmission == "Manual"
+    assert data.transmission == "Manual (Code: KMU)"
     assert data.warranty_until == "2010-08-27"
+    # "Datenstand" — the dongle's last-sync time (data freshness), not a reg date
+    assert data.data_captured_at == "2026-08-23T16:40:06.000Z"
 
 
 async def test_body_form_decoded_from_model_code():

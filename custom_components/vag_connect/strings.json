@@ -1336,6 +1336,9 @@
       "fuel_type": {
         "name": "Fuel Type"
       },
+      "data_captured_at": {
+        "name": "Data as of"
+      },
       "transmission": {
         "name": "Transmission"
       },

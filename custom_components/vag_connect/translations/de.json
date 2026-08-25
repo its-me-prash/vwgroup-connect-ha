@@ -1303,6 +1303,9 @@
       "fuel_type": {
         "name": "Kraftstoff"
       },
+      "data_captured_at": {
+        "name": "Datenstand"
+      },
       "transmission": {
         "name": "Getriebe"
       },

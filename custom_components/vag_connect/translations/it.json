@@ -1303,6 +1303,9 @@
       "fuel_type": {
         "name": "Tipo di carburante"
       },
+      "data_captured_at": {
+        "name": "Dati aggiornati al"
+      },
       "transmission": {
         "name": "Trasmissione"
       },
