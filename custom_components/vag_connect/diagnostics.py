@@ -74,6 +74,14 @@ _REDACT_KEYS = frozenset({
     "parking_address",
     "user_id",
     "account_id",
+    # D#1231 — the volkswagen.de profile block is personal: the number plate
+    # identifies the car, the owner-chosen nickname is personal, and the render
+    # image URLs encode the exact model/colour/config. A tester rightly had to
+    # hand-mask these before attaching a diagnostics file, so redact them by
+    # default. (Empty ones stay visibly empty via the _is_empty_value guard.)
+    "license_plate",
+    "vehicle_nickname",
+    "image_urls",
     # v1.13.0 (#62) — explicit token field names. Defensive registration:
     # today these only live in coordinator's in-memory cache, but if a
     # future change adds them to entry.data they'll automatically
