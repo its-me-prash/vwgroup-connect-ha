@@ -43,7 +43,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 ## [Unreleased]
 
 ### Changed
-- **New app icon.** The project now uses the VW Group Connect ID.Buzz artwork — cut to a clean full-bleed rounded square with a crisp app-icon edge on all four sides — the source's outer glow, drop-shadow and edge fringe removed — as its icon/logo across the integration and the README.
+- **New app icon.** The project now uses the VW Group Connect ID.Buzz artwork — cut to a clean full-bleed rounded square with a crisp app-icon edge on all four sides — deep navy right to the edge, with the source's grey drop-shadow, glow and fringe fully removed — as its icon/logo across the integration and the README.
 
 ### Fixed
 - **The volkswagen.de profile block is now redacted in a diagnostics download (D#1231).** The number plate, the owner-chosen vehicle nickname and the render image URLs were written in the clear — a tester rightly had to hand-mask them before attaching the file. They now redact by default like the VIN and address already do; empty ones stay visibly empty. Thanks @Ra72xx.
