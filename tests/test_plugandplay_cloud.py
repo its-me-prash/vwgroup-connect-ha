@@ -159,23 +159,59 @@ async def test_get_status_enriches_from_carport():
         f"vehicle/{VIN_2009}/warning-lights": (200, {"warningLights": []}),
         f"vehicle/{VIN_2009}/carport": (200, {
             "brandCode": "A", "modelDesc": "A5", "engType": "TDI CR",
+            "modelCode": "8T30H9",  # 3rd char "3" → Coupé (Audi sales-type)
             "fuelType": "Diesel", "power": [{"unit": "kW", "value": 176},
                                             {"unit": "hp", "value": 239}],
+            "capacity": [{"unit": "ccm", "value": 2967},
+                         {"unit": "ccs", "value": 2967000}],
+            "engCode": "CCW", "transmissionType": "Manual",
+            "interiorColor": "black/black-black/black/star silver",
             "deliveryDate": "1219795200000",  # 2008-08-27
             "exteriorColor": "Phantom Black Pearlescent", "torque": 500,
             "cylinderCount": 6, "warranty": "1282867200000"}),  # 2010-08-27
     })
     data = await c.get_status(VIN_2009)
-    assert data.model == "A5 TDI CR · 239 PS"
+    # S6 style: manufacturer + full model with the body form, power NOT in the name.
+    assert data.model == "A5 Coupé TDI CR"
     assert data.manufacturer == "Audi"
     assert data.fuel_level_liters == 3.0
     assert data.registration_date == "2008-08-27"
     # bonus master-data
     assert data.exterior_color == "Phantom Black Pearlescent"
-    assert data.engine_power_kw == 176
+    assert data.interior_color == "black/black-black/black/star silver"
+    assert data.engine_power == "176 kW / 239 PS"
     assert data.engine_torque_nm == 500
     assert data.engine_cylinders == 6
+    assert data.engine_displacement_ccm == 2967
+    assert data.engine_code == "CCW"
+    assert data.fuel_type == "Diesel"
+    assert data.transmission == "Manual"
     assert data.warranty_until == "2010-08-27"
+
+
+async def test_body_form_decoded_from_model_code():
+    # The 3rd char of the Audi sales-type code (modelCode) → body form; distinctive
+    # bodies only, everything else stays bodyless (never guess).
+    cases = {
+        "8T30H9": "A5 Coupé TDI",       # 3 → Coupé
+        "8K50H9": "A5 Avant TDI",       # 5 → Avant
+        "8F70H9": "A5 Cabriolet TDI",   # 7 → Cabriolet
+        "8TA0H9": "A5 Sportback TDI",   # A → Sportback
+        "8K20H9": "A5 TDI",             # 2 (sedan) → no body added
+        "8R00H9": "A5 TDI",             # unknown 3rd char → bodyless
+        "": "A5 TDI",                    # missing modelCode → bodyless
+    }
+    for code, expected in cases.items():
+        c = _client()
+        _stub_get(c, {
+            f"vehicle/{VIN_2009}": (200, {"vehicle": {"vin": VIN_2009}}),
+            f"vehicle/{VIN_2009}/warning-lights": (200, {"warningLights": []}),
+            f"vehicle/{VIN_2009}/carport": (200, {
+                "brandCode": "A", "modelDesc": "A5", "engType": "TDI",
+                "modelCode": code}),
+        })
+        data = await c.get_status(VIN_2009)
+        assert data.model == expected, f"{code!r} → {data.model!r} != {expected!r}"
 
 
 async def test_get_status_carport_missing_is_graceful():

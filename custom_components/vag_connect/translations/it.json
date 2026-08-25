@@ -1285,7 +1285,7 @@
       "exterior_color": {
         "name": "Colore esterno"
       },
-      "engine_power_kw": {
+      "engine_power": {
         "name": "Potenza motore"
       },
       "engine_torque_nm": {
@@ -1293,6 +1293,21 @@
       },
       "engine_cylinders": {
         "name": "Cilindri"
+      },
+      "engine_displacement_ccm": {
+        "name": "Cilindrata"
+      },
+      "engine_code": {
+        "name": "Codice motore"
+      },
+      "fuel_type": {
+        "name": "Tipo di carburante"
+      },
+      "transmission": {
+        "name": "Trasmissione"
+      },
+      "interior_color": {
+        "name": "Colore interni"
       }
     },
     "binary_sensor": {

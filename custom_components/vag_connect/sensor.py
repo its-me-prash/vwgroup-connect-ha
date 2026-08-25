@@ -1589,10 +1589,9 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     VagSensorDescription(
-        key="engine_power_kw", translation_key="engine_power_kw",
-        data_key="engine_power_kw", native_unit_of_measurement="kW",
-        icon="mdi:engine", entity_category=EntityCategory.DIAGNOSTIC,
-        suggested_display_precision=0,
+        key="engine_power", translation_key="engine_power",
+        data_key="engine_power", icon="mdi:engine",
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     VagSensorDescription(
         key="engine_torque_nm", translation_key="engine_torque_nm",
@@ -1603,6 +1602,32 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
     VagSensorDescription(
         key="engine_cylinders", translation_key="engine_cylinders",
         data_key="engine_cylinders", icon="mdi:engine",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="engine_displacement_ccm", translation_key="engine_displacement_ccm",
+        data_key="engine_displacement_ccm", native_unit_of_measurement="cm³",
+        icon="mdi:engine", entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=0,
+    ),
+    VagSensorDescription(
+        key="engine_code", translation_key="engine_code",
+        data_key="engine_code", icon="mdi:engine",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="fuel_type", translation_key="fuel_type",
+        data_key="fuel_type", icon="mdi:fuel",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="transmission", translation_key="transmission",
+        data_key="transmission", icon="mdi:car-shift-pattern",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="interior_color", translation_key="interior_color",
+        data_key="interior_color", icon="mdi:palette",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     # v2.2.0 Phase 7 PR #4 — Skoda tier-B from scout-audit.

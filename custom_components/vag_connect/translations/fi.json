@@ -1285,7 +1285,7 @@
       "exterior_color": {
         "name": "Ulkoväri"
       },
-      "engine_power_kw": {
+      "engine_power": {
         "name": "Moottorin teho"
       },
       "engine_torque_nm": {
@@ -1293,6 +1293,21 @@
       },
       "engine_cylinders": {
         "name": "Sylinterit"
+      },
+      "engine_displacement_ccm": {
+        "name": "Iskutilavuus"
+      },
+      "engine_code": {
+        "name": "Moottorikoodi"
+      },
+      "fuel_type": {
+        "name": "Polttoainetyyppi"
+      },
+      "transmission": {
+        "name": "Vaihteisto"
+      },
+      "interior_color": {
+        "name": "Sisäväri"
       }
     },
     "binary_sensor": {

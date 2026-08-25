@@ -45,6 +45,15 @@ _TIMEOUT = ClientTimeout(total=30)
 # carport ``brandCode`` → proper manufacturer name (A = Audi, confirmed live).
 _ACPP_BRAND_CODES = {"A": "Audi", "V": "Volkswagen"}
 
+# The carport has no explicit body/chassis field, but the Audi sales-type code
+# (``modelCode``, e.g. "8T30H9") encodes it in its 3rd character — the long-standing
+# Audi Verkaufstyp convention. We only decode the distinctive bodies and leave sedans
+# / anything unrecognised bodyless (never guess) so the model reads e.g. "A5 Coupé TDI"
+# in the S6 style, rather than a possibly-wrong form. (acpp ``prCodes`` is empty and the
+# myAudi vgql render/media resolvers reject the acpp client — live-verified — so this
+# code is the only body source for a dongle car.)
+_ACPP_BODY_FORM = {"3": "Coupé", "5": "Avant", "7": "Cabriolet", "A": "Sportback"}
+
 
 def _epoch_ms_to_date(val: Any) -> str | None:
     """acpp carport dates (deliveryDate/warranty) are epoch-millisecond strings.
@@ -166,6 +175,15 @@ class PlugAndPlayCloudClient:
                 s, b = await self._get(sub)
                 if s == 200:
                     snap[key] = b
+                else:
+                    # A non-200 here is NOT swallowed silently: _get returns a
+                    # status (it doesn't raise), so without this the sub-resource
+                    # would just be absent and every derived field come back None
+                    # on a live read while mocked tests stay green — exactly how the
+                    # multi-value Accept-Language carport 400 hid itself. Log it so a
+                    # future live-only regression is visible in debug.
+                    _LOGGER.debug(
+                        "plug&play sub-resource %s → HTTP %s (skipped)", sub, s)
             except Exception as exc:  # noqa: BLE001 — defence-in-depth
                 _LOGGER.debug("plug&play sub-resource %s failed: %s", sub, exc)
         return snap
@@ -253,6 +271,10 @@ class PlugAndPlayCloudClient:
                 data.manufacturer = brand_name
             desc = str(cp.get("modelDesc") or "").strip()
             eng = str(cp.get("engType") or "").strip()
+            # body/chassis form from the sales-type code (3rd char), S6 style.
+            model_code = str(cp.get("modelCode") or "")
+            body = _ACPP_BODY_FORM.get(model_code[2].upper(), "") if len(model_code) >= 3 else ""
+            kw: int | None = None
             hp: int | None = None
             for p in (cp.get("power") or []):
                 if not (isinstance(p, dict)
@@ -263,12 +285,19 @@ class PlugAndPlayCloudClient:
                 if unit in ("hp", "ps"):
                     hp = int(round(p["value"]))
                 elif unit == "kw":
-                    data.engine_power_kw = int(round(p["value"]))
-            model = " ".join(x for x in (desc, eng) if x)
-            if model and hp:
-                model = f"{model} · {hp} PS"   # e.g. "A5 TDI CR · 239 PS"
+                    kw = int(round(p["value"]))
+            # Model designation in the S6 style — manufacturer + full model text with
+            # the body form, NOT the power (that lives in its own sensor): "A5 Coupé TDI".
+            model = " ".join(x for x in (desc, body, eng) if x)
             if model:
                 data.model = model
+            # One consolidated power figure carrying both units, e.g. "176 kW / 239 PS".
+            if kw and hp:
+                data.engine_power = f"{kw} kW / {hp} PS"
+            elif kw:
+                data.engine_power = f"{kw} kW"
+            elif hp:
+                data.engine_power = f"{hp} PS"
             # deliveryDate = the real first-delivery date (epoch-ms string, e.g.
             # 2008 for this A5) — reliable, unlike the /vehicles registrationDate
             # which is just the dongle-enrollment time. Feeds the service calendar.
@@ -279,12 +308,32 @@ class PlugAndPlayCloudClient:
             col = str(cp.get("exteriorColor") or "").strip()
             if col:
                 data.exterior_color = col
+            icol = str(cp.get("interiorColor") or "").strip()
+            if icol:
+                data.interior_color = icol
             tq = cp.get("torque")
             if isinstance(tq, (int, float)) and not isinstance(tq, bool):
                 data.engine_torque_nm = int(round(tq))
             cyl = cp.get("cylinderCount")
             if isinstance(cyl, int) and not isinstance(cyl, bool):
                 data.engine_cylinders = cyl
+            # engine displacement — carport "capacity" lists ccm + ccs; take ccm.
+            for cap in (cp.get("capacity") or []):
+                if (isinstance(cap, dict)
+                        and str(cap.get("unit") or "").lower() == "ccm"
+                        and isinstance(cap.get("value"), (int, float))
+                        and not isinstance(cap.get("value"), bool)):
+                    data.engine_displacement_ccm = int(round(cap["value"]))
+                    break
+            ecode = str(cp.get("engCode") or "").strip()
+            if ecode:
+                data.engine_code = ecode
+            ftype = str(cp.get("fuelType") or "").strip()
+            if ftype:
+                data.fuel_type = ftype
+            trans = str(cp.get("transmissionType") or "").strip()
+            if trans:
+                data.transmission = trans
             war = _epoch_ms_to_date(cp.get("warranty"))
             if war:
                 data.warranty_until = war

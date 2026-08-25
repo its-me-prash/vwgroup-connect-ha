@@ -413,9 +413,14 @@ class VehicleData:
     license_plate: str | None = None
     # acpp plug&play — factory master-data (carport) bonus fields.
     exterior_color: str | None = None
-    engine_power_kw: int | None = None
+    interior_color: str | None = None
+    engine_power: str | None = None  # consolidated, e.g. "176 kW / 239 PS"
     engine_torque_nm: int | None = None
     engine_cylinders: int | None = None
+    engine_displacement_ccm: int | None = None
+    engine_code: str | None = None       # e.g. "CCW"
+    fuel_type: str | None = None         # e.g. "Diesel"
+    transmission: str | None = None      # e.g. "Manual"
     warranty_until: Any | None = None
 
     # Render images — dict of mediaType → public URL (fetched via GraphQL, no auth needed to GET)
