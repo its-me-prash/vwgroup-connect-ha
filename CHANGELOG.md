@@ -42,6 +42,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **A transient VW gateway "404" no longer raises an error report (#1233, #1242, #1244).** The CARIAD edge (`emea.bff.cariad.digital`) intermittently returns a generic "404 page not found" for the main status read and recovers on the next poll — three Audi owners hit the exact same blip within a 16-second window. That kind of transient gateway 404 now self-heals quietly the way a 5xx already does, instead of surfacing as a user-facing error report. A structured, per-vehicle 404 still reports as before.
+
 ## [4.3.0b4] - 2026-08-25 — V6.0 data dictionary & window positions
 
 ### Added
