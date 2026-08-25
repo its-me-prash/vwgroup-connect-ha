@@ -3054,7 +3054,34 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 # fallback means the credentials are stale. Trigger HA reauth.
                 from .cariad.exceptions import (  # noqa: PLC0415
                     AuthenticationError,
+                    PortalInteractionRequiredError,
                 )
+                # #1234 (@eddieari) — a non-credential portal interaction (a
+                # transient IDP block such as browserFeaturesMissingError, or an
+                # interstitial that needs a one-off browser action) is NOT stale
+                # credentials. It subclasses AuthenticationError, so without this
+                # guard it tore the whole entry into reauth and took every working
+                # vehicle on the same account offline with it. Treat it as a
+                # transient poll failure: keep the working vehicles up via the
+                # failure-tolerance window and retry on the next poll, instead of
+                # clobbering the shared account session for all VINs at once.
+                if isinstance(err, PortalInteractionRequiredError):
+                    _LOGGER.warning(
+                        "VW Group Connect: portal needs interaction (not stale "
+                        "credentials) — keeping working vehicles up, retrying: %s",
+                        err,
+                    )
+                    if not hasattr(self, "vehicle_success"):
+                        self.vehicle_success = {}
+                    if not hasattr(self, "vehicle_failure_count"):
+                        self.vehicle_failure_count = {}
+                    for vin in list(self.vehicles.keys()):
+                        self.vehicle_success[vin] = False
+                        self.vehicle_failure_count[vin] = (
+                            self.vehicle_failure_count.get(vin, 0) + 1
+                        )
+                    await self._async_push_update({}, success=False)
+                    return
                 if isinstance(err, AuthenticationError):
                     self._trigger_reauth(str(err) or type(err).__name__)
                     await self._async_push_update({}, success=False)
