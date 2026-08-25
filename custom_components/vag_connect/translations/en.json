@@ -1306,6 +1306,18 @@
       "data_captured_at": {
         "name": "Data as of"
       },
+      "window_position_front_left": {
+        "name": "Window Front Left Position"
+      },
+      "window_position_front_right": {
+        "name": "Window Front Right Position"
+      },
+      "window_position_rear_left": {
+        "name": "Window Rear Left Position"
+      },
+      "window_position_rear_right": {
+        "name": "Window Rear Right Position"
+      },
       "transmission": {
         "name": "Transmission"
       },

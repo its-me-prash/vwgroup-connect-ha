@@ -84,6 +84,20 @@ ISSUE_ID_ERROR_REPORTER = "error_reporter_findings"
 # …). It carries no value we surface (absence is already ``None``), and the leaf
 # match here catches every ``*.is_set`` in one entry, so no portal car keeps
 # getting prompted to file it. Stays Scout-visible in diagnostics like the rest.
+#
+# Re-examined against the full official V6.0 dictionary (2026-07-24) — every skip
+# is now GROUNDED as genuinely-unmappable, not merely "unknown", so none can be
+# promoted to a mapped entity:
+#   • scope_potential_total (3c691e30) — V6.0: "only interpreted by zFDI for
+#     vehicles of PPE platform"; an internal engineering TSS-ID (unit/type "-"),
+#     not a user-facing datum. Correctly stays unmapped.
+#   • is_set — envelope populated-flag; V6.0 has no standalone entry, it's plumbing.
+#   • c0bb1348 / d5dc7c87 — V6.0 gives EVERY nameable opening its own UUID (doors,
+#     tailgate, bonnet, sunroof, windows, tank flap a0736cf5, charge-plug flaps
+#     33bf521d/7e50ef29 …) yet still lists these two as bare "Opening status" with
+#     no body part — so even the complete dictionary can't say which opening they
+#     are. They remain Scout-visible on the generic ``open`` leaf; a reporter who
+#     can identify the physical opening on their car still gets us there.
 _SCOUT_REPAIR_SKIP_LEAVES: frozenset[str] = frozenset({"scope_potential_total", "is_set"})
 # Substring match on the (masked) sample: #1100's UUID annotation rides in the
 # value as ``... (uuid c0bb1348)``; keying on the UUID (not the eu_data_act.open

@@ -1306,6 +1306,18 @@
       "data_captured_at": {
         "name": "Stav dat"
       },
+      "window_position_front_left": {
+        "name": "Poloha okna vlevo vpředu"
+      },
+      "window_position_front_right": {
+        "name": "Poloha okna vpravo vpředu"
+      },
+      "window_position_rear_left": {
+        "name": "Poloha okna vlevo vzadu"
+      },
+      "window_position_rear_right": {
+        "name": "Poloha okna vpravo vzadu"
+      },
       "transmission": {
         "name": "Převodovka"
       },

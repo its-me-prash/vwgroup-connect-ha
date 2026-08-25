@@ -1306,6 +1306,18 @@
       "data_captured_at": {
         "name": "Datastatus"
       },
+      "window_position_front_left": {
+        "name": "Vindusposisjon foran venstre"
+      },
+      "window_position_front_right": {
+        "name": "Vindusposisjon foran høyre"
+      },
+      "window_position_rear_left": {
+        "name": "Vindusposisjon bak venstre"
+      },
+      "window_position_rear_right": {
+        "name": "Vindusposisjon bak høyre"
+      },
       "transmission": {
         "name": "Girkasse"
       },

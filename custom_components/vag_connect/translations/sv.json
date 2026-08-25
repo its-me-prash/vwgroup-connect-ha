@@ -1306,6 +1306,18 @@
       "data_captured_at": {
         "name": "Datastatus"
       },
+      "window_position_front_left": {
+        "name": "Fönsterposition fram vänster"
+      },
+      "window_position_front_right": {
+        "name": "Fönsterposition fram höger"
+      },
+      "window_position_rear_left": {
+        "name": "Fönsterposition bak vänster"
+      },
+      "window_position_rear_right": {
+        "name": "Fönsterposition bak höger"
+      },
       "transmission": {
         "name": "Växellåda"
       },

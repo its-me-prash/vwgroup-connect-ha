@@ -3780,6 +3780,48 @@ _TRIP_STATS_KEYS: frozenset[str] = frozenset({
 })
 _TRIP_STATS_BRANDS: frozenset[str] = frozenset({"audi", "volkswagen"})
 
+# Per-window opening position (% open), from the EU-DA window-lifter positions
+# (``position_*_door_window_lifter``). Parsed into ``windows_position`` — a slot
+# only lands there when the car actually reports a value, so cars without window
+# telemetry spawn no entities (self-gating, no "unknown" clutter). Mirrors the
+# per-window binary sensor's slot names.
+_WINDOW_POSITION_TKEYS = {
+    "frontLeft":  "window_position_front_left",
+    "frontRight": "window_position_front_right",
+    "rearLeft":   "window_position_rear_left",
+    "rearRight":  "window_position_rear_right",
+}
+
+
+class VagWindowPositionSensor(VagConnectEntity, SensorEntity):
+    """Opening position of a single window, in percent (0 = closed)."""
+
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:window-open-variant"
+    _attr_suggested_display_precision = 0
+
+    def __init__(
+        self,
+        coordinator: VagConnectCoordinator,
+        vin: str,
+        window_id: str,
+    ) -> None:
+        super().__init__(coordinator, vin, f"window_position_{window_id}")
+        self._window_id = window_id
+        _tkey = _WINDOW_POSITION_TKEYS.get(window_id)
+        if _tkey:
+            self._attr_translation_key = _tkey
+        else:
+            self._attr_name = window_id
+
+    @property
+    def native_value(self) -> int | float | None:
+        pos = self._vehicle.get("windows_position", {})
+        val = pos.get(self._window_id)
+        return val if isinstance(val, (int, float)) and not isinstance(val, bool) else None
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -3871,6 +3913,10 @@ async def async_setup_entry(
                 entities.append(ReporterSensor(coordinator, vin, desc))
             else:
                 entities.append(VagConnectSensor(coordinator, vin, desc))
+
+        # Per-window opening position (%), self-gating on populated slots.
+        for window_id in vehicle.get("windows_position", {}):
+            entities.append(VagWindowPositionSensor(coordinator, vin, window_id))
         return entities
 
     register_dynamic_spawner(entry, coordinator, async_add_entities, _build_for_vin)

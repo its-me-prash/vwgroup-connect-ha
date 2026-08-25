@@ -42,6 +42,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.3.0b4] - 2026-08-25 — V6.0 data dictionary & window positions
+
+### Added
+- **EU Data Act data dictionary updated to the official V6.0 (2026-07-24).** Every portal field now resolves to a name instead of showing up as a raw UUID — the continuous feed plus the full historical export set. The GPS coordinate block (latitude/longitude, altitude, precision, heading, and the *moving* / *outdated* staleness flags) is mapped explicitly, and the coordinate "false friends" (public-charging / wallbox / fleet charging-record coordinates and navigation destination coordinates) are written out by name so a location read can never mistake a charging stop or a saved destination for where the car actually is. Curated names from the previous dictionary are preserved. Huge thanks to **@naked-head** for parsing both official V6.0 dictionaries in full and hand-checking the GPS block.
+- **Per-window opening position (%) sensors.** Cars that report window-lifter positions on the EU Data Act portal now get a percentage-open sensor per window (front/rear × left/right), localized in all 12 languages. Self-gating — a car that reports no window position gets no entity, so there's no "unknown" clutter.
+
+### Fixed
+- **Vehicle-position groundwork for VW EU cars (#923), and honest skip reasons.** The portal's coordinates live only in the one-time historical export, never in the continuous feed; the field map for reading them is now in place (the reader itself waits on a real export sample so its shape isn't guessed). Separately, re-examined the intentionally-unmapped fields against the complete V6.0 dictionary and documented why each stays that way (e.g. `scope_potential_total` is an internal PPE engineering ID, and the two "ownerless" opening UUIDs are the only openings the official dictionary still leaves without a body part).
+
 ## [4.3.0b3] - 2026-08-25 — Real model names & plug&play master-data
 
 ### Added
