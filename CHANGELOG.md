@@ -42,6 +42,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **A blocked or incomplete VW EU portal login is no longer reported as "invalid credentials" (#1234).** When the sign-in server bounced the automated login back to a login-flow step (`loginIdentifier` / `loginAuthenticate`, status 200) or served one of its own block/error pages (`browserFeaturesMissingError`, `generalErrorBranded`), the classifier's catch-all labelled it a bad password — sending users to re-enter credentials that were already correct. These now surface as a portal/login-interaction with the real reason, while a genuine wrong password (which carries a password errorCode) still maps to invalid credentials. A debug line was added at the classification point so the cause is visible with debug logging on. Thanks @eddieari for the detailed diagnostics.
+
 ### Changed
 - **New app icon.** The project now uses the VW Group Connect ID.Buzz artwork — cut to a clean full-bleed rounded square with a crisp app-icon edge on all four sides — deep navy right to the edge, with the source's grey drop-shadow, glow and fringe fully removed — as its icon/logo across the integration and the README.
 
