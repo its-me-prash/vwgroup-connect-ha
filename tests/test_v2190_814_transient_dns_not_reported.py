@@ -49,3 +49,19 @@ def test_status0_without_transient_tag_not_blanket_suppressed() -> None:
 def test_parse_and_other_exceptions_still_reported() -> None:
     assert _is_selfhealing_poll_error(ValueError("bad parse")) is False
     assert _is_selfhealing_poll_error(KeyError("missing")) is False
+
+
+def test_transient_gateway_404_not_reported() -> None:
+    # #1233/#1242/#1244 — the emea.bff.cariad.digital edge intermittently returns
+    # the generic router "404 page not found" for selectivestatus; it clears next
+    # poll, so it must NOT spam the public Error Reporter.
+    body = ('{"error":{"message":"Upstream service responded with 404 Not Found",'
+            '"info":"404 page not found\\n"}}')
+    assert _is_selfhealing_poll_error(APIError(404, "u", body)) is True
+
+
+def test_structured_404_still_reported() -> None:
+    # a real per-vehicle not-found (different body) is our concern → still escalated
+    assert _is_selfhealing_poll_error(
+        APIError(404, "u", '{"error":"vehicle not found"}')
+    ) is False

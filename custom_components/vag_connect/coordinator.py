@@ -115,6 +115,15 @@ def _is_selfhealing_poll_error(err: object) -> bool:
             "transient:"
         ):
             return True
+        # A transient GATEWAY 404 on the main BFF read (#1233/#1242/#1244): the
+        # emea.bff.cariad.digital edge intermittently returns the generic router
+        # "404 page not found" for a selectivestatus call — a routing/deploy blip
+        # that clears on the next poll (three Audi owners hit it inside the same
+        # 16-second window on 2026-08-25), not a per-vehicle not-found. Same class
+        # as a 5xx, so don't escalate it to the public Error Reporter. A STRUCTURED
+        # 404 (a real "vehicle not found") has a different body and still reports.
+        if status == 404 and isinstance(body, str) and "404 page not found" in body:
+            return True
     return False
 
 # v2.17.2 (#666) — how long an optimistically-set command value is held across
