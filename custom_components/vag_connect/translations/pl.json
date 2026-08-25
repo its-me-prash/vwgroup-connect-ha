@@ -1306,6 +1306,18 @@
       "data_captured_at": {
         "name": "Stan danych"
       },
+      "window_position_front_left": {
+        "name": "Pozycja szyby przód lewy"
+      },
+      "window_position_front_right": {
+        "name": "Pozycja szyby przód prawy"
+      },
+      "window_position_rear_left": {
+        "name": "Pozycja szyby tył lewy"
+      },
+      "window_position_rear_right": {
+        "name": "Pozycja szyby tył prawy"
+      },
       "transmission": {
         "name": "Skrzynia biegów"
       },

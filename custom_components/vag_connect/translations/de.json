@@ -1306,6 +1306,18 @@
       "data_captured_at": {
         "name": "Datenstand"
       },
+      "window_position_front_left": {
+        "name": "Fensterposition vorne links"
+      },
+      "window_position_front_right": {
+        "name": "Fensterposition vorne rechts"
+      },
+      "window_position_rear_left": {
+        "name": "Fensterposition hinten links"
+      },
+      "window_position_rear_right": {
+        "name": "Fensterposition hinten rechts"
+      },
       "transmission": {
         "name": "Getriebe"
       },

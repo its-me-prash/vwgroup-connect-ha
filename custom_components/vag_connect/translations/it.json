@@ -1306,6 +1306,18 @@
       "data_captured_at": {
         "name": "Dati aggiornati al"
       },
+      "window_position_front_left": {
+        "name": "Posizione finestrino anteriore sinistro"
+      },
+      "window_position_front_right": {
+        "name": "Posizione finestrino anteriore destro"
+      },
+      "window_position_rear_left": {
+        "name": "Posizione finestrino posteriore sinistro"
+      },
+      "window_position_rear_right": {
+        "name": "Posizione finestrino posteriore destro"
+      },
       "transmission": {
         "name": "Trasmissione"
       },

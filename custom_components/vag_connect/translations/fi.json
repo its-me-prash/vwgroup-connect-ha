@@ -1306,6 +1306,18 @@
       "data_captured_at": {
         "name": "Tietojen ajankohta"
       },
+      "window_position_front_left": {
+        "name": "Ikkunan asento vasen etu"
+      },
+      "window_position_front_right": {
+        "name": "Ikkunan asento oikea etu"
+      },
+      "window_position_rear_left": {
+        "name": "Ikkunan asento vasen taka"
+      },
+      "window_position_rear_right": {
+        "name": "Ikkunan asento oikea taka"
+      },
       "transmission": {
         "name": "Vaihteisto"
       },

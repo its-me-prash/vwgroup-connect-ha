@@ -1306,6 +1306,18 @@
       "data_captured_at": {
         "name": "Datastatus"
       },
+      "window_position_front_left": {
+        "name": "Rudeposition forrest venstre"
+      },
+      "window_position_front_right": {
+        "name": "Rudeposition forrest højre"
+      },
+      "window_position_rear_left": {
+        "name": "Rudeposition bagest venstre"
+      },
+      "window_position_rear_right": {
+        "name": "Rudeposition bagest højre"
+      },
       "transmission": {
         "name": "Gearkasse"
       },

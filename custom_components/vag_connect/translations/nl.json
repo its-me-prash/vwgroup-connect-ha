@@ -1306,6 +1306,18 @@
       "data_captured_at": {
         "name": "Gegevensstand"
       },
+      "window_position_front_left": {
+        "name": "Raampositie linksvoor"
+      },
+      "window_position_front_right": {
+        "name": "Raampositie rechtsvoor"
+      },
+      "window_position_rear_left": {
+        "name": "Raampositie linksachter"
+      },
+      "window_position_rear_right": {
+        "name": "Raampositie rechtsachter"
+      },
       "transmission": {
         "name": "Transmissie"
       },

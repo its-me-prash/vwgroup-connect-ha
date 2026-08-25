@@ -1306,6 +1306,18 @@
       "data_captured_at": {
         "name": "Données à jour au"
       },
+      "window_position_front_left": {
+        "name": "Position vitre avant gauche"
+      },
+      "window_position_front_right": {
+        "name": "Position vitre avant droite"
+      },
+      "window_position_rear_left": {
+        "name": "Position vitre arrière gauche"
+      },
+      "window_position_rear_right": {
+        "name": "Position vitre arrière droite"
+      },
       "transmission": {
         "name": "Transmission"
       },
