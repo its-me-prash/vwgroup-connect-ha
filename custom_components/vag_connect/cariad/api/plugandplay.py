@@ -111,9 +111,13 @@ class PlugAndPlayCloudClient:
         headers = {
             "Authorization": f"Bearer {self._tokens.access_token}",
             "Accept": "application/json",
-            # The carport (master-data) endpoint 500s without an Accept-Language;
-            # all other endpoints ignore it, so send it on every request.
-            "Accept-Language": "de-DE, en-US;q=0.9",
+            # The carport (master-data) endpoint reads the language from
+            # Accept-Language and needs a SINGLE tag: it 500s when the header is
+            # absent and — verified live 2026-08-24 — 400s on a multi-value /
+            # q-weighted value (e.g. "de-DE, en-US;q=0.9"). A bare "de-DE" (or
+            # "de"/"en-US") returns 200. Other endpoints ignore it, so a single
+            # tag on every request is safe.
+            "Accept-Language": "de-DE",
             "User-Agent": self._brand.user_agent,
         }
         async with self._session.get(
