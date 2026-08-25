@@ -1303,6 +1303,9 @@
       "fuel_type": {
         "name": "Brandstoftype"
       },
+      "data_captured_at": {
+        "name": "Gegevensstand"
+      },
       "transmission": {
         "name": "Transmissie"
       },

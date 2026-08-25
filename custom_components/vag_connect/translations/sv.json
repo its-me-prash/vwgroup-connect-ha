@@ -1303,6 +1303,9 @@
       "fuel_type": {
         "name": "Bränsletyp"
       },
+      "data_captured_at": {
+        "name": "Datastatus"
+      },
       "transmission": {
         "name": "Växellåda"
       },

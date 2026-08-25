@@ -1303,6 +1303,9 @@
       "fuel_type": {
         "name": "Polttoainetyyppi"
       },
+      "data_captured_at": {
+        "name": "Tietojen ajankohta"
+      },
       "transmission": {
         "name": "Vaihteisto"
       },

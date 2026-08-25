@@ -1303,6 +1303,9 @@
       "fuel_type": {
         "name": "Drivstofftype"
       },
+      "data_captured_at": {
+        "name": "Datastatus"
+      },
       "transmission": {
         "name": "Girkasse"
       },

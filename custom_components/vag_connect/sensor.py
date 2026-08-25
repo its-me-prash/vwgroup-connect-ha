@@ -1620,6 +1620,13 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         data_key="fuel_type", icon="mdi:fuel",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # "Datenstand" — when the dongle last synced its snapshot. Renders as a
+    # relative age in HA, so users see how fresh the reading is.
+    VagSensorDescription(
+        key="data_captured_at", translation_key="data_captured_at",
+        data_key="data_captured_at", device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:clock-check-outline", entity_category=EntityCategory.DIAGNOSTIC,
+    ),
     VagSensorDescription(
         key="transmission", translation_key="transmission",
         data_key="transmission", icon="mdi:car-shift-pattern",

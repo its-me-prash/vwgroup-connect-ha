@@ -244,6 +244,16 @@ class PlugAndPlayCloudClient:
         if isinstance(bv, (int, float)) and not isinstance(bv, bool) and bv > 0:
             data.voltage_12v = float(bv)
 
+        # Data-as-of timestamp ("Datenstand"): a KWP2000 dongle only refreshes its
+        # snapshot when the car is driven / on ignition, so the reading can be
+        # hours or days old. The snapshot's ``registrationDate`` / ``mainCheck``
+        # both carry the last-sync time (NOT a real registration/inspection date —
+        # those come from the carport), so surface it so the age of every value is
+        # visible. HA's TIMESTAMP sensor parses the ISO string itself.
+        synced = veh.get("registrationDate") or veh.get("mainCheck")
+        if isinstance(synced, str) and synced.strip():
+            data.data_captured_at = synced.strip()
+
         # Last parking position the dongle uploaded. Some dongles report 0/0
         # ("null island") when they never got a fix — treat that as no position
         # so the device tracker stays unknown instead of pinning to the Atlantic.
@@ -332,7 +342,10 @@ class PlugAndPlayCloudClient:
             if ftype:
                 data.fuel_type = ftype
             trans = str(cp.get("transmissionType") or "").strip()
-            if trans:
+            tcode = str(cp.get("transmissionCode") or "").strip()
+            if trans and tcode:
+                data.transmission = f"{trans} (Code: {tcode})"
+            elif trans:
                 data.transmission = trans
             war = _epoch_ms_to_date(cp.get("warranty"))
             if war:

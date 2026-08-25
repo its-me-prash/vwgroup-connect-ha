@@ -420,8 +420,9 @@ class VehicleData:
     engine_displacement_ccm: int | None = None
     engine_code: str | None = None       # e.g. "CCW"
     fuel_type: str | None = None         # e.g. "Diesel"
-    transmission: str | None = None      # e.g. "Manual"
+    transmission: str | None = None      # e.g. "Manual (Code: KMU)"
     warranty_until: Any | None = None
+    data_captured_at: Any | None = None  # ISO ts of the dongle's last sync ("Datenstand")
 
     # Render images — dict of mediaType → public URL (fetched via GraphQL, no auth needed to GET)
     # e.g. {"MYAPN8NB": "https://mediaservice.audi.com/media/fast/v3_...", ...}

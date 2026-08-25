@@ -1303,6 +1303,9 @@
       "fuel_type": {
         "name": "Rodzaj paliwa"
       },
+      "data_captured_at": {
+        "name": "Stan danych"
+      },
       "transmission": {
         "name": "Skrzynia biegów"
       },
