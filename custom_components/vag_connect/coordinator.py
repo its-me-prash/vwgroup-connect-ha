@@ -117,6 +117,33 @@ def _portal_health(
     ):
         return "stale"
     return "ok"
+# Drop-anchored poll scheduling for EU Data Act portal entries. The portal
+# delivers on its own ~15-min cadence; anchoring the next poll to the newest
+# snapshot's capture time (+ a short delivery buffer) instead of a fixed offset
+# from the last poll catches each drop shortly after it lands and retries fast
+# when one is overdue — bounded so it can never poll faster than the floor or
+# slower than the user's configured interval.
+_DROP_BUFFER_S = 60
+_DROP_RETRY_S = 60
+
+
+def _drop_anchored_sleep_s(
+    interval_s: int, newest_capture_at: datetime | None, now: datetime, floor_s: int,
+) -> float:
+    """Seconds to sleep until the next expected portal drop.
+
+    Anchored to ``newest_capture_at + interval + buffer``; a drop already overdue
+    (``<= now``) collapses to a short retry. The result is clamped to
+    ``[floor_s, interval_s]`` so alignment can never poll faster than the floor
+    nor slower than the configured interval. With no capture time it is a no-op
+    (returns ``interval_s``)."""
+    if newest_capture_at is None:
+        return float(interval_s)
+    target = newest_capture_at + timedelta(seconds=interval_s + _DROP_BUFFER_S)
+    remaining = (target - now).total_seconds()
+    if remaining <= 0:
+        remaining = float(_DROP_RETRY_S)  # drop overdue → poll again soon
+    return max(float(floor_s), min(remaining, float(interval_s)))
 
 
 def _is_selfhealing_poll_error(err: object) -> bool:
@@ -935,6 +962,9 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # Per-VIN poll success tracking — entities use this for availability
         # so a single failing vehicle doesn't blank out the others.
         self.vehicle_success: dict[str, bool] = {}
+        # Drop-anchored scheduling — the freshest snapshot capture time seen so
+        # far, used to align the next portal poll to the ~15-min drop cadence.
+        self._newest_capture_at: datetime | None = None
 
         # Per-VIN consecutive-failure counter (v1.8.7). Reset to 0 on every
         # successful poll. Used by ``is_vehicle_available`` to apply
@@ -2708,10 +2738,30 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             )
             # Nightly reduction: double interval between 22:00 and 05:00
             hour = datetime.now().hour
-            if hour >= 22 or hour < 5:
+            nightly = hour >= 22 or hour < 5
+            if nightly:
                 interval_s = interval_s * 2
                 _LOGGER.debug("Nightly reduction active — interval doubled to %ds", interval_s)
-            await asyncio.sleep(interval_s)
+            # Drop-anchored scheduling for EU-DA portal entries (daytime only, so
+            # the nightly power-saving cadence is untouched): align the next poll
+            # to when the portal's next ~15-min snapshot should land, and retry
+            # fast when one is overdue. Bounded to [floor, interval]; a non-portal
+            # entry (no connector) or a car we've never captured falls straight
+            # through to the fixed interval.
+            _portal = getattr(self._cariad_client, "_eu_portal", None) or getattr(
+                self._cariad_client, "_supplementary_eu_portal", None
+            )
+            _cap_anchor = getattr(self, "_newest_capture_at", None)
+            if not nightly and _portal is not None and _cap_anchor is not None:
+                sleep_s: float = _drop_anchored_sleep_s(
+                    interval_s,
+                    _cap_anchor,
+                    datetime.now(tz=timezone.utc),
+                    _CC_MIN_INTERVAL_S,
+                )
+            else:
+                sleep_s = float(interval_s)
+            await asyncio.sleep(sleep_s)
             if not self._started:
                 break
             # v2.8.0 — pre-flight watchdog. If we are on the
@@ -2978,6 +3028,20 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         )
                 with self._vehicles_lock:
                     self.vehicles.update(fresh)
+                    # Drop-anchored scheduling — remember the freshest snapshot
+                    # capture time across all cars, so the next sleep aligns to
+                    # the portal's ~15-min cadence. Reconstructed from the same
+                    # capture-age helper the staleness watchdog uses.
+                    _now_cap = datetime.now(tz=timezone.utc)
+                    _newest_cap: datetime | None = None
+                    for _vd in self.vehicles.values():
+                        _cap_age = _capture_age_s(_vd)
+                        if _cap_age is not None and _cap_age >= 0:
+                            _cap_ts = _now_cap - timedelta(seconds=_cap_age)
+                            if _newest_cap is None or _cap_ts > _newest_cap:
+                                _newest_cap = _cap_ts
+                    if _newest_cap is not None:
+                        self._newest_capture_at = _newest_cap
                 # b13 — Portal-safety: persist the merged snapshot (debounced)
                 # so the recorded values survive a HA restart. Best-effort.
                 try:
