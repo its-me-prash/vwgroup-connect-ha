@@ -556,6 +556,33 @@ def clear_stale_data_issue(hass: HomeAssistant, entry_id: str, vin: str) -> None
     ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_stale_data_{vin}")
 
 
+def raise_issue_historical_timeout(
+    hass: HomeAssistant, entry_id: str, vin: str, *, masked_vin: str,
+) -> None:
+    """A one-time historical export never completed within the client deadline.
+
+    The portal gives the one-time request no terminal state — it can silently
+    produce nothing 24-36h after submission — so we impose our own deadline and
+    surface this rather than leaving the request pending forever. WARNING,
+    dismissible; the pending state is cleared so a new export can be requested.
+    """
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        f"{entry_id}_historical_timeout_{vin}",
+        is_fixable=False,
+        is_persistent=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="historical_timeout",
+        translation_placeholders={"vin": masked_vin},
+    )
+
+
+def clear_issue_historical_timeout(hass: HomeAssistant, entry_id: str, vin: str) -> None:
+    """Clear the per-VIN historical-export timeout repair."""
+    ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_historical_timeout_{vin}")
+
+
 # ─── v2.0.0 Repair-Flow Handler ──────────────────────────────────────────
 class _AuthRepairFlow(RepairsFlow):
     """v2.0.0 — Generic repair flow for auth-related issues.

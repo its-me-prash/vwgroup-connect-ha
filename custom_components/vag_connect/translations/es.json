@@ -368,6 +368,14 @@
       "minutes_since_last_snapshot": {
         "name": "Minutes since last snapshot"
       },
+      "historical_export_state": {
+        "name": "Historical export",
+        "state": {
+          "pending": "Requested — preparing",
+          "done": "Delivered",
+          "timed_out": "Timed out"
+        }
+      },
       "target_soc": {
         "name": "Objetivo de carga"
       },
@@ -1738,6 +1746,9 @@
       "data_act_request_button": {
         "name": "Crear solicitud de datos EU Data Act"
       },
+      "historical_export_button": {
+        "name": "Request historical export"
+      },
       "companion_reset_button": {
         "name": "Restablecer conexión companion"
       }
@@ -1944,6 +1955,10 @@
     "stale_data": {
       "title": "{vin}: los datos del vehículo no se actualizan desde hace {age} h",
       "description": "Los últimos datos que comunicó tu coche se registraron hace unas **{age} horas**, aunque la integración sigue consultando sin problemas. Esto puede deberse a dos motivos: puede que el coche esté simplemente aparcado y en reposo (algo normal, no hay nada que hacer) o que su fuente de datos del EU Data Act haya caducado y haya dejado de enviar lecturas nuevas.\n\nLos valores que ves ahora son los últimos conocidos, no datos en tiempo real. Si has conducido o enchufado el coche desde entonces y este aviso sigue apareciendo, lo más probable es que la fuente de datos haya caducado: abre volkswagen.de → los ajustes de datos de tu coche y renueva o vuelve a solicitar el uso compartido de datos, o vuelve a añadir el canal.\n\nEste aviso desaparece automáticamente en cuanto llega una lectura más reciente."
+    },
+    "historical_timeout": {
+      "title": "{vin}: one-time historical export didn't complete",
+      "description": "The one-time historical export requested for this car didn't produce a file within the client deadline. The VW portal gives this request no terminal state, so it may have been silently dropped. The request has been cleared — you can request it again, or check the portal directly."
     }
   },
   "services": {
@@ -2160,6 +2175,12 @@
     },
     "historical_portal_not_ready": {
       "message": "El portal de la Ley de Datos de la UE aún no está listo. Espera a que la integración haya consultado una vez tras la configuración e inténtalo de nuevo."
+    },
+    "historical_disabled": {
+      "message": "The one-time historical export is currently disabled."
+    },
+    "historical_wedge_blocked": {
+      "message": "A continuous 15-minute data request is active for this car. The portal allows only one custom request at a time, so a one-time historical export would pause your live feed for up to 24 hours. Pause the continuous request on the portal first if you really need the one-time export."
     }
   },
   "selector": {

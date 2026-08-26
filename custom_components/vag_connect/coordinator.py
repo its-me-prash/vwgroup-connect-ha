@@ -1968,13 +1968,34 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             DataActSessionExpiredError,
         )
 
+        from .const import ONETIME_EXPORT_DISABLED  # noqa: PLC0415
+
+        if ONETIME_EXPORT_DISABLED:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="historical_disabled",
+            )
         session = async_get_clientsession(self.hass)
         scraper = DataActScraper(session, brand_name=self.entry.data[CONF_BRAND])
         try:
-            return await scraper.kickoff_historical_export(vin)
+            # Wedge-guard — the portal accepts only ONE custom request per VIN at
+            # a time, so submitting a one-time export while the continuous 15-min
+            # feed's request is active would block that feed for up to 24h with no
+            # cancel. Refuse it; the user must pause the continuous request first.
+            active = await scraper.get_active_custom_request_identifier(vin)
+            if active:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="historical_wedge_blocked",
+                )
+            ok = await scraper.kickoff_historical_export(vin)
         except DataActSessionExpiredError:
             self._raise_data_act_session_expired_repair()
             return False
+        if ok:
+            # The portal gives this request no terminal state (it can silently
+            # vanish ~24-36h later), so start our own client-side deadline clock.
+            self._record_historical_pending(vin)
+        return ok
 
     async def async_import_historical_export(self, vin: str) -> bool:
         """Phase C — fetch a READY one-time export for *vin* and merge its config
@@ -2046,6 +2067,95 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 "has a current value.", mask_vin(vin),
             )
         return merged_any
+
+    # ── Stage-1 one-time export lifecycle (deadline + status) ────────────────
+    def _historical_state(self) -> dict[str, Any]:
+        """Per-VIN one-time-export lifecycle state, loaded once from entry.data."""
+        st = getattr(self, "_historical_export_state", None)
+        if st is None:
+            from .const import CONF_HISTORICAL_EXPORT_STATE  # noqa: PLC0415
+            raw = self.entry.data.get(CONF_HISTORICAL_EXPORT_STATE)
+            st = dict(raw) if isinstance(raw, dict) else {}
+            self._historical_export_state = st
+        return st
+
+    def _persist_historical_state(self) -> None:
+        from .const import CONF_HISTORICAL_EXPORT_STATE  # noqa: PLC0415
+        try:
+            self.hass.config_entries.async_update_entry(
+                self.entry,
+                data={
+                    **self.entry.data,
+                    CONF_HISTORICAL_EXPORT_STATE: dict(self._historical_state()),
+                },
+            )
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug("historical-export state persist skipped", exc_info=True)
+
+    def _record_historical_pending(self, vin: str) -> None:
+        self._historical_state()[vin] = {
+            "state": "pending",
+            "submitted_at": datetime.now(tz=timezone.utc).isoformat(),
+        }
+        self._persist_historical_state()
+
+    def historical_export_state(self, vin: str) -> str:
+        """The lifecycle state for *vin*: idle / pending / done / timed_out."""
+        s = self._historical_state().get(vin)
+        return s.get("state", "idle") if isinstance(s, dict) else "idle"
+
+    async def _advance_historical_exports(self) -> None:
+        """Poll-loop step: import a READY one-time export or time out a stuck one.
+
+        Runs on the poll cadence but does real work rarely — only for a VIN with a
+        pending export, and its import attempt is throttled to ~30 min. A ready
+        export imports (→ done); one still pending past the client deadline is
+        declared timed-out (Repair raised, pending cleared) so a silently-dropped
+        export can never wedge a future attempt. Fail-soft — never breaks a poll.
+        """
+        from .const import HISTORICAL_EXPORT_DEADLINE_S  # noqa: PLC0415
+
+        st = self._historical_state()
+        pending = [
+            v for v, s in st.items()
+            if isinstance(s, dict) and s.get("state") == "pending"
+        ]
+        if not pending:
+            return
+        now = datetime.now(tz=timezone.utc)
+        changed = False
+        for vin in pending:
+            def _parse(key: str) -> datetime:
+                try:
+                    d = datetime.fromisoformat(str(st[vin].get(key)))
+                    return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+                except (TypeError, ValueError):
+                    return now
+            if (now - _parse("submitted_at")).total_seconds() >= HISTORICAL_EXPORT_DEADLINE_S:
+                st[vin] = {"state": "timed_out",
+                           "submitted_at": st[vin].get("submitted_at")}
+                changed = True
+                try:
+                    from .repairs import raise_issue_historical_timeout  # noqa: PLC0415
+                    raise_issue_historical_timeout(
+                        self.hass, self.entry.entry_id, vin, masked_vin=mask_vin(vin),
+                    )
+                except Exception:  # noqa: BLE001
+                    _LOGGER.debug("historical timeout repair skipped", exc_info=True)
+                continue
+            if st[vin].get("checked_at") and (now - _parse("checked_at")).total_seconds() < 1800:
+                continue  # throttle import attempts to ~30 min
+            st[vin]["checked_at"] = now.isoformat()
+            changed = True
+            try:
+                if await self.async_import_historical_export(vin):
+                    st[vin] = {"state": "done",
+                               "submitted_at": st[vin].get("submitted_at")}
+            except Exception:  # noqa: BLE001 — not-ready-yet is not fatal
+                _LOGGER.debug("historical import retry for %s deferred",
+                              vin[-6:], exc_info=True)
+        if changed:
+            self._persist_historical_state()
 
     async def async_import_export_file(self, vin: str, file_path: str) -> bool:
         """Phase C (local) — import a EU Data Act export ZIP the user downloaded
@@ -3048,6 +3158,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     self._save_vehicle_cache()
                 except Exception:  # noqa: BLE001
                     pass
+                # Stage-1 — advance any pending one-time historical export
+                # (import when ready, time out when stuck). Real work only for a
+                # VIN with a pending export; never breaks the poll.
+                try:
+                    await self._advance_historical_exports()
+                except Exception:  # noqa: BLE001
+                    _LOGGER.debug("historical-export advance skipped", exc_info=True)
                 # v2.25.0 (#966/#632) — the per-VIN _merge_supplementary above
                 # may have refreshed the vw.de session on a mid-poll 401,
                 # rotating its cookie jar. Persist the rotated cookies here (once
@@ -5303,6 +5420,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 data["minutes_since_last_snapshot"] = (
                     int(_age // 60) if _age is not None else None
                 )
+                # Stage-1 — the one-time historical export lifecycle state, set
+                # only while an export is actually in flight (or just finished) so
+                # the sensor stays hidden for the majority who never use it.
+                _hs = self.historical_export_state(_vin_sd)
+                if _hs != "idle":
+                    data["historical_export_state"] = _hs
 
         # Fix #32: Defensive is_charging reset.
         # When plug is disconnected, charging MUST be False regardless of API state.

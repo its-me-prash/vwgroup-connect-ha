@@ -54,6 +54,11 @@ async def async_setup_entry(
             # user whose portal has no active request can fix "no data" from
             # inside Home Assistant instead of the portal UI.
             entities.append(VagDataActRequestButton(coordinator, vin))
+            # Stage-1 — a one-time historical-export trigger, unless the whole
+            # lifecycle is disabled by the kill-switch.
+            from .const import ONETIME_EXPORT_DISABLED  # noqa: PLC0415
+            if not ONETIME_EXPORT_DISABLED:
+                entities.append(VagHistoricalExportButton(coordinator, vin))
             return entities
         # v3.0.0a1 — also require the client to implement the command, else the
         # button raises AttributeError on press (companion/ADB has neither).
@@ -127,6 +132,26 @@ class VagDataActRequestButton(VagConnectEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         await self.coordinator.async_create_data_act_request()
+
+
+class VagHistoricalExportButton(VagConnectEntity, ButtonEntity):
+    """Request a ONE-TIME EU Data Act historical export for this car.
+
+    Refused (with a clear message) while the continuous 15-min request is active,
+    because the portal allows only one custom request per VIN at a time and a
+    one-time export would block the live feed for up to 24h. The
+    ``historical_export`` sensor tracks the resulting pending/done/timed_out state.
+    """
+
+    _attr_translation_key = "historical_export_button"
+    _attr_icon = "mdi:history"
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, coordinator: VagConnectCoordinator, vin: str) -> None:
+        super().__init__(coordinator, vin, "historical_export_button")
+
+    async def async_press(self) -> None:
+        await self.coordinator.async_request_historical_export(self._vin)
 
 
 class VagCompanionResetButton(VagConnectEntity, ButtonEntity):

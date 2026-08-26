@@ -368,6 +368,14 @@
       "minutes_since_last_snapshot": {
         "name": "Minutes since last snapshot"
       },
+      "historical_export_state": {
+        "name": "Historical export",
+        "state": {
+          "pending": "Requested — preparing",
+          "done": "Delivered",
+          "timed_out": "Timed out"
+        }
+      },
       "target_soc": {
         "name": "Lataustavoite"
       },
@@ -1738,6 +1746,9 @@
       "data_act_request_button": {
         "name": "Luo EU Data Act -datapyyntö"
       },
+      "historical_export_button": {
+        "name": "Request historical export"
+      },
       "companion_reset_button": {
         "name": "Nollaa companion-yhteys"
       }
@@ -1944,6 +1955,10 @@
     "stale_data": {
       "title": "{vin}: ajoneuvon tiedot eivät ole päivittyneet {age} tuntiin",
       "description": "Auton viimeksi raportoimat tiedot kerättiin noin **{age} tuntia sitten**, vaikka integraatio hakee tietoja edelleen onnistuneesti. Tähän voi olla kaksi syytä: auto voi yksinkertaisesti olla pysäköitynä ja lepotilassa (normaalia — ei tarvitse tehdä mitään), tai sen EU Data Act -tietosyöte on saattanut vanhentua eikä toimita enää tuoreita lukemia.\n\nNäkemäsi arvot ovat viimeisimmät tunnetut, eivät reaaliaikaiset. Jos autoa on ajettu tai se on kytketty lataukseen tämän jälkeen eikä varoitus poistu, tietosyöte on mitä todennäköisimmin vanhentunut: avaa volkswagen.de → auton tietoasetukset ja uusi tai pyydä tietojen jakaminen uudelleen, tai lisää kanava uudelleen.\n\nTämä varoitus poistuu automaattisesti heti, kun tuoreempi lukema saapuu."
+    },
+    "historical_timeout": {
+      "title": "{vin}: one-time historical export didn't complete",
+      "description": "The one-time historical export requested for this car didn't produce a file within the client deadline. The VW portal gives this request no terminal state, so it may have been silently dropped. The request has been cleared — you can request it again, or check the portal directly."
     }
   },
   "services": {
@@ -2160,6 +2175,12 @@
     },
     "historical_portal_not_ready": {
       "message": "EU:n datasäädösportaali ei ole vielä valmis. Odota, kunnes integraatio on hakenut tiedot kerran käyttöönoton jälkeen, ja yritä sitten uudelleen."
+    },
+    "historical_disabled": {
+      "message": "The one-time historical export is currently disabled."
+    },
+    "historical_wedge_blocked": {
+      "message": "A continuous 15-minute data request is active for this car. The portal allows only one custom request at a time, so a one-time historical export would pause your live feed for up to 24 hours. Pause the continuous request on the portal first if you really need the one-time export."
     }
   },
   "selector": {
