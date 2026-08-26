@@ -318,13 +318,19 @@ class TestLiveHealthReport:
 
 
 class _ScreenSequence:
-    """Replays the live screens in the order a real walk would meet them."""
+    """Replays the live screens in the order a real walk would meet them.
+
+    Counts dumps as well as taps: over ADB a `uiautomator dump` is a round trip
+    of a second or more, so the number of them a walk spends is a real
+    constraint, not an implementation detail.
+    """
 
     def __init__(self, screens: list[str]) -> None:
         self._screens = screens
         self._at = 0
         self.taps: list[tuple[int, int]] = []
         self.backs = 0
+        self.dumps = 0
         self.connected = True
 
     async def connect(self) -> None:
@@ -337,6 +343,7 @@ class _ScreenSequence:
         return "4.3.2"
 
     async def dump_ui(self) -> str:
+        self.dumps += 1
         return self._screens[min(self._at, len(self._screens) - 1)]
 
     async def tap(self, x: int, y: int) -> None:
@@ -368,6 +375,25 @@ class TestLiveWalk:
         # One tap in on the range tile, and the sheet's own Close on the way out.
         assert len(transport.taps) == 2
         assert transport.backs == 0
+
+    @pytest.mark.asyncio
+    async def test_a_poll_stays_inside_its_dump_budget_for_adb(self) -> None:
+        # ADB is the supported transport and every dump on it is a round trip
+        # of a second or more, so the walk must not dump its way through a
+        # screen it has already read. A one-tap detail read is allowed the
+        # overview, the settle pair after the tap, and the return leg.
+        transport = _ScreenSequence([OVERVIEW, CHARGE_SHEET])
+        channel = CompanionChannel(
+            transport,  # type: ignore[arg-type]
+            _VW,
+            time_fn=time.monotonic,
+            read_charge_detail=True,
+        )
+        await channel.read()
+        assert transport.dumps <= 6, (
+            f"{transport.dumps} dumps for a one-tap nav read; on ADB that is "
+            "seconds of wall clock per poll"
+        )
 
     @pytest.mark.asyncio
     async def test_a_tile_without_the_clickable_flag_is_still_reachable(self) -> None:

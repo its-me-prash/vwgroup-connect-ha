@@ -61,8 +61,13 @@ _RATE_LIMIT_BACKOFF_S = 12 * 3600  # 12 h after a rate-limit banner. Uses wall
                                    # clock so it can be PERSISTED across restarts
                                    # (ckomma #21: an account lockout must NOT be
                                    # cleared by a restart the way a TCP blip is)
-_SETTLE_MAX_DUMPS = 3              # re-dumps waiting for a Compose screen to
-                                   # stop changing after a tap (v4.4.0)
+_SETTLE_MAX_DUMPS = 2              # dumps spent waiting for a Compose screen to
+                                   # stop changing after a tap: one to read it,
+                                   # one to confirm it stopped moving (v4.4.0).
+                                   # Kept deliberately tight — over ADB a
+                                   # uiautomator dump is a round trip of a
+                                   # second or more, so a four-step walk would
+                                   # otherwise spend half a minute dumping.
 _NAV_READ_INTERVAL_S = 900.0       # C9: a forward-nav READ (into charge detail)
                                    # runs at most every 15 min, NOT every poll —
                                    # it taps the app, so it stays infrequent and
@@ -347,8 +352,12 @@ class CompanionChannel:
         """
         taps = 0
         detail: list[UiNode] | None = None
+        # What the previous step already settled, so a step never dumps a
+        # screen its predecessor just finished reading.
+        pending: str | None = None
         for step in steps:
-            nodes, cleared = await self._dump_and_clear_overlays()
+            nodes, cleared = await self._dump_and_clear_overlays(pending)
+            pending = None
             if not cleared:
                 return None, taps
             if step.scroll_first and find_node_for(nodes, step) is None:
@@ -370,8 +379,8 @@ class CompanionChannel:
             # A Compose screen renders in stages, so the tree right after a tap
             # is routinely half-built. Wait for it to stop changing before the
             # next step reads it, or a step lands on a screen that has moved.
-            await self._settle()
-        detail, cleared = await self._dump_and_clear_overlays()
+            pending = await self._settle()
+        detail, cleared = await self._dump_and_clear_overlays(pending)
         return (detail if cleared else None), taps
 
     async def _scroll_up(self, nodes: list[UiNode]) -> list[UiNode]:
@@ -400,22 +409,25 @@ class CompanionChannel:
         scrolled, cleared = await self._dump_and_clear_overlays()
         return scrolled if cleared else nodes
 
-    async def _settle(self) -> None:
-        """Re-dump until the tree stops changing, bounded.
+    async def _settle(self) -> str | None:
+        """Dump until the tree stops changing, and hand the result back.
 
-        Cheap on a slow transport (the first two dumps usually already match)
-        and the difference between reading a rendered screen and a half-built
-        one on a fast one.
+        Returns the settled XML so the caller can read the screen it just
+        waited for instead of dumping it a third time. That matters on ADB,
+        where every dump is a round trip: re-reading what we already have is
+        the difference between a walk that takes a few seconds and one that
+        takes most of a minute.
         """
         previous: str | None = None
         for _ in range(_SETTLE_MAX_DUMPS):
             try:
                 current = await self._t.dump_ui()
             except CompanionTransportError:
-                return
+                return previous
             if current == previous:
-                return
+                return current
             previous = current
+        return previous
 
     async def _return_to_overview(self, presses: int = 1) -> None:
         """Walk back to the overview so the next plain read sees the main screen.
@@ -455,15 +467,22 @@ class CompanionChannel:
             except CompanionTransportError:
                 return
 
-    async def _dump_and_clear_overlays(self) -> tuple[list[UiNode], bool]:
+    async def _dump_and_clear_overlays(
+        self, known_xml: str | None = None
+    ) -> tuple[list[UiNode], bool]:
         """Dump the screen; if a known overlay is up, BACK past it and re-dump.
 
         v2.26.0 (ckomma #8/#13/#20). Returns (parsed_nodes, cleared). ``cleared``
         is False when an overlay is still present after the capped retries, so
         the caller can decline to read/tap the wrong screen. BACK-only, so this
         is safe to run on the read-only brands too.
+
+        v4.4.0 — ``known_xml`` lets a caller that has just settled a screen pass
+        what it already read instead of paying for another dump. Overlay
+        handling is unchanged: if one turns out to be up, it is dismissed and
+        the screen re-read as before.
         """
-        xml = await self._t.dump_ui()
+        xml = known_xml if known_xml is not None else await self._t.dump_ui()
         for _ in range(_OVERLAY_MAX_DISMISS):
             nodes = parse_ui_dump(xml)
             overlay = find_overlay(nodes, self._preset)
