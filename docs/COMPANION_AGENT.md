@@ -20,9 +20,13 @@ This document specifies that protocol. It is the contract between
 `custom_components/vag_connect/companion/relay.py` and any agent app; an agent
 written against this file alone will work.
 
-> **Status.** The Home Assistant side ships in v4.4.0 and is covered by tests.
-> The phone-side agent app is a separate artifact and is **not** part of this
-> repository yet — see "Writing an agent" below.
+> [!IMPORTANT]
+> **This is a specification, not a feature you can switch on yet.** The Home
+> Assistant side ships in v4.4.0b1 — the endpoint, this protocol, the config-flow
+> toggle and the tests — but **no agent app exists**, so ticking *Use the
+> companion agent app* today only leaves the entry waiting for a poll that never
+> arrives. The document is here so an agent *can* be built against it (see
+> "Writing an agent"). Until one does, **ADB and the [ADB Bridge add-on](https://github.com/its-me-prash/vwgroup-app-adb-bridge) remain the working companion transports.**
 
 ## Shape
 
@@ -102,21 +106,6 @@ accessibility node tree into the same XML shape `uiautomator dump` produces, so
 every selector in `companion/presets.py` and all of `companion/screen.py` work
 unchanged across all three transports. At minimum each node needs
 `resource-id`, `content-desc`, `text`, `class`, `clickable` and `bounds`.
-
-## Setting it up
-
-1. Install and start an agent app on the phone, sign the manufacturer app in,
-   and leave it on the vehicle overview.
-2. Generate a random token in the agent (≥ 32 characters) and give it the Home
-   Assistant base URL.
-3. In Home Assistant add **VW Group Connect → Companion phone**, tick **Use the
-   companion agent app**, paste the same token, and leave the address field
-   empty.
-4. The entry waits for the agent's first poll; diagnostics then report
-   `companion_relay` as the source channel.
-
-Everything above the transport is unchanged: the same brand presets, the same
-write quarantine, the same app-version gate, the same opt-in nav reads.
 
 ## Writing an agent
 
