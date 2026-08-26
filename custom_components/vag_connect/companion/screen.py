@@ -146,7 +146,15 @@ def _iter_field_raws(nodes: list[UiNode], sel: FieldSelector) -> Iterator[str]:
     valid value, so a leading placeholder ("--", "—", an out-of-range number)
     no longer drops the field when a later node carries the real reading.
     """
-    # 0) geometric — a value with no label of any kind (v4.4.0).
+    # 0a) a switch's own state (v4.4.0). Only a checkable node counts: a
+    # container sharing the id would report checked=false and read as "off".
+    if sel.checked_of_rid:
+        for n in nodes:
+            if _rid_matches(n.resource_id, sel.checked_of_rid) and n.checkable:
+                yield "true" if n.checked else "false"
+                break
+
+    # 0b) geometric — a value with no label of any kind (v4.4.0).
     if sel.centre_of_rid:
         found = centre_number(nodes, sel.centre_of_rid)
         if found:

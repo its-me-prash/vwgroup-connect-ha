@@ -52,6 +52,12 @@ class FieldSelector:
     # the container's resource-id; the value taken is the numeric text node
     # inside it that sits nearest the container's horizontal centre.
     centre_of_rid: str | None = None
+    # v4.4.0 (#968, live 4.3.2 dump) — a settings switch carries its state in
+    # the node's ``checked`` attribute, not in any text: the row's text says
+    # what the switch IS ("Window heating"), never whether it is on. Names the
+    # switch's resource-id; the value resolves to the literal "true"/"false",
+    # which ``bool_switch`` turns into a real boolean.
+    checked_of_rid: str | None = None
     # When matched via ``label_re``, where the value text comes from:
     #   "self"    → the label node's own text (e.g. "Ladung 74 %")
     #   "sibling" → the next sibling node's text (label and value are separate)
@@ -329,6 +335,13 @@ _VW = BrandPreset(
         # already capture their numbers out of those sentences; what needs its
         # own selector is the trailing STATE phrase, which would otherwise be
         # stored as the whole sentence.
+        #
+        # NOTE on where that sentence actually lives: on the live 4.3.2 Mk8
+        # overview it does NOT appear at all — the overview carries range,
+        # climate, lock, horn, departure times and a last-trip tile, and the
+        # charge sentence is on the charge-detail sheet behind the range tile
+        # (read there by the ``charge_detail`` nav below). These two stay for
+        # the layouts that do narrate it on the main screen.
         FieldSelector(
             target="charging_state",
             content_desc_re=(
@@ -338,15 +351,17 @@ _VW = BrandPreset(
             ),
             parse="str",
         ),
-        # Lock state — the 4.3.2 vehicle title narrates it ("Vehicle is
-        # locked"/"unlocked"); on the German build "Fahrzeug ist verriegelt".
-        # ``bool_locked`` checks the negative first, so "unlocked" cannot match
-        # the "locked" substring.
+        # Lock state. #968 (plainmad, live 4.3.2 dump) — the tile narrates it as
+        # "Vehicle. Locked. Open details", i.e. sentence fragments, NOT "Vehicle
+        # is locked": the earlier pattern matched nothing at all on a real
+        # screen. Accept both spellings and the German build. ``bool_locked``
+        # checks the negative first, so "Unlocked" cannot match the "locked"
+        # substring inside it.
         FieldSelector(
             target="doors_locked",
             content_desc_re=(
-                r"(?:Vehicle\s*is\s*(?:un)?locked|Fahrzeug\s*(?:ist\s*)?"
-                r"(?:ver|ent)riegelt)"
+                r"(?:Vehicle|Fahrzeug)[.:]?\s*(?:is\s*|ist\s*)?"
+                r"((?:un)?locked|(?:ver|ent)riegelt)\b"
             ),
             parse="bool_locked",
         ),
@@ -413,6 +428,32 @@ _VW = BrandPreset(
                     ),
                     parse="percent",
                 ),
+                # #968 (plainmad, live 4.3.2 dump) — on 4.3.2 the charge STATE
+                # is not on the overview at all: the whole sentence, state and
+                # level together, lives on this detail sheet, in the same
+                # ``rangeArcBatterySoc`` node's description ("Charging status.
+                # Battery charge level: 79 per cent. Charging stopped"). Read
+                # here, or a car's charging flag never updates from a real
+                # screen. The overview selectors stay for layouts that do
+                # narrate it there.
+                # Matched on the description only, deliberately: that node's
+                # ``text`` is the short "Battery 79 %" and a resource-id match
+                # would resolve to it first, so the state sentence would never
+                # be reached.
+                FieldSelector(
+                    target="charging_state",
+                    content_desc_re=(
+                        r"Charging\s*status\b.*?\.\s*"
+                        r"(Charging\s*(?:stopped|paused|complete[d]?|active)?"
+                        r"|Not\s*(?:charging|connected)|Ready\s*to\s*charge)\s*\.?\s*$"
+                    ),
+                    parse="str",
+                ),
+                FieldSelector(
+                    target="is_charging",
+                    content_desc_re=r"(Charging\s*status\b.*)",
+                    parse="bool_charging",
+                ),
                 FieldSelector(
                     target="target_soc",
                     content_desc_re=(
@@ -476,6 +517,14 @@ _VW = BrandPreset(
                     value_from="sibling",
                     parse="days",
                 ),
+                # The same report carries the oil interval one row down, in the
+                # same label-then-value shape.
+                FieldSelector(
+                    target="oil_service_due_in_days",
+                    label_re=r"^(?:Next\s*oil\s*service|Nächster\s*Ölwechsel)$",
+                    value_from="sibling",
+                    parse="days",
+                ),
             ),
             back_presses=1,
             opt_in="vehicle_health",
@@ -527,12 +576,27 @@ _VW = BrandPreset(
                     parse="temp_c",
                 ),
                 # The outside temperature is the one °C reading on this screen
-                # that carries its unit, so the unit is the anchor.
+                # that carries its unit, so the unit is the anchor. It sits
+                # inside ``outside_temperature_layout`` and reads as
+                # "<place>: 22°C" on a live screen, so the number is taken from
+                # the unit, never from the text around it.
                 FieldSelector(
                     target="outside_temp",
-                    label_re=r"(-?\d{1,2}(?:[.,]\d+)?\s*°\s*[CF])",
+                    label_re=r"(-?\d{1,2}(?:[.,]\d+)?\s*°\s*[CF]?)",
                     value_from="self",
                     parse="temp_c",
+                ),
+                # #968 (plainmad, live 4.3.2 dump) — the two switches on this
+                # screen carry their state in ``checked``, not in any text.
+                FieldSelector(
+                    target="window_heating_enabled",
+                    checked_of_rid="window_heating_toggle",
+                    parse="bool_switch",
+                ),
+                FieldSelector(
+                    target="climatisation_active",
+                    checked_of_rid="air_conditioning_toggle",
+                    parse="bool_switch",
                 ),
             ),
             back_presses=1,
@@ -614,6 +678,10 @@ _VW = BrandPreset(
         ActionSelector(action="up", resource_id="vwd_navigation_button"),
         ActionSelector(action="up", resource_id="vehicleHealthBack"),
         ActionSelector(action="up", resource_id="climatisationSettingsLeading"),
+        # #968 (plainmad, live 4.3.2 dump) — the charge detail is a bottom
+        # sheet, and its way out is a described Close control rather than any
+        # of the ids above.
+        ActionSelector(action="up", content_desc_re=r"^Close(?:\s*sheet)?$"),
     ),
     # v4.4.0 — the overview is the screen that carries both tiles. Used to stop
     # the return walk as soon as we are actually home, rather than pressing a
@@ -860,12 +928,24 @@ def coerce(parse: str, raw: str | None) -> object | None:
             return False
         return bool(re.search(r"(?:Lädt|Wird geladen|Charging)", raw, re.I))
     if parse == "days":
-        # "Next service" renders as "in 320 days" / "320 Tage". A countdown
-        # beyond ten years is a mis-match, not a service interval.
-        val = _first_int(raw)
-        if val is None or not (0 <= val <= 3650):
+        # #968 (plainmad, live 4.3.2 dump) — the Vehicle Health report writes
+        # the service countdown as "71 days / 12,100 mi": a day count AND a
+        # distance in one string. Taking the first number found reads 12,100
+        # (the grouped-thousands mileage) and then fails the range check, so
+        # the countdown never appeared. Bind to the unit instead.
+        m = re.search(r"(\d{1,4})\s*(?:days?|Tage?n?)\b", raw, re.I)
+        if m is None:
             return None
-        return val
+        val = int(m.group(1))
+        return val if 0 <= val <= 3650 else None
+    if parse == "bool_switch":
+        # Straight from a node's ``checked`` attribute, so only the two literal
+        # values are accepted; anything else is a mis-match, not a False.
+        if raw == "true":
+            return True
+        if raw == "false":
+            return False
+        return None
     if parse == "bool_climate":
         # v4.4.0 (#968) — the climate tile narrates its own state; "off",
         # "stopped" and "aus" are the negatives, and they are checked first so
