@@ -42,6 +42,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.4.0b2] - 2026-08-27 — Audi model names · EU Data Act portal health & cadence
+
+> [!IMPORTANT]
+> **Headline: Audi cars finally show their real model.** The bare "Audi (2021)" was a missing pair of locale headers on the model query — proven with a same-account A/B test (no headers → blank; `Accept-Language` + `X-User-Country` → full name) — so an S6 now reads "Audi S6 Avant TDI quattro tiptronic". Alongside it, EU Data Act cars gain a **Portal feed health** sensor that says at a glance whether the portal is actually delivering (and why not), a safety-checked one-time **historical export**, and polling that now aligns to the portal's own ~15-minute delivery cadence.
+
 ### Added
 - **A portal-feed health sensor for EU Data Act cars.** A new **Portal feed health** sensor says at a glance whether the portal is actually delivering — `ok`, `waiting_for_portal_data` (no data request set up yet), `empty_snapshots` (the car is asleep), `delivery_not_ready`, or `stale` (the poll keeps succeeding but the car's own capture time has frozen). That last one is the field's most common gotcha — a fresh delivery wrapping a stale payload — and it was previously invisible, looking like an integration bug rather than a portal one. A companion **Minutes since last snapshot** diagnostic (disabled by default) exposes the exact capture age so you can automate on a staleness threshold.
 - **A safety net around the one-time historical export.** A **Request historical export** button asks the EU Data Act portal for a one-time historical snapshot (the config data — timers, charge profiles, climate settings — that the 15-minute feed doesn't carry), and a **Historical export** sensor tracks it. The safety is the new part, and it's field-first: it **refuses to start while your continuous 15-minute feed is active** (the portal allows only one request per car at a time, so a one-time export would pause your live feed for up to 24 hours), and because the portal gives the request no terminal state — it can silently produce nothing a day later — it now runs its own **client-side deadline** that declares it timed out and raises a repair instead of waiting forever. A kill-switch can disable the whole path.
