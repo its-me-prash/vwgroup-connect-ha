@@ -515,6 +515,17 @@ async def async_get_config_entry_diagnostics(
             except Exception as err:  # noqa: BLE001
                 raw_responses[f"command:{k}"] = {"error": f"{type(err).__name__}"}
 
+    # v4.4.0b3 — opt-in SEAT/CUPRA en_GB locale A/B capture (default vs en_GB
+    # localized strings from mycar). Values are already VIN/email-masked at
+    # capture; route through the same scrub for defense-in-depth.
+    olc = getattr(client, "ola_locale_captures", None) if client is not None else None
+    if isinstance(olc, dict):
+        for vin_key, payload in olc.items():
+            try:
+                raw_responses[f"ola_locale:{str(vin_key)[-6:]}"] = _scrub_raw(payload)
+            except Exception as err:  # noqa: BLE001
+                raw_responses[f"ola_locale:{str(vin_key)[-6:]}"] = {"error": f"{type(err).__name__}"}
+
     # #923/#1157 — surface the experimental vw.de probe outcomes so the test
     # cohort can see WHY a probe yielded nothing (a 403/404/412 refusal vs an
     # empty 200 vs a never-fired probe). Bare status labels only — no PII.

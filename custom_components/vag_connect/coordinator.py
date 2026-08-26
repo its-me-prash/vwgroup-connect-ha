@@ -2482,7 +2482,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         if has_bff:
             client._test_cohort = cohort
 
-        if cohort and (has_web or has_bff):
+        # v4.4.0b3 — SEAT/CUPRA en_GB locale A/B probe. The OLA client captures a
+        # localized-string sample (default vs en_GB) once per VIN when opted in;
+        # count it toward the share prompt so a SEAT/CUPRA reporter (no vw.de / BFF
+        # channel) is still asked to share the capture, or it never reaches us.
+        has_ola = client is not None and hasattr(client, "ola_locale_captures")
+        if has_ola:
+            client._test_cohort = cohort
+
+        if cohort and (has_web or has_bff or has_ola):
             raise_issue_test_cohort_share(self.hass, self.entry.entry_id)
         else:
             clear_issue_test_cohort_share(self.hass, self.entry.entry_id)
