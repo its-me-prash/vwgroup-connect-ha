@@ -3558,7 +3558,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         return False
 
     def _active_vins(self, vins: list[str]) -> list[str]:
-        """Drop VINs whose HA device the user has disabled, so a deactivated
+        """Drop VINs whose HA device *the user* disabled, so a deactivated
         vehicle stops being polled and stops consuming the daily request budget.
 
         Reported by Marco Schmidt via the Home Assistant Tipps und Tricks
@@ -3566,6 +3566,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         disabling a device removes its entities without stopping the coordinator
         from polling the VIN. A vehicle with no device yet (first run) is always
         polled; polling resumes automatically when the device is re-enabled.
+
+        Only a *user*-disabled device is skipped (``DeviceEntryDisabler.USER``).
+        A device HA disabled for its OWN reasons (``CONFIG_ENTRY`` / ``INTEGRATION``
+        — e.g. a transient registry state during a reload) must keep polling, or
+        a car could silently fall out of rotation without the owner ever touching
+        it and never come back short of clearing the state by hand (#1234 — one
+        VIN on a multi-car account going quiet while its sibling kept updating).
         """
         try:
             registry = dr.async_get(self.hass)
@@ -3575,7 +3582,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             vin
             for vin in vins
             if (dev := registry.async_get_device(identifiers={(DOMAIN, vin)})) is None
-            or not isinstance(dev.disabled_by, dr.DeviceEntryDisabler)
+            or dev.disabled_by != dr.DeviceEntryDisabler.USER
         ]
         if len(active) != len(vins):
             _LOGGER.debug(
