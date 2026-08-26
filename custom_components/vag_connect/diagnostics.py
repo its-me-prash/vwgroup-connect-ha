@@ -109,6 +109,14 @@ _REDACT_KEYS = frozenset({
     CONF_VWEU_TWOWAY_EMAIL,
     CONF_VWEU_TWOWAY_TOKENS,
     CONF_VWEU_TWOWAY_COOKIES,
+    # Companion agent/add-on tokens. The agent token is the ENTIRE binding for
+    # the open relay endpoint — anyone holding it can bind a phone to the car's
+    # app — and the add-on token authenticates the ADB-bridge add-on. Both live
+    # in entry.data, so without this they land in the diagnostics download users
+    # attach to GitHub issues. Raw string keys (not the CONF_* constants) so the
+    # redaction is independent of the companion module's own const import order.
+    "companion_agent_token",
+    "companion_addon_token",
 })
 
 
