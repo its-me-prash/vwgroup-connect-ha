@@ -42,6 +42,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **SEAT/CUPRA locale check (opt-in test cohort).** For a cohort member with a SEAT/CUPRA car, a once-per-vehicle diagnostic samples the `mycar` localized strings with our default headers vs `Accept-Language: en_GB` (the value the reference client sends) and includes both in the diagnostics download — so a real account can tell us whether adding that header would localise strings or just force English, before we change anything. Off unless you're in the cohort; the values are VIN/email-masked.
+
 ## [4.4.0b2] - 2026-08-27 — Audi model names · EU Data Act portal health & cadence
 
 > [!IMPORTANT]

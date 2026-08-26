@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -136,6 +137,16 @@ class SeatCupraClient(CariadBaseClient):
         # revisions (pycupra references both ``model`` + ``modelName``,
         # ``modelYear`` + ``year``, etc.).
         self._vin_to_static_info: dict[str, dict[str, Any]] = {}
+        # v4.4.0b3 — opt-in test-cohort locale A/B probe. The competitor lib
+        # pycupra sends a STATIC ``Accept-Language: en_GB`` on every OLA read,
+        # while we currently send none; grounding could not decide from source
+        # whether adding it fixes localized strings (warning texts, service
+        # labels, model) or merely FORCES English on a non-English account. This
+        # captures, ONCE per VIN for opted-in users, the localized fields from a
+        # default read vs an ``en_GB`` read so a real SEAT/CUPRA account settles
+        # it. Off unless the coordinator flips ``_test_cohort`` (CONF_TEST_COHORT).
+        self._test_cohort = False
+        self.ola_locale_captures: dict[str, Any] = {}
 
     async def authenticate(self, mfa_code: str | None = None) -> None:
         """IDK auth + capture user_id from redirect chain."""
@@ -535,6 +546,73 @@ class SeatCupraClient(CariadBaseClient):
             except Exception:  # noqa: BLE001
                 _LOGGER.debug("Could not fetch renders for %s", vin[-6:])
 
+    # ── v4.4.0b3 test-cohort: SEAT/CUPRA en_GB locale A/B ──────────────────
+    _LOCALE_KEY_HINTS = (
+        "name", "title", "desc", "text", "label", "model", "message", "type",
+    )
+
+    @staticmethod
+    def _collect_localized_strings(obj: Any) -> dict[str, str]:
+        """Curated, bounded, VIN/email-masked map of candidate *localized* leaf
+        strings — human-readable text under name/title/desc/… keys. Codes,
+        UUIDs, timestamps and pure numbers are skipped so the capture stays
+        small and privacy-safe."""
+        out: dict[str, str] = {}
+
+        def _mask(s: str) -> str:
+            s = re.sub(r"[A-HJ-NPR-Z0-9]{11,17}", lambda m: "***" + m.group(0)[-4:], s)
+            return re.sub(r"[\w.+-]+@[\w.-]+\.\w+", "***@***", s)[:120]
+
+        def _walk(o: Any, path: str, depth: int) -> None:
+            if len(out) >= 40 or depth > 6:
+                return
+            if isinstance(o, dict):
+                for k, v in o.items():
+                    _walk(v, f"{path}.{k}" if path else str(k), depth + 1)
+            elif isinstance(o, list):
+                for i, v in enumerate(o[:10]):
+                    _walk(v, f"{path}[{i}]", depth + 1)
+            elif isinstance(o, str):
+                key_l = path.rsplit(".", 1)[-1].lower()
+                s = o.strip()
+                if (
+                    any(h in key_l for h in SeatCupraClient._LOCALE_KEY_HINTS)
+                    and 2 <= len(s) <= 80
+                    and re.search(r"[A-Za-z]", s)
+                    and not re.fullmatch(r"[A-Z0-9_.:-]{8,}", s)   # skip codes/UUIDs
+                    and not re.fullmatch(r"\d[\d.:T +-]*Z?", s)    # skip timestamps
+                ):
+                    out[path] = _mask(s)
+
+        _walk(obj, "", 0)
+        return out
+
+    async def _probe_ola_locale(self, vin: str) -> None:
+        """Opt-in A/B: read ``mycar`` once with our default headers and once with
+        pycupra's static ``Accept-Language: en_GB``, and record the localized
+        leaf strings from each. Lets a real SEAT/CUPRA account settle whether
+        adding en_GB fixes localized strings or merely forces English. Runs once
+        per VIN; fail-soft (never affects the real status read)."""
+        if not getattr(self, "_test_cohort", False) or vin in self.ola_locale_captures:
+            return
+        url = f"{_BASE}/v5/users/{self._user_id}/vehicles/{vin}/mycar"
+        try:
+            default = await self._get(url)
+            en_gb = await self._request("GET", url, headers={"Accept-Language": "en_GB"})
+        except Exception as err:  # noqa: BLE001
+            self.ola_locale_captures[vin] = {"error": type(err).__name__}
+            return
+        self.ola_locale_captures[vin] = {
+            "note": (
+                "mycar localized strings — 'default' = no Accept-Language (what we "
+                "send today), 'en_GB' = what pycupra sends. If these differ, en_GB "
+                "changes the language; compare against your app's language to see "
+                "whether it would be a fix or a regression."
+            ),
+            "default": self._collect_localized_strings(default),
+            "en_GB": self._collect_localized_strings(en_gb),
+        }
+
     async def get_status(self, vin: str) -> VehicleData:
         """Fetch full status from OLA server."""
         # v2.12.6 — EU Data Act portal mode (read-only fallback). Route the
@@ -553,6 +631,12 @@ class SeatCupraClient(CariadBaseClient):
             return data
         v = self._val
         d = VehicleData(vin=vin)
+
+        # v4.4.0b3 — opt-in en_GB locale A/B (once per VIN, fail-soft, no effect
+        # on the real read below). Off unless the coordinator flipped
+        # ``_test_cohort`` on from CONF_TEST_COHORT.
+        if getattr(self, "_test_cohort", False) and vin not in self.ola_locale_captures:
+            await self._probe_ola_locale(vin)
 
         # v2.4.1 — Scout Policy Compliance Audit T1: surface the
         # garage-cached license plate + nickname per VIN. No extra
