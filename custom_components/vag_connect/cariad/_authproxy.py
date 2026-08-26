@@ -23,7 +23,7 @@ pure (no I/O) so it unit-tests against fixtures; the session/transport lives in
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 _AUTHPROXY_BASE = "https://www.volkswagen.de/app/authproxy"
 _REALM_VWDE = "vw-de"
@@ -329,6 +329,11 @@ class AuthproxyRelation:
     mod_backend: str | None = None  # "MBB" / "MEB" / …
     relation_id: str | None = None
     euda_scoped: bool = False
+    # Car-Net provisioning signals (live-verified 2026-08-26): a guest / not-yet-
+    # enrolled relation carries ``carnetIndicator: false`` even on an MBB car, so
+    # these gate the durable MBB two-way pre-flight (see :func:`mbb_eligibility`).
+    carnet_indicator: bool = False
+    carnet_allocation_type: str | None = None
 
 
 @dataclass
@@ -391,6 +396,8 @@ def parse_relations(raw: Any) -> AuthproxyRelations | None:
                 mod_backend=_s(veh.get("modBackend")),
                 relation_id=_s(rel.get("relationId")),
                 euda_scoped=isinstance(tags, list) and "EUDA_SCOPED" in tags,
+                carnet_indicator=rel.get("carnetIndicator") is True,
+                carnet_allocation_type=_s(rel.get("carnetAllocationType")),
             )
         )
     return out
@@ -426,7 +433,62 @@ def parse_relation_detail(raw: Any) -> AuthproxyRelation | None:
         mod_backend=_s(veh.get("modBackend")),
         relation_id=_s(rel.get("relationId")),
         euda_scoped=isinstance(tags, list) and "EUDA_SCOPED" in tags,
+        carnet_indicator=rel.get("carnetIndicator") is True,
+        carnet_allocation_type=_s(rel.get("carnetAllocationType")),
     )
+
+
+# ── durable MBB two-way pre-flight (from the guest-readable relations read) ────
+# The vw.de relations read returns a per-vehicle relation object — attestation-
+# free, one GET, readable even for a guest — that carries both the car's platform
+# (``modBackend``) and this account's Car-Net provisioning (``carnetIndicator`` /
+# role / enrollment). That is exactly the signal needed to decide, BEFORE any MBB
+# device-grant login + register→exchange round-trip, whether the durable MBB
+# Car-Net two-way channel is worth arming for a given car. Today that is only
+# learned post-hoc from the BFF operationList after the user has opted in and
+# logged in; this classifier turns the cheap relations read into a pre-flight.
+MbbEligibility = Literal["eligible", "not_provisioned", "not_mbb", "unknown"]
+
+
+def mbb_eligibility(relation: "AuthproxyRelation") -> MbbEligibility:
+    """Pre-flight the durable MBB Car-Net two-way for one related vehicle.
+
+    Verified live 2026-08-26 on a guest account: an MBB car whose relation shows
+    ``carnetIndicator=false`` + ``enrollmentStatus=NOT_STARTED`` + ``role=UNKNOWN``
+    cannot command — so blindly arming MBB there wastes a device-grant login. The
+    classifier reads that same relation up front:
+
+    * ``"eligible"`` — an MBB/Car-Net car this account can command: Car-Net is
+      provisioned (``carnetIndicator`` true), or it is a primary / genuinely
+      enrolled relation.
+    * ``"not_provisioned"`` — an MBB car, but this account has no Car-Net access
+      yet (a guest / not-enrolled relation). The MBB login would not command →
+      don't offer or attempt it.
+    * ``"not_mbb"`` — a WeConnect / MEB (ID.x) car. The legacy Car-Net path does
+      not apply (its two-way is the modern BFF, not MBB).
+    * ``"unknown"`` — the relation carries no platform signal to decide on.
+
+    Note: this only gates; the caller still pairs an ``"eligible"`` result with
+    the user-level ``mbbUserId`` (X-MbbUserId) from :class:`AuthproxyRelations`.
+    """
+    backend = (relation.mod_backend or "").strip().upper()
+    if not backend:
+        return "unknown"
+    # #632 parity — the sentinel is suffixed on real cars ("MBB_ODP"), so match
+    # the prefix, exactly as :func:`gdc_for_backend` does for the live-status gdc.
+    if not backend.startswith("MBB"):
+        return "not_mbb"
+    if relation.carnet_indicator:
+        return "eligible"
+    # No explicit Car-Net flag → fall back to the account's relationship. A guest
+    # sits at role=UNKNOWN / enrollment=NOT_STARTED; a real owner is the primary
+    # car or a PRIMARY_USER whose enrollment has actually started.
+    enrolled = (relation.enrollment_status or "").strip().upper()
+    has_enrollment = enrolled not in {"", "NOT_STARTED"}
+    role = (relation.role or "").strip().upper()
+    if has_enrollment and (relation.primary_car or role == "PRIMARY_USER"):
+        return "eligible"
+    return "not_provisioned"
 
 
 # ── live-status parsers (warning lights + lock history) ───────────────────────
