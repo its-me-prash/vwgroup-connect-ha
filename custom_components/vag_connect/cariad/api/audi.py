@@ -164,8 +164,13 @@ class AudiClient(VWEUClient):
 
         try:
             fetcher = VehicleImageFetcher(self._session)
+            # ``_GRAPHQL_URL`` is the app-api vgql, so use the myAudi app-API
+            # header shape (app_api=True). Pass the account country so the
+            # request carries a locale and the backend returns the localised
+            # ``media`` model name (without it the car shows as "Audi (2021)").
             data: dict[str, VehicleImageData] = await fetcher.fetch_image_data(
-                self._azs_token, "audi", graphql_url=_GRAPHQL_URL
+                self._azs_token, "audi", graphql_url=_GRAPHQL_URL,
+                app_api=True, country=self._mbb_country_from_id_token(),
             )
             if data:
                 self._image_data = data
