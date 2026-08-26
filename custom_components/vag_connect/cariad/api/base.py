@@ -1031,7 +1031,13 @@ class CariadBaseClient:
             return
         try:
             fetcher = VehicleImageFetcher(self._session)
-            data = await fetcher.fetch_image_data(self._access_token, self._brand.name)
+            # Pass the account country (when the client can derive it) so the vgql
+            # returns the localised ``media`` model name — see graphql._locale_headers.
+            _country_getter = getattr(self, "_mbb_country_from_id_token", None)
+            _country = _country_getter() if callable(_country_getter) else None
+            data = await fetcher.fetch_image_data(
+                self._access_token, self._brand.name, country=_country,
+            )
             self._image_data = data
             if data:
                 _LOGGER.info(

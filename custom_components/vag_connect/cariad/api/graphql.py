@@ -185,6 +185,32 @@ class VehicleImageData:
     model_year: int | None = None       # e.g. 2021 (vehicle.core.modelYear)
 
 
+# v4.4.0 — the vehicle model designation lives in ``media.shortName`` /
+# ``media.longName``, which are *localised* catalog strings. The vgql backend
+# only fills them when the request carries a locale: without ``Accept-Language``
+# + ``X-User-Country`` it answers with ``modelYear`` but ``media: null``, which
+# left cars as a bare "Audi (2021)". Live A/B proof (same token, same query):
+# no locale headers → all media null; ``Accept-Language: de-DE`` +
+# ``X-User-Country: DE`` → "Audi S6 Avant TDI quattro tiptronic". The classic
+# myAudi / We Connect clients always send them (cf. audi_connect
+# audi_services.py). We take the country from the account id-token and pair it
+# with a sensible language (the two never have to match perfectly — the model
+# names are language-neutral; the point is that a valid locale is present).
+_COUNTRY_LANG: dict[str, str] = {
+    "AT": "de", "CH": "de", "LI": "de", "BE": "nl", "LU": "fr",
+    "GB": "en", "UK": "en", "IE": "en",
+}
+
+
+def _locale_headers(country: str | None) -> dict[str, str]:
+    """``Accept-Language`` + ``X-User-Country`` so the vgql returns localised
+    ``media`` (the model name). Defaults to DE — a safe EU default that always
+    populates media — when the account country is unknown."""
+    ctry = (country or "DE").strip().upper() or "DE"
+    lang = _COUNTRY_LANG.get(ctry, ctry.lower())
+    return {"Accept-Language": f"{lang}-{ctry}", "X-User-Country": ctry}
+
+
 class VehicleImageFetcher:
     """Fetches vehicle render image URLs via VW Group GraphQL API.
 
@@ -196,11 +222,17 @@ class VehicleImageFetcher:
         self._session = session
 
     async def fetch_image_data(
-        self, access_token: str, brand: str, graphql_url: str | None = None
+        self, access_token: str, brand: str, graphql_url: str | None = None,
+        *, app_api: bool = False, country: str | None = None,
     ) -> dict[str, VehicleImageData]:
         """Return {vin: VehicleImageData} for all vehicles in the account.
 
         graphql_url: override the default endpoint for this brand.
+        app_api: send the myAudi app-API header shape (X-App-Name) — set it when
+            the override URL is the app-api vgql, so it gets the right headers.
+        country: account country (ISO-2) for the locale headers that make the
+            backend return the localised ``media`` model name; see
+            ``_locale_headers``.
         Returns empty dict on any error — images are optional, never block startup.
 
         Audi resilience: the primary vgql source is the ``www.audi.de`` web-proxy,
@@ -212,7 +244,9 @@ class VehicleImageFetcher:
         caller pinned an explicit ``graphql_url``.
         """
         if graphql_url is not None:  # an explicit override always wins
-            return await self._fetch_from(graphql_url, access_token, brand)
+            return await self._fetch_from(
+                graphql_url, access_token, brand, app_api=app_api, country=country,
+            )
 
         if brand.lower() == "audi":
             # myAudi app-API FIRST (the proven source, what the classic myAudi
@@ -220,6 +254,7 @@ class VehicleImageFetcher:
             # order alone leaves some accounts without a model; try both.
             result = await self._fetch_from(
                 _AUDI_APP_API_ENDPOINT, access_token, brand, app_api=True,
+                country=country,
             )
             if not result:
                 _LOGGER.info(
@@ -227,7 +262,7 @@ class VehicleImageFetcher:
                     "www.audi.de web-proxy",
                 )
                 result = await self._fetch_from(
-                    _GRAPHQL_ENDPOINTS["audi"], access_token, brand,
+                    _GRAPHQL_ENDPOINTS["audi"], access_token, brand, country=country,
                 )
             return result
 
@@ -235,10 +270,11 @@ class VehicleImageFetcher:
         if not endpoint:
             _LOGGER.debug("No GraphQL endpoint configured for brand '%s'", brand)
             return {}
-        return await self._fetch_from(endpoint, access_token, brand)
+        return await self._fetch_from(endpoint, access_token, brand, country=country)
 
     async def _fetch_from(
-        self, endpoint: str, access_token: str, brand: str, *, app_api: bool = False,
+        self, endpoint: str, access_token: str, brand: str, *,
+        app_api: bool = False, country: str | None = None,
     ) -> dict[str, VehicleImageData]:
         """POST the userVehicles query to one endpoint and parse it, or {} on error."""
         if app_api:
@@ -263,6 +299,9 @@ class VehicleImageFetcher:
                 "User-Agent":    _BRAND_USER_AGENTS.get(
                     brand.lower(), "myAudi/5.5.1 Android/34"),
             }
+        # Localised model strings (media.shortName/longName) only come back when
+        # the request carries a locale — see _locale_headers.
+        headers.update(_locale_headers(country))
         try:
             async with self._session.post(
                 endpoint,
