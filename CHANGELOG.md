@@ -42,6 +42,17 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.4.0b1] - 2026-08-26 — Companion agent relay · MBB pre-flight · guest-car reads
+
+> [!IMPORTANT]
+> **Headline: the phone can now call Home Assistant.** Until now HA had to reach *into* the phone to drive the We Connect app (ADB over TCP, or the ADB Bridge add-on) — and that direction is where setups get stuck. A companion **agent app** on the phone can now hold an ordinary outbound long-poll to HA instead, so NAT, changing IPs, guest/IoT Wi-Fi isolation and Android's wireless-debugging dance all stop mattering. A **security fix** rides along: the companion tokens are now redacted in the diagnostics download.
+
+> [!NOTE]
+> **This is a beta (`4.4.0b1`)** on the HACS beta channel, for testers. The phone-side agent app is a separate artifact that **does not exist yet** — this ships the Home Assistant half plus the protocol it is built against ([`docs/COMPANION_AGENT.md`](docs/COMPANION_AGENT.md)). ADB and the ADB Bridge add-on remain the supported companion paths, untouched.
+
+> [!WARNING]
+> **The companion channel stays read-only on Volkswagen.** A wrong read is a wrong number on a dashboard; a wrong tap is a physical action on a real car. Writes remain gated behind a live app-version check and a tap map confirmed against a real device, and every new nav-read path is opt-in and off by default.
+
 ### Security
 - **The companion agent / add-on tokens are now redacted in the diagnostics download.** The companion agent-relay endpoint is gated entirely by a per-entry token — anyone holding it can bind a phone to your car's app — and it (plus the ADB-bridge add-on token) lives in the config entry. Neither was on the diagnostics redaction list, so both would have appeared in clear text in the file people attach to public GitHub issues. They now redact by default like every other stored secret.
 
@@ -60,14 +71,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **One vehicle's portal block no longer takes every vehicle on the account offline (#1234).** A non-credential portal interaction (e.g. the IDP's browser-feature block) surfacing at the account level was treated like stale credentials and tore the whole entry into reauth — taking a second, healthy vehicle on the same account down with it. It is now handled as a transient poll failure: the working vehicles stay available and the next poll retries, while only a genuine credential failure triggers reauth. Thanks @eddieari.
 - **A blocked or incomplete VW EU portal login is no longer reported as "invalid credentials" (#1234).** When the sign-in server bounced the automated login back to a login-flow step (`loginIdentifier` / `loginAuthenticate`, status 200) or served one of its own block/error pages (`browserFeaturesMissingError`, `generalErrorBranded`), the classifier's catch-all labelled it a bad password — sending users to re-enter credentials that were already correct. These now surface as a portal/login-interaction with the real reason, while a genuine wrong password (which carries a password errorCode) still maps to invalid credentials. A debug line was added at the classification point so the cause is visible with debug logging on. Thanks @eddieari for the detailed diagnostics.
 - **Portal VW cars now show their model — even for a guest on a family car.** A VW-EU car read over volkswagen.de could fall back to a bare "Volkswagen" with no model: the model was fetched only from a vehicle-file endpoint that VW blocks (403) for anyone who isn't the primary user (a guest driver on a shared car), and that block aborted the read before the flat vehicle-data endpoint — which returns the model even for a guest — was ever tried. The read now degrades per-endpoint, so the model comes through regardless, and the engine-power figure the primary-user endpoint returns (e.g. "110 kW (150 PS)") is surfaced as a sensor too. Grounded on a live volkswagen.de session.
+- **The volkswagen.de profile block is now redacted in a diagnostics download (D#1231).** The number plate, the owner-chosen vehicle nickname and the render image URLs were written in the clear — a tester rightly had to hand-mask them before attaching the file. They now redact by default like the VIN and address already do; empty ones stay visibly empty. Thanks @Ra72xx.
 
 ### Changed
 - **New app icon.** The project now uses the VW Group Connect ID.Buzz artwork — cut to a clean full-bleed rounded square with a crisp app-icon edge on all four sides — deep navy right to the edge, with the source's grey drop-shadow, glow and fringe fully removed — as its icon/logo across the integration and the README.
 - **Groundwork: a durable-MBB two-way pre-flight (internal, no user-visible change yet).** The volkswagen.de relations read now surfaces each car's Car-Net provisioning (`carnetIndicator`) alongside its platform, and a classifier decides up front — from that one cheap, guest-readable read — whether arming the durable MBB channel is even worth it for a car. This lets a later change stop running the MBB device-grant login on cars that could never command it (a guest on a shared/family car, or a WeConnect/ID car whose two-way is the BFF). Grounded on a live volkswagen.de session.
 - **Diagnostics now carry the durable-MBB pre-flight verdict per car.** The diagnostics download lists each car's up-front MBB verdict — `eligible` / `not_provisioned` / `not_mbb` / `unknown` — next to the existing post-hoc `mbb_no_legacy` list, so a "why aren't MBB commands available?" question can be triaged straight from the file instead of asking for a debug log. Observability only: nothing in the poll or command path acts on it.
-
-### Fixed
-- **The volkswagen.de profile block is now redacted in a diagnostics download (D#1231).** The number plate, the owner-chosen vehicle nickname and the render image URLs were written in the clear — a tester rightly had to hand-mask them before attaching the file. They now redact by default like the VIN and address already do; empty ones stay visibly empty. Thanks @Ra72xx.
 
 ## [4.3.0] - 2026-08-25 — Audi plug&play OBD dongle, V6.0 dictionary & live-telemetry
 
