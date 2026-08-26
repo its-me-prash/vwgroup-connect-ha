@@ -42,6 +42,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Security
+- **The companion agent / add-on tokens are now redacted in the diagnostics download.** The companion agent-relay endpoint is gated entirely by a per-entry token — anyone holding it can bind a phone to your car's app — and it (plus the ADB-bridge add-on token) lives in the config entry. Neither was on the diagnostics redaction list, so both would have appeared in clear text in the file people attach to public GitHub issues. They now redact by default like every other stored secret.
+
 ### Fixed
 - **One vehicle's portal block no longer takes every vehicle on the account offline (#1234).** A non-credential portal interaction (e.g. the IDP's browser-feature block) surfacing at the account level was treated like stale credentials and tore the whole entry into reauth — taking a second, healthy vehicle on the same account down with it. It is now handled as a transient poll failure: the working vehicles stay available and the next poll retries, while only a genuine credential failure triggers reauth. Thanks @eddieari.
 - **A blocked or incomplete VW EU portal login is no longer reported as "invalid credentials" (#1234).** When the sign-in server bounced the automated login back to a login-flow step (`loginIdentifier` / `loginAuthenticate`, status 200) or served one of its own block/error pages (`browserFeaturesMissingError`, `generalErrorBranded`), the classifier's catch-all labelled it a bad password — sending users to re-enter credentials that were already correct. These now surface as a portal/login-interaction with the real reason, while a genuine wrong password (which carries a password errorCode) still maps to invalid credentials. A debug line was added at the classification point so the cause is visible with debug logging on. Thanks @eddieari for the detailed diagnostics.
