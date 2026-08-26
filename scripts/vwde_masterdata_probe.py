@@ -39,7 +39,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-ISSUE = "#1165"  # the modern-MBB / VW-EU capability topic
+ISSUE = "the GitHub issue you were pointed at"
 
 
 def _mask(s: object) -> str:
@@ -185,7 +185,7 @@ async def main(email: str) -> int:
             rec(name, st, f"data={has}" if st == 200 else "")
 
     print("\n\n" + "=" * 64)
-    print(f"  COPY EVERYTHING BETWEEN THE LINES INTO GITHUB ISSUE {ISSUE}")
+    print(f"  COPY EVERYTHING BETWEEN THE LINES INTO {ISSUE}")
     print("  (it contains NO password, NO VIN, NO number plate, NO field values)")
     print("=" * 64)
     print("----8<---- vag-connect vw.de master-data probe ----8<----")
