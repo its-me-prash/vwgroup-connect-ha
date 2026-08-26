@@ -1829,28 +1829,28 @@
     },
     "image": {
       "render_icon": {
-        "name": "3/4 View Icon"
+        "name": "3/4 view (icon)"
       },
       "render_small": {
-        "name": "3/4 View Small"
+        "name": "3/4 view (small)"
       },
       "render_medium": {
-        "name": "3/4 View Medium"
+        "name": "3/4 view (medium)"
       },
       "render_side_sm": {
-        "name": "Side Profile Small"
+        "name": "Side view (small)"
       },
       "render_side_lg": {
-        "name": "Side Profile Large"
+        "name": "Side view (large)"
       },
       "render_angle_hd": {
-        "name": "3/4 View HD"
+        "name": "3/4 view (HD)"
       },
       "render_angle_lg": {
-        "name": "3/4 View Large"
+        "name": "3/4 view (large)"
       },
       "vehicle_render": {
-        "name": "Vehicle Render"
+        "name": "Vehicle render"
       }
     },
     "lock": {

@@ -44,6 +44,14 @@ _PORTAL_AUTH_URLS: dict[str, str] = {
 # VW EU GraphQL: portal lives on myvw.volkswagen.de
 _GRAPHQL_ENDPOINTS["volkswagen"] = "https://myvw.volkswagen.de/userinfo-emea/v2/myvw/proxy/vgql/v1/graphql"
 
+# Audi PRIMARY vgql source — the myAudi app-API. This is the endpoint the classic
+# myAudi clients read the vehicle list + ``media.longName`` from, and it serves
+# accounts the ``www.audi.de`` web-proxy above rejects (a rejected proxy is why an
+# Audi S6 fell back to a bare "Audi (2021)" with no model). Preferred for Audi;
+# the web-proxy is kept as the fallback. (US accounts point at the AoA host.)
+_AUDI_APP_API_ENDPOINT = "https://app-api.live-my.audi.com/vgql/v1/graphql"
+_AUDI_APP_API_ENDPOINT_US = "https://app-api.my.aoa.audi.com/vgql/v1/graphql"
+
 # Brand-specific client IDs for the vgql proxy (X-App-ID header)
 _BRAND_APP_IDS: dict[str, str] = {
     "audi":       "de.audi.myaudi",
@@ -194,13 +202,57 @@ class VehicleImageFetcher:
 
         graphql_url: override the default endpoint for this brand.
         Returns empty dict on any error — images are optional, never block startup.
+
+        Audi resilience: the primary vgql source is the ``www.audi.de`` web-proxy,
+        which rejects some accounts' BFF tokens outright (HTTP 4xx → the car falls
+        back to a bare "Audi (2021)"). The myAudi app-API vgql
+        (``app-api.live-my.audi.com``) is the more reliable source — it's what the
+        classic myAudi clients read the vehicle list + ``media.longName`` from. So
+        for Audi we fall back to it when the web-proxy returns nothing, unless the
+        caller pinned an explicit ``graphql_url``.
         """
-        endpoint = graphql_url or _GRAPHQL_ENDPOINTS.get(brand.lower())
+        if graphql_url is not None:  # an explicit override always wins
+            return await self._fetch_from(graphql_url, access_token, brand)
+
+        if brand.lower() == "audi":
+            # myAudi app-API FIRST (the proven source, what the classic myAudi
+            # clients use), then the www.audi.de web-proxy as a fallback. Either
+            # order alone leaves some accounts without a model; try both.
+            result = await self._fetch_from(
+                _AUDI_APP_API_ENDPOINT, access_token, brand, app_api=True,
+            )
+            if not result:
+                _LOGGER.info(
+                    "Audi app-API vgql returned no vehicles — falling back to the "
+                    "www.audi.de web-proxy",
+                )
+                result = await self._fetch_from(
+                    _GRAPHQL_ENDPOINTS["audi"], access_token, brand,
+                )
+            return result
+
+        endpoint = _GRAPHQL_ENDPOINTS.get(brand.lower())
         if not endpoint:
             _LOGGER.debug("No GraphQL endpoint configured for brand '%s'", brand)
             return {}
+        return await self._fetch_from(endpoint, access_token, brand)
 
-        try:
+    async def _fetch_from(
+        self, endpoint: str, access_token: str, brand: str, *, app_api: bool = False,
+    ) -> dict[str, VehicleImageData]:
+        """POST the userVehicles query to one endpoint and parse it, or {} on error."""
+        if app_api:
+            # myAudi app-API headers (matches the classic myAudi client shape).
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type":  "application/json; charset=utf-8",
+                "Accept":        "application/json",
+                "X-App-Name":    "myAudi",
+                "X-App-Version": _BRAND_APP_VERSIONS.get(brand.lower(), "5.5.1"),
+                "User-Agent":    _BRAND_USER_AGENTS.get(
+                    brand.lower(), "myAudi/5.5.1 Android/34"),
+            }
+        else:
             headers = {
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type":  "application/json",
@@ -211,7 +263,7 @@ class VehicleImageFetcher:
                 "User-Agent":    _BRAND_USER_AGENTS.get(
                     brand.lower(), "myAudi/5.5.1 Android/34"),
             }
-
+        try:
             async with self._session.post(
                 endpoint,
                 json={"query": _GQL_QUERY},
@@ -226,7 +278,6 @@ class VehicleImageFetcher:
                     )
                     return {}
                 data = await resp.json()
-
         except Exception as err:  # noqa: BLE001
             err_str = str(err)
             if err_str:
@@ -238,7 +289,6 @@ class VehicleImageFetcher:
                     brand,
                 )
             return {}
-
         return self._parse_response(data)
 
     @staticmethod

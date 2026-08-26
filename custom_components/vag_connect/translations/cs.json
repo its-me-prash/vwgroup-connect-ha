@@ -1796,28 +1796,28 @@
     },
     "image": {
       "render_icon": {
-        "name": "Pohled 3/4 ikona"
+        "name": "3/4 view (icon)"
       },
       "render_small": {
-        "name": "Pohled 3/4 malý"
+        "name": "3/4 view (small)"
       },
       "render_medium": {
-        "name": "Pohled 3/4 střední"
+        "name": "3/4 view (medium)"
       },
       "render_side_sm": {
-        "name": "Boční pohled malý"
+        "name": "Side view (small)"
       },
       "render_side_lg": {
-        "name": "Boční pohled velký"
+        "name": "Side view (large)"
       },
       "render_angle_hd": {
-        "name": "Pohled 3/4 HD"
+        "name": "3/4 view (HD)"
       },
       "render_angle_lg": {
-        "name": "Pohled 3/4 velký"
+        "name": "3/4 view (large)"
       },
       "vehicle_render": {
-        "name": "Vykreslení vozidla"
+        "name": "Vehicle render"
       }
     },
     "lock": {

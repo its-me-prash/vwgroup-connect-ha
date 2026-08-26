@@ -1796,28 +1796,28 @@
     },
     "image": {
       "render_icon": {
-        "name": "3/4-visning ikon"
+        "name": "3/4 view (icon)"
       },
       "render_small": {
-        "name": "3/4-visning lille"
+        "name": "3/4 view (small)"
       },
       "render_medium": {
-        "name": "3/4-visning mellem"
+        "name": "3/4 view (medium)"
       },
       "render_side_sm": {
-        "name": "Sideprofil lille"
+        "name": "Side view (small)"
       },
       "render_side_lg": {
-        "name": "Sideprofil stor"
+        "name": "Side view (large)"
       },
       "render_angle_hd": {
-        "name": "3/4-visning HD"
+        "name": "3/4 view (HD)"
       },
       "render_angle_lg": {
-        "name": "3/4-visning stor"
+        "name": "3/4 view (large)"
       },
       "vehicle_render": {
-        "name": "Køretøjsgengivelse"
+        "name": "Vehicle render"
       }
     },
     "lock": {

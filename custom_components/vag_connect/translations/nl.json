@@ -1796,28 +1796,28 @@
     },
     "image": {
       "render_icon": {
-        "name": "3/4 weergave icoon"
+        "name": "3/4 view (icon)"
       },
       "render_small": {
-        "name": "3/4 weergave klein"
+        "name": "3/4 view (small)"
       },
       "render_medium": {
-        "name": "3/4 weergave middel"
+        "name": "3/4 view (medium)"
       },
       "render_side_sm": {
-        "name": "Zijaanzicht klein"
+        "name": "Side view (small)"
       },
       "render_side_lg": {
-        "name": "Zijaanzicht groot"
+        "name": "Side view (large)"
       },
       "render_angle_hd": {
-        "name": "3/4 weergave HD"
+        "name": "3/4 view (HD)"
       },
       "render_angle_lg": {
-        "name": "3/4 weergave groot"
+        "name": "3/4 view (large)"
       },
       "vehicle_render": {
-        "name": "Voertuigweergave"
+        "name": "Vehicle render"
       }
     },
     "lock": {
