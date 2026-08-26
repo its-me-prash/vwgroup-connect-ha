@@ -84,6 +84,41 @@ def _capture_age_s(data: dict[str, Any]) -> float | None:
     return (datetime.now(tz=timezone.utc) - ts).total_seconds()
 
 
+# Stage-0 EU-DA observability — map the portal connector's ``last_no_data_reason``
+# to the user-facing portal-health enum. The reasons are set in
+# ``_eu_data_act.py`` (no_request / no_content / empty); "" means data flowed.
+_PORTAL_HEALTH_BY_REASON: dict[str, str] = {
+    "no_request": "waiting_for_portal_data",  # no customised data request set up yet
+    "no_content": "empty_snapshots",          # car asleep → only *_no_content_found.zip
+    "empty": "delivery_not_ready",            # listing/metadata empty or not yet ready
+}
+PORTAL_HEALTH_STATES = (
+    "ok", "waiting_for_portal_data", "empty_snapshots", "delivery_not_ready", "stale",
+)
+
+
+def _portal_health(
+    data: dict[str, Any], reason: str, age_s: float | None, stale_threshold_s: float | None,
+) -> str:
+    """Classify the EU Data Act portal feed's health for one vehicle.
+
+    ``ok`` when data flowed and is within the staleness floor; ``stale`` when the
+    poll succeeds but the car's own capture time has frozen past the floor (a
+    lapsed feed presenting old data as live); otherwise the specific no-data
+    reason from the connector. Distinguishes "the portal is stale/empty" from
+    "the integration is broken", which is the whole point of the sensor.
+    """
+    if data.get("no_data"):
+        return _PORTAL_HEALTH_BY_REASON.get(reason, "waiting_for_portal_data")
+    if (
+        age_s is not None
+        and stale_threshold_s is not None
+        and age_s >= stale_threshold_s
+    ):
+        return "stale"
+    return "ok"
+
+
 def _is_selfhealing_poll_error(err: object) -> bool:
     """True for a poll error that must NOT be escalated to the public Error
     Reporter, because it self-heals and is not our bug:
@@ -5186,6 +5221,24 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 )
             else:
                 clear_stale_data_issue(self.hass, self.entry.entry_id, _vin_sd)
+
+            # Stage-0 — surface the EU-DA portal feed's health + snapshot age as
+            # sensors, so a user can tell "the portal snapshot is stale/empty"
+            # from "the integration is broken". Only for a car actually read over
+            # the portal; a BFF/MBB/brand-native read has no portal connector and
+            # leaves both unset (the sensors stay unavailable → hidden).
+            _portal = (
+                getattr(self._cariad_client, "_eu_portal", None)
+                or getattr(self._cariad_client, "_supplementary_eu_portal", None)
+            )
+            if _portal is not None:
+                _reason = getattr(_portal, "last_no_data_reason", "") or ""
+                data["portal_health"] = _portal_health(
+                    data, _reason, _age, _threshold_s
+                )
+                data["minutes_since_last_snapshot"] = (
+                    int(_age // 60) if _age is not None else None
+                )
 
         # Fix #32: Defensive is_charging reset.
         # When plug is disconnected, charging MUST be False regardless of API state.

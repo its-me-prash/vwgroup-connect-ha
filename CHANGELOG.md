@@ -42,6 +42,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **A portal-feed health sensor for EU Data Act cars.** A new **Portal feed health** sensor says at a glance whether the portal is actually delivering — `ok`, `waiting_for_portal_data` (no data request set up yet), `empty_snapshots` (the car is asleep), `delivery_not_ready`, or `stale` (the poll keeps succeeding but the car's own capture time has frozen). That last one is the field's most common gotcha — a fresh delivery wrapping a stale payload — and it was previously invisible, looking like an integration bug rather than a portal one. A companion **Minutes since last snapshot** diagnostic (disabled by default) exposes the exact capture age so you can automate on a staleness threshold.
+
 ## [4.4.0b1] - 2026-08-26 — Companion agent relay · MBB pre-flight · guest-car reads
 
 > [!IMPORTANT]

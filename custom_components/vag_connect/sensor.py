@@ -179,6 +179,38 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         device_class=SensorDeviceClass.ENUM,
         options=["connected", "disconnected"],
     ),
+    # Stage-0 EU Data Act observability. portal_health tells a user whether the
+    # PORTAL is delivering, apart from whether the integration is working — the
+    # single most visible signal for the field's #1 problem (a fresh delivery
+    # wrapping a stale payload). Enum so HA localizes the state; enabled by
+    # default; computed in coordinator._enrich and only set for a portal read.
+    VagSensorDescription(
+        key="portal_health",
+        translation_key="portal_health",
+        data_key="portal_health",
+        icon="mdi:cloud-check-variant",
+        device_class=SensorDeviceClass.ENUM,
+        options=[
+            "ok",
+            "waiting_for_portal_data",
+            "empty_snapshots",
+            "delivery_not_ready",
+            "stale",
+        ],
+    ),
+    # The car's own data-capture age in minutes — how old the newest portal
+    # snapshot is. Diagnostic + disabled by default (portal_health is the at-a-
+    # glance version); enable it to automate on a staleness threshold.
+    VagSensorDescription(
+        key="minutes_since_last_snapshot",
+        translation_key="minutes_since_last_snapshot",
+        data_key="minutes_since_last_snapshot",
+        icon="mdi:timer-sand",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     # v2.22.0 (evcc) — normalized IEC-61851 charge status (A=unplugged /
     # B=plugged-idle / C=charging) for the evcc connector's custom-vehicle
     # `status` field (our raw charging_state strings don't map to A/B/C).

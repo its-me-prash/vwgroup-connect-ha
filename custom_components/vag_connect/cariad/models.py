@@ -817,6 +817,15 @@ class VehicleData:
     # they grow analogous parsing.
     last_seen_at: Any | None = None
 
+    # Stage-0 EU-DA observability. portal_health: one of ok / waiting_for_portal_data
+    # / empty_snapshots / delivery_not_ready / stale — computed in coordinator._enrich
+    # from the portal connector's last_no_data_reason + capture-age, so a user can tell
+    # "the portal snapshot is stale/empty" apart from "the integration is broken". None
+    # for a car that isn't read over the EU Data Act portal. minutes_since_last_snapshot:
+    # the car's own data-capture age in whole minutes (diagnostic).
+    portal_health: str | None = None
+    minutes_since_last_snapshot: int | None = None
+
     # Service
     service_km: int | None = None
     service_due_at: Any | None = None
