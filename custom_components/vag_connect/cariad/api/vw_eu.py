@@ -470,6 +470,20 @@ class VWEUClient(CariadBaseClient):
         # Fetch render images via shared base method (best-effort)
         await self.fetch_images()
 
+        # Discovery from the vgql userVehicles list — it enumerates the WHOLE
+        # account garage, so a car the modern BFF vehicle-list omits still shows,
+        # with its model / year / render carried by the vgql. (audi_connect uses
+        # this list as its primary source; we merge in anything the BFF missed.)
+        # Per-VIN reads the BFF can't serve fail-soft, so the car appears with its
+        # master data even if live telemetry is thin.
+        for _seed_vin in getattr(self, "_image_data", {}) or {}:
+            if _seed_vin and _seed_vin not in vins:
+                _LOGGER.info(
+                    "Audi: adding %s from the vgql garage (not in the BFF list)",
+                    _seed_vin[-6:],
+                )
+                vins.append(_seed_vin)
+
         return vins
 
     async def _resolve_home_regions(self, vins: list[str]) -> None:
@@ -3181,6 +3195,10 @@ class VWEUClient(CariadBaseClient):
                 d.model = img.long_name or img.short_name
             if img.exterior_color and not d.exterior_color:
                 d.exterior_color = img.exterior_color
+            # A car discovered only via the vgql garage (not in the BFF list) has
+            # no REST metadata, so take its model year from the vgql core block.
+            if img.model_year and not d.model_year:
+                d.model_year = img.model_year
         # v1.10.1 (#58) — safe_int. The model_year metadata sometimes
         # arrives as a 4-digit string and sometimes as int depending on
         # how the auth flow normalised the user profile JSON.

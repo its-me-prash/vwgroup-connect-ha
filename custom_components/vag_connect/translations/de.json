@@ -1796,28 +1796,28 @@
     },
     "image": {
       "render_icon": {
-        "name": "3/4-Ansicht Icon"
+        "name": "3/4-Ansicht (Icon)"
       },
       "render_small": {
-        "name": "3/4-Ansicht Klein"
+        "name": "3/4-Ansicht (klein)"
       },
       "render_medium": {
-        "name": "3/4-Ansicht Mittel"
+        "name": "3/4-Ansicht (mittel)"
       },
       "render_side_sm": {
-        "name": "Seitenprofil Klein"
+        "name": "Seitenansicht (klein)"
       },
       "render_side_lg": {
-        "name": "Seitenprofil Groß"
+        "name": "Seitenansicht (groß)"
       },
       "render_angle_hd": {
-        "name": "3/4-Ansicht HD"
+        "name": "3/4-Ansicht (HD)"
       },
       "render_angle_lg": {
-        "name": "3/4-Ansicht Groß"
+        "name": "3/4-Ansicht (groß)"
       },
       "vehicle_render": {
-        "name": "Fahrzeug-Rendering"
+        "name": "Fahrzeug-Render"
       }
     },
     "lock": {
