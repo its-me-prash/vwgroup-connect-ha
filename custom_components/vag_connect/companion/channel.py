@@ -39,9 +39,12 @@ from .screen import (
     find_overlay,
     find_rate_limit_banner,
     find_sync_age,
+    has_anchor,
     parse_ui_dump,
     read_fields,
     read_selectors,
+    screen_bounds,
+    tap_point_for,
 )
 from .transport import CompanionTransportError, NetworkAdbTransport
 
@@ -58,6 +61,8 @@ _RATE_LIMIT_BACKOFF_S = 12 * 3600  # 12 h after a rate-limit banner. Uses wall
                                    # clock so it can be PERSISTED across restarts
                                    # (ckomma #21: an account lockout must NOT be
                                    # cleared by a restart the way a TCP blip is)
+_SETTLE_MAX_DUMPS = 3              # re-dumps waiting for a Compose screen to
+                                   # stop changing after a tap (v4.4.0)
 _NAV_READ_INTERVAL_S = 900.0       # C9: a forward-nav READ (into charge detail)
                                    # runs at most every 15 min, NOT every poll —
                                    # it taps the app, so it stays infrequent and
@@ -346,29 +351,107 @@ class CompanionChannel:
             nodes, cleared = await self._dump_and_clear_overlays()
             if not cleared:
                 return None, taps
+            if step.scroll_first and find_node_for(nodes, step) is None:
+                # The MEB overview keeps Vehicle Health and Settings below the
+                # fold. Scroll once, then look again; a control that is still
+                # absent stops the walk as usual.
+                nodes = await self._scroll_up(nodes)
             node = find_node_for(nodes, step)
-            if node is None or node.tap_point is None:
+            point = tap_point_for(node, step.tap_fraction) if node is not None else None
+            if point is None:
                 _LOGGER.debug(
                     "companion %s: nav step '%s' is not on the current screen; "
                     "stopping the walk here rather than tapping blind",
                     self._preset.brand, step.action,
                 )
                 return None, taps
-            x, y = node.tap_point
-            await self._t.tap(x, y)
+            await self._t.tap(*point)
             taps += 1
+            # A Compose screen renders in stages, so the tree right after a tap
+            # is routinely half-built. Wait for it to stop changing before the
+            # next step reads it, or a step lands on a screen that has moved.
+            await self._settle()
         detail, cleared = await self._dump_and_clear_overlays()
         return (detail if cleared else None), taps
 
-    async def _return_to_overview(self, presses: int = 1) -> None:
-        """BACK out of a detail screen so the next plain read sees the overview.
+    async def _scroll_up(self, nodes: list[UiNode]) -> list[UiNode]:
+        """Swipe the current screen up by half a display, best-effort.
 
-        Bounded and failure-soft: a transport blip here must not turn a good
+        Expressed in fractions of the screen the phone actually reports, so it
+        does not depend on the display the flow was first written against. A
+        transport without ``swipe`` (or a screen we cannot measure) simply
+        leaves the tree as it was.
+        """
+        box = screen_bounds(nodes)
+        swipe = getattr(self._t, "swipe", None)
+        if box is None or swipe is None:
+            return nodes
+        left, top, right, bottom = box
+        mid_x = (left + right) // 2
+        height = bottom - top
+        try:
+            await swipe(
+                mid_x, top + int(height * 0.80),
+                mid_x, top + int(height * 0.35),
+                500,
+            )
+        except CompanionTransportError:
+            return nodes
+        scrolled, cleared = await self._dump_and_clear_overlays()
+        return scrolled if cleared else nodes
+
+    async def _settle(self) -> None:
+        """Re-dump until the tree stops changing, bounded.
+
+        Cheap on a slow transport (the first two dumps usually already match)
+        and the difference between reading a rendered screen and a half-built
+        one on a fast one.
+        """
+        previous: str | None = None
+        for _ in range(_SETTLE_MAX_DUMPS):
+            try:
+                current = await self._t.dump_ui()
+            except CompanionTransportError:
+                return
+            if current == previous:
+                return
+            previous = current
+
+    async def _return_to_overview(self, presses: int = 1) -> None:
+        """Walk back to the overview so the next plain read sees the main screen.
+
+        v4.4.0 — prefer the app's OWN up/close control over Android's global
+        BACK wherever the preset names one. Global BACK is not bounded by the
+        app: from a shallow navigation stack (or from the share sheet at the
+        end of the position walk) it can leave the app entirely, and the next
+        poll then finds a launcher instead of a car. Tapping the app's own
+        close button cannot do that.
+
+        Stops early once the overview's anchor is on screen, so a path that
+        came back on its own does not get pressed past it. Bounded and
+        failure-soft throughout: a transport blip here must not turn a good
         read into an error.
         """
         for _ in range(max(0, presses)):
             try:
-                await self._t.key_back()
+                nodes, _cleared = await self._dump_and_clear_overlays()
+            except CompanionTransportError:
+                return
+            if self._preset.screen_anchor is not None and has_anchor(
+                nodes, self._preset
+            ):
+                return
+            up_point: tuple[int, int] | None = None
+            for spec in self._preset.up_controls:
+                candidate = find_node_for(nodes, spec)
+                if candidate is not None and candidate.tap_point is not None:
+                    up_point = candidate.tap_point
+                    break
+            try:
+                if up_point is not None:
+                    await self._t.tap(*up_point)
+                else:
+                    await self._t.key_back()
             except CompanionTransportError:
                 return
 

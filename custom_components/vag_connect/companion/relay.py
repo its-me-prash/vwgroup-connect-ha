@@ -42,6 +42,8 @@ from __future__ import annotations
 import asyncio
 import hmac
 import logging
+import time
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from .transport import CompanionTransportError
@@ -90,9 +92,20 @@ class CompanionRelayBroker:
     times out is simply picked up by the next poll.
     """
 
-    def __init__(self, token: str, *, hold_s: float = _HOLD_S) -> None:
+    def __init__(
+        self,
+        token: str,
+        *,
+        hold_s: float = _HOLD_S,
+        clock: "Callable[[], float]" = time.monotonic,
+    ) -> None:
         self._token = token
         self._hold_s = hold_s
+        self._clock = clock
+        self._last_seen: float | None = None
+        # Two missed holds plus a margin: enough that a slow reconnect does not
+        # flap the channel, short enough that a phone that is off shows as off.
+        self._online_window_s = hold_s * 2 + 10.0
         self._slot: dict[str, Any] | None = None
         self._slot_ready = asyncio.Event()
         self._pending: dict[str, asyncio.Future[Any]] = {}
@@ -112,8 +125,17 @@ class CompanionRelayBroker:
 
     @property
     def online(self) -> bool:
-        """True once an agent has polled at least once since setup."""
-        return self._online.is_set()
+        """True while an agent is actually still calling in.
+
+        A latch would be wrong here: a phone that is switched off stops polling
+        without saying so, and "it checked in once at setup" would then keep
+        reporting the channel as connected forever. Freshness is measured
+        against the hold window, so a phone that misses more than a couple of
+        polls reads as gone.
+        """
+        if self._last_seen is None:
+            return False
+        return (self._clock() - self._last_seen) < self._online_window_s
 
     async def wait_online(self, timeout_s: float) -> None:
         """Block until an agent polls, or raise a transport error.
@@ -121,8 +143,12 @@ class CompanionRelayBroker:
         Used by ``connect()``: with no socket to open, "connected" means an
         agent is actually calling in.
         """
-        if self._online.is_set():
+        if self.online:
             return
+        # Re-arm: the event is a latch, and the freshness check above is what
+        # decides whether the agent is still there. Clearing it here means a
+        # phone that went away has to actually call in again to satisfy this.
+        self._online.clear()
         try:
             await asyncio.wait_for(self._online.wait(), timeout_s)
         except (TimeoutError, asyncio.TimeoutError) as err:
@@ -190,6 +216,7 @@ class CompanionRelayBroker:
         Returns the next command, or None when the hold window elapsed with
         nothing to do (the agent then polls again).
         """
+        self._last_seen = self._clock()
         self._online.set()
         self._note_heartbeat(payload)
         self._resolve_result(payload.get("result"))

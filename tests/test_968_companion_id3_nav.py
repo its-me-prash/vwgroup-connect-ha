@@ -20,10 +20,12 @@ The parking-position read is the same machinery pointed at a gap we have long
 documented as unreadable: the app draws the parked car as a map with no
 coordinate text, but its own share link carries the coordinates.
 
-HONESTY: these selectors are seeded from 4.3.2 trees reported by users, not
-confirmed in-house on an ID.3. What is asserted here is the parsing and the
-navigation contract, which is exactly the part that must not be wrong when a
-tester's dump confirms the rest.
+HONESTY: none of this is confirmed in-house — our reference car is a Golf GTE.
+The overview selectors come from 4.3.2 trees reported in #968; the deeper paths
+are modelled on an MEB layout documented elsewhere in the open-source
+ecosystem. What is asserted here is the parsing and the navigation contract,
+which is exactly the part that must already be right when a tester's dump
+confirms the rest.
 """
 from __future__ import annotations
 
@@ -165,12 +167,20 @@ class TestMapsCoordinates:
 
 
 class _WalkTransport:
-    """Serves a scripted sequence of screens and records taps and BACKs."""
+    """A phone that changes screen when something is tapped or swiped.
+
+    Dumping does not advance anything, which is what makes it a fair model: the
+    walk re-dumps freely (to settle a Compose screen, to look for an up
+    control) and only a real interaction moves it on. BACK steps back one
+    screen, so a return walk can actually arrive somewhere.
+    """
 
     def __init__(self, screens: list[str], version: str = "4.3.2") -> None:
         self._screens = list(screens)
+        self._at = 0
         self._version = version
         self.taps: list[tuple[int, int]] = []
+        self.swipes: list[tuple[int, int, int, int]] = []
         self.backs = 0
         self.connected = True
 
@@ -184,13 +194,21 @@ class _WalkTransport:
         return self._version
 
     async def dump_ui(self) -> str:
-        return self._screens.pop(0) if len(self._screens) > 1 else self._screens[0]
+        return self._screens[min(self._at, len(self._screens) - 1)]
 
     async def key_back(self) -> None:
         self.backs += 1
+        self._at = max(0, self._at - 1)
 
     async def tap(self, x: int, y: int) -> None:
         self.taps.append((x, y))
+        self._at += 1
+
+    async def swipe(
+        self, x1: int, y1: int, x2: int, y2: int, duration_ms: int = 300
+    ) -> None:
+        self.swipes.append((x1, y1, x2, y2))
+        self._at += 1
 
 
 def _channel(transport: object, opt_ins: set[str]) -> CompanionChannel:
@@ -202,104 +220,263 @@ def _channel(transport: object, opt_ins: set[str]) -> CompanionChannel:
     )
 
 
+# The screen the walk starts and ends on. ``rangeTile`` is the anchor the
+# return walk stops at, and the full-screen root gives the scroll something to
+# measure itself against.
+def _overview(extra: str = "", scrolled: bool = False) -> str:
+    below_fold = (
+        _node("Vehicle Health Report. Open details", clickable=True,
+              bounds="[0,1400][1080,1600]")
+        + _node("Settings. Open details", clickable=True, bounds="[0,1600][1080,1800]")
+        if scrolled
+        else ""
+    )
+    return _dump(
+        _node(bounds="[0,0][1080,2200]")
+        + _node("Range overview. Battery range: 210 Kilometer", rid="rangeTile",
+                clickable=True, bounds="[0,200][540,400]")
+        + _node("Climate. Climate control off", rid="climateTile", clickable=True,
+                bounds="[540,200][1080,400]")
+        + below_fold
+        + extra
+    )
+
+
 HEALTH_SCREEN = _dump(
-    _node("Total distance 27 886 km", rid="totalDistance")
-    + _node("Next service in 320 days", rid="nextInspection")
+    _node(rid="vehicleHealthBack", clickable=True, bounds="[0,100][120,220]")
+    + _node(text="Total distance", bounds="[0,300][540,360]")
+    + _node(text="27,886 km", bounds="[540,300][1080,360]")
+    + _node(text="Next service", bounds="[0,400][540,460]")
+    + _node(text="in 320 days", bounds="[540,400][1080,460]")
 )
 
+SETTINGS_SCREEN = _dump(
+    _node(rid="vwd_navigation_button", clickable=True, bounds="[0,100][120,220]")
+    + _node(text="Charging up to", bounds="[0,300][540,360]")
+    + _node(text="80 %", bounds="[540,300][1080,360]")
+)
+
+# The climate dial: a bare number in the middle of the container, with a
+# decoy number off to the side that a naive parse would pick up first.
+CLIMATE_SCREEN = _dump(
+    _node(rid="vwd_navigation_button", clickable=True, bounds="[0,100][120,220]")
+    + _node(rid="clima_compose_view", bounds="[0,400][1000,1000]")
+    + _node(text="16", bounds="[40,600][140,700]")
+    + _node(text="21.5", bounds="[450,600][550,700]")
+    + _node(text="22°C", bounds="[0,1100][300,1160]")
+)
+
+MAP_TAB = _dump(
+    _node(bounds="[0,0][1080,2200]")
+    + _node("Find vehicle", clickable=True, bounds="[800,1800][1040,1900]")
+)
+MAP_CENTRED = _dump(
+    _node(bounds="[0,0][1080,2200]")
+    + _node("Google Map", bounds="[0,200][1000,1200]")
+)
+VEHICLE_CARD = _dump(
+    _node(bounds="[0,0][1080,2200]")
+    + _node(text="Share", clickable=True, bounds="[800,1500][1000,1600]")
+)
 SHARE_SHEET = _dump(
     _node(
-        "Parking position https://www.google.com/maps/place/48.208174,16.373819",
         rid="content_preview_text",
+        text="Parking position https://www.google.com/maps/place/48.208174,16.373819",
+        bounds="[0,1700][1080,1800]",
     )
 )
 
 
 class TestNavWalk:
     @pytest.mark.asyncio
-    async def test_vehicle_health_supplies_the_odometer_the_overview_lost(self) -> None:
-        overview = _dump(
-            _node("Charging status. Battery charge level: 79 per cent. Charging stopped")
-            + _node("Vehicle Health", rid="vehicleHealthTile", clickable=True,
-                    bounds="[0,300][200,360]")
+    async def test_vehicle_health_needs_a_scroll_and_yields_odometer_and_service(
+        self,
+    ) -> None:
+        # The MEB overview keeps this entry point below the fold: without the
+        # scroll the walk correctly refuses to tap, and correctly never arrives.
+        transport = _WalkTransport(
+            [_overview(), _overview(scrolled=True), HEALTH_SCREEN]
         )
-        transport = _WalkTransport([overview, overview, HEALTH_SCREEN])
         fields = await _channel(transport, {"vehicle_health"}).read()
         assert fields is not None
-        assert fields["odometer_km"] == 27886
+        assert transport.swipes, "the below-the-fold tile needs a scroll first"
+        assert fields["odometer_km"] == 27886      # not 27, from "27,886 km"
         assert fields["service_due_in_days"] == 320
-        assert transport.taps == [(100, 330)]
-        assert transport.backs == 1  # exactly as deep as we walked
+        assert len(transport.taps) >= 1
 
     @pytest.mark.asyncio
-    async def test_parking_position_is_read_from_the_share_link(self) -> None:
-        overview = _dump(
-            _node("Navigation", rid="navigationTile", clickable=True,
-                  bounds="[0,0][100,50]")
-        )
-        map_screen = _dump(
-            _node("Parking position", rid="parkingPositionMarker", clickable=True,
-                  bounds="[0,60][100,110]")
-        )
-        marker_screen = _dump(
-            _node("Share", rid="shareButton", clickable=True, bounds="[0,120][100,170]")
-        )
+    async def test_the_scroll_is_measured_from_the_screen_the_phone_reports(
+        self,
+    ) -> None:
+        # A swipe in fixed pixels only works on the display it was written on.
         transport = _WalkTransport(
-            [overview, overview, map_screen, marker_screen, SHARE_SHEET]
+            [_overview(), _overview(scrolled=True), HEALTH_SCREEN]
+        )
+        await _channel(transport, {"vehicle_health"}).read()
+        x1, y1, x2, y2 = transport.swipes[0]
+        assert x1 == x2 == 540           # horizontal centre of a 1080-wide screen
+        assert y1 == 1760 and y2 == 770  # 80% -> 35% of a 2200-tall one
+        assert y1 > y2                   # upwards, i.e. content moves up
+
+    @pytest.mark.asyncio
+    async def test_charge_limit_comes_off_the_settings_screen(self) -> None:
+        # Only the Settings entry is below the fold here, so the walk that
+        # reaches it is unambiguously the settings one.
+        scrolled = _dump(
+            _node(bounds="[0,0][1080,2200]")
+            + _node("Range overview.", rid="rangeTile", bounds="[0,200][540,400]")
+            + _node("Settings. Open details", clickable=True,
+                    bounds="[0,1600][1080,1800]")
+        )
+        transport = _WalkTransport([_overview(), scrolled, SETTINGS_SCREEN])
+        fields = await _channel(transport, {"vehicle_health"}).read()
+        assert fields is not None
+        assert fields["target_soc"] == 80
+
+    @pytest.mark.asyncio
+    async def test_climate_target_is_the_number_in_the_middle_of_the_dial(
+        self,
+    ) -> None:
+        # No label, no id, nothing beside it — only its position identifies it.
+        # The decoy "16" sits inside the same container, further from centre.
+        transport = _WalkTransport([_overview(), CLIMATE_SCREEN])
+        fields = await _channel(transport, {"climate_detail"}).read()
+        assert fields is not None
+        assert fields["target_temperature"] == 21.5
+        assert fields["outside_temp"] == 22.0
+
+    @pytest.mark.asyncio
+    async def test_parking_position_walks_the_map_and_reads_the_share_link(
+        self,
+    ) -> None:
+        transport = _WalkTransport(
+            [
+                _overview(
+                    _node("Map", rid="cat_nav_map_tab_navigation", clickable=True,
+                          bounds="[400,2100][600,2200]")
+                ),
+                MAP_TAB,
+                MAP_CENTRED,
+                VEHICLE_CARD,
+                SHARE_SHEET,
+            ]
         )
         fields = await _channel(transport, {"parking_position"}).read()
         assert fields is not None
         assert fields["latitude"] == pytest.approx(48.208174)
         assert fields["longitude"] == pytest.approx(16.373819)
-        assert len(transport.taps) == 3
-        assert transport.backs == 3  # all the way back out of the share sheet
+        assert len(transport.taps) == 4
+
+    @pytest.mark.asyncio
+    async def test_the_map_marker_is_tapped_by_position_because_it_has_no_node(
+        self,
+    ) -> None:
+        # "Find vehicle" centres the marker in the upper half of the map view;
+        # the marker itself is absent from the accessibility tree, so the tap
+        # has to be a fraction of the map's own box.
+        transport = _WalkTransport(
+            [
+                _overview(
+                    _node("Map", rid="cat_nav_map_tab_navigation", clickable=True,
+                          bounds="[400,2100][600,2200]")
+                ),
+                MAP_TAB,
+                MAP_CENTRED,
+                VEHICLE_CARD,
+                SHARE_SHEET,
+            ]
+        )
+        await _channel(transport, {"parking_position"}).read()
+        # Third tap lands inside the "Google Map" node [0,200][1000,1200], at
+        # half its width and 43% of its height — not at its centre.
+        assert transport.taps[2] == (500, 630)
+
+    @pytest.mark.asyncio
+    async def test_the_return_walk_uses_the_apps_own_close_button_not_back(
+        self,
+    ) -> None:
+        # Android's global BACK is not bounded by the app: from a shallow stack
+        # it leaves it, and the next poll finds a launcher instead of a car.
+        transport = _WalkTransport(
+            [_overview(), _overview(scrolled=True), HEALTH_SCREEN]
+        )
+        await _channel(transport, {"vehicle_health"}).read()
+        assert transport.backs == 0
+        # The last tap is the health screen's own back control.
+        assert transport.taps[-1] == (60, 160)
+
+    @pytest.mark.asyncio
+    async def test_back_is_still_used_when_the_screen_offers_no_up_control(
+        self,
+    ) -> None:
+        bare_detail = _dump(_node(text="nothing to close this with"))
+        transport = _WalkTransport(
+            [_overview(), _overview(scrolled=True), bare_detail]
+        )
+        await _channel(transport, {"vehicle_health"}).read()
+        assert transport.backs >= 1
+
+    @pytest.mark.asyncio
+    async def test_the_return_walk_stops_once_the_overview_is_back(self) -> None:
+        # The position path allows four presses; arriving early must not send
+        # the app four screens past home.
+        transport = _WalkTransport(
+            [
+                _overview(
+                    _node("Map", rid="cat_nav_map_tab_navigation", clickable=True,
+                          bounds="[400,2100][600,2200]")
+                ),
+                MAP_TAB,
+            ]
+        )
+        await _channel(transport, {"parking_position"}).read()
+        # Two taps got in, so at most two are needed to get out — the walk must
+        # not spend its full four-press budget and end up two screens past home.
+        assert transport.backs == 2
 
     @pytest.mark.asyncio
     async def test_a_path_that_stops_early_backs_out_only_as_far_as_it_walked(
         self,
     ) -> None:
-        # The share button never appears. Pressing BACK three times here would
-        # leave the app somewhere behind the overview for the next poll.
-        overview = _dump(
-            _node("Navigation", rid="navigationTile", clickable=True,
-                  bounds="[0,0][100,50]")
+        transport = _WalkTransport(
+            [
+                _overview(
+                    _node("Map", rid="cat_nav_map_tab_navigation", clickable=True,
+                          bounds="[400,2100][600,2200]")
+                ),
+                _dump(_node("a screen with no Find vehicle on it")),
+            ]
         )
-        map_screen = _dump(
-            _node("Parking position", rid="parkingPositionMarker", clickable=True,
-                  bounds="[0,60][100,110]")
-        )
-        dead_end = _dump(_node("Something else entirely"))
-        transport = _WalkTransport([overview, overview, map_screen, dead_end, dead_end])
         fields = await _channel(transport, {"parking_position"}).read()
         assert fields is not None
         assert "latitude" not in fields
-        assert len(transport.taps) == 2
-        assert transport.backs == 2
+        assert len(transport.taps) == 1
+        assert transport.backs == 1
 
     @pytest.mark.asyncio
     async def test_a_missing_first_step_taps_nothing_at_all(self) -> None:
-        overview = _dump(_node("Charging status. Battery charge level: 50 per cent."))
-        transport = _WalkTransport([overview])
+        transport = _WalkTransport([_dump(_node("Charging status. 50 per cent."))])
         await _channel(transport, {"vehicle_health", "parking_position"}).read()
         assert transport.taps == []
         assert transport.backs == 0
 
     @pytest.mark.asyncio
     async def test_each_path_needs_its_own_opt_in(self) -> None:
-        # Enabling the charge-detail read must not start a walk through the
-        # navigation screens: it is a deeper path with its own consent.
-        overview = _dump(
-            _node("Navigation", rid="navigationTile", clickable=True)
-            + _node("Vehicle Health", rid="vehicleHealthTile", clickable=True)
-        )
-        transport = _WalkTransport([overview])
+        # Enabling the charge-detail read must not start a walk to the map or
+        # the health report: those are deeper paths with their own consent.
+        map_tab = _node("Map", rid="cat_nav_map_tab_navigation", clickable=True,
+                        bounds="[400,2100][600,2200]")
+        health = _node("Vehicle Health Report. Open details", clickable=True,
+                       bounds="[0,1400][1080,1600]")
+        transport = _WalkTransport([_overview(map_tab + health)] * 2)
         await _channel(transport, {"charge_detail"}).read()
-        assert transport.taps == []
+        # The only forward tap is the charge-detail tile itself.
+        assert transport.taps == [(270, 300)]
+        assert transport.swipes == []
 
     @pytest.mark.asyncio
     async def test_no_opt_in_means_no_forward_tap_ever(self) -> None:
-        overview = _dump(_node("Vehicle Health", rid="vehicleHealthTile", clickable=True))
-        transport = _WalkTransport([overview])
+        transport = _WalkTransport([_overview(scrolled=True)])
         channel = _channel(transport, set())
         await channel.read()
         assert channel.nav_reads_enabled is False
@@ -311,30 +488,39 @@ class TestNavWalk:
     ) -> None:
         # Same gate as a write: a drifted layout means a stale map, and a tap on
         # a stale map is a tap on the wrong control.
-        overview = _dump(
-            _node("Vehicle Health", rid="vehicleHealthTile", clickable=True,
-                  bounds="[0,300][200,360]")
+        transport = _WalkTransport(
+            [_overview(), _overview(scrolled=True), HEALTH_SCREEN], version="9.9.9"
         )
-        transport = _WalkTransport([overview, overview, HEALTH_SCREEN], version="9.9.9")
+        await _channel(transport, {"vehicle_health"}).read()
+        assert transport.taps == []
+
+    @pytest.mark.asyncio
+    async def test_a_disabled_control_is_not_treated_as_a_tap_target(self) -> None:
+        greyed = _dump(
+            _node(bounds="[0,0][1080,2200]")
+            + _node("Range overview.", rid="rangeTile", bounds="[0,200][540,400]")
+            + '<node resource-id="" content-desc="Vehicle Health Report. Open '
+              'details" text="" class="android.widget.TextView" clickable="true" '
+              'enabled="false" bounds="[0,1400][1080,1600]" />'
+        )
+        transport = _WalkTransport([greyed])
         await _channel(transport, {"vehicle_health"}).read()
         assert transport.taps == []
 
     @pytest.mark.asyncio
     async def test_nav_values_are_cached_between_the_15_minute_walks(self) -> None:
-        overview = _dump(
-            _node("Charging status. Battery charge level: 79 per cent. Charging stopped")
-            + _node("Vehicle Health", rid="vehicleHealthTile", clickable=True,
-                    bounds="[0,300][200,360]")
+        transport = _WalkTransport(
+            [_overview(), _overview(scrolled=True), HEALTH_SCREEN]
         )
-        transport = _WalkTransport([overview, overview, HEALTH_SCREEN, overview])
         channel = _channel(transport, {"vehicle_health"})
         first = await channel.read()
         assert first is not None and first["odometer_km"] == 27886
+        taps_after_first = len(transport.taps)
         second = await channel.read()
         assert second is not None
         # Second poll is inside the cadence window: no new taps, value retained.
         assert second["odometer_km"] == 27886
-        assert len(transport.taps) == 1
+        assert len(transport.taps) == taps_after_first
 
 
 class TestPresetShape:
