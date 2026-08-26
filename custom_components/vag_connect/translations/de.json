@@ -368,6 +368,14 @@
       "minutes_since_last_snapshot": {
         "name": "Minuten seit letztem Snapshot"
       },
+      "historical_export_state": {
+        "name": "Historischer Export",
+        "state": {
+          "pending": "Angefragt — wird erstellt",
+          "done": "Geliefert",
+          "timed_out": "Zeitüberschreitung"
+        }
+      },
       "target_soc": {
         "name": "Ladeziel"
       },
@@ -1738,6 +1746,9 @@
       "data_act_request_button": {
         "name": "EU-Data-Act-Datenanfrage erstellen"
       },
+      "historical_export_button": {
+        "name": "Historischen Export anfragen"
+      },
       "companion_reset_button": {
         "name": "Companion-Verbindung zurücksetzen"
       }
@@ -1944,6 +1955,10 @@
     "stale_data": {
       "title": "{vin}: Fahrzeugdaten seit {age} h nicht mehr aktualisiert",
       "description": "Die letzten Daten, die dein Auto gemeldet hat, wurden vor etwa **{age} Stunden** erfasst – obwohl die Integration weiterhin erfolgreich abfragt. Dafür gibt es zwei mögliche Gründe: Entweder steht das Auto einfach geparkt und im Ruhezustand (völlig normal – da musst du nichts tun), oder sein Datenstrom nach dem EU Data Act ist ausgelaufen und liefert keine frischen Werte mehr.\n\nDie Werte, die du gerade siehst, sind die zuletzt bekannten – nicht die aktuellen. Wenn das Auto seitdem gefahren oder geladen wurde und diese Warnung bestehen bleibt, ist der Datenstrom höchstwahrscheinlich abgelaufen: Öffne volkswagen.de → die Dateneinstellungen deines Autos und erneuere die Datenfreigabe bzw. fordere sie neu an, oder füge den Kanal einfach noch einmal hinzu.\n\nDiese Warnung verschwindet automatisch, sobald ein aktuellerer Wert eintrifft."
+    },
+    "historical_timeout": {
+      "title": "{vin}: Einmaliger historischer Export nicht abgeschlossen",
+      "description": "Der angefragte einmalige historische Export für dieses Auto hat innerhalb der Client-Frist keine Datei erzeugt. Das VW-Portal liefert für diese Anfrage keinen Endzustand, sie wurde also möglicherweise still verworfen. Die Anfrage wurde zurückgesetzt — du kannst sie erneut anfragen oder direkt im Portal nachsehen."
     }
   },
   "selector": {
@@ -2180,6 +2195,12 @@
     },
     "historical_portal_not_ready": {
       "message": "Das EU-Data-Act-Portal ist noch nicht bereit. Warte, bis die Integration nach der Einrichtung einmal abgefragt hat, und versuche den Verlaufsexport dann erneut."
+    },
+    "historical_disabled": {
+      "message": "Der einmalige historische Export ist derzeit deaktiviert."
+    },
+    "historical_wedge_blocked": {
+      "message": "Für dieses Auto ist eine kontinuierliche 15-Minuten-Datenanfrage aktiv. Das Portal erlaubt nur eine Custom-Anfrage gleichzeitig, ein einmaliger historischer Export würde deinen Live-Feed also bis zu 24 Stunden pausieren. Pausiere zuerst die kontinuierliche Anfrage im Portal, falls du den einmaligen Export wirklich brauchst."
     }
   }
 }

@@ -211,6 +211,17 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # Stage-1 — the one-time historical-export lifecycle state. Only present
+    # (visible) while an export is in flight or just finished; hidden otherwise.
+    VagSensorDescription(
+        key="historical_export_state",
+        translation_key="historical_export_state",
+        data_key="historical_export_state",
+        icon="mdi:history",
+        device_class=SensorDeviceClass.ENUM,
+        options=["pending", "done", "timed_out"],
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
     # v2.22.0 (evcc) — normalized IEC-61851 charge status (A=unplugged /
     # B=plugged-idle / C=charging) for the evcc connector's custom-vehicle
     # `status` field (our raw charging_state strings don't map to A/B/C).

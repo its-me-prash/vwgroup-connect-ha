@@ -401,6 +401,14 @@
       "minutes_since_last_snapshot": {
         "name": "Minutes since last snapshot"
       },
+      "historical_export_state": {
+        "name": "Historical export",
+        "state": {
+          "pending": "Requested — preparing",
+          "done": "Delivered",
+          "timed_out": "Timed out"
+        }
+      },
       "evcc_charge_status": {
         "name": "evcc charge status"
       },
@@ -1771,6 +1779,9 @@
       "data_act_request_button": {
         "name": "Create EU Data Act data request"
       },
+      "historical_export_button": {
+        "name": "Request historical export"
+      },
       "companion_reset_button": {
         "name": "Reset companion connection"
       }
@@ -1944,6 +1955,10 @@
     "test_cohort_share_request": {
       "title": "Help confirm a new capability — share your test result?",
       "description": "Thanks for joining the opt-in test cohort. Your car is included in one or more experiments — for example recovering GPS location or battery State-of-Health for VW EU cars over the volkswagen.de channel, or capturing exactly how your car's backend answers a command. To confirm the result across different models and platforms, it would genuinely help if you shared a diagnostics file: go to Settings → Devices & Services → VW Group Connect → the three-dot menu → Download diagnostics, then attach the file to the relevant testers issue on GitHub.\n\nThe export is redacted automatically before you download it — no VIN, GPS, tokens or email are included — so it is safe to post publicly. You are only seeing this because you opted in; you can dismiss it, and turning the test cohort back off in the integration's options stops these notifications entirely. Thank you for helping unlock features for everyone driving your model."
+    },
+    "historical_timeout": {
+      "title": "{vin}: one-time historical export didn't complete",
+      "description": "The one-time historical export requested for this car didn't produce a file within the client deadline. The VW portal gives this request no terminal state, so it may have been silently dropped. The request has been cleared — you can request it again, or check the portal directly."
     }
   },
   "selector": {
@@ -2180,6 +2195,12 @@
     },
     "historical_portal_not_ready": {
       "message": "The EU Data Act portal isn't ready yet. Wait until the integration has polled once after setup, then try requesting/importing the historical export again."
+    },
+    "historical_disabled": {
+      "message": "The one-time historical export is currently disabled."
+    },
+    "historical_wedge_blocked": {
+      "message": "A continuous 15-minute data request is active for this car. The portal allows only one custom request at a time, so a one-time historical export would pause your live feed for up to 24 hours. Pause the continuous request on the portal first if you really need the one-time export."
     }
   }
 }

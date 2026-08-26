@@ -368,6 +368,14 @@
       "minutes_since_last_snapshot": {
         "name": "Minutes since last snapshot"
       },
+      "historical_export_state": {
+        "name": "Historical export",
+        "state": {
+          "pending": "Requested — preparing",
+          "done": "Delivered",
+          "timed_out": "Timed out"
+        }
+      },
       "target_soc": {
         "name": "Cel ładowania"
       },
@@ -1738,6 +1746,9 @@
       "data_act_request_button": {
         "name": "Utwórz żądanie danych EU Data Act"
       },
+      "historical_export_button": {
+        "name": "Request historical export"
+      },
       "companion_reset_button": {
         "name": "Resetuj połączenie companion"
       }
@@ -1944,6 +1955,10 @@
     "stale_data": {
       "title": "{vin}: dane pojazdu nie odświeżyły się od {age} h",
       "description": "Ostatnie dane przesłane przez Twój samochód zostały zarejestrowane około **{age} godz. temu**, mimo że integracja nadal poprawnie odpytuje serwer. Mogą być tego dwie przyczyny: samochód może być po prostu zaparkowany i uśpiony (to normalne — nie musisz nic robić) albo jego kanał danych w ramach EU Data Act wygasł i przestał dostarczać świeże odczyty.\n\nWartości, które teraz widzisz, to ostatnie znane, a nie dane na żywo. Jeśli od tego czasu samochód był używany lub podłączony do ładowania, a to ostrzeżenie wciąż się wyświetla, kanał danych najprawdopodobniej wygasł: otwórz volkswagen.de → ustawienia danych swojego samochodu i odnów/ponownie zażądaj udostępniania danych albo dodaj kanał od nowa.\n\nTo ostrzeżenie zniknie automatycznie w chwili, gdy nadejdzie świeższy odczyt."
+    },
+    "historical_timeout": {
+      "title": "{vin}: one-time historical export didn't complete",
+      "description": "The one-time historical export requested for this car didn't produce a file within the client deadline. The VW portal gives this request no terminal state, so it may have been silently dropped. The request has been cleared — you can request it again, or check the portal directly."
     }
   },
   "services": {
@@ -2160,6 +2175,12 @@
     },
     "historical_portal_not_ready": {
       "message": "Portal EU Data Act nie jest jeszcze gotowy. Poczekaj, aż integracja wykona jedno odpytanie po konfiguracji, a następnie ponów eksport historyczny."
+    },
+    "historical_disabled": {
+      "message": "The one-time historical export is currently disabled."
+    },
+    "historical_wedge_blocked": {
+      "message": "A continuous 15-minute data request is active for this car. The portal allows only one custom request at a time, so a one-time historical export would pause your live feed for up to 24 hours. Pause the continuous request on the portal first if you really need the one-time export."
     }
   },
   "selector": {

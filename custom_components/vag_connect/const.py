@@ -208,6 +208,20 @@ CONF_CLIENT_ID_OVERRIDE       = "client_id_override"
 # subscription on the user's account, which is free.
 # The resolved per-VIN Identifier is persisted under CONF_DATA_ACT_IDENTIFIERS.
 CONF_EU_DATA_ACT_AUTO_KICKOFF = "eu_data_act_auto_kickoff"
+
+# Stage-1 one-time historical-export lifecycle. The portal accepts AT MOST ONE
+# custom request per VIN at a time, so a one-time export would BLOCK the
+# continuous 15-min feed for up to 24h — the wedge-guard refuses to submit one
+# while a continuous request is active. The portal also gives the one-time
+# request no terminal state (it can silently vanish ~24-36h after submit), so we
+# impose our own client-side deadline. Persisted per VIN as {state, submitted_at}.
+CONF_HISTORICAL_EXPORT_STATE = "historical_export_state"
+# Past this many seconds a still-pending export is declared timed-out. The
+# portal's observed vanish window is ~24-36h; 26h clears the 24h floor.
+HISTORICAL_EXPORT_DEADLINE_S = 26 * 3600
+# Kill-switch — set True to disable the whole one-time lifecycle (button hidden,
+# service + kickoff abort). The machinery stays intact; nothing else changes.
+ONETIME_EXPORT_DISABLED = False
 CONF_DATA_ACT_IDENTIFIERS     = "data_act_identifiers"
 
 # v2.14.0 — OPT-IN, BETA. When set on a Volkswagen entry, the integration
