@@ -2,7 +2,8 @@
   "domain": "vag_connect",
   "name": "VW Group Connect",
   "after_dependencies": [
-    "llm"
+    "llm",
+    "http"
   ],
   "codeowners": [
     "@its-me-prash"

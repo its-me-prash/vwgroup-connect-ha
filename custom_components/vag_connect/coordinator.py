@@ -1031,10 +1031,47 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
             from .const import (  # noqa: PLC0415
                 CONF_COMPANION_ADDON_TOKEN,
+                CONF_COMPANION_AGENT_TOKEN,
                 CONF_COMPANION_READ_CHARGE_DETAIL,
+                CONF_COMPANION_READ_CLIMATE_DETAIL,
+                CONF_COMPANION_READ_PARKING_POSITION,
+                CONF_COMPANION_READ_VEHICLE_HEALTH,
                 CONF_COMPANION_USE_ADDON,
+                CONF_COMPANION_USE_RELAY,
                 CONF_COMPANION_WAKE_SLEEP,
             )
+
+            def _companion_opt(key: str) -> bool:
+                """Companion opt-ins are set at setup and editable in options."""
+                return bool(
+                    self.entry.options.get(key, self.entry.data.get(key, False))
+                )
+
+            # v4.4.0 (#968) — each deeper nav path carries its own opt-in, so a
+            # user who wants the odometer does not silently also get a walk
+            # through the navigation screens for the parking position.
+            _nav_opt_ins = {
+                name
+                for name, key in (
+                    ("charge_detail", CONF_COMPANION_READ_CHARGE_DETAIL),
+                    ("vehicle_health", CONF_COMPANION_READ_VEHICLE_HEALTH),
+                    ("climate_detail", CONF_COMPANION_READ_CLIMATE_DETAIL),
+                    ("parking_position", CONF_COMPANION_READ_PARKING_POSITION),
+                )
+                if _companion_opt(key)
+            }
+            # v4.4.0 (#968) — relay mode: the phone's agent app calls US. Build
+            # its broker before the client so the endpoint is live by the time
+            # the first poll waits for the agent to check in.
+            _relay_broker = None
+            if bool(self.entry.data.get(CONF_COMPANION_USE_RELAY, False)):
+                from .companion.relay import register_relay  # noqa: PLC0415
+
+                _relay_broker = register_relay(
+                    self.hass,
+                    self.entry.entry_id,
+                    str(self.entry.data.get(CONF_COMPANION_AGENT_TOKEN, "") or ""),
+                )
             self._cariad_client = CompanionClient(
                 brand=brand,
                 vin=self.entry.data[CONF_VIN],
@@ -1042,12 +1079,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 port=self.entry.data.get(CONF_ADB_PORT, DEFAULT_ADB_PORT),
                 adbkey_path=self.hass.config.path(".storage", "vag_connect_adbkey"),
                 time_fn=time.monotonic,
-                read_charge_detail=bool(
-                    self.entry.data.get(CONF_COMPANION_READ_CHARGE_DETAIL, False)
-                ),
-                wake_sleep=bool(
-                    self.entry.data.get(CONF_COMPANION_WAKE_SLEEP, False)
-                ),
+                # v4.4.0 — options THEN data (the convention elsewhere in this
+                # file). The Options flow writes to entry.options, so reading
+                # only entry.data left both companion toggles inert unless they
+                # had been set during initial setup — a user who ticked "read
+                # charge detail" afterwards saw nothing happen (#968).
+                read_charge_detail=_companion_opt(CONF_COMPANION_READ_CHARGE_DETAIL),
+                wake_sleep=_companion_opt(CONF_COMPANION_WAKE_SLEEP),
                 # #968 — when set, host/port above address the ADB Bridge
                 # add-on rather than the phone (Android 11+ wireless debugging
                 # needs the real adb binary, which the add-on bundles).
@@ -1057,6 +1095,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 addon_token=str(
                     self.entry.data.get(CONF_COMPANION_ADDON_TOKEN, "") or ""
                 ),
+                relay_broker=_relay_broker,
+                nav_opt_ins=_nav_opt_ins,
             )
             # v2.26.0 (ckomma #21) — re-apply a rate-limit backoff persisted
             # before a restart, so an account lockout is not cleared just by
@@ -3155,6 +3195,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 await close()
             except Exception:  # noqa: BLE001
                 pass
+        # v4.4.0 (#968) — drop this entry's agent relay broker, so a reload does
+        # not leave a stale one holding the token (two brokers on one token
+        # resolve to neither, and the phone would stop binding).
+        try:
+            from .companion.relay import unregister_relay  # noqa: PLC0415
+
+            unregister_relay(self.hass, self.entry.entry_id)
+        except Exception:  # noqa: BLE001 - shutdown must not raise
+            pass
         self._cariad_client = None
         _LOGGER.debug("VW Group Connect: shutdown complete")
 

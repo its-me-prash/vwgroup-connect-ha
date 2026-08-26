@@ -144,14 +144,18 @@
           "vin": "VIN (bilen appen viser)",
           "spin": "S-PIN (valgfritt)",
           "companion_use_addon": "Koble til via ADB Bridge-tillegget",
-          "companion_addon_token": "Token for tillegget"
+          "companion_addon_token": "Token for tillegget",
+          "companion_use_relay": "Bruk companion-agent-appen (telefonen ringer Home Assistant)",
+          "companion_agent_token": "Agent-token"
         },
         "data_description": {
           "adb_host": "Telefonens adresse på nettverket ditt, f.eks. 192.168.1.42.",
           "adb_port": "Vanligvis 5555 for ADB over Wi-Fi.",
           "vin": "Det 17 tegn lange VIN-nummeret til bilen som vises i appen.",
           "companion_use_addon": "Kryss av her for en telefon med Android 11 eller nyere, som bare tilbyr trådløs feilsøking. Skriv da inn TILLEGGETS adresse ovenfor i stedet for telefonens.",
-          "companion_addon_token": "Kun nødvendig hvis du har satt api_token i tillegget."
+          "companion_addon_token": "Kun nødvendig hvis du har satt api_token i tillegget.",
+          "companion_use_relay": "Kryss av her hvis telefonen kjører companion-agent-appen. Telefonen ringer da Home Assistant, så verken ADB, trådløs feilsøking eller fast IP trengs — la adressefeltet stå tomt.",
+          "companion_agent_token": "Det tilfeldige tokenet agent-appen genererte. Minst 32 tegn, og et eget for hvert kjøretøy."
         }
       }
     },
@@ -173,7 +177,9 @@
       "companion_cannot_connect": "Kunne ikke nå telefonen over ADB. Kontroller at den er på nettverket, at ADB over Wi-Fi er på, og at du godtok feilsøkingsforespørselen.",
       "companion_needs_addon": "Dette ser ut som en telefon med Android 11 eller nyere som bruker trådløs feilsøking, noe den direkte tilkoblingen her ikke kan bruke (den krever TLS + paring). Installer tillegget «VW Group App ADB Bridge» (github.com/its-me-prash/vwgroup-app-adb-bridge) og pek Companion mot det. Eldre telefoner (Android 10 eller eldre) kobles til direkte her.",
       "companion_app_not_found": "Koblet til telefonen, men merkeappen er ikke installert på den.",
-      "companion_unknown_brand": "Dette merket har ennå ingen forhåndsinnstilling for ekstra telefon."
+      "companion_unknown_brand": "Dette merket har ennå ingen forhåndsinnstilling for ekstra telefon.",
+      "companion_agent_token_too_short": "Agent-tokenet er for kort. Lim inn det tilfeldige tokenet agent-appen genererte (minst 32 tegn).",
+      "companion_host_required": "Oppgi telefonens IP-adresse — eller kryss av for agent-alternativet hvis telefonen ringer Home Assistant."
     },
     "abort": {
       "already_configured": "Denne kontoen er allerede konfigurert.",
@@ -218,7 +224,10 @@
           "keep_raw_datasets": "Behold rå EU Data Act-datasett (diagnostikk)",
           "test_cohort": "Hjelp oss å forbedre VW Group Connect (frivillig testgruppe)",
           "vweu_device_grant": "Legg til VW EU Two-Way — kommandoer + sanntidsavlesninger (BETA)",
-          "remove_vweu_twoway": "Fjern VW EU Two-Way (gå tilbake til forrige kanal)"
+          "remove_vweu_twoway": "Fjern VW EU Two-Way (gå tilbake til forrige kanal)",
+          "companion_read_vehicle_health": "Companion: les kilometerstand og service fra kjøretøysjekk (navigerer i appen)",
+          "companion_read_climate_detail": "Companion: les måltemperatur og utetemperatur (navigerer i appen)",
+          "companion_read_parking_position": "Companion: les parkeringsposisjon fra appens delingslenke (navigerer i appen)"
         },
         "data_description": {
           "scan_interval": "Hvor ofte data hentes (minutter). Minimum: 3.",

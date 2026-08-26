@@ -144,14 +144,18 @@
           "vin": "VIN (de auto die de app toont)",
           "spin": "S-PIN (optioneel)",
           "companion_use_addon": "Verbinden via de ADB Bridge-add-on",
-          "companion_addon_token": "Add-on-token"
+          "companion_addon_token": "Add-on-token",
+          "companion_use_relay": "Companion-agent-app gebruiken (de telefoon belt Home Assistant)",
+          "companion_agent_token": "Agent-token"
         },
         "data_description": {
           "adb_host": "Het adres van de telefoon in je netwerk, bijv. 192.168.1.42.",
           "adb_port": "Meestal 5555 voor ADB via Wi-Fi.",
           "vin": "Het VIN van 17 tekens van de auto die in de app wordt getoond.",
           "companion_use_addon": "Vink dit aan voor een telefoon met Android 11 of nieuwer, die alleen draadloos debuggen biedt. Voer dan hierboven het adres van de ADD-ON in in plaats van dat van de telefoon.",
-          "companion_addon_token": "Alleen nodig als je api_token in de add-on hebt ingesteld."
+          "companion_addon_token": "Alleen nodig als je api_token in de add-on hebt ingesteld.",
+          "companion_use_relay": "Vink dit aan als de telefoon de companion-agent-app draait. De telefoon belt dan Home Assistant, dus ADB, draadloos debuggen en een vast IP zijn niet nodig — laat het adresveld leeg.",
+          "companion_agent_token": "Het willekeurige token uit de agent-app. Minstens 32 tekens, en voor elk voertuig een ander."
         }
       }
     },
@@ -173,7 +177,9 @@
       "companion_cannot_connect": "Kon de telefoon niet bereiken via ADB. Controleer of hij verbonden is met het netwerk, of ADB via Wi-Fi aanstaat en of je de foutopsporingsmelding hebt geaccepteerd.",
       "companion_needs_addon": "Dit lijkt een telefoon met Android 11 of nieuwer die draadloos debuggen gebruikt; de directe verbinding hier kan daar niet mee overweg (dat is TLS + koppelen). Installeer de add-on 'VW Group App ADB Bridge' (github.com/its-me-prash/vwgroup-app-adb-bridge) en laat de companion daarnaar wijzen. Oudere telefoons (Android 10 of ouder) verbinden hier rechtstreeks.",
       "companion_app_not_found": "Verbonden met de telefoon, maar de merk-app is er niet op geïnstalleerd.",
-      "companion_unknown_brand": "Voor dat merk is nog geen voorinstelling voor de reservetelefoon beschikbaar."
+      "companion_unknown_brand": "Voor dat merk is nog geen voorinstelling voor de reservetelefoon beschikbaar.",
+      "companion_agent_token_too_short": "Het agent-token is te kort. Plak het willekeurige token dat de agent-app heeft gegenereerd (minstens 32 tekens).",
+      "companion_host_required": "Voer het IP-adres van de telefoon in — of vink de agent-optie aan als de telefoon Home Assistant belt."
     },
     "abort": {
       "already_configured": "Dit account is al geconfigureerd.",
@@ -218,7 +224,10 @@
           "keep_raw_datasets": "Ruwe EU Data Act-datasets bewaren (diagnose)",
           "test_cohort": "Help VW Group Connect verbeteren (opt-in testgroep)",
           "vweu_device_grant": "VW EU Two-Way toevoegen — commando's + live uitlezingen (BÈTA)",
-          "remove_vweu_twoway": "VW EU Two-Way verwijderen (terug naar het vorige kanaal)"
+          "remove_vweu_twoway": "VW EU Two-Way verwijderen (terug naar het vorige kanaal)",
+          "companion_read_vehicle_health": "Companion: kilometerstand en onderhoud uit de voertuigcheck lezen (navigeert in de app)",
+          "companion_read_climate_detail": "Companion: streef- en buitentemperatuur lezen (navigeert in de app)",
+          "companion_read_parking_position": "Companion: parkeerpositie uit de deellink van de app lezen (navigeert in de app)"
         },
         "data_description": {
           "scan_interval": "Hoe vaak gegevens worden opgehaald (minuten). Minimum: 3.",

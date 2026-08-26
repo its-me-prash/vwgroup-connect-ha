@@ -144,14 +144,18 @@
           "vin": "VIN (the car the app shows)",
           "spin": "S-PIN (optional)",
           "companion_use_addon": "Connect through the ADB Bridge add-on",
-          "companion_addon_token": "Add-on token"
+          "companion_addon_token": "Add-on token",
+          "companion_use_relay": "Use the companion agent app (the phone calls Home Assistant)",
+          "companion_agent_token": "Agent token"
         },
         "data_description": {
           "adb_host": "The phone's address on your network, e.g. 192.168.1.42.",
           "adb_port": "Usually 5555 for ADB over Wi-Fi.",
           "vin": "The 17-character VIN of the car shown in the app.",
           "companion_use_addon": "Tick this for an Android 11 or newer phone, which only offers wireless debugging. Then enter the ADD-ON's address above instead of the phone's.",
-          "companion_addon_token": "Only needed if you set api_token in the add-on."
+          "companion_addon_token": "Only needed if you set api_token in the add-on.",
+          "companion_use_relay": "Tick this when the phone runs the companion agent app. The phone then calls Home Assistant, so no ADB, no wireless debugging and no fixed phone IP are needed — leave the address field empty.",
+          "companion_agent_token": "The random token the agent app generated. At least 32 characters, and a different one for every vehicle."
         }
       }
     },
@@ -173,7 +177,9 @@
       "companion_cannot_connect": "Could not reach the phone over ADB. Check it is on the network, that ADB over Wi-Fi is on, and that you accepted the debugging prompt.",
       "companion_needs_addon": "This looks like an Android 11+ phone using wireless debugging, which the direct connection here cannot use (it is TLS + pairing). Install the 'VW Group App ADB Bridge' add-on (github.com/its-me-prash/vwgroup-app-adb-bridge) and point the companion at it. Older phones (Android 10 or earlier) connect here directly.",
       "companion_app_not_found": "Connected to the phone, but the brand app is not installed on it.",
-      "companion_unknown_brand": "That brand has no companion preset yet."
+      "companion_unknown_brand": "That brand has no companion preset yet.",
+      "companion_agent_token_too_short": "The agent token is too short. Paste the random token the agent app generated (at least 32 characters).",
+      "companion_host_required": "Enter the phone's IP address — or tick the companion agent option if the phone calls Home Assistant instead."
     },
     "abort": {
       "already_configured": "This account is already configured.",
@@ -218,7 +224,10 @@
           "abrp_user_token": "ABRP token (per vehicle)",
           "keep_raw_datasets": "Keep raw EU Data Act datasets (diagnostics)",
           "test_cohort": "Help improve VW Group Connect (opt-in test cohort)",
-          "remove_vweu_twoway": "Remove VW EU Two-Way (revert to the previous channel)"
+          "remove_vweu_twoway": "Remove VW EU Two-Way (revert to the previous channel)",
+          "companion_read_vehicle_health": "Companion: read odometer and service from Vehicle Health (navigates the app)",
+          "companion_read_climate_detail": "Companion: read target and outside temperature (navigates the app)",
+          "companion_read_parking_position": "Companion: read parking position from the app's share link (navigates the app)"
         },
         "data_description": {
           "scan_interval": "How often data is fetched (minutes). Minimum: 3.",

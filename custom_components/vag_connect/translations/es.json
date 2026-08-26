@@ -144,14 +144,18 @@
           "vin": "VIN (el coche que muestra la aplicación)",
           "spin": "S-PIN (opcional)",
           "companion_use_addon": "Conectar a través del complemento ADB Bridge",
-          "companion_addon_token": "Token del complemento"
+          "companion_addon_token": "Token del complemento",
+          "companion_use_relay": "Usar la app de agente (el teléfono llama a Home Assistant)",
+          "companion_agent_token": "Token del agente"
         },
         "data_description": {
           "adb_host": "La dirección del teléfono en tu red, p. ej. 192.168.1.42.",
           "adb_port": "Normalmente 5555 para ADB por Wi-Fi.",
           "vin": "El VIN de 17 caracteres del coche que se muestra en la aplicación.",
           "companion_use_addon": "Marca esta opción para un teléfono con Android 11 o posterior, que solo ofrece depuración inalámbrica. Luego introduce arriba la dirección del COMPLEMENTO en lugar de la del teléfono.",
-          "companion_addon_token": "Solo es necesario si configuraste api_token en el complemento."
+          "companion_addon_token": "Solo es necesario si configuraste api_token en el complemento.",
+          "companion_use_relay": "Marque esta casilla si el teléfono ejecuta la app de agente. Entonces es el teléfono el que llama a Home Assistant: no hacen falta ADB, depuración inalámbrica ni IP fija — deje la dirección vacía.",
+          "companion_agent_token": "El token aleatorio que generó la app de agente. Al menos 32 caracteres, y uno distinto por vehículo."
         }
       }
     },
@@ -173,7 +177,9 @@
       "companion_cannot_connect": "No se pudo conectar con el teléfono a través de ADB. Comprueba que esté en la red, que ADB por Wi-Fi esté activado y que hayas aceptado la solicitud de depuración.",
       "companion_needs_addon": "Parece un teléfono con Android 11 o superior con depuración inalámbrica, que la conexión directa de aquí no admite (usa TLS y emparejamiento). Instala el complemento 'VW Group App ADB Bridge' (github.com/its-me-prash/vwgroup-app-adb-bridge) e indica aquí su dirección. Los teléfonos más antiguos (Android 10 o anterior) se conectan aquí directamente.",
       "companion_app_not_found": "Se conectó con el teléfono, pero la aplicación de la marca no está instalada en él.",
-      "companion_unknown_brand": "Esa marca aún no tiene una preconfiguración de teléfono auxiliar."
+      "companion_unknown_brand": "Esa marca aún no tiene una preconfiguración de teléfono auxiliar.",
+      "companion_agent_token_too_short": "El token del agente es demasiado corto. Pegue el token aleatorio que generó la app de agente (al menos 32 caracteres).",
+      "companion_host_required": "Introduzca la dirección IP del teléfono — o marque la opción de agente si es el teléfono el que llama a Home Assistant."
     },
     "abort": {
       "already_configured": "Esta cuenta ya está configurada.",
@@ -218,7 +224,10 @@
           "keep_raw_datasets": "Conservar los conjuntos de datos brutos de EU Data Act (diagnóstico)",
           "test_cohort": "Ayuda a mejorar VW Group Connect (grupo de pruebas voluntario)",
           "vweu_device_grant": "Añadir VW EU bidireccional — comandos + lecturas en vivo (BETA)",
-          "remove_vweu_twoway": "Eliminar VW EU bidireccional (volver al canal anterior)"
+          "remove_vweu_twoway": "Eliminar VW EU bidireccional (volver al canal anterior)",
+          "companion_read_vehicle_health": "Companion: leer cuentakilómetros y servicio desde el estado del vehículo (navega por la app)",
+          "companion_read_climate_detail": "Companion: leer temperatura objetivo y exterior (navega por la app)",
+          "companion_read_parking_position": "Companion: leer la posición de aparcamiento desde el enlace para compartir de la app (navega por la app)"
         },
         "data_description": {
           "scan_interval": "Frecuencia de actualización (minutos). Mínimo: 3.",
