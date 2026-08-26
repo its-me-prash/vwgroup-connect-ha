@@ -48,6 +48,25 @@ CONF_COMPANION_WAKE_SLEEP        = "companion_wake_sleep"
 CONF_COMPANION_USE_ADDON         = "companion_use_addon"
 CONF_COMPANION_ADDON_TOKEN       = "companion_addon_token"
 DEFAULT_COMPANION_ADDON_PORT     = 8129
+# v4.4.0 (#968) — companion agent relay. Instead of Home Assistant reaching into
+# the phone (ADB directly, or the add-on doing it), a small agent app on the
+# phone makes an outbound long-poll to HA and takes its commands from the
+# response. That removes wireless-debugging pairing, a fixed phone IP and
+# client-isolated Wi-Fi from the requirements in one go. When set, no host/port
+# is used at all; the random agent token is the entire binding, and it must be
+# at least COMPANION_MIN_TOKEN_LEN characters.
+CONF_COMPANION_USE_RELAY         = "companion_use_relay"
+CONF_COMPANION_AGENT_TOKEN       = "companion_agent_token"
+COMPANION_MIN_TOKEN_LEN          = 32
+# v4.4.0 (#968) — the deeper companion nav-read opt-ins. Each one TAPS its way
+# through the app to reach values the overview does not carry, so each is off by
+# default and separately enabled: the odometer + service countdown on the
+# Vehicle Health screen (4.3.2 dropped the odometer from the overview), the
+# target/outside temperature on the climate detail, and the parking position,
+# which is read from the coordinates in the app's own share link.
+CONF_COMPANION_READ_VEHICLE_HEALTH   = "companion_read_vehicle_health"
+CONF_COMPANION_READ_CLIMATE_DETAIL   = "companion_read_climate_detail"
+CONF_COMPANION_READ_PARKING_POSITION = "companion_read_parking_position"
 # v2.17.5 (#759) — optional per-VIN S-PIN overrides: {vin: spin}. When a
 # vehicle has no entry here the shared CONF_SPIN is used, so existing
 # single-S-PIN setups are unchanged. Set via the Options flow.

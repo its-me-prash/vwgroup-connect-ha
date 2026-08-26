@@ -144,14 +144,18 @@
           "vin": "VIN (la voiture affichée par l'application)",
           "spin": "S-PIN (facultatif)",
           "companion_use_addon": "Se connecter via le module complémentaire ADB Bridge",
-          "companion_addon_token": "Jeton du module complémentaire"
+          "companion_addon_token": "Jeton du module complémentaire",
+          "companion_use_relay": "Utiliser l'application agent (le téléphone appelle Home Assistant)",
+          "companion_agent_token": "Jeton de l'agent"
         },
         "data_description": {
           "adb_host": "L'adresse du téléphone sur votre réseau, par ex. 192.168.1.42.",
           "adb_port": "Généralement 5555 pour ADB par Wi-Fi.",
           "vin": "Le VIN à 17 caractères de la voiture affichée dans l'application.",
           "companion_use_addon": "Cochez cette case pour un téléphone Android 11 ou plus récent, qui ne propose que le débogage sans fil. Saisissez ensuite l'adresse du MODULE COMPLÉMENTAIRE ci-dessus, et non celle du téléphone.",
-          "companion_addon_token": "Nécessaire uniquement si vous avez défini api_token dans le module complémentaire."
+          "companion_addon_token": "Nécessaire uniquement si vous avez défini api_token dans le module complémentaire.",
+          "companion_use_relay": "Cochez si le téléphone exécute l'application agent. C'est alors le téléphone qui appelle Home Assistant : ni ADB, ni débogage sans fil, ni IP fixe ne sont nécessaires — laissez l'adresse vide.",
+          "companion_agent_token": "Le jeton aléatoire généré par l'application agent. Au moins 32 caractères, et un jeton différent par véhicule."
         }
       }
     },
@@ -173,7 +177,9 @@
       "companion_cannot_connect": "Impossible de joindre le téléphone via ADB. Vérifiez qu'il est bien sur le réseau, qu'ADB par Wi-Fi est activé et que vous avez accepté l'invite de débogage.",
       "companion_needs_addon": "Ce téléphone semble être un Android 11 ou plus récent en débogage sans fil, que la connexion directe d'ici ne peut pas utiliser (TLS + appairage). Installez le module complémentaire « VW Group App ADB Bridge » (github.com/its-me-prash/vwgroup-app-adb-bridge) et indiquez son adresse ici. Les téléphones plus anciens (Android 10 ou antérieur) se connectent directement ici.",
       "companion_app_not_found": "Connexion au téléphone établie, mais l'application de la marque n'y est pas installée.",
-      "companion_unknown_brand": "Cette marque ne dispose pas encore de préréglage compagnon."
+      "companion_unknown_brand": "Cette marque ne dispose pas encore de préréglage compagnon.",
+      "companion_agent_token_too_short": "Le jeton de l'agent est trop court. Collez le jeton aléatoire généré par l'application agent (au moins 32 caractères).",
+      "companion_host_required": "Saisissez l'adresse IP du téléphone — ou cochez l'option agent si c'est le téléphone qui appelle Home Assistant."
     },
     "abort": {
       "already_configured": "Ce compte est déjà configuré.",
@@ -218,7 +224,10 @@
           "keep_raw_datasets": "Conserver les jeux de données EU Data Act bruts (diagnostic)",
           "test_cohort": "Aider à améliorer VW Group Connect (groupe de test volontaire)",
           "vweu_device_grant": "Ajouter VW EU bidirectionnel — commandes + lectures en direct (BÊTA)",
-          "remove_vweu_twoway": "Supprimer VW EU bidirectionnel (revenir au canal précédent)"
+          "remove_vweu_twoway": "Supprimer VW EU bidirectionnel (revenir au canal précédent)",
+          "companion_read_vehicle_health": "Companion : lire le kilométrage et l'entretien dans l'état du véhicule (navigue dans l'app)",
+          "companion_read_climate_detail": "Companion : lire la température de consigne et extérieure (navigue dans l'app)",
+          "companion_read_parking_position": "Companion : lire la position de stationnement depuis le lien de partage de l'app (navigue dans l'app)"
         },
         "data_description": {
           "scan_interval": "Fréquence de mise à jour (minutes). Minimum: 3.",

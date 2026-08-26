@@ -144,14 +144,18 @@
           "vin": "VIN (das in der App angezeigte Auto)",
           "spin": "S-PIN (optional)",
           "companion_use_addon": "Über das ADB-Bridge-Add-on verbinden",
-          "companion_addon_token": "Add-on-Token"
+          "companion_addon_token": "Add-on-Token",
+          "companion_use_relay": "Companion-Agent-App verwenden (das Handy ruft Home Assistant)",
+          "companion_agent_token": "Agent-Token"
         },
         "data_description": {
           "adb_host": "Die Adresse des Smartphones in deinem Netzwerk, z. B. 192.168.1.42.",
           "adb_port": "Normalerweise 5555 für ADB über Wi-Fi.",
           "vin": "Die 17-stellige VIN des in der App angezeigten Autos.",
           "companion_use_addon": "Aktiviere dies für ein Smartphone mit Android 11 oder neuer, das nur drahtloses Debugging bietet. Gib dann oben die Adresse des ADD-ONS statt die des Smartphones ein.",
-          "companion_addon_token": "Nur erforderlich, wenn du im Add-on api_token gesetzt hast."
+          "companion_addon_token": "Nur erforderlich, wenn du im Add-on api_token gesetzt hast.",
+          "companion_use_relay": "Aktivieren, wenn auf dem Handy die Companion-Agent-App läuft. Das Handy ruft dann Home Assistant an: kein ADB, kein Wireless Debugging und keine feste Handy-IP nötig — Adressfeld leer lassen.",
+          "companion_agent_token": "Das Zufalls-Token aus der Agent-App. Mindestens 32 Zeichen, und für jedes Fahrzeug ein eigenes."
         }
       }
     },
@@ -173,7 +177,9 @@
       "companion_cannot_connect": "Das Smartphone konnte per ADB nicht erreicht werden. Prüfe, ob es sich im Netzwerk befindet, ob ADB über Wi-Fi aktiviert ist und ob du die Debugging-Aufforderung bestätigt hast.",
       "companion_needs_addon": "Das sieht nach einem Android-11+-Telefon mit kabellosem Debugging aus, das die direkte Verbindung hier nicht nutzen kann (sie läuft über TLS + Pairing). Installiere das Add-on 'VW Group App ADB Bridge' (github.com/its-me-prash/vwgroup-app-adb-bridge) und verweise den Companion darauf. Ältere Telefone (Android 10 oder älter) verbinden sich hier direkt.",
       "companion_app_not_found": "Verbindung zum Smartphone hergestellt, aber die Marken-App ist darauf nicht installiert.",
-      "companion_unknown_brand": "Für diese Marke gibt es noch keine Begleit-Voreinstellung."
+      "companion_unknown_brand": "Für diese Marke gibt es noch keine Begleit-Voreinstellung.",
+      "companion_agent_token_too_short": "Das Agent-Token ist zu kurz. Füge das Zufalls-Token aus der Agent-App ein (mindestens 32 Zeichen).",
+      "companion_host_required": "Bitte die IP-Adresse des Handys eingeben — oder die Companion-Agent-Option aktivieren, wenn das Handy Home Assistant anruft."
     },
     "abort": {
       "already_configured": "Dieses Konto ist bereits eingerichtet.",
@@ -218,7 +224,10 @@
           "keep_raw_datasets": "Rohe EU-Data-Act-Datensätze behalten (Diagnose)",
           "test_cohort": "Hilf mit, VW Group Connect zu verbessern (freiwillige Testgruppe)",
           "vweu_device_grant": "VW EU Two-Way hinzufügen — Befehle + Live-Daten (BETA)",
-          "remove_vweu_twoway": "VW EU Two-Way entfernen (zurück zum vorherigen Kanal)"
+          "remove_vweu_twoway": "VW EU Two-Way entfernen (zurück zum vorherigen Kanal)",
+          "companion_read_vehicle_health": "Companion: Kilometerstand und Service aus dem Fahrzeugcheck lesen (navigiert in der App)",
+          "companion_read_climate_detail": "Companion: Solltemperatur und Außentemperatur lesen (navigiert in der App)",
+          "companion_read_parking_position": "Companion: Parkposition aus dem Teilen-Link der App lesen (navigiert in der App)"
         },
         "data_description": {
           "enable_reverse_geocoding": "Sendet GPS der Parkposition an OpenStreetMap Nominatim, um Straße/Stadt zu ermitteln. Standard: aus (Datenschutz).",

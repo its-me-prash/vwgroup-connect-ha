@@ -144,14 +144,18 @@
           "vin": "VIN (bilen som appen viser)",
           "spin": "S-PIN (valgfri)",
           "companion_use_addon": "Forbind via ADB Bridge-tilføjelsen",
-          "companion_addon_token": "Tilføjelsestoken"
+          "companion_addon_token": "Tilføjelsestoken",
+          "companion_use_relay": "Brug companion-agent-appen (telefonen ringer til Home Assistant)",
+          "companion_agent_token": "Agent-token"
         },
         "data_description": {
           "adb_host": "Telefonens adresse på dit netværk, f.eks. 192.168.1.42.",
           "adb_port": "Normalt 5555 for ADB over Wi-Fi.",
           "vin": "Bilens 17-tegns VIN, som vises i appen.",
           "companion_use_addon": "Sæt kryds her for en telefon med Android 11 eller nyere, som kun tilbyder trådløs fejlfinding. Indtast så TILFØJELSENS adresse ovenfor i stedet for telefonens.",
-          "companion_addon_token": "Kun nødvendigt, hvis du har angivet api_token i tilføjelsen."
+          "companion_addon_token": "Kun nødvendigt, hvis du har angivet api_token i tilføjelsen.",
+          "companion_use_relay": "Sæt flueben her, hvis telefonen kører companion-agent-appen. Telefonen ringer så til Home Assistant, så hverken ADB, trådløs fejlfinding eller fast IP er nødvendig — lad adressefeltet stå tomt.",
+          "companion_agent_token": "Det tilfældige token, som agent-appen har genereret. Mindst 32 tegn, og et forskelligt for hvert køretøj."
         }
       }
     },
@@ -173,7 +177,9 @@
       "companion_cannot_connect": "Kunne ikke få forbindelse til telefonen via ADB. Kontrollér, at den er på netværket, at ADB over Wi-Fi er slået til, og at du har accepteret fejlfindingsanmodningen.",
       "companion_needs_addon": "Dette ligner en telefon med Android 11 eller nyere, der bruger trådløs fejlfinding, som den direkte forbindelse her ikke kan bruge (den kræver TLS + parring). Installér tilføjelsen 'VW Group App ADB Bridge' (github.com/its-me-prash/vwgroup-app-adb-bridge), og lad Companion forbinde til den. Ældre telefoner (Android 10 eller tidligere) forbinder direkte her.",
       "companion_app_not_found": "Der blev oprettet forbindelse til telefonen, men mærkets app er ikke installeret på den.",
-      "companion_unknown_brand": "Det mærke har endnu ingen forudindstilling for hjælpetelefon."
+      "companion_unknown_brand": "Det mærke har endnu ingen forudindstilling for hjælpetelefon.",
+      "companion_agent_token_too_short": "Agent-tokenet er for kort. Indsæt det tilfældige token, agent-appen har genereret (mindst 32 tegn).",
+      "companion_host_required": "Angiv telefonens IP-adresse — eller sæt flueben ved agent-muligheden, hvis telefonen ringer til Home Assistant."
     },
     "abort": {
       "already_configured": "Denne konto er allerede konfigureret.",
@@ -218,7 +224,10 @@
           "keep_raw_datasets": "Behold rå EU Data Act-datasæt (diagnostik)",
           "test_cohort": "Vær med til at forbedre VW Group Connect (frivillig testgruppe)",
           "vweu_device_grant": "Tilføj VW EU To-vejs — kommandoer + live-aflæsninger (BETA)",
-          "remove_vweu_twoway": "Fjern VW EU To-vejs (gå tilbage til den forrige kanal)"
+          "remove_vweu_twoway": "Fjern VW EU To-vejs (gå tilbage til den forrige kanal)",
+          "companion_read_vehicle_health": "Companion: læs kilometerstand og service fra køretøjstjek (navigerer i appen)",
+          "companion_read_climate_detail": "Companion: læs måltemperatur og udetemperatur (navigerer i appen)",
+          "companion_read_parking_position": "Companion: læs parkeringsposition fra appens delingslink (navigerer i appen)"
         },
         "data_description": {
           "scan_interval": "Hvor ofte data hentes (minutter). Minimum: 3.",

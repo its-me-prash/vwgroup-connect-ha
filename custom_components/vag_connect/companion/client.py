@@ -29,6 +29,11 @@ _LOGGER = logging.getLogger(__name__)
 class CompanionClient:
     """Coordinator-compatible client backed by a companion phone."""
 
+    # Which companion transport produced a reading, surfaced on VehicleData and
+    # in diagnostics. A class default so it holds for any instance, including
+    # the relay path overriding it below.
+    _source_channel = "companion_adb"
+
     def __init__(
         self,
         *,
@@ -42,19 +47,34 @@ class CompanionClient:
         wake_sleep: bool = False,
         use_addon: bool = False,
         addon_token: str = "",
+        relay_broker: object | None = None,
+        nav_opt_ins: "frozenset[str] | set[str] | None" = None,
     ) -> None:
         self._brand = brand.lower()
         self._vin = vin.upper()
         preset = PRESETS.get(self._brand)
         if preset is None:
             raise ValueError(f"no companion preset for brand {brand!r}")
-        if use_addon:
+        if relay_broker is not None:
+            # v4.4.0 (#968) — the phone drives the connection: its agent app
+            # long-polls HA and we answer with screen verbs. There is nothing to
+            # dial, so host/port/adbkey go unused on this path.
+            from .relay import CompanionRelayBroker  # noqa: PLC0415
+            from .relay_transport import AgentRelayTransport  # noqa: PLC0415
+
+            if not isinstance(relay_broker, CompanionRelayBroker):  # pragma: no cover
+                raise TypeError("relay_broker must be a CompanionRelayBroker")
+            self._transport: NetworkAdbTransport = AgentRelayTransport(
+                relay_broker, wake_sleep=wake_sleep
+            )
+            self._source_channel = "companion_relay"
+        elif use_addon:
             # host/port address the ADB Bridge add-on, which owns the phone
             # connection. Everything above the wire is identical, so the
             # channel below neither knows nor cares which transport it got.
             from .addon_transport import AddOnAdbTransport  # noqa: PLC0415
 
-            self._transport: NetworkAdbTransport = AddOnAdbTransport(
+            self._transport = AddOnAdbTransport(
                 host, port, token=addon_token, wake_sleep=wake_sleep
             )
         else:
@@ -64,6 +84,7 @@ class CompanionClient:
         self._channel = CompanionChannel(
             self._transport, preset, time_fn=time_fn,
             read_charge_detail=read_charge_detail,
+            nav_opt_ins=nav_opt_ins,
         )
         # Last snapshot we actually read, so a throttled poll can return the
         # known values instead of a spurious no_data that the coordinator would
@@ -109,7 +130,7 @@ class CompanionClient:
         if fields is None and self._last_data is not None:
             return self._last_data
         data = VehicleData(vin=vin.upper())
-        data.source_channel = "companion_adb"
+        data.source_channel = self._source_channel
         if not fields:  # None (first-ever throttle) or {} (empty screen)
             data.no_data = True
             return data

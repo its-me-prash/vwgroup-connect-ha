@@ -473,10 +473,13 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         is already signed in, and the only secret at rest is the ADB RSA key.
         """
         from .const import (  # noqa: PLC0415
+            COMPANION_MIN_TOKEN_LEN,
             CONF_ADB_HOST,
             CONF_ADB_PORT,
             CONF_COMPANION_ADDON_TOKEN,
+            CONF_COMPANION_AGENT_TOKEN,
             CONF_COMPANION_USE_ADDON,
+            CONF_COMPANION_USE_RELAY,
             CONF_STRATEGY,
             CONF_VIN,
             DEFAULT_ADB_PORT,
@@ -489,9 +492,15 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
 
         if user_input is not None:
             brand = user_input[CONF_BRAND]
-            host = user_input[CONF_ADB_HOST].strip()
+            host = (user_input.get(CONF_ADB_HOST) or "").strip()
             use_addon = bool(user_input.get(CONF_COMPANION_USE_ADDON))
             addon_token = (user_input.get(CONF_COMPANION_ADDON_TOKEN) or "").strip()
+            # v4.4.0 (#968) — relay mode. The phone's agent app calls Home
+            # Assistant, so there is nothing here to dial and nothing to probe:
+            # the token IS the binding, and setup succeeds as soon as it is long
+            # enough. The entry then waits for the agent to check in.
+            use_relay = bool(user_input.get(CONF_COMPANION_USE_RELAY))
+            agent_token = (user_input.get(CONF_COMPANION_AGENT_TOKEN) or "").strip()
             # The add-on serves its API on its own port, so a user who ticked
             # the box and left the ADB default in place gets the right one.
             _default_port = (
@@ -503,16 +512,23 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             vin = user_input[CONF_VIN].strip().upper()
             spin = (user_input.get(CONF_SPIN) or "").strip()
 
-            valid, reason = await self._companion_probe(
-                brand, host, port, use_addon=use_addon, addon_token=addon_token
-            )
+            if use_relay:
+                valid = len(agent_token) >= COMPANION_MIN_TOKEN_LEN
+                reason = "companion_agent_token_too_short"
+            elif not host:
+                valid, reason = False, "companion_host_required"
+            else:
+                valid, reason = await self._companion_probe(
+                    brand, host, port, use_addon=use_addon, addon_token=addon_token
+                )
             if not valid:
                 errors["base"] = reason
             else:
                 await self.async_set_unique_id(f"companion_{brand}_{vin}")
                 self._abort_if_unique_id_configured()
                 preset = PRESETS[brand]
-                title = f"{brand.title()} (Companion/ADB) {vin[-6:]}"
+                _how = "Companion/Agent" if use_relay else "Companion/ADB"
+                title = f"{brand.title()} ({_how}) {vin[-6:]}"
                 if not preset.verified:
                     title += " [alpha, read-only]"
                 return self.async_create_entry(
@@ -526,6 +542,8 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                         CONF_SPIN: spin,
                         CONF_COMPANION_USE_ADDON: use_addon,
                         CONF_COMPANION_ADDON_TOKEN: addon_token,
+                        CONF_COMPANION_USE_RELAY: use_relay,
+                        CONF_COMPANION_AGENT_TOKEN: agent_token,
                     },
                 )
 
@@ -533,7 +551,11 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         schema = vol.Schema(
             {
                 vol.Required(CONF_BRAND, default="volkswagen"): vol.In(brands),
-                vol.Required(CONF_ADB_HOST): str,
+                # Optional since v4.4.0: relay mode never dials the phone, so
+                # there is no address to give. Still required for both ADB
+                # paths, enforced below with its own error rather than by the
+                # schema, so the message can say why.
+                vol.Optional(CONF_ADB_HOST, default=""): str,
                 vol.Optional(CONF_ADB_PORT, default=DEFAULT_ADB_PORT): int,
                 vol.Required(CONF_VIN): str,
                 vol.Optional(CONF_SPIN, default=""): str,
@@ -543,6 +565,13 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 # phone's; the add-on holds the phone connection.
                 vol.Optional(CONF_COMPANION_USE_ADDON, default=False): bool,
                 vol.Optional(CONF_COMPANION_ADDON_TOKEN, default=""): str,
+                # v4.4.0 (#968) — the third way to reach the phone, and the only
+                # one that needs nothing FROM Home Assistant's side of the
+                # network: an agent app on the phone long-polls HA. Tick this,
+                # paste the token the agent generated, and leave the host field
+                # as anything (it is unused on this path).
+                vol.Optional(CONF_COMPANION_USE_RELAY, default=False): bool,
+                vol.Optional(CONF_COMPANION_AGENT_TOKEN, default=""): str,
             }
         )
         return self.async_show_form(
@@ -2317,6 +2346,25 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                     current_data.get(CONF_COMPANION_WAKE_SLEEP, False),
                 ),
             )] = _BOOL_SELECTOR
+            # v4.4.0 (#968) — the deeper nav-read opt-ins. Each walks further
+            # into the app than the charge-detail read, so each is its own
+            # toggle and each defaults to OFF.
+            from .const import (  # noqa: PLC0415
+                CONF_COMPANION_READ_CLIMATE_DETAIL,
+                CONF_COMPANION_READ_PARKING_POSITION,
+                CONF_COMPANION_READ_VEHICLE_HEALTH,
+            )
+            for _key in (
+                CONF_COMPANION_READ_VEHICLE_HEALTH,
+                CONF_COMPANION_READ_CLIMATE_DETAIL,
+                CONF_COMPANION_READ_PARKING_POSITION,
+            ):
+                schema[vol.Optional(
+                    _key,
+                    default=current_options.get(
+                        _key, current_data.get(_key, False)
+                    ),
+                )] = _BOOL_SELECTOR
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(schema),

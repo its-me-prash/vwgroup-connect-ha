@@ -144,14 +144,18 @@
           "vin": "VIN (samochód wyświetlany w aplikacji)",
           "spin": "S-PIN (opcjonalnie)",
           "companion_use_addon": "Połącz przez dodatek ADB Bridge",
-          "companion_addon_token": "Token dodatku"
+          "companion_addon_token": "Token dodatku",
+          "companion_use_relay": "Użyj aplikacji agenta (to telefon łączy się z Home Assistant)",
+          "companion_agent_token": "Token agenta"
         },
         "data_description": {
           "adb_host": "Adres telefonu w Twojej sieci, np. 192.168.1.42.",
           "adb_port": "Zwykle 5555 dla ADB przez Wi-Fi.",
           "vin": "17-znakowy VIN samochodu wyświetlanego w aplikacji.",
           "companion_use_addon": "Zaznacz tę opcję dla telefonu z Androidem 11 lub nowszym, który oferuje wyłącznie debugowanie bezprzewodowe. Następnie wpisz powyżej adres DODATKU zamiast adresu telefonu.",
-          "companion_addon_token": "Wymagane tylko, jeśli ustawiłeś api_token w dodatku."
+          "companion_addon_token": "Wymagane tylko, jeśli ustawiłeś api_token w dodatku.",
+          "companion_use_relay": "Zaznacz, jeśli na telefonie działa aplikacja agenta. To telefon łączy się wtedy z Home Assistant: nie potrzeba ADB, debugowania bezprzewodowego ani stałego IP — pozostaw pole adresu puste.",
+          "companion_agent_token": "Losowy token wygenerowany przez aplikację agenta. Co najmniej 32 znaki i inny dla każdego pojazdu."
         }
       }
     },
@@ -173,7 +177,9 @@
       "companion_cannot_connect": "Nie można połączyć się z telefonem przez ADB. Sprawdź, czy jest w sieci, czy ADB przez Wi-Fi jest włączone oraz czy zaakceptowano monit o debugowanie.",
       "companion_needs_addon": "To wygląda na telefon z Androidem 11 lub nowszym z debugowaniem bezprzewodowym, którego bezpośrednie połączenie stąd nie obsługuje (wymaga TLS i parowania). Zainstaluj dodatek „VW Group App ADB Bridge” (github.com/its-me-prash/vwgroup-app-adb-bridge) i wskaż go tutaj. Starsze telefony (Android 10 lub wcześniejszy) łączą się bezpośrednio.",
       "companion_app_not_found": "Połączono z telefonem, ale aplikacja marki nie jest na nim zainstalowana.",
-      "companion_unknown_brand": "Ta marka nie ma jeszcze gotowego profilu telefonu pomocniczego."
+      "companion_unknown_brand": "Ta marka nie ma jeszcze gotowego profilu telefonu pomocniczego.",
+      "companion_agent_token_too_short": "Token agenta jest za krótki. Wklej losowy token wygenerowany przez aplikację agenta (co najmniej 32 znaki).",
+      "companion_host_required": "Podaj adres IP telefonu — albo zaznacz opcję agenta, jeśli to telefon łączy się z Home Assistant."
     },
     "abort": {
       "already_configured": "To konto jest już skonfigurowane.",
@@ -218,7 +224,10 @@
           "keep_raw_datasets": "Zachowuj surowe zestawy danych EU Data Act (diagnostyka)",
           "test_cohort": "Pomóż ulepszać VW Group Connect (dobrowolna grupa testowa)",
           "vweu_device_grant": "Dodaj VW EU Two-Way — polecenia + odczyty na żywo (BETA)",
-          "remove_vweu_twoway": "Usuń VW EU Two-Way (przywróć poprzedni kanał)"
+          "remove_vweu_twoway": "Usuń VW EU Two-Way (przywróć poprzedni kanał)",
+          "companion_read_vehicle_health": "Companion: odczyt przebiegu i serwisu ze stanu pojazdu (nawiguje po aplikacji)",
+          "companion_read_climate_detail": "Companion: odczyt temperatury zadanej i zewnętrznej (nawiguje po aplikacji)",
+          "companion_read_parking_position": "Companion: odczyt pozycji parkowania z linku udostępniania w aplikacji (nawiguje po aplikacji)"
         },
         "data_description": {
           "scan_interval": "Jak często pobierane są dane (minuty). Minimum: 3.",

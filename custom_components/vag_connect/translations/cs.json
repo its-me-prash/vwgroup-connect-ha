@@ -144,14 +144,18 @@
           "vin": "VIN (vozidlo zobrazené v aplikaci)",
           "spin": "S-PIN (volitelné)",
           "companion_use_addon": "Připojit přes doplněk ADB Bridge",
-          "companion_addon_token": "Token doplňku"
+          "companion_addon_token": "Token doplňku",
+          "companion_use_relay": "Použít aplikaci agenta (telefon volá Home Assistant)",
+          "companion_agent_token": "Token agenta"
         },
         "data_description": {
           "adb_host": "Adresa telefonu ve vaší síti, např. 192.168.1.42.",
           "adb_port": "Obvykle 5555 pro ADB přes Wi-Fi.",
           "vin": "17místný VIN vozidla zobrazeného v aplikaci.",
           "companion_use_addon": "Zaškrtněte u telefonu s Androidem 11 nebo novějším, který nabízí pouze bezdrátové ladění. Poté výše zadejte adresu DOPLŇKU místo adresy telefonu.",
-          "companion_addon_token": "Potřebné pouze v případě, že jste v doplňku nastavili api_token."
+          "companion_addon_token": "Potřebné pouze v případě, že jste v doplňku nastavili api_token.",
+          "companion_use_relay": "Zaškrtněte, pokud na telefonu běží aplikace agenta. Telefon pak volá Home Assistant: není potřeba ADB, bezdrátové ladění ani pevná IP adresa — pole s adresou nechte prázdné.",
+          "companion_agent_token": "Náhodný token vygenerovaný aplikací agenta. Nejméně 32 znaků a pro každé vozidlo jiný."
         }
       }
     },
@@ -173,7 +177,9 @@
       "companion_cannot_connect": "Telefon se nepodařilo kontaktovat přes ADB. Zkontrolujte, že je v síti, že je zapnuté ADB přes Wi-Fi a že jste potvrdili výzvu k ladění.",
       "companion_needs_addon": "Vypadá to na telefon s Androidem 11+ používající bezdrátové ladění, které zdejší přímé připojení neumí (vyžaduje TLS a párování). Nainstalujte doplněk 'VW Group App ADB Bridge' (github.com/its-me-prash/vwgroup-app-adb-bridge) a nasměrujte na něj companion. Starší telefony (Android 10 a starší) se připojí přímo zde.",
       "companion_app_not_found": "Připojení k telefonu proběhlo, ale aplikace značky na něm není nainstalovaná.",
-      "companion_unknown_brand": "Pro tuto značku zatím není k dispozici žádná přednastavená konfigurace doprovodného telefonu."
+      "companion_unknown_brand": "Pro tuto značku zatím není k dispozici žádná přednastavená konfigurace doprovodného telefonu.",
+      "companion_agent_token_too_short": "Token agenta je příliš krátký. Vložte náhodný token vygenerovaný aplikací agenta (nejméně 32 znaků).",
+      "companion_host_required": "Zadejte IP adresu telefonu — nebo zaškrtněte volbu agenta, pokud telefon volá Home Assistant."
     },
     "abort": {
       "already_configured": "Tento účet je již nastaven.",
@@ -218,7 +224,10 @@
           "keep_raw_datasets": "Uchovávat surová data EU Data Act (diagnostika)",
           "test_cohort": "Pomozte vylepšit VW Group Connect (dobrovolná testovací skupina)",
           "vweu_device_grant": "Přidat VW EU Two-Way — příkazy + živé čtení dat (BETA)",
-          "remove_vweu_twoway": "Odebrat VW EU Two-Way (návrat k předchozímu kanálu)"
+          "remove_vweu_twoway": "Odebrat VW EU Two-Way (návrat k předchozímu kanálu)",
+          "companion_read_vehicle_health": "Companion: číst stav tachometru a servis ze stavu vozidla (naviguje v aplikaci)",
+          "companion_read_climate_detail": "Companion: číst cílovou a venkovní teplotu (naviguje v aplikaci)",
+          "companion_read_parking_position": "Companion: číst pozici parkování z odkazu pro sdílení v aplikaci (naviguje v aplikaci)"
         },
         "data_description": {
           "scan_interval": "Jak často se stahují data (minuty). Minimum: 3.",

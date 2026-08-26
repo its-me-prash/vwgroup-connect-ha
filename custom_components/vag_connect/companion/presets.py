@@ -82,11 +82,33 @@ class NavReadSelector:
     ``writable``: reading the charge target is allowed even while command
     entities are quarantined. The channel always returns to the overview (BACK)
     afterwards so the next plain read sees the main screen.
+
+    v4.4.0 — some values sit more than one tap deep (the MEB/ID app keeps the
+    odometer on a Vehicle Health screen and the parking position behind
+    navigation → share). ``steps`` generalises ``tile`` to an ordered PATH of
+    taps; ``tile`` remains the one-step spelling and is used when ``steps`` is
+    empty. ``back_presses`` says how many BACKs return to the overview, so a
+    deep path does not leave the app parked on a sub-screen for the next poll.
+
+    ``opt_in`` names the user opt-in that unlocks this path. Every group is OFF
+    by default because each one taps the app; ``charge_detail`` is the original
+    C9 option, deeper paths get their own so enabling a shallow read never
+    silently starts a deep walk.
     """
 
     name: str
-    tile: ActionSelector                 # the tile to tap to open the detail
     values: tuple["FieldSelector", ...]  # values to read on the detail screen
+    tile: ActionSelector | None = None   # single-tap spelling of ``steps``
+    steps: tuple[ActionSelector, ...] = ()  # ordered taps, overview → detail
+    back_presses: int = 1
+    opt_in: str = "charge_detail"
+
+    @property
+    def path(self) -> tuple[ActionSelector, ...]:
+        """The taps to walk, overview → detail. Never empty for a valid preset."""
+        if self.steps:
+            return self.steps
+        return (self.tile,) if self.tile is not None else ()
 
 
 @dataclass(frozen=True)
@@ -250,6 +272,10 @@ _VW = BrandPreset(
             parse="bool_charging",
         ),
         # v2.26.0 (ckomma #7) — odometer. Grouped-thousands safe now (_first_int).
+        # NOTE (#968, 4.3.2): the MEB/ID overview no longer carries a total
+        # odometer at all — it shows a "Driving data" tile with the LAST trip.
+        # That is why the odometer moved to the Vehicle Health nav-read below;
+        # this overview selector stays for the layouts that still narrate it.
         FieldSelector(
             target="odometer_km",
             content_desc_re=(
@@ -259,6 +285,64 @@ _VW = BrandPreset(
             label_re=r"^(?:Kilometerstand|Odometer|Mileage|km-Stand)$",
             value_from="sibling",
             parse="int_km",
+        ),
+        # ── v4.4.0 (#968) — We Connect 4.3.2 / MEB (ID.3, ID.4, ID.5) ────────
+        #
+        # SEEDED, NOT VERIFIED IN-HOUSE. Our reference car is a Golf GTE; these
+        # selectors are built from 4.3.2 accessibility trees REPORTED by users
+        # in #968 plus the layout notes collected there, and they are reads
+        # only — no write action is inferred from an unconfirmed tree, because
+        # a wrong tap is a physical action on a real car. They are additive:
+        # each one only fires on a screen that narrates the 4.3.2 wording, so a
+        # 4.2.1 / metric setup keeps resolving through the selectors above.
+        #
+        # 4.3.2 merges state and value into ONE label per tile, e.g.
+        #   "Charging status. Battery charge level: 79 per cent. Charging stopped"
+        # The generic ``battery_soc`` / ``electric_range_km`` selectors above
+        # already capture their numbers out of those sentences; what needs its
+        # own selector is the trailing STATE phrase, which would otherwise be
+        # stored as the whole sentence.
+        FieldSelector(
+            target="charging_state",
+            content_desc_re=(
+                r"Charging\s*status\b.*?\.\s*"
+                r"(Charging\s*(?:stopped|paused|complete[d]?|active)?"
+                r"|Not\s*(?:charging|connected)|Ready\s*to\s*charge)\s*\.?\s*$"
+            ),
+            parse="str",
+        ),
+        # Lock state — the 4.3.2 vehicle title narrates it ("Vehicle is
+        # locked"/"unlocked"); on the German build "Fahrzeug ist verriegelt".
+        # ``bool_locked`` checks the negative first, so "unlocked" cannot match
+        # the "locked" substring.
+        FieldSelector(
+            target="doors_locked",
+            content_desc_re=(
+                r"(?:Vehicle\s*is\s*(?:un)?locked|Fahrzeug\s*(?:ist\s*)?"
+                r"(?:ver|ent)riegelt)"
+            ),
+            parse="bool_locked",
+        ),
+        # Climate tile narration. ``climateTile`` is the stable resource-id in
+        # the reported trees; the narration fallback covers builds that do not
+        # expose it.
+        FieldSelector(
+            target="climatisation_state",
+            resource_id="climateTile",
+            content_desc_re=(
+                r"(?:Climate|Air\s*conditioning|Klima(?:tisierung)?)[^.]*?\.\s*"
+                r"([^.]*(?:on|off|running|stopped|active|ein|aus|läuft)[^.]*)"
+            ),
+            parse="str",
+        ),
+        FieldSelector(
+            target="climatisation_active",
+            resource_id="climateTile",
+            content_desc_re=(
+                r"(?:Climate|Air\s*conditioning|Klima(?:tisierung)?)[^.]*?\.\s*"
+                r"([^.]*(?:on|off|running|stopped|active|ein|aus|läuft)[^.]*)"
+            ),
+            parse="bool_climate",
         ),
     ),
     # v2.26.0 — WRITES QUARANTINED. The previous single-tap actions were wrong:
@@ -328,6 +412,129 @@ _VW = BrandPreset(
                     parse="hm_minutes",
                 ),
             ),
+        ),
+        # ── v4.4.0 (#968) — deeper 4.3.2 paths, SEEDED like the fields above ──
+        #
+        # Each is opt-in under its OWN option, so enabling the charge-detail
+        # read never silently starts a multi-tap walk, and every path states how
+        # many BACKs return to the overview.
+        NavReadSelector(
+            name="vehicle_health",
+            # 4.3.2 dropped the total odometer from the overview (it shows the
+            # last trip instead), so the mileage and the service countdown are
+            # only reachable on the Vehicle Health report.
+            steps=(
+                ActionSelector(
+                    action="open_vehicle_health",
+                    resource_id="vehicleHealthTile",
+                    content_desc_re=r"(?:Vehicle\s*Health|Fahrzeug(?:zustand|check))",
+                ),
+            ),
+            values=(
+                FieldSelector(
+                    target="odometer_km",
+                    resource_id="totalDistance",
+                    content_desc_re=(
+                        r"(?:Total\s*distance|Mileage|Kilometerstand|Gesamt"
+                        r"(?:strecke|kilometer))\D*([\d\s.,]+\s*"
+                        r"(?:km\b|[Kk]ilomet\w*|miles?\b|mi\b|[Mm]eilen?))"
+                    ),
+                    parse="range_km",
+                ),
+                FieldSelector(
+                    target="service_due_in_days",
+                    resource_id="nextInspection",
+                    content_desc_re=(
+                        r"(?:Next\s*(?:service|inspection)|Nächste\s*"
+                        r"(?:Inspektion|Wartung))\D*(\d{1,4})\s*(?:days?|Tagen?)"
+                    ),
+                    parse="int_km",
+                ),
+            ),
+            back_presses=1,
+            opt_in="vehicle_health",
+        ),
+        NavReadSelector(
+            name="climate_detail",
+            steps=(
+                ActionSelector(
+                    action="open_climate_detail",
+                    resource_id="climateTile",
+                    content_desc_re=(
+                        r"(?:Climate|Air\s*conditioning|Klima(?:tisierung)?)"
+                    ),
+                ),
+            ),
+            values=(
+                FieldSelector(
+                    target="target_temperature",
+                    content_desc_re=(
+                        r"(?:Target|Desired|Ziel|Soll)[^0-9]{0,24}"
+                        r"(-?\d{1,2}(?:[.,]\d)?\s*°?\s*[CF]?)"
+                    ),
+                    parse="temp_c",
+                ),
+                FieldSelector(
+                    target="outside_temp",
+                    resource_id="outside_temperature_layout",
+                    content_desc_re=(
+                        r"(?:Outside|Außen|Aussen)[^0-9]{0,24}"
+                        r"(-?\d{1,2}(?:[.,]\d)?\s*°?\s*[CF]?)"
+                    ),
+                    parse="temp_c",
+                ),
+            ),
+            back_presses=1,
+            opt_in="climate_detail",
+        ),
+        NavReadSelector(
+            name="parking_position",
+            # #923 / #968 — a VW EU car read through the EU Data Act portal has
+            # NO position data point, and the app draws the parked car as a map
+            # with no coordinate text, so both of our other paths are structurally
+            # blind here. The app's own share sheet is not: sharing the parking
+            # spot renders a Google Maps link, and that link's preview text
+            # carries the coordinates. We only READ the preview — nothing is
+            # sent anywhere, and BACK closes the sheet.
+            steps=(
+                ActionSelector(
+                    action="open_navigation",
+                    resource_id="navigationTile",
+                    content_desc_re=(
+                        r"(?:Navigation|Find\s*(?:my\s*)?(?:vehicle|car)"
+                        r"|Fahrzeug\s*finden)"
+                    ),
+                ),
+                ActionSelector(
+                    action="open_parking_marker",
+                    resource_id="parkingPositionMarker",
+                    content_desc_re=(
+                        r"(?:Parking\s*position|Last\s*known\s*position"
+                        r"|Parkposition|Letzte\s*bekannte\s*Position)"
+                    ),
+                ),
+                ActionSelector(
+                    action="share_parking_position",
+                    resource_id="shareButton",
+                    content_desc_re=r"(?:Share|Teilen)",
+                ),
+            ),
+            values=(
+                FieldSelector(
+                    target="latitude",
+                    resource_id="content_preview_text",
+                    content_desc_re=r"(https?://\S*(?:google\.[a-z.]+/maps|goo\.gl/maps)\S*)",
+                    parse="maps_lat",
+                ),
+                FieldSelector(
+                    target="longitude",
+                    resource_id="content_preview_text",
+                    content_desc_re=r"(https?://\S*(?:google\.[a-z.]+/maps|goo\.gl/maps)\S*)",
+                    parse="maps_lon",
+                ),
+            ),
+            back_presses=3,
+            opt_in="parking_position",
         ),
     ),
     # v2.26.0 (ckomma #13, #8) — confirmed VW nag screens. BACK dismisses both.
@@ -517,6 +724,31 @@ def _first_int(text: str) -> int | None:
     return int(m.group()) if m else None
 
 
+# v4.4.0 — coordinate pairs as they appear in a shared Google Maps link. Tried
+# in order; the first that hits wins. Latitude is bounded to ±90 and longitude
+# to ±180 by ``_maps_latlon`` so a zoom level or a place id can never be read as
+# a coordinate.
+_MAPS_LATLON_RES = (
+    re.compile(r"[!]3d(-?\d+\.\d+)[!]4d(-?\d+\.\d+)"),
+    re.compile(r"/place/(-?\d+\.\d+),\s*(-?\d+\.\d+)"),
+    re.compile(r"[/@](-?\d+\.\d+),\s*(-?\d+\.\d+)"),
+    re.compile(r"[?&](?:q|ll|daddr|destination)=(-?\d+\.\d+),\s*(-?\d+\.\d+)"),
+)
+
+
+def _maps_latlon(raw: str) -> tuple[float, float] | None:
+    """Pull a (lat, lon) pair out of a Google Maps URL, or None."""
+    for rx in _MAPS_LATLON_RES:
+        m = rx.search(raw)
+        if not m:
+            continue
+        lat = float(m.group(1))
+        lon = float(m.group(2))
+        if -90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0:
+            return lat, lon
+    return None
+
+
 def coerce(parse: str, raw: str | None) -> object | None:
     """Turn a matched raw string into the typed value the field expects."""
     if raw is None:
@@ -545,7 +777,49 @@ def coerce(parse: str, raw: str | None) -> object | None:
             return round(val * 1.60934)
         return val
     if parse == "bool_charging":
+        # v4.4.0 — the MEB/ID app 4.3.2 narrates state and level in ONE label:
+        # "Charging status. Battery charge level: 79 per cent. Charging stopped".
+        # "Charging" appears in that sentence even when the car is NOT charging,
+        # so the explicit stopped/paused wording has to win over the bare verb.
+        if re.search(
+            r"(?:Charging\s*(?:stopped|paused|complete[d]?)|Ladevorgang\s*"
+            r"(?:beendet|gestoppt|pausiert)|Nicht\s*(?:geladen|verbunden)"
+            r"|Not\s*(?:charging|connected))",
+            raw, re.I,
+        ):
+            return False
         return bool(re.search(r"(?:Lädt|Wird geladen|Charging)", raw, re.I))
+    if parse == "bool_climate":
+        # v4.4.0 (#968) — the climate tile narrates its own state; "off",
+        # "stopped" and "aus" are the negatives, and they are checked first so
+        # "Climate control off" cannot match the positive verb in front of it.
+        if re.search(
+            r"(?:\boff\b|stopped|not\s*running|\baus\b|beendet|gestoppt)", raw, re.I
+        ):
+            return False
+        if re.search(r"(?:\bon\b|running|active|\bein\b|läuft|aktiv)", raw, re.I):
+            return True
+        return None
+    if parse == "temp_c":
+        # A temperature reading off a climate screen: "22°C", "21,5 °C", "70°F".
+        m = re.search(r"(-?\d+(?:[.,]\d+)?)\s*°?\s*([CF])?", raw)
+        if not m:
+            return None
+        degrees = float(m.group(1).replace(",", "."))
+        if (m.group(2) or "").upper() == "F":
+            degrees = (degrees - 32.0) * 5.0 / 9.0
+        return round(degrees, 1)
+    if parse in ("maps_lat", "maps_lon"):
+        # v4.4.0 — parking position off a shared map link. The app draws the
+        # parking spot as a map with no coordinate text, but its share sheet
+        # renders a Google Maps URL that carries the coordinates, and the share
+        # preview is readable in the accessibility tree. Accepted spellings:
+        #   /place/48.208174,16.373819      /maps?q=48.208174,16.373819
+        #   /@48.208174,16.373819,17z       !3d48.208174!4d16.373819
+        pair = _maps_latlon(raw)
+        if pair is None:
+            return None
+        return pair[0] if parse == "maps_lat" else pair[1]
     if parse == "kw":
         m = re.search(r"(\d+(?:[.,]\d+)?)", raw)
         return float(m.group(1).replace(",", ".")) if m else None
