@@ -1295,7 +1295,18 @@ class WebsiteAuthProxyConnector:
             )
 
     async def get_master_data(self, vin: str) -> AuthproxyVehicleInfo:
-        """Market model name / engine / year / colour (text + code) for *vin*."""
+        """Market model name / engine / year / colour (text + code) for *vin*.
+
+        Both reads are ``optional`` (as well as ``soft``): the rich ``details``
+        endpoint (engine / year / colour-text / the ``specifications`` list) is
+        the vehicle-FILE service, which 403s for a NON-PRIMARY relation — a guest
+        on a family car, verified live 2026-08-26. The flat ``data`` endpoint,
+        by contrast, returns ``modelName`` + colour code even for a guest. If
+        ``details`` raised (403), we'd abort before ever reading ``data`` and a
+        guest car would get NO model name — even though ``data`` carries it. So
+        a per-car 4xx on either read degrades to ``None`` and we still parse
+        whatever the other endpoint returned (session validity is gated by the
+        core reads in ``get_vehicle_data``, which run first)."""
         from .._authproxy import (  # noqa: PLC0415
             AuthproxyVehicleInfo,
             build_vehicle_data_url,
@@ -1305,10 +1316,14 @@ class WebsiteAuthProxyConnector:
         )
 
         info = AuthproxyVehicleInfo()
-        details = await self._get_json(build_vehicle_details_url(vin), soft=True)
+        details = await self._get_json(
+            build_vehicle_details_url(vin), soft=True, optional=True
+        )
         if details is not None:
             info = parse_vehicle_details(details, info)
-        data = await self._get_json(build_vehicle_data_url(vin), soft=True)
+        data = await self._get_json(
+            build_vehicle_data_url(vin), soft=True, optional=True
+        )
         if data is not None:
             info = parse_vehicle_data(data, info)
         return info
@@ -1690,5 +1705,32 @@ class WebsiteAuthProxyConnector:
                 d.image_urls = _urls
         except Exception:  # noqa: BLE001
             _LOGGER.debug("vw.de exterior images skipped for %s", vin[-6:])
+
+        # Model name / year / colour for VW-EU portal + vw.de cars. Their model
+        # source (the CARIAD-BFF vgql media block used for connected Audi/VW) is
+        # walled, so the device fell back to "Volkswagen (2023)" with no model.
+        # get_master_data() reads the vw.de "modelName" but — exactly like
+        # get_exterior_images() above — existed and was never called. Wire it so
+        # a portal car shows e.g. "Tiguan". Best-effort; only fills fields the
+        # primary channel left empty (never overrides a real model).
+        try:
+            _info = await self.get_master_data(vin)
+            if _info.model_name and not d.model:
+                d.model = _info.model_name
+            if _info.model_year and not d.model_year:
+                # vw.de gives the year as a string ("2015"); VehicleData wants int.
+                try:
+                    d.model_year = int(str(_info.model_year).strip())
+                except (ValueError, TypeError):
+                    pass
+            if _info.exterior_color_text and not d.exterior_color:
+                d.exterior_color = _info.exterior_color_text
+            # ``engine`` already arrives formatted as "110 kW (150 PS)" — the same
+            # shape as the plug&play engine-power sensor — but was parsed and then
+            # discarded. Reuse the existing engine_power sensor for it.
+            if _info.engine and not d.engine_power:
+                d.engine_power = _info.engine
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug("vw.de master-data skipped for %s", vin[-6:])
 
         return d
