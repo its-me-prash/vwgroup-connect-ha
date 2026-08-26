@@ -398,6 +398,13 @@ class WebsiteAuthProxyConnector:
         # bare status labels only ("404", "412", "200 no-value") — no PII. Without
         # this a fail-soft probe left zero trace and the whole cohort was blind.
         self.probe_outcomes: dict[str, str] = {}
+        # Pre-flight durable-MBB eligibility per VIN, classified from the guest-
+        # readable relations read (carnetIndicator / platform / role — see
+        # _authproxy.mbb_eligibility). Observability only: surfaced in diagnostics
+        # so a #584-class triage can tell up front whether arming MBB is even worth
+        # it for a car, complementing the post-hoc mbb_no_legacy operationList
+        # verdict. Nothing in the poll/command path reads it.
+        self.mbb_eligibility: dict[str, str] = {}
 
     _POSITION_PROBE_MAX_TRIES = 4
     _SOH_PROBE_MAX_TRIES = 4
@@ -1256,7 +1263,7 @@ class WebsiteAuthProxyConnector:
         Returns ``None`` on a transient backend hiccup (401/403 still raises).
         Also caches each VIN's platform backend for the live-status gdc pick.
         """
-        from .._authproxy import parse_relations  # noqa: PLC0415
+        from .._authproxy import mbb_eligibility, parse_relations  # noqa: PLC0415
 
         body = await self._get_json(f"{_SITE_BASE}{_RELATIONS_PATH}", soft=True)
         rels = parse_relations(body) if body is not None else None
@@ -1265,6 +1272,8 @@ class WebsiteAuthProxyConnector:
                 # Empty string = "seen, no backend field" → WeConnect default,
                 # and marks the VIN cached so _ensure_backend won't re-probe.
                 self._vin_backend[v.vin] = v.mod_backend or ""
+                # Observability only (diagnostics) — the pre-flight MBB verdict.
+                self.mbb_eligibility[v.vin] = mbb_eligibility(v)
         return rels
 
     def _gdc(self, vin: str) -> str:

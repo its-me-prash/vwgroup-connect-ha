@@ -528,6 +528,20 @@ async def async_get_config_entry_diagnostics(
         except Exception:  # noqa: BLE001
             mbb_no_legacy = []
 
+    # Pre-flight durable-MBB eligibility from the guest-readable vw.de relations
+    # read (carnetIndicator / platform / role → eligible / not_provisioned /
+    # not_mbb / unknown). The UP-FRONT companion to mbb_no_legacy (which is the
+    # post-hoc operationList verdict): it lets a #584-class triage tell whether
+    # arming the durable MBB channel is even worth it for a car before any MBB
+    # login. Observability only — nothing in the poll/command path consumes it.
+    mbb_elig: dict[str, str] = {}
+    _me = getattr(client, "mbb_eligibility", None) if client is not None else None
+    if isinstance(_me, dict):
+        try:
+            mbb_elig = {mask_vin(str(k)): str(v) for k, v in _me.items()}
+        except Exception:  # noqa: BLE001
+            mbb_elig = {}
+
     return {
         "config": config_diag,
         "options": options_diag,
@@ -546,6 +560,7 @@ async def async_get_config_entry_diagnostics(
         "parser_stats": parser_stats_diag,
         "capabilities": capabilities,
         "mbb_no_legacy": mbb_no_legacy,
+        "mbb_eligibility": mbb_elig,
     }
 
 

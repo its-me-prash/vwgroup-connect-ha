@@ -565,6 +565,14 @@ class CariadBaseClient:
                 if not isinstance(getattr(self, "probe_outcomes", None), dict):
                     self.probe_outcomes = {}
                 self.probe_outcomes.update(_outc)
+            # Pre-flight durable-MBB eligibility from the relations read — surfaced
+            # in diagnostics next to the post-hoc mbb_no_legacy verdict. Copied up
+            # off the connector the same way; observability only, never gates.
+            _elig = getattr(connector, "mbb_eligibility", None)
+            if _elig:
+                if not isinstance(getattr(self, "mbb_eligibility", None), dict):
+                    self.mbb_eligibility = {}
+                self.mbb_eligibility.update(_elig)
 
     async def _read_eu_portal(
         self, connector: Any, vin: str
