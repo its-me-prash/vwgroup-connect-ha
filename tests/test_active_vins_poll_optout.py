@@ -74,3 +74,30 @@ def test_registry_error_falls_back_to_polling_all():
     c = _coord()
     with patch(f"{_MOD}.dr.async_get", side_effect=RuntimeError("no registry")):
         assert c._active_vins(["VIN_A", "VIN_B"]) == ["VIN_A", "VIN_B"]
+
+
+def test_system_disabled_device_is_still_polled():
+    # #1234 — a device HA disabled for its OWN reasons (not the user) must NOT
+    # fall out of rotation, or one car on a multi-car account goes silently quiet
+    # and a restart won't bring it back. Only a USER-disabled device is skipped.
+    from homeassistant.helpers import device_registry as dr
+
+    reg = MagicMock()
+
+    def _get(identifiers):
+        (_domain, vin), = identifiers
+        dev = MagicMock()
+        dev.disabled_by = {
+            "VIN_USER": dr.DeviceEntryDisabler.USER,
+            "VIN_INT": dr.DeviceEntryDisabler.INTEGRATION,
+            "VIN_CE": dr.DeviceEntryDisabler.CONFIG_ENTRY,
+        }.get(vin)
+        return dev
+
+    reg.async_get_device.side_effect = _get
+    c = _coord()
+    with patch(f"{_MOD}.dr.async_get", return_value=reg):
+        # only the user-disabled one drops; integration/config-entry keep polling
+        assert c._active_vins(["VIN_A", "VIN_USER", "VIN_INT", "VIN_CE"]) == [
+            "VIN_A", "VIN_INT", "VIN_CE",
+        ]
