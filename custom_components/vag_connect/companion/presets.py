@@ -45,6 +45,13 @@ class FieldSelector:
     # way to read those apps, which carry neither content-desc sentences nor a
     # localized label next to the number.
     unit_re: str | None = None
+    # v4.4.0 — geometric fallback for a value the app renders with NO label of
+    # any kind. The climate detail's target temperature is the case: it is a
+    # bare number drawn in the middle of the temperature dial, with no
+    # resource-id, no description and nothing next to it to anchor on. Names
+    # the container's resource-id; the value taken is the numeric text node
+    # inside it that sits nearest the container's horizontal centre.
+    centre_of_rid: str | None = None
     # When matched via ``label_re``, where the value text comes from:
     #   "self"    → the label node's own text (e.g. "Ladung 74 %")
     #   "sibling" → the next sibling node's text (label and value are separate)
@@ -64,6 +71,17 @@ class ActionSelector:
     label_re: str | None = None
     # Some actions need to navigate to a screen first (tab labels, in order).
     nav_labels: tuple[str, ...] = ()
+    # v4.4.0 — scroll the current screen up before looking for this control.
+    # The MEB overview puts Vehicle Health and Settings below the fold, so
+    # without this the walk correctly refuses to tap a control it cannot see,
+    # and correctly never gets there either.
+    scroll_first: bool = False
+    # v4.4.0 — tap a point INSIDE the matched node rather than its centre,
+    # given as (x, y) fractions of the node's own box. The map is the case
+    # that needs it: the parked-car marker is not in the accessibility tree at
+    # all, so the only way to open it is to tap where the app draws it inside
+    # the map view. A fraction is device-independent; a pixel is not.
+    tap_fraction: tuple[float, float] | None = None
 
 
 @dataclass(frozen=True)
@@ -154,6 +172,12 @@ class BrandPreset:
     # never drive further into a real rate-limit. Distinct from a nag (which is
     # dismissed): a rate-limit banner means back off, not press BACK.
     rate_limit_banners: tuple[OverlaySelector, ...] = ()
+    # v4.4.0 — the app's OWN up/close controls, in preference order. The nav
+    # walk taps one of these to come back instead of pressing Android's global
+    # BACK, which is not bounded by the app: from a shallow navigation stack it
+    # can leave it entirely and the next poll then finds a launcher instead of
+    # a car. Empty ⇒ BACK, as before.
+    up_controls: tuple[ActionSelector, ...] = ()
     # v2.26.0 — a node that proves we are on the expected main/detail screen.
     # A read/tap only proceeds when this anchor is present, so a stray screen
     # (or a dismissed-overlay-left-us-elsewhere state) yields no_data rather than
@@ -288,13 +312,16 @@ _VW = BrandPreset(
         ),
         # ── v4.4.0 (#968) — We Connect 4.3.2 / MEB (ID.3, ID.4, ID.5) ────────
         #
-        # SEEDED, NOT VERIFIED IN-HOUSE. Our reference car is a Golf GTE; these
-        # selectors are built from 4.3.2 accessibility trees REPORTED by users
-        # in #968 plus the layout notes collected there, and they are reads
-        # only — no write action is inferred from an unconfirmed tree, because
-        # a wrong tap is a physical action on a real car. They are additive:
-        # each one only fires on a screen that narrates the 4.3.2 wording, so a
-        # 4.2.1 / metric setup keeps resolving through the selectors above.
+        # NOT VERIFIED IN-HOUSE: our reference car is a Golf GTE. The overview
+        # selectors below come from 4.3.2 accessibility trees reported by users
+        # in #968; the deeper paths (Vehicle Health, Settings, climate detail,
+        # parking position) are modelled on an MEB layout documented elsewhere
+        # in the open-source ecosystem, not on a tree we captured. Either way
+        # they are READS only — no write action is inferred from a tree we have
+        # not confirmed, because a wrong read is a wrong number while a wrong
+        # tap is a physical action on a real car. They are additive: each fires
+        # only on a screen that carries the 4.3.2 wording, so a 4.2.1 / metric
+        # setup keeps resolving through the selectors above.
         #
         # 4.3.2 merges state and value into ONE label per tile, e.g.
         #   "Charging status. Battery charge level: 79 per cent. Charging stopped"
@@ -422,33 +449,58 @@ _VW = BrandPreset(
             name="vehicle_health",
             # 4.3.2 dropped the total odometer from the overview (it shows the
             # last trip instead), so the mileage and the service countdown are
-            # only reachable on the Vehicle Health report.
+            # only reachable on the Vehicle Health report — and on the MEB
+            # layout that entry point sits BELOW the fold, hence the scroll.
+            # The report labels its values and puts the number in the next node
+            # ("Total distance" → "27,886 km"), with no id of its own.
             steps=(
                 ActionSelector(
                     action="open_vehicle_health",
-                    resource_id="vehicleHealthTile",
-                    content_desc_re=r"(?:Vehicle\s*Health|Fahrzeug(?:zustand|check))",
+                    content_desc_re=(
+                        r"^(?:Vehicle\s*Health\s*Report|Fahrzeug(?:zustands)?"
+                        r"bericht)\b"
+                    ),
+                    scroll_first=True,
                 ),
             ),
             values=(
                 FieldSelector(
                     target="odometer_km",
-                    resource_id="totalDistance",
-                    content_desc_re=(
-                        r"(?:Total\s*distance|Mileage|Kilometerstand|Gesamt"
-                        r"(?:strecke|kilometer))\D*([\d\s.,]+\s*"
-                        r"(?:km\b|[Kk]ilomet\w*|miles?\b|mi\b|[Mm]eilen?))"
-                    ),
+                    label_re=r"^(?:Total\s*distance|Gesamt(?:strecke|kilometer))$",
+                    value_from="sibling",
                     parse="range_km",
                 ),
                 FieldSelector(
                     target="service_due_in_days",
-                    resource_id="nextInspection",
-                    content_desc_re=(
-                        r"(?:Next\s*(?:service|inspection)|Nächste\s*"
-                        r"(?:Inspektion|Wartung))\D*(\d{1,4})\s*(?:days?|Tagen?)"
+                    label_re=r"^(?:Next\s*service|Nächster\s*Service)$",
+                    value_from="sibling",
+                    parse="days",
+                ),
+            ),
+            back_presses=1,
+            opt_in="vehicle_health",
+        ),
+        NavReadSelector(
+            name="vehicle_settings",
+            # The charge limit lives on the vehicle Settings screen, not behind
+            # the range tile, on this layout. Same below-the-fold entry point as
+            # Vehicle Health.
+            steps=(
+                ActionSelector(
+                    action="open_vehicle_settings",
+                    content_desc_re=r"^(?:Settings|Einstellungen)\b",
+                    scroll_first=True,
+                ),
+            ),
+            values=(
+                FieldSelector(
+                    target="target_soc",
+                    label_re=(
+                        r"^(?:Charg(?:e|ing)\s*(?:up\s*to|target|limit)"
+                        r"|Ladeziel|Laden\s*bis)\b"
                     ),
-                    parse="int_km",
+                    value_from="sibling",
+                    parse="percent",
                 ),
             ),
             back_presses=1,
@@ -466,21 +518,20 @@ _VW = BrandPreset(
                 ),
             ),
             values=(
+                # The target temperature is drawn in the middle of the
+                # temperature dial as a bare number: no id, no description, no
+                # neighbouring label. Geometry is the only handle it has.
                 FieldSelector(
                     target="target_temperature",
-                    content_desc_re=(
-                        r"(?:Target|Desired|Ziel|Soll)[^0-9]{0,24}"
-                        r"(-?\d{1,2}(?:[.,]\d)?\s*°?\s*[CF]?)"
-                    ),
+                    centre_of_rid="clima_compose_view",
                     parse="temp_c",
                 ),
+                # The outside temperature is the one °C reading on this screen
+                # that carries its unit, so the unit is the anchor.
                 FieldSelector(
                     target="outside_temp",
-                    resource_id="outside_temperature_layout",
-                    content_desc_re=(
-                        r"(?:Outside|Außen|Aussen)[^0-9]{0,24}"
-                        r"(-?\d{1,2}(?:[.,]\d)?\s*°?\s*[CF]?)"
-                    ),
+                    label_re=r"(-?\d{1,2}(?:[.,]\d+)?\s*°\s*[CF])",
+                    value_from="self",
                     parse="temp_c",
                 ),
             ),
@@ -493,47 +544,49 @@ _VW = BrandPreset(
             # NO position data point, and the app draws the parked car as a map
             # with no coordinate text, so both of our other paths are structurally
             # blind here. The app's own share sheet is not: sharing the parking
-            # spot renders a Google Maps link, and that link's preview text
-            # carries the coordinates. We only READ the preview — nothing is
-            # sent anywhere, and BACK closes the sheet.
+            # spot renders a Google Maps link whose preview text carries the
+            # coordinates. We only READ that preview — nothing is sent anywhere.
+            #
+            # The middle step is the awkward one: the parked-car marker is not
+            # in the accessibility tree at all, so there is no node to match.
+            # What IS in the tree is the map view itself, and "Find vehicle"
+            # centres the marker in its upper half — so we tap a fraction of
+            # the map's own box rather than a node.
             steps=(
                 ActionSelector(
-                    action="open_navigation",
-                    resource_id="navigationTile",
-                    content_desc_re=(
-                        r"(?:Navigation|Find\s*(?:my\s*)?(?:vehicle|car)"
-                        r"|Fahrzeug\s*finden)"
-                    ),
+                    action="open_map_tab",
+                    resource_id="cat_nav_map_tab_navigation",
+                    content_desc_re=r"^(?:Map|Navigation|Karte)\b",
+                ),
+                ActionSelector(
+                    action="find_vehicle",
+                    content_desc_re=r"^(?:Find\s*vehicle|Fahrzeug\s*finden)$",
                 ),
                 ActionSelector(
                     action="open_parking_marker",
-                    resource_id="parkingPositionMarker",
-                    content_desc_re=(
-                        r"(?:Parking\s*position|Last\s*known\s*position"
-                        r"|Parkposition|Letzte\s*bekannte\s*Position)"
-                    ),
+                    content_desc_re=r"^(?:Google\s*Map|Google\s*Karte)$",
+                    tap_fraction=(0.5, 0.43),
                 ),
                 ActionSelector(
                     action="share_parking_position",
-                    resource_id="shareButton",
-                    content_desc_re=r"(?:Share|Teilen)",
+                    label_re=r"^(?:Share|Teilen)$",
                 ),
             ),
             values=(
                 FieldSelector(
                     target="latitude",
-                    resource_id="content_preview_text",
-                    content_desc_re=r"(https?://\S*(?:google\.[a-z.]+/maps|goo\.gl/maps)\S*)",
+                    label_re=r"(https?://\S*(?:google\.[a-z.]+/maps|goo\.gl/maps)\S*)",
+                    value_from="self",
                     parse="maps_lat",
                 ),
                 FieldSelector(
                     target="longitude",
-                    resource_id="content_preview_text",
-                    content_desc_re=r"(https?://\S*(?:google\.[a-z.]+/maps|goo\.gl/maps)\S*)",
+                    label_re=r"(https?://\S*(?:google\.[a-z.]+/maps|goo\.gl/maps)\S*)",
+                    value_from="self",
                     parse="maps_lon",
                 ),
             ),
-            back_presses=3,
+            back_presses=4,
             opt_in="parking_position",
         ),
     ),
@@ -554,6 +607,18 @@ _VW = BrandPreset(
     # was a backend request-limit, not a confirmed on-screen banner). The
     # mechanism is what matters; the exact string comes with a tester capture.
     rate_limit_banners=(_RATE_LIMIT_BANNER,),
+    # v4.4.0 — We Connect's own close/up controls, so a nav walk never presses
+    # Android BACK out of the app. Ordered from the general Compose up-button
+    # to the two screens that name their own.
+    up_controls=(
+        ActionSelector(action="up", resource_id="vwd_navigation_button"),
+        ActionSelector(action="up", resource_id="vehicleHealthBack"),
+        ActionSelector(action="up", resource_id="climatisationSettingsLeading"),
+    ),
+    # v4.4.0 — the overview is the screen that carries both tiles. Used to stop
+    # the return walk as soon as we are actually home, rather than pressing a
+    # fixed number of times and hoping.
+    screen_anchor=FieldSelector(target="_overview", resource_id="rangeTile"),
     # v2.26.0 (ckomma #22) — VW shows a "Synchronised … ago" line (#22 confirms
     # the wording exists); seeded German + English, number + unit.
     sync_age_re=_SYNC_AGE_RE,
@@ -705,7 +770,12 @@ _FIRST_INT_RE = re.compile(r"-?\d+")
 # 3-digit groups: whitespace (\s covers space + nbsp) or dot as separator.
 # A plain decimal ("12,5", "12.5") is NOT matched (comma, or a non-3-digit tail),
 # so it is left untouched for the kw parser.
-_GROUPED_THOUSANDS_RE = re.compile(r"-?\d{1,3}(?:[\s.]\d{3})+(?!\d)")
+# v4.4.0 — the comma is a thousands separator too ("27,886 km" on an English
+# build), and without it that odometer read back as 27. A group must be exactly
+# three digits and not run on into a fourth, so a decimal comma ("12,5") still
+# cannot match. Every consumer of this helper is an integer quantity
+# (percent / int_km / range_km), so widening it here cannot reach a decimal.
+_GROUPED_THOUSANDS_RE = re.compile(r"-?\d{1,3}(?:[\s.,]\d{3})+(?!\d)")
 
 
 def _first_int(text: str) -> int | None:
@@ -715,7 +785,7 @@ def _first_int(text: str) -> int | None:
     # regex below truncates "27 886 km" to 27 (ckomma #7, an odometer read).
     gm = _GROUPED_THOUSANDS_RE.search(text)
     if gm:
-        digits = re.sub(r"[\s.]", "", gm.group())
+        digits = re.sub(r"[\s.,]", "", gm.group())
         try:
             return int(digits)
         except ValueError:  # pragma: no cover - regex guarantees digits
@@ -789,6 +859,13 @@ def coerce(parse: str, raw: str | None) -> object | None:
         ):
             return False
         return bool(re.search(r"(?:Lädt|Wird geladen|Charging)", raw, re.I))
+    if parse == "days":
+        # "Next service" renders as "in 320 days" / "320 Tage". A countdown
+        # beyond ten years is a mis-match, not a service interval.
+        val = _first_int(raw)
+        if val is None or not (0 <= val <= 3650):
+            return None
+        return val
     if parse == "bool_climate":
         # v4.4.0 (#968) — the climate tile narrates its own state; "off",
         # "stopped" and "aus" are the negatives, and they are checked first so

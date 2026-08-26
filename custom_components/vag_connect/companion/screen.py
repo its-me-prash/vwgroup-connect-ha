@@ -42,6 +42,13 @@ class UiNode:
     clazz: str
     clickable: bool
     bounds: tuple[int, int, int, int] | None  # (l, t, r, b) in device px
+    # v4.4.0 — the three attributes uiautomator always emits and we previously
+    # dropped. ``checked`` is the only way to read a settings toggle (the row's
+    # text says what it is, not whether it is on), and ``enabled`` keeps a
+    # greyed-out control from being treated as a live tap target.
+    checkable: bool = False
+    checked: bool = False
+    enabled: bool = True
 
     @property
     def tap_point(self) -> tuple[int, int] | None:
@@ -88,9 +95,47 @@ def parse_ui_dump(xml: str) -> list[UiNode]:
                 clazz=a.get("class", ""),
                 clickable=a.get("clickable", "false") == "true",
                 bounds=_parse_bounds(a.get("bounds")),
+                checkable=a.get("checkable", "false") == "true",
+                checked=a.get("checked", "false") == "true",
+                enabled=a.get("enabled", "true") == "true",
             )
         )
     return out
+
+
+_BARE_NUMBER_RE = re.compile(r"-?\d{1,3}(?:[.,]\d)?")
+
+
+def centre_number(nodes: list[UiNode], rid: str) -> str | None:
+    """The numeric text nearest the horizontal centre of a container node.
+
+    v4.4.0 — for a value the app renders with no label, no id and nothing
+    beside it: the climate detail's target temperature, drawn in the middle of
+    the temperature dial. Only nodes fully inside the container are considered,
+    so a number elsewhere on the screen can never be picked up, and ties break
+    towards the earlier node for determinism.
+    """
+    container = next(
+        (n for n in nodes if _rid_matches(n.resource_id, rid) and n.bounds), None
+    )
+    if container is None or container.bounds is None:
+        return None
+    left, top, right, bottom = container.bounds
+    centre_x = (left + right) / 2
+    best: tuple[float, str] | None = None
+    for node in nodes:
+        if not node.text or node.bounds is None:
+            continue
+        text = node.text.strip()
+        if not _BARE_NUMBER_RE.fullmatch(text):
+            continue
+        n_left, n_top, n_right, n_bottom = node.bounds
+        if not (left <= n_left <= n_right <= right and top <= n_top <= n_bottom <= bottom):
+            continue
+        distance = abs((n_left + n_right) / 2 - centre_x)
+        if best is None or distance < best[0]:
+            best = (distance, text)
+    return best[1] if best else None
 
 
 def _iter_field_raws(nodes: list[UiNode], sel: FieldSelector) -> Iterator[str]:
@@ -101,6 +146,12 @@ def _iter_field_raws(nodes: list[UiNode], sel: FieldSelector) -> Iterator[str]:
     valid value, so a leading placeholder ("--", "—", an out-of-range number)
     no longer drops the field when a later node carries the real reading.
     """
+    # 0) geometric — a value with no label of any kind (v4.4.0).
+    if sel.centre_of_rid:
+        found = centre_number(nodes, sel.centre_of_rid)
+        if found:
+            yield found
+
     # 1) resource-id — the value is the node's own text.
     if sel.resource_id:
         for n in nodes:
@@ -276,6 +327,10 @@ def find_node_for(nodes: list[UiNode], spec: "ActionSelector") -> UiNode | None:
     """
     candidates: list[UiNode] = []
     for n in nodes:
+        # v4.4.0 — a greyed-out control is on screen but not a live tap target;
+        # tapping it does nothing and the walk would then read the wrong screen.
+        if not n.enabled:
+            continue
         hit = False
         if spec.resource_id and _rid_matches(n.resource_id, spec.resource_id):
             hit = True
@@ -293,6 +348,42 @@ def find_node_for(nodes: list[UiNode], spec: "ActionSelector") -> UiNode | None:
         return None
     clickable = [n for n in candidates if n.clickable and n.tap_point]
     return clickable[0] if clickable else candidates[0]
+
+
+def screen_bounds(nodes: list[UiNode]) -> tuple[int, int, int, int] | None:
+    """The largest node's box, i.e. the screen itself.
+
+    v4.4.0 — lets a scroll be expressed in fractions of the actual display
+    rather than in pixels from whichever phone a flow was first written on.
+    """
+    best: tuple[int, tuple[int, int, int, int]] | None = None
+    for node in nodes:
+        if node.bounds is None:
+            continue
+        left, top, right, bottom = node.bounds
+        area = (right - left) * (bottom - top)
+        if area > 0 and (best is None or area > best[0]):
+            best = (area, node.bounds)
+    return best[1] if best else None
+
+
+def tap_point_for(node: UiNode, fraction: tuple[float, float] | None) -> tuple[int, int] | None:
+    """Where to tap on a node: its centre, or a fraction of its own box.
+
+    v4.4.0 — the parked-car marker is drawn on the map but is absent from the
+    accessibility tree, so the only way to open it is a point inside the map
+    node. Expressed as a fraction so it holds across screen sizes.
+    """
+    if fraction is None:
+        return node.tap_point
+    if node.bounds is None:
+        return None
+    left, top, right, bottom = node.bounds
+    frac_x, frac_y = fraction
+    return (
+        int(left + (right - left) * frac_x),
+        int(top + (bottom - top) * frac_y),
+    )
 
 
 def find_action_node(nodes: list[UiNode], preset: BrandPreset, action: str) -> UiNode | None:

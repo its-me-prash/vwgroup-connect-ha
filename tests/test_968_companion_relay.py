@@ -145,6 +145,21 @@ class TestRendezvous:
         assert broker.online is True
         await broker.wait_online(0.05)  # returns immediately
 
+    @pytest.mark.asyncio
+    async def test_a_phone_that_stops_polling_stops_being_online(self) -> None:
+        # A phone that is switched off stops polling without saying so. A latch
+        # would keep reporting the channel as connected for the rest of the day.
+        now = [1000.0]
+        broker = CompanionRelayBroker("t" * 32, hold_s=0.01, clock=lambda: now[0])
+        await broker.handle_poll({})
+        assert broker.online is True
+        now[0] += 5.0             # a slow reconnect: still inside the window
+        assert broker.online is True
+        now[0] += 20.0            # well past it: gone
+        assert broker.online is False
+        await broker.handle_poll({})
+        assert broker.online is True
+
 
 class TestTokenResolution:
     """``broker_for_token`` is the whole authentication story, so it gets tested
@@ -292,7 +307,7 @@ class TestEndpoint:
     async def test_a_valid_poll_gets_its_command(self) -> None:
         from custom_components.vag_connect.companion.relay import handle_agent_request
 
-        broker = _broker(hold_s=5)
+        broker = _broker(hold_s=0.05)
         hass = self._hass({"entry1": broker})
         task = asyncio.create_task(broker.command("back", timeout_s=5))
         await asyncio.sleep(0)
