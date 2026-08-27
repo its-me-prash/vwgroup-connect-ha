@@ -4078,12 +4078,22 @@ class VWEUClient(CariadBaseClient):
             v(raw, "access", "accessStatus", "value", "windows") or []
         )
         overall = v(raw, "access", "accessStatus", "value", "overallStatus")
+        # #1279 (@peterbauer1709, Audi S6 e-tron / PPE) — an accessStatus array
+        # entry can carry ``status`` as a list of STRINGS (``["open"]``) OR of
+        # OBJECTS (``[{"value": "open"}]``). We only read the object form via
+        # ``status[0].value``, so a PPE car reporting the string form parsed to
+        # empty windows *and* doors (windows_open False, windows_individual {})
+        # even though the raw clearly said "open". Read either shape.
+        def _acc_status(entry: dict[str, Any]) -> str | None:
+            s0 = safe_get(entry, "status[0]")
+            if isinstance(s0, dict):
+                s0 = s0.get("value") or s0.get("status")
+            return s0.lower() if isinstance(s0, str) else None
+
         if doors:
-            d.doors_open = any(
-                safe_get(door, "status[0].value") == "open" for door in doors
-            )
+            d.doors_open = any(_acc_status(door) == "open" for door in doors)
             d.doors_individual = {
-                str(name): safe_get(door, "status[0].value") == "open"
+                str(name): _acc_status(door) == "open"
                 for door in doors
                 if (name := door.get("name")) is not None
             }
@@ -4112,9 +4122,7 @@ class VWEUClient(CariadBaseClient):
             d.doors_open = False
 
         if windows:
-            d.windows_open = any(
-                safe_get(w, "status[0].value") == "open" for w in windows
-            )
+            d.windows_open = any(_acc_status(w) == "open" for w in windows)
             # v2.18.1 (#810, @lucson) — windows_individual follows the documented
             # ``True == closed`` convention: the same one VagWindowSensor (which
             # inverts for the HA WINDOW device_class) and the EU-Data-Act portal
@@ -4124,15 +4132,23 @@ class VWEUClient(CariadBaseClient):
             # non-open/closed sentinel (an option-dependent roof on a car without
             # one) is skipped so it can't surface as a phantom window.
             windows_individual: dict[str, bool] = {}
+            windows_position: dict[str, int] = {}
             for w in windows:
                 name = w.get("name")
                 if name is None:
                     continue
-                st = safe_get(w, "status[0].value")
-                if not isinstance(st, str) or st.lower() not in ("open", "closed"):
+                st = _acc_status(w)
+                if st not in ("open", "closed"):
                     continue
-                windows_individual[str(name)] = st.lower() == "closed"
+                windows_individual[str(name)] = st == "closed"
+                # #1279 — PPE cars ship an opening percentage (``windowOpen_pct``)
+                # per window, so surface it instead of leaving windows_position {}.
+                pct = w.get("windowOpen_pct")
+                if isinstance(pct, (int, float)) and not isinstance(pct, bool):
+                    windows_position[str(name)] = int(pct)
             d.windows_individual = windows_individual
+            if windows_position:
+                d.windows_position = windows_position
         elif overall == "SAFE":
             d.windows_open = False
 

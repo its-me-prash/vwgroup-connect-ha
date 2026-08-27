@@ -76,3 +76,51 @@ def test_real_open_closed_roof_still_parsed():
     data = client._parse_status("VINX", raw, parking={})
     assert data.sunroof_rear_closed is True
     assert data.roof_cover_closed is False
+
+
+def _doors_raw(*entries):
+    return {"access": {"accessStatus": {"value": {"doors": list(entries)}}}}
+
+
+def test_ppe_string_array_window_status_and_position():
+    """#1279 (@peterbauer1709, Audi S6 e-tron / PPE) — the accessStatus windows
+    ship ``status`` as a list of STRINGS (``["open"]``), not objects, plus a
+    ``windowOpen_pct``. The old ``status[0].value`` read them as empty, so a
+    physically-open window showed closed."""
+    client = _vw_client()
+    raw = _windows_raw(
+        {"name": "frontLeft", "status": ["closed"], "windowOpen_pct": 0},
+        {"name": "frontRight", "status": ["open"], "windowOpen_pct": 26},
+    )
+    data = client._parse_status("VINX", raw, parking={})
+    assert data.windows_open is True
+    assert data.windows_individual["frontLeft"] is True     # True == closed
+    assert data.windows_individual["frontRight"] is False    # open
+    assert data.windows_position["frontRight"] == 26
+    assert data.windows_position["frontLeft"] == 0
+
+
+def test_ppe_string_array_door_status():
+    """#1279 — the doors array ships the same string-array status shape; the
+    reporter saw open doors read as closed too."""
+    client = _vw_client()
+    raw = _doors_raw(
+        {"name": "frontLeft", "status": ["closed"]},
+        {"name": "frontRight", "status": ["open"]},
+    )
+    data = client._parse_status("VINX", raw, parking={})
+    assert data.doors_open is True
+    assert data.doors_individual["frontRight"] is True    # doors_individual: True == open
+    assert data.doors_individual["frontLeft"] is False
+
+
+def test_object_shape_status_still_works_and_reads_position():
+    """Regression: the object shape (``status[0].value``) still parses, and a
+    ``windowOpen_pct`` alongside it is surfaced."""
+    client = _vw_client()
+    raw = _windows_raw(
+        {"name": "frontRight", "status": [{"value": "open"}], "windowOpen_pct": 42},
+    )
+    data = client._parse_status("VINX", raw, parking={})
+    assert data.windows_individual["frontRight"] is False  # open
+    assert data.windows_position["frontRight"] == 42
