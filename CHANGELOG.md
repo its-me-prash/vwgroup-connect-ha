@@ -42,6 +42,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **Portal feed health no longer says `ok` when the portal has never delivered.** For a car where the EU Data Act portal is a *supplementary* channel (the primary read is vw.de or the BFF), the health sensor was checking the merged data's no-data flag — which the primary channel sets — instead of the portal connector's own status, so a portal that had never produced a single snapshot showed as `ok` (#1273, @riteman: `source_channel: website_authproxy`, no snapshot ever received). It now reads the portal's own reason directly and correctly reports `empty_snapshots` / `waiting_for_portal_data`.
+
 ## [4.4.0b2] - 2026-08-27 — Audi model names · EU Data Act portal health & cadence
 
 > [!IMPORTANT]
