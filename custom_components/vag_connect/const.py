@@ -211,14 +211,17 @@ CONF_EU_DATA_ACT_AUTO_KICKOFF = "eu_data_act_auto_kickoff"
 
 # Stage-1 one-time historical-export lifecycle. The portal accepts AT MOST ONE
 # custom request per VIN at a time, so a one-time export would BLOCK the
-# continuous 15-min feed for up to 24h — the wedge-guard refuses to submit one
-# while a continuous request is active. The portal also gives the one-time
-# request no terminal state (it can silently vanish ~24-36h after submit), so we
-# impose our own client-side deadline. Persisted per VIN as {state, submitted_at}.
+# The portal gives the one-time request no terminal state (it can silently
+# vanish after submit), so we impose our own client-side deadline; the wedge-guard
+# refuses only while OUR OWN one-time export is pending (#923). Persisted per VIN
+# as {state, submitted_at}.
 CONF_HISTORICAL_EXPORT_STATE = "historical_export_state"
-# Past this many seconds a still-pending export is declared timed-out. The
-# portal's observed vanish window is ~24-36h; 26h clears the 24h floor.
-HISTORICAL_EXPORT_DEADLINE_S = 26 * 3600
+# Past this many seconds a still-pending export is declared timed-out. #923
+# (@naked-head) observed a request legitimately still "Gathering your data" on
+# the portal past 39h, so the earlier 26h floor timed out real in-flight requests
+# and (once the wedge-guard was fixed to key off our own pending state) would let
+# a resubmit through that the portal then rejects. 72h leaves a wide margin.
+HISTORICAL_EXPORT_DEADLINE_S = 72 * 3600
 # Kill-switch — set True to disable the whole one-time lifecycle (button hidden,
 # service + kickoff abort). The machinery stays intact; nothing else changes.
 ONETIME_EXPORT_DISABLED = False

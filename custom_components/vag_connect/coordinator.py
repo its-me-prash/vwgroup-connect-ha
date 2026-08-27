@@ -1985,12 +1985,17 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         session = async_get_clientsession(self.hass)
         scraper = DataActScraper(session, brand_name=self.entry.data[CONF_BRAND])
         try:
-            # Wedge-guard — the portal accepts only ONE custom request per VIN at
-            # a time, so submitting a one-time export while the continuous 15-min
-            # feed's request is active would block that feed for up to 24h with no
-            # cancel. Refuse it; the user must pause the continuous request first.
-            active = await scraper.get_active_custom_request_identifier(vin)
-            if active:
+            # Wedge-guard (#923, @naked-head — field-corrected). The portal
+            # enforces one PENDING request at a time, NOT one request total: a
+            # one-time export submits fine alongside an active 15-min continuous
+            # feed, and the feed keeps publishing (@naked-head confirmed this twice
+            # from HA feed timestamps). The earlier guard checked the CONTINUOUS
+            # request's identifier — which is active for essentially everyone via
+            # auto-kickoff — so it refused every attempt and made the button
+            # unreachable. Guard on OUR OWN pending one-time export instead, so we
+            # never double-submit while one is in flight; a genuine duplicate is
+            # rejected by the portal itself and surfaced from there.
+            if self.historical_export_state(vin) == "pending":
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
                     translation_key="historical_wedge_blocked",
