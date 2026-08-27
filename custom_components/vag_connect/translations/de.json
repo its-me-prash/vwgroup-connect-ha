@@ -2200,7 +2200,7 @@
       "message": "Der einmalige historische Export ist derzeit deaktiviert."
     },
     "historical_wedge_blocked": {
-      "message": "Für dieses Auto ist eine kontinuierliche 15-Minuten-Datenanfrage aktiv. Das Portal erlaubt nur eine Custom-Anfrage gleichzeitig, ein einmaliger historischer Export würde deinen Live-Feed also bis zu 24 Stunden pausieren. Pausiere zuerst die kontinuierliche Anfrage im Portal, falls du den einmaligen Export wirklich brauchst."
+      "message": "Für dieses Fahrzeug läuft bereits ein einmaliger Verlaufsexport. Das Portal bearbeitet immer nur eine solche Anfrage gleichzeitig – warte deshalb, bis die aktuelle abgeschlossen ist (oder das Zeitlimit abläuft), bevor du eine neue anforderst."
     }
   }
 }

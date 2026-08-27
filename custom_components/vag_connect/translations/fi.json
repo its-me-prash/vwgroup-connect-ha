@@ -2180,7 +2180,7 @@
       "message": "The one-time historical export is currently disabled."
     },
     "historical_wedge_blocked": {
-      "message": "A continuous 15-minute data request is active for this car. The portal allows only one custom request at a time, so a one-time historical export would pause your live feed for up to 24 hours. Pause the continuous request on the portal first if you really need the one-time export."
+      "message": "Tälle autolle on jo käynnissä kertaluonteinen historiatietojen vienti. Portaali käsittelee vain yhtä tällaista pyyntöä kerrallaan, joten odota, että nykyinen valmistuu (tai aikakatkaistaan), ennen kuin pyydät uutta."
     }
   },
   "selector": {
