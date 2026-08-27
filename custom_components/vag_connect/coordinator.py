@@ -108,6 +108,14 @@ def _portal_health(
     reason from the connector. Distinguishes "the portal is stale/empty" from
     "the integration is broken", which is the whole point of the sensor.
     """
+    # The portal connector's own ``last_no_data_reason`` is authoritative. When
+    # EU-DA is a SUPPLEMENTARY channel the merged ``data`` comes from the primary
+    # (BFF / vw.de) and carries no ``no_data`` flag, so gating the reason behind
+    # ``data["no_data"]`` mis-read a portal that had never delivered as ``ok``
+    # (#1273 @riteman: source_channel=website_authproxy, no snapshot ever received,
+    # yet the health sensor said ``ok``). Honour the reason directly.
+    if reason in _PORTAL_HEALTH_BY_REASON:
+        return _PORTAL_HEALTH_BY_REASON[reason]
     if data.get("no_data"):
         return _PORTAL_HEALTH_BY_REASON.get(reason, "waiting_for_portal_data")
     if (
