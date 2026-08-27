@@ -44,6 +44,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ### Fixed
 - **Portal feed health no longer says `ok` when the portal has never delivered.** For a car where the EU Data Act portal is a *supplementary* channel (the primary read is vw.de or the BFF), the health sensor was checking the merged data's no-data flag — which the primary channel sets — instead of the portal connector's own status, so a portal that had never produced a single snapshot showed as `ok` (#1273, @riteman: `source_channel: website_authproxy`, no snapshot ever received). It now reads the portal's own reason directly and correctly reports `empty_snapshots` / `waiting_for_portal_data`.
+- **Companion channel (We Connect 4.3.2): a charging car now reads as charging, and the climate switches show their real state.** Grounded on live 4.3.2 dumps (#968, @plainmad): the app narrates the active state as "Currently charging" (not "Charging active"), which the charge-state read now recognises; and the climate toggles are non-checkable rows whose real state lives in their description text ("Active"/"Off"), so that is read now (the old `checked` path stays as a fallback for other layouts). The two write controls — charge Stop/Start and climate `cta_start`/`cta_stop` — are located from the same dumps but stay disabled until confirmed on a real device.
 
 ## [4.4.0b2] - 2026-08-27 — Audi model names · EU Data Act portal health & cadence
 

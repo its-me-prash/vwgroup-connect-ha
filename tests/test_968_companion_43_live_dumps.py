@@ -221,6 +221,11 @@ class TestLiveChargeSheet:
         )
         fields = read_selectors(parse_ui_dump(charging), self._nav_values())
         assert fields["is_charging"] is True
+        # #968 (plainmad, live 4.3.2 "while charging" dump) — the active wording
+        # is "Currently charging", not "Charging active"; the state string must
+        # capture it rather than reading blank.
+        assert "charging" in str(fields["charging_state"]).lower()
+        assert "stopped" not in str(fields["charging_state"]).lower()
 
     def test_absent_values_stay_absent_rather_than_reading_zero(self) -> None:
         # The car was unplugged, so there is no target SoC, power or remaining
@@ -267,6 +272,42 @@ class TestLiveClimateSheet:
         fields = read_selectors(parse_ui_dump(CLIMATE_SHEET), self._nav_values())
         assert fields["climatisation_active"] is True    # air conditioning on
         assert fields["window_heating_enabled"] is False  # window heating off
+
+    def test_switch_state_reads_from_description_when_toggle_is_not_checkable(self) -> None:
+        # #968 (plainmad, real 4.3.2 "climate active" dump) — the live toggle row
+        # is ``clima_``-prefixed, NOT checkable, and reads ``checked="false"`` even
+        # while air conditioning is ON. The real state is the sibling
+        # ``*_description`` text; reading only ``checked`` would call an active
+        # car's AC off.
+        from custom_components.vag_connect.companion.screen import read_selectors
+
+        real = _dump(
+            _n(
+                rid="clima_air_conditioning_toggle",
+                checkable="false",
+                checked="false",
+                bounds="[43,813][677,951]",
+            )
+            + _n(
+                rid="air_conditioning_description",
+                text="Active",
+                bounds="[558,866][634,899]",
+            )
+            + _n(
+                rid="clima_window_heating_toggle",
+                checkable="false",
+                checked="false",
+                bounds="[43,953][677,1091]",
+            )
+            + _n(
+                rid="window_heating_description",
+                text="Off",
+                bounds="[595,1006][634,1039]",
+            )
+        )
+        fields = read_selectors(parse_ui_dump(real), self._nav_values())
+        assert fields["climatisation_active"] is True
+        assert fields["window_heating_enabled"] is False
 
     def test_a_container_sharing_a_switch_id_cannot_read_as_off(self) -> None:
         from custom_components.vag_connect.companion.screen import read_selectors
