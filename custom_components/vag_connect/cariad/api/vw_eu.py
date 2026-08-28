@@ -3199,6 +3199,13 @@ class VWEUClient(CariadBaseClient):
             # no REST metadata, so take its model year from the vgql core block.
             if img.model_year and not d.model_year:
                 d.model_year = img.model_year
+            # vgql coverage (#928-audit, 2026-08-28) — authoritative drivetrain
+            # classification + the stable customer-service id, both from the same
+            # userVehicles query. Gap-fill only (never overwrite a real value).
+            if img.drive_train and not d.drive_train:
+                d.drive_train = img.drive_train
+            if img.csid and not d.csid:
+                d.csid = img.csid
         # v1.10.1 (#58) — safe_int. The model_year metadata sometimes
         # arrives as a 4-digit string and sometimes as int depending on
         # how the auth flow normalised the user profile JSON.

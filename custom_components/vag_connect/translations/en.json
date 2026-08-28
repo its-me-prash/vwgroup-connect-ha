@@ -1353,6 +1353,15 @@
       },
       "interior_color": {
         "name": "Interior Colour"
+      },
+      "drive_train": {
+        "name": "Drivetrain"
+      },
+      "csid": {
+        "name": "Customer service ID"
+      },
+      "parked_since": {
+        "name": "Parked since"
       }
     },
     "binary_sensor": {

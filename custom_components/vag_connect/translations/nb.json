@@ -1353,6 +1353,15 @@
       },
       "interior_color": {
         "name": "Interiørfarge"
+      },
+      "drive_train": {
+        "name": "Drivlinje"
+      },
+      "csid": {
+        "name": "Kundeservice-ID"
+      },
+      "parked_since": {
+        "name": "Parkert siden"
       }
     },
     "binary_sensor": {

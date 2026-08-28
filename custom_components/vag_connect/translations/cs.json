@@ -1353,6 +1353,15 @@
       },
       "interior_color": {
         "name": "Barva interiéru"
+      },
+      "drive_train": {
+        "name": "Pohon"
+      },
+      "csid": {
+        "name": "ID zákaznického servisu"
+      },
+      "parked_since": {
+        "name": "Zaparkováno od"
       }
     },
     "binary_sensor": {

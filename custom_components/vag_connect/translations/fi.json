@@ -1353,6 +1353,15 @@
       },
       "interior_color": {
         "name": "Sisäväri"
+      },
+      "drive_train": {
+        "name": "Käyttövoima"
+      },
+      "csid": {
+        "name": "Asiakaspalvelun tunnus"
+      },
+      "parked_since": {
+        "name": "Pysäköity"
       }
     },
     "binary_sensor": {
