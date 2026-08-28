@@ -236,6 +236,31 @@ This is a one-person project — and VW doesn't make it easy: every backend chan
 
 ---
 
+## Community & Support
+
+Where to go depends on what you need:
+
+- **Questions, setup help, dashboard examples, "is this normal?"** → [GitHub Discussions](https://github.com/its-me-prash/vwgroup-connect-ha/discussions). General Home Assistant questions that aren't specific to this integration land better on the [HA Community Forum](https://community.home-assistant.io).
+- **A bug, an error, or an unknown API field** → open an issue via [New issue → choose a template](https://github.com/its-me-prash/vwgroup-connect-ha/issues/new/choose). The **Vehicle Data Scout** pre-fills most of the report for you. A useful report names your brand, region, Home Assistant + integration version, and whether the same action works in the manufacturer's official app — the short checklist is in [`CONTRIBUTING.md`](CONTRIBUTING.md); how a report travels from filing to fix is in [`docs/TRIAGE.md`](docs/TRIAGE.md).
+- **A security vulnerability** → please **don't** open a public issue. Report it privately through [GitHub Security Advisories](https://github.com/its-me-prash/vwgroup-connect-ha/security/advisories/new); the process is in [`SECURITY.md`](SECURITY.md).
+
+### What to expect
+
+This is a one-person project, maintained in spare time. Replies are **best-effort** — sometimes same-day, sometimes slower when VW breaks something and a fix jumps the queue. There's no SLA, and there won't be one. The more specific your report (sanitised logs, redacted diagnostics, exact steps), the quicker it gets sorted. The house rule, short version: **be civil, be specific, don't paste secrets — patches and patience travel further than demands.**
+
+### Ways to help
+
+You don't have to write code to move this forward:
+
+- **File good bug reports** and attach redacted diagnostics — one Scout download is often everything needed to map a new field.
+- **Test on a real car.** Several brands are implemented but waiting on first live confirmation — see the [live-testers list](CONTRIBUTING.md#live-testers-wanted).
+- **Improve translations.** Entity names ship in 12 languages; corrections and help with a new language are welcome.
+- **Send a patch.** One PR, one concern — see [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+Everyone who helps is credited in [`CONTRIBUTORS.md`](CONTRIBUTORS.md) and thanked by name in the release notes. How decisions get made — and who has the final call on a one-maintainer project — is written down in [`GOVERNANCE.md`](GOVERNANCE.md); the ground rules for taking part are in [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
+
+---
+
 ## Contributing
 
 PRs welcome, see [`CONTRIBUTING.md`](CONTRIBUTING.md). Common questions are answered in [docs/FAQ.md](docs/FAQ.md). The **Vehicle Data Scout** turns unknown API fields into a one-click, pre-filled bug report, so you can help improve coverage without reading code.
