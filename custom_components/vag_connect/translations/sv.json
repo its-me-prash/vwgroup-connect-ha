@@ -1353,6 +1353,15 @@
       },
       "interior_color": {
         "name": "Interiörfärg"
+      },
+      "drive_train": {
+        "name": "Drivlina"
+      },
+      "csid": {
+        "name": "Kundtjänst-ID"
+      },
+      "parked_since": {
+        "name": "Parkerad sedan"
       }
     },
     "binary_sensor": {

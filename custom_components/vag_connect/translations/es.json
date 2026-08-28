@@ -1353,6 +1353,15 @@
       },
       "interior_color": {
         "name": "Color interior"
+      },
+      "drive_train": {
+        "name": "Motorización"
+      },
+      "csid": {
+        "name": "ID de servicio al cliente"
+      },
+      "parked_since": {
+        "name": "Aparcado desde"
       }
     },
     "binary_sensor": {

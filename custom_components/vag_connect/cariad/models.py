@@ -1236,6 +1236,20 @@ class VehicleData:
     # derived booleans (`is_electric`, `is_hybrid`).
     car_type: str | None = None
 
+    # #928-audit / vgql coverage (2026-08-28) — VW-EU/Audi authoritative
+    # drivetrain classification from the userVehicles vgql
+    # (vehicle.classification.driveTrain, e.g. "electric"/"hybrid"/
+    # "gasoline"/"diesel"). CARIAD companion to Škoda `car_type` /
+    # CUPRA-SEAT `primary_engine_type`; a diagnostic string, distinct from
+    # the telemetry-derived is_electric/is_hybrid booleans. Fetched on the
+    # same vgql we already run for the model name.
+    drive_train: str | None = None
+
+    # vgql userVehicles `csid` — the stable per-vehicle Customer Service ID.
+    # A durable secondary identifier / diagnostic handle (what the classic
+    # myAudi clients key some calls on); never the VIN, never PII to a plate.
+    csid: str | None = None
+
     # Skoda mysmob `driving-range.primaryEngineRange.engineType`
     # (string PETROL/DIESEL/...). Cross-brand reuse: maps in den
     # existing `primary_engine_type` field aus PR #3 Phase 7 (CUPRA/
