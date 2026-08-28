@@ -153,9 +153,11 @@ query GET_USER_VEHICLES {
   userVehicles {
     vin
     nickname
+    csid
     vehicle {
       brand { name }
       core { modelYear }
+      classification { driveTrain }
       media {
         shortName
         longName
@@ -183,6 +185,12 @@ class VehicleImageData:
     exterior_color: str | None = None
     nickname: str | None = None         # User-set nickname in app
     model_year: int | None = None       # e.g. 2021 (vehicle.core.modelYear)
+    # vgql authoritative drivetrain classification (vehicle.classification.driveTrain,
+    # e.g. "electric" / "hybrid" / "gasoline" / "diesel") + the stable customer-
+    # service id. Both are fetched on the same userVehicles query we already run for
+    # the model name; the official myAudi client reads them here too.
+    drive_train: str | None = None
+    csid: str | None = None
 
 
 # v4.4.0 — the vehicle model designation lives in ``media.shortName`` /
@@ -390,6 +398,8 @@ class VehicleImageFetcher:
                     if mt and url:
                         urls[mt] = url
 
+                _drive_train = (vehicle.get("classification") or {}).get("driveTrain")
+                _csid = v.get("csid")
                 result[vin] = VehicleImageData(
                     vin=vin,
                     image_urls=urls,
@@ -398,6 +408,8 @@ class VehicleImageFetcher:
                     exterior_color=media.get("exteriorColor"),
                     nickname=v.get("nickname"),
                     model_year=_model_year,
+                    drive_train=_drive_train if isinstance(_drive_train, str) else None,
+                    csid=_csid if isinstance(_csid, str) else None,
                 )
                 _LOGGER.debug(
                     "GraphQL images for %s (%s): %d mediaTypes",
