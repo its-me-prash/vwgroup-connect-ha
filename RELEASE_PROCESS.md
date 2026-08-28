@@ -86,14 +86,14 @@ bodies, inline code comments, and `docs/CHANGELOG_TECHNICAL.md`.
 - Issue numbers in parentheses at the end: `(#281, #282)`
 - Plain language — avoid project-internal jargon (`*_pending family`,
   `T1 audit`, brand-vererbung) in the user-facing changelog
+- Credit the reporter: a short `Thanks @handle` next to their fix, plus
+  an ack-comment on the closed issue **in the reporter's native
+  language** (see below)
 
 **Don't**:
 - Cite reference implementations (`per matpoulin`, `mirroring
   CarConnectivity v0.6.3`) — that's commit-message territory
 - List file paths, LoC counts, function/class names
-- Quote reporter usernames inside the changelog body (we credit them
-  in the ack-comment on the closed issue instead — **in the reporter's
-  native language**, see below)
 - Document tier classifications, audit methodology, or migration
   rationale (those live in `docs/SCOUT_POLICY.md`, `MIGRATION.md`)
 - Repeat the same info in a top quote-block AND a per-section bullet
