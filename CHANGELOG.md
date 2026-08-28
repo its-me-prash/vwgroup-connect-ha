@@ -42,6 +42,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Changed / Geändert
+- Docs & metadata housekeeping: corrected stale "8 languages" references (the
+  quality-scale notes and the contributor guide) to the 12 that actually ship.
+  Danish, Finnish, Italian and Norwegian were added a while back — only the
+  counts lagged behind. No functional change.
+
 ## [4.4.0b3] - 2026-08-28 — Reporter fixes: PPE windows/doors · portal-health honesty · companion 4.3.2 · reachable historical export
 
 > [!NOTE]
