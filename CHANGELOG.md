@@ -49,6 +49,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   - **Parked since / Geparkt seit** — turns the parking-position timestamp we already fetch into a proper "last parked" sensor.
   - All three gap-fill only (never overwrite a real value) and ship with all 12 translations.
 
+### Changed / Geändert
+- Docs & metadata housekeeping: corrected stale "8 languages" references (the
+  quality-scale notes and the contributor guide) to the 12 that actually ship.
+  Danish, Finnish, Italian and Norwegian were added a while back — only the
+  counts lagged behind. No functional change.
+
 ## [4.4.0b3] - 2026-08-28 — Reporter fixes: PPE windows/doors · portal-health honesty · companion 4.3.2 · reachable historical export
 
 > [!NOTE]

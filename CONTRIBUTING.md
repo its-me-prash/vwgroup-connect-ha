@@ -215,7 +215,7 @@ The `changelog_check.yml` workflow rejects PRs that touch
 ### Translations
 
 `strings.json` is the **English source of truth**. Mirror every change
-into all 8 language files (`translations/{de,en,cs,es,fr,nl,pl,sv}.json`).
+into all 12 language files (`translations/{cs,da,de,en,es,fi,fr,it,nb,nl,pl,sv}.json`).
 Use everyday driver vocabulary, not API jargon: e.g. *Lichthupe*, not
 *Lichtsignal*.
 
@@ -230,7 +230,7 @@ Use everyday driver vocabulary, not API jargon: e.g. *Lichthupe*, not
 4. `const.py` — `BRANDS` dict
 5. `config_flow.py` — `_BRAND_OPTIONS`
 6. `tests/test_cariad.py` — at minimum: factory routing, status parser
-7. README feature table (mirror in all 8 languages)
+7. README feature table (mirror across all 11 translated READMEs)
 8. `_private/research-archive/VAG_GROUP_ECOSYSTEM.md` — add the brand to the map
 
 **Capability-first:** the new client must implement a capability check

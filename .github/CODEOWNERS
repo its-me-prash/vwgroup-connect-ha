@@ -21,12 +21,16 @@ custom_components/vag_connect/cariad/auth/                          @its-me-pras
 .github/                                                            @its-me-prash
 RELEASE_PROCESS.md                                                  @its-me-prash
 
-# Documentation in 8 languages — keep in sync at every release
+# READMEs (English source + 11 translations) — keep in sync at every release
 README.md                                                           @its-me-prash
-README.en.md                                                        @its-me-prash
 README.cs.md                                                        @its-me-prash
+README.da.md                                                        @its-me-prash
+README.de.md                                                        @its-me-prash
 README.es.md                                                        @its-me-prash
+README.fi.md                                                        @its-me-prash
 README.fr.md                                                        @its-me-prash
+README.it.md                                                        @its-me-prash
+README.nb.md                                                        @its-me-prash
 README.nl.md                                                        @its-me-prash
 README.pl.md                                                        @its-me-prash
 README.sv.md                                                        @its-me-prash

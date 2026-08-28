@@ -47,7 +47,7 @@ rules:
 
   docs-installation-instructions:
     status: done
-    comment: README.md (8 languages) documents HACS and manual installation.
+    comment: README.md (12 languages) documents HACS and manual installation.
 
   docs-removal-instructions:
     status: done
@@ -199,7 +199,7 @@ rules:
     status: done
     comment: |
       All entities use translation_key via has_entity_name=True.
-      Names defined in strings.json entity section, translated in 8 languages.
+      Names defined in strings.json entity section, translated in 12 languages.
 
   exception-translations:
     status: done
