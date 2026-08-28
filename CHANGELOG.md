@@ -55,6 +55,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   Danish, Finnish, Italian and Norwegian were added a while back — only the
   counts lagged behind. No functional change.
 
+### Fixed / Behoben
+- **Audi/VW-EU doors and trunk now report open/closed correctly** (#1281,
+  thanks @peterbauer1709). A door entry carries both its lock word and its
+  open word in one list (`["unlocked", "open"]`); we read only the first, so
+  every physically open side door — and the trunk — showed closed even though
+  the lock state was right. The trunk's own "open" and "locked" sensors are
+  populated now too. (Bonnet and windows already worked — they ship a single
+  word.)
+
 ## [4.4.0b3] - 2026-08-28 — Reporter fixes: PPE windows/doors · portal-health honesty · companion 4.3.2 · reachable historical export
 
 > [!NOTE]
