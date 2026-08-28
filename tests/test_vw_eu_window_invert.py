@@ -182,3 +182,33 @@ def test_1281_mixed_bonnet_single_doors_double():
     assert data.doors_individual["trunk"] is True        # open
     assert data.trunk_open is True
     assert data.doors_open is True                        # bonnet + trunk open
+
+
+def test_1281_real_mixed_door_trace_from_reporter():
+    """#1279/#1281 — @peterbauer1709's real Audi S6 e-tron accessStatus trace
+    with a mixed door state (only the two right doors open). Every entry is the
+    two-token ``[lock, open]`` shape; before the fix all six read closed."""
+    client = _vw_client()
+    raw = {"access": {"accessStatus": {"value": {
+        "overallStatus": "unsafe",
+        "doors": [
+            {"name": "bonnet", "status": ["closed"]},
+            {"name": "frontLeft", "status": ["unlocked", "closed"]},
+            {"name": "frontRight", "status": ["unlocked", "open"]},
+            {"name": "rearLeft", "status": ["unlocked", "closed"]},
+            {"name": "rearRight", "status": ["unlocked", "open"]},
+            {"name": "trunk", "status": ["unlocked", "closed"]},
+        ],
+    }}}}
+    data = client._parse_status("VINX", raw, parking={})
+    assert data.doors_individual == {
+        "bonnet": False,
+        "frontLeft": False,
+        "frontRight": True,    # physically open
+        "rearLeft": False,
+        "rearRight": True,     # physically open
+        "trunk": False,
+    }
+    assert data.doors_open is True
+    assert data.trunk_open is False
+    assert data.trunk_locked is False   # trunk "unlocked"
