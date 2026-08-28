@@ -2021,7 +2021,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         live PHEV to electric. Returns True if anything merged, False if the ZIP
         isn't ready yet (the portal generates it asynchronously).
         """
-        portal = getattr(self._cariad_client, "_eu_portal", None)
+        # #923 — a supplementary portal (merged onto a command primary) exposes
+        # the same ``get_vehicle_data``; without this a merged setup could
+        # request the export but never import it (``_eu_portal`` is None there).
+        portal = (
+            getattr(self._cariad_client, "_eu_portal", None)
+            or getattr(self._cariad_client, "_supplementary_eu_portal", None)
+        )
         if portal is None or not hasattr(portal, "get_vehicle_data"):
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
@@ -6494,6 +6500,24 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 "VW Group Connect: could not persist supplementary vw.de cookies "
                 "(%s) — will retry next poll.", type(err).__name__,
             )
+
+    def has_data_act_portal_channel(self) -> bool:
+        """True when this entry reads the EU Data Act portal — as its primary
+        (read-only) channel OR as a supplementary channel merged onto a command
+        primary.
+
+        Both can use the portal's one-time historical export and the continuous
+        data-request button; the kickoff scraper is authed on the shared session
+        where the (primary or supplementary) portal logged in — see
+        ``async_create_data_act_request`` and its b12 note. #923
+        (@naked-head/@dazzzl): the export button was gated on read-only-portal
+        mode only, so a merged ``eu_data_act+website_authproxy`` setup never got
+        it even though the export works exactly the same there.
+        """
+        from .const import CONF_SUPPLEMENTARY_EU_PORTAL  # noqa: PLC0415
+        return self.is_read_only() or bool(
+            self.entry.data.get(CONF_SUPPLEMENTARY_EU_PORTAL)
+        )
 
     def is_read_only(self) -> bool:
         """v1.12.0 (#63) — return True if user enabled Read-only Mode.

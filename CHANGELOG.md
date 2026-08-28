@@ -63,6 +63,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   the lock state was right. The trunk's own "open" and "locked" sensors are
   populated now too. (Bonnet and windows already worked — they ship a single
   word.)
+- **The one-time historical-export button now appears on merged setups too**
+  (#923, thanks @naked-head and @dazzzl). It was only created when the EU Data
+  Act portal was your *primary* (read-only) channel — so if you'd added the
+  portal as a supplementary channel on top of a command account
+  (`eu_data_act+website_authproxy`), the button never showed even though the
+  export works exactly the same there. It now appears whenever a portal channel
+  is present, and a merged setup can import the result too.
 
 ## [4.4.0b3] - 2026-08-28 — Reporter fixes: PPE windows/doors · portal-health honesty · companion 4.3.2 · reachable historical export
 

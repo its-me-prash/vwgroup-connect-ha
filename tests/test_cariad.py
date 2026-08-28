@@ -4298,6 +4298,10 @@ class TestButtonCapabilityGating:
         # v2.26.0 — likewise pin is_companion False so button setup doesn't take
         # the companion (reset-only) branch on a bare-MagicMock truthy value.
         coord.is_companion = MagicMock(return_value=False)
+        # #923 — pin the portal-channel predicate False so this capability-gating
+        # suite doesn't also spawn the EU-Data-Act portal buttons on a truthy
+        # bare MagicMock (those are exercised in TestDataActPortalButtonGating).
+        coord.has_data_act_portal_channel = MagicMock(return_value=False)
         coord.vehicles = {"VIN1": {"vin": "VIN1", "model": "Born"}}
         coord.vehicle_capabilities = {"VIN1": caps} if caps else {}
         # v1.13.0 (#56 Phase 3) — entry.data["brand"] is what
@@ -4400,6 +4404,86 @@ class TestButtonCapabilityGating:
         added = self._setup(self._coord(caps={"capabilities": []}))
         names = [type(e).__name__ for e in added]
         assert "VagRefreshButton" in names
+
+
+class TestDataActPortalButtonGating:
+    """#923 (@naked-head, @dazzzl) — the EU-Data-Act portal buttons (data-act
+    request + one-time historical export) must appear whenever the entry reads
+    the portal: as its primary read-only channel OR as a supplementary channel
+    merged onto a command primary. Previously they were gated on read-only only,
+    so a merged ``eu_data_act+website_authproxy`` setup never got them."""
+
+    def _coord(self, *, read_only, portal, brand="volkswagen"):
+        from unittest.mock import MagicMock
+        coord = MagicMock()
+        coord.is_read_only = MagicMock(return_value=read_only)
+        coord.is_companion = MagicMock(return_value=False)
+        coord.has_data_act_portal_channel = MagicMock(return_value=portal)
+        # No command capabilities → flash/wake gated off, so the assertions
+        # isolate the portal buttons.
+        coord.command_capability_supported = MagicMock(return_value=False)
+        coord.command_method_available = MagicMock(return_value=False)
+        coord.vehicles = {"VIN1": {"vin": "VIN1", "model": "ID.4"}}
+        coord.entry = MagicMock()
+        coord.entry.data = {"brand": brand}
+        return coord
+
+    def _setup(self, coord, brand="volkswagen"):
+        import asyncio
+        from unittest.mock import MagicMock
+        from custom_components.vag_connect.button import async_setup_entry
+        entry = MagicMock()
+        entry.runtime_data = coord
+        entry.data = {"brand": brand}
+        added: list = []
+        asyncio.run(async_setup_entry(MagicMock(), entry, added.extend))
+        return [type(e).__name__ for e in added]
+
+    def test_supplementary_portal_gets_export_buttons(self):
+        """Merged command-primary + supplementary portal (not read-only): the
+        request + historical-export buttons now spawn — the #923 fix."""
+        names = self._setup(self._coord(read_only=False, portal=True))
+        assert "VagDataActRequestButton" in names
+        assert "VagHistoricalExportButton" in names
+        assert "VagRefreshButton" in names
+
+    def test_read_only_portal_still_gets_export_buttons(self):
+        """Regression: a primary read-only portal keeps its export buttons."""
+        names = self._setup(self._coord(read_only=True, portal=True))
+        assert "VagDataActRequestButton" in names
+        assert "VagHistoricalExportButton" in names
+        # read-only entries have no vehicle commands
+        assert "VagFlashButton" not in names
+        assert "VagWakeButton" not in names
+
+    def test_no_portal_channel_gets_no_export_buttons(self):
+        """A plain command primary without any portal channel must NOT spawn
+        the portal buttons (no regression for command-only users)."""
+        names = self._setup(self._coord(read_only=False, portal=False))
+        assert "VagDataActRequestButton" not in names
+        assert "VagHistoricalExportButton" not in names
+        assert "VagRefreshButton" in names
+
+    def test_predicate_true_for_read_only_or_supplementary(self):
+        """The coordinator predicate itself: read-only OR a supplementary portal
+        flag → True; neither → False."""
+        from unittest.mock import MagicMock
+        from custom_components.vag_connect.coordinator import VagConnectCoordinator
+        from custom_components.vag_connect.const import CONF_SUPPLEMENTARY_EU_PORTAL
+
+        def _p(read_only, supp):
+            coord = VagConnectCoordinator.__new__(VagConnectCoordinator)
+            coord.is_read_only = MagicMock(return_value=read_only)
+            coord.entry = MagicMock()
+            coord.entry.data = (
+                {CONF_SUPPLEMENTARY_EU_PORTAL: True} if supp else {}
+            )
+            return VagConnectCoordinator.has_data_act_portal_channel(coord)
+
+        assert _p(read_only=True, supp=False) is True
+        assert _p(read_only=False, supp=True) is True
+        assert _p(read_only=True, supp=True) is True
+        assert _p(read_only=False, supp=False) is False
 
 
 # ── Session 2C: SEAT/CUPRA SecToken flow + capabilities for other brands ──────

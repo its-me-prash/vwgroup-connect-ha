@@ -22,6 +22,10 @@ def _make_coordinator(vehicles=None):
     # v2.26.0 — same reason: a bare MagicMock's is_companion() is truthy, which
     # would send button setup down the companion (reset-only) branch.
     coord.is_companion = MagicMock(return_value=False)
+    # #923 — pin the portal-channel predicate False so a command-primary
+    # coordinator doesn't also spawn the EU-Data-Act portal buttons on a truthy
+    # bare MagicMock (portal buttons have their own gating test).
+    coord.has_data_act_portal_channel = MagicMock(return_value=False)
     coord.data = vehicles or {
         "WVGZZZ1KZAW123456": {
             "vin": "WVGZZZ1KZAW123456",
