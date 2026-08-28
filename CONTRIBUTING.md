@@ -12,6 +12,8 @@
 Use the issue templates:
 <https://github.com/its-me-prash/vwgroup-connect-ha/issues/new/choose>
 
+For how a report travels from filing to fix — templates, triage flow, labels, crediting — see [docs/TRIAGE.md](docs/TRIAGE.md).
+
 A good bug report contains:
 
 - VW Group Connect version (`manifest.json`)
@@ -262,3 +264,7 @@ template.
 
 Be civil. Be specific. Don't paste secrets. The maintainer is one person
 on their own time — patches and patience travel further than demands.
+
+The full version lives in [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
+
+How the project is run and how influence is earned: see [`GOVERNANCE.md`](GOVERNANCE.md).
