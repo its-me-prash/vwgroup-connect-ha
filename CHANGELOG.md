@@ -42,6 +42,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added / Neu
+- **Three new diagnostic sensors for Audi/VW-EU, straight from the render-image query we already run** / Drei neue Diagnose-Sensoren für Audi/VW-EU, aus der ohnehin laufenden Render-Bild-Abfrage:
+  - **Drivetrain / Antriebsart** — the car's official drivetrain classification (BEV / PHEV / …), read from the vgql `classification` block instead of guessed from telemetry.
+  - **Customer service ID / Kundendienst-ID** — the stable per-vehicle service id (`csid`); off by default, handy when talking to support or matching a car across accounts.
+  - **Parked since / Geparkt seit** — turns the parking-position timestamp we already fetch into a proper "last parked" sensor.
+  - All three gap-fill only (never overwrite a real value) and ship with all 12 translations.
+
 ### Changed / Geändert
 - Docs & metadata housekeeping: corrected stale "8 languages" references (the
   quality-scale notes and the contributor guide) to the 12 that actually ship.

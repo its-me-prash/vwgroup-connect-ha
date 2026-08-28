@@ -917,6 +917,39 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
 
+    # vgql coverage (2026-08-28) — the authoritative drivetrain classification
+    # (electric/hybrid/gasoline/diesel) from the vgql we already run for the
+    # model name. Diagnostic string, distinct from the is_electric/is_hybrid
+    # booleans; phantom-guarded (hidden until the vgql actually supplies it).
+    VagSensorDescription(
+        key="drive_train",
+        translation_key="drive_train",
+        data_key="drive_train",
+        icon="mdi:car-cog",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # The stable per-vehicle Customer Service ID (vgql `csid`). A durable
+    # secondary identifier; disabled by default — power-user / support handle.
+    VagSensorDescription(
+        key="csid",
+        translation_key="csid",
+        data_key="csid",
+        icon="mdi:identifier",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # "Parked since" — the capture time of the current parking position. No new
+    # network read: reuses position_captured_at we already fetch. HA renders it
+    # as a relative age ("parked 3 h ago").
+    VagSensorDescription(
+        key="parked_since",
+        translation_key="parked_since",
+        data_key="position_captured_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:car-clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+
     VagSensorDescription(
         key="departure_timer_1_time",
         translation_key="departure_timer_1_time",
@@ -3803,6 +3836,14 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # stay None → no phantom.
     "battery_care_score",
     "battery_care_score_threshold",
+    # v4.4.0 (vgql coverage, 2026-08-28) — drivetrain classification + the
+    # stable customer-service id come from the Audi/VW-EU vgql only. Every
+    # other brand/channel leaves them None → no phantom entity. "parked_since"
+    # reads position_captured_at (its data_key), which stays None for cars/
+    # channels that never report a parking position → no phantom there either.
+    "drive_train",
+    "csid",
+    "parked_since",
 })
 
 # v1.14.0 (#24) — Trip Statistics is brand-restricted at the API level

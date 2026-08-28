@@ -1353,6 +1353,15 @@
       },
       "interior_color": {
         "name": "Interieurkleur"
+      },
+      "drive_train": {
+        "name": "Aandrijving"
+      },
+      "csid": {
+        "name": "Klantenservice-ID"
+      },
+      "parked_since": {
+        "name": "Geparkeerd sinds"
       }
     },
     "binary_sensor": {
