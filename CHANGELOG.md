@@ -42,6 +42,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added / Neu
+- **Groundwork for an opt-in official Škoda API channel** (#1286). Škoda has
+  launched a first-party, attestation-free vehicle API; this lands the client,
+  the complete grounded spec, and an automated 4-hourly watch for the app
+  version that unlocks it (the API key is minted in the Škoda app). Not yet
+  selectable and **no change for existing setups** — it needs that app update
+  before anyone can create a key.
+
 ## [4.4.0b4] - 2026-08-28 — New diagnostic sensors (drivetrain · CSID · parked-since) · Audi/VW-EU doors+trunk fix · export button on merged portals
 
 ### Added / Neu
