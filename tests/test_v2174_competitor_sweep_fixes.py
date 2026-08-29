@@ -213,3 +213,15 @@ def test_v2175_trunk_locked_dotted_and_no_doors_collision() -> None:
     )
     assert d.trunk_locked is True
     assert d.doors_locked is False
+
+
+def test_1293_trunk_open_dotted() -> None:
+    # #1293 (@MirkoKas, VW) — the portal can ship the trunk-open state as the
+    # dotted boolean 'trunk.open' (like 'trunk.locked'), not just the numeric
+    # open_state_tailgate enum. "true" → trunk_open True; "false" → False.
+    assert map_dataset_to_vehicle_data(
+        {"trunk.open": "true"}, VehicleData(vin="X")
+    ).trunk_open is True
+    assert map_dataset_to_vehicle_data(
+        {"trunk.open": "false"}, VehicleData(vin="X")
+    ).trunk_open is False
