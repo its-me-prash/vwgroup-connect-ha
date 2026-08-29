@@ -74,6 +74,17 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   become %XX). The cap is now on the final encoded URL and trimmed conservatively
   — the full report is always available under Diagnostics.
 
+### Fixed / Behoben
+- **Audi plug&play (OBD dongle): recovers from an expired token instead of
+  spamming errors, and keeps its data across a restart.** The acpp channel never
+  refreshed its ~1h token — once it expired every poll 401'd and the Error
+  Reporter filled with ~20 repeated 401s. It now refreshes and retries on a 401
+  (rotating the refresh token); a genuinely dead token raises a single re-auth
+  prompt instead of a flood. A failed first read after a restart no longer
+  discards the restored last-known-good snapshot. And since the dongle only
+  uploads a snapshot after a drive, acpp now polls hourly by default (was every
+  10 min) — identical data, far less token churn.
+
 ## [4.4.0b4] - 2026-08-28 — New diagnostic sensors (drivetrain · CSID · parked-since) · Audi/VW-EU doors+trunk fix · export button on merged portals
 
 ### Added / Neu
