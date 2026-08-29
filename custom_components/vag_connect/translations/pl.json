@@ -227,7 +227,8 @@
           "remove_vweu_twoway": "Usuń VW EU Two-Way (przywróć poprzedni kanał)",
           "companion_read_vehicle_health": "Companion: odczyt przebiegu i serwisu ze stanu pojazdu (nawiguje po aplikacji)",
           "companion_read_climate_detail": "Companion: odczyt temperatury zadanej i zewnętrznej (nawiguje po aplikacji)",
-          "companion_read_parking_position": "Companion: odczyt pozycji parkowania z linku udostępniania w aplikacji (nawiguje po aplikacji)"
+          "companion_read_parking_position": "Companion: odczyt pozycji parkowania z linku udostępniania w aplikacji (nawiguje po aplikacji)",
+          "skoda_official_api_key": "Oficjalny klucz API Škoda — przełączanie awaryjne, gdy główny kanał nie działa"
         },
         "data_description": {
           "scan_interval": "Jak często pobierane są dane (minuty). Minimum: 3.",

@@ -2599,6 +2599,22 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     " — primary channel unaffected.", type(err).__name__,
                 )
 
+        # ── Škoda OFFICIAL public API — FAILOVER-ONLY (opt-in) ──────────────
+        # Rate-limited (20 req/hour/key), so it is NOT a continuous-merge
+        # supplementary channel: it is read ONLY when the primary mysmob channel
+        # hard-fails (see _revive_after_hard_failure). Arming just hands the
+        # client the key; get_status(vin) is called per-VIN on failover.
+        from .const import CONF_SKODA_OFFICIAL_API_KEY  # noqa: PLC0415
+        arm_official = getattr(client, "arm_supplementary_official", None)
+        if data.get(CONF_SKODA_OFFICIAL_API_KEY) and arm_official is not None:
+            try:
+                arm_official(data.get(CONF_SKODA_OFFICIAL_API_KEY))
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning(
+                    "VW Group Connect: Škoda official-API failover arming failed"
+                    " (%s) — primary channel unaffected.", type(err).__name__,
+                )
+
         # ── b12: MBB COMMAND channel (commands on a read-only primary) ──────
         arm_cmd = getattr(client, "arm_mbb_command_channel", None)
         if data.get(CONF_MBB_COMMAND_CHANNEL) and arm_cmd is not None:
@@ -2840,17 +2856,40 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         last-known-good exactly as before.
         """
         client = self._cariad_client
+        # 1) read-only supplementary channels (EU Data Act / vw.de), if any armed.
         readers = getattr(client, "supplementary_readers", None)
-        if readers is None or not readers(vin):
-            return None
-        try:
-            return await self._revive_from_supplementary(vin, VehicleData(vin=vin))
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug(
-                "hard-failure supplementary revive failed for %s: %s",
-                mask_vin(vin), err,
-            )
-            return None
+        if readers is not None and readers(vin):
+            try:
+                revived = await self._revive_from_supplementary(
+                    vin, VehicleData(vin=vin)
+                )
+                if revived is not None:
+                    return revived
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug(
+                    "hard-failure supplementary revive failed for %s: %s",
+                    mask_vin(vin), err,
+                )
+        # 2) Škoda OFFICIAL public API — a FAILOVER-ONLY source (rate-limited to
+        # 20 req/hour/key, so never read on a healthy cycle; only here, on a hard
+        # primary failure). Brand-isolated: the method exists only on the Škoda
+        # client, so getattr → None for every other brand.
+        official = getattr(client, "official_failover_read", None)
+        if official is not None:
+            try:
+                off_data: VehicleData | None = await official(vin)
+                if off_data is not None:
+                    _LOGGER.info(
+                        "VW Group Connect: %s — primary read failed, served from "
+                        "the official Škoda API (failover).", mask_vin(vin),
+                    )
+                    return off_data
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug(
+                    "official-API failover read failed for %s: %s",
+                    mask_vin(vin), err,
+                )
+        return None
 
     async def _poll_loop(self) -> None:
         """Background polling loop — runs independently of HA scheduler.

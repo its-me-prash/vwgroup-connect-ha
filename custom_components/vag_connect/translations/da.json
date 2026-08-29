@@ -227,7 +227,8 @@
           "remove_vweu_twoway": "Fjern VW EU To-vejs (gå tilbage til den forrige kanal)",
           "companion_read_vehicle_health": "Companion: læs kilometerstand og service fra køretøjstjek (navigerer i appen)",
           "companion_read_climate_detail": "Companion: læs måltemperatur og udetemperatur (navigerer i appen)",
-          "companion_read_parking_position": "Companion: læs parkeringsposition fra appens delingslink (navigerer i appen)"
+          "companion_read_parking_position": "Companion: læs parkeringsposition fra appens delingslink (navigerer i appen)",
+          "skoda_official_api_key": "Officiel Škoda API-nøgle — failover når hovedkanalen er nede"
         },
         "data_description": {
           "scan_interval": "Hvor ofte data hentes (minutter). Minimum: 3.",

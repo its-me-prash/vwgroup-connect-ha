@@ -285,6 +285,10 @@ CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES = "supplementary_authproxy_cookies"
 # back here. SECURITY: the token bundle is never logged.
 CONF_SUPPLEMENTARY_TIBBER        = "supplementary_tibber"
 CONF_SUPPLEMENTARY_TIBBER_TOKENS = "supplementary_tibber_tokens"
+# Škoda OFFICIAL public API key (opt-in) — a FAILOVER-ONLY source: read only
+# when the primary (unofficial mysmob) channel hard-fails, never polled
+# continuously, because the official API is rate-limited to 20 requests/hour/key.
+CONF_SKODA_OFFICIAL_API_KEY      = "skoda_official_api_key"
 
 # v2.15.0b3 — "hide entities without data" (default ON). When enabled, data
 # sensors / binary sensors whose value hasn't arrived are not created, so a
