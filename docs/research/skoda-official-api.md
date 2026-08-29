@@ -22,6 +22,27 @@
 - 429 problem type `api-key-rate-limit-exceeded`; expired key → problem type `api-key-expired`.
 - **Implication:** far too tight for a 15-min feed. A conservative poll (e.g. every 5–10 min = 6–12/h) leaves little headroom for commands. Any channel we build must budget against `RateLimit-Remaining` and back off — this is a low-frequency official channel, not a replacement for mysmob.
 
+## State values + gotchas (⚠️ not formal enums — read the field descriptions)
+
+The state fields are plain `string` with **no `enum` type** in the schema; the
+real values live only in each field's `description`. Guessing them wrong
+silently mis-reports state, so they are pinned here (and in the client tests):
+
+- **`charging.status.state`**: `CONNECT_CABLE` · `CHARGING` · `CONSERVING` · `READY_FOR_CHARGING` · `DISCHARGING` · `CHARGING_INTERRUPTED`. (We treat CHARGING + CONSERVING as "charging".)
+- **`charging.status.chargeType`**: `AC` · `DC` · `OFF`.
+- **`airConditioning.state`**: `OFF` · `COOLING` · `HEATING` · `HEATING_AUXILIARY` · `VENTILATION` · `COMPLETED` · `UNKNOWN`. **There is no `ON`.** (Active only while COOLING/HEATING/HEATING_AUXILIARY/VENTILATION.)
+- **`status.overall.doorsLocked` / `locked`**: `YES` · `NO` · `OPENED` · `UNKNOWN`. **`YES` = locked** (not `"LOCKED"`).
+- **`status.overall.doors` / `windows`, `detail.trunk` / `bonnet` / `sunroof`**: `OPEN` · `CLOSED` · `UNKNOWN` (sunroof also `UNSUPPORTED`).
+- **`windowHeating.front` / `rear`**: `ON` · `OFF` · `UNKNOWN` · `UNSUPPORTED`.
+- **`fuelStatus.primaryEngineRange.engineType`**: `ELECTRIC` · `GASOLINE` · `DIESEL` · `CNG` · `LPG` · `UNKNOWN`. `fuelStatus.carType`: `HYBRID` · `GASOLINE` · … . New values may appear — clients must tolerate unknowns.
+- **`chargingSettings.maxChargeCurrentAc`** is a string (`REDUCED`/`MAXIMUM`); the numeric amps live in `maxChargeCurrentAcAmpere`.
+
+## License / token facts (Škoda announcement, 2026-08-28)
+
+- **Up to 5 access tokens per VIN**, minted in the app (v8.16+). Free.
+- **Data depends on the account's active Škoda Connect services.** Notably: **without a Remote Access license the parking position (GPS) is not returned** — so the GPS read is a bonus where licensed, not universal. Our parse already treats every field as optional.
+- Škoda is building its own dedicated HA integration (HA 2026.10) with the community; our use of this API is as an opt-in **resilience/failover** source inside a multi-brand integration, which is complementary rather than competing.
+
 ## Endpoints
 
 ### `POST /api/v1/vehicles/{vin}/charging/stop` — stopCharging

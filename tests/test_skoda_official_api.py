@@ -23,7 +23,7 @@ _RESPONSE: dict[str, Any] = {
         "licensePlate": "PR-SK 123",
         "status": {
             "overall": {
-                "doorsLocked": "LOCKED", "locked": "LOCKED",
+                "doorsLocked": "YES", "locked": "YES",
                 "doors": "CLOSED", "windows": "OPEN", "lights": "OFF",
             },
             "detail": {"sunroof": "CLOSED", "trunk": "CLOSED", "bonnet": "OPEN"},
@@ -45,7 +45,7 @@ _RESPONSE: dict[str, Any] = {
             "formattedAddress": "Praha",
         },
         "airConditioning": {
-            "state": "ON",
+            "state": "HEATING",
             "targetTemperature": {"value": 21.5, "unit": "CELSIUS"},
             "windowHeating": {"enabled": True, "front": "ON", "rear": "OFF"},
         },
@@ -75,9 +75,10 @@ def test_parse_maps_the_full_vehicle():
     assert d.model == "Enyaq"
     assert d.license_plate == "PR-SK 123"
     # opening / lock
-    assert d.doors_locked is True
+    assert d.doors_locked is True          # overall doorsLocked == "YES"
     assert d.doors_open is False
     assert d.windows_open is True
+    assert d.trunk_open is False            # detail.trunk == "CLOSED"
     assert d.last_seen_at == "2026-08-28T09:15:00Z"
     # odometer
     assert d.odometer_km == 41230
@@ -92,7 +93,7 @@ def test_parse_maps_the_full_vehicle():
     assert d.preferred_charge_mode == "MANUAL"
     assert d.max_charge_current == 16.0
     # climate
-    assert d.climatisation_state == "ON"
+    assert d.climatisation_state == "HEATING"
     assert d.climatisation_active is True
     assert d.target_temperature == 21.5
     assert d.window_heating_front is True
@@ -125,6 +126,33 @@ def test_parse_tolerates_sparse_body():
     assert d.vin == "V"
     assert d.battery_soc is None
     assert d.latitude is None
+
+
+def test_grounded_enum_values_from_spec():
+    """Pin the exact state strings the OpenAPI spec documents in its field
+    descriptions (the fields are plain strings with no enum type). Getting these
+    wrong silently mis-reports state — e.g. doorsLocked is YES/NO/OPENED, never
+    'LOCKED'; AC 'ON' does not exist."""
+    for val, expect in (("YES", True), ("NO", False), ("OPENED", False), ("UNKNOWN", False)):
+        d = SkodaOfficialClient._parse_vehicle("V", {"status": {"overall": {"doorsLocked": val}}})
+        assert d.doors_locked is expect, f"doorsLocked={val}"
+    for val, expect in (
+        ("HEATING", True), ("COOLING", True), ("HEATING_AUXILIARY", True),
+        ("VENTILATION", True), ("OFF", False), ("COMPLETED", False), ("UNKNOWN", False),
+    ):
+        d = SkodaOfficialClient._parse_vehicle("V", {"airConditioning": {"state": val}})
+        assert d.climatisation_active is expect, f"ac={val}"
+    for val, expect in (
+        ("CHARGING", True), ("CONSERVING", True), ("READY_FOR_CHARGING", False),
+        ("CONNECT_CABLE", False), ("DISCHARGING", False), ("CHARGING_INTERRUPTED", False),
+    ):
+        d = SkodaOfficialClient._parse_vehicle("V", {"charging": {"status": {"state": val}}})
+        assert d.is_charging is expect, f"charging={val}"
+    for val, e_range in (("ELECTRIC", "electric_range_km"), ("GASOLINE", "combustion_range_km"),
+                         ("DIESEL", "combustion_range_km"), ("CNG", "combustion_range_km")):
+        d = SkodaOfficialClient._parse_vehicle(
+            "V", {"fuelStatus": {"primaryEngineRange": {"engineType": val, "remainingRangeInKm": 200}}})
+        assert getattr(d, e_range) == 200, f"engineType={val}"
 
 
 # --- transport: a minimal fake aiohttp session ------------------------------

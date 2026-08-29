@@ -48,7 +48,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   the complete grounded spec, and an automated 4-hourly watch for the app
   version that unlocks it (the API key is minted in the Škoda app). Not yet
   selectable and **no change for existing setups** — it needs that app update
-  before anyone can create a key.
+  before anyone can create a key. The client's state parsing is grounded on the
+  API's documented values (e.g. `doorsLocked` = `YES`/`NO`/`OPENED`, not
+  `LOCKED`).
 
 ## [4.4.0b4] - 2026-08-28 — New diagnostic sensors (drivetrain · CSID · parked-since) · Audi/VW-EU doors+trunk fix · export button on merged portals
 
