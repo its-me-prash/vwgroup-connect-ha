@@ -59,6 +59,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   polled continuously — because the official API is rate-limited to 20
   requests/hour/key. Off by default; no change unless you add a key.
 
+### Fixed / Behoben
+- **VW trunk-open now reads the portal's dotted `trunk.open` field** (#1293,
+  thanks @MirkoKas). The EU Data Act feed can report the trunk state as a dotted
+  boolean (`trunk.open: "true"`), the same way it already does for
+  `trunk.locked`; we only read the numeric enum and the UUID form, so on that
+  dialect the trunk-open sensor stayed empty.
+
 ## [4.4.0b4] - 2026-08-28 — New diagnostic sensors (drivetrain · CSID · parked-since) · Audi/VW-EU doors+trunk fix · export button on merged portals
 
 ### Added / Neu
