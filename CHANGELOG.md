@@ -42,6 +42,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.4.0b4] - 2026-08-28 — New diagnostic sensors (drivetrain · CSID · parked-since) · Audi/VW-EU doors+trunk fix · export button on merged portals
+
 ### Added / Neu
 - **Three new diagnostic sensors for Audi/VW-EU, straight from the render-image query we already run** / Drei neue Diagnose-Sensoren für Audi/VW-EU, aus der ohnehin laufenden Render-Bild-Abfrage:
   - **Drivetrain / Antriebsart** — the car's official drivetrain classification (BEV / PHEV / …), read from the vgql `classification` block instead of guessed from telemetry.
