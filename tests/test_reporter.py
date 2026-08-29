@@ -330,6 +330,28 @@ class TestReporterPipeline:
         # Total query length is bounded
         assert len(url) < 1500
 
+    def test_github_issue_url_caps_the_ENCODED_length_on_dense_bodies(self):
+        # A raw-length cap alone doesn't bound the encoded URL — a
+        # traceback-heavy body inflates 2-3x under url-encoding (paths, carets,
+        # newlines, brackets, spaces all → %XX). A 20-error acpp 401 report was
+        # un-submittable this way. The encoded-length backstop must keep the
+        # final URL under the ceiling regardless of content, at the default
+        # body_max (no caller override).
+        from custom_components.vag_connect.cariad._reporter_pipeline import (
+            _GITHUB_URL_MAX,
+            github_issue_url,
+        )
+
+        # maximally-inflating content: nearly every char becomes %XX
+        dense = "\n^^^^ /config/custom_components/vag_connect/ ()[]{}<> " * 400
+        url = github_issue_url(
+            "[Error Reporter] 20 recent error(s) on audi_acpp A5 Coupé TDI CR",
+            dense,
+            labels=("error-reporter", "audi_acpp"),
+        )
+        assert len(url) <= _GITHUB_URL_MAX
+        assert "truncated" in urllib.parse.unquote(url)
+
     def test_ensure_unexpected_keys_issue_creates_when_findings_present(self):
         from custom_components.vag_connect.cariad._reporter_pipeline import (
             ensure_unexpected_keys_issue,

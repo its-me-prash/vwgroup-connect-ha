@@ -66,6 +66,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   `trunk.locked`; we only read the numeric enum and the UUID form, so on that
   dialect the trunk-open sensor stayed empty.
 
+### Fixed / Behoben
+- **Error-reporter links stay submittable even on long reports.** A report with
+  many errors (e.g. a burst of 20 repeated 401s) could build a pre-filled GitHub
+  URL too long to actually send: the cap was on the raw body, but url-encoding a
+  traceback-heavy body inflates it 2-3x (paths, carets, newlines, brackets all
+  become %XX). The cap is now on the final encoded URL and trimmed conservatively
+  — the full report is always available under Diagnostics.
+
 ## [4.4.0b4] - 2026-08-28 — New diagnostic sensors (drivetrain · CSID · parked-since) · Audi/VW-EU doors+trunk fix · export button on merged portals
 
 ### Added / Neu

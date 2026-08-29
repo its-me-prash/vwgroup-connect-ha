@@ -54,6 +54,12 @@ from ._unexpected_keys import UnexpectedField, _VIN_RE
 # empty-body issues we saw in #409 and #412. 4000 raw → ~6000 encoded
 # leaves comfortable headroom.
 _GITHUB_BODY_MAX = 4000
+# Hard ceiling on the FINAL encoded issue URL. GitHub's backend 414s past ~8 KB,
+# but in practice a pre-filled link stopped being submittable well below that
+# (a 20-error acpp 401 report at ~7.7 KB couldn't be sent — browser/UI limits
+# bite lower than the server's). Cap conservatively: the full report is always
+# in Diagnostics, so trimming the pre-filled URL harder costs nothing.
+_GITHUB_URL_MAX = 6500
 
 # Repo where users land for crowd-sourced bug reports. Keeping this
 # constant means we can swap to a discussions URL later without touching
@@ -320,17 +326,39 @@ def github_issue_url(
 
     The URL is safe to feed straight into ``learn_more_url`` on a HA
     repair issue, or to print and copy to clipboard.
+
+    The cap is on the FINAL ENCODED url, not the raw body: url-encoding a
+    traceback-heavy body inflates it far more than the ~1.5x a prose body
+    costs (paths, ``^^^^`` carets, newlines, brackets and spaces all become
+    ``%XX``), so a raw-length cap alone could still produce an un-submittable
+    URL — a 20-error acpp 401 report did exactly that. We truncate on the raw
+    length first (cheap), then shrink until the encoded URL is safely under
+    GitHub's ~8 KB ceiling.
     """
-    if len(body) > body_max:
-        body = body[: body_max - 80] + (
-            "\n\n_… truncated — full report available via "
-            "Settings → Devices → VW Group Connect → Diagnostics._"
-        )
-    params: list[tuple[str, str]] = [("title", title), ("body", body)]
-    if labels:
-        params.append(("labels", ",".join(labels)))
-    qs = urllib.parse.urlencode(params, quote_via=urllib.parse.quote)
-    return f"{repo_url.rstrip('/')}/issues/new?{qs}"
+    marker = (
+        "\n\n_… truncated — full report available via "
+        "Settings → Devices → VW Group Connect → Diagnostics._"
+    )
+
+    def _build(text: str) -> str:
+        params: list[tuple[str, str]] = [("title", title), ("body", text)]
+        if labels:
+            params.append(("labels", ",".join(labels)))
+        qs = urllib.parse.urlencode(params, quote_via=urllib.parse.quote)
+        return f"{repo_url.rstrip('/')}/issues/new?{qs}"
+
+    truncated = len(body) > body_max
+    if truncated:
+        body = body[: body_max - len(marker)]
+    url = _build(body + (marker if truncated else ""))
+    # Encoded-length backstop: shrink the body geometrically until the whole
+    # URL fits under _GITHUB_URL_MAX. Converges in a few passes; the floor guard
+    # stops it if even a minimal body + a long title would overflow.
+    while len(url) > _GITHUB_URL_MAX and len(body) > 200:
+        body = body[: int(len(body) * 0.85)]
+        truncated = True
+        url = _build(body + marker)
+    return url
 
 
 # ---------------------------------------------------------------------------
