@@ -4091,37 +4091,62 @@ class VWEUClient(CariadBaseClient):
         # ``status[0].value``, so a PPE car reporting the string form parsed to
         # empty windows *and* doors (windows_open False, windows_individual {})
         # even though the raw clearly said "open". Read either shape.
-        def _acc_status(entry: dict[str, Any]) -> str | None:
-            s0 = safe_get(entry, "status[0]")
-            if isinstance(s0, dict):
-                s0 = s0.get("value") or s0.get("status")
-            return s0.lower() if isinstance(s0, str) else None
+        # #1281 (@peterbauer1709, Audi S6 e-tron / PPE) — a *door* entry ships
+        # BOTH its lock token and its open token in the SAME ``status`` list
+        # (``["unlocked", "open"]``), so the earlier ``status[0]``-only read
+        # returned the lock word ("unlocked") and every side door + the trunk
+        # read as closed even when physically open. A bonnet/window carries a
+        # single token (``["open"]``), which is why those already worked.
+        # Collect the whole token set (string OR ``[{"value": ...}]`` object
+        # form, #1279) and look for the specific token we want.
+        def _acc_tokens(entry: dict[str, Any]) -> set[str]:
+            out: set[str] = set()
+            for s in (entry.get("status") or []):
+                if isinstance(s, dict):
+                    s = s.get("value") or s.get("status")
+                if isinstance(s, str):
+                    out.add(s.lower())
+            return out
 
         if doors:
-            d.doors_open = any(_acc_status(door) == "open" for door in doors)
-            d.doors_individual = {
-                str(name): _acc_status(door) == "open"
+            door_tokens = {
+                str(name): _acc_tokens(door)
                 for door in doors
                 if (name := door.get("name")) is not None
             }
-            # Trunk lock state lives in the doors array under the
-            # entry whose name is "trunk". Backends ship either a
-            # top-level ``locked`` boolean or a status entry with
-            # value=="locked" — accept both.
-            trunk = next(
-                (door for door in doors if door.get("name") == "trunk"),
-                None,
-            )
-            if trunk is not None:
-                trunk_locked_raw = (
-                    trunk.get("locked")
-                    if "locked" in trunk
-                    else safe_get(trunk, "lockState[0].value")
+            d.doors_individual = {
+                name: "open" in tk for name, tk in door_tokens.items()
+            }
+            d.doors_open = any("open" in tk for tk in door_tokens.values())
+            # The trunk rides in the doors array under name "trunk". Surface its
+            # dedicated open + lock state — both were previously left null on the
+            # two-token ``["unlocked", "closed"]`` shape (open never set at all,
+            # lock only read from a top-level ``locked`` key that PPE omits).
+            trunk_tk = door_tokens.get("trunk")
+            if trunk_tk is not None:
+                if "open" in trunk_tk or "closed" in trunk_tk:
+                    d.trunk_open = "open" in trunk_tk
+                if "locked" in trunk_tk:
+                    d.trunk_locked = True
+                elif "unlocked" in trunk_tk:
+                    d.trunk_locked = False
+            # Legacy shapes: other backends carry the trunk lock as a top-level
+            # ``locked`` boolean or a ``lockState[0].value`` string instead.
+            if d.trunk_locked is None:
+                trunk = next(
+                    (door for door in doors if door.get("name") == "trunk"),
+                    None,
                 )
-                if isinstance(trunk_locked_raw, bool):
-                    d.trunk_locked = trunk_locked_raw
-                elif isinstance(trunk_locked_raw, str):
-                    d.trunk_locked = trunk_locked_raw.lower() == "locked"
+                if trunk is not None:
+                    trunk_locked_raw = (
+                        trunk.get("locked")
+                        if "locked" in trunk
+                        else safe_get(trunk, "lockState[0].value")
+                    )
+                    if isinstance(trunk_locked_raw, bool):
+                        d.trunk_locked = trunk_locked_raw
+                    elif isinstance(trunk_locked_raw, str):
+                        d.trunk_locked = trunk_locked_raw.lower() == "locked"
         elif overall == "SAFE":
             # Backend reported SAFE but didn't enumerate the doors
             # array. Honour the aggregate signal so the entity shows
@@ -4129,25 +4154,26 @@ class VWEUClient(CariadBaseClient):
             d.doors_open = False
 
         if windows:
-            d.windows_open = any(_acc_status(w) == "open" for w in windows)
+            d.windows_open = any("open" in _acc_tokens(w) for w in windows)
             # v2.18.1 (#810, @lucson) — windows_individual follows the documented
             # ``True == closed`` convention: the same one VagWindowSensor (which
             # inverts for the HA WINDOW device_class) and the EU-Data-Act portal
-            # parser already use. Storing ``== "open"`` here (True == open) was the
-            # lone outlier and rendered every *closed* window as *open* on Audi /
-            # VW-EU cars. Only entries with a real open/closed status are stored; a
-            # non-open/closed sentinel (an option-dependent roof on a car without
-            # one) is skipped so it can't surface as a phantom window.
+            # parser already use. Only entries with a real open/closed status are
+            # stored; a non-open/closed sentinel (an option-dependent roof on a
+            # car without one) is skipped so it can't surface as a phantom window.
             windows_individual: dict[str, bool] = {}
             windows_position: dict[str, int] = {}
             for w in windows:
                 name = w.get("name")
                 if name is None:
                     continue
-                st = _acc_status(w)
-                if st not in ("open", "closed"):
+                tk = _acc_tokens(w)
+                if "open" in tk:
+                    windows_individual[str(name)] = False  # True == closed
+                elif "closed" in tk:
+                    windows_individual[str(name)] = True
+                else:
                     continue
-                windows_individual[str(name)] = st == "closed"
                 # #1279 — PPE cars ship an opening percentage (``windowOpen_pct``)
                 # per window, so surface it instead of leaving windows_position {}.
                 pct = w.get("windowOpen_pct")

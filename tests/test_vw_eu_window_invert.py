@@ -124,3 +124,91 @@ def test_object_shape_status_still_works_and_reads_position():
     data = client._parse_status("VINX", raw, parking={})
     assert data.windows_individual["frontRight"] is False  # open
     assert data.windows_position["frontRight"] == 42
+
+
+def test_1281_two_token_door_status_open():
+    """#1281 (@peterbauer1709, Audi S6 e-tron MY2026) — a door entry carries
+    BOTH its lock token and its open token in one status list
+    (``["unlocked", "open"]``). The old ``status[0]``-only read returned
+    "unlocked", so every physically open side door + the trunk read as closed."""
+    client = _vw_client()
+    raw = _doors_raw(
+        {"name": "frontLeft", "status": ["unlocked", "open"]},
+        {"name": "frontRight", "status": ["unlocked", "open"]},
+        {"name": "rearLeft", "status": ["unlocked", "open"]},
+        {"name": "rearRight", "status": ["unlocked", "open"]},
+        {"name": "trunk", "status": ["unlocked", "closed"]},
+    )
+    data = client._parse_status("VINX", raw, parking={})
+    assert data.doors_open is True
+    assert data.doors_individual["frontLeft"] is True     # doors_individual: True == open
+    assert data.doors_individual["frontRight"] is True
+    assert data.doors_individual["rearLeft"] is True
+    assert data.doors_individual["rearRight"] is True
+    assert data.doors_individual["trunk"] is False         # trunk closed
+
+
+def test_1281_trunk_open_and_lock_surfaced():
+    """#1281 — the trunk's dedicated ``trunk_open`` / ``trunk_locked`` fields
+    were left null on the two-token shape (open was never set at all; lock was
+    only read from a top-level ``locked`` key that PPE omits)."""
+    client = _vw_client()
+    data = client._parse_status(
+        "VINX", _doors_raw({"name": "trunk", "status": ["unlocked", "open"]}),
+        parking={})
+    assert data.trunk_open is True
+    assert data.trunk_locked is False
+
+    data = client._parse_status(
+        "VINX", _doors_raw({"name": "trunk", "status": ["locked", "closed"]}),
+        parking={})
+    assert data.trunk_open is False
+    assert data.trunk_locked is True
+
+
+def test_1281_mixed_bonnet_single_doors_double():
+    """#1281 second scenario: bonnet single-token ``["open"]`` (always worked),
+    side doors closed two-token, trunk open two-token — all correct at once."""
+    client = _vw_client()
+    raw = _doors_raw(
+        {"name": "bonnet", "status": ["open"]},
+        {"name": "frontLeft", "status": ["unlocked", "closed"]},
+        {"name": "frontRight", "status": ["unlocked", "closed"]},
+        {"name": "trunk", "status": ["unlocked", "open"]},
+    )
+    data = client._parse_status("VINX", raw, parking={})
+    assert data.doors_individual["bonnet"] is True      # open
+    assert data.doors_individual["frontLeft"] is False   # closed
+    assert data.doors_individual["trunk"] is True        # open
+    assert data.trunk_open is True
+    assert data.doors_open is True                        # bonnet + trunk open
+
+
+def test_1281_real_mixed_door_trace_from_reporter():
+    """#1279/#1281 — @peterbauer1709's real Audi S6 e-tron accessStatus trace
+    with a mixed door state (only the two right doors open). Every entry is the
+    two-token ``[lock, open]`` shape; before the fix all six read closed."""
+    client = _vw_client()
+    raw = {"access": {"accessStatus": {"value": {
+        "overallStatus": "unsafe",
+        "doors": [
+            {"name": "bonnet", "status": ["closed"]},
+            {"name": "frontLeft", "status": ["unlocked", "closed"]},
+            {"name": "frontRight", "status": ["unlocked", "open"]},
+            {"name": "rearLeft", "status": ["unlocked", "closed"]},
+            {"name": "rearRight", "status": ["unlocked", "open"]},
+            {"name": "trunk", "status": ["unlocked", "closed"]},
+        ],
+    }}}}
+    data = client._parse_status("VINX", raw, parking={})
+    assert data.doors_individual == {
+        "bonnet": False,
+        "frontLeft": False,
+        "frontRight": True,    # physically open
+        "rearLeft": False,
+        "rearRight": True,     # physically open
+        "trunk": False,
+    }
+    assert data.doors_open is True
+    assert data.trunk_open is False
+    assert data.trunk_locked is False   # trunk "unlocked"
