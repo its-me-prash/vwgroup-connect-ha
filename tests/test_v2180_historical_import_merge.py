@@ -111,6 +111,52 @@ async def test_portal_not_ready_raises() -> None:
         await c.async_import_historical_export("V")
 
 
+def _coord_supplementary(historical: VehicleData, current: Any) -> VagConnectCoordinator:
+    """A MERGED setup: the portal is a supplementary channel on a command
+    primary, so ``_eu_portal`` is None and only ``_supplementary_eu_portal`` is
+    armed (#923)."""
+    c = VagConnectCoordinator.__new__(VagConnectCoordinator)
+    c._cariad_client = MagicMock()
+    c._cariad_client._eu_portal = None                       # no primary portal
+    c._cariad_client._supplementary_eu_portal = _Portal(historical)
+    c.vehicles = {"V": current} if current is not None else {}
+    c._vehicles_lock = threading.Lock()
+    c.pushed = []
+    c.async_set_updated_data = lambda data: c.pushed.append(data)  # type: ignore[assignment]
+    return c
+
+
+@pytest.mark.asyncio
+async def test_923_supplementary_portal_import_uses_it() -> None:
+    """#923 end-to-end guard: on a merged ``eu_data_act+website_authproxy`` setup
+    the historical export must import through ``_supplementary_eu_portal`` — the
+    export button now spawns there, so the import path has to follow. Before the
+    fix this raised ``historical_portal_not_ready`` because only ``_eu_portal``
+    was checked."""
+    hist = VehicleData(vin="V")
+    hist.no_data = False
+    hist.min_soc = 50
+    c = _coord_supplementary(hist, {"soc": 80})
+    ok = await c.async_import_historical_export("V")
+    assert ok is True
+    assert c.vehicles["V"]["min_soc"] == 50
+    assert c._cariad_client._supplementary_eu_portal.calls == ["all"]
+
+
+@pytest.mark.asyncio
+async def test_923_supplementary_import_still_gap_fill_only() -> None:
+    """#923 — the supplementary path keeps the gap-fill-only contract: a live
+    value is never overwritten by the historical config dump."""
+    hist = VehicleData(vin="V")
+    hist.no_data = False
+    hist.battery_soc = 15          # stale config-dump value
+    hist.min_soc = 50
+    c = _coord_supplementary(hist, {"battery_soc": 80})   # fresh live soc
+    await c.async_import_historical_export("V")
+    assert c.vehicles["V"]["battery_soc"] == 80           # live preserved
+    assert c.vehicles["V"]["min_soc"] == 50               # gap filled
+
+
 def test_both_services_are_registered() -> None:
     # The two Phase C services must be wired into the registration table.
     import pathlib
