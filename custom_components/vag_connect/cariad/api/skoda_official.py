@@ -145,15 +145,24 @@ class SkodaOfficialClient:
         # -- opening / lock status (overall + detail) -------------------------
         status = v.get("status") or {}
         overall = status.get("overall") or {}
+        detail = status.get("detail") or {}
+        # Grounded on the spec's documented values (the fields are plain strings
+        # with no enum type, but each field's description enumerates them):
+        #   doorsLocked / locked = YES | NO | OPENED | UNKNOWN  (YES == all
+        #     supported doors AND trunk LOCKED+CLOSED) — NOT "LOCKED".
+        #   doors / windows / detail.trunk = OPEN | CLOSED | UNKNOWN.
         _dl = overall.get("doorsLocked") or overall.get("locked")
         if isinstance(_dl, str):
-            d.doors_locked = _dl.strip().upper() == "LOCKED"
+            d.doors_locked = _dl.strip().upper() == "YES"
         _do = _to_bool_open(overall.get("doors"))
         if _do is not None:
             d.doors_open = _do
         _wo = _to_bool_open(overall.get("windows"))
         if _wo is not None:
             d.windows_open = _wo
+        _trunk = _to_bool_open(detail.get("trunk"))
+        if _trunk is not None:
+            d.trunk_open = _trunk
         if isinstance(status.get("carCapturedTimestamp"), str):
             d.last_seen_at = status["carCapturedTimestamp"]
 
@@ -219,8 +228,10 @@ class SkodaOfficialClient:
         ac = v.get("airConditioning") or {}
         if isinstance(ac.get("state"), str):
             d.climatisation_state = ac["state"]
+            # spec: OFF | COOLING | HEATING | HEATING_AUXILIARY | VENTILATION |
+            # COMPLETED | UNKNOWN — active only while it's actually conditioning.
             d.climatisation_active = ac["state"].strip().upper() in (
-                "ON", "HEATING", "COOLING", "VENTILATION", "ON_HEATING", "ON_COOLING",
+                "COOLING", "HEATING", "HEATING_AUXILIARY", "VENTILATION",
             )
         tt = ac.get("targetTemperature") or {}
         if isinstance(tt.get("value"), (int, float)):
