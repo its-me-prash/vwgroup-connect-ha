@@ -396,6 +396,11 @@ MAX_SCAN_INTERVAL     = 60   # minutes — the config-flow selectable ceiling (#
 # every other brand keeps the 10-min default.
 RECOMMENDED_SCAN_INTERVAL: dict[str, int] = {
     "skoda": 30,
+    # acpp (Audi plug&play OBD dongle) uploads a snapshot only when the dongle
+    # syncs after a drive — polling faster than the car is driven returns
+    # identical data and just churns the ~1h rotating token. Hourly reliably
+    # catches the post-drive snapshot.
+    "audi_acpp": 60,
 }
 
 

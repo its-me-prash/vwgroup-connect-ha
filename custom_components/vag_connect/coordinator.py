@@ -1511,6 +1511,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     vins = await self._enumerate_via_eu_data_act_fallback()
                     if not vins:
                         raise
+            # Restart resilience: enumeration still empty (e.g. an acpp / read-only
+            # silo whose first post-restart read 401'd, or a transient enumeration
+            # failure) — fall back to the VINs already restored from the
+            # last-known-good cache instead of tearing the entry down. get_status
+            # then decides per-VIN (a raise keeps the restored snapshot via the
+            # keep-loop), so entities show last-known-good rather than unavailable.
+            if not vins:
+                vins = [v for v in self.vehicles if not str(v).startswith("_")]
             if not vins:
                 return False
 
