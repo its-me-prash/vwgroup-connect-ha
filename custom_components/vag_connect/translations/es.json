@@ -227,7 +227,8 @@
           "remove_vweu_twoway": "Eliminar VW EU bidireccional (volver al canal anterior)",
           "companion_read_vehicle_health": "Companion: leer cuentakilómetros y servicio desde el estado del vehículo (navega por la app)",
           "companion_read_climate_detail": "Companion: leer temperatura objetivo y exterior (navega por la app)",
-          "companion_read_parking_position": "Companion: leer la posición de aparcamiento desde el enlace para compartir de la app (navega por la app)"
+          "companion_read_parking_position": "Companion: leer la posición de aparcamiento desde el enlace para compartir de la app (navega por la app)",
+          "skoda_official_api_key": "Clave API oficial de Škoda — conmutación por error si falla el canal principal"
         },
         "data_description": {
           "scan_interval": "Frecuencia de actualización (minutos). Mínimo: 3.",

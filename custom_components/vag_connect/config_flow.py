@@ -2301,6 +2301,20 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                 schema[vol.Optional(
                     CONF_VWEU_DEVICE_GRANT, default=False,
                 )] = _BOOL_SELECTOR
+        # Škoda official public API — opt-in FAILOVER key. A Škoda entry may add
+        # an API key it minted in the app (Settings → Smart Home → API Keys,
+        # v8.16+); the official API is then read ONLY when the primary channel
+        # hard-fails (it is rate-limited to 20 req/hour/key, so never polled
+        # continuously). Pre-filled so re-opening options never blanks it.
+        if current_data.get(CONF_BRAND) == "skoda":
+            from .const import CONF_SKODA_OFFICIAL_API_KEY  # noqa: PLC0415
+            schema[vol.Optional(
+                CONF_SKODA_OFFICIAL_API_KEY,
+                default=str(current_options.get(
+                    CONF_SKODA_OFFICIAL_API_KEY,
+                    current_data.get(CONF_SKODA_OFFICIAL_API_KEY, ""),
+                )),
+            )] = _PASSWORD_SELECTOR
         # v2.17.5 (#759) — one optional S-PIN field per known VIN, shown only
         # when the account has more than one vehicle (each may carry its own
         # S-PIN). Empty leaves that vehicle on the shared CONF_SPIN above; values

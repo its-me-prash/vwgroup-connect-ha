@@ -51,6 +51,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   before anyone can create a key. The client's state parsing is grounded on the
   API's documented values (e.g. `doorsLocked` = `YES`/`NO`/`OPENED`, not
   `LOCKED`).
+- **Škoda: the official API can act as an automatic failover** for the existing
+  channel. On a Škoda entry you can add an official API key (Options → once the
+  app update lets you mint one); if the primary channel ever hard-fails, the
+  read is served from the official API instead of freezing on last-known data.
+  It's a **failover-only** source — read only on a primary failure, never
+  polled continuously — because the official API is rate-limited to 20
+  requests/hour/key. Off by default; no change unless you add a key.
 
 ## [4.4.0b4] - 2026-08-28 — New diagnostic sensors (drivetrain · CSID · parked-since) · Audi/VW-EU doors+trunk fix · export button on merged portals
 
