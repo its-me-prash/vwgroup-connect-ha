@@ -102,6 +102,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   uploads a snapshot after a drive, acpp now polls hourly by default (was every
   10 min) — identical data, far less token churn.
 
+### Fixed / Behoben
+- **Portal-primary cars no longer show a stale door / window / lock state.** If
+  the EU Data Act portal is your main channel and a live channel (the CARIAD BFF
+  or vw.de) is also connected, the current door / window / lock / trunk reading
+  from the live channel now wins over the portal's up-to-15-minute-old snapshot —
+  the same rule we already apply to charging and SoC. A door-open warning
+  automation was the kind of thing that could act on the stale value. Odometer,
+  GPS position and service intervals are deliberately left untouched (they have
+  their own monotonic / carry-forward handling).
+
 ## [4.4.0b4] - 2026-08-28 — New diagnostic sensors (drivetrain · CSID · parked-since) · Audi/VW-EU doors+trunk fix · export button on merged portals
 
 ### Added / Neu

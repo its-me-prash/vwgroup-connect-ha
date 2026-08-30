@@ -75,6 +75,34 @@ _LIVE_TELEMETRY = frozenset({
     "climatisation_state", "climatisation_active",
 })
 
+# Volatile physical closure/lock state. Same reasoning as _LIVE_TELEMETRY: when
+# the batch feed is primary it can carry a ≥15-minute-stale (and, like the charge
+# blocks, sometimes frozen-and-re-stamped) door/window/lock snapshot, while a live
+# channel's on-demand read reflects the car's current closure state. A stale
+# "locked"/"closed" reading here is worse than for telemetry — it's the kind of
+# thing an automation ("warn me if a door is open") acts on — so a live channel's
+# reading must win exactly as it does for SoC/charging.
+#
+# Deliberately EXCLUDES the fields where "highest-priority live channel wins" is
+# NOT a safe proxy for "freshest":
+#   - odometer_km: monotonic and monotonic-protected elsewhere; a lower-priority
+#     live channel could hold a staler (lower) value → regression (see the
+#     odometer test). Gap-fill / primary must stand.
+#   - position (lat/lon/position_captured_at): governed by its own carry-forward
+#     TTL in vehicle_cache.reconcile, which already reasons about capture age.
+#   - fuel_level: has a dedicated endpoint-specific merge (BFF ← MBB VSR).
+#   - service_*/master data: effectively static; a 15-min batch age is irrelevant.
+_LIVE_CLOSURE = frozenset({
+    "doors_locked", "doors_open", "windows_open",
+    "doors_individual", "windows_individual", "windows_position",
+    "trunk_open", "trunk_locked", "hood_open", "bonnet_locked",
+})
+
+# Fields a live channel supersedes when the batch feed owns them (see the loop
+# below). Telemetry + volatile closure state; never the monotonic/static/TTL-
+# managed fields excluded above.
+_LIVE_SUPERSEDE = _LIVE_TELEMETRY | _LIVE_CLOSURE
+
 
 def merge_channels(
     sources: list[tuple[str, "VehicleData"]],
@@ -134,14 +162,15 @@ def merge_channels(
                     # This channel filled the gap, so it owns the reading.
                     field_sources[f.name] = name
 
-    # Live-telemetry supersede: a stale EU-DA batch value must never outrank a
-    # live channel's reading. For every live-telemetry field the batch feed
-    # currently owns, hand it to the highest-priority live channel that actually
-    # has a reading. No-op when no live channel is present (EU-DA-only cars keep
-    # their value) or when a live channel already owns the field. Order-preserving
-    # (walks ``sources`` in priority order) and provenance-correct.
+    # Live supersede: a stale EU-DA batch value must never outrank a live
+    # channel's reading. For every superseding field (live telemetry + volatile
+    # closure state) the batch feed currently owns, hand it to the highest-
+    # priority live channel that actually has a reading. No-op when no live
+    # channel is present (EU-DA-only cars keep their value) or when a live channel
+    # already owns the field. Order-preserving (walks ``sources`` in priority
+    # order) and provenance-correct.
     if any(nm not in _BATCH_SOURCES for nm, _ in sources):
-        for f_name in _LIVE_TELEMETRY:
+        for f_name in _LIVE_SUPERSEDE:
             if field_sources.get(f_name) not in _BATCH_SOURCES:
                 continue  # a live channel already owns it, or nobody set it
             for nm, vd in sources:
