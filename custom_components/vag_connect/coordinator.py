@@ -34,6 +34,7 @@ from .const import (
     CONF_FUEL_TANK_CAPACITY,
     CONF_KEEP_RAW_DATASETS,
     CONF_MBB_COMMAND_CHANNEL,
+    CONF_MBB_COMMAND_FALLBACK,
     CONF_MEB_COMMANDS_UNAVAILABLE,
     CONF_PASSWORD,
     CONF_READ_ONLY,
@@ -2670,6 +2671,55 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 _LOGGER.warning(
                     "VW Group Connect: MBB command channel arming failed (%s)"
                     " — reads unaffected.", type(err).__name__,
+                )
+
+        # ── b15: MBB COMMAND FALLBACK (two-way device-grant primary, e.g. Audi) ─
+        # Same durable-MBB bearer + storage as the channel above, but armed as a
+        # FALLBACK (fallback_only=True → _mbb_fallback slot): the BFF stays the
+        # command primary and MBB is used ONLY by the _cariad_cmd BFF-refusal
+        # retry. Keeps a two-way Audi commandable if VW ever revokes its
+        # device-grant (Škoda precedent 2026-08). No operationList warm-up here on
+        # purpose — the fallback must NOT change command-entity visibility (that
+        # stays on the BFF capability gate); the retry gates itself.
+        if data.get(CONF_MBB_COMMAND_FALLBACK) and arm_cmd is not None:
+            from .cariad.models import TokenSet  # noqa: PLC0415
+            from .const import (  # noqa: PLC0415
+                CONF_MBB_COMMAND_CLIENT_ID,
+                CONF_MBB_COMMAND_TOKENS,
+                CONF_MBB_VINS,
+            )
+            tok = data.get(CONF_MBB_COMMAND_TOKENS) or {}
+            fb_tokens = TokenSet(
+                access_token=str(tok.get("access_token", "")),
+                refresh_token=str(tok.get("refresh_token", "")),
+                id_token=str(tok.get("id_token", "")),
+                expires_at=float(tok.get("expires_at", 0.0) or 0.0),
+                strategy="mbb",
+            )
+            vins = data.get(CONF_MBB_VINS) or []
+            if isinstance(vins, str):
+                vins = [
+                    v.strip().upper()
+                    for v in vins.replace(",", " ").split() if v.strip()
+                ]
+            try:
+                armed = bool(await arm_cmd(
+                    fb_tokens,
+                    data.get(CONF_MBB_COMMAND_CLIENT_ID, ""),
+                    list(vins),
+                    self._spin_from_entry(),
+                    fallback_only=True,
+                ))
+                if armed:
+                    # persist the rotated MBB bearer (durable refresh survives
+                    # restarts) — shares the command-token slot with the channel.
+                    fb = getattr(client, "_mbb_fallback", None)
+                    if fb is not None:
+                        fb.on_tokens_changed = self._persist_mbb_command_tokens
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning(
+                    "VW Group Connect: MBB command fallback arming failed (%s)"
+                    " — BFF commands unaffected.", type(err).__name__,
                 )
 
     async def _persist_mbb_command_tokens(self, tokens: Any) -> None:
@@ -7035,6 +7085,33 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             except Exception:  # noqa: BLE001
                 pass
             _LOGGER.error("VW Group Connect: %s(%s) failed: %s", method, mask_vin(vin), err)
+            # b15 — a two-way primary (Audi BFF) that refuses a command with an
+            # auth 401/403 (the shape a revoked device-grant takes) → try the
+            # durable MBB fallback ONCE before surfacing, iff the user opted in
+            # and the car is MBB-eligible (both settled at arm time). MBB success
+            # ends here; MBB failure falls through and surfaces the ORIGINAL BFF
+            # error, never the fallback's.
+            fb = self._mbb_command_fallback(method, err)
+            if fb is not None:
+                try:
+                    await getattr(fb, method)(vin, **kwargs)
+                    await self.async_request_refresh()
+                    try:
+                        self.record_command_success(vin, method)
+                    except Exception:  # noqa: BLE001
+                        pass
+                    _LOGGER.info(
+                        "VW Group Connect: %s(%s) recovered via the MBB fallback"
+                        " after the BFF refused it (HTTP %s).",
+                        method, mask_vin(vin), getattr(err, "status", "?"),
+                    )
+                    return
+                except Exception as fb_err:  # noqa: BLE001
+                    _LOGGER.info(
+                        "VW Group Connect: MBB fallback for %s(%s) also failed"
+                        " (%s) — surfacing the original BFF error.",
+                        method, mask_vin(vin), type(fb_err).__name__,
+                    )
             # v2.18.0 (#659) — surface the failure instead of letting the raw
             # APIError escape. HA doesn't know our exception types, so it logged
             # "Unexpected exception" and showed the user a Python traceback for
@@ -7103,6 +7180,38 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             except Exception:  # noqa: BLE001
                 pass  # enrichment must never change the command outcome
             raise HomeAssistantError(msg) from err
+
+    def _mbb_command_fallback(self, method: str, err: Exception) -> Any | None:
+        """b15 — the armed MBB fallback connector to retry a command on, or None.
+
+        Non-None ONLY when: the two-way primary client has an MBB fallback armed
+        (a device-grant Audi that opted in — already MBB-eligible, settled at arm
+        time), the failure is a BFF AUTH REFUSAL (``APIError`` 401/403, the shape
+        a revoked device-grant takes), and the command method exists on the MBB
+        connector. Deliberately NARROW: our own ``HomeAssistantError`` guards, an
+        ``SpinError`` / ``VehicleCommandError`` (both non-APIError), a capability
+        / entitlement gate, and a transient 5xx / timeout / 404 all return None —
+        MBB can't fix those, and a needless second call just doubles the failure."""
+        # Gate on the explicit config flag via a REAL dict lookup first — never
+        # ``getattr(client, "_mbb_fallback")`` alone, which a MagicMock test
+        # client would auto-vivify to a truthy value (mirrors the MagicMock-safe
+        # gating in ``_mbb_command_channel_client``). Also the cheapest guard.
+        try:
+            if not self.entry.data.get(CONF_MBB_COMMAND_FALLBACK):
+                return None
+        except Exception:  # noqa: BLE001
+            return None
+        from .cariad.exceptions import APIError  # noqa: PLC0415
+        if isinstance(err, HomeAssistantError) or not isinstance(err, APIError):
+            return None
+        if getattr(err, "status", None) not in (401, 403):
+            return None
+        client = getattr(self, "_cariad_client", None)
+        getter = getattr(client, "mbb_fallback_connector", None)
+        fb = getter() if callable(getter) else None
+        if fb is None:
+            return None
+        return fb if callable(getattr(fb, method, None)) else None
 
     async def async_set_charge_mode(self, vin: str, mode: str) -> None:
         """Set charging mode (MANUAL / TIMER / PREFERRED_CHARGING_TIMES)."""

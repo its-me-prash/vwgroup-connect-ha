@@ -91,6 +91,15 @@ CONF_MBB_COMMAND_CHANNEL      = "mbb_command_channel"      # bool: armed?
 CONF_MBB_COMMAND_TOKENS       = "mbb_command_tokens"       # dag-shaped dict (strategy=mbb)
 CONF_MBB_COMMAND_CLIENT_ID    = "mbb_command_client_id"    # registered X-Client-Id
 CONF_MEB_COMMANDS_UNAVAILABLE = "meb_commands_unavailable"  # bool: MEB/ID car, commands requested but impossible
+# b15 — MBB COMMAND FALLBACK for a TWO-WAY device-grant primary (e.g. Audi
+# Car-Net on the CARIAD BFF). Unlike CONF_MBB_COMMAND_CHANNEL (portal primary →
+# MBB *is* the command channel), here the BFF stays the command primary and the
+# MBB connector is armed ONLY as a fallback: a command runs on the BFF first and
+# re-routes to MBB *only* when the BFF refuses it (401/403 auth refusal), and
+# only for MBB-eligible (pre-MEB Car-Net) cars. Škoda pulled its device-grant in
+# 2026-08 — this keeps a two-way Audi commandable if VW ever does the same. Reuses
+# the CONF_MBB_COMMAND_TOKENS / _CLIENT_ID / _VINS storage (same durable bearer).
+CONF_MBB_COMMAND_FALLBACK     = "mbb_command_fallback"     # bool: MBB armed as BFF-refusal fallback?
 # 2026-08 — VW EU Two-Way (modern CARIAD BFF) via device-grant client 650d46ca.
 # Its 1h Bearer is BFF-whitelisted for reads+commands (the surface vw_eu.py
 # drives), unlike the DAG-dead app client / read-only portal client. Because the

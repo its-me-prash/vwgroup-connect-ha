@@ -1352,7 +1352,8 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 mbb_cfg = mbb_dag_config(self._dag_brand)
                 if mbb_cfg is None:
                     raise ValueError(
-                        f"MBB durable login is VW-only (got {self._dag_brand})"
+                        "MBB durable login needs a Car-Net brand (Volkswagen or "
+                        f"Audi); got {self._dag_brand}"
                     )
                 mbb_client_id, mbb_scope = mbb_cfg
                 self._dag_client = DeviceAuthorizationGrant(

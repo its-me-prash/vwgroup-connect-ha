@@ -42,6 +42,23 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.4.0b5] - 2026-08-30 — Audi durable two-way (MBB) · garage-list resilience · acpp token recovery · trunk-open · Škoda official-API groundwork
+
+### Added / Neu
+- **Audi: durable two-way commands (MBB) are now available.** Car-Net Audis (most
+  PHEV / combustion, pre-ID/MEB) can enable the durable MBB command channel — the
+  toggle already existed but was blocked; a live validation confirmed an Audi
+  account mints the durable MBB bearer, so lock/unlock, climate and charge can
+  route through the resilient legacy Car-Net path (survives restarts and the
+  Play-Integrity wall). Off by default; newer ID / MEB Audis aren't eligible and
+  simply won't offer it.
+
+### Fixed / Behoben
+- **The garage list survives a backend path change.** myAudi 5.7.0 moved the
+  vehicle-list endpoint; if VW ever retires the old path, the integration now falls
+  back to the alternate (vgql) garage enumeration instead of losing every Audi.
+  Purely defensive — no change today, just resilience for a future backend switch.
+
 ### Added / Neu
 - **Groundwork for an opt-in official Škoda API channel** (#1286). Škoda has
   launched a first-party, attestation-free vehicle API; this lands the client,
