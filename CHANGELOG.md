@@ -103,6 +103,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   10 min) — identical data, far less token churn.
 
 ### Changed / Geändert
+- **The car-render images no longer crowd the device page.** Audi/VW cars ship
+  the same render in seven sizes and angles; enabling all seven buried the
+  device page under seven near-identical photos. Now only the recommended one
+  (the large side view) is on by default — the other six are still created but
+  switched off, so you can enable exactly the size/angle you want for a
+  dashboard in one click. Existing setups keep whatever they already have.
 - **The data-source sensor now reads in plain language.** When a car is fed by
   several logins at once, "Data source channel" showed cryptic tokens like
   `eu_data_act+mbb`. It now reads "EU Data Act portal + Car-Net", lists each
