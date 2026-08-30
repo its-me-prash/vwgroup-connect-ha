@@ -159,16 +159,16 @@
         }
       },
       "audi_mbb_fallback": {
-        "title": "Audi — keep remote commands working (backup connection)",
-        "description": "This adds a backup connection so your Audi's remote commands — lock/unlock, climate and charging — keep working even if Audi ever changes how the app signs in. Day to day nothing changes: your Audi uses its normal connection, and the backup only steps in if the normal one stops accepting commands. Setting it up takes one quick browser confirmation (no password is stored). Choose the Audi you already added with the QR / app login. It works on most petrol, diesel and plug-in-hybrid Audis; some of the newest fully-electric models aren't supported and are turned down automatically.",
+        "title": "Audi — hold fjernkommandoer kørende (reserveforbindelse)",
+        "description": "Dette tilføjer en reserveforbindelse, så din Audis fjernkommandoer — lås/lås op, klima og opladning — bliver ved med at virke, også hvis Audi en dag ændrer måden, appen logger ind på. I hverdagen ændrer der sig ingenting: din Audi bruger sin normale forbindelse, og reserven træder kun til, hvis den normale holder op med at tage imod kommandoer. Opsætningen kræver én hurtig bekræftelse i browseren (der gemmes ingen adgangskode). Vælg den Audi, du allerede har tilføjet med QR-/app-login. Det virker på de fleste benzin-, diesel- og plug-in-hybrid-Audier; enkelte af de nyeste helelektriske modeller understøttes ikke og afvises automatisk.",
         "data": {
-          "entry_id": "Which Audi",
-          "mbb_vins": "Vehicle ID (VIN) — usually leave blank",
-          "spin": "S-PIN (only needed for lock/unlock)"
+          "entry_id": "Hvilken Audi",
+          "mbb_vins": "Køretøjs-ID (VIN) — lad normalt feltet stå tomt",
+          "spin": "S-PIN (kun nødvendig til lås/lås op)"
         },
         "data_description": {
-          "mbb_vins": "Leave this blank unless the setup asks for it.",
-          "spin": "Your Audi S-PIN — the code you use for remote lock/unlock."
+          "mbb_vins": "Lad feltet stå tomt, medmindre opsætningen beder om det.",
+          "spin": "Din Audi-S-PIN — koden, du bruger til at låse og låse op på afstand."
         }
       }
     },
@@ -199,8 +199,8 @@
       "reauth_successful": "Fornyet login lykkedes.",
       "reconfigure_successful": "Konfigurationen blev opdateret.",
       "mbb_not_eligible": "Dit køretøj er ikke egnet til det vedvarende MBB-login — backendet returnerede \"Unknown user\". Det betyder, at det er en nyere ID/MEB-model (ID.3/4/5, e-up osv.), der aldrig blev registreret i det ældre Car-Net/MBB-system, så det vedvarende login + fjernkommandoerne kan ikke nå det. Brug EU Data Act-portalkanalen (eller login med e-mail + adgangskode) til disse køretøjer i stedet. MBB-loginet er til ældre Car-Net-biler (de fleste PHEV-/forbrændingsmodeller).",
-      "mbb_fallback_armed": "Backup connection set up. If your Audi's normal connection ever stops accepting remote commands, lock/unlock, climate and charging switch to the backup automatically. Nothing changes day to day.",
-      "no_devicegrant_audi": "No matching Audi found. This backup only applies to an Audi you added with the QR / app login that doesn't already have it. Add your Audi that way first, then come back here."
+      "mbb_fallback_armed": "Reserveforbindelse oprettet. Hvis din Audis normale forbindelse en dag holder op med at tage imod fjernkommandoer, skifter lås/lås op, klima og opladning automatisk til reserven. I hverdagen ændrer der sig ingenting.",
+      "no_devicegrant_audi": "Ingen passende Audi fundet. Denne reserve gælder kun for en Audi, du har tilføjet med QR-/app-login, og som ikke allerede har den. Tilføj din Audi på den måde først, og kom så tilbage hertil."
     },
     "progress": {
       "awaiting_browser_login": "Åbn {verification_uri} i en hvilken som helst browser, log ind med din Brand ID-konto, og bekræft koden {user_code}.",
@@ -317,8 +317,8 @@
         "title": "VW EU To-vejs (kommandoer + live-aflæsninger, BETA)",
         "description": "**Eksperimentel, tilvalg — kun Volkswagen.** Tilføjer to-vejs-styring (lås/lås op, klima, opladning) og live CARIAD-aflæsninger ved at logge ind med dit Volkswagen ID. Da Volkswagen kun udsteder et token på 1 time ad denne vej, **gemmes** din adgangskode, så integrationen kan forny det automatisk. Den sendes kun til Volkswagens egen loginserver og skrives aldrig til logfiler eller diagnostik. Vil du hellere ikke gemme en adgangskode? Brug de skrivebeskyttede kanaler i stedet. **Forudsætning:** din Volkswagen ID skal være køretøjets primære bruger.",
         "data": {
-          "username": "Email Address",
-          "password": "Password"
+          "username": "E-mailadresse",
+          "password": "Adgangskode"
         },
         "data_description": {
           "username": "E-mailen til din Volkswagen ID- / myVolkswagen-konto.",
@@ -372,24 +372,24 @@
         }
       },
       "portal_health": {
-        "name": "Portal feed health",
+        "name": "Portal-feedets tilstand",
         "state": {
           "ok": "OK",
-          "waiting_for_portal_data": "Waiting for portal data",
-          "empty_snapshots": "Empty snapshots",
-          "delivery_not_ready": "Delivery not ready",
-          "stale": "Stale"
+          "waiting_for_portal_data": "Venter på portaldata",
+          "empty_snapshots": "Tomme snapshots",
+          "delivery_not_ready": "Levering ikke klar",
+          "stale": "Forældet"
         }
       },
       "minutes_since_last_snapshot": {
-        "name": "Minutes since last snapshot"
+        "name": "Minutter siden seneste snapshot"
       },
       "historical_export_state": {
-        "name": "Historical export",
+        "name": "Historisk eksport",
         "state": {
-          "pending": "Requested — preparing",
-          "done": "Delivered",
-          "timed_out": "Timed out"
+          "pending": "Anmodet — gøres klar",
+          "done": "Leveret",
+          "timed_out": "Fik timeout"
         }
       },
       "target_soc": {
@@ -1772,7 +1772,7 @@
         "name": "Opret EU Data Act-dataanmodning"
       },
       "historical_export_button": {
-        "name": "Request historical export"
+        "name": "Anmod om historisk eksport"
       },
       "companion_reset_button": {
         "name": "Nulstil companion-forbindelse"
@@ -1821,28 +1821,28 @@
     },
     "image": {
       "render_icon": {
-        "name": "3/4 view (icon)"
+        "name": "Skråt forfra (ikon)"
       },
       "render_small": {
-        "name": "3/4 view (small)"
+        "name": "Skråt forfra (lille)"
       },
       "render_medium": {
-        "name": "3/4 view (medium)"
+        "name": "Skråt forfra (mellem)"
       },
       "render_side_sm": {
-        "name": "Side view (small)"
+        "name": "Set fra siden (lille)"
       },
       "render_side_lg": {
-        "name": "Side view (large)"
+        "name": "Set fra siden (stor)"
       },
       "render_angle_hd": {
-        "name": "3/4 view (HD)"
+        "name": "Skråt forfra (HD)"
       },
       "render_angle_lg": {
-        "name": "3/4 view (large)"
+        "name": "Skråt forfra (stor)"
       },
       "vehicle_render": {
-        "name": "Vehicle render"
+        "name": "Billede af køretøjet"
       }
     },
     "lock": {
@@ -1982,8 +1982,8 @@
       "description": "De seneste data, din bil har rapporteret, blev registreret for omkring **{age} timer siden** — selvom integrationen stadig henter data uden problemer. Det kan skyldes to ting: bilen er måske bare parkeret og i dvale (helt normalt — der er ikke noget at gøre), eller dens dataforsyning under EU Data Act kan være udløbet og holdt op med at levere friske aflæsninger.\n\nDe værdier, du ser lige nu, er de senest kendte — ikke live-data. Hvis bilen er blevet kørt eller sat til opladning siden da, og denne advarsel bliver hængende, er dataforsyningen højst sandsynligt udløbet: åbn volkswagen.de → din bils dataindstillinger og forny/anmod om datadelingen igen, eller tilføj kanalen på ny.\n\nDenne advarsel forsvinder automatisk, i det øjeblik en nyere aflæsning kommer ind."
     },
     "historical_timeout": {
-      "title": "{vin}: one-time historical export didn't complete",
-      "description": "The one-time historical export requested for this car didn't produce a file within the client deadline. The VW portal gives this request no terminal state, so it may have been silently dropped. The request has been cleared — you can request it again, or check the portal directly."
+      "title": "{vin}: engangseksport af historik blev ikke fuldført",
+      "description": "Den engangseksport af historik, du anmodede om for denne bil, nåede ikke at lave en fil inden for tidsfristen. VW-portalen giver ikke denne anmodning nogen endelig status, så den kan være blevet droppet i stilhed. Anmodningen er nulstillet — du kan anmode igen eller kigge direkte i portalen."
     }
   },
   "services": {
@@ -2202,7 +2202,7 @@
       "message": "EU Data Act-portalen er ikke klar endnu. Vent, til integrationen har hentet data én gang efter opsætning, og prøv derefter det historiske eksport igen."
     },
     "historical_disabled": {
-      "message": "The one-time historical export is currently disabled."
+      "message": "Engangseksport af historik er slået fra i øjeblikket."
     },
     "historical_wedge_blocked": {
       "message": "Der er allerede en engangseksport af historikken i gang for denne bil. Portalen håndterer kun én sådan anmodning ad gangen, så vent, til den nuværende er færdig (eller får timeout), før du beder om en ny."

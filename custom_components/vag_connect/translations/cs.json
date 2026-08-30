@@ -159,16 +159,16 @@
         }
       },
       "audi_mbb_fallback": {
-        "title": "Audi — keep remote commands working (backup connection)",
-        "description": "This adds a backup connection so your Audi's remote commands — lock/unlock, climate and charging — keep working even if Audi ever changes how the app signs in. Day to day nothing changes: your Audi uses its normal connection, and the backup only steps in if the normal one stops accepting commands. Setting it up takes one quick browser confirmation (no password is stored). Choose the Audi you already added with the QR / app login. It works on most petrol, diesel and plug-in-hybrid Audis; some of the newest fully-electric models aren't supported and are turned down automatically.",
+        "title": "Audi — udržte dálkové příkazy v provozu (záložní připojení)",
+        "description": "Přidá záložní připojení, aby dálkové příkazy vašeho Audi — zamknout/odemknout, klimatizace a nabíjení — fungovaly dál, i kdyby Audi někdy změnilo způsob, jakým se aplikace přihlašuje. V běžném provozu se nic nemění: vaše Audi používá své normální připojení a záloha se zapojí jen tehdy, když normální připojení přestane přijímat příkazy. Nastavení vyžaduje jen jedno rychlé potvrzení v prohlížeči (žádné heslo se neukládá). Vyberte Audi, které jste už přidali pomocí přihlášení přes QR / aplikaci. Funguje u většiny benzinových, naftových a plug-in hybridních Audi; některé nejnovější plně elektrické modely nejsou podporovány a jsou automaticky odmítnuty.",
         "data": {
-          "entry_id": "Which Audi",
-          "mbb_vins": "Vehicle ID (VIN) — usually leave blank",
-          "spin": "S-PIN (only needed for lock/unlock)"
+          "entry_id": "Které Audi",
+          "mbb_vins": "ID vozidla (VIN) — obvykle nechte prázdné",
+          "spin": "S-PIN (potřebný jen pro zamknutí/odemknutí)"
         },
         "data_description": {
-          "mbb_vins": "Leave this blank unless the setup asks for it.",
-          "spin": "Your Audi S-PIN — the code you use for remote lock/unlock."
+          "mbb_vins": "Nechte prázdné, pokud si to nastavení nevyžádá.",
+          "spin": "Vaše S-PIN k Audi — kód, který používáte pro dálkové zamykání/odemykání."
         }
       }
     },
@@ -199,8 +199,8 @@
       "reauth_successful": "Opětovné ověření bylo úspěšné.",
       "reconfigure_successful": "Konfigurace byla úspěšně aktualizována.",
       "mbb_not_eligible": "Vaše vozidlo není způsobilé pro trvalé přihlášení MBB — backend vrátil „Unknown user“. Jde o novější model ID / MEB (ID.3/4/5, e-up apod.), který nikdy nebyl registrován ve starém systému Car-Net/MBB, takže trvalé přihlášení a vzdálené příkazy se k němu nedostanou. Pro taková vozidla použijte kanál portálu EU Data Act (nebo přihlášení e-mailem a heslem). Přihlášení MBB je pro starší vozy Car-Net (většina plug-in hybridních / spalovacích modelů).",
-      "mbb_fallback_armed": "Backup connection set up. If your Audi's normal connection ever stops accepting remote commands, lock/unlock, climate and charging switch to the backup automatically. Nothing changes day to day.",
-      "no_devicegrant_audi": "No matching Audi found. This backup only applies to an Audi you added with the QR / app login that doesn't already have it. Add your Audi that way first, then come back here."
+      "mbb_fallback_armed": "Záložní připojení je nastaveno. Pokud normální připojení vašeho Audi někdy přestane přijímat dálkové příkazy, zamykání/odemykání, klimatizace a nabíjení se automaticky přepnou na zálohu. V běžném provozu se nic nemění.",
+      "no_devicegrant_audi": "Nebylo nalezeno žádné odpovídající Audi. Tato záloha platí jen pro Audi přidané přihlášením přes QR / aplikaci, které ji ještě nemá. Nejprve takto přidejte své Audi a pak se sem vraťte."
     },
     "progress": {
       "awaiting_browser_login": "Otevřete {verification_uri} v libovolném prohlížeči, přihlaste se pomocí účtu Brand ID a potvrďte kód {user_code}.",
@@ -317,8 +317,8 @@
         "title": "VW EU Two-Way (příkazy + živé čtení dat, BETA)",
         "description": "**Experimentální, dobrovolné — pouze Volkswagen.** Přidává obousměrné ovládání (zamknout/odemknout, klimatizace, nabíjení) a živé čtení dat z CARIAD po přihlášení pomocí vašeho Volkswagen ID. Protože Volkswagen na této cestě vydává pouze hodinový token, vaše heslo se **uloží**, aby jej integrace mohla automaticky obnovovat. Odesílá se výhradně na přihlašovací server samotného Volkswagenu a nikdy se nezapisuje do logů ani diagnostiky. Nechcete heslo ukládat? Použijte místo toho kanály jen pro čtení. **Předpoklad:** vaše Volkswagen ID musí být hlavním uživatelem vozidla.",
         "data": {
-          "username": "Email Address",
-          "password": "Password"
+          "username": "E-mailová adresa",
+          "password": "Heslo"
         },
         "data_description": {
           "username": "E-mail vašeho účtu Volkswagen ID / myVolkswagen.",
@@ -372,24 +372,24 @@
         }
       },
       "portal_health": {
-        "name": "Portal feed health",
+        "name": "Stav kanálu portálu",
         "state": {
           "ok": "OK",
-          "waiting_for_portal_data": "Waiting for portal data",
-          "empty_snapshots": "Empty snapshots",
-          "delivery_not_ready": "Delivery not ready",
-          "stale": "Stale"
+          "waiting_for_portal_data": "Čekání na data z portálu",
+          "empty_snapshots": "Prázdné snímky",
+          "delivery_not_ready": "Doručení není připraveno",
+          "stale": "Zastaralé"
         }
       },
       "minutes_since_last_snapshot": {
-        "name": "Minutes since last snapshot"
+        "name": "Minuty od posledního snímku"
       },
       "historical_export_state": {
-        "name": "Historical export",
+        "name": "Historický export",
         "state": {
-          "pending": "Requested — preparing",
-          "done": "Delivered",
-          "timed_out": "Timed out"
+          "pending": "Vyžádáno — připravuje se",
+          "done": "Doručeno",
+          "timed_out": "Vypršel časový limit"
         }
       },
       "target_soc": {
@@ -1772,7 +1772,7 @@
         "name": "Vytvořit žádost o data EU Data Act"
       },
       "historical_export_button": {
-        "name": "Request historical export"
+        "name": "Vyžádat historický export"
       },
       "companion_reset_button": {
         "name": "Resetovat spojení companion"
@@ -1821,28 +1821,28 @@
     },
     "image": {
       "render_icon": {
-        "name": "3/4 view (icon)"
+        "name": "Pohled 3/4 (ikona)"
       },
       "render_small": {
-        "name": "3/4 view (small)"
+        "name": "Pohled 3/4 (malý)"
       },
       "render_medium": {
-        "name": "3/4 view (medium)"
+        "name": "Pohled 3/4 (střední)"
       },
       "render_side_sm": {
-        "name": "Side view (small)"
+        "name": "Boční pohled (malý)"
       },
       "render_side_lg": {
-        "name": "Side view (large)"
+        "name": "Boční pohled (velký)"
       },
       "render_angle_hd": {
-        "name": "3/4 view (HD)"
+        "name": "Pohled 3/4 (HD)"
       },
       "render_angle_lg": {
-        "name": "3/4 view (large)"
+        "name": "Pohled 3/4 (velký)"
       },
       "vehicle_render": {
-        "name": "Vehicle render"
+        "name": "Vyobrazení vozidla"
       }
     },
     "lock": {
@@ -1982,8 +1982,8 @@
       "description": "Poslední data, která vaše auto nahlásilo, byla zaznamenána zhruba **před {age} hodinami**, přestože samotné dotazování stále probíhá úspěšně. Můžou za tím být dvě věci: auto je nejspíš jen zaparkované a spí (normální stav — není třeba nic dělat), nebo jeho přísun dat podle EU Data Act vypršel a přestal dodávat čerstvé hodnoty.\n\nHodnoty, které teď vidíte, jsou poslední známé, ne aktuální. Pokud jste od té doby s autem jeli nebo ho připojili k nabíjení a toto upozornění nezmizí, nejspíš vypršel přísun dat: otevřete volkswagen.de → nastavení dat vašeho vozu a obnovte/znovu vyžádejte sdílení dat, nebo kanál přidejte znovu.\n\nToto upozornění zmizí samo ve chvíli, kdy dorazí čerstvější údaj."
     },
     "historical_timeout": {
-      "title": "{vin}: one-time historical export didn't complete",
-      "description": "The one-time historical export requested for this car didn't produce a file within the client deadline. The VW portal gives this request no terminal state, so it may have been silently dropped. The request has been cleared — you can request it again, or check the portal directly."
+      "title": "{vin}: jednorázový historický export nebyl dokončen",
+      "description": "Jednorázový historický export vyžádaný pro toto auto nevytvořil soubor ve stanovené lhůtě. Portál VW pro tento požadavek nevrací žádný konečný stav, takže mohl být tiše zahozen. Požadavek byl vymazán — můžete jej vyžádat znovu nebo se podívat přímo do portálu."
     }
   },
   "services": {
@@ -2202,7 +2202,7 @@
       "message": "Portál EU Data Act ještě není připraven. Počkejte, až integrace po nastavení jednou provede dotaz, a poté zkuste historický export znovu."
     },
     "historical_disabled": {
-      "message": "The one-time historical export is currently disabled."
+      "message": "Jednorázový historický export je momentálně vypnutý."
     },
     "historical_wedge_blocked": {
       "message": "Pro toto auto už probíhá jednorázový export historie. Portál zpracovává vždy jen jeden takový požadavek, takže než si vyžádáte další, počkejte, až se ten aktuální dokončí (nebo vyprší)."

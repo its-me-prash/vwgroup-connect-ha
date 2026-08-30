@@ -317,8 +317,8 @@
         "title": "VW EU Two-Way (Befehle + Live-Daten, BETA)",
         "description": "**Experimentell, freiwillig — nur Volkswagen.** Fügt Zwei-Wege-Steuerung (Ver-/Entriegeln, Klima, Laden) und Live-CARIAD-Daten hinzu, indem du dich mit deiner Volkswagen ID anmeldest. Da Volkswagen auf diesem Weg nur ein 1-Stunden-Token ausstellt, wird dein Passwort **gespeichert**, damit die Integration es automatisch erneuern kann. Es wird nur an Volkswagens eigenen Login-Server gesendet und nie in Logs oder Diagnose geschrieben. Du möchtest kein Passwort speichern? Nutze stattdessen die nur-lesenden Kanäle. **Voraussetzung:** Deine Volkswagen ID muss Hauptnutzer des Fahrzeugs sein.",
         "data": {
-          "username": "Email Address",
-          "password": "Password"
+          "username": "E-Mail-Adresse",
+          "password": "Passwort"
         },
         "data_description": {
           "username": "Die E-Mail deines Volkswagen-ID- / myVolkswagen-Kontos.",

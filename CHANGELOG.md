@@ -102,6 +102,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   uploads a snapshot after a drive, acpp now polls hourly by default (was every
   10 min) — identical data, far less token churn.
 
+### Changed / Geändert
+- **All 12 languages tidied up.** The new Audi backup-connection setup screen,
+  the portal-feed and one-time-export sensor states, and the vehicle-image
+  entities now read in your own language instead of falling back to English —
+  and a handful of stray English labels (a couple of password fields,
+  "Stale" / "Delivered" / "Timed out") got translated too.
+
 ## [4.4.0b4] - 2026-08-28 — New diagnostic sensors (drivetrain · CSID · parked-since) · Audi/VW-EU doors+trunk fix · export button on merged portals
 
 ### Added / Neu

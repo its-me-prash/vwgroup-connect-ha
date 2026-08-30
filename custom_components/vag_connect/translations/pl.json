@@ -159,16 +159,16 @@
         }
       },
       "audi_mbb_fallback": {
-        "title": "Audi — keep remote commands working (backup connection)",
-        "description": "This adds a backup connection so your Audi's remote commands — lock/unlock, climate and charging — keep working even if Audi ever changes how the app signs in. Day to day nothing changes: your Audi uses its normal connection, and the backup only steps in if the normal one stops accepting commands. Setting it up takes one quick browser confirmation (no password is stored). Choose the Audi you already added with the QR / app login. It works on most petrol, diesel and plug-in-hybrid Audis; some of the newest fully-electric models aren't supported and are turned down automatically.",
+        "title": "Audi — utrzymaj działanie poleceń zdalnych (połączenie zapasowe)",
+        "description": "To dodaje połączenie zapasowe, dzięki któremu polecenia zdalne Twojego Audi — ryglowanie/odryglowanie, klimatyzacja i ładowanie — działają nadal, nawet jeśli Audi kiedyś zmieni sposób logowania aplikacji. Na co dzień nic się nie zmienia: Twoje Audi korzysta ze zwykłego połączenia, a zapasowe włącza się tylko wtedy, gdy zwykłe przestanie przyjmować polecenia. Konfiguracja wymaga jednego szybkiego potwierdzenia w przeglądarce (żadne hasło nie jest przechowywane). Wybierz Audi, które już dodałeś przez logowanie QR / aplikacją. Działa z większością Audi benzynowych, wysokoprężnych i hybryd plug-in; niektóre najnowsze modele w pełni elektryczne nie są obsługiwane i zostają automatycznie odrzucone.",
         "data": {
-          "entry_id": "Which Audi",
-          "mbb_vins": "Vehicle ID (VIN) — usually leave blank",
-          "spin": "S-PIN (only needed for lock/unlock)"
+          "entry_id": "Które Audi",
+          "mbb_vins": "Identyfikator pojazdu (VIN) — zwykle zostaw puste",
+          "spin": "S-PIN (potrzebny tylko do ryglowania/odryglowania)"
         },
         "data_description": {
-          "mbb_vins": "Leave this blank unless the setup asks for it.",
-          "spin": "Your Audi S-PIN — the code you use for remote lock/unlock."
+          "mbb_vins": "Zostaw to pole puste, chyba że konfiguracja o nie poprosi.",
+          "spin": "Twój S-PIN do Audi — kod, którego używasz do zdalnego ryglowania/odryglowania."
         }
       }
     },
@@ -199,8 +199,8 @@
       "reauth_successful": "Ponowne uwierzytelnianie zakończone sukcesem.",
       "reconfigure_successful": "Konfiguracja zaktualizowana pomyślnie.",
       "mbb_not_eligible": "Twój pojazd nie kwalifikuje się do trwałego logowania MBB — backend zwrócił „Unknown user”. To nowszy model ID / MEB (ID.3/4/5, e-up itp.), który nigdy nie był zarejestrowany w starym systemie Car-Net/MBB, więc trwałe logowanie i polecenia zdalne nie mogą go osiągnąć. Dla takich pojazdów użyj kanału portalu EU Data Act (lub logowania e-mail + hasło). Logowanie MBB jest przeznaczone dla starszych aut Car-Net (większość modeli hybryd plug-in / spalinowych).",
-      "mbb_fallback_armed": "Backup connection set up. If your Audi's normal connection ever stops accepting remote commands, lock/unlock, climate and charging switch to the backup automatically. Nothing changes day to day.",
-      "no_devicegrant_audi": "No matching Audi found. This backup only applies to an Audi you added with the QR / app login that doesn't already have it. Add your Audi that way first, then come back here."
+      "mbb_fallback_armed": "Połączenie zapasowe skonfigurowane. Jeśli zwykłe połączenie Twojego Audi kiedyś przestanie przyjmować polecenia zdalne, ryglowanie/odryglowanie, klimatyzacja i ładowanie automatycznie przełączą się na zapasowe. Na co dzień nic się nie zmienia.",
+      "no_devicegrant_audi": "Nie znaleziono pasującego Audi. To połączenie zapasowe dotyczy tylko Audi dodanego przez logowanie QR / aplikacją, które jeszcze go nie ma. Najpierw dodaj w ten sposób swoje Audi, a potem wróć tutaj."
     },
     "progress": {
       "awaiting_browser_login": "Otwórz {verification_uri} w dowolnej przeglądarce, zaloguj się na konto Brand ID i potwierdź kod {user_code}.",
@@ -317,8 +317,8 @@
         "title": "VW EU Two-Way (polecenia + odczyty na żywo, BETA)",
         "description": "**Eksperymentalne, opcjonalne — tylko Volkswagen.** Dodaje sterowanie dwukierunkowe (ryglowanie/odryglowanie, klimatyzacja, ładowanie) oraz odczyty na żywo z CARIAD po zalogowaniu się przy użyciu Volkswagen ID. Ponieważ Volkswagen wydaje na tej ścieżce token ważny tylko 1 godzinę, Twoje hasło jest **przechowywane**, aby integracja mogła odnawiać go automatycznie. Jest wysyłane wyłącznie do własnego serwera logowania Volkswagena i nigdy nie trafia do logów ani diagnostyki. Wolisz nie przechowywać hasła? Użyj zamiast tego kanałów tylko do odczytu. **Wymóg:** Twoje Volkswagen ID musi być głównym użytkownikiem pojazdu.",
         "data": {
-          "username": "Email Address",
-          "password": "Password"
+          "username": "Adres e-mail",
+          "password": "Hasło"
         },
         "data_description": {
           "username": "Adres e-mail Twojego konta Volkswagen ID / myVolkswagen.",
@@ -372,24 +372,24 @@
         }
       },
       "portal_health": {
-        "name": "Portal feed health",
+        "name": "Stan kanału portalu",
         "state": {
           "ok": "OK",
-          "waiting_for_portal_data": "Waiting for portal data",
-          "empty_snapshots": "Empty snapshots",
-          "delivery_not_ready": "Delivery not ready",
-          "stale": "Stale"
+          "waiting_for_portal_data": "Oczekiwanie na dane portalu",
+          "empty_snapshots": "Puste migawki",
+          "delivery_not_ready": "Dostawa niegotowa",
+          "stale": "Nieaktualne"
         }
       },
       "minutes_since_last_snapshot": {
-        "name": "Minutes since last snapshot"
+        "name": "Minuty od ostatniej migawki"
       },
       "historical_export_state": {
-        "name": "Historical export",
+        "name": "Eksport historyczny",
         "state": {
-          "pending": "Requested — preparing",
-          "done": "Delivered",
-          "timed_out": "Timed out"
+          "pending": "Zażądano — przygotowywanie",
+          "done": "Dostarczono",
+          "timed_out": "Przekroczono limit czasu"
         }
       },
       "target_soc": {
@@ -1772,7 +1772,7 @@
         "name": "Utwórz żądanie danych EU Data Act"
       },
       "historical_export_button": {
-        "name": "Request historical export"
+        "name": "Zażądaj eksportu historycznego"
       },
       "companion_reset_button": {
         "name": "Resetuj połączenie companion"
@@ -1821,28 +1821,28 @@
     },
     "image": {
       "render_icon": {
-        "name": "3/4 view (icon)"
+        "name": "Ujęcie 3/4 (ikona)"
       },
       "render_small": {
-        "name": "3/4 view (small)"
+        "name": "Ujęcie 3/4 (małe)"
       },
       "render_medium": {
-        "name": "3/4 view (medium)"
+        "name": "Ujęcie 3/4 (średnie)"
       },
       "render_side_sm": {
-        "name": "Side view (small)"
+        "name": "Ujęcie z boku (małe)"
       },
       "render_side_lg": {
-        "name": "Side view (large)"
+        "name": "Ujęcie z boku (duże)"
       },
       "render_angle_hd": {
-        "name": "3/4 view (HD)"
+        "name": "Ujęcie 3/4 (HD)"
       },
       "render_angle_lg": {
-        "name": "3/4 view (large)"
+        "name": "Ujęcie 3/4 (duże)"
       },
       "vehicle_render": {
-        "name": "Vehicle render"
+        "name": "Render pojazdu"
       }
     },
     "lock": {
@@ -1982,8 +1982,8 @@
       "description": "Ostatnie dane przesłane przez Twój samochód zostały zarejestrowane około **{age} godz. temu**, mimo że integracja nadal poprawnie odpytuje serwer. Mogą być tego dwie przyczyny: samochód może być po prostu zaparkowany i uśpiony (to normalne — nie musisz nic robić) albo jego kanał danych w ramach EU Data Act wygasł i przestał dostarczać świeże odczyty.\n\nWartości, które teraz widzisz, to ostatnie znane, a nie dane na żywo. Jeśli od tego czasu samochód był używany lub podłączony do ładowania, a to ostrzeżenie wciąż się wyświetla, kanał danych najprawdopodobniej wygasł: otwórz volkswagen.de → ustawienia danych swojego samochodu i odnów/ponownie zażądaj udostępniania danych albo dodaj kanał od nowa.\n\nTo ostrzeżenie zniknie automatycznie w chwili, gdy nadejdzie świeższy odczyt."
     },
     "historical_timeout": {
-      "title": "{vin}: one-time historical export didn't complete",
-      "description": "The one-time historical export requested for this car didn't produce a file within the client deadline. The VW portal gives this request no terminal state, so it may have been silently dropped. The request has been cleared — you can request it again, or check the portal directly."
+      "title": "{vin}: jednorazowy eksport historyczny nie został ukończony",
+      "description": "Jednorazowy eksport historyczny zażądany dla tego auta nie utworzył pliku w wyznaczonym czasie. Portal VW nie zwraca dla tego żądania żadnego stanu końcowego, więc mogło ono zostać po cichu odrzucone. Żądanie zostało wyczyszczone — możesz je ponowić lub sprawdzić bezpośrednio w portalu."
     }
   },
   "services": {
@@ -2202,7 +2202,7 @@
       "message": "Portal EU Data Act nie jest jeszcze gotowy. Poczekaj, aż integracja wykona jedno odpytanie po konfiguracji, a następnie ponów eksport historyczny."
     },
     "historical_disabled": {
-      "message": "The one-time historical export is currently disabled."
+      "message": "Jednorazowy eksport historyczny jest obecnie wyłączony."
     },
     "historical_wedge_blocked": {
       "message": "Dla tego samochodu trwa już jednorazowy eksport danych historycznych. Portal obsługuje tylko jedno takie żądanie naraz, więc zaczekaj, aż bieżące się zakończy (lub wygaśnie), zanim poprosisz o kolejne."
