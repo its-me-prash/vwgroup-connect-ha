@@ -465,8 +465,9 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 # BFF stays primary, MBB only steps in if VW ever revokes the
                 # device grant. Aborts gracefully if no eligible Audi entry exists.
                 "audi_mbb_fallback": (
-                    "MBB-Command-Fallback für bestehende Audi (Car-Net) — "
-                    "dauerhafte Zwei-Wege-Reserve, falls VW den Device-Grant sperrt"
+                    "Fernbefehle für einen bestehenden Audi absichern — "
+                    "Reserve-Verbindung, damit Ver-/Entriegeln, Klima & Laden "
+                    "weiterlaufen, falls sich die Audi-Anbindung ändert"
                 ),
             },
         )
@@ -1185,7 +1186,11 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             # can retry. The error message lives in self._dag_error
             # (surfaced via debug log; future: repair-issue / notification).
             return self.async_show_progress_done(
-                next_step_id="mbb_login" if self._dag_mbb else "browser_login"
+                next_step_id=(
+                    "audi_mbb_fallback"
+                    if getattr(self, "_dag_mbb_fallback", False)
+                    else "mbb_login" if self._dag_mbb else "browser_login"
+                )
             )
 
         # Phase 1 done — hand off to Phase 2 (separate step_id so HA
@@ -1229,6 +1234,8 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         """
         # Defensive — should only be reached with Phase 1 state populated.
         if not self._dag_device_code:
+            if getattr(self, "_dag_mbb_fallback", False):
+                return await self.async_step_audi_mbb_fallback()
             return await self.async_step_browser_login()
 
         # Kick off poll_for_tokens() on first entry (idempotent)
@@ -1290,6 +1297,8 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 # back to the right brand/MBB picker so user can retry.
                 self._dag_poll_task = None
                 self._dag_device_code = ""
+                if getattr(self, "_dag_mbb_fallback", False):
+                    return await self.async_step_audi_mbb_fallback()
                 if self._dag_mbb:
                     return await self.async_step_mbb_login()
                 return await self.async_step_browser_login()

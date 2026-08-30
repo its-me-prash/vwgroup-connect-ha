@@ -159,16 +159,16 @@
         }
       },
       "audi_mbb_fallback": {
-        "title": "Audi — MBB-Command-Fallback (dauerhafte Zwei-Wege-Reserve)",
-        "description": "Aktiviere den dauerhaften Car-Net-(MBB-)Befehlskanal als Fallback auf einer per QR-/Browser-Login eingerichteten Audi. Eine einmalige Browser-Bestätigung (kein Passwort gespeichert) mintet einen dauerhaften Bearer; der normale CARIAD-Befehlspfad bleibt primär, MBB springt nur ein, falls Volkswagen den Device-Grant je sperrt. Für Car-Net-Audis (die meisten PHEV/Verbrenner, vor ID/MEB) — neuere ID-/MEB-Modelle sind nicht berechtigt und werden beim Exchange abgelehnt.",
+        "title": "Audi — Fernbefehle absichern (Reserve-Verbindung)",
+        "description": "Das richtet eine Reserve-Verbindung ein, damit die Fernbefehle deines Audi — Ver-/Entriegeln, Klima und Laden — weiterlaufen, falls Audi je ändert, wie sich die App anmeldet. Im Alltag ändert sich nichts: dein Audi nutzt seine normale Verbindung, die Reserve springt nur ein, wenn die normale keine Befehle mehr annimmt. Die Einrichtung braucht eine kurze Browser-Bestätigung (kein Passwort wird gespeichert). Wähle den Audi, den du schon per QR-/App-Login hinzugefügt hast. Funktioniert bei den meisten Benzin-, Diesel- und Plug-in-Hybrid-Audis; einige der neuesten reinen Elektromodelle werden nicht unterstützt und automatisch abgelehnt.",
         "data": {
-          "entry_id": "Zu aktivierende Audi",
-          "mbb_vins": "VIN(s) (kommagetrennt, optional)",
-          "spin": "S-PIN (optional — für Ver-/Entriegeln nötig)"
+          "entry_id": "Welcher Audi",
+          "mbb_vins": "Fahrzeug-ID (VIN) — meist leer lassen",
+          "spin": "S-PIN (nur für Ver-/Entriegeln nötig)"
         },
         "data_description": {
-          "mbb_vins": "Nur nötig, wenn der Fallback die Garage nicht selbst auflisten kann — normalerweise leer lassen.",
-          "spin": "Deine S-PIN, für Fern-Ver-/Entriegeln über den Car-Net-Kanal nötig."
+          "mbb_vins": "Leer lassen, außer die Einrichtung fragt danach.",
+          "spin": "Deine Audi-S-PIN — der Code fürs Fern-Ver-/Entriegeln."
         }
       }
     },
@@ -199,8 +199,8 @@
       "reauth_successful": "Erneute Anmeldung erfolgreich.",
       "reconfigure_successful": "Konfiguration erfolgreich aktualisiert.",
       "mbb_not_eligible": "Dein Fahrzeug ist für den dauerhaften MBB-Login nicht geeignet — das Backend meldet „Unknown user\". Das heisst, es ist ein neueres ID-/MEB-Modell (ID.3/4/5, e-up usw.), das nie im alten Car-Net/MBB-System registriert war — der dauerhafte Login + die Fernbefehle erreichen es daher nicht. Nutze für solche Fahrzeuge den EU-Data-Act-Kanal (oder den E-Mail-+-Passwort-Login). Der MBB-Login ist für ältere Car-Net-Autos (die meisten PHEV-/Verbrenner-Modelle).",
-      "mbb_fallback_armed": "MBB-Command-Fallback aktiviert. Falls Volkswagen den Device-Grant dieser Audi je sperrt, fallen Ver-/Entriegeln, Klima und Laden automatisch auf den dauerhaften Car-Net-(MBB-)Kanal zurück. Im Alltag ändert sich nichts — der BFF bleibt der primäre Befehlspfad.",
-      "no_devicegrant_audi": "Keine passende Audi gefunden. Diese Option aktiviert den MBB-Command-Fallback auf einer Audi, die per QR-/Browser-Login (Device-Grant) eingerichtet wurde und ihn noch nicht hat. Richte deine Audi zuerst so ein, dann führe dies aus."
+      "mbb_fallback_armed": "Reserve-Verbindung eingerichtet. Falls die normale Verbindung deines Audi je keine Fernbefehle mehr annimmt, wechseln Ver-/Entriegeln, Klima und Laden automatisch auf die Reserve. Im Alltag ändert sich nichts.",
+      "no_devicegrant_audi": "Kein passender Audi gefunden. Diese Reserve gilt nur für einen Audi, den du per QR-/App-Login hinzugefügt hast und der sie noch nicht hat. Füge deinen Audi zuerst so hinzu, dann komm hierher zurück."
     },
     "progress": {
       "awaiting_browser_login": "Öffne {verification_uri} in einem Browser, melde dich mit deinem Brand-ID-Konto an und bestätige den Code {user_code}.",

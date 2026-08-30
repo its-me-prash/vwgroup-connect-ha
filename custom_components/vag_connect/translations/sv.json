@@ -159,16 +159,16 @@
         }
       },
       "audi_mbb_fallback": {
-        "title": "Audi — MBB command fallback (durable two-way)",
-        "description": "Arm the durable Car-Net (MBB) command channel as a fallback on an Audi you set up via the QR / browser login. A one-time browser confirmation (no password stored) mints a durable bearer; the normal CARIAD command path stays primary, and MBB only steps in if Volkswagen ever revokes the device grant. For Car-Net Audis (most PHEV / combustion, pre-ID/MEB) — newer ID / MEB models aren't eligible and will be declined at the exchange.",
+        "title": "Audi — keep remote commands working (backup connection)",
+        "description": "This adds a backup connection so your Audi's remote commands — lock/unlock, climate and charging — keep working even if Audi ever changes how the app signs in. Day to day nothing changes: your Audi uses its normal connection, and the backup only steps in if the normal one stops accepting commands. Setting it up takes one quick browser confirmation (no password is stored). Choose the Audi you already added with the QR / app login. It works on most petrol, diesel and plug-in-hybrid Audis; some of the newest fully-electric models aren't supported and are turned down automatically.",
         "data": {
-          "entry_id": "Audi to arm",
-          "mbb_vins": "VIN(s) (comma-separated, optional)",
-          "spin": "S-PIN (optional — needed for lock/unlock)"
+          "entry_id": "Which Audi",
+          "mbb_vins": "Vehicle ID (VIN) — usually leave blank",
+          "spin": "S-PIN (only needed for lock/unlock)"
         },
         "data_description": {
-          "mbb_vins": "Only needed if the fallback can't list your garage on its own — usually leave blank.",
-          "spin": "Your S-PIN, required for remote lock/unlock over the Car-Net channel."
+          "mbb_vins": "Leave this blank unless the setup asks for it.",
+          "spin": "Your Audi S-PIN — the code you use for remote lock/unlock."
         }
       }
     },
@@ -199,8 +199,8 @@
       "reauth_successful": "Omautentisering lyckades.",
       "reconfigure_successful": "Konfigurationen uppdaterades.",
       "mbb_not_eligible": "Ditt fordon är inte behörigt för den varaktiga MBB-inloggningen — backend returnerade \"Unknown user\". Det är en nyare ID-/MEB-modell (ID.3/4/5, e-up osv.) som aldrig registrerades i det gamla Car-Net/MBB-systemet, så den varaktiga inloggningen och fjärrkommandona når den inte. Använd EU Data Act-portalkanalen (eller e-post + lösenord-inloggningen) för sådana fordon. MBB-inloggningen är för äldre Car-Net-bilar (de flesta laddhybrid-/förbränningsmodeller).",
-      "mbb_fallback_armed": "MBB command fallback armed. If Volkswagen ever revokes this Audi's device grant, lock/unlock, climate and charge fall back to the durable Car-Net (MBB) channel automatically. Nothing changes day-to-day — the BFF stays the primary command path.",
-      "no_devicegrant_audi": "No eligible Audi found. This option arms the MBB command fallback on an Audi that was set up via the QR / browser login (device grant) and doesn't have it yet. Set your Audi up that way first, then run this."
+      "mbb_fallback_armed": "Backup connection set up. If your Audi's normal connection ever stops accepting remote commands, lock/unlock, climate and charging switch to the backup automatically. Nothing changes day to day.",
+      "no_devicegrant_audi": "No matching Audi found. This backup only applies to an Audi you added with the QR / app login that doesn't already have it. Add your Audi that way first, then come back here."
     },
     "progress": {
       "awaiting_browser_login": "Öppna {verification_uri} i valfri webbläsare, logga in med ditt Brand ID-konto och bekräfta koden {user_code}.",
