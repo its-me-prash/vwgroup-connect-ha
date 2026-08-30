@@ -103,6 +103,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   10 min) — identical data, far less token churn.
 
 ### Changed / Geändert
+- **The data-source sensor now reads in plain language.** When a car is fed by
+  several logins at once, "Data source channel" showed cryptic tokens like
+  `eu_data_act+mbb`. It now reads "EU Data Act portal + Car-Net", lists each
+  source under a `channels` attribute, and shows the same friendly name as the
+  `source` attribute on every reading — so you can see at a glance which login
+  produced what, and one car is never listed twice. The raw tokens stay under a
+  `raw` attribute for support.
 - **All 12 languages tidied up.** The new Audi backup-connection setup screen,
   the portal-feed and one-time-export sensor states, and the vehicle-image
   entities now read in your own language instead of falling back to English —

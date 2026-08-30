@@ -29,12 +29,24 @@ def _sensor(vehicle: dict) -> VagConnectSensor:
 
 
 def test_contested_fields_surfaced() -> None:
+    # contested tie is surfaced alongside the friendly channel overview
     s = _sensor({"contested_fields": {"battery_soc": ["50", "71"]}})
     assert s.extra_state_attributes == {
-        "contested_fields": {"battery_soc": ["50", "71"]}
+        "channels": ["EU Data Act portal"],
+        "raw": "eu_data_act",
+        "contested_fields": {"battery_soc": ["50", "71"]},
     }
 
 
-def test_no_attribute_when_nothing_contested() -> None:
-    assert _sensor({"contested_fields": {}}).extra_state_attributes is None
-    assert _sensor({}).extra_state_attributes is None
+def test_channel_overview_without_contested() -> None:
+    # a clean poll still names its source(s); no contested_fields key
+    attrs = _sensor({"contested_fields": {}}).extra_state_attributes
+    assert attrs == {"channels": ["EU Data Act portal"], "raw": "eu_data_act"}
+    assert "contested_fields" not in attrs
+
+
+def test_no_attributes_when_no_source_and_no_contested() -> None:
+    coord = _coord({})
+    coord.data["X"]["source_channel"] = None
+    desc = VagSensorDescription(key="data_source_channel", data_key="source_channel")
+    assert VagConnectSensor(coord, "X", desc).extra_state_attributes is None

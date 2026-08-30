@@ -48,8 +48,13 @@ class TestSourceChannelSensor:
         )
         return VagConnectSensor(coord, "X", desc)
 
-    def test_value_passthrough(self) -> None:
-        assert self._sensor("eu_data_act+mbb").native_value == "eu_data_act+mbb"
+    def test_value_shows_friendly_deduped_names(self) -> None:
+        # raw token join -> friendly, de-duplicated display; raw kept on attr.
+        s = self._sensor("eu_data_act+mbb")
+        assert s.native_value == "EU Data Act portal + Car-Net"
+        attrs = s.extra_state_attributes or {}
+        assert attrs["channels"] == ["EU Data Act portal", "Car-Net"]
+        assert attrs["raw"] == "eu_data_act+mbb"
 
     def test_none_value(self) -> None:
         assert self._sensor(None).native_value is None
