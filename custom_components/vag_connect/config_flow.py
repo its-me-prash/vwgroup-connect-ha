@@ -400,6 +400,12 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         # EXISTING entry via Reconfigure. The QR finish/approve steps then UPDATE
         # this entry in place instead of creating a new one.
         self._mbb_reconfigure_entry_id: str | None = None
+        # b15 — device-grant Audi MBB command-fallback opt-in
+        # (async_step_audi_mbb_fallback). ``_dag_mbb_fallback`` tags the QR run so
+        # browser_login_finish ATTACHES the durable bearer to an existing Audi
+        # (``_mbb_fallback_entry_id``) instead of creating a new entry.
+        self._dag_mbb_fallback: bool = False
+        self._mbb_fallback_entry_id: str | None = None
         # v2.14.0 — website-authproxy (opt-in beta) pending state between the
         # credentials step and the email-OTP step. The connector + its session
         # are held open across the two-step OTP exchange so the cookie jar
@@ -975,6 +981,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         if user_input is not None:
             # Reset DAG state for this MBB attempt.
             self._dag_mbb = True
+            self._dag_mbb_fallback = False  # b15 — this is the VW MBB flow, not the Audi fallback
             self._dag_brand = "volkswagen"
             self._dag_user_input = dict(user_input)
             self._dag_request_task = None
@@ -1101,6 +1108,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             else:
                 # Reset state for this attempt.
                 self._dag_mbb = False
+                self._dag_mbb_fallback = False  # b15 — normal device grant, not the Audi MBB fallback
                 self._dag_brand = brand
                 self._dag_user_input = dict(user_input)
                 self._dag_request_task = None
@@ -1188,7 +1196,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             return self.async_show_progress_done(
                 next_step_id=(
                     "audi_mbb_fallback"
-                    if getattr(self, "_dag_mbb_fallback", False)
+                    if self._dag_mbb_fallback
                     else "mbb_login" if self._dag_mbb else "browser_login"
                 )
             )
@@ -1234,7 +1242,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         """
         # Defensive — should only be reached with Phase 1 state populated.
         if not self._dag_device_code:
-            if getattr(self, "_dag_mbb_fallback", False):
+            if self._dag_mbb_fallback:
                 return await self.async_step_audi_mbb_fallback()
             return await self.async_step_browser_login()
 
@@ -1297,7 +1305,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 # back to the right brand/MBB picker so user can retry.
                 self._dag_poll_task = None
                 self._dag_device_code = ""
-                if getattr(self, "_dag_mbb_fallback", False):
+                if self._dag_mbb_fallback:
                     return await self.async_step_audi_mbb_fallback()
                 if self._dag_mbb:
                     return await self.async_step_mbb_login()
@@ -1605,11 +1613,11 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         # stays the command primary; MBB only steps in when the BFF refuses (401/
         # 403) — see coordinator ``_cariad_cmd``. If the MBB bearer never minted
         # (MEB/ID car), abort with the eligibility reason.
-        if getattr(self, "_dag_mbb_fallback", False):
+        if self._dag_mbb_fallback:
             if self._dag_mbb_tokens is None:
                 return self.async_abort(reason="mbb_not_eligible")
             entry = self.hass.config_entries.async_get_entry(
-                getattr(self, "_mbb_fallback_entry_id", "") or ""
+                self._mbb_fallback_entry_id or ""
             )
             if entry is None:
                 return self.async_abort(reason="reconfigure_failed")

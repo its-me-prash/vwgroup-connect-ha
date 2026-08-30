@@ -84,3 +84,13 @@ def test_fallback_finish_stores_optional_spin_and_vins():
     new_data = flow.hass.config_entries.async_update_entry.call_args[1]["data"]
     assert new_data[CONF_MBB_VINS] == ["WVWZZZ0000000001", "WVWZZZ0000000002"]
     assert new_data[CONF_SPIN] == "1234"
+
+
+def test_fresh_flow_has_clean_fallback_state():
+    # b15 structural — the opt-in state is declared in __init__ (matching the
+    # other _dag_* flow state), so a fresh flow never leaks a stale fallback
+    # target into another login path, and no getattr guards are needed.
+    from custom_components.vag_connect.config_flow import VagConnectConfigFlow
+    flow = VagConnectConfigFlow()
+    assert flow._dag_mbb_fallback is False
+    assert flow._mbb_fallback_entry_id is None
