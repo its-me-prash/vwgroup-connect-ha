@@ -47,6 +47,7 @@ from .const import (
     CONF_ENABLE_REVERSE_GEOCODING,
     CONF_FORCE_PPE_CLIMATE,
     CONF_MBB_COMMAND_CHANNEL,
+    CONF_MBB_COMMAND_FALLBACK,
     CONF_MEB_COMMANDS_UNAVAILABLE,
     CONF_MBB_COMMAND_CLIENT_ID,
     CONF_MBB_COMMAND_TOKENS,
@@ -458,6 +459,14 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 "companion_adb": (
                     "Companion-Handy (ADB) — EXPERIMENTELL, alle Marken "
                     "(zweites Handy mit eingeloggter App nötig)"
+                ),
+                # b15 — arm the durable MBB command fallback on an EXISTING
+                # device-grant Audi (Car-Net cars). One-time browser confirm; the
+                # BFF stays primary, MBB only steps in if VW ever revokes the
+                # device grant. Aborts gracefully if no eligible Audi entry exists.
+                "audi_mbb_fallback": (
+                    "MBB-Command-Fallback für bestehende Audi (Car-Net) — "
+                    "dauerhafte Zwei-Wege-Reserve, falls VW den Device-Grant sperrt"
                 ),
             },
         )
@@ -997,6 +1006,71 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             }),
         )
 
+    async def async_step_audi_mbb_fallback(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """b15 — arm the durable MBB command FALLBACK on an existing device-grant
+        Audi. A device-grant Audi stores no password, so Reconfigure / Re-auth
+        (both password-gated) can't reach it — this menu step runs a one-time MBB
+        browser confirm and attaches the durable Car-Net bearer to the chosen Audi
+        as a BFF-refusal fallback (``CONF_MBB_COMMAND_FALLBACK``), so lock / climate
+        / charge survive a future device-grant revocation. Only Car-Net (pre-MEB)
+        Audis are eligible; MEB / ID cars are rejected at the MBB exchange and the
+        flow aborts with ``mbb_not_eligible``."""
+        candidates = [
+            e for e in self.hass.config_entries.async_entries(DOMAIN)
+            if e.data.get(CONF_BRAND) == "audi"
+            and (e.data.get("dag_initial_tokens") or {}).get("strategy")
+            == "device_grant"
+            and not e.data.get(CONF_MBB_COMMAND_FALLBACK)
+        ]
+        if not candidates:
+            return self.async_abort(reason="no_devicegrant_audi")
+
+        if user_input is not None:
+            self._mbb_fallback_entry_id = (
+                user_input.get("entry_id") or candidates[0].entry_id
+            )
+            # Reset DAG state for the MBB attempt (mirrors async_step_mbb_login),
+            # tagged as a fallback so browser_login_finish attaches rather than
+            # creating a new entry.
+            self._dag_mbb = True
+            self._dag_mbb_fallback = True
+            self._dag_brand = "audi"
+            self._dag_request_task = None
+            self._dag_poll_task = None
+            self._dag_user_code = ""
+            self._dag_verification_uri = ""
+            self._dag_device_code = ""
+            self._dag_tokens = None
+            self._dag_mbb_tokens = None
+            self._dag_mbb_client_id = ""
+            self._dag_mbb_ineligible = False
+            self._dag_user_id = ""
+            self._dag_error = ""
+            self._dag_user_input = dict(user_input)
+            return await self.async_step_browser_login_pending()
+
+        schema_dict: dict[Any, Any] = {}
+        if len(candidates) > 1:
+            schema_dict[vol.Required("entry_id")] = SelectSelector(
+                SelectSelectorConfig(
+                    options=[
+                        SelectOptionDict(value=e.entry_id, label=e.title)
+                        for e in candidates
+                    ],
+                    mode=SelectSelectorMode.LIST,
+                )
+            )
+        schema_dict[vol.Optional(CONF_MBB_VINS, default="")] = TextSelector(
+            TextSelectorConfig()
+        )
+        schema_dict[vol.Optional(CONF_SPIN, default="")] = _SPIN_SELECTOR
+        return self.async_show_form(
+            step_id="audi_mbb_fallback",
+            data_schema=vol.Schema(schema_dict),
+        )
+
     async def async_step_browser_login(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
@@ -1513,6 +1587,49 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         if self._dag_tokens is None:
             # Shouldn't happen if step routing is correct, but defensive.
             return self.async_abort(reason="dag_no_tokens")
+
+        # b15 — device-grant Audi command FALLBACK: the MBB QR just minted the
+        # durable Car-Net bearer; attach it to an EXISTING device-grant Audi entry
+        # as a BFF-refusal fallback (CONF_MBB_COMMAND_FALLBACK). Reached from
+        # ``async_step_audi_mbb_fallback`` (menu) or the setup checkbox, both of
+        # which set ``_dag_mbb_fallback`` + ``_mbb_fallback_entry_id``. The BFF
+        # stays the command primary; MBB only steps in when the BFF refuses (401/
+        # 403) — see coordinator ``_cariad_cmd``. If the MBB bearer never minted
+        # (MEB/ID car), abort with the eligibility reason.
+        if getattr(self, "_dag_mbb_fallback", False):
+            if self._dag_mbb_tokens is None:
+                return self.async_abort(reason="mbb_not_eligible")
+            entry = self.hass.config_entries.async_get_entry(
+                getattr(self, "_mbb_fallback_entry_id", "") or ""
+            )
+            if entry is None:
+                return self.async_abort(reason="reconfigure_failed")
+            new_data = {
+                **entry.data,
+                CONF_MBB_COMMAND_FALLBACK: True,
+                CONF_MBB_COMMAND_TOKENS: {
+                    "access_token": self._dag_mbb_tokens.access_token,
+                    "refresh_token": self._dag_mbb_tokens.refresh_token,
+                    "id_token": self._dag_tokens.id_token,
+                    "expires_at": self._dag_mbb_tokens.expires_at,
+                    "strategy": "mbb",
+                },
+                CONF_MBB_COMMAND_CLIENT_ID: self._dag_mbb_client_id,
+            }
+            raw_vins = str(self._dag_user_input.get(CONF_MBB_VINS, "") or "")
+            vins = [
+                v.strip().upper()
+                for v in raw_vins.replace(",", " ").split()
+                if 11 <= len(v.strip()) <= 17
+            ]
+            if vins:
+                new_data[CONF_MBB_VINS] = vins
+            _spin = str(self._dag_user_input.get(CONF_SPIN, "") or "").strip()
+            if _spin:
+                new_data[CONF_SPIN] = _spin
+            self.hass.config_entries.async_update_entry(entry, data=new_data)
+            await self.hass.config_entries.async_reload(entry.entry_id)
+            return self.async_abort(reason="mbb_fallback_armed")
 
         # b12 — Portal-primary entry WITH an MBB command channel: the QR just
         # minted the durable-MBB bearer; attach it to the pending portal entry

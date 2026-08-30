@@ -134,6 +134,19 @@
           "approved_in_browser": "Leave checked. Click Submit only after you have signed in and confirmed the code in the browser."
         }
       },
+      "audi_mbb_fallback": {
+        "title": "Audi — MBB command fallback (durable two-way)",
+        "description": "Arm the durable Car-Net (MBB) command channel as a fallback on an Audi you set up via the QR / browser login. A one-time browser confirmation (no password stored) mints a durable bearer; the normal CARIAD command path stays primary, and MBB only steps in if Volkswagen ever revokes the device grant. For Car-Net Audis (most PHEV / combustion, pre-ID/MEB) — newer ID / MEB models aren't eligible and will be declined at the exchange.",
+        "data": {
+          "entry_id": "Audi to arm",
+          "mbb_vins": "VIN(s) (comma-separated, optional)",
+          "spin": "S-PIN (optional — needed for lock/unlock)"
+        },
+        "data_description": {
+          "mbb_vins": "Only needed if the fallback can't list your garage on its own — usually leave blank.",
+          "spin": "Your S-PIN, required for remote lock/unlock over the Car-Net channel."
+        }
+      },
       "companion_adb": {
         "title": "Companion phone (ADB) — experimental",
         "description": "Read and control your car by driving the official app on a spare Android phone over ADB. This is EXPERIMENTAL and opt-in. You need a second phone that stays signed into the brand app, with ADB over Wi-Fi enabled. An older phone (Android 10 or earlier) connects here directly; a modern phone (Android 11+, wireless debugging) needs the 'VW Group App ADB Bridge' add-on, which you then point this at. Volkswagen is verified; the other brands are read-only for now until a screen map from a real device is confirmed. Nothing is rooted and no app tokens are read — the integration only reads the screen and taps buttons.",
@@ -185,7 +198,9 @@
       "already_configured": "This account is already configured.",
       "reauth_successful": "Re-authentication successful.",
       "reconfigure_successful": "Configuration updated successfully.",
-      "mbb_not_eligible": "Your vehicle isn't eligible for the MBB durable login — the backend returned \"Unknown user\". This means it's a newer ID / MEB model (ID.3/4/5, e-up, etc.) that was never enrolled in the legacy Car-Net/MBB system, so the durable login + remote commands can't reach it. Use the EU Data Act portal channel (or the Email + Password login) for these vehicles instead. The MBB login is for older Car-Net cars (most PHEV / combustion models)."
+      "mbb_not_eligible": "Your vehicle isn't eligible for the MBB durable login — the backend returned \"Unknown user\". This means it's a newer ID / MEB model (ID.3/4/5, e-up, etc.) that was never enrolled in the legacy Car-Net/MBB system, so the durable login + remote commands can't reach it. Use the EU Data Act portal channel (or the Email + Password login) for these vehicles instead. The MBB login is for older Car-Net cars (most PHEV / combustion models).",
+      "mbb_fallback_armed": "MBB command fallback armed. If Volkswagen ever revokes this Audi's device grant, lock/unlock, climate and charge fall back to the durable Car-Net (MBB) channel automatically. Nothing changes day-to-day — the BFF stays the primary command path.",
+      "no_devicegrant_audi": "No eligible Audi found. This option arms the MBB command fallback on an Audi that was set up via the QR / browser login (device grant) and doesn't have it yet. Set your Audi up that way first, then run this."
     },
     "progress": {
       "awaiting_browser_login": "Open {verification_uri} in any browser, sign in with your Brand ID account, and confirm the code {user_code}.",

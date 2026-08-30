@@ -157,6 +157,19 @@
           "companion_use_relay": "Sæt flueben her, hvis telefonen kører companion-agent-appen. Telefonen ringer så til Home Assistant, så hverken ADB, trådløs fejlfinding eller fast IP er nødvendig — lad adressefeltet stå tomt.",
           "companion_agent_token": "Det tilfældige token, som agent-appen har genereret. Mindst 32 tegn, og et forskelligt for hvert køretøj."
         }
+      },
+      "audi_mbb_fallback": {
+        "title": "Audi — MBB command fallback (durable two-way)",
+        "description": "Arm the durable Car-Net (MBB) command channel as a fallback on an Audi you set up via the QR / browser login. A one-time browser confirmation (no password stored) mints a durable bearer; the normal CARIAD command path stays primary, and MBB only steps in if Volkswagen ever revokes the device grant. For Car-Net Audis (most PHEV / combustion, pre-ID/MEB) — newer ID / MEB models aren't eligible and will be declined at the exchange.",
+        "data": {
+          "entry_id": "Audi to arm",
+          "mbb_vins": "VIN(s) (comma-separated, optional)",
+          "spin": "S-PIN (optional — needed for lock/unlock)"
+        },
+        "data_description": {
+          "mbb_vins": "Only needed if the fallback can't list your garage on its own — usually leave blank.",
+          "spin": "Your S-PIN, required for remote lock/unlock over the Car-Net channel."
+        }
       }
     },
     "error": {
@@ -185,7 +198,9 @@
       "already_configured": "Denne konto er allerede konfigureret.",
       "reauth_successful": "Fornyet login lykkedes.",
       "reconfigure_successful": "Konfigurationen blev opdateret.",
-      "mbb_not_eligible": "Dit køretøj er ikke egnet til det vedvarende MBB-login — backendet returnerede \"Unknown user\". Det betyder, at det er en nyere ID/MEB-model (ID.3/4/5, e-up osv.), der aldrig blev registreret i det ældre Car-Net/MBB-system, så det vedvarende login + fjernkommandoerne kan ikke nå det. Brug EU Data Act-portalkanalen (eller login med e-mail + adgangskode) til disse køretøjer i stedet. MBB-loginet er til ældre Car-Net-biler (de fleste PHEV-/forbrændingsmodeller)."
+      "mbb_not_eligible": "Dit køretøj er ikke egnet til det vedvarende MBB-login — backendet returnerede \"Unknown user\". Det betyder, at det er en nyere ID/MEB-model (ID.3/4/5, e-up osv.), der aldrig blev registreret i det ældre Car-Net/MBB-system, så det vedvarende login + fjernkommandoerne kan ikke nå det. Brug EU Data Act-portalkanalen (eller login med e-mail + adgangskode) til disse køretøjer i stedet. MBB-loginet er til ældre Car-Net-biler (de fleste PHEV-/forbrændingsmodeller).",
+      "mbb_fallback_armed": "MBB command fallback armed. If Volkswagen ever revokes this Audi's device grant, lock/unlock, climate and charge fall back to the durable Car-Net (MBB) channel automatically. Nothing changes day-to-day — the BFF stays the primary command path.",
+      "no_devicegrant_audi": "No eligible Audi found. This option arms the MBB command fallback on an Audi that was set up via the QR / browser login (device grant) and doesn't have it yet. Set your Audi up that way first, then run this."
     },
     "progress": {
       "awaiting_browser_login": "Åbn {verification_uri} i en hvilken som helst browser, log ind med din Brand ID-konto, og bekræft koden {user_code}.",

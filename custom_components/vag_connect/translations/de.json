@@ -157,6 +157,19 @@
           "companion_use_relay": "Aktivieren, wenn auf dem Handy die Companion-Agent-App läuft. Das Handy ruft dann Home Assistant an: kein ADB, kein Wireless Debugging und keine feste Handy-IP nötig — Adressfeld leer lassen.",
           "companion_agent_token": "Das Zufalls-Token aus der Agent-App. Mindestens 32 Zeichen, und für jedes Fahrzeug ein eigenes."
         }
+      },
+      "audi_mbb_fallback": {
+        "title": "Audi — MBB-Command-Fallback (dauerhafte Zwei-Wege-Reserve)",
+        "description": "Aktiviere den dauerhaften Car-Net-(MBB-)Befehlskanal als Fallback auf einer per QR-/Browser-Login eingerichteten Audi. Eine einmalige Browser-Bestätigung (kein Passwort gespeichert) mintet einen dauerhaften Bearer; der normale CARIAD-Befehlspfad bleibt primär, MBB springt nur ein, falls Volkswagen den Device-Grant je sperrt. Für Car-Net-Audis (die meisten PHEV/Verbrenner, vor ID/MEB) — neuere ID-/MEB-Modelle sind nicht berechtigt und werden beim Exchange abgelehnt.",
+        "data": {
+          "entry_id": "Zu aktivierende Audi",
+          "mbb_vins": "VIN(s) (kommagetrennt, optional)",
+          "spin": "S-PIN (optional — für Ver-/Entriegeln nötig)"
+        },
+        "data_description": {
+          "mbb_vins": "Nur nötig, wenn der Fallback die Garage nicht selbst auflisten kann — normalerweise leer lassen.",
+          "spin": "Deine S-PIN, für Fern-Ver-/Entriegeln über den Car-Net-Kanal nötig."
+        }
       }
     },
     "error": {
@@ -185,7 +198,9 @@
       "already_configured": "Dieses Konto ist bereits eingerichtet.",
       "reauth_successful": "Erneute Anmeldung erfolgreich.",
       "reconfigure_successful": "Konfiguration erfolgreich aktualisiert.",
-      "mbb_not_eligible": "Dein Fahrzeug ist für den dauerhaften MBB-Login nicht geeignet — das Backend meldet „Unknown user\". Das heisst, es ist ein neueres ID-/MEB-Modell (ID.3/4/5, e-up usw.), das nie im alten Car-Net/MBB-System registriert war — der dauerhafte Login + die Fernbefehle erreichen es daher nicht. Nutze für solche Fahrzeuge den EU-Data-Act-Kanal (oder den E-Mail-+-Passwort-Login). Der MBB-Login ist für ältere Car-Net-Autos (die meisten PHEV-/Verbrenner-Modelle)."
+      "mbb_not_eligible": "Dein Fahrzeug ist für den dauerhaften MBB-Login nicht geeignet — das Backend meldet „Unknown user\". Das heisst, es ist ein neueres ID-/MEB-Modell (ID.3/4/5, e-up usw.), das nie im alten Car-Net/MBB-System registriert war — der dauerhafte Login + die Fernbefehle erreichen es daher nicht. Nutze für solche Fahrzeuge den EU-Data-Act-Kanal (oder den E-Mail-+-Passwort-Login). Der MBB-Login ist für ältere Car-Net-Autos (die meisten PHEV-/Verbrenner-Modelle).",
+      "mbb_fallback_armed": "MBB-Command-Fallback aktiviert. Falls Volkswagen den Device-Grant dieser Audi je sperrt, fallen Ver-/Entriegeln, Klima und Laden automatisch auf den dauerhaften Car-Net-(MBB-)Kanal zurück. Im Alltag ändert sich nichts — der BFF bleibt der primäre Befehlspfad.",
+      "no_devicegrant_audi": "Keine passende Audi gefunden. Diese Option aktiviert den MBB-Command-Fallback auf einer Audi, die per QR-/Browser-Login (Device-Grant) eingerichtet wurde und ihn noch nicht hat. Richte deine Audi zuerst so ein, dann führe dies aus."
     },
     "progress": {
       "awaiting_browser_login": "Öffne {verification_uri} in einem Browser, melde dich mit deinem Brand-ID-Konto an und bestätige den Code {user_code}.",
