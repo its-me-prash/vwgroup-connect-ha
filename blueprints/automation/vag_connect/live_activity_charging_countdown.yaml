@@ -48,10 +48,10 @@ blueprint:
     finish_time_sensor:
       name: "Charge-finish time sensor"
       description: >
-        The vehicle's absolute charge-finish timestamp sensor. On most EVs pick
-        sensor.*_charge_complete_eta (available on every electric car); on some
-        VW cars the portal-only sensor.*_charge_target_time also works. Drives
-        the live countdown. If it's unavailable the activity still shows the
+        The vehicle's absolute charge-finish timestamp sensor. Pick
+        sensor.*_charge_complete_eta — it's available on every EV; on some VW
+        cars the portal-only sensor.*_charge_target_time also works. Drives the
+        live countdown; if it's unavailable the activity still shows the
         progress bar, just without the ticking timer.
       selector:
         entity:
