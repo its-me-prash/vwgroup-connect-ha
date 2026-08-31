@@ -130,6 +130,20 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   entities now read in your own language instead of falling back to English —
   and a handful of stray English labels (a couple of password fields,
   "Stale" / "Delivered" / "Timed out") got translated too.
+- **The EU-Data-Act export buttons now appear on a command car that also reads
+  the portal.** If your car sends remote commands *and* pulls the EU Data Act
+  feed (the feed came up on its own, without you ticking the portal option), the
+  "Request historical export" / data-request buttons were missing — the button
+  gate only recognised a read-only portal or the explicit option. It now also
+  spots the live portal connection (or a saved active data request), so the
+  buttons show up on their own. Thanks @naked-head and @dazzzl — the toggle A/B
+  test pinned it exactly.
+- **SEAT/CUPRA: the "outdated OLA headers" repair no longer gets stuck on.** For
+  cars that read via the EU Data Act portal (the SEAT/CUPRA online API is
+  switched off at VW's end), that repair could latch on and re-announce itself on
+  every poll — because it was built to clear only on a successful call to an API
+  that can no longer answer. It now auto-resolves whenever the portal is serving
+  your data and stays gone. Thanks @anju1337 for the precise report.
 
 ## [4.4.0b4] - 2026-08-28 — New diagnostic sensors (drivetrain · CSID · parked-since) · Audi/VW-EU doors+trunk fix · export button on merged portals
 
