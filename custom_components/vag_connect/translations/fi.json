@@ -157,6 +157,19 @@
           "companion_use_relay": "Valitse tämä, jos puhelimessa on companion-agenttisovellus. Silloin puhelin soittaa Home Assistantille: ADB:tä, langatonta vianjäljitystä tai kiinteää IP-osoitetta ei tarvita — jätä osoitekenttä tyhjäksi.",
           "companion_agent_token": "Agenttisovelluksen luoma satunnainen tunnus. Vähintään 32 merkkiä ja jokaiselle ajoneuvolle oma."
         }
+      },
+      "audi_mbb_fallback": {
+        "title": "Audi — pidä etäkomennot toiminnassa (varayhteys)",
+        "description": "Tämä lisää varayhteyden, jotta Audisi etäkomennot — lukitus/avaus, ilmastointi ja lataus — pysyvät toiminnassa, vaikka Audi joskus muuttaisi tapaa, jolla sovellus kirjautuu sisään. Arjessa mikään ei muutu: Audisi käyttää tavallista yhteyttään, ja varayhteys astuu kuvaan vain, jos tavallinen lakkaa hyväksymästä komentoja. Käyttöönotto vaatii yhden nopean selainvahvistuksen (salasanaa ei tallenneta). Valitse Audi, jonka lisäsit jo QR-/sovelluskirjautumisella. Toimii useimmissa bensiini-, diesel- ja lataushybridi-Audeissa; joitakin uusimpia täyssähkömalleja ei tueta, ja ne hylätään automaattisesti.",
+        "data": {
+          "entry_id": "Mikä Audi",
+          "mbb_vins": "Ajoneuvon tunnus (VIN) — jätä yleensä tyhjäksi",
+          "spin": "S-PIN (tarvitaan vain lukitukseen/avaukseen)"
+        },
+        "data_description": {
+          "mbb_vins": "Jätä tämä tyhjäksi, ellei käyttöönotto pyydä sitä.",
+          "spin": "Audi-S-PINisi — koodi, jota käytät etälukitukseen/-avaukseen."
+        }
       }
     },
     "error": {
@@ -185,7 +198,9 @@
       "already_configured": "Tämä tili on jo määritetty.",
       "reauth_successful": "Uudelleenkirjautuminen onnistui.",
       "reconfigure_successful": "Määritys päivitetty onnistuneesti.",
-      "mbb_not_eligible": "Ajoneuvosi ei sovellu pysyvään MBB-kirjautumiseen — taustajärjestelmä palautti ”Unknown user”. Tämä tarkoittaa, että se on uudempi ID- / MEB-malli (ID.3/4/5, e-up jne.), jota ei koskaan liitetty vanhaan Car-Net/MBB-järjestelmään, joten pysyvä kirjautuminen + etäkomennot eivät tavoita sitä. Käytä näille ajoneuvoille EU Data Act -portaalikanavaa (tai sähköposti + salasana -kirjautumista) sen sijaan. MBB-kirjautuminen on tarkoitettu vanhemmille Car-Net-autoille (useimmat PHEV- / polttomoottorimallit)."
+      "mbb_not_eligible": "Ajoneuvosi ei sovellu pysyvään MBB-kirjautumiseen — taustajärjestelmä palautti ”Unknown user”. Tämä tarkoittaa, että se on uudempi ID- / MEB-malli (ID.3/4/5, e-up jne.), jota ei koskaan liitetty vanhaan Car-Net/MBB-järjestelmään, joten pysyvä kirjautuminen + etäkomennot eivät tavoita sitä. Käytä näille ajoneuvoille EU Data Act -portaalikanavaa (tai sähköposti + salasana -kirjautumista) sen sijaan. MBB-kirjautuminen on tarkoitettu vanhemmille Car-Net-autoille (useimmat PHEV- / polttomoottorimallit).",
+      "mbb_fallback_armed": "Varayhteys otettu käyttöön. Jos Audisi tavallinen yhteys joskus lakkaa hyväksymästä etäkomentoja, lukitus/avaus, ilmastointi ja lataus siirtyvät automaattisesti varayhteyteen. Arjessa mikään ei muutu.",
+      "no_devicegrant_audi": "Sopivaa Audia ei löytynyt. Tämä varayhteys koskee vain Audia, jonka lisäsit QR-/sovelluskirjautumisella ja jolla sitä ei vielä ole. Lisää Audisi ensin siten ja palaa sitten tänne."
     },
     "progress": {
       "awaiting_browser_login": "Avaa {verification_uri} millä tahansa selaimella, kirjaudu Brand ID -tiliisi ja vahvista koodi {user_code}.",
@@ -302,8 +317,8 @@
         "title": "VW EU Two-Way (komennot + live-lukemat, BETA)",
         "description": "**Kokeellinen, valinnainen — vain Volkswagen.** Lisää kaksisuuntaisen ohjauksen (lukitus/avaus, ilmastointi, lataus) ja live-CARIAD-lukemat kirjautumalla Volkswagen ID -tunnuksellasi. Koska Volkswagen myöntää tätä kautta vain 1 tunnin tunnisteen, salasanasi **tallennetaan**, jotta integraatio voi uusia sen automaattisesti. Se lähetetään vain Volkswagenin omalle kirjautumispalvelimelle eikä sitä koskaan kirjata lokeihin tai diagnostiikkaan. Etkö halua tallentaa salasanaa? Käytä sen sijaan vain luku -kanavia. **Edellytys:** Volkswagen ID:si on oltava ajoneuvon ensisijainen käyttäjä.",
         "data": {
-          "username": "Email Address",
-          "password": "Password"
+          "username": "Sähköpostiosoite",
+          "password": "Salasana"
         },
         "data_description": {
           "username": "Volkswagen ID- / myVolkswagen-tilisi sähköposti.",
@@ -357,24 +372,24 @@
         }
       },
       "portal_health": {
-        "name": "Portal feed health",
+        "name": "Portaalisyötteen tila",
         "state": {
           "ok": "OK",
-          "waiting_for_portal_data": "Waiting for portal data",
-          "empty_snapshots": "Empty snapshots",
-          "delivery_not_ready": "Delivery not ready",
-          "stale": "Stale"
+          "waiting_for_portal_data": "Odotetaan portaalin tietoja",
+          "empty_snapshots": "Tyhjät tilannevedokset",
+          "delivery_not_ready": "Toimitus ei valmis",
+          "stale": "Vanhentunut"
         }
       },
       "minutes_since_last_snapshot": {
-        "name": "Minutes since last snapshot"
+        "name": "Minuutteja viime tilannevedoksesta"
       },
       "historical_export_state": {
-        "name": "Historical export",
+        "name": "Historiatietojen vienti",
         "state": {
-          "pending": "Requested — preparing",
-          "done": "Delivered",
-          "timed_out": "Timed out"
+          "pending": "Pyydetty — valmistellaan",
+          "done": "Toimitettu",
+          "timed_out": "Aikakatkaisu"
         }
       },
       "target_soc": {
@@ -1757,7 +1772,7 @@
         "name": "Luo EU Data Act -datapyyntö"
       },
       "historical_export_button": {
-        "name": "Request historical export"
+        "name": "Pyydä historiatietojen vienti"
       },
       "companion_reset_button": {
         "name": "Nollaa companion-yhteys"
@@ -1806,28 +1821,28 @@
     },
     "image": {
       "render_icon": {
-        "name": "3/4 view (icon)"
+        "name": "3/4-näkymä (ikoni)"
       },
       "render_small": {
-        "name": "3/4 view (small)"
+        "name": "3/4-näkymä (pieni)"
       },
       "render_medium": {
-        "name": "3/4 view (medium)"
+        "name": "3/4-näkymä (keskikoko)"
       },
       "render_side_sm": {
-        "name": "Side view (small)"
+        "name": "Sivunäkymä (pieni)"
       },
       "render_side_lg": {
-        "name": "Side view (large)"
+        "name": "Sivunäkymä (suuri)"
       },
       "render_angle_hd": {
-        "name": "3/4 view (HD)"
+        "name": "3/4-näkymä (HD)"
       },
       "render_angle_lg": {
-        "name": "3/4 view (large)"
+        "name": "3/4-näkymä (suuri)"
       },
       "vehicle_render": {
-        "name": "Vehicle render"
+        "name": "Ajoneuvon kuva"
       }
     },
     "lock": {
@@ -1967,8 +1982,8 @@
       "description": "Auton viimeksi raportoimat tiedot kerättiin noin **{age} tuntia sitten**, vaikka integraatio hakee tietoja edelleen onnistuneesti. Tähän voi olla kaksi syytä: auto voi yksinkertaisesti olla pysäköitynä ja lepotilassa (normaalia — ei tarvitse tehdä mitään), tai sen EU Data Act -tietosyöte on saattanut vanhentua eikä toimita enää tuoreita lukemia.\n\nNäkemäsi arvot ovat viimeisimmät tunnetut, eivät reaaliaikaiset. Jos autoa on ajettu tai se on kytketty lataukseen tämän jälkeen eikä varoitus poistu, tietosyöte on mitä todennäköisimmin vanhentunut: avaa volkswagen.de → auton tietoasetukset ja uusi tai pyydä tietojen jakaminen uudelleen, tai lisää kanava uudelleen.\n\nTämä varoitus poistuu automaattisesti heti, kun tuoreempi lukema saapuu."
     },
     "historical_timeout": {
-      "title": "{vin}: one-time historical export didn't complete",
-      "description": "The one-time historical export requested for this car didn't produce a file within the client deadline. The VW portal gives this request no terminal state, so it may have been silently dropped. The request has been cleared — you can request it again, or check the portal directly."
+      "title": "{vin}: kertaluonteinen historiatietojen vienti ei valmistunut",
+      "description": "Tälle autolle pyydetty kertaluonteinen historiatietojen vienti ei tuottanut tiedostoa määräaikaan mennessä. VW-portaali ei anna tälle pyynnölle lopputilaa, joten se on voitu hylätä hiljaisesti. Pyyntö on nollattu — voit pyytää sen uudelleen tai tarkistaa asian suoraan portaalista."
     }
   },
   "services": {
@@ -2187,7 +2202,7 @@
       "message": "EU:n datasäädösportaali ei ole vielä valmis. Odota, kunnes integraatio on hakenut tiedot kerran käyttöönoton jälkeen, ja yritä sitten uudelleen."
     },
     "historical_disabled": {
-      "message": "The one-time historical export is currently disabled."
+      "message": "Kertaluonteinen historiatietojen vienti on tällä hetkellä poistettu käytöstä."
     },
     "historical_wedge_blocked": {
       "message": "Tälle autolle on jo käynnissä kertaluonteinen historiatietojen vienti. Portaali käsittelee vain yhtä tällaista pyyntöä kerrallaan, joten odota, että nykyinen valmistuu (tai aikakatkaistaan), ennen kuin pyydät uutta."

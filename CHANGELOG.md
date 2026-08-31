@@ -111,6 +111,25 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   automation was the kind of thing that could act on the stale value. Odometer,
   GPS position and service intervals are deliberately left untouched (they have
   their own monotonic / carry-forward handling).
+### Changed / Geändert
+- **The car-render images no longer crowd the device page.** Audi/VW cars ship
+  the same render in seven sizes and angles; enabling all seven buried the
+  device page under seven near-identical photos. Now only the recommended one
+  (the large side view) is on by default — the other six are still created but
+  switched off, so you can enable exactly the size/angle you want for a
+  dashboard in one click. Existing setups keep whatever they already have.
+- **The data-source sensor now reads in plain language.** When a car is fed by
+  several logins at once, "Data source channel" showed cryptic tokens like
+  `eu_data_act+mbb`. It now reads "EU Data Act portal + Car-Net", lists each
+  source under a `channels` attribute, and shows the same friendly name as the
+  `source` attribute on every reading — so you can see at a glance which login
+  produced what, and one car is never listed twice. The raw tokens stay under a
+  `raw` attribute for support.
+- **All 12 languages tidied up.** The new Audi backup-connection setup screen,
+  the portal-feed and one-time-export sensor states, and the vehicle-image
+  entities now read in your own language instead of falling back to English —
+  and a handful of stray English labels (a couple of password fields,
+  "Stale" / "Delivered" / "Timed out") got translated too.
 
 ## [4.4.0b4] - 2026-08-28 — New diagnostic sensors (drivetrain · CSID · parked-since) · Audi/VW-EU doors+trunk fix · export button on merged portals
 

@@ -285,7 +285,10 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
 
         source = self._field_source
         if source:
-            attrs["source"] = source
+            # friendly channel name ("Car-Net"), not the raw token ("mbb").
+            # _field_source stays the raw token for internal keying.
+            from ._channel_labels import channel_display_name  # noqa: PLC0415
+            attrs["source"] = channel_display_name(source)
 
         own = self._platform_attributes()
         if own:
