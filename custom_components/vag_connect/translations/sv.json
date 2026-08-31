@@ -157,6 +157,19 @@
           "companion_use_relay": "Kryssa i detta om telefonen kör companion-agentappen. Telefonen ringer då upp Home Assistant, så varken ADB, trådlös felsökning eller fast IP behövs — lämna adressfältet tomt.",
           "companion_agent_token": "Den slumpmässiga token som agentappen skapade. Minst 32 tecken, och en egen för varje fordon."
         }
+      },
+      "audi_mbb_fallback": {
+        "title": "Audi — se till att fjärrkommandon fortsätter fungera (reservanslutning)",
+        "description": "Det här lägger till en reservanslutning så att din Audis fjärrkommandon — lås/lås upp, klimat och laddning — fortsätter fungera även om Audi någon gång ändrar hur appen loggar in. I vardagen ändras ingenting: din Audi använder sin vanliga anslutning, och reserven träder bara in om den vanliga slutar ta emot kommandon. Att ställa in det tar en snabb bekräftelse i webbläsaren (inget lösenord lagras). Välj den Audi du redan lagt till med QR-/app-inloggningen. Det fungerar på de flesta bensin-, diesel- och laddhybrid-Audi; några av de allra nyaste helelektriska modellerna stöds inte och avvisas automatiskt.",
+        "data": {
+          "entry_id": "Vilken Audi",
+          "mbb_vins": "Fordons-ID (VIN) — lämna oftast tomt",
+          "spin": "S-PIN (behövs bara för lås/lås upp)"
+        },
+        "data_description": {
+          "mbb_vins": "Lämna det här tomt om inte inställningen ber om det.",
+          "spin": "Din Audi-S-PIN — koden du använder för att låsa/låsa upp på distans."
+        }
       }
     },
     "error": {
@@ -185,7 +198,9 @@
       "already_configured": "Det här kontot är redan konfigurerat.",
       "reauth_successful": "Omautentisering lyckades.",
       "reconfigure_successful": "Konfigurationen uppdaterades.",
-      "mbb_not_eligible": "Ditt fordon är inte behörigt för den varaktiga MBB-inloggningen — backend returnerade \"Unknown user\". Det är en nyare ID-/MEB-modell (ID.3/4/5, e-up osv.) som aldrig registrerades i det gamla Car-Net/MBB-systemet, så den varaktiga inloggningen och fjärrkommandona når den inte. Använd EU Data Act-portalkanalen (eller e-post + lösenord-inloggningen) för sådana fordon. MBB-inloggningen är för äldre Car-Net-bilar (de flesta laddhybrid-/förbränningsmodeller)."
+      "mbb_not_eligible": "Ditt fordon är inte behörigt för den varaktiga MBB-inloggningen — backend returnerade \"Unknown user\". Det är en nyare ID-/MEB-modell (ID.3/4/5, e-up osv.) som aldrig registrerades i det gamla Car-Net/MBB-systemet, så den varaktiga inloggningen och fjärrkommandona når den inte. Använd EU Data Act-portalkanalen (eller e-post + lösenord-inloggningen) för sådana fordon. MBB-inloggningen är för äldre Car-Net-bilar (de flesta laddhybrid-/förbränningsmodeller).",
+      "mbb_fallback_armed": "Reservanslutningen är inställd. Om din Audis vanliga anslutning någon gång slutar ta emot fjärrkommandon växlar lås/lås upp, klimat och laddning automatiskt till reserven. Ingenting ändras i vardagen.",
+      "no_devicegrant_audi": "Ingen matchande Audi hittades. Den här reserven gäller bara en Audi som du lagt till med QR-/app-inloggningen och som inte redan har den. Lägg till din Audi på det sättet först och kom sedan tillbaka hit."
     },
     "progress": {
       "awaiting_browser_login": "Öppna {verification_uri} i valfri webbläsare, logga in med ditt Brand ID-konto och bekräfta koden {user_code}.",
@@ -302,8 +317,8 @@
         "title": "VW EU Two-Way (kommandon + live-avläsningar, BETA)",
         "description": "**Experimentell, frivillig — endast Volkswagen.** Lägger till tvåvägsstyrning (lås/lås upp, klimat, laddning) och live-CARIAD-avläsningar genom att du loggar in med ditt Volkswagen ID. Eftersom Volkswagen bara utfärdar en 1-timmestoken på den här vägen **lagras** ditt lösenord så att integrationen kan förnya den automatiskt. Det skickas endast till Volkswagens egen inloggningsserver och skrivs aldrig till loggar eller diagnostik. Vill du hellre inte lagra ett lösenord? Använd de skrivskyddade kanalerna istället. **Krav:** ditt Volkswagen ID måste vara fordonets huvudanvändare.",
         "data": {
-          "username": "Email Address",
-          "password": "Password"
+          "username": "E-postadress",
+          "password": "Lösenord"
         },
         "data_description": {
           "username": "E-postadressen för ditt Volkswagen ID-/myVolkswagen-konto.",
@@ -357,24 +372,24 @@
         }
       },
       "portal_health": {
-        "name": "Portal feed health",
+        "name": "Portalflödets status",
         "state": {
           "ok": "OK",
-          "waiting_for_portal_data": "Waiting for portal data",
-          "empty_snapshots": "Empty snapshots",
-          "delivery_not_ready": "Delivery not ready",
-          "stale": "Stale"
+          "waiting_for_portal_data": "Väntar på portaldata",
+          "empty_snapshots": "Tomma ögonblicksbilder",
+          "delivery_not_ready": "Leverans inte klar",
+          "stale": "Föråldrad"
         }
       },
       "minutes_since_last_snapshot": {
-        "name": "Minutes since last snapshot"
+        "name": "Minuter sedan senaste ögonblicksbild"
       },
       "historical_export_state": {
-        "name": "Historical export",
+        "name": "Historisk export",
         "state": {
-          "pending": "Requested — preparing",
-          "done": "Delivered",
-          "timed_out": "Timed out"
+          "pending": "Begärd — förbereds",
+          "done": "Levererad",
+          "timed_out": "Tidsgräns överskreds"
         }
       },
       "target_soc": {
@@ -1757,7 +1772,7 @@
         "name": "Skapa EU Data Act-databegäran"
       },
       "historical_export_button": {
-        "name": "Request historical export"
+        "name": "Begär historisk export"
       },
       "companion_reset_button": {
         "name": "Återställ companion-anslutning"
@@ -1806,28 +1821,28 @@
     },
     "image": {
       "render_icon": {
-        "name": "3/4 view (icon)"
+        "name": "3/4-vy (ikon)"
       },
       "render_small": {
-        "name": "3/4 view (small)"
+        "name": "3/4-vy (liten)"
       },
       "render_medium": {
-        "name": "3/4 view (medium)"
+        "name": "3/4-vy (mellan)"
       },
       "render_side_sm": {
-        "name": "Side view (small)"
+        "name": "Sidovy (liten)"
       },
       "render_side_lg": {
-        "name": "Side view (large)"
+        "name": "Sidovy (stor)"
       },
       "render_angle_hd": {
-        "name": "3/4 view (HD)"
+        "name": "3/4-vy (HD)"
       },
       "render_angle_lg": {
-        "name": "3/4 view (large)"
+        "name": "3/4-vy (stor)"
       },
       "vehicle_render": {
-        "name": "Vehicle render"
+        "name": "Fordonsbild"
       }
     },
     "lock": {
@@ -1967,8 +1982,8 @@
       "description": "De senaste uppgifterna som din bil rapporterade samlades in för **ungefär {age} timmar sedan**, trots att integrationen fortfarande hämtar data utan problem. Det kan bero på två saker: bilen kan helt enkelt stå parkerad i viloläge (helt normalt — inget att göra), eller så kan dess dataflöde enligt EU Data Act ha upphört och slutat leverera färska värden.\n\nVärdena du ser just nu är de senast kända, inte realtidsvärden. Om bilen har körts eller laddats sedan dess och den här varningen ändå står kvar, har dataflödet med största sannolikhet gått ut: öppna volkswagen.de → bilens datainställningar och förnya/begär datadelningen på nytt, eller lägg till kanalen igen.\n\nVarningen försvinner automatiskt så snart ett färskare värde kommer in."
     },
     "historical_timeout": {
-      "title": "{vin}: one-time historical export didn't complete",
-      "description": "The one-time historical export requested for this car didn't produce a file within the client deadline. The VW portal gives this request no terminal state, so it may have been silently dropped. The request has been cleared — you can request it again, or check the portal directly."
+      "title": "{vin}: engångsexporten av historik slutfördes inte",
+      "description": "Engångsexporten av historik som begärdes för den här bilen skapade ingen fil inom tidsgränsen. VW-portalen ger den här begäran inget slutläge, så den kan ha försvunnit tyst. Begäran har rensats — du kan begära den igen eller titta direkt i portalen."
     }
   },
   "services": {
@@ -2187,7 +2202,7 @@
       "message": "EU Data Act-portalen är inte redo ännu. Vänta tills integrationen har hämtat data en gång efter installationen och försök sedan med den historiska exporten igen."
     },
     "historical_disabled": {
-      "message": "The one-time historical export is currently disabled."
+      "message": "Engångsexporten av historik är för närvarande avstängd."
     },
     "historical_wedge_blocked": {
       "message": "En engångsexport av historiken pågår redan för den här bilen. Portalen hanterar bara en sådan begäran i taget, så vänta tills den pågående är klar (eller når tidsgränsen) innan du begär en ny."

@@ -157,6 +157,19 @@
           "companion_use_relay": "Cochez si le téléphone exécute l'application agent. C'est alors le téléphone qui appelle Home Assistant : ni ADB, ni débogage sans fil, ni IP fixe ne sont nécessaires — laissez l'adresse vide.",
           "companion_agent_token": "Le jeton aléatoire généré par l'application agent. Au moins 32 caractères, et un jeton différent par véhicule."
         }
+      },
+      "audi_mbb_fallback": {
+        "title": "Audi — garder les commandes à distance opérationnelles (connexion de secours)",
+        "description": "Cela ajoute une connexion de secours pour que les commandes à distance de votre Audi — verrouillage/déverrouillage, climatisation et charge — continuent de fonctionner même si Audi venait à changer la façon dont l'application se connecte. Au quotidien, rien ne change : votre Audi utilise sa connexion habituelle, et la connexion de secours ne prend le relais que si la connexion habituelle cesse d'accepter les commandes. La configuration ne demande qu'une brève confirmation dans le navigateur (aucun mot de passe n'est stocké). Choisissez l'Audi que vous avez déjà ajoutée via la connexion QR / application. Cela fonctionne sur la plupart des Audi essence, diesel et hybrides rechargeables ; certains des tout derniers modèles 100 % électriques ne sont pas pris en charge et sont refusés automatiquement.",
+        "data": {
+          "entry_id": "Quelle Audi",
+          "mbb_vins": "Identifiant du véhicule (VIN) — à laisser vide en général",
+          "spin": "S-PIN (nécessaire uniquement pour le verrouillage/déverrouillage)"
+        },
+        "data_description": {
+          "mbb_vins": "Laissez ce champ vide, sauf si la configuration vous le demande.",
+          "spin": "Votre S-PIN Audi — le code que vous utilisez pour le verrouillage/déverrouillage à distance."
+        }
       }
     },
     "error": {
@@ -185,7 +198,9 @@
       "already_configured": "Ce compte est déjà configuré.",
       "reauth_successful": "Ré-authentification réussie.",
       "reconfigure_successful": "Configuration mise à jour avec succès.",
-      "mbb_not_eligible": "Votre véhicule n'est pas éligible à la connexion durable MBB — le backend a renvoyé « Unknown user ». Il s'agit d'un modèle ID / MEB récent (ID.3/4/5, e-up, etc.) jamais enregistré dans l'ancien système Car-Net/MBB ; la connexion durable et les commandes à distance ne peuvent donc pas l'atteindre. Utilisez le canal du portail EU Data Act (ou la connexion E-mail + mot de passe) pour ces véhicules. La connexion MBB est destinée aux anciennes voitures Car-Net (la plupart des modèles hybrides rechargeables / thermiques)."
+      "mbb_not_eligible": "Votre véhicule n'est pas éligible à la connexion durable MBB — le backend a renvoyé « Unknown user ». Il s'agit d'un modèle ID / MEB récent (ID.3/4/5, e-up, etc.) jamais enregistré dans l'ancien système Car-Net/MBB ; la connexion durable et les commandes à distance ne peuvent donc pas l'atteindre. Utilisez le canal du portail EU Data Act (ou la connexion E-mail + mot de passe) pour ces véhicules. La connexion MBB est destinée aux anciennes voitures Car-Net (la plupart des modèles hybrides rechargeables / thermiques).",
+      "mbb_fallback_armed": "Connexion de secours configurée. Si la connexion habituelle de votre Audi cesse un jour d'accepter les commandes à distance, le verrouillage/déverrouillage, la climatisation et la charge basculent automatiquement sur la connexion de secours. Rien ne change au quotidien.",
+      "no_devicegrant_audi": "Aucune Audi correspondante trouvée. Cette connexion de secours s'applique uniquement à une Audi que vous avez ajoutée via la connexion QR / application et qui n'en dispose pas encore. Ajoutez d'abord votre Audi de cette façon, puis revenez ici."
     },
     "progress": {
       "awaiting_browser_login": "Ouvrez {verification_uri} dans n'importe quel navigateur, connectez-vous avec votre compte Brand ID et confirmez le code {user_code}.",
@@ -302,8 +317,8 @@
         "title": "VW EU bidirectionnel (commandes + lectures en direct, BÊTA)",
         "description": "**Expérimental, sur option — Volkswagen uniquement.** Ajoute le contrôle bidirectionnel (verrouillage/déverrouillage, climatisation, charge) et les lectures CARIAD en direct en vous connectant avec votre Volkswagen ID. Comme Volkswagen n'émet qu'un jeton d'une heure sur ce canal, votre mot de passe est **stocké** afin que l'intégration puisse le renouveler automatiquement. Il est envoyé uniquement au serveur de connexion de Volkswagen et n'est jamais écrit dans les journaux ni les diagnostics. Vous préférez ne pas stocker de mot de passe ? Utilisez plutôt les canaux en lecture seule. **Prérequis :** votre Volkswagen ID doit être l'utilisateur principal du véhicule.",
         "data": {
-          "username": "Email Address",
-          "password": "Password"
+          "username": "Adresse e-mail",
+          "password": "Mot de passe"
         },
         "data_description": {
           "username": "L'e-mail de votre compte Volkswagen ID / myVolkswagen.",
@@ -357,24 +372,24 @@
         }
       },
       "portal_health": {
-        "name": "Portal feed health",
+        "name": "État du flux du portail",
         "state": {
           "ok": "OK",
-          "waiting_for_portal_data": "Waiting for portal data",
-          "empty_snapshots": "Empty snapshots",
-          "delivery_not_ready": "Delivery not ready",
-          "stale": "Stale"
+          "waiting_for_portal_data": "En attente des données du portail",
+          "empty_snapshots": "Instantanés vides",
+          "delivery_not_ready": "Livraison pas encore prête",
+          "stale": "Obsolète"
         }
       },
       "minutes_since_last_snapshot": {
-        "name": "Minutes since last snapshot"
+        "name": "Minutes depuis le dernier instantané"
       },
       "historical_export_state": {
-        "name": "Historical export",
+        "name": "Export historique",
         "state": {
-          "pending": "Requested — preparing",
-          "done": "Delivered",
-          "timed_out": "Timed out"
+          "pending": "Demandé — en préparation",
+          "done": "Livré",
+          "timed_out": "Délai dépassé"
         }
       },
       "target_soc": {
@@ -1757,7 +1772,7 @@
         "name": "Créer une demande de données EU Data Act"
       },
       "historical_export_button": {
-        "name": "Request historical export"
+        "name": "Demander l'export historique"
       },
       "companion_reset_button": {
         "name": "Réinitialiser la connexion companion"
@@ -1806,28 +1821,28 @@
     },
     "image": {
       "render_icon": {
-        "name": "3/4 view (icon)"
+        "name": "Vue 3/4 (icône)"
       },
       "render_small": {
-        "name": "3/4 view (small)"
+        "name": "Vue 3/4 (petite)"
       },
       "render_medium": {
-        "name": "3/4 view (medium)"
+        "name": "Vue 3/4 (moyenne)"
       },
       "render_side_sm": {
-        "name": "Side view (small)"
+        "name": "Vue latérale (petite)"
       },
       "render_side_lg": {
-        "name": "Side view (large)"
+        "name": "Vue latérale (grande)"
       },
       "render_angle_hd": {
-        "name": "3/4 view (HD)"
+        "name": "Vue 3/4 (HD)"
       },
       "render_angle_lg": {
-        "name": "3/4 view (large)"
+        "name": "Vue 3/4 (grande)"
       },
       "vehicle_render": {
-        "name": "Vehicle render"
+        "name": "Rendu du véhicule"
       }
     },
     "lock": {
@@ -1967,8 +1982,8 @@
       "description": "Les dernières données transmises par votre voiture datent d'environ **{age} heures**, alors que l'intégration continue pourtant d'interroger le véhicule avec succès. Deux causes sont possibles : soit la voiture est tout simplement garée et en veille (c'est normal — rien à faire), soit son flux de données EU Data Act s'est interrompu et ne fournit plus de relevés récents.\n\nLes valeurs que vous voyez actuellement sont les dernières connues, pas des données en direct. Si la voiture a roulé ou a été branchée depuis et que cet avertissement persiste, c'est très probablement que le flux de données a expiré : ouvrez volkswagen.de → les paramètres de données de votre voiture et renouvelez/redemandez le partage de données, ou rajoutez le canal.\n\nCet avertissement disparaît automatiquement dès qu'un relevé plus récent arrive."
     },
     "historical_timeout": {
-      "title": "{vin}: one-time historical export didn't complete",
-      "description": "The one-time historical export requested for this car didn't produce a file within the client deadline. The VW portal gives this request no terminal state, so it may have been silently dropped. The request has been cleared — you can request it again, or check the portal directly."
+      "title": "{vin} : l'export historique ponctuel n'a pas abouti",
+      "description": "L'export historique ponctuel demandé pour cette voiture n'a pas produit de fichier dans le délai imparti. Le portail VW ne fournit aucun état final pour cette demande, elle a donc peut-être été abandonnée silencieusement. La demande a été réinitialisée — vous pouvez la relancer ou vérifier directement dans le portail."
     }
   },
   "services": {
@@ -2187,7 +2202,7 @@
       "message": "Le portail EU Data Act n'est pas encore prêt. Attendez que l'intégration ait interrogé une fois après la configuration, puis réessayez l'export historique."
     },
     "historical_disabled": {
-      "message": "The one-time historical export is currently disabled."
+      "message": "L'export historique ponctuel est actuellement désactivé."
     },
     "historical_wedge_blocked": {
       "message": "Un export ponctuel de l'historique est déjà en cours pour ce véhicule. Le portail ne traite qu'une seule demande de ce type à la fois : attendez donc que celle en cours se termine (ou expire) avant d'en demander une autre."

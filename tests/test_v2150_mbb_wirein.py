@@ -328,12 +328,20 @@ class TestMbbDagConfig:
         assert "mbb" in scope.split()
         assert scope == MBB_DAG_SCOPE
 
-    def test_non_vw_brands_return_none(self) -> None:
-        for brand in ("audi", "skoda", "seat", "cupra", "porsche", ""):
+    def test_non_mbb_brands_return_none(self) -> None:
+        # b15 — audi joined the MBB brands (live-validated 2026-08-30); the rest stay None.
+        for brand in ("skoda", "seat", "cupra", "porsche", ""):
             assert mbb_dag_config(brand) is None
+
+    def test_audi_now_mbb_eligible(self) -> None:
+        # b15 — Car-Net Audis mint the durable MBB bearer (id_token aud
+        # VWGMBB01DELIV1, register/v1 200, exchange 200 + durable refresh),
+        # validated live on a real Audi account.
+        assert mbb_dag_config("audi") is not None
 
     def test_case_insensitive(self) -> None:
         assert mbb_dag_config("Volkswagen") is not None
+        assert mbb_dag_config("Audi") is not None  # b15
 
 
 class TestBrandSegmentUnchanged:

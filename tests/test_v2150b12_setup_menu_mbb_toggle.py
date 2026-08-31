@@ -43,12 +43,15 @@ def _flow() -> VagConnectConfigFlow:
 
 def test_menu_has_the_expected_sources() -> None:
     # b12 collapsed the old standalone mbb_login / website_authproxy entries into
-    # the Portal toggle. v3.0.0a1 added the experimental companion (ADB) source
-    # as a third entry. The two removed ones must stay gone.
+    # the Portal toggle. v3.0.0a1 added the experimental companion (ADB) source.
+    # b15 added the "audi_mbb_fallback" entry (arm the MBB fallback on an existing
+    # device-grant Audi). The two removed ones must stay gone.
     result = asyncio.run(_flow().async_step_user(None))
     assert result["type"] == "menu"
     opts = set(result["menu_options"])
-    assert opts == {"browser_login", "email_password", "companion_adb"}
+    assert opts == {
+        "browser_login", "email_password", "companion_adb", "audi_mbb_fallback",
+    }
     assert "mbb_login" not in opts
     assert "website_authproxy" not in opts
 

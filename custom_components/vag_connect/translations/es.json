@@ -157,6 +157,19 @@
           "companion_use_relay": "Marque esta casilla si el teléfono ejecuta la app de agente. Entonces es el teléfono el que llama a Home Assistant: no hacen falta ADB, depuración inalámbrica ni IP fija — deje la dirección vacía.",
           "companion_agent_token": "El token aleatorio que generó la app de agente. Al menos 32 caracteres, y uno distinto por vehículo."
         }
+      },
+      "audi_mbb_fallback": {
+        "title": "Audi — mantén los comandos remotos funcionando (conexión de reserva)",
+        "description": "Esto añade una conexión de reserva para que los comandos remotos de tu Audi — bloqueo/desbloqueo, climatización y carga — sigan funcionando aunque Audi cambie alguna vez la forma en que la app inicia sesión. En el día a día no cambia nada: tu Audi usa su conexión normal, y la de reserva solo entra en acción si la normal deja de aceptar comandos. Configurarla solo requiere una rápida confirmación en el navegador (no se guarda ninguna contraseña). Elige el Audi que ya añadiste con el inicio de sesión por QR / app. Funciona en la mayoría de los Audi de gasolina, diésel e híbridos enchufables; algunos de los modelos totalmente eléctricos más nuevos no son compatibles y se rechazan automáticamente.",
+        "data": {
+          "entry_id": "Qué Audi",
+          "mbb_vins": "ID del vehículo (VIN) — normalmente déjalo en blanco",
+          "spin": "S-PIN (solo necesario para bloqueo/desbloqueo)"
+        },
+        "data_description": {
+          "mbb_vins": "Déjalo en blanco a menos que la configuración te lo pida.",
+          "spin": "Tu S-PIN de Audi — el código que usas para el bloqueo/desbloqueo remoto."
+        }
       }
     },
     "error": {
@@ -185,7 +198,9 @@
       "already_configured": "Esta cuenta ya está configurada.",
       "reauth_successful": "Reautenticación exitosa.",
       "reconfigure_successful": "Configuración actualizada con éxito.",
-      "mbb_not_eligible": "Tu vehículo no es apto para el inicio de sesión duradero MBB — el backend devolvió «Unknown user». Es un modelo ID / MEB más reciente (ID.3/4/5, e-up, etc.) que nunca se registró en el antiguo sistema Car-Net/MBB, por lo que el inicio de sesión duradero y los comandos remotos no pueden alcanzarlo. Usa el canal del portal EU Data Act (o el inicio de sesión con correo + contraseña) para estos vehículos. El inicio de sesión MBB es para coches Car-Net antiguos (la mayoría de modelos híbridos enchufables / de combustión)."
+      "mbb_not_eligible": "Tu vehículo no es apto para el inicio de sesión duradero MBB — el backend devolvió «Unknown user». Es un modelo ID / MEB más reciente (ID.3/4/5, e-up, etc.) que nunca se registró en el antiguo sistema Car-Net/MBB, por lo que el inicio de sesión duradero y los comandos remotos no pueden alcanzarlo. Usa el canal del portal EU Data Act (o el inicio de sesión con correo + contraseña) para estos vehículos. El inicio de sesión MBB es para coches Car-Net antiguos (la mayoría de modelos híbridos enchufables / de combustión).",
+      "mbb_fallback_armed": "Conexión de reserva configurada. Si la conexión normal de tu Audi deja alguna vez de aceptar comandos remotos, el bloqueo/desbloqueo, la climatización y la carga pasan a la de reserva automáticamente. En el día a día no cambia nada.",
+      "no_devicegrant_audi": "No se encontró ningún Audi compatible. Esta reserva solo se aplica a un Audi que hayas añadido con el inicio de sesión por QR / app y que aún no la tenga. Añade primero tu Audi de esa forma y luego vuelve aquí."
     },
     "progress": {
       "awaiting_browser_login": "Abre {verification_uri} en cualquier navegador, inicia sesión con tu cuenta Brand ID y confirma el código {user_code}.",
@@ -302,8 +317,8 @@
         "title": "VW EU bidireccional (comandos + lecturas en vivo, BETA)",
         "description": "**Experimental, opcional — solo Volkswagen.** Añade control bidireccional (bloqueo/desbloqueo, climatización, carga) y lecturas CARIAD en vivo iniciando sesión con tu Volkswagen ID. Como Volkswagen solo emite un token de 1 hora por esta vía, tu contraseña se **almacena** para que la integración pueda renovarlo automáticamente. Solo se envía al propio servidor de inicio de sesión de Volkswagen y nunca se escribe en los registros ni en los diagnósticos. ¿Prefieres no almacenar una contraseña? Usa los canales de solo lectura en su lugar. **Requisito:** tu Volkswagen ID debe ser el usuario principal del vehículo.",
         "data": {
-          "username": "Email Address",
-          "password": "Password"
+          "username": "Dirección de correo electrónico",
+          "password": "Contraseña"
         },
         "data_description": {
           "username": "El correo electrónico de tu cuenta Volkswagen ID / myVolkswagen.",
@@ -357,24 +372,24 @@
         }
       },
       "portal_health": {
-        "name": "Portal feed health",
+        "name": "Estado del feed del portal",
         "state": {
           "ok": "OK",
-          "waiting_for_portal_data": "Waiting for portal data",
-          "empty_snapshots": "Empty snapshots",
-          "delivery_not_ready": "Delivery not ready",
-          "stale": "Stale"
+          "waiting_for_portal_data": "Esperando datos del portal",
+          "empty_snapshots": "Instantáneas vacías",
+          "delivery_not_ready": "Entrega no lista",
+          "stale": "Desactualizado"
         }
       },
       "minutes_since_last_snapshot": {
-        "name": "Minutes since last snapshot"
+        "name": "Minutos desde la última instantánea"
       },
       "historical_export_state": {
-        "name": "Historical export",
+        "name": "Exportación histórica",
         "state": {
-          "pending": "Requested — preparing",
-          "done": "Delivered",
-          "timed_out": "Timed out"
+          "pending": "Solicitada — preparando",
+          "done": "Entregado",
+          "timed_out": "Tiempo agotado"
         }
       },
       "target_soc": {
@@ -1757,7 +1772,7 @@
         "name": "Crear solicitud de datos EU Data Act"
       },
       "historical_export_button": {
-        "name": "Request historical export"
+        "name": "Solicitar exportación histórica"
       },
       "companion_reset_button": {
         "name": "Restablecer conexión companion"
@@ -1806,28 +1821,28 @@
     },
     "image": {
       "render_icon": {
-        "name": "3/4 view (icon)"
+        "name": "Vista 3/4 (icono)"
       },
       "render_small": {
-        "name": "3/4 view (small)"
+        "name": "Vista 3/4 (pequeña)"
       },
       "render_medium": {
-        "name": "3/4 view (medium)"
+        "name": "Vista 3/4 (mediana)"
       },
       "render_side_sm": {
-        "name": "Side view (small)"
+        "name": "Vista lateral (pequeña)"
       },
       "render_side_lg": {
-        "name": "Side view (large)"
+        "name": "Vista lateral (grande)"
       },
       "render_angle_hd": {
-        "name": "3/4 view (HD)"
+        "name": "Vista 3/4 (HD)"
       },
       "render_angle_lg": {
-        "name": "3/4 view (large)"
+        "name": "Vista 3/4 (grande)"
       },
       "vehicle_render": {
-        "name": "Vehicle render"
+        "name": "Render del vehículo"
       }
     },
     "lock": {
@@ -1967,8 +1982,8 @@
       "description": "Los últimos datos que comunicó tu coche se registraron hace unas **{age} horas**, aunque la integración sigue consultando sin problemas. Esto puede deberse a dos motivos: puede que el coche esté simplemente aparcado y en reposo (algo normal, no hay nada que hacer) o que su fuente de datos del EU Data Act haya caducado y haya dejado de enviar lecturas nuevas.\n\nLos valores que ves ahora son los últimos conocidos, no datos en tiempo real. Si has conducido o enchufado el coche desde entonces y este aviso sigue apareciendo, lo más probable es que la fuente de datos haya caducado: abre volkswagen.de → los ajustes de datos de tu coche y renueva o vuelve a solicitar el uso compartido de datos, o vuelve a añadir el canal.\n\nEste aviso desaparece automáticamente en cuanto llega una lectura más reciente."
     },
     "historical_timeout": {
-      "title": "{vin}: one-time historical export didn't complete",
-      "description": "The one-time historical export requested for this car didn't produce a file within the client deadline. The VW portal gives this request no terminal state, so it may have been silently dropped. The request has been cleared — you can request it again, or check the portal directly."
+      "title": "{vin}: la exportación histórica única no se completó",
+      "description": "La exportación histórica única solicitada para este coche no generó ningún archivo dentro del plazo del cliente. El portal de VW no asigna a esta solicitud ningún estado final, así que puede haberse descartado de forma silenciosa. La solicitud se ha restablecido — puedes volver a solicitarla o consultar directamente el portal."
     }
   },
   "services": {
@@ -2187,7 +2202,7 @@
       "message": "El portal de la Ley de Datos de la UE aún no está listo. Espera a que la integración haya consultado una vez tras la configuración e inténtalo de nuevo."
     },
     "historical_disabled": {
-      "message": "The one-time historical export is currently disabled."
+      "message": "La exportación histórica única está desactivada actualmente."
     },
     "historical_wedge_blocked": {
       "message": "Ya hay una exportación puntual del historial en curso para este vehículo. El portal solo procesa una solicitud de este tipo a la vez, así que espera a que la actual termine (o se agote el tiempo de espera) antes de solicitar otra."

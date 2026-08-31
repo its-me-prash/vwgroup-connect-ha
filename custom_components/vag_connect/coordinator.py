@@ -34,6 +34,7 @@ from .const import (
     CONF_FUEL_TANK_CAPACITY,
     CONF_KEEP_RAW_DATASETS,
     CONF_MBB_COMMAND_CHANNEL,
+    CONF_MBB_COMMAND_FALLBACK,
     CONF_MEB_COMMANDS_UNAVAILABLE,
     CONF_PASSWORD,
     CONF_READ_ONLY,
@@ -2672,6 +2673,55 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     " — reads unaffected.", type(err).__name__,
                 )
 
+        # ── b15: MBB COMMAND FALLBACK (two-way device-grant primary, e.g. Audi) ─
+        # Same durable-MBB bearer + storage as the channel above, but armed as a
+        # FALLBACK (fallback_only=True → _mbb_fallback slot): the BFF stays the
+        # command primary and MBB is used ONLY by the _cariad_cmd BFF-refusal
+        # retry. Keeps a two-way Audi commandable if VW ever revokes its
+        # device-grant (Škoda precedent 2026-08). No operationList warm-up here on
+        # purpose — the fallback must NOT change command-entity visibility (that
+        # stays on the BFF capability gate); the retry gates itself.
+        if data.get(CONF_MBB_COMMAND_FALLBACK) and arm_cmd is not None:
+            from .cariad.models import TokenSet  # noqa: PLC0415
+            from .const import (  # noqa: PLC0415
+                CONF_MBB_COMMAND_CLIENT_ID,
+                CONF_MBB_COMMAND_TOKENS,
+                CONF_MBB_VINS,
+            )
+            tok = data.get(CONF_MBB_COMMAND_TOKENS) or {}
+            fb_tokens = TokenSet(
+                access_token=str(tok.get("access_token", "")),
+                refresh_token=str(tok.get("refresh_token", "")),
+                id_token=str(tok.get("id_token", "")),
+                expires_at=float(tok.get("expires_at", 0.0) or 0.0),
+                strategy="mbb",
+            )
+            vins = data.get(CONF_MBB_VINS) or []
+            if isinstance(vins, str):
+                vins = [
+                    v.strip().upper()
+                    for v in vins.replace(",", " ").split() if v.strip()
+                ]
+            try:
+                armed = bool(await arm_cmd(
+                    fb_tokens,
+                    data.get(CONF_MBB_COMMAND_CLIENT_ID, ""),
+                    list(vins),
+                    self._spin_from_entry(),
+                    fallback_only=True,
+                ))
+                if armed:
+                    # persist the rotated MBB bearer (durable refresh survives
+                    # restarts) — shares the command-token slot with the channel.
+                    fb = getattr(client, "_mbb_fallback", None)
+                    if fb is not None:
+                        fb.on_tokens_changed = self._persist_mbb_command_tokens
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning(
+                    "VW Group Connect: MBB command fallback arming failed (%s)"
+                    " — BFF commands unaffected.", type(err).__name__,
+                )
+
     async def _persist_mbb_command_tokens(self, tokens: Any) -> None:
         """b12 — write the MBB command channel's rotated bearer back to
         entry.data[CONF_MBB_COMMAND_TOKENS] so the durable refresh survives a
@@ -3332,26 +3382,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     pass
                 await self._async_push_update(fresh, success=any_success)
 
-                # v2.4.1 (#281+#282) — OLA defense-in-depth Layer 4:
-                # check if the SEAT/CUPRA client has flagged itself for
-                # a Repair issue (persistent 403s after all fallbacks).
-                # Cheap attribute check — no-op for non-OLA brands.
-                try:
-                    ola_flag = getattr(self._cariad_client, "ola_headers_repair_needed", False)
-                    consecutive_403 = getattr(self._cariad_client, "_ola_consecutive_403", 0)
-                    if ola_flag and consecutive_403 > 0:
-                        from .repairs import raise_issue_ola_headers_outdated  # noqa: PLC0415
-                        raise_issue_ola_headers_outdated(
-                            self.hass, self.entry.entry_id,
-                            self.entry.data.get(CONF_BRAND, "unknown"),
-                            consecutive_403,
-                        )
-                    elif not ola_flag and consecutive_403 == 0:
-                        # Successful response cleared the flag — clear the issue too.
-                        from .repairs import clear_ola_headers_issue  # noqa: PLC0415
-                        clear_ola_headers_issue(self.hass, self.entry.entry_id)
-                except Exception:  # noqa: BLE001
-                    pass
+                # v2.4.1 (#281+#282) — OLA defense-in-depth Layer 4 + #1301
+                # portal-mode auto-resolve. Cheap attr checks; no-op for non-OLA
+                # brands. Extracted to a helper so the raise/clear/portal-guard
+                # logic is unit-testable without driving a whole poll.
+                self._reconcile_ola_repair()
 
                 # v2.15.4 (#503) — VW NA read-path entitlement surfacing.
                 # login + garage succeed but per-vehicle reads 403; the client
@@ -6560,11 +6595,81 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         (@naked-head/@dazzzl): the export button was gated on read-only-portal
         mode only, so a merged ``eu_data_act+website_authproxy`` setup never got
         it even though the export works exactly the same there.
+
+        b5 follow-up (@naked-head/@dazzzl A/B): the two clauses below still miss a
+        portal feed brought up by the *auto-kickoff* path on a command-capable
+        primary — there ``is_read_only()`` is False (the MBB-command carve-out
+        keeps command entities alive) and ``CONF_SUPPLEMENTARY_EU_PORTAL`` is
+        unset (the portal came from the kickoff, not the options toggle). So also
+        recognise the portal from the same live signals the buttons' own action
+        (``async_request_historical_export``) and ``portal_health`` use: an armed
+        portal connector, or a persisted active Custom Data Request identifier.
+        ``register_dynamic_spawner`` re-evaluates this gate on every coordinator
+        update, so the buttons still spawn if the connector arms a poll later.
         """
-        from .const import CONF_SUPPLEMENTARY_EU_PORTAL  # noqa: PLC0415
-        return self.is_read_only() or bool(
-            self.entry.data.get(CONF_SUPPLEMENTARY_EU_PORTAL)
+        from .const import (  # noqa: PLC0415
+            CONF_DATA_ACT_IDENTIFIERS,
+            CONF_SUPPLEMENTARY_EU_PORTAL,
         )
+        if self.is_read_only() or self.entry.data.get(CONF_SUPPLEMENTARY_EU_PORTAL):
+            return True
+        client = getattr(self, "_cariad_client", None)
+        if (
+            getattr(client, "_eu_portal", None) is not None
+            or getattr(client, "_supplementary_eu_portal", None) is not None
+        ):
+            return True
+        # options→data fold can lag a session; match the kickoff's own read order.
+        identifiers = (
+            self.entry.options.get(CONF_DATA_ACT_IDENTIFIERS)
+            or self.entry.data.get(CONF_DATA_ACT_IDENTIFIERS)
+            or {}
+        )
+        return bool(identifiers)
+
+    def _reconcile_ola_repair(self) -> None:
+        """Raise/clear the SEAT/CUPRA ``ola_headers_outdated`` Repair from the
+        client's persistent-403 counter (#281/#282), with a portal-mode guard.
+
+        #1301 (@anju1337): SEAT/CUPRA OLA is server-side revoked. Once an entry
+        reads via the EU Data Act portal, ``get_vehicles`` / ``get_status``
+        short-circuit to the portal and never call OLA, so the counter/flag can
+        only be cleared by a *successful* OLA response that can never happen
+        again — the repair froze "on" and re-raised every poll (270+ firings).
+        When a portal channel is serving the data, OLA-403 history is moot:
+        clear the repair, reset the frozen counters (so a leftover best-effort
+        OLA read can't re-trip it), and never re-raise. The honest OLA repair
+        still fires for an entry NOT in portal mode. No-op for non-OLA brands
+        (the counters default to False/0).
+        """
+        try:
+            client = self._cariad_client
+            ola_flag = getattr(client, "ola_headers_repair_needed", False)
+            consecutive_403 = getattr(client, "_ola_consecutive_403", 0)
+            portal_active = (
+                getattr(client, "_eu_portal", None) is not None
+                or getattr(client, "_supplementary_eu_portal", None) is not None
+            )
+            from .repairs import (  # noqa: PLC0415
+                clear_ola_headers_issue,
+                raise_issue_ola_headers_outdated,
+            )
+            if portal_active:
+                if ola_flag or consecutive_403:
+                    clear_ola_headers_issue(self.hass, self.entry.entry_id)
+                    setattr(client, "ola_headers_repair_needed", False)
+                    setattr(client, "_ola_consecutive_403", 0)
+            elif ola_flag and consecutive_403 > 0:
+                raise_issue_ola_headers_outdated(
+                    self.hass, self.entry.entry_id,
+                    self.entry.data.get(CONF_BRAND, "unknown"),
+                    consecutive_403,
+                )
+            elif not ola_flag and consecutive_403 == 0:
+                # a successful OLA response cleared the flag — clear the issue too.
+                clear_ola_headers_issue(self.hass, self.entry.entry_id)
+        except Exception:  # noqa: BLE001
+            pass
 
     def is_read_only(self) -> bool:
         """v1.12.0 (#63) — return True if user enabled Read-only Mode.
@@ -7035,6 +7140,33 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             except Exception:  # noqa: BLE001
                 pass
             _LOGGER.error("VW Group Connect: %s(%s) failed: %s", method, mask_vin(vin), err)
+            # b15 — a two-way primary (Audi BFF) that refuses a command with an
+            # auth 401/403 (the shape a revoked device-grant takes) → try the
+            # durable MBB fallback ONCE before surfacing, iff the user opted in
+            # and the car is MBB-eligible (both settled at arm time). MBB success
+            # ends here; MBB failure falls through and surfaces the ORIGINAL BFF
+            # error, never the fallback's.
+            fb = self._mbb_command_fallback(method, err)
+            if fb is not None:
+                try:
+                    await getattr(fb, method)(vin, **kwargs)
+                    await self.async_request_refresh()
+                    try:
+                        self.record_command_success(vin, method)
+                    except Exception:  # noqa: BLE001
+                        pass
+                    _LOGGER.info(
+                        "VW Group Connect: %s(%s) recovered via the MBB fallback"
+                        " after the BFF refused it (HTTP %s).",
+                        method, mask_vin(vin), getattr(err, "status", "?"),
+                    )
+                    return
+                except Exception as fb_err:  # noqa: BLE001
+                    _LOGGER.info(
+                        "VW Group Connect: MBB fallback for %s(%s) also failed"
+                        " (%s) — surfacing the original BFF error.",
+                        method, mask_vin(vin), type(fb_err).__name__,
+                    )
             # v2.18.0 (#659) — surface the failure instead of letting the raw
             # APIError escape. HA doesn't know our exception types, so it logged
             # "Unexpected exception" and showed the user a Python traceback for
@@ -7103,6 +7235,38 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             except Exception:  # noqa: BLE001
                 pass  # enrichment must never change the command outcome
             raise HomeAssistantError(msg) from err
+
+    def _mbb_command_fallback(self, method: str, err: Exception) -> Any | None:
+        """b15 — the armed MBB fallback connector to retry a command on, or None.
+
+        Non-None ONLY when: the two-way primary client has an MBB fallback armed
+        (a device-grant Audi that opted in — already MBB-eligible, settled at arm
+        time), the failure is a BFF AUTH REFUSAL (``APIError`` 401/403, the shape
+        a revoked device-grant takes), and the command method exists on the MBB
+        connector. Deliberately NARROW: our own ``HomeAssistantError`` guards, an
+        ``SpinError`` / ``VehicleCommandError`` (both non-APIError), a capability
+        / entitlement gate, and a transient 5xx / timeout / 404 all return None —
+        MBB can't fix those, and a needless second call just doubles the failure."""
+        # Gate on the explicit config flag via a REAL dict lookup first — never
+        # ``getattr(client, "_mbb_fallback")`` alone, which a MagicMock test
+        # client would auto-vivify to a truthy value (mirrors the MagicMock-safe
+        # gating in ``_mbb_command_channel_client``). Also the cheapest guard.
+        try:
+            if not self.entry.data.get(CONF_MBB_COMMAND_FALLBACK):
+                return None
+        except Exception:  # noqa: BLE001
+            return None
+        from .cariad.exceptions import APIError  # noqa: PLC0415
+        if isinstance(err, HomeAssistantError) or not isinstance(err, APIError):
+            return None
+        if getattr(err, "status", None) not in (401, 403):
+            return None
+        client = getattr(self, "_cariad_client", None)
+        getter = getattr(client, "mbb_fallback_connector", None)
+        fb = getter() if callable(getter) else None
+        if fb is None:
+            return None
+        return fb if callable(getattr(fb, method, None)) else None
 
     async def async_set_charge_mode(self, vin: str, mode: str) -> None:
         """Set charging mode (MANUAL / TIMER / PREFERRED_CHARGING_TIMES)."""

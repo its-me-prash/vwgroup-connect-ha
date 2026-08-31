@@ -4143,9 +4143,19 @@ class VagConnectSensor(VagConnectEntity, SensorEntity):
         # Only present when a genuine tie occurred, so it never bloats the
         # recorder on a clean poll.
         if self.entity_description.key == "data_source_channel":
+            from ._channel_labels import channels_overview  # noqa: PLC0415
+            src_attrs: dict[str, Any] = {}
+            raw = self._vehicle.get("source_channel")
+            _display, labels = channels_overview(
+                raw if isinstance(raw, str) else None)
+            if labels:
+                # friendly per-channel list + the raw token join for support
+                src_attrs["channels"] = labels
+                src_attrs["raw"] = raw
             contested = self._vehicle.get("contested_fields")
             if isinstance(contested, dict) and contested:
-                return json_safe_dict({"contested_fields": contested})
+                src_attrs["contested_fields"] = contested
+            return json_safe_dict(src_attrs) if src_attrs else None
         # v2.15.3 — Skoda trip-cost sensors carry the (dynamic) ISO currency
         # code as an attribute, since device_class=MONETARY would force a fixed
         # native currency unit we don't know ahead of time.
@@ -4169,6 +4179,15 @@ class VagConnectSensor(VagConnectEntity, SensorEntity):
     @property
     def native_value(self) -> Any:
         val = self._vehicle.get(self.entity_description.data_key)
+        # data_source_channel — show the friendly, de-duplicated channel list
+        # ("Car-Net + EU Data Act portal") instead of the raw token join
+        # ("eu_data_act+mbb"). The raw value stays in the ``raw`` attribute and
+        # in ``source_channel`` itself, so nothing that keys on tokens changes.
+        if self.entity_description.key == "data_source_channel":
+            from ._channel_labels import channels_overview  # noqa: PLC0415
+            display, _labels = channels_overview(
+                val if isinstance(val, str) else None)
+            return display
         # v2.10.0 (charging_statistics) - power-curve sample list. Native
         # value is the COUNT to keep state HA-recorder friendly; the full
         # list lives in extra_state_attributes (see above). Returns None

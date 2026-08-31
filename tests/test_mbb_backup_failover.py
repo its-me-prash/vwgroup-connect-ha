@@ -38,7 +38,10 @@ def test_backup_client_is_the_verified_failover_id() -> None:
     assert MBB_DAG_CLIENT_ID_BACKUP != MBB_DAG_CLIENT_ID
 
 
-def test_backup_config_is_volkswagen_only() -> None:
-    for brand in ("audi", "skoda", "seat", "cupra", "porsche", "bentley"):
+def test_backup_config_mbb_brands_only() -> None:
+    # b15 — audi joined the MBB brands (live-validated 2026-08-30) and the backup
+    # shares MBB_DAG_BRANDS, so it fails over for audi too (same mbb scope).
+    for brand in ("skoda", "seat", "cupra", "porsche", "bentley"):
         assert mbb_dag_backup_config(brand) is None
     assert mbb_dag_backup_config("Volkswagen") is not None  # case-insensitive
+    assert mbb_dag_backup_config("audi") is not None         # b15

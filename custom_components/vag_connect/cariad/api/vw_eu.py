@@ -386,7 +386,30 @@ class VWEUClient(CariadBaseClient):
         if self._tokens and self._tokens.strategy == "mbb":
             return await self._get_vehicles_via_mbb()
 
-        data = await self._get(f"{self._garage_base()}/vehicle/v1/vehicles")
+        # b15 — garage-list resilience. myAudi 5.7.0 refactored the garage list
+        # from ``/vehicle/v1/vehicles`` to ``/vehicles`` (a new garageinformation
+        # module); CARIAD may eventually deprecate the old path. If the primary
+        # BFF list fails (e.g. a future 404 on the retired path), don't die: for
+        # Audi the vgql userVehicles list lives on a DIFFERENT host
+        # (app-api.*.my.audi.com) and enumerates the whole account garage, so fall
+        # back to it instead of returning no cars. Previously a 404 here raised
+        # APIError BEFORE the vgql merge below could run, so get_vehicles() died
+        # hard for Audi the moment the legacy path went away.
+        try:
+            data = await self._get(f"{self._garage_base()}/vehicle/v1/vehicles")
+        except APIError as err:
+            _LOGGER.warning(
+                "VAG: BFF garage list failed (HTTP %s) — falling back to the vgql "
+                "userVehicles enumeration.", getattr(err, "status", "?"),
+            )
+            await self.fetch_images()  # best-effort; populates self._image_data
+            fb_vins = [v for v in (getattr(self, "_image_data", {}) or {}) if v]
+            if fb_vins:
+                _LOGGER.info(
+                    "VAG: recovered %d vehicle(s) from the vgql garage after the "
+                    "BFF list failed.", len(fb_vins),
+                )
+            return fb_vins
         vehicles: list[dict[str, Any]] = data.get("data", [])
 
         # Cache nickname/model per VIN — used in _parse_status to set device name
@@ -842,11 +865,25 @@ class VWEUClient(CariadBaseClient):
 
     async def arm_mbb_command_channel(
         self, tokens: Any, client_id: str, vins: list[str], spin: str = "",
+        fallback_only: bool = False,
     ) -> bool:
-        """b12 — arm a durable-MBB command connector ALONGSIDE this (read-only
-        primary) client: commands route through MBB while reads stay on the
-        primary. Builds a second VWEUClient on the shared session (MBB = bearer,
-        no IDP-cookie clobber). Fail-soft → False leaves the slot None and the
+        """b12 — arm a durable-MBB command connector ALONGSIDE this client.
+
+        Two modes:
+        - ``fallback_only=False`` (b12, read-only primary, e.g. EU Data Act
+          portal): MBB *is* the command channel — commands route through it
+          while reads stay on the primary. Stored as ``self._mbb_command`` so
+          ``_mbb_command_target()`` returns it.
+        - ``fallback_only=True`` (b15, TWO-WAY device-grant primary, e.g. Audi
+          Car-Net on the CARIAD BFF): the BFF stays the command primary; this
+          connector is stored as ``self._mbb_fallback`` and used ONLY by the
+          coordinator's BFF-refusal retry path. ``_mbb_command_target()`` is
+          deliberately left untouched so normal commands keep hitting the BFF —
+          no regression for a working two-way Audi; MBB only steps in when the
+          BFF refuses (401/403).
+
+        Builds a second VWEUClient on the shared session (MBB = bearer, no
+        IDP-cookie clobber). Fail-soft → False leaves the slot None and the
         primary unaffected. Skipped if THIS client is already MBB-primary."""
         if not tokens or not getattr(tokens, "access_token", ""):
             return False
@@ -864,19 +901,37 @@ class VWEUClient(CariadBaseClient):
             cmd.set_persisted_tokens(tokens)
             cmd._mbb_client_id = client_id or ""
             cmd._mbb_manual_vins = list(vins or [])
-            self._mbb_command = cmd
-            _LOGGER.info(
-                "VW Group Connect: MBB command channel armed alongside the"
-                " read-only primary (commands → MBB, reads → primary)."
-            )
+            if fallback_only:
+                self._mbb_fallback: "VWEUClient | None" = cmd
+                _LOGGER.info(
+                    "VW Group Connect: MBB command FALLBACK armed alongside the"
+                    " two-way primary (BFF commands first, MBB only on refusal)."
+                )
+            else:
+                self._mbb_command = cmd
+                _LOGGER.info(
+                    "VW Group Connect: MBB command channel armed alongside the"
+                    " read-only primary (commands → MBB, reads → primary)."
+                )
             return True
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning(
-                "VW Group Connect: could not arm MBB command channel (%s) —"
-                " primary unaffected.", type(err).__name__,
+                "VW Group Connect: could not arm MBB command %s (%s) —"
+                " primary unaffected.",
+                "fallback" if fallback_only else "channel", type(err).__name__,
             )
-            self._mbb_command = None
+            if fallback_only:
+                self._mbb_fallback = None
+            else:
+                self._mbb_command = None
             return False
+
+    def mbb_fallback_connector(self) -> "VWEUClient | None":
+        """b15 — the armed MBB *fallback* connector (two-way device-grant
+        primary), or None. Consumed by the coordinator's BFF-refusal command
+        retry. Distinct from ``_mbb_command_target()``, which stays None on a
+        device-grant primary so normal commands keep hitting the BFF."""
+        return getattr(self, "_mbb_fallback", None)
 
     async def command_lock(self, vin: str, spin: str = "") -> None:
         """Lock vehicle — separate endpoint (primary) with combined endpoint as

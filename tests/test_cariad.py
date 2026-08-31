@@ -4466,7 +4466,9 @@ class TestDataActPortalButtonGating:
 
     def test_predicate_true_for_read_only_or_supplementary(self):
         """The coordinator predicate itself: read-only OR a supplementary portal
-        flag → True; neither → False."""
+        flag → True; neither → False. (The b5 auto-kickoff cases — armed portal
+        connector / persisted request identifier — are covered in
+        test_923_portal_button_gate.py.)"""
         from unittest.mock import MagicMock
         from custom_components.vag_connect.coordinator import VagConnectCoordinator
         from custom_components.vag_connect.const import CONF_SUPPLEMENTARY_EU_PORTAL
@@ -4474,7 +4476,12 @@ class TestDataActPortalButtonGating:
         def _p(read_only, supp):
             coord = VagConnectCoordinator.__new__(VagConnectCoordinator)
             coord.is_read_only = MagicMock(return_value=read_only)
+            # no portal connector armed, no persisted request identifier — so the
+            # "neither" case is genuinely False (a real entry has dict options/
+            # data, not a truthy MagicMock).
+            coord._cariad_client = None
             coord.entry = MagicMock()
+            coord.entry.options = {}
             coord.entry.data = (
                 {CONF_SUPPLEMENTARY_EU_PORTAL: True} if supp else {}
             )

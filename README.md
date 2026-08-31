@@ -55,12 +55,13 @@ To keep working through Volkswagen's 2026 API changes it speaks **several read c
 
 ## Highlights
 
-- **9 selectable Volkswagen Group brands** in one integration: Audi, Volkswagen EU, Škoda, SEAT, CUPRA, VW US/Canada, Audi US/Canada, Porsche and Bentley.
+- **10 selectable Volkswagen Group brands/sources** in one integration: Audi, Volkswagen EU, Škoda, SEAT, CUPRA, VW US/Canada, Audi US/Canada, Porsche, Bentley, and **Audi plug&play (OBD dongle)** for older pre-connectivity Audis.
+- **Older Audis with no built-in connectivity, via an OBD dongle (new in 4.3.0)**: cars invisible to the CARIAD backend and the EU Data Act portal (pre-connectivity A4/A5, Touareg, e-up!, …) can be read through a TEXA plug&play dongle's cloud snapshot — odometer, 12 V battery voltage, warning lights, last parking position, plus factory master-data (engine power, displacement, colours, model designation). Read-only, in its own token silo.
 - **Two-way control where the brand's backend allows it**: lock/unlock, climate, charging, target SoC. This is **per brand, not universal**. Check the table below before you count on a command.
 - **Škoda's in-car assistant "Laura" in Home Assistant (new in 3.0.0)**: ask about range, charging and trips as a service, or hand it to any conversation agent (the built-in Assist, OpenAI, Anthropic, Google, Ollama) as a tool it can call and chain. Read-only advice your automations can act on.
 - **Logbook events, firmware & calendar cards (new in 3.1.0)**: manufacturer push notifications become a per-vehicle `event` entity (Logbook + automations, no YAML bus filter), a read-only firmware `update` entity surfaces OTA status (Škoda today, no Install button), and two `calendar` entities lay out the charging schedule + service due-dates.
 - **Passwordless login option** (browser/device-code) for Audi, SEAT, CUPRA and Audi US/CA. No password stored in Home Assistant. Škoda moved to email + password in 3.0.1 when VW revoked its device-code grant.
-- **Multi-channel with auto-fallback**: brand-native, EU Data Act portal, opt-in vw.de web, optional Tibber, durable Car-Net. One channel going down doesn't take your data dark.
+- **Multi-channel with auto-fallback**: brand-native, EU Data Act portal, opt-in vw.de web, optional Tibber, durable Car-Net, and an OBD-dongle cloud reader for pre-connectivity Audis. One channel going down doesn't take your data dark.
 - **Companion channel (experimental, opt-in)**: when every backend path is shut, the integration can read your car by driving the official app on a spare Android phone. Three transports: **ADB over TCP**, the [**ADB Bridge add-on**](https://github.com/its-me-prash/vwgroup-app-adb-bridge) for modern phones, and — new in the 4.4.0 beta — a **companion agent app** the phone runs, which *calls Home Assistant* over an outbound long-poll so NAT, changing IPs and Wi-Fi client isolation stop mattering (the agent app is a separate artifact, not shipped yet; the protocol is in [docs/COMPANION_AGENT.md](docs/COMPANION_AGENT.md)). Volkswagen is verified against a real device; the other brands are read-only until a screen map is confirmed. Nothing is rooted and no app tokens are read.
 - **Resilient by design**: keeps the last known values and parking position through portal outages, filters bogus "no reading" sentinels, never lets the odometer jump backwards, and tells you when a failed login is the manufacturer's outage rather than your password.
 - **You control the poll rate**: a per-account **poll-interval slider** (a Number entity, in minutes) that automations can drive, created for every setup including read-only portal ones.
@@ -74,7 +75,7 @@ To keep working through Volkswagen's 2026 API changes it speaks **several read c
 
 | Brand | Control | Data | Notes |
 |---|---|---|---|
-| **Audi** (EU) | ✅ Two-way | ✅ Full | myAudi backend (incl. ICE engine start/stop) |
+| **Audi** (EU) | ✅ Two-way | ✅ Full | myAudi backend (incl. ICE engine start/stop). Legacy Car-Net Audis can opt into a **durable MBB command channel** that survives restarts and the Play-Integrity wall — new in 4.4.0, off by default; newer ID/MEB Audis aren't eligible ([#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)) |
 | **Škoda** | ✅ Two-way | ✅ Full | native Škoda backend |
 | **VW US/CA** | 🇨🇦 ✅ Two-way · 🇺🇸 ⛔ blocked by VW | 🇨🇦 ✅ Full · 🇺🇸 ⛔ | Canada signs in on its own server + app client and shows full data, confirmed on a live Canadian ID.4 ([#990](https://github.com/its-me-prash/vwgroup-connect-ha/issues/990)). **US: since 2026-08-13 VW enforces device attestation (Play Integrity) on the North-America plane, so US sign-in / token exchange hard-fails (401) — a VW-side wall an open-source client cannot satisfy off-device ([#1215](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1215)).** |
 | **VW EU** | 🔒 Read-only by default · ⚠️ commands = Car-Net **beta** | ✅ Full telemetry via EU Data Act portal | See the honest note below ([#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)) |
@@ -82,6 +83,7 @@ To keep working through Volkswagen's 2026 API changes it speaks **several read c
 | **Bentley** | ⏳ Two-way live-test gated | ✅ Login + read | My Bentley, runs on the Audi/IDK tenant |
 | **Porsche** | ⚠️ Experimental | ⚠️ Experimental | Porsche Connect, its own backend. Porsche moved to the *Porsche One* app, so **login is expected to fail on current accounts**. The command code is there but unreachable until the login is rebuilt ([#666](https://github.com/its-me-prash/vwgroup-connect-ha/issues/666)) |
 | **Audi US/CA** | ⏳ Two-way live-test gated | ✅ Full | myAudi NA backend. US now reads from the regional `na` vehicle service and is **confirmed working on a live US Audi Q5** (58 entities) — thanks @pouwerkerk ([#1092](https://github.com/its-me-prash/vwgroup-connect-ha/pull/1092)); Canada uses the EMEA service. Commands inherit the Audi two-way paths but aren't separately live-confirmed on NA yet ([#13](https://github.com/its-me-prash/vwgroup-connect-ha/issues/13)) |
+| **Audi plug&play** (OBD dongle) | ⛔ Read-only | ✅ Reads via dongle cloud | TEXA OBD dongle for pre-connectivity Audis; odometer, 12 V, lights, parking position + factory master-data. Read-only, own token silo (new in 4.3.0) |
 
 > **Honest note on VW EU control.** Volkswagen EU vehicles are **read-only by default**: you get full telemetry through the EU Data Act portal, but no remote commands. On **2026-08-18 VW disabled the login** the modern (CARIAD) two-way used, so that channel can no longer be set up. Remote commands for VW EU now exist **only as a durable Car-Net (MBB) two-way BETA**, and only for **legacy MQB / Car-Net** cars — an opt-in toggle, **not** a default feature. **MEB / ID-family cars (ID.3/4/5/7, Enyaq, Born, Q4 e-tron) have no command path at all** and are created read-only. The Car-Net beta is tracked in **[#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)** — testers welcome.
 
@@ -123,7 +125,7 @@ A few things are **structural** — they come from how Volkswagen's backends wor
 The integration's first screen offers **two** login methods. Pick the one your brand supports:
 
 - **Browser / device-code (passwordless)** for *Audi, SEAT, CUPRA and Audi US/CA*. Sign in on your phone or laptop and approve the device; no password is stored in Home Assistant (it keeps a real refresh token). This step also offers the optional **S-PIN** and scan interval.
-- **Portal, email + password** for *Volkswagen EU, Škoda, Volkswagen US/CA, Bentley and Porsche (experimental)*. Enter your brand login. This step exposes a brand picker, email, password, optional **S-PIN**, scan interval, and an **"enable MBB commands"** toggle (which takes effect on Volkswagen EU and, experimentally, on legacy Car-Net Audi, see [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)). For **Volkswagen US/Canada** a **country selector (US vs CA)** appears here; it renders **only** for that brand and is not used by any other.
+- **Portal, email + password** for *Volkswagen EU, Škoda, Volkswagen US/CA, Bentley and Porsche (experimental)*. Enter your brand login. This step exposes a brand picker, email, password, optional **S-PIN**, scan interval, and an **"enable MBB commands"** toggle — the durable Car-Net command channel — for Volkswagen EU and, **now live-validated, for legacy Car-Net Audi** (off by default, [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)); passwordless (device-code) Audi logins are offered the same durable-MBB opt-in as a dedicated setup step. For **Volkswagen US/Canada** a **country selector (US vs CA)** appears here; it renders **only** for that brand and is not used by any other. **Audi plug&play (OBD dongle)** is its own pick — vehicles are discovered automatically from the dongle's cloud account.
 
 > The **EU Data Act portal is not a third login button.** It's the read-only strategy the coordinator automatically falls back to, and it can additionally be *added* as a supplementary read channel from **Configure → Options**. The same is true of the `volkswagen.de` web channel (an opt-in beta, Options-only, read-only) and the optional **Tibber** channel, which fills gaps the first-party channels left empty and never overwrites fresher data.
 
@@ -199,11 +201,11 @@ You can also call the **`vag_connect.abrp_send`** service directly (target a dev
 
 ## iOS Live Activity — charging countdown on the Lock Screen
 
-A native **Live Activity** (Lock Screen + Dynamic Island) that counts down to your car finishing its charge, with a state-of-charge progress bar. The integration already exposes an **absolute** *charge target time* (`sensor.*_charge_target_time`), so iOS can tick the countdown on its own — no per-second push.
+A native **Live Activity** (Lock Screen + Dynamic Island) that counts down to your car finishing its charge, with a state-of-charge progress bar. The integration already exposes an **absolute** charge-finish timestamp (`sensor.*_charge_complete_eta` on every EV), so iOS can tick the countdown on its own — no per-second push.
 
-**Import the shipped blueprint** *"Live Activity — EV charging countdown (iOS)"* (`blueprints/automation/vag_connect/live_activity_charging_countdown.yaml`), pick your vehicle's charging / SoC / charge-target-time sensors and your phone's `notify.mobile_app_*` service. It starts when charging begins, refreshes as the ETA and SoC move, and clears when charging stops.
+**Import the shipped blueprint** *"Live Activity — EV charging countdown (iOS)"* (`blueprints/automation/vag_connect/live_activity_charging_countdown.yaml`), pick your vehicle's charging / SoC / charge-finish sensors and your phone's `notify.mobile_app_*` service. It starts when charging begins, refreshes as the ETA and SoC move, and clears when charging stops.
 
-> 📱 **Requirements:** the Home Assistant Companion app with **Live Activities** enabled (iOS 17.2+, HA Core 2026.7+). Live Activities are currently a **Labs** feature in the app's **TestFlight** build — enable them under Labs. A Live Activity needs a token handshake between the app and Home Assistant, so your phone has to be able to reach HA (locally or via a remote connection) when charging starts. This ships now so you're ready the day it leaves TestFlight.
+> 📱 **Requirements:** the Home Assistant Companion app with **Live Activities** enabled (iOS 17.2+, HA Core 2026.7+). Live Activities are currently a **Labs** feature in the app's **TestFlight** build — enable them under Labs. A Live Activity needs a token handshake between the app and Home Assistant, so your phone has to be able to reach HA (locally or via a remote connection) when charging starts. This ships now so you're ready the day it leaves TestFlight. **iOS 2026.8 adds iPad support and a redesigned Live Activity — the same blueprint drives both.**
 
 ---
 
@@ -233,6 +235,14 @@ scan interval (also available live as the poll-interval slider), S-PIN (plus a p
 ## Support this project ❤️
 
 This is a one-person project — and VW doesn't make it easy: every backend change means days of reverse-engineering to find a working path again. That persistence is what keeps it alive where established projects have given up. If it's worth something to you, you can support continued maintenance via **[GitHub Sponsors](https://github.com/sponsors/its-me-prash)**. Thank you! 🙏
+
+### Our sponsors
+
+<!-- SPONSORS:START -->
+Be the first public sponsor to show up here, and thank you either way!
+<!-- SPONSORS:END -->
+
+_This list refreshes weekly and shows only sponsors who chose to be public on GitHub Sponsors. Private sponsors are never named here, only counted, and we thank them just as much._
 
 ---
 

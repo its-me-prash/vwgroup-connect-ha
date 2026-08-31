@@ -16,6 +16,7 @@ untouched.
 from __future__ import annotations
 
 from custom_components.vag_connect.cariad._channel_merge import (
+    _LIVE_CLOSURE,
     _LIVE_TELEMETRY,
     merge_channels,
 )
@@ -92,3 +93,76 @@ class TestScopedAndSafe:
         m = merge_channels([("website_authproxy", live), ("eu_data_act", eu)])
         assert m.battery_soc == 80
         assert m.charging_state == "off"
+
+
+class TestClosureSupersede:
+    """Volatile physical closure/lock state supersedes a batch-primary too.
+
+    Same #1195-family reasoning as telemetry: a portal-primary VW with a live
+    supplementary channel (BFF / vw.de) must not show a ≥15-min-stale door /
+    lock / window snapshot from the batch when the live channel knows the current
+    state. A stale "locked"/"closed" reading is exactly what a door-open warning
+    automation would act on.
+    """
+
+    def test_stale_batch_lock_state_yields_to_live(self):
+        # EU-DA (primary) says locked + shut; live channel reads open/unlocked now.
+        eu = _v(doors_locked=True, doors_open=False, windows_open=False,
+                 trunk_open=False, trunk_locked=True, hood_open=False)
+        live = _v(doors_locked=False, doors_open=True, windows_open=True,
+                  trunk_open=True, trunk_locked=False, hood_open=True)
+        m = merge_channels([("eu_data_act", eu), ("website_authproxy", live)])
+        assert m.doors_locked is False          # live wins, not the stale locked
+        assert m.doors_open is True
+        assert m.windows_open is True
+        assert m.trunk_open is True
+        assert m.trunk_locked is False
+        assert m.hood_open is True
+        assert m.field_sources["doors_locked"] == "website_authproxy"
+
+    def test_per_door_detail_dicts_supersede_too(self):
+        # the scalar and the per-door/-window dicts must agree — both come from
+        # the live channel, never a scalar-live / dict-batch mix.
+        eu = _v(doors_individual={"front_left": True},
+                windows_position={"front_left": 0})
+        live = _v(doors_individual={"front_left": False, "rear_left": False},
+                  windows_position={"front_left": 100})
+        m = merge_channels([("eu_data_act", eu), ("website_authproxy", live)])
+        assert m.doors_individual == {"front_left": False, "rear_left": False}
+        assert m.windows_position == {"front_left": 100}
+        assert m.field_sources["doors_individual"] == "website_authproxy"
+
+    def test_bff_channel_also_supersedes_closure(self):
+        eu = _v(doors_locked=True)
+        bff = _v(doors_locked=False)
+        m = merge_channels([("eu_data_act", eu), ("audi", bff)])
+        assert m.doors_locked is False
+        assert m.field_sources["doors_locked"] == "audi"
+
+    def test_eu_da_only_car_keeps_its_closure_state(self):
+        # no live channel → batch closure survives (nothing fresher to prefer).
+        eu = _v(doors_locked=True, doors_open=False)
+        m = merge_channels([("eu_data_act", eu)])
+        assert m.doors_locked is True
+        assert m.doors_open is False
+
+    def test_live_silent_on_closure_keeps_batch(self):
+        # command-only live channel that doesn't report door state must not blank
+        # the batch's closure reading.
+        eu = _v(doors_locked=True)
+        mbb = _v(odometer_km=12000)  # no closure fields
+        m = merge_channels([("eu_data_act", eu), ("mbb", mbb)])
+        assert m.doors_locked is True
+        assert m.field_sources["doors_locked"] == "eu_data_act"
+
+    def test_monotonic_and_static_fields_still_not_superseded(self):
+        # the guardrail: odometer + service intervals are deliberately NOT in the
+        # closure set — priority order is not a freshness proxy for them.
+        assert "odometer_km" not in _LIVE_CLOSURE
+        assert "service_km" not in _LIVE_CLOSURE
+        assert "fuel_level" not in _LIVE_CLOSURE
+        eu = _v(odometer_km=1000, service_km=15000)
+        live = _v(odometer_km=1005, service_km=14000)
+        m = merge_channels([("eu_data_act", eu), ("website_authproxy", live)])
+        assert m.odometer_km == 1000            # batch primary keeps it
+        assert m.service_km == 15000
