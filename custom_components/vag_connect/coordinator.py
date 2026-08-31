@@ -6610,11 +6610,37 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         (@naked-head/@dazzzl): the export button was gated on read-only-portal
         mode only, so a merged ``eu_data_act+website_authproxy`` setup never got
         it even though the export works exactly the same there.
+
+        b5 follow-up (@naked-head/@dazzzl A/B): the two clauses below still miss a
+        portal feed brought up by the *auto-kickoff* path on a command-capable
+        primary — there ``is_read_only()`` is False (the MBB-command carve-out
+        keeps command entities alive) and ``CONF_SUPPLEMENTARY_EU_PORTAL`` is
+        unset (the portal came from the kickoff, not the options toggle). So also
+        recognise the portal from the same live signals the buttons' own action
+        (``async_request_historical_export``) and ``portal_health`` use: an armed
+        portal connector, or a persisted active Custom Data Request identifier.
+        ``register_dynamic_spawner`` re-evaluates this gate on every coordinator
+        update, so the buttons still spawn if the connector arms a poll later.
         """
-        from .const import CONF_SUPPLEMENTARY_EU_PORTAL  # noqa: PLC0415
-        return self.is_read_only() or bool(
-            self.entry.data.get(CONF_SUPPLEMENTARY_EU_PORTAL)
+        from .const import (  # noqa: PLC0415
+            CONF_DATA_ACT_IDENTIFIERS,
+            CONF_SUPPLEMENTARY_EU_PORTAL,
         )
+        if self.is_read_only() or self.entry.data.get(CONF_SUPPLEMENTARY_EU_PORTAL):
+            return True
+        client = getattr(self, "_cariad_client", None)
+        if (
+            getattr(client, "_eu_portal", None) is not None
+            or getattr(client, "_supplementary_eu_portal", None) is not None
+        ):
+            return True
+        # options→data fold can lag a session; match the kickoff's own read order.
+        identifiers = (
+            self.entry.options.get(CONF_DATA_ACT_IDENTIFIERS)
+            or self.entry.data.get(CONF_DATA_ACT_IDENTIFIERS)
+            or {}
+        )
+        return bool(identifiers)
 
     def is_read_only(self) -> bool:
         """v1.12.0 (#63) — return True if user enabled Read-only Mode.

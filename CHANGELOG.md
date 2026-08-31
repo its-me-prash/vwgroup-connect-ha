@@ -102,6 +102,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   uploads a snapshot after a drive, acpp now polls hourly by default (was every
   10 min) — identical data, far less token churn.
 
+### Fixed / Behoben
+- **The EU-Data-Act export buttons now appear on a command car that also reads
+  the portal.** If your car sends remote commands *and* pulls the EU Data Act
+  feed (the feed came up on its own, without you ticking the portal option), the
+  "Request historical export" / data-request buttons were missing — the button
+  gate only recognised a read-only portal or the explicit option. It now also
+  spots the live portal connection (or a saved active data request), so the
+  buttons show up on their own. Thanks @naked-head and @dazzzl — the toggle A/B
+  test pinned it exactly.
+
 ## [4.4.0b4] - 2026-08-28 — New diagnostic sensors (drivetrain · CSID · parked-since) · Audi/VW-EU doors+trunk fix · export button on merged portals
 
 ### Added / Neu
