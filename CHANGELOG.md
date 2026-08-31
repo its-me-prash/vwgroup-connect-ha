@@ -144,6 +144,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   every poll — because it was built to clear only on a successful call to an API
   that can no longer answer. It now auto-resolves whenever the portal is serving
   your data and stays gone. Thanks @anju1337 for the precise report.
+### Changed / Geändert
+- **Ready for the iOS 2026.8 companion app.** Most of what's new over there
+  (Energy and Calendar widgets, the redesigned Apple Watch app, CarPlay climate,
+  Spotlight search) already works with the sensors, calendars and lock/climate
+  controls this integration exposes — nothing to set up on our side. Two small
+  touch-ups while we were at it: the charging Live Activity blueprint now points
+  you at the charge-finish sensor every EV has (`charge_complete_eta`, instead of
+  a VW-portal-only one), so the Lock-Screen countdown works on any electric car;
+  and your connected-services (We Connect / Car-Net) subscription end date now
+  shows up on the service calendar the new Calendar widget follows.
 
 ## [4.4.0b4] - 2026-08-28 — New diagnostic sensors (drivetrain · CSID · parked-since) · Audi/VW-EU doors+trunk fix · export button on merged portals
 

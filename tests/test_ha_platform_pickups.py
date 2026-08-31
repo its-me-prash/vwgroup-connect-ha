@@ -129,6 +129,19 @@ def test_service_calendar_builds_all_day_events() -> None:
     assert svc.end == date(2026, 12, 2)  # all-day: end exclusive
 
 
+def test_service_calendar_includes_subscription_expiry() -> None:
+    # iOS 2026.8 calendar widget surfaces connected-services (We Connect /
+    # Car-Net) licence expiry as a calendar event. A datetime value is projected
+    # to its date part (all-day).
+    e = _entity(VagServiceCalendar, {"subscription_expiry_at": "2027-05-01T00:00:00Z"})
+    ev = next(
+        ev for ev in e._all_events()
+        if ev.summary == "Connected services subscription ends"
+    )
+    assert ev.start == date(2027, 5, 1)
+    assert ev.end == date(2027, 5, 2)
+
+
 def test_charging_calendar_projects_departure_timer() -> None:
     e = _entity(VagChargingScheduleCalendar, {
         "departure_timer_1_enabled": True,
