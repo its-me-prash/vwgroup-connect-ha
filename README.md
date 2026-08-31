@@ -234,6 +234,14 @@ scan interval (also available live as the poll-interval slider), S-PIN (plus a p
 
 This is a one-person project — and VW doesn't make it easy: every backend change means days of reverse-engineering to find a working path again. That persistence is what keeps it alive where established projects have given up. If it's worth something to you, you can support continued maintenance via **[GitHub Sponsors](https://github.com/sponsors/its-me-prash)**. Thank you! 🙏
 
+### Our sponsors
+
+<!-- SPONSORS:START -->
+Be the first public sponsor to show up here, and thank you either way!
+<!-- SPONSORS:END -->
+
+_This list refreshes weekly and shows only sponsors who chose to be public on GitHub Sponsors. Private sponsors are never named here, only counted, and we thank them just as much._
+
 ---
 
 ## Community & Support
