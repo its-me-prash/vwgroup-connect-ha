@@ -47,7 +47,7 @@
 
 Waar de backend van het merk het nog toelaat, stuurt ze ook opdrachten op afstand zoals vergrendelen/ontgrendelen, klimaat- en laadbesturing. **Dat verschilt per merk, het is niet universeel:** Audi en Škoda zijn tweeweg, Volkswagen EU via het EU Data Act-portaal is alleen-lezen, en opdrachten voor SEAT/CUPRA worden door de fabrikant geblokkeerd. De tabel hieronder zegt precies wat waar geldt.
 
-Om door de API-wijzigingen van Volkswagen in 2026 heen te blijven werken spreekt ze **meerdere leeskanalen en valt automatisch terug** wanneer er één geblokkeerd is: de merkeigen backends, het alleen-lezen **EU Data Act**-voertuigdataportaal, een optioneel `volkswagen.de`-webkanaal (bèta), een optionele **Tibber**-aanvulling, en een duurzame **wachtwoordloze** login voor oudere Car-Net-voertuigen. Ze draait prima **naast [evcc](https://evcc.io)** (zie [docs/EVCC.md](docs/EVCC.md)) en heeft **geen add-on, broker of middleware-container** nodig. Home Assistant installeert er automatisch twee kleine Python-pakketten voor; die worden alleen gebruikt door de optionele push-kanalen.
+Om door de API-wijzigingen van Volkswagen in 2026 heen te blijven werken spreekt ze **meerdere leeskanalen en valt automatisch terug** wanneer er één geblokkeerd is: de merkeigen backends, het alleen-lezen **EU Data Act**-voertuigdataportaal, een optioneel `volkswagen.de`-webkanaal (bèta), een optionele **Tibber**-aanvulling, en een duurzame **wachtwoordloze** login voor oudere Car-Net-voertuigen. Ze draait prima **naast [evcc](https://evcc.io)** (zie [docs/EVCC.md](docs/EVCC.md)) en heeft **geen add-on, broker of middleware-container** nodig. Home Assistant installeert er automatisch drie kleine Python-pakketten voor; die worden alleen gebruikt door de optionele push- en companion (ADB)-kanalen.
 
 > 🎉 **Nu rechtstreeks beschikbaar in HACS** — geen custom repository nodig.
 
@@ -55,12 +55,14 @@ Om door de API-wijzigingen van Volkswagen in 2026 heen te blijven werken spreekt
 
 ## Hoogtepunten
 
-- **9 selecteerbare merken van de Volkswagen Group** in één integratie: Audi, Volkswagen EU, Škoda, SEAT, CUPRA, VW VS/Canada, Audi VS/Canada, Porsche en Bentley.
+- **10 selecteerbare merken/bronnen van de Volkswagen Group** in één integratie: Audi, Volkswagen EU, Škoda, SEAT, CUPRA, VW VS/Canada, Audi VS/Canada, Porsche, Bentley en **Audi plug&play (OBD-dongle)** voor oudere Audi's zonder ingebouwde connectiviteit.
+- **Oudere Audi's zonder ingebouwde connectiviteit, via een OBD-dongle (nieuw in 4.3.0)**: auto's die onzichtbaar zijn voor de CARIAD-backend en het EU Data Act-portaal (A4/A5 zonder connectiviteit, Touareg, e-up!, …) kunnen worden uitgelezen via de cloud-snapshot van een TEXA plug&play-dongle — kilometerstand, 12 V-accuspanning, waarschuwingslampjes, laatste parkeerpositie, plus fabrieks-stamdata (motorvermogen, cilinderinhoud, kleuren, modelaanduiding). Alleen-lezen, in een eigen token-silo.
 - **Tweewegbesturing waar de backend van het merk het toelaat**: vergrendelen/ontgrendelen, klimaat, laden, doel-SoC. Dit is **per merk, niet universeel**. Kijk in de tabel hieronder voordat je op een opdracht rekent.
 - **Škoda's in-car-assistent "Laura" in Home Assistant (nieuw in 3.0.0)**: vraag naar actieradius, laden en ritten als service, of geef hem door aan een willekeurige conversatie-agent (de ingebouwde Assist, OpenAI, Anthropic, Google, Ollama) als tool die hij kan aanroepen en aan elkaar kan koppelen. Alleen-lezen advies waar je automatiseringen op kunnen reageren.
-- **Wachtwoordloze login-optie** (browser/device-code) voor Audi, Škoda, SEAT, CUPRA en Audi VS/CA. Er wordt geen wachtwoord in Home Assistant opgeslagen.
-- **Multikanaal met automatische terugval**: merkeigen, EU Data Act-portaal, optioneel vw.de-web, optioneel Tibber, duurzaam Car-Net. Valt één kanaal weg, dan gaan je data niet op zwart.
-- **Companion-kanaal (experimenteel, opt-in)**: als elke backend-route dicht zit, kan de integratie je auto uitlezen door via ADB de officiële app op een reservetelefoon met Android aan te sturen. Volkswagen is tegen een echt apparaat geverifieerd; de andere merken zijn alleen-lezen totdat een schermmapping bevestigd is. Moderne telefoons hebben de [ADB Bridge add-on](https://github.com/its-me-prash/vwgroup-app-adb-bridge) nodig; er wordt niets geroot en er worden geen app-tokens uitgelezen.
+- **Logboek-events, firmware- & agendakaarten (nieuw in 3.1.0)**: pushmeldingen van de fabrikant worden een `event`-entiteit per voertuig (Logboek + automatiseringen, geen YAML-busfilter), een alleen-lezen firmware-`update`-entiteit toont de OTA-status (vandaag Škoda, geen Install-knop), en twee `calendar`-entiteiten zetten het laadschema + de servicevervaldata op een rij.
+- **Wachtwoordloze login-optie** (browser/device-code) voor Audi, SEAT, CUPRA en Audi VS/CA. Er wordt geen wachtwoord in Home Assistant opgeslagen. Škoda is in 3.0.1 overgestapt op e-mail + wachtwoord toen VW de device-code-grant introk.
+- **Multikanaal met automatische terugval**: merkeigen, EU Data Act-portaal, optioneel vw.de-web, optioneel Tibber, duurzaam Car-Net, en een OBD-dongle-cloudlezer voor Audi's zonder ingebouwde connectiviteit. Valt één kanaal weg, dan gaan je data niet op zwart.
+- **Companion-kanaal (experimenteel, opt-in)**: als elke backend-route dicht zit, kan de integratie je auto uitlezen door de officiële app op een reservetelefoon met Android aan te sturen. Drie transporten: **ADB over TCP**, de [**ADB Bridge add-on**](https://github.com/its-me-prash/vwgroup-app-adb-bridge) voor moderne telefoons, en — nieuw in de 4.4.0-bèta — een **companion-agent-app** die de telefoon draait en die *Home Assistant belt* via een uitgaande long-poll, zodat NAT, wisselende IP's en wifi-client-isolatie niet meer uitmaken (de agent-app is een apart artefact, nog niet meegeleverd; het protocol staat in [docs/COMPANION_AGENT.md](docs/COMPANION_AGENT.md)). Volkswagen is tegen een echt apparaat geverifieerd; de andere merken zijn alleen-lezen totdat een schermmapping bevestigd is. Er wordt niets geroot en er worden geen app-tokens uitgelezen.
 - **Veerkrachtig van opzet**: bewaart de laatst bekende waarden en de laatst bekende parkeerpositie tijdens portaalstoringen, filtert onzinnige "geen meting"-sentinels, laat de kilometerstand nooit terugspringen, en vertelt je wanneer een mislukte login een storing bij de fabrikant is en niet je wachtwoord.
 - **Jij bepaalt het pollritme**: een **poll-interval-schuifregelaar** per account (een Number-entiteit, in minuten) die automatiseringen kunnen aansturen, aangemaakt bij elke installatie, ook bij alleen-lezen portaalinstallaties.
 - **GPS device tracker**, 100+ entiteiten over meerdere platformen, 30+ serviceaanroepen, meerdere voertuigen per account, entiteitsnamen in **12 talen**.
@@ -73,18 +75,19 @@ Om door de API-wijzigingen van Volkswagen in 2026 heen te blijven werken spreekt
 
 | Merk | Bediening | Data | Opmerkingen |
 |---|---|---|---|
-| **Audi** (EU) | ✅ Tweeweg | ✅ Volledig | myAudi-backend (incl. start/stop verbrandingsmotor) |
+| **Audi** (EU) | ✅ Tweeweg | ✅ Volledig | myAudi-backend (incl. start/stop verbrandingsmotor). Legacy Car-Net-Audi's kunnen kiezen voor een **duurzaam MBB-opdrachtkanaal** dat herstarts en de Play-Integrity-muur overleeft — nieuw in 4.4.0, standaard uit; nieuwere ID/MEB-Audi's komen niet in aanmerking ([#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)) |
 | **Škoda** | ✅ Tweeweg | ✅ Volledig | native Škoda-backend |
-| **VW VS/CA** | ✅ Tweeweg | ✅ Volledig | VW NA-cloud (vereist de VS/CA-landkeuze + S-PIN). Canada logt nu in op zijn eigen server met zijn eigen app-client en toont volledige data, bevestigd op een echte Canadese ID.4 ([#990](https://github.com/its-me-prash/vwgroup-connect-ha/issues/990)) |
-| **VW EU** | 🔒 Standaard alleen-lezen · ⚠️ opdrachten = MBB **alpha** | ✅ Volledige telemetrie via het EU Data Act-portaal | Zie de eerlijke opmerking hieronder ([#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)) |
+| **VW VS/CA** | 🇨🇦 ✅ Tweeweg · 🇺🇸 ⛔ door VW geblokkeerd | 🇨🇦 ✅ Volledig · 🇺🇸 ⛔ | Canada logt in op zijn eigen server + app-client en toont volledige data, bevestigd op een echte Canadese ID.4 ([#990](https://github.com/its-me-prash/vwgroup-connect-ha/issues/990)). **VS: sinds 2026-08-13 dwingt VW device attestation (Play Integrity) af op het Noord-Amerikaanse vlak, waardoor het inloggen / de token-uitwisseling in de VS hard mislukt (401) — een muur aan VW-zijde waaraan een open-source-client buiten het apparaat niet kan voldoen ([#1215](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1215)).** |
+| **VW EU** | 🔒 Standaard alleen-lezen · ⚠️ opdrachten = Car-Net **bèta** | ✅ Volledige telemetrie via het EU Data Act-portaal | Zie de eerlijke opmerking hieronder ([#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)) |
 | **CUPRA / SEAT** | ⛔ Opdrachten door VW geblokkeerd | ✅ EU Data Act-portaal | OLA-toegang in 2026 serverzijdig ingetrokken ([#464](https://github.com/its-me-prash/vwgroup-connect-ha/issues/464)) |
 | **Bentley** | ⏳ Tweeweg onder voorbehoud van livetest | ✅ Login + lezen | My Bentley, draait op de Audi/IDK-tenant |
 | **Porsche** | ⚠️ Experimenteel | ⚠️ Experimenteel | Porsche Connect, eigen backend. Porsche is overgestapt op de *Porsche One*-app, dus **de login zal op huidige accounts naar verwachting mislukken**. De opdrachtcode is er, maar onbereikbaar tot de login opnieuw is gebouwd ([#666](https://github.com/its-me-prash/vwgroup-connect-ha/issues/666)) |
 | **Audi VS/CA** | ⏳ Tweeweg onder voorbehoud van livetest | ✅ Volledig | myAudi NA-backend. De VS leest nu uit de regionale `na`-voertuigservice en is **bevestigd werkend op een echte VS Audi Q5** (58 entiteiten) — met dank aan @pouwerkerk ([#1092](https://github.com/its-me-prash/vwgroup-connect-ha/pull/1092)); Canada gebruikt de EMEA-service. Commando's erven de tweeweg-paden van Audi maar zijn nog niet apart live bevestigd op NA ([#13](https://github.com/its-me-prash/vwgroup-connect-ha/issues/13)) |
+| **Audi plug&play** (OBD-dongle) | ⛔ Alleen-lezen | ✅ Leest via dongle-cloud | TEXA OBD-dongle voor Audi's zonder ingebouwde connectiviteit; kilometerstand, 12 V, lichten, parkeerpositie + fabrieks-stamdata. Alleen-lezen, eigen token-silo (nieuw in 4.3.0) |
 
-> **Eerlijke opmerking over VW EU-bediening.** Volkswagen EU-voertuigen zijn **standaard read-only**: je krijgt volledige telemetrie via het EU Data Act-portaal, maar geen commando's op afstand. Commando's op afstand voor VW EU bestaan **alleen als een experimentele duurzame-MBB-tweeweg-ALPHA**, en alleen voor **legacy MQB / Car-Net**-auto's — het is een opt-in-schakelaar, **geen** standaardfunctie. **MEB / ID-familie-auto's (ID.3/4/5/7, Enyaq, Born, Q4 e-tron) hebben helemaal geen commandopad** en worden read-only aangemaakt. De MBB-alpha wordt gevolgd in **[#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)** — testers welkom.
+> **Eerlijke opmerking over VW EU-bediening.** Volkswagen EU-voertuigen zijn **standaard alleen-lezen**: je krijgt volledige telemetrie via het EU Data Act-portaal, maar geen commando's op afstand. Op **2026-08-18 heeft VW de login uitgeschakeld** die de moderne (CARIAD-)tweeweg gebruikte, dus dat kanaal kan niet meer worden ingesteld. Commando's op afstand voor VW EU bestaan nu **alleen als een duurzame Car-Net (MBB)-tweeweg-BÈTA**, en alleen voor **legacy MQB / Car-Net**-auto's — een opt-in-schakelaar, **geen** standaardfunctie. **MEB / ID-familie-auto's (ID.3/4/5/7, Enyaq, Born, Q4 e-tron) hebben helemaal geen commandopad** en worden alleen-lezen aangemaakt. De Car-Net-bèta wordt gevolgd in **[#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)** — testers welkom.
 
-> In 2026 plaatste Volkswagen delen van zijn API achter device attestation. Deze integratie omzeilt dat waar mogelijk (duurzame Car-Net-login, EU Data Act-portaal, vw.de-web) en is transparant over wat elk kanaal wel en niet kan.
+> In 2026 plaatste Volkswagen delen van zijn API achter device attestation, en het jaar door heeft het dat aangescherpt: **Volkswagen VS stopte met werken op 2026-08-13** (Play-Integrity-attestatie op het Noord-Amerikaanse vlak, [#1215](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1215)) en de **moderne VW EU-tweeweg-login werd op 2026-08-18 ingetrokken**. Deze integratie omzeilt attestatie waar mogelijk (duurzame Car-Net-login, EU Data Act-portaal, vw.de-web) en is transparant over wat elk kanaal wel en niet kan. **Tip: draai per auto maar één tweeweg-integratie — VW rate-limit accounts die meerdere apps tegelijk bestoken, en een geblokkeerd account breekt ook de officiële app.**
 
 ---
 
@@ -121,8 +124,8 @@ Een paar dingen zijn **structureel** — ze komen voort uit hoe Volkswagens back
 
 Het eerste scherm van de integratie biedt **twee** loginmethoden. Kies degene die jouw merk ondersteunt:
 
-- **Browser / device-code (wachtwoordloos)** voor *Audi, Škoda, SEAT, CUPRA en Audi VS/CA*. Log in op je telefoon of laptop en keur het apparaat goed; er wordt geen wachtwoord in Home Assistant opgeslagen (het bewaart een echte refresh token). Deze stap biedt ook de optionele **S-PIN** en het scaninterval.
-- **Portaal, e-mail + wachtwoord** voor *Volkswagen EU, Volkswagen VS/CA, Bentley en Porsche (experimenteel)*. Vul je merklogin in. Deze stap toont een merkkiezer, e-mail, wachtwoord, optionele **S-PIN**, scaninterval en een schakelaar **"MBB-opdrachten inschakelen"** (die alleen effect heeft op Volkswagen EU, zie [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)). Voor **Volkswagen VS/Canada** verschijnt hier een **landkeuze (VS of CA)**; die wordt **alleen** voor dat merk getoond en door geen enkel ander gebruikt.
+- **Browser / device-code (wachtwoordloos)** voor *Audi, SEAT, CUPRA en Audi VS/CA*. Log in op je telefoon of laptop en keur het apparaat goed; er wordt geen wachtwoord in Home Assistant opgeslagen (het bewaart een echte refresh token). Deze stap biedt ook de optionele **S-PIN** en het scaninterval.
+- **Portaal, e-mail + wachtwoord** voor *Volkswagen EU, Škoda, Volkswagen VS/CA, Bentley en Porsche (experimenteel)*. Vul je merklogin in. Deze stap toont een merkkiezer, e-mail, wachtwoord, optionele **S-PIN**, scaninterval en een schakelaar **"MBB-opdrachten inschakelen"** — het duurzame Car-Net-opdrachtkanaal — voor Volkswagen EU en, **nu live gevalideerd, voor legacy Car-Net-Audi** (standaard uit, [#584](https://github.com/its-me-prash/vwgroup-connect-ha/issues/584)); wachtwoordloze (device-code) Audi-logins krijgen dezelfde duurzame-MBB-opt-in aangeboden als een aparte setup-stap. Voor **Volkswagen VS/Canada** verschijnt hier een **landkeuze (VS of CA)**; die wordt **alleen** voor dat merk getoond en door geen enkel ander gebruikt. **Audi plug&play (OBD-dongle)** is een eigen keuze — voertuigen worden automatisch ontdekt vanuit het cloud-account van de dongle.
 
 > Het **EU Data Act-portaal is geen derde loginknop.** Het is de alleen-lezen strategie waarop de coördinator automatisch terugvalt, en het kan daarnaast als aanvullend leeskanaal worden *toegevoegd* via **Configureren → Opties**. Hetzelfde geldt voor het `volkswagen.de`-webkanaal (opt-in bèta, alleen via de Opties, alleen-lezen) en het optionele **Tibber**-kanaal, dat gaten vult die de eerstelijnskanalen leeg lieten en nooit verse data overschrijft.
 
@@ -157,6 +160,7 @@ Het portaal levert aanvankelijk slechts een **deel van de velden**, en dat deel 
 - **Bediening:** vergrendelen/ontgrendelen, klimaat starten/stoppen, laden starten/stoppen, ruitverwarming, vertrektimers, doel-SoC / temperatuur / max. laadstroom instellen, claxon-en-knipper (met keuze van de duur, en alleen lichten of ook de claxon), wake, refresh, laadstations zoeken, kampeermodus en actieve ventilatie (Škoda-interieurventilatie zonder verwarming) *(beschikbaarheid hangt af van merk & model)*.
 - **Device tracker:** GPS-positie voor de Home Assistant-kaart. Een poll die zonder coördinaten terugkomt behoudt de laatst bekende parkeerpositie in plaats van die kwijt te raken.
 - **Afbeeldingen:** voertuig-renders waar het merk ze levert.
+- **Events, updates & agenda's (nieuw in 3.1.0):** een push-`event`-entiteit per voertuig (meldingen van de fabrikant in het Logboek + automatiseringen), een alleen-lezen firmware-**update**-entiteit (Škoda OTA-status — geen Install-knop, de auto flasht zichzelf), en **laadschema- + service-agenda's** die de timers en vervaldata op een tijdlijn zetten.
 - **Instellingen:** een **poll-interval**-schuifregelaar per account, in minuten, zodat een automatisering vaker kan pollen terwijl je rijdt en 's nachts gas terugneemt. Hij bestaat bij elke installatie, ook bij alleen-lezen portaalitems.
 - **12 talen:** entiteitsnamen zijn volledig vertaald naar Engels, Duits, Frans, Spaans, Italiaans, Nederlands, Pools, Tsjechisch, Zweeds, Deens, Noors en Fins.
 
@@ -195,6 +199,16 @@ Je kunt ook de **`vag_connect.abrp_send`**-service rechtstreeks aanroepen (richt
 
 ---
 
+## iOS Live Activity — laadtimer op het vergrendelscherm
+
+Een native **Live Activity** (vergrendelscherm + Dynamic Island) die aftelt tot je auto klaar is met laden, met een laadtoestand-voortgangsbalk. De integratie levert al een **absolute** tijdstempel voor het einde van het laden (`sensor.*_charge_complete_eta` op elke EV), zodat iOS de aftelling zelf kan laten lopen — geen push per seconde.
+
+**Importeer de meegeleverde blueprint** *"Live Activity — EV charging countdown (iOS)"* (`blueprints/automation/vag_connect/live_activity_charging_countdown.yaml`), kies de laad- / SoC- / laad-einde-sensoren van je voertuig en de `notify.mobile_app_*`-service van je telefoon. Hij start wanneer het laden begint, ververst terwijl de ETA en SoC bewegen, en wist zichzelf wanneer het laden stopt.
+
+> 📱 **Vereisten:** de Home Assistant Companion-app met **Live Activities** ingeschakeld (iOS 17.2+, HA Core 2026.7+). Live Activities zijn momenteel een **Labs**-functie in de **TestFlight**-build van de app — schakel ze in onder Labs. Een Live Activity heeft een token-handshake tussen de app en Home Assistant nodig, dus je telefoon moet HA kunnen bereiken (lokaal of via een externe verbinding) wanneer het laden start. Dit wordt nu al meegeleverd zodat je klaar bent op de dag dat het TestFlight verlaat. **iOS 2026.8 voegt iPad-ondersteuning en een herontworpen Live Activity toe — dezelfde blueprint stuurt beide aan.**
+
+---
+
 ## Škoda AI-assistent ("Laura") — nieuw in 3.0.0
 
 MyŠkoda's eigen in-car-assistent, **Laura**, is beschikbaar binnen Home Assistant.
@@ -222,6 +236,39 @@ scaninterval (ook live beschikbaar als poll-interval-schuifregelaar), S-PIN (plu
 ## Steun dit project ❤️
 
 Dit is een eenmansproject — en VW maakt het niet makkelijk: elke backend-wijziging betekent dagen reverse-engineering om weer een werkend pad te vinden. Die volharding is wat het in leven houdt waar gevestigde projecten het hebben opgegeven. Als het iets voor je waard is, kun je het voortgezette onderhoud steunen via **[GitHub Sponsors](https://github.com/sponsors/its-me-prash)**. Dank je wel! 🙏
+
+### Onze sponsors
+
+<!-- SPONSORS:START -->
+Be the first public sponsor to show up here, and thank you either way!
+<!-- SPONSORS:END -->
+
+_Deze lijst wordt wekelijks ververst en toont alleen sponsors die ervoor kozen publiek te zijn op GitHub Sponsors. Privésponsors worden hier nooit bij naam genoemd, alleen geteld, en we bedanken ze net zo goed._
+
+---
+
+## Community & ondersteuning
+
+Waar je terecht kunt hangt af van wat je nodig hebt:
+
+- **Vragen, hulp bij het instellen, dashboardvoorbeelden, "is dit normaal?"** → [GitHub Discussions](https://github.com/its-me-prash/vwgroup-connect-ha/discussions). Algemene Home Assistant-vragen die niet specifiek over deze integratie gaan, passen beter op het [HA Community Forum](https://community.home-assistant.io).
+- **Een bug, een fout of een onbekend API-veld** → open een issue via [New issue → choose a template](https://github.com/its-me-prash/vwgroup-connect-ha/issues/new/choose). De **Vehicle Data Scout** vult het grootste deel van het rapport alvast voor je in. Een nuttig rapport noemt je merk, regio, Home Assistant- + integratieversie, en of dezelfde actie werkt in de officiële app van de fabrikant — de korte checklist staat in [`CONTRIBUTING.md`](CONTRIBUTING.md); hoe een rapport van indienen tot fix reist, staat in [`docs/TRIAGE.md`](docs/TRIAGE.md).
+- **Een beveiligingslek** → open **geen** publieke issue. Meld het privé via [GitHub Security Advisories](https://github.com/its-me-prash/vwgroup-connect-ha/security/advisories/new); het proces staat in [`SECURITY.md`](SECURITY.md).
+
+### Wat je kunt verwachten
+
+Dit is een eenmansproject, onderhouden in vrije tijd. Antwoorden zijn **naar beste vermogen** — soms dezelfde dag, soms trager wanneer VW iets breekt en een fix voordringt. Er is geen SLA, en die komt er ook niet. Hoe specifieker je rapport (opgeschoonde logs, geanonimiseerde diagnostiek, exacte stappen), hoe sneller het opgelost raakt. De huisregel, kort samengevat: **wees beleefd, wees specifiek, plak geen secrets — patches en geduld brengen je verder dan eisen.**
+
+### Manieren om te helpen
+
+Je hoeft geen code te schrijven om dit vooruit te helpen:
+
+- **Dien goede bugrapporten in** en voeg geanonimiseerde diagnostiek toe — één Scout-download is vaak alles wat nodig is om een nieuw veld in kaart te brengen.
+- **Test op een echte auto.** Meerdere merken zijn geïmplementeerd maar wachten op een eerste live bevestiging — zie de [lijst met live-testers](CONTRIBUTING.md#live-testers-wanted).
+- **Verbeter vertalingen.** Entiteitsnamen worden in 12 talen geleverd; correcties en hulp met een nieuwe taal zijn welkom.
+- **Stuur een patch.** Eén PR, één onderwerp — zie [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+Iedereen die helpt wordt gecrediteerd in [`CONTRIBUTORS.md`](CONTRIBUTORS.md) en bij naam bedankt in de release-notes. Hoe beslissingen worden genomen — en wie het laatste woord heeft in een eenmans-onderhoudsproject — staat opgeschreven in [`GOVERNANCE.md`](GOVERNANCE.md); de basisregels om mee te doen staan in [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
 
 ---
 

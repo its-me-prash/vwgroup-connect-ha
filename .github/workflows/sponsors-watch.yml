@@ -55,14 +55,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if [ -z "$(git status --porcelain README.md)" ]; then
+          if [ -z "$(git status --porcelain README*.md)" ]; then
             echo "no README change on disk — nothing to PR"; exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           BRANCH="chore/sponsors-refresh-$(date -u +%Y%m%d)"
           git checkout -b "$BRANCH"
-          git add README.md
+          git add README*.md
           git commit -m "chore: refresh README sponsors list (public sponsors only)"
           git push -u origin "$BRANCH" --force-with-lease
           gh pr create --base main --head "$BRANCH" \

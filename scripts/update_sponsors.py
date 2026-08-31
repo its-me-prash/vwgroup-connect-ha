@@ -34,7 +34,8 @@ import sys
 import urllib.request
 from pathlib import Path
 
-_README = Path(__file__).resolve().parent.parent / "README.md"
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_README = _REPO_ROOT / "README.md"
 _START = "<!-- SPONSORS:START -->"
 _END = "<!-- SPONSORS:END -->"
 _API = "https://api.github.com/graphql"
@@ -154,26 +155,35 @@ def main() -> int:
 
     block = _render(public, private_count)
 
-    text = _README.read_text(encoding="utf-8")
-    if _START not in text or _END not in text:
-        _fail(f"markers {_START} / {_END} not found in README.md")
-    new = re.sub(
-        re.escape(_START) + r".*?" + re.escape(_END),
-        f"{_START}\n{block}\n{_END}",
-        text,
-        count=1,
-        flags=re.DOTALL,
-    )
+    # Update every localized README that carries the markers, not just the
+    # English source, so each language shows the same live sponsor list.
+    marked: list[tuple[Path, str]] = []
+    for path in sorted(_REPO_ROOT.glob("README*.md")):
+        text = path.read_text(encoding="utf-8")
+        if _START in text and _END in text:
+            marked.append((path, text))
+    if not marked:
+        _fail(f"markers {_START} / {_END} not found in any README*.md")
 
-    changed = new != text
-    print(f"changed={'true' if changed else 'false'}")
-    print(f"update_sponsors: {len(public)} public, {private_count} private.",
-          file=sys.stderr)
+    any_changed = False
+    for path, text in marked:
+        new = re.sub(
+            re.escape(_START) + r".*?" + re.escape(_END),
+            f"{_START}\n{block}\n{_END}",
+            text,
+            count=1,
+            flags=re.DOTALL,
+        )
+        if new != text:
+            any_changed = True
+            if not check_only:
+                path.write_text(new, encoding="utf-8")
+
+    print(f"changed={'true' if any_changed else 'false'}")
+    print(f"update_sponsors: {len(public)} public, {private_count} private, "
+          f"across {len(marked)} README file(s).", file=sys.stderr)
     if check_only:
         print(block, file=sys.stderr)
-        return 0
-    if changed:
-        _README.write_text(new, encoding="utf-8")
     return 0
 
 
