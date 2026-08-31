@@ -111,6 +111,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   spots the live portal connection (or a saved active data request), so the
   buttons show up on their own. Thanks @naked-head and @dazzzl — the toggle A/B
   test pinned it exactly.
+- **SEAT/CUPRA: the "outdated OLA headers" repair no longer gets stuck on.** For
+  cars that read via the EU Data Act portal (the SEAT/CUPRA online API is
+  switched off at VW's end), that repair could latch on and re-announce itself on
+  every poll — because it was built to clear only on a successful call to an API
+  that can no longer answer. It now auto-resolves whenever the portal is serving
+  your data and stays gone. Thanks @anju1337 for the precise report.
 
 ## [4.4.0b4] - 2026-08-28 — New diagnostic sensors (drivetrain · CSID · parked-since) · Audi/VW-EU doors+trunk fix · export button on merged portals
 

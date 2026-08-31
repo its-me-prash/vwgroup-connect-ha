@@ -3382,26 +3382,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     pass
                 await self._async_push_update(fresh, success=any_success)
 
-                # v2.4.1 (#281+#282) — OLA defense-in-depth Layer 4:
-                # check if the SEAT/CUPRA client has flagged itself for
-                # a Repair issue (persistent 403s after all fallbacks).
-                # Cheap attribute check — no-op for non-OLA brands.
-                try:
-                    ola_flag = getattr(self._cariad_client, "ola_headers_repair_needed", False)
-                    consecutive_403 = getattr(self._cariad_client, "_ola_consecutive_403", 0)
-                    if ola_flag and consecutive_403 > 0:
-                        from .repairs import raise_issue_ola_headers_outdated  # noqa: PLC0415
-                        raise_issue_ola_headers_outdated(
-                            self.hass, self.entry.entry_id,
-                            self.entry.data.get(CONF_BRAND, "unknown"),
-                            consecutive_403,
-                        )
-                    elif not ola_flag and consecutive_403 == 0:
-                        # Successful response cleared the flag — clear the issue too.
-                        from .repairs import clear_ola_headers_issue  # noqa: PLC0415
-                        clear_ola_headers_issue(self.hass, self.entry.entry_id)
-                except Exception:  # noqa: BLE001
-                    pass
+                # v2.4.1 (#281+#282) — OLA defense-in-depth Layer 4 + #1301
+                # portal-mode auto-resolve. Cheap attr checks; no-op for non-OLA
+                # brands. Extracted to a helper so the raise/clear/portal-guard
+                # logic is unit-testable without driving a whole poll.
+                self._reconcile_ola_repair()
 
                 # v2.15.4 (#503) — VW NA read-path entitlement surfacing.
                 # login + garage succeed but per-vehicle reads 403; the client
@@ -6641,6 +6626,50 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             or {}
         )
         return bool(identifiers)
+
+    def _reconcile_ola_repair(self) -> None:
+        """Raise/clear the SEAT/CUPRA ``ola_headers_outdated`` Repair from the
+        client's persistent-403 counter (#281/#282), with a portal-mode guard.
+
+        #1301 (@anju1337): SEAT/CUPRA OLA is server-side revoked. Once an entry
+        reads via the EU Data Act portal, ``get_vehicles`` / ``get_status``
+        short-circuit to the portal and never call OLA, so the counter/flag can
+        only be cleared by a *successful* OLA response that can never happen
+        again — the repair froze "on" and re-raised every poll (270+ firings).
+        When a portal channel is serving the data, OLA-403 history is moot:
+        clear the repair, reset the frozen counters (so a leftover best-effort
+        OLA read can't re-trip it), and never re-raise. The honest OLA repair
+        still fires for an entry NOT in portal mode. No-op for non-OLA brands
+        (the counters default to False/0).
+        """
+        try:
+            client = self._cariad_client
+            ola_flag = getattr(client, "ola_headers_repair_needed", False)
+            consecutive_403 = getattr(client, "_ola_consecutive_403", 0)
+            portal_active = (
+                getattr(client, "_eu_portal", None) is not None
+                or getattr(client, "_supplementary_eu_portal", None) is not None
+            )
+            from .repairs import (  # noqa: PLC0415
+                clear_ola_headers_issue,
+                raise_issue_ola_headers_outdated,
+            )
+            if portal_active:
+                if ola_flag or consecutive_403:
+                    clear_ola_headers_issue(self.hass, self.entry.entry_id)
+                    setattr(client, "ola_headers_repair_needed", False)
+                    setattr(client, "_ola_consecutive_403", 0)
+            elif ola_flag and consecutive_403 > 0:
+                raise_issue_ola_headers_outdated(
+                    self.hass, self.entry.entry_id,
+                    self.entry.data.get(CONF_BRAND, "unknown"),
+                    consecutive_403,
+                )
+            elif not ola_flag and consecutive_403 == 0:
+                # a successful OLA response cleared the flag — clear the issue too.
+                clear_ola_headers_issue(self.hass, self.entry.entry_id)
+        except Exception:  # noqa: BLE001
+            pass
 
     def is_read_only(self) -> bool:
         """v1.12.0 (#63) — return True if user enabled Read-only Mode.
