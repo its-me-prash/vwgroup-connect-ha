@@ -8,13 +8,16 @@
 # (iOS 17.2+, HA Core 2026.7+). As of writing this is a Labs feature available in
 # the TestFlight build — this blueprint is here so you're ready the moment it is.
 #
-# How it works: the integration already exposes an ABSOLUTE "charge target time"
-# timestamp (sensor.*_charge_target_time — when the pack expects to reach its
-# target SoC). iOS renders a live-ticking countdown to that instant with the
-# companion app's `chronometer` + `when` fields, so the Lock Screen counts down
-# on its own without a push per second. A SoC progress bar rides alongside it.
-# The activity starts when charging begins, refreshes as the ETA / SoC move, and
-# clears when charging stops.
+# How it works: the integration already exposes an ABSOLUTE charge-finish
+# timestamp — sensor.*_charge_complete_eta on every EV (and the portal-only
+# sensor.*_charge_target_time on some VW cars). iOS renders a live-ticking
+# countdown to that instant with the companion app's `chronometer` + `when`
+# fields, so the Lock Screen counts down on its own without a push per second. A
+# SoC progress bar rides alongside it. The activity starts when charging begins,
+# refreshes as the ETA / SoC move, and clears when charging stops.
+#
+# iOS 2026.8.0 adds iPad support and a redesigned Live Activity, but the notify
+# payload contract is unchanged — this blueprint already drives it.
 blueprint:
   name: "Live Activity — EV charging countdown (iOS)"
   description: >
@@ -43,12 +46,13 @@ blueprint:
             - integration: vag_connect
               domain: binary_sensor
     finish_time_sensor:
-      name: "Charge target-time sensor"
+      name: "Charge-finish time sensor"
       description: >
-        The vehicle's "charge target time" timestamp sensor
-        (sensor.*_charge_target_time) — the absolute time it expects to reach the
-        target SoC. Drives the live countdown. If it's unavailable the activity
-        still shows the progress bar, just without the ticking timer.
+        The vehicle's absolute charge-finish timestamp sensor. On most EVs pick
+        sensor.*_charge_complete_eta (available on every electric car); on some
+        VW cars the portal-only sensor.*_charge_target_time also works. Drives
+        the live countdown. If it's unavailable the activity still shows the
+        progress bar, just without the ticking timer.
       selector:
         entity:
           filter:
