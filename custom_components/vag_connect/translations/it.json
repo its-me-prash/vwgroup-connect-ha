@@ -1984,6 +1984,14 @@
     "historical_timeout": {
       "title": "{vin}: l'esportazione storica una tantum non è stata completata",
       "description": "L'esportazione storica una tantum richiesta per quest'auto non ha prodotto alcun file entro il termine previsto dal client. Il portale VW non fornisce uno stato finale per questa richiesta, quindi potrebbe essere stata scartata silenziosamente. La richiesta è stata azzerata — puoi richiederla di nuovo oppure controllare direttamente nel portale."
+    },
+    "skoda_official_enrolled": {
+      "title": "API ufficiale di Škoda — ora sei registrato in automatico",
+      "description": "Buone notizie: abbiamo usato il tuo accesso Škoda esistente per creare una chiave API ufficiale di Škoda per la tua auto, così Home Assistant può ora leggerla tramite il nuovo canale ufficiale e stabile di Škoda — come backup automatico nel caso la connessione normale dovesse dare problemi. Non devi fare niente: è solo un avviso, e puoi chiuderlo."
+    },
+    "skoda_official_quota_full": {
+      "title": "API ufficiale di Škoda — limite di chiavi raggiunto",
+      "description": "Abbiamo provato a configurare in automatico l'API ufficiale di Škoda per la tua auto, ma il tuo account ha già il massimo di 5 chiavi API per questo veicolo. Per usarla, libera uno slot nell'app MyŠkoda (Impostazioni → Chiavi API → eliminane una che non usi) e ricarica l'integrazione, oppure incolla a mano una chiave esistente nelle opzioni dell'integrazione. Tutto il resto continua a funzionare come prima."
     }
   },
   "services": {

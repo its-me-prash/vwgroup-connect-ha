@@ -274,6 +274,24 @@ async def test_rate_limit_budget_self_blocks_when_exhausted():
 
 
 @pytest.mark.asyncio
+async def test_per_vin_key_selection_with_fallback():
+    # Auto-enrolled keys are VIN-bound: each VIN uses its own minted key, and a VIN
+    # without one falls back to the single manual key.
+    s = _FakeSession()
+    c = SkodaOfficialClient(
+        s, email="", password="FALLBACK", spin="",
+        keys_by_vin={"VIN1": "KEY-A", "vin2": "KEY-B"})
+    await c.get_status("VIN1")
+    assert s.calls[-1]["headers"]["X-API-Key"] == "KEY-A"
+    await c.get_status("VIN2")                       # map key is upper-cased
+    assert s.calls[-1]["headers"]["X-API-Key"] == "KEY-B"
+    await c.get_status("VIN9")                       # not enrolled → fallback
+    assert s.calls[-1]["headers"]["X-API-Key"] == "FALLBACK"
+    # the per-VIN map is itself an authoritative VIN list
+    assert set(await c.get_vehicles()) == {"VIN1", "VIN2"}
+
+
+@pytest.mark.asyncio
 async def test_retry_after_on_429_sets_block():
     from custom_components.vag_connect.cariad.exceptions import APIError
 

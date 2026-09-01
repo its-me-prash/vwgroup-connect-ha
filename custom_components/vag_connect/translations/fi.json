@@ -1984,6 +1984,14 @@
     "historical_timeout": {
       "title": "{vin}: kertaluonteinen historiatietojen vienti ei valmistunut",
       "description": "Tälle autolle pyydetty kertaluonteinen historiatietojen vienti ei tuottanut tiedostoa määräaikaan mennessä. VW-portaali ei anna tälle pyynnölle lopputilaa, joten se on voitu hylätä hiljaisesti. Pyyntö on nollattu — voit pyytää sen uudelleen tai tarkistaa asian suoraan portaalista."
+    },
+    "skoda_official_enrolled": {
+      "title": "Škodan virallinen API — sinut on nyt liitetty automaattisesti",
+      "description": "Hyviä uutisia: käytimme nykyisiä Škoda-kirjautumistietojasi ja loimme autollesi virallisen Škoda-API-avaimen, joten Home Assistant voi nyt lukea autosi tiedot Škodan uuden virallisen ja pysyvän kanavan kautta — automaattisena varayhteytenä siltä varalta, että tavallinen yhteys joskus takkuaa. Sinun ei tarvitse tehdä mitään; tämä on vain tiedoksi, ja voit sulkea ilmoituksen."
+    },
+    "skoda_official_quota_full": {
+      "title": "Škodan virallinen API — avainten yläraja saavutettu",
+      "description": "Yritimme ottaa Škodan virallisen API:n automaattisesti käyttöön autollesi, mutta tililläsi on jo tälle ajoneuvolle enimmäismäärä eli 5 API-avainta. Ota se käyttöön vapauttamalla paikka MyŠkoda-sovelluksessa (Asetukset → API-avaimet → poista käyttämätön) ja lataamalla integraatio uudelleen, tai liitä olemassa oleva avain käsin integraation asetuksiin. Kaikki muu toimii kuten ennenkin."
     }
   },
   "services": {

@@ -42,6 +42,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **Škoda official public API — automatic enrolment, zero setup.** Škoda opened a
+  public data API (app v8.16+). Already-logged-in Škoda owners are now enrolled
+  automatically: we mint a per-car API key from the existing login, wire it up as a
+  durable failover read channel, and drop a one-time notification that it's live —
+  nothing to paste, nothing to configure. New users get it the same painless way.
+  The key is minted once and remembered, honours the 5-keys-per-car limit, and the
+  channel stays rate-limited (20 requests/hour per car) so it's only read when the
+  primary channel is down. A manual key field stays in the options as a fallback.
+
 ### Changed
 - **Audi battery net-capacity now also comes from the health read.** The battery
   State-of-Health response we already fetch on Audi device-grant cars carries the

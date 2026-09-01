@@ -211,6 +211,40 @@ def clear_issue_test_cohort_share(hass: HomeAssistant, entry_id: str) -> None:
     ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_test_cohort_share")
 
 
+def raise_issue_skoda_official_enrolled(hass: HomeAssistant, entry_id: str) -> None:
+    """Škoda official-API auto-enrollment — inform the user (once, dismissibly) that
+    we minted an official API key from their existing login and now have Škoda's
+    durable, official channel available as an automatic failover. Purely
+    informational: not auto-fixable, lowest severity, idempotent (HA de-dupes)."""
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        f"{entry_id}_skoda_official_enrolled",
+        is_fixable=False,
+        is_persistent=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="skoda_official_enrolled",
+        learn_more_url="https://github.com/its-me-prash/vwgroup-connect-ha/issues/1286",
+    )
+
+
+def raise_issue_skoda_official_quota(hass: HomeAssistant, entry_id: str) -> None:
+    """Škoda official-API auto-enrollment blocked — the account already holds the
+    maximum 5 API keys for this vehicle, so we couldn't mint one. Tell the user
+    (once, dismissibly) how to free a slot in the MyŠkoda app. Not auto-fixable;
+    lowest severity; idempotent."""
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        f"{entry_id}_skoda_official_quota",
+        is_fixable=False,
+        is_persistent=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="skoda_official_quota_full",
+        learn_more_url="https://github.com/its-me-prash/vwgroup-connect-ha/issues/1286",
+    )
+
+
 def raise_issue_requirements_conflict(hass: HomeAssistant) -> None:
     """Raise a repair issue for configuration problems."""
     ir.async_create_issue(

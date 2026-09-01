@@ -1536,6 +1536,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # stops consuming the daily request budget. Reassigning here means
             # both the gather and the zip below use the filtered list.
             vins = self._active_vins(vins)
+            # Škoda auto-enrollment to the official public API — mint a per-VIN
+            # X-API-Key from the user's existing mysmob login so an already-logged-in
+            # owner gets the durable official channel with zero effort, and new users
+            # get it painlessly. Idempotent + fail-soft (never sinks the poll).
+            try:
+                await self._auto_enroll_skoda_official(vins)
+            except Exception:  # noqa: BLE001
+                _LOGGER.debug("Škoda official auto-enroll skipped", exc_info=True)
             # Fetch status for all vehicles
             results = await asyncio.gather(
                 *[self._cariad_client.get_status(vin) for vin in vins],
@@ -2523,6 +2531,87 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         else:
             clear_issue_test_cohort_share(self.hass, self.entry.entry_id)
 
+    def _arm_official_from_map(self, keys_map: dict[str, Any]) -> None:
+        """Arm the Škoda official failover channel from a persisted per-VIN key map
+        ({vin: {key, id, validUntil}})."""
+        arm = getattr(self._cariad_client, "arm_supplementary_official", None)
+        if arm is None:
+            return
+        by_vin = {
+            str(vin).upper(): (rec.get("key") or "")
+            for vin, rec in (keys_map or {}).items()
+            if isinstance(rec, dict) and rec.get("key")
+        }
+        if by_vin:
+            try:
+                arm(keys_by_vin=by_vin)
+            except Exception:  # noqa: BLE001
+                _LOGGER.debug("Škoda official arm-from-map failed", exc_info=True)
+
+    async def _auto_enroll_skoda_official(self, vins: list[str]) -> None:
+        """Auto-enroll a logged-in Škoda user in the official public API: mint a
+        per-VIN X-API-Key from the EXISTING mysmob login, persist it, arm the
+        official failover channel, and raise a one-time HA repair informing the
+        user. Idempotent (mints only for VINs without a stored key, honours the
+        5-keys/VIN quota) and fail-soft (never sinks the poll). Gated on a native
+        mysmob login inside can_mint_official_key."""
+        from . import repairs  # noqa: PLC0415
+        from .const import CONF_BRAND, CONF_SKODA_OFFICIAL_KEYS  # noqa: PLC0415
+        client = self._cariad_client
+        if str(self.entry.data.get(CONF_BRAND, "")) != "skoda":
+            return
+        if not getattr(client, "can_mint_official_key", False):
+            return
+        mint = getattr(client, "mint_api_key", None)
+        list_keys = getattr(client, "list_api_keys", None)
+        if mint is None or list_keys is None:
+            return
+        stored: dict[str, Any] = dict(self.entry.data.get(CONF_SKODA_OFFICIAL_KEYS) or {})
+        stored_upper = {str(k).upper() for k in stored}
+        to_mint = [v for v in vins if str(v).upper() not in stored_upper]
+        if not to_mint:
+            if stored:
+                self._arm_official_from_map(stored)
+            return
+        # Quota check (maxKeys 5 per VIN) — one GET before minting.
+        remaining: dict[str, int] = {}
+        listing = await list_keys()
+        if isinstance(listing, dict):
+            for vk in listing.get("vehicleKeys") or []:
+                if isinstance(vk, dict) and vk.get("vin") is not None:
+                    try:
+                        remaining[str(vk["vin"]).upper()] = int(vk.get("keysRemaining", 0))
+                    except (TypeError, ValueError):
+                        pass
+        newly: dict[str, Any] = {}
+        quota_full = False
+        for vin in to_mint:
+            if remaining.get(str(vin).upper(), 1) <= 0:
+                quota_full = True  # user already holds 5 keys for this VIN in the app
+                continue
+            minted = await mint(vin)
+            if isinstance(minted, dict) and minted.get("key"):
+                newly[str(vin).upper()] = {
+                    "key": minted["key"],
+                    "id": minted.get("id", ""),
+                    "validUntil": minted.get("validUntil", ""),
+                }
+        if not newly:
+            # Nothing minted this run (route rejected / quota full). Keep any stored
+            # keys armed; if the only blocker was a full key quota, guide the user.
+            if stored:
+                self._arm_official_from_map(stored)
+            if quota_full:
+                repairs.raise_issue_skoda_official_quota(self.hass, self.entry.entry_id)
+            return
+        full = {**stored, **newly}
+        self._arm_official_from_map(full)
+        # Persist for the next restart so we never re-mint (idempotent: a second run
+        # sees the same data and async_update_entry is a no-op → no reload loop).
+        self.hass.config_entries.async_update_entry(
+            self.entry, data={**self.entry.data, CONF_SKODA_OFFICIAL_KEYS: full})
+        repairs.raise_issue_skoda_official_enrolled(self.hass, self.entry.entry_id)
+
     async def _arm_supplementary_channels(self) -> None:
         """v2.15.0b1 (C1) — arm configured supplementary read channels on the
         client. No-op when none configured → single-channel setup unchanged;
@@ -2613,11 +2702,21 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # supplementary channel: it is read ONLY when the primary mysmob channel
         # hard-fails (see _revive_after_hard_failure). Arming just hands the
         # client the key; get_status(vin) is called per-VIN on failover.
-        from .const import CONF_SKODA_OFFICIAL_API_KEY  # noqa: PLC0415
+        from .const import (  # noqa: PLC0415
+            CONF_SKODA_OFFICIAL_API_KEY,
+            CONF_SKODA_OFFICIAL_KEYS,
+        )
         arm_official = getattr(client, "arm_supplementary_official", None)
-        if data.get(CONF_SKODA_OFFICIAL_API_KEY) and arm_official is not None:
+        single_key = data.get(CONF_SKODA_OFFICIAL_API_KEY) or ""
+        key_map = data.get(CONF_SKODA_OFFICIAL_KEYS) or {}
+        by_vin = {
+            str(vin).upper(): (rec.get("key") or "")
+            for vin, rec in key_map.items()
+            if isinstance(rec, dict) and rec.get("key")
+        }
+        if (single_key or by_vin) and arm_official is not None:
             try:
-                arm_official(data.get(CONF_SKODA_OFFICIAL_API_KEY))
+                arm_official(api_key=single_key, keys_by_vin=by_vin or None)
             except Exception as err:  # noqa: BLE001
                 _LOGGER.warning(
                     "VW Group Connect: Škoda official-API failover arming failed"

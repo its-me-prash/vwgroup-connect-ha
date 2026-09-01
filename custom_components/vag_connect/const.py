@@ -298,6 +298,11 @@ CONF_SUPPLEMENTARY_TIBBER_TOKENS = "supplementary_tibber_tokens"
 # when the primary (unofficial mysmob) channel hard-fails, never polled
 # continuously, because the official API is rate-limited to 20 requests/hour/key.
 CONF_SKODA_OFFICIAL_API_KEY      = "skoda_official_api_key"
+# Auto-enrolled per-VIN official keys, minted from the user's mysmob login:
+# {vin: {"key": str, "id": str, "validUntil": str}}. Keys are VIN-bound, so this
+# is a map, not a single key; CONF_SKODA_OFFICIAL_API_KEY stays the manual-fallback
+# single key for any VIN not auto-enrolled.
+CONF_SKODA_OFFICIAL_KEYS         = "skoda_official_keys"
 
 # v2.15.0b3 — "hide entities without data" (default ON). When enabled, data
 # sensors / binary sensors whose value hasn't arrived are not created, so a

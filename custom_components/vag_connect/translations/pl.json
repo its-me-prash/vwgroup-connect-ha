@@ -1984,6 +1984,14 @@
     "historical_timeout": {
       "title": "{vin}: jednorazowy eksport historyczny nie został ukończony",
       "description": "Jednorazowy eksport historyczny zażądany dla tego auta nie utworzył pliku w wyznaczonym czasie. Portal VW nie zwraca dla tego żądania żadnego stanu końcowego, więc mogło ono zostać po cichu odrzucone. Żądanie zostało wyczyszczone — możesz je ponowić lub sprawdzić bezpośrednio w portalu."
+    },
+    "skoda_official_enrolled": {
+      "title": "Oficjalne API Škoda — masz już automatyczny dostęp",
+      "description": "Dobra wiadomość: wykorzystaliśmy Twoje istniejące dane logowania Škoda, aby utworzyć oficjalny klucz API Škoda dla Twojego samochodu. Dzięki temu Home Assistant może teraz odczytywać dane przez nowy, oficjalny i trwały kanał Škoda — jako automatyczne zabezpieczenie na wypadek, gdyby zwykłe połączenie kiedyś szwankowało. Nie musisz nic robić; to tylko informacja i możesz ją zamknąć."
+    },
+    "skoda_official_quota_full": {
+      "title": "Oficjalne API Škoda — osiągnięto limit kluczy",
+      "description": "Próbowaliśmy automatycznie skonfigurować oficjalne API Škoda dla Twojego samochodu, ale na Twoim koncie jest już maksymalna liczba 5 kluczy API dla tego pojazdu. Aby z niego skorzystać, zwolnij jedno miejsce w aplikacji MyŠkoda (Ustawienia → Klucze API → usuń nieużywany) i przeładuj integrację, albo wklej istniejący klucz ręcznie w opcjach integracji. Cała reszta działa tak jak wcześniej."
     }
   },
   "services": {
