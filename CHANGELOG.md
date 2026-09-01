@@ -49,6 +49,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   cars whose main status bundle didn't include it. No new entity — just an extra
   source for the existing sensor (grounded on the myAudi 5.7.0 data model).
 
+### Fixed
+- **Škoda official-API channel: correctness + rate-limit hardening** (validated
+  against the live public API spec). Climate start now sends an empty body where
+  the API requires one (a missing body was rejected); the channel honours its
+  20-requests/hour budget by self-blocking when the server reports the quota is
+  spent (RateLimit-Remaining 0 or a Retry-After on 429/503), so the failover read
+  never breaches the limit. Off unless you add an official API key.
+
 ## [4.4.0] - 2026-08-31 — iOS Live Activities · durable Audi + VW two-way (MBB) · EU-Data-Act multi-channel merge · friendly channel names
 
 _Consolidates the 4.4.0b1–b5 betas into one stable release._

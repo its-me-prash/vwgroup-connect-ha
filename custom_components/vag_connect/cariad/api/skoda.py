@@ -149,6 +149,11 @@ class SkodaClient(CariadBaseClient):
         off = self._supplementary_official
         if off is None:
             return None
+        # Honour the official channel's 20/hour/key budget: if the server has told
+        # us we're out (RateLimit-Remaining 0, or a 429/503 Retry-After), skip the
+        # failover read until the window resets rather than breaching the quota.
+        if getattr(off, "over_rate_limit", False) is True:
+            return None
         try:
             return await off.get_status(vin)  # type: ignore[no-any-return]
         except Exception:  # noqa: BLE001
