@@ -1683,6 +1683,9 @@
       },
       "marketing_consent_given": {
         "name": "Udzielono zgody marketingowej"
+      },
+      "data_source": {
+        "name": "Źródło: {source}"
       }
     },
     "switch": {

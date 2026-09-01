@@ -1028,6 +1028,11 @@ async def async_setup_entry(
         # 4) Per-light sensors (v1.12.0 #91 leftover)
         for light_id in vehicle.get("lights_individual", {}):
             entities.append(VagLightSensor(coordinator, vin, light_id))
+        # 5) Per-source connectivity sensors — one per armed read channel, so a
+        # user can see which sources this car is connected to (active vs standby),
+        # incl. a standby failover like the Škoda official API (#1286). Cross-brand.
+        for token in (vehicle.get("channel_status") or {}):
+            entities.append(VagSourceConnectivitySensor(coordinator, vin, token))
         return entities
 
     register_dynamic_spawner(entry, coordinator, async_add_entities, _build_for_vin)
@@ -1132,6 +1137,68 @@ class VagAbrpDataChangedSensor(VagConnectEntity, BinarySensorEntity):
         attrs: dict[str, Any] = {
             "last_upload_recorded": last is not None,
         }
+        return attrs
+
+
+class VagSourceConnectivitySensor(VagConnectEntity, BinarySensorEntity):
+    """Connectivity indicator for ONE read channel (data source).
+
+    ON = the car is connected to that source, whether it is actively feeding values
+    or sitting on standby (e.g. the Škoda official API is a failover that only reads
+    when the primary channel is down). Answers "which sources am I connected to",
+    per source, across every brand (#1286). The live detail — active vs standby, how
+    many of the car's readings this source provides, when it last contributed, and
+    for the EU Data Act portal its feed health — is exposed as attributes.
+    """
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+    _attr_icon = "mdi:transit-connection-variant"
+    _attr_translation_key = "data_source"
+
+    def __init__(
+        self, coordinator: VagConnectCoordinator, vin: str, token: str
+    ) -> None:
+        super().__init__(coordinator, vin, f"connectivity_{token}")
+        self._token = token
+        from ._channel_labels import channel_display_name  # noqa: PLC0415
+        self._attr_translation_placeholders = {"source": channel_display_name(token)}
+
+    def _status(self) -> dict[str, Any]:
+        cs = self._vehicle.get("channel_status")
+        if isinstance(cs, dict):
+            s = cs.get(self._token)
+            if isinstance(s, dict):
+                return s
+        return {}
+
+    @property
+    def is_on(self) -> bool | None:
+        s = self._status()
+        # No status entry (channel no longer armed) → None, which HA renders as
+        # state "unknown" (not "unavailable", which would need `available=False`,
+        # and not a misleading "off"/disconnected).
+        return bool(s.get("armed")) if s else None
+
+    def _platform_attributes(self) -> dict[str, Any] | None:
+        s = self._status()
+        if not s:
+            return None
+        if s.get("active"):
+            status = "active"
+        elif s.get("failover"):
+            status = "standby (failover)"
+        else:
+            status = "standby"
+        attrs: dict[str, Any] = {"status": status}
+        if s.get("active_values") is not None:
+            attrs["active_entities"] = s.get("active_values")
+            attrs["total_entities"] = s.get("total_values")
+        if s.get("last_active"):
+            attrs["last_active"] = s.get("last_active")
+        for k in ("portal_health", "minutes_since_last_snapshot"):
+            if s.get(k) is not None:
+                attrs[k] = s.get(k)
         return attrs
 
 

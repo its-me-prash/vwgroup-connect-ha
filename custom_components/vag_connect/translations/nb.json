@@ -1683,6 +1683,9 @@
       },
       "marketing_consent_given": {
         "name": "Markedsføringssamtykke gitt"
+      },
+      "data_source": {
+        "name": "Kilde: {source}"
       }
     },
     "switch": {
