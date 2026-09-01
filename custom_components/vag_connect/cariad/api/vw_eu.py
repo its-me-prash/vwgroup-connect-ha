@@ -798,11 +798,24 @@ class VWEUClient(CariadBaseClient):
         # SoH from the batteryHealthState sub-job above (value lives at
         # ``stateOfHealth.ubeIndicator_pct``; parse_battery_health walks for it).
         if soh_raw:
-            from .._authproxy import parse_battery_health  # noqa: PLC0415
+            from .._authproxy import (  # noqa: PLC0415
+                parse_battery_health,
+                parse_usable_battery_capacity,
+            )
 
             _soh = parse_battery_health(soh_raw)
             if _soh is not None:
                 d.battery_soh_pct = int(round(_soh))
+            # The same batteryHealthState body also carries usable (net) capacity
+            # in kWh (myAudi 5.7.0 StateOfHealth.usableBatteryCapacity) — the same
+            # quantity as batteryCapacityNetto. Use it only as a GAP-FILL source
+            # for the existing battery_cap_kwh sensor: the main selectivestatus /
+            # EU-DA value wins when present, but a car whose main bundle omitted
+            # net capacity gets it from the health read instead of nothing.
+            if d.battery_cap_kwh is None:
+                _cap = parse_usable_battery_capacity(soh_raw)
+                if _cap is not None:
+                    d.battery_cap_kwh = _cap
 
         # v1.25.0 PR-G — MBB VSR Phase 2 read-side fallback (Golf 7 GTE
         # Tank-Level use case). Triggers when:

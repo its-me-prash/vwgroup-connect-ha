@@ -25,6 +25,7 @@ spin)`` signature without a new arg, the VIN(s) ride the ``email`` slot
 """
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from aiohttp import ClientSession, ClientTimeout
@@ -67,6 +68,12 @@ class SkodaOfficialClient:
         # the first call. The coordinator reads this to pace itself (20/hour/key).
         self.rate_limit_remaining: int | None = None
         self.rate_limit_reset_s: int | None = None
+        self.retry_after_s: int | None = None
+        # Local self-block window (monotonic deadline) — set when the server says
+        # the budget is exhausted (RateLimit-Remaining 0, or a 429/503 Retry-After),
+        # so the failover never breaches the 20/hour/key quota. Mirrors the openHAB
+        # MySkoda binding's client-side rate limiter.
+        self._blocked_until: float = 0.0
 
     async def authenticate(self, mfa_code: str | None = None) -> None:
         """No OAuth — the ``X-API-Key`` is itself the credential. Validate it with
@@ -93,10 +100,29 @@ class SkodaOfficialClient:
     def _note_rate_limit(self, resp: Any) -> None:
         rem = resp.headers.get("RateLimit-Remaining")
         rst = resp.headers.get("RateLimit-Reset")
+        ra = resp.headers.get("Retry-After")  # sent on 429 / 503
         if rem is not None and str(rem).lstrip("-").isdigit():
             self.rate_limit_remaining = int(rem)
         if rst is not None and str(rst).lstrip("-").isdigit():
             self.rate_limit_reset_s = int(rst)
+        if ra is not None and str(ra).isdigit():
+            self.retry_after_s = int(ra)
+        # Self-block when the server says we're out of budget. Prefer the explicit
+        # Retry-After (429/503); else block for the reset window once remaining==0.
+        wait = 0
+        if self.retry_after_s and str(resp.status).startswith(("4", "5")):
+            wait = self.retry_after_s
+        elif self.rate_limit_remaining == 0 and self.rate_limit_reset_s:
+            wait = self.rate_limit_reset_s
+        if wait > 0:
+            self._blocked_until = time.monotonic() + wait
+
+    @property
+    def over_rate_limit(self) -> bool:
+        """True while the local self-block window (from RateLimit-Remaining 0 or a
+        Retry-After) is still open — the failover read skips instead of breaching
+        the 20/hour/key quota."""
+        return time.monotonic() < self._blocked_until
 
     async def _request(self, method: str, path: str, json_body: Any = None) -> tuple[int, Any]:
         async with self._session.request(
@@ -271,10 +297,14 @@ class SkodaOfficialClient:
         return await self._command(vin, "charging/stop")
 
     async def command_start_climate(self, vin: str, target_c: float | None = None) -> bool:
+        # air-conditioning/start has requestBody required:true; StartAirConditioning
+        # Configuration has no required inner field, so an empty {} is a valid
+        # instance. Send {} unconditionally — a None body omits the JSON entirely
+        # and the server rejects it with 400.
         body: dict[str, Any] = {}
         if target_c is not None:
             body["targetTemperature"] = {"value": target_c, "unit": "CELSIUS"}
-        return await self._command(vin, "air-conditioning/start", body or None)
+        return await self._command(vin, "air-conditioning/start", body)
 
     async def command_stop_climate(self, vin: str) -> bool:
         return await self._command(vin, "air-conditioning/stop")

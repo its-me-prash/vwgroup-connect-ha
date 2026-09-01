@@ -236,6 +236,47 @@ def parse_battery_health(body: object) -> float | None:
     return None
 
 
+def parse_usable_battery_capacity(body: object) -> float | None:
+    """Extract usable (net) battery capacity in kWh from a batteryHealthState body.
+
+    myAudi 5.7.0's ``connectedvehicle/batteryhealthstate`` model exposes
+    ``StateOfHealth.usableBatteryCapacity`` (a Double, kWh) next to the SoH %
+    (``ubeIndicator_pct``, parsed by :func:`parse_battery_health`). We already
+    fetch the ``selectivestatus?jobs=batteryHealthState`` response for the SoH
+    read, so this walks the SAME body for the capacity field — best-effort:
+    returns None unless a plausible pack capacity is present, so a car whose
+    envelope doesn't carry it simply leaves the sensor unavailable. Defensive on
+    unit: a value that looks like Wh (> 300) is scaled to kWh.
+    """
+    def _walk(node: object) -> float | None:
+        if isinstance(node, dict):
+            for k, v in node.items():
+                if (
+                    k == "usableBatteryCapacity"
+                    and isinstance(v, (int, float))
+                    and not isinstance(v, bool)
+                ):
+                    return float(v)
+                found = _walk(v)
+                if found is not None:
+                    return found
+        elif isinstance(node, list):
+            for item in node:
+                found = _walk(item)
+                if found is not None:
+                    return found
+        return None
+
+    val = _walk(body)
+    if val is None:
+        return None
+    if val > 300:  # looks like Wh, not kWh — scale down
+        val /= 1000.0
+    if 1 < val <= 300:
+        return round(val, 1)
+    return None
+
+
 def build_transactionhistory_url(vin: str, gdc: str | None = None) -> str:
     """Remote-command history (lock/unlock lives here). Realm ``vw-de``.
 

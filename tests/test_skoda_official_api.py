@@ -245,3 +245,43 @@ async def test_key_rejected_raises_auth_error():
     c = _client(_FakeSession(status=401, body={"type": "api-key-expired"}))
     with pytest.raises(AuthenticationError):
         await c.get_status("VIN1")
+
+
+@pytest.mark.asyncio
+async def test_climate_start_without_temp_sends_empty_body_not_none():
+    # air-conditioning/start has requestBody required:true — an empty {} is a
+    # valid instance but a None body omits the JSON and the server 400s.
+    s = _FakeSession(status=202, body={})
+    c = _client(s)
+    assert await c.command_start_climate("VIN1") is True
+    assert s.calls[-1]["url"].endswith("/vehicles/VIN1/air-conditioning/start")
+    assert s.calls[-1]["json"] == {}          # NOT None
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_budget_self_blocks_when_exhausted():
+    # RateLimit-Remaining 0 → self-block for the reset window; over_rate_limit True.
+    s = _FakeSession(headers={"RateLimit-Remaining": "0", "RateLimit-Reset": "1800"})
+    c = _client(s)
+    await c.get_status("VIN1")
+    assert c.rate_limit_remaining == 0
+    assert c.over_rate_limit is True
+    # a healthy budget does not block
+    s2 = _FakeSession(headers={"RateLimit-Remaining": "12", "RateLimit-Reset": "1800"})
+    c2 = _client(s2)
+    await c2.get_status("VIN1")
+    assert c2.over_rate_limit is False
+
+
+@pytest.mark.asyncio
+async def test_retry_after_on_429_sets_block():
+    from custom_components.vag_connect.cariad.exceptions import APIError
+
+    s = _FakeSession(status=429, body={"type": "too-many-requests"},
+                     headers={"Retry-After": "600"})
+    c = _client(s)
+    with pytest.raises(APIError):
+        await c.get_status("VIN1")
+    # Retry-After was still captured (from the response, before the raise)
+    assert c.retry_after_s == 600
+    assert c.over_rate_limit is True
