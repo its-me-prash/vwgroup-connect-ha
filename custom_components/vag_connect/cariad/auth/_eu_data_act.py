@@ -3529,7 +3529,10 @@ class EUDataActConnector:
                 exc_info=True,
             )
             return None
-        _LOGGER.info(
+        # DEBUG, not INFO: this is a silent "not now" no-op the user can't act on
+        # (nothing granted, nothing accepted) and VW injects the page on many
+        # otherwise-normal logins — at INFO it would be recurring log noise.
+        _LOGGER.debug(
             "EU Data Act portal: skipped optional marketing consent "
             "(followed callback, granted no marketing scopes)"
         )
