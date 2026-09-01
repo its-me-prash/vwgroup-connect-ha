@@ -42,6 +42,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **A brief backend hiccup during a token refresh no longer forces you to log in
+  again.** When the login server rejected a token refresh, we treated every
+  rejection the same — including a temporary "try again later" one — and bounced
+  you to a fresh QR / password re-auth. Now only a genuinely dead login (the one
+  case a fresh sign-in actually fixes) does that; a transient server error, rate
+  blip or network wobble just retries on the next poll and your entry stays live.
+  Applies to both the device-code/QR login and the Car-Net (MBB) refresh path.
+
 ## [4.5.0] - 2026-09-01 — Škoda official public API: automatic, zero-setup enrolment · Audi battery-health capacity
 
 ### Added

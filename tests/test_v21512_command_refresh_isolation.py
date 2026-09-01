@@ -29,7 +29,10 @@ import pytest
 from custom_components.vag_connect.cariad.api import base as _base
 from custom_components.vag_connect.cariad.api.vw_eu import VWEUClient
 from custom_components.vag_connect.cariad.auth import _mbboauth
-from custom_components.vag_connect.cariad.exceptions import AuthenticationError
+from custom_components.vag_connect.cariad.exceptions import (
+    AuthenticationError,
+    TokenRefreshRetryError,
+)
 from custom_components.vag_connect.cariad.models import TokenSet
 
 
@@ -156,14 +159,19 @@ class _SeqSession:
 
 
 def test_transient_5xx_retries_then_gives_up(monkeypatch) -> None:
-    """A persistent 500 is retried up to the cap, then surfaces verbatim."""
+    """A persistent 500 is retried up to the cap, then surfaces as a TRANSIENT
+    refresh error (not a hard auth failure — a 5xx is not a dead grant, so it must
+    not bounce the user to a reauth prompt)."""
     monkeypatch.setattr(asyncio, "sleep", _no_sleep)
     body = '{"error":"IllegalStateException"}'
     sess = _SeqSession(
         [_Resp(500, body) for _ in range(_mbboauth._TOKEN_5XX_MAX_ATTEMPTS)]
     )
-    with pytest.raises(AuthenticationError, match="MBB token exchange HTTP 500"):
+    with pytest.raises(TokenRefreshRetryError, match="MBB token exchange HTTP 500"):
         asyncio.run(_mbboauth.refresh(sess, "RT", client_id="CID"))
+    assert not isinstance(  # sibling of AuthenticationError, never a subtype
+        TokenRefreshRetryError("x"), AuthenticationError
+    )
     # It actually retried the full budget (not a single-shot fail).
     assert sess.n == _mbboauth._TOKEN_5XX_MAX_ATTEMPTS
 
@@ -183,12 +191,23 @@ def test_transient_5xx_then_success_recovers(monkeypatch) -> None:
 
 
 def test_non_5xx_still_fails_immediately(monkeypatch) -> None:
-    """A 403 is NOT retried (only 5xx is transient) — one shot, verbatim."""
+    """A 403 is NOT retried (only 5xx is transient) — one shot. On the REFRESH
+    path a 403 that isn't invalid_grant is transient → TokenRefreshRetryError, not a
+    reauth-forcing AuthenticationError."""
     monkeypatch.setattr(asyncio, "sleep", _no_sleep)
     sess = _SeqSession([_Resp(403, "Forbidden")])
-    with pytest.raises(AuthenticationError, match="403"):
+    with pytest.raises(TokenRefreshRetryError, match="403"):
         asyncio.run(_mbboauth.refresh(sess, "RT", client_id="CID"))
     assert sess.n == 1  # no retry on a non-5xx
+
+
+def test_mbb_refresh_invalid_grant_is_hard_auth(monkeypatch) -> None:
+    """The ONE hard case: invalid_grant (dead refresh token) → AuthenticationError,
+    because only a fresh login fixes it."""
+    monkeypatch.setattr(asyncio, "sleep", _no_sleep)
+    sess = _SeqSession([_Resp(400, '{"error":"invalid_grant"}')])
+    with pytest.raises(AuthenticationError):
+        asyncio.run(_mbboauth.refresh(sess, "RT", client_id="CID"))
 
 
 async def _no_sleep(_secs: float) -> None:

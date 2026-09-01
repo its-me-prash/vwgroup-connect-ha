@@ -264,6 +264,21 @@ class AuthenticationError(CariadError):
     """Login failed — wrong credentials or account issue."""
 
 
+class TokenRefreshRetryError(CariadError):
+    """A token refresh was rejected TRANSIENTLY — not a dead refresh token.
+
+    A refresh exchange can fail for reasons a fresh login does NOT fix: a
+    transient ``invalid_client`` / ``server_error`` / 5xx / network blip. Only a
+    genuinely dead grant (``invalid_grant``) needs a new login. Classifying the
+    rest as this error — deliberately a sibling of ``AuthenticationError``, NOT a
+    subclass — keeps a temporary hiccup from bouncing the user to a fresh QR /
+    credential reauth prompt: the poll loop reauths ONLY on ``AuthenticationError``
+    (``isinstance`` check), so this falls through to the transient-retry path and
+    the entry stays live until the next poll. Do NOT make it a subclass of
+    ``AuthenticationError`` — a test pins that, because it would silently undo the
+    whole point."""
+
+
 class NorthAmericaAttestationError(AuthenticationError):
     """#1165/#659 — VW North America blocks the sign-in token exchange behind
     Play-Integrity device attestation (~2026-07-30). The con-veh host 401s with a
