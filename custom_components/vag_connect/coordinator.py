@@ -2548,6 +2548,72 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             except Exception:  # noqa: BLE001
                 _LOGGER.debug("Škoda official arm-from-map failed", exc_info=True)
 
+    def _armed_data_channels(self, vin: str) -> list[str]:
+        """Tokens of the read channels armed for this vehicle (data sources) —
+        primary + supplementary + the Škoda official failover — enumerated WITHOUT
+        creating reader coroutines. Order-stable, de-duplicated. Brand-agnostic."""
+        client = self._cariad_client
+        tokens: list[str] = [self._primary_channel_name()]
+        for attr, token in (
+            ("_supplementary_authproxy", "website_authproxy"),
+            ("_supplementary_eu_portal", "eu_data_act"),
+            ("_supplementary_tibber", "tibber"),
+            ("_supplementary_official", "skoda_official"),
+        ):
+            if getattr(client, attr, None) is not None:
+                tokens.append(token)
+        seen: set[str] = set()
+        out: list[str] = []
+        for t in tokens:
+            if t and t not in seen:
+                seen.add(t)
+                out.append(t)
+        return out
+
+    def _compute_channel_status(
+        self, vin: str, data: dict[str, Any]
+    ) -> dict[str, dict[str, Any]]:
+        """Per-source connectivity status for the connectivity binary_sensors: for
+        each armed data channel, whether it is currently contributing values
+        (active) vs armed-but-idle (standby), how many readings it owns of the total,
+        and when it last contributed. The Škoda official channel is a FAILOVER whose
+        data wears the brand token, so it is reported as armed with no live count."""
+        field_sources = data.get("field_sources")
+        if not isinstance(field_sources, dict):
+            field_sources = {}
+        total = len(field_sources)
+        now_iso = datetime.now(tz=timezone.utc).isoformat()
+        last = getattr(self, "_channel_last_active", None)
+        if not isinstance(last, dict):
+            last = {}
+            self._channel_last_active = last
+        vin_last: dict[str, str] = last.setdefault(vin, {})
+        status: dict[str, dict[str, Any]] = {}
+        for token in self._armed_data_channels(vin):
+            if token == "skoda_official":
+                status[token] = {
+                    "armed": True, "failover": True, "active": False,
+                    "active_values": None, "total_values": total,
+                    "last_active": vin_last.get(token),
+                }
+                continue
+            n = sum(1 for t in field_sources.values() if t == token)
+            active = n > 0
+            if active:
+                vin_last[token] = now_iso
+            entry: dict[str, Any] = {
+                "armed": True, "failover": False, "active": active,
+                "active_values": n, "total_values": total,
+                "last_active": vin_last.get(token),
+            }
+            if token == "eu_data_act":
+                entry["portal_health"] = data.get("portal_health")
+                entry["minutes_since_last_snapshot"] = data.get(
+                    "minutes_since_last_snapshot"
+                )
+            status[token] = entry
+        return status
+
     def _skoda_probe(self, key: str, label: str) -> None:
         """Write a PII-free outcome label into the client's ``probe_outcomes`` so the
         integration diagnostics surface it. No-op if the client has no such sink.
@@ -3358,6 +3424,18 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         # the raw backend snapshot straight over a just-issued
                         # command's optimistic value (e.g. lock → doors_locked
                         # snaps back to the stale poll reading for ~150 s).
+                        # Per-source connectivity map for the connectivity
+                        # binary_sensors (which sources this car is connected to,
+                        # active vs standby, how many readings each provides). Fail-
+                        # soft — a compute hiccup must never sink the poll.
+                        try:
+                            enriched["channel_status"] = self._compute_channel_status(
+                                vin, enriched
+                            )
+                        except Exception:  # noqa: BLE001
+                            _LOGGER.debug(
+                                "channel-status compute skipped", exc_info=True
+                            )
                         fresh[vin] = self._apply_optimistic_hold(vin, enriched)
                         any_success = True
                         self.vehicle_success[vin] = True

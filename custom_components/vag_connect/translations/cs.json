@@ -1683,6 +1683,9 @@
       },
       "marketing_consent_given": {
         "name": "Marketingový souhlas udělen"
+      },
+      "data_source": {
+        "name": "Zdroj: {source}"
       }
     },
     "switch": {

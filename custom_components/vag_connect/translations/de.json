@@ -1683,6 +1683,9 @@
       },
       "marketing_consent_given": {
         "name": "Marketing-Zustimmung erteilt"
+      },
+      "data_source": {
+        "name": "Quelle: {source}"
       }
     },
     "switch": {

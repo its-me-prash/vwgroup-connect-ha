@@ -28,6 +28,7 @@ _CHANNEL_LABELS: dict[str, str] = {
     "companion_relay": "Companion app (relay)",
     "brand_native": "Brand app",
     "primary": "Main login",
+    "skoda_official": "Škoda official API",
 }
 
 

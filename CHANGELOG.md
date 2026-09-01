@@ -42,6 +42,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **See which data sources each car is connected to.** A new connectivity sensor per
+  source (EU Data Act portal, vw.de website, Car-Net, the brand app, the Škoda official
+  API, …) shows at a glance which channels your car is on — including a standby failover
+  like the Škoda official API that only reads when your main channel is down. Each one
+  carries attributes: whether it's actively feeding data or on standby, how many of the
+  car's readings it currently provides, when it last delivered, and — for the EU Data Act
+  portal — its feed health. Works across all brands (#1286).
+
 ## [4.5.0] - 2026-09-01 — Škoda official public API: automatic, zero-setup enrolment · Audi battery-health capacity
 
 ### Added
