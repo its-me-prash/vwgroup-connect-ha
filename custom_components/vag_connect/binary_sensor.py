@@ -1175,7 +1175,9 @@ class VagSourceConnectivitySensor(VagConnectEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool | None:
         s = self._status()
-        # No status entry (channel no longer armed) → unavailable, not "off".
+        # No status entry (channel no longer armed) → None, which HA renders as
+        # state "unknown" (not "unavailable", which would need `available=False`,
+        # and not a misleading "off"/disconnected).
         return bool(s.get("armed")) if s else None
 
     def _platform_attributes(self) -> dict[str, Any] | None:

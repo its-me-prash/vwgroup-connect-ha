@@ -138,7 +138,9 @@ def test_sensor_standby_failover_label() -> None:
     assert "active_entities" not in s._platform_attributes()
 
 
-def test_sensor_unavailable_when_channel_gone() -> None:
-    s = _sensor("tibber", {})  # token not in status → no longer armed
+def test_sensor_state_unknown_when_channel_gone() -> None:
+    # token not in status → no longer armed → is_on None (HA state "unknown",
+    # not "unavailable" and not a misleading "off")
+    s = _sensor("tibber", {})
     assert s.is_on is None
     assert s._platform_attributes() is None
