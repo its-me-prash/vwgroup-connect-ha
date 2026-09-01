@@ -42,6 +42,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **Škoda official-API auto-enrolment: don't skip a valid login over a token-format
+  check.** The auto-enrolment gate required the login token to look like a specific
+  JWT before it would mint the official-API key; a legitimate native token in a
+  slightly different shape was silently skipped, so the "it just works" enrolment
+  never fired. The gate now trusts a native login on its own terms and lets the mint
+  attempt run — if the backend rejects it, that's captured in the privacy-safe
+  diagnostics instead of the whole feature quietly no-op'ing (#1286).
+
 ## [4.5.0] - 2026-09-01 — Škoda official public API: automatic, zero-setup enrolment · Audi battery-health capacity
 
 ### Added

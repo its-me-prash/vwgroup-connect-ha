@@ -182,17 +182,25 @@ class SkodaClient(CariadBaseClient):
 
     @property
     def can_mint_official_key(self) -> bool:
-        """True only on a NATIVE mysmob login. The keygen POST needs a real mysmob
-        Bearer (a JWT); a portal-fallback entry holds the cookie-session sentinel
-        (strategy ``data_act_portal``, ``_eu_portal`` set), so minting there would
-        401. Gate on: no portal connector, empty token strategy, JWT access token."""
+        """True only on a NATIVE mysmob login. The keygen POST needs the real mysmob
+        Bearer this client already holds; a portal-fallback entry holds a
+        cookie-session sentinel (strategy ``data_act_portal`` + ``_eu_portal`` set)
+        that would 401. Gate on: no portal connector + empty token strategy + a
+        non-empty access token.
+
+        #1286 — do NOT require a specific token prefix. The earlier ``ey`` (JWT)
+        check risked blocking a legitimate native token variant and silently
+        skipping enrolment; ``strategy == ""`` + ``_eu_portal is None`` already
+        establish the native login, and if the mint is nonetheless rejected it
+        fails soft and the ``skoda_official_keygen`` probe records the exact
+        status. Attempting-and-observing beats silently gating out."""
         if getattr(self, "_eu_portal", None) is not None:
             return False
         tok = self._tokens
         if tok is None or getattr(tok, "strategy", "") != "":
             return False
         at = getattr(tok, "access_token", "") or ""
-        return isinstance(at, str) and at.startswith("ey")
+        return isinstance(at, str) and bool(at)
 
     async def mint_api_key(
         self, vin: str, name: str = _OFFICIAL_KEY_NAME
