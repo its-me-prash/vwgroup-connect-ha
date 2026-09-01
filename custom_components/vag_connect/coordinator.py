@@ -2558,13 +2558,16 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             po[key] = label
 
     def _check_skoda_multi_integration(
-        self, listing: Any, stored: dict[str, Any]
+        self, listing: Any, stored: dict[str, Any], our_vins: list[str]
     ) -> None:
-        """From the official-API key listing, detect keys we did NOT mint — a second
-        integration/app reading the same official Škoda API on this account — and
-        raise the ban-risk Repair. ``keysRemaining`` per VIN plus the account
-        ``maxKeys`` gives keys-in-use; more than the (at most one) key we hold for a
-        VIN means someone else minted keys too. PII-free, idempotent."""
+        """From the official-API key listing, detect keys we did NOT create — a
+        second integration/app reading the same official Škoda API on THIS car — and
+        raise the ban-risk Repair. ``keysRemaining`` + account ``maxKeys`` gives
+        keys-in-use; more than the keys WE hold for a VIN means someone else minted
+        one too. PII-free, idempotent. Only VINs this integration actually manages
+        are checked — a second, unmanaged Škoda on the same account legitimately has
+        its own app key and must not trip the warning. A manually-pasted fallback key
+        (the user's own) counts as ours so it never trips it either."""
         if not isinstance(listing, dict):
             return
         raw_max = listing.get("maxKeys")
@@ -2574,15 +2577,21 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             max_keys = int(raw_max)
         except ValueError:
             return
+        from .const import CONF_SKODA_OFFICIAL_API_KEY  # noqa: PLC0415
+        has_manual_key = bool(self.entry.data.get(CONF_SKODA_OFFICIAL_API_KEY))
         stored_upper = {str(k).upper() for k in (stored or {})}
+        managed = {str(v).upper() for v in (our_vins or [])} | stored_upper
         for vk in listing.get("vehicleKeys") or []:
             if not isinstance(vk, dict) or vk.get("vin") is None:
                 continue
+            vin_u = str(vk["vin"]).upper()
+            if vin_u not in managed:
+                continue  # a car we don't manage — its app key is not our concern
             try:
                 remaining = int(vk.get("keysRemaining", max_keys))
             except (TypeError, ValueError):
                 continue
-            ours = 1 if str(vk["vin"]).upper() in stored_upper else 0
+            ours = (1 if vin_u in stored_upper else 0) + (1 if has_manual_key else 0)
             if (max_keys - remaining) > ours:
                 from . import repairs  # noqa: PLC0415
                 repairs.raise_issue_skoda_official_multi_integration(
@@ -2635,7 +2644,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 if not getattr(self, "_skoda_multi_int_checked", False):
                     self._skoda_multi_int_checked = True
                     try:
-                        self._check_skoda_multi_integration(await list_keys(), stored)
+                        self._check_skoda_multi_integration(await list_keys(), stored, vins)
                     except Exception:  # noqa: BLE001
                         _LOGGER.debug(
                             "Škoda multi-integration check skipped", exc_info=True
@@ -2644,7 +2653,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # Quota check (maxKeys 5 per VIN) — one GET before minting.
         remaining: dict[str, int] = {}
         listing = await list_keys()
-        self._check_skoda_multi_integration(listing, stored)
+        self._check_skoda_multi_integration(listing, stored, vins)
         if isinstance(listing, dict):
             for vk in listing.get("vehicleKeys") or []:
                 if isinstance(vk, dict) and vk.get("vin") is not None:
