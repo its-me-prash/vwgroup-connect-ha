@@ -1,0 +1,30 @@
+meta {
+  name: DELETE official public-API key
+  type: http
+  seq: 54
+}
+
+delete {
+  url: {{base_url}}/api/v2/public-api-keys/{{key_id}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+  User-Agent: MySkoda/Android/8.16.0/260821007
+}
+
+docs {
+  Deletes one official public-API key by id — used to free a slot before
+  re-minting an expired one when the account is already at the 5-keys-per-VIN
+  limit. Only keys we minted are deletable; the list endpoint returns no
+  foreign ids.
+
+  Implementation: SkodaClient.delete_api_key() in
+  custom_components/vag_connect/cariad/api/skoda.py.
+}

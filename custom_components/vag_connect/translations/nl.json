@@ -1984,6 +1984,14 @@
     "historical_timeout": {
       "title": "{vin}: eenmalige historische export niet voltooid",
       "description": "De eenmalige historische export die voor deze auto is aangevraagd, heeft binnen de deadline van de client geen bestand opgeleverd. Het VW-portaal geeft deze aanvraag geen eindstatus, dus mogelijk is hij stilletjes verworpen. De aanvraag is gewist — je kunt hem opnieuw aanvragen of rechtstreeks in het portaal kijken."
+    },
+    "skoda_official_enrolled": {
+      "title": "Officiële Škoda-API — je bent nu automatisch aangemeld",
+      "description": "Goed nieuws: we hebben je bestaande Škoda-login gebruikt om een officiële Škoda-API-sleutel voor je auto aan te maken, zodat Home Assistant hem nu kan uitlezen via het nieuwe, officiële en stabiele kanaal van Škoda — als automatische back-up voor als de normale verbinding het ooit laat afweten. Je hoeft zelf niets te doen; dit is gewoon een seintje, en je kunt het wegklikken."
+    },
+    "skoda_official_quota_full": {
+      "title": "Officiële Škoda-API — maximaal aantal sleutels bereikt",
+      "description": "We probeerden de officiële API van Škoda automatisch voor je auto in te stellen, maar je account heeft voor deze auto al het maximum van 5 API-sleutels. Om hem te gebruiken, maak je een plek vrij in de MyŠkoda-app (Instellingen → API-sleutels → verwijder een ongebruikte) en herlaad je de integratie, of plak je zelf een bestaande sleutel in de opties van de integratie. Al het andere blijft gewoon werken zoals eerst."
     }
   },
   "services": {

@@ -59,10 +59,23 @@ class SkodaOfficialClient:
         email: str,          # factory ``email`` slot = comma-separated VIN(s)
         password: str,       # factory ``password`` slot = the X-API-Key
         spin: str = "",
+        keys_by_vin: dict[str, str] | None = None,
     ) -> None:
         self._session = session
         self._api_key = (password or "").strip()
+        # Keys are VIN-bound (minted per VIN, max 5/VIN). ``keys_by_vin`` carries the
+        # auto-enrolled per-VIN keys; the single ``_api_key`` is the manual fallback
+        # applied to any VIN not in the map. _key_for(vin) picks the right one.
+        self._keys_by_vin = {
+            k.strip().upper(): (val or "").strip()
+            for k, val in (keys_by_vin or {}).items()
+            if k and (val or "").strip()
+        }
         self._vins = [v.strip().upper() for v in (email or "").split(",") if v.strip()]
+        # A per-VIN map is itself an authoritative VIN list (used when no explicit
+        # email/VIN slot was passed, i.e. the auto-enroll path).
+        if not self._vins and self._keys_by_vin:
+            self._vins = sorted(self._keys_by_vin)
         self._spin = (spin or "").strip()
         # Populated from every response's RateLimit-Remaining header; None until
         # the first call. The coordinator reads this to pace itself (20/hour/key).
@@ -74,6 +87,11 @@ class SkodaOfficialClient:
         # so the failover never breaches the 20/hour/key quota. Mirrors the openHAB
         # MySkoda binding's client-side rate limiter.
         self._blocked_until: float = 0.0
+
+    def _key_for(self, vin: str) -> str:
+        """The X-API-Key to use for one VIN: its own minted key, else the single
+        manual key as a fallback."""
+        return self._keys_by_vin.get((vin or "").strip().upper(), self._api_key)
 
     async def authenticate(self, mfa_code: str | None = None) -> None:
         """No OAuth — the ``X-API-Key`` is itself the credential. Validate it with
@@ -88,11 +106,12 @@ class SkodaOfficialClient:
 
     # -- transport ------------------------------------------------------------
 
-    def _headers(self) -> dict[str, str]:
-        if not self._api_key:
+    def _headers(self, api_key: str | None = None) -> dict[str, str]:
+        key = api_key or self._api_key
+        if not key:
             raise AuthenticationError("Škoda official API: no API key configured")
         return {
-            "X-API-Key": self._api_key,
+            "X-API-Key": key,
             "Accept": "application/json",
             "User-Agent": _USER_AGENT,
         }
@@ -124,9 +143,11 @@ class SkodaOfficialClient:
         the 20/hour/key quota."""
         return time.monotonic() < self._blocked_until
 
-    async def _request(self, method: str, path: str, json_body: Any = None) -> tuple[int, Any]:
+    async def _request(
+        self, method: str, path: str, json_body: Any = None, api_key: str | None = None,
+    ) -> tuple[int, Any]:
         async with self._session.request(
-            method, f"{_BASE}/{path}", headers=self._headers(),
+            method, f"{_BASE}/{path}", headers=self._headers(api_key),
             json=json_body, timeout=_TIMEOUT,
         ) as resp:
             self._note_rate_limit(resp)
@@ -136,11 +157,13 @@ class SkodaOfficialClient:
                 body = await resp.text()
             return resp.status, body
 
-    async def _get(self, path: str) -> tuple[int, Any]:
-        return await self._request("GET", path)
+    async def _get(self, path: str, api_key: str | None = None) -> tuple[int, Any]:
+        return await self._request("GET", path, api_key=api_key)
 
-    async def _post(self, path: str, json_body: Any = None) -> tuple[int, Any]:
-        return await self._request("POST", path, json_body)
+    async def _post(
+        self, path: str, json_body: Any = None, api_key: str | None = None,
+    ) -> tuple[int, Any]:
+        return await self._request("POST", path, json_body, api_key=api_key)
 
     # -- reads ----------------------------------------------------------------
 
@@ -150,7 +173,7 @@ class SkodaOfficialClient:
         return list(self._vins)
 
     async def get_status(self, vin: str) -> VehicleData:
-        status, body = await self._get(f"vehicles/{vin}")
+        status, body = await self._get(f"vehicles/{vin}", api_key=self._key_for(vin))
         if status == 401:
             raise AuthenticationError(
                 "Škoda official API: key rejected (401) — expired or wrong vehicle"
@@ -283,7 +306,8 @@ class SkodaOfficialClient:
     # -- commands -------------------------------------------------------------
 
     async def _command(self, vin: str, path: str, body: Any = None) -> bool:
-        status, resp = await self._post(f"vehicles/{vin}/{path}", body)
+        status, resp = await self._post(
+            f"vehicles/{vin}/{path}", body, api_key=self._key_for(vin))
         if status in (200, 201, 202, 204):
             return True
         if status == 401:

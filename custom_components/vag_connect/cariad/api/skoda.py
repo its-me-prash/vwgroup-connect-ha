@@ -27,12 +27,24 @@ from .._util import (
     safe_int,
     workshop_phone_from_contact,
 )
-from ..exceptions import AuthenticationError
+from ..exceptions import APIError, AuthenticationError
 from ..models import BRAND_SKODA, VehicleData
 from .base import CariadBaseClient
 
 _LOGGER = logging.getLogger(__name__)
 _BASE = "https://mysmob.api.connect.skoda-auto.cz"
+
+# Official public-API key management (mysmob BFF, RE'd from MyŠkoda 8.16 —
+# cz.myskoda.api.bff_public_api_keys.v2), path /api/v2/public-api-keys. Rides the
+# same mysmob Bearer this client already holds. POST creates a key (returns the
+# secret once), GET lists remaining quota per VIN, DELETE removes one by id. Keys
+# are VIN-bound; max 5 per VIN. Path inlined at each call site (literal, so the
+# Bruno drift-check resolves it) — kept here for documentation.
+_OFFICIAL_KEY_NAME = "Home Assistant (vag_connect)"
+# The key-management route is only exercised by the MyŠkoda app (v8.16+); spoof the
+# real app User-Agent on these calls so a possible min-app-version gate is satisfied
+# (verbatim from the 8.16 APK; MySkoda/Android/{versionName}/{versionCode}).
+_KEYGEN_USER_AGENT = "MySkoda/Android/8.16.0/260821007"
 
 # driving-range.carType enum values that are pure-combustion (no HV battery, no
 # plug). EVs report "electric", PHEVs "hybrid" — deliberately absent, so a plug-in
@@ -130,16 +142,20 @@ class SkodaClient(CariadBaseClient):
         # 20 req/hour/key.
         self._supplementary_official: Any = None
 
-    def arm_supplementary_official(self, api_key: str) -> None:
-        """Arm the official Škoda public API as a failover source (opt-in). The
-        key is vehicle-bound server-side, so ``get_status(vin)`` is called per-VIN
-        on failover; no VIN list is needed here."""
-        if not api_key:
+    def arm_supplementary_official(
+        self, api_key: str = "", keys_by_vin: dict[str, str] | None = None,
+    ) -> None:
+        """Arm the official Škoda public API as a failover source (opt-in). Keys are
+        vehicle-bound server-side, so ``get_status(vin)`` is called per-VIN on
+        failover. ``keys_by_vin`` carries the auto-enrolled per-VIN keys; ``api_key``
+        is the single manual-fallback key (applied to any VIN without its own)."""
+        if not api_key and not keys_by_vin:
             self._supplementary_official = None
             return
         from .skoda_official import SkodaOfficialClient  # noqa: PLC0415
         self._supplementary_official = SkodaOfficialClient(
             self._session, email="", password=api_key, spin=self._spin,
+            keys_by_vin=keys_by_vin,
         )
 
     async def official_failover_read(self, vin: str) -> "VehicleData | None":
@@ -158,6 +174,119 @@ class SkodaClient(CariadBaseClient):
             return await off.get_status(vin)  # type: ignore[no-any-return]
         except Exception:  # noqa: BLE001
             return None
+
+    # -- official public-API key minting (mysmob BFF) -------------------------
+    # Auto-enrollment: mint the official X-API-Key from the user's existing mysmob
+    # login so an already-logged-in Škoda owner gets the durable official channel
+    # with zero effort. RE'd from MyŠkoda 8.16 (bff_public_api_keys.v2).
+
+    @property
+    def can_mint_official_key(self) -> bool:
+        """True only on a NATIVE mysmob login. The keygen POST needs a real mysmob
+        Bearer (a JWT); a portal-fallback entry holds the cookie-session sentinel
+        (strategy ``data_act_portal``, ``_eu_portal`` set), so minting there would
+        401. Gate on: no portal connector, empty token strategy, JWT access token."""
+        if getattr(self, "_eu_portal", None) is not None:
+            return False
+        tok = self._tokens
+        if tok is None or getattr(tok, "strategy", "") != "":
+            return False
+        at = getattr(tok, "access_token", "") or ""
+        return isinstance(at, str) and at.startswith("ey")
+
+    async def mint_api_key(
+        self, vin: str, name: str = _OFFICIAL_KEY_NAME
+    ) -> dict[str, Any] | None:
+        """Create an official public-API key for one VIN via the mysmob BFF, using
+        the existing login. Returns ``{id, key, name, validUntil}`` — the ``key``
+        secret is returned ONLY here, never on a later list — or None on any
+        failure (fail-soft: auto-enroll must never sink the poll). Spoofs the real
+        app User-Agent in case the route is app-version-gated.
+
+        Records a PII-free outcome label under ``probe_outcomes`` on every path
+        (``skoda_official_keygen``) so the integration diagnostics tell us what the
+        live mysmob key-mint route actually did — we RE'd it from the 8.16 app but
+        never ran it against the backend, so real-world outcomes come back as
+        probes. Only the HTTP status and the response's top-level KEY names are
+        recorded — never a body, VIN, or the key secret."""
+        if not self.can_mint_official_key or not vin:
+            return None
+        try:
+            body = await self._post(
+                f"{_BASE}/api/v2/public-api-keys",
+                json={"name": name, "vin": vin.strip().upper()},
+                headers={"User-Agent": _KEYGEN_USER_AGENT},
+            )
+        except APIError as err:
+            self.probe_outcomes["skoda_official_keygen"] = f"POST {err.status}"
+            _LOGGER.debug(
+                "official-API key mint failed for %s: HTTP %s", vin[-6:], err.status
+            )
+            return None
+        except Exception as err:  # noqa: BLE001
+            self.probe_outcomes["skoda_official_keygen"] = f"POST err:{type(err).__name__}"
+            _LOGGER.debug(
+                "official-API key mint failed for %s: %s", vin[-6:], type(err).__name__
+            )
+            return None
+        if isinstance(body, dict) and body.get("key"):
+            self.probe_outcomes["skoda_official_keygen"] = (
+                "POST 2xx key+validUntil" if body.get("validUntil") else "POST 2xx key"
+            )
+            return body
+        # 2xx but no key secret — record the shape (key NAMES only, no values).
+        shape = ",".join(sorted(body.keys())) if isinstance(body, dict) else "non-dict"
+        self.probe_outcomes["skoda_official_keygen"] = f"POST 2xx no-key [{shape}]"
+        return None
+
+    async def list_api_keys(self) -> dict[str, Any] | None:
+        """List official-API keys + remaining per-VIN quota (``maxKeys`` 5). Returns
+        the response dict (``{maxKeys, vehicleKeys:[{vin, keysRemaining}]}``) or
+        None. Returns no key secrets. Used to check quota before minting. Records a
+        PII-free ``skoda_official_keygen_list`` probe outcome (HTTP status + counts
+        only) so diagnostics show whether the live list route answers."""
+        if not self.can_mint_official_key:
+            return None
+        try:
+            body = await self._get(
+                f"{_BASE}/api/v2/public-api-keys",
+                headers={"User-Agent": _KEYGEN_USER_AGENT},
+            )
+        except APIError as err:
+            self.probe_outcomes["skoda_official_keygen_list"] = f"GET {err.status}"
+            _LOGGER.debug("official-API key list failed: HTTP %s", err.status)
+            return None
+        except Exception as err:  # noqa: BLE001
+            self.probe_outcomes["skoda_official_keygen_list"] = (
+                f"GET err:{type(err).__name__}"
+            )
+            _LOGGER.debug("official-API key list failed: %s", type(err).__name__)
+            return None
+        if isinstance(body, dict):
+            vk = body.get("vehicleKeys")
+            self.probe_outcomes["skoda_official_keygen_list"] = (
+                f"GET 2xx maxKeys={body.get('maxKeys')} "
+                f"vins={len(vk) if isinstance(vk, list) else '?'}"
+            )
+            return body
+        self.probe_outcomes["skoda_official_keygen_list"] = "GET 2xx non-dict"
+        return None
+
+    async def delete_api_key(self, key_id: str) -> bool:
+        """Delete one official-API key by id (to free a slot before re-minting an
+        expired one). True on success. Only keys we minted are deletable — the list
+        endpoint returns no foreign ids."""
+        if not self.can_mint_official_key or not key_id:
+            return False
+        try:
+            await self._request(
+                "DELETE", f"{_BASE}/api/v2/public-api-keys/{key_id}",
+                headers={"User-Agent": _KEYGEN_USER_AGENT},
+            )
+            return True
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("official-API key delete failed: %s", type(err).__name__)
+            return False
 
     @staticmethod
     def _sub_from_id_token(id_token: str | None) -> str | None:
