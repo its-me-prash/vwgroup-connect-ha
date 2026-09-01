@@ -42,6 +42,21 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **Škoda: the "12V battery" reading on petrol/diesel cars was actually the fuel
+  level.** On a combustion Škoda the backend sends the same number in the SoC and
+  fuel-level fields, and we'd been surfacing that as a 12V battery charge (from an
+  unverified early note). It's now only shown when it's a genuinely distinct value,
+  so a petrol car no longer gets a bogus 12V-battery sensor mirroring its tank.
+  Thanks to @indigomejor for the side-by-side raw captures that pinned it down.
+
+### Added
+- **Škoda: trip-statistics sensors now appear.** The last-trip distance, average
+  speed and average consumption are already read from Škoda's own channel, but the
+  sensors were gated to Audi/VW and never spawned. They now show up on Škoda too
+  (long-term aggregates stay hidden where the car doesn't report them). Reported by
+  @indigomejor (#1310).
+
 ## [4.5.0] - 2026-09-01 — Škoda official public API: automatic, zero-setup enrolment · Audi battery-health capacity
 
 ### Added
