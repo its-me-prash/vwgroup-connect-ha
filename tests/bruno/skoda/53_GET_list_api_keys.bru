@@ -1,0 +1,31 @@
+meta {
+  name: GET official public-API keys + quota
+  type: http
+  seq: 53
+}
+
+get {
+  url: {{base_url}}/api/v2/public-api-keys
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+  User-Agent: MySkoda/Android/8.16.0/260821007
+}
+
+docs {
+  Lists the official public-API keys on the account and the remaining
+  quota per VIN: {maxKeys: 5, vehicleKeys: [{vin, keysRemaining}]}. No
+  key secrets are returned here — only the mint (POST) call returns a
+  secret. Used to check quota before minting so we never breach the
+  5-keys-per-VIN limit.
+
+  Implementation: SkodaClient.list_api_keys() in
+  custom_components/vag_connect/cariad/api/skoda.py.
+}

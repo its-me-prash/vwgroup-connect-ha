@@ -1,0 +1,44 @@
+meta {
+  name: POST create official public-API key
+  type: http
+  seq: 52
+}
+
+post {
+  url: {{base_url}}/api/v2/public-api-keys
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+  User-Agent: MySkoda/Android/8.16.0/260821007
+}
+
+body:json {
+  {
+    "name": "Home Assistant (vag_connect)",
+    "vin": "{{vin}}"
+  }
+}
+
+docs {
+  Mints an official Skoda public-API key (X-API-Key) for one VIN, from
+  the mysmob login this client already holds — no re-scope needed. The
+  returned CreatedApiKeyDto {id, key, name, validUntil} carries the key
+  SECRET, which is returned ONLY here (never on a later list). Keys are
+  VIN-bound; the account may hold up to 5 per VIN.
+
+  The route is normally exercised only by the MySkoda app (v8.16+), so
+  the call spoofs the real app User-Agent above in case a min-app-version
+  gate applies.
+
+  Implementation: SkodaClient.mint_api_key() in
+  custom_components/vag_connect/cariad/api/skoda.py. Drives the Skoda
+  official-API auto-enrolment in coordinator._auto_enroll_skoda_official.
+}

@@ -35,10 +35,11 @@ _LOGGER = logging.getLogger(__name__)
 _BASE = "https://mysmob.api.connect.skoda-auto.cz"
 
 # Official public-API key management (mysmob BFF, RE'd from MyŠkoda 8.16 —
-# cz.myskoda.api.bff_public_api_keys.v2). Rides the same mysmob Bearer this client
-# already holds. POST creates a key (returns the secret once), GET lists remaining
-# quota per VIN, DELETE removes one by id. Keys are VIN-bound; max 5 per VIN.
-_KEYGEN_PATH = "/api/v2/public-api-keys"
+# cz.myskoda.api.bff_public_api_keys.v2), path /api/v2/public-api-keys. Rides the
+# same mysmob Bearer this client already holds. POST creates a key (returns the
+# secret once), GET lists remaining quota per VIN, DELETE removes one by id. Keys
+# are VIN-bound; max 5 per VIN. Path inlined at each call site (literal, so the
+# Bruno drift-check resolves it) — kept here for documentation.
 _OFFICIAL_KEY_NAME = "Home Assistant (vag_connect)"
 # The key-management route is only exercised by the MyŠkoda app (v8.16+); spoof the
 # real app User-Agent on these calls so a possible min-app-version gate is satisfied
@@ -205,7 +206,7 @@ class SkodaClient(CariadBaseClient):
             return None
         try:
             body = await self._post(
-                f"{_BASE}{_KEYGEN_PATH}",
+                f"{_BASE}/api/v2/public-api-keys",
                 json={"name": name, "vin": vin.strip().upper()},
                 headers={"User-Agent": _KEYGEN_USER_AGENT},
             )
@@ -224,7 +225,7 @@ class SkodaClient(CariadBaseClient):
             return None
         try:
             body = await self._get(
-                f"{_BASE}{_KEYGEN_PATH}",
+                f"{_BASE}/api/v2/public-api-keys",
                 headers={"User-Agent": _KEYGEN_USER_AGENT},
             )
         except Exception as err:  # noqa: BLE001
@@ -240,7 +241,7 @@ class SkodaClient(CariadBaseClient):
             return False
         try:
             await self._request(
-                "DELETE", f"{_BASE}{_KEYGEN_PATH}/{key_id}",
+                "DELETE", f"{_BASE}/api/v2/public-api-keys/{key_id}",
                 headers={"User-Agent": _KEYGEN_USER_AGENT},
             )
             return True
