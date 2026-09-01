@@ -124,6 +124,86 @@ def test_quota_full_records_probe():
     assert cl.probe_outcomes["skoda_official"].startswith("quota-full")
 
 
+def test_multi_integration_detected_raises_repair():
+    # maxKeys 5, 2 keys in use (remaining 3) but we hold only 1 → a foreign key
+    # exists → another integration/app is using the same official API.
+    cl = _client()
+    c = _coord({CONF_BRAND: "skoda"}, cl)
+    listing = {"maxKeys": 5, "vehicleKeys": [{"vin": VIN1, "keysRemaining": 3}]}
+    with patch(
+        "custom_components.vag_connect.repairs.raise_issue_skoda_official_multi_integration"
+    ) as rep:
+        c._check_skoda_multi_integration(listing, {VIN1: {"key": "K"}}, [VIN1])
+    rep.assert_called_once()
+
+
+def test_only_our_key_no_multi_integration_repair():
+    cl = _client()
+    c = _coord({CONF_BRAND: "skoda"}, cl)
+    # 1 key in use (remaining 4) and it's ours → nobody else
+    listing = {"maxKeys": 5, "vehicleKeys": [{"vin": VIN1, "keysRemaining": 4}]}
+    with patch(
+        "custom_components.vag_connect.repairs.raise_issue_skoda_official_multi_integration"
+    ) as rep:
+        c._check_skoda_multi_integration(listing, {VIN1: {"key": "K"}}, [VIN1])
+    rep.assert_not_called()
+
+
+def test_foreign_key_before_we_mint_raises():
+    # 1 key in use, we hold none yet (about to mint) → the existing key is foreign
+    cl = _client()
+    c = _coord({CONF_BRAND: "skoda"}, cl)
+    listing = {"maxKeys": 5, "vehicleKeys": [{"vin": VIN1, "keysRemaining": 4}]}
+    with patch(
+        "custom_components.vag_connect.repairs.raise_issue_skoda_official_multi_integration"
+    ) as rep:
+        c._check_skoda_multi_integration(listing, {}, [VIN1])
+    rep.assert_called_once()
+
+
+def test_multi_integration_bad_listing_never_crashes():
+    cl = _client()
+    c = _coord({CONF_BRAND: "skoda"}, cl)
+    with patch(
+        "custom_components.vag_connect.repairs.raise_issue_skoda_official_multi_integration"
+    ) as rep:
+        for bad in (None, {}, {"maxKeys": "x"}, {"vehicleKeys": "nope"},
+                    {"maxKeys": 5, "vehicleKeys": [{"vin": None}]}):
+            c._check_skoda_multi_integration(bad, {}, [VIN1])
+    rep.assert_not_called()
+
+
+def test_second_unmanaged_skoda_does_not_trip_repair():
+    # A DIFFERENT Škoda on the same account (VIN2, not managed by this entry) has
+    # its own legitimate app key — it must NOT trip the multi-integration warning.
+    cl = _client()
+    c = _coord({CONF_BRAND: "skoda"}, cl)
+    listing = {"maxKeys": 5, "vehicleKeys": [
+        {"vin": VIN1, "keysRemaining": 4},   # ours, only our key
+        {"vin": VIN2, "keysRemaining": 4},   # a second, unmanaged car with a key
+    ]}
+    with patch(
+        "custom_components.vag_connect.repairs.raise_issue_skoda_official_multi_integration"
+    ) as rep:
+        c._check_skoda_multi_integration(listing, {VIN1: {"key": "K"}}, [VIN1])
+    rep.assert_not_called()
+
+
+def test_manual_fallback_key_counts_as_ours():
+    # The user's own manually-pasted key is one of the account's keys; it must not
+    # be mistaken for another integration.
+    from custom_components.vag_connect.const import CONF_SKODA_OFFICIAL_API_KEY
+    cl = _client()
+    c = _coord({CONF_BRAND: "skoda", CONF_SKODA_OFFICIAL_API_KEY: "PASTED"}, cl)
+    # 1 key in use (the manual one), we hold no auto-minted key → still ours
+    listing = {"maxKeys": 5, "vehicleKeys": [{"vin": VIN1, "keysRemaining": 4}]}
+    with patch(
+        "custom_components.vag_connect.repairs.raise_issue_skoda_official_multi_integration"
+    ) as rep:
+        c._check_skoda_multi_integration(listing, {}, [VIN1])
+    rep.assert_not_called()
+
+
 def test_failed_mint_not_retried_same_session():
     # A live mint that fails (returns None) must NOT be re-hammered every poll: the
     # attempted-set caps it at one try per HA session; the keygen probe stays visible.

@@ -1990,11 +1990,15 @@
     },
     "skoda_official_enrolled": {
       "title": "Oficjalne API Škoda — masz już automatyczny dostęp",
-      "description": "Dobra wiadomość: wykorzystaliśmy Twoje istniejące dane logowania Škoda, aby utworzyć oficjalny klucz API Škoda dla Twojego samochodu. Dzięki temu Home Assistant może teraz odczytywać dane przez nowy, oficjalny i trwały kanał Škoda — jako automatyczne zabezpieczenie na wypadek, gdyby zwykłe połączenie kiedyś szwankowało. Nie musisz nic robić; to tylko informacja i możesz ją zamknąć."
+      "description": "Dobra wiadomość: użyliśmy Twojego istniejącego logowania Škoda, aby utworzyć dla Twojego samochodu oficjalny klucz API Škoda, więc Home Assistant może go teraz odczytywać przez nowy, oficjalny i trwały kanał Škoda — jako automatyczną kopię zapasową na wypadek, gdyby normalne połączenie kiedykolwiek miało trudności. Ponieważ ten oficjalny kanał ma limit zapytań (tylko niewielka liczba zapytań na godzinę), pozostaje w trybie gotowości i pobiera dane wyłącznie wtedy, gdy główne połączenie nie może — dzięki temu niczego nie spowalnia. Z Twojej strony nic nie trzeba robić; to tylko informacja, którą możesz zamknąć."
     },
     "skoda_official_quota_full": {
       "title": "Oficjalne API Škoda — osiągnięto limit kluczy",
       "description": "Próbowaliśmy automatycznie skonfigurować oficjalne API Škoda dla Twojego samochodu, ale na Twoim koncie jest już maksymalna liczba 5 kluczy API dla tego pojazdu. Aby z niego skorzystać, zwolnij jedno miejsce w aplikacji MyŠkoda (Ustawienia → Klucze API → usuń nieużywany) i przeładuj integrację, albo wklej istniejący klucz ręcznie w opcjach integracji. Cała reszta działa tak jak wcześniej."
+    },
+    "skoda_official_multi_integration": {
+      "title": "Oficjalne API Škoda — używa go też inna integracja",
+      "description": "Na Twoim koncie Škoda znaleźliśmy więcej kluczy oficjalnego API, niż utworzyła ta integracja — zwykle to znak, że oficjalne API Škoda odczytuje też druga integracja lub aplikacja. Nie ma problemu, żeby działały razem, ale dzielą ten sam niewielki budżet zapytań na samochód, więc łączny ruch może szybciej osiągnąć limit Škoda, a w najgorszym przypadku doprowadzić do tymczasowego — a z czasem nawet trwałego — zablokowania konta. Jeśli nie potrzebujesz obu, usuń w aplikacji MyŠkoda nieużywany klucz oficjalnego API (Ustawienia → Klucze API). To powiadomienie możesz zamknąć."
     }
   },
   "services": {

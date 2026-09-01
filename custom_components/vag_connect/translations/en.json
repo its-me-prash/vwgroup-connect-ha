@@ -1990,11 +1990,15 @@
     },
     "skoda_official_enrolled": {
       "title": "Škoda official API — you're now enrolled automatically",
-      "description": "Good news: we used your existing Škoda login to create an official Škoda API key for your car, so Home Assistant can now read it over Škoda's new official, durable channel — as an automatic backup if the normal connection ever struggles. Nothing to do on your side; this is just a heads-up, and you can dismiss it."
+      "description": "Good news: we used your existing Škoda login to create an official Škoda API key for your car, so Home Assistant can now read it over Škoda's new official, durable channel — as an automatic backup if the normal connection ever struggles. Because this official channel is rate-limited (only a small number of requests an hour), it stays on standby and only reads when your main connection can't — so it won't slow anything down. Nothing to do on your side; this is just a heads-up, and you can dismiss it."
     },
     "skoda_official_quota_full": {
       "title": "Škoda official API — key limit reached",
       "description": "We tried to set up Škoda's official API for your car automatically, but your account already has the maximum of 5 API keys for this vehicle. To use it, free a slot in the MyŠkoda app (Settings → API keys → delete an unused one) and reload the integration, or paste an existing key manually in the integration's options. Everything else keeps working as before."
+    },
+    "skoda_official_multi_integration": {
+      "title": "Škoda official API — another integration is using it too",
+      "description": "We found more official-API keys on your Škoda account than this integration created — usually a sign that a second integration or app is also reading Škoda's official API. That's fine to run, but they share the same small per-car request budget, so the combined traffic can hit Škoda's rate limit sooner and, in the worst case, get the account temporarily — or eventually permanently — blocked. If you don't need both, remove the official-API key you're not using in the MyŠkoda app (Settings → API keys). You can dismiss this notice."
     }
   },
   "services": {

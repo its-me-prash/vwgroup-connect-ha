@@ -1990,11 +1990,15 @@
     },
     "skoda_official_enrolled": {
       "title": "Škodan virallinen API — sinut on nyt liitetty automaattisesti",
-      "description": "Hyviä uutisia: käytimme nykyisiä Škoda-kirjautumistietojasi ja loimme autollesi virallisen Škoda-API-avaimen, joten Home Assistant voi nyt lukea autosi tiedot Škodan uuden virallisen ja pysyvän kanavan kautta — automaattisena varayhteytenä siltä varalta, että tavallinen yhteys joskus takkuaa. Sinun ei tarvitse tehdä mitään; tämä on vain tiedoksi, ja voit sulkea ilmoituksen."
+      "description": "Hyviä uutisia: käytimme olemassa olevaa Škoda-kirjautumistasi ja loimme autollesi virallisen Škoda API -avaimen, joten Home Assistant voi nyt lukea sen tietoja Škodan uuden, virallisen ja kestävän yhteyden kautta — automaattisena varayhteytenä siltä varalta, että tavallinen yhteys joskus takkuaa. Koska tätä virallista yhteyttä on rajoitettu (vain muutama pyyntö tunnissa), se pysyy valmiustilassa ja lukee tietoja vain silloin, kun pääyhteys ei siihen pysty — joten se ei hidasta mitään. Sinun ei tarvitse tehdä mitään; tämä on vain tiedoksi, ja voit sulkea tämän ilmoituksen."
     },
     "skoda_official_quota_full": {
       "title": "Škodan virallinen API — avainten yläraja saavutettu",
       "description": "Yritimme ottaa Škodan virallisen API:n automaattisesti käyttöön autollesi, mutta tililläsi on jo tälle ajoneuvolle enimmäismäärä eli 5 API-avainta. Ota se käyttöön vapauttamalla paikka MyŠkoda-sovelluksessa (Asetukset → API-avaimet → poista käyttämätön) ja lataamalla integraatio uudelleen, tai liitä olemassa oleva avain käsin integraation asetuksiin. Kaikki muu toimii kuten ennenkin."
+    },
+    "skoda_official_multi_integration": {
+      "title": "Škodan virallinen API — myös toinen integraatio käyttää sitä",
+      "description": "Škoda-tililtäsi löytyi enemmän virallisen API:n avaimia kuin tämä integraatio on luonut — yleensä se on merkki siitä, että myös jokin toinen integraatio tai sovellus lukee Škodan virallista API:a. Se ei sinänsä haittaa, mutta ne jakavat saman pienen, autokohtaisen pyyntömäärän, joten yhteinen liikenne voi saavuttaa Škodan pyyntörajan aiemmin ja pahimmassa tapauksessa johtaa tilin väliaikaiseen — tai lopulta pysyvään — estoon. Jos et tarvitse molempia, poista virallisen API:n avain, jota et käytä, MyŠkoda-sovelluksessa (Asetukset → API-avaimet). Voit sulkea tämän ilmoituksen."
     }
   },
   "services": {
