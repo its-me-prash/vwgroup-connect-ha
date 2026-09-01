@@ -42,6 +42,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **VW EU login: auto-skip the optional marketing-consent page.** VW's login
+  sometimes interjects an optional marketing-consent screen after your password is
+  accepted. On the EU Data Act portal channel that used to stop the login and ask
+  you to clear it yourself; now it's continued past automatically on the "not now"
+  path — no marketing consent granted, nothing to click. A genuine Terms &
+  Conditions page is deliberately left untouched (that's a real legal acceptance,
+  so it still points you to accept it in the app/portal once).
+
 ## [4.5.0] - 2026-09-01 — Škoda official public API: automatic, zero-setup enrolment · Audi battery-health capacity
 
 ### Added
