@@ -38,7 +38,7 @@ import zipfile
 from collections.abc import Callable
 from html.parser import HTMLParser
 from typing import Any
-from urllib.parse import urljoin, urlparse
+from urllib.parse import parse_qs, urljoin, urlparse
 
 from aiohttp import ClientConnectionError, ClientSession, ClientTimeout
 
@@ -3487,6 +3487,54 @@ class EUDataActConnector:
         self.logged_in = True
         self.last_login_interaction = ""
 
+    async def _skip_marketing_consent_landing(
+        self, landing_url: str, headers: dict[str, str]
+    ) -> tuple[str, str, int] | None:
+        """Auto-continue past the OPTIONAL marketing-consent interstitial.
+
+        Port of ``idk._skip_marketing_consent`` (evcc PR #29980) to the EU Data
+        Act portal channel. The marketing-consent page's URL carries an OIDC
+        ``callback=`` param; following it completes the login on the "not now"
+        path — no marketing scopes granted, nothing accepted. Returns the new
+        ``(landing_url, html, status)`` on success, or ``None`` when the landing
+        is NOT a marketing page, carries no callback, or the follow fails — the
+        caller then falls through to the existing ``MarketingConsentError`` (safe,
+        no regression). The legal T&C page is intentionally NOT handled here — it
+        has no "not now" path and auto-accepting it would assert legal consent on
+        the user's behalf.
+        """
+        url_l = landing_url.lower()
+        if not any(m in url_l for m in _CONSENT_MARKERS):
+            return None
+        callback = parse_qs(urlparse(landing_url).query).get("callback", [""])[0]
+        if not callback:
+            _LOGGER.debug(
+                "EU Data Act portal: marketing-consent page at %s has no callback"
+                " — cannot auto-skip, leaving it to the classifier",
+                _safe_url(landing_url),
+            )
+            return None
+        cb_url = urljoin(landing_url, callback)
+        try:
+            async with self._session.get(
+                cb_url,
+                headers=headers,
+                allow_redirects=True,
+                timeout=ClientTimeout(total=_TIMEOUT_S),
+            ) as resp:
+                result = (str(resp.url), await resp.text(errors="replace"), resp.status)
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug(
+                "EU Data Act portal: marketing-consent auto-skip failed",
+                exc_info=True,
+            )
+            return None
+        _LOGGER.info(
+            "EU Data Act portal: skipped optional marketing consent "
+            "(followed callback, granted no marketing scopes)"
+        )
+        return result
+
     @staticmethod
     def _is_consent_landing(landing_url: str, landing_html: str) -> bool:
         """True if the post-credential landing is the generic consent grant page.
@@ -3698,6 +3746,19 @@ class EUDataActConnector:
             accepted = await self._accept_consent_page(landing, landing_html)
             if accepted is not None:
                 landing, landing_html, status = accepted
+
+        # v4.6.0 — OPTIONAL marketing-consent interstitial. Distinct from the
+        # generic OAuth grant above (which we accept) AND from the legal T&C wall
+        # below (which we deliberately do NOT auto-clear). VW randomly injects a
+        # marketing-consent page after a valid login; its URL carries an OIDC
+        # ``callback=`` that, when followed, completes the login WITHOUT granting
+        # marketing scopes (the "not now" path). Port of idk._skip_marketing_consent
+        # (evcc PR #29980) to the portal channel. Safe no-op: only fires on a
+        # detected marketing page that actually carries a callback — otherwise it
+        # returns None and we fall through to the existing MarketingConsentError.
+        skipped = await self._skip_marketing_consent_landing(landing, headers)
+        if skipped is not None:
+            landing, landing_html, status = skipped
 
         # A completed flow lands back on the portal host via
         # /services/callbacklogin. Anything else (HTTP >= 400, a
