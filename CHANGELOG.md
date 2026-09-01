@@ -51,9 +51,9 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 - **Škoda: service reminders you never set no longer show a raw `NOT_SET`.** An
   unconfigured reminder came back as the literal text `NOT_SET`, which reads as a real
   value in automations. It's now left blank (unknown) instead (#1310).
-- **Škoda: the equipment count and last fill-up stop flickering to "unknown".** These
-  don't change between polls but vanished whenever a poll returned a leaner payload;
-  they're now held at their last value like the other stable readings (#1310).
+- **Škoda: the equipment count stops flickering to "unknown".** It doesn't change
+  between polls but vanished whenever a poll returned a leaner payload; it's now held
+  at its last value like the other stable readings (#1310).
 
 ## [4.5.0] - 2026-09-01 — Škoda official public API: automatic, zero-setup enrolment · Audi battery-health capacity
 

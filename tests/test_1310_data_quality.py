@@ -89,15 +89,18 @@ def test_not_set_dropped_but_real_ones_kept() -> None:
 
 # ── 3. carry-forward ────────────────────────────────────────────────────────
 
-def test_new_stable_fields_are_carried_forward() -> None:
-    assert {"equipment_count", "last_refuel_at", "last_refuel_station"} <= (
-        CARRY_FORWARD_FIELDS
-    )
+def test_equipment_count_is_carried_forward_but_not_fill_up() -> None:
+    # equipment_count is stable → carry forward. The last-fill-up fields are NOT:
+    # carrying them would resurrect a session that staleness-suppression dropped.
+    assert "equipment_count" in CARRY_FORWARD_FIELDS
+    assert "last_refuel_at" not in CARRY_FORWARD_FIELDS
+    assert "last_refuel_station" not in CARRY_FORWARD_FIELDS
 
 
-def test_reconcile_holds_equipment_count_when_omitted() -> None:
+def test_reconcile_holds_equipment_count_but_not_fill_up() -> None:
     prev = {"equipment_count": 9, "last_refuel_at": "2026-08-29T10:00:00Z"}
-    fresh = {"battery_soc": 80}  # this poll omitted both stable fields
+    fresh = {"battery_soc": 80}  # this poll omitted both
     out, _disc = reconcile(prev, fresh)
     assert out["equipment_count"] == 9  # held, not blanked to unknown
-    assert out["last_refuel_at"] == "2026-08-29T10:00:00Z"
+    # the fill-up is NOT resurrected — carry-forward must not defeat staleness
+    assert out.get("last_refuel_at") is None
