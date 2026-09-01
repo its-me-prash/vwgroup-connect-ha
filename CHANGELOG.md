@@ -42,6 +42,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.5.0] - 2026-09-01 — Škoda official public API: automatic, zero-setup enrolment · Audi battery-health capacity
+
 ### Added
 - **Škoda official public API — automatic enrolment, zero setup.** Škoda opened a
   public data API (app v8.16+). Already-logged-in Škoda owners are now enrolled
