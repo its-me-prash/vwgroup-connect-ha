@@ -7,9 +7,10 @@
    mirrors the fuel level into that field on a combustion engine (100/100 full,
    41/41 part-tank, fuel gauge matching), so a "SoC" equal to the fuel level is
    the fuel duplicated, not a 12V reading — it must not surface as one.
-2. Škoda fills the per-trip statistics (last_trip_*) from its own mysmob parse,
-   so it belongs in the sensor-spawn brand gate — while the CARIAD-BFF FETCH gate
-   stays audi/volkswagen only, so no wrong trip-stats call fires for Škoda.
+2. Škoda fills BOTH trip-stat groups from its own mysmob parse — the 4 per-trip
+   keys (last_trip_*) AND the 3 lifetime_* aggregates — so it belongs in the
+   sensor-spawn brand gate. The CARIAD-BFF FETCH gate stays audi/volkswagen only
+   (Škoda has the data inline), so no wrong trip-stats call fires for Škoda.
 """
 from __future__ import annotations
 
@@ -62,6 +63,21 @@ def test_skoda_in_sensor_spawn_gate() -> None:
     from custom_components.vag_connect.sensor import _TRIP_STATS_BRANDS
     assert "skoda" in _TRIP_STATS_BRANDS
     assert {"audi", "volkswagen"} <= _TRIP_STATS_BRANDS
+
+
+def test_spawn_gate_covers_both_trip_stat_groups() -> None:
+    # Škoda populates last_trip_* AND lifetime_*, so both groups must be in the
+    # spawn key-set — otherwise the lifetime_* sensors would never appear for it.
+    from custom_components.vag_connect.sensor import _TRIP_STATS_KEYS
+    assert {
+        "last_trip_distance_km",
+        "last_trip_avg_speed_kmh",
+    } <= _TRIP_STATS_KEYS
+    assert {
+        "lifetime_distance_km",
+        "lifetime_avg_fuel_consumption_l_100km",
+        "lifetime_avg_electric_consumption_kwh_100km",
+    } <= _TRIP_STATS_KEYS
 
 
 def test_skoda_not_in_coordinator_fetch_gate() -> None:
