@@ -180,6 +180,14 @@ async def _post_token(
                     payload = json.loads(body)
                 except ValueError as exc:
                     raise _refresh_error(resp.status, body, retryable) from exc
+                # A 200 with a well-formed body but no access_token is a backend
+                # hiccup, not an invalid_grant — on the REFRESH path it must be
+                # transient (TokenRefreshRetryError), not a hard AuthenticationError
+                # that bounces the user to a fresh QR reauth. Classify it here (we
+                # still have `body` + `retryable`) before the defensive raise inside
+                # _parse_token_payload, which can't see either.
+                if not payload.get("access_token"):
+                    raise _refresh_error(resp.status, body, retryable)
                 return _parse_token_payload(payload)
         except ClientError as exc:
             raise _refresh_error(0, str(exc), retryable) from exc

@@ -132,6 +132,22 @@ def test_mbb_refresh_transient_is_retryable() -> None:
         asyncio.run(_mbboauth.refresh(_Session(_Resp(400, {"error": "server_error"})), "rt"))  # type: ignore[arg-type]
 
 
+def test_mbb_refresh_200_without_token_is_retryable() -> None:
+    # A 200 whose body parses fine but carries no access_token is a backend hiccup,
+    # not invalid_grant — on the refresh path it must be transient, mirroring the
+    # device-grant case above. Regresses to a hard AuthenticationError without the
+    # pre-parse guard in _post_token (pytest.raises would then not catch it).
+    with pytest.raises(TokenRefreshRetryError):
+        asyncio.run(_mbboauth.refresh(_Session(_Resp(200, {"expires_in": 3600})), "rt"))  # type: ignore[arg-type]
+
+
+def test_mbb_login_200_without_token_stays_auth_error() -> None:
+    # The LOGIN exchange (retryable=False) keeps the same 200-without-token as a
+    # hard AuthenticationError — a login that yields no token really did fail.
+    with pytest.raises(AuthenticationError):
+        asyncio.run(_mbboauth.exchange_id_token(_Session(_Resp(200, {"expires_in": 3600})), "idtok"))  # type: ignore[arg-type]
+
+
 def test_mbb_empty_refresh_token_is_hard() -> None:
     with pytest.raises(AuthenticationError):
         asyncio.run(_mbboauth.refresh(_Session(_Resp(200, {})), ""))  # type: ignore[arg-type]
