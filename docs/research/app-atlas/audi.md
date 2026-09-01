@@ -1,7 +1,7 @@
 # App Atlas — Audi (myAudi)
 
 > **Auto-generated** by `.github/workflows/app-atlas-builder.yml` ·
-> Last refreshed: 2026-08-26
+> Last refreshed: 2026-08-27
 
 ## Identity
 
@@ -22,15 +22,27 @@
 
 | | |
 |---|---|
-| Latest version-name | `5.6.0` |
+| Latest version-name | `5.7.0` |
 | Source that responded | `google_play` |
 | Previously cached version | `5.6.0` |
-| Changed since last run? | No |
+| Changed since last run? | **YES** |
 
 
 ## Discovered via APK extraction (Phase A.2)
 
-_(Empty — Phase A.2 APK extraction not yet run for this brand, or last attempt failed. See `app_atlas/apk_extractor.py`.)_
+_Last extracted: 2026-08-27T14:50:16 (for version `5.7.0`)_
+
+
+### HTTP header keys found in app bytecode
+
+- `origin`
+
+### Backend hosts found in app bytecode
+
+- `emea.bff.cariad.digital`
+- `identity.vwgroup.io`
+- `identity.na.vwgroup.io`
+- `mal-1a.prd.ece.vwg-connect.com`
 
 ## Cross-version diff
 
