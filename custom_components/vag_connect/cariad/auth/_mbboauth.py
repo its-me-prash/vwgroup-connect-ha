@@ -183,11 +183,15 @@ async def _post_token(
                 # A 200 with a well-formed body but no access_token is a backend
                 # hiccup, not an invalid_grant — on the REFRESH path it must be
                 # transient (TokenRefreshRetryError), not a hard AuthenticationError
-                # that bounces the user to a fresh QR reauth. Classify it here (we
-                # still have `body` + `retryable`) before the defensive raise inside
-                # _parse_token_payload, which can't see either.
+                # that bounces the user to a fresh QR reauth. Classify by `retryable`
+                # here (before the defensive raise inside _parse_token_payload, which
+                # can't see it) while keeping the informative "missing access_token"
+                # message. No error-code parse: a 200-without-token carries none.
                 if not payload.get("access_token"):
-                    raise _refresh_error(resp.status, body, retryable)
+                    msg = f"MBB token response missing access_token (HTTP {resp.status})"
+                    if retryable:
+                        raise TokenRefreshRetryError(msg)
+                    raise AuthenticationError(msg)
                 return _parse_token_payload(payload)
         except ClientError as exc:
             raise _refresh_error(0, str(exc), retryable) from exc
