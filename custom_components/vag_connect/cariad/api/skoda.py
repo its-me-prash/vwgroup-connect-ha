@@ -46,6 +46,8 @@ _OFFICIAL_KEY_NAME = "Home Assistant (vag_connect)"
 # (verbatim from the 8.16 APK; MySkoda/Android/{versionName}/{versionCode}).
 _KEYGEN_USER_AGENT = "MySkoda/Android/8.16.0/260821007"
 
+_COMBUSTION_ENGINE_TYPES = ("gasoline", "petrol", "diesel", "cng", "lpg")
+
 
 def _is_driving_from_readiness(readiness: Any) -> bool:
     """Motion flag from the readiness block — always a concrete bool (#1310).
@@ -56,6 +58,23 @@ def _is_driving_from_readiness(readiness: Any) -> bool:
     hidden) on a poll that momentarily omits the readiness block. ``_val`` for a
     single key is a plain ``dict.get``, so this matches the prior inline expression."""
     return isinstance(readiness, dict) and readiness.get("inMotion") is True
+
+
+def _primary_soc_or_none(
+    soc_i: int | None, fuel_i: int | None, engine_type: Any
+) -> int | None:
+    """Decide whether ``primaryEngineRange.currentSoCInPercent`` is a real 12V SoC.
+
+    #1310 (indigomejor, gasoline Škoda): the backend mirrors the fuel level into
+    ``currentSoCInPercent`` on a combustion primary engine (captured equal at
+    100/100 and 41/41 with the fuel gauge matching), so a "SoC" that equals the
+    fuel level there is the fuel duplicated, not a 12V reading. Return ``None`` in
+    that case; otherwise return the SoC unchanged (a genuinely distinct value, or a
+    non-combustion engine where the field is not a fuel mirror)."""
+    combustion = str(engine_type or "").lower() in _COMBUSTION_ENGINE_TYPES
+    if soc_i is not None and combustion and soc_i == fuel_i:
+        return None
+    return soc_i
 
 # driving-range.carType enum values that are pure-combustion (no HV battery, no
 # plug). EVs report "electric", PHEVs "hybrid" — deliberately absent, so a plug-in
@@ -1563,23 +1582,12 @@ class SkodaClient(CariadBaseClient):
                 driving_range, "secondaryEngineRange", "currentFuelLevelInPercent"
             )
             d.secondary_engine_fuel_level_pct = safe_int(sec_eng_fuel)
-            # v2.2.0 Phase 7 PR #1 — primaryEngineRange.currentSoCInPercent.
-            # On a gasoline car this is the 12V SoC (per #116 MavericklCS
-            # 2026-05-01 scout) — early-warning sensor for "modem can't
-            # keep itself awake". Defensive: missing key → field stays None.
-            primary_soc = v(
-                driving_range, "primaryEngineRange", "currentSoCInPercent"
-            )
-            d.primary_engine_soc_pct = safe_int(primary_soc)
-            # v2.2.1 Phase 8 PR #1 — alles-parsen strategy:
-            # primaryEngineRange.{engineType, currentFuelLevelInPercent}
-            # cross-brand reuse. engineType maps into existing
-            # `primary_engine_type` from PR #3 Phase 7 (CUPRA/SEAT) —
-            # zero-new-entity expanded coverage. fuelLevelInPercent is
-            # a new Skoda-only field (primary tank %), distinct vom
-            # existing `fuel_level` (measurements path) und mit dem
-            # bestehenden `secondary_engine_fuel_level_pct` als
-            # cross-brand sibling.
+            # v2.2.1 Phase 8 PR #1 — engineType + primary fuel level. Parsed
+            # FIRST so the 12V decision below can compare the SoC against them.
+            # engineType maps into existing `primary_engine_type` (cross-brand,
+            # CUPRA/SEAT). fuelLevelInPercent is the primary tank %, distinct from
+            # the measurements-path `fuel_level` and a sibling of the existing
+            # `secondary_engine_fuel_level_pct`.
             primary_eng_type = v(
                 driving_range, "primaryEngineRange", "engineType"
             )
@@ -1588,7 +1596,22 @@ class SkodaClient(CariadBaseClient):
             primary_fuel = v(
                 driving_range, "primaryEngineRange", "currentFuelLevelInPercent"
             )
-            d.primary_engine_fuel_level_pct = safe_int(primary_fuel)
+            fuel_i = safe_int(primary_fuel)
+            d.primary_engine_fuel_level_pct = fuel_i
+            # primaryEngineRange.currentSoCInPercent. The #116 scout read this as
+            # the 12V SoC on a gasoline car, but it was never verified — and #1310
+            # (indigomejor, gasoline Škoda) captured the backend sending the SAME
+            # number in currentSoCInPercent and currentFuelLevelInPercent (100/100
+            # full, 41/41 part-tank, fuel gauge matching). So on a combustion
+            # engine a "SoC" that equals the fuel level is just the fuel duplicated,
+            # NOT a 12V reading — don't surface it as one. Keep it only when it is a
+            # genuinely distinct value (or on a non-combustion engine).
+            soc_i = safe_int(
+                v(driving_range, "primaryEngineRange", "currentSoCInPercent")
+            )
+            d.primary_engine_soc_pct = _primary_soc_or_none(
+                soc_i, fuel_i, primary_eng_type
+            )
             # v2.2.1 Phase 8 PR #1 — carType (string enum diesel /
             # gasoline / electric / hybrid). Authoritative backend
             # classification der primary engine, distinct von den

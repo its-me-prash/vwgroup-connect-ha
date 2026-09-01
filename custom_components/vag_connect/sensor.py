@@ -3846,23 +3846,32 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "parked_since",
 })
 
-# v1.14.0 (#24) — Trip Statistics is brand-restricted at the API level
-# (CARIAD-BFF only — Audi + VW EU). Other brands' clients don't expose
-# ``get_trip_statistics``. Gate at setup so SEAT/CUPRA/Skoda/Porsche/VW NA
-# users don't get four "unknown" sensors per VIN. Capability gating
-# (Phase 3, #56) further hides them when the subscription is absent.
+# v1.14.0 (#24) — Trip Statistics is brand-restricted. Audi + VW EU fill these
+# from the CARIAD-BFF; Škoda fills the SAME keys from its own mysmob
+# /trip-statistics parse (#1310). Gate at setup so SEAT/CUPRA/Porsche/VW NA
+# users — whose clients don't expose trip data — don't get "unknown" sensors per
+# VIN. Capability gating (Phase 3, #56) further hides them when the subscription
+# is absent.
 _TRIP_STATS_KEYS: frozenset[str] = frozenset({
     "last_trip_distance_km",
     "last_trip_avg_speed_kmh",
     "last_trip_avg_fuel_consumption_l_100km",
     "last_trip_avg_electric_consumption_kwh_100km",
-    # v2.0.0 (Big-Bang) — long-term aggregates from /tripstatistics?type=longTerm
-    # (CARIAD-BFF only). Same brand gate as the per-trip keys above.
+    # v2.0.0 (Big-Bang) — long-term aggregates. Audi/VW EU read them from the
+    # CARIAD-BFF /tripstatistics?type=longTerm; Škoda from the overview block of
+    # its mysmob /trip-statistics response. Same brand gate as the per-trip keys.
     "lifetime_distance_km",
     "lifetime_avg_fuel_consumption_l_100km",
     "lifetime_avg_electric_consumption_kwh_100km",
 })
-_TRIP_STATS_BRANDS: frozenset[str] = frozenset({"audi", "volkswagen"})
+# #1310 (indigomejor): Škoda populates BOTH groups — the 4 last_trip_* keys (from
+# detailedStatistics[0]) AND the 3 lifetime_* aggregates (from the overview) — in
+# its own get_status parse (skoda.py), so all ~7 trip-stat sensors spawn and
+# populate on Škoda, not just the per-trip ones. The CARIAD-BFF FETCH gate stays
+# audi/volkswagen only (coordinator._TRIP_STATS_BRANDS) because Škoda already has
+# the data inline — so no wrong BFF call fires for Škoda and nothing shows as
+# "unknown".
+_TRIP_STATS_BRANDS: frozenset[str] = frozenset({"audi", "volkswagen", "skoda"})
 
 # Per-window opening position (% open), from the EU-DA window-lifter positions
 # (``position_*_door_window_lifter``). Parsed into ``windows_position`` — a slot
