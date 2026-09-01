@@ -46,6 +46,17 @@ _OFFICIAL_KEY_NAME = "Home Assistant (vag_connect)"
 # (verbatim from the 8.16 APK; MySkoda/Android/{versionName}/{versionCode}).
 _KEYGEN_USER_AGENT = "MySkoda/Android/8.16.0/260821007"
 
+
+def _is_driving_from_readiness(readiness: Any) -> bool:
+    """Motion flag from the readiness block — always a concrete bool (#1310).
+
+    True only when the readiness block reports ``inMotion``; False for a missing
+    block, a missing/false ``inMotion``, or any non-dict. Assigned unconditionally
+    in ``get_status`` so the ``is_driving`` sensor never reverts to None (and gets
+    hidden) on a poll that momentarily omits the readiness block. ``_val`` for a
+    single key is a plain ``dict.get``, so this matches the prior inline expression."""
+    return isinstance(readiness, dict) and readiness.get("inMotion") is True
+
 # driving-range.carType enum values that are pure-combustion (no HV battery, no
 # plug). EVs report "electric", PHEVs "hybrid" — deliberately absent, so a plug-in
 # car is NEVER matched. Used to skip the battery-only /charging read on a confirmed
@@ -1674,12 +1685,18 @@ class SkodaClient(CariadBaseClient):
             )
 
         # ── Connection status ────────────────────────────────────────────────
+        # is_driving (motion) — always a concrete bool for Škoda so the sensor is
+        # never hidden by the "hide empty" option when the readiness block is
+        # momentarily absent from a poll (#1310, indigomejor: readiness comes and
+        # goes, so is_driving flapped to None and the entity disappeared). Not
+        # driving is the safe default — a car with no motion signal is parked or
+        # asleep far more often than it's mid-drive with the block dropped.
+        d.is_driving = _is_driving_from_readiness(readiness)
         if isinstance(readiness, dict):
             unreachable = v(readiness, "unreachable")
             # When unreachable is unknown (None), assume reachable (True)
             # to avoid setting is_online to a falsy default.
             d.is_online = unreachable is None or unreachable is False
-            d.is_driving = v(readiness, "inMotion") is True
             # v2.2.0 Phase 7 PR #1 — Skoda-only ignition boolean from
             # the scout-silenced-but-unwired audit. Useful for
             # "lock when ignition off" automations.
