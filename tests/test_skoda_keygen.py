@@ -40,8 +40,12 @@ def test_can_mint_gate() -> None:
     c._tokens = SimpleNamespace(  # type: ignore[assignment]
         strategy="data_act_portal", access_token="eu-data-act-portal-cookie-session")
     assert c.can_mint_official_key is False
-    # non-JWT access token → never mint
+    # #1286 — a non-JWT native token is now allowed (we no longer gate on a token
+    # prefix; a rejected mint fails soft + is recorded in the keygen probe).
     c._tokens = SimpleNamespace(strategy="", access_token="not-a-jwt")  # type: ignore[assignment]
+    assert c.can_mint_official_key is True
+    # empty access token → still blocked (nothing to authorize the mint)
+    c._tokens = SimpleNamespace(strategy="", access_token="")  # type: ignore[assignment]
     assert c.can_mint_official_key is False
     # no token at all
     c._tokens = None
