@@ -41,6 +41,13 @@ CARRY_FORWARD_FIELDS: frozenset[str] = frozenset({
     "fuel_tank_capacity_liters",
     "service_km", "oil_service_km", "service_due_in_days", "oil_service_due_in_days",
     "last_seen_at",
+    # #1310 (indigomejor) — these come and go with a richer/leaner payload but don't
+    # actually change poll-to-poll: the equipment list, and the last fill-up (an
+    # event that already happened and can't un-happen). Blanking them to "unknown"
+    # every time a poll omits the block made them useless in automations/history.
+    "equipment_count",
+    "last_refuel_at", "last_refuel_station", "last_refuel_fuel_type",
+    "last_refuel_quantity", "last_refuel_cost", "last_refuel_currency",
 })
 
 # #923 — the parked position belongs in the "old but visible" class too: a

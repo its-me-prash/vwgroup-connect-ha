@@ -42,6 +42,19 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **Škoda: no more phantom "last fill-up" from a car you used to own.** The last
+  fill-up comes from an account-wide history with no car link, so on a new car it
+  could show an old session from a previous vehicle (a 2024 fill-up on a 2026 car).
+  A "latest" fill-up older than a year is now treated as stale and hidden rather than
+  shown as this car's data (#1310, @indigomejor).
+- **Škoda: service reminders you never set no longer show a raw `NOT_SET`.** An
+  unconfigured reminder came back as the literal text `NOT_SET`, which reads as a real
+  value in automations. It's now left blank (unknown) instead (#1310).
+- **Škoda: the equipment count and last fill-up stop flickering to "unknown".** These
+  don't change between polls but vanished whenever a poll returned a leaner payload;
+  they're now held at their last value like the other stable readings (#1310).
+
 ## [4.5.0] - 2026-09-01 — Škoda official public API: automatic, zero-setup enrolment · Audi battery-health capacity
 
 ### Added
