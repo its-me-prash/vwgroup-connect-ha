@@ -1666,12 +1666,18 @@ class SkodaClient(CariadBaseClient):
             )
 
         # ── Connection status ────────────────────────────────────────────────
+        # is_driving (motion) — always a concrete bool for Škoda so the sensor is
+        # never hidden by the "hide empty" option when the readiness block is
+        # momentarily absent from a poll (#1310, indigomejor: readiness comes and
+        # goes, so is_driving flapped to None and the entity disappeared). Not
+        # driving is the safe default — a car with no motion signal is parked or
+        # asleep far more often than it's mid-drive with the block dropped.
+        d.is_driving = isinstance(readiness, dict) and v(readiness, "inMotion") is True
         if isinstance(readiness, dict):
             unreachable = v(readiness, "unreachable")
             # When unreachable is unknown (None), assume reachable (True)
             # to avoid setting is_online to a falsy default.
             d.is_online = unreachable is None or unreachable is False
-            d.is_driving = v(readiness, "inMotion") is True
             # v2.2.0 Phase 7 PR #1 — Skoda-only ignition boolean from
             # the scout-silenced-but-unwired audit. Useful for
             # "lock when ignition off" automations.

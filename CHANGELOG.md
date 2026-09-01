@@ -42,6 +42,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **Škoda: the "driving" sensor no longer flickers in and out of existence.** The
+  motion sensor was only set when the car's readiness block was in a given poll, so
+  a poll that momentarily didn't include it made the sensor disappear (and reappear
+  next time). It's now always a real on/off value — off when there's no motion
+  signal (parked or asleep), on only when the car reports it's moving. Reported by
+  @indigomejor (#1310).
+
 ## [4.5.0] - 2026-09-01 — Škoda official public API: automatic, zero-setup enrolment · Audi battery-health capacity
 
 ### Added
