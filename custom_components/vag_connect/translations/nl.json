@@ -1987,11 +1987,15 @@
     },
     "skoda_official_enrolled": {
       "title": "Officiële Škoda-API — je bent nu automatisch aangemeld",
-      "description": "Goed nieuws: we hebben je bestaande Škoda-login gebruikt om een officiële Škoda-API-sleutel voor je auto aan te maken, zodat Home Assistant hem nu kan uitlezen via het nieuwe, officiële en stabiele kanaal van Škoda — als automatische back-up voor als de normale verbinding het ooit laat afweten. Je hoeft zelf niets te doen; dit is gewoon een seintje, en je kunt het wegklikken."
+      "description": "Goed nieuws: we hebben je bestaande Škoda-login gebruikt om een officiële Škoda API-sleutel voor je auto aan te maken, zodat Home Assistant hem nu kan uitlezen via het nieuwe, officiële en duurzame kanaal van Škoda — als automatische back-up voor als de normale verbinding het ooit moeilijk heeft. Omdat dit officiële kanaal een aanvraaglimiet heeft (maar een klein aantal aanvragen per uur), blijft het op stand-by en leest het alleen uit wanneer je hoofdverbinding dat niet kan — zo vertraagt het niets. Je hoeft zelf niets te doen; dit is gewoon een seintje, en je kunt deze melding sluiten."
     },
     "skoda_official_quota_full": {
       "title": "Officiële Škoda-API — maximaal aantal sleutels bereikt",
       "description": "We probeerden de officiële API van Škoda automatisch voor je auto in te stellen, maar je account heeft voor deze auto al het maximum van 5 API-sleutels. Om hem te gebruiken, maak je een plek vrij in de MyŠkoda-app (Instellingen → API-sleutels → verwijder een ongebruikte) en herlaad je de integratie, of plak je zelf een bestaande sleutel in de opties van de integratie. Al het andere blijft gewoon werken zoals eerst."
+    },
+    "skoda_official_multi_integration": {
+      "title": "Officiële Škoda API — een andere integratie gebruikt hem ook",
+      "description": "We vonden meer officiële API-sleutels op je Škoda-account dan deze integratie heeft aangemaakt — meestal een teken dat een tweede integratie of app ook de officiële Škoda API uitleest. Dat mag gerust naast elkaar draaien, maar ze delen hetzelfde kleine aanvraagbudget per auto, waardoor het gecombineerde verkeer de aanvraaglimiet van Škoda sneller kan bereiken en het account in het ergste geval tijdelijk — of uiteindelijk zelfs permanent — geblokkeerd kan raken. Heb je niet allebei nodig? Verwijder dan de officiële API-sleutel die je niet gebruikt in de MyŠkoda-app (Instellingen → API-sleutels). Je kunt deze melding sluiten."
     }
   },
   "services": {

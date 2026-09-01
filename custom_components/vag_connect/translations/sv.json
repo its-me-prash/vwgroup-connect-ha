@@ -1987,11 +1987,15 @@
     },
     "skoda_official_enrolled": {
       "title": "Škodas officiella API – du är nu automatiskt ansluten",
-      "description": "Goda nyheter: vi använde din befintliga Škoda-inloggning för att skapa en officiell Škoda API-nyckel för din bil, så nu kan Home Assistant läsa av den via Škodas nya officiella, stabila kanal – som en automatisk reserv om den vanliga anslutningen någon gång krånglar. Du behöver inte göra något – det här är bara till info, och du kan stänga meddelandet."
+      "description": "Goda nyheter: vi använde din befintliga Škoda-inloggning för att skapa en officiell Škoda API-nyckel för din bil, så att Home Assistant nu kan läsa den via Škodas nya officiella, varaktiga kanal — som en automatisk reserv om den vanliga anslutningen någon gång krånglar. Eftersom den här officiella kanalen har en hastighetsgräns (bara ett litet antal förfrågningar per timme) står den i beredskap och läser bara när din huvudanslutning inte kan — så den saktar inte ner något. Du behöver inte göra något; det här är bara till din kännedom, och du kan avfärda det."
     },
     "skoda_official_quota_full": {
       "title": "Škodas officiella API – nyckelgränsen är nådd",
       "description": "Vi försökte ställa in Škodas officiella API för din bil automatiskt, men ditt konto har redan det maximala antalet på 5 API-nycklar för det här fordonet. För att kunna använda det, frigör en plats i MyŠkoda-appen (Inställningar → API-nycklar → ta bort en oanvänd) och ladda om integrationen, eller klistra in en befintlig nyckel manuellt i integrationens alternativ. Allt annat fungerar som vanligt."
+    },
+    "skoda_official_multi_integration": {
+      "title": "Škodas officiella API — en annan integration använder det också",
+      "description": "Vi hittade fler officiella API-nycklar på ditt Škoda-konto än den här integrationen skapade — oftast ett tecken på att en andra integration eller app också läser Škodas officiella API. Det är helt okej att köra, men de delar samma lilla förfrågningsbudget per bil, så den sammanlagda trafiken kan nå Škodas hastighetsgräns snabbare och i värsta fall få kontot tillfälligt — eller till slut permanent — blockerat. Om du inte behöver båda, ta bort den officiella API-nyckel du inte använder i MyŠkoda-appen (Inställningar → API-nycklar). Du kan avfärda det här meddelandet."
     }
   },
   "services": {

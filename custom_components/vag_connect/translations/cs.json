@@ -1987,11 +1987,15 @@
     },
     "skoda_official_enrolled": {
       "title": "Oficiální API Škoda — nyní jste automaticky zaregistrováni",
-      "description": "Dobrá zpráva: pomocí vašeho stávajícího přihlášení Škoda jsme pro vaše auto vytvořili oficiální API klíč Škoda, takže ho Home Assistant teď dokáže načítat přes nový oficiální a trvalý kanál Škoda — jako automatickou zálohu pro případ, že by běžné připojení někdy mělo potíže. Z vaší strany není potřeba nic dělat; je to jen upozornění a můžete ho zavřít."
+      "description": "Dobrá zpráva: pomocí vašeho stávajícího přihlášení ke Škodě jsme pro vaše auto vytvořili oficiální klíč k API Škody, takže ho teď Home Assistant umí číst přes nový oficiální a trvalý kanál Škody — jako automatickou zálohu pro případ, že by běžné připojení někdy zlobilo. Protože je tento oficiální kanál omezený počtem požadavků (jen pár za hodinu), zůstává v pohotovosti a čte jen tehdy, když hlavní připojení nemůže — takže nic nezpomalí. Z vaší strany není potřeba nic dělat; berte to jen jako informaci a upozornění můžete zavřít."
     },
     "skoda_official_quota_full": {
       "title": "Oficiální API Škoda — dosažen limit klíčů",
       "description": "Pokusili jsme se pro vaše auto automaticky nastavit oficiální API Škoda, ale váš účet už má pro toto vozidlo maximum 5 API klíčů. Chcete-li ho používat, uvolněte v aplikaci MyŠkoda jedno místo (Nastavení → API klíče → smažte nepoužívaný) a znovu načtěte integraci, nebo v možnostech integrace ručně vložte existující klíč. Vše ostatní funguje dál jako dosud."
+    },
+    "skoda_official_multi_integration": {
+      "title": "Oficiální API Škody — používá ho i jiná integrace",
+      "description": "Na vašem účtu Škoda jsme našli víc klíčů k oficiálnímu API, než kolik jich vytvořila tato integrace — obvykle to znamená, že oficiální API Škody čte i druhá integrace nebo aplikace. To vůbec nevadí, jenže si dělí stejný malý limit požadavků na jedno auto, takže společný provoz může narazit na limit Škody dřív a v nejhorším případě může být účet dočasně — a časem i trvale — zablokován. Pokud obě nepotřebujete, odeberte v aplikaci MyŠkoda ten klíč k oficiálnímu API, který nepoužíváte (Nastavení → API klíče). Toto upozornění můžete zavřít."
     }
   },
   "services": {

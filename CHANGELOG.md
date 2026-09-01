@@ -42,6 +42,21 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **Škoda official API: a heads-up if another integration is using it too.** If the
+  account holds more official-API keys than we created, a second integration or app is
+  probably reading the same official Škoda API. That's fine to run, but both share the
+  same small per-car request budget — so you now get a dismissible notice explaining
+  that the combined usage can hit Škoda's rate limit sooner and, in the worst case,
+  get the account temporarily (or eventually permanently) blocked, plus how to remove
+  the key you don't need (#1286). All 12 languages.
+
+### Changed
+- **The Škoda official-API enrolment notice now explains it's a rate-limited standby
+  channel.** So nobody wonders why it isn't updating constantly: the official channel
+  is capped at a few requests an hour, sits on standby, and only reads when the main
+  connection can't — it won't slow anything down.
+
 ## [4.5.0] - 2026-09-01 — Škoda official public API: automatic, zero-setup enrolment · Audi battery-health capacity
 
 ### Added

@@ -2557,6 +2557,39 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         if isinstance(po, dict):
             po[key] = label
 
+    def _check_skoda_multi_integration(
+        self, listing: Any, stored: dict[str, Any]
+    ) -> None:
+        """From the official-API key listing, detect keys we did NOT mint — a second
+        integration/app reading the same official Škoda API on this account — and
+        raise the ban-risk Repair. ``keysRemaining`` per VIN plus the account
+        ``maxKeys`` gives keys-in-use; more than the (at most one) key we hold for a
+        VIN means someone else minted keys too. PII-free, idempotent."""
+        if not isinstance(listing, dict):
+            return
+        raw_max = listing.get("maxKeys")
+        if not isinstance(raw_max, (int, str)):
+            return
+        try:
+            max_keys = int(raw_max)
+        except ValueError:
+            return
+        stored_upper = {str(k).upper() for k in (stored or {})}
+        for vk in listing.get("vehicleKeys") or []:
+            if not isinstance(vk, dict) or vk.get("vin") is None:
+                continue
+            try:
+                remaining = int(vk.get("keysRemaining", max_keys))
+            except (TypeError, ValueError):
+                continue
+            ours = 1 if str(vk["vin"]).upper() in stored_upper else 0
+            if (max_keys - remaining) > ours:
+                from . import repairs  # noqa: PLC0415
+                repairs.raise_issue_skoda_official_multi_integration(
+                    self.hass, self.entry.entry_id
+                )
+                return
+
     async def _auto_enroll_skoda_official(self, vins: list[str]) -> None:
         """Auto-enroll a logged-in Škoda user in the official public API: mint a
         per-VIN X-API-Key from the EXISTING mysmob login, persist it, arm the
@@ -2595,10 +2628,23 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         if not to_mint:
             if stored:
                 self._arm_official_from_map(stored)
+                # Once per session: is ANOTHER integration/app using the same
+                # official API on this account? (shared per-car budget → faster
+                # rate-limit/ban). Only checked for already-enrolled users here —
+                # the mint path below checks its own listing.
+                if not getattr(self, "_skoda_multi_int_checked", False):
+                    self._skoda_multi_int_checked = True
+                    try:
+                        self._check_skoda_multi_integration(await list_keys(), stored)
+                    except Exception:  # noqa: BLE001
+                        _LOGGER.debug(
+                            "Škoda multi-integration check skipped", exc_info=True
+                        )
             return
         # Quota check (maxKeys 5 per VIN) — one GET before minting.
         remaining: dict[str, int] = {}
         listing = await list_keys()
+        self._check_skoda_multi_integration(listing, stored)
         if isinstance(listing, dict):
             for vk in listing.get("vehicleKeys") or []:
                 if isinstance(vk, dict) and vk.get("vin") is not None:

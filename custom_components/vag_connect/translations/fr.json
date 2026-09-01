@@ -1987,11 +1987,15 @@
     },
     "skoda_official_enrolled": {
       "title": "API officielle Škoda — vous êtes désormais inscrit automatiquement",
-      "description": "Bonne nouvelle : nous avons utilisé votre connexion Škoda existante pour créer une clé API Škoda officielle pour votre voiture. Home Assistant peut donc maintenant la lire via le nouveau canal officiel et durable de Škoda — comme sauvegarde automatique si jamais la connexion habituelle rencontre des difficultés. Rien à faire de votre côté ; c'est juste une information, et vous pouvez la fermer."
+      "description": "Bonne nouvelle : nous avons utilisé votre connexion Škoda existante pour créer une clé d'API officielle Škoda pour votre voiture, afin que Home Assistant puisse désormais la lire via le nouveau canal officiel et durable de Škoda — comme sauvegarde automatique si la connexion habituelle rencontre un jour des difficultés. Comme ce canal officiel est limité en débit (seulement un petit nombre de requêtes par heure), il reste en veille et ne lit que lorsque votre connexion principale n'y arrive pas — il ne ralentira donc rien. Rien à faire de votre côté ; ceci est juste une information, et vous pouvez l'ignorer."
     },
     "skoda_official_quota_full": {
       "title": "API officielle Škoda — limite de clés atteinte",
       "description": "Nous avons essayé de configurer l'API officielle de Škoda pour votre voiture automatiquement, mais votre compte a déjà atteint le maximum de 5 clés API pour ce véhicule. Pour l'utiliser, libérez un emplacement dans l'application MyŠkoda (Paramètres → Clés API → supprimez-en une inutilisée) puis rechargez l'intégration, ou collez manuellement une clé existante dans les options de l'intégration. Tout le reste continue de fonctionner comme avant."
+    },
+    "skoda_official_multi_integration": {
+      "title": "API officielle Škoda — une autre intégration l'utilise aussi",
+      "description": "Nous avons trouvé sur votre compte Škoda plus de clés d'API officielle que cette intégration n'en a créé — c'est en général le signe qu'une deuxième intégration ou application lit elle aussi l'API officielle de Škoda. Rien ne vous empêche de garder les deux, mais elles se partagent le même petit budget de requêtes par voiture ; le trafic cumulé peut donc atteindre plus vite la limite de Škoda et, dans le pire des cas, faire bloquer le compte temporairement — voire un jour définitivement. Si vous n'avez pas besoin des deux, supprimez la clé d'API officielle que vous n'utilisez pas dans l'application MyŠkoda (Paramètres → Clés d'API). Vous pouvez ignorer cet avis."
     }
   },
   "services": {

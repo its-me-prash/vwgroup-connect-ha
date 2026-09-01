@@ -245,6 +245,26 @@ def raise_issue_skoda_official_quota(hass: HomeAssistant, entry_id: str) -> None
     )
 
 
+def raise_issue_skoda_official_multi_integration(
+    hass: HomeAssistant, entry_id: str
+) -> None:
+    """Another client holds official-API keys for this car (more keys are in use
+    than we minted), so a second integration/app is likely reading the same official
+    Škoda API. Warn the user (once, dismissibly): the shared per-car request budget
+    then depletes faster, which can trip a temporary — or eventually a permanent —
+    account rate-limit. Not auto-fixable; WARNING; idempotent."""
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        f"{entry_id}_skoda_official_multi_integration",
+        is_fixable=False,
+        is_persistent=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="skoda_official_multi_integration",
+        learn_more_url="https://github.com/its-me-prash/vwgroup-connect-ha/issues/1286",
+    )
+
+
 def raise_issue_requirements_conflict(hass: HomeAssistant) -> None:
     """Raise a repair issue for configuration problems."""
     ir.async_create_issue(

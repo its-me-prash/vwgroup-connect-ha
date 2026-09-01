@@ -1987,11 +1987,15 @@
     },
     "skoda_official_enrolled": {
       "title": "Offizielle Škoda-API — du bist jetzt automatisch dabei",
-      "description": "Gute Nachricht: Wir haben mit deinem bestehenden Škoda-Login automatisch einen offiziellen Škoda-API-Schlüssel für dein Auto erstellt. Home Assistant kann es jetzt über Škodas neuen offiziellen, dauerhaften Kanal lesen — als automatische Reserve, falls die normale Verbindung mal schwächelt. Für dich gibt es nichts zu tun; das ist nur ein Hinweis, den du ausblenden kannst."
+      "description": "Gute Nachricht: Wir haben mit deinem bestehenden Škoda-Login einen offiziellen Škoda-API-Schlüssel für dein Auto erstellt, sodass Home Assistant es jetzt über Škodas neuen, offiziellen und dauerhaften Kanal lesen kann — als automatisches Backup, falls die normale Verbindung mal schwächelt. Da dieser offizielle Kanal ratenbegrenzt ist (nur wenige Anfragen pro Stunde), bleibt er im Standby und liest nur, wenn deine Hauptverbindung nicht kann — er bremst also nichts. Von deiner Seite ist nichts zu tun; das ist nur ein Hinweis, den du schließen kannst."
     },
     "skoda_official_quota_full": {
       "title": "Offizielle Škoda-API — Schlüssel-Limit erreicht",
       "description": "Wir wollten Škodas offizielle API für dein Auto automatisch einrichten, aber dein Konto hat für dieses Fahrzeug bereits die maximal 5 API-Schlüssel. Um sie zu nutzen, gib in der MyŠkoda-App einen Platz frei (Einstellungen → API-Schlüssel → einen ungenutzten löschen) und lade die Integration neu — oder trage einen vorhandenen Schlüssel manuell in den Optionen ein. Alles andere läuft weiter wie bisher."
+    },
+    "skoda_official_multi_integration": {
+      "title": "Škoda Offizielle API — eine andere Integration nutzt sie auch",
+      "description": "Wir haben auf deinem Škoda-Konto mehr Offizielle-API-Schlüssel gefunden, als diese Integration erstellt hat — meist ein Zeichen, dass eine zweite Integration oder App ebenfalls die offizielle Škoda-API liest. Das ist grundsätzlich in Ordnung, aber beide teilen sich dasselbe kleine Anfrage-Budget pro Fahrzeug, sodass die kombinierte Nutzung das Rate-Limit von Škoda schneller erreichen und im schlimmsten Fall das Konto vorübergehend — oder irgendwann dauerhaft — sperren kann. Wenn du nicht beide brauchst, entferne den nicht genutzten Offizielle-API-Schlüssel in der MyŠkoda-App (Einstellungen → API-Schlüssel). Du kannst diesen Hinweis schließen."
     }
   },
   "selector": {
