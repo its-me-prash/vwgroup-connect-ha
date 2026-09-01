@@ -90,3 +90,43 @@ def test_list_and_delete() -> None:
     assert asyncio.run(c.delete_api_key("k1")) is True
     assert c._request.call_args.args[0] == "DELETE"
     assert c._request.call_args.args[1].endswith("/api/v2/public-api-keys/k1")
+
+
+def test_keygen_records_pii_free_probe_outcomes() -> None:
+    # The mint route is RE'd but never run live — diagnostics must report what it
+    # actually did, as a PII-free probe (status + response KEY names only).
+    from custom_components.vag_connect.cariad.exceptions import APIError
+
+    # success with validUntil
+    c = _native_client()
+    c._post = AsyncMock(return_value={  # type: ignore[method-assign]
+        "id": "k1", "key": "SECRET", "validUntil": "2027-01-01T00:00:00Z"})
+    asyncio.run(c.mint_api_key(VIN))
+    assert c.probe_outcomes["skoda_official_keygen"] == "POST 2xx key+validUntil"
+
+    # 4xx → status only, never the body (which could echo the VIN we sent)
+    c = _native_client()
+    c._post = AsyncMock(  # type: ignore[method-assign]
+        side_effect=APIError(400, "u", "vin TMBJJ7NX1M0000005 rejected"))
+    asyncio.run(c.mint_api_key(VIN))
+    assert c.probe_outcomes["skoda_official_keygen"] == "POST 400"
+    assert VIN not in c.probe_outcomes["skoda_official_keygen"]
+
+    # 2xx but no key secret → shape (key NAMES only), no values
+    c = _native_client()
+    c._post = AsyncMock(return_value={"id": "k1", "name": "x"})  # type: ignore[method-assign]
+    asyncio.run(c.mint_api_key(VIN))
+    assert c.probe_outcomes["skoda_official_keygen"] == "POST 2xx no-key [id,name]"
+
+    # list success → counts only
+    c = _native_client()
+    c._get = AsyncMock(return_value={  # type: ignore[method-assign]
+        "maxKeys": 5, "vehicleKeys": [{"vin": VIN, "keysRemaining": 4}]})
+    asyncio.run(c.list_api_keys())
+    assert c.probe_outcomes["skoda_official_keygen_list"] == "GET 2xx maxKeys=5 vins=1"
+
+    # list 401 → status only
+    c = _native_client()
+    c._get = AsyncMock(side_effect=APIError(401, "u", "body"))  # type: ignore[method-assign]
+    asyncio.run(c.list_api_keys())
+    assert c.probe_outcomes["skoda_official_keygen_list"] == "GET 401"

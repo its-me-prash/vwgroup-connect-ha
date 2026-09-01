@@ -27,7 +27,7 @@ from .._util import (
     safe_int,
     workshop_phone_from_contact,
 )
-from ..exceptions import AuthenticationError
+from ..exceptions import APIError, AuthenticationError
 from ..models import BRAND_SKODA, VehicleData
 from .base import CariadBaseClient
 
@@ -201,7 +201,14 @@ class SkodaClient(CariadBaseClient):
         the existing login. Returns ``{id, key, name, validUntil}`` — the ``key``
         secret is returned ONLY here, never on a later list — or None on any
         failure (fail-soft: auto-enroll must never sink the poll). Spoofs the real
-        app User-Agent in case the route is app-version-gated."""
+        app User-Agent in case the route is app-version-gated.
+
+        Records a PII-free outcome label under ``probe_outcomes`` on every path
+        (``skoda_official_keygen``) so the integration diagnostics tell us what the
+        live mysmob key-mint route actually did — we RE'd it from the 8.16 app but
+        never ran it against the backend, so real-world outcomes come back as
+        probes. Only the HTTP status and the response's top-level KEY names are
+        recorded — never a body, VIN, or the key secret."""
         if not self.can_mint_official_key or not vin:
             return None
         try:
@@ -210,17 +217,34 @@ class SkodaClient(CariadBaseClient):
                 json={"name": name, "vin": vin.strip().upper()},
                 headers={"User-Agent": _KEYGEN_USER_AGENT},
             )
+        except APIError as err:
+            self.probe_outcomes["skoda_official_keygen"] = f"POST {err.status}"
+            _LOGGER.debug(
+                "official-API key mint failed for %s: HTTP %s", vin[-6:], err.status
+            )
+            return None
         except Exception as err:  # noqa: BLE001
+            self.probe_outcomes["skoda_official_keygen"] = f"POST err:{type(err).__name__}"
             _LOGGER.debug(
                 "official-API key mint failed for %s: %s", vin[-6:], type(err).__name__
             )
             return None
-        return body if isinstance(body, dict) and body.get("key") else None
+        if isinstance(body, dict) and body.get("key"):
+            self.probe_outcomes["skoda_official_keygen"] = (
+                "POST 2xx key+validUntil" if body.get("validUntil") else "POST 2xx key"
+            )
+            return body
+        # 2xx but no key secret — record the shape (key NAMES only, no values).
+        shape = ",".join(sorted(body.keys())) if isinstance(body, dict) else "non-dict"
+        self.probe_outcomes["skoda_official_keygen"] = f"POST 2xx no-key [{shape}]"
+        return None
 
     async def list_api_keys(self) -> dict[str, Any] | None:
         """List official-API keys + remaining per-VIN quota (``maxKeys`` 5). Returns
         the response dict (``{maxKeys, vehicleKeys:[{vin, keysRemaining}]}``) or
-        None. Returns no key secrets. Used to check quota before minting."""
+        None. Returns no key secrets. Used to check quota before minting. Records a
+        PII-free ``skoda_official_keygen_list`` probe outcome (HTTP status + counts
+        only) so diagnostics show whether the live list route answers."""
         if not self.can_mint_official_key:
             return None
         try:
@@ -228,10 +252,25 @@ class SkodaClient(CariadBaseClient):
                 f"{_BASE}/api/v2/public-api-keys",
                 headers={"User-Agent": _KEYGEN_USER_AGENT},
             )
+        except APIError as err:
+            self.probe_outcomes["skoda_official_keygen_list"] = f"GET {err.status}"
+            _LOGGER.debug("official-API key list failed: HTTP %s", err.status)
+            return None
         except Exception as err:  # noqa: BLE001
+            self.probe_outcomes["skoda_official_keygen_list"] = (
+                f"GET err:{type(err).__name__}"
+            )
             _LOGGER.debug("official-API key list failed: %s", type(err).__name__)
             return None
-        return body if isinstance(body, dict) else None
+        if isinstance(body, dict):
+            vk = body.get("vehicleKeys")
+            self.probe_outcomes["skoda_official_keygen_list"] = (
+                f"GET 2xx maxKeys={body.get('maxKeys')} "
+                f"vins={len(vk) if isinstance(vk, list) else '?'}"
+            )
+            return body
+        self.probe_outcomes["skoda_official_keygen_list"] = "GET 2xx non-dict"
+        return None
 
     async def delete_api_key(self, key_id: str) -> bool:
         """Delete one official-API key by id (to free a slot before re-minting an

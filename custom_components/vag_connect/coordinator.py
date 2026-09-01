@@ -2548,6 +2548,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             except Exception:  # noqa: BLE001
                 _LOGGER.debug("Škoda official arm-from-map failed", exc_info=True)
 
+    def _skoda_probe(self, key: str, label: str) -> None:
+        """Write a PII-free outcome label into the client's ``probe_outcomes`` so the
+        integration diagnostics surface it. No-op if the client has no such sink.
+        Used to report what the (RE'd-but-live-untested) official key-mint route did,
+        so real-world outcomes come back as diagnostics probes."""
+        po = getattr(self._cariad_client, "probe_outcomes", None)
+        if isinstance(po, dict):
+            po[key] = label
+
     async def _auto_enroll_skoda_official(self, vins: list[str]) -> None:
         """Auto-enroll a logged-in Škoda user in the official public API: mint a
         per-VIN X-API-Key from the EXISTING mysmob login, persist it, arm the
@@ -2561,14 +2570,28 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         if str(self.entry.data.get(CONF_BRAND, "")) != "skoda":
             return
         if not getattr(client, "can_mint_official_key", False):
+            # Record WHY the official channel can't auto-enrol (portal-fallback or a
+            # non-native login) so diagnostics explain its absence. PII-free.
+            self._skoda_probe("skoda_official", "gate: not a native mysmob login")
             return
         mint = getattr(client, "mint_api_key", None)
         list_keys = getattr(client, "list_api_keys", None)
         if mint is None or list_keys is None:
             return
+        # Mint each VIN at most once per HA session: a stored key means it already
+        # succeeded; a VIN we already tried this session (and that failed) must not be
+        # re-hammered every poll — its failure is captured in the keygen probe and it
+        # gets a fresh attempt on the next restart.
+        attempted = getattr(self, "_skoda_official_attempted", None)
+        if not isinstance(attempted, set):
+            attempted = set()
+            self._skoda_official_attempted = attempted
         stored: dict[str, Any] = dict(self.entry.data.get(CONF_SKODA_OFFICIAL_KEYS) or {})
         stored_upper = {str(k).upper() for k in stored}
-        to_mint = [v for v in vins if str(v).upper() not in stored_upper]
+        to_mint = [
+            v for v in vins
+            if str(v).upper() not in stored_upper and str(v).upper() not in attempted
+        ]
         if not to_mint:
             if stored:
                 self._arm_official_from_map(stored)
@@ -2586,6 +2609,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         newly: dict[str, Any] = {}
         quota_full = False
         for vin in to_mint:
+            attempted.add(str(vin).upper())  # tried this session — don't re-hammer
             if remaining.get(str(vin).upper(), 1) <= 0:
                 quota_full = True  # user already holds 5 keys for this VIN in the app
                 continue
@@ -2601,6 +2625,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # keys armed; if the only blocker was a full key quota, guide the user.
             if stored:
                 self._arm_official_from_map(stored)
+            self._skoda_probe(
+                "skoda_official",
+                "quota-full (5 keys/VIN in app)" if quota_full
+                else "no key minted (see skoda_official_keygen probe)",
+            )
             if quota_full:
                 repairs.raise_issue_skoda_official_quota(self.hass, self.entry.entry_id)
             return
@@ -2611,6 +2640,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         self.hass.config_entries.async_update_entry(
             self.entry, data={**self.entry.data, CONF_SKODA_OFFICIAL_KEYS: full})
         repairs.raise_issue_skoda_official_enrolled(self.hass, self.entry.entry_id)
+        self._skoda_probe("skoda_official", f"enrolled ({len(newly)} new key(s))")
 
     async def _arm_supplementary_channels(self) -> None:
         """v2.15.0b1 (C1) — arm configured supplementary read channels on the

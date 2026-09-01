@@ -51,6 +51,10 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   The key is minted once and remembered, honours the 5-keys-per-car limit, and the
   channel stays rate-limited (20 requests/hour per car) so it's only read when the
   primary channel is down. A manual key field stays in the options as a fallback.
+  The key-mint step also writes a privacy-safe outcome line into the integration
+  diagnostics (HTTP status + response field names only — no VIN, body, or secret),
+  so if the mint ever misbehaves on a real car the download tells us exactly what
+  happened.
 
 ### Changed
 - **Audi battery net-capacity now also comes from the health read.** The battery

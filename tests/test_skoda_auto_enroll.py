@@ -41,6 +41,7 @@ def _client(can_mint: bool = True, remaining: int = 5):
     cl.mint_api_key = AsyncMock(side_effect=lambda vin: {
         "id": f"id-{vin}", "key": f"KEY-{vin}", "validUntil": "2027-09-01T00:00:00Z"})
     cl.arm_supplementary_official = MagicMock()
+    cl.probe_outcomes = {}  # real dict so _skoda_probe captures (not a MagicMock attr)
     return cl
 
 
@@ -98,3 +99,38 @@ def test_quota_full_raises_quota_repair_and_does_not_mint():
     cl.mint_api_key.assert_not_awaited()
     rep.assert_called_once()
     c.hass.config_entries.async_update_entry.assert_not_called()
+
+
+def test_success_records_enrolled_probe():
+    cl = _client()
+    c = _coord({CONF_BRAND: "skoda"}, cl)
+    with patch("custom_components.vag_connect.repairs.raise_issue_skoda_official_enrolled"):
+        asyncio.run(c._auto_enroll_skoda_official([VIN1, VIN2]))
+    assert cl.probe_outcomes["skoda_official"] == "enrolled (2 new key(s))"
+
+
+def test_gate_block_records_probe():
+    cl = _client(can_mint=False)
+    c = _coord({CONF_BRAND: "skoda"}, cl)
+    asyncio.run(c._auto_enroll_skoda_official([VIN1]))
+    assert cl.probe_outcomes["skoda_official"] == "gate: not a native mysmob login"
+
+
+def test_quota_full_records_probe():
+    cl = _client(remaining=0)
+    c = _coord({CONF_BRAND: "skoda"}, cl)
+    with patch("custom_components.vag_connect.repairs.raise_issue_skoda_official_quota"):
+        asyncio.run(c._auto_enroll_skoda_official([VIN1]))
+    assert cl.probe_outcomes["skoda_official"].startswith("quota-full")
+
+
+def test_failed_mint_not_retried_same_session():
+    # A live mint that fails (returns None) must NOT be re-hammered every poll: the
+    # attempted-set caps it at one try per HA session; the keygen probe stays visible.
+    cl = _client()
+    cl.mint_api_key = AsyncMock(return_value=None)
+    c = _coord({CONF_BRAND: "skoda"}, cl)
+    asyncio.run(c._auto_enroll_skoda_official([VIN1, VIN2]))
+    asyncio.run(c._auto_enroll_skoda_official([VIN1, VIN2]))  # second poll, same session
+    assert cl.mint_api_key.await_count == 2  # once per VIN, not four times
+    assert cl.probe_outcomes["skoda_official"].startswith("no key minted")
