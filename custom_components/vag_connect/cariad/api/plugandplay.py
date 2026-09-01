@@ -114,7 +114,7 @@ class PlugAndPlayCloudClient:
     def tokens(self) -> TokenSet | None:
         return self._tokens
 
-    async def _get(self, path: str) -> tuple[int, Any]:
+    async def _get(self, path: str, _retry: bool = True) -> tuple[int, Any]:
         if not self._tokens or not self._tokens.access_token:
             raise AuthenticationError("plug&play client is not authenticated")
         headers = {
@@ -132,11 +132,26 @@ class PlugAndPlayCloudClient:
         async with self._session.get(
             f"{self.API_BASE}/{path}", headers=headers, timeout=_TIMEOUT
         ) as resp:
+            status = resp.status
             try:
                 body = await resp.json(content_type=None)
             except Exception:  # noqa: BLE001 — error bodies may be text
                 body = await resp.text()
-            return resp.status, body
+        # acpp is a STANDALONE client (not a BaseClient), so it does NOT inherit
+        # the base 401→refresh path. The access token is short-lived (~1h) and the
+        # refresh token rotates — on a 401, refresh once and retry (mirroring
+        # BaseClient._request), and keep the rotated token so the next poll doesn't
+        # replay a dead one. A persistent 401 falls through unchanged.
+        if (
+            status == 401 and _retry
+            and self._tokens is not None and self._tokens.refresh_token
+        ):
+            try:
+                self._tokens = await self._auth.refresh(self._tokens.refresh_token)
+            except Exception:  # noqa: BLE001 — refresh failed → surface the 401
+                return status, body
+            return await self._get(path, _retry=False)
+        return status, body
 
     async def get_raw_snapshot(self, vin: str) -> dict[str, Any]:
         """Return the full acpp snapshot for a VIN.
@@ -156,6 +171,14 @@ class PlugAndPlayCloudClient:
              "last_parking_position": {"gpsLocation": {...}}, "app_services": {...}}
         """
         status, body = await self._get(f"vehicle/{vin}")
+        if status == 401:
+            # After _get's refresh+retry, a persistent 401 means the stored token
+            # is truly dead. Raise AuthenticationError (not APIError) so the
+            # coordinator suppresses the per-poll Error-Reporter flood and fires a
+            # single re-auth Repair instead of ~20 buffered 401s (acpp, Prash).
+            raise AuthenticationError(
+                f"plug&play token rejected (401): {self.API_BASE}/vehicle/{vin}"
+            )
         if status != 200 or not isinstance(body, dict):
             # 404 here specifically means the VIN is not enrolled in THIS account
             # ("Vehicle with vin: '...' does not exist").

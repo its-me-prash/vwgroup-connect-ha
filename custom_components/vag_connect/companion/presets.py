@@ -347,6 +347,7 @@ _VW = BrandPreset(
             content_desc_re=(
                 r"Charging\s*status\b.*?\.\s*"
                 r"(Charging\s*(?:stopped|paused|complete[d]?|active)?"
+                r"|Currently\s*charging"
                 r"|Not\s*(?:charging|connected)|Ready\s*to\s*charge)\s*\.?\s*$"
             ),
             parse="str",
@@ -394,6 +395,17 @@ _VW = BrandPreset(
     # command entities that never work, this preset carries NO actions (so
     # ``writable`` is False and no command entities spawn) until the 2-step nav
     # is confirmed on a real device. Reads are unaffected.
+    #
+    # #968 (plainmad, 4.3.2 "while charging" + "climate active" dumps) — the two
+    # write controls are now LOCATED (not yet wired, because a wrong tap is a
+    # physical action on the car — they move into ``actions`` only once confirmed
+    # on-device and the preset is marked ``verified``):
+    #   • charge stop/start = the detail-sheet control whose content-desc flips
+    #     "Start charging" ⇄ "Stop charging" (bounds [85,1278][635,1380]).
+    #   • climate stop/start = the CTA whose resource-id itself flips
+    #     ``cta_start`` (text "Start") ⇄ ``cta_stop`` (text "Stop").
+    # Both are reached via the existing open_charge_detail / open_climate_detail
+    # nav. NOT on the sheet at all on 4.3.2: charge target-% and live kW power.
     actions=(),
     # v2.26.0 (C9) — charge target / power / remaining-time live behind the
     # range tile (ckomma's set_charging taps range_tile_center to reach the
@@ -445,6 +457,7 @@ _VW = BrandPreset(
                     content_desc_re=(
                         r"Charging\s*status\b.*?\.\s*"
                         r"(Charging\s*(?:stopped|paused|complete[d]?|active)?"
+                r"|Currently\s*charging"
                         r"|Not\s*(?:charging|connected)|Ready\s*to\s*charge)\s*\.?\s*$"
                     ),
                     parse="str",
@@ -586,17 +599,35 @@ _VW = BrandPreset(
                     value_from="self",
                     parse="temp_c",
                 ),
-                # #968 (plainmad, live 4.3.2 dump) — the two switches on this
-                # screen carry their state in ``checked``, not in any text.
+                # #968 — the switch state is read from two possible shapes, most
+                # reliable last (read_selectors keeps the last non-None). Older /
+                # other layouts expose a checkable ``*_toggle`` whose ``checked``
+                # is the state; but plainmad's live 4.3.2 "climate active" dump
+                # shows the toggle row is ``clima_``-prefixed, NOT checkable, and
+                # carries ``checked="false"`` even while air conditioning is on —
+                # there the real state is the sibling ``*_description`` text
+                # ("Active" / "Off"). Try ``checked`` first, then let the
+                # description win (bool_climate maps Active/On→True, Off→False), so
+                # both layouts read correctly.
                 FieldSelector(
                     target="window_heating_enabled",
                     checked_of_rid="window_heating_toggle",
                     parse="bool_switch",
                 ),
                 FieldSelector(
+                    target="window_heating_enabled",
+                    resource_id="window_heating_description",
+                    parse="bool_climate",
+                ),
+                FieldSelector(
                     target="climatisation_active",
                     checked_of_rid="air_conditioning_toggle",
                     parse="bool_switch",
+                ),
+                FieldSelector(
+                    target="climatisation_active",
+                    resource_id="air_conditioning_description",
+                    parse="bool_climate",
                 ),
             ),
             back_presses=1,

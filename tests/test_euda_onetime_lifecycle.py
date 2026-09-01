@@ -3,11 +3,11 @@
 """Stage-1 EU Data Act — one-time historical export lifecycle safety.
 
 The machinery to request + import a one-time export already existed; this pins
-the safety around it: the WEDGE-GUARD (never submit a one-time export while the
-continuous 15-min request is active — the portal allows only one at a time, so it
-would block the live feed for up to 24h), the KILL-SWITCH, and the client-side
-DEADLINE (the portal gives the request no terminal state, so a stuck one is timed
-out instead of pending forever).
+the safety around it: the WEDGE-GUARD (#923 @naked-head, field-corrected — refuse
+only while OUR OWN one-time export is still pending; a one-time submits fine
+alongside the active 15-min feed, which keeps publishing), the KILL-SWITCH, and
+the client-side DEADLINE (the portal gives the request no terminal state, so a
+stuck one is timed out instead of pending forever).
 """
 from __future__ import annotations
 
@@ -55,15 +55,32 @@ async def test_kill_switch_refuses_and_never_touches_the_portal():
 
 
 @pytest.mark.asyncio
-async def test_wedge_guard_refuses_while_continuous_request_active():
+async def test_one_time_export_allowed_while_continuous_feed_active():
+    # #923 (@naked-head, field-corrected) — the portal allows a one-time export
+    # ALONGSIDE the active 15-min continuous feed, and the feed keeps publishing.
+    # The old guard checked the continuous request's identifier (active for
+    # essentially everyone via auto-kickoff) and refused every attempt, making the
+    # button unreachable. An active continuous request must NOT block it.
     c = _coord()
-    p, scraper = _patch_scraper(active_id="an-active-15min-identifier")
+    p, scraper = _patch_scraper(active_id="an-active-15min-identifier", kickoff_ok=True)
+    with patch("homeassistant.helpers.aiohttp_client.async_get_clientsession", return_value=MagicMock()), p:
+        ok = await c.async_request_historical_export(_VIN)
+    assert ok is True
+    scraper.kickoff_historical_export.assert_awaited_once()
+    assert c.historical_export_state(_VIN) == "pending"
+
+
+@pytest.mark.asyncio
+async def test_wedge_guard_refuses_only_while_our_own_export_is_pending():
+    # Refuse to avoid double-submitting while OUR OWN one-time export is in flight;
+    # a genuine duplicate is the portal's to reject.
+    c = _coord()
+    c._historical_export_state = {_VIN: {"state": "pending", "submitted_at": "x"}}
+    p, scraper = _patch_scraper(active_id=None, kickoff_ok=True)
     with patch("homeassistant.helpers.aiohttp_client.async_get_clientsession", return_value=MagicMock()), p:
         with pytest.raises(ServiceValidationError):
             await c.async_request_historical_export(_VIN)
-    # crucially, the one-time kickoff was NEVER sent (the feed is protected)
     scraper.kickoff_historical_export.assert_not_awaited()
-    assert c.historical_export_state(_VIN) == "idle"
 
 
 @pytest.mark.asyncio
@@ -80,8 +97,8 @@ async def test_no_continuous_request_kicks_off_and_records_pending():
 @pytest.mark.asyncio
 async def test_advance_times_out_a_stuck_export_and_clears_pending():
     c = _coord()
-    # a pending export submitted 30h ago (past the 26h client deadline)
-    old = (datetime.now(tz=timezone.utc) - timedelta(hours=30)).isoformat()
+    # a pending export submitted 74h ago (past the 72h client deadline)
+    old = (datetime.now(tz=timezone.utc) - timedelta(hours=74)).isoformat()
     c._historical_export_state = {_VIN: {"state": "pending", "submitted_at": old}}
     c.async_import_historical_export = AsyncMock()  # must NOT be called past deadline
     with patch(

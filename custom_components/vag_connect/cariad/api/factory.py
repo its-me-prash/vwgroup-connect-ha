@@ -16,6 +16,7 @@ from .vw_na import VWNAClient
 from .audi_na import AudiNAClient
 from .bentley import BentleyClient
 from .plugandplay import PlugAndPlayCloudClient
+from .skoda_official import SkodaOfficialClient
 
 
 class CariadClientFactory:
@@ -31,7 +32,10 @@ class CariadClientFactory:
         country: str = "us",
         ola_app_version_override: str | None = None,
         ola_user_agent_override: str | None = None,
-    ) -> CariadBaseClient | PorscheClient | VWNAClient | PlugAndPlayCloudClient:
+    ) -> (
+        CariadBaseClient | PorscheClient | VWNAClient
+        | PlugAndPlayCloudClient | SkodaOfficialClient
+    ):
         """Return an authenticated-ready client for the given brand.
 
         Supported brands:
@@ -84,6 +88,12 @@ class CariadClientFactory:
             return PlugAndPlayCloudClient(
                 session, BRAND_AUDI_ACPP, email, password, spin
             )
+        if lower == "skoda_official":
+            # Škoda OFFICIAL public API (opt-in) — first-party, attestation-free,
+            # X-API-Key auth (no OAuth). No BrandConfig needed. The VIN(s) ride the
+            # ``email`` slot (comma-separated) and the API key the ``password`` slot.
+            from .skoda_official import SkodaOfficialClient
+            return SkodaOfficialClient(session, email, password, spin)
         raise ValueError(
             f"Unknown brand '{brand}'. Supported: "
             "volkswagen, audi, skoda, seat, cupra, volkswagen_na, audi_na, "

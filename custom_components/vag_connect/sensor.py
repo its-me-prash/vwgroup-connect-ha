@@ -917,6 +917,39 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
 
+    # vgql coverage (2026-08-28) — the authoritative drivetrain classification
+    # (electric/hybrid/gasoline/diesel) from the vgql we already run for the
+    # model name. Diagnostic string, distinct from the is_electric/is_hybrid
+    # booleans; phantom-guarded (hidden until the vgql actually supplies it).
+    VagSensorDescription(
+        key="drive_train",
+        translation_key="drive_train",
+        data_key="drive_train",
+        icon="mdi:car-cog",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # The stable per-vehicle Customer Service ID (vgql `csid`). A durable
+    # secondary identifier; disabled by default — power-user / support handle.
+    VagSensorDescription(
+        key="csid",
+        translation_key="csid",
+        data_key="csid",
+        icon="mdi:identifier",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
+    # "Parked since" — the capture time of the current parking position. No new
+    # network read: reuses position_captured_at we already fetch. HA renders it
+    # as a relative age ("parked 3 h ago").
+    VagSensorDescription(
+        key="parked_since",
+        translation_key="parked_since",
+        data_key="position_captured_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:car-clock-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+
     VagSensorDescription(
         key="departure_timer_1_time",
         translation_key="departure_timer_1_time",
@@ -3803,6 +3836,14 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # stay None → no phantom.
     "battery_care_score",
     "battery_care_score_threshold",
+    # v4.4.0 (vgql coverage, 2026-08-28) — drivetrain classification + the
+    # stable customer-service id come from the Audi/VW-EU vgql only. Every
+    # other brand/channel leaves them None → no phantom entity. "parked_since"
+    # reads position_captured_at (its data_key), which stays None for cars/
+    # channels that never report a parking position → no phantom there either.
+    "drive_train",
+    "csid",
+    "parked_since",
 })
 
 # v1.14.0 (#24) — Trip Statistics is brand-restricted at the API level
@@ -4102,9 +4143,19 @@ class VagConnectSensor(VagConnectEntity, SensorEntity):
         # Only present when a genuine tie occurred, so it never bloats the
         # recorder on a clean poll.
         if self.entity_description.key == "data_source_channel":
+            from ._channel_labels import channels_overview  # noqa: PLC0415
+            src_attrs: dict[str, Any] = {}
+            raw = self._vehicle.get("source_channel")
+            _display, labels = channels_overview(
+                raw if isinstance(raw, str) else None)
+            if labels:
+                # friendly per-channel list + the raw token join for support
+                src_attrs["channels"] = labels
+                src_attrs["raw"] = raw
             contested = self._vehicle.get("contested_fields")
             if isinstance(contested, dict) and contested:
-                return json_safe_dict({"contested_fields": contested})
+                src_attrs["contested_fields"] = contested
+            return json_safe_dict(src_attrs) if src_attrs else None
         # v2.15.3 — Skoda trip-cost sensors carry the (dynamic) ISO currency
         # code as an attribute, since device_class=MONETARY would force a fixed
         # native currency unit we don't know ahead of time.
@@ -4128,6 +4179,15 @@ class VagConnectSensor(VagConnectEntity, SensorEntity):
     @property
     def native_value(self) -> Any:
         val = self._vehicle.get(self.entity_description.data_key)
+        # data_source_channel — show the friendly, de-duplicated channel list
+        # ("Car-Net + EU Data Act portal") instead of the raw token join
+        # ("eu_data_act+mbb"). The raw value stays in the ``raw`` attribute and
+        # in ``source_channel`` itself, so nothing that keys on tokens changes.
+        if self.entity_description.key == "data_source_channel":
+            from ._channel_labels import channels_overview  # noqa: PLC0415
+            display, _labels = channels_overview(
+                val if isinstance(val, str) else None)
+            return display
         # v2.10.0 (charging_statistics) - power-curve sample list. Native
         # value is the COUNT to keep state HA-recorder friendly; the full
         # list lives in extra_state_attributes (see above). Returns None

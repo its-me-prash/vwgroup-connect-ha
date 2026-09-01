@@ -1,0 +1,60 @@
+name: Škoda official-API app watch
+
+# Polls the MyŠkoda app version every 4 hours. The official Škoda public API
+# (public.api.connect.skoda-auto.cz) is live, but the X-API-Key can only be
+# minted from Settings → Smart Home → API Keys, which ships with app v8.16
+# (absent from 8.15.0). When the mirrors reach v8.16 this opens a tracking issue
+# so we can pull the APK first, androguard the key-creation endpoint, and
+# evaluate automatic key-minting for the opt-in Škoda-official channel.
+
+on:
+  schedule:
+    - cron: "0 */4 * * *"   # every 4 hours
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check MyŠkoda app version
+        id: check
+        run: |
+          out="$(python scripts/skoda_official_watch.py)"
+          echo "$out"
+          ver="$(echo "$out" | sed -n 's/^FOUND //p')"
+          state="$(echo "$out" | grep -E '^(TRIGGER|NO-TRIGGER)$' | head -1)"
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+          echo "state=$state"  >> "$GITHUB_OUTPUT"
+
+      - name: Open tracking issue when v8.16 is out
+        if: steps.check.outputs.state == 'TRIGGER'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          title="[Škoda] Official API app reached ${VERSION} — evaluate key-minting"
+          # de-dup: skip if an open issue with this marker already exists
+          existing="$(gh issue list --state open --search 'in:title Official API app reached' --json number --jq 'length')"
+          if [ "$existing" != "0" ]; then
+            echo "Tracking issue already open — nothing to do."
+            exit 0
+          fi
+          gh issue create --title "$title" --label "enhancement" --body "$(cat <<EOF
+          The MyŠkoda app has reached **${VERSION}** on the mirrors — this is the version that ships the official-API key-management screen (Settings → Smart Home → API Keys).
+
+          **Next steps (for a maintainer):**
+          1. Pull the new APK and decompile it.
+          2. Analyse the key-creation flow (Settings → Smart Home → API Keys): find the backend endpoint the "Create key" action calls.
+          3. Decide **auto-mint feasibility**: is that endpoint reachable off-device with an existing session, or attestation-walled? If reachable → wire automatic key-minting into the opt-in Škoda-official channel; if walled → manual key entry stays.
+          4. The opt-in channel client + grounded spec already exist (\`custom_components/vag_connect/cariad/api/skoda_official.py\`, \`docs/research/skoda-official-api.md\`).
+
+          _Auto-filed by the Škoda official-API app watch (\`scripts/skoda_official_watch.py\`)._
+          EOF
+          )"
+          echo "Opened tracking issue for ${VERSION}."

@@ -123,6 +123,41 @@ class SkodaClient(CariadBaseClient):
         # stops 403-hammering that endpoint. Empty on a fresh restart → charging is
         # attempted once, carType is learned, then skipped from poll 2 on.
         self._powertrain: dict[str, str] = {}
+        # Škoda OFFICIAL public-API client, armed opt-in as a FAILOVER-ONLY read
+        # source (see arm_supplementary_official). None unless the user configured
+        # an API key. Never consulted on a healthy poll — only when the primary
+        # mysmob read hard-fails — because the official API is rate-limited to
+        # 20 req/hour/key.
+        self._supplementary_official: Any = None
+
+    def arm_supplementary_official(self, api_key: str) -> None:
+        """Arm the official Škoda public API as a failover source (opt-in). The
+        key is vehicle-bound server-side, so ``get_status(vin)`` is called per-VIN
+        on failover; no VIN list is needed here."""
+        if not api_key:
+            self._supplementary_official = None
+            return
+        from .skoda_official import SkodaOfficialClient  # noqa: PLC0415
+        self._supplementary_official = SkodaOfficialClient(
+            self._session, email="", password=api_key, spin=self._spin,
+        )
+
+    async def official_failover_read(self, vin: str) -> "VehicleData | None":
+        """Read one VIN via the official public API — the FAILOVER path, invoked
+        only when the primary channel raised. Fail-soft: any error returns None so
+        the failover can never itself sink the poll."""
+        off = self._supplementary_official
+        if off is None:
+            return None
+        # Honour the official channel's 20/hour/key budget: if the server has told
+        # us we're out (RateLimit-Remaining 0, or a 429/503 Retry-After), skip the
+        # failover read until the window resets rather than breaching the quota.
+        if getattr(off, "over_rate_limit", False) is True:
+            return None
+        try:
+            return await off.get_status(vin)  # type: ignore[no-any-return]
+        except Exception:  # noqa: BLE001
+            return None
 
     @staticmethod
     def _sub_from_id_token(id_token: str | None) -> str | None:

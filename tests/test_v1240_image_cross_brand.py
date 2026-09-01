@@ -199,6 +199,48 @@ class TestEntityCreationByBrand:
         assert len(catalog) == 7
         assert len(synth) == 0
 
+
+class TestDefaultEnabled:
+    """Only the ⭐-recommended catalog render is on by default; the other six
+    sizes/angles are created but disabled so the device page stays clean. The
+    seven entities are still all CREATED (see test above) — this is purely the
+    registry enabled-state."""
+
+    def _entity(self, suffix: str):
+        from unittest.mock import MagicMock
+        from custom_components.vag_connect.image import VagRenderImageEntity
+        from custom_components.vag_connect.cariad.api.graphql import (
+            RENDER_IMAGE_TYPES,
+        )
+        meta = next(
+            m for m in RENDER_IMAGE_TYPES if m["entity_suffix"] == suffix)
+        return VagRenderImageEntity(
+            MagicMock(), MagicMock(), "V", meta, "https://x/a.png")
+
+    def test_recommended_render_enabled_by_default(self):
+        assert self._entity("render_side_lg").entity_registry_enabled_default
+
+    def test_other_catalog_renders_disabled_by_default(self):
+        for suffix in (
+            "render_angle_lg", "render_medium", "render_side_sm",
+            "render_small", "render_icon", "render_angle_hd",
+        ):
+            assert (
+                self._entity(suffix).entity_registry_enabled_default is False
+            ), suffix
+
+    def test_dynamic_viewpoint_stays_enabled(self):
+        # a CUPRA/SEAT/Skoda viewpoint is the only render that brand has, so it
+        # must not be hidden behind the disabled-by-default rule.
+        from unittest.mock import MagicMock
+        from custom_components.vag_connect.image import (
+            VagRenderImageEntity, _synthesize_meta,
+        )
+        e = VagRenderImageEntity(
+            MagicMock(), MagicMock(), "V", _synthesize_meta("side"),
+            "https://x/side.png")
+        assert e.entity_registry_enabled_default is True
+
     def test_cupra_seat_ola_viewpoints_now_spawn(self):
         """Pre-v1.24.0 BUG: 0 entities. Post-fix: 4 synth entities."""
         urls = {

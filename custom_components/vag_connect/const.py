@@ -91,6 +91,15 @@ CONF_MBB_COMMAND_CHANNEL      = "mbb_command_channel"      # bool: armed?
 CONF_MBB_COMMAND_TOKENS       = "mbb_command_tokens"       # dag-shaped dict (strategy=mbb)
 CONF_MBB_COMMAND_CLIENT_ID    = "mbb_command_client_id"    # registered X-Client-Id
 CONF_MEB_COMMANDS_UNAVAILABLE = "meb_commands_unavailable"  # bool: MEB/ID car, commands requested but impossible
+# b15 — MBB COMMAND FALLBACK for a TWO-WAY device-grant primary (e.g. Audi
+# Car-Net on the CARIAD BFF). Unlike CONF_MBB_COMMAND_CHANNEL (portal primary →
+# MBB *is* the command channel), here the BFF stays the command primary and the
+# MBB connector is armed ONLY as a fallback: a command runs on the BFF first and
+# re-routes to MBB *only* when the BFF refuses it (401/403 auth refusal), and
+# only for MBB-eligible (pre-MEB Car-Net) cars. Škoda pulled its device-grant in
+# 2026-08 — this keeps a two-way Audi commandable if VW ever does the same. Reuses
+# the CONF_MBB_COMMAND_TOKENS / _CLIENT_ID / _VINS storage (same durable bearer).
+CONF_MBB_COMMAND_FALLBACK     = "mbb_command_fallback"     # bool: MBB armed as BFF-refusal fallback?
 # 2026-08 — VW EU Two-Way (modern CARIAD BFF) via device-grant client 650d46ca.
 # Its 1h Bearer is BFF-whitelisted for reads+commands (the surface vw_eu.py
 # drives), unlike the DAG-dead app client / read-only portal client. Because the
@@ -211,14 +220,17 @@ CONF_EU_DATA_ACT_AUTO_KICKOFF = "eu_data_act_auto_kickoff"
 
 # Stage-1 one-time historical-export lifecycle. The portal accepts AT MOST ONE
 # custom request per VIN at a time, so a one-time export would BLOCK the
-# continuous 15-min feed for up to 24h — the wedge-guard refuses to submit one
-# while a continuous request is active. The portal also gives the one-time
-# request no terminal state (it can silently vanish ~24-36h after submit), so we
-# impose our own client-side deadline. Persisted per VIN as {state, submitted_at}.
+# The portal gives the one-time request no terminal state (it can silently
+# vanish after submit), so we impose our own client-side deadline; the wedge-guard
+# refuses only while OUR OWN one-time export is pending (#923). Persisted per VIN
+# as {state, submitted_at}.
 CONF_HISTORICAL_EXPORT_STATE = "historical_export_state"
-# Past this many seconds a still-pending export is declared timed-out. The
-# portal's observed vanish window is ~24-36h; 26h clears the 24h floor.
-HISTORICAL_EXPORT_DEADLINE_S = 26 * 3600
+# Past this many seconds a still-pending export is declared timed-out. #923
+# (@naked-head) observed a request legitimately still "Gathering your data" on
+# the portal past 39h, so the earlier 26h floor timed out real in-flight requests
+# and (once the wedge-guard was fixed to key off our own pending state) would let
+# a resubmit through that the portal then rejects. 72h leaves a wide margin.
+HISTORICAL_EXPORT_DEADLINE_S = 72 * 3600
 # Kill-switch — set True to disable the whole one-time lifecycle (button hidden,
 # service + kickoff abort). The machinery stays intact; nothing else changes.
 ONETIME_EXPORT_DISABLED = False
@@ -282,6 +294,10 @@ CONF_SUPPLEMENTARY_AUTHPROXY_COOKIES = "supplementary_authproxy_cookies"
 # back here. SECURITY: the token bundle is never logged.
 CONF_SUPPLEMENTARY_TIBBER        = "supplementary_tibber"
 CONF_SUPPLEMENTARY_TIBBER_TOKENS = "supplementary_tibber_tokens"
+# Škoda OFFICIAL public API key (opt-in) — a FAILOVER-ONLY source: read only
+# when the primary (unofficial mysmob) channel hard-fails, never polled
+# continuously, because the official API is rate-limited to 20 requests/hour/key.
+CONF_SKODA_OFFICIAL_API_KEY      = "skoda_official_api_key"
 
 # v2.15.0b3 — "hide entities without data" (default ON). When enabled, data
 # sensors / binary sensors whose value hasn't arrived are not created, so a
@@ -330,6 +346,7 @@ BRANDS = {
     "audi_na":        "Audi US/CA",
     "porsche":        "Porsche (My Porsche)",
     "audi_acpp":      "Audi plug&play (OBD dongle)",
+    "skoda_official": "Škoda (official API)",
 }
 
 # v2.8.0 quick-win B — native-app deeplink schemes per brand. Used by
@@ -362,6 +379,7 @@ DEEPLINK_SCHEMES: dict[str, str] = {
     "volkswagen_na": "myvw://",            # DEX: myVW 2026.5.27 (was vwapp://)
     "audi_na":       "myaudi://",          # US Audi = same global myAudi app
     "audi_acpp":     "acpp://",            # Audi connect plug&play (de.audi.connectplugandplay)
+    "skoda_official": "myskoda://",        # official API keys are managed in the MyŠkoda app
 }
 
 # Polling interval limits
@@ -387,6 +405,11 @@ MAX_SCAN_INTERVAL     = 60   # minutes — the config-flow selectable ceiling (#
 # every other brand keeps the 10-min default.
 RECOMMENDED_SCAN_INTERVAL: dict[str, int] = {
     "skoda": 30,
+    # acpp (Audi plug&play OBD dongle) uploads a snapshot only when the dongle
+    # syncs after a drive — polling faster than the car is driven returns
+    # identical data and just churns the ~1h rotating token. Hourly reliably
+    # catches the post-drive snapshot.
+    "audi_acpp": 60,
 }
 
 

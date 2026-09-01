@@ -2170,6 +2170,14 @@ def map_dataset_to_vehicle_data(
     _tail_open = _to_int(first("open_state_tailgate"))
     if _tail_open in (2, 3) and d.trunk_open is None:
         d.trunk_open = _tail_open == 2
+    # #1293 (@MirkoKas, VW) — the boolean ``trunk.open`` dialect (dotted spelling,
+    # exactly like ``trunk.locked`` above): "true" = trunk open. Distinct from the
+    # numeric ``open_state_tailgate`` enum and the UUID fallback below — a VW
+    # portal was sending only this dotted string, so trunk_open stayed unset. Use
+    # the dotted key (never the bare ``open``) so it can't collide with a door.
+    _trunk_o = first("trunk.open", "trunk_open")
+    if _trunk_o is not None and d.trunk_open is None:
+        d.trunk_open = str(_trunk_o).strip().lower() in ("true", "open", "1")
     _bonnet_open = _to_int(first("open_state_front_engine_bonnet"))
     if _bonnet_open in (2, 3) and d.hood_open is None:
         d.hood_open = _bonnet_open == 2

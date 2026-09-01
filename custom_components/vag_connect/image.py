@@ -350,6 +350,17 @@ _RENDER_TKEYS = frozenset({
     "render_side_sm", "render_small", "render_icon", "render_angle_hd",
 })
 
+# The Audi/VW MediaService ships the SAME car render in 7 sizes/angles. Enabling
+# all 7 buried the device page under seven near-identical car photos. Keep only
+# the ⭐-recommended one (the large side profile, best for Lovelace) enabled by
+# default; the other six are still created but disabled — a user who wants a
+# specific size/angle for a dashboard enables it in one click. Existing setups
+# keep whatever they already have (the registry enabled-state is sticky); this
+# only tidies NEW vehicles. Brand-native viewpoints (CUPRA/SEAT OLA, Škoda) and
+# the single Škoda widget render are the only render(s) those brands have, so
+# they stay enabled.
+_DEFAULT_ENABLED_RENDERS = frozenset({"render_side_lg"})
+
 
 class VagRenderImageEntity(VagConnectEntity, ImageEntity):
     """One render image entity for a single MediaType + vehicle combination.
@@ -377,6 +388,12 @@ class VagRenderImageEntity(VagConnectEntity, ImageEntity):
         _suffix = meta["entity_suffix"]
         if _suffix in _RENDER_TKEYS:
             self._attr_translation_key = _suffix
+            # Only the ⭐-recommended catalog render is on by default; the other
+            # six sizes/angles are created but disabled to keep the device page
+            # clean (see _DEFAULT_ENABLED_RENDERS).
+            self._attr_entity_registry_enabled_default = (
+                _suffix in _DEFAULT_ENABLED_RENDERS
+            )
         else:
             # Open-ended OLA/mysmob viewpoint — keep the backend label.
             self._attr_name = self._label_for(meta)

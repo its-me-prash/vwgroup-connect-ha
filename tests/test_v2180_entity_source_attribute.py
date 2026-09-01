@@ -58,7 +58,7 @@ def test_source_lands_in_extra_state_attributes() -> None:
     coord = _coord({"battery_soc": "eu_data_act"})
     attrs = _entity(coord, "battery_soc").extra_state_attributes
     assert attrs is not None
-    assert attrs["source"] == "eu_data_act"
+    assert attrs["source"] == "EU Data Act portal"  # friendly (raw token via _field_source)
 
 
 def test_unknown_field_has_no_source() -> None:
@@ -87,4 +87,4 @@ def test_image_url_attribute_still_works() -> None:
     )
     attrs = _entity(coord, "battery_soc").extra_state_attributes or {}
     assert "image_url" in attrs
-    assert attrs["source"] == "eu_data_act"
+    assert attrs["source"] == "EU Data Act portal"  # friendly (raw token via _field_source)

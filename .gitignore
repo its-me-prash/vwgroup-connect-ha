@@ -37,3 +37,6 @@ canary-log.jsonl
 
 # local-only SEAT/CUPRA web client id (never commit)
 scripts/.seatcupra_client.local
+
+# Internal marketing / GTM drafts — kept local, never published in the repo
+docs/drafts/

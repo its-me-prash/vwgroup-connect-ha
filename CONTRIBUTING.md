@@ -12,6 +12,8 @@
 Use the issue templates:
 <https://github.com/its-me-prash/vwgroup-connect-ha/issues/new/choose>
 
+For how a report travels from filing to fix — templates, triage flow, labels, crediting — see [docs/TRIAGE.md](docs/TRIAGE.md).
+
 A good bug report contains:
 
 - VW Group Connect version (`manifest.json`)
@@ -213,7 +215,7 @@ The `changelog_check.yml` workflow rejects PRs that touch
 ### Translations
 
 `strings.json` is the **English source of truth**. Mirror every change
-into all 8 language files (`translations/{de,en,cs,es,fr,nl,pl,sv}.json`).
+into all 12 language files (`translations/{cs,da,de,en,es,fi,fr,it,nb,nl,pl,sv}.json`).
 Use everyday driver vocabulary, not API jargon: e.g. *Lichthupe*, not
 *Lichtsignal*.
 
@@ -228,7 +230,7 @@ Use everyday driver vocabulary, not API jargon: e.g. *Lichthupe*, not
 4. `const.py` — `BRANDS` dict
 5. `config_flow.py` — `_BRAND_OPTIONS`
 6. `tests/test_cariad.py` — at minimum: factory routing, status parser
-7. README feature table (mirror in all 8 languages)
+7. README feature table (mirror across all 11 translated READMEs)
 8. `_private/research-archive/VAG_GROUP_ECOSYSTEM.md` — add the brand to the map
 
 **Capability-first:** the new client must implement a capability check
@@ -262,3 +264,7 @@ template.
 
 Be civil. Be specific. Don't paste secrets. The maintainer is one person
 on their own time — patches and patience travel further than demands.
+
+The full version lives in [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
+
+How the project is run and how influence is earned: see [`GOVERNANCE.md`](GOVERNANCE.md).

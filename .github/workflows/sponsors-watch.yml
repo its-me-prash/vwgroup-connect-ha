@@ -1,0 +1,71 @@
+name: Sponsors watch
+
+# Weekly refresh of the README "Sponsors" list from GitHub Sponsors.
+#
+# PRIVACY: only sponsors who chose to be PUBLIC are listed by name; private
+# sponsors are shown only as an aggregate count (see scripts/update_sponsors.py).
+#
+# REQUIRES a repo secret SPONSORS_TOKEN = a fine-grained/classic PAT with the
+# read:user scope. The default GITHUB_TOKEN CANNOT read sponsorships, so without
+# the secret this job is a safe no-op (it never edits the README).
+#
+# Manual run: Actions -> "Sponsors watch" -> Run workflow.
+
+on:
+  schedule:
+    - cron: "23 6 * * 1"   # Mondays 06:23 UTC (off-peak)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: sponsors-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Refresh the README sponsor list
+        id: run
+        env:
+          SPONSORS_TOKEN: ${{ secrets.SPONSORS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SPONSORS_TOKEN:-}" ]; then
+            echo "SPONSORS_TOKEN not set — nothing to do (safe no-op)."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          out="$(python scripts/update_sponsors.py)"
+          echo "$out"
+          echo "$out" | grep -q "changed=true" && echo "changed=true" >> "$GITHUB_OUTPUT" || echo "changed=false" >> "$GITHUB_OUTPUT"
+
+      - name: Open a PR if the list changed
+        if: steps.run.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ -z "$(git status --porcelain README*.md)" ]; then
+            echo "no README change on disk — nothing to PR"; exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          BRANCH="chore/sponsors-refresh-$(date -u +%Y%m%d)"
+          git checkout -b "$BRANCH"
+          git add README*.md
+          git commit -m "chore: refresh README sponsors list (public sponsors only)"
+          git push -u origin "$BRANCH" --force-with-lease
+          gh pr create --base main --head "$BRANCH" \
+            --title "chore: refresh README sponsors list" \
+            --body "Automated weekly refresh of the public GitHub Sponsors list in the README. Private sponsors are never named (aggregate count only). Review and merge." \
+            || echo "PR may already exist for $BRANCH"

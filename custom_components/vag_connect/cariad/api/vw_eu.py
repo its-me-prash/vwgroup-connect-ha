@@ -386,7 +386,30 @@ class VWEUClient(CariadBaseClient):
         if self._tokens and self._tokens.strategy == "mbb":
             return await self._get_vehicles_via_mbb()
 
-        data = await self._get(f"{self._garage_base()}/vehicle/v1/vehicles")
+        # b15 — garage-list resilience. myAudi 5.7.0 refactored the garage list
+        # from ``/vehicle/v1/vehicles`` to ``/vehicles`` (a new garageinformation
+        # module); CARIAD may eventually deprecate the old path. If the primary
+        # BFF list fails (e.g. a future 404 on the retired path), don't die: for
+        # Audi the vgql userVehicles list lives on a DIFFERENT host
+        # (app-api.*.my.audi.com) and enumerates the whole account garage, so fall
+        # back to it instead of returning no cars. Previously a 404 here raised
+        # APIError BEFORE the vgql merge below could run, so get_vehicles() died
+        # hard for Audi the moment the legacy path went away.
+        try:
+            data = await self._get(f"{self._garage_base()}/vehicle/v1/vehicles")
+        except APIError as err:
+            _LOGGER.warning(
+                "VAG: BFF garage list failed (HTTP %s) — falling back to the vgql "
+                "userVehicles enumeration.", getattr(err, "status", "?"),
+            )
+            await self.fetch_images()  # best-effort; populates self._image_data
+            fb_vins = [v for v in (getattr(self, "_image_data", {}) or {}) if v]
+            if fb_vins:
+                _LOGGER.info(
+                    "VAG: recovered %d vehicle(s) from the vgql garage after the "
+                    "BFF list failed.", len(fb_vins),
+                )
+            return fb_vins
         vehicles: list[dict[str, Any]] = data.get("data", [])
 
         # Cache nickname/model per VIN — used in _parse_status to set device name
@@ -775,11 +798,24 @@ class VWEUClient(CariadBaseClient):
         # SoH from the batteryHealthState sub-job above (value lives at
         # ``stateOfHealth.ubeIndicator_pct``; parse_battery_health walks for it).
         if soh_raw:
-            from .._authproxy import parse_battery_health  # noqa: PLC0415
+            from .._authproxy import (  # noqa: PLC0415
+                parse_battery_health,
+                parse_usable_battery_capacity,
+            )
 
             _soh = parse_battery_health(soh_raw)
             if _soh is not None:
                 d.battery_soh_pct = int(round(_soh))
+            # The same batteryHealthState body also carries usable (net) capacity
+            # in kWh (myAudi 5.7.0 StateOfHealth.usableBatteryCapacity) — the same
+            # quantity as batteryCapacityNetto. Use it only as a GAP-FILL source
+            # for the existing battery_cap_kwh sensor: the main selectivestatus /
+            # EU-DA value wins when present, but a car whose main bundle omitted
+            # net capacity gets it from the health read instead of nothing.
+            if d.battery_cap_kwh is None:
+                _cap = parse_usable_battery_capacity(soh_raw)
+                if _cap is not None:
+                    d.battery_cap_kwh = _cap
 
         # v1.25.0 PR-G — MBB VSR Phase 2 read-side fallback (Golf 7 GTE
         # Tank-Level use case). Triggers when:
@@ -842,11 +878,25 @@ class VWEUClient(CariadBaseClient):
 
     async def arm_mbb_command_channel(
         self, tokens: Any, client_id: str, vins: list[str], spin: str = "",
+        fallback_only: bool = False,
     ) -> bool:
-        """b12 — arm a durable-MBB command connector ALONGSIDE this (read-only
-        primary) client: commands route through MBB while reads stay on the
-        primary. Builds a second VWEUClient on the shared session (MBB = bearer,
-        no IDP-cookie clobber). Fail-soft → False leaves the slot None and the
+        """b12 — arm a durable-MBB command connector ALONGSIDE this client.
+
+        Two modes:
+        - ``fallback_only=False`` (b12, read-only primary, e.g. EU Data Act
+          portal): MBB *is* the command channel — commands route through it
+          while reads stay on the primary. Stored as ``self._mbb_command`` so
+          ``_mbb_command_target()`` returns it.
+        - ``fallback_only=True`` (b15, TWO-WAY device-grant primary, e.g. Audi
+          Car-Net on the CARIAD BFF): the BFF stays the command primary; this
+          connector is stored as ``self._mbb_fallback`` and used ONLY by the
+          coordinator's BFF-refusal retry path. ``_mbb_command_target()`` is
+          deliberately left untouched so normal commands keep hitting the BFF —
+          no regression for a working two-way Audi; MBB only steps in when the
+          BFF refuses (401/403).
+
+        Builds a second VWEUClient on the shared session (MBB = bearer, no
+        IDP-cookie clobber). Fail-soft → False leaves the slot None and the
         primary unaffected. Skipped if THIS client is already MBB-primary."""
         if not tokens or not getattr(tokens, "access_token", ""):
             return False
@@ -864,19 +914,37 @@ class VWEUClient(CariadBaseClient):
             cmd.set_persisted_tokens(tokens)
             cmd._mbb_client_id = client_id or ""
             cmd._mbb_manual_vins = list(vins or [])
-            self._mbb_command = cmd
-            _LOGGER.info(
-                "VW Group Connect: MBB command channel armed alongside the"
-                " read-only primary (commands → MBB, reads → primary)."
-            )
+            if fallback_only:
+                self._mbb_fallback: "VWEUClient | None" = cmd
+                _LOGGER.info(
+                    "VW Group Connect: MBB command FALLBACK armed alongside the"
+                    " two-way primary (BFF commands first, MBB only on refusal)."
+                )
+            else:
+                self._mbb_command = cmd
+                _LOGGER.info(
+                    "VW Group Connect: MBB command channel armed alongside the"
+                    " read-only primary (commands → MBB, reads → primary)."
+                )
             return True
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning(
-                "VW Group Connect: could not arm MBB command channel (%s) —"
-                " primary unaffected.", type(err).__name__,
+                "VW Group Connect: could not arm MBB command %s (%s) —"
+                " primary unaffected.",
+                "fallback" if fallback_only else "channel", type(err).__name__,
             )
-            self._mbb_command = None
+            if fallback_only:
+                self._mbb_fallback = None
+            else:
+                self._mbb_command = None
             return False
+
+    def mbb_fallback_connector(self) -> "VWEUClient | None":
+        """b15 — the armed MBB *fallback* connector (two-way device-grant
+        primary), or None. Consumed by the coordinator's BFF-refusal command
+        retry. Distinct from ``_mbb_command_target()``, which stays None on a
+        device-grant primary so normal commands keep hitting the BFF."""
+        return getattr(self, "_mbb_fallback", None)
 
     async def command_lock(self, vin: str, spin: str = "") -> None:
         """Lock vehicle — separate endpoint (primary) with combined endpoint as
@@ -3199,6 +3267,13 @@ class VWEUClient(CariadBaseClient):
             # no REST metadata, so take its model year from the vgql core block.
             if img.model_year and not d.model_year:
                 d.model_year = img.model_year
+            # vgql coverage (#928-audit, 2026-08-28) — authoritative drivetrain
+            # classification + the stable customer-service id, both from the same
+            # userVehicles query. Gap-fill only (never overwrite a real value).
+            if img.drive_train and not d.drive_train:
+                d.drive_train = img.drive_train
+            if img.csid and not d.csid:
+                d.csid = img.csid
         # v1.10.1 (#58) — safe_int. The model_year metadata sometimes
         # arrives as a 4-digit string and sometimes as int depending on
         # how the auth flow normalised the user profile JSON.
@@ -4078,33 +4153,68 @@ class VWEUClient(CariadBaseClient):
             v(raw, "access", "accessStatus", "value", "windows") or []
         )
         overall = v(raw, "access", "accessStatus", "value", "overallStatus")
+        # #1279 (@peterbauer1709, Audi S6 e-tron / PPE) — an accessStatus array
+        # entry can carry ``status`` as a list of STRINGS (``["open"]``) OR of
+        # OBJECTS (``[{"value": "open"}]``). We only read the object form via
+        # ``status[0].value``, so a PPE car reporting the string form parsed to
+        # empty windows *and* doors (windows_open False, windows_individual {})
+        # even though the raw clearly said "open". Read either shape.
+        # #1281 (@peterbauer1709, Audi S6 e-tron / PPE) — a *door* entry ships
+        # BOTH its lock token and its open token in the SAME ``status`` list
+        # (``["unlocked", "open"]``), so the earlier ``status[0]``-only read
+        # returned the lock word ("unlocked") and every side door + the trunk
+        # read as closed even when physically open. A bonnet/window carries a
+        # single token (``["open"]``), which is why those already worked.
+        # Collect the whole token set (string OR ``[{"value": ...}]`` object
+        # form, #1279) and look for the specific token we want.
+        def _acc_tokens(entry: dict[str, Any]) -> set[str]:
+            out: set[str] = set()
+            for s in (entry.get("status") or []):
+                if isinstance(s, dict):
+                    s = s.get("value") or s.get("status")
+                if isinstance(s, str):
+                    out.add(s.lower())
+            return out
+
         if doors:
-            d.doors_open = any(
-                safe_get(door, "status[0].value") == "open" for door in doors
-            )
-            d.doors_individual = {
-                str(name): safe_get(door, "status[0].value") == "open"
+            door_tokens = {
+                str(name): _acc_tokens(door)
                 for door in doors
                 if (name := door.get("name")) is not None
             }
-            # Trunk lock state lives in the doors array under the
-            # entry whose name is "trunk". Backends ship either a
-            # top-level ``locked`` boolean or a status entry with
-            # value=="locked" — accept both.
-            trunk = next(
-                (door for door in doors if door.get("name") == "trunk"),
-                None,
-            )
-            if trunk is not None:
-                trunk_locked_raw = (
-                    trunk.get("locked")
-                    if "locked" in trunk
-                    else safe_get(trunk, "lockState[0].value")
+            d.doors_individual = {
+                name: "open" in tk for name, tk in door_tokens.items()
+            }
+            d.doors_open = any("open" in tk for tk in door_tokens.values())
+            # The trunk rides in the doors array under name "trunk". Surface its
+            # dedicated open + lock state — both were previously left null on the
+            # two-token ``["unlocked", "closed"]`` shape (open never set at all,
+            # lock only read from a top-level ``locked`` key that PPE omits).
+            trunk_tk = door_tokens.get("trunk")
+            if trunk_tk is not None:
+                if "open" in trunk_tk or "closed" in trunk_tk:
+                    d.trunk_open = "open" in trunk_tk
+                if "locked" in trunk_tk:
+                    d.trunk_locked = True
+                elif "unlocked" in trunk_tk:
+                    d.trunk_locked = False
+            # Legacy shapes: other backends carry the trunk lock as a top-level
+            # ``locked`` boolean or a ``lockState[0].value`` string instead.
+            if d.trunk_locked is None:
+                trunk = next(
+                    (door for door in doors if door.get("name") == "trunk"),
+                    None,
                 )
-                if isinstance(trunk_locked_raw, bool):
-                    d.trunk_locked = trunk_locked_raw
-                elif isinstance(trunk_locked_raw, str):
-                    d.trunk_locked = trunk_locked_raw.lower() == "locked"
+                if trunk is not None:
+                    trunk_locked_raw = (
+                        trunk.get("locked")
+                        if "locked" in trunk
+                        else safe_get(trunk, "lockState[0].value")
+                    )
+                    if isinstance(trunk_locked_raw, bool):
+                        d.trunk_locked = trunk_locked_raw
+                    elif isinstance(trunk_locked_raw, str):
+                        d.trunk_locked = trunk_locked_raw.lower() == "locked"
         elif overall == "SAFE":
             # Backend reported SAFE but didn't enumerate the doors
             # array. Honour the aggregate signal so the entity shows
@@ -4112,27 +4222,34 @@ class VWEUClient(CariadBaseClient):
             d.doors_open = False
 
         if windows:
-            d.windows_open = any(
-                safe_get(w, "status[0].value") == "open" for w in windows
-            )
+            d.windows_open = any("open" in _acc_tokens(w) for w in windows)
             # v2.18.1 (#810, @lucson) — windows_individual follows the documented
             # ``True == closed`` convention: the same one VagWindowSensor (which
             # inverts for the HA WINDOW device_class) and the EU-Data-Act portal
-            # parser already use. Storing ``== "open"`` here (True == open) was the
-            # lone outlier and rendered every *closed* window as *open* on Audi /
-            # VW-EU cars. Only entries with a real open/closed status are stored; a
-            # non-open/closed sentinel (an option-dependent roof on a car without
-            # one) is skipped so it can't surface as a phantom window.
+            # parser already use. Only entries with a real open/closed status are
+            # stored; a non-open/closed sentinel (an option-dependent roof on a
+            # car without one) is skipped so it can't surface as a phantom window.
             windows_individual: dict[str, bool] = {}
+            windows_position: dict[str, int] = {}
             for w in windows:
                 name = w.get("name")
                 if name is None:
                     continue
-                st = safe_get(w, "status[0].value")
-                if not isinstance(st, str) or st.lower() not in ("open", "closed"):
+                tk = _acc_tokens(w)
+                if "open" in tk:
+                    windows_individual[str(name)] = False  # True == closed
+                elif "closed" in tk:
+                    windows_individual[str(name)] = True
+                else:
                     continue
-                windows_individual[str(name)] = st.lower() == "closed"
+                # #1279 — PPE cars ship an opening percentage (``windowOpen_pct``)
+                # per window, so surface it instead of leaving windows_position {}.
+                pct = w.get("windowOpen_pct")
+                if isinstance(pct, (int, float)) and not isinstance(pct, bool):
+                    windows_position[str(name)] = int(pct)
             d.windows_individual = windows_individual
+            if windows_position:
+                d.windows_position = windows_position
         elif overall == "SAFE":
             d.windows_open = False
 

@@ -563,7 +563,15 @@ MBB_DAG_CLIENT_ID = "9496332b-ea03-4091-a224-8c746b885068@apps_vw-dilab_com"
 # The ``mbb`` token is the key — without it the id_token aud is the OIDC client
 # and the exchange 400s ("Audiences don't match issuer (VWGMBB01DELIV1)").
 MBB_DAG_SCOPE = "openid profile mbb cars"
-MBB_DAG_BRANDS = frozenset({"volkswagen"})
+# b15 (2026-08-30) — "audi" added after a LIVE validation on a real Audi account:
+# the MBB device-grant (9496332b + mbb scope) minted an id_token with aud
+# ``VWGMBB01DELIV1``, ``register/v1`` returned HTTP 200, and the exchange with the
+# REGISTERED client id returned HTTP 200 + a durable refresh_token. So Car-Net
+# Audis mint the durable MBB bearer too — the exchange was never technically
+# VW-only; the ``mbb`` scope is what carries the backend audience. Unlocks MBB
+# two-way commands for portal-primary Audi (the flow already offers the toggle
+# for audi) AND the device-grant Audi command fallback (CONF_MBB_COMMAND_FALLBACK).
+MBB_DAG_BRANDS = frozenset({"volkswagen", "audi"})
 
 
 def mbb_dag_config(brand_name: str) -> tuple[str, str] | None:

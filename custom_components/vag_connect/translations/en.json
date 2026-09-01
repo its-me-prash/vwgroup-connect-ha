@@ -157,6 +157,19 @@
           "companion_use_relay": "Tick this when the phone runs the companion agent app. The phone then calls Home Assistant, so no ADB, no wireless debugging and no fixed phone IP are needed — leave the address field empty.",
           "companion_agent_token": "The random token the agent app generated. At least 32 characters, and a different one for every vehicle."
         }
+      },
+      "audi_mbb_fallback": {
+        "title": "Audi — keep remote commands working (backup connection)",
+        "description": "This adds a backup connection so your Audi's remote commands — lock/unlock, climate and charging — keep working even if Audi ever changes how the app signs in. Day to day nothing changes: your Audi uses its normal connection, and the backup only steps in if the normal one stops accepting commands. Setting it up takes one quick browser confirmation (no password is stored). Choose the Audi you already added with the QR / app login. It works on most petrol, diesel and plug-in-hybrid Audis; some of the newest fully-electric models aren't supported and are turned down automatically.",
+        "data": {
+          "entry_id": "Which Audi",
+          "mbb_vins": "Vehicle ID (VIN) — usually leave blank",
+          "spin": "S-PIN (only needed for lock/unlock)"
+        },
+        "data_description": {
+          "mbb_vins": "Leave this blank unless the setup asks for it.",
+          "spin": "Your Audi S-PIN — the code you use for remote lock/unlock."
+        }
       }
     },
     "error": {
@@ -185,7 +198,9 @@
       "already_configured": "This account is already configured.",
       "reauth_successful": "Re-authentication successful.",
       "reconfigure_successful": "Configuration updated successfully.",
-      "mbb_not_eligible": "Your vehicle isn't eligible for the MBB durable login — the backend returned \"Unknown user\". This means it's a newer ID / MEB model (ID.3/4/5, e-up, etc.) that was never enrolled in the legacy Car-Net/MBB system, so the durable login + remote commands can't reach it. Use the EU Data Act portal channel (or the Email + Password login) for these vehicles instead. The MBB login is for older Car-Net cars (most PHEV / combustion models)."
+      "mbb_not_eligible": "Your vehicle isn't eligible for the MBB durable login — the backend returned \"Unknown user\". This means it's a newer ID / MEB model (ID.3/4/5, e-up, etc.) that was never enrolled in the legacy Car-Net/MBB system, so the durable login + remote commands can't reach it. Use the EU Data Act portal channel (or the Email + Password login) for these vehicles instead. The MBB login is for older Car-Net cars (most PHEV / combustion models).",
+      "mbb_fallback_armed": "Backup connection set up. If your Audi's normal connection ever stops accepting remote commands, lock/unlock, climate and charging switch to the backup automatically. Nothing changes day to day.",
+      "no_devicegrant_audi": "No matching Audi found. This backup only applies to an Audi you added with the QR / app login that doesn't already have it. Add your Audi that way first, then come back here."
     },
     "progress": {
       "awaiting_browser_login": "Open {verification_uri} in any browser, sign in with your Brand ID account, and confirm the code {user_code}.",
@@ -227,7 +242,8 @@
           "remove_vweu_twoway": "Remove VW EU Two-Way (revert to the previous channel)",
           "companion_read_vehicle_health": "Companion: read odometer and service from Vehicle Health (navigates the app)",
           "companion_read_climate_detail": "Companion: read target and outside temperature (navigates the app)",
-          "companion_read_parking_position": "Companion: read parking position from the app's share link (navigates the app)"
+          "companion_read_parking_position": "Companion: read parking position from the app's share link (navigates the app)",
+          "skoda_official_api_key": "Škoda official API key — failover when the main channel is down"
         },
         "data_description": {
           "scan_interval": "How often data is fetched (minutes). Minimum: 3.",
@@ -1353,6 +1369,15 @@
       },
       "interior_color": {
         "name": "Interior Colour"
+      },
+      "drive_train": {
+        "name": "Drivetrain"
+      },
+      "csid": {
+        "name": "Customer service ID"
+      },
+      "parked_since": {
+        "name": "Parked since"
       }
     },
     "binary_sensor": {
@@ -2180,7 +2205,7 @@
       "message": "The one-time historical export is currently disabled."
     },
     "historical_wedge_blocked": {
-      "message": "A continuous 15-minute data request is active for this car. The portal allows only one custom request at a time, so a one-time historical export would pause your live feed for up to 24 hours. Pause the continuous request on the portal first if you really need the one-time export."
+      "message": "A one-time historical export is already in progress for this car. The portal handles one request of this kind at a time, so wait for the current one to finish (or time out) before requesting another."
     }
   },
   "selector": {

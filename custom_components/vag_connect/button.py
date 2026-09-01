@@ -48,17 +48,25 @@ async def async_setup_entry(
         if coordinator.is_companion():
             entities.append(VagCompanionResetButton(coordinator, vin))
             return entities
-        if read_only:
-            # v2.17.1 — portal (read-only) entries expose a button to create or
-            # refresh the EU-Data-Act continuous data request on demand, so a
-            # user whose portal has no active request can fix "no data" from
-            # inside Home Assistant instead of the portal UI.
+        # v2.17.1 / #923 — EU-Data-Act portal buttons appear whenever this entry
+        # reads the portal: as its PRIMARY (read-only) channel OR as a
+        # SUPPLEMENTARY channel merged onto a command primary. They used to be
+        # gated on read-only-portal mode only, so a merged
+        # ``eu_data_act+website_authproxy`` setup (@naked-head, @dazzzl) never
+        # got the one-time export button even though the export works identically
+        # there — the kickoff scraper is authed on the shared session either way.
+        if coordinator.has_data_act_portal_channel():
+            # Create/refresh the continuous data request on demand, so a user
+            # whose portal has no active request can fix "no data" from inside
+            # Home Assistant instead of the portal UI.
             entities.append(VagDataActRequestButton(coordinator, vin))
             # Stage-1 — a one-time historical-export trigger, unless the whole
             # lifecycle is disabled by the kill-switch.
             from .const import ONETIME_EXPORT_DISABLED  # noqa: PLC0415
             if not ONETIME_EXPORT_DISABLED:
                 entities.append(VagHistoricalExportButton(coordinator, vin))
+        if read_only:
+            # A read-only entry has no vehicle commands to add below.
             return entities
         # v3.0.0a1 — also require the client to implement the command, else the
         # button raises AttributeError on press (companion/ADB has neither).

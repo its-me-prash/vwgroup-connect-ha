@@ -120,7 +120,7 @@ def test_shared_and_platform_attributes_both_survive() -> None:
     }
     attrs = _Probe(veh).extra_state_attributes
     assert attrs is not None
-    assert attrs["source"] == "eu_data_act"  # would be missing pre-fix
+    assert attrs["source"] == "EU Data Act portal"  # friendly; would be missing pre-fix
     assert attrs["mine"] == 1  # the platform's own must not be lost
     assert "image_url" in attrs
 
