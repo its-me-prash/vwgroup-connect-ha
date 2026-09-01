@@ -42,6 +42,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Changed
+- **Audi battery net-capacity now also comes from the health read.** The battery
+  State-of-Health response we already fetch on Audi device-grant cars carries the
+  usable net capacity in kWh; we now use it to fill the battery-capacity sensor on
+  cars whose main status bundle didn't include it. No new entity — just an extra
+  source for the existing sensor (grounded on the myAudi 5.7.0 data model).
+
 ## [4.4.0] - 2026-08-31 — iOS Live Activities · durable Audi + VW two-way (MBB) · EU-Data-Act multi-channel merge · friendly channel names
 
 _Consolidates the 4.4.0b1–b5 betas into one stable release._
