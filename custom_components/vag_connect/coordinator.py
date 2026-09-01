@@ -645,17 +645,35 @@ def _parse_charging_history(resp: Any) -> dict[str, Any]:
     return out
 
 
-def _parse_fueling(resp: Any) -> dict[str, Any]:
+def _parse_fueling(resp: Any, *, now: datetime | None = None) -> dict[str, Any]:
     """v2.31.0 (8.15.0 APK) — pure parser for the latest MyŠkoda pay-at-pump
     fill-up (READ-ONLY consumption data). ``FuelingSessionDto`` → flat
     ``vehicles[vin]`` fields. The masked ``formattedCardName`` is deliberately
     NOT surfaced. Empty/garbage → ``{}`` so no sensor spawns.
+
+    #1310 (indigomejor) — this endpoint is ACCOUNT-level (no VIN), so on a new car
+    (or a multi-car account) its "latest" fill-up can be an old session from a
+    previous vehicle: he took delivery of a 2026 car and saw a 2024-10-25 fill-up at
+    a station he never used. A latest fill-up more than a year old is implausible for
+    a car we're actively polling, so treat it as stale → surface nothing rather than
+    a misleading placeholder.
     """
     if not isinstance(resp, dict) or not resp:
         return {}
     out: dict[str, Any] = {}
     dt = resp.get("dateTime")
     if isinstance(dt, str) and dt:
+        parsed: datetime | None
+        try:
+            parsed = datetime.fromisoformat(dt.replace("Z", "+00:00"))
+        except ValueError:
+            parsed = None
+        if parsed is not None:
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            ref = now or datetime.now(tz=timezone.utc)
+            if (ref - parsed).days > 365:
+                return {}  # stale account-level session, not this car's fill-up
         out["last_refuel_at"] = dt
     fuel = resp.get("fuelName")
     if isinstance(fuel, str) and fuel:
@@ -752,7 +770,12 @@ def _parse_predictive_maintenance(resp: Any) -> dict[str, Any]:
             due if isinstance(due, str) and due
             else (status if isinstance(status, str) and status else None)
         )
-        if val:
+        # #1310 (indigomejor) — a reminder the owner never configured comes back
+        # with status "NOT_SET" and no dueDate. Surfacing that raw sentinel as the
+        # sensor state is misleading (it's a truthy string, so automations doing
+        # `states(...) not in ['unknown','unavailable']` treat it as a real
+        # reading). Drop it → the field stays absent → the sensor reads unknown.
+        if val and val != "NOT_SET":
             out[key] = val
     return out
 

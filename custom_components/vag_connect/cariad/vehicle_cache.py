@@ -41,6 +41,13 @@ CARRY_FORWARD_FIELDS: frozenset[str] = frozenset({
     "fuel_tank_capacity_liters",
     "service_km", "oil_service_km", "service_due_in_days", "oil_service_due_in_days",
     "last_seen_at",
+    # #1310 (indigomejor) — equipment_count comes and goes with a richer/leaner
+    # payload but doesn't actually change poll-to-poll; blanking it to "unknown"
+    # every time a poll omitted the block made it useless in automations/history.
+    # NOT the last-fill-up fields: those are staleness-suppressed in _parse_fueling
+    # (an implausibly old account session is dropped), and carrying them forward
+    # would resurrect exactly the suppressed stale reading we just removed.
+    "equipment_count",
 })
 
 # #923 — the parked position belongs in the "old but visible" class too: a
