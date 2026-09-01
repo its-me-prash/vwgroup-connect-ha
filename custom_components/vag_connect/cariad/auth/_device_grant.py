@@ -82,10 +82,17 @@ from typing import TYPE_CHECKING, Callable
 if TYPE_CHECKING:
     from aiohttp import ClientSession
 
-from ..exceptions import AuthenticationError
+from ..exceptions import AuthenticationError, TokenRefreshRetryError
 from ..models import TokenSet
 
 _LOGGER = logging.getLogger(__name__)
+
+# Refresh-exchange error codes that a fresh login actually fixes. ``invalid_grant``
+# is the ONLY hard case: the refresh token is dead/revoked, so re-prompting the QR
+# login is the correct remedy. Every other rejection (``invalid_client``,
+# ``server_error``, a 5xx, a network blip) is transient — retrying next poll is
+# right, and bouncing the user to a fresh QR prompt for it is the bug we fix here.
+_HARD_REFRESH_ERRORS: frozenset[str] = frozenset({"invalid_grant"})
 
 
 # IDP endpoints (both shared across all VW Group Brand IDs).
@@ -392,18 +399,28 @@ class DeviceAuthorizationGrant:
         except AuthenticationError:
             raise
         except Exception as exc:  # noqa: BLE001
-            raise AuthenticationError(
+            # network/transport blip — transient, NOT a dead refresh token
+            raise TokenRefreshRetryError(
                 f"Device grant refresh: request failed ({exc})"
             ) from exc
 
         if status != 200:
             err = payload.get("error", "") if isinstance(payload, dict) else ""
-            raise AuthenticationError(
-                f"Device grant refresh: IDP returned HTTP {status} ({err})"
+            # invalid_grant = the refresh token is dead → a fresh QR login is the
+            # only fix (hard). Everything else (invalid_client, server_error, a
+            # 5xx) is transient → retry next poll instead of a reauth prompt.
+            if err in _HARD_REFRESH_ERRORS:
+                raise AuthenticationError(
+                    f"Device grant refresh: IDP returned HTTP {status} ({err})"
+                )
+            raise TokenRefreshRetryError(
+                f"Device grant refresh: transient IDP rejection "
+                f"HTTP {status} ({err})"
             )
         access_token = payload.get("access_token", "")
         if not access_token:
-            raise AuthenticationError(
+            # 200 without a token is a server anomaly, not a dead grant → transient.
+            raise TokenRefreshRetryError(
                 "Device grant refresh: 200 but no access_token in payload"
             )
         return TokenSet(

@@ -40,7 +40,29 @@ from typing import Any
 
 from aiohttp import ClientError, ClientSession, ClientTimeout
 
-from ..exceptions import AuthenticationError
+from ..exceptions import AuthenticationError, TokenRefreshRetryError
+
+# Only ``invalid_grant`` (dead/revoked refresh token) is a HARD refresh failure a
+# fresh login fixes; every other rejection is transient. See _device_grant.py.
+_HARD_REFRESH_ERRORS: frozenset[str] = frozenset({"invalid_grant"})
+
+
+def _refresh_error(status: int, body: str, retryable: bool) -> Exception:
+    """Build the exception for a failed token exchange. On the REFRESH path
+    (``retryable``), a non-``invalid_grant`` rejection is transient →
+    ``TokenRefreshRetryError`` (won't trigger a reauth prompt); the id_token LOGIN
+    exchange (``retryable=False``) keeps ``AuthenticationError``. The HTTP status +
+    body are preserved in the message (callers/tests match on it)."""
+    err_code = ""
+    try:
+        if body:
+            err_code = str(json.loads(body).get("error", ""))
+    except (ValueError, AttributeError):
+        err_code = ""
+    msg = f"MBB token exchange HTTP {status}: {body[:400]}"
+    if retryable and err_code not in _HARD_REFRESH_ERRORS:
+        return TokenRefreshRetryError(msg)
+    return AuthenticationError(msg)
 
 # ── Endpoints (DEX + live-probe confirmed 2026-06) ──────────────────────────
 MBB_OAUTH_BASE = "https://mbboauth-1d.prd.ece.vwg-connect.com/mbbcoauth"
@@ -125,12 +147,18 @@ def _parse_token_payload(payload: dict[str, Any]) -> MbbTokenSet:
 
 
 async def _post_token(
-    session: ClientSession, data: dict[str, str], client_id: str
+    session: ClientSession, data: dict[str, str], client_id: str,
+    *, retryable: bool = False,
 ) -> MbbTokenSet:
     # v2.15.12 (#584) — bounded retry/backoff on a TRANSIENT MBB 5xx before
     # surfacing the error verbatim. A ClientError (network) and any non-5xx
     # status still fail immediately with the exact same error envelope as before.
-    last_exc: AuthenticationError | None = None
+    # v4.6.0 — ``retryable=True`` (the REFRESH path) classifies a
+    # non-``invalid_grant`` rejection as ``TokenRefreshRetryError`` so a transient
+    # MBB hiccup no longer bounces the user to a fresh QR reauth. The id_token
+    # LOGIN exchange keeps ``retryable=False`` (a failure there really is a login
+    # failure). This was the upstream gap on the MBB refresh path.
+    last_exc: Exception | None = None
     for attempt in range(_TOKEN_5XX_MAX_ATTEMPTS):
         try:
             async with session.post(
@@ -139,9 +167,7 @@ async def _post_token(
             ) as resp:
                 body = await resp.text()
                 if 500 <= resp.status < 600:
-                    last_exc = AuthenticationError(
-                        f"MBB token exchange HTTP {resp.status}: {body[:400]}"
-                    )
+                    last_exc = _refresh_error(resp.status, body, retryable)
                     if attempt + 1 < _TOKEN_5XX_MAX_ATTEMPTS:
                         await asyncio.sleep(
                             _TOKEN_5XX_BASE_BACKOFF_S * (2 ** attempt)
@@ -149,21 +175,25 @@ async def _post_token(
                         continue
                     raise last_exc
                 if resp.status != 200:
-                    raise AuthenticationError(
-                        f"MBB token exchange HTTP {resp.status}: {body[:400]}"
-                    )
+                    raise _refresh_error(resp.status, body, retryable)
                 try:
                     payload = json.loads(body)
                 except ValueError as exc:
-                    raise AuthenticationError(
-                        f"MBB token response not JSON: {body[:120]}"
-                    ) from exc
+                    raise _refresh_error(resp.status, body, retryable) from exc
+                # A 200 with a well-formed body but no access_token is a backend
+                # hiccup, not an invalid_grant — on the REFRESH path it must be
+                # transient (TokenRefreshRetryError), not a hard AuthenticationError
+                # that bounces the user to a fresh QR reauth. Classify it here (we
+                # still have `body` + `retryable`) before the defensive raise inside
+                # _parse_token_payload, which can't see either.
+                if not payload.get("access_token"):
+                    raise _refresh_error(resp.status, body, retryable)
                 return _parse_token_payload(payload)
         except ClientError as exc:
-            raise AuthenticationError(f"MBB token exchange failed: {exc}") from exc
+            raise _refresh_error(0, str(exc), retryable) from exc
     # Unreachable in practice (the loop either returns or raises), but keep a
     # definite terminal raise so the type-checker sees a non-None return path.
-    raise last_exc or AuthenticationError("MBB token exchange failed")
+    raise last_exc or _refresh_error(0, "", retryable)
 
 
 async def exchange_id_token(
@@ -221,7 +251,9 @@ async def refresh(
         "refresh_token": refresh_token,
         "scope": _MBB_SCOPE,
     }
-    return await _post_token(session, data, client_id)
+    # REFRESH path → classify transient rejections as TokenRefreshRetryError so a
+    # temporary MBB hiccup doesn't force a QR reauth (only invalid_grant is hard).
+    return await _post_token(session, data, client_id, retryable=True)
 
 
 def jwt_aud(id_token: str) -> str | None:

@@ -173,9 +173,16 @@ def _is_selfhealing_poll_error(err: object) -> bool:
 
     Auth-interaction errors are de-escalated separately (they trigger reauth).
     """
-    from .cariad.exceptions import APIError, UpstreamUnavailableError  # noqa: PLC0415
+    from .cariad.exceptions import (  # noqa: PLC0415
+        APIError,
+        TokenRefreshRetryError,
+        UpstreamUnavailableError,
+    )
 
-    if isinstance(err, UpstreamUnavailableError):
+    # A transiently-rejected token refresh (invalid_client / server_error / 5xx /
+    # network) is a backend hiccup that self-heals on the next poll, not our bug —
+    # de-escalate it from the public Error Reporter like a 5xx.
+    if isinstance(err, (UpstreamUnavailableError, TokenRefreshRetryError)):
         return True
     if isinstance(err, APIError):
         status = getattr(err, "status", 0)
