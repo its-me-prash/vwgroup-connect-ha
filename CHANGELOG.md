@@ -42,7 +42,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
-## [4.7.0b6] - 2026-09-03 — Volkswagen Commercial Vehicles (Nutzfahrzeuge)
+## [4.7.0b6] - 2026-09-03 — Volkswagen Commercial Vehicles (Nutzfahrzeuge) + issue-sweep fixes
 
 ### Added
 - **Volkswagen Commercial Vehicles is now its own brand.** VW runs Passenger Cars and
@@ -52,8 +52,26 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   **Volkswagen Commercial Vehicles** at setup — or add it as a second entry alongside your
   passenger VW — and its portal feed comes through. Read-only via the EU Data Act portal,
   same as passenger VW. Thanks @EcksteinU for the clear ID.3 + T6.1 report (#1316).
+- **Tyre pressure monitoring type sensor.** Cars with an indirect (ABS-based) TPMS never
+  report per-wheel pressures, so they showed no tyre entities at all. A new diagnostic
+  "Tyre pressure monitoring" sensor now says whether your car measures per-wheel pressures
+  or uses an indirect system (#528, #538).
+- **Škoda: software update status sensor.** Surfaces the software-update lifecycle the
+  readiness endpoint reports (e.g. "update in progress"). Thanks to the Vehicle Data Scout
+  on the Elroq (#1333).
 
 ### Fixed
+- **Lifetime trip totals no longer go blank between deliveries.** The cumulative lifetime_*
+  sensors (distance, avg speed, avg consumption, …) dropped to "unknown" on any poll that
+  didn't re-send the block — annoying in history and automations. They now keep their last
+  value until a fresh one arrives (a genuine reset still lands). Thanks @indigomejor (#1310).
+- **Reconfigure no longer crashes the background poll.** A Reconfigure could null the client
+  mid-cycle and the next poll raised "NoneType has no attribute get_status". The poll loop
+  now captures the client up front and skips the cycle cleanly if it's gone (#584).
+- **VW: "no legacy Car-Net" cars stop offering dead command buttons.** When a car's MBB
+  command channel definitively has no legacy enrolment, its command controls are now hidden
+  (instead of failing on every press) and the integration stops re-poking the gateway for it
+  each poll — and the diagnostics now report it correctly (#1150, #584).
 - **EU Data Act portal login: the state locale order is now correct for non-matching
   country/language.** The portal expects `{country}__{language}` (a German account viewing in
   English is `de__en`); a secondary login helper had the two halves reversed. The active
