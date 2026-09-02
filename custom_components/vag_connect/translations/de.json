@@ -1417,6 +1417,13 @@
       },
       "no_data_count": {
         "name": "Abfragen ohne Daten"
+      },
+      "tpms_status": {
+        "name": "Reifendruckkontrolle",
+        "state": {
+          "measured": "Gemessen (pro Rad)",
+          "indirect": "Indirekt (keine Druckwerte)"
+        }
       }
     },
     "binary_sensor": {

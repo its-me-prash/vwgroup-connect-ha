@@ -1417,6 +1417,13 @@
       },
       "no_data_count": {
         "name": "Odpytania bez danych"
+      },
+      "tpms_status": {
+        "name": "Kontrola ciśnienia w oponach",
+        "state": {
+          "measured": "Mierzone (na koło)",
+          "indirect": "Pośrednie (brak wartości ciśnienia)"
+        }
       }
     },
     "binary_sensor": {

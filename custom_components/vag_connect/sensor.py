@@ -2783,6 +2783,20 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
     ),
+    # #528/#538 — TPMS system-type. On an indirect/ABS-based TPMS car the whole
+    # actual-pressure family is "1" (dropped), so this is the ONLY tyre signal that
+    # car gets: "measured" (per-wheel numeric) vs "indirect" (present, no values).
+    # ENUM so HA localizes it; diagnostic + off by default (matches the tyre family).
+    VagSensorDescription(
+        key="tpms_status",
+        translation_key="tpms_status",
+        data_key="tpms_status",
+        icon="mdi:car-tire-alert",
+        device_class=SensorDeviceClass.ENUM,
+        options=["measured", "indirect"],
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+    ),
     # F. Lights / energy / misc.
     VagSensorDescription(
         key="parking_lights_state",
@@ -3946,6 +3960,7 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "tyre_pressure_required_rl",
     "tyre_pressure_required_rr",
     "tyre_pressure_required_spare",
+    "tpms_status",  # #528/#538 — only spawns when the actual-pressure family shipped
     # v2.15.5 (#541) — V2G / bidirectional-charging charge-level limits.
     # EU-Data-Act dialect only; vehicles/channels without the field stay None.
     "bidi_max_charge_level_pct",

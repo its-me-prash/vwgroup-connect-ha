@@ -1786,6 +1786,13 @@ class VehicleData:
     tyre_pressure_required_rl: int | None = None
     tyre_pressure_required_rr: int | None = None
     tyre_pressure_required_spare: int | None = None
+    # #528/#538 — TPMS system-type. Indirect/ABS-based TPMS ships the whole
+    # actual-pressure family as "1" (dict 1=invalid: system present, no numeric
+    # bar), which the sentinel filter drops — so the per-wheel pressure sensors
+    # never spawn and the fact the car HAS a (indirect) TPMS is otherwise invisible.
+    # "measured" = at least one corner reports a real >1 reading; "indirect" =
+    # the family is present but all-"1". ENUM sensor, diagnostic, off by default.
+    tpms_status: str | None = None
     # F. Lights / energy / misc.
     # Parking lights state (parking_lights enum → off/left/right/both). sensor.
     parking_lights_state: str | None = None

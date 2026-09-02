@@ -1417,6 +1417,13 @@
       },
       "no_data_count": {
         "name": "Interrogations sans données"
+      },
+      "tpms_status": {
+        "name": "Surveillance de la pression des pneus",
+        "state": {
+          "measured": "Mesurée (par roue)",
+          "indirect": "Indirecte (sans valeurs de pression)"
+        }
       }
     },
     "binary_sensor": {

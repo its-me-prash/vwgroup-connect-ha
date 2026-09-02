@@ -1417,6 +1417,13 @@
       },
       "no_data_count": {
         "name": "Kyselyt ilman dataa"
+      },
+      "tpms_status": {
+        "name": "Rengaspaineen valvonta",
+        "state": {
+          "measured": "Mitattu (per pyörä)",
+          "indirect": "Epäsuora (ei painearvoja)"
+        }
       }
     },
     "binary_sensor": {
