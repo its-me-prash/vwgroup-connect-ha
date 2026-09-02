@@ -1030,7 +1030,8 @@ async def async_setup_entry(
             entities.append(VagLightSensor(coordinator, vin, light_id))
         # 5) Per-source connectivity sensors — one per armed read channel, so a
         # user can see which sources this car is connected to (active vs standby),
-        # incl. a standby failover like the Škoda official API (#1286). Cross-brand.
+        # incl. the Škoda official API (active live source + failover) (#1286).
+        # Cross-brand.
         for token in (vehicle.get("channel_status") or {}):
             entities.append(VagSourceConnectivitySensor(coordinator, vin, token))
         return entities
@@ -1144,8 +1145,9 @@ class VagSourceConnectivitySensor(VagConnectEntity, BinarySensorEntity):
     """Connectivity indicator for ONE read channel (data source).
 
     ON = the car is connected to that source, whether it is actively feeding values
-    or sitting on standby (e.g. the Škoda official API is a failover that only reads
-    when the primary channel is down). Answers "which sources am I connected to",
+    or sitting on standby (e.g. the Škoda official API contributes as an active live
+    source on healthy cycles and also serves as the hard-failure failover). Answers
+    "which sources am I connected to",
     per source, across every brand (#1286). The live detail — active vs standby, how
     many of the car's readings this source provides, when it last contributed, and
     for the EU Data Act portal its feed health — is exposed as attributes.

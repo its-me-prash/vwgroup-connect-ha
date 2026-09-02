@@ -243,7 +243,7 @@
           "companion_read_vehicle_health": "Companion: leggi contachilometri e tagliando da Vehicle Health (naviga nell'app)",
           "companion_read_climate_detail": "Companion: leggi temperatura impostata ed esterna (naviga nell'app)",
           "companion_read_parking_position": "Companion: leggi la posizione di parcheggio dal link di condivisione dell'app (naviga nell'app)",
-          "skoda_official_api_key": "Chiave API ufficiale Škoda — failover se il canale principale non è disponibile"
+          "skoda_official_api_key": "Chiave API ufficiale Škoda — aggiunge l'API ufficiale del costruttore come fonte dati in tempo reale (e failover)"
         },
         "data_description": {
           "scan_interval": "Con quale frequenza vengono recuperati i dati (minuti). Minimo: 3.",

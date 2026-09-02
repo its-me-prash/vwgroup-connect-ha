@@ -243,7 +243,7 @@
           "companion_read_vehicle_health": "Companion: odczyt przebiegu i serwisu ze stanu pojazdu (nawiguje po aplikacji)",
           "companion_read_climate_detail": "Companion: odczyt temperatury zadanej i zewnętrznej (nawiguje po aplikacji)",
           "companion_read_parking_position": "Companion: odczyt pozycji parkowania z linku udostępniania w aplikacji (nawiguje po aplikacji)",
-          "skoda_official_api_key": "Oficjalny klucz API Škoda — przełączanie awaryjne, gdy główny kanał nie działa"
+          "skoda_official_api_key": "Oficjalny klucz API Škoda — dodaje oficjalne API producenta jako źródło danych na żywo (i przełączanie awaryjne)"
         },
         "data_description": {
           "scan_interval": "Jak często pobierane są dane (minuty). Minimum: 3.",

@@ -243,7 +243,7 @@
           "companion_read_vehicle_health": "Companion: kilometerstand en onderhoud uit de voertuigcheck lezen (navigeert in de app)",
           "companion_read_climate_detail": "Companion: streef- en buitentemperatuur lezen (navigeert in de app)",
           "companion_read_parking_position": "Companion: parkeerpositie uit de deellink van de app lezen (navigeert in de app)",
-          "skoda_official_api_key": "Officiële Škoda API-sleutel — failover als het hoofdkanaal uitvalt"
+          "skoda_official_api_key": "Officiële Škoda API-sleutel — voegt de officiële fabrikant-API toe als live databron (en failover)"
         },
         "data_description": {
           "scan_interval": "Hoe vaak gegevens worden opgehaald (minuten). Minimum: 3.",

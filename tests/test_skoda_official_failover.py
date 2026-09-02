@@ -1,12 +1,17 @@
 # Copyright 2026 Prash Balan (@its-me-prash) — GNU AGPL v3.0-or-later
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Škoda official public API as a FAILOVER-ONLY source.
+"""Škoda official public API — active live source AND hard-failure failover.
 
-When the primary (unofficial mysmob) Škoda channel HARD-fails, the coordinator's
-``_revive_after_hard_failure`` falls back to the official public API — but only
-there, never on a healthy poll, because the official API is rate-limited to
-20 requests/hour/key. These tests pin both the delegation and, crucially, that
-the official channel is NOT wired into the continuous supplementary merge.
+The official public API contributes on TWO paths, both rate-safe (20 req/hour/key):
+- ACTIVE live source: on a healthy poll, ``_merge_official_live`` queries the
+  manufacturer API and merges its readings into the primary payload as an
+  authoritative live source (Prash: update existing entities live, not failover-only).
+- FAILOVER: when the primary channel HARD-fails, ``_revive_after_hard_failure``
+  falls back to the official API as a last resort.
+
+Both go through the SAME rate guard (``_official_read_rate_safe``), and the official
+channel is deliberately kept OUT of ``supplementary_readers`` (the rate-unsafe
+continuous-merge path) — its active read is the dedicated, budget-gated one instead.
 """
 from __future__ import annotations
 
@@ -57,15 +62,132 @@ async def test_official_failover_read_delegates_and_failsoft():
     assert await c.official_failover_read("V") is None
 
 
-def test_official_is_failover_only_never_continuous_merge():
-    """The 20/h/key rate limit means the official API must NEVER be a
-    continuous-merge supplementary — only a failover. Even when armed, it must
-    not appear in supplementary_readers (which is consulted every poll)."""
+def test_official_stays_out_of_continuous_supplementary_readers():
+    """The 20/h/key rate limit means the official API must NEVER go through the
+    rate-unsafe continuous-merge path (``supplementary_readers``, consulted every
+    poll with no budget guard). Its active read happens via the dedicated,
+    budget-gated ``_merge_official_live`` instead — so even when armed it must not
+    appear in supplementary_readers."""
     c = _skoda_client()
     c.arm_supplementary_official("key")
     names = [name for name, _ in c.supplementary_readers("V")]
     assert "skoda_official" not in names
-    assert names == []   # nothing else armed → readers empty (failover stays out)
+    assert names == []   # nothing else armed → readers empty (official stays out)
+
+
+@pytest.mark.asyncio
+async def test_official_live_read_delegates_and_failsoft():
+    """The ACTIVE live-source path mirrors the failover path: delegates to the
+    official client's get_status, is fail-soft, and honours the rate budget."""
+    c = _skoda_client()
+    # not armed → None
+    assert await c.official_live_read("V") is None
+    # armed → delegates
+    c._supplementary_official = MagicMock()
+    c._supplementary_official.over_rate_limit = False
+    c._supplementary_official.get_status = AsyncMock(
+        return_value=VehicleData(vin="V", battery_soc=61)
+    )
+    d = await c.official_live_read("V")
+    assert d is not None and d.battery_soc == 61
+    # over budget → skip the read entirely (do not breach the 20/h/key quota)
+    c._supplementary_official.over_rate_limit = True
+    c._supplementary_official.get_status.reset_mock()
+    assert await c.official_live_read("V") is None
+    c._supplementary_official.get_status.assert_not_called()
+    # any error → None (must never sink the poll)
+    c._supplementary_official.over_rate_limit = False
+    c._supplementary_official.get_status = AsyncMock(side_effect=RuntimeError("boom"))
+    assert await c.official_live_read("V") is None
+
+
+@pytest.mark.asyncio
+async def test_merge_official_live_merges_and_tags_provenance():
+    """On a healthy cycle the official read merges its populated fields into the
+    primary payload and tags their provenance as skoda_official."""
+    coord = VagConnectCoordinator.__new__(VagConnectCoordinator)
+    client = MagicMock()
+    client.official_live_read = AsyncMock(
+        return_value=VehicleData(vin="V", odometer_km=308, battery_soc=77)
+    )
+    coord._cariad_client = client
+    enriched = {"odometer_km": 300, "field_sources": {"odometer_km": "primary"}}
+    await coord._merge_official_live("V", enriched)
+    # official wins for the fields it populated; provenance re-tagged
+    assert enriched["odometer_km"] == 308
+    assert enriched["battery_soc"] == 77
+    assert enriched["field_sources"]["odometer_km"] == "skoda_official"
+    assert enriched["field_sources"]["battery_soc"] == "skoda_official"
+
+
+@pytest.mark.asyncio
+async def test_merge_official_live_never_clobbers_with_defaults():
+    """asdict() emits untouched False/0 defaults; those must NOT overwrite a real
+    primary value. is_electric defaults False, so an official read that never set it
+    must leave a primary is_electric=True untouched."""
+    coord = VagConnectCoordinator.__new__(VagConnectCoordinator)
+    client = MagicMock()
+    client.official_live_read = AsyncMock(
+        return_value=VehicleData(vin="V", odometer_km=308)  # is_electric stays default False
+    )
+    coord._cariad_client = client
+    enriched = {"is_electric": True, "field_sources": {"is_electric": "primary"}}
+    await coord._merge_official_live("V", enriched)
+    assert enriched["is_electric"] is True                       # not clobbered
+    assert enriched["field_sources"]["is_electric"] == "primary"  # provenance intact
+    assert enriched["odometer_km"] == 308                        # real value still merged
+
+
+@pytest.mark.asyncio
+async def test_merge_official_live_last_seen_is_gap_fill_only():
+    """last_seen_at must never jump backwards: if the primary already carries one,
+    the official capture timestamp does not overwrite it; if absent, it fills."""
+    coord = VagConnectCoordinator.__new__(VagConnectCoordinator)
+    client = MagicMock()
+    client.official_live_read = AsyncMock(
+        return_value=VehicleData(vin="V", last_seen_at="2026-09-02T09:00:00Z")
+    )
+    coord._cariad_client = client
+    # primary already has a (newer) timestamp → keep it
+    enriched = {"last_seen_at": "2026-09-02T10:00:00Z", "field_sources": {}}
+    await coord._merge_official_live("V", enriched)
+    assert enriched["last_seen_at"] == "2026-09-02T10:00:00Z"
+    assert "last_seen_at" not in enriched["field_sources"]
+    # primary has none → gap-fill from official
+    enriched2 = {"field_sources": {}}
+    await coord._merge_official_live("V", enriched2)
+    assert enriched2["last_seen_at"] == "2026-09-02T09:00:00Z"
+    assert enriched2["field_sources"]["last_seen_at"] == "skoda_official"
+
+
+@pytest.mark.asyncio
+async def test_merge_official_live_noop_on_other_brands():
+    """A non-Škoda client has no official_live_read → getattr None → no-op."""
+    coord = VagConnectCoordinator.__new__(VagConnectCoordinator)
+    coord._cariad_client = MagicMock(spec=[])   # no attributes at all
+    enriched = {"odometer_km": 300, "field_sources": {"odometer_km": "primary"}}
+    await coord._merge_official_live("V", enriched)
+    assert enriched == {"odometer_km": 300, "field_sources": {"odometer_km": "primary"}}
+
+
+def test_channel_status_reports_official_active_when_contributing():
+    """Once the official read merges values, the connectivity map must report the
+    skoda_official channel as active (with its live count) while still flagging it
+    failover:True (it also serves on hard failure)."""
+    coord = VagConnectCoordinator.__new__(VagConnectCoordinator)
+    coord._channel_last_active = {}
+    coord._armed_data_channels = lambda vin: ["primary", "skoda_official"]
+    # official contributed one reading this cycle
+    data = {"field_sources": {"odometer_km": "primary", "battery_soc": "skoda_official"}}
+    status = coord._compute_channel_status("V", data)
+    assert status["skoda_official"]["active"] is True
+    assert status["skoda_official"]["active_values"] == 1
+    assert status["skoda_official"]["failover"] is True
+    # official armed but idle this cycle → not active (binary_sensor shows standby)
+    data2 = {"field_sources": {"odometer_km": "primary"}}
+    status2 = coord._compute_channel_status("V", data2)
+    assert status2["skoda_official"]["active"] is False
+    assert status2["skoda_official"]["active_values"] == 0
 
 
 @pytest.mark.asyncio
