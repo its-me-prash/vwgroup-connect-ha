@@ -3427,9 +3427,20 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 # until a restart. update_interval is None here, so this loop —
                 # not _async_update_data — is the periodic path. No-op non-MBB.
                 await self._refresh_mbb_command_capabilities()
-                self._push_official_mode()  # #1286 — official_only routing before read
+                # #584 — capture the client up front. A Reconfigure unload nulls
+                # self._cariad_client, and any await above (sleep / watchdog /
+                # capability refresh) yields long enough for that to land mid-cycle;
+                # the gather below would then raise "'NoneType' object has no
+                # attribute 'get_status'". _async_update_data already guards this
+                # way; the background poll loop needs the same. Skip this cycle
+                # cleanly if the client is gone — the next cycle re-reads it, or the
+                # loop exits on _started=False.
+                _client = self._cariad_client
+                if _client is None:
+                    continue
+                self._push_official_mode(_client)  # #1286 — official_only routing
                 results = await asyncio.gather(
-                    *[self._cariad_client.get_status(vin) for vin in vins],
+                    *[_client.get_status(vin) for vin in vins],
                     return_exceptions=True,
                 )
                 fresh: dict[str, Any] = {}
