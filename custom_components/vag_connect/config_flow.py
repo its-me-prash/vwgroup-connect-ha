@@ -2084,6 +2084,36 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                 # (see the entry.options trap) then kept the stale value — so a
                 # per-VIN S-PIN could never be removed once set (#759 follow-up).
                 user_input[CONF_SPIN_BY_VIN] = _by_vin
+            # Škoda per-VIN official API keys — fold the transient
+            # skoda_official_keys_<VIN> fields into the CONF_SKODA_OFFICIAL_KEYS
+            # map {VIN: {"key": ...}}. Keys are VIN-bound, so this lets a multi-car
+            # account enter one per car. A typed key overrides that VIN's entry; a
+            # BLANK field keeps the existing entry (NOT a wipe) — unlike the S-PIN
+            # above, because an official key can be auto-enrolled and expensive to
+            # recreate, and a password field may render blank on reopen, so
+            # blanking must never silently delete a saved key. Start from the stored
+            # map so untouched VINs (incl. auto-enrolled ones) are preserved.
+            from .const import CONF_SKODA_OFFICIAL_KEYS  # noqa: PLC0415
+            _off_fields = [
+                _k for _k in list(user_input.keys())
+                if _k.startswith(f"{CONF_SKODA_OFFICIAL_KEYS}_")
+            ]
+            if _off_fields:
+                _stored = (
+                    self._config_entry.options.get(CONF_SKODA_OFFICIAL_KEYS)
+                    or self._config_entry.data.get(CONF_SKODA_OFFICIAL_KEYS)
+                )
+                _off_map = dict(_stored) if isinstance(_stored, dict) else {}
+                for _k in _off_fields:
+                    _vin = _k[len(CONF_SKODA_OFFICIAL_KEYS) + 1:].strip().upper()
+                    _val = str(user_input.pop(_k) or "").strip()
+                    if not _val:
+                        continue  # keep existing entry; never wipe on a blank field
+                    _prev = _off_map.get(_vin)
+                    if isinstance(_prev, dict) and _prev.get("key") == _val:
+                        continue  # unchanged
+                    _off_map[_vin] = {"key": _val, "source": "manual"}
+                user_input[CONF_SKODA_OFFICIAL_KEYS] = _off_map
             # b1/C1 — if the user ticked "add vw.de read channel", branch into
             # the login sub-flow; the remaining options are saved when it
             # completes. Default-False so untouched submits behave exactly as
@@ -2436,11 +2466,12 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                 schema[vol.Optional(
                     CONF_VWEU_DEVICE_GRANT, default=False,
                 )] = _BOOL_SELECTOR
-        # Škoda official public API — opt-in FAILOVER key. A Škoda entry may add
-        # an API key it minted in the app (Settings → Smart Home → API Keys,
-        # v8.16+); the official API is then read ONLY when the primary channel
-        # hard-fails (it is rate-limited to 20 req/hour/key, so never polled
-        # continuously). Pre-filled so re-opening options never blanks it.
+        # Škoda official public API — opt-in key. A Škoda entry may add an API key
+        # it minted in the MyŠkoda app (Settings → Smart Home → API Keys, v8.16+);
+        # the official API is then read live on every cycle and merged into the
+        # existing sensors as a live source (and also serves as the hard-failure
+        # failover). This single field is the FALLBACK applied to any car without
+        # its own per-VIN key below. Pre-filled so re-opening options never blanks it.
         if current_data.get(CONF_BRAND) == "skoda":
             from .const import CONF_SKODA_OFFICIAL_API_KEY  # noqa: PLC0415
             schema[vol.Optional(
@@ -2471,6 +2502,32 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                     f"{CONF_SPIN_BY_VIN}_{_vin}",
                     default=str(_cur_by_vin.get(_vin, "")),
                 )] = _SPIN_SELECTOR
+        # Škoda official public-API keys are VIN-bound (one key per car, minted in
+        # the MyŠkoda app, max 5/VIN). A multi-car Škoda account therefore gets one
+        # optional key field PER VIN, in addition to the single fallback field
+        # above. Pre-filled from the stored map so a re-save never wipes a saved or
+        # auto-enrolled key (options-trap safe); folded into CONF_SKODA_OFFICIAL_KEYS
+        # on submit. Only shown when the account has more than one vehicle — a
+        # single-car user just uses the one field above.
+        if (
+            current_data.get(CONF_BRAND) == "skoda"
+            and isinstance(_vehicles, dict)
+            and len(_vehicles) > 1
+        ):
+            from .const import CONF_SKODA_OFFICIAL_KEYS  # noqa: PLC0415
+            _off_map = current_options.get(
+                CONF_SKODA_OFFICIAL_KEYS,
+                current_data.get(CONF_SKODA_OFFICIAL_KEYS),
+            )
+            if not isinstance(_off_map, dict):
+                _off_map = {}
+            for _vin in _vehicles:
+                _rec = _off_map.get(_vin) or _off_map.get(str(_vin).upper()) or {}
+                _cur_key = _rec.get("key", "") if isinstance(_rec, dict) else ""
+                schema[vol.Optional(
+                    f"{CONF_SKODA_OFFICIAL_KEYS}_{_vin}",
+                    default=str(_cur_key),
+                )] = _PASSWORD_SELECTOR
         # v2.26.0 — companion (ADB) advanced opt-ins, surfaced only for a
         # companion entry (both default OFF: each TAPS the phone, so a user opts
         # in only after confirming the flow on their own device).
