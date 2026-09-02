@@ -42,6 +42,18 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.6.3] - 2026-09-02 — EU Data Act: clearer "no vehicle data yet" guidance
+
+### Changed
+- **The EU Data Act "no vehicle data yet" notification now explains what to actually do.**
+  On some accounts the portal keeps the browser session anonymous, so the integration's
+  automatic data-request creation (and the in-app button) can't complete — the message now
+  says so plainly and walks you through it: confirm your vehicle's ownership/usership in the
+  portal, and if the automatic creation didn't take, create the continuous data request
+  yourself (all clusters, 15-minute frequency). It also points to the read-only
+  volkswagen.de website channel as an alternative source for cars where the portal feed is
+  thin. Thanks to @steemandavid for the detailed diagnosis (#1273, #465). All 12 languages.
+
 ## [4.6.2] - 2026-09-02 — Security: Škoda official API key redacted in diagnostics · combustion 12V mirror on the official channel
 
 ### Security
