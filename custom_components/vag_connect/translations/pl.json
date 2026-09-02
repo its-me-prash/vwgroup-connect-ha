@@ -1424,6 +1424,9 @@
           "measured": "Mierzone (na koło)",
           "indirect": "Pośrednie (brak wartości ciśnienia)"
         }
+      },
+      "readiness_software_update_status": {
+        "name": "Stan aktualizacji oprogramowania"
       }
     },
     "binary_sensor": {

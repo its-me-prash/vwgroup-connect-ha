@@ -1424,6 +1424,9 @@
           "measured": "Měřeno (na kolo)",
           "indirect": "Nepřímé (bez hodnot tlaku)"
         }
+      },
+      "readiness_software_update_status": {
+        "name": "Stav aktualizace softwaru"
       }
     },
     "binary_sensor": {

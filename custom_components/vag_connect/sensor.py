@@ -1208,6 +1208,19 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:chip",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # #1333 (Scout, Elroq) — Škoda readiness software-update lifecycle. Plain
+    # STRING sensor (no device_class/options) on purpose: an ENUM would drop any
+    # value we haven't catalogued, and we only have one confirmed token so far —
+    # a string surfaces every value verbatim (Scout "never suppress" policy).
+    # Škoda-only; gated via _DATA_PRESENT_REQUIRED so other brands + older firmware
+    # get no phantom "unknown" entity.
+    VagSensorDescription(
+        key="readiness_software_update_status",
+        translation_key="readiness_software_update_status",
+        data_key="readiness_software_update_status",
+        icon="mdi:cellphone-arrow-down",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
     # v1.15.0 (#35) — Skoda Charging History → HA Energy Dashboard.
     # ``total_charged_energy_kwh`` with TOTAL_INCREASING is THE long-
     # term-statistics signal users want for kWh-tracking dashboards.
@@ -3601,6 +3614,7 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # Cross-brand support deferred — CARIAD-BFF + OLA don't expose an
     # equivalent endpoint yet (Research 2026-05-02).
     "software_version",
+    "readiness_software_update_status",  # #1333 — Škoda-only readiness signal
     # v1.15.0 (#35) — Skoda-only charging history. Cross-brand deferred
     # (CARIAD-BFF/OLA equivalent endpoints unverified).
     "total_charged_energy_kwh",

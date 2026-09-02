@@ -1424,6 +1424,9 @@
           "measured": "Gemessen (pro Rad)",
           "indirect": "Indirekt (keine Druckwerte)"
         }
+      },
+      "readiness_software_update_status": {
+        "name": "Software-Update-Status"
       }
     },
     "binary_sensor": {

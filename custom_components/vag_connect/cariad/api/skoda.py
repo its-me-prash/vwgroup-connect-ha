@@ -74,6 +74,20 @@ def _is_driving_from_readiness(readiness: Any) -> bool:
     return isinstance(readiness, dict) and readiness.get("inMotion") is True
 
 
+def _software_update_from_readiness(readiness: Any) -> str | None:
+    """#1333 — the readiness block's software-update lifecycle value, verbatim.
+
+    Returns the raw enum string (e.g. ``"UPDATE_IN_PROGRESS"``) stripped, or None
+    when the block/field is absent or blank. Kept RAW (not enum-normalized) so a
+    plain string sensor surfaces any value we haven't catalogued yet rather than an
+    ENUM dropping it — the Scout "never suppress" policy. Pure + total for a unit
+    test that pins the extraction (mirrors ``_is_driving_from_readiness``)."""
+    if not isinstance(readiness, dict):
+        return None
+    val = readiness.get("softwareUpdateStatus")
+    return val.strip() if isinstance(val, str) and val.strip() else None
+
+
 def _primary_soc_or_none(
     soc_i: int | None, fuel_i: int | None, engine_type: Any
 ) -> int | None:
@@ -1955,6 +1969,12 @@ class SkodaClient(CariadBaseClient):
             bplim = v(readiness, "batteryProtectionLimitOn")
             if isinstance(bplim, bool):
                 d.battery_protection_limit_on = bplim
+            # #1333 (Scout, Elroq) — readiness software-update lifecycle, verbatim
+            # (raw enum string) for a plain string sensor. Via the pure helper so a
+            # unit test can pin the extraction (mirrors is_driving).
+            d.readiness_software_update_status = _software_update_from_readiness(
+                readiness
+            )
 
         # ── carCapturedTimestamp → connection_state (v1.8.12 refactor) ────
         # v1.8.11 introduced this logic Skoda-only; v1.8.12 extracted the

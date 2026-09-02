@@ -1424,6 +1424,9 @@
           "measured": "Gemeten (per wiel)",
           "indirect": "Indirect (geen drukwaarden)"
         }
+      },
+      "readiness_software_update_status": {
+        "name": "Status software-update"
       }
     },
     "binary_sensor": {

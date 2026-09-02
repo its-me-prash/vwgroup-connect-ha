@@ -1424,6 +1424,9 @@
           "measured": "Measured (per-wheel)",
           "indirect": "Indirect (no pressure values)"
         }
+      },
+      "readiness_software_update_status": {
+        "name": "Software update status"
       }
     },
     "binary_sensor": {

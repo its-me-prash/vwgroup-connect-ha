@@ -1450,6 +1450,13 @@ class VehicleData:
     software_update_status: str | None = None
     ota_update_available: bool | None = None
     ota_release_notes_url: str | None = None
+    # #1333 (Scout, Elroq) — Škoda ``readiness.softwareUpdateStatus`` (e.g.
+    # "UPDATE_IN_PROGRESS"). A SEPARATE source from ``software_update_status`` above
+    # (that is the /software-version/update-status endpoint). Surfaced as a plain
+    # string diagnostic sensor (not an ENUM) so a value we haven't seen yet is shown
+    # verbatim, never suppressed — the Scout "never suppress" policy. Škoda-only;
+    # other brands leave it None → no phantom entity (gated by _DATA_PRESENT_REQUIRED).
+    readiness_software_update_status: str | None = None
 
     # v2.0.0 (Big-Bang) — Skoda driving-score (efficiency metric 0-100).
     # Endpoint ``GET /api/v2/vehicle-status/{vin}/driving-score`` on mysmob

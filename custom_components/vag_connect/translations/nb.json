@@ -1424,6 +1424,9 @@
           "measured": "Målt (per hjul)",
           "indirect": "Indirekte (ingen trykkverdier)"
         }
+      },
+      "readiness_software_update_status": {
+        "name": "Status for programvareoppdatering"
       }
     },
     "binary_sensor": {

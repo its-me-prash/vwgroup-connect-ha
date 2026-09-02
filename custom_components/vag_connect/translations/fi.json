@@ -1424,6 +1424,9 @@
           "measured": "Mitattu (per pyörä)",
           "indirect": "Epäsuora (ei painearvoja)"
         }
+      },
+      "readiness_software_update_status": {
+        "name": "Ohjelmistopäivityksen tila"
       }
     },
     "binary_sensor": {
