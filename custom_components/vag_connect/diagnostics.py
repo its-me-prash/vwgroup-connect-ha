@@ -117,6 +117,14 @@ _REDACT_KEYS = frozenset({
     # redaction is independent of the companion module's own const import order.
     "companion_agent_token",
     "companion_addon_token",
+    # #1286 — the Škoda official public-API key IS a credential: it grants read
+    # (and charge-control) access to the car's official API. The single manual key
+    # (CONF_SKODA_OFFICIAL_API_KEY) leaked in PLAINTEXT in the diagnostics download
+    # users attach to GitHub issues — a real ``msk_…`` key was exposed publicly.
+    # Mask it here. The auto-enrolled per-VIN map (CONF_SKODA_OFFICIAL_KEYS) is a
+    # ``{VIN: {key, id, validUntil}}`` dict and is routed through
+    # _redact_identifier_map below (keeps the enrolment count, masks each record).
+    "skoda_official_api_key",
 })
 
 
@@ -307,9 +315,12 @@ def _scrub(value: Any, *, gps_round: bool = False) -> Any:
                     scrubbed[sk] = round(float(v), 1)
                 else:
                     scrubbed[sk] = "**REDACTED**"
-            elif k == CONF_DATA_ACT_IDENTIFIERS:
+            elif k == CONF_DATA_ACT_IDENTIFIERS or k == "skoda_official_keys":
                 # #923/#1222 — mask the {VIN: portal-identifier} values, which
                 # the string branch below would otherwise pass through.
+                # #1286 — same shape for the Škoda official per-VIN key map
+                # ({VIN: {key, id, validUntil}}): mask each record (the ``key`` is a
+                # live credential) while keeping the masked-VIN count for triage.
                 scrubbed[sk] = _redact_identifier_map(v)
             else:
                 scrubbed[sk] = _scrub(v, gps_round=gps_round)

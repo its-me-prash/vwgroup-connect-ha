@@ -1,0 +1,59 @@
+meta {
+  name: GET single trips
+  type: http
+  seq: 55
+}
+
+get {
+  url: {{base_url}}/api/v1/trip-statistics/{{vin}}/single-trips?timezone=GMT
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+headers {
+  Accept: application/json
+}
+
+params:query {
+  timezone: GMT
+}
+
+docs {
+  v4.7.0b2 (#1310, indigomejor) - real per-TRIP records. The WEEK/MONTH/YEAR
+  /trip-statistics/{vin} overview returns a metric-hollow detailedStatistics
+  on combustion cars (only a date, no distance/speed/consumption), so
+  last_trip_* never populated. This single-trips endpoint is the ONLY source
+  carrying per-trip averageSpeedInKmph AND averageFuelConsumption. RE'd from
+  MySkoda 8.16 (cz.myskoda.api.bff.v1.TripStatisticsApi -> SingleTripDto).
+
+  Query params (all optional except path vin): timezone, cursor (pagination
+  via nextPageCursor), from/to (OffsetDateTime), tripType (PERSONAL|BUSINESS).
+
+  Response shape:
+    {
+      "dailyTrips": [
+        {
+          "date": "2026-09-06",
+          "overallMileage": 41,
+          "overallCost": { ... },
+          "trips": [
+            {
+              "id": "...", "startTime": "...", "endTime": "...",
+              "mileageInKm": 33, "travelTimeInMin": 40,
+              "averageSpeedInKmph": 49, "averageFuelConsumption": 5.8,
+              "startMileageInKm": 1012, "endMileageInKm": 1045
+            }
+          ]
+        }
+      ],
+      "nextPageCursor": "..."
+    }
+
+  Used by SkodaClient.get_status() -> _apply_single_trip() to fill
+  last_trip_distance_km / _duration_min / _avg_speed_kmh /
+  _avg_fuel_consumption_l_100km / _start_odometer_km from the most recent trip.
+}

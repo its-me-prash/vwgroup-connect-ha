@@ -121,6 +121,27 @@ def test_parse_hybrid_classification():
     assert d.combustion_range_km == 420
 
 
+def test_parse_suppresses_combustion_soc_fuel_mirror():
+    """#1310 (indigomejor) — on a combustion primary engine the backend mirrors the
+    fuel level into currentSoCInPercent, so the official channel must apply the same
+    guard as the mysmob path and NOT re-introduce the 12V=fuel mirror."""
+    # combustion, SoC == fuel → suppressed (it's the fuel duplicated, not a 12V SoC)
+    d = SkodaOfficialClient._parse_vehicle("V", {"fuelStatus": {"primaryEngineRange": {
+        "engineType": "GASOLINE", "currentFuelLevelInPercent": 92,
+        "currentSoCInPercent": 92}}})
+    assert d.fuel_level == 92
+    assert d.primary_engine_soc_pct is None
+    # combustion, SoC != fuel → a genuinely distinct value is kept
+    d2 = SkodaOfficialClient._parse_vehicle("V", {"fuelStatus": {"primaryEngineRange": {
+        "engineType": "DIESEL", "currentFuelLevelInPercent": 92,
+        "currentSoCInPercent": 55}}})
+    assert d2.primary_engine_soc_pct == 55
+    # electric primary → never a fuel mirror, kept unchanged
+    d3 = SkodaOfficialClient._parse_vehicle("V", {"fuelStatus": {"primaryEngineRange": {
+        "engineType": "ELECTRIC", "currentSoCInPercent": 80}}})
+    assert d3.primary_engine_soc_pct == 80
+
+
 def test_parse_tolerates_sparse_body():
     d = SkodaOfficialClient._parse_vehicle("V", {})
     assert d.vin == "V"

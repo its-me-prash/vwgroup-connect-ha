@@ -156,6 +156,65 @@ def _apply_trip_statistics(trip_stats: Any, d: VehicleData) -> None:
                 d.trip_cost_currency = str(sub["costCurrency"])
                 break
 
+
+def _apply_single_trip(single_trips: Any, d: VehicleData) -> None:
+    """Fill the ``last_trip_*`` sensors from the mysmob single-trips endpoint (#1310).
+
+    The WEEK/MONTH/YEAR ``/trip-statistics`` overview returns a metric-HOLLOW
+    ``detailedStatistics`` on combustion cars (only a ``date``, no distance / speed /
+    consumption — indigomejor), so ``_apply_trip_statistics`` above could never
+    populate ``last_trip_*`` there. The ``/trip-statistics/{vin}/single-trips``
+    endpoint is the ONLY source carrying per-trip ``averageSpeedInKmph`` AND
+    ``averageFuelConsumption`` (RE'd from MyŠkoda 8.16 ``TripStatisticsApi`` /
+    ``SingleTripDto``). Response shape: ``{dailyTrips: [{date, trips: [SingleTripDto]}]}``.
+    Pick the most-recent trip (latest day ``date``, then latest ``endTime``) and fill
+    from it — a genuine per-trip record, not a per-day aggregate. Overrides the hollow
+    overview values when both are present (per-trip is the more accurate source).
+    """
+    if not isinstance(single_trips, dict):
+        return
+    daily = single_trips.get("dailyTrips")
+    if not isinstance(daily, list):
+        return
+    best_day = ""
+    best_key = ""
+    best: dict[str, Any] | None = None
+    for day in daily:
+        if not isinstance(day, dict):
+            continue
+        day_date = str(day.get("date") or "")
+        trips = day.get("trips")
+        if not isinstance(trips, list):
+            continue
+        for t in trips:
+            if not isinstance(t, dict):
+                continue
+            key = day_date + "T" + str(t.get("endTime") or t.get("startTime") or "")
+            if best is None or key > best_key:
+                best_key, best_day, best = key, day_date, t
+    if best is None:
+        return
+    _mi = best.get("mileageInKm")
+    if isinstance(_mi, (int, float)):
+        d.last_trip_distance_km = int(_mi)
+    _tt = best.get("travelTimeInMin")
+    if isinstance(_tt, (int, float)):
+        d.last_trip_duration_min = int(_tt)
+    _sp = best.get("averageSpeedInKmph")
+    if isinstance(_sp, (int, float)):
+        d.last_trip_avg_speed_kmh = int(_sp)
+    _fc = best.get("averageFuelConsumption")
+    if isinstance(_fc, (int, float)):
+        d.last_trip_avg_fuel_consumption_l_100km = float(_fc)
+    _ec = best.get("averageElectricConsumption")
+    if isinstance(_ec, (int, float)):
+        d.last_trip_avg_electric_consumption_kwh_100km = float(_ec)
+    _so = best.get("startMileageInKm")
+    if isinstance(_so, (int, float)):
+        d.last_trip_start_odometer_km = int(_so)
+    if best_day:
+        d.last_trip_timestamp = best_day
+
 # driving-range.carType enum values that are pure-combustion (no HV battery, no
 # plug). EVs report "electric", PHEVs "hybrid" — deliberately absent, so a plug-in
 # car is NEVER matched. Used to skip the battery-only /charging read on a confirmed
@@ -1094,12 +1153,21 @@ class SkodaClient(CariadBaseClient):
             # Skoda app update. POST body w/ VIN-filter on the
             # charging.cariad.digital host.
             self.get_charging_statistics(vin),
+            # #1310 (indigomejor) — per-TRIP records. The WEEK/MONTH/YEAR overview
+            # above returns metric-hollow detailedStatistics on combustion cars, so
+            # last_trip_* never populated; the single-trips endpoint (SingleTripDto)
+            # is the only source with per-trip avg speed + fuel consumption. RE'd
+            # from MyŠkoda 8.16 TripStatisticsApi. timezone=GMT (myskoda's canonical
+            # value; the daily buckets don't matter — we take the newest trip).
+            self._get(
+                f"{_BASE}/api/v1/trip-statistics/{vin}/single-trips?timezone=GMT"
+            ),
             return_exceptions=True,
         )
         (
             status, charging, ac, parking, driving_range,
             maintenance, readiness, sw_update, widget, driving_score,
-            health_v1, trip_stats, charging_stats_v2,
+            health_v1, trip_stats, charging_stats_v2, single_trips,
         ) = results
 
         # v1.9.0 — Vehicle Data Scout opt-in. Stash raw responses keyed by
@@ -1937,6 +2005,7 @@ class SkodaClient(CariadBaseClient):
         # overall_travel_time_in_min / overall_mileage_in_km + a
         # detailedStatistics list of per-period TripStatistics entries.
         _apply_trip_statistics(trip_stats, d)
+        _apply_single_trip(single_trips, d)
 
         # v2.11.0 (myskoda PR #586 source-verified): charging stats
         # from the replacement endpoint. monthSections[].entries[] each
