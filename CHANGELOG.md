@@ -42,6 +42,25 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.0b2] - 2026-09-02 — Škoda: last-trip sensors from real per-trip data · carries the 4.6.2 security + fixes
+
+### Added
+- **Škoda: the last-trip sensors now populate from real per-trip data.** The last-trip
+  distance, duration, average speed and average fuel consumption weren't appearing on many
+  Škoda cars because the weekly trip-statistics overview returns those per-entry values
+  empty on combustion cars. We now read the dedicated single-trips endpoint — the one
+  source that carries genuine per-trip average speed and consumption — and fill the
+  last-trip sensors from your most recent trip. Reported by @indigomejor (#1310).
+
+### Security
+- Carries the 4.6.2 fix that **redacts the Škoda official API key in diagnostics** — it was
+  leaking in plaintext in the diagnostics download. If you've posted a diagnostics file
+  with an official key set, treat it as exposed and recreate it in the app (see 4.6.2) (#1286).
+
+### Fixed
+- Carries the 4.6.2 fix for the **official channel's 12V "state of charge" mirroring the
+  fuel level** on combustion Škodas (#1310).
+
 ## [4.7.0b1] - 2026-09-02 — Škoda official API: automatic key creation matched byte-for-byte to the app · per-car manual keys
 
 ### Added
@@ -54,15 +73,34 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   (#1286).
 
 ### Fixed
-- **Škoda automatic official-API enrolment: the request now matches the app exactly.**
-  Automatic key creation was returning HTTP 400 for everyone. Reverse-engineering the
-  MyŠkoda app (8.16) showed its key-management endpoint requires the app's identity headers
-  — app version, platform, install id, device language/country and a trace id — that the
-  ordinary read endpoints don't ask for; our request sent only the token, so the backend
-  rejected it. Enrolment (and the key list/delete calls) now send the same header set as
-  the app, making the request byte-for-byte identical. This is being confirmed live with
-  Škoda owners on #1286; if your car couldn't auto-enrol before, this beta is the one to
-  test.
+- **Škoda official-API enrolment now matches the app's request byte-for-byte.** Enrolment
+  and the key list/delete calls now send the same app-identity headers the MyŠkoda app
+  attaches (app version, platform, install id, device language/country, trace id), which
+  the ordinary read endpoints don't require. Field testing pinned what each part fixes:
+  these headers fix the **empty key list** on the official API — the endpoint was returning
+  "no eligible vehicles" until we asked with them, and now your key is listed correctly.
+  (The HTTP 400 on key *creation* was a separate issue — the key **name** — already fixed
+  in 4.6.1.) Thanks to @indigomejor and @n3roGit for the before/after captures (#1286).
+
+## [4.6.2] - 2026-09-02 — Security: Škoda official API key redacted in diagnostics · combustion 12V mirror on the official channel
+
+### Security
+- **The Škoda official API key was leaking in plaintext in the diagnostics download.**
+  The official public-API key — the single manual key and every auto-enrolled per-car
+  key — is a credential that grants access to your car's official API, but it was
+  missing from the diagnostics redaction set, so it appeared in clear text in the
+  config-entry diagnostics file people attach to GitHub issues. It is now masked (the
+  per-car map keeps its count for triage but hides each key). **If you have ever posted
+  a diagnostics file with an official key set, treat that key as exposed and recreate it
+  in the MyŠkoda app (Smart Home → Keys) — deleting the old one there.** (#1286)
+
+### Fixed
+- **Škoda official API channel: the 12V "state of charge" no longer mirrors the fuel
+  level on combustion cars.** On a petrol/diesel Škoda the official API mirrors the fuel
+  level into the engine "state of charge" field — the same quirk the reverse-engineered
+  channel has — so the official channel briefly re-introduced the mirror that 4.6.0
+  fixed (a "12V" reading that just tracked the tank). It now applies the same guard and
+  suppresses the duplicate. Reported by @indigomejor (#1310).
 
 ## [4.6.1] - 2026-09-02 — Škoda official API now reads live every cycle, not just on failover
 

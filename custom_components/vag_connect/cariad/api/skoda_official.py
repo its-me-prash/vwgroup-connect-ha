@@ -231,11 +231,25 @@ class SkodaOfficialClient:
         etype = prim.get("engineType")
         if isinstance(etype, str):
             d.primary_engine_type = etype
-        if isinstance(prim.get("currentFuelLevelInPercent"), (int, float)):
-            d.primary_engine_fuel_level_pct = int(prim["currentFuelLevelInPercent"])
-            d.fuel_level = int(prim["currentFuelLevelInPercent"])
-        if isinstance(prim.get("currentSoCInPercent"), (int, float)):
-            d.primary_engine_soc_pct = int(prim["currentSoCInPercent"])
+        _fuel_pct = prim.get("currentFuelLevelInPercent")
+        if isinstance(_fuel_pct, (int, float)):
+            d.primary_engine_fuel_level_pct = int(_fuel_pct)
+            d.fuel_level = int(_fuel_pct)
+        _soc_pct = prim.get("currentSoCInPercent")
+        if isinstance(_soc_pct, (int, float)):
+            # #1310 — apply the SAME combustion fuel-mirror guard as the mysmob path
+            # (indigomejor): on a combustion primary engine the backend mirrors the
+            # fuel level into currentSoCInPercent, so a "SoC" equal to the fuel level
+            # is the fuel duplicated, not a 12V reading. Reuse the one guard so the
+            # official channel cannot re-introduce the mirror we fixed on mysmob.
+            from .skoda import _primary_soc_or_none  # noqa: PLC0415
+            _guarded = _primary_soc_or_none(
+                int(_soc_pct),
+                int(_fuel_pct) if isinstance(_fuel_pct, (int, float)) else None,
+                etype,
+            )
+            if _guarded is not None:
+                d.primary_engine_soc_pct = _guarded
         if isinstance(prim.get("remainingRangeInKm"), (int, float)):
             if isinstance(etype, str) and etype.upper() == "ELECTRIC":
                 d.electric_range_km = int(prim["remainingRangeInKm"])
