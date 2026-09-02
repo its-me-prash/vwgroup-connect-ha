@@ -32,7 +32,14 @@ def vehicle_cache_key(entry_id: str) -> str:
 # misleading, so those always reflect the latest poll (fresh-or-unknown).
 CARRY_FORWARD_FIELDS: frozenset[str] = frozenset({
     "odometer_km",
-    "battery_soc", "primary_engine_soc_pct",
+    # NOT ``primary_engine_soc_pct`` (#1310, indigomejor): on a combustion Škoda
+    # ``_primary_soc_or_none`` deliberately suppresses the 12V-SoC that mirrors the
+    # fuel level by returning None. reconcile() can't tell "deliberately withheld"
+    # from "poll omitted it", so carrying it forward resurrected the stale value —
+    # latching the bogus 12V sensor at the last full-tank reading (100 %) forever,
+    # since every future poll re-suppresses it. Same trap as the last-fill-up
+    # fields below. A genuine distinct 12V reading is re-sent each poll anyway.
+    "battery_soc",
     "fuel_level", "primary_engine_fuel_level_pct", "secondary_engine_fuel_level_pct",
     "range_km", "electric_range_km", "combustion_range_km", "total_range_km",
     "range_estimated_full_km", "range_wltp_km", "cng_range_km", "adblue_range_km",
