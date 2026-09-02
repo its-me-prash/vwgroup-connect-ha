@@ -350,7 +350,11 @@ class VagConnectScanIntervalNumber(NumberEntity):
         self._attr_unique_id = f"{entry.entry_id}_scan_interval"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{entry.entry_id}_settings")},
-            name="VW Group Connect",
+            # #923 — distinct from the per-car device (named after the vehicle):
+            # an identical "VW Group Connect" name made users pick this account-
+            # level settings device by mistake when downloading diagnostics (it
+            # carries only config, so its diagnostics slice has no vehicle data).
+            name="VW Group Connect Settings",
             manufacturer="VW Group",
             entry_type=DeviceEntryType.SERVICE,
         )

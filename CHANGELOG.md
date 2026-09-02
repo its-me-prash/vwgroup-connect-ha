@@ -42,6 +42,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **The account "settings" device is no longer confusingly named like your car.** The
+  integration always creates a small account-level settings device (it holds the
+  poll-interval control). It was named "VW Group Connect", identical to the
+  integration itself, so when downloading diagnostics people picked it by mistake and
+  got a file with no vehicle data in it. It's now "VW Group Connect Settings", and the
+  test-cohort share prompt spells out to download diagnostics from your car's own
+  device and links the tracking issue (#923).
+
 ## [4.6.0b1] - 2026-09-01 — Škoda data-quality wave · per-source connectivity · sturdier token refresh
 
 ### Added

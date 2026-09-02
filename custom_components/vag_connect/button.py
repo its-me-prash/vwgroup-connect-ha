@@ -145,10 +145,11 @@ class VagDataActRequestButton(VagConnectEntity, ButtonEntity):
 class VagHistoricalExportButton(VagConnectEntity, ButtonEntity):
     """Request a ONE-TIME EU Data Act historical export for this car.
 
-    Refused (with a clear message) while the continuous 15-min request is active,
-    because the portal allows only one custom request per VIN at a time and a
-    one-time export would block the live feed for up to 24h. The
-    ``historical_export`` sensor tracks the resulting pending/done/timed_out state.
+    Refused (with a clear message) only while the user already has a one-time
+    export of their own pending, because the portal enforces one PENDING custom
+    request per VIN at a time. It runs ALONGSIDE the active 15-min continuous feed
+    and does not suspend it (field-corrected under #923). The ``historical_export``
+    sensor tracks the resulting pending/done/timed_out state.
     """
 
     _attr_translation_key = "historical_export_button"
