@@ -244,7 +244,8 @@
           "companion_read_climate_detail": "Companion: läs börtemperatur och utetemperatur (navigerar i appen)",
           "companion_read_parking_position": "Companion: läs parkeringsposition från appens delningslänk (navigerar i appen)",
           "skoda_official_api_key": "Officiell Škoda API-nyckel — lägger till tillverkarens officiella API som live-datakälla (och failover)",
-          "clear_skoda_official_key": "Rensa den lagrade officiella Škoda API-nyckeln (en ny skapas automatiskt om din inloggning stöder det)"
+          "clear_skoda_official_key": "Rensa den lagrade officiella Škoda API-nyckeln (en ny skapas automatiskt om din inloggning stöder det)",
+          "skoda_official_mode": "Škoda officiell API-källäge"
         },
         "data_description": {
           "scan_interval": "Hur ofta data hämtas (minuter). Minimum: 3.",
@@ -375,10 +376,11 @@
       "portal_health": {
         "name": "Portalflödets status",
         "state": {
-          "ok": "OK",
+          "ok": "Live",
           "waiting_for_portal_data": "Väntar på portaldata",
           "empty_snapshots": "Tomma ögonblicksbilder",
           "delivery_not_ready": "Leverans inte klar",
+          "portal_error": "Portalfel",
           "stale": "Föråldrad"
         }
       },
@@ -1403,6 +1405,18 @@
       },
       "last_refuel_odometer_km": {
         "name": "Vägmätare vid tankning"
+      },
+      "data_request_created_at": {
+        "name": "Databegäran skapad"
+      },
+      "last_snapshot_at": {
+        "name": "Senaste ögonblicksbild mottagen"
+      },
+      "last_no_data_at": {
+        "name": "Senaste förfrågan utan data"
+      },
+      "no_data_count": {
+        "name": "Förfrågningar utan data"
       }
     },
     "binary_sensor": {
@@ -2265,6 +2279,15 @@
         "stop_aux_heating": "Stoppa parkeringsvärmare",
         "start_ventilation": "Starta ventilation",
         "stop_ventilation": "Stoppa ventilation"
+      }
+    },
+    "skoda_official_mode": {
+      "options": {
+        "auto": "Automatiskt (båda källor, officiell föredras)",
+        "prefer_official": "Föredra det officiella API:et",
+        "failover": "Officiellt API endast som reserv",
+        "official_only": "Endast officiellt API",
+        "mysmob_only": "Endast standardkanal"
       }
     }
   }

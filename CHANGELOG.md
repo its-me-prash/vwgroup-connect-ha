@@ -42,6 +42,45 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.0b5] - 2026-09-02 — EU Data Act: the data request actually gets created + portal-feed observability
+
+### Fixed
+- **The automatic EU Data Act data-request creation was silently giving up on every account — now it goes through.**
+  Getting a car onto the portal feed depends on the integration creating a "continuous 15-minute"
+  data request for you (and the one-time historical export works the same way). Both were bailing
+  out *before ever sending the request*: they waited for a security token from the portal's older
+  page layer, and that token now comes back empty for everyone — so they waited forever and no feed
+  was ever created. The car just stayed empty, with nothing in the log but "no CSRF token". Turns
+  out the portal's data-request API is authenticated by your logged-in session, not by that token
+  at all. The request is now sent on your session directly; the token is only attached if the
+  portal ever actually provides one. **Live-verified end-to-end**: the create now returns success
+  and the 15-minute request appears on the account. Thanks @steemandavid for the diagnosis
+  (#709, #966, #1273).
+- **Audi plug&play (OBD dongle): the car's location now always gets a map tracker.** The
+  dongle only reports GPS from its last parked snapshot, so the position comes and goes
+  between drives — and the device tracker could fail to appear (or get purged during a
+  gap), leaving the location unbound. It's now created unconditionally for plug&play
+  entries, the same way the volkswagen.de channel already is, so the car stays on the map
+  (reading unavailable between fixes).
+
+### Added
+- **Diagnostic sensors that show what the EU Data Act portal feed is actually doing**, so a
+  quiet car stops being a mystery. **Portal feed health** now tells a genuine VW-side portal
+  outage ("Portal error") apart from a request that simply isn't delivering yet, and names a
+  healthy feed **Live**. Plus four new per-car diagnostic sensors (portal-read cars only):
+  **Data request created** (when your continuous request was set up), **Last snapshot
+  received**, **Last no-data poll**, and **No-data polls** (how often the portal came back
+  empty). Thanks @HA28320 and @riteman for the feed samples that made this concrete
+  (#465, #1273). All 12 languages.
+- **Škoda: choose how the official manufacturer API is used.** A new per-car option
+  ("Škoda official-API source mode") lets you pick: **Automatic** (both channels, the
+  official API's readings preferred — the default, unchanged); **Prefer the official
+  API**; **Official API as failover only**; **Official API only** (turn the standard
+  channel off); or **Standard channel only** (turn the official API off entirely). So if
+  you'd rather not lean on the reverse-engineered channel — or would rather not use the
+  official one — it's a switch now instead of automatic. Thanks @n3roGit (#1286). All 12
+  languages.
+
 ## [4.7.0b4] - 2026-09-02 — EU Data Act: clearer "no vehicle data yet" guidance (carries 4.6.3)
 
 ### Changed

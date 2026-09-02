@@ -92,9 +92,11 @@ _PORTAL_HEALTH_BY_REASON: dict[str, str] = {
     "no_request": "waiting_for_portal_data",  # no customised data request set up yet
     "no_content": "empty_snapshots",          # car asleep → only *_no_content_found.zip
     "empty": "delivery_not_ready",            # listing/metadata empty or not yet ready
+    "portal_error": "portal_error",           # VW-side portal outage/throttle (5xx/429)
 }
 PORTAL_HEALTH_STATES = (
-    "ok", "waiting_for_portal_data", "empty_snapshots", "delivery_not_ready", "stale",
+    "ok", "waiting_for_portal_data", "empty_snapshots", "delivery_not_ready",
+    "portal_error", "stale",
 )
 
 
@@ -1575,6 +1577,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             except Exception:  # noqa: BLE001
                 _LOGGER.debug("Škoda official auto-enroll skipped", exc_info=True)
             # Fetch status for all vehicles
+            self._push_official_mode()  # #1286 — official_only routing before read
             results = await asyncio.gather(
                 *[self._cariad_client.get_status(vin) for vin in vins],
                 return_exceptions=True,
@@ -2561,6 +2564,39 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         else:
             clear_issue_test_cohort_share(self.hass, self.entry.entry_id)
 
+    def _skoda_official_mode(self) -> str:
+        """The configured Škoda official-API source mode (#1286). Options-then-data
+        precedence like every other option; unknown/absent → the ``auto`` default."""
+        from .const import (  # noqa: PLC0415
+            CONF_SKODA_OFFICIAL_MODE,
+            SKODA_OFFICIAL_MODE_DEFAULT,
+            SKODA_OFFICIAL_MODES,
+        )
+        entry = getattr(self, "entry", None)
+        if entry is None:
+            return SKODA_OFFICIAL_MODE_DEFAULT
+        mode = str(
+            entry.options.get(
+                CONF_SKODA_OFFICIAL_MODE,
+                entry.data.get(
+                    CONF_SKODA_OFFICIAL_MODE, SKODA_OFFICIAL_MODE_DEFAULT
+                ),
+            )
+        )
+        return mode if mode in SKODA_OFFICIAL_MODES else SKODA_OFFICIAL_MODE_DEFAULT
+
+    def _push_official_mode(self, client: Any = None) -> None:
+        """Push the configured source mode onto the Škoda client so its primary-read
+        routing (``official_only``) reflects a live options change. Must run before
+        each status gather; a no-op for non-Škoda clients (no ``set_official_mode``).
+        Accepts an explicit ``client`` so the #584 captured-client path stays race-safe."""
+        setter = getattr(
+            client if client is not None else self._cariad_client,
+            "set_official_mode", None,
+        )
+        if setter is not None:
+            setter(self._skoda_official_mode())
+
     def _arm_official_from_map(self, keys_map: dict[str, Any]) -> None:
         """Arm the Škoda official failover channel from a persisted per-VIN key map
         ({vin: {key, id, validUntil}})."""
@@ -2714,6 +2750,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         from .const import CONF_BRAND, CONF_SKODA_OFFICIAL_KEYS  # noqa: PLC0415
         client = self._cariad_client
         if str(self.entry.data.get(CONF_BRAND, "")) != "skoda":
+            return
+        if self._skoda_official_mode() == "mysmob_only":
+            # Official channel switched off by the user → don't mint or arm it.
+            self._skoda_probe(
+                "skoda_official", "disabled by source mode (mysmob_only)"
+            )
             return
         if not getattr(client, "can_mint_official_key", False):
             # Record WHY the official channel can't auto-enrol (portal-fallback or a
@@ -3229,7 +3271,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # primary failure). Brand-isolated: the method exists only on the Škoda
         # client, so getattr → None for every other brand.
         official = getattr(client, "official_failover_read", None)
-        if official is not None:
+        if official is not None and self._skoda_official_mode() != "mysmob_only":
             try:
                 off_data: VehicleData | None = await official(vin)
                 if off_data is not None:
@@ -3385,6 +3427,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 # until a restart. update_interval is None here, so this loop —
                 # not _async_update_data — is the periodic path. No-op non-MBB.
                 await self._refresh_mbb_command_capabilities()
+                self._push_official_mode()  # #1286 — official_only routing before read
                 results = await asyncio.gather(
                     *[self._cariad_client.get_status(vin) for vin in vins],
                     return_exceptions=True,
@@ -3594,14 +3637,17 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         # healthy cycle, merge the manufacturer API's readings into
                         # the primary payload (rate-safe, brand-isolated, fail-soft).
                         # Must run BEFORE _compute_channel_status so the connectivity
-                        # map counts the official contribution.
-                        try:
-                            await self._merge_official_live(vin, enriched)
-                        except Exception:  # noqa: BLE001
-                            _LOGGER.debug(
-                                "official live-source merge skipped for %s",
-                                mask_vin(vin), exc_info=True,
-                            )
+                        # map counts the official contribution. #1286 — only in the
+                        # merge modes; "failover"/"official_only"/"mysmob_only" don't
+                        # overlay official onto a healthy primary cycle.
+                        if self._skoda_official_mode() in ("auto", "prefer_official"):
+                            try:
+                                await self._merge_official_live(vin, enriched)
+                            except Exception:  # noqa: BLE001
+                                _LOGGER.debug(
+                                    "official live-source merge skipped for %s",
+                                    mask_vin(vin), exc_info=True,
+                                )
                         # Per-source connectivity map for the connectivity
                         # binary_sensors (which sources this car is connected to,
                         # active vs standby, how many readings each provides). Fail-
@@ -5914,6 +5960,17 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 data["minutes_since_last_snapshot"] = (
                     int(_age // 60) if _age is not None else None
                 )
+                # #465/#1273 observability — surface the portal connector's own
+                # timestamps/counters so a user can see WHEN the data request was
+                # created, WHEN a real snapshot last arrived, and WHEN / HOW OFTEN
+                # the portal returned nothing. Set only in portal mode; None stays
+                # None (the TIMESTAMP sensors then read unavailable).
+                data["data_request_created_at"] = getattr(
+                    _portal, "data_request_started_at", None
+                )
+                data["last_snapshot_at"] = getattr(_portal, "last_snapshot_at", None)
+                data["last_no_data_at"] = getattr(_portal, "last_no_data_at", None)
+                data["no_data_count"] = getattr(_portal, "no_data_count", None)
                 # Stage-1 — the one-time historical export lifecycle state, set
                 # only while an export is actually in flight (or just finished) so
                 # the sensor stays hidden for the majority who never use it.
@@ -6114,6 +6171,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # right after Reconfigure). The captured object stays valid (or fails
         # cleanly as a closed session, handled by the except → cached data).
         client = self._cariad_client
+        self._push_official_mode(client)  # #1286 — official_only routing (race-safe)
         # P1-5 — attach the opt-in raw-dataset archive hook (no-op when off).
         self._wire_dataset_archive()
         try:

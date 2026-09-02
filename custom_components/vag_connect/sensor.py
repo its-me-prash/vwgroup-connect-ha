@@ -195,6 +195,7 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
             "waiting_for_portal_data",
             "empty_snapshots",
             "delivery_not_ready",
+            "portal_error",
             "stale",
         ],
     ),
@@ -220,6 +221,43 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:history",
         device_class=SensorDeviceClass.ENUM,
         options=["pending", "done", "timed_out"],
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # #465/#1273 EU Data Act observability — the portal connector's own lifecycle
+    # timestamps/counter, so a user can see WHEN the data request was created, WHEN
+    # a real snapshot last arrived, and WHEN / HOW OFTEN the portal returned nothing.
+    # Data-present gated (portal-only, spawn when the value first arrives — same as
+    # raw_api_fields) + diagnostic.
+    VagSensorDescription(
+        key="data_request_created_at",
+        translation_key="data_request_created_at",
+        data_key="data_request_created_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:calendar-plus",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="last_snapshot_at",
+        translation_key="last_snapshot_at",
+        data_key="last_snapshot_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:database-clock",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="last_no_data_at",
+        translation_key="last_no_data_at",
+        data_key="last_no_data_at",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:cloud-alert",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="no_data_count",
+        translation_key="no_data_count",
+        data_key="no_data_count",
+        icon="mdi:counter",
+        state_class=SensorStateClass.TOTAL_INCREASING,
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     # v2.22.0 (evcc) — normalized IEC-61851 charge status (A=unplugged /
@@ -3518,6 +3556,14 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     # b1/A6 — raw-discovery sensor only spawns when the portal actually
     # delivered unmapped fields (empty dict on every other brand/channel).
     "raw_api_fields",
+    # #465/#1273 — EU-portal-only observability sensors: each spawns when its
+    # value first arrives (a request created / a snapshot / a no-data poll) and
+    # stays absent on non-portal channels. no_data_count is 0 (not None) in portal
+    # mode so it appears immediately; the timestamps appear on their first event.
+    "data_request_created_at",
+    "last_snapshot_at",
+    "last_no_data_at",
+    "no_data_count",
     # v2.17.1 (Scout #701, VW ID.7) — EU-portal-only interior temp,
     # HV-battery-derived charge-target time + profile user capacity.
     # Non-portal cars leave these None → no phantom entity.

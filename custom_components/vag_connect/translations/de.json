@@ -244,7 +244,8 @@
           "companion_read_climate_detail": "Companion: Solltemperatur und Außentemperatur lesen (navigiert in der App)",
           "companion_read_parking_position": "Companion: Parkposition aus dem Teilen-Link der App lesen (navigiert in der App)",
           "skoda_official_api_key": "Offizieller Škoda-API-Schlüssel — nutzt die offizielle Hersteller-API als Live-Datenquelle (und Failover)",
-          "clear_skoda_official_key": "Gespeicherten offiziellen Škoda-API-Schlüssel löschen (ein neuer wird automatisch erstellt, falls dein Login das unterstützt)"
+          "clear_skoda_official_key": "Gespeicherten offiziellen Škoda-API-Schlüssel löschen (ein neuer wird automatisch erstellt, falls dein Login das unterstützt)",
+          "skoda_official_mode": "Škoda Offizielle-API-Quellenmodus"
         },
         "data_description": {
           "enable_reverse_geocoding": "Sendet GPS der Parkposition an OpenStreetMap Nominatim, um Straße/Stadt zu ermitteln. Standard: aus (Datenschutz).",
@@ -375,10 +376,11 @@
       "portal_health": {
         "name": "Portal-Feed-Zustand",
         "state": {
-          "ok": "OK",
+          "ok": "Live",
           "waiting_for_portal_data": "Warte auf Portaldaten",
           "empty_snapshots": "Leere Snapshots",
           "delivery_not_ready": "Lieferung nicht bereit",
+          "portal_error": "Portal-Fehler",
           "stale": "Veraltet"
         }
       },
@@ -1403,6 +1405,18 @@
       },
       "last_refuel_odometer_km": {
         "name": "Kilometerstand bei Betankung"
+      },
+      "data_request_created_at": {
+        "name": "Datenabruf angelegt"
+      },
+      "last_snapshot_at": {
+        "name": "Letzter Snapshot empfangen"
+      },
+      "last_no_data_at": {
+        "name": "Letzte Abfrage ohne Daten"
+      },
+      "no_data_count": {
+        "name": "Abfragen ohne Daten"
       }
     },
     "binary_sensor": {
@@ -2043,6 +2057,15 @@
         "stop_aux_heating": "Standheizung stoppen",
         "start_ventilation": "Lüftung starten",
         "stop_ventilation": "Lüftung stoppen"
+      }
+    },
+    "skoda_official_mode": {
+      "options": {
+        "auto": "Automatisch (beide, offizielle bevorzugt)",
+        "prefer_official": "Offizielle API bevorzugen",
+        "failover": "Offizielle API nur als Notfall",
+        "official_only": "Nur offizielle API",
+        "mysmob_only": "Nur Standard-Kanal"
       }
     }
   },

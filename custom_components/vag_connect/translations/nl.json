@@ -244,7 +244,8 @@
           "companion_read_climate_detail": "Companion: streef- en buitentemperatuur lezen (navigeert in de app)",
           "companion_read_parking_position": "Companion: parkeerpositie uit de deellink van de app lezen (navigeert in de app)",
           "skoda_official_api_key": "Officiële Škoda API-sleutel — voegt de officiële fabrikant-API toe als live databron (en failover)",
-          "clear_skoda_official_key": "Wis de opgeslagen officiële Škoda API-sleutel (er wordt automatisch een nieuwe aangemaakt als je login dit ondersteunt)"
+          "clear_skoda_official_key": "Wis de opgeslagen officiële Škoda API-sleutel (er wordt automatisch een nieuwe aangemaakt als je login dit ondersteunt)",
+          "skoda_official_mode": "Škoda officiële-API-bronmodus"
         },
         "data_description": {
           "scan_interval": "Hoe vaak gegevens worden opgehaald (minuten). Minimum: 3.",
@@ -375,10 +376,11 @@
       "portal_health": {
         "name": "Status portaalfeed",
         "state": {
-          "ok": "OK",
+          "ok": "Live",
           "waiting_for_portal_data": "Wachten op portaalgegevens",
           "empty_snapshots": "Lege snapshots",
           "delivery_not_ready": "Levering niet gereed",
+          "portal_error": "Portaalfout",
           "stale": "Verouderd"
         }
       },
@@ -1403,6 +1405,18 @@
       },
       "last_refuel_odometer_km": {
         "name": "Kilometerstand bij tanken"
+      },
+      "data_request_created_at": {
+        "name": "Gegevensverzoek aangemaakt"
+      },
+      "last_snapshot_at": {
+        "name": "Laatste momentopname ontvangen"
+      },
+      "last_no_data_at": {
+        "name": "Laatste polling zonder gegevens"
+      },
+      "no_data_count": {
+        "name": "Pollingen zonder gegevens"
       }
     },
     "binary_sensor": {
@@ -2265,6 +2279,15 @@
         "stop_aux_heating": "Standkachel stoppen",
         "start_ventilation": "Ventilatie starten",
         "stop_ventilation": "Ventilatie stoppen"
+      }
+    },
+    "skoda_official_mode": {
+      "options": {
+        "auto": "Automatisch (beide bronnen, officieel voorkeur)",
+        "prefer_official": "Officiële API verkiezen",
+        "failover": "Officiële API alleen als failover",
+        "official_only": "Alleen officiële API",
+        "mysmob_only": "Alleen standaardkanaal"
       }
     }
   }

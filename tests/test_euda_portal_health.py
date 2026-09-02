@@ -32,6 +32,9 @@ def test_no_data_reasons_map_to_their_states():
     assert _portal_health({"no_data": True}, "no_request", None, None) == "waiting_for_portal_data"
     assert _portal_health({"no_data": True}, "no_content", None, None) == "empty_snapshots"
     assert _portal_health({"no_data": True}, "empty", None, None) == "delivery_not_ready"
+    # #465 — a VW-side portal outage/throttle (5xx/429) is its own state, distinct
+    # from "delivery not ready", so a fault doesn't read as a normal wait.
+    assert _portal_health({"no_data": True}, "portal_error", None, None) == "portal_error"
 
 
 def test_unknown_no_data_reason_defaults_to_waiting():
@@ -71,6 +74,7 @@ def test_every_result_is_a_declared_state():
         ({"no_data": True}, "no_request"),
         ({"no_data": True}, "no_content"),
         ({"no_data": True}, "empty"),
+        ({"no_data": True}, "portal_error"),
         ({"no_data": True}, ""),
     ):
         assert _portal_health(data, reason, 99 * _HOUR, 72 * _HOUR) in PORTAL_HEALTH_STATES

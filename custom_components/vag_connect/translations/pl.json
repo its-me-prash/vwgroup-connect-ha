@@ -244,7 +244,8 @@
           "companion_read_climate_detail": "Companion: odczyt temperatury zadanej i zewnętrznej (nawiguje po aplikacji)",
           "companion_read_parking_position": "Companion: odczyt pozycji parkowania z linku udostępniania w aplikacji (nawiguje po aplikacji)",
           "skoda_official_api_key": "Oficjalny klucz API Škoda — dodaje oficjalne API producenta jako źródło danych na żywo (i przełączanie awaryjne)",
-          "clear_skoda_official_key": "Wyczyść zapisany oficjalny klucz API Škoda (nowy zostanie utworzony automatycznie, jeśli Twoje logowanie to obsługuje)"
+          "clear_skoda_official_key": "Wyczyść zapisany oficjalny klucz API Škoda (nowy zostanie utworzony automatycznie, jeśli Twoje logowanie to obsługuje)",
+          "skoda_official_mode": "Tryb źródła oficjalnego API Škoda"
         },
         "data_description": {
           "scan_interval": "Jak często pobierane są dane (minuty). Minimum: 3.",
@@ -375,10 +376,11 @@
       "portal_health": {
         "name": "Stan kanału portalu",
         "state": {
-          "ok": "OK",
+          "ok": "Na żywo",
           "waiting_for_portal_data": "Oczekiwanie na dane portalu",
           "empty_snapshots": "Puste migawki",
           "delivery_not_ready": "Dostawa niegotowa",
+          "portal_error": "Błąd portalu",
           "stale": "Nieaktualne"
         }
       },
@@ -1403,6 +1405,18 @@
       },
       "last_refuel_odometer_km": {
         "name": "Przebieg przy tankowaniu"
+      },
+      "data_request_created_at": {
+        "name": "Utworzono żądanie danych"
+      },
+      "last_snapshot_at": {
+        "name": "Ostatnia migawka odebrana"
+      },
+      "last_no_data_at": {
+        "name": "Ostatnie odpytanie bez danych"
+      },
+      "no_data_count": {
+        "name": "Odpytania bez danych"
       }
     },
     "binary_sensor": {
@@ -2265,6 +2279,15 @@
         "stop_aux_heating": "Zatrzymaj ogrzewanie postojowe",
         "start_ventilation": "Uruchom wentylację",
         "stop_ventilation": "Zatrzymaj wentylację"
+      }
+    },
+    "skoda_official_mode": {
+      "options": {
+        "auto": "Automatycznie (oba źródła, preferowane oficjalne)",
+        "prefer_official": "Preferuj oficjalne API",
+        "failover": "Oficjalne API tylko awaryjnie",
+        "official_only": "Tylko oficjalne API",
+        "mysmob_only": "Tylko kanał standardowy"
       }
     }
   }

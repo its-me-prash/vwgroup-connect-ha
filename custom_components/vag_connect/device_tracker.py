@@ -23,7 +23,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .cariad._util import json_safe_dict, mask_vin
-from .const import CONF_SUPPLEMENTARY_AUTHPROXY
+from .const import CONF_STRATEGY, CONF_SUPPLEMENTARY_AUTHPROXY
 from .coordinator import VagConnectCoordinator
 from .entity_base import VagConnectEntity
 
@@ -48,7 +48,17 @@ async def async_setup_entry(
     # gets orphaned and eventually purged by HA, breaking maps/automations). If
     # that channel is configured we spawn the tracker regardless: it just reads
     # unavailable until a position returns after re-login, instead of vanishing.
-    supplementary_gps = bool(entry.data.get(CONF_SUPPLEMENTARY_AUTHPROXY))
+    #
+    # acpp (Audi plug&play OBD dongle, strategy "audi_acpp") has the SAME
+    # intermittency: the dongle only uploads a GPS fix from its last PARKED
+    # snapshot, so coordinates come and go between drives. Without an
+    # unconditional spawn the tracker never appears when the car is mid-drive at
+    # setup, and a registered one gets purged during a gap — so the car's location
+    # was never reliably bound to a tracker entity. Spawn it unconditionally for
+    # acpp too (reads unavailable between fixes rather than never binding).
+    supplementary_gps = bool(entry.data.get(CONF_SUPPLEMENTARY_AUTHPROXY)) or (
+        str(entry.data.get(CONF_STRATEGY, "")) == "audi_acpp"
+    )
 
     def _has_gps(vehicle: dict) -> bool:
         lat = vehicle.get("latitude")

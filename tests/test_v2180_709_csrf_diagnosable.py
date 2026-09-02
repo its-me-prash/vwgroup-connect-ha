@@ -195,6 +195,25 @@ async def test_anonymous_triggers_one_page_load_and_a_retry() -> None:
 
 
 @pytest.mark.asyncio
+async def test_second_revive_endpoint_recovers_the_token() -> None:
+    """#1273 (steemandavid) — the user-page GET can land 200 yet leave the AEM leg
+    anonymous, so the permission-check service is tried as a second revive; a token
+    from that second retry is used."""
+    s = _seq_scraper(
+        _HeaderResp(200, {}, {"x-sky-isauth": "0"}),               # fetch: anonymous
+        _HeaderResp(200, {}),                                       # revive 1: user.html
+        _HeaderResp(200, {}, {"x-sky-isauth": "0"}),               # retry 1: still anon
+        _HeaderResp(200, {}),                                       # revive 2: permissioncheck
+        _HeaderResp(200, {"token": "T"}, {"x-sky-isauth": "1"}),  # retry 2: token!
+    )
+    assert await s._fetch_csrf_token() == "T"
+    calls = s._session.calls  # type: ignore[attr-defined]
+    assert any("/de/en/user.html" in c for c in calls), calls
+    assert any("/services/permissioncheck" in c for c in calls), calls
+    assert sum("token.json" in c for c in calls) == 3, calls   # initial + 2 retries
+
+
+@pytest.mark.asyncio
 async def test_authenticated_but_empty_does_not_retry(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

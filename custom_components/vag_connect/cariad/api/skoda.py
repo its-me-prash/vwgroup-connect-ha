@@ -310,6 +310,15 @@ class SkodaClient(CariadBaseClient):
         # AND as the hard-failure failover. Rate-limited to 20 req/hour/key, so both
         # read paths go through _official_read_rate_safe, which self-skips at quota.
         self._supplementary_official: Any = None
+        # #1286 — Škoda official-API source mode, pushed by the coordinator from
+        # CONF_SKODA_OFFICIAL_MODE. Only "official_only" changes THIS client's read
+        # routing (get_status below); the other modes are enforced coordinator-side
+        # (merge / failover / auto-enrol gating). Default "auto".
+        self._official_mode: str = "auto"
+
+    def set_official_mode(self, mode: str) -> None:
+        """Set the Škoda official-API source mode (CONF_SKODA_OFFICIAL_MODE)."""
+        self._official_mode = str(mode or "auto")
 
     def arm_supplementary_official(
         self, api_key: str = "", keys_by_vin: dict[str, str] | None = None,
@@ -1101,6 +1110,15 @@ class SkodaClient(CariadBaseClient):
                     await portal.login(self._email, self._password)
                 data = await portal.get_vehicle_data(vin)
             return data
+        # #1286 — "official_only" source mode: read the manufacturer public API as
+        # the PRIMARY source instead of the mysmob backend. Per-VIN degrade: if this
+        # car has no official key / the read is unavailable (rate-limited, quota,
+        # error), _official_read_rate_safe returns None and we fall through to the
+        # normal mysmob read rather than blanking the car.
+        if getattr(self, "_official_mode", "auto") == "official_only":
+            off = await self._official_read_rate_safe(vin)
+            if off is not None:
+                return off
         v = self._val
         d = VehicleData(vin=vin)
 

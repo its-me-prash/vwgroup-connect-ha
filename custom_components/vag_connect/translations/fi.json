@@ -244,7 +244,8 @@
           "companion_read_climate_detail": "Companion: lue tavoite- ja ulkolämpötila (navigoi sovelluksessa)",
           "companion_read_parking_position": "Companion: lue pysäköintipaikka sovelluksen jakolinkistä (navigoi sovelluksessa)",
           "skoda_official_api_key": "Virallinen Škoda-API-avain — lisää valmistajan virallisen API:n live-tietolähteeksi (ja vikasietona)",
-          "clear_skoda_official_key": "Tyhjennä tallennettu virallinen Škoda-API-avain (uusi luodaan automaattisesti, jos kirjautumisesi tukee sitä)"
+          "clear_skoda_official_key": "Tyhjennä tallennettu virallinen Škoda-API-avain (uusi luodaan automaattisesti, jos kirjautumisesi tukee sitä)",
+          "skoda_official_mode": "Škodan virallisen API:n lähdetila"
         },
         "data_description": {
           "scan_interval": "Kuinka usein tietoja haetaan (minuutteja). Vähintään: 3.",
@@ -375,10 +376,11 @@
       "portal_health": {
         "name": "Portaalisyötteen tila",
         "state": {
-          "ok": "OK",
+          "ok": "Live",
           "waiting_for_portal_data": "Odotetaan portaalin tietoja",
           "empty_snapshots": "Tyhjät tilannevedokset",
           "delivery_not_ready": "Toimitus ei valmis",
+          "portal_error": "Portaalivirhe",
           "stale": "Vanhentunut"
         }
       },
@@ -1403,6 +1405,18 @@
       },
       "last_refuel_odometer_km": {
         "name": "Matkamittari tankattaessa"
+      },
+      "data_request_created_at": {
+        "name": "Datapyyntö luotu"
+      },
+      "last_snapshot_at": {
+        "name": "Viimeisin tilannevedos vastaanotettu"
+      },
+      "last_no_data_at": {
+        "name": "Viimeisin kysely ilman dataa"
+      },
+      "no_data_count": {
+        "name": "Kyselyt ilman dataa"
       }
     },
     "binary_sensor": {
@@ -2265,6 +2279,15 @@
         "stop_aux_heating": "Pysäytä lisälämmitin",
         "start_ventilation": "Käynnistä tuuletus",
         "stop_ventilation": "Pysäytä tuuletus"
+      }
+    },
+    "skoda_official_mode": {
+      "options": {
+        "auto": "Automaattinen (molemmat, virallista suositaan)",
+        "prefer_official": "Suosi virallista API:a",
+        "failover": "Virallinen API vain varajärjestelmänä",
+        "official_only": "Vain virallinen API",
+        "mysmob_only": "Vain vakiokanava"
       }
     }
   }
