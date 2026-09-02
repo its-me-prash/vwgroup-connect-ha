@@ -1378,6 +1378,30 @@
       },
       "parked_since": {
         "name": "Parkerad sedan"
+      },
+      "last_trip_eco_score": {
+        "name": "Eco-poäng senaste resa"
+      },
+      "last_trip_intake_air_temp_c": {
+        "name": "Insugslufttemperatur senaste resa"
+      },
+      "trip_count": {
+        "name": "Loggade resor"
+      },
+      "score_points_total": {
+        "name": "Förarpoäng"
+      },
+      "last_refuel_liters_added": {
+        "name": "Tankad mängd"
+      },
+      "last_refuel_tank_before_l": {
+        "name": "Tank före tankning"
+      },
+      "last_refuel_tank_after_l": {
+        "name": "Tank efter tankning"
+      },
+      "last_refuel_odometer_km": {
+        "name": "Vägmätare vid tankning"
       }
     },
     "binary_sensor": {

@@ -278,6 +278,46 @@ async def test_get_status_no_driverlogs_falls_back_to_root_odometer():
     assert data.position_captured_at is None
 
 
+async def test_get_status_maps_ecoscore_refuel_and_score():
+    import time
+    future_ms = int((time.time() + 86400) * 1000)
+    past_ms = 1
+    c = _client()
+    _stub_get(c, {
+        f"vehicle/{VIN_2009}": (200, {"vehicle": {"vin": VIN_2009}, "odometer": 369290}),
+        f"vehicle/{VIN_2009}/warning-lights": (200, {"warningLights": []}),
+        f"vehicle/{VIN_2009}/driverlogs": (200, {"totalElements": 2, "content": [
+            {"remark": "01.09.2026", "endTime": 1788273444410,
+             "totalTripMileage": 1.38, "totalTripTime": 246670,
+             "averageInductionAirTemperature": 24,
+             "startData": {"odometer": 369289.7}, "endData": {"odometer": 369291.0},
+             "ecoScore": {"ecoScore": 98}},
+            {"remark": "29.08.2026", "endTime": 1788000000000,
+             "totalTripMileage": 0.5, "ecoScore": {"ecoScore": 100}},
+        ]}),
+        f"user/fuellog/{VIN_2009}": (200, {"content": [
+            {"createdTimestamp": 1788273155000, "amount": 21.0,
+             "postFuelAmount": 24.0, "odometer": 369290.0},
+        ]}),
+        "user/achievements/v2": (200, {"content": [
+            {"points": 3000, "expirationDate": 0},         # never expires
+            {"points": 120, "expirationDate": future_ms},  # still valid
+            {"points": 50, "expirationDate": past_ms},     # expired → excluded
+        ]}),
+    })
+    data = await c.get_status(VIN_2009)
+    assert data.last_trip_eco_score == 98
+    assert data.last_trip_intake_air_temp_c == 24
+    assert data.trip_count == 2
+    assert data.last_refuel_liters_added == 21.0
+    assert data.last_refuel_tank_after_l == 24.0
+    assert data.last_refuel_tank_before_l == 3.0      # 24 − 21 ("von→auf")
+    assert data.last_refuel_odometer_km == 369290
+    assert data.score_points_total == 3120            # 3000 + 120, expired 50 dropped
+    assert len(data.recent_trips) == 2                # full logbook (Priority C)
+    assert data.recent_trips[0]["eco_score"] == 98    # newest first
+
+
 def test_epoch_ms_to_datetime():
     from custom_components.vag_connect.cariad.api.plugandplay import (
         _epoch_ms_to_datetime,

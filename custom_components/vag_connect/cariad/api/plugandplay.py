@@ -229,10 +229,12 @@ class PlugAndPlayCloudClient:
             # proper "ab Haus" model designation.
             ("carport", f"vehicle/{vin}/carport"),
             # driverlogs = the trip logbook (precise odometer + last-trip stats +
-            # EcoScore + start/end GPS); fuellog = refuel history ("von→auf" litres).
-            # Both only fill after the dongle syncs a drive/refuel; empty otherwise.
+            # EcoScore + start/end GPS); fuellog = refuel history ("von→auf" litres);
+            # achievements = the account driver-score ledger. All only fill after the
+            # dongle syncs a drive/refuel; empty otherwise.
             ("driverlogs", f"vehicle/{vin}/driverlogs"),
             ("fuellog", f"user/fuellog/{vin}"),
+            ("achievements", "user/achievements/v2"),
         ):
             try:
                 s, b = await self._get(sub)
@@ -373,6 +375,93 @@ class PlugAndPlayCloudClient:
         )
         if pos_at is not None:
             data.position_captured_at = pos_at
+
+        # ── EcoScore + intake-air + trip count + compact logbook (Priority B/C) ──
+        dl = snap.get("driverlogs")
+        dl_content = dl.get("content") if isinstance(dl, dict) else None
+        if isinstance(dl, dict):
+            total = dl.get("totalElements")
+            if isinstance(total, int) and not isinstance(total, bool):
+                data.trip_count = total
+            elif isinstance(dl_content, list):
+                data.trip_count = len(dl_content)
+        if trip is not None:
+            eco = (trip.get("ecoScore") or {}).get("ecoScore")
+            if isinstance(eco, (int, float)) and not isinstance(eco, bool):
+                data.last_trip_eco_score = int(round(eco))
+            iat = trip.get("averageInductionAirTemperature")
+            if isinstance(iat, (int, float)) and not isinstance(iat, bool):
+                data.last_trip_intake_air_temp_c = int(round(iat))
+        # Priority C — the last few trips (newest first) for the last-trip sensor's
+        # attributes: date / distance / duration / EcoScore / end time.
+        if isinstance(dl_content, list) and dl_content:
+            recent: list[dict[str, Any]] = []
+            for t in sorted(
+                (x for x in dl_content if isinstance(x, dict)),
+                key=lambda x: x.get("endTime") or 0,
+                reverse=True,
+            )[:10]:
+                dur = t.get("totalTripTime")
+                recent.append({
+                    "date": t.get("remark"),
+                    "distance_km": t.get("totalTripMileage"),
+                    "duration_min": (
+                        int(round(dur / 60000))
+                        if isinstance(dur, (int, float)) and not isinstance(dur, bool)
+                        else None
+                    ),
+                    "eco_score": (t.get("ecoScore") or {}).get("ecoScore"),
+                    "ended_at": _epoch_ms_to_datetime(t.get("endTime")),
+                })
+            if recent:
+                data.recent_trips = recent
+
+        # ── Fuel log — "von→auf" litres + odometer at the fill-up ──
+        fl = snap.get("fuellog")
+        fl_content = fl.get("content") if isinstance(fl, dict) else None
+        if isinstance(fl_content, list) and fl_content:
+            newest = max(
+                (r for r in fl_content if isinstance(r, dict)),
+                key=lambda r: r.get("createdTimestamp") or 0,
+                default=None,
+            )
+            if newest is not None:
+                amount = newest.get("amount")
+                after = newest.get("postFuelAmount")
+                amount_num = (
+                    float(amount)
+                    if isinstance(amount, (int, float)) and not isinstance(amount, bool)
+                    else None
+                )
+                if amount_num is not None:
+                    data.last_refuel_liters_added = round(amount_num, 1)
+                if isinstance(after, (int, float)) and not isinstance(after, bool):
+                    data.last_refuel_tank_after_l = round(float(after), 1)
+                    if amount_num is not None:
+                        data.last_refuel_tank_before_l = round(float(after) - amount_num, 1)
+                fodo = newest.get("odometer")
+                if isinstance(fodo, (int, float)) and not isinstance(fodo, bool):
+                    data.last_refuel_odometer_km = int(round(fodo))
+
+        # ── Driver-score points (account-level achievements ledger) ──
+        ach = snap.get("achievements")
+        ach_content = ach.get("content") if isinstance(ach, dict) else None
+        if isinstance(ach_content, list) and ach_content:
+            now_ms = datetime.now(tz=timezone.utc).timestamp() * 1000
+            total_pts = 0
+            seen = False
+            for a in ach_content:
+                if not isinstance(a, dict):
+                    continue
+                pts = a.get("points")
+                if not isinstance(pts, (int, float)) or isinstance(pts, bool):
+                    continue
+                exp = a.get("expirationDate") or 0  # 0 = never expires
+                if not exp or exp > now_ms:
+                    total_pts += int(pts)
+                    seen = True
+            if seen:
+                data.score_points_total = total_pts
 
         # Factory ("ab Haus") model designation from the carport master-data
         # record — e.g. brandCode "A" + modelDesc "A5" + engType "TDI CR".

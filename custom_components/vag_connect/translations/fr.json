@@ -1378,6 +1378,30 @@
       },
       "parked_since": {
         "name": "Stationné depuis"
+      },
+      "last_trip_eco_score": {
+        "name": "Éco-score du dernier trajet"
+      },
+      "last_trip_intake_air_temp_c": {
+        "name": "Température d'air d'admission du dernier trajet"
+      },
+      "trip_count": {
+        "name": "Trajets enregistrés"
+      },
+      "score_points_total": {
+        "name": "Points de score conducteur"
+      },
+      "last_refuel_liters_added": {
+        "name": "Carburant ajouté"
+      },
+      "last_refuel_tank_before_l": {
+        "name": "Réservoir avant le plein"
+      },
+      "last_refuel_tank_after_l": {
+        "name": "Réservoir après le plein"
+      },
+      "last_refuel_odometer_km": {
+        "name": "Compteur kilométrique au plein"
       }
     },
     "binary_sensor": {

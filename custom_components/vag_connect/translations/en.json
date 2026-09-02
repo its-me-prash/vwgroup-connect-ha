@@ -1378,6 +1378,30 @@
       },
       "parked_since": {
         "name": "Parked since"
+      },
+      "last_trip_eco_score": {
+        "name": "Last trip eco score"
+      },
+      "last_trip_intake_air_temp_c": {
+        "name": "Last trip intake air temperature"
+      },
+      "trip_count": {
+        "name": "Logged trips"
+      },
+      "score_points_total": {
+        "name": "Driver score points"
+      },
+      "last_refuel_liters_added": {
+        "name": "Fuel added"
+      },
+      "last_refuel_tank_before_l": {
+        "name": "Tank before fill-up"
+      },
+      "last_refuel_tank_after_l": {
+        "name": "Tank after fill-up"
+      },
+      "last_refuel_odometer_km": {
+        "name": "Odometer at fill-up"
       }
     },
     "binary_sensor": {
