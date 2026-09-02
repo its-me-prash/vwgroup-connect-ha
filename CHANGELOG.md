@@ -42,6 +42,26 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.6.2] - 2026-09-02 — Security: Škoda official API key redacted in diagnostics · combustion 12V mirror on the official channel
+
+### Security
+- **The Škoda official API key was leaking in plaintext in the diagnostics download.**
+  The official public-API key — the single manual key and every auto-enrolled per-car
+  key — is a credential that grants access to your car's official API, but it was
+  missing from the diagnostics redaction set, so it appeared in clear text in the
+  config-entry diagnostics file people attach to GitHub issues. It is now masked (the
+  per-car map keeps its count for triage but hides each key). **If you have ever posted
+  a diagnostics file with an official key set, treat that key as exposed and recreate it
+  in the MyŠkoda app (Smart Home → Keys) — deleting the old one there.** (#1286)
+
+### Fixed
+- **Škoda official API channel: the 12V "state of charge" no longer mirrors the fuel
+  level on combustion cars.** On a petrol/diesel Škoda the official API mirrors the fuel
+  level into the engine "state of charge" field — the same quirk the reverse-engineered
+  channel has — so the official channel briefly re-introduced the mirror that 4.6.0
+  fixed (a "12V" reading that just tracked the tank). It now applies the same guard and
+  suppresses the duplicate. Reported by @indigomejor (#1310).
+
 ## [4.6.1] - 2026-09-02 — Škoda official API now reads live every cycle, not just on failover
 
 ### Changed
