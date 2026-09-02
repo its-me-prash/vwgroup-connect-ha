@@ -138,7 +138,52 @@ _TRANSIENT_STATUSES = (400, 404, 410, 429, 500, 502, 503, 504)
 # stable state and return "no data" immediately, so we don't add latency to
 # the common not-set-up case.
 _RETRIABLE_STATUSES = frozenset({500, 502, 503, 504})
+# #465 observability — of the soft-transient statuses, these mean the PORTAL is
+# erroring/throttling (a VW-side outage → portal_health "portal_error"), as opposed
+# to 400/404/410 which mean "the data request isn't provisioned / no delivery yet"
+# (→ "delivery_not_ready"). Splitting them keeps a normal wait from reading as a fault.
+_PORTAL_OUTAGE_STATUSES = frozenset({429, 500, 502, 503, 504})
 _PORTAL_RETRY_DELAYS = (3.0, 6.0)  # backoff (s) before giving up on a soft call
+
+
+def _request_start_date(meta: Any, identifier: str) -> str | None:
+    """ISO ``StartDate`` of the metadata descriptor whose Identifier matches
+    ``identifier`` — i.e. WHEN that data request was created — or None.
+
+    Tolerant of the portal's two real shapes: a list of descriptors (the 15-min
+    metadata) and the bare-dict "all"/legacy dialect. Only a string StartDate is
+    returned; anything else yields None so a diagnostic sensor stays blank rather
+    than showing junk.
+    """
+    def _sd(node: Any) -> str | None:
+        if not isinstance(node, dict):
+            return None
+        ident = (
+            node.get("Identifier")
+            or node.get("identifier")
+            or node.get("dataRequestId")
+        )
+        if identifier and ident and str(ident) == str(identifier):
+            sd = (
+                node.get("StartDate")
+                or node.get("startDate")
+                or node.get("start_date")
+            )
+            return sd if isinstance(sd, str) and sd else None
+        return None
+
+    hit = _sd(meta)  # direct descriptor / bare-dict "all"
+    if hit:
+        return hit
+    seq: Any = meta
+    if isinstance(meta, dict):
+        seq = meta.get("items") or meta.get("requests") or meta.get("data") or []
+    if isinstance(seq, list):
+        for node in seq:
+            hit = _sd(node)
+            if hit:
+                return hit
+    return None
 
 
 # ── HTML / templateModel parsing (community-proven mechanics) ──────────────
@@ -3475,6 +3520,42 @@ class EUDataActConnector:
         # raw bytes ever touch the disk. Kept as a plain callback so the
         # connector stays Home-Assistant-free.
         self.on_raw_dataset: Callable[[str, bytes, str], None] | None = None
+        # --- Stage-0 observability (surfaced as diagnostic sensors via
+        # coordinator._enrich; #465/#1273). None/0 until the relevant event. ---
+        # _last_soft_status: HTTP status of the most recent soft _get_json that
+        # returned None, so get_vehicle_data can tell a 404 "not provisioned yet"
+        # (→ delivery_not_ready) apart from a 5xx/429 portal outage (→ portal_error).
+        self._last_soft_status: int | None = None
+        # StartDate (ISO-8601) of the currently-active data request — i.e. WHEN the
+        # portal data request was created. Refreshed each poll from the metadata.
+        self.data_request_started_at: str | None = None
+        # WHEN the portal last returned no usable data + HOW OFTEN it has this
+        # session; last_snapshot_at is the inverse (when a real dataset last parsed).
+        self.last_no_data_at: str | None = None
+        self.no_data_count: int = 0
+        self.last_snapshot_at: str | None = None
+
+    @staticmethod
+    def _now_iso() -> str:
+        """UTC now as an ISO-8601 string (the TIMESTAMP sensors parse this)."""
+        from datetime import datetime, timezone  # noqa: PLC0415
+
+        return datetime.now(timezone.utc).isoformat()
+
+    def _note_no_data(self, reason: str) -> None:
+        """Record a no-data poll outcome: reason + timestamp + running count.
+
+        Every early no-data return in ``get_vehicle_data`` funnels through here so
+        the diagnostic sensors (last no-data time / count) stay in one place.
+        """
+        self.last_no_data_reason = reason
+        self.last_no_data_at = self._now_iso()
+        self.no_data_count += 1
+
+    def _note_data_ok(self) -> None:
+        """Record a successful dataset poll: clear the reason, stamp the snapshot."""
+        self.last_no_data_reason = ""
+        self.last_snapshot_at = self._now_iso()
 
     def set_bearer(self, token: str) -> None:
         """Inject / refresh the device-grant access_token for Bearer mode.
@@ -3877,6 +3958,10 @@ class EUDataActConnector:
                             await asyncio.sleep(_PORTAL_RETRY_DELAYS[attempt])
                             continue
                         if soft and resp.status in _TRANSIENT_STATUSES:
+                            # Remember the status so a caller can tell a 404 "not
+                            # provisioned yet" (delivery_not_ready) from a 5xx/429
+                            # portal outage (portal_error).
+                            self._last_soft_status = resp.status
                             return None
                         raise AuthenticationError(
                             f"EU Data Act GET {url} → HTTP {resp.status}"
@@ -3971,7 +4056,7 @@ class EUDataActConnector:
                 or ""
             )
         if not identifier:
-            self.last_no_data_reason = "no_request"
+            self._note_no_data("no_request")
             _LOGGER.info(
                 "EU Data Act portal: no data-request yet for %s — enable the "
                 "continuous data request for this car on the VW data portal "
@@ -3980,24 +4065,34 @@ class EUDataActConnector:
                 vin[-6:],
             )
             return d
+        # #465 observability — record WHEN this data request was created (its
+        # StartDate) so a diagnostic sensor can show the active request's age.
+        self.data_request_started_at = _request_start_date(meta, identifier)
         # 2. list datasets → newest non-empty zip. Soft on transient 5xx:
         # during the VW outage this endpoint 500s constantly (#428-#431).
         # A 500 here is the portal misbehaving, not a dead session, so we
         # surface it as "no data this poll" (data_act_no_data notice) rather
         # than raising AuthenticationError and re-logging in pointlessly.
         # A genuine 401/403 still raises (→ session-expired path).
+        self._last_soft_status = None
         listing = await self._get_json(
             f"{_PORTAL_BASE}{_LIST_PATH.format(vin=vin, identifier=identifier)}",
             headers={"type": request_type},
             soft=True,
         )
         if listing is None:
-            self.last_no_data_reason = "empty"
+            # A 404/410 here means "no delivery yet" (delivery_not_ready); a
+            # 5xx/429 is a genuine VW-side outage (portal_error). _get_json records
+            # which on a soft miss, so a normal wait isn't mislabelled a fault.
+            self._note_no_data(
+                "portal_error"
+                if (self._last_soft_status or 0) in _PORTAL_OUTAGE_STATUSES
+                else "empty"
+            )
             _LOGGER.info(
-                "EU Data Act portal: data endpoint returned a transient error "
-                "for %s (most likely the ongoing VW-side portal outage). "
-                "Treating as no data this poll; will retry next cycle.",
-                vin[-6:],
+                "EU Data Act portal: dataset listing unavailable for %s "
+                "(HTTP %s); treating as no data this poll.",
+                vin[-6:], self._last_soft_status or "n/a",
             )
             return d
         files = listing if isinstance(listing, list) else listing.get("files", [])
@@ -4041,7 +4136,7 @@ class EUDataActConnector:
                 and f["name"].endswith(_NO_CONTENT_SUFFIX)
             )
             if _raw_n and _named == _raw_n and _nc == _raw_n:
-                self.last_no_data_reason = "no_content"
+                self._note_no_data("no_content")
                 _LOGGER.info(
                     "EU Data Act portal: %s has %d dataset file(s) this cycle but "
                     "all are 'no content' placeholders — the request is active, the "
@@ -4051,7 +4146,7 @@ class EUDataActConnector:
                     vin[-6:], _raw_n,
                 )
             else:
-                self.last_no_data_reason = "empty"
+                self._note_no_data("empty")
                 _LOGGER.debug(
                     "EU Data Act portal: no usable dataset files for %s yet "
                     "(raw=%d, named=%d, no_content=%d, listing=%s)",
@@ -4079,7 +4174,10 @@ class EUDataActConnector:
                 if resp.status in _TRANSIENT_STATUSES:
                     # Same outage story as the listing call — the ZIP download
                     # 500s mid-outage. Don't burn the session; just skip this poll.
-                    self.last_no_data_reason = "empty"
+                    self._note_no_data(
+                        "portal_error"
+                        if resp.status in _PORTAL_OUTAGE_STATUSES else "empty"
+                    )
                     _LOGGER.info(
                         "EU Data Act portal: dataset download returned a transient "
                         "error (HTTP %s) for %s; treating as no data this poll.",
@@ -4095,7 +4193,7 @@ class EUDataActConnector:
             # v2.14.8 — same as the soft GETs: a transport timeout/disconnect on
             # the ZIP download is a portal hiccup, not a dead session. Skip the
             # poll instead of letting a raw TimeoutError bubble to the coordinator.
-            self.last_no_data_reason = "empty"
+            self._note_no_data("portal_error")
             _LOGGER.info(
                 "EU Data Act portal: dataset download timed out / disconnected "
                 "for %s; treating as no data this poll.",
@@ -4115,9 +4213,9 @@ class EUDataActConnector:
         # raising) means no data this poll: flag it so the no-data notice fires,
         # and do NOT mark the vehicle online with a blank dataset.
         if not fields:
-            self.last_no_data_reason = "empty"
+            self._note_no_data("empty")
             return d
-        self.last_no_data_reason = ""
+        self._note_data_ok()
         d.no_data = False  # real dataset parsed → this is a genuine good poll
         d.connection_state = "online"
         # P1-5 — hand the RAW dataset ZIP to the opt-in diagnostic archive, but

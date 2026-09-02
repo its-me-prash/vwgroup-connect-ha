@@ -375,10 +375,11 @@
       "portal_health": {
         "name": "Status portaalfeed",
         "state": {
-          "ok": "OK",
+          "ok": "Live",
           "waiting_for_portal_data": "Wachten op portaalgegevens",
           "empty_snapshots": "Lege snapshots",
           "delivery_not_ready": "Levering niet gereed",
+          "portal_error": "Portaalfout",
           "stale": "Verouderd"
         }
       },
@@ -1403,6 +1404,18 @@
       },
       "last_refuel_odometer_km": {
         "name": "Kilometerstand bij tanken"
+      },
+      "data_request_created_at": {
+        "name": "Gegevensverzoek aangemaakt"
+      },
+      "last_snapshot_at": {
+        "name": "Laatste momentopname ontvangen"
+      },
+      "last_no_data_at": {
+        "name": "Laatste polling zonder gegevens"
+      },
+      "no_data_count": {
+        "name": "Pollingen zonder gegevens"
       }
     },
     "binary_sensor": {

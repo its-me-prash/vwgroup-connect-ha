@@ -375,10 +375,11 @@
       "portal_health": {
         "name": "Portal feed health",
         "state": {
-          "ok": "OK",
+          "ok": "Live",
           "waiting_for_portal_data": "Waiting for portal data",
           "empty_snapshots": "Empty snapshots",
           "delivery_not_ready": "Delivery not ready",
+          "portal_error": "Portal error",
           "stale": "Stale"
         }
       },
@@ -1403,6 +1404,18 @@
       },
       "last_refuel_odometer_km": {
         "name": "Odometer at fill-up"
+      },
+      "data_request_created_at": {
+        "name": "Data request created"
+      },
+      "last_snapshot_at": {
+        "name": "Last snapshot received"
+      },
+      "last_no_data_at": {
+        "name": "Last no-data poll"
+      },
+      "no_data_count": {
+        "name": "No-data polls"
       }
     },
     "binary_sensor": {

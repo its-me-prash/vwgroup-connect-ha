@@ -519,7 +519,10 @@ async def test_get_vehicle_data_listing_500_is_graceful() -> None:
     d = await conn.get_vehicle_data("WVWZZZTESTVIN0001")
     assert d.battery_soc is None
     assert d.connection_state is None
-    assert conn.last_no_data_reason == "empty"
+    # #465 — a 5xx here is a genuine VW-side portal outage, now reported as its
+    # own reason (portal_error) rather than the catch-all "empty", so the health
+    # sensor can distinguish an outage from a not-yet-provisioned request.
+    assert conn.last_no_data_reason == "portal_error"
 
 
 @pytest.mark.asyncio
@@ -544,7 +547,8 @@ async def test_get_vehicle_data_download_503_is_graceful() -> None:
     d = await conn.get_vehicle_data("WVWZZZTESTVIN0001")
     assert d.battery_soc is None
     assert d.connection_state is None
-    assert conn.last_no_data_reason == "empty"
+    # #465 — 5xx on the download is the same VW-side outage story → portal_error.
+    assert conn.last_no_data_reason == "portal_error"
 
 
 @pytest.mark.asyncio

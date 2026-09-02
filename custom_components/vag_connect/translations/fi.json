@@ -375,10 +375,11 @@
       "portal_health": {
         "name": "Portaalisyötteen tila",
         "state": {
-          "ok": "OK",
+          "ok": "Live",
           "waiting_for_portal_data": "Odotetaan portaalin tietoja",
           "empty_snapshots": "Tyhjät tilannevedokset",
           "delivery_not_ready": "Toimitus ei valmis",
+          "portal_error": "Portaalivirhe",
           "stale": "Vanhentunut"
         }
       },
@@ -1403,6 +1404,18 @@
       },
       "last_refuel_odometer_km": {
         "name": "Matkamittari tankattaessa"
+      },
+      "data_request_created_at": {
+        "name": "Datapyyntö luotu"
+      },
+      "last_snapshot_at": {
+        "name": "Viimeisin tilannevedos vastaanotettu"
+      },
+      "last_no_data_at": {
+        "name": "Viimeisin kysely ilman dataa"
+      },
+      "no_data_count": {
+        "name": "Kyselyt ilman dataa"
       }
     },
     "binary_sensor": {

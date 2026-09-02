@@ -375,10 +375,11 @@
       "portal_health": {
         "name": "Estado del feed del portal",
         "state": {
-          "ok": "OK",
+          "ok": "En vivo",
           "waiting_for_portal_data": "Esperando datos del portal",
           "empty_snapshots": "Instantáneas vacías",
           "delivery_not_ready": "Entrega no lista",
+          "portal_error": "Error del portal",
           "stale": "Desactualizado"
         }
       },
@@ -1403,6 +1404,18 @@
       },
       "last_refuel_odometer_km": {
         "name": "Cuentakilómetros al repostar"
+      },
+      "data_request_created_at": {
+        "name": "Solicitud de datos creada"
+      },
+      "last_snapshot_at": {
+        "name": "Último snapshot recibido"
+      },
+      "last_no_data_at": {
+        "name": "Última consulta sin datos"
+      },
+      "no_data_count": {
+        "name": "Consultas sin datos"
       }
     },
     "binary_sensor": {

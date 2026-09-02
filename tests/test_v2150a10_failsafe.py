@@ -46,8 +46,11 @@ class TestPortalNoDataFlag:
         assert conn.last_no_data_reason == "no_request"
 
     def test_empty_listing_sets_no_data_true(self) -> None:
-        """Metadata OK but the dataset listing is a transient None (soft 5xx) →
-        no_data=True so the coordinator carries last-good forward."""
+        """Metadata OK but the dataset listing is None → no_data=True so the
+        coordinator carries last-good forward. With no recorded HTTP status (the
+        mock doesn't set one), this defaults to the softer "empty"
+        (delivery_not_ready); a real 5xx/429 would record its status and read as
+        "portal_error" instead (see test_v2120_eu_data_act_connector)."""
         conn = _conn()
         conn._get_json = AsyncMock(side_effect=[{"identifier": "abc"}, None])
         d = asyncio.run(conn.get_vehicle_data(_VIN))

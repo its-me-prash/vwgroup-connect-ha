@@ -375,10 +375,11 @@
       "portal_health": {
         "name": "Stan kanału portalu",
         "state": {
-          "ok": "OK",
+          "ok": "Na żywo",
           "waiting_for_portal_data": "Oczekiwanie na dane portalu",
           "empty_snapshots": "Puste migawki",
           "delivery_not_ready": "Dostawa niegotowa",
+          "portal_error": "Błąd portalu",
           "stale": "Nieaktualne"
         }
       },
@@ -1403,6 +1404,18 @@
       },
       "last_refuel_odometer_km": {
         "name": "Przebieg przy tankowaniu"
+      },
+      "data_request_created_at": {
+        "name": "Utworzono żądanie danych"
+      },
+      "last_snapshot_at": {
+        "name": "Ostatnia migawka odebrana"
+      },
+      "last_no_data_at": {
+        "name": "Ostatnie odpytanie bez danych"
+      },
+      "no_data_count": {
+        "name": "Odpytania bez danych"
       }
     },
     "binary_sensor": {

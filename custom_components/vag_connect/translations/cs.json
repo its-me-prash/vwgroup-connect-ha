@@ -375,10 +375,11 @@
       "portal_health": {
         "name": "Stav kanálu portálu",
         "state": {
-          "ok": "OK",
+          "ok": "Živě",
           "waiting_for_portal_data": "Čekání na data z portálu",
           "empty_snapshots": "Prázdné snímky",
           "delivery_not_ready": "Doručení není připraveno",
+          "portal_error": "Chyba portálu",
           "stale": "Zastaralé"
         }
       },
@@ -1403,6 +1404,18 @@
       },
       "last_refuel_odometer_km": {
         "name": "Stav tachometru při tankování"
+      },
+      "data_request_created_at": {
+        "name": "Datový požadavek vytvořen"
+      },
+      "last_snapshot_at": {
+        "name": "Poslední snímek přijat"
+      },
+      "last_no_data_at": {
+        "name": "Poslední dotaz bez dat"
+      },
+      "no_data_count": {
+        "name": "Dotazy bez dat"
       }
     },
     "binary_sensor": {

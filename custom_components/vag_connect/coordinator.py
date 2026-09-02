@@ -92,9 +92,11 @@ _PORTAL_HEALTH_BY_REASON: dict[str, str] = {
     "no_request": "waiting_for_portal_data",  # no customised data request set up yet
     "no_content": "empty_snapshots",          # car asleep → only *_no_content_found.zip
     "empty": "delivery_not_ready",            # listing/metadata empty or not yet ready
+    "portal_error": "portal_error",           # VW-side portal outage/throttle (5xx/429)
 }
 PORTAL_HEALTH_STATES = (
-    "ok", "waiting_for_portal_data", "empty_snapshots", "delivery_not_ready", "stale",
+    "ok", "waiting_for_portal_data", "empty_snapshots", "delivery_not_ready",
+    "portal_error", "stale",
 )
 
 
@@ -5914,6 +5916,17 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 data["minutes_since_last_snapshot"] = (
                     int(_age // 60) if _age is not None else None
                 )
+                # #465/#1273 observability — surface the portal connector's own
+                # timestamps/counters so a user can see WHEN the data request was
+                # created, WHEN a real snapshot last arrived, and WHEN / HOW OFTEN
+                # the portal returned nothing. Set only in portal mode; None stays
+                # None (the TIMESTAMP sensors then read unavailable).
+                data["data_request_created_at"] = getattr(
+                    _portal, "data_request_started_at", None
+                )
+                data["last_snapshot_at"] = getattr(_portal, "last_snapshot_at", None)
+                data["last_no_data_at"] = getattr(_portal, "last_no_data_at", None)
+                data["no_data_count"] = getattr(_portal, "no_data_count", None)
                 # Stage-1 — the one-time historical export lifecycle state, set
                 # only while an export is actually in flight (or just finished) so
                 # the sensor stays hidden for the majority who never use it.

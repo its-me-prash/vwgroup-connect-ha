@@ -375,10 +375,11 @@
       "portal_health": {
         "name": "Portal-Feed-Zustand",
         "state": {
-          "ok": "OK",
+          "ok": "Live",
           "waiting_for_portal_data": "Warte auf Portaldaten",
           "empty_snapshots": "Leere Snapshots",
           "delivery_not_ready": "Lieferung nicht bereit",
+          "portal_error": "Portal-Fehler",
           "stale": "Veraltet"
         }
       },
@@ -1403,6 +1404,18 @@
       },
       "last_refuel_odometer_km": {
         "name": "Kilometerstand bei Betankung"
+      },
+      "data_request_created_at": {
+        "name": "Datenabruf angelegt"
+      },
+      "last_snapshot_at": {
+        "name": "Letzter Snapshot empfangen"
+      },
+      "last_no_data_at": {
+        "name": "Letzte Abfrage ohne Daten"
+      },
+      "no_data_count": {
+        "name": "Abfragen ohne Daten"
       }
     },
     "binary_sensor": {

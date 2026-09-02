@@ -375,10 +375,11 @@
       "portal_health": {
         "name": "Portalfeed-tilstand",
         "state": {
-          "ok": "OK",
+          "ok": "Live",
           "waiting_for_portal_data": "Venter på portaldata",
           "empty_snapshots": "Tomme øyeblikksbilder",
           "delivery_not_ready": "Levering ikke klar",
+          "portal_error": "Portalfeil",
           "stale": "Foreldet"
         }
       },
@@ -1403,6 +1404,18 @@
       },
       "last_refuel_odometer_km": {
         "name": "Kilometerstand ved fylling"
+      },
+      "data_request_created_at": {
+        "name": "Dataforespørsel opprettet"
+      },
+      "last_snapshot_at": {
+        "name": "Siste øyeblikksbilde mottatt"
+      },
+      "last_no_data_at": {
+        "name": "Siste spørring uten data"
+      },
+      "no_data_count": {
+        "name": "Spørringer uten data"
       }
     },
     "binary_sensor": {

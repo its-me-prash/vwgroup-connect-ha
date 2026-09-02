@@ -42,7 +42,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
-## [4.7.0b5] - 2026-09-02 — EU Data Act: the automatic data request actually gets created now
+## [4.7.0b5] - 2026-09-02 — EU Data Act: the data request actually gets created + portal-feed observability
 
 ### Fixed
 - **The automatic EU Data Act data-request creation was silently giving up on every account — now it goes through.**
@@ -56,6 +56,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   portal ever actually provides one. **Live-verified end-to-end**: the create now returns success
   and the 15-minute request appears on the account. Thanks @steemandavid for the diagnosis
   (#709, #966, #1273).
+
+### Added
+- **Diagnostic sensors that show what the EU Data Act portal feed is actually doing**, so a
+  quiet car stops being a mystery. **Portal feed health** now tells a genuine VW-side portal
+  outage ("Portal error") apart from a request that simply isn't delivering yet, and names a
+  healthy feed **Live**. Plus four new per-car diagnostic sensors (portal-read cars only):
+  **Data request created** (when your continuous request was set up), **Last snapshot
+  received**, **Last no-data poll**, and **No-data polls** (how often the portal came back
+  empty). Thanks @HA28320 and @riteman for the feed samples that made this concrete
+  (#465, #1273). All 12 languages.
 
 ## [4.7.0b4] - 2026-09-02 — EU Data Act: clearer "no vehicle data yet" guidance (carries 4.6.3)
 

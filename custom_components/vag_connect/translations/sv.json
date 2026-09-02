@@ -375,10 +375,11 @@
       "portal_health": {
         "name": "Portalflödets status",
         "state": {
-          "ok": "OK",
+          "ok": "Live",
           "waiting_for_portal_data": "Väntar på portaldata",
           "empty_snapshots": "Tomma ögonblicksbilder",
           "delivery_not_ready": "Leverans inte klar",
+          "portal_error": "Portalfel",
           "stale": "Föråldrad"
         }
       },
@@ -1403,6 +1404,18 @@
       },
       "last_refuel_odometer_km": {
         "name": "Vägmätare vid tankning"
+      },
+      "data_request_created_at": {
+        "name": "Databegäran skapad"
+      },
+      "last_snapshot_at": {
+        "name": "Senaste ögonblicksbild mottagen"
+      },
+      "last_no_data_at": {
+        "name": "Senaste förfrågan utan data"
+      },
+      "no_data_count": {
+        "name": "Förfrågningar utan data"
       }
     },
     "binary_sensor": {
