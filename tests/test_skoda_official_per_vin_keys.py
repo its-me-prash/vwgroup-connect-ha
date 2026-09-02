@@ -17,6 +17,7 @@ from custom_components.vag_connect.config_flow import VagConnectOptionsFlow
 from custom_components.vag_connect.const import (
     CONF_BRAND,
     CONF_SCAN_INTERVAL,
+    CONF_SKODA_OFFICIAL_API_KEY,
     CONF_SKODA_OFFICIAL_KEYS,
 )
 
@@ -110,6 +111,39 @@ def test_submit_blank_keeps_existing_and_preserves_auto_enrolled():
         VIN_A: {"key": "auto_a", "id": "id1", "validUntil": "2027-01-01"},
         VIN_B: {"key": "msk_bbb", "source": "manual"},
     }
+
+
+def test_clear_official_key_wipes_manual_and_map():
+    # #1286 — the clear switch removes BOTH the manual key and the auto-enrolled map
+    entry = _skoda_entry(
+        data={
+            CONF_SKODA_OFFICIAL_API_KEY: "msk_manual",
+            CONF_SKODA_OFFICIAL_KEYS: {VIN_A: {"key": "msk_auto", "id": "i"}},
+        },
+    )
+    save = _submit(
+        VagConnectOptionsFlow(entry),
+        {
+            CONF_SCAN_INTERVAL: 15,
+            CONF_SKODA_OFFICIAL_API_KEY: "msk_manual",  # pre-filled, still submitted
+            "clear_skoda_official_key": True,
+        },
+    )
+    data = save.call_args.kwargs["data"]
+    assert data[CONF_SKODA_OFFICIAL_API_KEY] == ""      # manual key wiped
+    assert data[CONF_SKODA_OFFICIAL_KEYS] == {}         # auto-enrolled map wiped
+    assert "clear_skoda_official_key" not in data       # transient switch popped
+
+
+def test_clear_toggle_renders_only_when_a_key_is_stored():
+    with_key = _skoda_entry(
+        data={CONF_SKODA_OFFICIAL_API_KEY: "msk_x"}, vehicles={VIN_A: {"vin": VIN_A}}
+    )
+    r1 = asyncio.run(VagConnectOptionsFlow(with_key).async_step_init(None))
+    assert "clear_skoda_official_key" in {str(k) for k in r1["data_schema"].schema}
+    no_key = _skoda_entry(vehicles={VIN_A: {"vin": VIN_A}})
+    r2 = asyncio.run(VagConnectOptionsFlow(no_key).async_step_init(None))
+    assert "clear_skoda_official_key" not in {str(k) for k in r2["data_schema"].schema}
 
 
 def test_submit_typed_key_overrides_existing_and_drops_stale_id():

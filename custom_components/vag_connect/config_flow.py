@@ -2084,6 +2084,25 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                 # (see the entry.options trap) then kept the stale value — so a
                 # per-VIN S-PIN could never be removed once set (#759 follow-up).
                 user_input[CONF_SPIN_BY_VIN] = _by_vin
+            # Škoda: "clear stored official API key" wipes the manual key AND the
+            # per-VIN auto-enrolled map here, so a rotated or exposed key can be
+            # removed from the integration (#1286, n3roGit) — until now there was no
+            # way to remove an auto-enrolled key. A native login then auto-creates a
+            # fresh one on the next update. Takes precedence over the key fields on
+            # the same submit, so a re-save with the key still pre-filled clears.
+            from .const import (  # noqa: PLC0415
+                CONF_SKODA_OFFICIAL_API_KEY,
+                CONF_SKODA_OFFICIAL_KEYS,
+            )
+            _clear_official = bool(user_input.pop("clear_skoda_official_key", False))
+            if _clear_official:
+                user_input[CONF_SKODA_OFFICIAL_API_KEY] = ""
+                user_input[CONF_SKODA_OFFICIAL_KEYS] = {}
+                for _kk in [
+                    k for k in list(user_input.keys())
+                    if k.startswith(f"{CONF_SKODA_OFFICIAL_KEYS}_")
+                ]:
+                    user_input.pop(_kk, None)
             # Škoda per-VIN official API keys — fold the transient
             # skoda_official_keys_<VIN> fields into the CONF_SKODA_OFFICIAL_KEYS
             # map {VIN: {"key": ...}}. Keys are VIN-bound, so this lets a multi-car
@@ -2093,8 +2112,8 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
             # recreate, and a password field may render blank on reopen, so
             # blanking must never silently delete a saved key. Start from the stored
             # map so untouched VINs (incl. auto-enrolled ones) are preserved.
-            from .const import CONF_SKODA_OFFICIAL_KEYS  # noqa: PLC0415
-            _off_fields = [
+            # Skipped entirely when the clear switch above fired.
+            _off_fields = [] if _clear_official else [
                 _k for _k in list(user_input.keys())
                 if _k.startswith(f"{CONF_SKODA_OFFICIAL_KEYS}_")
             ]
@@ -2481,6 +2500,27 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                     current_data.get(CONF_SKODA_OFFICIAL_API_KEY, ""),
                 )),
             )] = _PASSWORD_SELECTOR
+            # #1286 (n3roGit) — a switch to clear the stored official API key(s): the
+            # manual key AND the auto-enrolled per-VIN map. Until now an auto-enrolled
+            # key could not be removed from the UI. Shown only when a key is actually
+            # stored. Ticking it + submitting wipes them here (a native login then
+            # auto-mints a fresh one on the next update). Default off.
+            from .const import CONF_SKODA_OFFICIAL_KEYS  # noqa: PLC0415
+            _has_official = bool(
+                current_options.get(
+                    CONF_SKODA_OFFICIAL_API_KEY,
+                    current_data.get(CONF_SKODA_OFFICIAL_API_KEY, ""),
+                )
+            ) or bool(
+                current_options.get(
+                    CONF_SKODA_OFFICIAL_KEYS,
+                    current_data.get(CONF_SKODA_OFFICIAL_KEYS),
+                )
+            )
+            if _has_official:
+                schema[vol.Optional(
+                    "clear_skoda_official_key", default=False,
+                )] = _BOOL_SELECTOR
         # v2.17.5 (#759) — one optional S-PIN field per known VIN, shown only
         # when the account has more than one vehicle (each may carry its own
         # S-PIN). Empty leaves that vehicle on the shared CONF_SPIN above; values

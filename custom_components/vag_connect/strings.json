@@ -243,7 +243,8 @@
           "companion_read_vehicle_health": "Companion: read odometer and service from Vehicle Health (navigates the app)",
           "companion_read_climate_detail": "Companion: read target and outside temperature (navigates the app)",
           "companion_read_parking_position": "Companion: read parking position from the app's share link (navigates the app)",
-          "skoda_official_api_key": "Škoda official API key — adds the official manufacturer API as a live data source (and failover)"
+          "skoda_official_api_key": "Škoda official API key — adds the official manufacturer API as a live data source (and failover)",
+          "clear_skoda_official_key": "Clear the stored Škoda official API key (a fresh one is created automatically if your login supports it)"
         },
         "data_description": {
           "scan_interval": "How often data is fetched (minutes). Minimum: 3.",
