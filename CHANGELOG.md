@@ -42,6 +42,28 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.0b1] - 2026-09-02 — Škoda official API: automatic key creation matched byte-for-byte to the app · per-car manual keys
+
+### Added
+- **Škoda: enter an official API key per car.** Official public-API keys are tied to one
+  vehicle each (you create them in the MyŠkoda app, up to 5 per car), so an account with
+  more than one Škoda now gets one key field per VIN in the integration's options — on top
+  of the single fallback field. Each car then reads its own official channel with its own
+  key. Single-car setups are unchanged: the one field still covers you. A blank per-car
+  field is left as-is, so it never wipes a key that was set or auto-created for that car
+  (#1286).
+
+### Fixed
+- **Škoda automatic official-API enrolment: the request now matches the app exactly.**
+  Automatic key creation was returning HTTP 400 for everyone. Reverse-engineering the
+  MyŠkoda app (8.16) showed its key-management endpoint requires the app's identity headers
+  — app version, platform, install id, device language/country and a trace id — that the
+  ordinary read endpoints don't ask for; our request sent only the token, so the backend
+  rejected it. Enrolment (and the key list/delete calls) now send the same header set as
+  the app, making the request byte-for-byte identical. This is being confirmed live with
+  Škoda owners on #1286; if your car couldn't auto-enrol before, this beta is the one to
+  test.
+
 ## [4.6.1] - 2026-09-02 — Škoda official API now reads live every cycle, not just on failover
 
 ### Changed

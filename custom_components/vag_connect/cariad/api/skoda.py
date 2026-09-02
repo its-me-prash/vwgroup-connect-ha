@@ -49,6 +49,16 @@ _OFFICIAL_KEY_NAME = "Home Assistant"
 # real app User-Agent on these calls so a possible min-app-version gate is satisfied
 # (verbatim from the 8.16 APK; MySkoda/Android/{versionName}/{versionCode}).
 _KEYGEN_USER_AGENT = "MySkoda/Android/8.16.0/260821007"
+# 1:1 with the app: the MyŠkoda "[bff-api-auth]" client attaches a full app-identity
+# header set on EVERY request (RE'd byte-for-byte from 8.16 br0/b.smali). The read
+# endpoints accept our token without it, but the key-management route (create/list/
+# delete) is stricter and 400s a request that omits these — the only app-vs-us
+# difference left after host/method/token/body were all confirmed identical. Every
+# value is client-generated (the installation-id is a locally-persisted UUID, not a
+# server-registered one; traceparent is random per request), so we reproduce them
+# exactly. Values verbatim from the APK.
+_KEYGEN_APP_VERSION_NAME = "8.16.0"
+_KEYGEN_APP_VERSION_CODE = "260821007"
 
 _COMBUSTION_ENGINE_TYPES = ("gasoline", "petrol", "diesel", "cng", "lpg")
 
@@ -317,6 +327,45 @@ class SkodaClient(CariadBaseClient):
         at = getattr(tok, "access_token", "") or ""
         return isinstance(at, str) and bool(at)
 
+    def _keygen_headers(self) -> dict[str, Any]:
+        """The MyŠkoda app's byte-for-byte app-identity header set for the official
+        api-keys management endpoint (create/list/delete). RE'd from 8.16
+        (br0/b.smali): the gateway 400s a key-management request that omits these,
+        even though the read endpoints accept the same Bearer without them. Every
+        value is client-generated so we can reproduce them exactly — a stable
+        per-instance installation id (a UUID, like the app's locally-persisted one),
+        the fixed app-version/platform, a device locale, and a fresh W3C traceparent
+        per call."""
+        import secrets  # noqa: PLC0415
+        import uuid  # noqa: PLC0415
+        install_id = getattr(self, "_keygen_install_id", "") or ""
+        if not install_id:
+            install_id = str(uuid.uuid4())
+            self._keygen_install_id = install_id
+        # X-DEVICE-LANGUAGE / X-DEVICE-COUNTRY mirror the app's Locale.getLanguage()
+        # and Locale.getCountry(): the coordinator feeds the HA instance locale
+        # (hass.config.language / .country) via _ha_language/_ha_country, and we
+        # normalize to the exact ISO forms the app sends — language ISO-639-1
+        # lower-case 2-letter (drop any region subtag, e.g. "en-GB" → "en"), country
+        # ISO-3166-1 alpha-2 upper-case. Fall back to a valid default when HA has none.
+        lang = str(getattr(self, "_ha_language", "") or "")
+        lang = lang.replace("_", "-").split("-", 1)[0].strip().lower()
+        if len(lang) != 2 or not lang.isalpha():
+            lang = "en"
+        ctry = str(getattr(self, "_ha_country", "") or "").strip().upper()
+        if len(ctry) != 2 or not ctry.isalpha():
+            ctry = "DE"
+        return {
+            "User-Agent": _KEYGEN_USER_AGENT,
+            "X-APP-VERSION-NAME": _KEYGEN_APP_VERSION_NAME,
+            "X-APP-VERSION-CODE": _KEYGEN_APP_VERSION_CODE,
+            "X-APP-PLATFORM": "Android",
+            "X-APP-INSTALLATION-ID": install_id,
+            "X-DEVICE-LANGUAGE": lang,
+            "X-DEVICE-COUNTRY": ctry,
+            "traceparent": f"00-{secrets.token_hex(16)}-{secrets.token_hex(8)}-00",
+        }
+
     async def mint_api_key(
         self, vin: str, name: str = _OFFICIAL_KEY_NAME
     ) -> dict[str, Any] | None:
@@ -337,8 +386,10 @@ class SkodaClient(CariadBaseClient):
         try:
             body = await self._post(
                 f"{_BASE}/api/v2/public-api-keys",
-                json={"name": name, "vin": vin.strip().upper()},
-                headers={"User-Agent": _KEYGEN_USER_AGENT},
+                # vin-first mirrors the app's reflective-Moshi field order (cosmetic,
+                # but keeps the request byte-identical); VIN canonical uppercase.
+                json={"vin": vin.strip().upper(), "name": name},
+                headers=self._keygen_headers(),
             )
         except APIError as err:
             self.probe_outcomes["skoda_official_keygen"] = f"POST {err.status}"
@@ -373,7 +424,7 @@ class SkodaClient(CariadBaseClient):
         try:
             body = await self._get(
                 f"{_BASE}/api/v2/public-api-keys",
-                headers={"User-Agent": _KEYGEN_USER_AGENT},
+                headers=self._keygen_headers(),
             )
         except APIError as err:
             self.probe_outcomes["skoda_official_keygen_list"] = f"GET {err.status}"
@@ -404,7 +455,7 @@ class SkodaClient(CariadBaseClient):
         try:
             await self._request(
                 "DELETE", f"{_BASE}/api/v2/public-api-keys/{key_id}",
-                headers={"User-Agent": _KEYGEN_USER_AGENT},
+                headers=self._keygen_headers(),
             )
             return True
         except Exception as err:  # noqa: BLE001

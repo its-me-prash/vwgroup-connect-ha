@@ -2720,6 +2720,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # non-native login) so diagnostics explain its absence. PII-free.
             self._skoda_probe("skoda_official", "gate: not a native mysmob login")
             return
+        # Feed the client the HA instance locale so the app-identity keygen headers
+        # (X-DEVICE-LANGUAGE / X-DEVICE-COUNTRY) carry the user's real HA setting in
+        # the ISO form the app sends, instead of a hardcoded default. Fail-soft.
+        try:
+            setattr(client, "_ha_language", self.hass.config.language or "")
+            setattr(client, "_ha_country", self.hass.config.country or "")
+        except Exception:  # noqa: BLE001
+            pass
         mint = getattr(client, "mint_api_key", None)
         list_keys = getattr(client, "list_api_keys", None)
         if mint is None or list_keys is None:

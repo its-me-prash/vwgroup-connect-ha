@@ -15,6 +15,9 @@ continuous-merge path) — its active read is the dedicated, budget-gated one in
 """
 from __future__ import annotations
 
+import re
+import uuid
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -229,3 +232,87 @@ async def test_no_official_on_other_brands_is_a_noop():
     client = MagicMock(spec=[])           # no attributes at all
     coord._cariad_client = client
     assert await coord._revive_after_hard_failure("V") is None
+
+
+def test_keygen_headers_match_the_app_byte_for_byte():
+    """The api-keys management endpoint 400s without the app-identity headers (host,
+    method, token, body were all confirmed identical to the app). _keygen_headers
+    reproduces the 8.16 br0/b.smali set byte-for-byte."""
+    c = _skoda_client()
+    h = c._keygen_headers()
+    assert h["User-Agent"] == "MySkoda/Android/8.16.0/260821007"
+    assert h["X-APP-VERSION-NAME"] == "8.16.0"
+    assert h["X-APP-VERSION-CODE"] == "260821007"
+    assert h["X-APP-PLATFORM"] == "Android"
+    assert h["X-DEVICE-LANGUAGE"] and h["X-DEVICE-COUNTRY"]
+    # installation id is a well-formed UUID and STABLE across calls (like the app's
+    # locally-persisted one — not a new id every request).
+    uuid.UUID(h["X-APP-INSTALLATION-ID"])
+    assert c._keygen_headers()["X-APP-INSTALLATION-ID"] == h["X-APP-INSTALLATION-ID"]
+    # W3C traceparent 00-<32hex>-<16hex>-00, fresh per call.
+    assert re.fullmatch(r"00-[0-9a-f]{32}-[0-9a-f]{16}-00", h["traceparent"])
+    assert c._keygen_headers()["traceparent"] != h["traceparent"]
+
+
+def test_keygen_headers_use_ha_locale_in_iso_form():
+    """X-DEVICE-LANGUAGE/-COUNTRY come from the HA instance locale, normalized to the
+    exact ISO forms the app sends: language ISO-639-1 lower 2-letter (region subtag
+    dropped), country ISO-3166-1 alpha-2 upper."""
+    c = _skoda_client()
+    c._ha_language = "en-GB"   # HA language with a region subtag
+    c._ha_country = "ch"       # lower-case country
+    h = c._keygen_headers()
+    assert h["X-DEVICE-LANGUAGE"] == "en"
+    assert h["X-DEVICE-COUNTRY"] == "CH"
+    c2 = _skoda_client()
+    c2._ha_language = "de_DE"  # underscore locale form
+    c2._ha_country = "DE"
+    h2 = c2._keygen_headers()
+    assert h2["X-DEVICE-LANGUAGE"] == "de"
+    assert h2["X-DEVICE-COUNTRY"] == "DE"
+
+
+def test_keygen_headers_fall_back_when_ha_locale_missing_or_garbage():
+    """Missing or malformed HA locale → a valid ISO default, never an empty/invalid
+    header (which could itself trip the backend)."""
+    c = _skoda_client()
+    c._ha_language = None
+    c._ha_country = None
+    h = c._keygen_headers()
+    assert h["X-DEVICE-LANGUAGE"] == "en"
+    assert h["X-DEVICE-COUNTRY"] == "DE"
+    c._ha_language = "zzzz"    # too long / not a 2-letter code
+    c._ha_country = "1"        # not alpha, wrong length
+    h2 = c._keygen_headers()
+    assert h2["X-DEVICE-LANGUAGE"] == "en"
+    assert h2["X-DEVICE-COUNTRY"] == "DE"
+
+
+@pytest.mark.asyncio
+async def test_mint_sends_app_identity_headers_and_vin_first_body():
+    """mint_api_key attaches the full app-identity header set and sends a vin-first
+    body with a canonical (upper-case) VIN — byte-for-byte with the app."""
+    c = _skoda_client()
+    c._eu_portal = None
+    c._tokens = SimpleNamespace(strategy="", access_token="tok")
+    c.probe_outcomes = {}
+    captured = {}
+
+    async def fake_post(url, json=None, headers=None):
+        captured.update(url=url, json=json, headers=headers)
+        return {"id": "i", "key": "msk_x", "name": "Home Assistant",
+                "validUntil": "2027-01-01"}
+
+    c._post = fake_post
+    out = await c.mint_api_key("wvwabc0000000001")
+    assert out and out["key"] == "msk_x"
+    # full app-identity header set on the create call
+    hdr = captured["headers"]
+    assert hdr["X-APP-VERSION-NAME"] == "8.16.0"
+    assert hdr["X-APP-PLATFORM"] == "Android"
+    assert "X-APP-INSTALLATION-ID" in hdr
+    assert hdr["traceparent"].startswith("00-")
+    # body is vin-first with a canonical upper-case VIN
+    assert list(captured["json"].keys()) == ["vin", "name"]
+    assert captured["json"]["vin"] == "WVWABC0000000001"
+    assert captured["json"]["name"] == "Home Assistant"
