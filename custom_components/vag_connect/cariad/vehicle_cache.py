@@ -55,6 +55,21 @@ CARRY_FORWARD_FIELDS: frozenset[str] = frozenset({
     # (an implausibly old account session is dropped), and carrying them forward
     # would resurrect exactly the suppressed stale reading we just removed.
     "equipment_count",
+    # #1310 (indigomejor) — lifetime_* are cumulative long-term aggregates the
+    # source re-sends whole when it has data (EU Data Act portal for Škoda; the
+    # 1h-cached trip-stats refresh for Audi/VW). A poll that omits the block used to
+    # blank them to "unknown" between deliveries, making them useless in
+    # history/automations. Carry the last value forward ("old but visible"); a
+    # genuine owner reset ships a fresh non-None value that still wins in reconcile.
+    # Never per-poll-suppressed (unlike primary_engine_soc_pct / last_refuel_*), so
+    # the carry-forward trap above does not apply.
+    "lifetime_distance_km", "lifetime_avg_speed_kmh", "lifetime_travel_time_min",
+    "lifetime_avg_fuel_consumption_l_100km",
+    "lifetime_avg_electric_consumption_kwh_100km",
+    "lifetime_avg_recuperation_kwh_100km", "lifetime_trip_distance_km",
+    "lifetime_trip_start_odometer_km", "lifetime_avg_aux_consumption_kwh_100km",
+    "lifetime_avg_gas_consumption_kg_100km", "lifetime_range_gain_km",
+    "lifetime_zero_emission_km",
 })
 
 # #923 — the parked position belongs in the "old but visible" class too: a
