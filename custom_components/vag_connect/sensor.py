@@ -655,6 +655,75 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:clock-outline",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # Audi plug&play (acpp) trip-logbook + fuel-log extras. All phantom-gated via
+    # _DATA_PRESENT_REQUIRED → they only spawn on an acpp car that has synced a
+    # drive/refuel; every other brand leaves the field None.
+    VagSensorDescription(
+        key="last_trip_eco_score",
+        translation_key="last_trip_eco_score",
+        data_key="last_trip_eco_score",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:leaf",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="last_trip_intake_air_temp_c",
+        translation_key="last_trip_intake_air_temp_c",
+        data_key="last_trip_intake_air_temp_c",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        icon="mdi:air-filter",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="trip_count",
+        translation_key="trip_count",
+        data_key="trip_count",
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon="mdi:road-variant",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="score_points_total",
+        translation_key="score_points_total",
+        data_key="score_points_total",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:trophy-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="last_refuel_liters_added",
+        translation_key="last_refuel_liters_added",
+        data_key="last_refuel_liters_added",
+        native_unit_of_measurement="L",
+        icon="mdi:fuel",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="last_refuel_tank_before_l",
+        translation_key="last_refuel_tank_before_l",
+        data_key="last_refuel_tank_before_l",
+        native_unit_of_measurement="L",
+        icon="mdi:gauge-low",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="last_refuel_tank_after_l",
+        translation_key="last_refuel_tank_after_l",
+        data_key="last_refuel_tank_after_l",
+        native_unit_of_measurement="L",
+        icon="mdi:gauge-full",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    VagSensorDescription(
+        key="last_refuel_odometer_km",
+        translation_key="last_refuel_odometer_km",
+        data_key="last_refuel_odometer_km",
+        native_unit_of_measurement=UnitOfLength.KILOMETERS,
+        device_class=SensorDeviceClass.DISTANCE,
+        icon="mdi:counter",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
     # v2.31.0 (8.15.0 APK) — Škoda pay-to-park current/last session (read-only;
     # phantom-gated → only spawns for pay-to-park users).
     VagSensorDescription(
@@ -3536,6 +3605,16 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
     "last_refuel_fuel_type",
     "last_refuel_station",
     "last_refuel_at",
+    # Audi plug&play (acpp) trip-logbook + fuel-log extras — acpp-only, so every
+    # other brand leaves these None and no phantom entity spawns.
+    "last_trip_eco_score",
+    "last_trip_intake_air_temp_c",
+    "trip_count",
+    "score_points_total",
+    "last_refuel_liters_added",
+    "last_refuel_tank_before_l",
+    "last_refuel_tank_after_l",
+    "last_refuel_odometer_km",
     # v2.31.0 — Škoda pay-to-park; only present for enrolled users.
     "parking_location",
     "parking_cost",

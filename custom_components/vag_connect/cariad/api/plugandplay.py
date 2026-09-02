@@ -72,6 +72,41 @@ def _epoch_ms_to_date(val: Any) -> str | None:
         return None
 
 
+def _epoch_ms_to_datetime(val: Any) -> str | None:
+    """acpp trip / refuel / parking timestamps are epoch-millisecond ints.
+
+    Return a full ISO-8601 UTC datetime (time-of-day matters for a trip end or a
+    position fix, unlike the carport dates), or None on anything unparseable.
+    """
+    try:
+        ms = int(str(val))
+    except (TypeError, ValueError):
+        return None
+    if ms <= 0:
+        return None
+    try:
+        return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).isoformat()
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
+def _newest_driverlog(snap: dict[str, Any]) -> dict[str, Any] | None:
+    """The most-recent trip from the ``driverlogs`` page (newest ``endTime``).
+
+    The endpoint paginates (``content[]``); page 0 already holds the latest trips,
+    and we only need the newest one for the last-trip fields. Defensive: any shape
+    surprise → None, so a missing/odd logbook never breaks the status read.
+    """
+    dl = snap.get("driverlogs")
+    content = dl.get("content") if isinstance(dl, dict) else None
+    if not isinstance(content, list) or not content:
+        return None
+    trips = [t for t in content if isinstance(t, dict)]
+    if not trips:
+        return None
+    return max(trips, key=lambda t: t.get("endTime") or 0)
+
+
 class PlugAndPlayCloudClient:
     """Read-only cloud client for the Audi connect plug&play (acpp) backend.
 
@@ -193,6 +228,13 @@ class PlugAndPlayCloudClient:
             # carport = factory master data (model, engine, fuel, power) for the
             # proper "ab Haus" model designation.
             ("carport", f"vehicle/{vin}/carport"),
+            # driverlogs = the trip logbook (precise odometer + last-trip stats +
+            # EcoScore + start/end GPS); fuellog = refuel history ("von→auf" litres);
+            # achievements = the account driver-score ledger. All only fill after the
+            # dongle syncs a drive/refuel; empty otherwise.
+            ("driverlogs", f"vehicle/{vin}/driverlogs"),
+            ("fuellog", f"user/fuellog/{vin}"),
+            ("achievements", "user/achievements/v2"),
         ):
             try:
                 s, b = await self._get(sub)
@@ -294,6 +336,132 @@ class PlugAndPlayCloudClient:
         tank = veh.get("tankFuelAmount")
         if isinstance(tank, (int, float)) and not isinstance(tank, bool) and tank >= 0:
             data.fuel_level_liters = float(tank)
+
+        # ── Trip logbook (driverlogs) — precise odometer + last-trip stats ──
+        # The dongle's driverlog carries a fresher, sub-metre odometer than the
+        # coarse/lagging root value, plus the last trip's distance, duration, start
+        # odometer and end time. Only present after a synced drive. Reuse the
+        # existing BFF trip columns so the same sensors light up — brand clients
+        # are mutually exclusive per vehicle, so there's no clobber (#1310).
+        trip = _newest_driverlog(snap)
+        if trip is not None:
+            end_odo = (trip.get("endData") or {}).get("odometer")
+            if isinstance(end_odo, (int, float)) and not isinstance(end_odo, bool):
+                data.odometer_km = int(round(end_odo))  # precise → overrides root
+            start_odo = (trip.get("startData") or {}).get("odometer")
+            if isinstance(start_odo, (int, float)) and not isinstance(start_odo, bool):
+                data.last_trip_start_odometer_km = int(round(start_odo))
+            dist = trip.get("totalTripMileage")
+            if isinstance(dist, (int, float)) and not isinstance(dist, bool):
+                data.last_trip_distance_km = round(float(dist), 2)
+            dur_ms = trip.get("totalTripTime")
+            if (
+                isinstance(dur_ms, (int, float))
+                and not isinstance(dur_ms, bool)
+                and dur_ms > 0
+            ):
+                data.last_trip_duration_min = int(round(dur_ms / 60000))
+            end_ts = _epoch_ms_to_datetime(trip.get("endTime"))
+            if end_ts is not None:
+                data.last_trip_timestamp = end_ts
+
+        # ── Parked-position freshness ──
+        # last-parking-position.recordedAt is the TRUE age of the GPS fix; the root
+        # registrationDate/mainCheck "Datenstand" is unreliable and doesn't move
+        # across a drive. Feed the existing position-age column (has carry-forward
+        # TTL machinery), not a new one.
+        pos_at = _epoch_ms_to_datetime(
+            (snap.get("last_parking_position") or {}).get("recordedAt")
+        )
+        if pos_at is not None:
+            data.position_captured_at = pos_at
+
+        # ── EcoScore + intake-air + trip count + compact logbook (Priority B/C) ──
+        dl = snap.get("driverlogs")
+        dl_content = dl.get("content") if isinstance(dl, dict) else None
+        if isinstance(dl, dict):
+            total = dl.get("totalElements")
+            if isinstance(total, int) and not isinstance(total, bool):
+                data.trip_count = total
+            elif isinstance(dl_content, list):
+                data.trip_count = len(dl_content)
+        if trip is not None:
+            eco = (trip.get("ecoScore") or {}).get("ecoScore")
+            if isinstance(eco, (int, float)) and not isinstance(eco, bool):
+                data.last_trip_eco_score = int(round(eco))
+            iat = trip.get("averageInductionAirTemperature")
+            if isinstance(iat, (int, float)) and not isinstance(iat, bool):
+                data.last_trip_intake_air_temp_c = int(round(iat))
+        # Priority C — the last few trips (newest first) for the last-trip sensor's
+        # attributes: date / distance / duration / EcoScore / end time.
+        if isinstance(dl_content, list) and dl_content:
+            recent: list[dict[str, Any]] = []
+            for t in sorted(
+                (x for x in dl_content if isinstance(x, dict)),
+                key=lambda x: x.get("endTime") or 0,
+                reverse=True,
+            )[:10]:
+                dur = t.get("totalTripTime")
+                recent.append({
+                    "date": t.get("remark"),
+                    "distance_km": t.get("totalTripMileage"),
+                    "duration_min": (
+                        int(round(dur / 60000))
+                        if isinstance(dur, (int, float)) and not isinstance(dur, bool)
+                        else None
+                    ),
+                    "eco_score": (t.get("ecoScore") or {}).get("ecoScore"),
+                    "ended_at": _epoch_ms_to_datetime(t.get("endTime")),
+                })
+            if recent:
+                data.recent_trips = recent
+
+        # ── Fuel log — "von→auf" litres + odometer at the fill-up ──
+        fl = snap.get("fuellog")
+        fl_content = fl.get("content") if isinstance(fl, dict) else None
+        if isinstance(fl_content, list) and fl_content:
+            newest = max(
+                (r for r in fl_content if isinstance(r, dict)),
+                key=lambda r: r.get("createdTimestamp") or 0,
+                default=None,
+            )
+            if newest is not None:
+                amount = newest.get("amount")
+                after = newest.get("postFuelAmount")
+                amount_num = (
+                    float(amount)
+                    if isinstance(amount, (int, float)) and not isinstance(amount, bool)
+                    else None
+                )
+                if amount_num is not None:
+                    data.last_refuel_liters_added = round(amount_num, 1)
+                if isinstance(after, (int, float)) and not isinstance(after, bool):
+                    data.last_refuel_tank_after_l = round(float(after), 1)
+                    if amount_num is not None:
+                        data.last_refuel_tank_before_l = round(float(after) - amount_num, 1)
+                fodo = newest.get("odometer")
+                if isinstance(fodo, (int, float)) and not isinstance(fodo, bool):
+                    data.last_refuel_odometer_km = int(round(fodo))
+
+        # ── Driver-score points (account-level achievements ledger) ──
+        ach = snap.get("achievements")
+        ach_content = ach.get("content") if isinstance(ach, dict) else None
+        if isinstance(ach_content, list) and ach_content:
+            now_ms = datetime.now(tz=timezone.utc).timestamp() * 1000
+            total_pts = 0
+            seen = False
+            for a in ach_content:
+                if not isinstance(a, dict):
+                    continue
+                pts = a.get("points")
+                if not isinstance(pts, (int, float)) or isinstance(pts, bool):
+                    continue
+                exp = a.get("expirationDate") or 0  # 0 = never expires
+                if not exp or exp > now_ms:
+                    total_pts += int(pts)
+                    seen = True
+            if seen:
+                data.score_points_total = total_pts
 
         # Factory ("ab Haus") model designation from the carport master-data
         # record — e.g. brandCode "A" + modelDesc "A5" + engType "TDI CR".

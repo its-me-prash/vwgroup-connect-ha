@@ -1520,6 +1520,18 @@ class VehicleData:
     lifetime_avg_fuel_consumption_l_100km: float | None = None
     lifetime_avg_electric_consumption_kwh_100km: float | None = None
     recent_trips: list[dict[str, Any]] = field(default_factory=list)
+    # Audi plug&play (acpp) trip logbook + fuel log extras — acpp-only, so every
+    # other brand leaves them None and the sensors are phantom-protected via
+    # ``_DATA_PRESENT_REQUIRED`` (sensor.py). Distinct from the Škoda ``last_refuel_*``
+    # dict keys on purpose (those are set by a coordinator hook, not this dataclass).
+    last_trip_eco_score: int | None = None            # driving-style EcoScore 0-100
+    last_trip_intake_air_temp_c: int | None = None    # avg intake-air temp for the trip
+    trip_count: int | None = None                     # total trips in the logbook
+    score_points_total: int | None = None             # account driver-score points
+    last_refuel_liters_added: float | None = None      # litres dispensed at the pump
+    last_refuel_tank_before_l: float | None = None     # tank level before the fill-up
+    last_refuel_tank_after_l: float | None = None      # tank level after the fill-up
+    last_refuel_odometer_km: int | None = None         # odometer at the fill-up
     # v2.12.0 (myskoda PR #575) — trip overall-cost breakdown. Currency
     # carried separately so the sensor can set native_unit_of_measurement
     # to the ISO code. None on accounts/firmwares that don't ship costs.

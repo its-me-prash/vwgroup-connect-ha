@@ -42,6 +42,20 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **Audi plug&play (OBD dongle): last-trip stats, a precise odometer, and a real
+  "last parked" time.** The dongle's trip logbook now fills the last-trip distance,
+  duration and start odometer, and the main odometer switches to the driverlog's
+  sub-metre value (fresher and more accurate than the coarse snapshot one). The
+  parked-position age now comes from the GPS fix's own timestamp instead of the
+  unreliable sync stamp, so "how old is this location" is finally honest.
+- **Audi plug&play: EcoScore, refuel "from → to" litres, trip count and driver-score
+  points.** The dongle's logbook and fuel log now also surface the last trip's
+  EcoScore and average intake-air temperature, how many litres each fill-up added
+  (with the tank level before and after it, and the odometer at the time), how many
+  trips are on record, and your account's driver-score points — all diagnostic, and
+  only on plug&play cars that actually have the data. Full 12-language names.
+
 ### Fixed
 - **The account "settings" device is no longer confusingly named like your car.** The
   integration always creates a small account-level settings device (it holds the

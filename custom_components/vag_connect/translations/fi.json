@@ -1378,6 +1378,30 @@
       },
       "parked_since": {
         "name": "Pysäköity"
+      },
+      "last_trip_eco_score": {
+        "name": "Viime matkan ekopisteet"
+      },
+      "last_trip_intake_air_temp_c": {
+        "name": "Viime matkan imuilman lämpötila"
+      },
+      "trip_count": {
+        "name": "Kirjatut matkat"
+      },
+      "score_points_total": {
+        "name": "Kuljettajan pistemäärä"
+      },
+      "last_refuel_liters_added": {
+        "name": "Lisätty polttoaine"
+      },
+      "last_refuel_tank_before_l": {
+        "name": "Säiliö ennen tankkausta"
+      },
+      "last_refuel_tank_after_l": {
+        "name": "Säiliö tankkauksen jälkeen"
+      },
+      "last_refuel_odometer_km": {
+        "name": "Matkamittari tankattaessa"
       }
     },
     "binary_sensor": {
