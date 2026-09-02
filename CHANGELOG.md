@@ -42,124 +42,99 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
-### Added
-- **Audi plug&play (OBD dongle): last-trip stats, a precise odometer, and a real
-  "last parked" time.** The dongle's trip logbook now fills the last-trip distance,
-  duration and start odometer, and the main odometer switches to the driverlog's
-  sub-metre value (fresher and more accurate than the coarse snapshot one). The
-  parked-position age now comes from the GPS fix's own timestamp instead of the
-  unreliable sync stamp, so "how old is this location" is finally honest.
-- **Audi plug&play: EcoScore, refuel "from → to" litres, trip count and driver-score
-  points.** The dongle's logbook and fuel log now also surface the last trip's
-  EcoScore and average intake-air temperature, how many litres each fill-up added
-  (with the tank level before and after it, and the odometer at the time), how many
-  trips are on record, and your account's driver-score points — all diagnostic, and
-  only on plug&play cars that actually have the data. Full 12-language names.
-
-### Fixed
-- **The account "settings" device is no longer confusingly named like your car.** The
-  integration always creates a small account-level settings device (it holds the
-  poll-interval control). It was named "VW Group Connect", identical to the
-  integration itself, so when downloading diagnostics people picked it by mistake and
-  got a file with no vehicle data in it. It's now "VW Group Connect Settings", and the
-  test-cohort share prompt spells out to download diagnostics from your car's own
-  device and links the tracking issue (#923).
-- **When a car goes unreachable, the entities that explain why no longer vanish
-  with it.** A failed poll (past the tolerance window) took the whole car's
-  entities down — including "Vehicle Last Reported", the data-source and
-  connectivity indicators, and the error-reporter counts, i.e. exactly the ones
-  you'd look at to see what happened. Those connection-status diagnostics now stay
-  available regardless of the poll outcome, so you're never left blind at the
-  moment the car drops off.
-- **Škoda: the phantom "12V battery" reading no longer sticks at 100 %.** The earlier
-  fix stopped *mapping* the fuel level as a 12V charge, but the value was still carried
-  forward from the cache — so it latched at the last full-tank reading and never
-  cleared. It's now properly suppressed, no bogus 12V sensor. (#1310, @indigomejor)
-- **Škoda: the "lifetime" trip figures stop showing this week's driving, and last-trip
-  sensors now populate.** Škoda's endpoint returns a current-week window, not a lifetime
-  total, so the lifetime distance/consumption sensors were showing the week's driving
-  (and corrupting long-term statistics) — they no longer map that (the odometer is the
-  real total), and the last-trip distance/duration/speed/date now fill from the most
-  recent day. (#1310, @indigomejor)
-- **Privacy: a diagnostics download no longer leaks the full VIN.** The Škoda widget's
-  render-image URL embeds the VIN in its filename; the redaction masked the VIN
-  everywhere else but missed that one string, so the complete VIN survived. It's now
-  masked there too. (#1310, @indigomejor)
-
-## [4.6.0b1] - 2026-09-01 — Škoda data-quality wave · per-source connectivity · sturdier token refresh
+## [4.6.0] - 2026-09-02 — Škoda data-quality wave · per-source connectivity · sturdier token refresh · Audi plug&play logbook
 
 ### Added
 - **See which data sources each car is connected to.** A new connectivity sensor per
   source (EU Data Act portal, vw.de website, Car-Net, the brand app, the Škoda official
   API, …) shows at a glance which channels your car is on — including a standby failover
   like the Škoda official API that only reads when your main channel is down. Each one
-  carries attributes: whether it's actively feeding data or on standby, how many of the
+  carries attributes: whether it is actively feeding data or on standby, how many of the
   car's readings it currently provides, when it last delivered, and — for the EU Data Act
   portal — its feed health. Works across all brands (#1286).
-- **VW EU login: auto-skip the optional marketing-consent page.** VW's login
-  sometimes interjects an optional marketing-consent screen after your password is
-  accepted. On the EU Data Act portal channel that used to stop the login and ask
-  you to clear it yourself; now it's continued past automatically on the "not now"
-  path — no marketing consent granted, nothing to click. A genuine Terms &
-  Conditions page is deliberately left untouched (that's a real legal acceptance,
-  so it still points you to accept it in the app/portal once).
-- **Škoda: trip-statistics sensors now appear.** The last-trip distance, average
-  speed and average consumption are already read from Škoda's own channel, but the
-  sensors were gated to Audi/VW and never spawned. They now show up on Škoda too
-  (long-term aggregates included where the car reports them). Reported by
-  @indigomejor (#1310).
+- **VW EU login: auto-skip the optional marketing-consent page.** VW's login sometimes
+  interjects an optional marketing-consent screen after your password is accepted. On the
+  EU Data Act portal channel that used to stop the login and ask you to clear it yourself;
+  now it is continued past automatically on the "not now" path — no marketing consent
+  granted, nothing to click. A genuine Terms & Conditions page is deliberately left
+  untouched (that is a real legal acceptance, so it still points you to accept it once).
+- **Škoda: last-trip sensors now appear.** The last-trip distance, average speed, average
+  consumption and date are read from Škoda's own channel but were gated to Audi/VW and
+  never spawned — they now show up on Škoda too, filled from the most recent day. (The
+  long-term "lifetime" aggregates stay Audi/VW-only: Škoda's endpoint returns a weekly
+  window, not a lifetime total.) Reported by @indigomejor (#1310).
 - **Škoda official API: a heads-up if another integration is using it too.** If the
   account holds more official-API keys than we created, a second integration or app is
-  probably reading the same official Škoda API. That's fine to run, but both share the
-  same small per-car request budget — so you now get a dismissible notice explaining
-  that the combined usage can hit Škoda's rate limit sooner and, in the worst case,
-  get the account temporarily (or eventually permanently) blocked, plus how to remove
-  the key you don't need (#1286). All 12 languages.
+  probably reading the same official Škoda API. That is fine to run, but both share the
+  same small per-car request budget — so you now get a dismissible notice explaining that
+  the combined usage can hit Škoda's rate limit sooner and, in the worst case, get the
+  account temporarily (or eventually permanently) blocked, plus how to remove the key you
+  do not need (#1286). All 12 languages.
+- **Audi plug&play (OBD dongle): last-trip stats, a precise odometer, and a real "last
+  parked" time.** The dongle's trip logbook now fills the last-trip distance, duration and
+  start odometer, and the main odometer switches to the driverlog's sub-metre value
+  (fresher and more accurate than the coarse snapshot one). The parked-position age now
+  comes from the GPS fix's own timestamp instead of the unreliable sync stamp.
+- **Audi plug&play: EcoScore, refuel "from → to" litres, trip count and driver-score
+  points.** The dongle's logbook and fuel log also surface the last trip's EcoScore and
+  average intake-air temperature, how many litres each fill-up added (with the tank level
+  before and after it, and the odometer at the time), how many trips are on record, and
+  your account's driver-score points — all diagnostic, only on plug&play cars that have
+  the data. Full 12-language names.
 
 ### Changed
-- **The Škoda official-API enrolment notice now explains it's a rate-limited standby
-  channel.** So nobody wonders why it isn't updating constantly: the official channel
-  is capped at a few requests an hour, sits on standby, and only reads when the main
-  connection can't — it won't slow anything down.
+- **The Škoda official-API enrolment notice now explains it is a rate-limited standby
+  channel.** So nobody wonders why it is not updating constantly: the official channel is
+  capped at a few requests an hour, sits on standby, and only reads when the main
+  connection cannot — it will not slow anything down.
 
 ### Fixed
-- **A brief backend hiccup during a token refresh no longer forces you to log in
-  again.** When the login server rejected a token refresh, we treated every
-  rejection the same — including a temporary "try again later" one — and bounced
-  you to a fresh QR / password re-auth. Now only a genuinely dead login (the one
-  case a fresh sign-in actually fixes) does that; a transient server error, rate
-  blip or network wobble just retries on the next poll and your entry stays live.
-  Applies to both the device-code/QR login and the Car-Net (MBB) refresh path.
-- **Škoda official-API auto-enrolment: don't skip a valid login over a token-format
-  check.** The auto-enrolment gate required the login token to look like a specific
-  JWT before it would mint the official-API key; a legitimate native token in a
-  slightly different shape was silently skipped, so the "it just works" enrolment
-  never fired. The gate now trusts a native login on its own terms and lets the mint
-  attempt run — if the backend rejects it, that's captured in the privacy-safe
-  diagnostics instead of the whole feature quietly no-op'ing (#1286).
-- **Škoda: the "12V battery" reading on petrol/diesel cars was actually the fuel
-  level.** On a combustion Škoda the backend sends the same number in the SoC and
-  fuel-level fields, and we'd been surfacing that as a 12V battery charge (from an
-  unverified early note). It's now only shown when it's a genuinely distinct value,
-  so a petrol car no longer gets a bogus 12V-battery sensor mirroring its tank.
-  Thanks to @indigomejor for the side-by-side raw captures that pinned it down.
-- **Škoda: the "driving" sensor no longer flickers in and out of existence.** The
-  motion sensor was only set when the car's readiness block was in a given poll, so
-  a poll that momentarily didn't include it made the sensor disappear (and reappear
-  next time). It's now always a real on/off value — off when there's no motion
-  signal (parked or asleep), on only when the car reports it's moving. Reported by
-  @indigomejor (#1310).
-- **Škoda: no more phantom "last fill-up" from a car you used to own.** The last
-  fill-up comes from an account-wide history with no car link, so on a new car it
-  could show an old session from a previous vehicle (a 2024 fill-up on a 2026 car).
-  A "latest" fill-up older than a year is now treated as stale and hidden rather than
-  shown as this car's data (#1310, @indigomejor).
-- **Škoda: service reminders you never set no longer show a raw `NOT_SET`.** An
-  unconfigured reminder came back as the literal text `NOT_SET`, which reads as a real
-  value in automations. It's now left blank (unknown) instead (#1310).
-- **Škoda: the equipment count stops flickering to "unknown".** It doesn't change
-  between polls but vanished whenever a poll returned a leaner payload; it's now held
-  at its last value like the other stable readings (#1310).
+- **A brief backend hiccup during a token refresh no longer forces you to log in again.**
+  When the login server rejected a token refresh, we treated every rejection the same —
+  including a temporary "try again later" one — and bounced you to a fresh QR / password
+  re-auth. Now only a genuinely dead login does that; a transient server error, rate blip
+  or network wobble just retries on the next poll and your entry stays live. Applies to
+  both the device-code/QR login and the Car-Net (MBB) refresh path.
+- **Škoda official-API auto-enrolment: do not skip a valid login over a token-format
+  check.** The gate required the login token to look like a specific JWT before it would
+  mint the official-API key; a legitimate native token in a slightly different shape was
+  silently skipped, so the "it just works" enrolment never fired. The gate now trusts a
+  native login and lets the mint attempt run — a backend rejection is captured in the
+  privacy-safe diagnostics instead of the feature quietly no-op'ing (#1286).
+- **Škoda: the phantom "12V battery" that was really the fuel level is gone.** On a
+  combustion Škoda the backend sends the same number in the SoC and fuel-level fields, and
+  we had been surfacing that as a 12V battery charge (from an unverified early note). It is
+  now shown only when it is a genuinely distinct value, and it no longer latches at a stale
+  reading. Thanks to @indigomejor for the side-by-side captures that pinned it down (#1310).
+- **Škoda: the "driving" sensor no longer flickers in and out of existence.** It was only
+  set when the car's readiness block was in a given poll, so a poll that momentarily did
+  not include it made the sensor disappear (and reappear next time). It is now always a
+  real on/off value — off when there is no motion signal, on only when the car reports it
+  is moving. Reported by @indigomejor (#1310).
+- **Škoda: no more phantom "last fill-up" from a car you used to own.** The last fill-up
+  comes from an account-wide history with no car link, so on a new car it could show an old
+  session from a previous vehicle. A "latest" fill-up older than a year is now treated as
+  stale and hidden (#1310, @indigomejor).
+- **Škoda: service reminders you never set no longer show a raw `NOT_SET`.** An unconfigured
+  reminder came back as the literal text `NOT_SET`, which reads as a real value in
+  automations. It is now left blank (unknown) instead (#1310).
+- **Škoda: the equipment count stops flickering to "unknown".** It does not change between
+  polls but vanished whenever a poll returned a leaner payload; it is now held at its last
+  value like the other stable readings (#1310).
+- **The account "settings" device is no longer confusingly named like your car.** The
+  integration always creates a small account-level settings device (it holds the
+  poll-interval control). It was named "VW Group Connect", identical to the integration
+  itself, so when downloading diagnostics people picked it by mistake and got a file with
+  no vehicle data. It is now "VW Group Connect Settings", and the test-cohort share prompt
+  spells out to download diagnostics from your car's own device and links #923.
+- **When a car goes unreachable, the entities that explain why no longer vanish with it.**
+  A failed poll (past the tolerance window) took the whole car's entities down — including
+  "Vehicle Last Reported", the data-source and connectivity indicators, and the
+  error-reporter counts. Those connection-status diagnostics now stay available regardless
+  of the poll outcome, so you are never left blind at the moment the car drops off.
+- **Privacy: a diagnostics download no longer leaks the full VIN.** The Škoda widget's
+  render-image URL embeds the VIN in its filename; the redaction masked the VIN everywhere
+  else but missed that one string. It is now masked there too (#1310, @indigomejor).
 
 ## [4.5.0] - 2026-09-01 — Škoda official public API: automatic, zero-setup enrolment · Audi battery-health capacity
 
