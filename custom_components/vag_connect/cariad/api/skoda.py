@@ -1115,7 +1115,7 @@ class SkodaClient(CariadBaseClient):
         # car has no official key / the read is unavailable (rate-limited, quota,
         # error), _official_read_rate_safe returns None and we fall through to the
         # normal mysmob read rather than blanking the car.
-        if self._official_mode == "official_only":
+        if getattr(self, "_official_mode", "auto") == "official_only":
             off = await self._official_read_rate_safe(vin)
             if off is not None:
                 return off
