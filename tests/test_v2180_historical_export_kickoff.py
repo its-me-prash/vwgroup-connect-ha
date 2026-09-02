@@ -116,9 +116,31 @@ async def test_401_raises_session_expired() -> None:
 
 
 @pytest.mark.asyncio
-async def test_no_csrf_aborts_without_posting() -> None:
+async def test_no_csrf_still_posts_cookie_authenticated() -> None:
+    """The euda-apim requests/all layer authenticates via the portal SESSION
+    COOKIES, not the Adobe-AEM Granite CSRF token — that token endpoint is
+    anonymous/empty for every session, even a real logged-in browser (live-
+    verified 2026-09-02). A cookie-only POST with no CSRF header reaches the
+    portal's own validation, so a missing CSRF must NOT abort the export: the
+    POST still goes out and simply carries no CSRF-Token header. The old abort
+    silently blocked every one-time export on every account (#709/#966)."""
     sess = _CaptureSession(post_status=201)
     s = DataActScraper(sess, brand_name="audi")
     s._fetch_csrf_token = AsyncMock(return_value=None)  # type: ignore[method-assign]
-    assert await s.kickoff_historical_export(_VIN) is False
-    assert sess.post_calls == []
+    assert await s.kickoff_historical_export(_VIN) is True
+    assert sess.post_calls, "no POST was made — the empty AEM CSRF must not abort"
+    headers = sess.post_calls[-1][1]["headers"]
+    assert "CSRF-Token" not in headers  # never sent as an empty/None value
+    assert headers.get("traceId")       # still required by the euda-apim edge
+
+
+@pytest.mark.asyncio
+async def test_csrf_is_sent_when_the_portal_ever_provides_one() -> None:
+    """Best-effort forward-compat: if a future portal build starts issuing a
+    Granite CSRF token, we still attach it (the branch is currently unreachable
+    because that endpoint is anonymous for everyone)."""
+    sess = _CaptureSession(post_status=201)
+    s = DataActScraper(sess, brand_name="audi")
+    s._fetch_csrf_token = AsyncMock(return_value="TOK")  # type: ignore[method-assign]
+    assert await s.kickoff_historical_export(_VIN) is True
+    assert sess.post_calls[-1][1]["headers"].get("CSRF-Token") == "TOK"

@@ -42,6 +42,21 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.0b5] - 2026-09-02 — EU Data Act: the automatic data request actually gets created now
+
+### Fixed
+- **The automatic EU Data Act data-request creation was silently giving up on every account — now it goes through.**
+  Getting a car onto the portal feed depends on the integration creating a "continuous 15-minute"
+  data request for you (and the one-time historical export works the same way). Both were bailing
+  out *before ever sending the request*: they waited for a security token from the portal's older
+  page layer, and that token now comes back empty for everyone — so they waited forever and no feed
+  was ever created. The car just stayed empty, with nothing in the log but "no CSRF token". Turns
+  out the portal's data-request API is authenticated by your logged-in session, not by that token
+  at all. The request is now sent on your session directly; the token is only attached if the
+  portal ever actually provides one. **Live-verified end-to-end**: the create now returns success
+  and the 15-minute request appears on the account. Thanks @steemandavid for the diagnosis
+  (#709, #966, #1273).
+
 ## [4.7.0b4] - 2026-09-02 — EU Data Act: clearer "no vehicle data yet" guidance (carries 4.6.3)
 
 ### Changed

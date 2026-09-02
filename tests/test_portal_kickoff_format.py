@@ -104,6 +104,40 @@ async def test_kickoff_post_sends_traceid() -> None:
 
 
 @pytest.mark.asyncio
+async def test_no_csrf_still_posts_cookie_authenticated() -> None:
+    """The euda-apim requests/partial layer authenticates via the portal SESSION
+    COOKIES, not the Adobe-AEM Granite CSRF token — that token endpoint is
+    anonymous/empty for every session, even a real logged-in browser (live-
+    verified 2026-09-02: a cookie-only POST with no CSRF header reaches the
+    portal's own Duration validation, i.e. it authenticated). A missing CSRF must
+    NOT abort the kickoff — that abort is why the auto-kickoff silently did
+    nothing on every account (#709/#966)."""
+    sess = _CaptureSession(post_status=201)
+    scraper = _scraper(sess)
+    scraper._fetch_csrf_token = AsyncMock(return_value=None)  # type: ignore[method-assign]
+    _confirm_readback(scraper)
+    ident = await scraper.kickoff_custom_data_request(_VIN)
+    assert ident, "kickoff must still succeed without an AEM CSRF token"
+    assert sess.post_calls, "no POST was made — the empty AEM CSRF must not abort"
+    headers = sess.post_calls[-1][1]["headers"]
+    assert "CSRF-Token" not in headers  # never sent as an empty/None value
+    assert headers.get("traceId")       # still required by the euda-apim edge
+
+
+@pytest.mark.asyncio
+async def test_csrf_is_sent_when_the_portal_ever_provides_one() -> None:
+    """Best-effort forward-compat: a future portal build that starts issuing a
+    Granite CSRF token still gets it attached (the branch is currently
+    unreachable because that endpoint is anonymous for everyone)."""
+    sess = _CaptureSession(post_status=201)
+    scraper = _scraper(sess)
+    scraper._fetch_csrf_token = AsyncMock(return_value="TOK")  # type: ignore[method-assign]
+    _confirm_readback(scraper)
+    await scraper.kickoff_custom_data_request(_VIN)
+    assert sess.post_calls[-1][1]["headers"].get("CSRF-Token") == "TOK"
+
+
+@pytest.mark.asyncio
 async def test_metadata_probe_sends_traceid() -> None:
     """``get_active_custom_request_identifier`` sends a traceId on its GET, and a
     404 (no request) resolves to None (not an error)."""
