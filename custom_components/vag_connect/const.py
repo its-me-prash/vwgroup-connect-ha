@@ -357,6 +357,7 @@ CONF_ABRP_USER_TOKEN         = "abrp_user_token"
 BRANDS = {
     "audi":           "Audi (myAudi)",
     "volkswagen":     "Volkswagen EU (WeConnect ID)",
+    "volkswagen_commercial": "Volkswagen Commercial Vehicles",  # #1316 Nutzfahrzeuge
     "skoda":          "Škoda (MyŠkoda)",
     "seat":           "SEAT",
     "cupra":          "CUPRA",
@@ -390,6 +391,7 @@ BRANDS = {
 DEEPLINK_SCHEMES: dict[str, str] = {
     "audi":          "myaudi://",          # DEX: myAudi 5.5.1
     "volkswagen":    "weconnect://",       # DEX: We Connect 4.0.3 (was wecharge://)
+    "volkswagen_commercial": "weconnect://",  # #1316 — same We Connect app
     "skoda":         "myskoda://",         # DEX: MySkoda 8.14.0
     "seat":          "seat://",            # DEX: My SEAT 2.19.1 (was myseat://)
     "cupra":         "cupra://",           # DEX: My CUPRA 2.18.1 (was mycupra://)

@@ -110,15 +110,23 @@ _PORTAL_REQUEST_TIMEOUT_S = 30
 def _build_state(brand_name: str, country: str, language: str) -> str:
     """Return the state-string expected by the portal router.
 
-    Format: ``{language}__{country}__{brand_suffix}`` (e.g.
-    ``de__de__VOLKSWAGEN_PASSENGER_CARS``). The portal's state-string
-    routing decodes the language first, then the country, then the
-    brand-suffix that matches its internal brand-routing enum.
+    Format: ``{country}__{language}__{brand_suffix}`` (e.g.
+    ``de__en__VOLKSWAGEN_COMMERCIAL_VEHICLES`` for a German account viewing in
+    English). The portal decodes the country first, then the language, then the
+    brand-suffix that matches its internal brand-routing enum — confirmed against a
+    live portal authorize 2026-09-02 (``datahubConfig`` ``country=de`` /
+    ``language=en`` produced a real ``state=de__en__…``; the portal's
+    ``validLocales`` are all ``{country}/{language}``). The active reader
+    ``EUDataActConnector`` builds the same ``{country}__{language}__{brand}`` order
+    (``_eu_data_act.py``).
 
-    Pre-v2.10.2 we shipped the wrong order ``{country}__{language}``
-    which works for de_DE users (both halves identical) but routes the
-    wrong locale for any non-matching country/language pair. Verified
-    against a live portal trace 2026-06-03.
+    Historical note: a v2.10.2 change flipped this to ``{language}__{country}`` on a
+    mistaken reading of a symmetric ``de_DE`` trace, where the two halves are
+    identical so the order is invisible; that is wrong for any asymmetric
+    country/language pair and is corrected here. This helper is only ever
+    constructed with the symmetric DE/de defaults in the shipped integration, so
+    the flip is a no-op in practice — it just keeps the state honest for any future
+    non-default caller and matches the active reader.
 
     Falls back to VOLKSWAGEN_PASSENGER_CARS for unknown brand names so
     the login at least lands somewhere instead of erroring out.
@@ -126,7 +134,7 @@ def _build_state(brand_name: str, country: str, language: str) -> str:
     brand_suffix = _BRAND_STATE_FRAGMENTS.get(
         brand_name.lower(), _BRAND_STATE_FRAGMENTS["volkswagen"],
     )
-    return f"{language.lower()}__{country.lower()}__{brand_suffix}"
+    return f"{country.lower()}__{language.lower()}__{brand_suffix}"
 
 
 def _make_pkce() -> tuple[str, str]:

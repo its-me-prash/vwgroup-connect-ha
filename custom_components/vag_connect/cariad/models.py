@@ -70,6 +70,24 @@ BRAND_VW_EU = BrandConfig(
     android_package_name="de.volkswagen.weconnect",
 )
 
+# #1316 — VW Commercial Vehicles (Nutzfahrzeuge) is a SEPARATE EU Data Act
+# data-controller realm from passenger VW. Its native BFF is the same
+# attestation-walled path as passenger VW, so it reads through the EU-Data-Act
+# portal — where the ONLY difference is the OIDC ``state_brand``
+# ``VOLKSWAGEN_COMMERCIAL_VEHICLES`` (live-confirmed 2026-09-02; wired in
+# _eu_data_act.py). Every other field mirrors BRAND_VW_EU; the DISTINCT ``name``
+# is what steers the portal to the commercial realm (base.py builds the state
+# from ``self._brand.name``), so it must NOT reuse "volkswagen".
+BRAND_VW_COMMERCIAL = BrandConfig(
+    name="volkswagen_commercial",
+    client_id="a24fba63-34b3-4d43-b181-942111e6bda8@apps_vw-dilab_com",
+    redirect_uri="weconnect://authenticated",
+    user_agent="Volkswagen/4.2.1-android/14",
+    api_base="https://emea.bff.cariad.digital",
+    scope="openid profile badge cars dealers vin",
+    android_package_name="de.volkswagen.weconnect",
+)
+
 # ── DataPlug / plug&play cloud (OBD-dongle cars WITHOUT built-in connectivity) ──
 # A separate read source served by api/plugandplay.py. Reaches OLD dongle-equipped
 # cars that the BFF + EU-Data-Act portal do not serve. Auth is plain
@@ -326,7 +344,8 @@ BRAND_CUPRA_STANDALONE = BrandConfig(
 )
 
 BRANDS: dict[str, BrandConfig] = {
-    "volkswagen":    BRAND_VW_EU,
+    "volkswagen":            BRAND_VW_EU,
+    "volkswagen_commercial": BRAND_VW_COMMERCIAL,  # #1316 — Nutzfahrzeuge realm
     "audi":          BRAND_AUDI,
     "skoda":         BRAND_SKODA,
     "seat":          BRAND_SEAT,

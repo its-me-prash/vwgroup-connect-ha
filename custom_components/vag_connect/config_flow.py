@@ -90,6 +90,8 @@ def _brand_label(brand: str) -> str:
 _BRAND_OPTIONS: list[SelectOptionDict] = [
     SelectOptionDict(value="audi",          label="Audi (myAudi)"),
     SelectOptionDict(value="volkswagen",    label="Volkswagen EU (WeConnect ID)"),
+    # #1316 — VW Commercial Vehicles (Nutzfahrzeuge): separate EU-Data-Act realm.
+    SelectOptionDict(value="volkswagen_commercial", label="Volkswagen Commercial Vehicles"),
     SelectOptionDict(value="skoda",         label="Škoda (MyŠkoda)"),
     SelectOptionDict(value="seat",          label="SEAT"),
     SelectOptionDict(value="cupra",         label="CUPRA"),
