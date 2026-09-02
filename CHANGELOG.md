@@ -71,6 +71,20 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   you'd look at to see what happened. Those connection-status diagnostics now stay
   available regardless of the poll outcome, so you're never left blind at the
   moment the car drops off.
+- **Škoda: the phantom "12V battery" reading no longer sticks at 100 %.** The earlier
+  fix stopped *mapping* the fuel level as a 12V charge, but the value was still carried
+  forward from the cache — so it latched at the last full-tank reading and never
+  cleared. It's now properly suppressed, no bogus 12V sensor. (#1310, @indigomejor)
+- **Škoda: the "lifetime" trip figures stop showing this week's driving, and last-trip
+  sensors now populate.** Škoda's endpoint returns a current-week window, not a lifetime
+  total, so the lifetime distance/consumption sensors were showing the week's driving
+  (and corrupting long-term statistics) — they no longer map that (the odometer is the
+  real total), and the last-trip distance/duration/speed/date now fill from the most
+  recent day. (#1310, @indigomejor)
+- **Privacy: a diagnostics download no longer leaks the full VIN.** The Škoda widget's
+  render-image URL embeds the VIN in its filename; the redaction masked the VIN
+  everywhere else but missed that one string, so the complete VIN survived. It's now
+  masked there too. (#1310, @indigomejor)
 
 ## [4.6.0b1] - 2026-09-01 — Škoda data-quality wave · per-source connectivity · sturdier token refresh
 

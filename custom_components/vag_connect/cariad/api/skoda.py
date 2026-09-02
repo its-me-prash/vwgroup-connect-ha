@@ -76,6 +76,72 @@ def _primary_soc_or_none(
         return None
     return soc_i
 
+
+def _apply_trip_statistics(trip_stats: Any, d: VehicleData) -> None:
+    """Map the mysmob ``/trip-statistics`` response onto VehicleData (#1310).
+
+    The response is FLAT (fields at top level; no "overview" wrapper) and windowed
+    to the CURRENT WEEK (fetched with ``?offsetType=week&offset=0``), so
+    ``overallMileageInKm`` is this week's total — NOT a lifetime odometer — and is
+    deliberately NOT mapped into any ``lifetime_*`` field: it corrupted HA
+    long-term stats (a weekly value in a TOTAL_INCREASING sensor), and the true
+    total is already ``odometer_km``. ``last_trip_*`` come from the most-recent
+    per-DAY entry in ``detailedStatistics`` (myskoda StatisticsEntry), picked by
+    ISO ``date`` (lexical == chronological) since entries arrive unordered and the
+    entry has no ``tripEndTimestamp`` — only ``date``. ``overallCost`` feeds the
+    four ``trip_*_cost`` sensors."""
+    if not isinstance(trip_stats, dict):
+        return
+    overview = trip_stats.get("overview") or trip_stats
+    detailed = trip_stats.get("detailedStatistics")
+    if isinstance(detailed, list) and detailed:
+        last = max(
+            (e for e in detailed if isinstance(e, dict)),
+            key=lambda e: e.get("date") or "",
+            default=None,
+        )
+        if isinstance(last, dict):
+            last_km = last.get("mileageInKm")
+            if isinstance(last_km, (int, float)):
+                d.last_trip_distance_km = int(last_km)
+            last_time = last.get("travelTimeInMin")
+            if isinstance(last_time, (int, float)):
+                d.last_trip_duration_min = int(last_time)
+            last_fuel = last.get("averageFuelConsumption")
+            if isinstance(last_fuel, (int, float)):
+                d.last_trip_avg_fuel_consumption_l_100km = float(last_fuel)
+            last_elec = last.get("averageElectricConsumption")
+            if isinstance(last_elec, (int, float)):
+                d.last_trip_avg_electric_consumption_kwh_100km = float(last_elec)
+            last_speed = last.get("averageSpeedInKmph")
+            if isinstance(last_speed, (int, float)):
+                d.last_trip_avg_speed_kmh = int(last_speed)
+            last_date = last.get("date")
+            if isinstance(last_date, str) and last_date:
+                d.last_trip_timestamp = last_date
+    overall_cost = trip_stats.get("overallCost") or (
+        overview.get("overallCost") if isinstance(overview, dict) else None
+    )
+    if isinstance(overall_cost, dict):
+        def _cost(node: Any) -> float | None:
+            if isinstance(node, dict):
+                c = node.get("cost")
+                return float(c) if isinstance(c, (int, float)) else None
+            return float(node) if isinstance(node, (int, float)) else None
+
+        d.trip_total_cost = _cost(overall_cost.get("totalCost"))
+        d.trip_fuel_cost = _cost(overall_cost.get("fuelCost"))
+        d.trip_electricity_cost = _cost(overall_cost.get("electricityCost"))
+        d.trip_cng_cost = _cost(overall_cost.get("cngCost"))
+        for sub in (
+            overall_cost.get("totalCost"),
+            overall_cost.get("fuelCost"),
+            overall_cost.get("electricityCost"),
+        ):
+            if isinstance(sub, dict) and sub.get("costCurrency"):
+                d.trip_cost_currency = str(sub["costCurrency"])
+                break
+
 # driving-range.carType enum values that are pure-combustion (no HV battery, no
 # plug). EVs report "electric", PHEVs "hybrid" — deliberately absent, so a plug-in
 # car is NEVER matched. Used to skip the battery-only /charging read on a confirmed
@@ -1800,80 +1866,7 @@ class SkodaClient(CariadBaseClient):
         # with overall_average_fuel_consumption / overall_average_mileage /
         # overall_travel_time_in_min / overall_mileage_in_km + a
         # detailedStatistics list of per-period TripStatistics entries.
-        if isinstance(trip_stats, dict):
-            overview = trip_stats.get("overview") or trip_stats
-            if isinstance(overview, dict):
-                lifetime_km = (
-                    overview.get("overallMileageInKm")
-                    or overview.get("mileageInKm")
-                )
-                if isinstance(lifetime_km, (int, float)):
-                    d.lifetime_distance_km = int(lifetime_km)
-                avg_fuel = overview.get("overallAverageFuelConsumption")
-                if isinstance(avg_fuel, (int, float)):
-                    d.lifetime_avg_fuel_consumption_l_100km = float(avg_fuel)
-                avg_electric = (
-                    overview.get("overallAverageElectricConsumption")
-                    or overview.get("overallAverageElectricEngineConsumption")
-                )
-                if isinstance(avg_electric, (int, float)):
-                    d.lifetime_avg_electric_consumption_kwh_100km = float(avg_electric)
-            # last-trip from detailedStatistics[0]
-            detailed = trip_stats.get("detailedStatistics")
-            if isinstance(detailed, list) and detailed:
-                last = detailed[0]
-                if isinstance(last, dict):
-                    last_km = last.get("mileageInKm") or last.get("mileage")
-                    if isinstance(last_km, (int, float)):
-                        d.last_trip_distance_km = int(last_km)
-                    last_time = (
-                        last.get("travelTimeInMin")
-                        or last.get("travelTime")
-                    )
-                    if isinstance(last_time, (int, float)):
-                        d.last_trip_duration_min = int(last_time)
-                    last_fuel = last.get("averageFuelConsumption")
-                    if isinstance(last_fuel, (int, float)):
-                        d.last_trip_avg_fuel_consumption_l_100km = float(last_fuel)
-                    last_speed = last.get("averageSpeedInKmph")
-                    if isinstance(last_speed, (int, float)):
-                        d.last_trip_avg_speed_kmh = int(last_speed)
-                    last_ts = (
-                        last.get("tripEndTimestamp")
-                        or last.get("timestamp")
-                    )
-                    if isinstance(last_ts, str) and last_ts:
-                        d.last_trip_timestamp = last_ts
-
-            # v2.12.0 (myskoda PR #575 source-verified): overall_cost
-            # breakdown on the OverviewTrip. Each sub-cost is an object
-            # {cost, costCurrency, pricePerUnit}; we store the cost amounts +
-            # a single currency code (they share one currency). v2.15.3 wires
-            # these to four trip_*_cost diagnostic sensors (sensor.py), with the
-            # currency exposed as a per-sensor attribute.
-            overall_cost = trip_stats.get("overallCost") or (
-                overview.get("overallCost") if isinstance(overview, dict) else None
-            )
-            if isinstance(overall_cost, dict):
-                def _cost(node: Any) -> float | None:
-                    if isinstance(node, dict):
-                        c = node.get("cost")
-                        return float(c) if isinstance(c, (int, float)) else None
-                    return float(node) if isinstance(node, (int, float)) else None
-
-                d.trip_total_cost = _cost(overall_cost.get("totalCost"))
-                d.trip_fuel_cost = _cost(overall_cost.get("fuelCost"))
-                d.trip_electricity_cost = _cost(overall_cost.get("electricityCost"))
-                d.trip_cng_cost = _cost(overall_cost.get("cngCost"))
-                # Currency lives on whichever sub-cost is present.
-                for sub in (
-                    overall_cost.get("totalCost"),
-                    overall_cost.get("fuelCost"),
-                    overall_cost.get("electricityCost"),
-                ):
-                    if isinstance(sub, dict) and sub.get("costCurrency"):
-                        d.trip_cost_currency = str(sub["costCurrency"])
-                        break
+        _apply_trip_statistics(trip_stats, d)
 
         # v2.11.0 (myskoda PR #586 source-verified): charging stats
         # from the replacement endpoint. monthSections[].entries[] each

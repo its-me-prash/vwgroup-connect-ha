@@ -322,6 +322,14 @@ def _scrub(value: Any, *, gps_round: bool = False) -> Any:
         # mysmob ``/v1/maps/positions?latitude=...&longitude=...`` URLs
         # that surface in error traces).
         masked = _mask_email(value)
+        # #1310 (indigomejor) — a VIN can hide inside a string VALUE: the Škoda
+        # widget ``render_url`` is ``.../widget-renders/<VIN>.png``. This branch
+        # masked only email + GPS, so the full VIN leaked in
+        # ``vehicles.<key>.render_url`` while the sibling ``vin`` field and the
+        # raw camelCase ``renderUrl`` (via _scrub_raw) were both masked. Mask the
+        # VIN here too so every string value matches (VIN only — UUIDs stay as
+        # structural grounding data, see _mask_key).
+        masked = _VIN_RE.sub(lambda m: mask_vin(m.group(0)), masked)
         return _mask_location_qs(masked, gps_round=gps_round)
     return value
 

@@ -3926,30 +3926,32 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
 })
 
 # v1.14.0 (#24) — Trip Statistics is brand-restricted. Audi + VW EU fill these
-# from the CARIAD-BFF; Škoda fills the SAME keys from its own mysmob
-# /trip-statistics parse (#1310). Gate at setup so SEAT/CUPRA/Porsche/VW NA
-# users — whose clients don't expose trip data — don't get "unknown" sensors per
-# VIN. Capability gating (Phase 3, #56) further hides them when the subscription
-# is absent.
+# from the CARIAD-BFF; Škoda fills only the per-trip (last_trip_*) keys from its
+# own mysmob parse (#1310). Gate at setup so SEAT/CUPRA/Porsche/VW NA users —
+# whose clients don't expose trip data — don't get "unknown" sensors per VIN.
+# Capability gating (Phase 3, #56) further hides them when the subscription is
+# absent.
 _TRIP_STATS_KEYS: frozenset[str] = frozenset({
     "last_trip_distance_km",
     "last_trip_avg_speed_kmh",
     "last_trip_avg_fuel_consumption_l_100km",
     "last_trip_avg_electric_consumption_kwh_100km",
-    # v2.0.0 (Big-Bang) — long-term aggregates. Audi/VW EU read them from the
-    # CARIAD-BFF /tripstatistics?type=longTerm; Škoda from the overview block of
-    # its mysmob /trip-statistics response. Same brand gate as the per-trip keys.
+    # v2.0.0 (Big-Bang) — long-term aggregates. Audi/VW EU ONLY: the CARIAD-BFF
+    # /tripstatistics?type=longTerm since-reset cumulative. Škoda does NOT fill
+    # these (its mysmob endpoint only returns a current-WEEK window, not a
+    # lifetime total — see #1310), so they stay None on Škoda → hide-empty → no
+    # sensor. Kept here because Audi/VW use them.
     "lifetime_distance_km",
     "lifetime_avg_fuel_consumption_l_100km",
     "lifetime_avg_electric_consumption_kwh_100km",
 })
-# #1310 (indigomejor): Škoda populates BOTH groups — the 4 last_trip_* keys (from
-# detailedStatistics[0]) AND the 3 lifetime_* aggregates (from the overview) — in
-# its own get_status parse (skoda.py), so all ~7 trip-stat sensors spawn and
-# populate on Škoda, not just the per-trip ones. The CARIAD-BFF FETCH gate stays
-# audi/volkswagen only (coordinator._TRIP_STATS_BRANDS) because Škoda already has
-# the data inline — so no wrong BFF call fires for Škoda and nothing shows as
-# "unknown".
+# #1310 (indigomejor): Škoda populates only the 4 last_trip_* keys (the most-recent
+# per-DAY entry from detailedStatistics) in its own get_status parse (skoda.py) —
+# NOT the lifetime_* aggregates: its mysmob response is a weekly window, and
+# mislabeling a weekly total as lifetime corrupted HA long-term stats, so it's no
+# longer mapped (odometer_km carries the true total). The CARIAD-BFF FETCH gate
+# stays audi/volkswagen only (coordinator._TRIP_STATS_BRANDS) because Škoda already
+# has the per-trip data inline — no wrong BFF call fires for Škoda.
 _TRIP_STATS_BRANDS: frozenset[str] = frozenset({"audi", "volkswagen", "skoda"})
 
 # Per-window opening position (% open), from the EU-DA window-lifter positions
