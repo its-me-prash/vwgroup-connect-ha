@@ -243,7 +243,8 @@
           "companion_read_vehicle_health": "Companion: Kilometerstand und Service aus dem Fahrzeugcheck lesen (navigiert in der App)",
           "companion_read_climate_detail": "Companion: Solltemperatur und Außentemperatur lesen (navigiert in der App)",
           "companion_read_parking_position": "Companion: Parkposition aus dem Teilen-Link der App lesen (navigiert in der App)",
-          "skoda_official_api_key": "Offizieller Škoda-API-Schlüssel — nutzt die offizielle Hersteller-API als Live-Datenquelle (und Failover)"
+          "skoda_official_api_key": "Offizieller Škoda-API-Schlüssel — nutzt die offizielle Hersteller-API als Live-Datenquelle (und Failover)",
+          "clear_skoda_official_key": "Gespeicherten offiziellen Škoda-API-Schlüssel löschen (ein neuer wird automatisch erstellt, falls dein Login das unterstützt)"
         },
         "data_description": {
           "enable_reverse_geocoding": "Sendet GPS der Parkposition an OpenStreetMap Nominatim, um Straße/Stadt zu ermitteln. Standard: aus (Datenschutz).",

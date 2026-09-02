@@ -42,6 +42,18 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.0b3] - 2026-09-02 — Škoda: clear the stored official API key from the options
+
+### Added
+- **Škoda: a switch to clear the stored official API key.** If you rotate or delete your
+  official API key (for example after it was exposed), you can now remove it from the
+  integration too. A **"Clear the stored Škoda official API key"** switch appears in the
+  integration's options when a key is stored — ticking it and submitting wipes both the
+  manually-entered key and the auto-enrolled per-car key(s). A native MyŠkoda login then
+  mints a fresh key automatically on the next update, so the official channel keeps
+  working with a clean key. Until now an auto-enrolled key had no removal control in the
+  UI (#1286). All 12 languages.
+
 ## [4.7.0b2] - 2026-09-02 — Škoda: last-trip sensors from real per-trip data · carries the 4.6.2 security + fixes
 
 ### Added

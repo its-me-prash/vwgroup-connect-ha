@@ -243,7 +243,8 @@
           "companion_read_vehicle_health": "Companion: leer cuentakilómetros y servicio desde el estado del vehículo (navega por la app)",
           "companion_read_climate_detail": "Companion: leer temperatura objetivo y exterior (navega por la app)",
           "companion_read_parking_position": "Companion: leer la posición de aparcamiento desde el enlace para compartir de la app (navega por la app)",
-          "skoda_official_api_key": "Clave API oficial de Škoda — añade la API oficial del fabricante como fuente de datos en vivo (y conmutación por error)"
+          "skoda_official_api_key": "Clave API oficial de Škoda — añade la API oficial del fabricante como fuente de datos en vivo (y conmutación por error)",
+          "clear_skoda_official_key": "Borrar la clave API oficial de Škoda guardada (se crea una nueva automáticamente si tu inicio de sesión lo permite)"
         },
         "data_description": {
           "scan_interval": "Frecuencia de actualización (minutos). Mínimo: 3.",
