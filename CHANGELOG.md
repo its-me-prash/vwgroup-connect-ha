@@ -42,6 +42,15 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **When a car goes unreachable, the entities that explain why no longer vanish
+  with it.** A failed poll (past the tolerance window) took the whole car's
+  entities down — including "Vehicle Last Reported", the data-source and
+  connectivity indicators, and the error-reporter counts, i.e. exactly the ones
+  you'd look at to see what happened. Those connection-status diagnostics now stay
+  available regardless of the poll outcome, so you're never left blind at the
+  moment the car drops off.
+
 ## [4.6.0b1] - 2026-09-01 — Škoda data-quality wave · per-source connectivity · sturdier token refresh
 
 ### Added

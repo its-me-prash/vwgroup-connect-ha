@@ -22,6 +22,20 @@ def _device_name(vehicle: dict, brand: str) -> str:
     return f"{brand.title()} {vin[-6:]}" if vin else brand.title()
 
 
+# Connection-status diagnostics that must stay AVAILABLE even when the vehicle
+# poll is failing — otherwise the user is blinded to WHY the car went
+# unavailable exactly when they need to read it (the whole car went dark, so did
+# the "last reported", "data source", error-reporter and connectivity entities).
+# Keyed by entity_description.key; custom classes set ``_stay_available_on_poll_failure``.
+_CONNECTION_STATUS_KEYS = frozenset({
+    "last_updated_at",
+    "last_seen_at",
+    "data_source_channel",
+    "error_reporter_count",
+    "connection_active",
+})
+
+
 class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
     """Base entity shared by all VW Group Connect platforms.
 
@@ -78,7 +92,17 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
         v1.9.1 (Capability-Filter Phase 2): for command-bound entities,
         also returns False if the coordinator's ``FeatureState`` records a
         definitive "command not supported" outcome from a previous attempt.
+
+        Connection-status diagnostics (``_CONNECTION_STATUS_KEYS`` / classes that
+        set ``_stay_available_on_poll_failure``) stay available regardless of the
+        poll outcome, so a car going unreachable doesn't also hide the very
+        entities that explain why.
         """
+        desc = getattr(self, "entity_description", None)
+        if getattr(self, "_stay_available_on_poll_failure", False) or (
+            desc is not None and getattr(desc, "key", "") in _CONNECTION_STATUS_KEYS
+        ):
+            return True
         if not super().available:
             # Connector-level failure (``last_update_success``). That is a
             # statement about the poll, not about this car: a single-vehicle

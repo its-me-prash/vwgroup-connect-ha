@@ -1151,6 +1151,10 @@ class VagSourceConnectivitySensor(VagConnectEntity, BinarySensorEntity):
     for the EU Data Act portal its feed health — is exposed as attributes.
     """
 
+    # Stay visible when the car's poll fails — a connectivity indicator that
+    # disappears exactly when connectivity drops is worse than useless.
+    _stay_available_on_poll_failure = True
+
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
     _attr_icon = "mdi:transit-connection-variant"

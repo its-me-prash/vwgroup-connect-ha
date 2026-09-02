@@ -4346,6 +4346,10 @@ class ReporterSensor(VagConnectSensor):
     becomes unavailable.
     """
 
+    # The reporter/scout counts are exactly what you need when a poll fails, so
+    # keep them available regardless of the per-vehicle poll outcome.
+    _stay_available_on_poll_failure = True
+
     @property
     def native_value(self) -> Any:
         key = self.entity_description.key
