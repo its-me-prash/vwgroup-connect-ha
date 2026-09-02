@@ -40,7 +40,11 @@ _BASE = "https://mysmob.api.connect.skoda-auto.cz"
 # secret once), GET lists remaining quota per VIN, DELETE removes one by id. Keys
 # are VIN-bound; max 5 per VIN. Path inlined at each call site (literal, so the
 # Bruno drift-check resolves it) — kept here for documentation.
-_OFFICIAL_KEY_NAME = "Home Assistant (vag_connect)"
+# #1286 — plain alphanumeric + a single space, no parentheses/underscore. The
+# mysmob create-key POST 400s for real users (n3roGit + indigomejor); the backend
+# may validate the key ``name`` (charset/length), and the app's names are simple
+# user-typed strings, so keep ours conservative to remove that as a 400 cause.
+_OFFICIAL_KEY_NAME = "Home Assistant"
 # The key-management route is only exercised by the MyŠkoda app (v8.16+); spoof the
 # real app User-Agent on these calls so a possible min-app-version gate is satisfied
 # (verbatim from the 8.16 APK; MySkoda/Android/{versionName}/{versionCode}).
