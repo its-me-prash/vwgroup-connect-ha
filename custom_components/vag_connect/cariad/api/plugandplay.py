@@ -72,6 +72,41 @@ def _epoch_ms_to_date(val: Any) -> str | None:
         return None
 
 
+def _epoch_ms_to_datetime(val: Any) -> str | None:
+    """acpp trip / refuel / parking timestamps are epoch-millisecond ints.
+
+    Return a full ISO-8601 UTC datetime (time-of-day matters for a trip end or a
+    position fix, unlike the carport dates), or None on anything unparseable.
+    """
+    try:
+        ms = int(str(val))
+    except (TypeError, ValueError):
+        return None
+    if ms <= 0:
+        return None
+    try:
+        return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).isoformat()
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
+def _newest_driverlog(snap: dict[str, Any]) -> dict[str, Any] | None:
+    """The most-recent trip from the ``driverlogs`` page (newest ``endTime``).
+
+    The endpoint paginates (``content[]``); page 0 already holds the latest trips,
+    and we only need the newest one for the last-trip fields. Defensive: any shape
+    surprise → None, so a missing/odd logbook never breaks the status read.
+    """
+    dl = snap.get("driverlogs")
+    content = dl.get("content") if isinstance(dl, dict) else None
+    if not isinstance(content, list) or not content:
+        return None
+    trips = [t for t in content if isinstance(t, dict)]
+    if not trips:
+        return None
+    return max(trips, key=lambda t: t.get("endTime") or 0)
+
+
 class PlugAndPlayCloudClient:
     """Read-only cloud client for the Audi connect plug&play (acpp) backend.
 
@@ -193,6 +228,11 @@ class PlugAndPlayCloudClient:
             # carport = factory master data (model, engine, fuel, power) for the
             # proper "ab Haus" model designation.
             ("carport", f"vehicle/{vin}/carport"),
+            # driverlogs = the trip logbook (precise odometer + last-trip stats +
+            # EcoScore + start/end GPS); fuellog = refuel history ("von→auf" litres).
+            # Both only fill after the dongle syncs a drive/refuel; empty otherwise.
+            ("driverlogs", f"vehicle/{vin}/driverlogs"),
+            ("fuellog", f"user/fuellog/{vin}"),
         ):
             try:
                 s, b = await self._get(sub)
@@ -294,6 +334,45 @@ class PlugAndPlayCloudClient:
         tank = veh.get("tankFuelAmount")
         if isinstance(tank, (int, float)) and not isinstance(tank, bool) and tank >= 0:
             data.fuel_level_liters = float(tank)
+
+        # ── Trip logbook (driverlogs) — precise odometer + last-trip stats ──
+        # The dongle's driverlog carries a fresher, sub-metre odometer than the
+        # coarse/lagging root value, plus the last trip's distance, duration, start
+        # odometer and end time. Only present after a synced drive. Reuse the
+        # existing BFF trip columns so the same sensors light up — brand clients
+        # are mutually exclusive per vehicle, so there's no clobber (#1310).
+        trip = _newest_driverlog(snap)
+        if trip is not None:
+            end_odo = (trip.get("endData") or {}).get("odometer")
+            if isinstance(end_odo, (int, float)) and not isinstance(end_odo, bool):
+                data.odometer_km = int(round(end_odo))  # precise → overrides root
+            start_odo = (trip.get("startData") or {}).get("odometer")
+            if isinstance(start_odo, (int, float)) and not isinstance(start_odo, bool):
+                data.last_trip_start_odometer_km = int(round(start_odo))
+            dist = trip.get("totalTripMileage")
+            if isinstance(dist, (int, float)) and not isinstance(dist, bool):
+                data.last_trip_distance_km = round(float(dist), 2)
+            dur_ms = trip.get("totalTripTime")
+            if (
+                isinstance(dur_ms, (int, float))
+                and not isinstance(dur_ms, bool)
+                and dur_ms > 0
+            ):
+                data.last_trip_duration_min = int(round(dur_ms / 60000))
+            end_ts = _epoch_ms_to_datetime(trip.get("endTime"))
+            if end_ts is not None:
+                data.last_trip_timestamp = end_ts
+
+        # ── Parked-position freshness ──
+        # last-parking-position.recordedAt is the TRUE age of the GPS fix; the root
+        # registrationDate/mainCheck "Datenstand" is unreliable and doesn't move
+        # across a drive. Feed the existing position-age column (has carry-forward
+        # TTL machinery), not a new one.
+        pos_at = _epoch_ms_to_datetime(
+            (snap.get("last_parking_position") or {}).get("recordedAt")
+        )
+        if pos_at is not None:
+            data.position_captured_at = pos_at
 
         # Factory ("ab Haus") model designation from the carport master-data
         # record — e.g. brandCode "A" + modelDesc "A5" + engType "TDI CR".

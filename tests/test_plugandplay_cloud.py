@@ -232,6 +232,62 @@ async def test_get_status_carport_missing_is_graceful():
     assert data.odometer_km == 12000  # the rest still maps
 
 
+# ── driverlogs (trip logbook) — precise odometer + last-trip stats + freshness ──
+
+async def test_get_status_maps_driverlog_trip_and_parking_freshness():
+    c = _client()
+    _stub_get(c, {
+        f"vehicle/{VIN_2009}": (200, {
+            "vehicle": {"vin": VIN_2009, "carPlatform": "KWP2000"},
+            "odometer": 369290.0,  # coarse root — the driverlog end odo must win
+        }),
+        f"vehicle/{VIN_2009}/warning-lights": (200, {"warningLights": []}),
+        f"vehicle/{VIN_2009}/driverlogs": (200, {"content": [
+            # older trip first — the mapper must pick the newest by endTime
+            {"endTime": 1788000000000, "totalTripMileage": 0.5,
+             "startData": {"odometer": 369280.0}, "endData": {"odometer": 369280.5}},
+            {"endTime": 1788273444410, "totalTripMileage": 1.3778710913,
+             "totalTripTime": 246670,
+             "startData": {"odometer": 369289.7}, "endData": {"odometer": 369291.0}},
+        ]}),
+        f"vehicle/{VIN_2009}/last-parking-position": (200, {
+            "recordedAt": 1788289854000,
+            "gpsLocation": {"latitude": 47.696, "longitude": 8.064},
+        }),
+    })
+    data = await c.get_status(VIN_2009)
+    assert data.odometer_km == 369291                 # precise driverlog end odo, not root 369290
+    assert data.last_trip_start_odometer_km == 369290  # round(369289.7)
+    assert data.last_trip_distance_km == 1.38          # rounded to 2dp
+    assert data.last_trip_duration_min == 4            # 246670 ms → 4 min
+    assert data.last_trip_timestamp == "2026-09-01T14:37:24.410000+00:00"
+    assert data.position_captured_at == "2026-09-01T19:10:54+00:00"
+
+
+async def test_get_status_no_driverlogs_falls_back_to_root_odometer():
+    c = _client()
+    _stub_get(c, {
+        f"vehicle/{VIN_2020}": (200, {"vehicle": {"vin": VIN_2020}, "odometer": 12000}),
+        f"vehicle/{VIN_2020}/warning-lights": (200, {"warningLights": []}),
+        # no driverlogs / no parking → those fields stay None, root odo stands
+    })
+    data = await c.get_status(VIN_2020)
+    assert data.odometer_km == 12000
+    assert data.last_trip_distance_km is None
+    assert data.last_trip_timestamp is None
+    assert data.position_captured_at is None
+
+
+def test_epoch_ms_to_datetime():
+    from custom_components.vag_connect.cariad.api.plugandplay import (
+        _epoch_ms_to_datetime,
+    )
+    assert _epoch_ms_to_datetime("1788273444410") == "2026-09-01T14:37:24.410000+00:00"
+    assert _epoch_ms_to_datetime("0") is None
+    assert _epoch_ms_to_datetime(None) is None
+    assert _epoch_ms_to_datetime("nope") is None
+
+
 def test_epoch_ms_to_date():
     from custom_components.vag_connect.cariad.api.plugandplay import _epoch_ms_to_date
     assert _epoch_ms_to_date("1219795200000") == "2008-08-27"

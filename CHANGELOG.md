@@ -42,6 +42,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- **Audi plug&play (OBD dongle): last-trip stats, a precise odometer, and a real
+  "last parked" time.** The dongle's trip logbook now fills the last-trip distance,
+  duration and start odometer, and the main odometer switches to the driverlog's
+  sub-metre value (fresher and more accurate than the coarse snapshot one). The
+  parked-position age now comes from the GPS fix's own timestamp instead of the
+  unreliable sync stamp, so "how old is this location" is finally honest.
+
 ## [4.6.0b1] - 2026-09-01 — Škoda data-quality wave · per-source connectivity · sturdier token refresh
 
 ### Added
