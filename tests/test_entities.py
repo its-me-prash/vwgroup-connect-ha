@@ -552,6 +552,27 @@ class TestDeviceTracker:
         )
         assert len(added) == 1
 
+    def test_setup_spawns_tracker_for_acpp_entry_without_gps(self):
+        # acpp (audi_acpp) reports GPS only from the dongle's intermittent parked
+        # snapshot, so a car mid-drive at setup has no coordinates yet. The tracker
+        # must still spawn (same reasoning as the vw.de channel, #984) so the car's
+        # location is always bound to a tracker instead of never appearing / being
+        # purged during a between-drives gap.
+        import asyncio
+        from custom_components.vag_connect.const import CONF_STRATEGY
+        from custom_components.vag_connect.device_tracker import async_setup_entry
+        coord = _make_coordinator()
+        vin = list(coord.data.keys())[0]
+        coord.data[vin]["latitude"] = None
+        coord.vehicles[vin]["latitude"] = None
+        entry = _make_entry(coord, data={CONF_STRATEGY: "audi_acpp"})
+        added = []
+        def _collect(entities, **kw): added.extend(entities)
+        asyncio.run(
+            async_setup_entry(MagicMock(), entry, _collect)
+        )
+        assert len(added) == 1
+
 
 # ── climate ────────────────────────────────────────────────────────────────────
 

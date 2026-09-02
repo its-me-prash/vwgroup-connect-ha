@@ -56,6 +56,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   portal ever actually provides one. **Live-verified end-to-end**: the create now returns success
   and the 15-minute request appears on the account. Thanks @steemandavid for the diagnosis
   (#709, #966, #1273).
+- **Audi plug&play (OBD dongle): the car's location now always gets a map tracker.** The
+  dongle only reports GPS from its last parked snapshot, so the position comes and goes
+  between drives — and the device tracker could fail to appear (or get purged during a
+  gap), leaving the location unbound. It's now created unconditionally for plug&play
+  entries, the same way the volkswagen.de channel already is, so the car stays on the map
+  (reading unavailable between fixes).
 
 ### Added
 - **Diagnostic sensors that show what the EU Data Act portal feed is actually doing**, so a
