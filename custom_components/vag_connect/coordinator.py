@@ -424,6 +424,14 @@ def _mbb_command_capability(
     cmd = _mbb_command_channel_client(coord)
     if cmd is None:
         return None
+    # #584/#1150 — this VIN's operationList returned the definitive
+    # ``gw.error.authentication`` verdict (no legacy Car-Net enrolment), so the MBB
+    # command channel can never work for it. Hide the control (False) instead of
+    # leaving it visible to fail on every press. NOT triggered by a VSR 403
+    # XID_APP_VW — that is the HEALTHY durable-MBB state (commands work, only the
+    # data-read plane is closed) and is deliberately never added to the set.
+    if vin in getattr(cmd, "mbb_no_legacy_vins", ()):
+        return False
     if command_id not in _MBB_COMMAND_SERVICE:
         # A command we don't route via MBB — leave it to the BFF gate rather
         # than risk hiding a legitimate non-MBB control.
@@ -4690,6 +4698,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 vins = list(self.vehicles.keys())
         for vin in vins:
             if not vin:
+                continue
+            # #584/#1150 — a VIN with the definitive no-legacy verdict can never use
+            # the MBB command channel, so stop re-hitting the gateway warm-up for it
+            # every poll. (The 12h per-VIN cache already suppresses the HTTP call
+            # within a session; this makes the skip explicit and covers a cache reset.)
+            if vin in getattr(cmd, "mbb_no_legacy_vins", ()):
                 continue
             try:
                 await getter(vin, for_command=True)
