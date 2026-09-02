@@ -303,6 +303,19 @@ CONF_SKODA_OFFICIAL_API_KEY      = "skoda_official_api_key"
 # is a map, not a single key; CONF_SKODA_OFFICIAL_API_KEY stays the manual-fallback
 # single key for any VIN not auto-enrolled.
 CONF_SKODA_OFFICIAL_KEYS         = "skoda_official_keys"
+# Škoda official-API source mode (opt-in select, #1286 @n3roGit). Governs how the
+# official manufacturer API interacts with the primary "mysmob" channel:
+#   auto            → read both every poll, official's readings win (default)
+#   prefer_official → same active merge; official is the authoritative source
+#   failover        → mysmob only; official steps in solely on a hard failure
+#   official_only   → only the official API (mysmob off), per-VIN degrade to mysmob
+#                     for any car without a valid official key
+#   mysmob_only     → only the mysmob channel (official off entirely, no minting)
+CONF_SKODA_OFFICIAL_MODE         = "skoda_official_mode"
+SKODA_OFFICIAL_MODES: tuple[str, ...] = (
+    "auto", "prefer_official", "failover", "official_only", "mysmob_only",
+)
+SKODA_OFFICIAL_MODE_DEFAULT = "auto"
 
 # v2.15.0b3 — "hide entities without data" (default ON). When enabled, data
 # sensors / binary sensors whose value hasn't arrived are not created, so a

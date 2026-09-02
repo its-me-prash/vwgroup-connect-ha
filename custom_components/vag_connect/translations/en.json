@@ -244,7 +244,8 @@
           "companion_read_climate_detail": "Companion: read target and outside temperature (navigates the app)",
           "companion_read_parking_position": "Companion: read parking position from the app's share link (navigates the app)",
           "skoda_official_api_key": "Škoda official API key — adds the official manufacturer API as a live data source (and failover)",
-          "clear_skoda_official_key": "Clear the stored Škoda official API key (a fresh one is created automatically if your login supports it)"
+          "clear_skoda_official_key": "Clear the stored Škoda official API key (a fresh one is created automatically if your login supports it)",
+          "skoda_official_mode": "Škoda official-API source mode"
         },
         "data_description": {
           "scan_interval": "How often data is fetched (minutes). Minimum: 3.",
@@ -2278,6 +2279,15 @@
         "stop_aux_heating": "Stop auxiliary heating",
         "start_ventilation": "Start ventilation",
         "stop_ventilation": "Stop ventilation"
+      }
+    },
+    "skoda_official_mode": {
+      "options": {
+        "auto": "Automatic (both sources, official preferred)",
+        "prefer_official": "Prefer the official API",
+        "failover": "Official API as failover only",
+        "official_only": "Official API only",
+        "mysmob_only": "Standard channel only"
       }
     }
   }

@@ -66,6 +66,14 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   received**, **Last no-data poll**, and **No-data polls** (how often the portal came back
   empty). Thanks @HA28320 and @riteman for the feed samples that made this concrete
   (#465, #1273). All 12 languages.
+- **Škoda: choose how the official manufacturer API is used.** A new per-car option
+  ("Škoda official-API source mode") lets you pick: **Automatic** (both channels, the
+  official API's readings preferred — the default, unchanged); **Prefer the official
+  API**; **Official API as failover only**; **Official API only** (turn the standard
+  channel off); or **Standard channel only** (turn the official API off entirely). So if
+  you'd rather not lean on the reverse-engineered channel — or would rather not use the
+  official one — it's a switch now instead of automatic. Thanks @n3roGit (#1286). All 12
+  languages.
 
 ## [4.7.0b4] - 2026-09-02 — EU Data Act: clearer "no vehicle data yet" guidance (carries 4.6.3)
 

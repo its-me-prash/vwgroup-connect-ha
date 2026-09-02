@@ -244,7 +244,8 @@
           "companion_read_climate_detail": "Companion : lire la température de consigne et extérieure (navigue dans l'app)",
           "companion_read_parking_position": "Companion : lire la position de stationnement depuis le lien de partage de l'app (navigue dans l'app)",
           "skoda_official_api_key": "Clé API officielle Škoda — ajoute l'API officielle du constructeur comme source de données en direct (et bascule)",
-          "clear_skoda_official_key": "Effacer la clé API officielle Škoda enregistrée (une nouvelle est créée automatiquement si votre connexion le permet)"
+          "clear_skoda_official_key": "Effacer la clé API officielle Škoda enregistrée (une nouvelle est créée automatiquement si votre connexion le permet)",
+          "skoda_official_mode": "Mode de source de l'API officielle Škoda"
         },
         "data_description": {
           "scan_interval": "Fréquence de mise à jour (minutes). Minimum: 3.",
@@ -2278,6 +2279,15 @@
         "stop_aux_heating": "Arrêter le chauffage d'appoint",
         "start_ventilation": "Démarrer la ventilation",
         "stop_ventilation": "Arrêter la ventilation"
+      }
+    },
+    "skoda_official_mode": {
+      "options": {
+        "auto": "Automatique (deux sources, officielle préférée)",
+        "prefer_official": "Préférer l'API officielle",
+        "failover": "API officielle en secours uniquement",
+        "official_only": "API officielle uniquement",
+        "mysmob_only": "Canal standard uniquement"
       }
     }
   }

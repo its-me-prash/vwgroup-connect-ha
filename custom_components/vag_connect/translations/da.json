@@ -244,7 +244,8 @@
           "companion_read_climate_detail": "Companion: læs måltemperatur og udetemperatur (navigerer i appen)",
           "companion_read_parking_position": "Companion: læs parkeringsposition fra appens delingslink (navigerer i appen)",
           "skoda_official_api_key": "Officiel Škoda API-nøgle — tilføjer den officielle producent-API som live datakilde (og failover)",
-          "clear_skoda_official_key": "Ryd den gemte officielle Škoda API-nøgle (en ny oprettes automatisk, hvis dit login understøtter det)"
+          "clear_skoda_official_key": "Ryd den gemte officielle Škoda API-nøgle (en ny oprettes automatisk, hvis dit login understøtter det)",
+          "skoda_official_mode": "Škoda officiel API-kildetilstand"
         },
         "data_description": {
           "scan_interval": "Hvor ofte data hentes (minutter). Minimum: 3.",
@@ -2278,6 +2279,15 @@
         "stop_aux_heating": "Stop parkeringsvarmer",
         "start_ventilation": "Start ventilation",
         "stop_ventilation": "Stop ventilation"
+      }
+    },
+    "skoda_official_mode": {
+      "options": {
+        "auto": "Automatisk (begge kilder, officiel foretrukket)",
+        "prefer_official": "Foretræk det officielle API",
+        "failover": "Officielt API kun som failover",
+        "official_only": "Kun officielt API",
+        "mysmob_only": "Kun standardkanal"
       }
     }
   }

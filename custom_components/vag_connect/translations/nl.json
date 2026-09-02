@@ -244,7 +244,8 @@
           "companion_read_climate_detail": "Companion: streef- en buitentemperatuur lezen (navigeert in de app)",
           "companion_read_parking_position": "Companion: parkeerpositie uit de deellink van de app lezen (navigeert in de app)",
           "skoda_official_api_key": "Officiële Škoda API-sleutel — voegt de officiële fabrikant-API toe als live databron (en failover)",
-          "clear_skoda_official_key": "Wis de opgeslagen officiële Škoda API-sleutel (er wordt automatisch een nieuwe aangemaakt als je login dit ondersteunt)"
+          "clear_skoda_official_key": "Wis de opgeslagen officiële Škoda API-sleutel (er wordt automatisch een nieuwe aangemaakt als je login dit ondersteunt)",
+          "skoda_official_mode": "Škoda officiële-API-bronmodus"
         },
         "data_description": {
           "scan_interval": "Hoe vaak gegevens worden opgehaald (minuten). Minimum: 3.",
@@ -2278,6 +2279,15 @@
         "stop_aux_heating": "Standkachel stoppen",
         "start_ventilation": "Ventilatie starten",
         "stop_ventilation": "Ventilatie stoppen"
+      }
+    },
+    "skoda_official_mode": {
+      "options": {
+        "auto": "Automatisch (beide bronnen, officieel voorkeur)",
+        "prefer_official": "Officiële API verkiezen",
+        "failover": "Officiële API alleen als failover",
+        "official_only": "Alleen officiële API",
+        "mysmob_only": "Alleen standaardkanaal"
       }
     }
   }

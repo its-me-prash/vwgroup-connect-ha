@@ -244,7 +244,8 @@
           "companion_read_climate_detail": "Companion: číst cílovou a venkovní teplotu (naviguje v aplikaci)",
           "companion_read_parking_position": "Companion: číst pozici parkování z odkazu pro sdílení v aplikaci (naviguje v aplikaci)",
           "skoda_official_api_key": "Oficiální klíč API Škoda — přidá oficiální API výrobce jako živý zdroj dat (a zálohu)",
-          "clear_skoda_official_key": "Vymazat uložený oficiální klíč API Škoda (nový se vytvoří automaticky, pokud to vaše přihlášení podporuje)"
+          "clear_skoda_official_key": "Vymazat uložený oficiální klíč API Škoda (nový se vytvoří automaticky, pokud to vaše přihlášení podporuje)",
+          "skoda_official_mode": "Režim zdroje oficiálního API Škoda"
         },
         "data_description": {
           "scan_interval": "Jak často se stahují data (minuty). Minimum: 3.",
@@ -2278,6 +2279,15 @@
         "stop_aux_heating": "Zastavit nezávislé topení",
         "start_ventilation": "Spustit větrání",
         "stop_ventilation": "Zastavit větrání"
+      }
+    },
+    "skoda_official_mode": {
+      "options": {
+        "auto": "Automaticky (oba zdroje, přednost oficiálnímu)",
+        "prefer_official": "Preferovat oficiální API",
+        "failover": "Oficiální API jen jako záloha",
+        "official_only": "Pouze oficiální API",
+        "mysmob_only": "Pouze standardní kanál"
       }
     }
   }

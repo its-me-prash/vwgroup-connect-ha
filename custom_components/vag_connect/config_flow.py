@@ -2492,7 +2492,29 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
         # failover). This single field is the FALLBACK applied to any car without
         # its own per-VIN key below. Pre-filled so re-opening options never blanks it.
         if current_data.get(CONF_BRAND) == "skoda":
-            from .const import CONF_SKODA_OFFICIAL_API_KEY  # noqa: PLC0415
+            from .const import (  # noqa: PLC0415
+                CONF_SKODA_OFFICIAL_API_KEY,
+                CONF_SKODA_OFFICIAL_MODE,
+                SKODA_OFFICIAL_MODE_DEFAULT,
+                SKODA_OFFICIAL_MODES,
+            )
+            # #1286 (n3roGit) — pick how the official manufacturer API interacts
+            # with the primary "mysmob" channel (auto-merge / prefer-official /
+            # failover / official-only / mysmob-only). Options-then-data default so
+            # the options-trap (listener folds options into data) can't blank it.
+            schema[vol.Optional(
+                CONF_SKODA_OFFICIAL_MODE,
+                default=str(current_options.get(
+                    CONF_SKODA_OFFICIAL_MODE,
+                    current_data.get(
+                        CONF_SKODA_OFFICIAL_MODE, SKODA_OFFICIAL_MODE_DEFAULT
+                    ),
+                )),
+            )] = SelectSelector(SelectSelectorConfig(
+                options=list(SKODA_OFFICIAL_MODES),
+                mode=SelectSelectorMode.DROPDOWN,
+                translation_key=CONF_SKODA_OFFICIAL_MODE,
+            ))
             schema[vol.Optional(
                 CONF_SKODA_OFFICIAL_API_KEY,
                 default=str(current_options.get(
