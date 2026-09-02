@@ -243,7 +243,7 @@
           "companion_read_vehicle_health": "Companion: lue mittarilukema ja huolto ajoneuvon kunnosta (navigoi sovelluksessa)",
           "companion_read_climate_detail": "Companion: lue tavoite- ja ulkolämpötila (navigoi sovelluksessa)",
           "companion_read_parking_position": "Companion: lue pysäköintipaikka sovelluksen jakolinkistä (navigoi sovelluksessa)",
-          "skoda_official_api_key": "Virallinen Škoda-API-avain — vikasieto, kun pääkanava on poissa käytöstä"
+          "skoda_official_api_key": "Virallinen Škoda-API-avain — lisää valmistajan virallisen API:n live-tietolähteeksi (ja vikasietona)"
         },
         "data_description": {
           "scan_interval": "Kuinka usein tietoja haetaan (minuutteja). Vähintään: 3.",

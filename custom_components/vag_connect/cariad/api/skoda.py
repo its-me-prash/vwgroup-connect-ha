@@ -235,20 +235,21 @@ class SkodaClient(CariadBaseClient):
         # stops 403-hammering that endpoint. Empty on a fresh restart → charging is
         # attempted once, carType is learned, then skipped from poll 2 on.
         self._powertrain: dict[str, str] = {}
-        # Škoda OFFICIAL public-API client, armed opt-in as a FAILOVER-ONLY read
-        # source (see arm_supplementary_official). None unless the user configured
-        # an API key. Never consulted on a healthy poll — only when the primary
-        # mysmob read hard-fails — because the official API is rate-limited to
-        # 20 req/hour/key.
+        # Škoda OFFICIAL public-API client, armed opt-in (see
+        # arm_supplementary_official). None unless the user configured an API key.
+        # Consulted as an ACTIVE live source on every healthy poll (rate permitting)
+        # AND as the hard-failure failover. Rate-limited to 20 req/hour/key, so both
+        # read paths go through _official_read_rate_safe, which self-skips at quota.
         self._supplementary_official: Any = None
 
     def arm_supplementary_official(
         self, api_key: str = "", keys_by_vin: dict[str, str] | None = None,
     ) -> None:
-        """Arm the official Škoda public API as a failover source (opt-in). Keys are
-        vehicle-bound server-side, so ``get_status(vin)`` is called per-VIN on
-        failover. ``keys_by_vin`` carries the auto-enrolled per-VIN keys; ``api_key``
-        is the single manual-fallback key (applied to any VIN without its own)."""
+        """Arm the official Škoda public API (opt-in) as an active live source plus
+        hard-failure failover. Keys are vehicle-bound server-side, so
+        ``get_status(vin)`` is called per-VIN. ``keys_by_vin`` carries the
+        auto-enrolled per-VIN keys; ``api_key`` is the single manual-fallback key
+        (applied to any VIN without its own)."""
         if not api_key and not keys_by_vin:
             self._supplementary_official = None
             return
@@ -258,22 +259,36 @@ class SkodaClient(CariadBaseClient):
             keys_by_vin=keys_by_vin,
         )
 
-    async def official_failover_read(self, vin: str) -> "VehicleData | None":
-        """Read one VIN via the official public API — the FAILOVER path, invoked
-        only when the primary channel raised. Fail-soft: any error returns None so
-        the failover can never itself sink the poll."""
+    async def _official_read_rate_safe(self, vin: str) -> "VehicleData | None":
+        """Shared body for the official public-API reads (failover + active
+        live-source). Honours the official channel's 20/hour/key budget: if the
+        server has told us we're out (RateLimit-Remaining 0, or a 429/503
+        Retry-After), skip the read until the window resets rather than breaching
+        the quota. Fail-soft: any error returns None so an official hiccup can
+        never itself sink the poll."""
         off = self._supplementary_official
         if off is None:
             return None
-        # Honour the official channel's 20/hour/key budget: if the server has told
-        # us we're out (RateLimit-Remaining 0, or a 429/503 Retry-After), skip the
-        # failover read until the window resets rather than breaching the quota.
         if getattr(off, "over_rate_limit", False) is True:
             return None
         try:
             return await off.get_status(vin)  # type: ignore[no-any-return]
         except Exception:  # noqa: BLE001
             return None
+
+    async def official_failover_read(self, vin: str) -> "VehicleData | None":
+        """Read one VIN via the official public API — the FAILOVER path, invoked
+        only when the primary channel hard-fails
+        (coordinator._revive_from_supplementary)."""
+        return await self._official_read_rate_safe(vin)
+
+    async def official_live_read(self, vin: str) -> "VehicleData | None":
+        """Read one VIN via the official public API on a HEALTHY cycle — the ACTIVE
+        live-source path (as opposed to official_failover_read). The official
+        manufacturer API is queried every poll (rate permitting) and its readings
+        are merged into the primary payload as an authoritative live source, rather
+        than being held back purely as a hard-failure failover."""
+        return await self._official_read_rate_safe(vin)
 
     # -- official public-API key minting (mysmob BFF) -------------------------
     # Auto-enrollment: mint the official X-API-Key from the user's existing mysmob

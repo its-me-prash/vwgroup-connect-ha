@@ -243,7 +243,7 @@
           "companion_read_vehicle_health": "Companion: läs mätarställning och service från fordonsstatus (navigerar i appen)",
           "companion_read_climate_detail": "Companion: läs börtemperatur och utetemperatur (navigerar i appen)",
           "companion_read_parking_position": "Companion: läs parkeringsposition från appens delningslänk (navigerar i appen)",
-          "skoda_official_api_key": "Officiell Škoda API-nyckel — failover när huvudkanalen är nere"
+          "skoda_official_api_key": "Officiell Škoda API-nyckel — lägger till tillverkarens officiella API som live-datakälla (och failover)"
         },
         "data_description": {
           "scan_interval": "Hur ofta data hämtas (minuter). Minimum: 3.",

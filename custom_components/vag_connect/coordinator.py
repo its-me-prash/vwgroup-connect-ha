@@ -2580,7 +2580,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
     def _armed_data_channels(self, vin: str) -> list[str]:
         """Tokens of the read channels armed for this vehicle (data sources) —
-        primary + supplementary + the Škoda official failover — enumerated WITHOUT
+        primary + supplementary + the Škoda official channel — enumerated WITHOUT
         creating reader coroutines. Order-stable, de-duplicated. Brand-agnostic."""
         client = self._cariad_client
         tokens: list[str] = [self._primary_channel_name()]
@@ -2606,8 +2606,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         """Per-source connectivity status for the connectivity binary_sensors: for
         each armed data channel, whether it is currently contributing values
         (active) vs armed-but-idle (standby), how many readings it owns of the total,
-        and when it last contributed. The Škoda official channel is a FAILOVER whose
-        data wears the brand token, so it is reported as armed with no live count."""
+        and when it last contributed. The Škoda official channel is now BOTH an
+        active live source (it contributes on healthy cycles, tagged skoda_official)
+        AND the hard-failure failover, so it is reported with its live count and
+        failover:True."""
         field_sources = data.get("field_sources")
         if not isinstance(field_sources, dict):
             field_sources = {}
@@ -2621,9 +2623,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         status: dict[str, dict[str, Any]] = {}
         for token in self._armed_data_channels(vin):
             if token == "skoda_official":
+                # Active live source now: count the fields it actually contributed
+                # this cycle. Still failover:True — it also serves on hard failure.
+                n = sum(1 for t in field_sources.values() if t == token)
+                active = n > 0
+                if active:
+                    vin_last[token] = now_iso
                 status[token] = {
-                    "armed": True, "failover": True, "active": False,
-                    "active_values": None, "total_values": total,
+                    "armed": True, "failover": True, "active": active,
+                    "active_values": n, "total_values": total,
                     "last_active": vin_last.get(token),
                 }
                 continue
@@ -3229,6 +3237,71 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 )
         return None
 
+    async def _merge_official_live(
+        self, vin: str, enriched: dict[str, Any]
+    ) -> None:
+        """ACTIVE Škoda-official live read on a HEALTHY cycle: query the official
+        manufacturer public API and merge its readings into the just-built primary
+        payload as an authoritative live source (not merely a failover). Runs before
+        _compute_channel_status so the connectivity map reflects the contribution.
+
+        - Brand-isolated: official_live_read exists only on the Škoda client, so this
+          is a no-op for every other brand (getattr → None).
+        - Rate-safe: the 20/hour/key budget guard lives inside official_live_read,
+          which self-skips at quota; fail-soft, so an official hiccup never sinks the
+          poll.
+        - Official wins for the fields it actually populated. asdict() emits every
+          declared field including untouched False/0/"" defaults, which would clobber
+          a real primary value — so a field is merged only when it differs from a
+          fresh VehicleData baseline (i.e. the official parse genuinely set it).
+        - last_seen_at is gap-filled only, never overwritten, so the vehicle's
+          "last seen" can't jump backwards to an older official capture timestamp.
+        """
+        client = self._cariad_client
+        read = getattr(client, "official_live_read", None)
+        if read is None:
+            return
+        try:
+            off = await read(vin)
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug(
+                "official live-read raised for %s", mask_vin(vin), exc_info=True
+            )
+            return
+        if off is None:
+            return
+        try:
+            od = off.to_dict()
+            base = VehicleData(vin=vin).to_dict()
+        except Exception:  # noqa: BLE001
+            return
+        if not isinstance(od, dict) or not isinstance(base, dict):
+            return
+        field_sources = enriched.get("field_sources")
+        if not isinstance(field_sources, dict):
+            field_sources = {}
+            enriched["field_sources"] = field_sources
+        merged = 0
+        for key, val in od.items():
+            if key in ("vin", "field_sources", "source_channel"):
+                continue
+            if val is None or val == base.get(key):
+                continue
+            if isinstance(val, (str, list, dict)) and not val:
+                continue
+            if key == "last_seen_at":
+                # advance-only: skip if the primary already carries a timestamp.
+                if enriched.get(key):
+                    continue
+            enriched[key] = val
+            field_sources[key] = "skoda_official"
+            merged += 1
+        if merged:
+            _LOGGER.debug(
+                "official live-source merged %d field(s) for %s",
+                merged, mask_vin(vin),
+            )
+
     async def _poll_loop(self) -> None:
         """Background polling loop — runs independently of HA scheduler.
 
@@ -3509,6 +3582,18 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         # the raw backend snapshot straight over a just-issued
                         # command's optimistic value (e.g. lock → doors_locked
                         # snaps back to the stale poll reading for ~150 s).
+                        # Škoda official public API as an ACTIVE live source: on a
+                        # healthy cycle, merge the manufacturer API's readings into
+                        # the primary payload (rate-safe, brand-isolated, fail-soft).
+                        # Must run BEFORE _compute_channel_status so the connectivity
+                        # map counts the official contribution.
+                        try:
+                            await self._merge_official_live(vin, enriched)
+                        except Exception:  # noqa: BLE001
+                            _LOGGER.debug(
+                                "official live-source merge skipped for %s",
+                                mask_vin(vin), exc_info=True,
+                            )
                         # Per-source connectivity map for the connectivity
                         # binary_sensors (which sources this car is connected to,
                         # active vs standby, how many readings each provides). Fail-

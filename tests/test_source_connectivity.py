@@ -76,14 +76,23 @@ def test_status_active_counts_from_field_sources() -> None:
     assert st["skoda"]["last_active"] is not None
 
 
-def test_status_official_is_standby_failover_without_count() -> None:
+def test_status_official_active_when_contributing_else_standby() -> None:
     c = _coord({"brand": "skoda"}, _client(_supplementary_official=object()))
-    # official contributes nothing (its data wears the brand token)
+    # idle this cycle: armed + failover, active False, and a REAL zero count now
+    # (the official channel is an active live source, so it reports a live count
+    # like every other channel — not the old sentinel None).
     st = c._compute_channel_status(VIN, {"field_sources": {"battery_soc": "skoda"}})
     assert st["skoda_official"]["armed"] is True
     assert st["skoda_official"]["failover"] is True
     assert st["skoda_official"]["active"] is False
-    assert st["skoda_official"]["active_values"] is None
+    assert st["skoda_official"]["active_values"] == 0
+    # contributing this cycle: its readings wear the skoda_official token → active
+    st2 = c._compute_channel_status(
+        VIN, {"field_sources": {"battery_soc": "skoda", "odometer_km": "skoda_official"}}
+    )
+    assert st2["skoda_official"]["active"] is True
+    assert st2["skoda_official"]["active_values"] == 1
+    assert st2["skoda_official"]["failover"] is True  # still the failover too
 
 
 def test_status_portal_carries_health_attributes() -> None:

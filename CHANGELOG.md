@@ -42,6 +42,29 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.6.1] - 2026-09-02 — Škoda official API now reads live every cycle, not just on failover
+
+### Changed
+- **Škoda official API is now an active live data source.** If you have connected Škoda's
+  official public API (with an API key), it is now read on every regular update — not only
+  as an emergency failover when your main channel goes down. Its manufacturer-grade
+  readings (odometer, battery/fuel, range, lock and opening status, climate, charging and
+  the GPS parking position) are merged straight into your existing sensors as an
+  authoritative live source, so the values you already have simply get fresher and
+  steadier — there are no new entities to adopt. It still doubles as the failover on a hard
+  outage, and it stays inside Škoda's 20-requests-per-hour budget: the read self-skips once
+  the quota is spent, so normal poll intervals (5–10 min) never breach it. Existing values
+  are never overwritten by a blank — the official read only ever fills or refreshes a real
+  reading, and "last seen" is never moved backwards. The connectivity sensor now reports
+  the official channel as "active" (with its live reading count) while it is contributing,
+  instead of always "standby (failover)" (#1286).
+
+### Fixed
+- **Škoda official API: key created with a plain name.** Automatic enrolment now names the
+  API key simply "Home Assistant" (previously "Home Assistant (vag_connect)"), matching the
+  format the Škoda app itself uses — ruling the key name out as a factor in the enrolment
+  rejection some accounts still see (#1286).
+
 ## [4.6.0] - 2026-09-02 — Škoda data-quality wave · per-source connectivity · sturdier token refresh · Audi plug&play logbook
 
 ### Added
