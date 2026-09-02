@@ -42,6 +42,24 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.0b6] - 2026-09-03 — Volkswagen Commercial Vehicles (Nutzfahrzeuge)
+
+### Added
+- **Volkswagen Commercial Vehicles is now its own brand.** VW runs Passenger Cars and
+  Commercial Vehicles (Nutzfahrzeuge) as **separate** data-controllers in the EU Data Act
+  portal — so a T6.1 / Transporter / Crafter registered under the commercial realm never
+  delivered through the "Volkswagen EU" setup (it showed as a car but stayed empty). Pick
+  **Volkswagen Commercial Vehicles** at setup — or add it as a second entry alongside your
+  passenger VW — and its portal feed comes through. Read-only via the EU Data Act portal,
+  same as passenger VW. Thanks @EcksteinU for the clear ID.3 + T6.1 report (#1316).
+
+### Fixed
+- **EU Data Act portal login: the state locale order is now correct for non-matching
+  country/language.** The portal expects `{country}__{language}` (a German account viewing in
+  English is `de__en`); a secondary login helper had the two halves reversed. The active
+  reader was already correct, so this only tidies the dormant helper — no behaviour change
+  for the de_DE majority — with a regression guard added.
+
 ## [4.7.0b5] - 2026-09-02 — EU Data Act: the data request actually gets created + portal-feed observability
 
 ### Fixed

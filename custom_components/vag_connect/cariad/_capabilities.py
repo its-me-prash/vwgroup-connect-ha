@@ -338,6 +338,21 @@ DECLARED_CAPABILITIES: dict[str, dict[str, bool]] = {
         "fcm_push": True,
         "dag_login": False,
     },
+    "volkswagen_commercial": {
+        # #1316 — VW Commercial Vehicles is routed PORTAL-ONLY (base.py: the
+        # native BFF is attestation-walled, so the strategy chain is just
+        # data_act_portal). The read-only portal offers no commands and no push,
+        # so it declares nothing — every capability False, like audi_acpp — and
+        # diagnostics never imply a command it can't do.
+        "auxiliary_heating": False,
+        "charging": False,
+        "climatisation": False,
+        "trip_statistics": False,
+        "brake_service": False,
+        "ola_push": False,
+        "fcm_push": False,
+        "dag_login": False,
+    },
     "skoda": {
         "auxiliary_heating": False,
         "charging": True,

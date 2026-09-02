@@ -13,13 +13,30 @@ from .const import DOMAIN
 from .coordinator import VagConnectCoordinator
 
 
+# #1316 — brands whose slug title-cases badly (underscores / mixed case). This
+# display override keeps the device page + entity names clean; every other brand
+# falls back to ``brand.title()`` unchanged, so no existing device is renamed.
+_BRAND_DISPLAY: dict[str, str] = {
+    "volkswagen_commercial": "Volkswagen Commercial Vehicles",
+}
+
+
+def _brand_display(brand: str) -> str:
+    """Human-readable brand label for the HA device (manufacturer + name).
+
+    HA registry ``manufacturer``/``name`` are plain strings (not translatable),
+    so this is one canonical English label — consistent with ``const.BRANDS``."""
+    return _BRAND_DISPLAY.get((brand or "").lower()) or brand.title()
+
+
 def _device_name(vehicle: dict, brand: str) -> str:
     """Return "{Brand} {Model}" or "{Brand} {VIN[-6:]}" as device name."""
+    label = _brand_display(brand)
     model = (vehicle.get("model") or "").strip()
     if model and model.lower() not in ("vag vehicle", "unknown", ""):
-        return f"{brand.title()} {model}"
+        return f"{label} {model}"
     vin = vehicle.get("vin", "")
-    return f"{brand.title()} {vin[-6:]}" if vin else brand.title()
+    return f"{label} {vin[-6:]}" if vin else label
 
 
 # Connection-status diagnostics that must stay AVAILABLE even when the vehicle
@@ -140,6 +157,7 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
         # durable section landing page over a deep link that gets renamed.
         "audi":          "https://my.audi.com/",
         "volkswagen":    "https://www.volkswagen.de/de/besitzer-und-nutzer.html",
+        "volkswagen_commercial": "https://www.volkswagen-nutzfahrzeuge.de/",  # #1316
         "skoda":         "https://www.skoda-auto.com/",
         "seat":          "https://www.seat.com/owners",
         "cupra":         "https://www.cupraofficial.com/services/mycupra.html",
@@ -201,9 +219,10 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
             name=name,
             model=_model_str,
             # Prefer an explicit manufacturer the reader resolved (e.g. acpp maps
-            # brandCode "A" → "Audi"); else the config brand, title-cased. This
-            # avoids ugly labels like "Audi_Acpp" for the plug&play source.
-            manufacturer=vehicle.get("manufacturer") or brand.title(),
+            # brandCode "A" → "Audi"); else the display label for the config brand
+            # (#1316: "Volkswagen Commercial Vehicles", not "Volkswagen_Commercial";
+            # unmapped brands stay title-cased as before).
+            manufacturer=vehicle.get("manufacturer") or _brand_display(brand),
             serial_number=self._vin,
             hw_version=(str(_year) if _year else None),
             sw_version=vehicle.get("firmware_version"),

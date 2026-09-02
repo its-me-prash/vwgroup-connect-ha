@@ -15,6 +15,7 @@ from .porsche import PorscheClient
 from .vw_na import VWNAClient
 from .audi_na import AudiNAClient
 from .bentley import BentleyClient
+from .commercial import VWCommercialClient
 from .plugandplay import PlugAndPlayCloudClient
 from .skoda_official import SkodaOfficialClient
 
@@ -40,6 +41,8 @@ class CariadClientFactory:
 
         Supported brands:
           volkswagen    — VW EU (WeConnect ID, EMEA BFF)
+          volkswagen_commercial — VW Commercial Vehicles / Nutzfahrzeuge
+                          (EU-Data-Act portal realm, read-only)
           audi          — Audi EU (myAudi, EMEA BFF)
           skoda         — Škoda (MyŠkoda, mysmob.api.connect.skoda-auto.cz)
           seat          — SEAT (OLA server)
@@ -58,6 +61,10 @@ class CariadClientFactory:
         lower = brand.lower()
         if lower == "volkswagen":
             return VWEUClient(session, email, password, spin)
+        if lower == "volkswagen_commercial":
+            # #1316 — VW Commercial Vehicles (Nutzfahrzeuge): a separate EU-Data-Act
+            # realm, reads via the portal (state_brand VOLKSWAGEN_COMMERCIAL_VEHICLES).
+            return VWCommercialClient(session, email, password, spin)
         if lower == "audi":
             return AudiClient(session, email, password, spin)
         if lower == "skoda":
@@ -96,6 +103,6 @@ class CariadClientFactory:
             return SkodaOfficialClient(session, email, password, spin)
         raise ValueError(
             f"Unknown brand '{brand}'. Supported: "
-            "volkswagen, audi, skoda, seat, cupra, volkswagen_na, audi_na, "
-            "porsche, bentley"
+            "volkswagen, volkswagen_commercial, audi, skoda, seat, cupra, "
+            "volkswagen_na, audi_na, porsche, bentley"
         )

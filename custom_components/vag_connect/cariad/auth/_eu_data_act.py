@@ -88,6 +88,11 @@ _EUDA_CUPRA_SEAT = {
 }
 _EUDA_BRANDS: dict[str, dict[str, str]] = {
     "volkswagen": _EUDA_VW,
+    # #1316 — VW Commercial Vehicles (Nutzfahrzeuge): SAME portal client as
+    # passenger VW, only the state_brand differs. Must be explicit — the unknown-
+    # brand fallback (~L3489) would build "VOLKSWAGEN_COMMERCIAL" (brand.upper()),
+    # missing the "_VEHICLES" suffix the live-confirmed state needs (2026-09-02).
+    "volkswagen_commercial": {**_EUDA_VW, "state_brand": "VOLKSWAGEN_COMMERCIAL_VEHICLES"},
     "cupra": {**_EUDA_CUPRA_SEAT, "state_brand": "CUPRA"},
     "seat": {**_EUDA_CUPRA_SEAT, "state_brand": "SEAT"},
     "skoda": {**_EUDA_VW, "state_brand": "SKODA"},

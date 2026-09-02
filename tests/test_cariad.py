@@ -33,7 +33,10 @@ class TestModels:
     def test_brand_configs_all_present(self):
         from custom_components.vag_connect.cariad.models import BRANDS
         assert set(BRANDS.keys()) == {
-            "volkswagen", "audi", "skoda", "seat", "cupra",
+            "volkswagen",
+            # #1316 — VW Commercial Vehicles (Nutzfahrzeuge): separate EU-DA realm.
+            "volkswagen_commercial",
+            "audi", "skoda", "seat", "cupra",
             "volkswagen_na", "porsche",
             # v2.14.11 — Bentley wired (Audi IDK tenant; login+read).
             "bentley",

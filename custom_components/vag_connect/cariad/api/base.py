@@ -371,6 +371,14 @@ class CariadBaseClient:
                 ("idk", {"hybrid_full": False}),
                 ("data_act_portal", {}),
             ]
+        elif self._brand.name == "volkswagen_commercial":
+            # #1316 — VW Commercial Vehicles (Nutzfahrzeuge). Native BFF/IDK is
+            # attestation-walled exactly like passenger VW, so go straight to the
+            # read-only EU-Data-Act portal (its state_brand routes to the
+            # commercial realm). Must NOT fall through to the ``else`` below —
+            # that arms IDK only, never the portal, and the car silently gets no
+            # data.
+            strategies = [("data_act_portal", {})]
         elif self._brand.name == "audi":
             strategies = [
                 ("idk", {"hybrid_full": False}),

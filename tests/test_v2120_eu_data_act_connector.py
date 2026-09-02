@@ -323,6 +323,15 @@ def test_brand_config_resolution() -> None:
     assert seat._client_id.startswith("f85e5b69")
     assert seat._state == "de__de__SEAT"
 
+    # #1316 — VW Commercial Vehicles (Nutzfahrzeuge): same portal client as
+    # passenger VW, but the state_brand MUST be the explicit, live-confirmed
+    # "VOLKSWAGEN_COMMERCIAL_VEHICLES" — NOT the unknown-brand fallback
+    # "VOLKSWAGEN_COMMERCIAL" (brand.upper()), which drops the "_VEHICLES" suffix
+    # and silently handshakes with the wrong realm.
+    vwc = EUDataActConnector(object(), brand="volkswagen_commercial")  # type: ignore[arg-type]
+    assert vwc._client_id.startswith("9b58543e")
+    assert vwc._state == "de__de__VOLKSWAGEN_COMMERCIAL_VEHICLES"
+
     # Unknown brand → VW client with a derived state suffix (graceful).
     porsche = EUDataActConnector(object(), brand="porsche")  # type: ignore[arg-type]
     assert porsche._client_id.startswith("9b58543e")
