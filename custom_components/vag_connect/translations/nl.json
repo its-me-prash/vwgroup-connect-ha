@@ -470,6 +470,9 @@
       "last_trip_avg_speed_kmh": {
         "name": "Laatste Rit — Gem. Snelheid"
       },
+      "last_trip_duration_min": {
+        "name": "Laatste Rit — Ritduur"
+      },
       "last_trip_avg_fuel_consumption_l_100km": {
         "name": "Laatste Rit — Gem. Brandstofverbruik"
       },

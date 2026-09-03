@@ -476,6 +476,9 @@
       "last_trip_avg_speed_kmh": {
         "name": "Seneste tur — gennemsnitshastighed"
       },
+      "last_trip_duration_min": {
+        "name": "Seneste tur — køretid"
+      },
       "last_trip_avg_fuel_consumption_l_100km": {
         "name": "Seneste tur — gennemsnitligt brændstofforbrug"
       },

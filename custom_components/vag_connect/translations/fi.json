@@ -476,6 +476,9 @@
       "last_trip_avg_speed_kmh": {
         "name": "Viimeisen matkan keskinopeus"
       },
+      "last_trip_duration_min": {
+        "name": "Viimeisen matkan kesto"
+      },
       "last_trip_avg_fuel_consumption_l_100km": {
         "name": "Viimeisen matkan keskimääräinen polttoaineenkulutus"
       },
