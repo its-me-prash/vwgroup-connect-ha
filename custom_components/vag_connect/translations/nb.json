@@ -476,6 +476,9 @@
       "last_trip_avg_speed_kmh": {
         "name": "Siste tur, gjennomsnittsfart"
       },
+      "last_trip_duration_min": {
+        "name": "Siste tur, kjøretid"
+      },
       "last_trip_avg_fuel_consumption_l_100km": {
         "name": "Siste tur, gjennomsnittlig drivstofforbruk"
       },

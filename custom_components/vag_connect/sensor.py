@@ -1495,6 +1495,21 @@ SENSOR_DESCRIPTIONS: tuple[VagSensorDescription, ...] = (
         icon="mdi:speedometer",
         suggested_display_precision=0,
     ),
+    # b8 (#1310, indigomejor) — last-trip travel time. Already parsed into
+    # last_trip_duration_min (minutes) by every trip-capable brand but had no entity.
+    # Per-trip → MEASUREMENT (resets each ignition cycle; NOT the cumulative
+    # TOTAL_INCREASING the lifetime_travel_time_min sibling uses). myskoda +
+    # volkswagencarnet both expose it as DURATION / minutes / MEASUREMENT.
+    VagSensorDescription(
+        key="last_trip_duration_min",
+        translation_key="last_trip_duration_min",
+        data_key="last_trip_duration_min",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:map-clock-outline",
+        suggested_display_precision=0,
+    ),
     # b10 — EU Data Act portal long-tail trip/maintenance sensors.
     VagSensorDescription(
         key="lifetime_avg_speed_kmh",
@@ -4009,6 +4024,7 @@ _DATA_PRESENT_REQUIRED: frozenset[str] = frozenset({
 _TRIP_STATS_KEYS: frozenset[str] = frozenset({
     "last_trip_distance_km",
     "last_trip_avg_speed_kmh",
+    "last_trip_duration_min",
     "last_trip_avg_fuel_consumption_l_100km",
     "last_trip_avg_electric_consumption_kwh_100km",
     # v2.0.0 (Big-Bang) — long-term aggregates. Audi/VW EU ONLY: the CARIAD-BFF
@@ -4033,8 +4049,13 @@ _TRIP_STATS_KEYS: frozenset[str] = frozenset({
 # two active brands. The hide-empty guard below still suppresses any lifetime_* field
 # they leave None; command_trip_stats stays unknown (not False) for them, so the
 # secondary gate does not re-hide.
+# b8 (trip-sweep finding 7) — audi_acpp (plug&play OBD dongle) fills
+# last_trip_distance_km + last_trip_duration_min (plugandplay.py) but was omitted here,
+# so its trip sensors were hidden. Add it as a spawn-gate brand; hide-empty still
+# suppresses the avg_*/lifetime_* keys it doesn't fill, and the CARIAD-BFF FETCH gate
+# (coordinator._TRIP_STATS_BRANDS) stays audi/volkswagen only so no wrong call fires.
 _TRIP_STATS_BRANDS: frozenset[str] = frozenset(
-    {"audi", "volkswagen", "skoda", "seat", "cupra"}
+    {"audi", "volkswagen", "skoda", "seat", "cupra", "audi_acpp"}
 )
 
 # Per-window opening position (% open), from the EU-DA window-lifter positions

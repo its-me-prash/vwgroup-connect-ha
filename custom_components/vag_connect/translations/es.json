@@ -470,6 +470,9 @@
       "last_trip_avg_speed_kmh": {
         "name": "Último Viaje — Velocidad Media"
       },
+      "last_trip_duration_min": {
+        "name": "Último Viaje — Duración"
+      },
       "last_trip_avg_fuel_consumption_l_100km": {
         "name": "Último Viaje — Consumo Medio Combustible"
       },
