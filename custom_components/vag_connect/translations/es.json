@@ -1940,6 +1940,10 @@
     }
   },
   "issues": {
+    "invalid_credentials": {
+      "title": "Error de inicio de sesión — {brand}",
+      "description": "Home Assistant no pudo iniciar sesión en tu cuenta de {brand} — normalmente una contraseña incorrecta o cambiada, aunque un bloqueo temporal puede parecer igual.\n\nAjustes → Dispositivos y servicios → VW Group Connect → ⋮ → Reconfigurar para volver a introducir tus credenciales."
+    },
     "vweu_twoway_disabled": {
       "title": "VW EU bidireccional: desactivado por Volkswagen",
       "description": "El 18 de agosto de 2026 Volkswagen desactivó el inicio de sesión que usaba el canal VW EU bidireccional (backend moderno CARIAD), por lo que su token de 1 hora ya no puede renovarse y los comandos bidireccionales a través de ese canal han dejado de funcionar. Se trata de un cambio del lado de Volkswagen — no hay nada mal configurado por tu parte y tu cuenta no corre ningún riesgo (el fallo ocurre antes de que se envíe ninguna contraseña).\n\n**Tus lecturas en vivo siguen funcionando** a través del portal EU Data Act, por lo que tus sensores no se ven afectados.\n\n**Para los comandos bidireccionales (bloqueo/desbloqueo, climatización, carga):** ya está en beta un reemplazo duradero a través del backend clásico Car-Net (MBB), que Volkswagen NO ha desactivado. Consulta la incidencia #584 para saber cómo activarlo y probarlo.\n\nPuedes eliminar el canal ahora inactivo en cualquier momento en las opciones de la integración (VW EU bidireccional → eliminar). Este mensaje es solo informativo; la integración sigue funcionando con tus canales de lectura.\n\n**Consejo:** activa solo UNA integración bidireccional para un mismo coche a la vez. VW aplica límites de frecuencia y puede bloquear temporalmente una cuenta que varias apps saturan a la vez — cuando eso ocurre, ni siquiera la app oficial de VW puede controlar el coche, que es la señal de que se trata de un bloqueo de cuenta y no de un problema de esta integración."

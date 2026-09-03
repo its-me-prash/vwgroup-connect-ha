@@ -1940,6 +1940,10 @@
     }
   },
   "issues": {
+    "invalid_credentials": {
+      "title": "Échec de la connexion — {brand}",
+      "description": "Home Assistant n'a pas pu se connecter à votre compte {brand} — généralement un mot de passe incorrect ou modifié, mais un blocage temporaire peut y ressembler.\n\nParamètres → Appareils et services → VW Group Connect → ⋮ → Reconfigurer pour saisir à nouveau vos identifiants."
+    },
     "vweu_twoway_disabled": {
       "title": "VW EU bidirectionnel : désactivé par Volkswagen",
       "description": "Le 18 août 2026, Volkswagen a désactivé la connexion qu'utilisait le canal VW EU bidirectionnel (backend CARIAD moderne) ; son jeton d'une heure ne peut donc plus être renouvelé et les commandes bidirectionnelles via ce canal ont cessé de fonctionner. Il s'agit d'un changement côté Volkswagen — rien n'est mal configuré chez vous, et votre compte n'est pas en danger (l'échec se produit avant l'envoi de tout mot de passe).\n\n**Vos lectures en direct continuent de fonctionner** via le portail EU Data Act, vos capteurs ne sont donc pas affectés.\n\n**Pour les commandes bidirectionnelles (verrouillage/déverrouillage, climatisation, charge) :** un remplacement durable via l'ancien backend Car-Net (MBB) — que Volkswagen n'a PAS désactivé — est désormais en bêta. Voir le ticket #584 pour savoir comment l'activer et le tester.\n\nVous pouvez supprimer à tout moment le canal désormais inactif dans les options de l'intégration (VW EU bidirectionnel → supprimer). Ce message est purement informatif ; l'intégration continue de fonctionner sur vos canaux de lecture.\n\n**Conseil :** n'activez qu'UNE seule intégration bidirectionnelle à la fois pour une même voiture. VW limite le nombre de requêtes et peut verrouiller temporairement un compte que plusieurs applications sollicitent en même temps — quand cela arrive, même l'application officielle VW ne peut plus contrôler la voiture, ce qui est le signe d'un verrouillage de compte, et non d'un problème de cette intégration."

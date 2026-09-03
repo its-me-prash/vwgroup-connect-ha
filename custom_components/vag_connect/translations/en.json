@@ -1940,6 +1940,10 @@
     }
   },
   "issues": {
+    "invalid_credentials": {
+      "title": "Sign-in failed — {brand}",
+      "description": "Home Assistant couldn't sign in to your {brand} account — usually a wrong or changed password, though a temporary block can look the same.\n\nSettings → Devices & Services → VW Group Connect → ⋮ → Reconfigure to re-enter your credentials."
+    },
     "vweu_twoway_disabled": {
       "title": "VW EU Two-Way: disabled by Volkswagen",
       "description": "On 2026-08-18 Volkswagen disabled the login that the VW EU Two-Way (modern CARIAD backend) channel used, so its 1-hour token can no longer be renewed and two-way commands via that channel have stopped. This is a Volkswagen-side change — nothing is misconfigured on your side, and your account is not at risk (the failure happens before any password is sent).\n\n**Your live reads keep working** through the EU Data Act portal, so your sensors are unaffected.\n\n**For two-way commands (lock/unlock, climate, charging):** a durable replacement via the classic Car-Net (MBB) backend — which Volkswagen has NOT disabled — is now in beta. See issue #584 for how to enable and test it.\n\nYou can remove the now-inactive channel any time under the integration's options (VW EU Two-Way → remove). This message is informational; the integration keeps running on your read channels.\n\n**Tip:** enable only ONE two-way integration for a given car at a time. VW rate-limits and can temporarily lock an account that several apps hammer at once — when that happens even the official VW app can't control the car, which is the tell that it's an account lockout, not this integration."

@@ -1940,6 +1940,10 @@
     }
   },
   "issues": {
+    "invalid_credentials": {
+      "title": "Sign-in failed — {brand}",
+      "description": "Home Assistant couldn't sign in to your {brand} account — usually a wrong or changed password, though a temporary block can look the same.\n\nSettings → Devices & Services → VW Group Connect → ⋮ → Reconfigure to re-enter your credentials."
+    },
     "two_factor_required": {
       "title": "Two-factor authentication required — {brand}",
       "description": "Your {brand} account ({username}) requires an email verification code.\n\n**One-time fix:**\n1. Open the **{brand} app** on your phone\n2. Sign in manually\n3. Confirm the code sent by email\n4. Restart Home Assistant\n\nAfter this one-time step, the integration stores the login token — you won't need to repeat this."

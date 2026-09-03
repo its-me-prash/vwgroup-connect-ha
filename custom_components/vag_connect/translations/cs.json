@@ -1940,6 +1940,10 @@
     }
   },
   "issues": {
+    "invalid_credentials": {
+      "title": "Přihlášení selhalo — {brand}",
+      "description": "Home Assistant se nemohl přihlásit k účtu {brand} — obvykle nesprávné nebo změněné heslo, ale dočasné zablokování může vypadat stejně.\n\nNastavení → Zařízení a služby → VW Group Connect → ⋮ → Překonfigurovat a znovu zadat přihlašovací údaje."
+    },
     "vweu_twoway_disabled": {
       "title": "VW EU Two-Way: vypnuto Volkswagenem",
       "description": "Dne 18. 8. 2026 Volkswagen vypnul přihlášení, které kanál VW EU Two-Way (moderní backend CARIAD) používal, takže jeho hodinový token už nelze obnovit a obousměrné příkazy přes tento kanál přestaly fungovat. Jde o změnu na straně Volkswagenu — na vaší straně není nic špatně nastaveno a váš účet není ohrožen (selhání nastává ještě předtím, než se odešle jakékoli heslo).\n\n**Vaše živé čtení dat funguje dál** přes portál EU Data Act, takže vaše senzory to nijak neovlivní.\n\n**Pro obousměrné příkazy (zamknout/odemknout, klimatizace, nabíjení):** trvalá náhrada přes klasický backend Car-Net (MBB) — který Volkswagen NEVYPNUL — je nyní v betě. Postup, jak ji zapnout a otestovat, najdete v issue #584.\n\nNyní neaktivní kanál můžete kdykoli odebrat v nastavení integrace (VW EU Two-Way → odebrat). Tato zpráva je pouze informativní; integrace běží dál přes vaše čtecí kanály.\n\n**Tip:** pro daný vůz mějte současně zapnutou vždy jen JEDNU obousměrnou integraci. VW omezuje počet požadavků a může dočasně zablokovat účet, na který několik aplikací útočí najednou — když k tomu dojde, nedokáže vůz ovládat ani oficiální aplikace VW, což je signál, že jde o zablokování účtu, nikoli o chybu této integrace."
