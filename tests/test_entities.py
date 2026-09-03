@@ -586,11 +586,24 @@ class TestClimate:
         assert c.hvac_mode == HVACMode.OFF
 
     def test_hvac_mode_heat(self):
+        # b7 (P0-1) — VW-EU/SEAT/CUPRA emit the raw LOWERCASE backend string; the
+        # entity must read it as active. The uppercase-only fixture masked the bug.
         from custom_components.vag_connect.climate import VagClimate
         from homeassistant.components.climate import HVACMode
         coord = _make_coordinator()
         vin = list(coord.data.keys())[0]
-        coord.data[vin]["climatisation_state"] = "HEATING"
+        coord.data[vin]["climatisation_state"] = "heating"
+        c = VagClimate(coord, vin)
+        assert c.hvac_mode == HVACMode.HEAT_COOL
+
+    def test_hvac_mode_heat_uppercase(self):
+        # b7 (P0-1) — Škoda emits UPPERCASE; both casings must map to HEAT_COOL so
+        # the climate entity can never contradict the climatisation switch.
+        from custom_components.vag_connect.climate import VagClimate
+        from homeassistant.components.climate import HVACMode
+        coord = _make_coordinator()
+        vin = list(coord.data.keys())[0]
+        coord.data[vin]["climatisation_state"] = "COOLING"
         c = VagClimate(coord, vin)
         assert c.hvac_mode == HVACMode.HEAT_COOL
 

@@ -124,7 +124,13 @@ def position_age_seconds(previous: dict[str, Any]) -> float | None:
     supply a timestamp would otherwise lose a working position entirely.
     """
     for key in ("position_captured_at", "last_seen_at"):
-        stamp = _parse_iso(previous.get(key))
+        # b7 (grounded audit P1-2) — use _as_aware_dt, NOT _parse_iso. Škoda/SEAT/
+        # CUPRA set last_seen_at as a datetime object (compute_connection_state) and
+        # never set position_captured_at; _parse_iso is string-only, so it returned
+        # None for both → age None → the POSITION_MAX_AGE_S expiry was skipped and a
+        # stale parked position was carried forward indefinitely for those brands
+        # (the correct coercer already exists and is used elsewhere in this module).
+        stamp = _as_aware_dt(previous.get(key))
         if stamp is not None:
             return (datetime.now(tz=timezone.utc) - stamp).total_seconds()
     return None
@@ -132,7 +138,20 @@ def position_age_seconds(previous: dict[str, Any]) -> float | None:
 # Fields that physically only ever increase. A fresh value below the recorded
 # one is a bad reading (the portal occasionally serves a stale / zero odometer)
 # — keep the recorded value so the "km" sensor never jumps backwards.
-MONOTONIC_INCREASING_FIELDS: tuple[str, ...] = ("odometer_km",)
+# b7 (grounded audit P1-5, INTERIM) — total_charged_energy_kwh is exposed as a
+# TOTAL_INCREASING energy sensor but is summed from a trailing 50-session window
+# (skoda.py get_charging_history has no nextCursor paging), so once a car has >50
+# lifetime sessions an old session is evicted, the summed "total" DROPS, and HA
+# reads the drop as a meter reset → phantom kWh spike in the Energy Dashboard.
+# Clamping it here kills the spike (a no-op for cars under 50 sessions, where the
+# window IS the true total). STOPGAP, not the real fix: for high-session cars the
+# clamped value freezes near its peak rather than tracking a true lifetime total —
+# the real fix (page nextCursor to a real cumulative, or import per-session HA
+# long-term statistics) is staged pending a live Škoda charging-statistics fixture.
+MONOTONIC_INCREASING_FIELDS: tuple[str, ...] = (
+    "odometer_km",
+    "total_charged_energy_kwh",
+)
 
 # Raw portal field name -> the entity attribute it fills, for the contested
 # reading resolver below. Deliberately explicit and NUMERIC-only: comparing a

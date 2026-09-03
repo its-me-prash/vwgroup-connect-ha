@@ -4701,9 +4701,25 @@ class VWEUClient(CariadBaseClient):
                     d.tire_pressure_rear_right_bar = round(bar_value, 2)
             warning_raw = tyre_value.get("overallStatus") or tyre_value.get("warningLight")
             if isinstance(warning_raw, str):
-                d.tire_pressure_warning = warning_raw.lower() not in (
-                    "ok", "normal", "off", "false",
-                )
+                lowered = warning_raw.lower()
+                # b7 (grounded audit P1-6, INTERIM) — this branch used allow-list-GOOD
+                # polarity (anything not in {ok,normal,off,false} → warning=True), so a
+                # telemetry-ABSENT status (unavailable/unknown/notSupported/…) lit the
+                # tyre PROBLEM sensor RED on a fault-free car. Demote the known "no data"
+                # tokens out of the True path (leave the bool None, mirroring the oil
+                # parser above — "don't render a fake OK") while any other non-OK token
+                # still fires as a real fault. The full explicit-BAD polarity flip waits
+                # on a byte capture of the tyrePressure overallStatus vocabulary.
+                if lowered in ("ok", "normal", "off", "false", "none"):
+                    d.tire_pressure_warning = False
+                elif lowered in (
+                    "unavailable", "unknown", "notsupported", "not_supported",
+                    "unsupported", "invalid", "na", "n/a", "notavailable",
+                    "not_available",
+                ):
+                    d.tire_pressure_warning = None
+                else:
+                    d.tire_pressure_warning = True
             elif isinstance(warning_raw, bool):
                 d.tire_pressure_warning = warning_raw
 

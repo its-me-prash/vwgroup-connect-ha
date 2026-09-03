@@ -20,9 +20,6 @@ MIN_TEMP = 16.0
 MAX_TEMP = 30.0
 TEMP_STEP = 0.5
 
-# Climatisation state values that mean "active"
-_ACTIVE_STATES = {"HEATING", "COOLING", "VENTILATION"}
-
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -74,8 +71,17 @@ class VagClimate(VagConnectEntity, ClimateEntity):
 
     @property
     def hvac_mode(self) -> HVACMode:
+        # b7 (grounded audit P0-1) — the VW-EU/SEAT/CUPRA parsers store
+        # climatisation_state as the raw LOWERCASE backend string ("heating",
+        # "cooling"); only Škoda stores UPPERCASE. A case-sensitive membership
+        # test against an uppercase active-set therefore read OFF while a
+        # VW/SEAT/CUPRA was actively pre-conditioning, and the uppercase-only test
+        # fixture masked it. Mirror the sibling climatisation switch (switch.py
+        # is_on) EXACTLY — inactive-set exclusion, case-folded — so the climate
+        # entity and the switch can never contradict, and a future active
+        # sub-state (heatingAuxiliary…) isn't silently dropped by a fixed set.
         state = self._vehicle.get("climatisation_state")
-        if state and state in _ACTIVE_STATES:
+        if state and str(state).lower() not in ("off", "stopped", ""):
             return HVACMode.HEAT_COOL
         return HVACMode.OFF
 

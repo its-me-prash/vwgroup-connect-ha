@@ -206,6 +206,27 @@ class TestCoordinatorAuxHeatingStart:
             target_c=22.5,
         )
 
+    def test_audi_reads_data_fallback(self):
+        # b7 (P1-3) — the options update-listener folds options into entry.data and
+        # blanks entry.options, so by read time the slider values live in entry.data.
+        # Reading options-only used to fall through to the 30 min / 21 C defaults.
+        coord = _coord("audi")
+        coord.entry.options = {}
+        coord.entry.data = {
+            "brand": "audi",
+            "auxheat_duration": 45,
+            "auxheat_target_temp": 22.5,
+        }
+        asyncio.run(
+            coord.async_start_aux_heating("VINX")
+        )
+        coord._cariad_cmd.assert_awaited_once_with(
+            "VINX",
+            "command_start_aux_heating",
+            duration_min=45,
+            target_c=22.5,
+        )
+
     def test_caller_kwargs_win_over_options(self):
         coord = _coord(
             "volkswagen",

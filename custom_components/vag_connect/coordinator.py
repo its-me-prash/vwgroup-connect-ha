@@ -3339,6 +3339,16 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         if not isinstance(field_sources, dict):
             field_sources = {}
             enriched["field_sources"] = field_sources
+        # b7 (grounded audit P1-4) — the official read is rate-limited/cached (20/h),
+        # so it can carry a STALER value than the just-reconciled primary. The primary
+        # poll was already monotonic-guarded by reconcile(), but this overlay runs
+        # AFTER reconcile and raw-overwrote every differing field — so a lower cached
+        # odometer jumped the km sensor backwards and persisted. Never let the official
+        # overlay regress a physically-monotonic field; reuse the same field set the
+        # rest of the pipeline enforces (reconcile / _channel_merge exclusion).
+        from .cariad.vehicle_cache import (  # noqa: PLC0415
+            MONOTONIC_INCREASING_FIELDS,
+        )
         merged = 0
         for key, val in od.items():
             if key in ("vin", "field_sources", "source_channel"):
@@ -3350,6 +3360,17 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             if key == "last_seen_at":
                 # advance-only: skip if the primary already carries a timestamp.
                 if enriched.get(key):
+                    continue
+            if key in MONOTONIC_INCREASING_FIELDS:
+                # never regress a monotonic field (e.g. odometer_km): a staler cached
+                # official reading must not overwrite a fresher, higher primary value.
+                # Gap-fill (existing None) and advance (>=) are fine; a decrease is not.
+                existing = enriched.get(key)
+                if (
+                    isinstance(existing, (int, float))
+                    and isinstance(val, (int, float))
+                    and val < existing
+                ):
                     continue
             enriched[key] = val
             field_sources[key] = "skoda_official"
@@ -6733,10 +6754,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
         When the caller does not pass ``duration_min`` / ``target_c``
         the integration reads the per-config ``auxheat_duration`` /
-        ``auxheat_target_temp`` numbers stored under ``entry.options``
-        (written by the new v2.8.0 ``VagConnectNumber`` sliders). If
-        those are absent we fall back to the spec defaults (30 min,
-        21 C), matching the numbers the Audi + VW phone apps preselect.
+        ``auxheat_target_temp`` numbers written by the v2.8.0
+        ``VagConnectNumber`` sliders (options, folded into ``entry.data``
+        by the update-listener — read options-then-data). If those are
+        absent we fall back to the spec defaults (30 min, 21 C), matching
+        the numbers the Audi + VW phone apps preselect.
         """
         brand = str(self.entry.data.get(CONF_BRAND, "")).lower()
         cariad_brand = brand in {"volkswagen", "audi"}
@@ -6754,15 +6776,26 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             await self._cariad_cmd(vin, "command_start_aux_heating", spin=spin)
             return
 
+        # b7 (grounded audit P1-3) — read options THEN data. The options
+        # update-listener folds options into entry.data and blanks entry.options
+        # (__init__.py), so by read time the slider values live in entry.data;
+        # reading options alone always fell through to the 30 min / 21 C spec
+        # defaults right after the user moved the slider. Mirrors _spin_from_entry
+        # (below) and number.native_value.
         options = dict(getattr(self.entry, "options", None) or {})
+        data = dict(getattr(self.entry, "data", None) or {})
         if duration_min is None:
-            opt_dur = options.get("auxheat_duration") if isinstance(options, dict) else None
+            opt_dur = options.get("auxheat_duration")
+            if opt_dur is None:
+                opt_dur = data.get("auxheat_duration")
             try:
                 duration_min = int(opt_dur) if opt_dur is not None else 30
             except (TypeError, ValueError):
                 duration_min = 30
         if target_c is None:
-            opt_temp = options.get("auxheat_target_temp") if isinstance(options, dict) else None
+            opt_temp = options.get("auxheat_target_temp")
+            if opt_temp is None:
+                opt_temp = data.get("auxheat_target_temp")
             try:
                 target_c = float(opt_temp) if opt_temp is not None else 21.0
             except (TypeError, ValueError):
@@ -7568,16 +7601,45 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # releases the lock — after 60s we proceed anyway.
         cmd_class = self._COMMAND_CLASS.get(method, method)
         lock = self._get_command_lock(vin, cmd_class)
+        # b7 (grounded audit P1-1) — time only LOCK ACQUISITION, never command
+        # execution. The old code wrapped the whole dispatch (which included a full
+        # multi-VIN async_request_refresh) in a 60s timeout, so a slow / multi-VIN /
+        # portal account blew the budget and then RE-DISPATCHED the physical command
+        # UNLOCKED → a non-idempotent charge/unlock/aux-heat was sent to the car
+        # TWICE. No competitor re-issues on timeout. On a contended lock we now
+        # surface a soft "busy" error and never re-send; the refresh moved out of
+        # the locked/timed section entirely (see below).
         try:
-            async with asyncio.timeout(_COMMAND_LOCK_TIMEOUT):
-                async with lock:
-                    await self._dispatch_cmd_locked(vin, method, **kwargs)
+            await asyncio.wait_for(lock.acquire(), _COMMAND_LOCK_TIMEOUT)
         except TimeoutError:
             _LOGGER.warning(
-                "VW Group Connect: %s(%s) lock timeout (%ss) — proceeding without lock",
+                "VW Group Connect: %s(%s) skipped — another same-class command is "
+                "still running after %ss",
                 method, mask_vin(vin), _COMMAND_LOCK_TIMEOUT,
             )
+            raise HomeAssistantError(
+                f"{method} skipped: another command for this vehicle is still "
+                "in progress"
+            ) from None
+        try:
             await self._dispatch_cmd_locked(vin, method, **kwargs)
+        finally:
+            lock.release()
+        # b7 — refresh AFTER the command completes, OUTSIDE the lock and the
+        # command's own error scope. A refresh/portal error must never be recorded as
+        # a command failure (P2-twin) nor surfaced as a failed button press, and the
+        # heavy multi-VIN refresh must not count against the command-lock budget (that
+        # coupling is what used to trip the 60 s timeout). Awaited so callers still see
+        # fresh state on return, but in its own guard so it can't masquerade as a
+        # command error. Only reached on success — a failed dispatch re-raises out of
+        # the finally above, exactly as before.
+        try:
+            await self.async_request_refresh()
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug(
+                "VW Group Connect: post-command refresh failed for %s(%s)",
+                method, mask_vin(vin), exc_info=True,
+            )
 
     async def _dispatch_cmd_locked(self, vin: str, method: str, **kwargs: Any) -> None:
         """Inner dispatch — assumes per-VIN-per-class lock already held.
@@ -7589,7 +7651,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         try:
             fn = getattr(self._cariad_client, method)
             await fn(vin, **kwargs)
-            await self.async_request_refresh()
+            # b7 (grounded audit P1-1 / P2-twin) — the post-command refresh moved to
+            # the caller (_cariad_cmd), OUTSIDE this try and the command lock, so a
+            # refresh/portal error is no longer misclassified as a command failure
+            # and the multi-VIN refresh no longer eats the command-lock budget.
             try:
                 self.record_command_success(vin, method)
             except Exception:  # noqa: BLE001
@@ -7618,7 +7683,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             if fb is not None:
                 try:
                     await getattr(fb, method)(vin, **kwargs)
-                    await self.async_request_refresh()
+                    # b7 — refresh moved to the caller (_cariad_cmd); keep it out of
+                    # this try so a refresh error isn't misread as a fallback failure.
                     try:
                         self.record_command_success(vin, method)
                     except Exception:  # noqa: BLE001

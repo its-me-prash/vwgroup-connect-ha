@@ -4027,7 +4027,15 @@ _TRIP_STATS_KEYS: frozenset[str] = frozenset({
 # longer mapped (odometer_km carries the true total). The CARIAD-BFF FETCH gate
 # stays audi/volkswagen only (coordinator._TRIP_STATS_BRANDS) because Škoda already
 # has the per-trip data inline — no wrong BFF call fires for Škoda.
-_TRIP_STATS_BRANDS: frozenset[str] = frozenset({"audi", "volkswagen", "skoda"})
+# b7 (grounded audit P1-7) — SEAT/CUPRA populate last_trip_* / lifetime_distance_km
+# every get_status (seat_cupra.py driving-data/SHORT, corrected in #392) and declare
+# trip_statistics=True, but were omitted here so the trip sensors never spawned for
+# two active brands. The hide-empty guard below still suppresses any lifetime_* field
+# they leave None; command_trip_stats stays unknown (not False) for them, so the
+# secondary gate does not re-hide.
+_TRIP_STATS_BRANDS: frozenset[str] = frozenset(
+    {"audi", "volkswagen", "skoda", "seat", "cupra"}
+)
 
 # Per-window opening position (% open), from the EU-DA window-lifter positions
 # (``position_*_door_window_lifter``). Parsed into ``windows_position`` — a slot
@@ -4146,7 +4154,13 @@ async def async_setup_entry(
             if desc.key in _TRIP_STATS_KEYS:
                 if not trip_stats_supported:
                     continue
-                if (
+                # b7 (grounded audit P1-7) — the tripStatistics capability gate only
+                # applies to brands that FETCH trips from the CARIAD-BFF
+                # /tripstatistics endpoint (audi/volkswagen). Škoda/SEAT/CUPRA get
+                # trip data inline from their own get_status parse, so a missing
+                # tripStatistics cap must NOT hide their sensors; the hide-empty guard
+                # below already suppresses any field they don't fill.
+                if brand in ("audi", "volkswagen") and (
                     coordinator.command_capability_supported(vin, "command_trip_stats")
                     is False
                 ):
