@@ -42,6 +42,55 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.0b7] - 2026-09-03 — Grounded audit sweep: safer commands, fewer false readings, fuller Škoda official channel
+
+Every fix below was cross-checked against how the leading open-source VW / Škoda
+libraries handle the same code path before it shipped.
+
+### Fixed
+- **Climate no longer shows "off" while the car is actively heating or cooling.** On
+  VW / SEAT / CUPRA the climate entity read Off during pre-conditioning (so a
+  `heat_cool` automation never fired) because the backend sends the state in
+  lowercase and the entity compared case-sensitively. It now matches the
+  climatisation switch exactly.
+- **A remote command can no longer be sent to the car twice.** On a multi-vehicle /
+  portal account a slow refresh could blow the 60-second command lock, after which
+  the physical command (charging / unlock / aux-heating) was re-sent **unlocked**.
+  The lock now guards only acquiring the turn and never re-sends on timeout, and the
+  follow-up refresh runs outside the command so a portal hiccup can't be reported as
+  a failed button press.
+- **Parked location stops going stale on Škoda / SEAT / CUPRA.** The 24-hour guard
+  against showing an ancient parked position was silently skipped for these brands, so
+  a location could read as "current" indefinitely once the backend stopped serving it.
+- **Aux-heating now honours your duration / temperature sliders** instead of always
+  falling back to 30 min / 21 °C.
+- **The Škoda official channel can no longer push the odometer backwards.** A staler
+  rate-limited reading could overwrite a fresher mileage; it now never regresses.
+- **No more false red tyre-pressure warning.** A car reporting an
+  "unavailable / unknown / not-supported" tyre status lit the tyre problem sensor red
+  with no actual fault. Absent-telemetry statuses no longer trigger a warning; a real
+  low-pressure fault still does.
+- **Škoda "charged energy" total no longer spikes the Energy Dashboard.** The lifetime
+  figure could drop and be read as a meter reset (phantom kWh). It is now clamped so it
+  never goes backwards. Interim — a true lifetime total is coming.
+
+### Added
+- **SEAT / CUPRA trip-statistics sensors now appear.** Last-trip distance, average
+  speed and consumption, and lifetime distance were already fetched every poll but
+  never shown for these two brands. Thanks @indigomejor for flagging the trip-stats
+  gap (#1309 / #1310).
+- **The Škoda official public-API channel now surfaces much more.** When the official
+  channel is your source it now also shows charge rate / type / completion time,
+  battery-care and plug auto-unlock state, climate-ready time and window heating,
+  lights / sunroof / bonnet, AdBlue range, the secondary engine on plug-in hybrids,
+  and the car image — plus the auxiliary-heating status and active-ventilation state
+  that previously read "unknown" on Škoda.
+
+### Security
+- **Parking city no longer leaks in a diagnostics download.** The diagnostics file (the
+  one you are steered to attach to a GitHub issue) redacted the parking address but left
+  the parking *city* in cleartext. It is now redacted with the rest of the location data.
+
 ## [4.7.0b6] - 2026-09-03 — Volkswagen Commercial Vehicles (Nutzfahrzeuge) + issue-sweep fixes
 
 ### Added
