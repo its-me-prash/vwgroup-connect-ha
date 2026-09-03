@@ -96,4 +96,9 @@ async def test_success_path_untouched() -> None:
     c._cariad_client.command_wake = AsyncMock(return_value=None)
     await VagConnectCoordinator._dispatch_cmd_locked(c, VIN, "command_wake")
     c.record_command_success.assert_called_once()
-    c.async_request_refresh.assert_awaited_once()
+    # b7 (P1-1 / P2-twin) — the post-command refresh moved OUT of the inner dispatch
+    # to the caller (_cariad_cmd), outside the command lock + error scope, so a
+    # refresh/portal error can't masquerade as a command failure. The inner dispatch
+    # no longer refreshes; the caller-level refresh is covered in test_entities
+    # (test_set_departure_timer_calls_cariad).
+    c.async_request_refresh.assert_not_awaited()
