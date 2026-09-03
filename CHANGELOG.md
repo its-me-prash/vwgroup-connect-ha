@@ -42,6 +42,17 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.0b8] - 2026-09-03 — Last-trip travel-time sensor
+
+### Added
+- **Last-trip travel-time sensor.** Every trip already carried its duration in the data,
+  but there was no entity for it — now a **Last Trip Duration** sensor (minutes) sits
+  alongside the last-trip distance and average-speed sensors. Thanks @indigomejor for the
+  request (#1310).
+- **Trip sensors now also spawn on the Audi plug&play (OBD-dongle) setup.** The plug&play
+  channel fills last-trip distance and duration, but they were being hidden by the trip
+  brand gate; they now appear like on the other brands.
+
 ## [4.7.0b7] - 2026-09-03 — Grounded audit sweep: safer commands, fewer false readings, fuller Škoda official channel
 
 Every fix below was cross-checked against how the leading open-source VW / Škoda
