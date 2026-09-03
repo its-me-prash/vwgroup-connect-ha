@@ -72,6 +72,14 @@ _REDACT_KEYS = frozenset({
     "vin",
     "address",
     "parking_address",
+    # b7 (grounded audit P0-2a) — parking_address is redacted but its sibling
+    # parking_city carried a CLEARTEXT city name straight into the diagnostics
+    # download (the file owners attach to public GitHub issues). A plain city hits
+    # only the generic string branch, which masks e-mail/VIN/latitude=&longitude=
+    # but nothing matches a bare city name. myskoda treats the whole address block
+    # as one PII unit for exactly this reason (their #477 was this leak class).
+    # Redact it by key so it can't fall through regardless of the value form.
+    "parking_city",
     "user_id",
     "account_id",
     # D#1231 — the volkswagen.de profile block is personal: the number plate
