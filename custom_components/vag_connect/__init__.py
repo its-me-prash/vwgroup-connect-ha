@@ -503,6 +503,12 @@ def _register_services(hass: HomeAssistant) -> None:
             call.data["vin"], call.data["file"]
         )
 
+    async def _handle_cancel_historical_export(call: ServiceCall) -> None:
+        # #1273 — off-switch for an accidentally-triggered one-time export.
+        await _coord(call.data["vin"]).async_cancel_historical_export(
+            call.data["vin"]
+        )
+
     async def _handle_set_departure_timer(call: ServiceCall) -> None:
         # v2.0.0 (Big-Bang) — accept optional ``recurring_on`` weekday
         # list (e.g. ``["MONDAY","TUESDAY","FRIDAY"]``). Forwarded to
@@ -703,6 +709,7 @@ def _register_services(hass: HomeAssistant) -> None:
         ("request_historical_export",      _handle_request_historical_export, SERVICE_VIN_SCHEMA),
         ("import_historical_export",       _handle_import_historical_export,  SERVICE_VIN_SCHEMA),
         ("import_export_file",             _handle_import_export_file,        SERVICE_IMPORT_FILE_SCHEMA),
+        ("cancel_historical_export",       _handle_cancel_historical_export,  SERVICE_VIN_SCHEMA),
         ("refresh_vehicle",                _handle_refresh,             vol.Schema({})),
         # v1.13.0 (#63 Phase 3) — explicit semantic-clear alias.
         ("refresh_cloud_cache",            _handle_refresh_cloud_cache, vol.Schema({})),

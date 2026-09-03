@@ -2181,6 +2181,25 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         s = self._historical_state().get(vin)
         return s.get("state", "idle") if isinstance(s, dict) else "idle"
 
+    async def async_cancel_historical_export(self, vin: str) -> bool:
+        """#1273 — user off-switch for a pending one-time historical export.
+
+        Clears the pending state for *vin* so the poll loop stops re-attempting the
+        import (which otherwise retries ~every 30 min until the deadline) and clears
+        the paired timeout repair. A live *continuous* data request is untouched
+        (different state). Returns True if a pending export existed.
+        """
+        st = self._historical_state()
+        existed = st.pop(vin, None) is not None
+        if existed:
+            self._persist_historical_state()
+            from .repairs import clear_issue_historical_timeout  # noqa: PLC0415
+            clear_issue_historical_timeout(self.hass, self.entry.entry_id, vin)
+            _LOGGER.info(
+                "Historical export for %s cancelled by user request.", mask_vin(vin)
+            )
+        return existed
+
     async def _advance_historical_exports(self) -> None:
         """Poll-loop step: import a READY one-time export or time out a stuck one.
 
