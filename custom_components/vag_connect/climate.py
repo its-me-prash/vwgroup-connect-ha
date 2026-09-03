@@ -72,14 +72,19 @@ class VagClimate(VagConnectEntity, ClimateEntity):
     @property
     def hvac_mode(self) -> HVACMode:
         # b7 (grounded audit P0-1) — the VW-EU/SEAT/CUPRA parsers store
-        # climatisation_state as the raw LOWERCASE backend string ("heating",
-        # "cooling"); only Škoda stores UPPERCASE. A case-sensitive membership
-        # test against an uppercase active-set therefore read OFF while a
-        # VW/SEAT/CUPRA was actively pre-conditioning, and the uppercase-only test
-        # fixture masked it. Mirror the sibling climatisation switch (switch.py
-        # is_on) EXACTLY — inactive-set exclusion, case-folded — so the climate
-        # entity and the switch can never contradict, and a future active
-        # sub-state (heatingAuxiliary…) isn't silently dropped by a fixed set.
+        # b9 regression fix — derive from the parser-computed
+        # ``climatisation_active`` boolean, the single source of truth every brand
+        # sets alongside ``climatisation_state`` (with full knowledge of that
+        # brand's state vocabulary). The b7 case-folded deny-list
+        # (``state not in ("off","stopped","")``) read HEAT_COOL for TERMINAL /
+        # no-data states — Škoda-official ``COMPLETED``/``UNKNOWN``, SEAT/CUPRA
+        # ``unsupported`` — where the binary sensor + switch correctly read off,
+        # re-introducing the exact climate↔switch contradiction b7 set out to
+        # remove. Prefer the boolean; fall back to the state deny-list only if a
+        # channel ever leaves ``climatisation_active`` unset.
+        active = self._vehicle.get("climatisation_active")
+        if active is not None:
+            return HVACMode.HEAT_COOL if active else HVACMode.OFF
         state = self._vehicle.get("climatisation_state")
         if state and str(state).lower() not in ("off", "stopped", ""):
             return HVACMode.HEAT_COOL
