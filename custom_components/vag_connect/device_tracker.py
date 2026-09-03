@@ -149,6 +149,9 @@ class VagConnectTracker(VagConnectEntity, TrackerEntity):
             # user tell a position from a minute ago from one from yesterday
             # instead of having to trust that the marker is current.
             "position_captured_at",
+            # b9 — True only when the pin is a last-known position kept past the
+            # 24h freshness window; lets the map/automations flag a day-old fix.
+            "position_is_stale",
             "vehicle_state",
             "model",
             "model_year",

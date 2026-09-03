@@ -187,16 +187,30 @@ class TestPositionTTL:
         assert merged["parking_address"] == "Bünzweg 16"
         assert not notes
 
-    def test_a_stale_position_is_dropped_not_carried(self) -> None:
+    def test_a_stale_position_is_kept_but_flagged(self) -> None:
+        # b9 — a parked car is still where it was, so the last-known pin is KEPT
+        # visible on the device_tracker (b7 dropped it, so a car parked >24h lost
+        # its location) but flagged stale so a day-old fix isn't read as fresh.
         previous = {
             "latitude": 47.39, "longitude": 8.05,
             "parking_address": "Bünzweg 16",
             "position_captured_at": _ago(days=9),
         }
         merged, notes = reconcile(previous, {"vin": "X"})
-        assert merged.get("latitude") is None, "a 9-day-old position read as current"
-        assert merged.get("parking_address") is None
-        assert any("dropped" in n for n in notes)
+        assert merged["latitude"] == 47.39
+        assert merged["parking_address"] == "Bünzweg 16"
+        assert merged.get("position_is_stale") is True
+        assert any("stale" in n for n in notes)
+
+    def test_a_recent_position_is_not_flagged_stale(self) -> None:
+        previous = {
+            "latitude": 47.39, "longitude": 8.05,
+            "position_captured_at": _ago(hours=2),
+        }
+        merged, notes = reconcile(previous, {"vin": "X"})
+        assert merged["latitude"] == 47.39
+        assert merged.get("position_is_stale") is None  # current → not flagged
+        assert not notes
 
     def test_unknown_age_is_not_treated_as_expired(self) -> None:
         """Brands that never send a timestamp must not lose their position."""
@@ -205,14 +219,18 @@ class TestPositionTTL:
         assert merged["latitude"] == 47.39
 
     def test_last_seen_at_is_the_fallback_clock(self) -> None:
+        # b9 — last_seen_at still drives the age, but a stale position is now KEPT
+        # and flagged (not dropped).
         old = {"latitude": 1.0, "longitude": 2.0, "last_seen_at": _ago(days=5)}
         merged, notes = reconcile(old, {"vin": "X"})
-        assert merged.get("latitude") is None
-        assert any("dropped" in n for n in notes)
+        assert merged["latitude"] == 1.0
+        assert merged.get("position_is_stale") is True
+        assert any("stale" in n for n in notes)
 
         recent = {"latitude": 1.0, "longitude": 2.0, "last_seen_at": _ago(hours=1)}
         merged2, _ = reconcile(recent, {"vin": "X"})
         assert merged2["latitude"] == 1.0
+        assert merged2.get("position_is_stale") is None
 
     def test_a_fresh_position_never_inherits_the_old_address(self) -> None:
         """The subtle one: topping fresh coordinates up with a previous address
