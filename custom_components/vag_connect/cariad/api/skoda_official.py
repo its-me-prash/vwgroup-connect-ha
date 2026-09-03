@@ -26,10 +26,12 @@ spin)`` signature without a new arg, the VIN(s) ride the ``email`` slot
 from __future__ import annotations
 
 import time
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from aiohttp import ClientSession, ClientTimeout
 
+from .._util import drop_charge_sentinel, safe_int
 from ..exceptions import APIError, AuthenticationError
 from ..models import VehicleData
 
@@ -47,6 +49,22 @@ def _to_bool_open(value: Any) -> bool | None:
         return True
     if v in ("CLOSED", "LOCKED", "NO", "OFF", "UNSUPPORTED"):
         return False
+    return None
+
+
+def _open_strict(value: Any) -> bool | None:
+    """OPEN→True / CLOSED→False / anything else (incl. UNSUPPORTED)→None.
+
+    For optional body parts (sunroof, bonnet) where UNSUPPORTED must stay None so a
+    car without the part doesn't spawn a phantom "closed" binary sensor — unlike
+    ``_to_bool_open`` which maps UNSUPPORTED→False (fine for the universal trunk).
+    """
+    if isinstance(value, str):
+        up = value.strip().upper()
+        if up == "OPEN":
+            return True
+        if up == "CLOSED":
+            return False
     return None
 
 
@@ -190,6 +208,9 @@ class SkodaOfficialClient:
         d.model = v.get("name") or d.model
         if isinstance(v.get("licensePlate"), str):
             d.license_plate = v["licensePlate"]
+        # b7 — the render image URL rides the same response; the image entity reads it.
+        if isinstance(v.get("renderUrl"), str) and v["renderUrl"]:
+            d.render_url = v["renderUrl"]
 
         # -- opening / lock status (overall + detail) -------------------------
         status = v.get("status") or {}
@@ -212,6 +233,20 @@ class SkodaOfficialClient:
         _trunk = _to_bool_open(detail.get("trunk"))
         if _trunk is not None:
             d.trunk_open = _trunk
+        # b7 — status fields the official parser was dropping (all in the response).
+        _lights = overall.get("lights")
+        if isinstance(_lights, str):
+            _lu = _lights.strip().upper()
+            if _lu == "ON":
+                d.lights_on = True
+            elif _lu == "OFF":
+                d.lights_on = False
+        _sun = _open_strict(detail.get("sunroof"))
+        if _sun is not None:
+            d.sunroof_open = _sun
+        _bon = _open_strict(detail.get("bonnet"))  # official "bonnet" → our "hood"
+        if _bon is not None:
+            d.hood_open = _bon
         if isinstance(status.get("carCapturedTimestamp"), str):
             d.last_seen_at = status["carCapturedTimestamp"]
 
@@ -262,6 +297,17 @@ class SkodaOfficialClient:
             d.is_electric = True
         elif "ELECTRIC" in types and len(types) > 1:
             d.is_hybrid = True
+        # b7 — AdBlue + the whole secondary engine (a PHEV loses its second engine on
+        # an official-only cycle without these). All already in the response.
+        if isinstance(fuel.get("adBlueRange"), (int, float)):
+            d.adblue_range_km = int(fuel["adBlueRange"])
+        _sec_type = sec.get("engineType")
+        if isinstance(_sec_type, str):
+            d.secondary_engine_type = _sec_type
+        if isinstance(sec.get("currentFuelLevelInPercent"), (int, float)):
+            d.secondary_engine_fuel_level_pct = int(sec["currentFuelLevelInPercent"])
+        if isinstance(sec.get("remainingRangeInKm"), (int, float)):
+            d.secondary_engine_range_km = int(sec["remainingRangeInKm"])
 
         # -- charging ---------------------------------------------------------
         charging = v.get("charging") or {}
@@ -276,6 +322,7 @@ class SkodaOfficialClient:
         batt = cstat.get("battery") or {}
         if isinstance(batt.get("stateOfChargeInPercent"), (int, float)):
             d.battery_soc = int(batt["stateOfChargeInPercent"])
+            d.has_battery = True
         if isinstance(batt.get("remainingCruisingRangeInMeters"), (int, float)):
             d.electric_range_km = int(batt["remainingCruisingRangeInMeters"] // 1000)
         if isinstance(cset.get("targetStateOfChargeInPercent"), (int, float)):
@@ -286,6 +333,45 @@ class SkodaOfficialClient:
             d.preferred_charge_mode = cset["preferredChargeMode"]
         if isinstance(cset.get("maxChargeCurrentAcAmpere"), (int, float)):
             d.max_charge_current = float(cset["maxChargeCurrentAcAmpere"])
+        # b7 — charging status/settings the official parser was dropping (all in the
+        # response; on an official-only cycle these entities otherwise go dark).
+        _saved = charging.get("isVehicleInSavedLocation")
+        if isinstance(_saved, bool):
+            d.vehicle_at_saved_location = _saved
+        if isinstance(cstat.get("chargingRateInKilometersPerHour"), (int, float)):
+            d.charging_rate_kmh = float(cstat["chargingRateInKilometersPerHour"])
+        _ctype = drop_charge_sentinel(cstat.get("chargeType"))  # AC/DC, #1104 sentinel
+        if isinstance(_ctype, str) and _ctype:
+            d.charging_type = _ctype
+        _fully = cstat.get("fullyChargedAt")
+        if isinstance(_fully, str) and _fully:
+            try:
+                d.charge_complete_eta = datetime.fromisoformat(
+                    _fully.replace("Z", "+00:00"))
+            except ValueError:
+                pass
+        if not d.charge_complete_eta:
+            _rem = safe_int(cstat.get("remainingTimeToFullyChargedInMinutes"))
+            if _rem:
+                d.charge_complete_eta = datetime.now(tz=timezone.utc) + timedelta(
+                    minutes=_rem)
+        _care = cset.get("chargingCareMode")
+        if isinstance(_care, str):
+            _cu = _care.strip().upper()
+            if _cu in ("ACTIVATED", "ACTIVE", "ON", "TRUE"):
+                d.battery_care_enabled = True
+            elif _cu in ("DEACTIVATED", "INACTIVE", "OFF", "FALSE"):
+                d.battery_care_enabled = False
+        _autolock = cset.get("autoUnlockPlugWhenCharged")
+        if isinstance(_autolock, str):
+            _au = _autolock.strip().upper()
+            if _au in ("ON", "PERMANENT", "TRUE", "YES"):
+                d.auto_unlock_when_charged = True
+            elif _au in ("OFF", "FALSE", "NO"):
+                d.auto_unlock_when_charged = False
+        _modes = cset.get("availableChargeModes")
+        if isinstance(_modes, list) and _modes:
+            d.available_charge_modes = [str(m) for m in _modes if m is not None]
 
         # -- air conditioning / climate --------------------------------------
         ac = v.get("airConditioning") or {}
@@ -295,6 +381,11 @@ class SkodaOfficialClient:
             # COMPLETED | UNKNOWN — active only while it's actually conditioning.
             d.climatisation_active = ac["state"].strip().upper() in (
                 "COOLING", "HEATING", "HEATING_AUXILIARY", "VENTILATION",
+            )
+            # b7 — coarse aux-heating flag from the AC enum (mirrors mysmob); the
+            # dedicated auxiliaryHeating block below refines it when present.
+            d.aux_heating_active = (
+                ac["state"].strip().upper() == "HEATING_AUXILIARY"
             )
         tt = ac.get("targetTemperature") or {}
         if isinstance(tt.get("value"), (int, float)):
@@ -306,6 +397,39 @@ class SkodaOfficialClient:
         _whr = _to_bool_open(wh.get("rear"))
         if _whr is not None:
             d.window_heating_back = _whr
+        # b7 — climate booleans/timestamps the official parser was dropping.
+        _whenabled = wh.get("enabled")
+        if isinstance(_whenabled, bool):
+            d.window_heating_enabled = _whenabled
+        _reach = ac.get("estimatedReachOfTargetTemperatureAt")
+        if isinstance(_reach, str) and _reach:
+            d.climate_ready_at = _reach
+        _noext = ac.get("airConditioningWithoutExternalPower")
+        if isinstance(_noext, bool):
+            d.air_conditioning_without_external_power = _noext
+        _atunlock = ac.get("airConditioningAtUnlock")
+        if isinstance(_atunlock, bool):
+            d.climate_at_unlock = _atunlock
+
+        # -- auxiliary heating / active ventilation (Škoda product gaps) -----
+        # Both blocks arrive in the same GET response but the parser dropped them, so
+        # the dedicated auxiliary_heating_status sensor and the active-ventilation
+        # state/switch read "unknown" on Škoda (they were vw_eu-only). Parse them.
+        aux = v.get("auxiliaryHeating") or {}
+        _aux_state = aux.get("state")
+        if isinstance(_aux_state, str) and _aux_state:
+            d.auxiliary_heating_status = _aux_state
+            d.aux_heating_active = _aux_state.strip().lower() in (
+                "heating", "on", "active", "started", "heatingon",
+                "heating_auxiliary",
+            )
+        vent = v.get("activeVentilation") or {}
+        _vent_state = vent.get("state")
+        if isinstance(_vent_state, str) and _vent_state:
+            d.active_ventilation_state = _vent_state
+        _vent_dur = vent.get("durationInSeconds")
+        if isinstance(_vent_dur, (int, float)) and not isinstance(_vent_dur, bool):
+            d.active_ventilation_remaining_time_min = int(_vent_dur // 60)
 
         # -- parking position (the GPS the EU-DA channel can't get) ----------
         pos = v.get("parkingPosition") or {}
@@ -315,6 +439,10 @@ class SkodaOfficialClient:
         ):
             d.latitude = float(gps["latitude"])
             d.longitude = float(gps["longitude"])
+        # b7 — the human-readable parking address rides the same block (redacted in
+        # diagnostics via _REDACT_KEYS; surfaced as the device_tracker attribute).
+        if isinstance(pos.get("formattedAddress"), str) and pos["formattedAddress"]:
+            d.parking_address = pos["formattedAddress"]
         return d
 
     # -- commands -------------------------------------------------------------
