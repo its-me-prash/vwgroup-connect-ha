@@ -1450,6 +1450,13 @@ class VehicleData:
     software_update_status: str | None = None
     ota_update_available: bool | None = None
     ota_release_notes_url: str | None = None
+    # #1333 (Scout, Elroq) — Škoda ``readiness.softwareUpdateStatus`` (e.g.
+    # "UPDATE_IN_PROGRESS"). A SEPARATE source from ``software_update_status`` above
+    # (that is the /software-version/update-status endpoint). Surfaced as a plain
+    # string diagnostic sensor (not an ENUM) so a value we haven't seen yet is shown
+    # verbatim, never suppressed — the Scout "never suppress" policy. Škoda-only;
+    # other brands leave it None → no phantom entity (gated by _DATA_PRESENT_REQUIRED).
+    readiness_software_update_status: str | None = None
 
     # v2.0.0 (Big-Bang) — Skoda driving-score (efficiency metric 0-100).
     # Endpoint ``GET /api/v2/vehicle-status/{vin}/driving-score`` on mysmob
@@ -1786,6 +1793,13 @@ class VehicleData:
     tyre_pressure_required_rl: int | None = None
     tyre_pressure_required_rr: int | None = None
     tyre_pressure_required_spare: int | None = None
+    # #528/#538 — TPMS system-type. Indirect/ABS-based TPMS ships the whole
+    # actual-pressure family as "1" (dict 1=invalid: system present, no numeric
+    # bar), which the sentinel filter drops — so the per-wheel pressure sensors
+    # never spawn and the fact the car HAS a (indirect) TPMS is otherwise invisible.
+    # "measured" = at least one corner reports a real >1 reading; "indirect" =
+    # the family is present but all-"1". ENUM sensor, diagnostic, off by default.
+    tpms_status: str | None = None
     # F. Lights / energy / misc.
     # Parking lights state (parking_lights enum → off/left/right/both). sensor.
     parking_lights_state: str | None = None

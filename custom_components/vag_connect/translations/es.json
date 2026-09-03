@@ -1417,6 +1417,16 @@
       },
       "no_data_count": {
         "name": "Consultas sin datos"
+      },
+      "tpms_status": {
+        "name": "Control de presión de neumáticos",
+        "state": {
+          "measured": "Medido (por rueda)",
+          "indirect": "Indirecto (sin valores de presión)"
+        }
+      },
+      "readiness_software_update_status": {
+        "name": "Estado de actualización de software"
       }
     },
     "binary_sensor": {

@@ -104,3 +104,33 @@ def test_reconcile_holds_equipment_count_but_not_fill_up() -> None:
     assert out["equipment_count"] == 9  # held, not blanked to unknown
     # the fill-up is NOT resurrected — carry-forward must not defeat staleness
     assert out.get("last_refuel_at") is None
+
+
+def test_lifetime_fields_are_carried_forward() -> None:
+    # #1310 — the full lifetime_* aggregate set is cumulative long-term telemetry.
+    for k in (
+        "lifetime_distance_km", "lifetime_avg_speed_kmh", "lifetime_travel_time_min",
+        "lifetime_avg_fuel_consumption_l_100km",
+        "lifetime_avg_electric_consumption_kwh_100km",
+        "lifetime_zero_emission_km",
+    ):
+        assert k in CARRY_FORWARD_FIELDS
+
+
+def test_reconcile_holds_lifetime_when_a_poll_omits_it() -> None:
+    # a partial poll (e.g. a Škoda EU-DA drop without the aggregate block) must not
+    # blank the lifetime sensors to "unknown".
+    prev = {"lifetime_distance_km": 42000.0, "lifetime_avg_speed_kmh": 48.0}
+    fresh = {"battery_soc": 80}
+    out, _disc = reconcile(prev, fresh)
+    assert out["lifetime_distance_km"] == 42000.0
+    assert out["lifetime_avg_speed_kmh"] == 48.0
+
+
+def test_reconcile_lets_a_lifetime_reset_through() -> None:
+    # a genuine owner reset ships a fresh non-None (lower/zero) value, which must
+    # win over the carried one — carry-forward only fills a None.
+    prev = {"lifetime_distance_km": 42000.0}
+    fresh = {"lifetime_distance_km": 0.0}
+    out, _disc = reconcile(prev, fresh)
+    assert out["lifetime_distance_km"] == 0.0

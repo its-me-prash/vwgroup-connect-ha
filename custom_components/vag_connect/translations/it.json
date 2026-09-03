@@ -1417,6 +1417,16 @@
       },
       "no_data_count": {
         "name": "Sondaggi senza dati"
+      },
+      "tpms_status": {
+        "name": "Monitoraggio pressione pneumatici",
+        "state": {
+          "measured": "Misurata (per ruota)",
+          "indirect": "Indiretto (nessun valore di pressione)"
+        }
+      },
+      "readiness_software_update_status": {
+        "name": "Stato aggiornamento software"
       }
     },
     "binary_sensor": {

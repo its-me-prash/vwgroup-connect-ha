@@ -1450,6 +1450,16 @@
       },
       "no_data_count": {
         "name": "No-data polls"
+      },
+      "tpms_status": {
+        "name": "Tyre pressure monitoring",
+        "state": {
+          "measured": "Measured (per-wheel)",
+          "indirect": "Indirect (no pressure values)"
+        }
+      },
+      "readiness_software_update_status": {
+        "name": "Software update status"
       }
     },
     "binary_sensor": {

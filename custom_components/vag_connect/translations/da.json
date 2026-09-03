@@ -1417,6 +1417,16 @@
       },
       "no_data_count": {
         "name": "Forespørgsler uden data"
+      },
+      "tpms_status": {
+        "name": "Dæktrykovervågning",
+        "state": {
+          "measured": "Målt (pr. hjul)",
+          "indirect": "Indirekte (ingen trykværdier)"
+        }
+      },
+      "readiness_software_update_status": {
+        "name": "Softwareopdateringsstatus"
       }
     },
     "binary_sensor": {

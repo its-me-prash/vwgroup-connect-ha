@@ -559,10 +559,24 @@ async def async_get_config_entry_diagnostics(
     # commands are unavailable — so a #584-class report is triageable straight
     # from the diagnostics instead of asking the reporter for a debug log.
     mbb_no_legacy: list[str] = []
-    _nl = getattr(client, "mbb_no_legacy_vins", None) if client is not None else None
-    if _nl:
+    # #1150 — the verdict is recorded on WHICHEVER VWEUClient ran the operationList.
+    # On the #584 read-only-primary shape (VW-EU portal/vw.de primary + an armed MBB
+    # command channel) it lands on the ``_mbb_command`` sub-connector, not the
+    # parent — so reading only the parent exported an empty list even several polls
+    # after the verdict was set. Union the parent with both sub-connectors so the
+    # export reflects the real state regardless of which instance recorded it.
+    _nl_union: set[str] = set()
+    for _obj in (
+        client,
+        getattr(client, "_mbb_command", None) if client is not None else None,
+        getattr(client, "_mbb_fallback", None) if client is not None else None,
+    ):
+        _s = getattr(_obj, "mbb_no_legacy_vins", None) if _obj is not None else None
+        if _s:
+            _nl_union.update(_s)
+    if _nl_union:
         try:
-            mbb_no_legacy = sorted(mask_vin(v) for v in _nl)
+            mbb_no_legacy = sorted(mask_vin(v) for v in _nl_union)
         except Exception:  # noqa: BLE001
             mbb_no_legacy = []
 

@@ -3119,6 +3119,31 @@ def map_dataset_to_vehicle_data(
         if _tpr is not None:
             setattr(d, _attr, _tpr)
 
+    # E'''. #528/#538 — TPMS system-type. Classify the RAW actual-pressure family
+    # via ``fields.get`` (read-only — does NOT touch the ``used`` set, so the
+    # sentinel-consume bookkeeping the E' loop already did is untouched, and the
+    # "1"s stay Scout-silent). ``first()`` can't be used here: it drops the "1"
+    # sentinel to None. Any corner >1 is a genuine reading ("measured"); else any
+    # corner ==1 is an indirect/no-numeric TPMS ("indirect"); all-0/absent → None
+    # so no phantom entity spawns.
+    _tpms_present = [
+        _v for _v in (
+            _to_int(fields.get(_n))
+            for _n in (
+                "tyre_pressure_actual_front_left",
+                "tyre_pressure_actual_front_right",
+                "tyre_pressure_actual_rear_left",
+                "tyre_pressure_actual_rear_right",
+                "tyre_pressure_actual_spare_tyre",
+            )
+        ) if _v is not None
+    ]
+    if _tpms_present:
+        if any(_v > 1 for _v in _tpms_present):
+            d.tpms_status = "measured"
+        elif any(_v == 1 for _v in _tpms_present):
+            d.tpms_status = "indirect"
+
     # F. Lights / energy / misc.
     # parking_lights (plural enum): 0=unsup 1=invalid 2=off 3=left 4=right 5=both.
     _plights = _to_int(first("parking_lights"))

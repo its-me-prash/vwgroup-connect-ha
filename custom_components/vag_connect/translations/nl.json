@@ -1417,6 +1417,16 @@
       },
       "no_data_count": {
         "name": "Pollingen zonder gegevens"
+      },
+      "tpms_status": {
+        "name": "Bandenspanningscontrole",
+        "state": {
+          "measured": "Gemeten (per wiel)",
+          "indirect": "Indirect (geen drukwaarden)"
+        }
+      },
+      "readiness_software_update_status": {
+        "name": "Status software-update"
       }
     },
     "binary_sensor": {

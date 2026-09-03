@@ -1417,6 +1417,16 @@
       },
       "no_data_count": {
         "name": "Dotazy bez dat"
+      },
+      "tpms_status": {
+        "name": "Kontrola tlaku v pneumatikách",
+        "state": {
+          "measured": "Měřeno (na kolo)",
+          "indirect": "Nepřímé (bez hodnot tlaku)"
+        }
+      },
+      "readiness_software_update_status": {
+        "name": "Stav aktualizace softwaru"
       }
     },
     "binary_sensor": {

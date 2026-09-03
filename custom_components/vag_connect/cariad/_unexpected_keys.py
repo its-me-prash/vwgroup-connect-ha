@@ -338,6 +338,9 @@ EXPECTED_KEYS: dict[str, dict[str, set[str]]] = {
             # for "car is being driven" / "12V critical" automations.
             "ignitionOn",
             "batteryProtectionLimitOn",
+            # #1333 — readiness software-update lifecycle (Scout, Elroq); now mapped
+            # to readiness_software_update_status, so stop re-flagging it.
+            "softwareUpdateStatus",
         },
         # v1.20.0 (Bundle 2 Phase A) — myskoda PR #557 widget endpoint
         # for lightweight per-tick polling. Schema verified against

@@ -1417,6 +1417,16 @@
       },
       "no_data_count": {
         "name": "Förfrågningar utan data"
+      },
+      "tpms_status": {
+        "name": "Däcktrycksövervakning",
+        "state": {
+          "measured": "Uppmätt (per hjul)",
+          "indirect": "Indirekt (inga tryckvärden)"
+        }
+      },
+      "readiness_software_update_status": {
+        "name": "Status för programuppdatering"
       }
     },
     "binary_sensor": {

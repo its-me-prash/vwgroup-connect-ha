@@ -424,6 +424,14 @@ def _mbb_command_capability(
     cmd = _mbb_command_channel_client(coord)
     if cmd is None:
         return None
+    # #584/#1150 — this VIN's operationList returned the definitive
+    # ``gw.error.authentication`` verdict (no legacy Car-Net enrolment), so the MBB
+    # command channel can never work for it. Hide the control (False) instead of
+    # leaving it visible to fail on every press. NOT triggered by a VSR 403
+    # XID_APP_VW — that is the HEALTHY durable-MBB state (commands work, only the
+    # data-read plane is closed) and is deliberately never added to the set.
+    if vin in getattr(cmd, "mbb_no_legacy_vins", ()):
+        return False
     if command_id not in _MBB_COMMAND_SERVICE:
         # A command we don't route via MBB — leave it to the BFF gate rather
         # than risk hiding a legitimate non-MBB control.
@@ -3427,9 +3435,20 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 # until a restart. update_interval is None here, so this loop —
                 # not _async_update_data — is the periodic path. No-op non-MBB.
                 await self._refresh_mbb_command_capabilities()
-                self._push_official_mode()  # #1286 — official_only routing before read
+                # #584 — capture the client up front. A Reconfigure unload nulls
+                # self._cariad_client, and any await above (sleep / watchdog /
+                # capability refresh) yields long enough for that to land mid-cycle;
+                # the gather below would then raise "'NoneType' object has no
+                # attribute 'get_status'". _async_update_data already guards this
+                # way; the background poll loop needs the same. Skip this cycle
+                # cleanly if the client is gone — the next cycle re-reads it, or the
+                # loop exits on _started=False.
+                _client = self._cariad_client
+                if _client is None:
+                    continue
+                self._push_official_mode(_client)  # #1286 — official_only routing
                 results = await asyncio.gather(
-                    *[self._cariad_client.get_status(vin) for vin in vins],
+                    *[_client.get_status(vin) for vin in vins],
                     return_exceptions=True,
                 )
                 fresh: dict[str, Any] = {}
@@ -4679,6 +4698,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 vins = list(self.vehicles.keys())
         for vin in vins:
             if not vin:
+                continue
+            # #584/#1150 — a VIN with the definitive no-legacy verdict can never use
+            # the MBB command channel, so stop re-hitting the gateway warm-up for it
+            # every poll. (The 12h per-VIN cache already suppresses the HTTP call
+            # within a session; this makes the skip explicit and covers a cache reset.)
+            if vin in getattr(cmd, "mbb_no_legacy_vins", ()):
                 continue
             try:
                 await getter(vin, for_command=True)
