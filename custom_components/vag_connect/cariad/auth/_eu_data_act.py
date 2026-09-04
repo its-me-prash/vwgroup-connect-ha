@@ -3938,6 +3938,40 @@ class EUDataActConnector:
             "EU Data Act portal: login succeeded (read-only, ~15min cadence)"
         )
 
+    def _debug_dump_auth_state_on_401(
+        self, url: str, sent_headers: dict[str, str], resp: Any
+    ) -> None:
+        """b13 (#1340 @cyrano330) — on a hard 401 from a proxy_api call, log a
+        REDACTED snapshot of HOW the request was authenticated, so a tester's
+        debug capture answers the open question behind the persistent portal 401:
+        did the GET go out authenticated-but-refused, or anonymous/stale?
+
+        Names + flags ONLY — never a token or cookie value. Fires only when debug
+        logging is on, and can never break the request flow.
+        """
+        if not _LOGGER.isEnabledFor(logging.DEBUG):
+            return
+        try:
+            mode = "bearer" if self._bearer else "cookie"
+            sent_authorization = "Authorization" in sent_headers
+            cookies: list[str] = []
+            try:
+                for cookie in self._session.cookie_jar:
+                    cookies.append(f"{cookie.key}@{cookie.get('domain') or '?'}")
+            except Exception:  # noqa: BLE001
+                cookies = ["<cookie jar unreadable>"]
+            resp_hdrs = getattr(resp, "headers", {})
+            www_auth = str(resp_hdrs.get("WWW-Authenticate", ""))
+            _LOGGER.debug(
+                "EU Data Act 401 auth-state on %s: mode=%s sent_authorization=%s "
+                "session_cookies=%s resp_www_authenticate=%r resp_set_cookie=%s "
+                "(#1340 diagnostic — names/flags only, no secret values)",
+                url.split("?")[0], mode, sent_authorization, cookies or "<none>",
+                www_auth[:80], "Set-Cookie" in resp_hdrs,
+            )
+        except Exception:  # noqa: BLE001 — diagnostics must never break the flow
+            _LOGGER.debug("EU Data Act 401 auth-state dump failed", exc_info=True)
+
     async def _get_json(
         self,
         url: str,
@@ -3993,6 +4027,10 @@ class EUDataActConnector:
                             # portal outage (portal_error).
                             self._last_soft_status = resp.status
                             return None
+                        if resp.status == 401:
+                            self._debug_dump_auth_state_on_401(
+                                url, eff_headers, resp
+                            )
                         raise AuthenticationError(
                             f"EU Data Act GET {url} → HTTP {resp.status}"
                         )

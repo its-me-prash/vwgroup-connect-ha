@@ -494,10 +494,14 @@ DAG_ENABLED_BRANDS = frozenset({"audi", "seat", "cupra", "audi_na"})
 
 # v2.19.0 — Audi US/CA (audi_na) drives the SAME RFC-8628 flow against the NA IDP
 # instead of the EU one (endpoints mirror EU on identity.na.vwgroup.io, from the
-# live US myAudi market-config / NA OIDC discovery). LIVE-GATED / UNCONFIRMED,
-# needs a real US-Audi tester: (1) whether the NA IDP exposes
-# /oidc/v1/device_authorization at all, (2) whether client 7c6b4634 is
-# device-code-capable, (3) whether a device-grant token then reads na.bff.
+# live US myAudi market-config / NA OIDC discovery).
+# b13 UPDATE — two of the three open questions are now confirmed by a standalone
+# live probe (@cyrano330, #1340, 2026-09-04): (1) the NA IDP DOES expose
+# /oidc/v1/device_authorization (HTTP 200, RFC-8628 response, expires_in=300,
+# interval=1; verification URI identity.na.vwgroup.io/oidc/device/aoa), and
+# (2) client 7c6b4634 (US Android live) IS device-code-capable there (also the
+# US iOS 61755a4f and Watch c07d4b3a clients returned 200). STILL OPEN: (3)
+# whether a device-grant token then READS na.bff — needs a real US account.
 # NOTE: the community "Audi Connect" project reads NA Audi data via the
 # PASSWORD/authorization-code path (no attestation on the reads); this DAG path
 # is the preferred clean-auth alternative — wired here, but its read-capability

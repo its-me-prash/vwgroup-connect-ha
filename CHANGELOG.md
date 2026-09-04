@@ -42,11 +42,26 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.0b13] - 2026-09-04 — HA-near clean-up (quality + deprecations + a diagnostic)
+
 ### Fixed
 - **The "portal session not authorised" repair no longer appears twice.** A b12 change
   registered that repair through two code paths with mirrored ids (one of them mislabelled
   as a generic authentication failure); it now registers exactly once, with the correct
   brand-aware text. Thanks @cyrano330 (#1340).
+
+### Changed
+- **Quieter and more future-proof under the hood** (no user-visible change): the
+  conversation-agent tools are now namespaced (`vag_connect__…`) the way Home Assistant
+  2026.9 requires; the deprecated device-registry lookup was swapped for the entry-scoped
+  one (Home Assistant 2026.8+, with a fallback for older cores); and the "parallel updates"
+  quality rule is now declared where Home Assistant actually reads it.
+
+### Added
+- **A redacted portal-401 diagnostic** (debug-log only): when the EU Data Act portal rejects
+  the vehicle list after a successful login, turning on debug logging now records — names and
+  flags only, never any secret — whether the request went out authenticated or anonymous, to
+  help pin down the cause. Thanks @cyrano330 (#1340).
 
 ## [4.7.0b12] - 2026-09-04 — Repair message + diagnostics fixes (EU Audi)
 

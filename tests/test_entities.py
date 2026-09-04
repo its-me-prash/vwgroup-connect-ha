@@ -135,8 +135,10 @@ class TestEntityBase:
         assert e._attr_unique_id == "VIN123_key_test"
 
     def test_parallel_updates_is_zero(self):
-        from custom_components.vag_connect.entity_base import VagConnectEntity
-        assert VagConnectEntity._attr_parallel_updates == 0
+        # b13 — HA reads PARALLEL_UPDATES as a MODULE-level constant on each
+        # platform (an entity attr is a no-op), so assert it there.
+        import custom_components.vag_connect.sensor as sensor_mod
+        assert sensor_mod.PARALLEL_UPDATES == 0
 
     def test_has_entity_name_true(self):
         from custom_components.vag_connect.entity_base import VagConnectEntity
