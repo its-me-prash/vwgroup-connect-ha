@@ -25,6 +25,7 @@ from .._util import (
 from ..exceptions import (
     APIError,
     AuthenticationError,
+    PortalSessionExpiredError,
     SpinError,
     VehicleCommandError,
 )
@@ -356,7 +357,17 @@ class VWEUClient(CariadBaseClient):
                     await self._refresh_tokens()
                 else:
                     await portal.login(self._email, self._password)
-                vins = await portal.list_vehicle_vins()
+                # b12 (#1340 @cyrano330) — a 401 on the SECOND enumeration, after
+                # we already refreshed/re-logged-in, means the portal refuses to
+                # authorise an otherwise-valid session (the IDK + portal logins
+                # both succeeded). Mark it distinctly so the coordinator surfaces
+                # the session-expired repair instead of "wrong password". A
+                # genuinely bad credential fails at portal.login() above and never
+                # reaches here.
+                try:
+                    vins = await portal.list_vehicle_vins()
+                except AuthenticationError as err2:
+                    raise PortalSessionExpiredError(str(err2)) from err2
             # Best-effort nickname enrichment from the relation endpoint.
             self._vehicle_metadata: dict[str, dict[str, Any]] = {}
             for pvin in vins:
