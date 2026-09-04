@@ -42,6 +42,12 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **The "portal session not authorised" repair no longer appears twice.** A b12 change
+  registered that repair through two code paths with mirrored ids (one of them mislabelled
+  as a generic authentication failure); it now registers exactly once, with the correct
+  brand-aware text. Thanks @cyrano330 (#1340).
+
 ## [4.7.0b12] - 2026-09-04 — Repair message + diagnostics fixes (EU Audi)
 
 ### Fixed
