@@ -36,6 +36,7 @@ from ..exceptions import (
     TwoFactorRequiredError,
     RateLimitError,
     TokenExpiredError,
+    TokenRefreshRetryError,
     UpstreamUnavailableError,
 )
 from ..models import BrandConfig, TokenSet
@@ -1372,7 +1373,25 @@ class IDKAuth:
             # prompting for re-login.
             if resp.status in _TRANSIENT_TOKEN_STATUSES:
                 raise UpstreamUnavailableError(resp.status, self._brand.name)
+            if resp.status == 401:
+                # b10 — a 401 on the refresh endpoint is ``invalid_client`` (RFC
+                # 6749 §5.2), i.e. a transient client-auth wobble on the shared
+                # identity.vwgroup.io IDP — NOT a dead user grant (that comes
+                # back as 400 → TokenExpiredError above). audi_connect saw exactly
+                # this as a recurring "late-August VW token wobble" (#835/#840/
+                # #843) where a hard reauth was a MISCLASSIFICATION — the token
+                # had usually already rotated. Our own device-grant + MBB refresh
+                # paths already treat invalid_client as retryable; harmonise the
+                # IDK path so one blip self-heals next poll instead of bouncing
+                # the user into reauth. A persistent 401 still reaches reauth via
+                # the 3/hour token-refresh storm guard (base._refresh_tokens).
+                raise TokenRefreshRetryError(
+                    f"Token refresh returned HTTP {resp.status} "
+                    "(invalid_client) — transient, retrying next poll"
+                )
             if resp.status != 200:
+                # 403 / other non-200 stay a genuine auth failure (unchanged from
+                # #438): only 401 invalid_client is the evidenced-transient case.
                 raise AuthenticationError(f"Token refresh returned HTTP {resp.status}")
             payload: dict[str, Any] = await resp.json()
 
@@ -1398,6 +1417,14 @@ class IDKAuth:
             # v2.12.4 (#438) — transient 5xx → upstream-unavailable, not auth.
             if resp.status in _TRANSIENT_TOKEN_STATUSES:
                 raise UpstreamUnavailableError(resp.status, self._brand.name)
+            if resp.status == 401:
+                # b10 — same as the CARIAD refresh above: a 401 on the mysmob
+                # refresh endpoint is a transient client-auth wobble, not a dead
+                # token (which is 400 → TokenExpiredError). Retry next poll.
+                raise TokenRefreshRetryError(
+                    f"Škoda token refresh HTTP {resp.status} "
+                    "(invalid_client) — transient, retrying next poll"
+                )
             if resp.status != 200:
                 raise AuthenticationError(f"Škoda token refresh HTTP {resp.status}")
             payload: dict[str, Any] = await resp.json()

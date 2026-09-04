@@ -9,7 +9,17 @@ spammed Error-Reporter issues (#435–#439) for a server-side blip.
 
 ``refresh()`` now raises ``UpstreamUnavailableError`` (a non-auth transient
 the coordinator tolerates) on 5xx. A 400 still means a genuinely rejected
-refresh token (→ full re-login), and 401/403 still raise ``AuthenticationError``.
+refresh token (→ full re-login).
+
+b10 update: a **401** on the refresh endpoint is ``invalid_client`` (RFC 6749
+§5.2) — a transient client-auth wobble on the shared identity.vwgroup.io IDP,
+NOT a dead user grant (which is the 400 above). audi_connect saw exactly this
+recurring "late-August VW token wobble" (#835/#840/#843) where a hard reauth was
+a misclassification, and our own device-grant + MBB refresh paths already treat
+invalid_client as retryable — so the IDK/mysmob path now raises
+``TokenRefreshRetryError`` on 401 too, and it self-heals next poll (a persistent
+401 still reaches reauth via the storm guard). A **403** (and any other non-200)
+still raises ``AuthenticationError`` — only 401 is the evidenced-transient case.
 """
 
 from __future__ import annotations
@@ -22,6 +32,7 @@ from custom_components.vag_connect.cariad.auth.idk import IDKAuth
 from custom_components.vag_connect.cariad.exceptions import (
     AuthenticationError,
     TokenExpiredError,
+    TokenRefreshRetryError,
     UpstreamUnavailableError,
 )
 
@@ -86,11 +97,21 @@ async def test_cariad_refresh_400_is_token_expired() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("status", [401, 403])
-async def test_cariad_refresh_auth_statuses_still_raise_auth(status: int) -> None:
-    """401/403 are genuine auth failures and must still raise (unchanged)."""
+async def test_cariad_refresh_401_is_retryable() -> None:
+    """b10 — 401 invalid_client is a transient wobble, not a hard auth failure.
+
+    Must be a ``TokenRefreshRetryError`` (sibling of AuthenticationError) so the
+    coordinator self-heals next poll instead of hard-bouncing into reauth.
+    """
+    with pytest.raises(TokenRefreshRetryError):
+        await _auth("volkswagen", 401).refresh("rt")
+
+
+@pytest.mark.asyncio
+async def test_cariad_refresh_403_still_raises_auth() -> None:
+    """403 (and any other non-200) stays a genuine auth failure — only 401 flips."""
     with pytest.raises(AuthenticationError):
-        await _auth("volkswagen", status).refresh("rt")
+        await _auth("volkswagen", 403).refresh("rt")
 
 
 @pytest.mark.asyncio
@@ -104,3 +125,10 @@ async def test_skoda_refresh_5xx_is_upstream_unavailable() -> None:
 async def test_skoda_refresh_400_is_token_expired() -> None:
     with pytest.raises(TokenExpiredError):
         await _auth("skoda", 400).refresh("rt")
+
+
+@pytest.mark.asyncio
+async def test_skoda_refresh_401_is_retryable() -> None:
+    """b10 — same 401→transient classification on the mysmob refresh endpoint."""
+    with pytest.raises(TokenRefreshRetryError):
+        await _auth("skoda", 401).refresh("rt")
