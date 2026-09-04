@@ -550,6 +550,13 @@ class VehicleData:
     charging_type: str | None = None
     target_soc: int | None = None
     max_charge_current: float | None = None
+    # b11 (#1343 n300home) — Skoda cars that return no charging-profiles never
+    # populate ``max_charging_current`` (the select's usual source), yet the
+    # plain charging settings still carry the MAXIMUM/REDUCED enum. Kept separate
+    # from the numeric ``max_charge_current`` (device_class current) and from the
+    # EU-DA diagnostic sensor ``max_charge_current_ac``; the Skoda charge-current
+    # select falls back to this when no profile is present.
+    max_charge_current_enum: str | None = None
     min_soc: int | None = None  # Minimum SoC for departure timer (PHEV)
     auto_unlock_charge: bool | None = None
     connector_locked: bool | None = None

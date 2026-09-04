@@ -1478,6 +1478,13 @@ class SkodaClient(CariadBaseClient):
             _mca = v(settings, "maxChargeCurrentAcAmpere")
             if isinstance(_mca, (int, float)) and not isinstance(_mca, bool):
                 d.max_charge_current = float(_mca)
+            # b11 (#1343 n300home) — also capture the plain MAXIMUM/REDUCED enum
+            # so the Skoda charge-current SELECT still shows a value on cars that
+            # return no charging-profiles (its usual source stays empty then).
+            # The numeric sensor keeps using the ampere value above.
+            _mce = v(settings, "maxChargeCurrentAc")
+            if isinstance(_mce, str) and _mce.strip():
+                d.max_charge_current_enum = _mce
             # v1.26.0 Welle-6 (#173, scouts #143/#133) — cross-brand alias.
             # Skoda's autoUnlockPlugWhenCharged or AC-suffix variant.
             au_raw = v(settings, "autoUnlockPlugWhenCharged") or v(settings, "autoUnlockPlugWhenChargedAC")
