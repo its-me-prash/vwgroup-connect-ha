@@ -3705,6 +3705,9 @@ class TestStaleDevices:
         mock_device = MagicMock()
         mock_device.id = "device_old"
         mock_reg = MagicMock()
+        # b13 — coordinator now looks up via the entry-scoped
+        # async_get_device_by_identifier (with a getattr fallback to the old one).
+        mock_reg.async_get_device_by_identifier = MagicMock(return_value=mock_device)
         mock_reg.async_get_device = MagicMock(return_value=mock_device)
         mock_reg.async_remove_device = MagicMock()
 
@@ -3731,6 +3734,7 @@ class TestStaleDevices:
         coord.data = {"VIN_OLD": {}}
 
         mock_reg = MagicMock()
+        mock_reg.async_get_device_by_identifier = MagicMock(return_value=None)
         mock_reg.async_get_device = MagicMock(return_value=None)  # not found
 
         with patch("homeassistant.helpers.device_registry.async_get", return_value=mock_reg):

@@ -4439,6 +4439,23 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # Truly unavailable — past tolerance and stale-cache window.
         return False
 
+    def _lookup_own_device(
+        self, registry: dr.DeviceRegistry, vin: str
+    ) -> dr.DeviceEntry | None:
+        """Look up our own vehicle device by VIN, entry-scoped.
+
+        b13 — ``device_registry.async_get_device(identifiers=...)`` is deprecated
+        (HA 2026.9, breaks 2027.8) because identifiers are no longer unique across
+        config entries. ``async_get_device_by_identifier((domain, vin), entry_id)``
+        (HA 2026.8+) scopes to THIS entry — strictly correct for our own device.
+        getattr-guarded so pre-2026.8 cores fall back to the old method.
+        """
+        getter = getattr(registry, "async_get_device_by_identifier", None)
+        if getter is not None:
+            found: dr.DeviceEntry | None = getter((DOMAIN, vin), self.entry.entry_id)
+            return found
+        return registry.async_get_device(identifiers={(DOMAIN, vin)})
+
     def _active_vins(self, vins: list[str]) -> list[str]:
         """Drop VINs whose HA device *the user* disabled, so a deactivated
         vehicle stops being polled and stops consuming the daily request budget.
@@ -4463,7 +4480,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         active = [
             vin
             for vin in vins
-            if (dev := registry.async_get_device(identifiers={(DOMAIN, vin)})) is None
+            if (dev := self._lookup_own_device(registry, vin)) is None
             or dev.disabled_by != dr.DeviceEntryDisabler.USER
         ]
         if len(active) != len(vins):
@@ -5682,9 +5699,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         previous_vins = set(self.data.keys()) - {"_meta"}
 
         for stale_vin in previous_vins - current_vins:
-            device_entry = device_reg.async_get_device(
-                identifiers={(DOMAIN, stale_vin)}
-            )
+            device_entry = self._lookup_own_device(device_reg, stale_vin)
             if device_entry is not None:
                 _LOGGER.warning(
                     "VW Group Connect: vehicle %s removed from account — "

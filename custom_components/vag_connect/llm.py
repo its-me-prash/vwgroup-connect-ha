@@ -10,7 +10,7 @@ Generative AI, Ollama — consumes that identical list through the shared
 ``voluptuous_openapi.convert(..., custom_serializer=llm.selector_serializer)``).
 The dict a tool returns is fed back to the model as the tool result — which is
 exactly what lets an agent read Laura's ``summary`` and then call
-``skoda_send_destination`` with the chosen stop.
+``vag_connect__skoda_send_destination`` with the chosen stop.
 
 Two entry points share one ``_TOOL_CLASSES`` list:
 
@@ -36,13 +36,18 @@ from homeassistant.helpers import config_validation as cv, llm
 
 from .const import DOMAIN
 
+# b13 — HA 2026.9 requires llm tool names to be prefixed with "{domain}__"
+# (warns 2026.9, hard-breaks 2027.3 for the async_get_tools/Assist path). The
+# tool names AND every in-prompt/in-description cross-reference use the prefixed
+# form so the model's tool-chaining hints still match the registered names.
 _PROMPT = (
     "This home has a Škoda vehicle. For Škoda EV route or charging planning, or "
-    "MyŠkoda product questions, use skoda_ask_assistant (the in-car AI 'Laura') — "
-    "it returns a text summary you can act on. If Laura or the user settles on a "
-    "destination, push it to the car with skoda_send_destination. To set a "
-    "location-specific charge target, use skoda_set_location_target_soc. Always "
-    "pass the vehicle's VIN."
+    "MyŠkoda product questions, use vag_connect__skoda_ask_assistant (the in-car "
+    "AI 'Laura') — it returns a text summary you can act on. If Laura or the user "
+    "settles on a destination, push it to the car with "
+    "vag_connect__skoda_send_destination. To set a location-specific charge "
+    "target, use vag_connect__skoda_set_location_target_soc. Always pass the "
+    "vehicle's VIN."
 )
 
 
@@ -71,13 +76,13 @@ class _ServiceTool(llm.Tool):
 class AskAssistantTool(_ServiceTool):
     """Laura — the MyŠkoda in-car AI assistant (read-only advisory)."""
 
-    name = "skoda_ask_assistant"
+    name = "vag_connect__skoda_ask_assistant"
     description = (
         "Ask the MyŠkoda in-car AI assistant 'Laura' about EV route/charging "
         "planning or Škoda product questions for one vehicle. Read-only advisory "
         "— it cannot control the car. Returns a text 'summary' you can act on "
-        "(e.g. then call skoda_send_destination) plus a 'session_id'; pass that "
-        "session_id back to continue the same conversation."
+        "(e.g. then call vag_connect__skoda_send_destination) plus a 'session_id'; "
+        "pass that session_id back to continue the same conversation."
     )
     parameters = vol.Schema(
         {
@@ -94,7 +99,7 @@ class AskAssistantTool(_ServiceTool):
 class SendDestinationTool(_ServiceTool):
     """Push a navigation destination to the Škoda infotainment."""
 
-    name = "skoda_send_destination"
+    name = "vag_connect__skoda_send_destination"
     description = (
         "Send a navigation destination (coordinates + name) to the car's "
         "infotainment so it appears as the next destination."
@@ -113,7 +118,7 @@ class SendDestinationTool(_ServiceTool):
 class SetLocationTargetSocTool(_ServiceTool):
     """Set the target state of charge for one charging profile (per-location)."""
 
-    name = "skoda_set_location_target_soc"
+    name = "vag_connect__skoda_set_location_target_soc"
     description = (
         "Set the target charge level (percent) for a specific charging profile — "
         "e.g. the profile active at the car's current location. profile_id comes "

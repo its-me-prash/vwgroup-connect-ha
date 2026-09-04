@@ -63,6 +63,12 @@ def _parse_date(val: Any) -> date | None:
         return None
 
 
+# b13 — platinum parallel-updates rule: the coordinator's background poll
+# loop owns every API request, so entity updates need no throttling. HA reads
+# this MODULE-level constant (an entity attr is a no-op).
+PARALLEL_UPDATES = 0
+
+
 async def async_setup_entry(
     hass: HomeAssistant,  # noqa: ARG001
     entry: ConfigEntry,
