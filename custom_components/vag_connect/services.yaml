@@ -243,6 +243,20 @@ import_historical_export:
       selector:
         text:
 
+cancel_historical_export:
+  name: Einmaligen Verlaufsexport abbrechen
+  description: >-
+    Bricht einen laufenden einmaligen Verlaufsexport für ein Fahrzeug ab. Nutze
+    das, wenn du den Export versehentlich ausgelöst hast — es stoppt die
+    wiederholten Import-Versuche (~alle 30 Min bis zum Ablauf). Eine bereits
+    laufende kontinuierliche Datenanforderung bleibt unberührt.
+  fields:
+    vin:
+      name: VIN
+      required: true
+      selector:
+        text:
+
 import_export_file:
   name: Export-Datei importieren
   description: >-

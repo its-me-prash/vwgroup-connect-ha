@@ -1940,6 +1940,10 @@
     }
   },
   "issues": {
+    "invalid_credentials": {
+      "title": "Accesso non riuscito — {brand}",
+      "description": "Home Assistant non è riuscito ad accedere al tuo account {brand} — di solito una password errata o modificata, anche se un blocco temporaneo può sembrare uguale.\n\nImpostazioni → Dispositivi e servizi → VW Group Connect → ⋮ → Riconfigura per reinserire le credenziali."
+    },
     "vweu_twoway_disabled": {
       "title": "VW EU Two-Way: disattivato da Volkswagen",
       "description": "Il 18/08/2026 Volkswagen ha disattivato il login usato dal canale VW EU Two-Way (backend moderno CARIAD), quindi il suo token di 1 ora non può più essere rinnovato e i comandi bidirezionali tramite quel canale si sono interrotti. Si tratta di una modifica lato Volkswagen — non c'è nulla di configurato male dalla tua parte, e il tuo account non è a rischio (l'errore si verifica prima che venga inviata qualsiasi password).\n\n**Le tue letture in tempo reale continuano a funzionare** tramite il portale EU Data Act, quindi i tuoi sensori non ne risentono.\n\n**Per i comandi bidirezionali (blocca/sblocca, clima, ricarica):** un sostituto durevole tramite il backend classico Car-Net (MBB) — che Volkswagen NON ha disattivato — è ora in beta. Vedi la issue #584 per sapere come attivarlo e testarlo.\n\nPuoi rimuovere il canale ora inattivo in qualsiasi momento dalle opzioni dell'integrazione (VW EU Two-Way → rimuovi). Questo messaggio è puramente informativo; l'integrazione continua a funzionare sui tuoi canali di lettura.\n\n**Suggerimento:** attiva UNA sola integrazione bidirezionale per una data auto alla volta. VW applica limiti di frequenza e può bloccare temporaneamente un account tempestato di richieste da più app contemporaneamente — quando succede, nemmeno l'app ufficiale VW riesce a controllare l'auto, ed è questo il segnale che si tratta di un blocco dell'account e non di questa integrazione."

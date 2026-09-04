@@ -815,6 +815,10 @@ class VehicleData:
     # carry-forward TTL in ``vehicle_cache.reconcile`` measures against, and what
     # the device_tracker exposes so the age is visible rather than implied.
     position_captured_at: str | None = None
+    # b9 — set True by reconcile when the last-known position is carried past the
+    # 24h freshness window (kept visible on the device_tracker, but flagged so a
+    # day-old pin isn't mistaken for a fresh fix). Absent/None = current.
+    position_is_stale: bool | None = None
 
     # Status
     vehicle_state: str | None = None

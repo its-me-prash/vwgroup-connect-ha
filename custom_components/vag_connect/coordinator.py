@@ -1954,6 +1954,19 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         )
         new_map = dict(existing_map)
         changed = False
+        # b9 (#1273) — sibling {vin: iso} map of the last kickoff attempt, so we can
+        # back off re-POSTing (see the guard below). Same options-then-data read as
+        # the identifier map (the update-listener folds options into data).
+        from .const import (  # noqa: PLC0415
+            CONF_DATA_ACT_KICKOFF_TS,
+            KICKOFF_REVERIFY_S,
+        )
+        kickoff_ts = dict(
+            self.entry.options.get(CONF_DATA_ACT_KICKOFF_TS)
+            or self.entry.data.get(CONF_DATA_ACT_KICKOFF_TS)
+            or {}
+        )
+        new_ts = dict(kickoff_ts)
 
         for vin in list(self.vehicles):
             try:
@@ -1969,7 +1982,36 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                             mask_vin(vin), active[:8],
                         )
                     continue
-                # No active request - kick one off.
+                # b9 (#1273) — the anonymous-AEM probe above false-negatives, and the
+                # portal 500s on a 2nd active request per VIN (one-active-request rule),
+                # so a blind re-POST storms on every restart/reload. When we already
+                # hold a cached Identifier that was re-verified within
+                # KICKOFF_REVERIFY_S, trust it and skip the POST; past that window
+                # re-verify once (the portal silently drops a request ~24-36h, so we
+                # can't trust the cache forever).
+                cached = existing_map.get(vin)
+                if cached:
+                    ts_raw = kickoff_ts.get(vin)
+                    kicked_at = None
+                    if isinstance(ts_raw, str):
+                        try:
+                            kicked_at = datetime.fromisoformat(ts_raw)
+                        except ValueError:
+                            kicked_at = None
+                    if kicked_at is not None:
+                        if kicked_at.tzinfo is None:
+                            kicked_at = kicked_at.replace(tzinfo=timezone.utc)
+                        age_s = (
+                            datetime.now(tz=timezone.utc) - kicked_at
+                        ).total_seconds()
+                        if age_s < KICKOFF_REVERIFY_S:
+                            new_map[vin] = cached
+                            continue
+                # No fresh cached request — kick one off. Stamp the attempt FIRST
+                # (and mark changed) so the backoff holds even if this POST fails,
+                # persisted below — an unpersisted stamp wouldn't survive a restart.
+                new_ts[vin] = datetime.now(tz=timezone.utc).isoformat()
+                changed = True
                 new_id = await scraper.kickoff_custom_data_request(vin)
                 if new_id:
                     new_map[vin] = new_id
@@ -1992,7 +2034,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         if changed:
             self.hass.config_entries.async_update_entry(
                 self.entry,
-                options={**self.entry.options, CONF_DATA_ACT_IDENTIFIERS: new_map},
+                options={
+                    **self.entry.options,
+                    CONF_DATA_ACT_IDENTIFIERS: new_map,
+                    CONF_DATA_ACT_KICKOFF_TS: new_ts,
+                },
             )
 
     def _notify_data_act_kickoff(self, vin: str) -> None:
@@ -2180,6 +2226,25 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         """The lifecycle state for *vin*: idle / pending / done / timed_out."""
         s = self._historical_state().get(vin)
         return s.get("state", "idle") if isinstance(s, dict) else "idle"
+
+    async def async_cancel_historical_export(self, vin: str) -> bool:
+        """#1273 — user off-switch for a pending one-time historical export.
+
+        Clears the pending state for *vin* so the poll loop stops re-attempting the
+        import (which otherwise retries ~every 30 min until the deadline) and clears
+        the paired timeout repair. A live *continuous* data request is untouched
+        (different state). Returns True if a pending export existed.
+        """
+        st = self._historical_state()
+        existed = st.pop(vin, None) is not None
+        if existed:
+            self._persist_historical_state()
+            from .repairs import clear_issue_historical_timeout  # noqa: PLC0415
+            clear_issue_historical_timeout(self.hass, self.entry.entry_id, vin)
+            _LOGGER.info(
+                "Historical export for %s cancelled by user request.", mask_vin(vin)
+            )
+        return existed
 
     async def _advance_historical_exports(self) -> None:
         """Poll-loop step: import a READY one-time export or time out a stuck one.

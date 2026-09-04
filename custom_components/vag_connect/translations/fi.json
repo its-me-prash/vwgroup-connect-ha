@@ -1940,6 +1940,10 @@
     }
   },
   "issues": {
+    "invalid_credentials": {
+      "title": "Kirjautuminen epäonnistui — {brand}",
+      "description": "Home Assistant ei voinut kirjautua {brand}-tilillesi — yleensä väärä tai muutettu salasana, mutta tilapäinen esto voi näyttää samalta.\n\nAsetukset → Laitteet ja palvelut → VW Group Connect → ⋮ → Määritä uudelleen ja anna kirjautumistiedot uudelleen."
+    },
     "vweu_twoway_disabled": {
       "title": "VW EU Two-Way: Volkswagen poisti käytöstä",
       "description": "Volkswagen poisti 18.8.2026 käytöstä kirjautumisen, jota VW EU Two-Way (moderni CARIAD-taustajärjestelmä) -kanava käytti, joten sen 1 tunnin tunnistetta ei voi enää uusia ja kaksisuuntaiset komennot tämän kanavan kautta ovat lakanneet toimimasta. Tämä on Volkswagenin puolella tehty muutos — mitään ei ole määritetty väärin sinun puolellasi, eikä tilisi ole vaarassa (virhe tapahtuu ennen kuin mitään salasanaa lähetetään).\n\n**Live-lukemasi toimivat edelleen** EU Data Act -portaalin kautta, joten tämä ei vaikuta antureihisi.\n\n**Kaksisuuntaisiin komentoihin (lukitus/avaus, ilmastointi, lataus):** pysyvä korvaaja klassisen Car-Net (MBB) -taustajärjestelmän kautta — jota Volkswagen EI ole poistanut käytöstä — on nyt betavaiheessa. Katso issue #584, miten se otetaan käyttöön ja testataan.\n\nVoit poistaa nyt käytöstä poistuneen kanavan milloin tahansa integraation asetuksista (VW EU Two-Way → poista). Tämä viesti on vain tiedoksi; integraatio jatkaa toimintaansa lukukanavillasi.\n\n**Vinkki:** ota käyttöön vain YKSI kaksisuuntainen integraatio kutakin autoa kohti kerrallaan. VW rajoittaa pyyntötahtia ja voi tilapäisesti lukita tilin, jota useat sovellukset kuormittavat yhtä aikaa — kun näin käy, edes virallinen VW-sovellus ei pysty ohjaamaan autoa, mikä on merkki tilin lukituksesta eikä tästä integraatiosta."

@@ -335,15 +335,21 @@ def reconcile(
     # coordinates, which is worse than showing no address.
     if merged.get("latitude") is None and merged.get("longitude") is None:
         age = position_age_seconds(previous)
+        # b9 (regression fix) — a parked car really is still where it was, so keep
+        # the last-known pin VISIBLE even past the 24h freshness window, but flag it
+        # stale so the map / automations can tell a fresh fix from a day-old one.
+        # (b7 P1-2 dropped it entirely once the age became computable for the
+        # datetime-stamp brands, so a car parked >24h — an airport, a holiday —
+        # lost its device_tracker location.)
+        for field in (*POSITION_FIELDS, "position_captured_at"):
+            if merged.get(field) is None and previous.get(field) is not None:
+                merged[field] = previous[field]
         if age is not None and age > POSITION_MAX_AGE_S:
+            merged["position_is_stale"] = True
             notes.append(
                 f"recorded position is {age / 3600:.0f}h old "
-                f"(limit {POSITION_MAX_AGE_S // 3600}h); dropped, not carried"
+                f"(limit {POSITION_MAX_AGE_S // 3600}h); kept but flagged stale"
             )
-        else:
-            for field in (*POSITION_FIELDS, "position_captured_at"):
-                if merged.get(field) is None and previous.get(field) is not None:
-                    merged[field] = previous[field]
     # Contested readings: the export delivered one field twice under a single
     # capture time with different values, so the parser could only pick by
     # position in the array. That is not evidence, and it is what makes a

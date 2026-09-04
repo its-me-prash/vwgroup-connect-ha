@@ -379,6 +379,7 @@ class TestSwitch:
         coord = _make_coordinator()
         vin = list(coord.data.keys())[0]
         coord.data[vin]["climatisation_state"] = "HEATING"
+        coord.data[vin]["climatisation_active"] = True
         s = VagClimatisationSwitch(coord, vin)
         assert s.is_on is True
 
@@ -586,26 +587,45 @@ class TestClimate:
         assert c.hvac_mode == HVACMode.OFF
 
     def test_hvac_mode_heat(self):
-        # b7 (P0-1) — VW-EU/SEAT/CUPRA emit the raw LOWERCASE backend string; the
-        # entity must read it as active. The uppercase-only fixture masked the bug.
+        # b9 — hvac_mode derives from the parser-set climatisation_active boolean,
+        # so an actively pre-conditioning car reads HEAT_COOL regardless of raw
+        # state casing (VW/SEAT/CUPRA lowercase, Škoda uppercase).
         from custom_components.vag_connect.climate import VagClimate
         from homeassistant.components.climate import HVACMode
         coord = _make_coordinator()
         vin = list(coord.data.keys())[0]
         coord.data[vin]["climatisation_state"] = "heating"
+        coord.data[vin]["climatisation_active"] = True
         c = VagClimate(coord, vin)
         assert c.hvac_mode == HVACMode.HEAT_COOL
 
     def test_hvac_mode_heat_uppercase(self):
-        # b7 (P0-1) — Škoda emits UPPERCASE; both casings must map to HEAT_COOL so
-        # the climate entity can never contradict the climatisation switch.
         from custom_components.vag_connect.climate import VagClimate
         from homeassistant.components.climate import HVACMode
         coord = _make_coordinator()
         vin = list(coord.data.keys())[0]
         coord.data[vin]["climatisation_state"] = "COOLING"
+        coord.data[vin]["climatisation_active"] = True
         c = VagClimate(coord, vin)
         assert c.hvac_mode == HVACMode.HEAT_COOL
+
+    def test_hvac_mode_terminal_state_is_off(self):
+        # b9 regression guard — a terminal / no-data climatisation_state (Škoda
+        # COMPLETED/UNKNOWN, SEAT/CUPRA unsupported) has climatisation_active=False,
+        # so the climate entity must read OFF and MUST agree with the switch. The
+        # b7 state deny-list wrongly read HEAT_COOL/on for these.
+        from custom_components.vag_connect.climate import VagClimate
+        from custom_components.vag_connect.switch import VagClimatisationSwitch
+        from homeassistant.components.climate import HVACMode
+        for state in ("COMPLETED", "UNKNOWN", "unsupported"):
+            coord = _make_coordinator()
+            vin = list(coord.data.keys())[0]
+            coord.data[vin]["climatisation_state"] = state
+            coord.data[vin]["climatisation_active"] = False
+            c = VagClimate(coord, vin)
+            s = VagClimatisationSwitch(coord, vin)
+            assert c.hvac_mode == HVACMode.OFF, state
+            assert s.is_on is False, state  # climate and switch agree
 
     def test_current_temperature(self):
         from custom_components.vag_connect.climate import VagClimate
@@ -1093,10 +1113,13 @@ class TestSwitchRemaining:
         coord.async_stop_climatisation.assert_called_once_with(vin)
 
     def test_climatisation_is_none_when_state_none(self):
+        # b9 — with neither the climatisation_active boolean nor a state present,
+        # is_on stays unknown (None), not a misleading Off.
         from custom_components.vag_connect.switch import VagClimatisationSwitch
         coord = _make_coordinator()
         vin = list(coord.data.keys())[0]
         coord.data[vin]["climatisation_state"] = None
+        coord.data[vin]["climatisation_active"] = None
         s = VagClimatisationSwitch(coord, vin)
         assert s.is_on is None
 

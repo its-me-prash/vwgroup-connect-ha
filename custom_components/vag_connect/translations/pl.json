@@ -1940,6 +1940,10 @@
     }
   },
   "issues": {
+    "invalid_credentials": {
+      "title": "Logowanie nie powiodło się — {brand}",
+      "description": "Home Assistant nie mógł zalogować się do konta {brand} — zwykle błędne lub zmienione hasło, ale tymczasowa blokada może wyglądać tak samo.\n\nUstawienia → Urządzenia i usługi → VW Group Connect → ⋮ → Rekonfiguruj, aby ponownie wprowadzić dane logowania."
+    },
     "vweu_twoway_disabled": {
       "title": "VW EU Two-Way: wyłączone przez Volkswagena",
       "description": "18.08.2026 Volkswagen wyłączył logowanie, z którego korzystał kanał VW EU Two-Way (nowoczesny backend CARIAD), więc jego godzinny token nie może już być odnawiany, a polecenia dwukierunkowe przez ten kanał przestały działać. To zmiana po stronie Volkswagena — nic nie jest źle skonfigurowane u Ciebie, a Twoje konto nie jest zagrożone (błąd występuje, zanim jakiekolwiek hasło zostanie wysłane).\n\n**Twoje odczyty na żywo nadal działają** przez portal EU Data Act, więc Twoje czujniki pozostają bez zmian.\n\n**Dla poleceń dwukierunkowych (ryglowanie/odryglowanie, klimatyzacja, ładowanie):** trwały zamiennik przez klasyczny backend Car-Net (MBB) — którego Volkswagen NIE wyłączył — jest teraz w wersji beta. Zobacz zgłoszenie #584, aby dowiedzieć się, jak go włączyć i przetestować.\n\nNieaktywny już kanał możesz w każdej chwili usunąć w opcjach integracji (VW EU Two-Way → usuń). To komunikat informacyjny; integracja nadal działa na Twoich kanałach odczytu.\n\n**Wskazówka:** dla danego auta włączaj tylko JEDNĄ integrację dwukierunkową naraz. VW ogranicza liczbę żądań i może tymczasowo zablokować konto, które kilka aplikacji odpytuje jednocześnie — gdy tak się stanie, nawet oficjalna aplikacja VW nie może sterować autem, co jest sygnałem, że to blokada konta, a nie ta integracja."

@@ -124,6 +124,14 @@ class VagClimatisationSwitch(VagConnectEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool | None:
+        # b9 regression fix — prefer the parser-computed ``climatisation_active``
+        # boolean (correct for terminal/no-data states like COMPLETED / UNKNOWN /
+        # unsupported, where a raw state deny-list wrongly read "on"); fall back to
+        # the state deny-list only when a channel leaves the boolean unset. Keeps
+        # the switch, the climate entity and the binary sensor in agreement.
+        active = self._vehicle.get("climatisation_active")
+        if active is not None:
+            return bool(active)
         state = self._vehicle.get("climatisation_state")
         if state is None:
             return None
