@@ -39,6 +39,7 @@ from .const import (
     CONF_ABRP_USER_TOKEN,
     CONF_BRAND,
     CONF_DATA_ACT_IDENTIFIERS,
+    CONF_DATA_ACT_KICKOFF_TS,
     CONF_ENABLE_REVERSE_GEOCODING,
     CONF_PASSWORD,
     CONF_SPIN,
@@ -323,7 +324,11 @@ def _scrub(value: Any, *, gps_round: bool = False) -> Any:
                     scrubbed[sk] = round(float(v), 1)
                 else:
                     scrubbed[sk] = "**REDACTED**"
-            elif k == CONF_DATA_ACT_IDENTIFIERS or k == "skoda_official_keys":
+            elif k in (
+                CONF_DATA_ACT_IDENTIFIERS,
+                CONF_DATA_ACT_KICKOFF_TS,
+                "skoda_official_keys",
+            ):
                 # #923/#1222 — mask the {VIN: portal-identifier} values, which
                 # the string branch below would otherwise pass through.
                 # #1286 — same shape for the Škoda official per-VIN key map
@@ -396,7 +401,7 @@ def _scrub_raw(value: Any) -> Any:
                 out[sk] = "**REDACTED**"
             elif k in _HASH_KEYS and isinstance(v, str):
                 out[sk] = f"sha256:{_stable_hash(v)}" if v else "**REDACTED**"
-            elif k == CONF_DATA_ACT_IDENTIFIERS:
+            elif k in (CONF_DATA_ACT_IDENTIFIERS, CONF_DATA_ACT_KICKOFF_TS):
                 out[sk] = _redact_identifier_map(v)
             else:
                 out[sk] = _scrub_raw(v)

@@ -235,6 +235,13 @@ HISTORICAL_EXPORT_DEADLINE_S = 72 * 3600
 # service + kickoff abort). The machinery stays intact; nothing else changes.
 ONETIME_EXPORT_DISABLED = False
 CONF_DATA_ACT_IDENTIFIERS     = "data_act_identifiers"
+# b9 (#1273) — sibling map {vin: iso-timestamp} of the last kickoff attempt. We
+# back off re-POSTing a Custom Data Request (the portal 500s on a 2nd active request
+# per VIN, and the anonymous probe false-negatives) when a cached Identifier was
+# re-verified within KICKOFF_REVERIFY_S. Kept SEPARATE from the identifier map so
+# that value stays a plain string (diagnostics redaction + the spawn-gate rely on it).
+CONF_DATA_ACT_KICKOFF_TS      = "data_act_kickoff_ts"
+KICKOFF_REVERIFY_S            = 24 * 3600
 
 # v2.14.0 — OPT-IN, BETA. When set on a Volkswagen entry, the integration
 # authenticates + reads via the volkswagen.de website authproxy (a confidential
