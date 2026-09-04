@@ -1736,11 +1736,23 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         except PortalSessionExpiredError as err:
             # b12 (#1340 @cyrano330) — login succeeded but the portal returned 401
             # on enumeration even after a re-login: the password is fine, so raise
-            # the session-expired repair (re-login via OptionsFlow) instead of the
-            # credential catch-all. Soft reason (not in _HARD_AUTH_SETUP_ERRORS) →
-            # ConfigEntryNotReady retries, and the portal session may recover.
+            # the brand-aware session-expired repair (re-login via OptionsFlow),
+            # the same one the runtime poll paths use, instead of the credential
+            # catch-all. Raise ConfigEntryNotReady DIRECTLY (soft, retrying — the
+            # portal session may recover) rather than ValueError: routing via
+            # ValueError would ALSO fire __init__.raise_issue_auth_required, which
+            # has no mapping for this reason and would register a SECOND, generic
+            # "auth_failed" repair with a mirrored id — the user then sees the
+            # repair twice (b12b, spotted by @cyrano330).
+            from homeassistant.exceptions import (  # noqa: PLC0415
+                ConfigEntryNotReady,
+            )
+
             self._raise_data_act_session_expired_repair()
-            raise ValueError("data_act_session_expired") from err
+            raise ConfigEntryNotReady(
+                "The EU Data Act portal signed you in but then refused the "
+                "vehicle list (session not authorised) — see the repair notice."
+            ) from err
         except AuthenticationError as err:
             raise ValueError("invalid_credentials") from err
         except Exception as err:  # noqa: BLE001
