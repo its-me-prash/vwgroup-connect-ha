@@ -42,6 +42,32 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.0b9] - 2026-09-04 — Regression fix + portal reliability
+
+### Fixed
+- **Climate no longer stays "on" after pre-conditioning has finished.** A b7 change
+  made the climate entity and the climatisation switch read "on" for terminal states
+  (Škoda `completed`/`unknown`, SEAT/CUPRA `unsupported`) where they should read off.
+  Both now derive from the same "is climatising" flag, so they always agree and turn
+  off once a session ends.
+- **A parked car no longer loses its map location after a day.** The last-known parked
+  position now stays visible past the 24-hour freshness window (a parked car really is
+  still there) but is flagged stale via a `position_is_stale` attribute, instead of
+  disappearing. A follow-up to the b7 stale-position change.
+- **The "sign-in failed" repair no longer shows a blank message** on an EU Audi whose
+  post-login vehicle list is rejected. Thanks @cyrano330 (#1340).
+
+### Added
+- **`cancel_historical_export` service.** Stops an accidentally-triggered one-time
+  EU Data Act historical export from re-attempting every ~30 minutes until its
+  deadline. A live continuous data request is untouched. Thanks @steemandavid (#1273).
+
+### Changed
+- **The EU Data Act request kickoff no longer re-hammers the portal on every restart.**
+  When a valid data request already exists for a car, the integration trusts it for a
+  day before re-checking, instead of re-requesting it — which the portal rejects with a
+  500 and could storm on each reload. Thanks @steemandavid (#1273).
+
 ## [4.7.0b8] - 2026-09-03 — Last-trip travel-time sensor
 
 ### Added
