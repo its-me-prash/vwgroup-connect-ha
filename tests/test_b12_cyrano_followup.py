@@ -40,16 +40,22 @@ def test_session_expired_is_subclass_of_auth_error() -> None:
     assert "wrong-password problem" in str(e).lower() or "not a wrong-password" in str(e).lower()
 
 
-# ── the reason is a SOFT setup error (retries), not HARD (reauth-hard) ────────
+# ── the session-expired case bypasses the generic ValueError repair route ────
 
-def test_session_expired_reason_is_soft_retry() -> None:
+def test_session_expired_bypasses_generic_setup_routing() -> None:
+    # b12b (@cyrano330 duplicate-repair): the coordinator raises ConfigEntryNotReady
+    # DIRECTLY and creates only the dedicated brand-aware repair. It must NOT route
+    # through the generic ValueError → raise_issue_auth_required path — that has no
+    # mapping for this reason and would register a SECOND generic "auth_failed"
+    # repair with a mirrored id (the duplicate the user saw). Guard against a
+    # regression that re-introduces that route.
     from custom_components.vag_connect import (
         _HARD_AUTH_SETUP_ERRORS,
         _SETUP_ERRORS,
     )
-    assert "data_act_session_expired" in _SETUP_ERRORS
+    assert "data_act_session_expired" not in _SETUP_ERRORS
     assert "data_act_session_expired" not in _HARD_AUTH_SETUP_ERRORS
-    # contrast: a genuine credential failure stays HARD
+    # a genuine credential failure still routes hard, unchanged
     assert "invalid_credentials" in _HARD_AUTH_SETUP_ERRORS
 
 

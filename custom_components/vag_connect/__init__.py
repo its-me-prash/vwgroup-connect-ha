@@ -125,15 +125,6 @@ _SETUP_ERRORS: dict[str, str] = {
     "invalid_credentials": (
         "Invalid credentials. Check email and password in the app."
     ),
-    # b12 (#1340 @cyrano330) — login succeeded but the EU Data Act portal returned
-    # 401 on enumeration. NOT a credential problem; a Repair (data_act_session_
-    # expired) explains the re-login. Kept OUT of _HARD_AUTH_SETUP_ERRORS so it
-    # retries (ConfigEntryNotReady) — the portal session may recover on its own.
-    "data_act_session_expired": (
-        "The EU Data Act portal signed you in but then refused the vehicle list "
-        "(session not authorised). Re-establish the portal session — see the "
-        "repair notice. This is not a wrong-password problem."
-    ),
 }
 
 # #909 (2026-07, Audi e-tron GT — Lagaff86) — setup reasons that CANNOT clear on
