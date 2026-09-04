@@ -1091,6 +1091,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             AuthenticationError,
             EmailTwoFactorRequiredError,
             PortalInteractionRequiredError,
+            PortalSessionExpiredError,
             TermsAndConditionsError,
             MarketingConsentError,
             TwoFactorRequiredError,
@@ -1732,6 +1733,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # get told to fix their password.
         except PortalInteractionRequiredError as err:
             raise ValueError("portal_interaction_required") from err
+        except PortalSessionExpiredError as err:
+            # b12 (#1340 @cyrano330) — login succeeded but the portal returned 401
+            # on enumeration even after a re-login: the password is fine, so raise
+            # the session-expired repair (re-login via OptionsFlow) instead of the
+            # credential catch-all. Soft reason (not in _HARD_AUTH_SETUP_ERRORS) →
+            # ConfigEntryNotReady retries, and the portal session may recover.
+            self._raise_data_act_session_expired_repair()
+            raise ValueError("data_act_session_expired") from err
         except AuthenticationError as err:
             raise ValueError("invalid_credentials") from err
         except Exception as err:  # noqa: BLE001

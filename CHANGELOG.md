@@ -42,6 +42,20 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.0b12] - 2026-09-04 — Repair message + diagnostics fixes (EU Audi)
+
+### Fixed
+- **A post-login portal error no longer tells you to fix a correct password.** When an
+  EU Audi's login succeeds but the EU Data Act portal then rejects the vehicle list (a
+  401 *after* sign-in), the repair now says the portal session needs re-establishing —
+  instead of the misleading "invalid credentials". A genuine wrong password is still
+  reported as such. Thanks @cyrano330 (#1340).
+- **Downloading diagnostics no longer fails with a 500 when setup didn't complete.**
+  Exactly when the download is most useful — an entry stuck in `setup_error` — the
+  diagnostics handler used to error out. It now returns the redacted config plus a note
+  about the incomplete setup, so a failed setup can actually be triaged. Thanks
+  @cyrano330 (#1340).
+
 ## [4.7.0b11] - 2026-09-04 — Škoda charge-current fix + quieter logs
 
 ### Fixed

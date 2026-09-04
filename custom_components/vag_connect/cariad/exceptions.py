@@ -372,6 +372,32 @@ class PortalInteractionRequiredError(AuthenticationError):
         self.reason = reason
 
 
+class PortalSessionExpiredError(AuthenticationError):
+    """b12 (#1340 @cyrano330) — the IDK login AND the EU Data Act portal login
+    both succeeded, but the portal then returned 401 on the vehicle enumeration
+    even after a fresh re-login/refresh — i.e. the portal won't authorise an
+    otherwise-valid session.
+
+    Distinct from ``AuthenticationError`` so the coordinator surfaces the
+    ``data_act_session_expired`` repair (re-login via the OptionsFlow) instead of
+    the credential catch-all — the password is provably fine (the login returned
+    an auth code), so telling the user to re-type it is wrong. Only raised on the
+    SECOND enumeration 401, which is reachable only after a successful login.
+    """
+
+    def __init__(self, reason: str = "") -> None:
+        msg = (
+            "EU Data Act portal returned 401 on vehicle enumeration after a "
+            "successful login"
+        )
+        if reason:
+            msg += f" ({reason})"
+        msg += ". This is NOT a wrong-password problem — the portal session "
+        msg += "needs re-establishing."
+        super().__init__(msg)
+        self.reason = reason
+
+
 class RateLimitError(CariadError):
     """Account temporarily blocked by VAG rate limiter."""
 
