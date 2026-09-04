@@ -42,6 +42,28 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.0b11] - 2026-09-04 — Škoda charge-current fix + quieter logs
+
+### Fixed
+- **Škoda "Max. charge current" no longer shows Unknown on cars without charging
+  profiles.** Some Škoda plug-in hybrids (e.g. an older Superb iV) report the max
+  charge current only as a plain MAXIMUM/REDUCED setting rather than via a charging
+  profile — and the dropdown only ever read the profile, so it sat at Unknown. It now
+  falls back to that plain setting. Thanks @n300home (#1343).
+
+### Changed
+- **The EU Data Act request kickoff no longer logs a scary "no data feed will start"
+  warning when a feed is actually live.** On accounts where the portal keeps the
+  session anonymous, the kickoff can't read its own request back and used to warn on
+  every restart even while data was flowing. That case is now a quiet INFO note; a
+  genuine request rejection (4xx) still warns. Nothing about the feed itself changed —
+  only the false alarm is gone. Thanks @steemandavid (#1273).
+- **The Porsche login now writes a redacted step-by-step debug trace.** Turning on
+  debug logging previously showed nothing at all for Porsche sign-in; it now logs each
+  redirect hop (host + status only — never the URL, code or credentials), so a failed
+  login capture actually reveals where it stops, which is usually Porsche's
+  captcha/consent page. Thanks @Hollywoodchaos (#1337).
+
 ## [4.7.0b10] - 2026-09-04 — Auth resilience (preventive)
 
 ### Fixed

@@ -1197,10 +1197,16 @@ class DataActScraper:
                                 duration, resp.status, attempts[index + 1][0],
                             )
                             continue
-                        _LOGGER.warning(
+                        # b11 (#1273 steemandavid) — on an anonymous-AEM portal
+                        # session the active-request readback false-negatives even
+                        # when a feed is (or will be) live, so this is not reliably
+                        # an error. INFO, not WARNING, to avoid a false "no data
+                        # feed will start" alarm on accounts that are actually fine.
+                        _LOGGER.info(
                             "kickoff_custom_data_request: created (HTTP %s) but no "
-                            "active request appeared for VIN %s — no data feed will "
-                            "start until this is resolved.",
+                            "active request appeared on readback for VIN %s "
+                            "(expected on anonymous-portal sessions; a live feed "
+                            "may still deliver).",
                             resp.status, _mask_vin(vin),
                         )
                         return None
@@ -1213,15 +1219,28 @@ class DataActScraper:
                             body_text[:200],
                         )
                         continue
-                    # WARNING, not INFO: a non-2xx here means the portal rejected
-                    # the request (e.g. a changed request format) → the car gets
-                    # NO data feed, silently. It must be visible so the next
+                    # b11 (#1273) — split severity by status. A 4xx is a genuine
+                    # request rejection (e.g. a changed request format) → the car
+                    # gets NO data feed, silently; keep it WARNING so the next
                     # portal-side format change doesn't go unnoticed for months.
-                    _LOGGER.warning(
-                        "kickoff_custom_data_request HTTP %s for VIN %s — no data "
-                        "feed will start until this is resolved: %s",
-                        resp.status, _mask_vin(vin), body_text[:300],
-                    )
+                    # A 5xx is usually the portal's one-active-request rule firing
+                    # when a request already exists but isn't readable back on an
+                    # anonymous-AEM session — not an actionable error, and it must
+                    # not cry "no data feed will start" on a live feed.
+                    if 400 <= resp.status < 500:
+                        _LOGGER.warning(
+                            "kickoff_custom_data_request HTTP %s for VIN %s — no "
+                            "data feed will start until this is resolved: %s",
+                            resp.status, _mask_vin(vin), body_text[:300],
+                        )
+                    else:
+                        _LOGGER.info(
+                            "kickoff_custom_data_request HTTP %s for VIN %s — a "
+                            "request likely already exists and isn't readable back "
+                            "on this portal session; a live feed may still "
+                            "deliver: %s",
+                            resp.status, _mask_vin(vin), body_text[:300],
+                        )
                     return None
             except DataActSessionExpiredError:
                 raise
