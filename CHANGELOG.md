@@ -42,6 +42,28 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.0b10] - 2026-09-04 — Auth resilience (preventive)
+
+### Fixed
+- **A brief VW sign-in server hiccup no longer forces a full re-login.** When the VW
+  identity server rejected a token refresh with a transient `invalid_client` (a known
+  wobble that clears itself), the integration used to bounce you straight to a re-login
+  prompt on the very first hit. It now treats that as transient and simply retries on the
+  next poll — exactly the way the QR and durable-MBB login paths already did. A genuinely
+  dead session still asks you to re-authenticate. Grounded against the cooperating
+  audi_connect project, which saw the same recurring server-side wobble.
+- **QR / passwordless logins can finally re-authenticate without deleting the car.** A
+  passwordless entry (browser-QR or durable-MBB) sent to the re-login prompt used to land
+  on a password form it could never satisfy — the only way out was removing and re-adding
+  the integration. Re-login now re-runs the QR sign-in and refreshes the existing car in
+  place.
+
+### Added
+- **A manual-entry fallback link on the browser-login screen.** VW's pre-filled sign-in
+  link occasionally shows an error page ("Provided request is invalid" or a 500); the
+  login notification now also gives you the plain sign-in URL to open and type the code
+  by hand.
+
 ## [4.7.0b9] - 2026-09-04 — Regression fix + portal reliability
 
 ### Fixed
