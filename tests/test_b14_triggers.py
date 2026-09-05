@@ -8,9 +8,27 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import MagicMock
 
+import pytest
+
 from custom_components.vag_connect.trigger_detect import (
     EVENT_KEYS,
     VehicleTransitionDetector,
+)
+
+# The named trigger/condition platform only exists on HA 2026.7+. The detector
+# tests below run everywhere; the two platform-registration tests need the real
+# base classes and are skipped on an older HA baseline (e.g. the CI floor).
+try:
+    from homeassistant.helpers.condition import Condition  # noqa: F401
+    from homeassistant.helpers.trigger import Trigger  # noqa: F401
+
+    _HAS_TRIGGER_PLATFORM = True
+except ImportError:
+    _HAS_TRIGGER_PLATFORM = False
+
+_needs_platform = pytest.mark.skipif(
+    not _HAS_TRIGGER_PLATFORM,
+    reason="named trigger/condition platform requires HA 2026.7+",
 )
 
 
@@ -110,6 +128,7 @@ def test_listener_exception_never_breaks_feed() -> None:
 
 # ── platform registration ─────────────────────────────────────────────────────
 
+@_needs_platform
 def test_trigger_platform_registers_all_events() -> None:
     from custom_components.vag_connect import trigger as trig
     got = asyncio.run(trig.async_get_triggers(MagicMock()))
@@ -119,6 +138,7 @@ def test_trigger_platform_registers_all_events() -> None:
     assert all(issubclass(c, Trigger) for c in got.values())
 
 
+@_needs_platform
 def test_condition_platform_registers_expected() -> None:
     from custom_components.vag_connect import condition as cond
     got = asyncio.run(cond.async_get_conditions(MagicMock()))
