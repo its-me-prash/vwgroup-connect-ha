@@ -42,6 +42,35 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.0b14] - 2026-09-05 — Audi/Škoda/Bentley EU Data Act fix + experimental automation triggers
+
+### Fixed
+- **Audi, Škoda and Bentley now actually read from the EU Data Act portal.** They were signing in
+  with the Volkswagen portal login, so the sign-in *looked* like it worked but the session stayed
+  anonymous and every data request came back empty (a hidden 401). Each brand now uses its own
+  portal login — the one the portal's per-brand sign-in actually expects — on both the cookie and
+  the token channel. Huge thanks to @cyrano330 for the root-cause trace (#1340).
+
+### Added
+- **Automations can now react to your car directly (experimental, opt-in).** New named
+  triggers — started/stopped charging, plugged in/unplugged, locked/unlocked, started/stopped
+  preconditioning, and charge target reached — plus matching conditions (is charging, is
+  plugged in, is locked, is preconditioning, charge target reached). They're derived purely
+  from data the integration already polls, so they add no extra API calls. This rides a Home
+  Assistant platform its own developers still flag as "may change without notice", so treat it
+  as a preview: it only registers on cores new enough to support it and quietly does nothing on
+  older ones.
+
+### Changed
+- **Clearer, safer "no data yet" portal help.** The EU Data Act repair guide now explains that the
+  portal keeps one active request *per car*: delete an older request only for the **same** vehicle,
+  and on a mixed passenger + commercial account keep each car's request under its own brand view
+  instead of deleting the other car's. In all 12 supported languages. Thanks @cyrano330 (#1340).
+- **Tidier, safer portal debug log.** The redacted 401 auth-state line (debug only) now masks the
+  UUID inside session-cookie names, logs once per setup instead of repeating, and adds a
+  portal-domain-cookies field that shows at a glance whether a failing request went out anonymous
+  or authenticated-but-refused. Thanks @cyrano330 (#1340).
+
 ## [4.7.0b13] - 2026-09-04 — HA-near clean-up (quality + deprecations + a diagnostic)
 
 ### Fixed

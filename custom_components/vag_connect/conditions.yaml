@@ -1,0 +1,9 @@
+# Named conditions exposed by VW Group Connect (experimental, HA 2026.7+).
+# Human-readable names + descriptions live in strings.json / translations; these
+# conditions take no fields in v1 (each tests whether any of the account's
+# vehicles is currently in the given state).
+is_charging:
+is_plugged_in:
+is_locked:
+is_preconditioning:
+is_charge_target_reached:

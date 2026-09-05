@@ -12,6 +12,7 @@ Thread safety:
 """
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import logging
@@ -1072,6 +1073,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # and the diagnostics export size stay predictable.
         self.error_buffer: ErrorRingBuffer = ErrorRingBuffer()
 
+        # b14 (experimental) — state-transition detector feeding the named-trigger
+        # platform (trigger.py). No-op until a trigger subscribes; fed ONLY on the
+        # real data push (async_set_updated_data(data), not the optimistic echoes).
+        from .trigger_detect import VehicleTransitionDetector  # noqa: PLC0415
+
+        self._transition_detector = VehicleTransitionDetector()
+
         # update_interval=None: no HA-level polling
         # Updates arrive reactively via _on_cc_update → async_set_updated_data
         super().__init__(
@@ -1082,6 +1090,16 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             update_interval=None,
         )
 
+    def register_transition_listener(
+        self,
+        event_key: str,
+        vin: str | None,
+        callback: Callable[[dict[str, Any]], None],
+    ) -> Callable[[], None]:
+        """b14 (experimental) — subscribe to a vehicle state-transition event
+        (e.g. ``started_charging``), optionally scoped to one VIN. Used by the
+        named-trigger platform; returns an unsubscribe callable."""
+        return self._transition_detector.register(event_key, vin, callback)
 
     async def async_setup(self) -> bool:
         """Authenticate and fetch initial vehicle data via own CARIAD client."""
@@ -5662,6 +5680,16 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
             # Remove devices for VINs no longer present in the account
             await self._async_remove_stale_devices(set(data.keys()))
+
+            # b14 (experimental) — feed the state-transition detector ONLY here,
+            # on a real data push. The 5 optimistic-echo async_set_updated_data(
+            # dict(self.vehicles)) calls must NOT feed it (they'd fire phantom
+            # transitions on a command echo). No-op unless a trigger subscribed.
+            # getattr-guarded: the hook is purely additive, so a coordinator built
+            # without __init__ (test __new__ path) simply skips it.
+            _detector = getattr(self, "_transition_detector", None)
+            if _detector is not None:
+                _detector.feed(data)
 
             self.async_set_updated_data(data)
             _LOGGER.debug("VW Group Connect: pushed %d vehicle(s) to HA", len(data))

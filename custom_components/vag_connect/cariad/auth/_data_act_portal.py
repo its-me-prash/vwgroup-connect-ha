@@ -102,6 +102,26 @@ _BRAND_STATE_FRAGMENTS = {
     "bentley": "BENTLEY",
 }
 
+# #1340 — each brand authenticates against the portal with its OWN OIDC client;
+# the shared VW client leaves the session anonymous (login lands on the portal but
+# every data read 401s). Same ids as ``_eu_data_act._EUDA_BRANDS`` (kept in lock-
+# step — see test_1340_portal_client_ids), grounded from each brand's portal login
+# redirect. Brands not listed keep the VW client. The authorize call and the token
+# exchange MUST use the same one.
+_CUPRA_SEAT_CLIENT_ID = "f85e5b69-e3b2-43aa-9c0d-1b7d0e0b576f@apps_vw-dilab_com"
+_BRAND_CLIENT_IDS = {
+    "audi": "cc29b87a-5e9a-4362-aecf-5adea6b01bbb@apps_vw-dilab_com",
+    "skoda": "3ea88bf9-1d4e-4a68-b3ad-4098c1f1d246@apps_vw-dilab_com",
+    "bentley": "d38aac0f-3d89-4a63-8538-b75b31322c7b@apps_vw-dilab_com",
+    "cupra": _CUPRA_SEAT_CLIENT_ID,
+    "seat": _CUPRA_SEAT_CLIENT_ID,
+}
+
+
+def _brand_client_id(brand_name: str) -> str:
+    """Portal OIDC client_id for *brand_name* (VW client for anything unlisted)."""
+    return _BRAND_CLIENT_IDS.get(brand_name.lower(), _PORTAL_OIDC_CLIENT_ID)
+
 _DEFAULT_COUNTRY = "DE"
 _DEFAULT_LANGUAGE = "de"
 _PORTAL_REQUEST_TIMEOUT_S = 30
@@ -223,7 +243,7 @@ class DataActPortalAuth:
         # the IDP for this specific client_id and caused the
         # "unexpected landing URL" symptom users reported on #388/#393.
         authorize_params = {
-            "client_id": _PORTAL_OIDC_CLIENT_ID,
+            "client_id": _brand_client_id(self._brand_name),
             "redirect_uri": _PORTAL_OIDC_REDIRECT_URI,
             "response_type": "code",
             "scope": _PORTAL_OIDC_SCOPE,
@@ -1115,7 +1135,7 @@ class DataActPortalAuth:
             "grant_type": "authorization_code",
             "code": auth_code,
             "redirect_uri": _PORTAL_OIDC_REDIRECT_URI,
-            "client_id": _PORTAL_OIDC_CLIENT_ID,
+            "client_id": _brand_client_id(self._brand_name),
             "code_verifier": pkce_verifier,
         }
         try:

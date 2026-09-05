@@ -1994,7 +1994,7 @@
     },
     "data_act_no_data": {
       "title": "Portál EU Data Act: zatím žádná data vozidla ({brand})",
-      "description": "Portál EU Data Act se přihlásil pro {brand}, ale zatím nevrací žádná data vozidla.\n\nIntegrace se za vás pokouší souvislý požadavek na data vytvořit automaticky, ale u některých účtů portál ponechá relaci prohlížeče anonymní — a pak se automatický požadavek (a tlačítko „Vytvořit požadavek na data podle EU Data Act\" v aplikaci) nemůže dokončit, takže si musíte požadavek v portálu vytvořit sami. Obvyklé příčiny prázdného přísunu dat:\n\n1. **Vlastnictví/užívání není pro toto vozidlo potvrzeno.** Portál musí u vašeho vozidla zobrazovat vlastnictví (nebo užívání) jako potvrzené. Pokud tomu tak není, potvrďte je tam nejdřív — nutné, i když samo o sobě ne vždy dostačující.\n2. **Souhlas se sdílením dat není pro toto vozidlo udělen.** Souhlas se sdílením dat podle EU Data Act udělujete pro každé vozidlo jednou. Dokud to neuděláte, požadavek zůstane prázdný.\n3. **Zatím neexistuje žádný souvislý požadavek.** Pokud automatické vytvoření neproběhlo, vytvořte jej sami: v portálu přidejte Vlastní požadavek na data (Custom Data Request) se všemi skupinami zaškrtnutými a s frekvencí 15 minut. Integrace jej převezme při dalším dotazu — restart není potřeba.\n4. **Vozidlo zatím neodeslalo nic nového.** Nová datová sada se zveřejní až poté, co bylo vozidlo řízeno, nabito nebo zamčeno/odemčeno, takže než se nový požadavek začne plnit, může to trvat 15–60 minut (nebo krátkou jízdu).\n5. **Výpadek na straně VW.** VW ohlásil výpadek portálu EU Data Act pro všechny značky od konce května 2026; dokud trvá, portál vrací prázdná data pro každý nástroj a zotavuje se značka po značce.\n6. **Nebo přidejte čtecí kanál webu volkswagen.de.** V možnostech integrace můžete jako alternativní zdroj přidat čtecí (read-only) kanál webu volkswagen.de: přihlásí se na webu volkswagen.de (ne do backendu aplikace, který blokuje bezhlavé přihlášení) a u některých vozidel vrací pole, která přísun z portálu nevrací. Vyžaduje, aby vaše Volkswagen ID bylo potvrzeným hlavním uživatelem vozidla.\n\n**Nejrychlejší kontrola:** otevřete `eu-data-act.drivesomethinggreater.com`, přihlaste se a ověřte, že (a) je potvrzeno vlastnictví/užívání, (b) je pro toto vozidlo udělen souhlas se sdílením dat a (c) existuje aktivní souvislý (15minutový) požadavek na data se všemi skupinami zaškrtnutými — pokud žádný neexistuje, vytvořte jej sami. Pokud ani tam nevidíte žádná data, je to na straně VW — tato integrace s tím nic nezmůže, dokud to VW neobnoví.\n\nToto je beta verze portálu jen pro čtení — jakmile data dorazí, upozornění samo zmizí."
+      "description": "Portál EU Data Act se přihlásil pro {brand}, ale zatím nevrací žádná data vozidla.\n\nIntegrace se za vás pokouší souvislý požadavek na data vytvořit automaticky, ale u některých účtů portál ponechá relaci prohlížeče anonymní — a pak se automatický požadavek (a tlačítko „Vytvořit požadavek na data podle EU Data Act\" v aplikaci) nemůže dokončit, takže si musíte požadavek v portálu vytvořit sami. Obvyklé příčiny prázdného přísunu dat:\n\n1. **Vlastnictví/užívání není pro toto vozidlo potvrzeno.** Portál musí u vašeho vozidla zobrazovat vlastnictví (nebo užívání) jako potvrzené. Pokud tomu tak není, potvrďte je tam nejdřív — nutné, i když samo o sobě ne vždy dostačující.\n2. **Souhlas se sdílením dat není pro toto vozidlo udělen.** Souhlas se sdílením dat podle EU Data Act udělujete pro každé vozidlo jednou. Dokud to neuděláte, požadavek zůstane prázdný.\n3. **Zatím neexistuje žádný souvislý požadavek.** Pokud automatické vytvoření neproběhlo, vytvořte jej sami: v portálu přidejte Vlastní požadavek na data (Custom Data Request) se všemi skupinami zaškrtnutými a s frekvencí 15 minut. **Nejprve smažte jakýkoli starší požadavek pro právě toto vozidlo** — portál povoluje jen jeden aktivní požadavek na vozidlo, takže starší (například měsíční) požadavek pro toto vozidlo blokuje nový. Nemažte požadavek jiného vozidla: u smíšeného účtu s osobními i užitkovými vozy si každé vozidlo zachovává svůj vlastní požadavek ve své vlastní sekci (osobní vozy pod Volkswagen Personenkraftwagen, dodávky pod Volkswagen Nutzfahrzeuge). Integrace jej převezme při dalším dotazu — restart není potřeba.\n4. **Vozidlo zatím neodeslalo nic nového.** Nová datová sada se zveřejní až poté, co bylo vozidlo řízeno, nabito nebo zamčeno/odemčeno, takže než se nový požadavek začne plnit, může to trvat 15–60 minut (nebo krátkou jízdu).\n5. **Výpadek na straně VW.** VW ohlásil výpadek portálu EU Data Act pro všechny značky od konce května 2026; dokud trvá, portál vrací prázdná data pro každý nástroj a zotavuje se značka po značce.\n6. **Nebo přidejte čtecí kanál webu volkswagen.de.** V možnostech integrace můžete jako alternativní zdroj přidat čtecí (read-only) kanál webu volkswagen.de: přihlásí se na webu volkswagen.de (ne do backendu aplikace, který blokuje bezhlavé přihlášení) a u některých vozidel vrací pole, která přísun z portálu nevrací. Vyžaduje, aby vaše Volkswagen ID bylo potvrzeným hlavním uživatelem vozidla.\n\n**Nejrychlejší kontrola:** otevřete `eu-data-act.drivesomethinggreater.com`, přihlaste se a ověřte, že (a) je potvrzeno vlastnictví/užívání, (b) je pro toto vozidlo udělen souhlas se sdílením dat a (c) existuje aktivní souvislý (15minutový) požadavek na data se všemi skupinami zaškrtnutými — pokud žádný neexistuje, vytvořte jej sami. Pokud ani tam nevidíte žádná data, je to na straně VW — tato integrace s tím nic nezmůže, dokud to VW neobnoví.\n\nToto je beta verze portálu jen pro čtení — jakmile data dorazí, upozornění samo zmizí."
     },
     "data_act_browser_missing": {
       "description": "Zapnul jsi zálohu přes headless prohlížeč pro portál EU Data Act, ale balíček Pythonu `playwright` není v tvém kontejneru Home Assistant nainstalovaný.\n\n**Instalace:** otevři shell kontejneru HA (Doplňky → Terminal & SSH, nebo `docker exec` pro ruční instalaci) a spusť:\n\n```\npip install playwright\nplaywright install chromium\n```\n\nStahování chromia je velké (kolem 100 MB), proto je tato závislost volitelná a není součástí integrace. Po instalaci restartuj Home Assistant.\n\nPřípadně vypni přepínač v Nastavení → Zařízení a služby → VW Group Connect → Konfigurovat → 'Portál EU Data Act: záloha přes headless prohlížeč'.",
@@ -2306,6 +2306,66 @@
         "official_only": "Pouze oficiální API",
         "mysmob_only": "Pouze standardní kanál"
       }
+    }
+  },
+  "triggers": {
+    "started_charging": {
+      "name": "Vozidlo zahájilo nabíjení",
+      "description": "Spustí se, když vozidlo zahájí nabíjení."
+    },
+    "stopped_charging": {
+      "name": "Vozidlo ukončilo nabíjení",
+      "description": "Spustí se, když vozidlo ukončí nabíjení."
+    },
+    "plugged_in": {
+      "name": "Vozidlo připojeno",
+      "description": "Spustí se, když je připojen nabíjecí kabel vozidla."
+    },
+    "unplugged": {
+      "name": "Vozidlo odpojeno",
+      "description": "Spustí se, když je odpojen nabíjecí kabel vozidla."
+    },
+    "locked": {
+      "name": "Vozidlo uzamčeno",
+      "description": "Spustí se, když se vozidlo uzamkne."
+    },
+    "unlocked": {
+      "name": "Vozidlo odemčeno",
+      "description": "Spustí se, když se vozidlo odemkne."
+    },
+    "started_preconditioning": {
+      "name": "Vozidlo zahájilo předklimatizaci",
+      "description": "Spustí se, když vozidlo zahájí předklimatizaci."
+    },
+    "stopped_preconditioning": {
+      "name": "Vozidlo ukončilo předklimatizaci",
+      "description": "Spustí se, když vozidlo ukončí předklimatizaci."
+    },
+    "charge_target_reached": {
+      "name": "Vozidlo dosáhlo cíle nabití",
+      "description": "Spustí se, když úroveň nabití vozidla dosáhne cílové hodnoty."
+    }
+  },
+  "conditions": {
+    "is_charging": {
+      "name": "Vozidlo nabíjí",
+      "description": "Zjišťuje, zda některé vozidlo právě nabíjí."
+    },
+    "is_plugged_in": {
+      "name": "Vozidlo je připojeno",
+      "description": "Zjišťuje, zda je připojen nabíjecí kabel některého vozidla."
+    },
+    "is_locked": {
+      "name": "Vozidlo je uzamčeno",
+      "description": "Zjišťuje, zda je některé vozidlo uzamčeno."
+    },
+    "is_preconditioning": {
+      "name": "Vozidlo předklimatizuje",
+      "description": "Zjišťuje, zda některé vozidlo právě předklimatizuje."
+    },
+    "is_charge_target_reached": {
+      "name": "Vozidlo dosáhlo cíle nabití",
+      "description": "Zjišťuje, zda úroveň nabití některého vozidla dosáhla cílové hodnoty nebo ji překročila."
     }
   }
 }

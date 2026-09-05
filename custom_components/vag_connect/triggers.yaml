@@ -1,0 +1,13 @@
+# Named triggers exposed by VW Group Connect (experimental, HA 2026.7+).
+# Human-readable names + descriptions live in strings.json / translations; these
+# triggers take no fields in v1 (each fires for any of the account's vehicles —
+# filter on the payload's `vin` in the automation).
+started_charging:
+stopped_charging:
+plugged_in:
+unplugged:
+locked:
+unlocked:
+started_preconditioning:
+stopped_preconditioning:
+charge_target_reached:

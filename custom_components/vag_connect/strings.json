@@ -2010,7 +2010,7 @@
     },
     "data_act_no_data": {
       "title": "EU Data Act portal: no vehicle data yet ({brand})",
-      "description": "The EU Data Act portal signed in for {brand} but isn't returning any vehicle data yet.\n\nThe integration tries to create the continuous data request for you automatically, but on some accounts the portal keeps the browser session anonymous — and then the automatic request (and the in-app \"Create EU Data Act data request\" button) can't complete, so you have to create the request yourself in the portal. The usual causes of an empty feed:\n\n1. **Ownership/usership not confirmed for this car.** The portal must show your vehicle's ownership (or usership) as confirmed. If it isn't, confirm it there first — necessary, though not always sufficient on its own.\n2. **Data-sharing consent not granted for this car.** You grant the EU Data Act data-sharing consent per vehicle, once. Until you do, the request stays empty.\n3. **No continuous request exists yet.** If the automatic creation didn't take, create it yourself: in the portal, add a Custom Data Request with all clusters ticked at a 15-minute frequency. The integration picks it up on the next poll — no restart needed.\n4. **The car hasn't sent anything new yet.** A fresh dataset is only published after the car has been driven, charged, or locked/unlocked, so a new request can take 15-60 minutes (or a short drive) to start filling.\n5. **A VW-side outage.** VW reported an all-brands EU Data Act portal outage from late May 2026; while it lasts the portal returns empty data for every tool, recovering brand by brand.\n6. **Or add the volkswagen.de website read channel.** In the integration's options you can add the read-only volkswagen.de website channel as an alternative source: it signs in on the volkswagen.de website (not the app backend that blocks the headless login), and for some cars returns fields the portal feed doesn't. It needs your Volkswagen ID to be the vehicle's confirmed primary user.\n\n**Quickest check:** open `eu-data-act.drivesomethinggreater.com`, sign in, and confirm (a) ownership/usership is confirmed, (b) the data-sharing consent is granted for this car, and (c) there is an active continuous (15-minute) data request with all clusters ticked — creating it yourself if none exists. If you see no data there either, it's the VW side — nothing this integration can do until VW restores it.\n\nThis is the read-only portal beta — the warning clears by itself once data arrives."
+      "description": "The EU Data Act portal signed in for {brand} but isn't returning any vehicle data yet.\n\nThe integration tries to create the continuous data request for you automatically, but on some accounts the portal keeps the browser session anonymous — and then the automatic request (and the in-app \"Create EU Data Act data request\" button) can't complete, so you have to create the request yourself in the portal. The usual causes of an empty feed:\n\n1. **Ownership/usership not confirmed for this car.** The portal must show your vehicle's ownership (or usership) as confirmed. If it isn't, confirm it there first — necessary, though not always sufficient on its own.\n2. **Data-sharing consent not granted for this car.** You grant the EU Data Act data-sharing consent per vehicle, once. Until you do, the request stays empty.\n3. **No continuous request exists yet.** If the automatic creation didn't take, create it yourself: in the portal, add a Custom Data Request with all clusters ticked at a 15-minute frequency. **First delete any older request for this same car** — the portal allows only one active request per vehicle, so an older one (for example a monthly request) for this car blocks the new one. Don't delete another car's request: on a mixed passenger + commercial account each car keeps its own request under its own realm (passenger cars under Volkswagen Personenkraftwagen, vans under Volkswagen Nutzfahrzeuge). The integration picks it up on the next poll — no restart needed.\n4. **The car hasn't sent anything new yet.** A fresh dataset is only published after the car has been driven, charged, or locked/unlocked, so a new request can take 15-60 minutes (or a short drive) to start filling.\n5. **A VW-side outage.** VW reported an all-brands EU Data Act portal outage from late May 2026; while it lasts the portal returns empty data for every tool, recovering brand by brand.\n6. **Or add the volkswagen.de website read channel.** In the integration's options you can add the read-only volkswagen.de website channel as an alternative source: it signs in on the volkswagen.de website (not the app backend that blocks the headless login), and for some cars returns fields the portal feed doesn't. It needs your Volkswagen ID to be the vehicle's confirmed primary user.\n\n**Quickest check:** open `eu-data-act.drivesomethinggreater.com`, sign in, and confirm (a) ownership/usership is confirmed, (b) the data-sharing consent is granted for this car, and (c) there is an active continuous (15-minute) data request with all clusters ticked — creating it yourself if none exists. If you see no data there either, it's the VW side — nothing this integration can do until VW restores it.\n\nThis is the read-only portal beta — the warning clears by itself once data arrives."
     },
     "vweu_twoway_disabled": {
       "title": "VW EU Two-Way: disabled by Volkswagen",
@@ -2306,6 +2306,66 @@
     },
     "historical_wedge_blocked": {
       "message": "A one-time historical export is already in progress for this car. The portal handles one request of this kind at a time, so wait for the current one to finish (or time out) before requesting another."
+    }
+  },
+  "triggers": {
+    "started_charging": {
+      "name": "Vehicle started charging",
+      "description": "Triggers when a vehicle starts charging."
+    },
+    "stopped_charging": {
+      "name": "Vehicle stopped charging",
+      "description": "Triggers when a vehicle stops charging."
+    },
+    "plugged_in": {
+      "name": "Vehicle plugged in",
+      "description": "Triggers when a vehicle's charging cable is connected."
+    },
+    "unplugged": {
+      "name": "Vehicle unplugged",
+      "description": "Triggers when a vehicle's charging cable is disconnected."
+    },
+    "locked": {
+      "name": "Vehicle locked",
+      "description": "Triggers when a vehicle becomes locked."
+    },
+    "unlocked": {
+      "name": "Vehicle unlocked",
+      "description": "Triggers when a vehicle becomes unlocked."
+    },
+    "started_preconditioning": {
+      "name": "Vehicle started preconditioning",
+      "description": "Triggers when a vehicle starts climate preconditioning."
+    },
+    "stopped_preconditioning": {
+      "name": "Vehicle stopped preconditioning",
+      "description": "Triggers when a vehicle stops climate preconditioning."
+    },
+    "charge_target_reached": {
+      "name": "Vehicle reached its charge target",
+      "description": "Triggers when a vehicle's charge level reaches its target."
+    }
+  },
+  "conditions": {
+    "is_charging": {
+      "name": "A vehicle is charging",
+      "description": "Tests whether any vehicle is currently charging."
+    },
+    "is_plugged_in": {
+      "name": "A vehicle is plugged in",
+      "description": "Tests whether any vehicle's charging cable is connected."
+    },
+    "is_locked": {
+      "name": "A vehicle is locked",
+      "description": "Tests whether any vehicle is locked."
+    },
+    "is_preconditioning": {
+      "name": "A vehicle is preconditioning",
+      "description": "Tests whether any vehicle is running climate preconditioning."
+    },
+    "is_charge_target_reached": {
+      "name": "A vehicle reached its charge target",
+      "description": "Tests whether any vehicle's charge level is at or above its target."
     }
   }
 }
