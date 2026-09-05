@@ -42,6 +42,22 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.0b15] - 2026-09-05 — Debug-log redaction + portal login-success hardening
+
+### Fixed
+- **Debug logs no longer leak login secrets.** On the legacy sign-in path, the OIDC redirect
+  hops were written to the debug log as truncated URLs — which still exposed the `code`
+  (authorization token) and `user_id` (account id) carried in the query string. They're now
+  logged as host + path only, so a debug log you paste into an issue stays clean. Thanks
+  @cyrano330 (#1340).
+
+### Changed
+- **The EU Data Act portal login now checks it actually authenticated.** "Landed on the portal"
+  was too weak a success test — a portal that signs you in anonymously (the shape of the
+  Audi/Škoda/Bentley brand-client bug) looked like success and only failed a call later. It now
+  catches an anonymous session at login time and shows the portal repair, so a future client
+  change surfaces clearly instead of as a silently empty feed. Thanks @cyrano330 (#1340).
+
 ## [4.7.0b14] - 2026-09-05 — Audi/Škoda/Bentley EU Data Act fix + experimental automation triggers
 
 ### Fixed

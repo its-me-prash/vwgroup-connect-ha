@@ -32,6 +32,7 @@ import asyncio
 import io
 import json
 import logging
+import os
 import re
 import uuid
 import zipfile
@@ -75,6 +76,12 @@ _PORTAL_REDIRECT_URI = f"{_PORTAL_BASE}/login"
 #   - CUPRA/SEAT: f85e5b69 — from the community EUDA constants, scope
 #     "openid profile cars". Both client+state combos handshake-verified
 #     (302 → signin).
+# Load-balancer / infrastructure cookies the portal sets on its OWN domain even
+# for an ANONYMOUS session. An authenticated cookie session also carries a real
+# session cookie here; if the portal-domain jar holds ONLY these, the login never
+# authenticated (the #1340 shape). (#1340 login-success hardening)
+_PORTAL_INFRA_COOKIES: frozenset[str] = frozenset({"affinity"})
+
 # Brands not listed fall back to the VW entry with a brand-derived state
 # suffix; account-level verification for those follows in a later release.
 _EUDA_VW = {
@@ -3948,11 +3955,55 @@ class EUDataActConnector:
             raise PortalInteractionRequiredError(
                 "login did not complete (unexpected landing page)"
             )
+        # Login-success hardening (#1340 @cyrano330): "landed on the portal host"
+        # is too weak — the portal's own login page is on the portal host too, so
+        # a wrong portal client id yields a clean "login succeeded" and a 401 one
+        # call later (exactly the #1340 disguise). In cookie mode an authenticated
+        # session leaves a real session cookie on the portal domain; if the jar
+        # holds ONLY the load balancer's cookie, the login never authenticated —
+        # surface the (soft, self-healing) portal repair here instead of a
+        # confusing downstream 401. Tight signature + env kill-switch, because
+        # this runs on every login.
+        if (
+            not self._bearer
+            and not os.getenv("VWEU_PORTAL_SESSION_CHECK_DISABLED")
+            and self._portal_session_is_anonymous()
+        ):
+            _LOGGER.warning(
+                "EU Data Act portal: landed on the portal host but the session "
+                "is anonymous — not authorised (#1340)."
+            )
+            raise PortalInteractionRequiredError(
+                "portal session not authorised (anonymous session)"
+            )
         self.logged_in = True
         self.last_login_interaction = ""  # #465/#1027 — recovered → clear Repair
         _LOGGER.info(
             "EU Data Act portal: login succeeded (read-only, ~15min cadence)"
         )
+
+    def _portal_session_is_anonymous(self) -> bool:
+        """#1340 hardening: True when the portal-domain cookie jar carries ONLY
+        infrastructure cookies (e.g. the load balancer's ``affinity``) — the
+        signature of a login that landed on the portal host without actually
+        authenticating. An authenticated cookie session also leaves a real
+        session cookie on the portal domain, which lands outside
+        ``_PORTAL_INFRA_COOKIES`` and makes this False.
+
+        Fails OPEN (returns False) if the jar can't be read — a hardening check
+        must never break a login on an edge case; the downstream 401 path still
+        catches a genuinely anonymous session.
+        """
+        try:
+            portal_host = urlparse(_PORTAL_BASE).netloc
+            portal_cookies = {
+                cookie.key
+                for cookie in getattr(self._session, "cookie_jar", ())
+                if portal_host in (cookie.get("domain") or "")
+            }
+        except Exception:  # noqa: BLE001 — never break login on a jar-read error
+            return False
+        return bool(portal_cookies) and portal_cookies <= _PORTAL_INFRA_COOKIES
 
     def _debug_dump_auth_state_on_401(
         self, url: str, sent_headers: dict[str, str], resp: Any

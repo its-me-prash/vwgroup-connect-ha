@@ -43,6 +43,23 @@ from ..models import BrandConfig, TokenSet
 
 _LOGGER = logging.getLogger(__name__)
 
+
+def _safe_url(url: str) -> str:
+    """Host+path of *url* with the query string STRIPPED.
+
+    The OIDC redirect hops on this legacy path carry ``code`` (the leading chars
+    of the authorization JWT), ``user_id`` (a real account UUID) and
+    ``relayState`` in the query string. Truncating the URL to N chars does NOT
+    hide those — ``code`` is usually the first parameter — so a tester who turns
+    debug logging on and pastes the log into an issue leaks them. Log only the
+    host+path, which is all the redirect trace needs. (#1340 @cyrano330)
+    """
+    try:
+        p = urlparse(url)
+        return f"{p.netloc}{p.path}" or "<empty-url>"
+    except Exception:  # noqa: BLE001
+        return "<unparseable-url>"
+
 _AUTH_TIMEOUT = ClientTimeout(total=30)  # per-request timeout for auth flows
 # v2.12.4 (#438) — token-endpoint statuses that mean "VW backend is having a
 # bad moment", not "your refresh token is dead". A 5xx here is transient
@@ -895,10 +912,10 @@ class IDKAuth:
                     else:
                         break
             except InvalidURL as exc:
-                _LOGGER.error("IDK Auth0 redirect: InvalidURL '%s' — %s", ref[:100], exc)
+                _LOGGER.error("IDK Auth0 redirect: InvalidURL '%s' — %s", _safe_url(ref), exc)
                 break
 
-        _LOGGER.debug("IDK Auth0: final redirect = %s", ref[:80] if ref else "(none)")
+        _LOGGER.debug("IDK Auth0: final redirect = %s", _safe_url(ref) if ref else "(none)")
 
         if not ref or not ref.startswith(prefix):
             # Print FULL URL on failure (esp. for /v2/login/ui/error which
@@ -1241,7 +1258,7 @@ class IDKAuth:
         prefix = self._brand.redirect_uri.split("://")[0] + "://"
         ref = pw_loc
         for hop in range(10):
-            _LOGGER.debug("IDK legacy: redirect hop %d → %s", hop + 1, ref[:100])
+            _LOGGER.debug("IDK legacy: redirect hop %d → %s", hop + 1, _safe_url(ref))
             if ref.startswith(prefix):
                 break
             if "terms-and-conditions" in ref:
@@ -1256,7 +1273,7 @@ class IDKAuth:
                 else:
                     break
 
-        _LOGGER.debug("IDK legacy: final ref=%s", ref[:100])
+        _LOGGER.debug("IDK legacy: final ref=%s", _safe_url(ref))
 
         # Save final redirect URL so MBB-mode callers can extract the
         # cross-service-signed id_token from the query/fragment (v1.26.3).
@@ -1484,7 +1501,7 @@ class IDKAuth:
             callback_url = self._idk_base + callback_url
 
         _LOGGER.debug("IDK Auth0: posting callback to %s fields=%s",
-                      callback_url[:60], list(parser.fields.keys()))
+                      _safe_url(callback_url), list(parser.fields.keys()))
 
         async with self._session.post(
             callback_url,
@@ -1495,7 +1512,7 @@ class IDKAuth:
         ) as resp:
             location = resp.headers.get("Location", "")
             _LOGGER.debug("IDK Auth0: callback status=%s location=%s",
-                          resp.status, location[:60])
+                          resp.status, _safe_url(location))
             return location if location else None
 
     async def _follow_to_app_redirect_get(
@@ -1624,10 +1641,10 @@ class IDKAuth:
                 _LOGGER.warning(
                     "IDK legacy: consent wall at %s — auto-skip failed, "
                     "raising MarketingConsentError",
-                    location[:120],
+                    _safe_url(location),
                 )
                 raise MarketingConsentError()
-            _LOGGER.debug("IDK legacy: following redirect → %s", location[:80])
+            _LOGGER.debug("IDK legacy: following redirect → %s", _safe_url(location))
             async with self._session.get(
                 location,
                 timeout=_AUTH_TIMEOUT, headers=self._base_headers(), allow_redirects=False
