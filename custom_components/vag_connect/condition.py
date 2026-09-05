@@ -13,13 +13,26 @@ calls. Per-vehicle targeting is a future enhancement.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.condition import Condition
 from homeassistant.helpers.typing import ConfigType
 
 from .const import DOMAIN
+
+# The named-condition platform only exists on HA 2026.7+ (upstream-flagged "do not
+# use yet by integrations"). Import it defensively so the module stays importable
+# — and static-analysable against an older HA baseline — on cores that don't have
+# it yet; there, async_get_conditions simply registers nothing.
+if TYPE_CHECKING:
+    from homeassistant.helpers.condition import (  # type: ignore[attr-defined]
+        Condition,
+    )
+else:
+    try:
+        from homeassistant.helpers.condition import Condition
+    except ImportError:  # HA < 2026.7 — platform not available
+        Condition = object
 
 # condition id (is_* per HA naming rules) → the vehicle-dict boolean field it maps.
 _BOOL_CONDITIONS: dict[str, str] = {

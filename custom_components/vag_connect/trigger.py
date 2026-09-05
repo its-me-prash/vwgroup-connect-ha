@@ -19,14 +19,30 @@ per-device targeting is a future enhancement.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
-from homeassistant.helpers.trigger import Trigger, TriggerActionRunner
 from homeassistant.helpers.typing import ConfigType
 
 from .const import DOMAIN
 from .trigger_detect import EVENT_KEYS
+
+# The named-trigger platform only exists on HA 2026.7+ (and is upstream-flagged
+# "may change without a deprecation notice"). Import it defensively so the module
+# stays importable — and static-analysable against an older HA baseline — on
+# cores that don't have it yet; there, async_get_triggers simply registers
+# nothing.
+if TYPE_CHECKING:
+    from homeassistant.helpers.trigger import (  # type: ignore[attr-defined]
+        Trigger,
+        TriggerActionRunner,
+    )
+else:
+    try:
+        from homeassistant.helpers.trigger import Trigger, TriggerActionRunner
+    except ImportError:  # HA < 2026.7 — platform not available
+        Trigger = object
+        TriggerActionRunner = object
 
 
 def _coordinators(hass: HomeAssistant) -> list[Any]:
