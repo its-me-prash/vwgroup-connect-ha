@@ -86,6 +86,15 @@ _EUDA_CUPRA_SEAT = {
     "client_id": "f85e5b69-e3b2-43aa-9c0d-1b7d0e0b576f@apps_vw-dilab_com",
     "scope": "openid profile cars",
 }
+# #1340 (@cyrano330) — Audi, Škoda and Bentley each have their OWN EU Data Act
+# portal OIDC client. Reusing the VW client made login "succeed" (it lands on the
+# portal host) while leaving the session ANONYMOUS, so every proxy_api data read
+# 401'd. Each id is grounded from the portal's per-brand login redirect — the
+# authorize call for that brand 302s to identity.vwgroup.io/signin-service/<id> —
+# and is the same id every other EU-Data-Act reader uses.
+_EUDA_AUDI_CLIENT_ID = "cc29b87a-5e9a-4362-aecf-5adea6b01bbb@apps_vw-dilab_com"
+_EUDA_SKODA_CLIENT_ID = "3ea88bf9-1d4e-4a68-b3ad-4098c1f1d246@apps_vw-dilab_com"
+_EUDA_BENTLEY_CLIENT_ID = "d38aac0f-3d89-4a63-8538-b75b31322c7b@apps_vw-dilab_com"
 _EUDA_BRANDS: dict[str, dict[str, str]] = {
     "volkswagen": _EUDA_VW,
     # #1316 — VW Commercial Vehicles (Nutzfahrzeuge): SAME portal client as
@@ -95,8 +104,9 @@ _EUDA_BRANDS: dict[str, dict[str, str]] = {
     "volkswagen_commercial": {**_EUDA_VW, "state_brand": "VOLKSWAGEN_COMMERCIAL_VEHICLES"},
     "cupra": {**_EUDA_CUPRA_SEAT, "state_brand": "CUPRA"},
     "seat": {**_EUDA_CUPRA_SEAT, "state_brand": "SEAT"},
-    "skoda": {**_EUDA_VW, "state_brand": "SKODA"},
-    "audi": {**_EUDA_VW, "state_brand": "AUDI"},
+    "skoda": {**_EUDA_VW, "client_id": _EUDA_SKODA_CLIENT_ID, "state_brand": "SKODA"},
+    "audi": {**_EUDA_VW, "client_id": _EUDA_AUDI_CLIENT_ID, "state_brand": "AUDI"},
+    "bentley": {**_EUDA_VW, "client_id": _EUDA_BENTLEY_CLIENT_ID, "state_brand": "BENTLEY"},
 }
 
 _VEHICLES_PATH = "/proxy_api/consent/me/vehicles"
@@ -1375,6 +1385,12 @@ _ENVELOPE_NOISE_LEAVES: frozenset[str] = frozenset({
 })
 _ENVELOPE_UUID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+)
+# Unanchored — masks a UUID embedded ANYWHERE in a string (e.g. the IDP session
+# cookies literally NAMED ``s_<uuid>`` / ``d_<uuid>``, where the UUID is in the
+# name itself). Used by the redacted 401 auth-state dump (#1340).
+_EMBEDDED_UUID_RE = re.compile(
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
 )
 
 
@@ -3946,29 +3962,48 @@ class EUDataActConnector:
         debug capture answers the open question behind the persistent portal 401:
         did the GET go out authenticated-but-refused, or anonymous/stale?
 
-        Names + flags ONLY — never a token or cookie value. Fires only when debug
-        logging is on, and can never break the request flow.
+        Names + flags ONLY — never a token or cookie value; and the cookie NAME
+        itself is UUID-masked, because the IDP session cookies are named
+        ``s_<uuid>`` / ``d_<uuid>`` (the UUID lives in the name). Fires only when
+        debug logging is on, once per connector instance, and can never break the
+        request flow.
         """
         if not _LOGGER.isEnabledFor(logging.DEBUG):
+            return
+        if getattr(self, "_logged_401_auth_state", False):
+            # One VW-EU setup hits the portal from ~3 call sites; log the snapshot
+            # once so a pasted debug log stays readable (#1340 @cyrano330).
             return
         try:
             mode = "bearer" if self._bearer else "cookie"
             sent_authorization = "Authorization" in sent_headers
             cookies: list[str] = []
+            # Derived fork-answer (#1340 @cyrano330): the cookies whose domain is
+            # the PORTAL host. ['affinity'] only = anonymous session (our bug);
+            # an auth cookie ('ath'/'access_token'/…) = authenticated-but-refused
+            # (a real portal-side problem). One field decides which.
+            portal_cookies: list[str] = []
+            portal_host = urlparse(_PORTAL_BASE).netloc
             try:
                 for cookie in self._session.cookie_jar:
-                    cookies.append(f"{cookie.key}@{cookie.get('domain') or '?'}")
+                    name = _EMBEDDED_UUID_RE.sub("<uuid>", cookie.key)
+                    dom = cookie.get("domain") or "?"
+                    cookies.append(f"{name}@{dom}")
+                    if portal_host in dom:
+                        portal_cookies.append(name)
             except Exception:  # noqa: BLE001
                 cookies = ["<cookie jar unreadable>"]
             resp_hdrs = getattr(resp, "headers", {})
             www_auth = str(resp_hdrs.get("WWW-Authenticate", ""))
             _LOGGER.debug(
                 "EU Data Act 401 auth-state on %s: mode=%s sent_authorization=%s "
-                "session_cookies=%s resp_www_authenticate=%r resp_set_cookie=%s "
+                "session_cookies=%s portal_domain_cookies=%s "
+                "resp_www_authenticate=%r resp_set_cookie=%s "
                 "(#1340 diagnostic — names/flags only, no secret values)",
                 url.split("?")[0], mode, sent_authorization, cookies or "<none>",
-                www_auth[:80], "Set-Cookie" in resp_hdrs,
+                portal_cookies or "<none>", www_auth[:80], "Set-Cookie" in resp_hdrs,
             )
+            self._logged_401_auth_state = True
         except Exception:  # noqa: BLE001 — diagnostics must never break the flow
             _LOGGER.debug("EU Data Act 401 auth-state dump failed", exc_info=True)
 

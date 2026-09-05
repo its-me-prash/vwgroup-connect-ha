@@ -1994,7 +1994,7 @@
     },
     "data_act_no_data": {
       "title": "Portal EU Data Act: aún no hay datos del vehículo ({brand})",
-      "description": "El portal de la Ley de Datos de la UE inició sesión para {brand} pero todavía no devuelve ningún dato del vehículo.\n\nLa integración intenta crear la solicitud de datos continua por ti automáticamente, pero en algunas cuentas el portal mantiene la sesión del navegador anónima — y entonces la solicitud automática (y el botón \"Crear solicitud de datos de la Ley de Datos de la UE\" dentro de la app) no puede completarse, por lo que tienes que crear la solicitud tú mismo en el portal. Las causas habituales de un feed vacío:\n\n1. **Propiedad/uso no confirmado para este coche.** El portal debe mostrar la propiedad (o el uso) de tu vehículo como confirmada. Si no lo está, confírmala allí primero — necesario, aunque no siempre suficiente por sí solo.\n2. **Consentimiento de intercambio de datos no otorgado para este coche.** El consentimiento de intercambio de datos de la Ley de Datos de la UE se otorga por vehículo, una sola vez. Hasta que lo hagas, la solicitud permanece vacía.\n3. **Todavía no existe ninguna solicitud continua.** Si la creación automática no funcionó, créala tú mismo: en el portal, añade una Solicitud de Datos Personalizada con todos los clústeres marcados a una frecuencia de 15 minutos. La integración la detecta en el siguiente sondeo — sin necesidad de reiniciar.\n4. **El coche todavía no ha enviado nada nuevo.** Solo se publica un conjunto de datos nuevo después de que el coche se haya conducido, cargado o bloqueado/desbloqueado, por lo que una solicitud nueva puede tardar entre 15 y 60 minutos (o un trayecto corto) en empezar a llenarse.\n5. **Una interrupción del lado de VW.** VW informó de una interrupción del portal de la Ley de Datos de la UE para todas las marcas desde finales de mayo de 2026; mientras dure, el portal devuelve datos vacíos para todas las herramientas, recuperándose marca por marca.\n6. **O añade el canal de lectura del sitio web volkswagen.de.** En las opciones de la integración puedes añadir el canal de solo lectura del sitio web volkswagen.de como fuente alternativa: inicia sesión en el sitio web volkswagen.de (no en el backend de la app que bloquea el inicio de sesión headless) y, para algunos coches, devuelve campos que el feed del portal no ofrece. Necesita que tu Volkswagen ID sea el usuario principal confirmado del vehículo.\n\n**Comprobación más rápida:** abre `eu-data-act.drivesomethinggreater.com`, inicia sesión y confirma (a) que la propiedad/uso está confirmada, (b) que el consentimiento de intercambio de datos está otorgado para este coche, y (c) que existe una solicitud de datos continua (de 15 minutos) activa con todos los clústeres marcados — creándola tú mismo si no existe ninguna. Si tampoco ves datos ahí, es el lado de VW — nada que esta integración pueda hacer hasta que VW lo restablezca.\n\nEsta es la beta del portal de solo lectura — la advertencia desaparece por sí sola en cuanto llegan los datos."
+      "description": "El portal de la Ley de Datos de la UE inició sesión para {brand} pero todavía no devuelve ningún dato del vehículo.\n\nLa integración intenta crear la solicitud de datos continua por ti automáticamente, pero en algunas cuentas el portal mantiene la sesión del navegador anónima — y entonces la solicitud automática (y el botón \"Crear solicitud de datos de la Ley de Datos de la UE\" dentro de la app) no puede completarse, por lo que tienes que crear la solicitud tú mismo en el portal. Las causas habituales de un feed vacío:\n\n1. **Propiedad/uso no confirmado para este coche.** El portal debe mostrar la propiedad (o el uso) de tu vehículo como confirmada. Si no lo está, confírmala allí primero — necesario, aunque no siempre suficiente por sí solo.\n2. **Consentimiento de intercambio de datos no otorgado para este coche.** El consentimiento de intercambio de datos de la Ley de Datos de la UE se otorga por vehículo, una sola vez. Hasta que lo hagas, la solicitud permanece vacía.\n3. **Todavía no existe ninguna solicitud continua.** Si la creación automática no funcionó, créala tú mismo: en el portal, añade una Solicitud de Datos Personalizada con todos los clústeres marcados a una frecuencia de 15 minutos. **Elimina primero cualquier solicitud más antigua de este mismo coche** — el portal solo permite una solicitud activa por vehículo, así que una más antigua (por ejemplo una mensual) de este coche bloquea la nueva. No elimines la solicitud de otro coche: en una cuenta mixta de turismos y vehículos comerciales cada coche conserva su propia solicitud en su propio ámbito (los turismos bajo Volkswagen Personenkraftwagen, las furgonetas bajo Volkswagen Nutzfahrzeuge). La integración la detecta en el siguiente sondeo — sin necesidad de reiniciar.\n4. **El coche todavía no ha enviado nada nuevo.** Solo se publica un conjunto de datos nuevo después de que el coche se haya conducido, cargado o bloqueado/desbloqueado, por lo que una solicitud nueva puede tardar entre 15 y 60 minutos (o un trayecto corto) en empezar a llenarse.\n5. **Una interrupción del lado de VW.** VW informó de una interrupción del portal de la Ley de Datos de la UE para todas las marcas desde finales de mayo de 2026; mientras dure, el portal devuelve datos vacíos para todas las herramientas, recuperándose marca por marca.\n6. **O añade el canal de lectura del sitio web volkswagen.de.** En las opciones de la integración puedes añadir el canal de solo lectura del sitio web volkswagen.de como fuente alternativa: inicia sesión en el sitio web volkswagen.de (no en el backend de la app que bloquea el inicio de sesión headless) y, para algunos coches, devuelve campos que el feed del portal no ofrece. Necesita que tu Volkswagen ID sea el usuario principal confirmado del vehículo.\n\n**Comprobación más rápida:** abre `eu-data-act.drivesomethinggreater.com`, inicia sesión y confirma (a) que la propiedad/uso está confirmada, (b) que el consentimiento de intercambio de datos está otorgado para este coche, y (c) que existe una solicitud de datos continua (de 15 minutos) activa con todos los clústeres marcados — creándola tú mismo si no existe ninguna. Si tampoco ves datos ahí, es el lado de VW — nada que esta integración pueda hacer hasta que VW lo restablezca.\n\nEsta es la beta del portal de solo lectura — la advertencia desaparece por sí sola en cuanto llegan los datos."
     },
     "data_act_browser_missing": {
       "description": "Activaste la alternativa con navegador headless para el portal EU Data Act, pero el paquete de Python `playwright` no está instalado en tu contenedor de Home Assistant.\n\n**Para instalarlo:** abre el shell del contenedor de HA (Complementos → Terminal & SSH, o `docker exec` para una instalación manual) y ejecuta:\n\n```\npip install playwright\nplaywright install chromium\n```\n\nLa descarga de chromium es grande (unos 100 MB), por eso esta dependencia es opcional en lugar de venir incluida en la integración. Reinicia Home Assistant después de instalarla.\n\nComo alternativa, desactiva la opción en Ajustes → Dispositivos y servicios → VW Group Connect → Configurar → 'Portal EU Data Act: alternativa con navegador headless'.",
@@ -2306,6 +2306,66 @@
         "official_only": "Solo API oficial",
         "mysmob_only": "Solo canal estándar"
       }
+    }
+  },
+  "triggers": {
+    "started_charging": {
+      "name": "El vehículo empezó a cargar",
+      "description": "Se activa cuando un vehículo empieza a cargar."
+    },
+    "stopped_charging": {
+      "name": "El vehículo dejó de cargar",
+      "description": "Se activa cuando un vehículo deja de cargar."
+    },
+    "plugged_in": {
+      "name": "Vehículo conectado",
+      "description": "Se activa cuando se conecta el cable de carga de un vehículo."
+    },
+    "unplugged": {
+      "name": "Vehículo desconectado",
+      "description": "Se activa cuando se desconecta el cable de carga de un vehículo."
+    },
+    "locked": {
+      "name": "Vehículo bloqueado",
+      "description": "Se activa cuando un vehículo se bloquea."
+    },
+    "unlocked": {
+      "name": "Vehículo desbloqueado",
+      "description": "Se activa cuando un vehículo se desbloquea."
+    },
+    "started_preconditioning": {
+      "name": "El vehículo inició el preacondicionamiento",
+      "description": "Se activa cuando un vehículo inicia el preacondicionamiento de la climatización."
+    },
+    "stopped_preconditioning": {
+      "name": "El vehículo detuvo el preacondicionamiento",
+      "description": "Se activa cuando un vehículo detiene el preacondicionamiento de la climatización."
+    },
+    "charge_target_reached": {
+      "name": "El vehículo alcanzó su objetivo de carga",
+      "description": "Se activa cuando el nivel de carga de un vehículo alcanza su objetivo."
+    }
+  },
+  "conditions": {
+    "is_charging": {
+      "name": "Un vehículo está cargando",
+      "description": "Comprueba si algún vehículo está cargando en este momento."
+    },
+    "is_plugged_in": {
+      "name": "Un vehículo está conectado",
+      "description": "Comprueba si el cable de carga de algún vehículo está conectado."
+    },
+    "is_locked": {
+      "name": "Un vehículo está bloqueado",
+      "description": "Comprueba si algún vehículo está bloqueado."
+    },
+    "is_preconditioning": {
+      "name": "Un vehículo está preacondicionando",
+      "description": "Comprueba si algún vehículo está ejecutando el preacondicionamiento de la climatización."
+    },
+    "is_charge_target_reached": {
+      "name": "Un vehículo alcanzó su objetivo de carga",
+      "description": "Comprueba si el nivel de carga de algún vehículo está en su objetivo o por encima."
     }
   }
 }

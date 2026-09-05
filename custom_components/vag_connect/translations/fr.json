@@ -1994,7 +1994,7 @@
     },
     "data_act_no_data": {
       "title": "Portail EU Data Act : pas encore de données du véhicule ({brand})",
-      "description": "Le portail EU Data Act s'est connecté pour {brand} mais ne renvoie encore aucune donnée du véhicule.\n\nL'intégration essaie de créer automatiquement la demande de données continue à votre place, mais sur certains comptes le portail garde la session du navigateur anonyme — et dans ce cas la demande automatique (et le bouton « Créer une demande de données EU Data Act » dans l'application) ne peut pas aboutir, vous devez donc créer la demande vous-même dans le portail. Les causes habituelles d'un flux vide :\n\n1. **Propriété/droit d'usage non confirmé pour ce véhicule.** Le portail doit indiquer la propriété (ou le droit d'usage) de votre véhicule comme confirmée. Si ce n'est pas le cas, confirmez-la d'abord là-bas — nécessaire, mais pas toujours suffisant à lui seul.\n2. **Consentement au partage des données non accordé pour ce véhicule.** Vous accordez le consentement au partage des données EU Data Act par véhicule, une seule fois. Tant que vous ne l'avez pas fait, la demande reste vide.\n3. **Aucune demande continue n'existe encore.** Si la création automatique n'a pas fonctionné, créez-la vous-même : dans le portail, ajoutez une demande de données personnalisée (Custom Data Request) avec tous les clusters cochés à une fréquence de 15 minutes. L'intégration la récupère lors de la prochaine interrogation — aucun redémarrage nécessaire.\n4. **La voiture n'a encore rien envoyé de nouveau.** Un nouveau jeu de données n'est publié qu'après que la voiture a été conduite, chargée ou verrouillée/déverrouillée ; une nouvelle demande peut donc mettre 15 à 60 minutes (ou un court trajet) avant de commencer à se remplir.\n5. **Une panne du côté de VW.** VW a signalé une panne du portail EU Data Act touchant toutes les marques depuis fin mai 2026 ; tant qu'elle dure, le portail renvoie des données vides pour tous les outils, se rétablissant marque par marque.\n6. **Ou ajoutez le canal de lecture du site web volkswagen.de.** Dans les options de l'intégration, vous pouvez ajouter le canal en lecture seule du site web volkswagen.de comme source alternative : il se connecte sur le site web volkswagen.de (et non sur le backend de l'application qui bloque la connexion sans interface), et pour certaines voitures il renvoie des champs que le flux du portail ne fournit pas. Il faut que votre Volkswagen ID soit l'utilisateur principal confirmé du véhicule.\n\n**Vérification la plus rapide :** ouvrez `eu-data-act.drivesomethinggreater.com`, connectez-vous et vérifiez que (a) la propriété/le droit d'usage est confirmé, (b) le consentement au partage des données est accordé pour ce véhicule, et (c) il existe une demande de données continue (15 minutes) active avec tous les clusters cochés — en la créant vous-même s'il n'y en a aucune. Si vous ne voyez pas non plus de données là-bas, c'est du côté de VW — cette intégration ne peut rien faire tant que VW ne l'a pas rétabli.\n\nIl s'agit de la version bêta du portail en lecture seule — l'avertissement disparaît de lui-même une fois les données arrivées."
+      "description": "Le portail EU Data Act s'est connecté pour {brand} mais ne renvoie encore aucune donnée du véhicule.\n\nL'intégration essaie de créer automatiquement la demande de données continue à votre place, mais sur certains comptes le portail garde la session du navigateur anonyme — et dans ce cas la demande automatique (et le bouton « Créer une demande de données EU Data Act » dans l'application) ne peut pas aboutir, vous devez donc créer la demande vous-même dans le portail. Les causes habituelles d'un flux vide :\n\n1. **Propriété/droit d'usage non confirmé pour ce véhicule.** Le portail doit indiquer la propriété (ou le droit d'usage) de votre véhicule comme confirmée. Si ce n'est pas le cas, confirmez-la d'abord là-bas — nécessaire, mais pas toujours suffisant à lui seul.\n2. **Consentement au partage des données non accordé pour ce véhicule.** Vous accordez le consentement au partage des données EU Data Act par véhicule, une seule fois. Tant que vous ne l'avez pas fait, la demande reste vide.\n3. **Aucune demande continue n'existe encore.** Si la création automatique n'a pas fonctionné, créez-la vous-même : dans le portail, ajoutez une demande de données personnalisée (Custom Data Request) avec tous les clusters cochés à une fréquence de 15 minutes. **Supprimez d'abord toute demande plus ancienne pour ce même véhicule** — le portail n'autorise qu'une seule demande active par véhicule, de sorte qu'une demande plus ancienne (par exemple une demande mensuelle) pour ce véhicule bloque la nouvelle. Ne supprimez pas la demande d'un autre véhicule : sur un compte mixte de véhicules particuliers et utilitaires, chaque véhicule conserve sa propre demande dans son propre domaine (les véhicules particuliers sous Volkswagen Personenkraftwagen, les utilitaires sous Volkswagen Nutzfahrzeuge). L'intégration la récupère lors de la prochaine interrogation — aucun redémarrage nécessaire.\n4. **La voiture n'a encore rien envoyé de nouveau.** Un nouveau jeu de données n'est publié qu'après que la voiture a été conduite, chargée ou verrouillée/déverrouillée ; une nouvelle demande peut donc mettre 15 à 60 minutes (ou un court trajet) avant de commencer à se remplir.\n5. **Une panne du côté de VW.** VW a signalé une panne du portail EU Data Act touchant toutes les marques depuis fin mai 2026 ; tant qu'elle dure, le portail renvoie des données vides pour tous les outils, se rétablissant marque par marque.\n6. **Ou ajoutez le canal de lecture du site web volkswagen.de.** Dans les options de l'intégration, vous pouvez ajouter le canal en lecture seule du site web volkswagen.de comme source alternative : il se connecte sur le site web volkswagen.de (et non sur le backend de l'application qui bloque la connexion sans interface), et pour certaines voitures il renvoie des champs que le flux du portail ne fournit pas. Il faut que votre Volkswagen ID soit l'utilisateur principal confirmé du véhicule.\n\n**Vérification la plus rapide :** ouvrez `eu-data-act.drivesomethinggreater.com`, connectez-vous et vérifiez que (a) la propriété/le droit d'usage est confirmé, (b) le consentement au partage des données est accordé pour ce véhicule, et (c) il existe une demande de données continue (15 minutes) active avec tous les clusters cochés — en la créant vous-même s'il n'y en a aucune. Si vous ne voyez pas non plus de données là-bas, c'est du côté de VW — cette intégration ne peut rien faire tant que VW ne l'a pas rétabli.\n\nIl s'agit de la version bêta du portail en lecture seule — l'avertissement disparaît de lui-même une fois les données arrivées."
     },
     "data_act_browser_missing": {
       "description": "Vous avez activé le repli navigateur headless pour le portail EU Data Act, mais le paquet Python `playwright` n'est pas installé dans votre conteneur Home Assistant.\n\n**Pour l'installer :** ouvrez le shell du conteneur HA (Modules complémentaires → Terminal & SSH, ou `docker exec` pour une installation manuelle) et exécutez :\n\n```\npip install playwright\nplaywright install chromium\n```\n\nLe téléchargement de chromium est volumineux (environ 100 Mo), c'est pourquoi cette dépendance est optionnelle plutôt qu'incluse dans l'intégration. Redémarrez Home Assistant après l'installation.\n\nVous pouvez aussi désactiver l'option dans Paramètres → Appareils et services → VW Group Connect → Configurer → « Portail EU Data Act : repli navigateur headless ».",
@@ -2306,6 +2306,66 @@
         "official_only": "API officielle uniquement",
         "mysmob_only": "Canal standard uniquement"
       }
+    }
+  },
+  "triggers": {
+    "started_charging": {
+      "name": "Le véhicule a commencé à charger",
+      "description": "Se déclenche lorsqu'un véhicule commence à charger."
+    },
+    "stopped_charging": {
+      "name": "Le véhicule a arrêté de charger",
+      "description": "Se déclenche lorsqu'un véhicule arrête de charger."
+    },
+    "plugged_in": {
+      "name": "Véhicule branché",
+      "description": "Se déclenche lorsque le câble de charge d'un véhicule est branché."
+    },
+    "unplugged": {
+      "name": "Véhicule débranché",
+      "description": "Se déclenche lorsque le câble de charge d'un véhicule est débranché."
+    },
+    "locked": {
+      "name": "Véhicule verrouillé",
+      "description": "Se déclenche lorsqu'un véhicule se verrouille."
+    },
+    "unlocked": {
+      "name": "Véhicule déverrouillé",
+      "description": "Se déclenche lorsqu'un véhicule se déverrouille."
+    },
+    "started_preconditioning": {
+      "name": "Le véhicule a démarré le préconditionnement",
+      "description": "Se déclenche lorsqu'un véhicule démarre le préconditionnement de la climatisation."
+    },
+    "stopped_preconditioning": {
+      "name": "Le véhicule a arrêté le préconditionnement",
+      "description": "Se déclenche lorsqu'un véhicule arrête le préconditionnement de la climatisation."
+    },
+    "charge_target_reached": {
+      "name": "Le véhicule a atteint son objectif de charge",
+      "description": "Se déclenche lorsque le niveau de charge d'un véhicule atteint son objectif."
+    }
+  },
+  "conditions": {
+    "is_charging": {
+      "name": "Un véhicule est en charge",
+      "description": "Vérifie si un véhicule est en charge actuellement."
+    },
+    "is_plugged_in": {
+      "name": "Un véhicule est branché",
+      "description": "Vérifie si le câble de charge d'un véhicule est branché."
+    },
+    "is_locked": {
+      "name": "Un véhicule est verrouillé",
+      "description": "Vérifie si un véhicule est verrouillé."
+    },
+    "is_preconditioning": {
+      "name": "Un véhicule est en préconditionnement",
+      "description": "Vérifie si un véhicule exécute le préconditionnement de la climatisation."
+    },
+    "is_charge_target_reached": {
+      "name": "Un véhicule a atteint son objectif de charge",
+      "description": "Vérifie si le niveau de charge d'un véhicule est à son objectif ou au-dessus."
     }
   }
 }

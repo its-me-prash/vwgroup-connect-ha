@@ -1994,7 +1994,7 @@
     },
     "data_act_no_data": {
       "title": "EU Data Act -portaali: ei vielä ajoneuvon tietoja ({brand})",
-      "description": "EU:n datasäädöksen portaaliin kirjauduttiin sisään merkin {brand} osalta, mutta se ei vielä palauta mitään ajoneuvon tietoja.\n\nIntegraatio yrittää luoda jatkuvan datapyynnön puolestasi automaattisesti, mutta joillakin tileillä portaali pitää selainistunnon anonyyminä — jolloin automaattinen pyyntö (ja sovelluksen sisäinen \"Luo EU:n datasäädöksen datapyyntö\" -painike) ei pysty valmistumaan, joten sinun on luotava pyyntö itse portaalissa. Tyhjän tietovirran tavalliset syyt:\n\n1. **Omistajuutta/käyttäjyyttä ei ole vahvistettu tälle autolle.** Portaalin on näytettävä ajoneuvosi omistajuus (tai käyttäjyys) vahvistettuna. Jos näin ei ole, vahvista se siellä ensin — välttämätöntä, vaikkakaan ei aina yksin riittävää.\n2. **Tietojen jakamisen suostumusta ei ole myönnetty tälle autolle.** Myönnät EU:n datasäädöksen tietojenjakosuostumuksen ajoneuvokohtaisesti, kerran. Ennen kuin teet sen, pyyntö pysyy tyhjänä.\n3. **Jatkuvaa pyyntöä ei ole vielä olemassa.** Jos automaattinen luonti ei onnistunut, luo se itse: lisää portaalissa mukautettu datapyyntö (Custom Data Request), jossa kaikki klusterit on rastitettu 15 minuutin taajuudella. Integraatio poimii sen seuraavalla kyselyllä — uudelleenkäynnistystä ei tarvita.\n4. **Auto ei ole vielä lähettänyt mitään uutta.** Uusi tietojoukko julkaistaan vasta, kun autoa on ajettu, ladattu tai lukittu/avattu, joten uuden pyynnön täyttymisen alkaminen voi kestää 15–60 minuuttia (tai lyhyen ajomatkan).\n5. **VW:n puolen käyttökatko.** VW ilmoitti kaikkia merkkejä koskevasta EU:n datasäädöksen portaalin käyttökatkosta toukokuun 2026 lopusta alkaen; katkon ajan portaali palauttaa tyhjää dataa jokaiselle työkalulle ja palautuu merkki kerrallaan.\n6. **Tai lisää volkswagen.de-sivuston lukukanava.** Integraation asetuksissa voit lisätä vain luku -tilaisen volkswagen.de-sivustokanavan vaihtoehtoiseksi lähteeksi: se kirjautuu sisään volkswagen.de-sivustolla (ei sovelluksen taustajärjestelmään, joka estää headless-kirjautumisen), ja palauttaa joillekin autoille kenttiä, joita portaalin tietovirta ei palauta. Se edellyttää, että Volkswagen ID:si on ajoneuvon vahvistettu ensisijainen käyttäjä.\n\n**Nopein tarkistus:** avaa `eu-data-act.drivesomethinggreater.com`, kirjaudu sisään ja varmista, että (a) omistajuus/käyttäjyys on vahvistettu, (b) tietojenjakosuostumus on myönnetty tälle autolle ja (c) aktiivinen jatkuva (15 minuutin) datapyyntö on olemassa, ja siinä on kaikki klusterit rastitettuina — luoden sen itse, jos sellaista ei ole. Jos et näe sielläkään dataa, kyse on VW:n puolesta — tämä integraatio ei voi tehdä mitään ennen kuin VW palauttaa sen toimintaan.\n\nTämä on vain luku -tilaisen portaalin beeta — varoitus poistuu itsestään, kun dataa saapuu."
+      "description": "EU:n datasäädöksen portaaliin kirjauduttiin sisään merkin {brand} osalta, mutta se ei vielä palauta mitään ajoneuvon tietoja.\n\nIntegraatio yrittää luoda jatkuvan datapyynnön puolestasi automaattisesti, mutta joillakin tileillä portaali pitää selainistunnon anonyyminä — jolloin automaattinen pyyntö (ja sovelluksen sisäinen \"Luo EU:n datasäädöksen datapyyntö\" -painike) ei pysty valmistumaan, joten sinun on luotava pyyntö itse portaalissa. Tyhjän tietovirran tavalliset syyt:\n\n1. **Omistajuutta/käyttäjyyttä ei ole vahvistettu tälle autolle.** Portaalin on näytettävä ajoneuvosi omistajuus (tai käyttäjyys) vahvistettuna. Jos näin ei ole, vahvista se siellä ensin — välttämätöntä, vaikkakaan ei aina yksin riittävää.\n2. **Tietojen jakamisen suostumusta ei ole myönnetty tälle autolle.** Myönnät EU:n datasäädöksen tietojenjakosuostumuksen ajoneuvokohtaisesti, kerran. Ennen kuin teet sen, pyyntö pysyy tyhjänä.\n3. **Jatkuvaa pyyntöä ei ole vielä olemassa.** Jos automaattinen luonti ei onnistunut, luo se itse: lisää portaalissa mukautettu datapyyntö (Custom Data Request), jossa kaikki klusterit on rastitettu 15 minuutin taajuudella. **Poista ensin kaikki tätä samaa autoa koskevat vanhemmat pyynnöt** — portaali sallii vain yhden aktiivisen pyynnön ajoneuvoa kohti, joten tätä autoa koskeva vanhempi (esimerkiksi kuukausittainen) pyyntö estää uuden. Älä poista toisen auton pyyntöä: sekatilillä, jolla on sekä henkilö- että hyötyajoneuvoja, jokainen auto säilyttää oman pyyntönsä omassa osiossaan (henkilöautot kohdassa Volkswagen Personenkraftwagen, pakettiautot kohdassa Volkswagen Nutzfahrzeuge). Integraatio poimii sen seuraavalla kyselyllä — uudelleenkäynnistystä ei tarvita.\n4. **Auto ei ole vielä lähettänyt mitään uutta.** Uusi tietojoukko julkaistaan vasta, kun autoa on ajettu, ladattu tai lukittu/avattu, joten uuden pyynnön täyttymisen alkaminen voi kestää 15–60 minuuttia (tai lyhyen ajomatkan).\n5. **VW:n puolen käyttökatko.** VW ilmoitti kaikkia merkkejä koskevasta EU:n datasäädöksen portaalin käyttökatkosta toukokuun 2026 lopusta alkaen; katkon ajan portaali palauttaa tyhjää dataa jokaiselle työkalulle ja palautuu merkki kerrallaan.\n6. **Tai lisää volkswagen.de-sivuston lukukanava.** Integraation asetuksissa voit lisätä vain luku -tilaisen volkswagen.de-sivustokanavan vaihtoehtoiseksi lähteeksi: se kirjautuu sisään volkswagen.de-sivustolla (ei sovelluksen taustajärjestelmään, joka estää headless-kirjautumisen), ja palauttaa joillekin autoille kenttiä, joita portaalin tietovirta ei palauta. Se edellyttää, että Volkswagen ID:si on ajoneuvon vahvistettu ensisijainen käyttäjä.\n\n**Nopein tarkistus:** avaa `eu-data-act.drivesomethinggreater.com`, kirjaudu sisään ja varmista, että (a) omistajuus/käyttäjyys on vahvistettu, (b) tietojenjakosuostumus on myönnetty tälle autolle ja (c) aktiivinen jatkuva (15 minuutin) datapyyntö on olemassa, ja siinä on kaikki klusterit rastitettuina — luoden sen itse, jos sellaista ei ole. Jos et näe sielläkään dataa, kyse on VW:n puolesta — tämä integraatio ei voi tehdä mitään ennen kuin VW palauttaa sen toimintaan.\n\nTämä on vain luku -tilaisen portaalin beeta — varoitus poistuu itsestään, kun dataa saapuu."
     },
     "data_act_browser_missing": {
       "description": "Otit käyttöön selaimettoman varajärjestelmän EU Data Act -portaalille, mutta `playwright` Python-pakettia ei ole asennettu Home Assistant -kontissasi.\n\n**Asennus:** avaa HA-kontin komentokehote (Lisäosat → Terminal & SSH, tai `docker exec` manuaaliseen asennukseen) ja suorita:\n\n```\npip install playwright\nplaywright install chromium\n```\n\nChromium-lataus on suuri (noin 100 Mt), minkä vuoksi tämä riippuvuus on valinnainen sen sijaan, että se olisi niputettu integraation kanssa. Asennuksen jälkeen käynnistä Home Assistant uudelleen.\n\nVaihtoehtoisesti poista kytkin käytöstä kohdassa Asetukset → Laitteet ja palvelut → VW Group Connect → Määritä → 'EU Data Act -portaali: selaimeton varajärjestelmä'.",
@@ -2306,6 +2306,66 @@
         "official_only": "Vain virallinen API",
         "mysmob_only": "Vain vakiokanava"
       }
+    }
+  },
+  "triggers": {
+    "started_charging": {
+      "name": "Ajoneuvo aloitti lataamisen",
+      "description": "Käynnistyy, kun ajoneuvo aloittaa lataamisen."
+    },
+    "stopped_charging": {
+      "name": "Ajoneuvo lopetti lataamisen",
+      "description": "Käynnistyy, kun ajoneuvo lopettaa lataamisen."
+    },
+    "plugged_in": {
+      "name": "Ajoneuvo kytketty",
+      "description": "Käynnistyy, kun ajoneuvon latauskaapeli kytketään."
+    },
+    "unplugged": {
+      "name": "Ajoneuvo irrotettu",
+      "description": "Käynnistyy, kun ajoneuvon latauskaapeli irrotetaan."
+    },
+    "locked": {
+      "name": "Ajoneuvo lukittu",
+      "description": "Käynnistyy, kun ajoneuvo lukitaan."
+    },
+    "unlocked": {
+      "name": "Ajoneuvon lukitus avattu",
+      "description": "Käynnistyy, kun ajoneuvon lukitus avataan."
+    },
+    "started_preconditioning": {
+      "name": "Ajoneuvo aloitti esi-ilmastoinnin",
+      "description": "Käynnistyy, kun ajoneuvo aloittaa esi-ilmastoinnin."
+    },
+    "stopped_preconditioning": {
+      "name": "Ajoneuvo lopetti esi-ilmastoinnin",
+      "description": "Käynnistyy, kun ajoneuvo lopettaa esi-ilmastoinnin."
+    },
+    "charge_target_reached": {
+      "name": "Ajoneuvo saavutti lataustavoitteen",
+      "description": "Käynnistyy, kun ajoneuvon lataustaso saavuttaa tavoitteensa."
+    }
+  },
+  "conditions": {
+    "is_charging": {
+      "name": "Ajoneuvo lataa",
+      "description": "Tarkistaa, lataako jokin ajoneuvo parhaillaan."
+    },
+    "is_plugged_in": {
+      "name": "Ajoneuvo on kytketty",
+      "description": "Tarkistaa, onko jonkin ajoneuvon latauskaapeli kytketty."
+    },
+    "is_locked": {
+      "name": "Ajoneuvo on lukittu",
+      "description": "Tarkistaa, onko jokin ajoneuvo lukittu."
+    },
+    "is_preconditioning": {
+      "name": "Ajoneuvo esi-ilmastoi",
+      "description": "Tarkistaa, käyttääkö jokin ajoneuvo esi-ilmastointia."
+    },
+    "is_charge_target_reached": {
+      "name": "Ajoneuvo saavutti lataustavoitteen",
+      "description": "Tarkistaa, onko jonkin ajoneuvon lataustaso tavoitteessa tai sen yli."
     }
   }
 }

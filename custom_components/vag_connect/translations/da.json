@@ -1994,7 +1994,7 @@
     },
     "data_act_no_data": {
       "title": "EU Data Act-portal: ingen køretøjsdata endnu ({brand})",
-      "description": "EU Data Act-portalen loggede ind for {brand}, men returnerer endnu ingen køretøjsdata.\n\nIntegrationen forsøger at oprette den kontinuerlige dataanmodning for dig automatisk, men på nogle konti holder portalen browsersessionen anonym — og så kan den automatiske anmodning (og knappen \"Opret EU Data Act-dataanmodning\" i appen) ikke fuldføres, så du er nødt til at oprette anmodningen selv i portalen. De sædvanlige årsager til et tomt feed:\n\n1. **Ejerskab/brugsret ikke bekræftet for denne bil.** Portalen skal vise dit køretøjs ejerskab (eller brugsret) som bekræftet. Hvis den ikke gør det, så bekræft det der først — nødvendigt, men ikke altid tilstrækkeligt i sig selv.\n2. **Samtykke til datadeling ikke givet for denne bil.** Du giver samtykket til datadeling under EU Data Act pr. køretøj, én gang. Indtil du gør det, forbliver anmodningen tom.\n3. **Der findes endnu ingen kontinuerlig anmodning.** Hvis den automatiske oprettelse ikke lykkedes, så opret den selv: tilføj i portalen en Custom Data Request med alle clusters markeret og en frekvens på 15 minutter. Integrationen opfanger den ved næste poll — ingen genstart nødvendig.\n4. **Bilen har endnu ikke sendt noget nyt.** Et nyt datasæt offentliggøres først, når bilen er blevet kørt, opladet eller låst/låst op, så en ny anmodning kan tage 15-60 minutter (eller en kort køretur) om at begynde at blive fyldt.\n5. **Et nedbrud på VW's side.** VW har rapporteret et nedbrud i EU Data Act-portalen for alle mærker fra slutningen af maj 2026; så længe det varer, returnerer portalen tomme data for alle værktøjer og kommer sig mærke for mærke.\n6. **Eller tilføj læsekanalen for volkswagen.de-webstedet.** I integrationens indstillinger kan du tilføje den skrivebeskyttede volkswagen.de-webstedskanal som en alternativ kilde: den logger ind på volkswagen.de-webstedet (ikke app-backenden, der blokerer det headless-login) og returnerer for nogle biler felter, som portal-feedet ikke gør. Den kræver, at dit Volkswagen ID er køretøjets bekræftede primære bruger.\n\n**Hurtigste tjek:** åbn `eu-data-act.drivesomethinggreater.com`, log ind, og bekræft (a) at ejerskab/brugsret er bekræftet, (b) at samtykket til datadeling er givet for denne bil, og (c) at der findes en aktiv kontinuerlig (15-minutters) dataanmodning med alle clusters markeret — opret den selv, hvis der ikke findes nogen. Hvis du heller ikke ser nogen data der, er det VW's side — der er ikke noget, denne integration kan gøre, før VW genopretter det.\n\nDette er den skrivebeskyttede portal-beta — advarslen forsvinder af sig selv, når der ankommer data."
+      "description": "EU Data Act-portalen loggede ind for {brand}, men returnerer endnu ingen køretøjsdata.\n\nIntegrationen forsøger at oprette den kontinuerlige dataanmodning for dig automatisk, men på nogle konti holder portalen browsersessionen anonym — og så kan den automatiske anmodning (og knappen \"Opret EU Data Act-dataanmodning\" i appen) ikke fuldføres, så du er nødt til at oprette anmodningen selv i portalen. De sædvanlige årsager til et tomt feed:\n\n1. **Ejerskab/brugsret ikke bekræftet for denne bil.** Portalen skal vise dit køretøjs ejerskab (eller brugsret) som bekræftet. Hvis den ikke gør det, så bekræft det der først — nødvendigt, men ikke altid tilstrækkeligt i sig selv.\n2. **Samtykke til datadeling ikke givet for denne bil.** Du giver samtykket til datadeling under EU Data Act pr. køretøj, én gang. Indtil du gør det, forbliver anmodningen tom.\n3. **Der findes endnu ingen kontinuerlig anmodning.** Hvis den automatiske oprettelse ikke lykkedes, så opret den selv: tilføj i portalen en Custom Data Request med alle clusters markeret og en frekvens på 15 minutter. **Slet først enhver ældre anmodning for netop denne bil** — portalen tillader kun én aktiv anmodning pr. køretøj, så en ældre (for eksempel en månedlig) anmodning for denne bil blokerer den nye. Slet ikke en anden bils anmodning: på en blandet konto med person- og erhvervskøretøjer beholder hver bil sin egen anmodning under sit eget område (personbiler under Volkswagen Personenkraftwagen, varevogne under Volkswagen Nutzfahrzeuge). Integrationen opfanger den ved næste poll — ingen genstart nødvendig.\n4. **Bilen har endnu ikke sendt noget nyt.** Et nyt datasæt offentliggøres først, når bilen er blevet kørt, opladet eller låst/låst op, så en ny anmodning kan tage 15-60 minutter (eller en kort køretur) om at begynde at blive fyldt.\n5. **Et nedbrud på VW's side.** VW har rapporteret et nedbrud i EU Data Act-portalen for alle mærker fra slutningen af maj 2026; så længe det varer, returnerer portalen tomme data for alle værktøjer og kommer sig mærke for mærke.\n6. **Eller tilføj læsekanalen for volkswagen.de-webstedet.** I integrationens indstillinger kan du tilføje den skrivebeskyttede volkswagen.de-webstedskanal som en alternativ kilde: den logger ind på volkswagen.de-webstedet (ikke app-backenden, der blokerer det headless-login) og returnerer for nogle biler felter, som portal-feedet ikke gør. Den kræver, at dit Volkswagen ID er køretøjets bekræftede primære bruger.\n\n**Hurtigste tjek:** åbn `eu-data-act.drivesomethinggreater.com`, log ind, og bekræft (a) at ejerskab/brugsret er bekræftet, (b) at samtykket til datadeling er givet for denne bil, og (c) at der findes en aktiv kontinuerlig (15-minutters) dataanmodning med alle clusters markeret — opret den selv, hvis der ikke findes nogen. Hvis du heller ikke ser nogen data der, er det VW's side — der er ikke noget, denne integration kan gøre, før VW genopretter det.\n\nDette er den skrivebeskyttede portal-beta — advarslen forsvinder af sig selv, når der ankommer data."
     },
     "data_act_browser_missing": {
       "description": "Du aktiverede headless-browser-fallbacken til EU Data Act-portalen, men Python-pakken `playwright` er ikke installeret i din Home Assistant-container.\n\n**Sådan installeres den:** åbn HA-containerens shell (Add-ons → Terminal & SSH, eller `docker exec` til en manuel installation), og kør:\n\n```\npip install playwright\nplaywright install chromium\n```\n\nChromium-downloadet er stort (omkring 100 MB), hvilket er grunden til, at denne afhængighed er et tilvalg i stedet for at være bundtet med integrationen. Efter installationen skal du genstarte Home Assistant.\n\nAlternativt kan du deaktivere kontakten under Indstillinger → Enheder & tjenester → VW Group Connect → Konfigurer → 'EU Data Act-portal: headless-browser-fallback'.",
@@ -2306,6 +2306,66 @@
         "official_only": "Kun officielt API",
         "mysmob_only": "Kun standardkanal"
       }
+    }
+  },
+  "triggers": {
+    "started_charging": {
+      "name": "Køretøj startede opladning",
+      "description": "Udløses, når et køretøj begynder at oplade."
+    },
+    "stopped_charging": {
+      "name": "Køretøj stoppede opladning",
+      "description": "Udløses, når et køretøj stopper med at oplade."
+    },
+    "plugged_in": {
+      "name": "Køretøj tilsluttet",
+      "description": "Udløses, når et køretøjs ladekabel tilsluttes."
+    },
+    "unplugged": {
+      "name": "Køretøj frakoblet",
+      "description": "Udløses, når et køretøjs ladekabel frakobles."
+    },
+    "locked": {
+      "name": "Køretøj låst",
+      "description": "Udløses, når et køretøj bliver låst."
+    },
+    "unlocked": {
+      "name": "Køretøj oplåst",
+      "description": "Udløses, når et køretøj bliver låst op."
+    },
+    "started_preconditioning": {
+      "name": "Køretøj startede forkonditionering",
+      "description": "Udløses, når et køretøj starter klimaforkonditionering."
+    },
+    "stopped_preconditioning": {
+      "name": "Køretøj stoppede forkonditionering",
+      "description": "Udløses, når et køretøj stopper klimaforkonditionering."
+    },
+    "charge_target_reached": {
+      "name": "Køretøj nåede sit opladningsmål",
+      "description": "Udløses, når et køretøjs ladeniveau når sit mål."
+    }
+  },
+  "conditions": {
+    "is_charging": {
+      "name": "Et køretøj oplader",
+      "description": "Tester, om et køretøj oplader lige nu."
+    },
+    "is_plugged_in": {
+      "name": "Et køretøj er tilsluttet",
+      "description": "Tester, om et køretøjs ladekabel er tilsluttet."
+    },
+    "is_locked": {
+      "name": "Et køretøj er låst",
+      "description": "Tester, om et køretøj er låst."
+    },
+    "is_preconditioning": {
+      "name": "Et køretøj forkonditionerer",
+      "description": "Tester, om et køretøj kører klimaforkonditionering."
+    },
+    "is_charge_target_reached": {
+      "name": "Et køretøj nåede sit opladningsmål",
+      "description": "Tester, om et køretøjs ladeniveau er på eller over sit mål."
     }
   }
 }

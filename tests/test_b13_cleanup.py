@@ -129,3 +129,42 @@ def test_401_dump_logs_redacted_at_debug(caplog) -> None:
     assert "resp_set_cookie=True" in blob
     # the query string is stripped from the logged URL
     assert "viewPosition" not in blob
+
+
+def test_401_dump_masks_uuid_in_cookie_name(caplog) -> None:
+    # b14 (#1340 @cyrano330): the IDP session cookies are NAMED s_<uuid>/d_<uuid>,
+    # so a "names only" dump must still mask the UUID that lives in the name.
+    from custom_components.vag_connect.cariad.auth import _eu_data_act
+    uid = "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+    c = _connector(
+        [
+            _Cookie(f"s_{uid}", "identity.vwgroup.io", "v"),
+            _Cookie("affinity", "eu-data-act.drivesomethinggreater.com", "lb"),
+        ],
+        bearer=None,
+    )
+    resp = MagicMock()
+    resp.headers = {}
+    with caplog.at_level(logging.DEBUG, logger=_eu_data_act._LOGGER.name):
+        c._debug_dump_auth_state_on_401("https://p/proxy_api/x", {}, resp)
+    blob = caplog.text
+    assert uid not in blob                              # UUID in the NAME masked
+    assert "s_<uuid>@identity.vwgroup.io" in blob       # structure preserved
+    assert "affinity@eu-data-act.drivesomethinggreater.com" in blob
+    assert "mode=cookie" in blob
+    # derived fork-answer: only the LB cookie on the portal domain = anonymous
+    assert "portal_domain_cookies=['affinity']" in blob
+
+
+def test_401_dump_logs_once_per_instance(caplog) -> None:
+    # b14: one VW-EU setup reaches the portal from ~3 call sites; the snapshot
+    # should be logged exactly once so a pasted debug log stays readable.
+    from custom_components.vag_connect.cariad.auth import _eu_data_act
+    c = _connector([_Cookie("SESSID", "portal.example", "x")], bearer="tok")
+    resp = MagicMock()
+    resp.headers = {}
+    with caplog.at_level(logging.DEBUG, logger=_eu_data_act._LOGGER.name):
+        c._debug_dump_auth_state_on_401("https://p/proxy_api/a", {}, resp)
+        c._debug_dump_auth_state_on_401("https://p/proxy_api/b", {}, resp)
+        c._debug_dump_auth_state_on_401("https://p/proxy_api/c", {}, resp)
+    assert caplog.text.count("EU Data Act 401 auth-state on") == 1

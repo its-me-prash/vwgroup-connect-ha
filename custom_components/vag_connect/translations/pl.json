@@ -1994,7 +1994,7 @@
     },
     "data_act_no_data": {
       "title": "Portal EU Data Act: brak danych pojazdu ({brand})",
-      "description": "Portal EU Data Act zalogował się do {brand}, ale nie zwraca jeszcze żadnych danych pojazdu.\n\nIntegracja próbuje automatycznie utworzyć dla Ciebie ciągłe żądanie danych, ale na niektórych kontach portal utrzymuje sesję przeglądarki jako anonimową — i wtedy automatyczne żądanie (oraz przycisk „Utwórz żądanie danych EU Data Act\" w aplikacji) nie może się zakończyć, więc musisz samodzielnie utworzyć żądanie w portalu. Typowe przyczyny pustego strumienia danych:\n\n1. **Nie potwierdzono własności/użytkowania tego samochodu.** Portal musi pokazywać własność (lub użytkowanie) Twojego pojazdu jako potwierdzoną. Jeśli tak nie jest, najpierw potwierdź to tam — konieczne, choć samo w sobie nie zawsze wystarczające.\n2. **Nie udzielono zgody na udostępnianie danych dla tego samochodu.** Zgodę na udostępnianie danych w ramach EU Data Act udzielasz osobno dla każdego pojazdu, jednorazowo. Dopóki tego nie zrobisz, żądanie pozostaje puste.\n3. **Nie istnieje jeszcze żadne ciągłe żądanie.** Jeśli automatyczne utworzenie się nie powiodło, utwórz je samodzielnie: w portalu dodaj niestandardowe żądanie danych (Custom Data Request) z zaznaczonymi wszystkimi klastrami i częstotliwością 15 minut. Integracja odbierze je przy następnym odpytaniu — bez potrzeby restartu.\n4. **Samochód nie wysłał jeszcze nic nowego.** Nowy zestaw danych jest publikowany dopiero po tym, jak samochód był prowadzony, ładowany lub zamknięty/otwarty, więc nowe żądanie może potrzebować 15–60 minut (lub krótkiej jazdy), zanim zacznie się wypełniać.\n5. **Awaria po stronie VW.** VW zgłosił awarię portalu EU Data Act obejmującą wszystkie marki, trwającą od końca maja 2026; dopóki trwa, portal zwraca puste dane dla każdego narzędzia, przywracając działanie marka po marce.\n6. **Albo dodaj kanał odczytu ze strony volkswagen.de.** W opcjach integracji możesz dodać kanał tylko do odczytu ze strony volkswagen.de jako alternatywne źródło: loguje się on na stronie volkswagen.de (a nie w backendzie aplikacji, który blokuje logowanie headless) i dla niektórych samochodów zwraca pola, których strumień z portalu nie udostępnia. Wymaga, aby Twój Volkswagen ID był potwierdzonym głównym użytkownikiem pojazdu.\n\n**Najszybsze sprawdzenie:** otwórz `eu-data-act.drivesomethinggreater.com`, zaloguj się i potwierdź, że (a) własność/użytkowanie jest potwierdzone, (b) zgoda na udostępnianie danych jest udzielona dla tego samochodu oraz (c) istnieje aktywne ciągłe (15-minutowe) żądanie danych z zaznaczonymi wszystkimi klastrami — tworząc je samodzielnie, jeśli żadne nie istnieje. Jeśli i tam nie widzisz żadnych danych, to problem po stronie VW — ta integracja nic nie może zrobić, dopóki VW go nie usunie.\n\nTo jest wersja beta portalu tylko do odczytu — ostrzeżenie zniknie samo, gdy tylko napłyną dane."
+      "description": "Portal EU Data Act zalogował się do {brand}, ale nie zwraca jeszcze żadnych danych pojazdu.\n\nIntegracja próbuje automatycznie utworzyć dla Ciebie ciągłe żądanie danych, ale na niektórych kontach portal utrzymuje sesję przeglądarki jako anonimową — i wtedy automatyczne żądanie (oraz przycisk „Utwórz żądanie danych EU Data Act\" w aplikacji) nie może się zakończyć, więc musisz samodzielnie utworzyć żądanie w portalu. Typowe przyczyny pustego strumienia danych:\n\n1. **Nie potwierdzono własności/użytkowania tego samochodu.** Portal musi pokazywać własność (lub użytkowanie) Twojego pojazdu jako potwierdzoną. Jeśli tak nie jest, najpierw potwierdź to tam — konieczne, choć samo w sobie nie zawsze wystarczające.\n2. **Nie udzielono zgody na udostępnianie danych dla tego samochodu.** Zgodę na udostępnianie danych w ramach EU Data Act udzielasz osobno dla każdego pojazdu, jednorazowo. Dopóki tego nie zrobisz, żądanie pozostaje puste.\n3. **Nie istnieje jeszcze żadne ciągłe żądanie.** Jeśli automatyczne utworzenie się nie powiodło, utwórz je samodzielnie: w portalu dodaj niestandardowe żądanie danych (Custom Data Request) z zaznaczonymi wszystkimi klastrami i częstotliwością 15 minut. **Najpierw usuń wszelkie starsze żądania dla tego samego samochodu** — portal zezwala tylko na jedno aktywne żądanie na pojazd, więc starsze (na przykład miesięczne) żądanie dla tego samochodu blokuje nowe. Nie usuwaj żądania innego samochodu: na koncie mieszanym z samochodami osobowymi i użytkowymi każdy samochód zachowuje własne żądanie w swoim własnym obszarze (samochody osobowe w Volkswagen Personenkraftwagen, samochody dostawcze w Volkswagen Nutzfahrzeuge). Integracja odbierze je przy następnym odpytaniu — bez potrzeby restartu.\n4. **Samochód nie wysłał jeszcze nic nowego.** Nowy zestaw danych jest publikowany dopiero po tym, jak samochód był prowadzony, ładowany lub zamknięty/otwarty, więc nowe żądanie może potrzebować 15–60 minut (lub krótkiej jazdy), zanim zacznie się wypełniać.\n5. **Awaria po stronie VW.** VW zgłosił awarię portalu EU Data Act obejmującą wszystkie marki, trwającą od końca maja 2026; dopóki trwa, portal zwraca puste dane dla każdego narzędzia, przywracając działanie marka po marce.\n6. **Albo dodaj kanał odczytu ze strony volkswagen.de.** W opcjach integracji możesz dodać kanał tylko do odczytu ze strony volkswagen.de jako alternatywne źródło: loguje się on na stronie volkswagen.de (a nie w backendzie aplikacji, który blokuje logowanie headless) i dla niektórych samochodów zwraca pola, których strumień z portalu nie udostępnia. Wymaga, aby Twój Volkswagen ID był potwierdzonym głównym użytkownikiem pojazdu.\n\n**Najszybsze sprawdzenie:** otwórz `eu-data-act.drivesomethinggreater.com`, zaloguj się i potwierdź, że (a) własność/użytkowanie jest potwierdzone, (b) zgoda na udostępnianie danych jest udzielona dla tego samochodu oraz (c) istnieje aktywne ciągłe (15-minutowe) żądanie danych z zaznaczonymi wszystkimi klastrami — tworząc je samodzielnie, jeśli żadne nie istnieje. Jeśli i tam nie widzisz żadnych danych, to problem po stronie VW — ta integracja nic nie może zrobić, dopóki VW go nie usunie.\n\nTo jest wersja beta portalu tylko do odczytu — ostrzeżenie zniknie samo, gdy tylko napłyną dane."
     },
     "data_act_browser_missing": {
       "description": "Włączyłeś rezerwowy tryb przeglądarki headless dla portalu EU Data Act, ale pakiet Pythona `playwright` nie jest zainstalowany w Twoim kontenerze Home Assistant.\n\n**Aby zainstalować:** otwórz powłokę kontenera HA (Dodatki → Terminal & SSH lub `docker exec` przy instalacji ręcznej) i uruchom:\n\n```\npip install playwright\nplaywright install chromium\n```\n\nPobranie chromium jest duże (około 100 MB), dlatego ta zależność jest opcjonalna, a nie dołączona do integracji. Po instalacji uruchom ponownie Home Assistant.\n\nAlternatywnie wyłącz przełącznik w Ustawienia → Urządzenia i usługi → VW Group Connect → Konfiguruj → 'Portal EU Data Act: rezerwowy tryb przeglądarki headless'.",
@@ -2306,6 +2306,66 @@
         "official_only": "Tylko oficjalne API",
         "mysmob_only": "Tylko kanał standardowy"
       }
+    }
+  },
+  "triggers": {
+    "started_charging": {
+      "name": "Pojazd rozpoczął ładowanie",
+      "description": "Wyzwalane, gdy pojazd rozpoczyna ładowanie."
+    },
+    "stopped_charging": {
+      "name": "Pojazd zakończył ładowanie",
+      "description": "Wyzwalane, gdy pojazd kończy ładowanie."
+    },
+    "plugged_in": {
+      "name": "Pojazd podłączony",
+      "description": "Wyzwalane, gdy kabel ładowania pojazdu zostaje podłączony."
+    },
+    "unplugged": {
+      "name": "Pojazd odłączony",
+      "description": "Wyzwalane, gdy kabel ładowania pojazdu zostaje odłączony."
+    },
+    "locked": {
+      "name": "Pojazd zablokowany",
+      "description": "Wyzwalane, gdy pojazd zostaje zablokowany."
+    },
+    "unlocked": {
+      "name": "Pojazd odblokowany",
+      "description": "Wyzwalane, gdy pojazd zostaje odblokowany."
+    },
+    "started_preconditioning": {
+      "name": "Pojazd rozpoczął wstępną klimatyzację",
+      "description": "Wyzwalane, gdy pojazd rozpoczyna wstępną klimatyzację."
+    },
+    "stopped_preconditioning": {
+      "name": "Pojazd zakończył wstępną klimatyzację",
+      "description": "Wyzwalane, gdy pojazd kończy wstępną klimatyzację."
+    },
+    "charge_target_reached": {
+      "name": "Pojazd osiągnął docelowy poziom naładowania",
+      "description": "Wyzwalane, gdy poziom naładowania pojazdu osiąga wartość docelową."
+    }
+  },
+  "conditions": {
+    "is_charging": {
+      "name": "Pojazd się ładuje",
+      "description": "Sprawdza, czy którykolwiek pojazd aktualnie się ładuje."
+    },
+    "is_plugged_in": {
+      "name": "Pojazd jest podłączony",
+      "description": "Sprawdza, czy kabel ładowania któregokolwiek pojazdu jest podłączony."
+    },
+    "is_locked": {
+      "name": "Pojazd jest zablokowany",
+      "description": "Sprawdza, czy którykolwiek pojazd jest zablokowany."
+    },
+    "is_preconditioning": {
+      "name": "Pojazd wstępnie klimatyzuje",
+      "description": "Sprawdza, czy którykolwiek pojazd wykonuje wstępną klimatyzację."
+    },
+    "is_charge_target_reached": {
+      "name": "Pojazd osiągnął docelowy poziom naładowania",
+      "description": "Sprawdza, czy poziom naładowania któregokolwiek pojazdu osiągnął wartość docelową lub ją przekroczył."
     }
   }
 }

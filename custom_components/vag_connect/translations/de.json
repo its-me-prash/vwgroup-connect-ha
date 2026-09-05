@@ -1998,7 +1998,7 @@
     },
     "data_act_no_data": {
       "title": "EU-Data-Act-Portal: noch keine Fahrzeugdaten ({brand})",
-      "description": "Das EU-Data-Act-Portal hat sich für {brand} angemeldet, liefert aber noch keine Fahrzeugdaten.\n\nDie Integration versucht, die fortlaufende Datenanfrage automatisch für dich zu erstellen, aber bei manchen Konten hält das Portal die Browser-Sitzung anonym — und dann kann die automatische Anfrage (und der In-App-Button „EU-Data-Act-Datenanfrage erstellen\") nicht abgeschlossen werden, sodass du die Anfrage selbst im Portal erstellen musst. Die üblichen Ursachen für einen leeren Feed:\n\n1. **Eigentümerschaft/Nutzerschaft für dieses Auto nicht bestätigt.** Das Portal muss die Eigentümerschaft (oder Nutzerschaft) deines Fahrzeugs als bestätigt anzeigen. Falls nicht, bestätige sie dort zuerst — notwendig, aber allein nicht immer ausreichend.\n2. **Einwilligung zur Datenfreigabe für dieses Auto nicht erteilt.** Du erteilst die EU-Data-Act-Einwilligung zur Datenfreigabe einmalig pro Fahrzeug. Bis du das tust, bleibt die Anfrage leer.\n3. **Es existiert noch keine fortlaufende Anfrage.** Falls die automatische Erstellung nicht funktioniert hat, erstelle sie selbst: Füge im Portal eine benutzerdefinierte Datenanfrage (Custom Data Request) mit allen angehakten Clustern und einer Frequenz von 15 Minuten hinzu. Die Integration übernimmt sie beim nächsten Abruf — kein Neustart nötig.\n4. **Das Auto hat noch nichts Neues gesendet.** Ein neuer Datensatz wird erst veröffentlicht, nachdem das Auto gefahren, geladen oder ver-/entriegelt wurde, daher kann es 15-60 Minuten (oder eine kurze Fahrt) dauern, bis sich eine neue Anfrage zu füllen beginnt.\n5. **Eine Störung auf VW-Seite.** VW hat eine markenübergreifende Störung des EU-Data-Act-Portals seit Ende Mai 2026 gemeldet; solange sie anhält, liefert das Portal für jedes Tool leere Daten und erholt sich Marke für Marke.\n6. **Oder füge den Lesekanal der volkswagen.de-Website hinzu.** In den Optionen der Integration kannst du den schreibgeschützten volkswagen.de-Website-Kanal als alternative Quelle hinzufügen: Er meldet sich auf der volkswagen.de-Website an (nicht am App-Backend, das den Headless-Login blockiert) und liefert für manche Autos Felder, die der Portal-Feed nicht hat. Dafür muss deine Volkswagen ID der bestätigte Hauptnutzer des Fahrzeugs sein.\n\n**Schnellste Prüfung:** Öffne `eu-data-act.drivesomethinggreater.com`, melde dich an und stelle sicher, dass (a) die Eigentümerschaft/Nutzerschaft bestätigt ist, (b) die Einwilligung zur Datenfreigabe für dieses Auto erteilt ist und (c) eine aktive fortlaufende (15-Minuten-)Datenanfrage mit allen angehakten Clustern existiert — erstelle sie selbst, falls keine vorhanden ist. Wenn du auch dort keine Daten siehst, liegt es an der VW-Seite — diese Integration kann nichts tun, bis VW es wiederherstellt.\n\nDies ist die schreibgeschützte Portal-Beta — die Warnung verschwindet von selbst, sobald Daten eintreffen."
+      "description": "Das EU-Data-Act-Portal hat sich für {brand} angemeldet, liefert aber noch keine Fahrzeugdaten.\n\nDie Integration versucht, die fortlaufende Datenanfrage automatisch für dich zu erstellen, aber bei manchen Konten hält das Portal die Browser-Sitzung anonym — und dann kann die automatische Anfrage (und der In-App-Button „EU-Data-Act-Datenanfrage erstellen\") nicht abgeschlossen werden, sodass du die Anfrage selbst im Portal erstellen musst. Die üblichen Ursachen für einen leeren Feed:\n\n1. **Eigentümerschaft/Nutzerschaft für dieses Auto nicht bestätigt.** Das Portal muss die Eigentümerschaft (oder Nutzerschaft) deines Fahrzeugs als bestätigt anzeigen. Falls nicht, bestätige sie dort zuerst — notwendig, aber allein nicht immer ausreichend.\n2. **Einwilligung zur Datenfreigabe für dieses Auto nicht erteilt.** Du erteilst die EU-Data-Act-Einwilligung zur Datenfreigabe einmalig pro Fahrzeug. Bis du das tust, bleibt die Anfrage leer.\n3. **Es existiert noch keine fortlaufende Anfrage.** Falls die automatische Erstellung nicht funktioniert hat, erstelle sie selbst: Füge im Portal eine benutzerdefinierte Datenanfrage (Custom Data Request) mit allen angehakten Clustern und einer Frequenz von 15 Minuten hinzu. **Lösche zuerst jede ältere Anfrage für genau dieses Auto** — das Portal erlaubt nur eine aktive Anfrage pro Fahrzeug, sodass eine ältere (z. B. eine monatliche) für dieses Auto die neue blockiert. Lösche nicht die Anfrage eines anderen Autos: Bei einem gemischten Konto aus Pkw und Nutzfahrzeugen behält jedes Auto seine eigene Anfrage in seinem eigenen Bereich (Pkw unter Volkswagen Personenkraftwagen, Transporter unter Volkswagen Nutzfahrzeuge). Die Integration übernimmt sie beim nächsten Abruf — kein Neustart nötig.\n4. **Das Auto hat noch nichts Neues gesendet.** Ein neuer Datensatz wird erst veröffentlicht, nachdem das Auto gefahren, geladen oder ver-/entriegelt wurde, daher kann es 15-60 Minuten (oder eine kurze Fahrt) dauern, bis sich eine neue Anfrage zu füllen beginnt.\n5. **Eine Störung auf VW-Seite.** VW hat eine markenübergreifende Störung des EU-Data-Act-Portals seit Ende Mai 2026 gemeldet; solange sie anhält, liefert das Portal für jedes Tool leere Daten und erholt sich Marke für Marke.\n6. **Oder füge den Lesekanal der volkswagen.de-Website hinzu.** In den Optionen der Integration kannst du den schreibgeschützten volkswagen.de-Website-Kanal als alternative Quelle hinzufügen: Er meldet sich auf der volkswagen.de-Website an (nicht am App-Backend, das den Headless-Login blockiert) und liefert für manche Autos Felder, die der Portal-Feed nicht hat. Dafür muss deine Volkswagen ID der bestätigte Hauptnutzer des Fahrzeugs sein.\n\n**Schnellste Prüfung:** Öffne `eu-data-act.drivesomethinggreater.com`, melde dich an und stelle sicher, dass (a) die Eigentümerschaft/Nutzerschaft bestätigt ist, (b) die Einwilligung zur Datenfreigabe für dieses Auto erteilt ist und (c) eine aktive fortlaufende (15-Minuten-)Datenanfrage mit allen angehakten Clustern existiert — erstelle sie selbst, falls keine vorhanden ist. Wenn du auch dort keine Daten siehst, liegt es an der VW-Seite — diese Integration kann nichts tun, bis VW es wiederherstellt.\n\nDies ist die schreibgeschützte Portal-Beta — die Warnung verschwindet von selbst, sobald Daten eintreffen."
     },
     "data_act_session_expired": {
       "description": "Das {brand}-Portal unter `eu-data-act.drivesomethinggreater.com` hat einen API-Aufruf für eine Custom Data Request mit HTTP 401 beantwortet – das bedeutet, die Sitzungs-Cookies sind abgelaufen. Das Portal unterstützt keine Token-Aktualisierung im Hintergrund, daher kann Home Assistant das nicht automatisch beheben.\n\n**Was zu tun ist:** Einstellungen → Geräte & Dienste → VW Group Connect → 3-Punkte-Menü → Neu konfigurieren → Zugangsdaten erneut eingeben. Beim nächsten Einrichtungsdurchlauf wird die Portal-Sitzung neu geöffnet und die Integration nimmt das Abfragen der aktiven Custom Data Request wieder auf.\n\nDiese Warnung verschwindet von selbst, sobald der nächste API-Aufruf des Portals erfolgreich ist.",
@@ -2306,6 +2306,66 @@
     },
     "historical_wedge_blocked": {
       "message": "Für dieses Fahrzeug läuft bereits ein einmaliger Verlaufsexport. Das Portal bearbeitet immer nur eine solche Anfrage gleichzeitig – warte deshalb, bis die aktuelle abgeschlossen ist (oder das Zeitlimit abläuft), bevor du eine neue anforderst."
+    }
+  },
+  "triggers": {
+    "started_charging": {
+      "name": "Fahrzeug hat Ladevorgang gestartet",
+      "description": "Wird ausgelöst, wenn ein Fahrzeug den Ladevorgang startet."
+    },
+    "stopped_charging": {
+      "name": "Fahrzeug hat Ladevorgang beendet",
+      "description": "Wird ausgelöst, wenn ein Fahrzeug den Ladevorgang beendet."
+    },
+    "plugged_in": {
+      "name": "Fahrzeug eingesteckt",
+      "description": "Wird ausgelöst, wenn das Ladekabel eines Fahrzeugs angeschlossen wird."
+    },
+    "unplugged": {
+      "name": "Fahrzeug ausgesteckt",
+      "description": "Wird ausgelöst, wenn das Ladekabel eines Fahrzeugs getrennt wird."
+    },
+    "locked": {
+      "name": "Fahrzeug verriegelt",
+      "description": "Wird ausgelöst, wenn ein Fahrzeug verriegelt wird."
+    },
+    "unlocked": {
+      "name": "Fahrzeug entriegelt",
+      "description": "Wird ausgelöst, wenn ein Fahrzeug entriegelt wird."
+    },
+    "started_preconditioning": {
+      "name": "Fahrzeug-Vorklimatisierung gestartet",
+      "description": "Wird ausgelöst, wenn ein Fahrzeug die Vorklimatisierung startet."
+    },
+    "stopped_preconditioning": {
+      "name": "Fahrzeug-Vorklimatisierung beendet",
+      "description": "Wird ausgelöst, wenn ein Fahrzeug die Vorklimatisierung beendet."
+    },
+    "charge_target_reached": {
+      "name": "Fahrzeug hat Ladeziel erreicht",
+      "description": "Wird ausgelöst, wenn der Ladestand eines Fahrzeugs sein Ziel erreicht."
+    }
+  },
+  "conditions": {
+    "is_charging": {
+      "name": "Ein Fahrzeug lädt",
+      "description": "Prüft, ob ein Fahrzeug gerade lädt."
+    },
+    "is_plugged_in": {
+      "name": "Ein Fahrzeug ist eingesteckt",
+      "description": "Prüft, ob das Ladekabel eines Fahrzeugs angeschlossen ist."
+    },
+    "is_locked": {
+      "name": "Ein Fahrzeug ist verriegelt",
+      "description": "Prüft, ob ein Fahrzeug verriegelt ist."
+    },
+    "is_preconditioning": {
+      "name": "Ein Fahrzeug klimatisiert vor",
+      "description": "Prüft, ob ein Fahrzeug gerade vorklimatisiert."
+    },
+    "is_charge_target_reached": {
+      "name": "Ein Fahrzeug hat sein Ladeziel erreicht",
+      "description": "Prüft, ob der Ladestand eines Fahrzeugs sein Ziel erreicht hat."
     }
   }
 }

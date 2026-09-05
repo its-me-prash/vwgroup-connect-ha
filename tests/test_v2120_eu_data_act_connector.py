@@ -323,6 +323,20 @@ def test_brand_config_resolution() -> None:
     assert seat._client_id.startswith("f85e5b69")
     assert seat._state == "de__de__SEAT"
 
+    # #1340 — Audi/Škoda/Bentley each have their OWN portal client; the shared VW
+    # client left the session anonymous (login lands but every data read 401s).
+    audi = EUDataActConnector(object(), brand="audi")  # type: ignore[arg-type]
+    assert audi._client_id.startswith("cc29b87a")
+    assert audi._state == "de__de__AUDI"
+
+    skoda = EUDataActConnector(object(), brand="skoda")  # type: ignore[arg-type]
+    assert skoda._client_id.startswith("3ea88bf9")
+    assert skoda._state == "de__de__SKODA"
+
+    bentley = EUDataActConnector(object(), brand="bentley")  # type: ignore[arg-type]
+    assert bentley._client_id.startswith("d38aac0f")
+    assert bentley._state == "de__de__BENTLEY"
+
     # #1316 — VW Commercial Vehicles (Nutzfahrzeuge): same portal client as
     # passenger VW, but the state_brand MUST be the explicit, live-confirmed
     # "VOLKSWAGEN_COMMERCIAL_VEHICLES" — NOT the unknown-brand fallback
