@@ -43,6 +43,27 @@ _SPECS: tuple[_MeterSpec, ...] = (
 _CYCLE = "monthly"
 
 
+def any_source_sensor_present(hass: HomeAssistant, vins: list[str]) -> bool:
+    """True if at least one utility_meter-eligible source sensor is registered.
+
+    The options flow uses this to surface the auto-provision toggle ONLY when
+    there is actually something to wrap — an EV charged-energy or an odometer
+    sensor for one of this account's cars. A non-EV with no odometer sensor yet
+    therefore never sees the toggle. Fully guarded: a registry hiccup just hides
+    the toggle, it never raises into the form.
+    """
+    try:
+        registry = er.async_get(hass)
+        return any(
+            registry.async_get_entity_id("sensor", DOMAIN, f"{vin}_{spec.suffix}")
+            is not None
+            for vin in vins
+            for spec in _SPECS
+        )
+    except Exception:  # noqa: BLE001 — a probe must never break the options form
+        return False
+
+
 async def async_ensure_utility_meters(
     hass: HomeAssistant, entry: ConfigEntry, vins: list[str]
 ) -> None:

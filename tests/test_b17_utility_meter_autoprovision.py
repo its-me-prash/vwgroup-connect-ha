@@ -93,3 +93,38 @@ async def test_flow_init_failure_never_breaks_setup() -> None:
         "homeassistant.helpers.entity_registry.async_get", return_value=reg
     ):
         await async_ensure_utility_meters(hass, MagicMock(), [VIN])  # must not raise
+
+
+# ── the eligibility probe (drives the options-flow toggle gate) ──────────────
+
+def test_any_source_sensor_present_true_when_a_source_exists() -> None:
+    from custom_components.vag_connect.utility_meter import (
+        any_source_sensor_present,
+    )
+    reg = _registry(lambda d, i, uid: _UIDS.get(uid))
+    with patch(
+        "homeassistant.helpers.entity_registry.async_get", return_value=reg
+    ):
+        assert any_source_sensor_present(MagicMock(), [VIN]) is True
+
+
+def test_any_source_sensor_present_false_when_none_registered() -> None:
+    from custom_components.vag_connect.utility_meter import (
+        any_source_sensor_present,
+    )
+    reg = _registry(lambda d, i, uid: None)
+    with patch(
+        "homeassistant.helpers.entity_registry.async_get", return_value=reg
+    ):
+        assert any_source_sensor_present(MagicMock(), [VIN]) is False
+
+
+def test_any_source_sensor_present_swallows_registry_error() -> None:
+    from custom_components.vag_connect.utility_meter import (
+        any_source_sensor_present,
+    )
+    with patch(
+        "homeassistant.helpers.entity_registry.async_get",
+        side_effect=RuntimeError("registry down"),
+    ):
+        assert any_source_sensor_present(MagicMock(), [VIN]) is False  # no raise

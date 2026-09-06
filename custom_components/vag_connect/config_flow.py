@@ -2786,6 +2786,28 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                         _key, current_data.get(_key, False)
                     ),
                 )] = _BOOL_SELECTOR
+        # b17 — opt-in: auto-create monthly ``utility_meter`` helpers wired to
+        # our TOTAL_INCREASING sensors (charged energy kWh, odometer km), so a
+        # user gets monthly counters without hand-building them. Surfaced ONLY
+        # when at least one such source sensor is actually registered for this
+        # account's cars — a non-EV with no odometer sensor yet has nothing to
+        # wrap, so it never sees the toggle (keeps the form uncluttered and the
+        # option honest). These are persistent config-entry helpers the user
+        # must remove themselves, so it stays OFF by default; the coordinator
+        # provisions once, post-first-poll, only while the flag is on. Options-
+        # then-data default so the options-trap (listener folds options into
+        # data) can't silently blank it.
+        from .const import CONF_AUTO_UTILITY_METERS  # noqa: PLC0415
+        from .utility_meter import any_source_sensor_present  # noqa: PLC0415
+        _um_vins = list(_vehicles) if isinstance(_vehicles, dict) else []
+        if _um_vins and any_source_sensor_present(self.hass, _um_vins):
+            schema[vol.Optional(
+                CONF_AUTO_UTILITY_METERS,
+                default=current_options.get(
+                    CONF_AUTO_UTILITY_METERS,
+                    current_data.get(CONF_AUTO_UTILITY_METERS, False),
+                ),
+            )] = _BOOL_SELECTOR
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(schema),
