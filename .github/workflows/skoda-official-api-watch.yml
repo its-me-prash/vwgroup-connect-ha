@@ -39,10 +39,14 @@ jobs:
           VERSION: ${{ steps.check.outputs.version }}
         run: |
           title="[Škoda] Official API app reached ${VERSION} — evaluate key-minting"
-          # de-dup: skip if an open issue with this marker already exists
-          existing="$(gh issue list --state open --search 'in:title Official API app reached' --json number --jq 'length')"
+          # de-dup across ALL states (open OR closed): file at most ONE issue per
+          # app version. The old check looked only at OPEN issues, so once a
+          # maintainer CLOSED the tracking issue (evaluated + deferred) the next
+          # run re-filed a duplicate for the same version (#1341 closed → #1352).
+          # A genuinely new version has a different title, so it still files once.
+          existing="$(gh issue list --state all --search 'in:title Official API app reached' --json title --jq "[.[] | select(.title | contains(\"reached ${VERSION}\"))] | length")"
           if [ "$existing" != "0" ]; then
-            echo "Tracking issue already open — nothing to do."
+            echo "Tracking issue for ${VERSION} already exists (open or closed) — nothing to do."
             exit 0
           fi
           gh issue create --title "$title" --label "enhancement" --body "$(cat <<EOF
