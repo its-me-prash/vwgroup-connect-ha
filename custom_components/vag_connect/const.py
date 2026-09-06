@@ -280,6 +280,10 @@ CONF_SUPPLEMENTARY_AUTHPROXY         = "supplementary_authproxy"
 # read ONLY via entry.data (the options listener folds options → data, and
 # entry.options is always {} at read time — see [[vag-connect-entry-options-trap]]).
 CONF_TEST_COHORT                     = "test_cohort"
+# Opt-in (default OFF): auto-provision monthly utility_meter helpers (charged
+# energy kWh + odometer km) per vehicle. Persistent config-entry helpers the user
+# must remove themselves, so never created silently — see utility_meter.py.
+CONF_AUTO_UTILITY_METERS             = "auto_utility_meters"
 # v2.15.0b8 (C1) — supplementary EU Data Act PORTAL read channel (email/pw,
 # no OTP) merged onto a command-capable primary like MBB to fill the reads MBB
 # can't. Creds stored separately from the primary's (an MBB-QR entry has none).
