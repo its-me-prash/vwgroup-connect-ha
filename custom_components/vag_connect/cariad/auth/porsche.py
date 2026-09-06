@@ -61,7 +61,7 @@ import hashlib
 import logging
 import os
 import re
-from urllib.parse import parse_qs, urljoin
+from urllib.parse import parse_qs, urljoin, urlsplit
 
 from aiohttp import ClientTimeout, ClientSession
 
@@ -173,6 +173,17 @@ class PorscheAuth:
             allow_redirects=False,
         ) as resp:
             location = resp.headers.get("Location", "")
+        # b11 (#1337 Hollywoodchaos) — the Porsche auth path emitted zero log
+        # lines, so a user's debug capture showed nothing but the final warning.
+        # Log status + whether a redirect was handed back (hostnames/statuses
+        # only — never the URL query, code, state, e-mail or password).
+        _LOGGER.debug(
+            "Porsche auth: password POST → HTTP %s, %s",
+            resp.status,
+            "redirect handed back" if location
+            else "NO Location header (Auth0 rendered a page — likely a "
+                 "captcha/consent step the headless flow can't clear)",
+        )
 
         # Step 4: follow the Auth0 redirect chain to the code.
         #
@@ -220,9 +231,22 @@ class PorscheAuth:
                 headers={"User-Agent": _USER_AGENT},
                 allow_redirects=False,
             ) as resp:
+                # b11 (#1337) — trace each hop by host + status only (never the
+                # full URL, which carries state/code).
+                _LOGGER.debug(
+                    "Porsche auth: redirect hop → host=%s HTTP %s",
+                    urlsplit(target).hostname or "?", resp.status,
+                )
                 # A 200 here means Auth0 rendered a page instead of redirecting
                 # — typically the captcha/consent screen — so there is no code.
                 if resp.status not in (301, 302, 303, 307, 308):
+                    _LOGGER.debug(
+                        "Porsche auth: hop returned HTTP %s (a rendered page, not "
+                        "a redirect) — no authorization code. This is typically "
+                        "the captcha/consent screen the Porsche One migration "
+                        "requires, which the headless login cannot clear.",
+                        resp.status,
+                    )
                     return None
                 current_base = target
                 location = resp.headers.get("Location", "")

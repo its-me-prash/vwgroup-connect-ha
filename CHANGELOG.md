@@ -42,6 +42,130 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.0b15] - 2026-09-05 — Debug-log redaction + portal login-success hardening
+
+### Fixed
+- **Debug logs no longer leak login secrets.** On the legacy sign-in path, the OIDC redirect
+  hops were written to the debug log as truncated URLs — which still exposed the `code`
+  (authorization token) and `user_id` (account id) carried in the query string. They're now
+  logged as host + path only, so a debug log you paste into an issue stays clean. Thanks
+  @cyrano330 (#1340).
+
+### Changed
+- **The EU Data Act portal login now checks it actually authenticated.** "Landed on the portal"
+  was too weak a success test — a portal that signs you in anonymously (the shape of the
+  Audi/Škoda/Bentley brand-client bug) looked like success and only failed a call later. It now
+  catches an anonymous session at login time and shows the portal repair, so a future client
+  change surfaces clearly instead of as a silently empty feed. Thanks @cyrano330 (#1340).
+
+## [4.7.0b14] - 2026-09-05 — Audi/Škoda/Bentley EU Data Act fix + experimental automation triggers
+
+### Fixed
+- **Audi, Škoda and Bentley now actually read from the EU Data Act portal.** They were signing in
+  with the Volkswagen portal login, so the sign-in *looked* like it worked but the session stayed
+  anonymous and every data request came back empty (a hidden 401). Each brand now uses its own
+  portal login — the one the portal's per-brand sign-in actually expects — on both the cookie and
+  the token channel. Huge thanks to @cyrano330 for the root-cause trace (#1340).
+
+### Added
+- **Automations can now react to your car directly (experimental, opt-in).** New named
+  triggers — started/stopped charging, plugged in/unplugged, locked/unlocked, started/stopped
+  preconditioning, and charge target reached — plus matching conditions (is charging, is
+  plugged in, is locked, is preconditioning, charge target reached). They're derived purely
+  from data the integration already polls, so they add no extra API calls. This rides a Home
+  Assistant platform its own developers still flag as "may change without notice", so treat it
+  as a preview: it only registers on cores new enough to support it and quietly does nothing on
+  older ones.
+
+### Changed
+- **Clearer, safer "no data yet" portal help.** The EU Data Act repair guide now explains that the
+  portal keeps one active request *per car*: delete an older request only for the **same** vehicle,
+  and on a mixed passenger + commercial account keep each car's request under its own brand view
+  instead of deleting the other car's. In all 12 supported languages. Thanks @cyrano330 (#1340).
+- **Tidier, safer portal debug log.** The redacted 401 auth-state line (debug only) now masks the
+  UUID inside session-cookie names, logs once per setup instead of repeating, and adds a
+  portal-domain-cookies field that shows at a glance whether a failing request went out anonymous
+  or authenticated-but-refused. Thanks @cyrano330 (#1340).
+
+## [4.7.0b13] - 2026-09-04 — HA-near clean-up (quality + deprecations + a diagnostic)
+
+### Fixed
+- **The "portal session not authorised" repair no longer appears twice.** A b12 change
+  registered that repair through two code paths with mirrored ids (one of them mislabelled
+  as a generic authentication failure); it now registers exactly once, with the correct
+  brand-aware text. Thanks @cyrano330 (#1340).
+
+### Changed
+- **Quieter and more future-proof under the hood** (no user-visible change): the
+  conversation-agent tools are now namespaced (`vag_connect__…`) the way Home Assistant
+  2026.9 requires; the deprecated device-registry lookup was swapped for the entry-scoped
+  one (Home Assistant 2026.8+, with a fallback for older cores); and the "parallel updates"
+  quality rule is now declared where Home Assistant actually reads it.
+
+### Added
+- **A redacted portal-401 diagnostic** (debug-log only): when the EU Data Act portal rejects
+  the vehicle list after a successful login, turning on debug logging now records — names and
+  flags only, never any secret — whether the request went out authenticated or anonymous, to
+  help pin down the cause. Thanks @cyrano330 (#1340).
+
+## [4.7.0b12] - 2026-09-04 — Repair message + diagnostics fixes (EU Audi)
+
+### Fixed
+- **A post-login portal error no longer tells you to fix a correct password.** When an
+  EU Audi's login succeeds but the EU Data Act portal then rejects the vehicle list (a
+  401 *after* sign-in), the repair now says the portal session needs re-establishing —
+  instead of the misleading "invalid credentials". A genuine wrong password is still
+  reported as such. Thanks @cyrano330 (#1340).
+- **Downloading diagnostics no longer fails with a 500 when setup didn't complete.**
+  Exactly when the download is most useful — an entry stuck in `setup_error` — the
+  diagnostics handler used to error out. It now returns the redacted config plus a note
+  about the incomplete setup, so a failed setup can actually be triaged. Thanks
+  @cyrano330 (#1340).
+
+## [4.7.0b11] - 2026-09-04 — Škoda charge-current fix + quieter logs
+
+### Fixed
+- **Škoda "Max. charge current" no longer shows Unknown on cars without charging
+  profiles.** Some Škoda plug-in hybrids (e.g. an older Superb iV) report the max
+  charge current only as a plain MAXIMUM/REDUCED setting rather than via a charging
+  profile — and the dropdown only ever read the profile, so it sat at Unknown. It now
+  falls back to that plain setting. Thanks @n300home (#1343).
+
+### Changed
+- **The EU Data Act request kickoff no longer logs a scary "no data feed will start"
+  warning when a feed is actually live.** On accounts where the portal keeps the
+  session anonymous, the kickoff can't read its own request back and used to warn on
+  every restart even while data was flowing. That case is now a quiet INFO note; a
+  genuine request rejection (4xx) still warns. Nothing about the feed itself changed —
+  only the false alarm is gone. Thanks @steemandavid (#1273).
+- **The Porsche login now writes a redacted step-by-step debug trace.** Turning on
+  debug logging previously showed nothing at all for Porsche sign-in; it now logs each
+  redirect hop (host + status only — never the URL, code or credentials), so a failed
+  login capture actually reveals where it stops, which is usually Porsche's
+  captcha/consent page. Thanks @Hollywoodchaos (#1337).
+
+## [4.7.0b10] - 2026-09-04 — Auth resilience (preventive)
+
+### Fixed
+- **A brief VW sign-in server hiccup no longer forces a full re-login.** When the VW
+  identity server rejected a token refresh with a transient `invalid_client` (a known
+  wobble that clears itself), the integration used to bounce you straight to a re-login
+  prompt on the very first hit. It now treats that as transient and simply retries on the
+  next poll — exactly the way the QR and durable-MBB login paths already did. A genuinely
+  dead session still asks you to re-authenticate. Grounded against the cooperating
+  audi_connect project, which saw the same recurring server-side wobble.
+- **QR / passwordless logins can finally re-authenticate without deleting the car.** A
+  passwordless entry (browser-QR or durable-MBB) sent to the re-login prompt used to land
+  on a password form it could never satisfy — the only way out was removing and re-adding
+  the integration. Re-login now re-runs the QR sign-in and refreshes the existing car in
+  place.
+
+### Added
+- **A manual-entry fallback link on the browser-login screen.** VW's pre-filled sign-in
+  link occasionally shows an error page ("Provided request is invalid" or a 500); the
+  login notification now also gives you the plain sign-in URL to open and type the code
+  by hand.
+
 ## [4.7.0b9] - 2026-09-04 — Regression fix + portal reliability
 
 ### Fixed

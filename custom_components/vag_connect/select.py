@@ -129,6 +129,12 @@ def _normalise_raw_mode(raw: object) -> str | None:
     return _RAW_TO_CANONICAL.get(key)
 
 
+# b13 — platinum parallel-updates rule: the coordinator's background poll
+# loop owns every API request, so entity updates need no throttling. HA reads
+# this MODULE-level constant (an entity attr is a no-op).
+PARALLEL_UPDATES = 0
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -217,7 +223,13 @@ class VagSkodaChargeCurrentSelect(VagConnectEntity, SelectEntity):
     @property
     def current_option(self) -> str | None:
         """Return the current max-charging-current as a canonical key."""
-        return _normalise_skoda_current(self._vehicle.get("max_charging_current"))
+        # b11 (#1343) — profiles cars populate ``max_charging_current``; cars
+        # without any charging-profile fall back to the plain MAXIMUM/REDUCED
+        # enum captured from the charging-settings block.
+        return _normalise_skoda_current(
+            self._vehicle.get("max_charging_current")
+            or self._vehicle.get("max_charge_current_enum")
+        )
 
     async def async_select_option(self, option: str) -> None:
         """Set AC max charging current — maps canonical key to API enum."""

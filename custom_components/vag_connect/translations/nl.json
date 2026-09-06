@@ -1994,7 +1994,7 @@
     },
     "data_act_no_data": {
       "title": "EU Data Act-portaal: nog geen voertuiggegevens ({brand})",
-      "description": "Het EU Data Act-portaal is aangemeld voor {brand}, maar levert nog geen voertuiggegevens.\n\nDe integratie probeert het doorlopende gegevensverzoek automatisch voor je aan te maken, maar bij sommige accounts houdt het portaal de browsersessie anoniem — en dan kan het automatische verzoek (en de in-app-knop \"EU Data Act-gegevensverzoek aanmaken\") niet worden voltooid, dus moet je het verzoek zelf in het portaal aanmaken. De gebruikelijke oorzaken van een lege feed:\n\n1. **Eigendom/gebruikersrecht niet bevestigd voor deze auto.** Het portaal moet het eigendom (of gebruikersrecht) van je voertuig als bevestigd tonen. Als dat niet zo is, bevestig het daar dan eerst — noodzakelijk, maar op zichzelf niet altijd voldoende.\n2. **Toestemming voor gegevensdeling niet verleend voor deze auto.** Je verleent de EU Data Act-toestemming voor gegevensdeling één keer per voertuig. Zolang je dat niet doet, blijft het verzoek leeg.\n3. **Er bestaat nog geen doorlopend verzoek.** Als het automatisch aanmaken niet is gelukt, maak het dan zelf aan: voeg in het portaal een Custom Data Request toe met alle clusters aangevinkt op een frequentie van 15 minuten. De integratie pikt het bij de volgende polling op — geen herstart nodig.\n4. **De auto heeft nog niets nieuws verstuurd.** Een nieuwe dataset wordt pas gepubliceerd nadat de auto is gereden, opgeladen of vergrendeld/ontgrendeld, dus een nieuw verzoek kan er 15-60 minuten (of een korte rit) over doen om zich te vullen.\n5. **Een storing aan VW-zijde.** VW meldde een storing van het EU Data Act-portaal voor alle merken vanaf eind mei 2026; zolang die duurt levert het portaal voor elke tool lege gegevens, en herstelt het merk voor merk.\n6. **Of voeg het leeskanaal van de volkswagen.de-website toe.** In de opties van de integratie kun je het alleen-lezen volkswagen.de-websitekanaal als alternatieve bron toevoegen: het meldt zich aan op de volkswagen.de-website (niet de app-backend die de headless login blokkeert), en levert voor sommige auto's velden die de portaalfeed niet levert. Daarvoor moet je Volkswagen ID de bevestigde hoofdgebruiker van het voertuig zijn.\n\n**Snelste controle:** open `eu-data-act.drivesomethinggreater.com`, meld je aan en bevestig (a) dat eigendom/gebruikersrecht is bevestigd, (b) dat de toestemming voor gegevensdeling voor deze auto is verleend, en (c) dat er een actief doorlopend gegevensverzoek (van 15 minuten) is met alle clusters aangevinkt — maak het zelf aan als er geen bestaat. Als je daar ook geen gegevens ziet, ligt het aan de VW-zijde — dan kan deze integratie niets doen totdat VW het herstelt.\n\nDit is de alleen-lezen portaalbèta — de waarschuwing verdwijnt vanzelf zodra er gegevens binnenkomen."
+      "description": "Het EU Data Act-portaal is aangemeld voor {brand}, maar levert nog geen voertuiggegevens.\n\nDe integratie probeert het doorlopende gegevensverzoek automatisch voor je aan te maken, maar bij sommige accounts houdt het portaal de browsersessie anoniem — en dan kan het automatische verzoek (en de in-app-knop \"EU Data Act-gegevensverzoek aanmaken\") niet worden voltooid, dus moet je het verzoek zelf in het portaal aanmaken. De gebruikelijke oorzaken van een lege feed:\n\n1. **Eigendom/gebruikersrecht niet bevestigd voor deze auto.** Het portaal moet het eigendom (of gebruikersrecht) van je voertuig als bevestigd tonen. Als dat niet zo is, bevestig het daar dan eerst — noodzakelijk, maar op zichzelf niet altijd voldoende.\n2. **Toestemming voor gegevensdeling niet verleend voor deze auto.** Je verleent de EU Data Act-toestemming voor gegevensdeling één keer per voertuig. Zolang je dat niet doet, blijft het verzoek leeg.\n3. **Er bestaat nog geen doorlopend verzoek.** Als het automatisch aanmaken niet is gelukt, maak het dan zelf aan: voeg in het portaal een Custom Data Request toe met alle clusters aangevinkt op een frequentie van 15 minuten. **Verwijder eerst elk ouder verzoek voor precies deze auto** — het portaal staat maar één actief verzoek per voertuig toe, dus een ouder verzoek (bijvoorbeeld een maandelijks) voor deze auto blokkeert het nieuwe. Verwijder niet het verzoek van een andere auto: bij een gemengd account met personen- en bedrijfsvoertuigen behoudt elke auto zijn eigen verzoek onder zijn eigen gedeelte (personenauto's onder Volkswagen Personenkraftwagen, bestelwagens onder Volkswagen Nutzfahrzeuge). De integratie pikt het bij de volgende polling op — geen herstart nodig.\n4. **De auto heeft nog niets nieuws verstuurd.** Een nieuwe dataset wordt pas gepubliceerd nadat de auto is gereden, opgeladen of vergrendeld/ontgrendeld, dus een nieuw verzoek kan er 15-60 minuten (of een korte rit) over doen om zich te vullen.\n5. **Een storing aan VW-zijde.** VW meldde een storing van het EU Data Act-portaal voor alle merken vanaf eind mei 2026; zolang die duurt levert het portaal voor elke tool lege gegevens, en herstelt het merk voor merk.\n6. **Of voeg het leeskanaal van de volkswagen.de-website toe.** In de opties van de integratie kun je het alleen-lezen volkswagen.de-websitekanaal als alternatieve bron toevoegen: het meldt zich aan op de volkswagen.de-website (niet de app-backend die de headless login blokkeert), en levert voor sommige auto's velden die de portaalfeed niet levert. Daarvoor moet je Volkswagen ID de bevestigde hoofdgebruiker van het voertuig zijn.\n\n**Snelste controle:** open `eu-data-act.drivesomethinggreater.com`, meld je aan en bevestig (a) dat eigendom/gebruikersrecht is bevestigd, (b) dat de toestemming voor gegevensdeling voor deze auto is verleend, en (c) dat er een actief doorlopend gegevensverzoek (van 15 minuten) is met alle clusters aangevinkt — maak het zelf aan als er geen bestaat. Als je daar ook geen gegevens ziet, ligt het aan de VW-zijde — dan kan deze integratie niets doen totdat VW het herstelt.\n\nDit is de alleen-lezen portaalbèta — de waarschuwing verdwijnt vanzelf zodra er gegevens binnenkomen."
     },
     "data_act_browser_missing": {
       "description": "Je hebt de headless-browser-fallback voor het EU Data Act-portaal ingeschakeld, maar het Python-pakket `playwright` is niet geïnstalleerd in je Home Assistant-container.\n\n**Installeren:** open de shell van de HA-container (Add-ons → Terminal & SSH, of `docker exec` voor een handmatige installatie) en voer uit:\n\n```\npip install playwright\nplaywright install chromium\n```\n\nDe chromium-download is groot (ongeveer 100 MB), daarom is deze afhankelijkheid optioneel in plaats van meegeleverd met de integratie. Herstart Home Assistant na de installatie.\n\nJe kunt de schakelaar ook uitzetten via Instellingen → Apparaten & diensten → VW Group Connect → Configureren → 'EU Data Act-portaal: headless-browser-fallback'.",
@@ -2306,6 +2306,66 @@
         "official_only": "Alleen officiële API",
         "mysmob_only": "Alleen standaardkanaal"
       }
+    }
+  },
+  "triggers": {
+    "started_charging": {
+      "name": "Voertuig is begonnen met laden",
+      "description": "Wordt geactiveerd wanneer een voertuig begint met laden."
+    },
+    "stopped_charging": {
+      "name": "Voertuig is gestopt met laden",
+      "description": "Wordt geactiveerd wanneer een voertuig stopt met laden."
+    },
+    "plugged_in": {
+      "name": "Voertuig aangesloten",
+      "description": "Wordt geactiveerd wanneer de laadkabel van een voertuig wordt aangesloten."
+    },
+    "unplugged": {
+      "name": "Voertuig losgekoppeld",
+      "description": "Wordt geactiveerd wanneer de laadkabel van een voertuig wordt losgekoppeld."
+    },
+    "locked": {
+      "name": "Voertuig vergrendeld",
+      "description": "Wordt geactiveerd wanneer een voertuig wordt vergrendeld."
+    },
+    "unlocked": {
+      "name": "Voertuig ontgrendeld",
+      "description": "Wordt geactiveerd wanneer een voertuig wordt ontgrendeld."
+    },
+    "started_preconditioning": {
+      "name": "Voertuig is begonnen met voorconditioneren",
+      "description": "Wordt geactiveerd wanneer een voertuig begint met het voorconditioneren van het klimaat."
+    },
+    "stopped_preconditioning": {
+      "name": "Voertuig is gestopt met voorconditioneren",
+      "description": "Wordt geactiveerd wanneer een voertuig stopt met het voorconditioneren van het klimaat."
+    },
+    "charge_target_reached": {
+      "name": "Voertuig heeft zijn laaddoel bereikt",
+      "description": "Wordt geactiveerd wanneer het laadniveau van een voertuig zijn doel bereikt."
+    }
+  },
+  "conditions": {
+    "is_charging": {
+      "name": "Een voertuig laadt",
+      "description": "Test of een voertuig op dit moment laadt."
+    },
+    "is_plugged_in": {
+      "name": "Een voertuig is aangesloten",
+      "description": "Test of de laadkabel van een voertuig is aangesloten."
+    },
+    "is_locked": {
+      "name": "Een voertuig is vergrendeld",
+      "description": "Test of een voertuig is vergrendeld."
+    },
+    "is_preconditioning": {
+      "name": "Een voertuig is aan het voorconditioneren",
+      "description": "Test of een voertuig het klimaat aan het voorconditioneren is."
+    },
+    "is_charge_target_reached": {
+      "name": "Een voertuig heeft zijn laaddoel bereikt",
+      "description": "Test of het laadniveau van een voertuig op of boven zijn doel is."
     }
   }
 }

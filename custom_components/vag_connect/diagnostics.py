@@ -451,7 +451,24 @@ async def async_get_config_entry_diagnostics(
     surfaces 1-decimal-rounded coords (~11 km bucket — useful for
     debug, still privacy-safe). Otherwise full removal.
     """
-    coordinator: VagConnectCoordinator = entry.runtime_data
+    # b12 (#1340 @cyrano330) — on setup_error the entry never reached LOADED, so
+    # entry.runtime_data is still None. Every coordinator.* deref below (first:
+    # coordinator.vehicles.items()) would AttributeError → the diagnostics HTTP
+    # view turns that into a 500, exactly when the download is most useful for
+    # triaging a failed setup. Return the redacted config + a note instead.
+    coordinator: VagConnectCoordinator | None = getattr(entry, "runtime_data", None)
+    if coordinator is None:
+        return {
+            "note": (
+                "Setup did not complete for this config entry: the coordinator "
+                "(entry.runtime_data) is unavailable, so only the redacted config "
+                "and options are included. See Settings > Devices & Services for "
+                "the exact setup error / reauth prompt."
+            ),
+            "entry_state": str(getattr(entry, "state", "unknown")),
+            "config": _scrub(dict(entry.data), gps_round=False),
+            "options": _scrub(dict(entry.options), gps_round=False),
+        }
 
     # GPS-rounding opt-in — same signal as the reverse-geocoding toggle.
     gps_round = bool(

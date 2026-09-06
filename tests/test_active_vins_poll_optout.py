@@ -24,6 +24,7 @@ def _coord():
 
     c = VagConnectCoordinator.__new__(VagConnectCoordinator)
     c.hass = MagicMock()
+    c.entry = MagicMock()  # b13 — _lookup_own_device reads self.entry.entry_id
     return c
 
 
@@ -32,8 +33,10 @@ def _registry(disabled: set[str], missing: set[str] = frozenset()):
 
     reg = MagicMock()
 
-    def _get(identifiers):
-        (_domain, vin), = identifiers
+    # b13 — coordinator now looks up via the entry-scoped
+    # async_get_device_by_identifier(identifier_tuple, config_entry_id).
+    def _get(identifier, _entry_id):
+        _domain, vin = identifier
         if vin in missing:
             return None
         dev = MagicMock()
@@ -42,7 +45,7 @@ def _registry(disabled: set[str], missing: set[str] = frozenset()):
         dev.disabled_by = dr.DeviceEntryDisabler.USER if vin in disabled else None
         return dev
 
-    reg.async_get_device.side_effect = _get
+    reg.async_get_device_by_identifier.side_effect = _get
     return reg
 
 
@@ -84,8 +87,8 @@ def test_system_disabled_device_is_still_polled():
 
     reg = MagicMock()
 
-    def _get(identifiers):
-        (_domain, vin), = identifiers
+    def _get(identifier, _entry_id):
+        _domain, vin = identifier
         dev = MagicMock()
         dev.disabled_by = {
             "VIN_USER": dr.DeviceEntryDisabler.USER,
@@ -94,7 +97,7 @@ def test_system_disabled_device_is_still_polled():
         }.get(vin)
         return dev
 
-    reg.async_get_device.side_effect = _get
+    reg.async_get_device_by_identifier.side_effect = _get
     c = _coord()
     with patch(f"{_MOD}.dr.async_get", return_value=reg):
         # only the user-disabled one drops; integration/config-entry keep polling

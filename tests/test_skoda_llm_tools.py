@@ -48,9 +48,9 @@ def _hass(service_result: dict | None = None) -> MagicMock:
 def test_tool_classes_names_and_services() -> None:
     names = {c.name: c._service for c in vag_llm._TOOL_CLASSES}
     assert names == {
-        "skoda_ask_assistant": "ask_assistant",
-        "skoda_send_destination": "send_destination",
-        "skoda_set_location_target_soc": "set_location_target_soc",
+        "vag_connect__skoda_ask_assistant": "ask_assistant",
+        "vag_connect__skoda_send_destination": "send_destination",
+        "vag_connect__skoda_set_location_target_soc": "set_location_target_soc",
     }
     # only the advisory tool asks for a response payload
     ask = vag_llm.AskAssistantTool
@@ -104,15 +104,15 @@ async def test_custom_api_instance_exposes_all_tools() -> None:
     api = vag_llm.VagConnectLLMAPI(hass=MagicMock(), id=DOMAIN, name="VW Group Connect")
     inst = await api.async_get_api_instance(_ctx())
     assert {t.name for t in inst.tools} == {
-        "skoda_ask_assistant",
-        "skoda_send_destination",
-        "skoda_set_location_target_soc",
+        "vag_connect__skoda_ask_assistant",
+        "vag_connect__skoda_send_destination",
+        "vag_connect__skoda_set_location_target_soc",
     }
     expected = getattr(llm, "selector_serializer", None) or getattr(
         llm, "_selector_serializer", None
     )
     assert inst.custom_serializer == expected
-    assert "skoda_ask_assistant" in inst.api_prompt
+    assert "vag_connect__skoda_ask_assistant" in inst.api_prompt
 
 
 def test_platform_hook_is_inert_for_non_assist_api() -> None:

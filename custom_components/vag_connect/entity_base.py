@@ -56,8 +56,10 @@ _CONNECTION_STATUS_KEYS = frozenset({
 class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
     """Base entity shared by all VW Group Connect platforms.
 
-    parallel_updates=0: the coordinator's background poll loop owns all API
-    calls.  HA entities never initiate requests directly.
+    Parallel updates: the coordinator's background poll loop owns all API
+    calls, so entity updates need no throttling. HA reads that from a
+    MODULE-level ``PARALLEL_UPDATES = 0`` in each platform file (an entity
+    attribute is a no-op), so it is declared there, not here.
 
     available: per-VIN — entity is unavailable when its vehicle's last poll
     failed, even if other vehicles in the same account succeeded.
@@ -73,7 +75,6 @@ class VagConnectEntity(CoordinatorEntity[VagConnectCoordinator]):
     """
 
     _attr_has_entity_name = True
-    _attr_parallel_updates = 0  # coordinator owns all API requests
     # v1.9.1 — set on subclasses that map 1:1 to a coordinator command.
     # ``None`` means "not a command-bound entity, never use Phase-2 gating".
     _command_id: str | None = None

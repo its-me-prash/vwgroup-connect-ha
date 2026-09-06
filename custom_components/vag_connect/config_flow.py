@@ -371,6 +371,16 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         # Populated by Phase 1, displayed during Phase 2.
         self._dag_user_code: str = ""
         self._dag_verification_uri: str = ""
+        # b10 (#835) — the plain verification_uri (no ``?user_code=`` prefill).
+        # VW's prefilled ``verification_uri_complete`` intermittently 500s /
+        # returns INVALID_REQUEST; the plain page keeps working, so we surface it
+        # as a manual-entry fallback in the login notification.
+        self._dag_verification_uri_plain: str = ""
+        # b10 (#845/#835) — passwordless (device_grant / durable-MBB) reauth:
+        # when set, the shared QR finish updates the EXISTING entry's tokens
+        # in place instead of creating a new entry.
+        self._reauth_qr: bool = False
+        self._reauth_qr_entry_id: str = ""
         self._dag_device_code: str = ""
         self._dag_poll_interval: int = 5
         self._dag_expires_in: int = 300
@@ -1395,6 +1405,19 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             f"**4. Go back to Settings > Devices & Services** and "
             f"click Submit / Weiter in the VW Group Connect dialog."
         )
+        # b10 (#835) — manual-entry fallback: VW's prefilled link above
+        # intermittently returns an error page ("Provided request is invalid" /
+        # HTTP 500). The plain sign-in page keeps working, so offer it with the
+        # code to type by hand.
+        if (
+            self._dag_verification_uri_plain
+            and self._dag_verification_uri_plain != self._dag_verification_uri
+        ):
+            message += (
+                f"\n\n_If the link above shows an error page, open_ "
+                f"{self._dag_verification_uri_plain} _and enter the code_ "
+                f"`{self._dag_user_code}` _by hand._"
+            )
         pn_create(
             self.hass,
             message,
@@ -1498,6 +1521,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             self._dag_device_code = code.device_code
             self._dag_user_code = code.user_code
             self._dag_verification_uri = code.verification_uri_complete
+            self._dag_verification_uri_plain = code.verification_uri
             self._dag_poll_interval = code.interval
             self._dag_expires_in = code.expires_in
             _LOGGER.debug(
@@ -1606,6 +1630,12 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         if self._dag_tokens is None:
             # Shouldn't happen if step routing is correct, but defensive.
             return self.async_abort(reason="dag_no_tokens")
+
+        # b10 (#845/#835) — passwordless reauth: the QR was re-run to refresh an
+        # EXISTING entry's tokens. Update it in place and stop here, BEFORE any of
+        # the create/dedup branches below (which stay untouched for fresh setup).
+        if self._reauth_qr:
+            return await self._finish_reauth_qr()
 
         # b15 — device-grant Audi command FALLBACK: the MBB QR just minted the
         # durable Car-Net bearer; attach it to an EXISTING device-grant Audi entry
@@ -1813,6 +1843,17 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             self.context["entry_id"]
         )
 
+        # b10 (#845/#835) — passwordless (device_grant / durable-MBB) entries have
+        # no stored password (username is the BrandID `sub`), so the credential
+        # form below can never succeed for them and leaves the user stuck. Route
+        # them to re-run the QR sign-in, which updates the entry's tokens in place.
+        if (
+            reauth_entry is not None
+            and reauth_entry.data.get("dag_initial_tokens")
+            and not reauth_entry.data.get(CONF_PASSWORD)
+        ):
+            return await self.async_step_reauth_qr()
+
         if user_input is not None and reauth_entry is not None:
             brand    = reauth_entry.data[CONF_BRAND]
             username = reauth_entry.data[CONF_USERNAME]
@@ -1849,6 +1890,109 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 "username": reauth_entry.data.get(CONF_USERNAME, "") if reauth_entry else "",
             },
         )
+
+    async def async_step_reauth_qr(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """b10 (#845/#835) — passwordless reauth via the QR device grant.
+
+        A device_grant / durable-MBB entry has no stored password, so reauth
+        re-runs the same QR sign-in machinery as setup. ``_reauth_qr`` makes the
+        shared finish step update THIS entry's tokens in place (see
+        ``_finish_reauth_qr``) instead of creating a second entry.
+        """
+        reauth_entry = self.hass.config_entries.async_get_entry(
+            self.context["entry_id"]
+        )
+        if reauth_entry is None:
+            return self.async_abort(reason="reconfigure_failed")
+        strategy = (reauth_entry.data.get("dag_initial_tokens") or {}).get(
+            "strategy", "device_grant"
+        )
+        # Mirror the state async_step_browser_login / async_step_mbb_login set
+        # before handing off to the shared pending → approve → finish steps.
+        self._reauth_qr = True
+        self._reauth_qr_entry_id = reauth_entry.entry_id
+        self._dag_mbb = strategy == "mbb"
+        self._dag_mbb_fallback = False
+        self._dag_mbb_command = False
+        self._dag_brand = reauth_entry.data.get(CONF_BRAND, "")
+        self._dag_user_input = dict(reauth_entry.data)
+        self._dag_request_task = None
+        self._dag_poll_task = None
+        self._dag_user_code = ""
+        self._dag_verification_uri = ""
+        self._dag_device_code = ""
+        self._dag_tokens = None
+        self._dag_mbb_tokens = None
+        self._dag_mbb_client_id = ""
+        self._dag_mbb_ineligible = False
+        self._dag_user_id = ""
+        self._dag_error = ""
+        return await self.async_step_browser_login_pending()
+
+    async def _finish_reauth_qr(self) -> config_entries.ConfigFlowResult:
+        """b10 — write the freshly-minted QR tokens onto the existing entry.
+
+        The coordinator prefers the persisted token store over
+        ``dag_initial_tokens`` (it only reads dag_initial_tokens when the store is
+        empty), so a reauth MUST overwrite the persisted store — otherwise the
+        reload would re-load the dead tokens and the reauth would no-op. Overwrite
+        both the store and dag_initial_tokens, then reload the entry.
+        """
+        from homeassistant.helpers.storage import Store  # noqa: PLC0415
+
+        from .cariad.auth._token_storage import (  # noqa: PLC0415
+            _STORAGE_VERSION,
+            TokenStorage,
+            storage_key_for_entry,
+        )
+        from .cariad.models import TokenSet  # noqa: PLC0415
+
+        entry = self.hass.config_entries.async_get_entry(
+            self._reauth_qr_entry_id or ""
+        )
+        if entry is None:
+            return self.async_abort(reason="reconfigure_failed")
+        if self._dag_tokens is None:
+            return self.async_abort(reason="dag_no_tokens")
+        if self._dag_mbb:
+            if self._dag_mbb_tokens is None:
+                return self.async_abort(reason="mbb_not_eligible")
+            fresh = TokenSet(
+                access_token=self._dag_mbb_tokens.access_token,
+                refresh_token=self._dag_mbb_tokens.refresh_token,
+                id_token=self._dag_tokens.id_token,
+                expires_at=self._dag_mbb_tokens.expires_at,
+                strategy="mbb",
+            )
+        else:
+            fresh = TokenSet(
+                access_token=self._dag_tokens.access_token,
+                refresh_token=self._dag_tokens.refresh_token,
+                id_token=self._dag_tokens.id_token,
+                expires_at=self._dag_tokens.expires_at,
+                strategy="device_grant",
+            )
+        store: Store[dict[str, Any]] = Store(
+            self.hass, _STORAGE_VERSION, storage_key_for_entry(entry.entry_id)
+        )
+        await TokenStorage(store).save(fresh)
+        new_data = {
+            **entry.data,
+            "dag_initial_tokens": {
+                "access_token": fresh.access_token,
+                "refresh_token": fresh.refresh_token,
+                "id_token": fresh.id_token,
+                "expires_at": fresh.expires_at,
+                "strategy": fresh.strategy,
+            },
+        }
+        if self._dag_mbb and self._dag_mbb_client_id:
+            new_data["mbb_client_id"] = self._dag_mbb_client_id
+        self.hass.config_entries.async_update_entry(entry, data=new_data)
+        await self.hass.config_entries.async_reload(entry.entry_id)
+        return self.async_abort(reason="reauth_successful")
 
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None

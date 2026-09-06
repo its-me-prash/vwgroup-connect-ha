@@ -12,6 +12,7 @@ Thread safety:
 """
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import logging
@@ -1072,6 +1073,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # and the diagnostics export size stay predictable.
         self.error_buffer: ErrorRingBuffer = ErrorRingBuffer()
 
+        # b14 (experimental) — state-transition detector feeding the named-trigger
+        # platform (trigger.py). No-op until a trigger subscribes; fed ONLY on the
+        # real data push (async_set_updated_data(data), not the optimistic echoes).
+        from .trigger_detect import VehicleTransitionDetector  # noqa: PLC0415
+
+        self._transition_detector = VehicleTransitionDetector()
+
         # update_interval=None: no HA-level polling
         # Updates arrive reactively via _on_cc_update → async_set_updated_data
         super().__init__(
@@ -1082,6 +1090,16 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             update_interval=None,
         )
 
+    def register_transition_listener(
+        self,
+        event_key: str,
+        vin: str | None,
+        callback: Callable[[dict[str, Any]], None],
+    ) -> Callable[[], None]:
+        """b14 (experimental) — subscribe to a vehicle state-transition event
+        (e.g. ``started_charging``), optionally scoped to one VIN. Used by the
+        named-trigger platform; returns an unsubscribe callable."""
+        return self._transition_detector.register(event_key, vin, callback)
 
     async def async_setup(self) -> bool:
         """Authenticate and fetch initial vehicle data via own CARIAD client."""
@@ -1091,6 +1109,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             AuthenticationError,
             EmailTwoFactorRequiredError,
             PortalInteractionRequiredError,
+            PortalSessionExpiredError,
             TermsAndConditionsError,
             MarketingConsentError,
             TwoFactorRequiredError,
@@ -1732,6 +1751,26 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # get told to fix their password.
         except PortalInteractionRequiredError as err:
             raise ValueError("portal_interaction_required") from err
+        except PortalSessionExpiredError as err:
+            # b12 (#1340 @cyrano330) — login succeeded but the portal returned 401
+            # on enumeration even after a re-login: the password is fine, so raise
+            # the brand-aware session-expired repair (re-login via OptionsFlow),
+            # the same one the runtime poll paths use, instead of the credential
+            # catch-all. Raise ConfigEntryNotReady DIRECTLY (soft, retrying — the
+            # portal session may recover) rather than ValueError: routing via
+            # ValueError would ALSO fire __init__.raise_issue_auth_required, which
+            # has no mapping for this reason and would register a SECOND, generic
+            # "auth_failed" repair with a mirrored id — the user then sees the
+            # repair twice (b12b, spotted by @cyrano330).
+            from homeassistant.exceptions import (  # noqa: PLC0415
+                ConfigEntryNotReady,
+            )
+
+            self._raise_data_act_session_expired_repair()
+            raise ConfigEntryNotReady(
+                "The EU Data Act portal signed you in but then refused the "
+                "vehicle list (session not authorised) — see the repair notice."
+            ) from err
         except AuthenticationError as err:
             raise ValueError("invalid_credentials") from err
         except Exception as err:  # noqa: BLE001
@@ -4418,6 +4457,23 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # Truly unavailable — past tolerance and stale-cache window.
         return False
 
+    def _lookup_own_device(
+        self, registry: dr.DeviceRegistry, vin: str
+    ) -> dr.DeviceEntry | None:
+        """Look up our own vehicle device by VIN, entry-scoped.
+
+        b13 — ``device_registry.async_get_device(identifiers=...)`` is deprecated
+        (HA 2026.9, breaks 2027.8) because identifiers are no longer unique across
+        config entries. ``async_get_device_by_identifier((domain, vin), entry_id)``
+        (HA 2026.8+) scopes to THIS entry — strictly correct for our own device.
+        getattr-guarded so pre-2026.8 cores fall back to the old method.
+        """
+        getter = getattr(registry, "async_get_device_by_identifier", None)
+        if getter is not None:
+            found: dr.DeviceEntry | None = getter((DOMAIN, vin), self.entry.entry_id)
+            return found
+        return registry.async_get_device(identifiers={(DOMAIN, vin)})
+
     def _active_vins(self, vins: list[str]) -> list[str]:
         """Drop VINs whose HA device *the user* disabled, so a deactivated
         vehicle stops being polled and stops consuming the daily request budget.
@@ -4442,7 +4498,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         active = [
             vin
             for vin in vins
-            if (dev := registry.async_get_device(identifiers={(DOMAIN, vin)})) is None
+            if (dev := self._lookup_own_device(registry, vin)) is None
             or dev.disabled_by != dr.DeviceEntryDisabler.USER
         ]
         if len(active) != len(vins):
@@ -5625,6 +5681,16 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # Remove devices for VINs no longer present in the account
             await self._async_remove_stale_devices(set(data.keys()))
 
+            # b14 (experimental) — feed the state-transition detector ONLY here,
+            # on a real data push. The 5 optimistic-echo async_set_updated_data(
+            # dict(self.vehicles)) calls must NOT feed it (they'd fire phantom
+            # transitions on a command echo). No-op unless a trigger subscribed.
+            # getattr-guarded: the hook is purely additive, so a coordinator built
+            # without __init__ (test __new__ path) simply skips it.
+            _detector = getattr(self, "_transition_detector", None)
+            if _detector is not None:
+                _detector.feed(data)
+
             self.async_set_updated_data(data)
             _LOGGER.debug("VW Group Connect: pushed %d vehicle(s) to HA", len(data))
         else:
@@ -5661,9 +5727,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         previous_vins = set(self.data.keys()) - {"_meta"}
 
         for stale_vin in previous_vins - current_vins:
-            device_entry = device_reg.async_get_device(
-                identifiers={(DOMAIN, stale_vin)}
-            )
+            device_entry = self._lookup_own_device(device_reg, stale_vin)
             if device_entry is not None:
                 _LOGGER.warning(
                     "VW Group Connect: vehicle %s removed from account — "

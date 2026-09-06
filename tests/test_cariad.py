@@ -3014,11 +3014,17 @@ class TestIDKAuthAdditional:
         with pytest.raises(UpstreamUnavailableError, match="503"):
             asyncio.run(auth.refresh("old_token"))
 
-    def test_refresh_non_200_non_5xx_raises_auth(self):
-        """A non-200 that is neither 400 nor a 5xx (e.g. 401) is still a genuine
-        auth failure and must raise AuthenticationError."""
+    def test_refresh_401_is_retryable_not_auth(self):
+        """b10 — a 401 ``invalid_client`` on refresh is a transient client-auth
+        wobble, NOT a dead grant (that is 400 → TokenExpiredError). It must raise
+        TokenRefreshRetryError so the coordinator self-heals next poll instead of
+        hard-bouncing the user into reauth — matching our device-grant/MBB refresh
+        siblings and the audi_connect #835/#840/#843 finding. A 403 still raises
+        AuthenticationError (see below); only 401 is the evidenced-transient case."""
         from custom_components.vag_connect.cariad.auth.idk import IDKAuth
-        from custom_components.vag_connect.cariad.exceptions import AuthenticationError
+        from custom_components.vag_connect.cariad.exceptions import (
+            TokenRefreshRetryError,
+        )
         from custom_components.vag_connect.cariad.models import BRAND_SKODA
 
         oidc = self._resp(200, json_data={"token_endpoint": "https://idp/token"})
@@ -3027,7 +3033,23 @@ class TestIDKAuthAdditional:
         session.get = MagicMock(return_value=oidc)
         session.post = MagicMock(return_value=bad)
         auth = IDKAuth(session, BRAND_SKODA)
-        with pytest.raises(AuthenticationError, match="401"):
+        with pytest.raises(TokenRefreshRetryError):
+            asyncio.run(auth.refresh("old_token"))
+
+    def test_refresh_403_still_raises_auth(self):
+        """b10 — only 401 flips to transient; 403 (and any other non-200) stays a
+        genuine AuthenticationError, unchanged from #438."""
+        from custom_components.vag_connect.cariad.auth.idk import IDKAuth
+        from custom_components.vag_connect.cariad.exceptions import AuthenticationError
+        from custom_components.vag_connect.cariad.models import BRAND_SKODA
+
+        oidc = self._resp(200, json_data={"token_endpoint": "https://idp/token"})
+        bad = self._resp(403, text="Forbidden")
+        session = MagicMock()
+        session.get = MagicMock(return_value=oidc)
+        session.post = MagicMock(return_value=bad)
+        auth = IDKAuth(session, BRAND_SKODA)
+        with pytest.raises(AuthenticationError, match="403"):
             asyncio.run(auth.refresh("old_token"))
 
     def test_idk_auth_hmac_extraction_from_js(self):
@@ -3683,6 +3705,9 @@ class TestStaleDevices:
         mock_device = MagicMock()
         mock_device.id = "device_old"
         mock_reg = MagicMock()
+        # b13 — coordinator now looks up via the entry-scoped
+        # async_get_device_by_identifier (with a getattr fallback to the old one).
+        mock_reg.async_get_device_by_identifier = MagicMock(return_value=mock_device)
         mock_reg.async_get_device = MagicMock(return_value=mock_device)
         mock_reg.async_remove_device = MagicMock()
 
@@ -3709,6 +3734,7 @@ class TestStaleDevices:
         coord.data = {"VIN_OLD": {}}
 
         mock_reg = MagicMock()
+        mock_reg.async_get_device_by_identifier = MagicMock(return_value=None)
         mock_reg.async_get_device = MagicMock(return_value=None)  # not found
 
         with patch("homeassistant.helpers.device_registry.async_get", return_value=mock_reg):
