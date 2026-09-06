@@ -1738,6 +1738,9 @@
       },
       "data_source": {
         "name": "Quelle: {source}"
+      },
+      "data_stale": {
+        "name": "Daten veraltet"
       }
     },
     "switch": {
@@ -1940,6 +1943,27 @@
     }
   },
   "issues": {
+    "skoda_official_manual_key": {
+      "title": "Škoda offizielle API — API-Schlüssel hinzufügen",
+      "fix_flow": {
+        "step": {
+          "enter_key": {
+            "title": "MyŠkoda API-Schlüssel hinzufügen",
+            "description": "Home Assistant konnte für dieses Auto nicht automatisch einen offiziellen Škoda API-Schlüssel erstellen. Erstelle einen in der MyŠkoda App, wähle dann das Fahrzeug und füge den Schlüssel hier ein. Die automatische Erstellung läuft im Hintergrund weiter — das hier ist nur die manuelle Alternative.",
+            "data": {
+              "vin": "Fahrzeug",
+              "api_key": "MyŠkoda API-Schlüssel (beginnt mit msk_)"
+            }
+          }
+        },
+        "error": {
+          "key_required": "Bitte füge deinen MyŠkoda API-Schlüssel ein."
+        },
+        "abort": {
+          "entry_gone": "Dieser Integrationseintrag existiert nicht mehr."
+        }
+      }
+    },
     "invalid_credentials": {
       "title": "Anmeldung fehlgeschlagen — {brand}",
       "description": "Home Assistant konnte sich nicht bei deinem {brand}-Konto anmelden — meist ein falsches oder geändertes Passwort, aber eine vorübergehende Sperre kann gleich aussehen.\n\nEinstellungen → Geräte & Dienste → VW Group Connect → ⋮ → Neu konfigurieren, um die Zugangsdaten erneut einzugeben."

@@ -59,7 +59,12 @@ def _refresh_error(status: int, body: str, retryable: bool) -> Exception:
             err_code = str(json.loads(body).get("error", ""))
     except (ValueError, AttributeError):
         err_code = ""
-    msg = f"MBB token exchange HTTP {status}: {body[:400]}"
+    # Redaction (#1355): NEVER interpolate the raw token-endpoint body — a
+    # response body can carry credential material. Surface the HTTP status plus
+    # the parsed OAuth ``error`` code only.
+    msg = f"MBB token exchange HTTP {status}"
+    if err_code:
+        msg += f" (error={err_code})"
     if retryable and err_code not in _HARD_REFRESH_ERRORS:
         return TokenRefreshRetryError(msg)
     return AuthenticationError(msg)
@@ -343,18 +348,35 @@ async def register(
         ) as resp:
             text = await resp.text()
             if resp.status not in (200, 201):
-                raise AuthenticationError(
-                    f"MBB register HTTP {resp.status}: {text[:200]}"
-                )
+                # Redaction (#1355): never echo the register body — surface the
+                # status plus the parsed error code only.
+                err_code = ""
+                try:
+                    err_code = str(json.loads(text).get("error", ""))
+                except (ValueError, AttributeError):
+                    err_code = ""
+                msg = f"MBB register HTTP {resp.status}"
+                if err_code:
+                    msg += f" (error={err_code})"
+                raise AuthenticationError(msg)
             try:
                 payload = json.loads(text)
             except ValueError as exc:
+                # Redaction (#1355): the status already passed the 2xx check, so
+                # ``text`` is a SUCCESSFUL register body — it carries the
+                # per-device client_id/secret. Log only that it was non-JSON and
+                # its length; never the body itself.
                 raise AuthenticationError(
-                    f"MBB register response not JSON: {text[:120]}"
+                    f"MBB register response not JSON "
+                    f"(HTTP {resp.status}, {len(text)} bytes)"
                 ) from exc
             return payload.get("client_id"), payload.get("client_secret")
     except ClientError as exc:
-        raise AuthenticationError(f"MBB register failed: {exc}") from exc
+        # Redaction (#1355): an aiohttp ClientError stringifies to the offending
+        # request URL — log the exception type name only.
+        raise AuthenticationError(
+            f"MBB register failed: {type(exc).__name__}"
+        ) from exc
 
 
 async def mint_mbb_bearer(

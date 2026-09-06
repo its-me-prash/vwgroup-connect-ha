@@ -58,6 +58,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import json
 import logging
 import os
 import re
@@ -93,6 +94,23 @@ def _pkce() -> tuple[str, str]:
     digest   = hashlib.sha256(verifier.encode()).digest()
     challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
     return verifier, challenge
+
+
+def _oauth_error_code(body: str) -> str:
+    """Best-effort OAuth ``error`` code from a token-endpoint body.
+
+    Redaction helper (#1355): the raw Auth0 token-endpoint body can echo
+    request context / secrets, so it must never reach an exception message a
+    tester copy-pastes. Return only the standardized short ``error`` code
+    (e.g. ``invalid_grant``) — never the raw body or ``error_description``.
+    """
+    try:
+        parsed = json.loads(body)
+    except (ValueError, TypeError):
+        return "non-JSON body"
+    if isinstance(parsed, dict) and parsed.get("error"):
+        return str(parsed["error"])
+    return "no error field"
 
 
 class PorscheAuth:
@@ -289,7 +307,10 @@ class PorscheAuth:
         ) as resp:
             if resp.status != 200:
                 body = await resp.text()
-                raise AuthenticationError(f"Porsche token exchange failed {resp.status}: {body[:200]}")
+                raise AuthenticationError(
+                    f"Porsche token exchange failed {resp.status}: "
+                    f"{_oauth_error_code(body)}"
+                )
             data = await resp.json()
 
         return TokenSet(
@@ -416,7 +437,7 @@ class PorscheOneDeviceAuth:
                 body = await resp.text()
                 raise AuthenticationError(
                     f"Porsche One device authorization failed "
-                    f"({resp.status}): {body[:200]}"
+                    f"({resp.status}): {_oauth_error_code(body)}"
                 )
             data = await resp.json()
         if "device_code" not in data or "user_code" not in data:
@@ -486,7 +507,8 @@ class PorscheOneDeviceAuth:
             if resp.status != 200:
                 body = await resp.text()
                 raise AuthenticationError(
-                    f"Porsche One refresh failed ({resp.status}): {body[:200]}"
+                    f"Porsche One refresh failed ({resp.status}): "
+                    f"{_oauth_error_code(body)}"
                 )
             data = await resp.json()
         return TokenSet(

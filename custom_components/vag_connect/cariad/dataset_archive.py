@@ -104,7 +104,7 @@ class DatasetArchive:
             vdir = self.vin_dir(vin)
             vdir.mkdir(parents=True, exist_ok=True)
         except OSError as exc:  # pragma: no cover - unusual FS failure
-            _LOGGER.debug("dataset archive: cannot create dir: %s", exc)
+            _LOGGER.debug("dataset archive: cannot create dir: %s", type(exc).__name__)
             return None
 
         tag = _content_tag(data)
@@ -121,7 +121,7 @@ class DatasetArchive:
         try:
             path.write_bytes(data)
         except OSError as exc:
-            _LOGGER.debug("dataset archive: write failed: %s", exc)
+            _LOGGER.debug("dataset archive: write failed: %s", type(exc).__name__)
             return None
         self._prune(vdir)
         return path

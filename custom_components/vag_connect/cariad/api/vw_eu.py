@@ -482,15 +482,16 @@ class VWEUClient(CariadBaseClient):
 
         vins = [v["vin"] for v in supported if v.get("vin")]
         if vehicles:
+            # field NAMES only — values can carry the VIN/nickname (PII); the
+            # debug intent is "which keys did CARIAD return".
             _LOGGER.debug(
                 "VAG vehicles raw fields (first car): %s",
-                {k: str(v)[:40] for k, v in vehicles[0].items()
-                 if k not in ("vin",)},
+                sorted(vehicles[0].keys()),
             )
         _LOGGER.debug(
             "Found %d vehicle(s): %s",
             len(vins),
-            {k: m["model"] for k, m in self._vehicle_metadata.items()},
+            {k[-6:]: m["model"] for k, m in self._vehicle_metadata.items()},
         )
 
         # v2.1.0 — HomeRegion full wire-in. Resolve per-VIN base URLs
@@ -777,7 +778,10 @@ class VWEUClient(CariadBaseClient):
             # attestation/ACL-closed (403 XID_APP_VW) for VW EU passenger cars
             # post-lockdown. Log at debug so a #923-class diagnostic shows the
             # attempt+failure instead of a silent gap.
-            _LOGGER.debug("parkingposition fetch failed for %s: %s", vin[-6:], exc)
+            _LOGGER.debug(
+                "parkingposition fetch failed for %s: %s",
+                vin[-6:], type(exc).__name__,
+            )
 
         # v2.7.0b11 — Trip statistics (separate endpoint, shortTerm/longTerm/
         # cyclic). Lifetime and last-trip stats live here, NOT in
@@ -799,7 +803,10 @@ class VWEUClient(CariadBaseClient):
             with self._parser_job("battery_health"):
                 soh_raw = await self._get(url, params={"jobs": "batteryHealthState"})
         except Exception as exc:  # noqa: BLE001
-            _LOGGER.debug("batteryHealthState fetch failed for %s: %s", vin[-6:], exc)
+            _LOGGER.debug(
+                "batteryHealthState fetch failed for %s: %s",
+                vin[-6:], type(exc).__name__,
+            )
 
         d = self._parse_status(vin, raw, parking)
         self._parse_trip_statistics(d, trip_short, trip_long)
@@ -1381,9 +1388,10 @@ class VWEUClient(CariadBaseClient):
                     self._mbb_backend_cache.set(vin, "cariad")
                 return
             except APIError as err:
-                # APIError's message includes body[:200]; use str(err) for the
-                # wrapper-404 marker detection (no separate .body attribute).
-                if is_cariad_wrapper_404(str(err)):
+                # Marker lives in the response body. APIError's message is now
+                # redacted (body stripped, #1355) but keeps the raw body as an
+                # attribute — read that (fall back to the message for safety).
+                if is_cariad_wrapper_404(f"{getattr(err, 'body', '')} {err}"):
                     break  # whole vehicle speaks MBB → switch to the legacy stack
                 if (
                     getattr(err, "status", None) == 404
@@ -1836,9 +1844,10 @@ class VWEUClient(CariadBaseClient):
                 resp = await self._mbb_get(url)
             except APIError as err:
                 last_status = err.status
+                # body dropped — an MBB error body can echo the VIN; status is enough.
                 _LOGGER.warning(
-                    "MBB enum %s /%s → HTTP %s: %s",
-                    host_label, country, err.status, str(err.body)[:160],
+                    "MBB enum %s /%s → HTTP %s",
+                    host_label, country, err.status,
                 )
                 continue
             except Exception as err:  # noqa: BLE001
@@ -1985,15 +1994,15 @@ class VWEUClient(CariadBaseClient):
                 self._mbb_oplist_denied[vin] = now + _MBB_OPLIST_SOFT_DENY_TTL
                 _LOGGER.log(
                     logging.WARNING if first_denial else logging.DEBUG,
-                    "MBB operationList ***%s → HTTP %s: %s. Backing off %d min "
+                    "MBB operationList ***%s → HTTP %s. Backing off %d min "
                     "(no explicit gateway verdict, so this may be transient).",
-                    vin[-6:], err.status, body[:160],
+                    vin[-6:], err.status,
                     int(_MBB_OPLIST_SOFT_DENY_TTL.total_seconds() // 60),
                 )
                 return None
             _LOGGER.warning(
-                "MBB operationList ***%s → HTTP %s: %s",
-                vin[-6:], err.status, body[:160],
+                "MBB operationList ***%s → HTTP %s",
+                vin[-6:], err.status,
             )
             return None
         except Exception as err:  # noqa: BLE001
@@ -2096,9 +2105,11 @@ class VWEUClient(CariadBaseClient):
             # per-poll token-refresh storm when the data-plane ACL 401s the read.
             resp = await self._mbb_get(url, _retry=False)
         except APIError as err:
+            # body dropped — the VSR error body can echo the VIN/request; the
+            # masked VIN + host + country + status already give the diagnostic.
             _LOGGER.warning(
-                "MBB VSR read ***%s via %s/%s → HTTP %s: %s",
-                vin[-6:], host_label, country, err.status, str(err.body)[:200],
+                "MBB VSR read ***%s via %s/%s → HTTP %s",
+                vin[-6:], host_label, country, err.status,
             )
             return d
         except Exception as err:  # noqa: BLE001

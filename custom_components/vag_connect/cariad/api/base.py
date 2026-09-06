@@ -675,8 +675,18 @@ class CariadBaseClient:
                     " the integration options; the primary channel is"
                     " unaffected.", type(err).__name__,
                 )
+                # NB: neither the raw ``err`` nor ``exc_info`` may appear here.
+                # The comment above is the reason — aiohttp.InvalidURL.__str__ puts
+                # the whole OAuth callback URL (``…#access_token=<JWT>`` → the user's
+                # email + a live token) in the message, and a traceback's final line
+                # renders that same __str__. DEBUG is exactly what a reporter pastes
+                # into an issue (cf. #1355), so class-name only — no secret, not even
+                # in beta.
                 _LOGGER.debug(
-                    "vw.de silent resume failure details: %s", err, exc_info=True,
+                    "vw.de silent resume failure details: %s"
+                    " (message + traceback withheld — the exception string can"
+                    " carry the OAuth callback token/email)",
+                    type(err).__name__,
                 )
                 await session.close()
                 return False
@@ -1419,7 +1429,10 @@ class CariadBaseClient:
             try:
                 await self._refresh_tokens(stale_access_token=self._access_token)
             except Exception as _e:  # noqa: BLE001 — reactive 401 path still backs us up
-                _LOGGER.debug("proactive device_grant re-mint failed: %s", _e)
+                # class only — a raw aiohttp error's str() carries the request URL.
+                _LOGGER.debug(
+                    "proactive device_grant re-mint failed: %s", type(_e).__name__
+                )
         headers = kwargs.pop("headers", {})
         token_used = self._access_token
         headers["Authorization"] = f"Bearer {token_used}"
@@ -1480,7 +1493,8 @@ class CariadBaseClient:
                 return await self._request(
                     method, url, retry=retry, _attempt=_attempt + 1, **kwargs
                 )
-            raise APIError(0, url, f"transient: {type(err).__name__}: {err}") from err
+            # drop the raw {err} — it would sit in self.body; class name suffices.
+            raise APIError(0, url, f"transient: {type(err).__name__}") from err
 
     async def _refresh_tokens(
         self, *, for_command: bool = False, stale_access_token: str | None = None
@@ -1794,7 +1808,12 @@ class CariadBaseClient:
             stats["success"] = int(stats.get("success", 0)) + 1
         except Exception as err:  # noqa: BLE001
             stats["fail"] = int(stats.get("fail", 0)) + 1
-            stats["last_error"] = str(err)[:200]
+            # class + status only — this dict is surfaced in diagnostics, and a raw
+            # str(err) can carry a VIN-path URL / response body.
+            _st = getattr(err, "status", None)
+            stats["last_error"] = (
+                f"{type(err).__name__}" + (f" (HTTP {_st})" if _st else "")
+            )
             raise
 
     def _note_parser_job(self, job_name: str, *, present: bool) -> None:

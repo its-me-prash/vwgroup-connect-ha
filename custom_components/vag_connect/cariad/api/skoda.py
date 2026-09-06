@@ -594,8 +594,12 @@ class SkodaClient(CariadBaseClient):
             uid = data.get("id") if isinstance(data, dict) else None
             if isinstance(uid, str) and uid:
                 self._user_id = uid
-        except Exception:  # noqa: BLE001
-            _LOGGER.debug("Škoda: /v1/users user-id fetch failed", exc_info=True)
+        except Exception as exc:  # noqa: BLE001
+            # Class only — keep the sweep posture uniform (the URL is static today,
+            # but no exception string reaches a reporter's DEBUG log verbatim).
+            _LOGGER.debug(
+                "Škoda: /v1/users user-id fetch failed (%s)", type(exc).__name__
+            )
 
     async def authenticate(self, mfa_code: str | None = None) -> None:
         """Authenticate, then capture the account user-id for the push channel.

@@ -250,9 +250,13 @@ async def _validate_credentials(
                 "VW Group Connect unexpected error during %s auth: %s",
                 brand, type(err).__name__,
             )
+            # class name only, never str(err): the comment above is the reason —
+            # a chained aiohttp InvalidURL carries the form-encoded request URL
+            # (username/redirect). format_tb renders frame/file/line/source only,
+            # never the exception message, so the traceback itself stays safe.
             _LOGGER.debug(
-                "VW Group Connect %s auth traceback: %s\n%s",
-                brand, err,
+                "VW Group Connect %s auth traceback (%s):\n%s",
+                brand, type(err).__name__,
                 "".join(traceback.format_tb(err.__traceback__)),
             )
             raise ValueError("cannot_connect") from err
@@ -639,7 +643,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             await transport.connect()
             version = await transport.current_app_version(preset.package)
         except CompanionTransportError as err:
-            _LOGGER.warning("Companion ADB probe failed: %s", err)
+            _LOGGER.warning("Companion ADB probe failed: %s", type(err).__name__)
             # v2.26.0 — a bare "InvalidCommandError" is the fingerprint of
             # Android 11+ "wireless debugging": the pure-python transport reaches
             # the port but it speaks TLS + pairing, which adb-shell cannot. Point
@@ -1532,7 +1536,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             self._dag_error = str(err)
             _LOGGER.warning(
                 "Browser login Phase 1 failed for %s: %s",
-                self._dag_brand, err,
+                self._dag_brand, type(err).__name__,
             )
             if hasattr(self, "_dag_session") and self._dag_session is not None:
                 await self._dag_session.close()
@@ -1585,12 +1589,15 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             # not a transient failure: MBB (durable login + commands) simply
             # doesn't cover MEB cars. Flag it so the flow aborts with a clear
             # "use EU Data Act instead" message rather than looping the VIN form.
-            low = str(err).lower()
+            # Read the marker from message AND the raw body attribute: APIError's
+            # message is now redacted (body stripped, #1355), so an MBB exchange
+            # that raises APIError would otherwise hide "invalid_grant" here.
+            low = (str(err) + " " + str(getattr(err, "body", ""))).lower()
             if self._dag_mbb and ("unknown user" in low or "invalid_grant" in low):
                 self._dag_mbb_ineligible = True
             _LOGGER.warning(
                 "Browser login Phase 2 failed for %s: %s",
-                self._dag_brand, err,
+                self._dag_brand, type(err).__name__,
             )
         finally:
             sess = getattr(self, "_dag_session", None)

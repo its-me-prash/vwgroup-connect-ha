@@ -315,16 +315,11 @@ class SeatCupraClient(CariadBaseClient):
             # The diagnostics dump still surfaces the failure via the
             # parser_stats counter, this branch just keeps the rest of
             # the poll running.
-            _LOGGER.debug(
-                "charging_statistics soft-fail (%d) on %s",
-                err.status, path,
-            )
+            # `path` carries the VIN — status alone is enough for this soft-fail.
+            _LOGGER.debug("charging_statistics soft-fail (%d)", err.status)
             return {}
         except Exception:  # noqa: BLE001 - best-effort host
-            _LOGGER.debug(
-                "charging_statistics unexpected error on %s - returning {}",
-                path,
-            )
+            _LOGGER.debug("charging_statistics unexpected error - returning {}")
             return {}
 
     async def get_vehicles(self) -> list[str]:
@@ -2694,10 +2689,11 @@ class SeatCupraClient(CariadBaseClient):
         except APIError as err:
             if err.status != 404:
                 raise
+            # URLs dropped — they carry the raw VIN in the path; label + masked
+            # vin already identify the fallback.
             _LOGGER.debug(
-                "OLA %s: 404 on primary %s — falling back to legacy %s "
-                "(vin ***%s)",
-                label, primary_url, fallback_url, vin[-6:],
+                "OLA %s: 404 on primary — falling back to legacy (vin ***%s)",
+                label, vin[-6:],
             )
         fallback_kwargs: dict[str, Any] = {"json": fallback_json}
         if fallback_headers:

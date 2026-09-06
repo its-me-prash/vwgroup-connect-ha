@@ -295,7 +295,7 @@ class SkodaPushManager(PushManager):
                     "Skoda push: connection lost (vin count=%d): %s — "
                     "reconnecting in %.1fs",
                     len(self._vins),
-                    err,
+                    type(err).__name__,
                     self._backoff_seconds,
                 )
                 self._state = PushManagerState.RECONNECTING
@@ -303,9 +303,9 @@ class SkodaPushManager(PushManager):
                 # consecutive failures the breaker trips and the next
                 # iteration of the outer loop will exit (we check
                 # is_tripped after the backoff sleep below).
-                self._record_failure(
-                    f"connect-loop: {type(err).__name__}: {str(err)[:160]}"
-                )
+                # class only — str(err)[:160] is truncation, not redaction: an
+                # aiohttp/mqtt connect error's str() carries the broker URL/host.
+                self._record_failure(f"connect-loop: {type(err).__name__}")
                 # Sleep with cancellation support
                 try:
                     await asyncio.wait_for(
@@ -532,8 +532,12 @@ class SkodaPushManager(PushManager):
                 timestamp=timestamp,
                 raw_payload=body or None,
             )
-        except Exception:  # noqa: BLE001 - decode must never crash the loop
-            _LOGGER.debug("Skoda push: undecodable MQTT message", exc_info=True)
+        except Exception as exc:  # noqa: BLE001 - decode must never crash the loop
+            # Class only, not exc_info — a malformed-field conversion error can put
+            # a payload value (e.g. the VIN) into its message/traceback.
+            _LOGGER.debug(
+                "Skoda push: undecodable MQTT message (%s)", type(exc).__name__
+            )
             return None
 
     # v2.2.0 Phase 5a PR #18/20: ``_advance_backoff`` + ``_reset_backoff``

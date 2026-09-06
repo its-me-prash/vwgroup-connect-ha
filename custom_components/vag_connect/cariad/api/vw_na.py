@@ -730,9 +730,11 @@ class VWNAClient:
                     if isinstance(model, str) and model:
                         self._vin_to_model[vin] = model
                     vins.append(vin)
+                    # uuid (account-scoped vehicle id) + nickname (owner free-text)
+                    # are PII — log presence flags, not the raw values.
                     _LOGGER.debug(
-                        "VW NA: found VIN %s uuid=%s nickname=%s model=%s",
-                        _mask_vin(vin), uuid, nickname, model,
+                        "VW NA: found VIN %s (uuid set=%s, nickname set=%s) model=%s",
+                        _mask_vin(vin), bool(uuid), bool(nickname), model,
                     )
                 for value in node.values():
                     _collect(value)
@@ -816,7 +818,7 @@ class VWNAClient:
         except Exception as exc:  # noqa: BLE001
             _LOGGER.debug(
                 "VW NA privileges fetch errored for vin ***%s: %s",
-                vin[-6:], exc,
+                vin[-6:], type(exc).__name__,
             )
             return {}
         if not isinstance(data, dict):

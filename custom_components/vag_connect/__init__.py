@@ -229,7 +229,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) -
             raise ConfigEntryNotReady(
                 "VW Group Connect setup failed. Check logs for details."
             ) from err
-        raise ConfigEntryNotReady(str(err)) from err
+        # class only — str(err) can carry an aiohttp request URL; keep the raw
+        # detail on the chained cause, not in the user-facing not-ready message.
+        _LOGGER.debug("VW Group Connect setup not ready (%s)", type(err).__name__)
+        raise ConfigEntryNotReady(
+            "VW Group Connect setup failed. Check logs for details."
+        ) from err
 
     if not ok:
         raise ConfigEntryNotReady(
@@ -257,9 +262,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: VagConnectConfigEntry) -
     # changes already in place, so it's a single inner-method swap.
     try:
         await coordinator.async_start_push_managers()
-    except Exception:  # noqa: BLE001
-        _LOGGER.exception(
-            "VW Group Connect: push manager startup failed — falling back to polling"
+    except Exception as exc:  # noqa: BLE001
+        # class-only, not .exception() — a push-connect error's str() can carry the
+        # broker URL / auth token, and a traceback re-renders it. Level kept ERROR.
+        _LOGGER.error(
+            "VW Group Connect: push manager startup failed (%s) — falling back to"
+            " polling", type(exc).__name__,
         )
 
     if not hass.services.has_service(DOMAIN, "lock"):
@@ -322,7 +330,7 @@ def _register_services(hass: HomeAssistant) -> None:
         c = _get_coordinator(hass, vin)
         if c is None:
             raise ServiceValidationError(
-                f"Vehicle '{vin}' not found.",
+                f"Vehicle '…{vin[-6:]}' not found.",
                 translation_domain=DOMAIN,
                 translation_key="vehicle_not_found",
             )

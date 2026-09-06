@@ -593,3 +593,113 @@ async def test_get_vehicle_data_listing_401_still_raises() -> None:
     conn = EUDataActConnector(_List401Session())  # type: ignore[arg-type]
     with pytest.raises(AuthenticationError):
         await conn.get_vehicle_data("WVWZZZTESTVIN0001")
+
+
+# ── newest→oldest dataset fallback on a transient download (adopted TommiG1) ──
+
+
+@pytest.mark.asyncio
+async def test_download_falls_back_to_older_dataset_on_transient() -> None:
+    """Newest dataset 503s → parse the next-older listed dataset, not skip the poll.
+
+    Array order is the tiebreak when files carry no delivery ts, so the LAST-listed
+    file is treated as newest (data_new.zip). It 503s; the older data_old.zip 200s
+    and is parsed — a real poll instead of a wasted one during a partial outage.
+    """
+    class _FallbackSession:
+        def __init__(self) -> None:
+            self.download_calls = 0
+
+        def get(self, url: str, **kw: Any) -> _FakeResp:
+            if "metadata" in url:
+                return _FakeResp(url, json_data={"identifier": "ID123"})
+            if url.endswith("/list"):
+                return _FakeResp(
+                    url,
+                    json_data=[{"name": "data_old.zip"}, {"name": "data_new.zip"}],
+                )
+            if url.endswith("/download"):
+                self.download_calls += 1
+                if kw["headers"]["filename"] == "data_new.zip":
+                    return _FakeResp(url, status=503)
+                return _FakeResp(url, body=_build_dataset_zip())
+            raise AssertionError(f"unmatched GET {url}")
+
+    sess = _FallbackSession()
+    conn = EUDataActConnector(sess)  # type: ignore[arg-type]
+    d = await conn.get_vehicle_data("WVWZZZTESTVIN0001")
+    assert d.battery_soc == 77          # parsed from the OLDER dataset
+    assert d.connection_state == "online"
+    assert d.no_data is False
+    assert conn.last_no_data_reason != "portal_error"
+    assert sess.download_calls == 2     # newest (503) then older (200)
+
+
+@pytest.mark.asyncio
+async def test_all_datasets_transient_still_graceful() -> None:
+    """Every candidate 503s → the existing "no data this poll" outcome is kept."""
+    class _AllFailSession:
+        def get(self, url: str, **kw: Any) -> _FakeResp:
+            if "metadata" in url:
+                return _FakeResp(url, json_data={"identifier": "ID123"})
+            if url.endswith("/list"):
+                return _FakeResp(url, json_data=[{"name": "a.zip"}, {"name": "b.zip"}])
+            if url.endswith("/download"):
+                return _FakeResp(url, status=503)
+            raise AssertionError(f"unmatched GET {url}")
+
+    conn = EUDataActConnector(_AllFailSession())  # type: ignore[arg-type]
+    d = await conn.get_vehicle_data("WVWZZZTESTVIN0001")
+    assert d.battery_soc is None
+    assert d.connection_state is None
+    assert conn.last_no_data_reason == "portal_error"
+
+
+@pytest.mark.asyncio
+async def test_download_401_raises_without_falling_back() -> None:
+    """A 401 on the download = session expired → raise, never chase older files."""
+    class _Dl401Session:
+        def __init__(self) -> None:
+            self.download_calls = 0
+
+        def get(self, url: str, **kw: Any) -> _FakeResp:
+            if "metadata" in url:
+                return _FakeResp(url, json_data={"identifier": "ID123"})
+            if url.endswith("/list"):
+                return _FakeResp(url, json_data=[{"name": "new.zip"}, {"name": "old.zip"}])
+            if url.endswith("/download"):
+                self.download_calls += 1
+                return _FakeResp(url, status=401)
+            raise AssertionError(f"unmatched GET {url}")
+
+    sess = _Dl401Session()
+    conn = EUDataActConnector(sess)  # type: ignore[arg-type]
+    with pytest.raises(AuthenticationError):
+        await conn.get_vehicle_data("WVWZZZTESTVIN0001")
+    assert sess.download_calls == 1     # 401 → no fallback to the older dataset
+
+
+@pytest.mark.asyncio
+async def test_download_fallback_is_capped() -> None:
+    """A long all-503 listing does not hammer the portal — capped attempts."""
+    class _ManyFailSession:
+        def __init__(self) -> None:
+            self.download_calls = 0
+
+        def get(self, url: str, **kw: Any) -> _FakeResp:
+            if "metadata" in url:
+                return _FakeResp(url, json_data={"identifier": "ID123"})
+            if url.endswith("/list"):
+                return _FakeResp(
+                    url, json_data=[{"name": f"d{i}.zip"} for i in range(6)]
+                )
+            if url.endswith("/download"):
+                self.download_calls += 1
+                return _FakeResp(url, status=503)
+            raise AssertionError(f"unmatched GET {url}")
+
+    sess = _ManyFailSession()
+    conn = EUDataActConnector(sess)  # type: ignore[arg-type]
+    await conn.get_vehicle_data("WVWZZZTESTVIN0001")
+    assert sess.download_calls == 3     # _MAX_DATASET_FALLBACK, not 6
+    assert conn.last_no_data_reason == "portal_error"

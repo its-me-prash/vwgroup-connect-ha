@@ -88,8 +88,11 @@ class AudiClient(VWEUClient):
             ) as resp:
                 if resp.status != 200:
                     body = await resp.text()
+                    # Never log the token-exchange body — it can carry token
+                    # fragments/error detail; a byte count is enough for triage.
                     _LOGGER.warning(
-                        "AZS token exchange failed HTTP %d: %s", resp.status, body[:200]
+                        "AZS token exchange failed HTTP %d (%d-byte body withheld)",
+                        resp.status, len(body),
                     )
                     return None
                 data = await resp.json()
@@ -98,7 +101,7 @@ class AudiClient(VWEUClient):
                     _LOGGER.info("Audi AZS token acquired for image fetching")
                 return str(token) if token else None
         except Exception as err:  # noqa: BLE001
-            _LOGGER.warning("AZS token exchange error: %s", err)
+            _LOGGER.warning("AZS token exchange error: %s", type(err).__name__)
             return None
 
     # ── v1.14.0 (#28) — ICE Remote Engine Start ─────────────────────────
@@ -182,6 +185,6 @@ class AudiClient(VWEUClient):
                 self._azs_token = None
                 _LOGGER.warning("Audi images: empty response from vgql — AZS token reset for retry")
         except Exception as err:  # noqa: BLE001
-            _LOGGER.warning("Audi image fetch failed: %s", err)
+            _LOGGER.warning("Audi image fetch failed: %s", type(err).__name__)
             self._azs_token = None
             self._image_data = {}

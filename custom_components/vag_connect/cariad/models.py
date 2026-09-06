@@ -855,6 +855,10 @@ class VehicleData:
     # the car's own data-capture age in whole minutes (diagnostic).
     portal_health: str | None = None
     minutes_since_last_snapshot: int | None = None
+    # #465 — automatable stale-data flag (True once the car's own capture age
+    # passes the same 72h/8x-interval threshold as the stale-data Repair). None for
+    # a read that carries no capture timestamp, so the binary_sensor self-hides.
+    data_stale: bool | None = None
 
     # Service
     service_km: int | None = None

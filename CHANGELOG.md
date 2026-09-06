@@ -42,6 +42,48 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.0b16] - 2026-09-06 — Škoda manual-key fallback, EU Data Act resilience + hardening
+
+### Added
+- **Škoda official API — a manual fallback when auto-setup can't create a key.** The integration
+  still sets up your official API key automatically whenever it can. When it can't — for example
+  the key service rejects the request, or you're signed in without the native app login — it now
+  shows a repair that lets you create a key in the MyŠkoda app and paste it in for the vehicle,
+  instead of silently doing nothing.
+- **The EU Data Act portal now accepts an updated terms-and-conditions step for you.** After you
+  sign in, VW can show a "please accept the updated terms" page — the same kind of interstitial as
+  the data-consent page we already accept. It's now accepted automatically so the login completes,
+  instead of stopping and asking you to do it in a browser. If it ever can't, the existing repair
+  still appears.
+- **A "data is stale" sensor you can build automations on.** A new diagnostic binary sensor turns
+  on when your car's own data-capture time has been frozen for too long (a lapsed portal feed can
+  keep serving days-old values as if they were live). The information was already there via the
+  portal-health sensor; this makes it a simple on/off you can alert on. Hidden for cars that don't
+  report a capture time.
+- **A dashboard-warning field some VWs report is now read.** A VW variant of the instrument-cluster
+  active-warnings field was going unmapped; it now feeds the existing (disabled-by-default)
+  raw-dashboard-warnings diagnostic (#1358).
+
+### Fixed
+- **The portal login check no longer false-flags a valid session.** The b15 anonymous-session
+  check compared cookie domains by plain substring, which missed a real session cookie scoped
+  to the parent domain and could then mark an authenticated login as anonymous. It now matches
+  host and parent domains correctly.
+- **A leftover "connectivity" entity no longer lingers as unavailable.** When an account's set of
+  read channels changed across versions, an old per-source connectivity sensor could stay in the
+  entity registry forever as `unavailable`/`unknown`. It's now cleaned up automatically once the
+  current channels are known. Thanks @cyrano330 (#1340).
+- **We stop hammering VW's portal during a portal-side outage.** When the EU Data Act portal is
+  returning server errors for a while, the poll now backs off (5 → 15 → 30 min) instead of retrying
+  every minute, and returns to normal cadence the moment data flows again.
+- **A brief download hiccup no longer wastes a whole poll.** If downloading the newest portal
+  dataset hits a transient error, the integration now falls back to the next-older delivered
+  dataset instead of skipping the poll — so you get data when the portal has any to give.
+
+### Changed
+- **Log redaction hardening.** An internal review pass tightened how the integration writes URLs
+  and errors to debug logs across all channels, so a debug log you paste into an issue stays clean.
+
 ## [4.7.0b15] - 2026-09-05 — Debug-log redaction + portal login-success hardening
 
 ### Fixed

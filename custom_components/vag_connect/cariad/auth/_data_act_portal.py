@@ -63,6 +63,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import logging
+import re
 import secrets
 import time
 from typing import TYPE_CHECKING
@@ -75,6 +76,32 @@ from ..exceptions import AuthenticationError
 from ..models import TokenSet
 
 _LOGGER = logging.getLogger(__name__)
+
+
+# --- Log/exception redaction (#1355) ---------------------------------------
+# This module has no _safe_url of its own (idk.py and _eu_data_act.py each ship
+# one); add a matching helper so no state/relayState/code/token in a URL query
+# or account/session UUID in a path ever reaches a log line OR an exception
+# message a tester copy-pastes. Same shape as those two helpers.
+_UUID_RE = re.compile(
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+)
+
+
+def _safe_url(url: str) -> str:
+    """Return host+path of *url* with query AND fragment STRIPPED and any
+    UUID-shaped PATH segment masked.
+
+    The portal/IDP hops carry ``state`` / ``relayState`` / ``code`` / tokens in
+    the query or fragment, and signin-service paths embed the client/account
+    UUID as a path segment. Truncating the URL to N chars hides none of it, so:
+    keep only host+path, drop the fragment, mask UUID path segments.
+    """
+    try:
+        p = urlparse(url)
+        return _UUID_RE.sub("<uuid>", f"{p.netloc}{p.path}") or "<empty-url>"
+    except Exception:  # noqa: BLE001
+        return "<unparseable-url>"
 
 
 # Portal endpoints — public web URLs. The OIDC client identifier is
@@ -230,7 +257,9 @@ class DataActPortalAuth:
                     )
         except Exception as exc:  # noqa: BLE001
             raise AuthenticationError(
-                f"Data Act portal: could not reach landing page ({exc})"
+                # class only — a raw aiohttp error's str() carries the full URL.
+                f"Data Act portal: could not reach landing page "
+                f"({type(exc).__name__})"
             ) from exc
 
         # Step 2 — OIDC authorize against identity.vwgroup.io with the
@@ -269,13 +298,13 @@ class DataActPortalAuth:
             raise
         except Exception as exc:  # noqa: BLE001
             raise AuthenticationError(
-                f"Data Act portal: IDP authorize failed ({exc})"
+                f"Data Act portal: IDP authorize failed ({type(exc).__name__})"
             ) from exc
 
         if "signin-service" not in landing_url and "u/login" not in landing_url:
             raise AuthenticationError(
                 f"Data Act portal: unexpected landing URL "
-                f"{landing_url[:120]} — IDP may have rejected client_id"
+                f"{_safe_url(landing_url)} — IDP may have rejected client_id"
             )
 
         # Step 3 — POST credentials. The portal-bound flow happens to
@@ -290,7 +319,6 @@ class DataActPortalAuth:
         # rendered by the SPA. Mirrors the multi-fallback strategy
         # already in idk.py:_parse_csrf_robust so a future markup
         # migration on either side does not need two patches.
-        import re  # noqa: PLC0415
         from html.parser import HTMLParser  # noqa: PLC0415
 
         class _IdentifierFormParser(HTMLParser):
@@ -392,7 +420,8 @@ class DataActPortalAuth:
             raise
         except Exception as exc:  # noqa: BLE001
             raise AuthenticationError(
-                f"Data Act portal: identifier POST failed ({exc})"
+                f"Data Act portal: identifier POST failed "
+                f"({type(exc).__name__} at {_safe_url(identifier_url)})"
             ) from exc
 
         pw_parser = _IdentifierFormParser()
@@ -445,7 +474,7 @@ class DataActPortalAuth:
                     "Data Act portal SPA: entered SPA branch - "
                     "landing_url=%s identifier_url=%s "
                     "password_html_len=%d landing_html_len=%d",
-                    landing_url[:120], identifier_url[:120],
+                    _safe_url(landing_url), _safe_url(identifier_url),
                     len(password_html or ""), len(landing_html or ""),
                 )
                 state_from_url = ""
@@ -516,7 +545,7 @@ class DataActPortalAuth:
                             "Data Act portal SPA: templateModel found in "
                             "%s — hmac len=%d, postAction=%s",
                             label, len(template_hmac),
-                            template_post_action[:80],
+                            _safe_url(template_post_action),
                         )
                         break
 
@@ -617,8 +646,9 @@ class DataActPortalAuth:
                         break
                     _LOGGER.debug(
                         "Data Act portal SPA: no state in %s "
-                        "(first 300 chars: %s)",
-                        label, src_html[:300].replace("\n", " "),
+                        "(len=%d, 'state' substring present=%s)",
+                        label, len(src_html),
+                        "state" in src_html.lower(),
                     )
                 if not state_from_url:
                     # 4. URL query strings as last resort.
@@ -680,25 +710,15 @@ class DataActPortalAuth:
                             state_source = f"{label}/relayState-url"
                             break
                 if not state_from_url:
-                    # v2.10.11 (#388 swebachus) - expanded forensic dump
-                    # covering BOTH HTMLs and the raw URL strings, plus
-                    # the location around any "state" substring so the
-                    # next trace surfaces the exact context the token
-                    # lives in (or proves it is purely JS-rendered post
-                    # bundle init, in which case we need a different
-                    # entry point altogether).
-                    def _state_context(src: str) -> str:
-                        idx = src.lower().find("state")
-                        if idx < 0:
-                            return "(no 'state' substring)"
-                        start = max(0, idx - 30)
-                        end = min(len(src), idx + 80)
-                        return src[start:end].replace("\n", " ")
-
+                    # v2.10.11 (#388 swebachus) - forensic dump covering BOTH
+                    # HTMLs and the raw URL strings. #1355 — the raw window
+                    # around any "state" substring was removed (it emitted the
+                    # session token verbatim); only presence booleans + lengths
+                    # are logged now.
                     _LOGGER.warning(
                         "Data Act portal SPA: no state token. "
                         "landing_url=%s identifier_url=%s",
-                        landing_url[:200], identifier_url[:200],
+                        _safe_url(landing_url), _safe_url(identifier_url),
                     )
                     title_m = re.search(
                         r"<title>([^<]+)</title>",
@@ -707,13 +727,12 @@ class DataActPortalAuth:
                     _LOGGER.warning(
                         "Data Act portal SPA: password_html title=%s "
                         "len=%d, contains '<input'=%s, contains 'state'=%s, "
-                        "contains '__STORE__'=%s, state-context=%r",
+                        "contains '__STORE__'=%s",
                         (title_m.group(1) if title_m else "(none)"),
                         len(password_html or ""),
                         "<input" in (password_html or "").lower(),
                         "state" in (password_html or "").lower(),
                         "__STORE__" in (password_html or ""),
-                        _state_context(password_html or ""),
                     )
                     title_l = re.search(
                         r"<title>([^<]+)</title>",
@@ -722,13 +741,12 @@ class DataActPortalAuth:
                     _LOGGER.warning(
                         "Data Act portal SPA: landing_html title=%s "
                         "len=%d, contains '<input'=%s, contains 'state'=%s, "
-                        "contains '__STORE__'=%s, state-context=%r",
+                        "contains '__STORE__'=%s",
                         (title_l.group(1) if title_l else "(none)"),
                         len(landing_html or ""),
                         "<input" in (landing_html or "").lower(),
                         "state" in (landing_html or "").lower(),
                         "__STORE__" in (landing_html or ""),
-                        _state_context(landing_html or ""),
                     )
                     flow_hint = (
                         "signin-service v1 (legacy IDK)"
@@ -747,8 +765,8 @@ class DataActPortalAuth:
                     )
                 _LOGGER.debug(
                     "Data Act portal SPA: state token found via %s "
-                    "(first 12 chars: %s...)",
-                    state_source, state_from_url[:12],
+                    "(present=%s)",
+                    state_source, bool(state_from_url),
                 )
                 from urllib.parse import quote as _quote  # noqa: PLC0415
                 # v2.11.3 — POST URL + body shape now diverges by auth
@@ -832,12 +850,12 @@ class DataActPortalAuth:
                                     "Data Act portal SPA: identifier POST "
                                     "returned HTTP %d to %s",
                                     resp.status,
-                                    identifier_post_url[:120],
+                                    _safe_url(identifier_post_url),
                                 )
                     except Exception as exc:  # noqa: BLE001
                         _LOGGER.warning(
                             "Data Act portal SPA: identifier POST failed: %s",
-                            exc,
+                            type(exc).__name__,
                         )
 
                     # Step 2 — extract fresh hmac from password page
@@ -897,8 +915,8 @@ class DataActPortalAuth:
                         "Data Act portal SPA: 2-step signin-service "
                         "complete — identifier_url=%s authenticate_url=%s "
                         "new_hmac_found=%s",
-                        identifier_post_url[:80],
-                        spa_post_url[:80],
+                        _safe_url(identifier_post_url),
+                        _safe_url(spa_post_url),
                         bool(new_hmac),
                     )
                 elif is_signin_service_state:
@@ -960,7 +978,8 @@ class DataActPortalAuth:
                             callback_url = str(resp.url)
                 except Exception as exc:  # noqa: BLE001
                     _LOGGER.debug(
-                        "Data Act portal SPA POST (form) failed: %s", exc
+                        "Data Act portal SPA POST (form) failed: %s (%s)",
+                        type(exc).__name__, _safe_url(spa_post_url),
                     )
                 # JSON fallback for SPA-only Auth0 deployments
                 # (matches the idk.py order). Triggered when the form
@@ -986,8 +1005,8 @@ class DataActPortalAuth:
                                 callback_url = str(resp.url)
                     except Exception as exc:  # noqa: BLE001
                         _LOGGER.debug(
-                            "Data Act portal SPA POST (json) failed: %s",
-                            exc,
+                            "Data Act portal SPA POST (json) failed: %s (%s)",
+                            type(exc).__name__, _safe_url(spa_post_url),
                         )
                 if not callback_url or (
                     "drivesomethinggreater.com" not in callback_url
@@ -1061,7 +1080,8 @@ class DataActPortalAuth:
             raise
         except Exception as exc:  # noqa: BLE001
             raise AuthenticationError(
-                f"Data Act portal: password POST failed ({exc})"
+                f"Data Act portal: password POST failed "
+                f"({type(exc).__name__} at {_safe_url(password_action_url)})"
             ) from exc
 
         # Step 4 + 5 — callback parsing + token exchange. Factored into
@@ -1099,7 +1119,7 @@ class DataActPortalAuth:
         ):
             raise AuthenticationError(
                 f"Data Act portal: login did not land on portal host "
-                f"(final URL: {callback_url[:120]})"
+                f"(final URL: {_safe_url(callback_url)})"
             )
 
         all_params = {
@@ -1167,7 +1187,8 @@ class DataActPortalAuth:
             raise
         except Exception as exc:  # noqa: BLE001
             raise AuthenticationError(
-                f"Data Act portal: token exchange failed ({exc})"
+                f"Data Act portal: token exchange failed "
+                f"({type(exc).__name__})"
             ) from exc
 
         access_token = token_json.get("access_token", "")

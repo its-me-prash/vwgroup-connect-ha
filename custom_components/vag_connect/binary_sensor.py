@@ -1040,6 +1040,12 @@ async def async_setup_entry(
         # Cross-brand.
         for token in (vehicle.get("channel_status") or {}):
             entities.append(VagSourceConnectivitySensor(coordinator, vin, token))
+        # 6) #465 — automatable "data stale" binary (device_class=PROBLEM) for a
+        # car whose capture time can freeze while polls keep succeeding. Gated on a
+        # populated capture timestamp so brands that never carry one don't get a
+        # permanent "unknown" entity. Cross-brand (portal + Škoda-native).
+        if vehicle.get("last_seen_at") is not None:
+            entities.append(VagDataStaleSensor(coordinator, vin))
         return entities
 
     register_dynamic_spawner(entry, coordinator, async_add_entities, _build_for_vin)
@@ -1212,6 +1218,42 @@ class VagSourceConnectivitySensor(VagConnectEntity, BinarySensorEntity):
             if s.get(k) is not None:
                 attrs[k] = s.get(k)
         return attrs
+
+
+class VagDataStaleSensor(VagConnectEntity, BinarySensorEntity):
+    """#465 — True once the car's own data-capture time has frozen past the
+    stale-data threshold (the automatable twin of the stale-data Repair).
+
+    A poll can keep succeeding while the car's ``last_seen_at`` stops advancing — a
+    lapsed EU-DA feed presenting days-old data as live (cyrano330's ID.Buzz froze
+    ~44 h). ``portal_health``/``minutes_since_last_snapshot`` already expose this as
+    an enum/number; this adds a ``device_class=PROBLEM`` boolean a user can trigger
+    an automation on directly, brand-agnostic (also covers Škoda-native / BFF reads
+    that carry ``last_seen_at`` but no ``portal_health``)."""
+
+    # Stay visible when a poll fails — a staleness indicator that vanishes exactly
+    # when data goes stale would be worse than useless (mirrors the connectivity
+    # sensor).
+    _stay_available_on_poll_failure = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _attr_translation_key = "data_stale"
+
+    def __init__(self, coordinator: VagConnectCoordinator, vin: str) -> None:
+        super().__init__(coordinator, vin, "data_stale")
+
+    @property
+    def is_on(self) -> bool | None:
+        val = self._vehicle.get("data_stale")
+        return bool(val) if val is not None else None
+
+    def _platform_attributes(self) -> dict[str, Any] | None:
+        v = self._vehicle
+        attrs: dict[str, Any] = {}
+        for k in ("minutes_since_last_snapshot", "portal_health", "last_snapshot_at"):
+            if v.get(k) is not None:
+                attrs[k] = v.get(k)
+        return attrs or None
 
 
 # Per-door binary sensors.

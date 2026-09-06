@@ -110,8 +110,8 @@ class VehicleTransitionDetector:
             if lvin is None or lvin == vin:
                 try:
                     cb(payload)
-                except Exception:  # noqa: BLE001 — a listener must never break polling
+                except Exception as exc:  # noqa: BLE001 — a listener must never break polling
                     _LOGGER.debug(
-                        "vehicle transition listener for %s raised", event_key,
-                        exc_info=True,
+                        "vehicle transition listener for %s raised (%s)",
+                        event_key, type(exc).__name__,
                     )
