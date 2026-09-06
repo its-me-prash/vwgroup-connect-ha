@@ -1738,6 +1738,9 @@
       },
       "data_source": {
         "name": "Källa: {source}"
+      },
+      "data_stale": {
+        "name": "Data föråldrad"
       }
     },
     "switch": {
@@ -1940,6 +1943,27 @@
     }
   },
   "issues": {
+    "skoda_official_manual_key": {
+      "title": "Škodas officiella API — lägg till din API-nyckel",
+      "fix_flow": {
+        "step": {
+          "enter_key": {
+            "title": "Lägg till en MyŠkoda API-nyckel",
+            "description": "Home Assistant kunde inte automatiskt skapa en officiell Škoda API-nyckel för den här bilen. Skapa en i MyŠkoda-appen, välj sedan fordonet och klistra in nyckeln här. Den automatiska skapelsen fortsätter att försöka i bakgrunden — det här är bara det manuella alternativet.",
+            "data": {
+              "vin": "Fordon",
+              "api_key": "MyŠkoda API-nyckel (börjar med msk_)"
+            }
+          }
+        },
+        "error": {
+          "key_required": "Klistra in din MyŠkoda API-nyckel."
+        },
+        "abort": {
+          "entry_gone": "Den integrationsposten finns inte längre."
+        }
+      }
+    },
     "invalid_credentials": {
       "title": "Inloggning misslyckades — {brand}",
       "description": "Home Assistant kunde inte logga in på ditt {brand}-konto — vanligtvis fel eller ändrat lösenord, men en tillfällig spärr kan se likadan ut.\n\nInställningar → Enheter och tjänster → VW Group Connect → ⋮ → Konfigurera om för att ange dina inloggningsuppgifter igen."

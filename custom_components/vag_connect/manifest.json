@@ -23,5 +23,5 @@
     "aiomqtt>=2.0.0",
     "adb-shell==0.4.4"
   ],
-  "version": "4.7.0b15"
+  "version": "4.7.0b16"
 }

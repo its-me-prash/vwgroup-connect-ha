@@ -1534,7 +1534,10 @@ class TestBaseClientHardening:
                     client._request("GET", "https://example.com/api")
                 )
         assert exc.value.status == 0
-        assert "transient" in str(exc.value).lower()
+        # #1355 redaction — str(APIError) no longer embeds the body, so the
+        # "transient" marker now lives on the raw ``body`` attribute (which the
+        # classifiers read), not in the human-facing message.
+        assert "transient" in exc.value.body.lower()
 
     def test_refresh_storm_protection_raises_after_threshold(self):
         """More than 3 refresh attempts in 1h must raise AuthenticationError."""

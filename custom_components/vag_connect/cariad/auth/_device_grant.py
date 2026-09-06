@@ -205,7 +205,10 @@ class DeviceAuthorizationGrant:
                 payload = await resp.json(content_type=None)
         except Exception as exc:  # noqa: BLE001
             raise AuthenticationError(
-                f"Device grant: /device_authorization request failed ({exc})"
+                # Class only — this message surfaces to the user/config-flow; keep
+                # any transport-exception text (which can echo the request URL) out.
+                f"Device grant: /device_authorization request failed "
+                f"({type(exc).__name__})"
             ) from exc
 
         if status != 200:
@@ -401,7 +404,8 @@ class DeviceAuthorizationGrant:
         except Exception as exc:  # noqa: BLE001
             # network/transport blip — transient, NOT a dead refresh token
             raise TokenRefreshRetryError(
-                f"Device grant refresh: request failed ({exc})"
+                # Class only — keep transport-exception text (can echo the URL) out.
+                f"Device grant refresh: request failed ({type(exc).__name__})"
             ) from exc
 
         if status != 200:

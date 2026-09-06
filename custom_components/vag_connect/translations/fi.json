@@ -1738,6 +1738,9 @@
       },
       "data_source": {
         "name": "Lähde: {source}"
+      },
+      "data_stale": {
+        "name": "Tiedot vanhentuneet"
       }
     },
     "switch": {
@@ -1940,6 +1943,27 @@
     }
   },
   "issues": {
+    "skoda_official_manual_key": {
+      "title": "Škodan virallinen API — lisää API-avaimesi",
+      "fix_flow": {
+        "step": {
+          "enter_key": {
+            "title": "Lisää MyŠkoda-API-avain",
+            "description": "Home Assistant ei voinut luoda tälle autolle virallista Škoda-API-avainta automaattisesti. Luo sellainen MyŠkoda-sovelluksessa, valitse sitten ajoneuvo ja liitä avain tähän. Automaattinen luonti jatkaa yrittämistä taustalla — tämä on vain manuaalinen vaihtoehto.",
+            "data": {
+              "vin": "Ajoneuvo",
+              "api_key": "MyŠkoda-API-avain (alkaa msk_)"
+            }
+          }
+        },
+        "error": {
+          "key_required": "Liitä MyŠkoda-API-avaimesi."
+        },
+        "abort": {
+          "entry_gone": "Kyseistä integraatiomerkintää ei enää ole."
+        }
+      }
+    },
     "invalid_credentials": {
       "title": "Kirjautuminen epäonnistui — {brand}",
       "description": "Home Assistant ei voinut kirjautua {brand}-tilillesi — yleensä väärä tai muutettu salasana, mutta tilapäinen esto voi näyttää samalta.\n\nAsetukset → Laitteet ja palvelut → VW Group Connect → ⋮ → Määritä uudelleen ja anna kirjautumistiedot uudelleen."

@@ -4,7 +4,72 @@
 
 from __future__ import annotations
 
+import re
 from enum import StrEnum
+
+# ── redaction (self-contained; this is a leaf module, no cross-imports) ──────
+_UUID_RE = re.compile(
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+)
+_VIN_RE = re.compile(r"\b[A-HJ-NPR-Z0-9]{17}\b")
+
+
+def _redact_url(url: str) -> str:
+    """Host+path of *url*, query + fragment dropped, UUID/VIN path segments masked.
+
+    An APIError message is logged and re-raised in many places via ``str(err)``;
+    the raw request URL carries the VIN (``…/vehicles/<VIN>/…``) and sometimes a
+    UUID data-request id, and the query can carry tokens. Keeping only host+path
+    with those masked lets the error stay diagnosable without leaking PII/secrets
+    into a debug log a reporter pastes into an issue. (#1355)
+    """
+    try:
+        from urllib.parse import urlparse  # noqa: PLC0415
+
+        p = urlparse(url)
+        safe = _UUID_RE.sub("<uuid>", f"{p.netloc}{p.path}")
+        return _VIN_RE.sub("<vin>", safe) or "<empty-url>"
+    except Exception:  # noqa: BLE001
+        return "<unparseable-url>"
+
+
+def extract_safe_error_code(body: str) -> str:
+    """Pull the bounded backend error CODE from a raw error *body*, for surfacing.
+
+    Since ``str(APIError)`` no longer carries the body (#1355 redaction), a command
+    that fails with a backend reason (e.g. ``USER_NOT_AUTHORIZED`` /
+    ``missingCapability``) would otherwise reach the user as a bare "API error 403".
+    This returns ONLY the enum-like code field (``errorCode`` / ``error`` /
+    ``code``, incl. one nested ``error`` object) — never free-text fields like
+    ``error_description`` / ``message`` / ``info`` which can carry PII — capped to
+    60 chars. Returns "" when no code is present. Never raises.
+    """
+    if not body or not isinstance(body, str):
+        return ""
+    try:
+        import json  # noqa: PLC0415
+
+        data = json.loads(body)
+    except Exception:  # noqa: BLE001
+        return ""
+
+    def _dig(d: object, depth: int = 0) -> str:
+        if depth > 2 or not isinstance(d, dict):
+            return ""
+        for key in ("errorCode", "error", "code"):
+            val = d.get(key)
+            if isinstance(val, str) and val:
+                return val
+            if isinstance(val, int):
+                return str(val)
+            if isinstance(val, dict):
+                nested = _dig(val, depth + 1)
+                if nested:
+                    return nested
+        return ""
+
+    code = _dig(data)
+    return code[:60] if code else ""
 
 
 class CommandProfile(StrEnum):
@@ -121,7 +186,10 @@ def classify_command_failure(exc: BaseException) -> CommandFailureReason:
         return CommandFailureReason.UNKNOWN
 
     status = getattr(exc, "status", 0) or 0
-    body = str(exc).lower()
+    # Read markers from the RAW body attribute, not str(exc): the APIError message
+    # is now redacted (no body), and the raw body is the full 4 KB the backend
+    # sent, not the old 200-char message slice. (redaction #1355)
+    body = (getattr(exc, "body", "") or "").lower()
 
     # Body-content first — these are unambiguous markers regardless of
     # which 4xx the backend used.
@@ -452,7 +520,10 @@ class VehicleNotFoundError(CariadError):
     """VIN not found in the account garage."""
 
     def __init__(self, vin: str) -> None:
-        super().__init__(f"Vehicle {vin} not found in account garage.")
+        # Mask the VIN in the message — VehicleNotFoundError is logged/re-raised
+        # via str() on the poll + command paths; keep the raw VIN as an attribute.
+        masked = f"…{vin[-6:]}" if isinstance(vin, str) and len(vin) >= 6 else "?"
+        super().__init__(f"Vehicle {masked} not found in account garage.")
         self.vin = vin
 
 
@@ -471,7 +542,11 @@ class APIError(CariadError):
     """Unexpected API response."""
 
     def __init__(self, status: int, url: str, body: str = "") -> None:
-        super().__init__(f"API error {status} for {url}: {body[:200]}")
+        # Message is REDACTED: many call sites log or re-raise ``str(APIError)``,
+        # and the raw url (VIN/UUID path, token query) + response body would leak
+        # there. The raw url/body are kept as ATTRIBUTES below for classification
+        # and retry; only the human-facing message is masked. (#1355)
+        super().__init__(f"API error {status} for {_redact_url(url)}")
         self.status = status
         self.url = url
         # v2.9.0 - keep the raw body around so callers can inspect for

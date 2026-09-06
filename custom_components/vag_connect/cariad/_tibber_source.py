@@ -242,7 +242,7 @@ class TibberDataSource:
                     return False
                 body = await resp.json(content_type=None)
         except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Tibber token refresh failed: %s", err)
+            _LOGGER.debug("Tibber token refresh failed: %s", type(err).__name__)
             return False
         at = body.get("access_token")
         if not isinstance(at, str) or not at:
@@ -264,7 +264,7 @@ class TibberDataSource:
                     "client_secret": self._client_secret,
                 })
             except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Tibber token-persist hook failed: %s", err)
+                _LOGGER.debug("Tibber token-persist hook failed: %s", type(err).__name__)
         return True
 
     async def _get(self, path: str, *, _retried: bool = False) -> Any:
@@ -283,11 +283,14 @@ class TibberDataSource:
                         return await self._get(path, _retried=True)
                     return None
                 if resp.status != 200:
-                    _LOGGER.debug("Tibber GET %s -> HTTP %s", path, resp.status)
+                    # path dropped — Tibber paths carry account-scoped
+                    # home_id/device_id UUIDs.
+                    _LOGGER.debug("Tibber GET → HTTP %s", resp.status)
                     return None
                 return await resp.json(content_type=None)
         except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Tibber GET %s failed: %s", path, err)
+            # class only + no path (UUIDs); a raw err str() carries the URL too.
+            _LOGGER.debug("Tibber GET failed: %s", type(err).__name__)
             return None
 
     async def fetch_vehicles(self) -> dict[str, VehicleData]:

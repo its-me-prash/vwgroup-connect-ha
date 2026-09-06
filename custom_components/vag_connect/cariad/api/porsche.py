@@ -431,7 +431,8 @@ class PorscheClient:
                 return await self._request(
                     method, url, retry=retry, _attempt=_attempt + 1, **kwargs,
                 )
-            raise APIError(0, url, f"transient: {type(err).__name__}: {err}") from err
+            # drop the raw {err} — it would sit in self.body; class name suffices.
+            raise APIError(0, url, f"transient: {type(err).__name__}") from err
 
     # v1.25.0 PR-B: rate-limit header capture (mirror of base.py:_capture_rate_limit_headers)
     def _capture_rate_limit_headers(self, headers: Any) -> None:

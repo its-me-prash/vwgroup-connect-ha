@@ -44,19 +44,27 @@ from ..models import BrandConfig, TokenSet
 _LOGGER = logging.getLogger(__name__)
 
 
-def _safe_url(url: str) -> str:
-    """Host+path of *url* with the query string STRIPPED.
+_UUID_RE = re.compile(
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+)
 
-    The OIDC redirect hops on this legacy path carry ``code`` (the leading chars
-    of the authorization JWT), ``user_id`` (a real account UUID) and
-    ``relayState`` in the query string. Truncating the URL to N chars does NOT
-    hide those — ``code`` is usually the first parameter — so a tester who turns
-    debug logging on and pastes the log into an issue leaks them. Log only the
-    host+path, which is all the redirect trace needs. (#1340 @cyrano330)
+
+def _safe_url(url: str) -> str:
+    """Host+path of *url* with the query AND fragment STRIPPED and any UUID-shaped
+    PATH segment masked.
+
+    The OIDC hops on this legacy path carry ``code`` (the authorization JWT),
+    ``user_id`` (a real account UUID), ``relayState`` and — on hybrid flows —
+    ``access_token``/``id_token`` in the **query or fragment**, AND the consent
+    page carries the account UUID as a **path** segment
+    (``/signin-service/v1/consent/users/<uuid>/…``). Truncating the URL to N chars
+    hides none of it. So: keep only host+path, drop the fragment, and mask UUID
+    path segments — the redirect trace stays readable, the secrets never reach a
+    pasted debug log. (#1340/#1355 @cyrano330)
     """
     try:
         p = urlparse(url)
-        return f"{p.netloc}{p.path}" or "<empty-url>"
+        return _UUID_RE.sub("<uuid>", f"{p.netloc}{p.path}") or "<empty-url>"
     except Exception:  # noqa: BLE001
         return "<unparseable-url>"
 
@@ -544,7 +552,7 @@ class IDKAuth:
             html = await resp.text(errors="replace")
             _LOGGER.debug(
                 "IDK step1: status=%s url=%s html_len=%d",
-                resp.status, login_url[:80], len(html),
+                resp.status, _safe_url(login_url), len(html),
             )
             initial_status = resp.status
         # v2.10.1 (#388 / #393) — when the Auth0 Universal Login front-end
@@ -578,17 +586,17 @@ class IDKAuth:
                 html = await retry_resp.text(errors="replace")
                 _LOGGER.debug(
                     "IDK step1 browser-UA retry: status=%s url=%s html_len=%d",
-                    retry_resp.status, login_url[:80], len(html),
+                    retry_resp.status, _safe_url(login_url), len(html),
                 )
                 if retry_resp.status != 200:
                     raise AuthenticationError(
                         f"Authorization page HTTP {retry_resp.status} at "
-                        f"{login_url} (after browser-UA retry; first "
+                        f"{_safe_url(login_url)} (after browser-UA retry; first "
                         f"attempt was HTTP {initial_status})"
                     )
         elif initial_status != 200:
             raise AuthenticationError(
-                f"Authorization page HTTP {initial_status} at {login_url}"
+                f"Authorization page HTTP {initial_status} at {_safe_url(login_url)}"
             )
 
         # v2.24.0 — learn the signin client id from the URL we actually landed
@@ -653,8 +661,8 @@ class IDKAuth:
             raise AuthenticationError("Auth0: could not find state token.")
 
         _LOGGER.debug(
-            "IDK Auth0: state=%s... (from_html=%s)",
-            auth0_state[:20], bool(state_from_html),
+            "IDK Auth0: state_present=%s (from_html=%s)",
+            bool(auth0_state), bool(state_from_html),
         )
 
         # Step 2 — POST credentials (combined, NOT identifier-first)
@@ -677,7 +685,7 @@ class IDKAuth:
         post_url = f"{self._idk_base}/u/login?state={_quote(auth0_state, safe='')}"
         _LOGGER.debug(
             "IDK Auth0: brand=%s post_url=%s",
-            self._brand.name, post_url[:80],
+            self._brand.name, _safe_url(post_url),
         )
 
         try:
@@ -694,12 +702,17 @@ class IDKAuth:
                 location = _make_absolute(self._idk_base, raw_loc) if raw_loc else ""
                 resp_html = await resp.text(errors="replace")
         except InvalidURL as exc:
-            _LOGGER.error("IDK Auth0: InvalidURL posting to %s — %s", post_url, exc)
-            raise AuthenticationError(f"Invalid login URL: {post_url[:100]}") from exc
+            _LOGGER.error(
+                "IDK Auth0: InvalidURL posting to %s — %s",
+                _safe_url(post_url), type(exc).__name__,
+            )
+            raise AuthenticationError(
+                f"Invalid login URL: {_safe_url(post_url)}"
+            ) from exc
 
         _LOGGER.debug(
             "IDK Auth0 POST: status=%s location=%s",
-            status, location[:80] if location else "(none)",
+            status, _safe_url(location) if location else "(none)",
         )
 
         if status == 400:
@@ -758,8 +771,8 @@ class IDKAuth:
                         json_html = await json_resp.text(errors="replace")
                 except Exception as exc:  # noqa: BLE001
                     _LOGGER.debug(
-                        "IDK Auth0 JSON fallback POST failed: %s: %s",
-                        type(exc).__name__, exc,
+                        "IDK Auth0 JSON fallback POST failed: %s",
+                        type(exc).__name__,
                     )
 
                 if json_status in (200, 302, 303) and json_location:
@@ -796,7 +809,7 @@ class IDKAuth:
             raise RateLimitError()
         if status not in (302, 303):
             raise AuthenticationError(
-                f"Auth0 POST returned HTTP {status}: {resp_html[:200]}"
+                f"Auth0 POST returned HTTP {status} (body {len(resp_html)} chars)"
             )
 
         # Step 3 — follow redirect chain manually until app:// URI
@@ -810,7 +823,10 @@ class IDKAuth:
                 uid = parse_qs(urlparse(ref).query).get("user_id", [""])[0]
                 if uid:
                     self.user_id = uid
-                    _LOGGER.debug("IDK Auth0: captured user_id from redirect: %s", uid[:8])
+                    _LOGGER.debug(
+                        "IDK Auth0: captured user_id from redirect (present=%s)",
+                        bool(uid),
+                    )
             if ref.startswith(prefix):
                 break
             # Detect MFA — v2.2.0 (#183 follow-on) discriminates Email-OTP
@@ -822,7 +838,7 @@ class IDKAuth:
                 _LOGGER.debug(
                     "IDK Auth0: %s challenge at %s",
                     "Email-OTP" if is_email_2fa else "TOTP",
-                    ref[:80],
+                    _safe_url(ref),
                 )
                 if mfa_code:
                     mfa_state = parse_qs(urlparse(ref).query).get("state", [auth0_state])[0]
@@ -881,21 +897,21 @@ class IDKAuth:
                 if "terms-and-conditions" in ref:
                     _LOGGER.warning(
                         "IDK Auth0: T&C wall at %s — cannot auto-skip "
-                        "(legal acceptance required)", ref[:120],
+                        "(legal acceptance required)", _safe_url(ref),
                     )
                     raise TermsAndConditionsError()
                 skipped = await self._skip_marketing_consent(ref)
                 if skipped:
                     _LOGGER.info(
                         "IDK Auth0: marketing-consent auto-skipped (#309) → %s",
-                        skipped[:80],
+                        _safe_url(skipped),
                     )
                     ref = skipped
                     continue
                 _LOGGER.warning(
                     "IDK Auth0: consent wall at %s — auto-skip failed, "
                     "raising MarketingConsentError for Repair flow",
-                    ref[:120],
+                    _safe_url(ref),
                 )
                 raise MarketingConsentError()
 
@@ -912,7 +928,10 @@ class IDKAuth:
                     else:
                         break
             except InvalidURL as exc:
-                _LOGGER.error("IDK Auth0 redirect: InvalidURL '%s' — %s", _safe_url(ref), exc)
+                _LOGGER.error(
+                    "IDK Auth0 redirect: InvalidURL '%s' — %s",
+                    _safe_url(ref), type(exc).__name__,
+                )
                 break
 
         _LOGGER.debug("IDK Auth0: final redirect = %s", _safe_url(ref) if ref else "(none)")
@@ -921,7 +940,7 @@ class IDKAuth:
             # Print FULL URL on failure (esp. for /v2/login/ui/error which
             # carries error_description in query params we need to debug).
             raise AuthenticationError(
-                f"Auth0: no app:// redirect after login. Last: {ref}"
+                f"Auth0: no app:// redirect after login. Last: {_safe_url(ref)}"
             )
 
         # Save final redirect URL so MBB-mode callers can extract the
@@ -962,8 +981,8 @@ class IDKAuth:
                 raise AuthenticationError(
                     f"Hybrid-full flow: missing id_token "
                     f"({bool(id_tok)}) or access_token ({bool(access_tok)}) "
-                    f"in callback URL. Auth0 may have stripped the hybrid "
-                    f"response_type for this client. URL: {ref[:200]}"
+                    f"in callback URL ({len(ref)} chars). Auth0 may have "
+                    f"stripped the hybrid response_type for this client."
                 )
             _LOGGER.debug(
                 "IDK Auth0 hybrid_full: access_token (%d chars) + id_token "
@@ -1017,7 +1036,7 @@ class IDKAuth:
                 raise AuthenticationError(
                     f"MBB hybrid-flow: no id_token in redirect URL "
                     f"({len(ref)} chars). Auth0 may have stripped "
-                    f"response_type=id_token for this client. URL: {ref[:200]}"
+                    f"response_type=id_token for this client."
                 )
             _LOGGER.debug(
                 "IDK Auth0 MBB hybrid: id_token captured (%d chars)", len(id_tok)
@@ -1026,7 +1045,7 @@ class IDKAuth:
 
         auth_code = _extract_auth_code(ref, self._brand.redirect_uri)
         if not auth_code:
-            raise AuthenticationError(f"Auth0: no code in: {ref[:80]}")
+            raise AuthenticationError(f"Auth0: no code in: {_safe_url(ref)}")
 
         _LOGGER.debug("IDK Auth0: got auth code, exchanging tokens")
         return await self._exchange_code(auth_code, verifier)
@@ -1074,7 +1093,7 @@ class IDKAuth:
             resp_html = await resp.text(errors="replace")
             _LOGGER.debug(
                 "IDK Auth0 form POST %s → status=%s url=%s html_len=%d",
-                url[-40:], resp.status, final_url[-60:], len(resp_html),
+                _safe_url(url), resp.status, _safe_url(final_url), len(resp_html),
             )
             if resp.status == 401:
                 raise AuthenticationError("Invalid email or password (Auth0 401).")
@@ -1082,13 +1101,14 @@ class IDKAuth:
                 raise RateLimitError()
             if resp.status not in (200, 302, 400):
                 raise AuthenticationError(
-                    f"Auth0 form POST returned HTTP {resp.status}: {resp_html[:200]}"
+                    f"Auth0 form POST returned HTTP {resp.status} "
+                    f"(body {len(resp_html)} chars)"
                 )
             # 400: Auth0 returns login page again — caller decides what to do
             if resp.status == 400:
                 _LOGGER.debug(
                     "IDK Auth0 form POST 400 — html_len=%d url=%s",
-                    len(resp_html), final_url[-60:],
+                    len(resp_html), _safe_url(final_url),
                 )
         return final_url, resp_html
 
@@ -1116,7 +1136,7 @@ class IDKAuth:
         _LOGGER.debug(
             "IDK legacy: step1 fields=%s action=%s",
             list(csrf1.fields.keys()),
-            csrf1.form_action[:80] if csrf1.form_action else "(none)",
+            _safe_url(csrf1.form_action) if csrf1.form_action else "(none)",
         )
         if not csrf1.fields.get("_csrf") and not csrf1.fields.get("hmac") \
                 and not csrf1.fields.get("relayState"):
@@ -1133,7 +1153,7 @@ class IDKAuth:
         submit_data: dict[str, str] = {**csrf1.fields, "email": email}
 
         # Step 2 — POST email (upstream: cookies=step1_cookies, allow_redirects=True)
-        _LOGGER.debug("IDK legacy: posting email to %s", email_url[:100])
+        _LOGGER.debug("IDK legacy: posting email to %s", _safe_url(email_url))
         async with self._session.post(
             email_url,
             timeout=_AUTH_TIMEOUT, data=submit_data,
@@ -1147,7 +1167,7 @@ class IDKAuth:
                 raise UpstreamUnavailableError(resp.status, self._brand.name)
             if resp.status != 200:
                 raise AuthenticationError(
-                    f"Email POST HTTP {resp.status} at {email_url[:80]}"
+                    f"Email POST HTTP {resp.status} at {_safe_url(email_url)}"
                 )
             html2 = await resp.text()
 
@@ -1160,7 +1180,8 @@ class IDKAuth:
             # Password URL: replace "identifier" with "authenticate" in email_url
             pw_url = email_url.replace("identifier", "authenticate")
             _LOGGER.debug(
-                "IDK legacy: hmac from JS, step1 fields kept, pw_url=%s", pw_url[:100]
+                "IDK legacy: hmac from JS, step1 fields kept, pw_url=%s",
+                _safe_url(pw_url),
             )
         else:
             # Fallback: try form fields from password page
@@ -1177,7 +1198,7 @@ class IDKAuth:
                     )
             _LOGGER.debug(
                 "IDK legacy: no hmac in JS, using form fields=%s pw_url=%s",
-                list(csrf2.fields.keys()), pw_url[:100],
+                list(csrf2.fields.keys()), _safe_url(pw_url),
             )
 
         submit_data["password"] = password
@@ -1185,7 +1206,7 @@ class IDKAuth:
         # Step 4 — POST password (upstream: allow_redirects=False, manual redirects)
         _LOGGER.debug(
             "IDK legacy: posting password to %s fields=%s",
-            pw_url[:100], list(submit_data.keys()),
+            _safe_url(pw_url), list(submit_data.keys()),
         )
         async with self._session.post(
             pw_url,
@@ -1198,7 +1219,7 @@ class IDKAuth:
 
         _LOGGER.debug(
             "IDK legacy: password POST status=%s location=%s",
-            pw_status, pw_loc[:80] if pw_loc else "(none)",
+            pw_status, _safe_url(pw_loc) if pw_loc else "(none)",
         )
 
         if pw_status == 200:
@@ -1239,7 +1260,8 @@ class IDKAuth:
             raise UpstreamUnavailableError(pw_status, self._brand.name)
         if pw_status not in (302, 303):
             raise AuthenticationError(
-                f"Password POST HTTP {pw_status} at {pw_url[:80]}: {pw_body[:200]}"
+                f"Password POST HTTP {pw_status} at {_safe_url(pw_url)} "
+                f"(body {len(pw_body)} chars)"
             )
         if not pw_loc:
             # v2.5.1 — audi_connect PR #731 inspiration: a missing Location
@@ -1291,7 +1313,7 @@ class IDKAuth:
 
         auth_code = _extract_auth_code(ref, self._brand.redirect_uri)
         if not auth_code:
-            raise AuthenticationError(f"Legacy: no code in: {ref[:100]}")
+            raise AuthenticationError(f"Legacy: no code in: {_safe_url(ref)}")
 
         return await self._exchange_code(auth_code, verifier)
 
@@ -1588,14 +1610,15 @@ class IDKAuth:
             if resp.status not in (302, 303, 301, 307, 308):
                 body = await resp.text()
                 raise AuthenticationError(
-                    f"Password POST returned HTTP {resp.status} at {url[:100]}: {body[:200]}"
+                    f"Password POST returned HTTP {resp.status} at "
+                    f"{_safe_url(url)} (body {len(body)} chars)"
                 )
             raw_loc = resp.headers.get("Location", "")
             location = _make_absolute(url, raw_loc) if raw_loc else ""
             current_base = url
             _LOGGER.debug(
                 "IDK legacy: password POST status=%s location=%s",
-                resp.status, location[:80] if location else "(none)",
+                resp.status, _safe_url(location) if location else "(none)",
             )
             if not location:
                 raise AuthenticationError(
@@ -1612,7 +1635,9 @@ class IDKAuth:
                 uid = parse_qs(urlparse(location).query).get("user_id", [""])[0]
                 if uid:
                     self.user_id = uid
-                    _LOGGER.debug("IDK: captured user_id from redirect: %s", uid[:8])
+                    _LOGGER.debug(
+                        "IDK: captured user_id from redirect (present=%s)", bool(uid)
+                    )
             if location.startswith(prefix):
                 return location
             # v2.2.0 / v2.5.1 — Consent-wall detection (symmetric with
@@ -1634,7 +1659,7 @@ class IDKAuth:
                 if skipped:
                     _LOGGER.info(
                         "IDK legacy: marketing-consent auto-skipped (#309) → %s",
-                        skipped[:80],
+                        _safe_url(skipped),
                     )
                     location = skipped
                     continue
@@ -1658,7 +1683,7 @@ class IDKAuth:
                 else:
                     _LOGGER.debug(
                         "IDK legacy: redirect chain ended — status=%s url=%s",
-                        resp.status, location[:80],
+                        resp.status, _safe_url(location),
                     )
                     break
 
@@ -1894,11 +1919,13 @@ class IDKAuth:
                             resp.status,
                         )
                         last_error = AuthenticationError(
-                            f"Token exchange failed HTTP {resp.status}: {body[:200]}"
+                            f"Token exchange failed HTTP {resp.status} "
+                            f"(body {len(body)} chars)"
                         )
                         continue
                     raise AuthenticationError(
-                        f"Token exchange failed HTTP {resp.status}: {body[:200]}"
+                        f"Token exchange failed HTTP {resp.status} "
+                        f"(body {len(body)} chars)"
                     )
             except (AuthenticationError, UpstreamUnavailableError):
                 raise
@@ -1919,7 +1946,7 @@ class IDKAuth:
             "redirectUri": self._brand.redirect_uri,
             "verifier": verifier,
         }
-        _LOGGER.debug("Škoda token exchange: %s", url)
+        _LOGGER.debug("Škoda token exchange: %s", _safe_url(url))
         async with self._session.post(
             url, timeout=_AUTH_TIMEOUT, json=payload,
             headers={
@@ -1931,7 +1958,8 @@ class IDKAuth:
             if resp.status != 200:
                 body = await resp.text()
                 raise AuthenticationError(
-                    f"Škoda token exchange failed HTTP {resp.status}: {body[:200]}"
+                    f"Škoda token exchange failed HTTP {resp.status} "
+                    f"(body {len(body)} chars)"
                 )
             data: dict[str, Any] = await resp.json()
 
@@ -1962,7 +1990,7 @@ class IDKAuth:
         if not callback:
             _LOGGER.debug(
                 "IDK consent-skip: no callback param in %s — cannot auto-skip",
-                consent_url[:100],
+                _safe_url(consent_url),
             )
             return None
 
@@ -1977,16 +2005,16 @@ class IDKAuth:
                 next_loc = cb_resp.headers.get("Location", "")
                 _LOGGER.debug(
                     "IDK consent-skip: callback %s → status=%s next=%s",
-                    cb_url[:80], cb_resp.status,
-                    next_loc[:80] if next_loc else "(none)",
+                    _safe_url(cb_url), cb_resp.status,
+                    _safe_url(next_loc) if next_loc else "(none)",
                 )
                 if not next_loc:
                     return None
                 return _make_absolute(cb_url, next_loc)
         except (InvalidURL, Exception) as exc:  # noqa: BLE001
             _LOGGER.warning(
-                "IDK consent-skip: callback GET failed — %s: %s",
-                type(exc).__name__, exc,
+                "IDK consent-skip: callback GET failed — %s",
+                type(exc).__name__,
             )
             return None
 

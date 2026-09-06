@@ -325,8 +325,13 @@ def json_safe(obj: Any) -> Any:
             return [json_safe(item) for item in obj]
         # Unknown type — fallback to repr-string so we never crash
         return str(obj)
-    except Exception:  # noqa: BLE001 — defensive guarantee
-        _LOGGER.debug("json_safe: fallback for %s", type(obj).__name__, exc_info=True)
+    except Exception as exc:  # noqa: BLE001 — defensive guarantee
+        # Class only, not exc_info — json_safe walks diagnostics objects that may
+        # hold secrets; a serialization traceback must not surface their values.
+        _LOGGER.debug(
+            "json_safe: fallback for %s (%s)",
+            type(obj).__name__, type(exc).__name__,
+        )
         return str(obj)
 
 

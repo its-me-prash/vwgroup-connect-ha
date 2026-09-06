@@ -1738,6 +1738,9 @@
       },
       "data_source": {
         "name": "Source: {source}"
+      },
+      "data_stale": {
+        "name": "Data stale"
       }
     },
     "switch": {
@@ -1940,6 +1943,27 @@
     }
   },
   "issues": {
+    "skoda_official_manual_key": {
+      "title": "Škoda official API — add your API key",
+      "fix_flow": {
+        "step": {
+          "enter_key": {
+            "title": "Add a MyŠkoda API key",
+            "description": "Home Assistant couldn't create an official Škoda API key for this car automatically. Create one in the MyŠkoda app, then choose the vehicle and paste the key here. Automatic creation keeps trying in the background — this is just the manual fallback.",
+            "data": {
+              "vin": "Vehicle",
+              "api_key": "MyŠkoda API key (starts with msk_)"
+            }
+          }
+        },
+        "error": {
+          "key_required": "Please paste your MyŠkoda API key."
+        },
+        "abort": {
+          "entry_gone": "That integration entry no longer exists."
+        }
+      }
+    },
     "invalid_credentials": {
       "title": "Sign-in failed — {brand}",
       "description": "Home Assistant couldn't sign in to your {brand} account — usually a wrong or changed password, though a temporary block can look the same.\n\nSettings → Devices & Services → VW Group Connect → ⋮ → Reconfigure to re-enter your credentials."

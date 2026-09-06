@@ -1738,6 +1738,9 @@
       },
       "data_source": {
         "name": "Zdroj: {source}"
+      },
+      "data_stale": {
+        "name": "Data zastaralá"
       }
     },
     "switch": {
@@ -1940,6 +1943,27 @@
     }
   },
   "issues": {
+    "skoda_official_manual_key": {
+      "title": "Oficiální API Škoda — přidejte svůj API klíč",
+      "fix_flow": {
+        "step": {
+          "enter_key": {
+            "title": "Přidat API klíč MyŠkoda",
+            "description": "Home Assistant nedokázal pro toto auto automaticky vytvořit oficiální API klíč Škoda. Vytvořte jej v aplikaci MyŠkoda, poté vyberte vozidlo a vložte klíč sem. Automatické vytváření zkouší dál na pozadí — toto je jen ruční záložní možnost.",
+            "data": {
+              "vin": "Vozidlo",
+              "api_key": "API klíč MyŠkoda (začíná na msk_)"
+            }
+          }
+        },
+        "error": {
+          "key_required": "Vložte prosím svůj API klíč MyŠkoda."
+        },
+        "abort": {
+          "entry_gone": "Tento záznam integrace již neexistuje."
+        }
+      }
+    },
     "invalid_credentials": {
       "title": "Přihlášení selhalo — {brand}",
       "description": "Home Assistant se nemohl přihlásit k účtu {brand} — obvykle nesprávné nebo změněné heslo, ale dočasné zablokování může vypadat stejně.\n\nNastavení → Zařízení a služby → VW Group Connect → ⋮ → Překonfigurovat a znovu zadat přihlašovací údaje."

@@ -538,7 +538,9 @@ async def async_get_config_entry_diagnostics(
         try:
             capabilities = capabilities_fn()
         except Exception as err:  # noqa: BLE001
-            capabilities = {"error": f"{type(err).__name__}: {err}"}
+            # class only — str(err) can carry a VIN/internal value; matches the
+            # sibling raw_responses/command error handlers below.
+            capabilities = {"error": type(err).__name__}
 
     # v3.0.0 — the RAW brand API responses (aggressively redacted). The Scout
     # already surfaces the unmapped field NAMES; this adds the surrounding

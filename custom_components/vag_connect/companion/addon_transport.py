@@ -194,8 +194,11 @@ async def probe_addon(
     except CompanionTransportError as err:
         return False, str(err)
     except Exception as err:  # noqa: BLE001 - a probe must never crash setup
-        _LOGGER.debug("Companion add-on probe failed: %s", err, exc_info=True)
-        return False, str(err)
+        # class-only — a transport error's str() can carry the add-on host:port and,
+        # depending on the transport, the auth token; keep it out of the DEBUG log
+        # AND out of the reason string the config flow renders back to the user.
+        _LOGGER.debug("Companion add-on probe failed (%s)", type(err).__name__)
+        return False, type(err).__name__
     finally:
         with_close = transport.close()
         try:

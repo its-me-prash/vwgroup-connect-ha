@@ -255,16 +255,16 @@ class CupraSeatPushManager(PushManager):
                     "brand=%s): %s — reconnecting in %.1fs",
                     len(self._vins),
                     self._brand,
-                    err,
+                    type(err).__name__,
                     self._backoff_seconds,
                 )
                 self._state = PushManagerState.RECONNECTING
                 # v2.2.0 PR #13/20 — record this strike. After 3
                 # consecutive failures the breaker trips and we
                 # exit the outer loop (check below after backoff).
-                self._record_failure(
-                    f"connect-loop: {type(err).__name__}: {str(err)[:160]}"
-                )
+                # class only — str(err)[:160] is truncation, not redaction (an
+                # aiohttp/FCM connect error's str() carries the endpoint URL).
+                self._record_failure(f"connect-loop: {type(err).__name__}")
                 try:
                     await asyncio.wait_for(
                         self._stop_event.wait(),

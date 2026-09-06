@@ -83,6 +83,23 @@ def test_not_anonymous_when_a_real_session_cookie_is_present() -> None:
     assert c._portal_session_is_anonymous() is False
 
 
+def test_not_anonymous_when_auth_cookie_is_parent_domain_scoped() -> None:
+    # a real session cookie scoped to the PARENT domain (.drivesomethinggreater.com)
+    # is still sent to the portal host → must count, must NOT false-flag anonymous.
+    # (guards the substring-match bug the release-readiness pass caught)
+    c = _connector([
+        _Cookie("affinity", _PORTAL),
+        _Cookie("ath", ".drivesomethinggreater.com"),
+    ])
+    assert c._portal_session_is_anonymous() is False
+
+
+def test_anonymous_when_only_lb_cookie_at_parent_domain() -> None:
+    # affinity at the parent domain is still infra-only → anonymous
+    c = _connector([_Cookie("affinity", ".drivesomethinggreater.com")])
+    assert c._portal_session_is_anonymous() is True
+
+
 def test_not_anonymous_when_no_portal_domain_cookie() -> None:
     # no cookie on the portal domain at all → ambiguous, do NOT flag (never raise
     # on an empty set — only on the confirmed affinity-only signature)

@@ -1738,6 +1738,9 @@
       },
       "data_source": {
         "name": "Bron: {source}"
+      },
+      "data_stale": {
+        "name": "Gegevens verouderd"
       }
     },
     "switch": {
@@ -1940,6 +1943,27 @@
     }
   },
   "issues": {
+    "skoda_official_manual_key": {
+      "title": "Officiële Škoda-API — voeg je API-sleutel toe",
+      "fix_flow": {
+        "step": {
+          "enter_key": {
+            "title": "Een MyŠkoda API-sleutel toevoegen",
+            "description": "Home Assistant kon niet automatisch een officiële Škoda API-sleutel voor deze auto aanmaken. Maak er een aan in de MyŠkoda-app, kies vervolgens het voertuig en plak de sleutel hier. Het automatisch aanmaken blijft op de achtergrond proberen — dit is alleen de handmatige terugvaloptie.",
+            "data": {
+              "vin": "Voertuig",
+              "api_key": "MyŠkoda API-sleutel (begint met msk_)"
+            }
+          }
+        },
+        "error": {
+          "key_required": "Plak je MyŠkoda API-sleutel."
+        },
+        "abort": {
+          "entry_gone": "Die integratievermelding bestaat niet meer."
+        }
+      }
+    },
     "invalid_credentials": {
       "title": "Aanmelden mislukt — {brand}",
       "description": "Home Assistant kon niet inloggen op je {brand}-account — meestal een onjuist of gewijzigd wachtwoord, al kan een tijdelijke blokkade er hetzelfde uitzien.\n\nInstellingen → Apparaten en diensten → VW Group Connect → ⋮ → Herconfigureren om je inloggegevens opnieuw in te voeren."

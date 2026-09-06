@@ -152,6 +152,31 @@ _PROACTIVE_ROLL_INTERVAL_S = 600.0
 # session-resume can't re-establish and every restart loops / re-prompts OTP.
 _COOKIE_HOSTS = (f"{_SITE_BASE}/", f"{_IDENTITY_BASE}/")
 
+# #1355 — redact a URL before it reaches a log OR a copy-pasteable exception
+# message. The auth landing URLs on this flow carry the OAuth ``state`` / ``code``
+# in the query (and the consent page carries the account UUID as a PATH segment),
+# so a bare ``url[:80]`` slice is NOT redaction — the secret sits at the front or
+# the tail. Mirror the ``_safe_url`` in idk.py / _eu_data_act.py: keep host+path
+# only, drop query + fragment, mask UUID path segments.
+_URL_UUID_RE = re.compile(
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+)
+# vw.de authproxy read URLs carry the VIN in the path (…/proxy/vehicles/{vin}/…);
+# a VIN is owner-identifying PII, so mask it too. Canonical 17-char VIN charset,
+# word-bounded — the surrounding literal path segments are lowercase, so no
+# false-positive masking.
+_VIN_RE = re.compile(r"\b[A-HJ-NPR-Z0-9]{17}\b")
+
+
+def _safe_url(url: str) -> str:
+    """Host+path of *url*, query + fragment stripped, UUID + VIN path segments masked."""
+    try:
+        p = urlparse(url)
+        safe = _URL_UUID_RE.sub("<uuid>", f"{p.netloc}{p.path}")
+        return _VIN_RE.sub("<vin>", safe) or "<empty-url>"
+    except Exception:  # noqa: BLE001
+        return "<unparseable-url>"
+
 
 def _redacted_cookie_summary(cookies: list[dict[str, Any]]) -> str:
     """A value-free, one-line summary of a cookie set for debug logging (#966).
@@ -574,7 +599,7 @@ class WebsiteAuthProxyConnector:
         if "/u/login" not in login_url and "signin-service" not in login_url:
             raise AuthenticationError(
                 "Website authproxy: did not reach the VW identity login "
-                f"(landed at {login_url[:80]})"
+                f"(landed at {_safe_url(login_url)})"
             )
 
         auth0_state = self._auth0_state(login_url, login_html)
@@ -777,9 +802,14 @@ class WebsiteAuthProxyConnector:
         # logged it, which left a reporter's debug log unable to show where the
         # chain actually went: the single fact needed to tell a dead SSO from a
         # misclassified good one.
+        # Mask the PATH too, not just the (already-dropped) query: the consent hop
+        # carries the account UUID as a path segment (…/consent/users/<uuid>/…) and
+        # a read path can carry the VIN. (#1355)
         _LOGGER.debug(
             "Website authproxy refresh GET landed host=%s path=%s status=%s",
-            landed_host, landed_path, status,
+            landed_host,
+            _VIN_RE.sub("<vin>", _URL_UUID_RE.sub("<uuid>", landed_path)),
+            status,
         )
         if not on_portal and (
             "/u/login" in landed_path or "/signin-service" in landed_path
@@ -800,7 +830,8 @@ class WebsiteAuthProxyConnector:
             )
             return
         raise AuthenticationError(
-            f"Website authproxy: refresh did not land on the portal ({landed[:80]})"
+            "Website authproxy: refresh did not land on the portal "
+            f"({_safe_url(landed)})"
         )
 
     async def maybe_roll(self, *, force: bool = False) -> None:
@@ -822,14 +853,16 @@ class WebsiteAuthProxyConnector:
         self._last_roll = now
         try:
             await self.refresh()
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             # A proactive roll is opportunistic: if it fails (transient network,
             # or a genuinely-dead SSO), swallow it and let the subsequent read's
             # reactive refresh()/re-login handle it. Never propagate from here.
+            # Log the exception CLASS only, never exc_info — a chained aiohttp
+            # error's str() carries the VIN-path read URL (PII).
             _LOGGER.debug(
-                "Website authproxy: proactive session roll skipped (will rely on"
-                " the reactive path this cycle)",
-                exc_info=True,
+                "Website authproxy: proactive session roll skipped (%s; will rely"
+                " on the reactive path this cycle)",
+                type(exc).__name__,
             )
 
     def _finalise_login(self, landed_url: str) -> None:
@@ -843,7 +876,7 @@ class WebsiteAuthProxyConnector:
         else:
             raise AuthenticationError(
                 "Website authproxy: login did not complete "
-                f"(ended at {landed_url[:80]})"
+                f"(ended at {_safe_url(landed_url)})"
             )
 
     @staticmethod
@@ -1175,7 +1208,7 @@ class WebsiteAuthProxyConnector:
                     # WeConnect gdc) — never a dead session → no data this poll.
                     _LOGGER.debug(
                         "Website authproxy GET %s → 412 precondition "
-                        "(no data this poll)", url,
+                        "(no data this poll)", _safe_url(url),
                     )
                     if record_as:
                         self.probe_outcomes[record_as] = "412 precondition (wrong-platform gdc?)"
@@ -1185,13 +1218,13 @@ class WebsiteAuthProxyConnector:
                         _LOGGER.debug(
                             "Website authproxy GET %s → HTTP %s (optional read "
                             "unavailable for this car — not a session failure)",
-                            url, resp.status,
+                            _safe_url(url), resp.status,
                         )
                         if record_as:
                             self.probe_outcomes[record_as] = str(resp.status)
                         return None
                     raise AuthenticationError(
-                        f"Website authproxy GET {url} → HTTP {resp.status}"
+                        f"Website authproxy GET {_safe_url(url)} → HTTP {resp.status}"
                     )
                 if resp.status >= 400:
                     if (
@@ -1204,13 +1237,13 @@ class WebsiteAuthProxyConnector:
                     if soft:
                         _LOGGER.debug(
                             "Website authproxy GET %s → HTTP %s "
-                            "(soft; no data this poll)", url, resp.status,
+                            "(soft; no data this poll)", _safe_url(url), resp.status,
                         )
                         if record_as:
                             self.probe_outcomes[record_as] = str(resp.status)
                         return None
                     raise AuthenticationError(
-                        f"Website authproxy GET {url} → HTTP {resp.status}"
+                        f"Website authproxy GET {_safe_url(url)} → HTTP {resp.status}"
                     )
                 body = await resp.json(content_type=None)
                 self._capture_raw(url, body)
@@ -1297,10 +1330,10 @@ class WebsiteAuthProxyConnector:
             await self.get_relations()
         except AuthenticationError:
             raise
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             _LOGGER.debug(
-                "Website authproxy: platform probe skipped for %s", vin[-6:],
-                exc_info=True,
+                "Website authproxy: platform probe skipped for %s (%s)",
+                vin[-6:], type(exc).__name__,
             )
 
     async def get_master_data(self, vin: str) -> AuthproxyVehicleInfo:
@@ -1563,10 +1596,10 @@ class WebsiteAuthProxyConnector:
             rels = await self.get_relations()  # also populates self._vin_backend
         except AuthenticationError:
             raise
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             _LOGGER.debug(
-                "Website authproxy relations preflight skipped for %s", vin[-6:],
-                exc_info=True,
+                "Website authproxy relations preflight skipped for %s (%s)",
+                vin[-6:], type(exc).__name__,
             )
 
         charging = await self._get_json(
@@ -1595,10 +1628,10 @@ class WebsiteAuthProxyConnector:
                 got_data = True
         except AuthenticationError:
             raise
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             _LOGGER.debug(
-                "Website authproxy warninglights read skipped for %s", vin[-6:],
-                exc_info=True,
+                "Website authproxy warninglights read skipped for %s (%s)",
+                vin[-6:], type(exc).__name__,
             )
 
         # v2.16.0 — last confirmed remote lock/unlock command (BETA, fail-soft).
@@ -1609,10 +1642,10 @@ class WebsiteAuthProxyConnector:
                 got_data = True
         except AuthenticationError:
             raise
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             _LOGGER.debug(
-                "Website authproxy lock-history read skipped for %s", vin[-6:],
-                exc_info=True,
+                "Website authproxy lock-history read skipped for %s (%s)",
+                vin[-6:], type(exc).__name__,
             )
 
         # v2.16.0 — nickname + licence plate from the relations LIST parse
@@ -1634,10 +1667,10 @@ class WebsiteAuthProxyConnector:
                     d.license_plate = match.license_plate
         except AuthenticationError:
             raise
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             _LOGGER.debug(
-                "Website authproxy relation enrich skipped for %s", vin[-6:],
-                exc_info=True,
+                "Website authproxy relation enrich skipped for %s (%s)",
+                vin[-6:], type(exc).__name__,
             )
 
         # #923 — EXPERIMENTAL parkingposition read, gated on the opt-in test
@@ -1662,10 +1695,10 @@ class WebsiteAuthProxyConnector:
                     self._position_available = True
             except AuthenticationError:
                 raise
-            except Exception:  # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001
                 _LOGGER.debug(
-                    "Website authproxy parkingposition read skipped for %s",
-                    vin[-6:], exc_info=True,
+                    "Website authproxy parkingposition read skipped for %s (%s)",
+                    vin[-6:], type(exc).__name__,
                 )
 
         # SoH probe (4.3.2 batteryHealthState) — same opt-in test-cohort gate as
@@ -1684,10 +1717,10 @@ class WebsiteAuthProxyConnector:
                     self._soh_available = True
             except AuthenticationError:
                 raise
-            except Exception:  # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001
                 _LOGGER.debug(
-                    "Website authproxy SoH probe skipped for %s",
-                    vin[-6:], exc_info=True,
+                    "Website authproxy SoH probe skipped for %s (%s)",
+                    vin[-6:], type(exc).__name__,
                 )
 
         if got_data:

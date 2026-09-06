@@ -212,7 +212,8 @@ class PlugAndPlayCloudClient:
             # coordinator suppresses the per-poll Error-Reporter flood and fires a
             # single re-auth Repair instead of ~20 buffered 401s (acpp, Prash).
             raise AuthenticationError(
-                f"plug&play token rejected (401): {self.API_BASE}/vehicle/{vin}"
+                # mask the VIN — this message is logged/surfaced on the poll path.
+                f"plug&play token rejected (401) for vehicle …{vin[-6:]}"
             )
         if status != 200 or not isinstance(body, dict):
             # 404 here specifically means the VIN is not enrolled in THIS account
@@ -247,10 +248,13 @@ class PlugAndPlayCloudClient:
                     # on a live read while mocked tests stay green — exactly how the
                     # multi-value Accept-Language carport 400 hid itself. Log it so a
                     # future live-only regression is visible in debug.
+                    # log the friendly resource key, not `sub` (it carries the VIN).
                     _LOGGER.debug(
-                        "plug&play sub-resource %s → HTTP %s (skipped)", sub, s)
+                        "plug&play sub-resource %s → HTTP %s (skipped)", key, s)
             except Exception as exc:  # noqa: BLE001 — defence-in-depth
-                _LOGGER.debug("plug&play sub-resource %s failed: %s", sub, exc)
+                # key (no VIN) + class name (a raw exc's str carries the VIN-URL).
+                _LOGGER.debug(
+                    "plug&play sub-resource %s failed: %s", key, type(exc).__name__)
         return snap
 
     async def get_vehicles(self) -> list[str]:

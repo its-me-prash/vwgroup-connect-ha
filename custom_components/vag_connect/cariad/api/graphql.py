@@ -319,16 +319,21 @@ class VehicleImageFetcher:
             ) as resp:
                 if resp.status != 200:
                     body = await resp.text()
+                    # body withheld — a GraphQL error body can echo VIN/nickname;
+                    # a byte count is enough for triage.
                     _LOGGER.warning(
-                        "GraphQL images failed for %s: HTTP %d @ %s — %s",
-                        brand, resp.status, endpoint, body[:200],
+                        "GraphQL images failed for %s: HTTP %d @ %s (%d-byte body)",
+                        brand, resp.status, endpoint, len(body),
                     )
                     return {}
                 data = await resp.json()
         except Exception as err:  # noqa: BLE001
-            err_str = str(err)
-            if err_str:
-                _LOGGER.warning("GraphQL image fetch failed for %s: %s", brand, err_str)
+            # class only — str(err) carries the request URL on a redirect/SSO hop.
+            if str(err):
+                _LOGGER.warning(
+                    "GraphQL image fetch failed for %s (%s)",
+                    brand, type(err).__name__,
+                )
             else:
                 # Empty error = connection reset / server blocked request (common for non-Audi brands)
                 _LOGGER.debug(
@@ -364,12 +369,13 @@ class VehicleImageFetcher:
                     continue
                 code = (err.get("extensions") or {}).get("code", "?")
                 path = err.get("path", [])
-                msg = err.get("message", "")
+                # msg withheld — a server-authored error message can echo the
+                # VIN/input; code + path already identify the affected field.
                 _LOGGER.info(
                     "GraphQL partial error (PPC/PPE platform pattern): "
-                    "code=%s path=%s msg=%s — affected VIN(s) skipped, "
+                    "code=%s path=%s — affected VIN(s) skipped, "
                     "other vehicles render normally",
-                    code, path, msg[:120],
+                    code, path,
                 )
         try:
             vehicles = data.get("data", {}).get("userVehicles", []) or []
@@ -413,10 +419,10 @@ class VehicleImageFetcher:
                 )
                 _LOGGER.debug(
                     "GraphQL images for %s (%s): %d mediaTypes",
-                    vin, media.get("shortName", "?"), len(urls),
+                    vin[-6:], media.get("shortName", "?"), len(urls),
                 )
         except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("GraphQL response parse error: %s", err)
+            _LOGGER.debug("GraphQL response parse error: %s", type(err).__name__)
         return result
 
     @staticmethod

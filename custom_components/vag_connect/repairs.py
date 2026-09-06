@@ -24,11 +24,18 @@ from typing import Any
 
 import logging
 
+import voluptuous as vol
 
 from homeassistant import data_entry_flow
 from homeassistant.components.repairs import RepairsFlow
 from homeassistant.core import HomeAssistant
 import homeassistant.helpers.issue_registry as ir
+from homeassistant.helpers.selector import (
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+    TextSelector,
+)
 
 from .const import DOMAIN
 
@@ -671,6 +678,90 @@ class _AuthRepairFlow(RepairsFlow):
         return self.async_create_entry(title="", data={})
 
 
+def raise_issue_skoda_official_manual_key(
+    hass: HomeAssistant, entry_id: str, vins: list[str]
+) -> None:
+    """Auto-mint could not create an official API key (a non-native login, or the
+    keygen rejected the request) — so instead of silently doing nothing, ask the
+    user to create a key in the MyŠkoda app and paste it here, per vehicle, via an
+    interactive repair. Auto-mint still runs whenever it CAN; this is the fallback
+    for when it can't. #1286."""
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        f"{entry_id}_skoda_official_manual_key",
+        is_fixable=True,
+        is_persistent=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="skoda_official_manual_key",
+        data={
+            "entry_id": entry_id,
+            "reason": "skoda_official_manual_key",
+            # issue-registry data values must be scalars → join VINs to a string.
+            "vins": ",".join(str(v).upper() for v in vins if v),
+        },
+    )
+
+
+def clear_issue_skoda_official_manual_key(hass: HomeAssistant, entry_id: str) -> None:
+    """Clear the manual-key repair once a key has been supplied / minted."""
+    ir.async_delete_issue(hass, DOMAIN, f"{entry_id}_skoda_official_manual_key")
+
+
+class _SkodaOfficialKeyRepairFlow(RepairsFlow):
+    """Manual fallback for the Škoda official API when auto-minting can't create a
+    key. The user makes an API key in the MyŠkoda app and pastes it together with
+    the vehicle it belongs to; we store it exactly like a minted one and reload.
+    """
+
+    def __init__(self, entry_id: str, vins: list[str]) -> None:
+        self._entry_id = entry_id
+        self._vins = [str(v).upper() for v in vins if v]
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> data_entry_flow.FlowResult:
+        return await self.async_step_enter_key(user_input)
+
+    async def async_step_enter_key(
+        self, user_input: dict[str, Any] | None = None
+    ) -> data_entry_flow.FlowResult:
+        from .const import CONF_SKODA_OFFICIAL_KEYS  # noqa: PLC0415
+
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            entry = self.hass.config_entries.async_get_entry(self._entry_id)
+            if entry is None:
+                return self.async_abort(reason="entry_gone")
+            key = str(user_input.get("api_key", "")).strip()
+            vin = str(user_input.get("vin", "")).strip().upper()
+            if not key:
+                errors["api_key"] = "key_required"
+            else:
+                stored = dict(entry.data.get(CONF_SKODA_OFFICIAL_KEYS) or {})
+                stored[vin] = {"key": key, "id": "manual", "validUntil": ""}
+                self.hass.config_entries.async_update_entry(
+                    entry, data={**entry.data, CONF_SKODA_OFFICIAL_KEYS: stored}
+                )
+                await self.hass.config_entries.async_reload(self._entry_id)
+                return self.async_create_entry(title="", data={})
+
+        if self._vins:
+            vin_key: Any = vol.Required("vin", default=self._vins[0])
+            vin_field: Any = SelectSelector(
+                SelectSelectorConfig(
+                    options=self._vins, mode=SelectSelectorMode.DROPDOWN
+                )
+            )
+        else:
+            vin_key = vol.Required("vin")
+            vin_field = TextSelector()
+        schema = vol.Schema({vin_key: vin_field, vol.Required("api_key"): TextSelector()})
+        return self.async_show_form(
+            step_id="enter_key", data_schema=schema, errors=errors
+        )
+
+
 async def async_create_fix_flow(
     hass: HomeAssistant,
     issue_id: str,
@@ -679,4 +770,7 @@ async def async_create_fix_flow(
     """v2.0.0 — HA RepairsFlow factory. Called when user clicks 'Repair'."""
     entry_id = (data or {}).get("entry_id", "")
     reason = (data or {}).get("reason", "auth_failed")
+    if reason == "skoda_official_manual_key":
+        vins = [v for v in str((data or {}).get("vins") or "").split(",") if v]
+        return _SkodaOfficialKeyRepairFlow(entry_id, vins)
     return _AuthRepairFlow(entry_id, reason)

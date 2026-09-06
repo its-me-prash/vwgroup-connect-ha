@@ -158,6 +158,22 @@ def _drop_anchored_sleep_s(
     return max(float(floor_s), min(remaining, float(interval_s)))
 
 
+_PORTAL_5XX_BACKOFF_S = (300, 900, 1800)  # 5 / 15 / 30 min
+
+
+def _portal_5xx_backoff_s(streak: int) -> float:
+    """Escalating minimum sleep during a sustained EU-DA portal 5xx outage.
+
+    ``streak`` 0 → 0.0 (no floor raised). 1→5 min, 2→15 min, 3+→30 min (saturates).
+    Layered ON TOP of the drop-anchored scheduler: without it, a stale capture
+    anchor collapses the sleep to ``_DROP_RETRY_S`` (~60 s) and we poll VW's portal
+    every minute for hours during its own 5xx outage. This adopts TommiG1's
+    5/15/30 min spacing, which also cuts our 429-throttle risk while VW is down."""
+    if streak <= 0:
+        return 0.0
+    return float(_PORTAL_5XX_BACKOFF_S[min(streak, len(_PORTAL_5XX_BACKOFF_S)) - 1])
+
+
 def _is_selfhealing_poll_error(err: object) -> bool:
     """True for a poll error that must NOT be escalated to the public Error
     Reporter, because it self-heals and is not our bug:
@@ -1015,6 +1031,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # Drop-anchored scheduling — the freshest snapshot capture time seen so
         # far, used to align the next portal poll to the ~15-min drop cadence.
         self._newest_capture_at: datetime | None = None
+        # Consecutive EU-DA portal 5xx outages → escalating poll backoff (5/15/30m).
+        self._consecutive_portal_5xx = 0
 
         # Per-VIN consecutive-failure counter (v1.8.7). Reset to 0 on every
         # successful poll. Used by ``is_vehicle_available`` to apply
@@ -1588,8 +1606,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # both arm paths; idempotent, fail-soft.
             try:
                 await self._apply_test_cohort()
-            except Exception:  # noqa: BLE001
-                _LOGGER.debug("test-cohort apply skipped", exc_info=True)
+            except Exception as exc:  # noqa: BLE001
+                _LOGGER.debug("test-cohort apply skipped (%s)", type(exc).__name__)
 
             # Skip vehicles the user has disabled in HA so a deactivated car
             # stops consuming the daily request budget. Reassigning here means
@@ -1601,8 +1619,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # get it painlessly. Idempotent + fail-soft (never sinks the poll).
             try:
                 await self._auto_enroll_skoda_official(vins)
-            except Exception:  # noqa: BLE001
-                _LOGGER.debug("Škoda official auto-enroll skipped", exc_info=True)
+            except Exception as exc:  # noqa: BLE001
+                # class-only — the enroll path mints/handles the X-API-Key and hits
+                # the VIN-path official API; a raw error can carry either.
+                _LOGGER.debug(
+                    "Škoda official auto-enroll skipped (%s)", type(exc).__name__
+                )
             # Fetch status for all vehicles
             self._push_official_mode()  # #1286 — official_only routing before read
             results = await asyncio.gather(
@@ -1624,7 +1646,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             prepared: list[tuple[str, dict[str, Any] | None, bool, bool]] = []
             for vin, result in zip(vins, results):
                 if isinstance(result, Exception):
-                    _LOGGER.warning("Could not fetch status for %s: %s", mask_vin(vin), result)
+                    # class + plain status only — a raw aiohttp error's str()
+                    # carries the VIN-path URL; APIError is already redacted.
+                    _rstatus = getattr(result, "status", None)
+                    _LOGGER.warning(
+                        "Could not fetch status for %s: %s%s",
+                        mask_vin(vin), type(result).__name__,
+                        f" (HTTP {_rstatus})" if _rstatus else "",
+                    )
                     prepared.append((vin, None, True, False))
                     continue
                 if isinstance(result, VehicleData):
@@ -1714,13 +1743,18 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     # strategies only, default ON; session-expiry surfaces a repair)
                     try:
                         await self._ensure_data_act_custom_request_kickoff()
-                    except Exception:  # noqa: BLE001
+                    except Exception as exc:  # noqa: BLE001
                         _LOGGER.debug(
-                            "Data Act kickoff helper raised - non-fatal, continuing",
-                            exc_info=True,
+                            "Data Act kickoff helper raised - non-fatal, continuing"
+                            " (%s)", type(exc).__name__,
                         )
-                except Exception:  # noqa: BLE001 - a background task must not die silently
-                    _LOGGER.exception("VW Group Connect: background setup finish failed")
+                except Exception as exc:  # noqa: BLE001 - a background task must not die silently
+                    # class-only, not .exception() — this wraps the auth-arm + read
+                    # kickoffs; a raw aiohttp error's str() carries the VIN-path URL.
+                    _LOGGER.error(
+                        "VW Group Connect: background setup finish failed (%s)",
+                        type(exc).__name__,
+                    )
                 # Start background polling — after the prefetches, as it was inline.
                 self.hass.async_create_background_task(
                     self._poll_loop(), f"{DOMAIN}_poll"
@@ -1786,7 +1820,14 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 "(message redacted, see DEBUG for details)",
                 type(err).__name__,
             )
-            _LOGGER.debug("VW Group Connect setup failed details: %s", err)
+            # NB: NOT the raw err — the comment above is the reason (its str()
+            # carries code=<JWT> → the user's email + a live token). The class
+            # name is already logged at ERROR; nothing more is safe here. (#1355)
+            _LOGGER.debug(
+                "VW Group Connect setup failed details withheld (%s) — the"
+                " exception message can carry an OAuth code/token",
+                type(err).__name__,
+            )
             return False
 
     def _trigger_reauth(self, reason: str) -> None:
@@ -2067,7 +2108,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             except Exception as exc:  # noqa: BLE001
                 _LOGGER.debug(
                     "Data Act kickoff: VIN %s probe failed (%s) - skipping",
-                    mask_vin(vin), exc,
+                    mask_vin(vin), type(exc).__name__,
                 )
 
         if changed:
@@ -2251,8 +2292,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     CONF_HISTORICAL_EXPORT_STATE: dict(self._historical_state()),
                 },
             )
-        except Exception:  # noqa: BLE001
-            _LOGGER.debug("historical-export state persist skipped", exc_info=True)
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.debug(
+                "historical-export state persist skipped (%s)", type(exc).__name__
+            )
 
     def _record_historical_pending(self, vin: str) -> None:
         self._historical_state()[vin] = {
@@ -2321,8 +2364,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     raise_issue_historical_timeout(
                         self.hass, self.entry.entry_id, vin, masked_vin=mask_vin(vin),
                     )
-                except Exception:  # noqa: BLE001
-                    _LOGGER.debug("historical timeout repair skipped", exc_info=True)
+                except Exception as exc:  # noqa: BLE001
+                    _LOGGER.debug(
+                        "historical timeout repair skipped (%s)", type(exc).__name__
+                    )
                 continue
             if st[vin].get("checked_at") and (now - _parse("checked_at")).total_seconds() < 1800:
                 continue  # throttle import attempts to ~30 min
@@ -2332,9 +2377,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 if await self.async_import_historical_export(vin):
                     st[vin] = {"state": "done",
                                "submitted_at": st[vin].get("submitted_at")}
-            except Exception:  # noqa: BLE001 — not-ready-yet is not fatal
-                _LOGGER.debug("historical import retry for %s deferred",
-                              vin[-6:], exc_info=True)
+            except Exception as exc:  # noqa: BLE001 — not-ready-yet is not fatal
+                # class-only — the import fetches the VIN-path export ZIP; a raw
+                # aiohttp error's str() carries that URL.
+                _LOGGER.debug("historical import retry for %s deferred (%s)",
+                              vin[-6:], type(exc).__name__)
         if changed:
             self._persist_historical_state()
 
@@ -2388,7 +2435,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         except Exception as err:  # noqa: BLE001 - a hand-supplied file may be anything
             _LOGGER.warning(
                 "EU Data Act: could not parse local export %s: %s",
-                os.path.basename(path), err,
+                os.path.basename(path), type(err).__name__,
             )
             parsed = None
         if parsed is None or getattr(parsed, "no_data", True):
@@ -2446,9 +2493,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         self._last_runtime_kickoff = now
         try:
             await self._ensure_data_act_custom_request_kickoff()
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             _LOGGER.debug(
-                "Data Act runtime kickoff raised — non-fatal", exc_info=True,
+                "Data Act runtime kickoff raised — non-fatal (%s)",
+                type(exc).__name__,
             )
 
     async def async_create_data_act_request(self) -> None:
@@ -2723,8 +2771,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         if by_vin:
             try:
                 arm(keys_by_vin=by_vin)
-            except Exception:  # noqa: BLE001
-                _LOGGER.debug("Škoda official arm-from-map failed", exc_info=True)
+            except Exception as exc:  # noqa: BLE001
+                # class-only — by_vin holds the per-VIN X-API-Key; a validation
+                # error could echo the key value.
+                _LOGGER.debug(
+                    "Škoda official arm-from-map failed (%s)", type(exc).__name__
+                )
 
     def _armed_data_channels(self, vin: str) -> list[str]:
         """Tokens of the read channels armed for this vehicle (data sources) —
@@ -2800,6 +2852,75 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             status[token] = entry
         return status
 
+    def _reconcile_connectivity_entities(self) -> None:
+        """Prune stale per-source connectivity binary_sensors from the registry.
+
+        The connectivity sensors are created dynamically, one per armed read channel
+        (unique_id ``{vin}_connectivity_{token}`` — see ``VagSourceConnectivity
+        Sensor``). When an account's channel set changes across versions or a
+        reconfigure — e.g. an EU-Data-Act *token*-path primary whose channel label
+        differs from an earlier build's ``eu_data_act`` — the old sensor is never
+        re-created and lingers in the registry forever as a permanent
+        ``unknown``/``unavailable`` leftover the user has to delete by hand (#1340,
+        cyrano330). This removes any ``{vin}_connectivity_{token}`` entity whose
+        ``token`` is not in the vehicle's CURRENT ``channel_status`` (the exact keys
+        the sensors are built from). Conservative + fail-soft: a VIN with no
+        channel_status yet (its poll hasn't produced one) is skipped, so a sensor
+        whose validity we cannot determine is never removed. Scoped to THIS config
+        entry, so it can never touch another integration or a second VAG entry.
+        """
+        try:
+            from homeassistant.helpers import (  # noqa: PLC0415
+                entity_registry as er,
+            )
+
+            registry = er.async_get(self.hass)
+            entries = er.async_entries_for_config_entry(
+                registry, self.entry.entry_id
+            )
+            for vin, vdata in list((self.vehicles or {}).items()):
+                cs = (
+                    vdata.get("channel_status") if isinstance(vdata, dict) else None
+                )
+                if not isinstance(cs, dict) or not cs:
+                    continue  # valid set unknown for this VIN → prune nothing
+                valid = {f"connectivity_{token}" for token in cs}
+                prefix = f"{vin}_connectivity_"
+                for entry in entries:
+                    uid = entry.unique_id or ""
+                    if not uid.startswith(prefix):
+                        continue
+                    key = uid[len(vin) + 1:]  # "{vin}_" → "connectivity_{token}"
+                    if key in valid:
+                        continue
+                    _LOGGER.info(
+                        "VW Group Connect: removing orphaned connectivity entity "
+                        "%s (that read channel is no longer armed for this "
+                        "account)", entry.entity_id,
+                    )
+                    try:
+                        registry.async_remove(entry.entity_id)
+                    except Exception:  # noqa: BLE001 — keep pruning the rest
+                        pass
+        except Exception:  # noqa: BLE001 — housekeeping must never break the poll
+            return
+
+    def _note_portal_outage(self, portal_outage: bool) -> None:
+        """Advance or reset the consecutive EU-DA portal 5xx-outage streak.
+
+        Called once per poll cycle with whether the portal's last read was a
+        transient outage (``last_no_data_reason == "portal_error"``). The streak
+        drives ``_portal_5xx_backoff_s`` (5/15/30 min). Saturates at the interval
+        count so it never overflows; any non-outage poll (fresh data, an ``empty``
+        no-content drop, or a non-portal entry) resets it to 0."""
+        if portal_outage:
+            self._consecutive_portal_5xx = min(
+                getattr(self, "_consecutive_portal_5xx", 0) + 1,
+                len(_PORTAL_5XX_BACKOFF_S),
+            )
+        else:
+            self._consecutive_portal_5xx = 0
+
     def _skoda_probe(self, key: str, label: str) -> None:
         """Write a PII-free outcome label into the client's ``probe_outcomes`` so the
         integration diagnostics surface it. No-op if the client has no such sink.
@@ -2863,7 +2984,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         client = self._cariad_client
         if str(self.entry.data.get(CONF_BRAND, "")) != "skoda":
             return
-        if self._skoda_official_mode() == "mysmob_only":
+        mode = self._skoda_official_mode()
+        if mode == "mysmob_only":
             # Official channel switched off by the user → don't mint or arm it.
             self._skoda_probe(
                 "skoda_official", "disabled by source mode (mysmob_only)"
@@ -2873,6 +2995,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             # Record WHY the official channel can't auto-enrol (portal-fallback or a
             # non-native login) so diagnostics explain its absence. PII-free.
             self._skoda_probe("skoda_official", "gate: not a native mysmob login")
+            # Can't auto-mint (no native mysmob login) → offer the manual key+VIN repair.
+            self._reconcile_skoda_manual_key_repair(vins)
             return
         # Feed the client the HA instance locale so the app-identity keygen headers
         # (X-DEVICE-LANGUAGE / X-DEVICE-COUNTRY) carry the user's real HA setting in
@@ -2901,6 +3025,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             if str(v).upper() not in stored_upper and str(v).upper() not in attempted
         ]
         if not to_mint:
+            # Every VIN already has a key → nothing to mint; clear any manual-key repair.
+            self._reconcile_skoda_manual_key_repair(vins)
             if stored:
                 self._arm_official_from_map(stored)
                 # Once per session: is ANOTHER integration/app using the same
@@ -2911,9 +3037,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     self._skoda_multi_int_checked = True
                     try:
                         self._check_skoda_multi_integration(await list_keys(), stored, vins)
-                    except Exception:  # noqa: BLE001
+                    except Exception as exc:  # noqa: BLE001
+                        # class-only — list_keys() hits the official API and returns
+                        # key material; a raw error can carry the URL or a key.
                         _LOGGER.debug(
-                            "Škoda multi-integration check skipped", exc_info=True
+                            "Škoda multi-integration check skipped (%s)",
+                            type(exc).__name__,
                         )
             return
         # Quota check (maxKeys 5 per VIN) — one GET before minting.
@@ -2953,6 +3082,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             )
             if quota_full:
                 repairs.raise_issue_skoda_official_quota(self.hass, self.entry.entry_id)
+            # Auto-mint produced no key (keygen rejected / quota) → manual key+VIN fallback.
+            self._reconcile_skoda_manual_key_repair(to_mint)
             return
         full = {**stored, **newly}
         self._arm_official_from_map(full)
@@ -2961,7 +3092,29 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         self.hass.config_entries.async_update_entry(
             self.entry, data={**self.entry.data, CONF_SKODA_OFFICIAL_KEYS: full})
         repairs.raise_issue_skoda_official_enrolled(self.hass, self.entry.entry_id)
+        # Keys minted → the manual key+VIN fallback is no longer needed.
+        repairs.clear_issue_skoda_official_manual_key(self.hass, self.entry.entry_id)
         self._skoda_probe("skoda_official", f"enrolled ({len(newly)} new key(s))")
+
+    def _reconcile_skoda_manual_key_repair(self, vins: list[str]) -> None:
+        """Auto-mint stays the primary path; when it can't produce a key for a VIN
+        (non-native login, or the keygen rejects it) this surfaces the interactive
+        'paste your MyŠkoda API key + VIN' repair for the still-uncovered VINs — and
+        clears it once every VIN has a key (minted OR manually supplied). #1286."""
+        from . import repairs  # noqa: PLC0415
+        from .const import CONF_SKODA_OFFICIAL_KEYS  # noqa: PLC0415
+        stored = {
+            str(k).upper() for k in (self.entry.data.get(CONF_SKODA_OFFICIAL_KEYS) or {})
+        }
+        missing = [str(v).upper() for v in vins if str(v).upper() not in stored]
+        if missing:
+            repairs.raise_issue_skoda_official_manual_key(
+                self.hass, self.entry.entry_id, missing
+            )
+        else:
+            repairs.clear_issue_skoda_official_manual_key(
+                self.hass, self.entry.entry_id
+            )
 
     async def _arm_supplementary_channels(self) -> None:
         """v2.15.0b1 (C1) — arm configured supplementary read channels on the
@@ -3244,7 +3397,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
                 "C1 supplementary merge failed for %s — keeping primary: %s",
-                mask_vin(vin), err,
+                mask_vin(vin), type(err).__name__,
             )
             # Still attribute what we did get — losing provenance exactly when
             # a channel misbehaves is when it's most worth having.
@@ -3291,7 +3444,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
                 "GAP-2.1 supplementary revive failed for %s: %s",
-                mask_vin(vin), err,
+                mask_vin(vin), type(err).__name__,
             )
             return None
         # A supplementary channel contributed IFF the merge added a
@@ -3337,7 +3490,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         try:
             vins = await portal.list_vehicle_vins()
         except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("#1222 EU Data Act enumeration fallback failed: %s", err)
+            _LOGGER.debug("#1222 EU Data Act enumeration fallback failed: %s", type(err).__name__)
             return []
         if vins:
             _LOGGER.warning(
@@ -3376,7 +3529,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug(
                     "hard-failure supplementary revive failed for %s: %s",
-                    mask_vin(vin), err,
+                    mask_vin(vin), type(err).__name__,
                 )
         # 2) Škoda OFFICIAL public API — a FAILOVER-ONLY source (rate-limited to
         # 20 req/hour/key, so never read on a healthy cycle; only here, on a hard
@@ -3395,7 +3548,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug(
                     "official-API failover read failed for %s: %s",
-                    mask_vin(vin), err,
+                    mask_vin(vin), type(err).__name__,
                 )
         return None
 
@@ -3425,9 +3578,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             return
         try:
             off = await read(vin)
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            # class-only — official_live_read hits the VIN-path API with the
+            # X-API-Key; a raw aiohttp error re-leaks the VIN-URL the mask hides.
             _LOGGER.debug(
-                "official live-read raised for %s", mask_vin(vin), exc_info=True
+                "official live-read raised for %s (%s)",
+                mask_vin(vin), type(exc).__name__,
             )
             return
         if off is None:
@@ -3531,6 +3687,24 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 )
             else:
                 sleep_s = float(interval_s)
+            # Escalating backoff during a SUSTAINED portal 5xx outage. The previous
+            # poll's ``last_no_data_reason`` is the signal: on ``portal_error``
+            # (5xx/429/timeout) widen the sleep 5→15→30 min, replacing the ~60 s
+            # drop-retry collapse that otherwise hammers VW's portal every minute
+            # for hours during its own outage; any other outcome (fresh data, an
+            # ``empty`` no-content drop, or a non-portal entry) resets the streak.
+            # Adopted from TommiG1's SERVER_ERROR_BACKOFF_INTERVALS.
+            _portal_outage = _portal is not None and getattr(
+                _portal, "last_no_data_reason", ""
+            ) == "portal_error"
+            self._note_portal_outage(_portal_outage)
+            _boff = _portal_5xx_backoff_s(self._consecutive_portal_5xx)
+            if _boff > sleep_s:
+                sleep_s = _boff
+                _LOGGER.debug(
+                    "EU Data Act portal 5xx streak %d → backing off, next poll "
+                    "in %.0fs", self._consecutive_portal_5xx, sleep_s,
+                )
             await asyncio.sleep(sleep_s)
             if not self._started:
                 break
@@ -3599,7 +3773,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         if _revived is not None:
                             result = _revived
                     if isinstance(result, Exception):
-                        _LOGGER.debug("Poll failed for %s: %s", mask_vin(vin), result)
+                        _LOGGER.debug("Poll failed for %s: %s", mask_vin(vin), type(result).__name__)
                         old = self.vehicles.get(vin, {})
                         old["_poll_failed"] = True
                         fresh[vin] = old
@@ -3733,7 +3907,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                             _LOGGER.warning(
                                 "VW Group Connect: post-parse failure for %s — "
                                 "keeping previous data: %s",
-                                mask_vin(vin), parse_err,
+                                mask_vin(vin), type(parse_err).__name__,
                             )
                             old = self.vehicles.get(vin, {})
                             old["_poll_failed"] = True
@@ -3787,10 +3961,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         if self._skoda_official_mode() in ("auto", "prefer_official"):
                             try:
                                 await self._merge_official_live(vin, enriched)
-                            except Exception:  # noqa: BLE001
+                            except Exception as exc:  # noqa: BLE001
                                 _LOGGER.debug(
-                                    "official live-source merge skipped for %s",
-                                    mask_vin(vin), exc_info=True,
+                                    "official live-source merge skipped for %s (%s)",
+                                    mask_vin(vin), type(exc).__name__,
                                 )
                         # Per-source connectivity map for the connectivity
                         # binary_sensors (which sources this car is connected to,
@@ -3800,9 +3974,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                             enriched["channel_status"] = self._compute_channel_status(
                                 vin, enriched
                             )
-                        except Exception:  # noqa: BLE001
+                        except Exception as exc:  # noqa: BLE001
                             _LOGGER.debug(
-                                "channel-status compute skipped", exc_info=True
+                                "channel-status compute skipped (%s)",
+                                type(exc).__name__,
                             )
                         fresh[vin] = self._apply_optimistic_hold(vin, enriched)
                         any_success = True
@@ -3857,13 +4032,23 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     self._save_vehicle_cache()
                 except Exception:  # noqa: BLE001
                     pass
+                # #1340 — one-time registry cleanup: now that the first poll has
+                # settled channel_status (all channels armed, incl. the in-poll
+                # Škoda-official arm), prune connectivity sensors for channels this
+                # account no longer arms (cyrano330's orphaned connectivity_eu_data_
+                # act). Runs once per session; fail-soft, never blocks the poll.
+                if not getattr(self, "_connectivity_reconciled", False):
+                    self._connectivity_reconciled = True
+                    self._reconcile_connectivity_entities()
                 # Stage-1 — advance any pending one-time historical export
                 # (import when ready, time out when stuck). Real work only for a
                 # VIN with a pending export; never breaks the poll.
                 try:
                     await self._advance_historical_exports()
-                except Exception:  # noqa: BLE001
-                    _LOGGER.debug("historical-export advance skipped", exc_info=True)
+                except Exception as exc:  # noqa: BLE001
+                    _LOGGER.debug(
+                        "historical-export advance skipped (%s)", type(exc).__name__
+                    )
                 # v2.25.0 (#966/#632) — the per-VIN _merge_supplementary above
                 # may have refreshed the vw.de session on a mid-poll 401,
                 # rotating its cookie jar. Persist the rotated cookies here (once
@@ -4037,11 +4222,19 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 # Reporter; see _is_selfhealing_poll_error.
                 is_transient_upstream = _is_selfhealing_poll_error(err)
                 if is_transient_upstream:
+                    # class + status only — a status-0 transient network error is
+                    # a raw aiohttp exception whose str() carries the request URL.
                     _LOGGER.warning(
-                        "VW Group Connect: VW backend temporarily unavailable — %s", err
+                        "VW Group Connect: VW backend temporarily unavailable —"
+                        " %s (status=%s)",
+                        type(err).__name__, getattr(err, "status", None),
                     )
                 else:
-                    _LOGGER.error("VW Group Connect poll error: %s", err)
+                    # class + status only — raw err str() can carry a VIN-path URL.
+                    _LOGGER.error(
+                        "VW Group Connect poll error: %s (status=%s)",
+                        type(err).__name__, getattr(err, "status", None),
+                    )
                     # v1.9.0 — Error Reporter: outer poll-loop crash gets a
                     # buffer entry too. Critical because these are the kind of
                     # errors users hit and never know about (silent except).
@@ -4191,12 +4384,18 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         "raw_payload": event.raw_payload,
                     },
                 )
-            except Exception:  # noqa: BLE001
-                _LOGGER.exception("VAG push: bus emission failed")
+            except Exception as exc:  # noqa: BLE001
+                _LOGGER.error(
+                    "VAG push: bus emission failed (%s)", type(exc).__name__
+                )
             try:
                 await self.async_request_refresh()
-            except Exception:  # noqa: BLE001
-                _LOGGER.exception("VAG push: refresh after event failed")
+            except Exception as exc:  # noqa: BLE001
+                # class-only, not .exception() — the refresh drives VIN-path reads;
+                # a raw aiohttp error's str()/traceback carries the URL.
+                _LOGGER.error(
+                    "VAG push: refresh after event failed (%s)", type(exc).__name__
+                )
 
         token_provider = getattr(client, "async_get_access_token", None)
         if token_provider is None:
@@ -5141,7 +5340,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             _LOGGER.debug(
                 "Capabilities fetch failed for %s: %s",
                 mask_vin(vin),
-                err,
+                type(err).__name__,
             )
             return
         if not isinstance(data, dict):
@@ -5191,7 +5390,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             data = await client.get_vehicle_static_info(vin)
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
-                "Static info fetch failed for %s: %s", mask_vin(vin), err,
+                "Static info fetch failed for %s: %s", mask_vin(vin), type(err).__name__,
             )
             return
         if not isinstance(data, dict):
@@ -5290,7 +5489,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             )
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
-                "Trip stats fetch failed for %s: %s", mask_vin(vin), err
+                "Trip stats fetch failed for %s: %s", mask_vin(vin), type(err).__name__
             )
             return
         # ``return_exceptions=True`` — drop exceptions to None so the parser
@@ -5353,7 +5552,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             resp = await client.get_charging_history(vin)
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
-                "Charging-history fetch failed for %s: %s", mask_vin(vin), err
+                "Charging-history fetch failed for %s: %s", mask_vin(vin), type(err).__name__
             )
             return
         parsed = _parse_charging_history(resp)
@@ -5405,7 +5604,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         try:
             resp = await client.get_latest_fueling()
         except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Fueling fetch failed for %s: %s", mask_vin(vin), err)
+            _LOGGER.debug("Fueling fetch failed for %s: %s", mask_vin(vin), type(err).__name__)
             return
         # Stamp even on empty so a non-enrolled account isn't re-hammered.
         self._fueling_fetched_at[vin] = datetime.now(tz=timezone.utc)
@@ -5444,7 +5643,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         try:
             resp = await client.get_my_parking()
         except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Parking fetch failed for %s: %s", mask_vin(vin), err)
+            _LOGGER.debug("Parking fetch failed for %s: %s", mask_vin(vin), type(err).__name__)
             return
         self._parking_fetched_at[vin] = datetime.now(tz=timezone.utc)
         parsed = _parse_parking(resp)
@@ -5490,7 +5689,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         try:
             resp = await (fn(vin) if takes_vin else fn())
         except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("%s failed for %s: %s", method, mask_vin(vin), err)
+            _LOGGER.debug("%s failed for %s: %s", method, mask_vin(vin), type(err).__name__)
             return
         store[vin] = datetime.now(tz=timezone.utc)
         parsed = parse(resp)
@@ -5574,7 +5773,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             )
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
-                "Battery-care fetch failed for %s: %s", mask_vin(vin), err
+                "Battery-care fetch failed for %s: %s", mask_vin(vin), type(err).__name__
             )
             return
         # ``return_exceptions=True`` — drop exceptions to None so we
@@ -5645,7 +5844,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             _LOGGER.debug(
                 "Charging-profiles fetch failed for %s: %s",
                 mask_vin(vin),
-                err,
+                type(err).__name__,
             )
             return
         parsed = _parse_charging_profiles(resp)
@@ -5745,7 +5944,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                         message=(
                             f"Das Fahrzeug **{mask_vin(stale_vin)}** ist "
                             f"nicht mehr in deinem VAG-Konto verfügbar "
-                            f"({self.entry.data.get(CONF_USERNAME, 'unbekannt')}). "
+                            f"({mask_email(self.entry.data.get(CONF_USERNAME, 'unbekannt'))}). "
                             f"Mögliche Ursachen:\n\n"
                             f"- Verkauft / Eigentümerwechsel\n"
                             f"- Connect-Subscription ist abgelaufen\n"
@@ -6110,6 +6309,12 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             )
             _threshold_s = max(STALE_DATA_MIN_AGE_S, 8 * _interval_s)
             _age = _capture_age_s(data)
+            # #465 — automatable twin of the stale-data Repair: a
+            # device_class=PROBLEM binary the user can drive automations off,
+            # from the SAME capture-age + threshold so the binary and the Repair
+            # can never disagree. Brand-agnostic; None (→ entity hidden) for a read
+            # that carries no capture timestamp.
+            data["data_stale"] = _age >= _threshold_s if _age is not None else None
             if _age is not None and _age >= _threshold_s:
                 raise_issue_stale_data(
                     self.hass, self.entry.entry_id, _vin_sd,
@@ -6378,7 +6583,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                     if _revived is not None:
                         result = _revived
                 if isinstance(result, Exception):
-                    _LOGGER.debug("Refresh failed for %s: %s", mask_vin(vin), result)
+                    _LOGGER.debug("Refresh failed for %s: %s", mask_vin(vin), type(result).__name__)
                     continue
                 if isinstance(result, VehicleData):
                     # v2.29.x — portal-safety, mirroring the poll path
@@ -6419,7 +6624,11 @@ class VagConnectCoordinator(DataUpdateCoordinator):
             _LOGGER.debug("VW Group Connect: Manual refresh OK")
             return dict(self.vehicles)
         except Exception as err:  # noqa: BLE001
-            _LOGGER.error("VW Group Connect: Manual refresh failed: %s", err)
+            # class + status only — raw err str() can carry a VIN-path URL.
+            _LOGGER.error(
+                "VW Group Connect: Manual refresh failed: %s (status=%s)",
+                type(err).__name__, getattr(err, "status", None),
+            )
             with self._vehicles_lock:
                 return dict(self.vehicles)
 
@@ -7477,7 +7686,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
 
         vehicle = self.vehicles.get(vin)
         if not isinstance(vehicle, dict):
-            raise HomeAssistantError(f"Vehicle '{vin}' not found for ABRP send.")
+            raise HomeAssistantError(f"Vehicle '…{vin[-6:]}' not found for ABRP send.")
 
         resolved_key, resolved_token = self._abrp_credentials(
             vin, api_key=api_key, token=token
@@ -7764,10 +7973,10 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         # the finally above, exactly as before.
         try:
             await self.async_request_refresh()
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             _LOGGER.debug(
-                "VW Group Connect: post-command refresh failed for %s(%s)",
-                method, mask_vin(vin), exc_info=True,
+                "VW Group Connect: post-command refresh failed for %s(%s) [%s]",
+                method, mask_vin(vin), type(exc).__name__,
             )
 
     async def _dispatch_cmd_locked(self, vin: str, method: str, **kwargs: Any) -> None:
@@ -7801,7 +8010,13 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 )
             except Exception:  # noqa: BLE001
                 pass
-            _LOGGER.error("VW Group Connect: %s(%s) failed: %s", method, mask_vin(vin), err)
+            # class + status only — raw err str() can carry the VIN-path command
+            # URL; the classified reason is already logged one branch up.
+            _LOGGER.error(
+                "VW Group Connect: %s(%s) failed: %s (status=%s)",
+                method, mask_vin(vin), type(err).__name__,
+                getattr(err, "status", None),
+            )
             # b15 — a two-way primary (Audi BFF) that refuses a command with an
             # auth 401/403 (the shape a revoked device-grant takes) → try the
             # durable MBB fallback ONCE before surfacing, iff the user opted in
@@ -7885,8 +8100,15 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 from .cariad.exceptions import (  # noqa: PLC0415
                     CommandFailureReason,
                     classify_command_failure,
+                    extract_safe_error_code,
                 )
 
+                # #1355 — str(APIError) no longer carries the body, so surface the
+                # SAFE backend error CODE (enum-like, e.g. USER_NOT_AUTHORIZED) so
+                # the user still learns what the car said without leaking the body.
+                _code = extract_safe_error_code(getattr(err, "body", ""))
+                if _code and _code not in msg:
+                    msg = f"{msg} ({_code})"
                 if classify_command_failure(err) in (
                     CommandFailureReason.MISSING_CAPABILITY,
                     CommandFailureReason.NOT_ENTITLED,

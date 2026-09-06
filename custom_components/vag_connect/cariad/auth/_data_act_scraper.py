@@ -923,7 +923,7 @@ class DataActScraper:
                 )
         except Exception as exc:  # noqa: BLE001
             _LOGGER.debug(
-                "AEM revive GET %s raised %s: %s", path, type(exc).__name__, exc,
+                "AEM revive GET %s raised %s", path, type(exc).__name__,
             )
 
     async def _csrf_get(self, url: str) -> tuple[str | None, bool]:
@@ -957,8 +957,8 @@ class DataActScraper:
                 data = await resp.json(content_type=None)
         except Exception as exc:  # noqa: BLE001
             _LOGGER.debug(
-                "CSRF token fetch: %s raised %s: %s",
-                _CSRF_TOKEN_PATH, type(exc).__name__, exc,
+                "CSRF token fetch: %s raised %s",
+                _CSRF_TOKEN_PATH, type(exc).__name__,
             )
             return None, False
         # ``token`` is the field the portal's own Granite clientlib reads.
@@ -1028,7 +1028,8 @@ class DataActScraper:
         except DataActSessionExpiredError:
             raise
         except Exception as exc:  # noqa: BLE001
-            _LOGGER.debug("metadata/partial fetch failed: %s", exc)
+            # Class only — an aiohttp error's str() echoes the VIN-path URL.
+            _LOGGER.debug("metadata/partial fetch failed: %s", type(exc).__name__)
             return None
 
         # Payload shape captured 2026-06-03: either a list of request
@@ -1214,9 +1215,10 @@ class DataActScraper:
                     if not last:
                         _LOGGER.info(
                             "kickoff_custom_data_request: portal rejected "
-                            "Duration=%r (HTTP %s), retrying with %r: %s",
+                            "Duration=%r (HTTP %s), retrying with %r "
+                            "(body %d bytes)",
                             duration, resp.status, attempts[index + 1][0],
-                            body_text[:200],
+                            len(body_text),
                         )
                         continue
                     # b11 (#1273) — split severity by status. A 4xx is a genuine
@@ -1230,22 +1232,26 @@ class DataActScraper:
                     if 400 <= resp.status < 500:
                         _LOGGER.warning(
                             "kickoff_custom_data_request HTTP %s for VIN %s — no "
-                            "data feed will start until this is resolved: %s",
-                            resp.status, _mask_vin(vin), body_text[:300],
+                            "data feed will start until this is resolved "
+                            "(body %d bytes)",
+                            resp.status, _mask_vin(vin), len(body_text),
                         )
                     else:
                         _LOGGER.info(
                             "kickoff_custom_data_request HTTP %s for VIN %s — a "
                             "request likely already exists and isn't readable back "
                             "on this portal session; a live feed may still "
-                            "deliver: %s",
-                            resp.status, _mask_vin(vin), body_text[:300],
+                            "deliver (body %d bytes)",
+                            resp.status, _mask_vin(vin), len(body_text),
                         )
                     return None
             except DataActSessionExpiredError:
                 raise
             except Exception as exc:  # noqa: BLE001
-                _LOGGER.debug("kickoff_custom_data_request failed: %s", exc)
+                # Class only — str(exc) echoes the VIN-path request URL.
+                _LOGGER.debug(
+                    "kickoff_custom_data_request failed: %s", type(exc).__name__
+                )
                 return None
         # Every attempt now returns inside the loop (success via readback, or a
         # detected failure); this is only reached if the attempt list were empty.
@@ -1318,14 +1324,18 @@ class DataActScraper:
                 if resp.status not in (200, 201, 202):
                     body_text = await resp.text(errors="replace")
                     _LOGGER.warning(
-                        "kickoff_historical_export HTTP %s for VIN %s: %s",
-                        resp.status, _mask_vin(vin), body_text[:300],
+                        "kickoff_historical_export HTTP %s for VIN %s "
+                        "(body %d bytes)",
+                        resp.status, _mask_vin(vin), len(body_text),
                     )
                     return False
         except DataActSessionExpiredError:
             raise
         except Exception as exc:  # noqa: BLE001
-            _LOGGER.debug("kickoff_historical_export failed: %s", exc)
+            # Class only — str(exc) echoes the VIN-path request URL.
+            _LOGGER.debug(
+                "kickoff_historical_export failed: %s", type(exc).__name__
+            )
             return False
 
         _LOGGER.info(
