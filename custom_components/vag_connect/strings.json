@@ -238,6 +238,7 @@
           "abrp_api_key": "ABRP api_key (developer key)",
           "abrp_user_token": "ABRP token (per vehicle)",
           "keep_raw_datasets": "Keep raw EU Data Act datasets (diagnostics)",
+          "auto_utility_meters": "Auto-create monthly meters (charged energy, mileage)",
           "test_cohort": "Help improve VW Group Connect (opt-in test cohort)",
           "remove_vweu_twoway": "Remove VW EU Two-Way (revert to the previous channel)",
           "companion_read_vehicle_health": "Companion: read odometer and service from Vehicle Health (navigates the app)",
@@ -265,6 +266,7 @@
           "abrp_user_token": "The 'Generic' token from the ABRP app: Settings -> your car -> Live Data. Never logged.",
           "vweu_device_grant": "Volkswagen only, BETA. Adds two-way control (lock/unlock, climate, charging) and live CARIAD reads by signing in with your Volkswagen ID. Volkswagen only issues a 1-hour token here, so your password is stored to renew it automatically — it is sent only to Volkswagen's own login server and is never written to logs or diagnostics. If you would rather not store a password, use the read-only channels instead. Ticking this opens the sign-in step.",
           "keep_raw_datasets": "Only useful on the EU Data Act portal channel. When on, the last few raw dataset ZIPs the portal delivers are kept on disk (under .storage, per vehicle and size-capped) so a wrong or missing value can be reproduced from the exact bytes your car sent. These files contain your GPS, VIN and telemetry, so it is off by default; turn it on only while troubleshooting.",
+          "auto_utility_meters": "Off by default. When on, the integration creates Home Assistant utility_meter helpers that total your charged energy and mileage per calendar month, one per vehicle. The toggle only appears when a matching source sensor already exists. These are permanent helpers: switching this back off stops new ones being created but does not delete the ones already made — remove those under Settings → Devices & Services → Helpers.",
           "test_cohort": "Off by default. Turn this on to let the integration try experimental reads on your car — such as the ongoing attempt to recover GPS location for Volkswagen EU cars — and occasionally show a dismissible notification asking you to share a diagnostics file so a new capability can be confirmed for your model. Everything shared is redacted automatically before it leaves your system: no VIN, GPS, tokens or email is ever included. It is how new features get unlocked for your car and everyone driving the same model, and you can switch it off again at any time."
         }
       },

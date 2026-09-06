@@ -237,6 +237,7 @@
           "abrp_api_key": "ABRP api_key (udviklernøgle)",
           "abrp_user_token": "ABRP-token (pr. køretøj)",
           "keep_raw_datasets": "Behold rå EU Data Act-datasæt (diagnostik)",
+          "auto_utility_meters": "Opret månedlige målere automatisk (opladet energi, kilometertal)",
           "test_cohort": "Vær med til at forbedre VW Group Connect (frivillig testgruppe)",
           "vweu_device_grant": "Tilføj VW EU To-vejs — kommandoer + live-aflæsninger (BETA)",
           "remove_vweu_twoway": "Fjern VW EU To-vejs (gå tilbage til den forrige kanal)",
@@ -264,6 +265,7 @@
           "abrp_api_key": "En udvikler-/partnernøgle, du registrerer hos iternio (vi leverer ikke en). Identificerer integrationen. Logges aldrig.",
           "abrp_user_token": "'Generic'-tokenet fra ABRP-appen: Indstillinger -> din bil -> Live Data. Logges aldrig.",
           "keep_raw_datasets": "Kun nyttigt på EU Data Act-portalkanalen. Når det er slået til, gemmes de sidste få rå datasæt-ZIP-filer, som portalen leverer, på disken (under .storage, pr. køretøj og med en størrelsesgrænse), så en forkert eller manglende værdi kan gengives ud fra præcis de bytes, din bil sendte. Disse filer indeholder din GPS-position, VIN og telemetri, så det er slået fra som standard – slå det kun til under fejlfinding.",
+          "auto_utility_meters": "Slået fra som standard. Når det er slået til, opretter integrationen Home Assistant utility_meter-hjælpere, der summerer din opladede energi og kilometertal pr. kalendermåned, én pr. køretøj. Kontakten vises kun, når en matchende kildesensor allerede findes. Det er permanente hjælpere: Slås dette fra igen, oprettes der ikke nye, men de allerede oprettede bevares – fjern dem under Indstillinger → Enheder og tjenester → Hjælpere.",
           "test_cohort": "Slået fra som standard. Slå den til, hvis du vil lade integrationen forsøge sig med eksperimentelle aflæsninger fra din bil — for eksempel det igangværende forsøg på at hente GPS-position for Volkswagen-biler i EU — og en gang imellem vise en notifikation, du kan afvise, hvor du bliver bedt om at dele en diagnostikfil, så en ny funktion kan bekræftes for din model. Alt, hvad du deler, bliver automatisk renset, før det forlader dit system: der er aldrig VIN, GPS, tokens eller e-mail med. Det er sådan, nye funktioner bliver låst op for din bil og for alle andre, der kører samme model, og du kan når som helst slå den fra igen.",
           "vweu_device_grant": "Kun Volkswagen, BETA. Tilføjer to-vejs-styring (lås/lås op, klima, opladning) og live CARIAD-aflæsninger ved at logge ind med dit Volkswagen ID. Volkswagen udsteder kun et token på 1 time her, så din adgangskode gemmes for at forny det automatisk — den sendes kun til Volkswagens egen loginserver og skrives aldrig til logfiler eller diagnostik. Vil du hellere ikke gemme en adgangskode, så brug de skrivebeskyttede kanaler i stedet. Et flueben her åbner login-trinnet."
         }

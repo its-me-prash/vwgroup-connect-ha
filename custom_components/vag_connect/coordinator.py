@@ -4040,6 +4040,24 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 if not getattr(self, "_connectivity_reconciled", False):
                     self._connectivity_reconciled = True
                     self._reconcile_connectivity_entities()
+                # Opt-in (default OFF): auto-provision monthly utility_meter helpers
+                # for this account's cars. Runs once per session AFTER the first
+                # poll (so the TOTAL_INCREASING source sensors exist in the
+                # registry), only when the user enabled it, and as a background task
+                # so it never blocks the poll (the helper is fully guarded).
+                if not getattr(self, "_utility_meters_ensured", False):
+                    self._utility_meters_ensured = True
+                    from .const import CONF_AUTO_UTILITY_METERS  # noqa: PLC0415
+                    if self.entry.data.get(CONF_AUTO_UTILITY_METERS):
+                        from .utility_meter import (  # noqa: PLC0415
+                            async_ensure_utility_meters,
+                        )
+                        self.hass.async_create_background_task(
+                            async_ensure_utility_meters(
+                                self.hass, self.entry, list(self.vehicles.keys())
+                            ),
+                            f"{DOMAIN}_utility_meters",
+                        )
                 # Stage-1 — advance any pending one-time historical export
                 # (import when ready, time out when stuck). Real work only for a
                 # VIN with a pending export; never breaks the poll.
