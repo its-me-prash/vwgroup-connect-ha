@@ -42,6 +42,17 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.1b1] - 2026-09-07 — Porsche: decline the passkey-enrollment screen instead of giving up
+
+### Fixed
+- **Porsche login gets further than before.** The password login was giving up whenever Porsche's
+  identity provider rendered a page instead of redirecting, assuming it was an unsolvable captcha.
+  On a real account it turned out that step is often just an optional "set up a passkey?" screen
+  — the integration now declines it automatically and continues, instead of stopping the login
+  right there. A genuine captcha still can't be solved headlessly and still fails with the same
+  honest message as before. Porsche remains marked experimental until more real accounts confirm
+  this holds up (#1337) — if you use Porsche, a report on this beta either way is genuinely useful.
+
 ## [4.7.0] - 2026-09-07 — Full release / Voll-Release
 
 The stable release that gathers the whole 4.7.0 beta line (b1–b17): integration-wide debug-log

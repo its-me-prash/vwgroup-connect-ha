@@ -51,6 +51,26 @@ password flow — swapping it in is deferred so no unverified auth path ships).
 Self-contained: touches neither the old Auth0 password flow nor the shared
 device-grant used by the 4 working VW-Group brands.
 
+b18 (#1337, LIVE-VERIFIED on a real account, 2026-09-07): the legacy password
+flow above is NOT structurally blocked. A full ``PorscheAuth.authenticate()``
+run — real credentials, real Auth0 tenant, real ``/oauth/token`` call — returned
+a genuine access_token + refresh_token with HTTP 200, no captcha, no attestation
+error. So the "device-code grant disabled + attestation wall" framing that
+applies to Audi does NOT apply here by default; it was an analogy, not a
+confirmed fact for Porsche.
+
+What IS confirmed live is that Auth0's rendered-200-instead-of-redirect step
+(the one this module already detected but gave up on) is, at least sometimes,
+the ACUL **passkey-enrollment** screen (``/u/passkey-enrollment``), not a
+captcha — declining it ("continue without passkeys") yields a real code. A
+different real account (#1337, @Hollywoodchaos) hit this exact 200-instead-of-
+redirect step and got no code, consistent with landing on either that screen or
+a genuine captcha; which one it was was never captured (debug logging for this
+path didn't exist yet at the time). ``_follow_to_code`` now declines the
+passkey-enrollment screen automatically and keeps going; an actual captcha
+(any other rendered page) still ends the flow with the same honest error as
+before — that piece remains genuinely unsolvable headless.
+
 Old flow based on CJNE/pyporscheconnectapi (Apache-2.0), aiohttp reimpl.
 """
 
@@ -255,20 +275,75 @@ class PorscheAuth:
                     "Porsche auth: redirect hop → host=%s HTTP %s",
                     urlsplit(target).hostname or "?", resp.status,
                 )
-                # A 200 here means Auth0 rendered a page instead of redirecting
-                # — typically the captcha/consent screen — so there is no code.
-                if resp.status not in (301, 302, 303, 307, 308):
-                    _LOGGER.debug(
-                        "Porsche auth: hop returned HTTP %s (a rendered page, not "
-                        "a redirect) — no authorization code. This is typically "
-                        "the captcha/consent screen the Porsche One migration "
-                        "requires, which the headless login cannot clear.",
-                        resp.status,
-                    )
-                    return None
-                current_base = target
-                location = resp.headers.get("Location", "")
+                if resp.status in (301, 302, 303, 307, 308):
+                    current_base = target
+                    location = resp.headers.get("Location", "")
+                    continue
+                # A 200 here means Auth0 rendered a page instead of redirecting.
+                # b18 (#1337, live-verified on a real account) — this is not
+                # always a captcha/consent wall: it is often the Auth0 ACUL
+                # passkey-enrollment nudge (``/u/passkey-enrollment``), which is
+                # just an extra screen, not a dead end. Decline it the same way
+                # CJNE/pyporscheconnectapi does and keep following the chain.
+                # A genuine captcha (or anything else rendered) still ends here.
+                if "/u/passkey-enrollment" in urlsplit(target).path:
+                    html = await resp.text()
+                    resumed = await self._skip_passkey_enrollment(target, html)
+                    if resumed:
+                        _LOGGER.debug(
+                            "Porsche auth: declined passkey-enrollment, resuming"
+                        )
+                        current_base = target
+                        location = resumed
+                        continue
+                _LOGGER.debug(
+                    "Porsche auth: hop returned HTTP %s (a rendered page, not "
+                    "a redirect, and not a passkey-enrollment screen we could "
+                    "clear) — no authorization code. This is the real captcha/"
+                    "consent wall the headless login cannot clear.",
+                    resp.status,
+                )
+                return None
         return None
+
+    async def _skip_passkey_enrollment(self, url: str, html: str) -> str | None:
+        """Decline the Auth0 ACUL passkey-enrollment screen and return the
+        redirect Location to resume the chain, or ``None`` if the page could
+        not be parsed (treated by the caller as the unhandled-wall case).
+
+        The page embeds its transaction context as base64 JSON behind an
+        ``atob("...")`` call; we need only ``transaction.state`` out of it to
+        post the decline action back. Mirrors CJNE/pyporscheconnectapi's
+        ``_skip_passkey_enrollment`` (Apache-2.0).
+        """
+        match = re.search(r'atob\("([A-Za-z0-9+/=]+)"', html)
+        if not match:
+            return None
+        try:
+            context = json.loads(base64.b64decode(match.group(1)).decode("utf-8"))
+        except (ValueError, json.JSONDecodeError):
+            _LOGGER.debug("Porsche auth: could not parse passkey-enrollment context")
+            return None
+        state = context.get("transaction", {}).get("state")
+        if not state:
+            return None
+        async with self._session.post(
+            url,
+            timeout=_AUTH_TIMEOUT,
+            data={
+                "state": state,
+                "action": "abort-passkey-enrollment",
+                "acul-sdk": "@auth0/auth0-acul-js@1.2.0",
+            },
+            headers={
+                "User-Agent": _USER_AGENT,
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            allow_redirects=False,
+        ) as resp:
+            if resp.status not in (301, 302, 303, 307, 308):
+                return None
+            return resp.headers.get("Location", "")
 
     async def refresh(self, refresh_token: str) -> TokenSet:
         """Refresh tokens using refresh_token."""
