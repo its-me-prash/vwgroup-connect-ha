@@ -66,6 +66,12 @@ land on top of the betas:
 - The "add a read channel" options (Volkswagen.de / EU Data Act portal / Tibber) now read
   "Add/refresh…" instead of "Add a…", so it's clearer they're one-shot actions you can re-run, not
   on/off state toggles (#950).
+- **Audi & Porsche app login now fails with an honest message instead of a cryptic error.** VW and
+  Porsche moved these brands' app sign-in to a new login (Auth0) that requires on-device app
+  verification, so the passwordless / browser login can no longer complete — the final token step
+  is attestation-gated and can't be done headlessly (confirmed on real accounts; even an
+  interactive browser login can't pass it). The setup wizard now says so plainly and points Audi
+  owners at the read-only EU Data Act Portal, instead of showing a raw failure (#1364, #1337).
 
 ### Docs
 - The README now covers the opt-in monthly meters, and documents what to do on a brand-new or UK

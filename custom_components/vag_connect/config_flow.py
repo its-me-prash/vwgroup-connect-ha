@@ -393,6 +393,10 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         self._dag_user_id: str = ""
         # Captured if either phase fails.
         self._dag_error: str = ""
+        # #1364 (Audi) / #1337 (Porsche) — set when Phase 1 is rejected with
+        # ``unauthorized_client`` (the manufacturer disabled the app device-code
+        # grant). Drives an honest brand-picker message instead of a raw error.
+        self._dag_grant_disabled: bool = False
         # v2.15.0 — durable MBB strategy flag. When True the DAG flow uses the
         # e-Remote client + ``mbb`` scope and, after the browser confirm, mints
         # a durable MBB bearer via register/v1 + token-exchange. Default False
@@ -1107,6 +1111,11 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         from .cariad.auth._device_grant import DAG_ENABLED_BRANDS  # noqa: PLC0415
 
         errors: dict[str, str] = {}
+        # #1364/#1337 — a previous attempt was rejected because the brand's app
+        # device-code grant is disabled. Re-show the picker with an honest, actionable
+        # message (see the device_grant_retired string) rather than looping silently.
+        if self._dag_grant_disabled:
+            errors["base"] = "device_grant_retired"
 
         if user_input is not None:
             brand = user_input[CONF_BRAND]
@@ -1135,6 +1144,7 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 self._dag_tokens = None
                 self._dag_user_id = ""
                 self._dag_error = ""
+                self._dag_grant_disabled = False  # fresh attempt
                 return await self.async_step_browser_login_pending()
 
         # DAG-eligible brand options only (subset of the standard list).
@@ -1534,6 +1544,14 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             )
         except Exception as err:  # noqa: BLE001 — flow-level catch
             self._dag_error = str(err)
+            # #1364 (Audi Q4 e-tron) / #1337 (Porsche) — the manufacturer disabled
+            # the app device-code grant (Auth0 migration; the token exchange is now
+            # gated behind on-device Play-Integrity attestation we can't satisfy
+            # headless). Flag the unauthorized_client rejection so the brand picker
+            # shows an honest, actionable message instead of a raw exception.
+            _e = str(err).lower()
+            if "unauthorized_client" in _e or "not allowed" in _e:
+                self._dag_grant_disabled = True
             _LOGGER.warning(
                 "Browser login Phase 1 failed for %s: %s",
                 self._dag_brand, type(err).__name__,
