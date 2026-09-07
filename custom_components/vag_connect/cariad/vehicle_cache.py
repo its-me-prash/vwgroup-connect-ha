@@ -310,12 +310,29 @@ def reconcile(
     # the leaf as unreliable and hold the recorded value — exactly like an omitted
     # field. Inert for cars that never ship the HV pair (their SoC always reads as
     # leaf-only, so the recorded provenance is never HV and this never fires).
+    # #1231 (Ra72xx): on a MULTI-channel car (e.g. vw.de PRIMARY + EU Data Act
+    # supplementary) the channel merge can split provenance — ``battery_soc`` is
+    # handed to the LIVE channel (website_authproxy) by the live-supersede pass,
+    # while ``battery_soc_from_hv`` stays owned by the eu_data_act batch feed
+    # (leaf-only → False). A live channel's SoC is an on-demand read and IS
+    # reliable, so the leaf-only hold below must NOT fire for it — otherwise it
+    # latches the fresh live value to EU-DA's ~15-min cadence (the SoC "bounces to
+    # 55 when reality is 54" / lags symptom). Only hold when the fresh SoC itself
+    # came from the batch feed, or when its source is unknown — the single-channel
+    # EU-DA case this guard was written for (field_sources['battery_soc'] ==
+    # 'eu_data_act'), which stays fully covered.
+    from ._channel_merge import _BATCH_SOURCES  # noqa: PLC0415
+    _fresh_soc_src = (fresh.get("field_sources") or {}).get("battery_soc")
+    _fresh_soc_is_live = (
+        _fresh_soc_src is not None and _fresh_soc_src not in _BATCH_SOURCES
+    )
     _fresh_from_hv = merged.get("battery_soc_from_hv")
     _prev_from_hv = previous.get("battery_soc_from_hv")
     if (
         _prev_from_hv is True
         and _fresh_from_hv is False
         and previous.get("battery_soc") is not None
+        and not _fresh_soc_is_live
     ):
         if merged.get("battery_soc") != previous.get("battery_soc"):
             notes.append(

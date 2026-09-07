@@ -101,3 +101,37 @@ def test_provenance_survives_a_soc_less_poll() -> None:
     merged, _ = reconcile(prev, fresh)
     assert merged["battery_soc"] == 55
     assert merged["battery_soc_from_hv"] is True
+
+
+# ── #1231 — cross-channel: a LIVE channel's SoC must not be held ───────────────
+def test_1231_live_channel_soc_is_not_held_over_eu_da_leaf() -> None:
+    # Ra72xx: vw.de PRIMARY + EU Data Act supplementary. The channel merge hands
+    # battery_soc to the live website_authproxy channel (live-supersede) while
+    # battery_soc_from_hv stays owned by the eu_data_act batch feed (leaf → False).
+    # The #1195 leaf-only hold must NOT fire — the live 54 stands, not recorded 55,
+    # so SoC no longer "bounces to 55" / lags the live vw.de channel.
+    prev = {"battery_soc": 55, "battery_soc_from_hv": True}
+    fresh = {
+        "battery_soc": 54,
+        "battery_soc_from_hv": False,
+        "field_sources": {
+            "battery_soc": "website_authproxy",
+            "battery_soc_from_hv": "eu_data_act",
+        },
+    }
+    merged, notes = reconcile(prev, fresh)
+    assert merged["battery_soc"] == 54  # live vw.de value kept
+    assert not any("held recorded" in n for n in notes)
+
+
+def test_1231_single_channel_eu_da_leaf_still_holds() -> None:
+    # No regression to #1195: a pure EU-DA car names battery_soc's source
+    # 'eu_data_act', so a leaf-only poll after an HV poll is still held.
+    prev = {"battery_soc": 55, "battery_soc_from_hv": True}
+    fresh = {
+        "battery_soc": 67,
+        "battery_soc_from_hv": False,
+        "field_sources": {"battery_soc": "eu_data_act"},
+    }
+    merged, _ = reconcile(prev, fresh)
+    assert merged["battery_soc"] == 55  # held — #1195 intact
