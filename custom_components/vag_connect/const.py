@@ -16,6 +16,9 @@ CONF_BRAND                    = "brand"
 CONF_USERNAME                 = "username"
 CONF_PASSWORD                 = "password"
 CONF_SPIN                     = "spin"
+# b19 (#1337) — the solved captcha text on Porsche's Auth0 captcha-resume step.
+# Transient (never persisted to a config entry, unlike the fields above).
+CONF_CAPTCHA_CODE             = "captcha_code"
 # v3.0.0-alpha — companion (ADB) channel. A config entry whose CONF_STRATEGY is
 # "companion_adb" is served by the CompanionClient over network ADB instead of
 # a CARIAD network client. Host/port point at the spare phone; VIN is the car

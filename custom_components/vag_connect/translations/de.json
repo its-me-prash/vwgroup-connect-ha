@@ -31,6 +31,16 @@
           "mfa_code": "6-stelliger Code aus E-Mail oder Authenticator-App"
         }
       },
+      "porsche_captcha": {
+        "title": "Captcha erforderlich",
+        "description": "Porsche verlangt die Lösung eines Captchas, um mit der Anmeldung fortzufahren.\n\n{captcha_img}\n\nLöse es nur einmal mit deiner besten Vermutung — wiederholte Fehlversuche haben bei Porsche schon zu Konto-Sperrungen wegen verdächtiger Aktivität geführt.",
+        "data": {
+          "captcha_code": "Captcha-Code"
+        },
+        "data_description": {
+          "captcha_code": "Gib die im Bild oben angezeigten Zeichen ein."
+        }
+      },
       "email_password": {
         "title": "Mit E-Mail + Passwort anmelden (Legacy)",
         "description": "Verbinde dein Fahrzeug mit Home Assistant. Wähle deine Marke und gib die Zugangsdaten aus der jeweiligen App ein.",

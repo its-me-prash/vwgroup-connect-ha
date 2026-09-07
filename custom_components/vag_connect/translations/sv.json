@@ -79,6 +79,16 @@
           "mfa_code": "6-siffrig kod — giltig i några minuter."
         }
       },
+      "porsche_captcha": {
+        "title": "Captcha krävs",
+        "description": "Porsche kräver att du löser en captcha för att fortsätta inloggningen.\n\n{captcha_img}\n\nLös det bara en gång efter bästa förmåga — upprepade misslyckade försök har fått Porsche att låsa konton på grund av misstänkt aktivitet.",
+        "data": {
+          "captcha_code": "Captcha-kod"
+        },
+        "data_description": {
+          "captcha_code": "Ange tecknen som visas i bilden ovan."
+        }
+      },
       "email_password": {
         "title": "Logga in med e-post + lösenord (äldre metod)",
         "description": "Anslut ditt fordon till Home Assistant.\n\nVälj ditt märke och ange inloggningsuppgifterna från tillverkarens app.",

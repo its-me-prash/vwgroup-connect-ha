@@ -81,6 +81,16 @@ under everyone's feet lately. Porsche stays marked experimental. If you use Pors
 beta and reporting back (either "it works" or exactly what broke) is genuinely how this gets
 confirmed (#1337).
 
+### Added
+- **Porsche login can now solve a captcha instead of just giving up.** If Porsche's sign-in shows
+  you a captcha, the integration now displays it right in the setup screen and lets you type the
+  answer in, instead of failing with a vague error. This has never been tested against a real
+  Porsche captcha (nobody's account has hit one during development), and it's a deliberately
+  cautious implementation: you get one attempt per screen on purpose. Repeatedly retrying a wrong
+  guess is how real Porsche accounts have ended up locked for "suspicious activity" — that's not a
+  guess, it's what happened to other people using a similar tool. If you see this screen, take your
+  best shot; if it's wrong, wait rather than mashing retry.
+
 ## [4.7.0] - 2026-09-07 — Full release / Voll-Release
 
 The stable release that gathers the whole 4.7.0 beta line (b1–b17): integration-wide debug-log

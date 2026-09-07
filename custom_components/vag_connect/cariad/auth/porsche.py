@@ -91,6 +91,22 @@ but it is not proof that the #1337 `403 unauthorized_client` was actually
 caused by it. Full writeup: vag-connect-porsche-full-grounding-2026-09-07.md
 (repo root's parent — not shipped in this repo, research-only).
 
+b19 (CJNE-comparison, same day) also added the captcha-solving config-flow
+step (`PorscheAuth.authenticate`'s `captcha_code`/`resume_state`/
+`resume_verifier` kwargs, `PorscheCaptchaRequiredError`, and
+`config_flow.py::async_step_porsche_captcha`). A follow-up sweep of CJNE's
+and ha-porscheconnect's FULL issue/PR history (not just current code) —
+vag-connect-porsche-cjne-issue-history-2026-09-07.md (repo root's parent) —
+surfaced two things folded in directly: (1) a real captcha-image dark-mode
+bug (transparent SVG background + black strokes is invisible in HA dark
+mode) that ha-porscheconnect's own maintainer shipped and only caught from
+user reports — this repo's captcha image already forces a white background
+for the same reason CJNE eventually did; (2) repeated failed captcha/login
+attempts have gotten real Porsche accounts locked for "suspicious activity"
+(ha-porscheconnect#199) — this repo's captcha step never auto-resubmits (a
+human must explicitly submit each attempt) and its UI text now warns
+against repeated guessing rather than encouraging it.
+
 Old flow based on CJNE/pyporscheconnectapi (Apache-2.0), aiohttp reimpl.
 """
 
@@ -176,69 +192,99 @@ class PorscheAuth:
     def __init__(self, session: ClientSession) -> None:
         self._session = session
 
-    async def authenticate(self, email: str, password: str) -> TokenSet:
-        """Full PKCE flow → access_token + refresh_token."""
-        verifier, challenge = _pkce()
-        state = base64.urlsafe_b64encode(os.urandom(16)).rstrip(b"=").decode()
+    async def authenticate(
+        self,
+        email: str,
+        password: str,
+        *,
+        captcha_code: str | None = None,
+        resume_state: str | None = None,
+        resume_verifier: str | None = None,
+    ) -> TokenSet:
+        """Full PKCE flow → access_token + refresh_token.
 
-        # Step 1: /authorize. allow_redirects=False and read the Location
-        # header directly (b19, CJNE-comparison #10): with allow_redirects=True
-        # an already-authenticated Auth0 session would redirect straight to
-        # ``my-porsche-app://auth0/callback?code=...`` — a non-http(s) scheme
-        # aiohttp's redirect follower cannot land on safely. Reading Location
-        # ourselves both avoids that crash risk AND lets us short-circuit the
-        # whole identifier/password dance when a session is already valid.
-        params = {
-            "client_id":             _CLIENT_ID,
-            "redirect_uri":          _REDIRECT_URI,
-            "response_type":         "code",
-            "scope":                 _SCOPE,
-            "audience":              _AUDIENCE,
-            "code_challenge":        challenge,
-            "code_challenge_method": "S256",
-            "state":                 state,
-        }
-        async with self._session.get(
-            _AUTH_URL,
-            timeout=_AUTH_TIMEOUT,
-            params=params,
-            headers={"User-Agent": _USER_AGENT, "X-Client-ID": _X_CLIENT},
-            allow_redirects=False,
-        ) as resp:
-            location = resp.headers.get("Location", "")
-        if resp.status not in (301, 302, 303, 307, 308) or not location:
-            raise AuthenticationError(
-                f"Porsche authorize request did not redirect (HTTP {resp.status})"
-            )
-        target = urljoin(_AUTH_URL, location)
-        existing_code = self._extract_code(target)
-        if existing_code:
-            _LOGGER.debug(
-                "Porsche auth: existing Auth0 session, skipping login form"
-            )
-            return await self._exchange_code(existing_code, verifier)
+        ``captcha_code``/``resume_state``/``resume_verifier`` resume an
+        in-progress Auth0 transaction after :class:`PorscheCaptchaRequiredError`
+        was raised and a caller (the config flow) got the user to solve it
+        (b19, CJNE-comparison #12). The PKCE ``code_verifier`` and Auth0
+        ``state`` are bound to the ORIGINAL ``/authorize`` call and cannot be
+        regenerated — CJNE's own commit history calls this out explicitly
+        (the challenge is bound to that first transaction). So a
+        captcha-interrupted login skips straight to re-POSTing the identifier
+        step (this time carrying the solved ``captcha`` field) using the
+        state/verifier captured when the captcha was first raised, rather
+        than starting a brand new transaction that would produce a
+        ``code_verifier`` mismatch at the final token exchange.
+        """
+        if captcha_code and resume_state and resume_verifier:
+            verifier = resume_verifier
+            auth0_state = resume_state
+        else:
+            verifier, challenge = _pkce()
+            state = base64.urlsafe_b64encode(os.urandom(16)).rstrip(b"=").decode()
 
-        state_vals = parse_qs(urlsplit(target).query).get("state")
-        if not state_vals:
-            raise AuthenticationError("Could not extract Auth0 state from login page")
-        auth0_state = state_vals[0]
+            # Step 1: /authorize. allow_redirects=False and read the Location
+            # header directly (b19, CJNE-comparison #10): with allow_redirects=True
+            # an already-authenticated Auth0 session would redirect straight to
+            # ``my-porsche-app://auth0/callback?code=...`` — a non-http(s) scheme
+            # aiohttp's redirect follower cannot land on safely. Reading Location
+            # ourselves both avoids that crash risk AND lets us short-circuit the
+            # whole identifier/password dance when a session is already valid.
+            params = {
+                "client_id":             _CLIENT_ID,
+                "redirect_uri":          _REDIRECT_URI,
+                "response_type":         "code",
+                "scope":                 _SCOPE,
+                "audience":              _AUDIENCE,
+                "code_challenge":        challenge,
+                "code_challenge_method": "S256",
+                "state":                 state,
+            }
+            async with self._session.get(
+                _AUTH_URL,
+                timeout=_AUTH_TIMEOUT,
+                params=params,
+                headers={"User-Agent": _USER_AGENT, "X-Client-ID": _X_CLIENT},
+                allow_redirects=False,
+            ) as resp:
+                location = resp.headers.get("Location", "")
+            if resp.status not in (301, 302, 303, 307, 308) or not location:
+                raise AuthenticationError(
+                    f"Porsche authorize request did not redirect (HTTP {resp.status})"
+                )
+            target = urljoin(_AUTH_URL, location)
+            existing_code = self._extract_code(target)
+            if existing_code:
+                _LOGGER.debug(
+                    "Porsche auth: existing Auth0 session, skipping login form"
+                )
+                return await self._exchange_code(existing_code, verifier)
 
-        # Step 2: POST the identifier (e-mail). A 401 here is Auth0 rejecting
-        # the identifier outright; a 400 means a captcha challenge (b19,
-        # CJNE-comparison §1.5) — neither is the generic "wall" case.
+            state_vals = parse_qs(urlsplit(target).query).get("state")
+            if not state_vals:
+                raise AuthenticationError("Could not extract Auth0 state from login page")
+            auth0_state = state_vals[0]
+
+        # Step 2: POST the identifier (e-mail [+ solved captcha, if resuming]).
+        # A 401 here is Auth0 rejecting the identifier outright; a 400 means a
+        # (possibly new/chained) captcha challenge (b19, CJNE-comparison §1.5)
+        # — neither is the generic "wall" case.
         login_url = f"https://{_AUTH_SERVER}/u/login/identifier?state={auth0_state}"
+        identifier_data = {
+            "state":       auth0_state,
+            "username":    email,
+            "js-available":"true",
+            "webauthn-available": "true",
+            "is-brave":    "false",
+            "webauthn-platform-authenticator-available": "false",
+            "action":      "default",
+        }
+        if captcha_code:
+            identifier_data["captcha"] = captcha_code
         async with self._session.post(
             login_url,
             timeout=_AUTH_TIMEOUT,
-            data={
-                "state":       auth0_state,
-                "username":    email,
-                "js-available":"true",
-                "webauthn-available": "true",
-                "is-brave":    "false",
-                "webauthn-platform-authenticator-available": "false",
-                "action":      "default",
-            },
+            data=identifier_data,
             headers={
                 "User-Agent":   _USER_AGENT,
                 "X-Client-ID":  _X_CLIENT,

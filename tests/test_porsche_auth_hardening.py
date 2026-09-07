@@ -173,6 +173,68 @@ class TestScopeList:
             assert scope in _SCOPE
 
 
+class TestCaptchaResume:
+    """b19 (#1337, CJNE-comparison #12) — resuming a login after the config
+    flow got the user to solve a captcha. The state/verifier from the
+    ORIGINAL /authorize call must be reused, so this must skip straight to
+    the identifier POST (with the solved captcha attached) rather than
+    starting a fresh transaction."""
+
+    @pytest.mark.asyncio
+    async def test_resume_skips_authorize_and_reuses_state(self):
+        session = _Session(
+            # No GET queued at all — a resume must never call /authorize.
+            post_responses=[
+                _Resp(302),  # identifier step (captcha accepted, moves on)
+                _Resp(302, {"Location": f"{_CB}?code=RESUMED&state=x"}),  # password step
+            ],
+        )
+        auth = PorscheAuth(session)
+        code_seen = {}
+
+        async def _fake_exchange(code, verifier):
+            code_seen["code"] = code
+            code_seen["verifier"] = verifier
+            return "TOKEN_SET"
+
+        auth._exchange_code = _fake_exchange  # type: ignore[method-assign]
+        result = await auth.authenticate(
+            "a@b.com", "pw",
+            captcha_code="ABCD",
+            resume_state="prior-state",
+            resume_verifier="prior-verifier",
+        )
+        assert result == "TOKEN_SET"
+        assert session.get_calls == []  # never touched /authorize
+        assert len(session.post_calls) == 2  # identifier (+captcha), password
+        _, kwargs = session.post_calls[0]
+        assert kwargs["data"]["captcha"] == "ABCD"
+        assert kwargs["data"]["state"] == "prior-state"
+        assert code_seen["verifier"] == "prior-verifier"
+
+    @pytest.mark.asyncio
+    async def test_chained_captcha_raises_again_with_same_verifier(self):
+        """A second captcha comes back — the caller must get the SAME
+        resume_verifier forwarded so a third attempt would still work."""
+        html = (
+            '<script>var c = JSON.parse(atob("'
+            + _atob_blob({"screen": {"captcha": {"image": "data:image/svg+xml;base64,DEF"}}})
+            + '"));</script>'
+        )
+        session = _Session(post_responses=[_Resp(400, text=html)])
+        auth = PorscheAuth(session)
+        with pytest.raises(PorscheCaptchaRequiredError) as excinfo:
+            await auth.authenticate(
+                "a@b.com", "pw",
+                captcha_code="WRONG",
+                resume_state="prior-state",
+                resume_verifier="prior-verifier",
+            )
+        assert excinfo.value.state == "prior-state"
+        assert excinfo.value.code_verifier == "prior-verifier"
+        assert excinfo.value.captcha_image == "data:image/svg+xml;base64,DEF"
+
+
 class TestRefreshExpiredCodes:
     @pytest.mark.asyncio
     async def test_401_is_token_expired(self):

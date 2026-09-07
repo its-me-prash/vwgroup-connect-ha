@@ -108,9 +108,27 @@ class PorscheClient:
         # for grounding once the read path is unblocked. Redacted at export time.
         self.last_raw_responses: dict[str, Any] = {}
 
-    async def authenticate(self, mfa_code: str | None = None) -> None:
-        """Auth0 PKCE login."""
-        self._tokens = await self._auth.authenticate(self._email, self._password)
+    async def authenticate(
+        self,
+        mfa_code: str | None = None,  # noqa: ARG002 — Porsche has no MFA on this path
+        *,
+        captcha_code: str | None = None,
+        resume_state: str | None = None,
+        resume_verifier: str | None = None,
+    ) -> None:
+        """Auth0 PKCE login.
+
+        ``captcha_code``/``resume_state``/``resume_verifier`` resume a login
+        that was interrupted by :class:`PorscheCaptchaRequiredError` — see
+        ``PorscheAuth.authenticate`` for why the state/verifier must be the
+        ones captured when the captcha was first raised, not fresh ones.
+        """
+        self._tokens = await self._auth.authenticate(
+            self._email, self._password,
+            captcha_code=captcha_code,
+            resume_state=resume_state,
+            resume_verifier=resume_verifier,
+        )
         _LOGGER.debug("Porsche Connect auth complete")
 
     async def get_vehicles(self) -> list[str]:
