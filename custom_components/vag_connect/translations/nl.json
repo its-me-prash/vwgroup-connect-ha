@@ -237,6 +237,7 @@
           "abrp_api_key": "ABRP-api_key (ontwikkelaarssleutel)",
           "abrp_user_token": "ABRP-token (per voertuig)",
           "keep_raw_datasets": "Ruwe EU Data Act-datasets bewaren (diagnose)",
+          "auto_utility_meters": "Maandelijkse meters automatisch aanmaken (geladen energie, kilometerstand)",
           "test_cohort": "Help VW Group Connect verbeteren (opt-in testgroep)",
           "vweu_device_grant": "VW EU Two-Way toevoegen — commando's + live uitlezingen (BÈTA)",
           "remove_vweu_twoway": "VW EU Two-Way verwijderen (terug naar het vorige kanaal)",
@@ -264,6 +265,7 @@
           "abrp_api_key": "Een ontwikkelaars-/partnersleutel die je bij iternio registreert (wij leveren er geen). Identificeert de integratie. Wordt nooit gelogd.",
           "abrp_user_token": "Het 'Generic'-token uit de ABRP-app: Instellingen -> je auto -> Live Data. Wordt nooit gelogd.",
           "keep_raw_datasets": "Alleen nuttig op het EU Data Act-portaalkanaal. Indien ingeschakeld worden de laatste paar ruwe dataset-ZIP's die het portaal levert op schijf bewaard (onder .storage, per voertuig en met een groottelimiet), zodat een verkeerde of ontbrekende waarde kan worden gereproduceerd uit precies de bytes die je auto heeft verzonden. Deze bestanden bevatten je GPS-locatie, VIN en telemetrie, dus standaard staat dit uit – schakel het alleen in tijdens het oplossen van problemen.",
+          "auto_utility_meters": "Standaard uit. Wanneer ingeschakeld maakt de integratie Home Assistant utility_meter-helpers aan die je geladen energie en kilometerstand per kalendermaand optellen, één per voertuig. De schakelaar verschijnt alleen als er al een bijpassende bronsensor bestaat. Dit zijn permanente helpers: dit weer uitschakelen stopt het aanmaken van nieuwe, maar verwijdert de reeds gemaakte niet – verwijder die via Instellingen → Apparaten en diensten → Helpers.",
           "test_cohort": "Standaard uitgeschakeld. Zet dit aan om de integratie experimenteel gegevens van je auto te laten uitlezen — zoals de lopende poging om de GPS-locatie van Volkswagen EU-auto's terug te halen — en af en toe een melding te tonen die je kunt wegklikken, met de vraag of je een diagnosebestand wilt delen zodat een nieuwe functie voor jouw model bevestigd kan worden. Alles wat je deelt wordt automatisch geanonimiseerd voordat het je systeem verlaat: er zit nooit een VIN, GPS, token of e-mailadres in. Zo worden nieuwe functies ontgrendeld voor jouw auto en voor iedereen die hetzelfde model rijdt — en je kunt het op elk moment weer uitzetten.",
           "vweu_device_grant": "Alleen Volkswagen, BÈTA. Voegt tweerichtingsbediening (vergrendelen/ontgrendelen, klimaat, laden) en live CARIAD-uitlezingen toe door je aan te melden met je Volkswagen ID. Volkswagen geeft hier maar een token van 1 uur af, dus je wachtwoord wordt opgeslagen om het automatisch te vernieuwen — het wordt alleen naar de eigen loginserver van Volkswagen verzonden en nooit vastgelegd in logboeken of diagnose. Wil je liever geen wachtwoord opslaan, gebruik dan de alleen-lezen kanalen. Dit aanvinken opent de aanmeldstap."
         }

@@ -42,6 +42,18 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.0b17] - 2026-09-06 — Monthly meters, built for you / Monatliche Zähler, automatisch
+
+### Added
+- **Optional: monthly "utility meter" helpers, created automatically.** Turn it on and the
+  integration builds Home Assistant `utility_meter` helpers that total your charged energy and
+  mileage per calendar month — one per car — so you don't have to wire them up by hand. It's off by
+  default and only offered in the options when a car actually reports a matching sensor, so a non-EV
+  never sees a charged-energy meter it can't fill. These are permanent helpers: switching it back
+  off stops new ones being created but leaves the ones already made (remove those under Settings →
+  Devices & Services → Helpers). Early opt-in for beta testers — the exact provisioning timing on a
+  live install is still being validated, so try it and report back.
+
 ## [4.7.0b16] - 2026-09-06 — Škoda manual-key fallback, EU Data Act resilience + hardening
 
 ### Added

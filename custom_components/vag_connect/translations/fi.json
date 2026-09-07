@@ -237,6 +237,7 @@
           "abrp_api_key": "ABRP api_key (kehittäjäavain)",
           "abrp_user_token": "ABRP-tunniste (ajoneuvokohtainen)",
           "keep_raw_datasets": "Säilytä EU Data Act -raakadatajoukot (diagnostiikka)",
+          "auto_utility_meters": "Luo kuukausimittarit automaattisesti (ladattu energia, kilometrit)",
           "test_cohort": "Auta parantamaan VW Group Connectia (vapaaehtoinen testiryhmä)",
           "vweu_device_grant": "Lisää VW EU Two-Way — komennot + live-lukemat (BETA)",
           "remove_vweu_twoway": "Poista VW EU Two-Way (palaa edelliseen kanavaan)",
@@ -264,6 +265,7 @@
           "abrp_api_key": "Kehittäjä-/kumppaniavain, jonka rekisteröit iterniolla (emme toimita sellaista). Tunnistaa integraation. Ei koskaan lokiin.",
           "abrp_user_token": "'Generic'-tunniste ABRP-sovelluksesta: Asetukset -> autosi -> Live Data. Ei koskaan lokiin.",
           "keep_raw_datasets": "Hyödyllinen vain EU Data Act -portaalikanavalla. Kun käytössä, portaalin toimittamat viimeisimmät raa'at datajoukko-ZIP-tiedostot säilytetään levyllä (.storage-kansiossa, ajoneuvokohtaisesti ja kokorajoitettuna), jotta väärä tai puuttuva arvo voidaan toistaa juuri niistä tavuista, jotka autosi lähetti. Nämä tiedostot sisältävät GPS-sijaintisi, VIN-numerosi ja telemetriasi, joten oletuksena se on pois päältä – ota se käyttöön vain vianmäärityksen ajaksi.",
+          "auto_utility_meters": "Oletuksena pois päältä. Kun tämä on käytössä, integraatio luo Home Assistant utility_meter -avustajat, jotka laskevat ladatun energian ja kilometrit kalenterikuukautta kohden, yhden ajoneuvoa kohti. Valitsin näkyy vain, kun vastaava lähdesensori on jo olemassa. Nämä ovat pysyviä avustajia: tämän poistaminen käytöstä estää uusien luomisen, mutta ei poista jo luotuja – poista ne kohdasta Asetukset → Laitteet ja palvelut → Avustajat.",
           "test_cohort": "Oletuksena pois päältä. Kun otat tämän käyttöön, integraatio saa tehdä autoosi kokeellisia lukupyyntöjä — kuten parhaillaan käynnissä olevaa yritystä hakea GPS-sijainti Volkswagenin EU-autoille — ja näyttää silloin tällöin suljettavan ilmoituksen, jossa sinua pyydetään jakamaan diagnostiikkatiedosto, jotta uusi ominaisuus voidaan varmistaa juuri sinun automallillesi. Kaikki jaettavat tiedot puhdistetaan automaattisesti ennen kuin ne lähtevät järjestelmästäsi: mukana ei koskaan ole VIN-tunnusta, GPS-sijaintia, tokeneita eikä sähköpostia. Juuri näin uudet ominaisuudet avautuvat sekä sinun autoosi että kaikille muille samaa mallia ajaville, ja voit halutessasi kytkeä sen milloin tahansa takaisin pois päältä.",
           "vweu_device_grant": "Vain Volkswagen, BETA. Lisää kaksisuuntaisen ohjauksen (lukitus/avaus, ilmastointi, lataus) ja live-CARIAD-lukemat kirjautumalla Volkswagen ID -tunnuksellasi. Volkswagen myöntää tätä kautta vain 1 tunnin tunnisteen, joten salasanasi tallennetaan sen automaattista uusimista varten — se lähetetään vain Volkswagenin omalle kirjautumispalvelimelle eikä sitä koskaan kirjata lokeihin tai diagnostiikkaan. Jos et halua tallentaa salasanaa, käytä sen sijaan vain luku -kanavia. Tämän rastittaminen avaa kirjautumisvaiheen."
         }

@@ -237,6 +237,7 @@
           "abrp_api_key": "ABRP-api_key (Entwicklerschlüssel)",
           "abrp_user_token": "ABRP-Token (pro Fahrzeug)",
           "keep_raw_datasets": "Rohe EU-Data-Act-Datensätze behalten (Diagnose)",
+          "auto_utility_meters": "Monatliche Zähler automatisch anlegen (geladene Energie, Kilometer)",
           "test_cohort": "Hilf mit, VW Group Connect zu verbessern (freiwillige Testgruppe)",
           "vweu_device_grant": "VW EU Two-Way hinzufügen — Befehle + Live-Daten (BETA)",
           "remove_vweu_twoway": "VW EU Two-Way entfernen (zurück zum vorherigen Kanal)",
@@ -264,6 +265,7 @@
           "abrp_api_key": "Ein Entwickler-/Partnerschlüssel, den du bei iternio registrierst (wir liefern keinen). Identifiziert die Integration. Wird nie protokolliert.",
           "abrp_user_token": "Der 'Generic'-Token aus der ABRP-App: Einstellungen -> dein Auto -> Live Data. Wird nie protokolliert.",
           "keep_raw_datasets": "Nur auf dem EU-Data-Act-Portal-Kanal sinnvoll. Wenn aktiv, werden die letzten paar rohen Datensatz-ZIPs des Portals auf der Festplatte behalten (unter .storage, pro Fahrzeug und größenbegrenzt), damit sich ein falscher oder fehlender Wert aus genau den Bytes reproduzieren lässt, die dein Auto gesendet hat. Diese Dateien enthalten GPS, VIN und Telemetrie, deshalb ist die Option standardmäßig aus – schalte sie nur zur Fehlersuche ein.",
+          "auto_utility_meters": "Standardmäßig aus. Wenn aktiviert, legt die Integration Home-Assistant-utility_meter-Helfer an, die geladene Energie und Kilometer pro Kalendermonat summieren – je einer pro Fahrzeug. Die Option erscheint nur, wenn ein passender Quellsensor bereits vorhanden ist. Es sind dauerhafte Helfer: Beim Wiederausschalten werden keine neuen mehr erstellt, bereits angelegte bleiben aber bestehen – entferne diese unter Einstellungen → Geräte & Dienste → Helfer.",
           "test_cohort": "Standardmäßig aus. Wenn du das einschaltest, darf die Integration experimentelle Abfragen an deinem Auto ausprobieren — etwa den laufenden Versuch, den GPS-Standort für Volkswagen-EU-Fahrzeuge auszulesen — und dir hin und wieder eine wegklickbare Benachrichtigung zeigen, die dich bittet, eine Diagnosedatei zu teilen, damit eine neue Funktion für dein Modell bestätigt werden kann. Alles, was du teilst, wird automatisch anonymisiert, bevor es dein System verlässt: Weder VIN noch GPS, Tokens oder E-Mail sind je enthalten. So werden neue Funktionen für dein Auto und für alle freigeschaltet, die dasselbe Modell fahren — und du kannst es jederzeit wieder ausschalten.",
           "vweu_device_grant": "Nur Volkswagen, BETA. Fügt Zwei-Wege-Steuerung (Ver-/Entriegeln, Klima, Laden) und Live-CARIAD-Daten hinzu, indem du dich mit deiner Volkswagen ID anmeldest. Volkswagen stellt hier nur ein 1-Stunden-Token aus, deshalb wird dein Passwort gespeichert, um es automatisch zu erneuern — es wird nur an Volkswagens eigenen Login-Server gesendet und nie in Logs oder Diagnose geschrieben. Wenn du lieber kein Passwort speichern möchtest, nutze stattdessen die nur-lesenden Kanäle. Das Anhaken öffnet den Anmeldeschritt."
         }

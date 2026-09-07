@@ -237,6 +237,7 @@
           "abrp_api_key": "api_key ABRP (klucz dewelopera)",
           "abrp_user_token": "Token ABRP (na pojazd)",
           "keep_raw_datasets": "Zachowuj surowe zestawy danych EU Data Act (diagnostyka)",
+          "auto_utility_meters": "Automatycznie twórz liczniki miesięczne (naładowana energia, przebieg)",
           "test_cohort": "Pomóż ulepszać VW Group Connect (dobrowolna grupa testowa)",
           "vweu_device_grant": "Dodaj VW EU Two-Way — polecenia + odczyty na żywo (BETA)",
           "remove_vweu_twoway": "Usuń VW EU Two-Way (przywróć poprzedni kanał)",
@@ -264,6 +265,7 @@
           "abrp_api_key": "Klucz dewelopera/partnera rejestrowany w iternio (nie dostarczamy go). Identyfikuje integrację. Nigdy nie jest logowany.",
           "abrp_user_token": "Token 'Generic' z aplikacji ABRP: Ustawienia -> Twój samochód -> Live Data. Nigdy nie jest logowany.",
           "keep_raw_datasets": "Przydatne tylko na kanale portalu EU Data Act. Po włączeniu ostatnie surowe pliki ZIP z danymi dostarczane przez portal są przechowywane na dysku (w .storage, na pojazd i z limitem rozmiaru), aby błędną lub brakującą wartość można było odtworzyć z dokładnie tych bajtów, które wysłał samochód. Te pliki zawierają Twoją lokalizację GPS, VIN i telemetrię, dlatego domyślnie są wyłączone – włącz je tylko podczas rozwiązywania problemów.",
+          "auto_utility_meters": "Domyślnie wyłączone. Po włączeniu integracja tworzy pomocników utility_meter Home Assistant, którzy sumują naładowaną energię i przebieg w miesiącu kalendarzowym, po jednym na pojazd. Przełącznik pojawia się tylko wtedy, gdy istnieje już pasujący czujnik źródłowy. To trwali pomocnicy: ponowne wyłączenie zatrzymuje tworzenie nowych, ale nie usuwa już utworzonych – usuń je w Ustawienia → Urządzenia i usługi → Pomocnicy.",
           "test_cohort": "Domyślnie wyłączone. Włącz tę opcję, aby integracja mogła próbować eksperymentalnych odczytów danych z Twojego samochodu — na przykład trwającej próby odzyskania pozycji GPS w samochodach Volkswagena z UE — i od czasu do czasu wyświetlać powiadomienie (które możesz zamknąć) z prośbą o udostępnienie pliku diagnostycznego, dzięki czemu nowa funkcja może zostać potwierdzona dla Twojego modelu. Wszystko, co udostępniasz, jest automatycznie anonimizowane, zanim opuści Twój system: nigdy nie zawiera numeru VIN, danych GPS, tokenów ani adresu e-mail. Właśnie w ten sposób odblokowywane są nowe funkcje — dla Twojego samochodu i wszystkich, którzy jeżdżą tym samym modelem — a w każdej chwili możesz ją z powrotem wyłączyć.",
           "vweu_device_grant": "Tylko Volkswagen, BETA. Dodaje sterowanie dwukierunkowe (ryglowanie/odryglowanie, klimatyzacja, ładowanie) oraz odczyty na żywo z CARIAD po zalogowaniu się przy użyciu Volkswagen ID. Volkswagen wydaje tutaj token ważny tylko 1 godzinę, więc Twoje hasło jest przechowywane, aby móc odnawiać go automatycznie — jest wysyłane wyłącznie do własnego serwera logowania Volkswagena i nigdy nie trafia do logów ani diagnostyki. Jeśli wolisz nie przechowywać hasła, użyj zamiast tego kanałów tylko do odczytu. Zaznaczenie tej opcji otwiera krok logowania."
         }
