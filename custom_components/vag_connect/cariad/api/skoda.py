@@ -97,10 +97,20 @@ def _primary_soc_or_none(
     ``currentSoCInPercent`` on a combustion primary engine (captured equal at
     100/100 and 41/41 with the fuel gauge matching), so a "SoC" that equals the
     fuel level there is the fuel duplicated, not a 12V reading. Return ``None`` in
-    that case; otherwise return the SoC unchanged (a genuinely distinct value, or a
-    non-combustion engine where the field is not a fuel mirror)."""
-    combustion = str(engine_type or "").lower() in _COMBUSTION_ENGINE_TYPES
-    if soc_i is not None and combustion and soc_i == fuel_i:
+    that case.
+
+    #1359 (Seccados, Enyaq iV80 BEV): on an ELECTRIC primary engine,
+    ``currentSoCInPercent`` IS the high-voltage traction-battery SoC — the exact
+    number the main EV battery sensor already shows — never a 12V reading. It was
+    being surfaced as the "12V Battery Power Level" sensor, so on a BEV that sensor
+    just mirrored the main battery. Return ``None`` there too, so the 12V level is
+    only ever kept when it is a genuinely distinct value on a combustion engine."""
+    if soc_i is None:
+        return None
+    et = str(engine_type or "").lower()
+    if "electric" in et or et == "bev":
+        return None
+    if et in _COMBUSTION_ENGINE_TYPES and soc_i == fuel_i:
         return None
     return soc_i
 
@@ -1851,8 +1861,10 @@ class SkodaClient(CariadBaseClient):
             # number in currentSoCInPercent and currentFuelLevelInPercent (100/100
             # full, 41/41 part-tank, fuel gauge matching). So on a combustion
             # engine a "SoC" that equals the fuel level is just the fuel duplicated,
-            # NOT a 12V reading — don't surface it as one. Keep it only when it is a
-            # genuinely distinct value (or on a non-combustion engine).
+            # NOT a 12V reading — don't surface it as one. And on a BEV (#1359,
+            # Enyaq iV80) the electric primary's SoC IS the HV battery, also not 12V.
+            # The guard keeps it only when it is a genuinely distinct value on a
+            # combustion engine.
             soc_i = safe_int(
                 v(driving_range, "primaryEngineRange", "currentSoCInPercent")
             )

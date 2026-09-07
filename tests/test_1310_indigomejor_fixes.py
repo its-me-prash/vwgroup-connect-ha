@@ -42,11 +42,21 @@ def test_combustion_soc_distinct_from_fuel_is_kept(soc, fuel, engine) -> None:
     assert _primary_soc_or_none(soc, fuel, engine) == soc
 
 
-@pytest.mark.parametrize("engine", ["electric", "hybrid", "", None])
-def test_non_combustion_soc_always_kept(engine) -> None:
-    # not a combustion engine → the field is not a fuel mirror; keep it even if it
-    # happens to equal the fuel value (e.g. an HV SoC on a hybrid).
+@pytest.mark.parametrize("engine", ["hybrid", "", None])
+def test_non_combustion_non_electric_soc_kept(engine) -> None:
+    # not a combustion engine and not an electric primary → the field is neither a
+    # fuel mirror nor the HV SoC; keep it even if it equals the fuel value.
     assert _primary_soc_or_none(80, 80, engine) == 80
+
+
+@pytest.mark.parametrize("engine", ["electric", "ELECTRIC", "Electric", "bev", "BEV"])
+def test_electric_primary_soc_suppressed_1359(engine) -> None:
+    # #1359 (Seccados, Enyaq iV80 BEV): on an electric primary engine
+    # currentSoCInPercent IS the HV traction-battery SoC (the main EV battery), not
+    # a 12V reading — must NOT be surfaced as the "12V Battery Power Level" sensor.
+    # Suppressed even when distinct from the fuel value (unlike the #1310 mirror).
+    assert _primary_soc_or_none(72, 40, engine) is None
+    assert _primary_soc_or_none(80, 80, engine) is None
 
 
 def test_none_soc_stays_none() -> None:
