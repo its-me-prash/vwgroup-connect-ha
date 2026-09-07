@@ -150,6 +150,8 @@ Portal początkowo udostępnia tylko **wycinek pól**, a ten wycinek **z czasem 
 > **Pełna lista pól.** Kompletny oficjalny słownik danych grupy VW (każdy klucz EU Data Act -> pole, opis i jednostka) znajduje się w [docs/EU_DATA_ACT_DATA_DICTIONARY.md](docs/EU_DATA_ACT_DATA_DICTIONARY.md). Cotygodniowy workflow obserwuje stronę słownika portalu i otwiera pull request, gdy VW opublikuje nowszą wersję, żeby tabela po cichu się nie zestarzała.
 
 > To właśnie przełącznik Opcji **`eu_data_act_auto_kickoff`** tworzy owo 15-minutowe Custom Data Request i jest **domyślnie włączony** — w trybie portalowym bez niego nie ma danych. Wyłącz go tylko wtedy, gdy wolisz zarządzać żądaniem samodzielnie.
+>
+> **Jeśli dane w ogóle nie ruszą na fabrycznie nowym samochodzie (albo w niektórych regionach — np. UK MIB4):** automatyczne żądanie może się czasem nie zarejestrować (portal odpowiada `no_request` albo odrzuca przesłane żądanie). Jeśli sensor **Kondycja kanału portalu** pozostaje pusty po dobie i żadne dane nie napływają, otwórz portal danych VW w przeglądarce i **utwórz Custom Data Request / pakiety danych dla tego samochodu samodzielnie, jeden raz** — integracja odczytuje je wtedy normalnie przy następnym odpytywaniu. ([#1227](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1227))
 
 ---
 
@@ -165,6 +167,8 @@ Portal początkowo udostępnia tylko **wycinek pól**, a ten wycinek **z czasem 
 - **12 języków:** nazwy encji są w pełni przetłumaczone na angielski, niemiecki, francuski, hiszpański, włoski, niderlandzki, polski, czeski, szwedzki, duński, norweski i fiński.
 
 > 💡 **Panel energii:** sensor naładowanej energii jest typu `total_increasing`, więc dodaj go do **panelu Energii** Home Assistant bezpośrednio lub opakuj w helper `utility_meter`, aby uzyskać dzienne/miesięczne sumy naładowanej energii. Użyj do tego kumulacyjnego sensora **naładowanej energii (kWh)** — a nie sensorów wydajności na 100 km (te są średnimi, a nie licznikami).
+>
+> **Albo pozwól integracji zbudować dla ciebie liczniki miesięczne (opcja do włączenia, domyślnie wyłączona, nowość w 4.7.0):** włącz **Automatyczne tworzenie liczników miesięcznych** w Opcjach, a integracja podpina helpery `utility_meter`, które sumują twoją naładowaną energię i przebieg za każdy miesiąc kalendarzowy, po jednym na samochód. Przełącznik pojawia się tylko wtedy, gdy samochód faktycznie raportuje pasujący sensor. To trwałe helpery — wyłączenie go z powrotem zatrzymuje tworzenie nowych, ale zostawia te już utworzone (usuń je w **Ustawienia → Urządzenia i usługi → Pomocnicy**).
 
 ### Usługi
 

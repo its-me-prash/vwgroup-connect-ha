@@ -150,6 +150,8 @@ Das Portal liefert anfangs nur einen **Ausschnitt der Felder**, und dieser Aussc
 > **Vollständige Feldliste.** Das komplette offizielle VW-Group-Data-Dictionary (jeder EU-Data-Act-Key -> Feld, Beschreibung und Einheit) steht in [docs/EU_DATA_ACT_DATA_DICTIONARY.md](docs/EU_DATA_ACT_DATA_DICTIONARY.md). Ein wöchentlicher Workflow beobachtet die Dictionary-Seite des Portals und öffnet einen Pull-Request, sobald VW eine neuere Version veröffentlicht, damit die Tabelle nicht stillschweigend veraltet.
 
 > Der Optionen-Schalter **`eu_data_act_auto_kickoff`** ist das, was die 15-Minuten-Custom-Data-Request anlegt, und er ist **standardmässig an** — im Portal-Modus gibt es ohne sie keine Daten. Schalte ihn nur aus, wenn du die Anfrage lieber selbst verwalten willst.
+>
+> **Wenn bei einem brandneuen Auto (oder in manchen Regionen — z. B. UK MIB4) nie Daten zu fliessen beginnen:** die automatische Anfrage lässt sich gelegentlich nicht registrieren (das Portal antwortet `no_request` oder weist die Übermittlung zurück). Wenn der **Portal-Feed-Zustand**-Sensor nach einem Tag leer bleibt und keine Daten ankommen, öffne das VW-Datenportal im Browser und **erstelle die Custom-Data-Request / die Datenpakete für dieses Auto einmal selbst** — die Integration liest sie dann beim nächsten Abruf ganz normal aus. ([#1227](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1227))
 
 ---
 
@@ -165,6 +167,8 @@ Das Portal liefert anfangs nur einen **Ausschnitt der Felder**, und dieser Aussc
 - **12 Sprachen:** Entitätsnamen sind vollständig übersetzt in Englisch, Deutsch, Französisch, Spanisch, Italienisch, Niederländisch, Polnisch, Tschechisch, Schwedisch, Dänisch, Norwegisch und Finnisch.
 
 > 💡 **Energie-Dashboard:** Der Sensor für geladene Energie ist `total_increasing`, also füge ihn direkt zum Home-Assistant-**Energie-Dashboard** hinzu, oder pack ihn in einen `utility_meter`-Helper für tägliche/monatliche Summen der geladenen Energie. Verwende dafür den kumulativen Sensor **geladene Energie (kWh)** — nicht die Effizienz-Sensoren pro 100 km (das sind Durchschnitte, keine Zähler).
+>
+> **Oder lass die Integration die monatlichen Zähler für dich bauen (Opt-in, standardmässig aus, neu in 4.7.0):** aktiviere **Monatliche Zähler automatisch anlegen** in den Optionen, und sie verdrahtet `utility_meter`-Helper, die deine geladene Energie und Kilometer pro Kalendermonat summieren, je einer pro Auto. Der Schalter erscheint nur, wenn ein Auto tatsächlich einen passenden Sensor meldet. Das sind dauerhafte Helper — schaltest du ihn wieder aus, werden keine neuen mehr angelegt, aber die bereits erstellten bleiben bestehen (entferne diese unter **Einstellungen → Geräte & Dienste → Helper**).
 
 ### Services
 

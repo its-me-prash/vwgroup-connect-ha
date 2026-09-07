@@ -150,6 +150,8 @@ Portál zpočátku poskytuje jen **výsek polí** a tento výsek se **postupně 
 > **Úplný seznam polí.** Kompletní oficiální datový slovník skupiny VW (každý klíč EU Data Act -> pole, popis a jednotka) najdete v [docs/EU_DATA_ACT_DATA_DICTIONARY.md](docs/EU_DATA_ACT_DATA_DICTIONARY.md). Týdenní workflow sleduje stránku se slovníkem na portálu a otevře pull request, jakmile VW zveřejní novější verzi, aby tabulka tiše nezastarala.
 
 > Ten 15minutový Custom Data Request vytváří přepínač v Možnostech **`eu_data_act_auto_kickoff`** a je **ve výchozím stavu zapnutý** — v režimu portálu bez něj žádná data nejsou. Vypněte ho jen tehdy, pokud si chcete požadavek spravovat sami.
+>
+> **Když u úplně nového auta data nikdy nezačnou chodit (nebo v některých regionech — např. UK MIB4):** automatický požadavek se občas nemusí zaregistrovat (portál odpoví `no_request`, nebo odeslání odmítne). Pokud senzor **Stav portálového kanálu** zůstane po dni prázdný a žádná data nedorazí, otevřete datový portál VW v prohlížeči a **vytvořte si Custom Data Request / datové balíčky pro to auto sami, jednou** — integrace ho pak při dalším dotazu normálně přečte. ([#1227](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1227))
 
 ---
 
@@ -165,6 +167,8 @@ Portál zpočátku poskytuje jen **výsek polí** a tento výsek se **postupně 
 - **12 jazyků:** názvy entit jsou plně přeložené do angličtiny, němčiny, francouzštiny, španělštiny, italštiny, nizozemštiny, polštiny, češtiny, švédštiny, dánštiny, norštiny a finštiny.
 
 > 💡 **Energetický panel:** senzor nabité energie je `total_increasing`, takže ho přidejte přímo do **energetického panelu** Home Assistant, nebo ho zabalte do pomocníka `utility_meter` pro denní/měsíční souhrny nabité energie. Pro tento účel použijte kumulativní senzor **nabité energie (kWh)** — ne senzory účinnosti na 100 km (ty jsou průměry, ne měřiči).
+>
+> **Nebo nechte integraci, ať vám měsíční měřiče vytvoří sama (volitelné, ve výchozím stavu vypnuté, novinka ve 4.7.0):** zapněte v Možnostech **Automaticky vytvářet měsíční měřiče** a integrace zapojí pomocníky `utility_meter`, kteří sečtou vaši nabitou energii a najeté kilometry za kalendářní měsíc, jeden pro každé auto. Přepínač se objeví jen tehdy, když auto skutečně hlásí odpovídající senzor. Jde o trvalé pomocníky — vypnutí zpět zastaví vytváření nových, ale ty už vytvořené ponechá (ty odeberete v **Nastavení → Zařízení a služby → Pomocníci**).
 
 ### Služby
 

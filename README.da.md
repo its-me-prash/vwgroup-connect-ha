@@ -150,6 +150,8 @@ Portalen serverer indledningsvis kun en **skive felter**, og den skive **udvides
 > **Fuld feltliste.** VW-koncernens komplette officielle dataordbog (hver EU Data Act-nøgle -> felt, beskrivelse og enhed) findes i [docs/EU_DATA_ACT_DATA_DICTIONARY.md](docs/EU_DATA_ACT_DATA_DICTIONARY.md). Et ugentligt workflow holder øje med portalens ordbogsside og åbner en pull request, når VW udgiver en nyere version, så tabellen ikke stille og roligt bliver forældet.
 
 > Indstillings-kontakten **`eu_data_act_auto_kickoff`** er den, der opretter 15-minutters Custom Data Request, og den er **slået til som standard** — i portaltilstand er der ingen data uden en. Slå den kun fra, hvis du hellere selv vil styre anmodningen.
+>
+> **Hvis data aldrig starter på en helt ny bil (eller i visse regioner — f.eks. britisk MIB4):** den automatiske anmodning kan af og til ikke blive registreret (portalen svarer `no_request` eller afviser indsendelsen). Hvis sensoren **Portal feed health** forbliver tom efter et døgn, og der ikke kommer data, så åbn VW-dataportalen i en browser, og **opret selv Custom Data Request / datapakkerne for den bil, én gang** — så læser integrationen den normalt ved næste opslag. ([#1227](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1227))
 
 ---
 
@@ -165,6 +167,8 @@ Portalen serverer indledningsvis kun en **skive felter**, og den skive **udvides
 - **12 sprog:** entitetsnavnene er fuldt oversat til engelsk, tysk, fransk, spansk, italiensk, hollandsk, polsk, tjekkisk, svensk, dansk, norsk og finsk.
 
 > 💡 **Energi-dashboard:** sensoren for opladet energi er `total_increasing`, så føj den direkte til Home Assistants **Energi-dashboard**, eller pak den ind i en `utility_meter`-helper til daglige/månedlige totaler for opladet energi. Brug den kumulative sensor for **opladet energi (kWh)** til dette — ikke effektivitetssensorerne pr. 100 km (de er gennemsnit, ikke målere).
+>
+> **Eller lad integrationen bygge de månedlige målere for dig (tilvalg, slået fra som standard, nyt i 4.7.0):** slå **Opret automatisk månedlige målere** til i Indstillinger, så kobler den `utility_meter`-helpers op, der lægger din opladede energi og kilometerstand sammen pr. kalendermåned, én pr. bil. Kontakten dukker kun op, når en bil rent faktisk rapporterer en tilsvarende sensor. Det er varige helpers — slår du den fra igen, stopper det oprettelsen af nye, men lader dem, der allerede er oprettet, blive (dem fjerner du under **Indstillinger → Enheder & tjenester → Hjælpere**).
 
 ### Tjenester
 

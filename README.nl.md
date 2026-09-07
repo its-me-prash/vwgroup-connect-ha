@@ -150,6 +150,8 @@ Het portaal levert aanvankelijk slechts een **deel van de velden**, en dat deel 
 > **Volledige veldenlijst.** Het volledige officiële VW-Group data-dictionary (elke EU Data Act-sleutel -> veld, beschrijving en eenheid) staat in [docs/EU_DATA_ACT_DATA_DICTIONARY.md](docs/EU_DATA_ACT_DATA_DICTIONARY.md). Een wekelijkse workflow houdt de dictionary-pagina van het portaal in de gaten en opent een pull request zodra VW een nieuwere versie publiceert, zodat de tabel niet stilletjes veroudert.
 
 > De Opties-schakelaar **`eu_data_act_auto_kickoff`** is degene die dat Custom Data Request van 15 minuten aanmaakt, en hij staat **standaard aan** — in portaalmodus is er zonder zo'n verzoek geen data. Zet hem alleen uit als je het verzoek liever zelf beheert.
+>
+> **Als de data op een gloednieuwe auto nooit op gang komt (of in sommige regio's — bijv. VK MIB4):** het automatische verzoek slaagt er soms niet in zich te registreren (het portaal antwoordt `no_request`, of wijst de indiening af). Als de **Portal feed health**-sensor na een dag leeg blijft en er geen data binnenkomt, open dan het VW-dataportaal in een browser en **maak het Custom Data Request / de datapakketten voor die auto zelf aan, één keer** — de integratie leest het daarna gewoon uit bij de volgende poll. ([#1227](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1227))
 
 ---
 
@@ -165,6 +167,8 @@ Het portaal levert aanvankelijk slechts een **deel van de velden**, en dat deel 
 - **12 talen:** entiteitsnamen zijn volledig vertaald naar Engels, Duits, Frans, Spaans, Italiaans, Nederlands, Pools, Tsjechisch, Zweeds, Deens, Noors en Fins.
 
 > 💡 **Energiedashboard:** de geladen-energie-sensor is `total_increasing`, dus voeg hem rechtstreeks toe aan het Home Assistant-**Energiedashboard**, of verpak hem in een `utility_meter`-helper voor dagelijkse/maandelijkse geladen-energie-totalen. Gebruik hiervoor de cumulatieve **geladen-energie (kWh)**-sensor — niet de per-100 km-efficiëntiesensoren (dat zijn gemiddelden, geen meters).
+>
+> **Of laat de integratie de maandelijkse meters voor je opbouwen (opt-in, standaard uit, nieuw in 4.7.0):** zet **Maandelijkse meters automatisch aanmaken** aan in de Opties en ze bedraadt `utility_meter`-helpers die je geladen energie en kilometerstand per kalendermaand optellen, één per auto. De schakelaar verschijnt alleen wanneer een auto daadwerkelijk een bijpassende sensor rapporteert. Dit zijn permanente helpers — hem weer uitzetten stopt het aanmaken van nieuwe, maar laat de reeds gemaakte staan (verwijder die onder **Instellingen → Apparaten & services → Helpers**).
 
 ### Services
 
