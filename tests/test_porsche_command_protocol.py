@@ -92,6 +92,40 @@ class TestUnlockSpinChallenge:
             await c.command_unlock(_VIN, spin="1234")
 
 
+class TestTrunkUnlockAndWindows:
+    """b20 (2026-09-08, androguard enum dump) — TRUNK_UNLOCK and the three
+    WINDOWS_SUNROOF_* commands are real (dedicated model classes in the
+    app), requested by neither CJNE nor this project before now."""
+
+    @pytest.mark.asyncio
+    async def test_trunk_unlock_without_spin_raises(self):
+        c = _client()
+        with pytest.raises(SpinError):
+            await c.command_unlock_trunk(_VIN, spin="")
+
+    @pytest.mark.asyncio
+    async def test_trunk_unlock_runs_same_spin_protocol_as_unlock(self):
+        c = _client()
+        c._post = AsyncMock(side_effect=[
+            {"data": {"challenge": "AABBCCDD"}},
+            {"status": {"result": "PERFORMED"}},
+        ])
+        await c.command_unlock_trunk(_VIN, spin="1234")
+        second_call = c._post.call_args_list[1].kwargs["json"]
+        assert second_call["key"] == "TRUNK_UNLOCK"
+        assert "hash" in second_call["payload"]["spin"]
+
+    @pytest.mark.asyncio
+    async def test_window_commands_send_correct_keys(self):
+        c = _client()
+        c._post = AsyncMock(return_value={"status": {"result": "PERFORMED"}})
+        await c.command_open_windows(_VIN)
+        await c.command_close_windows(_VIN)
+        await c.command_vent_windows(_VIN)
+        keys = [call.kwargs["json"]["key"] for call in c._post.call_args_list]
+        assert keys == ["WINDOWS_SUNROOF_OPEN", "WINDOWS_SUNROOF_CLOSE", "WINDOWS_SUNROOF_VENT"]
+
+
 class TestCommandStatusPolling:
     @pytest.mark.asyncio
     async def test_immediate_error_raises(self):

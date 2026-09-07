@@ -51,9 +51,28 @@ _COMMAND_POLL_TIMEOUT_S = 20
 # request-shape change. NOT LIVE-VERIFIED beyond the fields already parsed
 # before b19 — a vehicle owner's report is what confirms the rest actually
 # come back populated.
+#
+# b20 (2026-09-08, full androguard enum dump of the real
+# `de.porsche.app.api.connect.vehicledata.model.MeasurementType` class —
+# vag-connect-porsche-full-endpoint-inventory-2026-09-08.md) — TWO
+# corrections against that ground truth:
+#   1. "CHARGING_STATE" was never a real measurement key (not in the 86/87
+#      -member real enum, not in CJNE's own list either, and this project
+#      never actually parsed it into anything — `charging_state` below has
+#      always come from `CHARGING_SUMMARY.status`). Dropped — it was inert.
+#   2. "TIRE_PRESSURE" (a single aggregate key) does not exist. The real
+#      enum has four separate keys instead — see the TIRE_PRESSURE_* entries
+#      below and the rewritten TPMS parsing in get_status. This is very
+#      likely why TPMS sensors have been reporting nothing: the previous key
+#      was requesting a measurement that doesn't exist.
+# The 33 other genuinely-new keys that dump surfaced (VALET_ALARM,
+# LOCATION_ALARMS, SPEED_ALARMS, CHARGING_SESSION, OTA_*, CONNECT_CONTRACT,
+# etc.) are deliberately NOT added here yet — this project doesn't parse
+# any of them into a VehicleData field, so requesting them would just be
+# unused payload; see the full inventory doc for the prioritized backlog.
 _MEASUREMENTS = (
     "BATTERY_LEVEL", "E_RANGE", "FUEL_LEVEL", "FUEL_RESERVE", "MILEAGE",
-    "CHARGING_SUMMARY", "CHARGING_STATE", "CHARGING_RATE", "CHARGING_SETTINGS",
+    "CHARGING_SUMMARY", "CHARGING_RATE", "CHARGING_SETTINGS",
     "CHARGING_PROFILES", "CLIMATIZER_STATE", "HVAC_STATE", "HEATING_STATE",
     "GPS_LOCATION", "LOCK_STATE_VEHICLE", "ALARM_STATE", "THEFT_STATE",
     "PARKING_BRAKE", "PARKING_LIGHT", "GLOBAL_PRIVACY_MODE",
@@ -70,7 +89,8 @@ _MEASUREMENTS = (
     "OIL_SERVICE_TIME", "INTERMEDIATE_SERVICE_RANGE",
     "INTERMEDIATE_SERVICE_TIME", "SERVICE_PREDICTIONS",
     "OIL_LEVEL_CURRENT", "OIL_LEVEL_MAX", "OIL_LEVEL_MIN_WARNING",
-    "TIRE_PRESSURE",
+    "TIRE_PRESSURE_FRONT_LEFT", "TIRE_PRESSURE_FRONT_RIGHT",
+    "TIRE_PRESSURE_REAR_LEFT", "TIRE_PRESSURE_REAR_RIGHT",
 )
 
 
@@ -313,33 +333,48 @@ class PorscheClient:
             d.service_km    = v(m, "MAIN_SERVICE_RANGE", "distance")
             d.oil_service_km = v(m, "OIL_SERVICE_RANGE", "distance")
 
-            # ── v2.0.0 (Big-Bang) — TPMS ─────────────────────────────────
-            # PPA returns ``TIRE_PRESSURE`` as a dict with per-corner
-            # entries: ``frontLeft``/``frontRight``/``rearLeft``/``rearRight``,
-            # each carrying ``currentPressure`` (kPa or bar depending on
-            # vehicle locale — observed in the wild as kPa float, e.g.
-            # 235.0 → 2.35 bar) and ``warning`` (bool). Defensive: only
-            # populate if the dict actually has corner entries — older
-            # PPA variants ship an empty dict for non-TPMS-equipped cars.
-            tp = m.get("TIRE_PRESSURE", {})
-            if isinstance(tp, dict) and tp:
-                def _bar(corner: str) -> float | None:
-                    raw = v(tp, corner, "currentPressure")
-                    if raw is None:
-                        return None
-                    try:
-                        n = float(raw)
-                    except (TypeError, ValueError):
-                        return None
-                    # kPa heuristic: anything > 10 is kPa, divide by 100
-                    return round(n / 100.0, 2) if n > 10 else round(n, 2)
-                d.tire_pressure_front_left_bar  = _bar("frontLeft")
-                d.tire_pressure_front_right_bar = _bar("frontRight")
-                d.tire_pressure_rear_left_bar   = _bar("rearLeft")
-                d.tire_pressure_rear_right_bar  = _bar("rearRight")
+            # ── TPMS ───────────────────────────────────────────────────────
+            # b20 (2026-09-08, androguard enum dump of the real
+            # MeasurementType class) — CORRECTED. There is no aggregate
+            # ``TIRE_PRESSURE`` key; the real app requests four separate
+            # top-level measurement keys, one per corner
+            # (``TIRE_PRESSURE_FRONT_LEFT`` etc., each with its own
+            # ``TirePressureFrontLeftMeasurement`` model class). The v2.0.0
+            # parsing below assumed a single aggregate dict keyed by corner
+            # name, which was requesting a measurement key that doesn't
+            # exist — very likely why TPMS has been silently empty.
+            # NOT LIVE-VERIFIED: the per-corner KEYS are androguard-confirmed
+            # real; the exact field names inside each one's value
+            # (``currentPressure``/``warning``) are carried over unchanged
+            # from the old aggregate shape as the best available guess — a
+            # live capture is what confirms whether that inner shape moved
+            # too when the key was split.
+            def _corner_bar(key: str) -> float | None:
+                raw = v(m, key, "currentPressure")
+                if raw is None:
+                    return None
+                try:
+                    n = float(raw)
+                except (TypeError, ValueError):
+                    return None
+                # kPa heuristic: anything > 10 is kPa, divide by 100
+                return round(n / 100.0, 2) if n > 10 else round(n, 2)
+            d.tire_pressure_front_left_bar  = _corner_bar("TIRE_PRESSURE_FRONT_LEFT")
+            d.tire_pressure_front_right_bar = _corner_bar("TIRE_PRESSURE_FRONT_RIGHT")
+            d.tire_pressure_rear_left_bar   = _corner_bar("TIRE_PRESSURE_REAR_LEFT")
+            d.tire_pressure_rear_right_bar  = _corner_bar("TIRE_PRESSURE_REAR_RIGHT")
+            if any(
+                b is not None for b in (
+                    d.tire_pressure_front_left_bar, d.tire_pressure_front_right_bar,
+                    d.tire_pressure_rear_left_bar, d.tire_pressure_rear_right_bar,
+                )
+            ):
                 d.tire_pressure_warning = any(
-                    bool(v(tp, c, "warning"))
-                    for c in ("frontLeft", "frontRight", "rearLeft", "rearRight")
+                    bool(v(m, key, "warning"))
+                    for key in (
+                        "TIRE_PRESSURE_FRONT_LEFT", "TIRE_PRESSURE_FRONT_RIGHT",
+                        "TIRE_PRESSURE_REAR_LEFT", "TIRE_PRESSURE_REAR_RIGHT",
+                    )
                 )
 
         # v2.2.1 Phase 8 PR #5 — cross-brand car_type derivation.
@@ -353,12 +388,29 @@ class PorscheClient:
         return d
 
     async def get_capabilities(self, vin: str) -> dict[str, Any]:  # noqa: ARG002
-        """Porsche PPA does not expose a discrete capabilities endpoint.
+        """Still returns ``{}`` — but NOT because no endpoint exists.
 
-        Returning ``{}`` keeps the interface consistent with the
-        CARIAD/OLA clients so the coordinator can call this without
-        feature detection. Buttons will not be capability-gated for
-        Porsche until/unless an endpoint is found.
+        CORRECTION (b20, 2026-09-08, androguard disassembly of the real
+        vehicle-connect service class,
+        ``vag-connect-porsche-full-endpoint-inventory-2026-09-08.md`` §3.1/
+        §3.2): this docstring used to claim "Porsche PPA does not expose a
+        discrete capabilities endpoint" — that is WRONG. Two real
+        capability-related surfaces exist: (1) the same
+        ``GET /vehicles/{vin}`` overview call ``get_status`` already makes
+        can also carry a ``cf=`` (command-flags) query param alongside
+        ``mf=``/``wakeUpJob`` — the real app sends all three in one request;
+        this project only ever sends ``mf=``+``wakeUpJob``. (2) A separate
+        ``GET /v1/config/capabilities/defaults`` +
+        ``/v1/config/capabilities/suggestions`` cluster exists too.
+
+        Neither is wired up here yet: the response envelope for ``cf=``
+        results and the exact shape of the capabilities-defaults/suggestions
+        response were NOT captured in that pass (only that the endpoints
+        exist) — implementing against a guessed response shape risks
+        silently-wrong parsing, which is worse than the honest ``{}`` this
+        already returns. Wiring either one up needs a live capture from a
+        real account first. Buttons stay capability-ungated for Porsche
+        until then.
         """
         return {}
 
@@ -381,14 +433,33 @@ class PorscheClient:
         ``sha512(pin + challenge).hexdigest().upper()`` as the response hash.
         NOT LIVE-VERIFIED — needs a real account with a car and an S-PIN set.
         """
+        await self._spin_command(vin, "UNLOCK", spin)
+
+    async def command_unlock_trunk(self, vin: str, spin: str = "") -> None:
+        """Unlock the trunk/frunk only — separate from the full-vehicle
+        ``UNLOCK``.
+
+        b20 (2026-09-08, androguard enum dump) — ``TRUNK_UNLOCK`` is a real
+        command in the app (dedicated ``TrunkUnlock``/``$$serializer`` model
+        class), not requested by CJNE or previously implemented here.
+        Assumed to need the same SPIN-challenge/response protocol as
+        ``UNLOCK`` since it's also an unlock-class action under Porsche's
+        security model — that assumption is NOT confirmed (the payload
+        class's exact fields weren't captured, only that it exists).
+        NOT LIVE-VERIFIED at all.
+        """
+        await self._spin_command(vin, "TRUNK_UNLOCK", spin)
+
+    async def _spin_command(self, vin: str, key: str, spin: str) -> None:
+        """Shared SPIN-challenge/response protocol for unlock-class commands."""
         if not spin:
-            raise SpinError("Porsche unlock requires an S-PIN")
+            raise SpinError(f"Porsche {key} requires an S-PIN")
         challenge = await self._spin_challenge(vin)
         if not challenge:
-            raise VehicleCommandError("UNLOCK", "no SPIN challenge returned")
+            raise VehicleCommandError(key, "no SPIN challenge returned")
         pinhash = hashlib.sha512(bytes.fromhex(spin + challenge)).hexdigest().upper()
         await self._command(
-            vin, "UNLOCK", {"spin": {"challenge": challenge, "hash": pinhash}},
+            vin, key, {"spin": {"challenge": challenge, "hash": pinhash}},
         )
 
     async def _spin_challenge(self, vin: str) -> str | None:
@@ -403,6 +474,26 @@ class PorscheClient:
             if isinstance(challenge, str):
                 return challenge
         return None
+
+    async def command_open_windows(self, vin: str) -> None:
+        """b20 (2026-09-08, androguard enum dump) — WINDOWS_SUNROOF_OPEN is a
+        real command (dedicated ``WindowsSunroofOpen`` model class), not
+        requested by CJNE or previously implemented here. This project
+        already tracks window/sunroof OPEN-state measurements but had no
+        command to actually move them — this closes that gap. NOT
+        LIVE-VERIFIED — the payload shape (e.g. whether it takes a
+        which-window selector) wasn't captured, so this sends no extra
+        payload fields, matching the "no per-command payload beyond the
+        common spin field" pattern most other simple commands use."""
+        await self._command(vin, "WINDOWS_SUNROOF_OPEN")
+
+    async def command_close_windows(self, vin: str) -> None:
+        """See ``command_open_windows``. NOT LIVE-VERIFIED."""
+        await self._command(vin, "WINDOWS_SUNROOF_CLOSE")
+
+    async def command_vent_windows(self, vin: str) -> None:
+        """See ``command_open_windows``. NOT LIVE-VERIFIED."""
+        await self._command(vin, "WINDOWS_SUNROOF_VENT")
 
     async def command_start_climate(self, vin: str) -> None:
         await self._command(vin, "REMOTE_CLIMATIZER_START")

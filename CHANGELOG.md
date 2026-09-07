@@ -81,7 +81,20 @@ under everyone's feet lately. Porsche stays marked experimental. If you use Pors
 beta and reporting back (either "it works" or exactly what broke) is genuinely how this gets
 confirmed (#1337).
 
+### Fixed
+- **Porsche tire pressure has very likely been silently empty this whole time.** The integration
+  was requesting a tire-pressure field that doesn't exist on Porsche's backend — a full APK
+  read-through of the real app found it split into four separate per-corner fields instead. Fixed
+  to request the real ones. Also dropped a second field that was never real either and never did
+  anything (`CHARGING_STATE` — the charging-state sensor has always come from a different field).
+
 ### Added
+- **New Porsche commands found in a full read-through of the real app that neither this
+  integration nor the reference library it's grounded against had:** unlocking just the trunk
+  separate from the whole car, and opening/closing/venting the windows and sunroof remotely. Added
+  at the same level as existing commands (SPIN-protected the same way as unlock, where that applies)
+  — not yet exposed as buttons/switches in the UI, since that's a larger change across every brand's
+  entity files, not just Porsche's. NOT LIVE-VERIFIED.
 - **Porsche login can now solve a captcha instead of just giving up.** If Porsche's sign-in shows
   you a captcha, the integration now displays it right in the setup screen and lets you type the
   answer in, instead of failing with a vague error. This has never been tested against a real
