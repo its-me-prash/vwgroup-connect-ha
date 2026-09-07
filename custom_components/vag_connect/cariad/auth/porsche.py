@@ -25,13 +25,21 @@ v2.26.0 (#13, re-verified against the current com.porsche.one DEX + LIVE probes)
     static Porsche One Auth0 client_id literal to hardcode.
   - LIVE BLOCKER: GET https://api.ppa.porsche.com/v1/mobile/clientId returns 502
     for us (Azure Application Gateway). The host is alive (/app/connect gives a
-    clean 401), and the DEX shows the app redacts X-API-KEY / X-Client-ID /
-    X-Auth-Token headers in its logs, so that endpoint almost certainly needs an
-    X-API-KEY we do not send. The key is not a plain DEX literal (likely
-    assembled or in a resource/native lib). So the clientId fetch, and therefore
-    the whole device grant, cannot be validated off a real account: the next
-    step is a Porsche One owner (#13) either running a test build so its real
-    error tells us what the endpoint wants, or capturing one login.
+    clean 401). CORRECTION (2026-09-07 androguard xref sweep, both com.porsche.one
+    and de.porsche.one): the "needs an X-API-KEY" theory below is UNCONFIRMED —
+    the two concrete X-API-KEY/apikey wiring sites actually traced in the DEX
+    belong to the Payment and Terms-and-Conditions API clients, not the
+    vehicle-connect (api.ppa.porsche.com) client the clientId call uses. No
+    call site was found tying a required header to this specific endpoint. The
+    502's real cause is still unexplained — do not keep chasing the API-key
+    hypothesis without new evidence. (Original theory, kept for context: the
+    DEX shows the app redacts X-API-KEY / X-Client-ID / X-Auth-Token headers in
+    its logs, so it was assumed this endpoint needs one we do not send; the key
+    would not have been a plain DEX literal either way — likely assembled or in
+    a resource/native lib.) So the clientId fetch, and therefore the whole
+    device grant, still cannot be validated off a real account: the next step
+    is a Porsche One owner (#13) either running a test build so its real error
+    tells us what the endpoint wants, or capturing one login.
 
 REBUILD RECIPE (Auth0 device grant, RFC 8628):
   1. clientId at runtime: GET /v1/mobile/clientId (needs the app's X-API-KEY).
@@ -70,6 +78,18 @@ path didn't exist yet at the time). ``_follow_to_code`` now declines the
 passkey-enrollment screen automatically and keeps going; an actual captcha
 (any other rendered page) still ends the flow with the same honest error as
 before — that piece remains genuinely unsolvable headless.
+
+Two more things the same sweep settled: (1) com.porsche.one (NA/-pcna) and
+de.porsche.one (ROW/-row) are code-identical on every auth-relevant endpoint,
+host, scope and clientId call — no basis for ever splitting "Porsche NA" /
+"Porsche EU" as separate brands here, it is one global Auth0 tenant regardless
+of app-store variant. (2) both apps ship a real `appIntegrityIsAvailable`
+(Google Play Integrity) feature toggle, compiled default DISABLED, but no
+traced call site ties it to the device-grant/token-exchange path — so it is
+suggestive that Porsche *could* turn on the same kind of attestation Audi has,
+but it is not proof that the #1337 `403 unauthorized_client` was actually
+caused by it. Full writeup: vag-connect-porsche-full-grounding-2026-09-07.md
+(repo root's parent — not shipped in this repo, research-only).
 
 Old flow based on CJNE/pyporscheconnectapi (Apache-2.0), aiohttp reimpl.
 """
