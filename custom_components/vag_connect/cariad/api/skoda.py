@@ -89,7 +89,10 @@ def _software_update_from_readiness(readiness: Any) -> str | None:
 
 
 def _primary_soc_or_none(
-    soc_i: int | None, fuel_i: int | None, engine_type: Any
+    soc_i: int | None,
+    fuel_i: int | None,
+    engine_type: Any,
+    car_type: Any = None,
 ) -> int | None:
     """Decide whether ``primaryEngineRange.currentSoCInPercent`` is a real 12V SoC.
 
@@ -97,18 +100,26 @@ def _primary_soc_or_none(
     ``currentSoCInPercent`` on a combustion primary engine (captured equal at
     100/100 and 41/41 with the fuel gauge matching), so a "SoC" that equals the
     fuel level there is the fuel duplicated, not a 12V reading. Return ``None`` in
-    that case.
+    that case. Grounded across four archived Škoda diags (Octavia diesel 82==82,
+    Rapid gasoline 83==83, indigomejor gasoline 92==92, Superb iV PHEV 16==16 on
+    the combustion primary).
 
     #1359 (Seccados, Enyaq iV80 BEV): on an ELECTRIC primary engine,
     ``currentSoCInPercent`` IS the high-voltage traction-battery SoC — the exact
     number the main EV battery sensor already shows — never a 12V reading. It was
     being surfaced as the "12V Battery Power Level" sensor, so on a BEV that sensor
-    just mirrored the main battery. Return ``None`` there too, so the 12V level is
-    only ever kept when it is a genuinely distinct value on a combustion engine."""
+    just mirrored the main battery. Detect it from the primary engine type OR the
+    car type (``carType == "electric"``): no archived BEV-Škoda diag exists to pin
+    which field the Enyaq populates, so keying on either is the safe ground. On a
+    PHEV the electric engine is the *secondary* range and ``carType`` is "hybrid",
+    so this never fires there — the combustion primary still goes through the fuel-
+    mirror guard above. Return ``None``, so the 12V level is only ever kept when it
+    is a genuinely distinct value on a combustion primary engine."""
     if soc_i is None:
         return None
     et = str(engine_type or "").lower()
-    if "electric" in et or et == "bev":
+    ct = str(car_type or "").lower()
+    if "electric" in et or et == "bev" or ct == "electric":
         return None
     if et in _COMBUSTION_ENGINE_TYPES and soc_i == fuel_i:
         return None
@@ -1869,7 +1880,7 @@ class SkodaClient(CariadBaseClient):
                 v(driving_range, "primaryEngineRange", "currentSoCInPercent")
             )
             d.primary_engine_soc_pct = _primary_soc_or_none(
-                soc_i, fuel_i, primary_eng_type
+                soc_i, fuel_i, primary_eng_type, v(driving_range, "carType")
             )
             # v2.2.1 Phase 8 PR #1 — carType (string enum diesel /
             # gasoline / electric / hybrid). Authoritative backend

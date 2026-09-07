@@ -59,6 +59,24 @@ def test_electric_primary_soc_suppressed_1359(engine) -> None:
     assert _primary_soc_or_none(80, 80, engine) is None
 
 
+def test_electric_car_type_suppresses_even_if_engine_type_blank_1359() -> None:
+    # #1359 grounded against the diag archive: NO archived BEV-Škoda diag exists to
+    # pin whether the Enyaq reports the electric flag on the engine or on the car,
+    # so carType == "electric" must also suppress even when the engine type is
+    # blank/unknown (the safe ground when only one of the two fields is populated).
+    assert _primary_soc_or_none(72, 40, "", "electric") is None
+    assert _primary_soc_or_none(72, 40, None, "ELECTRIC") is None
+
+
+def test_phev_combustion_primary_not_over_suppressed_1286() -> None:
+    # #1286 (Superb iV PHEV, harvested diag): carType "hybrid" with a COMBUSTION
+    # primary engine — the electric engine is the secondaryEngineRange, so the
+    # primary SoC must still follow the fuel-mirror rule, never the electric rule.
+    # A distinct combustion-primary SoC on a hybrid is kept; a fuel-mirror is not.
+    assert _primary_soc_or_none(55, 40, "gasoline", "hybrid") == 55
+    assert _primary_soc_or_none(16, 16, "gasoline", "hybrid") is None
+
+
 def test_none_soc_stays_none() -> None:
     assert _primary_soc_or_none(None, 41, "gasoline") is None
 
