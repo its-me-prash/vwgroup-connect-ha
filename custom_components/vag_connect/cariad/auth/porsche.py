@@ -102,11 +102,12 @@ import json
 import logging
 import os
 import re
+import time
 from urllib.parse import parse_qs, urljoin, urlsplit
 
 from aiohttp import ClientTimeout, ClientSession
 
-from ..exceptions import AuthenticationError, TokenExpiredError
+from ..exceptions import AuthenticationError, PorscheCaptchaRequiredError, TokenExpiredError
 from ..models import TokenSet
 
 _AUTH_TIMEOUT = ClientTimeout(total=30)  # per-request timeout for auth flows
@@ -121,11 +122,27 @@ _CLIENT_ID     = "XhygisuebbrqQ80byOuU5VncxLIm8E6H"
 _REDIRECT_URI  = "my-porsche-app://auth0/callback"
 _AUDIENCE      = "https://api.porsche.com"
 _USER_AGENT    = "My Porsche/2.1.0 (iPhone; iOS 17.0; Scale/3.00)"
+# b19 (CJNE-comparison #4) — CJNE attaches this X-Client-ID to every Auth0-flow
+# request (identifier/password POSTs, resume hops, token exchange, refresh),
+# not just post-auth API calls. It is already used post-auth in api/porsche.py
+# under the same name; our own #1337 live test succeeded without it on the
+# auth path, so this is a defensive match-a-working-implementation addition,
+# not a fix for a known failure.
+_X_CLIENT      = "41843fb4-691d-4970-85c7-2673e8ecef40"
 
+# b19 (CJNE-comparison #9) — full scope list from CJNE's const.py (Apache-2.0).
+# Our previous 15-scope subset dropped 8 read-only pid:user_profile.* scopes;
+# Auth0 client registrations sometimes expect the exact registered scope
+# string, so match it verbatim even though nothing here currently reads the
+# extra profile fields.
 _SCOPE = (
     "openid profile email offline_access mbb ssodb badge vin dealers cars "
     "charging manageCharging plugAndCharge climatisation manageClimatisation "
-    "pid:user_profile.porscheid:read pid:user_profile.vehicles:read"
+    "pid:user_profile.porscheid:read pid:user_profile.name:read "
+    "pid:user_profile.vehicles:read pid:user_profile.dealers:read "
+    "pid:user_profile.emails:read pid:user_profile.phones:read "
+    "pid:user_profile.addresses:read pid:user_profile.birthdate:read "
+    "pid:user_profile.locale:read pid:user_profile.legal:read"
 )
 
 
@@ -164,7 +181,13 @@ class PorscheAuth:
         verifier, challenge = _pkce()
         state = base64.urlsafe_b64encode(os.urandom(16)).rstrip(b"=").decode()
 
-        # Step 1: Get auth page
+        # Step 1: /authorize. allow_redirects=False and read the Location
+        # header directly (b19, CJNE-comparison #10): with allow_redirects=True
+        # an already-authenticated Auth0 session would redirect straight to
+        # ``my-porsche-app://auth0/callback?code=...`` — a non-http(s) scheme
+        # aiohttp's redirect follower cannot land on safely. Reading Location
+        # ourselves both avoids that crash risk AND lets us short-circuit the
+        # whole identifier/password dance when a session is already valid.
         params = {
             "client_id":             _CLIENT_ID,
             "redirect_uri":          _REDIRECT_URI,
@@ -179,19 +202,30 @@ class PorscheAuth:
             _AUTH_URL,
             timeout=_AUTH_TIMEOUT,
             params=params,
-            headers={"User-Agent": _USER_AGENT},
-            allow_redirects=True,
+            headers={"User-Agent": _USER_AGENT, "X-Client-ID": _X_CLIENT},
+            allow_redirects=False,
         ) as resp:
-            await resp.text()
-            final_url = str(resp.url)
+            location = resp.headers.get("Location", "")
+        if resp.status not in (301, 302, 303, 307, 308) or not location:
+            raise AuthenticationError(
+                f"Porsche authorize request did not redirect (HTTP {resp.status})"
+            )
+        target = urljoin(_AUTH_URL, location)
+        existing_code = self._extract_code(target)
+        if existing_code:
+            _LOGGER.debug(
+                "Porsche auth: existing Auth0 session, skipping login form"
+            )
+            return await self._exchange_code(existing_code, verifier)
 
-        # Extract Auth0 state from redirect URL
-        state_match = re.search(r'state=([a-zA-Z0-9_\-]+)', final_url)
-        if not state_match:
+        state_vals = parse_qs(urlsplit(target).query).get("state")
+        if not state_vals:
             raise AuthenticationError("Could not extract Auth0 state from login page")
-        auth0_state = state_match.group(1)
+        auth0_state = state_vals[0]
 
-        # Step 2: POST credentials
+        # Step 2: POST the identifier (e-mail). A 401 here is Auth0 rejecting
+        # the identifier outright; a 400 means a captcha challenge (b19,
+        # CJNE-comparison §1.5) — neither is the generic "wall" case.
         login_url = f"https://{_AUTH_SERVER}/u/login/identifier?state={auth0_state}"
         async with self._session.post(
             login_url,
@@ -207,13 +241,23 @@ class PorscheAuth:
             },
             headers={
                 "User-Agent":   _USER_AGENT,
+                "X-Client-ID":  _X_CLIENT,
                 "Content-Type": "application/x-www-form-urlencoded",
             },
-            allow_redirects=True,
+            allow_redirects=False,
         ) as resp:
-            pass
+            if resp.status == 401:
+                raise AuthenticationError("Porsche auth failed — wrong credentials")
+            if resp.status == 400:
+                html = await resp.text()
+                image = self._extract_captcha_image(html)
+                if image:
+                    raise PorscheCaptchaRequiredError(image, auth0_state, verifier)
+            # Any other status here: fall through and let step 3 / step 4
+            # produce the more general diagnostic — Auth0's identifier step
+            # doesn't usually reject on other codes.
 
-        # Step 3: POST password
+        # Step 3: POST the password.
         password_url = f"https://{_AUTH_SERVER}/u/login/password?state={auth0_state}"
         async with self._session.post(
             password_url,
@@ -226,18 +270,22 @@ class PorscheAuth:
             },
             headers={
                 "User-Agent":   _USER_AGENT,
+                "X-Client-ID":  _X_CLIENT,
                 "Content-Type": "application/x-www-form-urlencoded",
             },
             allow_redirects=False,
         ) as resp:
+            if resp.status in (400, 401):
+                raise AuthenticationError("Porsche auth failed — wrong credentials")
             location = resp.headers.get("Location", "")
+            status = resp.status
         # b11 (#1337 Hollywoodchaos) — the Porsche auth path emitted zero log
         # lines, so a user's debug capture showed nothing but the final warning.
         # Log status + whether a redirect was handed back (hostnames/statuses
         # only — never the URL query, code, state, e-mail or password).
         _LOGGER.debug(
             "Porsche auth: password POST → HTTP %s, %s",
-            resp.status,
+            status,
             "redirect handed back" if location
             else "NO Location header (Auth0 rendered a page — likely a "
                  "captcha/consent step the headless flow can't clear)",
@@ -256,11 +304,37 @@ class PorscheAuth:
         if not code:
             raise AuthenticationError(
                 "Porsche auth failed — no authorization code after login "
-                "(wrong credentials, or a captcha/consent step we do not handle)"
+                "(a captcha/consent step we do not handle)"
             )
 
         # Step 5: Exchange code for tokens
         return await self._exchange_code(code, verifier)
+
+    @staticmethod
+    def _extract_captcha_image(html: str) -> str | None:
+        """Extract a captcha image (data-URI) from an Auth0 ACUL or legacy
+        login page. b19 (CJNE-comparison #12a) — extraction only, ported from
+        CJNE/pyporscheconnectapi's ``_extract_captcha_image`` (Apache-2.0).
+        There is deliberately no solving path yet: this only lets a captcha
+        wall be reported distinctly from wrong-credentials (see ``authenticate``
+        step 2) instead of collapsed into one vague error. A config-flow step
+        that lets a user actually solve it inline is tracked as a follow-up,
+        modeled on ``CJNE/ha-porscheconnect``'s ``async_step_captcha``.
+        """
+        match = re.search(r'atob\("([A-Za-z0-9+/=]+)"', html)
+        if match:
+            try:
+                context = json.loads(base64.b64decode(match.group(1)).decode("utf-8"))
+            except (ValueError, json.JSONDecodeError):
+                context = None
+            if context:
+                image = context.get("screen", {}).get("captcha", {}).get("image")
+                if isinstance(image, str) and image:
+                    return image
+        svg_match = re.search(r"(data:image/svg[^\"' ]+)", html)
+        if svg_match:
+            return svg_match.group(1)
+        return None
 
     async def _follow_to_code(self, location: str, base_url: str) -> str | None:
         """Walk the redirect chain from the password POST to the auth code.
@@ -286,7 +360,7 @@ class PorscheAuth:
             async with self._session.get(
                 target,
                 timeout=_AUTH_TIMEOUT,
-                headers={"User-Agent": _USER_AGENT},
+                headers={"User-Agent": _USER_AGENT, "X-Client-ID": _X_CLIENT},
                 allow_redirects=False,
             ) as resp:
                 # b11 (#1337) — trace each hop by host + status only (never the
@@ -332,9 +406,13 @@ class PorscheAuth:
         not be parsed (treated by the caller as the unhandled-wall case).
 
         The page embeds its transaction context as base64 JSON behind an
-        ``atob("...")`` call; we need only ``transaction.state`` out of it to
-        post the decline action back. Mirrors CJNE/pyporscheconnectapi's
-        ``_skip_passkey_enrollment`` (Apache-2.0).
+        ``atob("...")`` call; we need ``transaction.state`` out of it, plus
+        (b19, CJNE-comparison #8) any ``untrustedData.submittedFormData`` the
+        ACUL context carried — CJNE seeds the decline POST body with that
+        before overwriting ``state``/``action``/``acul-sdk`` on top, in case
+        some ACUL versions validate that expected form fields are present.
+        Mirrors CJNE/pyporscheconnectapi's ``_skip_passkey_enrollment``
+        (Apache-2.0).
         """
         match = re.search(r'atob\("([A-Za-z0-9+/=]+)"', html)
         if not match:
@@ -347,16 +425,19 @@ class PorscheAuth:
         state = context.get("transaction", {}).get("state")
         if not state:
             return None
+        data = dict(context.get("untrustedData", {}).get("submittedFormData") or {})
+        data.update({
+            "state": state,
+            "action": "abort-passkey-enrollment",
+            "acul-sdk": "@auth0/auth0-acul-js@1.2.0",
+        })
         async with self._session.post(
             url,
             timeout=_AUTH_TIMEOUT,
-            data={
-                "state": state,
-                "action": "abort-passkey-enrollment",
-                "acul-sdk": "@auth0/auth0-acul-js@1.2.0",
-            },
+            data=data,
             headers={
                 "User-Agent": _USER_AGENT,
+                "X-Client-ID": _X_CLIENT,
                 "Content-Type": "application/x-www-form-urlencoded",
             },
             allow_redirects=False,
@@ -366,7 +447,15 @@ class PorscheAuth:
             return resp.headers.get("Location", "")
 
     async def refresh(self, refresh_token: str) -> TokenSet:
-        """Refresh tokens using refresh_token."""
+        """Refresh tokens using refresh_token.
+
+        b19 (CJNE-comparison #6) — CJNE treats HTTP 403 (not 401) as "refresh
+        token invalid" based on production observation of Porsche's tenant;
+        neither side's assumption is spec-verified against a live capture, so
+        both codes are treated as expired here — cheap, defensive, and closes
+        an unhandled-exception path where a 403 body without ``access_token``
+        would otherwise raise a bare ``KeyError``.
+        """
         async with self._session.post(
             _TOKEN_URL,
             timeout=_AUTH_TIMEOUT,
@@ -375,16 +464,23 @@ class PorscheAuth:
                 "client_id":     _CLIENT_ID,
                 "refresh_token": refresh_token,
             },
-            headers={"User-Agent": _USER_AGENT},
+            headers={"User-Agent": _USER_AGENT, "X-Client-ID": _X_CLIENT},
         ) as resp:
-            if resp.status == 401:
+            if resp.status in (401, 403):
                 raise TokenExpiredError("Porsche refresh token expired")
+            if resp.status != 200:
+                body = await resp.text()
+                raise AuthenticationError(
+                    f"Porsche token refresh failed {resp.status}: "
+                    f"{_oauth_error_code(body)}"
+                )
             data = await resp.json()
 
         return TokenSet(
             access_token=data["access_token"],
             refresh_token=data.get("refresh_token", refresh_token),
             id_token=data.get("id_token", ""),
+            expires_at=time.time() + float(data.get("expires_in", 3600)),
         )
 
     async def _exchange_code(self, code: str, verifier: str) -> TokenSet:
@@ -398,7 +494,7 @@ class PorscheAuth:
                 "redirect_uri":  _REDIRECT_URI,
                 "code_verifier": verifier,
             },
-            headers={"User-Agent": _USER_AGENT},
+            headers={"User-Agent": _USER_AGENT, "X-Client-ID": _X_CLIENT},
         ) as resp:
             if resp.status != 200:
                 body = await resp.text()
@@ -412,6 +508,7 @@ class PorscheAuth:
             access_token=data["access_token"],
             refresh_token=data.get("refresh_token", ""),
             id_token=data.get("id_token", ""),
+            expires_at=time.time() + float(data.get("expires_in", 3600)),
         )
 
     @staticmethod
@@ -574,6 +671,7 @@ class PorscheOneDeviceAuth:
                     access_token=data["access_token"],
                     refresh_token=data.get("refresh_token", ""),
                     id_token=data.get("id_token", ""),
+                    expires_at=time.time() + float(data.get("expires_in", 3600)),
                 )
             error = str(data.get("error", ""))
         if error in ("authorization_pending", "slow_down"):
@@ -597,7 +695,7 @@ class PorscheOneDeviceAuth:
                 "Accept": "application/json",
             },
         ) as resp:
-            if resp.status == 401:
+            if resp.status in (401, 403):
                 raise TokenExpiredError("Porsche One refresh token expired")
             if resp.status != 200:
                 body = await resp.text()
@@ -610,4 +708,5 @@ class PorscheOneDeviceAuth:
             access_token=data["access_token"],
             refresh_token=data.get("refresh_token", refresh_token),
             id_token=data.get("id_token", ""),
+            expires_at=time.time() + float(data.get("expires_in", 3600)),
         )

@@ -411,6 +411,29 @@ class EmailTwoFactorRequiredError(TwoFactorRequiredError):
         )
 
 
+class PorscheCaptchaRequiredError(AuthenticationError):
+    """b19 (#1337, CJNE-comparison #12a) — Porsche's Auth0 tenant rendered a
+    captcha challenge instead of continuing the login redirect chain.
+
+    Carries what a future interactive config-flow step would need to resume
+    the SAME PKCE transaction after the user solves it (the verifier cannot
+    be regenerated — it is bound to the original ``/authorize`` request), the
+    same way CJNE/pyporscheconnectapi's ``PorscheCaptchaRequiredError`` does.
+    No solving path exists yet; this only lets a captcha wall be distinguished
+    from wrong credentials in logs/diagnostics.
+    """
+
+    def __init__(self, captcha_image: str, state: str, code_verifier: str) -> None:
+        super().__init__(
+            "Porsche requires a captcha to be solved — not yet solvable "
+            "automatically. Sign in manually in the Porsche app once, or "
+            "wait for interactive captcha support."
+        )
+        self.captcha_image = captcha_image
+        self.state = state
+        self.code_verifier = code_verifier
+
+
 class PortalInteractionRequiredError(AuthenticationError):
     """v2.15.4 (#527) — the EU Data Act portal login stopped on a step that
     needs a one-time human action in the browser/app, but is NOT a wrong-

@@ -42,7 +42,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
-## [4.7.1b1] - 2026-09-07 — Porsche: decline the passkey-enrollment screen instead of giving up
+## [4.7.1b1] - 2026-09-07 — Porsche: login, unlock, commands, and vehicle data all needed fixing
 
 ### Fixed
 - **Porsche login gets further than before.** The password login was giving up whenever Porsche's
@@ -50,8 +50,36 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   On a real account it turned out that step is often just an optional "set up a passkey?" screen
   — the integration now declines it automatically and continues, instead of stopping the login
   right there. A genuine captcha still can't be solved headlessly and still fails with the same
-  honest message as before. Porsche remains marked experimental until more real accounts confirm
-  this holds up (#1337) — if you use Porsche, a report on this beta either way is genuinely useful.
+  honest message as before, but is now recognized distinctly from a wrong password. Login also
+  skips the whole sign-in form if you already had a valid session.
+- **Every Porsche command was very likely silently failing, not just unlock.** Found while adding
+  the fix below: commands were sent with the wrong JSON field name entirely (`commandName` instead
+  of `key`), confirmed against a maintained third-party library that has kept working against
+  Porsche's API. Since Porsche login was blocked until the fix above, no command had ever actually
+  been tested against the real backend — lock, unlock, climate, charging, honk-and-flash, timers,
+  all of it. That's fixed now, and commands are (best-effort) verified to have actually succeeded
+  instead of just assuming a 200 meant it worked.
+- **Unlock needs your S-PIN, and now actually uses it.** The setting was there, but nothing ever
+  read it or sent it to Porsche — so unlock most likely never worked at all. It now runs the
+  proper challenge/response Porsche expects.
+- **Vehicle data used a request shape that was never confirmed to work.** Login was only just
+  fixed, so nobody had verified the *next* step — reading the car's actual status. Switched to
+  the same request shape a maintained third-party library uses successfully today.
+- **Charging target now clamps to 25–100% and works on more vehicles.** Some Porsches expose the
+  charge target differently than others; the integration now checks which kind your car is and
+  edits the right place either way, instead of assuming everyone's car works the same way.
+- Honk-and-flash now actually distinguishes "flash only" from "honk and flash" (the setting
+  existed already, it just wasn't wired to anything). 429 rate-limit backoff now honors Porsche's
+  own suggested wait time when it sends one, instead of always guessing. Token refresh treats
+  both usual "expired" signals as expired instead of just one, and refreshes proactively instead
+  of always waiting for a request to fail first.
+
+**Honest status**: the login fix was live-verified on a real account. Everything else here —
+unlock, other commands, and vehicle data — has NOT been live-verified yet; it's grounded against a
+maintained library that works against the same API today, but Porsche's backend has been changing
+under everyone's feet lately. Porsche stays marked experimental. If you use Porsche, testing this
+beta and reporting back (either "it works" or exactly what broke) is genuinely how this gets
+confirmed (#1337).
 
 ## [4.7.0] - 2026-09-07 — Full release / Voll-Release
 

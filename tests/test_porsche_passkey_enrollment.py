@@ -17,7 +17,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 from custom_components.vag_connect.cariad.auth.porsche import PorscheAuth
 
@@ -108,3 +108,31 @@ class TestPasskeyEnrollmentSkip:
         code = _follow(session, "/authorize/resume?state=xyz")
         assert code is None
         session.post.assert_not_called()
+
+    def test_decline_merges_submitted_form_data(self) -> None:
+        """b19 (CJNE-comparison #8) — CJNE seeds the decline POST body with
+        whatever untrustedData.submittedFormData the ACUL context carried,
+        before overwriting state/action/acul-sdk on top. Verify the merge,
+        not just that SOME POST happens."""
+        payload = base64.b64encode(json.dumps({
+            "transaction": {"state": "enroll-state-1"},
+            "untrustedData": {"submittedFormData": {"js-available": "true"}},
+        }).encode()).decode()
+        html = f'<script>var ctx = JSON.parse(atob("{payload}"));</script>'
+
+        captured: dict = {}
+        session = MagicMock()
+        session.get = MagicMock(
+            side_effect=[_Resp(200, text=html), _Resp(302, f"{_CB}?code=OK&state=x")]
+        )
+
+        def _post(url, **kwargs):
+            captured.update(kwargs.get("data", {}))
+            return _Resp(302, "/authorize/resume2?state=xyz")
+
+        session.post = MagicMock(side_effect=_post)
+        code = _follow(session, "/u/passkey-enrollment?state=xyz")
+        assert code == "OK"
+        assert captured.get("js-available") == "true"
+        assert captured.get("state") == "enroll-state-1"
+        assert captured.get("action") == "abort-passkey-enrollment"

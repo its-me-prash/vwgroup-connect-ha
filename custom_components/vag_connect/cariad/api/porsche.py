@@ -10,8 +10,10 @@ Source: https://github.com/CJNE/pyporscheconnectapi
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import time
+import uuid
 from typing import Any
 
 from aiohttp import ClientSession, ClientTimeout
@@ -19,7 +21,7 @@ from aiohttp import ClientSession, ClientTimeout
 from .._util import drop_odometer_sentinel
 from .._util import mask_vin as _mask_vin
 from ..auth.porsche import PorscheAuth
-from ..exceptions import APIError, AuthenticationError, TokenExpiredError
+from ..exceptions import APIError, AuthenticationError, SpinError, TokenExpiredError, VehicleCommandError
 from ..models import VehicleData, TokenSet
 
 _LOGGER = logging.getLogger(__name__)
@@ -31,6 +33,45 @@ _USER_AGENT = "My Porsche/2.1.0 (iPhone; iOS 17.0; Scale/3.00)"
 # v1.25.0 PR-B: storm-protection constants (mirror of base.py)
 _REFRESH_MAX_PER_HOUR = 3
 _REFRESH_WINDOW_S = 3600
+
+# b19 (CJNE-comparison #3) — bounded command-status poll. CJNE polls up to
+# 240s for a terminal PERFORMED/ERROR state; that is too long to block a HA
+# service call on. We poll for a much shorter window: an ERROR within it is
+# still caught (the whole point — a rejected command no longer looks
+# identical to a successful one), but a command still pending when the
+# window closes is left for the next coordinator poll instead of blocking.
+_COMMAND_POLL_INTERVAL_S = 2
+_COMMAND_POLL_TIMEOUT_S = 20
+
+# b19 (CJNE-comparison #13) — widened from a 17-key subset to CJNE's fuller
+# set (const.py::MEASUREMENTS, Apache-2.0), so windows/parking-brake/alarm/
+# convertible-top/charging-profile fields become available to parse. Not
+# every key maps to a VehicleData field yet (see get_status) — requesting
+# them is cheap and unblocks adding entities later without another
+# request-shape change. NOT LIVE-VERIFIED beyond the fields already parsed
+# before b19 — a vehicle owner's report is what confirms the rest actually
+# come back populated.
+_MEASUREMENTS = (
+    "BATTERY_LEVEL", "E_RANGE", "FUEL_LEVEL", "FUEL_RESERVE", "MILEAGE",
+    "CHARGING_SUMMARY", "CHARGING_STATE", "CHARGING_RATE", "CHARGING_SETTINGS",
+    "CHARGING_PROFILES", "CLIMATIZER_STATE", "HVAC_STATE", "HEATING_STATE",
+    "GPS_LOCATION", "LOCK_STATE_VEHICLE", "ALARM_STATE", "THEFT_STATE",
+    "PARKING_BRAKE", "PARKING_LIGHT", "GLOBAL_PRIVACY_MODE",
+    "REMOTE_ACCESS_AUTHORIZATION", "DEPARTURES", "TIMERS",
+    "OPEN_STATE_DOOR_FRONT_LEFT", "OPEN_STATE_DOOR_FRONT_RIGHT",
+    "OPEN_STATE_DOOR_REAR_LEFT", "OPEN_STATE_DOOR_REAR_RIGHT",
+    "OPEN_STATE_LID_FRONT", "OPEN_STATE_LID_REAR", "OPEN_STATE_SUNROOF",
+    "OPEN_STATE_SUNROOF_REAR", "OPEN_STATE_SPOILER", "OPEN_STATE_TOP",
+    "OPEN_STATE_SERVICE_FLAP", "OPEN_STATE_CHARGE_FLAP_LEFT",
+    "OPEN_STATE_CHARGE_FLAP_RIGHT",
+    "OPEN_STATE_WINDOW_FRONT_LEFT", "OPEN_STATE_WINDOW_FRONT_RIGHT",
+    "OPEN_STATE_WINDOW_REAR_LEFT", "OPEN_STATE_WINDOW_REAR_RIGHT",
+    "MAIN_SERVICE_RANGE", "MAIN_SERVICE_TIME", "OIL_SERVICE_RANGE",
+    "OIL_SERVICE_TIME", "INTERMEDIATE_SERVICE_RANGE",
+    "INTERMEDIATE_SERVICE_TIME", "SERVICE_PREDICTIONS",
+    "OIL_LEVEL_CURRENT", "OIL_LEVEL_MAX", "OIL_LEVEL_MIN_WARNING",
+    "TIRE_PRESSURE",
+)
 
 
 class PorscheClient:
@@ -84,53 +125,66 @@ class PorscheClient:
         return vins
 
     async def get_status(self, vin: str) -> VehicleData:
-        """Fetch full vehicle status from Porsche API."""
+        """Fetch full vehicle status from Porsche API.
+
+        b19 (CJNE-comparison #1/#2, corrected 2026-09-07): switched from two
+        separate calls (a bare ``/vehicles/{vin}`` for meta + a
+        ``/vehicles/{vin}/measurements?fields=...`` for measurements) to
+        CJNE's live-proven single-call shape: one GET on ``/vehicles/{vin}``
+        with repeated ``mf=`` query params (one per requested measurement
+        key) plus a ``wakeUpJob`` UUID to force a live read rather than a
+        cached one. The response carries both the base vehicle fields (vin,
+        modelName, modelType, ...) and a top-level ``measurements`` array in
+        the SAME payload — the previous two-call shape was never live-
+        verified and may well have been hitting a non-existent sub-path.
+        NOT LIVE-VERIFIED beyond the 2026-09-07 login test (which did not
+        reach a vehicle) — this needs a real account with a car to confirm.
+        """
         v = self._val
         d = VehicleData(vin=vin)
 
-        # Fetch vehicle details + measurements in parallel
-        results = await asyncio.gather(
-            self._get(f"{_API_BASE}/app/connect/v1/vehicles/{vin}"),
-            self._get(f"{_API_BASE}/app/connect/v1/vehicles/{vin}/measurements", params={
-                "fields": ",".join([
-                    "BATTERY_LEVEL", "E_RANGE", "FUEL_LEVEL", "MILEAGE",
-                    "CHARGING_SUMMARY", "CHARGING_STATE", "CLIMATIZER_STATE",
-                    "GPS_LOCATION", "LOCK_STATE_VEHICLE", "OPEN_STATE_DOOR_FRONT_LEFT",
-                    "OPEN_STATE_DOOR_FRONT_RIGHT", "OPEN_STATE_DOOR_REAR_LEFT",
-                    "OPEN_STATE_DOOR_REAR_RIGHT", "OPEN_STATE_LID_FRONT",
-                    "OPEN_STATE_LID_REAR", "OPEN_STATE_SUNROOF",
-                    "MAIN_SERVICE_RANGE", "OIL_SERVICE_RANGE",
-                    # v2.0.0 (Big-Bang) — TPMS, parsed below into the
-                    # tire_pressure_* fields on VehicleData.
-                    "TIRE_PRESSURE",
-                ])
-            }),
-            return_exceptions=True,
-        )
-        vehicle_data, measurements = results
+        params = [("mf", key) for key in _MEASUREMENTS]
+        params.append(("wakeUpJob", str(uuid.uuid4())))
+        try:
+            overview = await self._get(
+                f"{_API_BASE}/app/connect/v1/vehicles/{vin}", params=params,
+            )
+        except Exception as err:  # noqa: BLE001 — never crash a poll on one bad read
+            _LOGGER.debug("Porsche get_status failed: %s", type(err).__name__)
+            return d
 
-        # v3.0.0 — capture the raw Porsche responses for the Scout + diagnostics
-        # (only real dicts/lists; the gather uses return_exceptions=True).
+        # v3.0.0 — capture the raw Porsche response for the Scout + diagnostics.
         if not hasattr(self, "last_raw_responses"):
             self.last_raw_responses = {}
-        for _name, _obj in (("vehicles", vehicle_data), ("measurements", measurements)):
-            if isinstance(_obj, (dict, list)):
-                self.last_raw_responses[_name] = _obj
+        if isinstance(overview, dict):
+            self.last_raw_responses["overview"] = overview
+
+        if not isinstance(overview, dict):
+            return d
 
         # ── Vehicle meta ─────────────────────────────────────────────────────
-        if isinstance(vehicle_data, dict):
-            d.model        = vehicle_data.get("modelName")
-            d.model_year   = v(vehicle_data, "modelType", "year")
-            d.manufacturer = "Porsche"
-            engine = v(vehicle_data, "modelType", "engine", default="")
-            d.is_electric    = engine == "BEV"
-            d.is_hybrid      = engine == "PHEV"
-            d.has_battery    = engine in ("BEV", "PHEV")
-            d.has_combustion = engine in ("PHEV", "COMBUSTION")
+        d.model        = overview.get("modelName")
+        d.model_year   = v(overview, "modelType", "year")
+        d.manufacturer = "Porsche"
+        engine = v(overview, "modelType", "engine", default="")
+        d.is_electric    = engine == "BEV"
+        d.is_hybrid      = engine == "PHEV"
+        d.has_battery    = engine in ("BEV", "PHEV")
+        d.has_combustion = engine in ("PHEV", "COMBUSTION")
 
         # ── Measurements ──────────────────────────────────────────────────────
-        if isinstance(measurements, (list, dict)):
-            m = {item["key"]: item.get("value", {}) for item in (measurements if isinstance(measurements, list) else [])}
+        # CJNE only trusts entries whose own status says isEnabled (a disabled/
+        # unsupported measurement can still appear in the array with a stale
+        # or meaningless value) — mirror that filter.
+        raw_measurements = overview.get("measurements")
+        if isinstance(raw_measurements, list):
+            m = {
+                item["key"]: item.get("value", {})
+                for item in raw_measurements
+                if isinstance(item, dict)
+                and item.get("key")
+                and v(item, "status", "isEnabled", default=True)
+            }
 
             d.battery_soc   = v(m, "BATTERY_LEVEL", "percent")
             # v2.2.1 Phase 8 PR #3 — split electric / combustion range
@@ -172,7 +226,36 @@ class PorscheClient:
             if isinstance(plug_state, str):
                 d.plug_connected = plug_state.upper() == "CONNECTED"
                 d.plug_state = plug_state
-            d.target_soc        = v(ch, "targetSoc")
+
+            # b19 (CJNE-comparison #3.3) — target-SoC precedence chain ported
+            # from CJNE's ``_update_vehicle_data`` (Apache-2.0): which field
+            # actually carries the active target has been changing across
+            # Porsche's live payloads within the last 8 days of CJNE's own
+            # commit history (newer vehicles expose it directly on
+            # CHARGING_SUMMARY; others need CHARGING_SETTINGS or the active
+            # CHARGING_PROFILES entry). Checked defensively in both castings
+            # CJNE's and this repo's code have each used (targetSoC/targetSoc)
+            # since neither has been live-verified against a current payload.
+            # NOT LIVE-VERIFIED.
+            target_soc = v(ch, "targetSoC")
+            if target_soc is None:
+                target_soc = v(ch, "targetSoc")
+            if target_soc is None and v(ch, "mode") == "PROFILE":
+                target_soc = v(ch, "chargingProfile", "minSoC")
+            settings = m.get("CHARGING_SETTINGS", {})
+            if (
+                target_soc is None
+                and "DEPARTURES" in m
+                and v(settings, "targetSoc") is not None
+            ):
+                target_soc = v(settings, "targetSoc")
+            if (
+                target_soc is None
+                and "DEPARTURES" not in m
+                and v(ch, "mode") == "DIRECT"
+            ):
+                target_soc = 100
+            d.target_soc = target_soc
 
             # Lock — v2.0.1 (#131 follow-up): defensive parsing.
             # Only assign when the source is an actual string; otherwise
@@ -262,10 +345,46 @@ class PorscheClient:
         return {}
 
     async def command_lock(self, vin: str) -> None:
-        await self._command(vin, "LOCK")
+        # b19 (CJNE-comparison): CJNE's LOCK payload always carries a
+        # (null) "spin" field — no real PIN needed, but the key is present.
+        await self._command(vin, "LOCK", {"spin": None})
 
     async def command_unlock(self, vin: str, spin: str = "") -> None:
-        await self._command(vin, "UNLOCK")
+        """Unlock — requires the SPIN-challenge/response protocol.
+
+        b19 (#1337, CJNE-comparison #1 — the highest-priority finding of that
+        pass): the ``spin`` parameter existed in this signature but was never
+        read or forwarded anywhere; no challenge was ever requested and no
+        ``payload.spin`` object was ever attached to the UNLOCK command. This
+        very likely made every unlock attempt silently fail or be rejected,
+        independent of the login-layer issues tracked under #1337/#13.
+        Protocol ported from CJNE's ``unlock_vehicle``/``_get_challenge``
+        (Apache-2.0): request a ``SPIN_CHALLENGE``, then
+        ``sha512(pin + challenge).hexdigest().upper()`` as the response hash.
+        NOT LIVE-VERIFIED — needs a real account with a car and an S-PIN set.
+        """
+        if not spin:
+            raise SpinError("Porsche unlock requires an S-PIN")
+        challenge = await self._spin_challenge(vin)
+        if not challenge:
+            raise VehicleCommandError("UNLOCK", "no SPIN challenge returned")
+        pinhash = hashlib.sha512(bytes.fromhex(spin + challenge)).hexdigest().upper()
+        await self._command(
+            vin, "UNLOCK", {"spin": {"challenge": challenge, "hash": pinhash}},
+        )
+
+    async def _spin_challenge(self, vin: str) -> str | None:
+        """Request a SPIN_CHALLENGE and return the challenge string, or
+        ``None`` if the response didn't carry one."""
+        response = await self._post(
+            f"{_API_BASE}/app/connect/v1/vehicles/{vin}/commands",
+            json={"key": "SPIN_CHALLENGE", "payload": {"spin": None}},
+        )
+        if isinstance(response, dict):
+            challenge = response.get("data", {}).get("challenge")
+            if isinstance(challenge, str):
+                return challenge
+        return None
 
     async def command_start_climate(self, vin: str) -> None:
         await self._command(vin, "REMOTE_CLIMATIZER_START")
@@ -274,10 +393,10 @@ class PorscheClient:
         await self._command(vin, "REMOTE_CLIMATIZER_STOP")
 
     async def command_start_charging(self, vin: str) -> None:
-        await self._command(vin, "DIRECT_CHARGING_START")
+        await self._command(vin, "DIRECT_CHARGING_START", {"spin": None})
 
     async def command_stop_charging(self, vin: str) -> None:
-        await self._command(vin, "DIRECT_CHARGING_STOP")
+        await self._command(vin, "DIRECT_CHARGING_STOP", {"spin": None})
 
     async def command_flash(
         self,
@@ -285,24 +404,59 @@ class PorscheClient:
         latitude: float | None = None,  # noqa: ARG002
         longitude: float | None = None,  # noqa: ARG002
         duration_s: int = 10,  # noqa: ARG002 - value not grounded for this brand
-        honk: bool = False,  # noqa: ARG002 - value not grounded for this brand
+        honk: bool = False,
     ) -> None:
-        await self._command(vin, "HONK_FLASH")
+        # b19 (CJNE-comparison): CJNE's flash_indicators/honk_and_flash_indicators
+        # are the SAME "HONK_FLASH" key, distinguished only by payload.mode —
+        # "FLASH" vs "HONK_AND_FLASH". ``honk`` already existed on this
+        # signature but was previously dropped on the floor.
+        mode = "HONK_AND_FLASH" if honk else "FLASH"
+        await self._command(vin, "HONK_FLASH", {"mode": mode, "spin": None})
 
     async def command_wake(self, vin: str) -> None:
         # Porsche doesn't have a dedicated wake — flash serves as ping
         await self._command(vin, "HONK_FLASH")
 
     async def command_set_target_soc(self, vin: str, target: int) -> None:
-        await self._post(
-            f"{_API_BASE}/app/connect/v1/vehicles/{vin}/commands",
-            json={"commandName": "CHARGING_SETTINGS_EDIT", "payload": {"targetSoc": target}},
+        """Set the charging target SoC.
+
+        b19 (CJNE-comparison #14): clamp to Porsche's accepted 25-100 range
+        (CJNE's ``update_charging_setting``/``update_charging_profile``), and
+        branch on which model the vehicle actually uses — some vehicles
+        expose the target via ``CHARGING_PROFILES`` (edit the whole list,
+        keyed on the active/isEnabled profile) rather than
+        ``CHARGING_SETTINGS``/``DEPARTURES``. Needs one extra read to know
+        which applies; that's cheap next to getting silently ignored on the
+        wrong model. NOT LIVE-VERIFIED on either branch.
+        """
+        target = min(max(int(target), 25), 100)
+        probe = await self._get(
+            f"{_API_BASE}/app/connect/v1/vehicles/{vin}",
+            params=[("mf", "DEPARTURES"), ("mf", "CHARGING_PROFILES")],
+        )
+        measurements = probe.get("measurements") if isinstance(probe, dict) else None
+        m = {
+            item["key"]: item.get("value", {})
+            for item in (measurements or [])
+            if isinstance(item, dict) and item.get("key")
+        }
+        if "CHARGING_PROFILES" in m and "DEPARTURES" not in m:
+            profiles = m["CHARGING_PROFILES"].get("list", [])
+            active = next((p for p in profiles if p.get("isEnabled")), None)
+            if active is None:
+                raise VehicleCommandError(
+                    "CHARGING_PROFILES_EDIT", "no active charging profile found"
+                )
+            active["minSoc"] = target
+            await self._command(vin, "CHARGING_PROFILES_EDIT", {"list": profiles})
+            return
+        await self._command(
+            vin, "CHARGING_SETTINGS_EDIT", {"targetSoc": target, "spin": None},
         )
 
     async def command_set_climate_temperature(self, vin: str, temp_c: float) -> None:
-        await self._post(
-            f"{_API_BASE}/app/connect/v1/vehicles/{vin}/commands",
-            json={"commandName": "REMOTE_CLIMATIZER_START", "payload": {"temperature": temp_c}},
+        await self._command(
+            vin, "REMOTE_CLIMATIZER_START", {"temperature": temp_c},
         )
 
     async def command_start_window_heating(self, vin: str) -> None:
@@ -326,17 +480,67 @@ class PorscheClient:
         payload: dict[str, Any] = {"timerId": timer_id, "enabled": enabled}
         if departure_time:
             payload["departureTime"] = departure_time
-        await self._post(
-            f"{_API_BASE}/app/connect/v1/vehicles/{vin}/commands",
-            json={"commandName": "DEPARTURES_EDIT" if enabled else "TIMERS_DISABLE", "payload": payload},
+        await self._command(
+            vin, "DEPARTURES_EDIT" if enabled else "TIMERS_DISABLE", payload,
         )
 
     # ── HTTP helpers ─────────────────────────────────────────────────────────
 
-    async def _command(self, vin: str, command: str, payload: dict | None = None) -> None:
-        await self._post(
+    async def _command(self, vin: str, key: str, payload: dict | None = None) -> None:
+        """POST a remote-service command and best-effort verify it wasn't
+        rejected outright or by a terminal error within a bounded poll.
+
+        b19 (found while porting SPIN support, #1337) — TWO bugs fixed here:
+        1. The wire field is ``key``, confirmed against CJNE's
+           ``remote_services.py`` (every payload there uses it) — this
+           method previously sent ``commandName`` instead. Since Porsche's
+           login was blocked until #1337's fix today, no command had ever
+           been live-tested, so this was never caught: it likely made every
+           single Porsche command (lock, unlock, climate, charging, honk,
+           timers) silently fail or get ignored, not just the missing-SPIN
+           unlock case this was originally found while fixing.
+        2. If the response carries a ``status.id`` with ``status.result ==
+           "ACCEPTED"``, poll ``/commands/{id}`` for a terminal state (see
+           ``_poll_command``) so a rejected command is no longer silently
+           indistinguishable from a successful one (CJNE-comparison #3).
+        """
+        response = await self._post(
             f"{_API_BASE}/app/connect/v1/vehicles/{vin}/commands",
-            json={"commandName": command, **(payload or {})},
+            json={"key": key, "payload": payload or {}},
+        )
+        status = response.get("status", {}) if isinstance(response, dict) else {}
+        status_id = status.get("id")
+        result = status.get("result")
+        if status_id and result == "ACCEPTED":
+            await self._poll_command(vin, key, status_id)
+        elif result == "ERROR":
+            raise VehicleCommandError(key, "rejected immediately by Porsche")
+
+    async def _poll_command(self, vin: str, key: str, status_id: str) -> None:
+        """Poll a command's status until PERFORMED/ERROR or the (short,
+        deliberately bounded) timeout — see ``_COMMAND_POLL_TIMEOUT_S``."""
+        deadline = time.monotonic() + _COMMAND_POLL_TIMEOUT_S
+        while time.monotonic() < deadline:
+            await asyncio.sleep(_COMMAND_POLL_INTERVAL_S)
+            try:
+                msg = await self._get(
+                    f"{_API_BASE}/app/connect/v1/vehicles/{vin}/commands/{status_id}",
+                )
+            except APIError:
+                # A status-poll hiccup shouldn't fail a command that was
+                # already accepted — best-effort verification only.
+                return
+            result = (
+                msg.get("status", {}).get("result") if isinstance(msg, dict) else None
+            )
+            if result == "ERROR":
+                raise VehicleCommandError(key, "rejected by Porsche")
+            if result == "PERFORMED":
+                return
+        _LOGGER.debug(
+            "Porsche command %s (%s) still pending after %ds — leaving it "
+            "to the next coordinator poll instead of blocking further",
+            key, status_id, _COMMAND_POLL_TIMEOUT_S,
         )
 
     # v1.25.0 PR-B: HTTP machinery hardening — port retry / storm-protection
@@ -383,6 +587,13 @@ class PorscheClient:
         )
         if not self._tokens:
             raise AuthenticationError("Not authenticated")
+        # b19 (CJNE-comparison #11) — proactive refresh: TokenSet.needs_refresh()
+        # was already available (used by other brands) but never called here,
+        # so Porsche only ever refreshed reactively off an observed 401,
+        # eating one wasted round trip every natural expiry cycle. Only on
+        # the first attempt, so a mid-retry-chain call doesn't re-trigger it.
+        if _attempt == 0 and retry and self._tokens.needs_refresh():
+            await self._refresh()
         headers = kwargs.pop("headers", {})
         headers.update({
             "Authorization": f"Bearer {self._tokens.access_token}",
@@ -399,7 +610,15 @@ class PorscheClient:
                     await self._refresh()
                     return await self._request(method, url, retry=False, **kwargs)
                 if resp.status == 429 and _attempt < 3:
-                    wait = (2 ** _attempt) * 5
+                    # b19 (CJNE-comparison #5) — honor a server-sent
+                    # Retry-After if present; a CJNE maintainer's commit
+                    # message states Porsche's backend does send one in
+                    # practice. Falls back to the existing fixed schedule.
+                    retry_after = resp.headers.get("Retry-After", "")
+                    wait = (
+                        int(retry_after) if retry_after.isdigit()
+                        else (2 ** _attempt) * 5
+                    )
                     _LOGGER.debug("Porsche 429 — retrying in %ds", wait)
                     await asyncio.sleep(wait)
                     return await self._request(

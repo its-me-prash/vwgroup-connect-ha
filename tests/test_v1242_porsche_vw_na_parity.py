@@ -74,45 +74,48 @@ from custom_components.vag_connect.cariad.models import VehicleData  # noqa: E40
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-_PORSCHE_VEHICLE_HAPPY: dict = {
+# b19 (CJNE-comparison #1/#2) — single combined payload: one GET on
+# /vehicles/{vin}?mf=... returns BOTH the base vehicle fields AND a
+# top-level "measurements" array in the same response, confirmed against
+# CJNE/pyporscheconnectapi's vehicle.py::_update_vehicle_data. Replaces the
+# old two-call (vehicle + /measurements) fixture shape.
+_PORSCHE_OVERVIEW_HAPPY: dict = {
     "vin": "WP0ZZZ99ZTS300001",
     "modelName": "Taycan 4S",
     "modelType": {"year": 2024, "engine": "BEV"},
+    "measurements": [
+        {"key": "BATTERY_LEVEL", "value": {"percent": 78}},
+        {"key": "E_RANGE", "value": {"distance": 312}},
+        {"key": "MILEAGE", "value": {"mileage": 14250}},
+        {"key": "CHARGING_SUMMARY", "value": {
+            "status": "NOT_CHARGING",
+            "plugState": "DISCONNECTED",
+            "targetSoc": 80,
+        }},
+        {"key": "LOCK_STATE_VEHICLE", "value": {"lockState": "LOCKED"}},
+        {"key": "OPEN_STATE_DOOR_FRONT_LEFT",  "value": {"openState": "CLOSED"}},
+        {"key": "OPEN_STATE_DOOR_FRONT_RIGHT", "value": {"openState": "CLOSED"}},
+        {"key": "OPEN_STATE_DOOR_REAR_LEFT",   "value": {"openState": "CLOSED"}},
+        {"key": "OPEN_STATE_DOOR_REAR_RIGHT",  "value": {"openState": "CLOSED"}},
+        {"key": "OPEN_STATE_LID_FRONT", "value": {"openState": "CLOSED"}},
+        {"key": "OPEN_STATE_LID_REAR",  "value": {"openState": "CLOSED"}},
+        {"key": "OPEN_STATE_SUNROOF",   "value": {"openState": "CLOSED"}},
+        {"key": "GPS_LOCATION", "value": {"latitude": 47.3769, "longitude": 8.5417}},
+        {"key": "MAIN_SERVICE_RANGE", "value": {"distance": 18000}},
+        {"key": "OIL_SERVICE_RANGE",  "value": {"distance": 12500}},
+        {"key": "CLIMATIZER_STATE", "value": {"climatisationState": "OFF"}},
+    ],
 }
-
-_PORSCHE_MEASUREMENTS_HAPPY = [
-    {"key": "BATTERY_LEVEL", "value": {"percent": 78}},
-    {"key": "E_RANGE", "value": {"distance": 312}},
-    {"key": "MILEAGE", "value": {"mileage": 14250}},
-    {"key": "CHARGING_SUMMARY", "value": {
-        "status": "NOT_CHARGING",
-        "plugState": "DISCONNECTED",
-        "targetSoc": 80,
-    }},
-    {"key": "LOCK_STATE_VEHICLE", "value": {"lockState": "LOCKED"}},
-    {"key": "OPEN_STATE_DOOR_FRONT_LEFT",  "value": {"openState": "CLOSED"}},
-    {"key": "OPEN_STATE_DOOR_FRONT_RIGHT", "value": {"openState": "CLOSED"}},
-    {"key": "OPEN_STATE_DOOR_REAR_LEFT",   "value": {"openState": "CLOSED"}},
-    {"key": "OPEN_STATE_DOOR_REAR_RIGHT",  "value": {"openState": "CLOSED"}},
-    {"key": "OPEN_STATE_LID_FRONT", "value": {"openState": "CLOSED"}},
-    {"key": "OPEN_STATE_LID_REAR",  "value": {"openState": "CLOSED"}},
-    {"key": "OPEN_STATE_SUNROOF",   "value": {"openState": "CLOSED"}},
-    {"key": "GPS_LOCATION", "value": {"latitude": 47.3769, "longitude": 8.5417}},
-    {"key": "MAIN_SERVICE_RANGE", "value": {"distance": 18000}},
-    {"key": "OIL_SERVICE_RANGE",  "value": {"distance": 12500}},
-    {"key": "CLIMATIZER_STATE", "value": {"climatisationState": "OFF"}},
-]
 
 
 class TestPorscheParserHappy:
     @pytest.mark.asyncio
     async def test_get_status_taycan_4s(self):
         client = PorscheClient.__new__(PorscheClient)
-        # Inject mocked _get returning vehicle then measurements
-        client._get = AsyncMock(side_effect=[  # type: ignore[method-assign]
-            _PORSCHE_VEHICLE_HAPPY,
-            _PORSCHE_MEASUREMENTS_HAPPY,
-        ])
+        # Inject mocked _get returning the single combined overview payload.
+        client._get = AsyncMock(  # type: ignore[method-assign]
+            return_value=_PORSCHE_OVERVIEW_HAPPY,
+        )
         d = await client.get_status("WP0ZZZ99ZTS300001")
         assert isinstance(d, VehicleData)
         assert d.vin == "WP0ZZZ99ZTS300001"
@@ -143,17 +146,15 @@ class TestPorscheParserHappy:
 
 class TestPorscheParserDegraded:
     @pytest.mark.asyncio
-    async def test_both_endpoints_return_exceptions(self):
-        """Network failure on BOTH calls — must not crash, returns
-        an empty VehicleData for the VIN."""
+    async def test_endpoint_raises(self):
+        """Network failure on the single overview call — must not crash,
+        returns an empty VehicleData for the VIN (b19: get_status now wraps
+        the single _get call in a try/except for exactly this case)."""
         client = PorscheClient.__new__(PorscheClient)
-        client._get = AsyncMock(side_effect=[  # type: ignore[method-assign]
-            RuntimeError("network down"),
-            RuntimeError("network down"),
-        ])
+        client._get = AsyncMock(  # type: ignore[method-assign]
+            side_effect=RuntimeError("network down"),
+        )
         d = await client.get_status("WP0X")
-        # asyncio.gather(return_exceptions=True) keeps exceptions in results;
-        # the parser's isinstance(..., dict) gates skip both branches.
         assert d.vin == "WP0X"
         # All fields stay at dataclass defaults
         assert d.battery_soc is None
@@ -162,10 +163,9 @@ class TestPorscheParserDegraded:
     @pytest.mark.asyncio
     async def test_garbage_shapes_in_measurements(self):
         client = PorscheClient.__new__(PorscheClient)
-        client._get = AsyncMock(side_effect=[  # type: ignore[method-assign]
-            {"modelName": "911"},  # missing modelType
-            "not-a-list",  # garbage measurements
-        ])
+        client._get = AsyncMock(  # type: ignore[method-assign]
+            return_value={"modelName": "911", "measurements": "not-a-list"},
+        )
         d = await client.get_status("WP0X")
         assert d.model == "911"
         # parser bypasses both garbage paths without raising
