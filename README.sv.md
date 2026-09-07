@@ -150,6 +150,8 @@ Portalen levererar inledningsvis bara en **del av fälten**, och den delen **bre
 > **Fullständig fältlista.** VW-koncernens kompletta officiella dataordbok (varje EU Data Act-nyckel -> fält, beskrivning och enhet) finns i [docs/EU_DATA_ACT_DATA_DICTIONARY.md](docs/EU_DATA_ACT_DATA_DICTIONARY.md). Ett veckovis arbetsflöde bevakar portalens ordlistesida och öppnar en pull request när VW publicerar en nyare version, så att tabellen inte tyst blir inaktuell.
 
 > Det är växeln **`eu_data_act_auto_kickoff`** i Alternativ som skapar den där 15-minuters Custom Data Request, och den är **på som standard** — i portalläge finns det inga data utan en. Stäng bara av den om du hellre vill hantera begäran själv.
+>
+> **Om data aldrig börjar komma in på en helt ny bil (eller i vissa regioner — t.ex. UK MIB4):** den automatiska begäran kan ibland misslyckas med att registreras (portalen svarar `no_request`, eller avvisar inskickningen). Om **Portalflödets hälsa**-sensorn förblir tom efter ett dygn och inga data kommer in, öppna VW-dataportalen i en webbläsare och **skapa Custom Data Request / datapaketen för den bilen själv, en gång** — då läser integrationen den normalt vid nästa avfrågning. ([#1227](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1227))
 
 ---
 
@@ -165,6 +167,8 @@ Portalen levererar inledningsvis bara en **del av fälten**, och den delen **bre
 - **12 språk:** entitetsnamnen är fullt översatta till engelska, tyska, franska, spanska, italienska, nederländska, polska, tjeckiska, svenska, danska, norska och finska.
 
 > 💡 **Energipanel:** sensorn för laddad energi är `total_increasing`, så lägg till den i Home Assistant-**energipanelen** direkt, eller linda in den i en `utility_meter`-hjälpare för dagliga/månatliga summor av laddad energi. Använd den ackumulerade sensorn för **laddad energi (kWh)** till detta — inte sensorerna för effektivitet per 100 km (de är medelvärden, inte mätare).
+>
+> **Eller låt integrationen bygga de månatliga mätarna åt dig (frivillig, av som standard, nytt i 4.7.0):** slå på **Skapa månadsmätare automatiskt** i Alternativ, så kopplar den in `utility_meter`-hjälpare som summerar din laddade energi och körsträcka per kalendermånad, en per bil. Växeln visas bara när en bil faktiskt rapporterar en matchande sensor. De här är permanenta hjälpare — att stänga av den igen stoppar skapandet av nya men lämnar kvar dem som redan skapats (ta bort dem under **Inställningar → Enheter och tjänster → Hjälpare**).
 
 ### Tjänster
 

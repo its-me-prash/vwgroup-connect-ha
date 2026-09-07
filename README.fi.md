@@ -150,6 +150,8 @@ Portaali tarjoaa aluksi vain **siivun kentistä**, ja tämä siivu **laajenee aj
 > **Täydellinen kenttäluettelo.** VW-konsernin täydellinen virallinen tietosanakirja (jokainen EU Data Act -avain -> kenttä, kuvaus ja yksikkö) on tiedostossa [docs/EU_DATA_ACT_DATA_DICTIONARY.md](docs/EU_DATA_ACT_DATA_DICTIONARY.md). Viikoittainen workflow tarkkailee portaalin sanastosivua ja avaa pull requestin, kun VW julkaisee uudemman version, jottei taulukko vanhene huomaamatta.
 
 > Asetuskytkin **`eu_data_act_auto_kickoff`** on se, joka luo tuon 15 minuutin mukautetun datapyynnön, ja se on **oletuksena päällä** — portaalitilassa ilman sitä ei tule dataa. Kytke se pois vain, jos haluat mieluummin hallita pyyntöä itse.
+>
+> **Jos data ei koskaan ala tulla aivan uudessa autossa (tai joillakin alueilla — esim. UK MIB4):** automaattinen pyyntö voi toisinaan jäädä rekisteröitymättä (portaali vastaa `no_request` tai hylkää lähetyksen). Jos **Portaalisyötteen tila** -anturi pysyy tyhjänä vuorokauden jälkeen eikä dataa saavu, avaa VW:n dataportaali selaimessa ja **luo mukautettu datapyyntö / datapaketit kyseiselle autolle itse, kerran** — integraatio lukee sen sitten normaalisti seuraavalla kyselyllä. ([#1227](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1227))
 
 ---
 
@@ -165,6 +167,8 @@ Portaali tarjoaa aluksi vain **siivun kentistä**, ja tämä siivu **laajenee aj
 - **12 kieltä:** entiteettien nimet on käännetty kokonaan englanniksi, saksaksi, ranskaksi, espanjaksi, italiaksi, hollanniksi, puolaksi, tšekiksi, ruotsiksi, tanskaksi, norjaksi ja suomeksi.
 
 > 💡 **Energiapaneeli:** ladatun energian anturi on `total_increasing`, joten lisää se suoraan Home Assistantin **Energiapaneeliin**, tai kääri se `utility_meter`-apuriin päivittäisiä/kuukausittaisia ladatun energian summia varten. Käytä tähän kumulatiivista **ladattu energia (kWh)** -anturia — älä per-100 km hyötysuhdeantureita (ne ovat keskiarvoja, eivät mittareita).
+>
+> **Tai anna integraation rakentaa kuukausimittarit puolestasi (valinnainen, oletuksena pois päältä, uutta versiossa 4.7.0):** kytke **Luo kuukausimittarit automaattisesti** päälle Määritä-valikossa, niin se luo `utility_meter`-apurit, jotka summaavat ladatun energiasi ja ajokilometrisi kalenterikuukautta kohden, yhden kutakin autoa kohden. Kytkin ilmestyy vain, kun auto tosiasiassa ilmoittaa vastaavan anturin. Nämä ovat pysyviä apureita — sen kytkeminen takaisin pois estää uusien luomisen mutta jättää jo luodut paikoilleen (poista ne kohdasta **Asetukset → Laitteet ja palvelut → Apurit**).
 
 ### Palvelut
 

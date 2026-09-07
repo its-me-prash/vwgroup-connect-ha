@@ -136,10 +136,12 @@ def test_parse_suppresses_combustion_soc_fuel_mirror():
         "engineType": "DIESEL", "currentFuelLevelInPercent": 92,
         "currentSoCInPercent": 55}}})
     assert d2.primary_engine_soc_pct == 55
-    # electric primary → never a fuel mirror, kept unchanged
+    # electric primary (#1359) → currentSoCInPercent IS the HV traction battery,
+    # not a 12V reading, so it is suppressed on the official channel too (the same
+    # shared guard), matching the mysmob path.
     d3 = SkodaOfficialClient._parse_vehicle("V", {"fuelStatus": {"primaryEngineRange": {
         "engineType": "ELECTRIC", "currentSoCInPercent": 80}}})
-    assert d3.primary_engine_soc_pct == 80
+    assert d3.primary_engine_soc_pct is None
 
 
 def test_parse_tolerates_sparse_body():

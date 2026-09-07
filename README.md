@@ -150,6 +150,8 @@ The portal initially serves only a **slice of fields**, and that slice **widens 
 > **Full field list.** The complete official VW-Group data dictionary (every EU Data Act key -> field, description and unit) is in [docs/EU_DATA_ACT_DATA_DICTIONARY.md](docs/EU_DATA_ACT_DATA_DICTIONARY.md). A weekly workflow watches the portal's dictionary page and opens a pull request when VW publishes a newer version, so the table doesn't quietly go stale.
 
 > The Options toggle **`eu_data_act_auto_kickoff`** is what creates that 15-minute Custom Data Request, and it's **on by default** — in portal mode there's no data without one. Turn it off only if you'd rather manage the request yourself.
+>
+> **If data never starts on a brand-new car (or in some regions — e.g. UK MIB4):** the automatic request can occasionally fail to register (the portal answers `no_request`, or rejects the submission). If the **Portal feed health** sensor stays empty after a day and no data arrives, open the VW data portal in a browser and **create the Custom Data Request / data packages for that car yourself, once** — the integration then reads it normally on the next poll. ([#1227](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1227))
 
 ---
 
@@ -165,6 +167,8 @@ The portal initially serves only a **slice of fields**, and that slice **widens 
 - **12 languages:** entity names are fully translated into English, German, French, Spanish, Italian, Dutch, Polish, Czech, Swedish, Danish, Norwegian and Finnish.
 
 > 💡 **Energy dashboard:** the charged-energy sensor is `total_increasing`, so add it to the Home Assistant **Energy dashboard** directly, or wrap it in a `utility_meter` helper for daily/monthly charged-energy totals. Use the cumulative **charged-energy (kWh)** sensor for this — not the per-100 km efficiency sensors (those are averages, not meters).
+>
+> **Or let the integration build the monthly meters for you (opt-in, off by default, new in 4.7.0):** turn on **Auto-create monthly meters** in Options and it wires up `utility_meter` helpers that total your charged energy and mileage per calendar month, one per car. The toggle only appears when a car actually reports a matching sensor. These are permanent helpers — switching it back off stops new ones being created but leaves the ones already made (remove those under **Settings → Devices & Services → Helpers**).
 
 ### Services
 

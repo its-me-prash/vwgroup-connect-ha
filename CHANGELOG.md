@@ -42,6 +42,54 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.0] - 2026-09-07 — Full release / Voll-Release
+
+The stable release that gathers the whole 4.7.0 beta line (b1–b17): integration-wide debug-log
+redaction hardening, EU Data Act resilience (automatic terms-and-conditions accept, escalating
+portal backoff, older-dataset fallback), per-brand portal logins, a "data is stale" sensor, the
+Škoda manual-official-key repair, and the opt-in monthly `utility_meter` helpers. Two more fixes
+land on top of the betas:
+
+### Fixed
+- **The "12V Battery Power Level" no longer mirrors the main battery on electric Škodas.** On a BEV
+  (e.g. Enyaq) that sensor was showing the high-voltage traction battery's charge, because the
+  car reports the drive-battery SoC in the same field a combustion car uses for a low-voltage
+  reading. It's now hidden on electric cars, where it was only ever a duplicate of the main
+  battery. Combustion Škodas are unaffected. Thanks @Seccados (#1359).
+- **Battery % no longer bounces or lags when a car combines the vw.de channel with the EU Data Act
+  portal.** A guard written for portal-only cars was overriding the live vw.de reading and pinning
+  the percentage to the portal's ~15-minute cadence (it would step back to the previous value each
+  time the portal poll arrived without its high-voltage pair). The live reading now stands. Thanks
+  @Ra72xx for the side-by-side captures (#1231).
+
+### Changed
+- The "add a read channel" options (Volkswagen.de / EU Data Act portal / Tibber) now read
+  "Add/refresh…" instead of "Add a…", so it's clearer they're one-shot actions you can re-run, not
+  on/off state toggles (#950).
+- **Audi & Porsche app login now fails with an honest message instead of a cryptic error.** VW and
+  Porsche moved these brands' app sign-in to a new login (Auth0) that requires on-device app
+  verification, so the passwordless / browser login can no longer complete — the final token step
+  is attestation-gated and can't be done headlessly (confirmed on real accounts; even an
+  interactive browser login can't pass it). The setup wizard now says so plainly and points Audi
+  owners at the read-only EU Data Act Portal, instead of showing a raw failure (#1364, #1337).
+
+### Docs
+- The README now covers the opt-in monthly meters, and documents what to do on a brand-new or UK
+  MIB4 car whose EU Data Act data request has to be created by hand on the portal when the
+  automatic kickoff can't register one (#1227). Refreshed in all 12 languages.
+
+## [4.7.0b17] - 2026-09-06 — Monthly meters, built for you / Monatliche Zähler, automatisch
+
+### Added
+- **Optional: monthly "utility meter" helpers, created automatically.** Turn it on and the
+  integration builds Home Assistant `utility_meter` helpers that total your charged energy and
+  mileage per calendar month — one per car — so you don't have to wire them up by hand. It's off by
+  default and only offered in the options when a car actually reports a matching sensor, so a non-EV
+  never sees a charged-energy meter it can't fill. These are permanent helpers: switching it back
+  off stops new ones being created but leaves the ones already made (remove those under Settings →
+  Devices & Services → Helpers). Early opt-in for beta testers — the exact provisioning timing on a
+  live install is still being validated, so try it and report back.
+
 ## [4.7.0b16] - 2026-09-06 — Škoda manual-key fallback, EU Data Act resilience + hardening
 
 ### Added
@@ -54,7 +102,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   sign in, VW can show a "please accept the updated terms" page — the same kind of interstitial as
   the data-consent page we already accept. It's now accepted automatically so the login completes,
   instead of stopping and asking you to do it in a browser. If it ever can't, the existing repair
-  still appears.
+  still appears. Thanks @tuhriel for the clean log that pinned the terms-page classification (#1268).
 - **A "data is stale" sensor you can build automations on.** A new diagnostic binary sensor turns
   on when your car's own data-capture time has been frozen for too long (a lapsed portal feed can
   keep serving days-old values as if they were live). The information was already there via the

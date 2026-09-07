@@ -150,6 +150,8 @@ Le portail ne sert au départ qu'une **partie des champs**, et cette part **s'é
 > **Liste complète des champs.** Le dictionnaire de données officiel du groupe VW (chaque clé EU Data Act -> champ, description et unité) se trouve dans [docs/EU_DATA_ACT_DATA_DICTIONARY.md](docs/EU_DATA_ACT_DATA_DICTIONARY.md). Un workflow hebdomadaire surveille la page du dictionnaire du portail et ouvre une pull request dès que VW publie une version plus récente, pour que le tableau ne devienne pas silencieusement obsolète.
 
 > C'est la bascule des Options **`eu_data_act_auto_kickoff`** qui crée cette demande de données personnalisée de 15 minutes, et elle est **activée par défaut** — en mode portail, sans elle, il n'y a pas de données. Ne la désactivez que si vous préférez gérer la demande vous-même.
+>
+> **Si les données ne démarrent jamais sur une voiture toute neuve (ou dans certaines régions — p. ex. MIB4 au Royaume-Uni) :** la demande automatique peut parfois échouer à s'enregistrer (le portail répond `no_request`, ou rejette la soumission). Si le capteur **santé du flux du portail** reste vide après une journée et qu'aucune donnée n'arrive, ouvrez le portail de données VW dans un navigateur et **créez vous-même, une fois, la demande de données personnalisée / les paquets de données pour cette voiture** — l'intégration la lit ensuite normalement à la prochaine interrogation. ([#1227](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1227))
 
 ---
 
@@ -165,6 +167,8 @@ Le portail ne sert au départ qu'une **partie des champs**, et cette part **s'é
 - **12 langues :** les noms d'entités sont entièrement traduits en anglais, allemand, français, espagnol, italien, néerlandais, polonais, tchèque, suédois, danois, norvégien et finnois.
 
 > 💡 **Tableau de bord Énergie :** le capteur d'énergie chargée est `total_increasing`, vous pouvez donc l'ajouter directement au **tableau de bord Énergie** de Home Assistant, ou l'envelopper dans un assistant `utility_meter` pour obtenir des totaux d'énergie chargée quotidiens/mensuels. Utilisez pour cela le capteur cumulatif **d'énergie chargée (kWh)** — pas les capteurs d'efficacité aux 100 km (ce sont des moyennes, pas des compteurs).
+>
+> **Ou laissez l'intégration construire les compteurs mensuels pour vous (activable à la demande, désactivé par défaut, nouveau dans la 4.7.0) :** activez **« Créer automatiquement des compteurs mensuels »** dans les Options et elle câble des assistants `utility_meter` qui totalisent votre énergie chargée et votre kilométrage par mois civil, un par voiture. La bascule n'apparaît que lorsqu'une voiture rapporte effectivement un capteur correspondant. Ce sont des assistants permanents — la redésactiver empêche la création de nouveaux mais conserve ceux déjà créés (supprimez-les dans **Paramètres → Appareils et services → Assistances**).
 
 ### Services
 

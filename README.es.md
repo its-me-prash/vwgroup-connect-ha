@@ -150,6 +150,8 @@ El portal sirve inicialmente solo una **porción de campos**, y esa porción **s
 > **Lista completa de campos.** El diccionario de datos oficial del grupo VW (cada clave de EU Data Act -> campo, descripción y unidad) está en [docs/EU_DATA_ACT_DATA_DICTIONARY.md](docs/EU_DATA_ACT_DATA_DICTIONARY.md). Un workflow semanal vigila la página del diccionario del portal y abre una pull request cuando VW publica una versión más nueva, para que la tabla no se quede obsoleta en silencio.
 
 > El interruptor de Opciones **`eu_data_act_auto_kickoff`** es el que crea esa Solicitud de Datos Personalizada de 15 minutos, y está **activado por defecto** — en modo portal no hay datos sin ella. Desactívalo solo si prefieres gestionar la solicitud por tu cuenta.
+>
+> **Si los datos nunca empiezan a llegar en un coche recién estrenado (o en algunas regiones — p. ej. MIB4 del Reino Unido):** la solicitud automática puede a veces no registrarse (el portal responde `no_request` o rechaza el envío). Si el sensor **Portal feed health** sigue vacío tras un día y no llega ningún dato, abre el portal de datos de VW en un navegador y **crea tú mismo la Solicitud de Datos Personalizada / los paquetes de datos para ese coche, una vez** — la integración lo lee entonces con normalidad en el siguiente sondeo. ([#1227](https://github.com/its-me-prash/vwgroup-connect-ha/issues/1227))
 
 ---
 
@@ -165,6 +167,8 @@ El portal sirve inicialmente solo una **porción de campos**, y esa porción **s
 - **12 idiomas:** los nombres de las entidades están totalmente traducidos al inglés, alemán, francés, español, italiano, neerlandés, polaco, checo, sueco, danés, noruego y finés.
 
 > 💡 **Panel de Energía:** el sensor de energía cargada es `total_increasing`, así que añádelo directamente al **panel de Energía** de Home Assistant, o envuélvelo en un helper `utility_meter` para obtener totales de energía cargada diarios/mensuales. Usa el sensor acumulativo de **energía cargada (kWh)** para esto — no los sensores de eficiencia por 100 km (esos son promedios, no contadores).
+>
+> **O deja que la integración cree los contadores mensuales por ti (opcional, desactivado por defecto, nuevo en 4.7.0):** activa **Crear automáticamente contadores mensuales** en las Opciones y la integración cablea helpers `utility_meter` que suman tu energía cargada y tu kilometraje por mes natural, uno por coche. El interruptor solo aparece cuando un coche realmente informa de un sensor coincidente. Son helpers permanentes — volver a desactivarlo detiene la creación de nuevos, pero deja los que ya se han creado (elimínalos en **Ajustes → Dispositivos y servicios → Ayudantes**).
 
 ### Servicios
 
