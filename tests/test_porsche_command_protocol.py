@@ -167,6 +167,68 @@ class TestFollowUpCommandsWithSafePayloads:
         ]
 
 
+class TestGroundedEditCommands:
+    """b21 (2026-09-08, disassembly of the real $$serializer classes for
+    each payload) — geofence/speed-alarm/valet/destination editing, real
+    field names recovered from actual bytecode, not guessed. See
+    vag-connect-porsche-edit-commands-payload-2026-09-08.md."""
+
+    @pytest.mark.asyncio
+    async def test_edit_speed_alarms_sends_flat_list(self):
+        c = _client()
+        c._post = AsyncMock(return_value={"status": {"result": "PERFORMED"}})
+        alarms = [{"id": "a1", "isEnabled": True, "speedLimit": 130}]
+        await c.command_edit_speed_alarms(_VIN, alarms)
+        body = c._post.call_args.kwargs["json"]
+        assert body["key"] == "SPEED_ALARMS_EDIT"
+        assert body["payload"] == {"spin": None, "list": alarms}
+
+    @pytest.mark.asyncio
+    async def test_edit_location_alarms_circle_and_rectangle(self):
+        c = _client()
+        c._post = AsyncMock(return_value={"status": {"result": "PERFORMED"}})
+        alarms = [
+            {"id": "c1", "isEnabled": True, "name": "Home",
+             "circle": {"location": "47.37,8.54", "radius": 500}},
+            {"id": "r1", "isEnabled": False, "name": "Zone",
+             "rectangle": {"topLeft": "47.4,8.5", "bottomRight": "47.3,8.6"}},
+        ]
+        await c.command_edit_location_alarms(_VIN, alarms)
+        body = c._post.call_args.kwargs["json"]
+        assert body["key"] == "LOCATION_ALARMS_EDIT"
+        assert body["payload"]["list"] == alarms
+        assert body["payload"]["spin"] is None
+
+    @pytest.mark.asyncio
+    async def test_edit_valet_alarm_nests_location_object(self):
+        c = _client()
+        c._post = AsyncMock(return_value={"status": {"result": "PERFORMED"}})
+        await c.command_edit_valet_alarm(_VIN, speed_limit=30, latitude=47.37, longitude=8.54, radius=200)
+        body = c._post.call_args.kwargs["json"]
+        assert body["key"] == "VALET_ALARM_EDIT"
+        assert body["payload"]["speedLimit"] == 30
+        assert body["payload"]["area"]["circle"]["radius"] == 200
+        assert body["payload"]["area"]["circle"]["location"] == {"latitude": 47.37, "longitude": 8.54}
+
+    @pytest.mark.asyncio
+    async def test_delete_destination_sends_uuid_and_snapshot(self):
+        c = _client()
+        c._post = AsyncMock(return_value={"status": {"result": "PERFORMED"}})
+        await c.command_delete_destination(_VIN, uuid="dest-1", snapshot_id="snap-9")
+        body = c._post.call_args.kwargs["json"]
+        assert body["key"] == "DESTINATIONS_DELETE"
+        assert body["payload"] == {"spin": None, "uuid": "dest-1", "snapshotId": "snap-9"}
+
+    def test_poi_send_to_car_and_destination_edit_not_implemented(self):
+        """Confirmed dead code (POI_SEND_TO_CAR: no payload class, no call
+        site in either shipped app build) and a genuine nested-shape gap
+        (DESTINATIONS_EDIT: DestinationEntry not disassembled) — neither
+        should exist as a method, so there's nothing to accidentally call
+        with a made-up payload."""
+        assert not hasattr(PorscheClient, "command_send_poi_to_car")
+        assert not hasattr(PorscheClient, "command_edit_destination")
+
+
 class TestCommandStatusPolling:
     @pytest.mark.asyncio
     async def test_immediate_error_raises(self):

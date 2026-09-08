@@ -89,6 +89,14 @@ confirmed (#1337).
   anything (`CHARGING_STATE` — the charging-state sensor has always come from a different field).
 
 ### Added
+- **Real two-way geofencing, speed alerts, valet mode and destination deletion for Porsche** —
+  editing location-based alarms, speed alarms, valet-mode configuration, and deleting a saved
+  destination. Unlike the previous batch, these commands' exact data shape was fully recovered by
+  disassembling Porsche's own app code field-by-field (not guessed, and not something the reference
+  library this integration is grounded against has either — this is ahead of it). Two remaining
+  small gaps are flagged rather than guessed: the exact geofence coordinate string format is
+  inferred from a different, already-confirmed field on the same API, and adding a destination
+  (as opposed to deleting one) needs one more nested object shape nobody has captured yet.
 - **New Porsche commands and vehicle-data fields found in a full read-through of the real app that
   neither this integration nor the reference library it's grounded against had:** unlocking just the
   trunk separate from the whole car, opening/closing/venting the windows and sunroof remotely, a

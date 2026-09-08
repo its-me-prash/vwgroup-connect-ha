@@ -554,14 +554,115 @@ class PorscheClient:
         await self._command(vin, "SERVICE_PREDICTIONS_RESET")
 
     async def command_disable_valet_alarm(self, vin: str) -> None:
-        """b20 (2026-09-08) — ``VALET_ALARM_DISABLE``. The enum also has a
-        ``VALET_ALARM_EDIT`` for presumably enabling/configuring valet mode,
-        deliberately NOT implemented here — unlike DISABLE, EDIT very likely
-        needs config fields (at minimum an enable flag) with no evidenced
-        shape, and guessing one would risk silently-wrong behavior on a
-        real car. DISABLE is the only half of this pair a no-payload command
-        is a defensible guess for. NOT LIVE-VERIFIED."""
+        """b21 (2026-09-08) — ``VALET_ALARM_DISABLE``. NOT LIVE-VERIFIED."""
         await self._command(vin, "VALET_ALARM_DISABLE")
+
+    async def command_edit_valet_alarm(
+        self, vin: str, speed_limit: int, latitude: float, longitude: float, radius: int,
+    ) -> None:
+        """Configure/enable valet mode: a geofence + speed limit.
+
+        b21 (2026-09-08, disassembly of ``EditValetAlarmCommandPayload``'s
+        ``$$serializer`` — vag-connect-porsche-edit-commands-payload-
+        2026-09-08.md §3) — GROUNDED field names and structure:
+        ``{spin, speedLimit: Int, area: {circle: {location: Location, radius: Int}}}``.
+        The nested ``Location`` class's own fields were not independently
+        disassembled this pass; ``{"latitude": ..., "longitude": ...}`` is
+        inferred by analogy to the sibling ``Point`` class in the same app
+        (confirmed ``{latitude: Double, longitude: Double}``), NOT
+        independently confirmed for ``Location`` specifically — flagged so
+        a live test knows exactly what to check if this fails.
+        ``speedLimit`` living on this payload (not just a geofence) is
+        real and confirmed, not a guess — valet mode apparently combines
+        both. NOT LIVE-VERIFIED overall.
+        """
+        await self._command(vin, "VALET_ALARM_EDIT", {
+            "spin": None,
+            "speedLimit": speed_limit,
+            "area": {"circle": {
+                "location": {"latitude": latitude, "longitude": longitude},
+                "radius": radius,
+            }},
+        })
+
+    async def command_edit_speed_alarms(
+        self, vin: str, alarms: list[dict[str, Any]],
+    ) -> None:
+        """Replace the vehicle's speed-alarm list.
+
+        b21 (2026-09-08, disassembly of ``EditSpeedAlarmsCommandPayload``'s
+        ``$$serializer``) — GROUNDED, flat, no polymorphism:
+        ``{spin, list: [{id: String, isEnabled: Boolean, speedLimit: Int}]}``.
+        The cleanest of the new edit commands — every field independently
+        confirmed on both the write side and the matching read-side
+        ``SpeedAlarmsMeasurementValue``. ``alarms`` takes the list of
+        ``{"id": ..., "isEnabled": ..., "speedLimit": ...}`` dicts verbatim.
+        NOT LIVE-VERIFIED (the shape is grounded; sending it to a real
+        vehicle has not been).
+        """
+        await self._command(
+            vin, "SPEED_ALARMS_EDIT", {"spin": None, "list": alarms},
+        )
+
+    async def command_edit_location_alarms(
+        self, vin: str, alarms: list[dict[str, Any]],
+    ) -> None:
+        """Replace the vehicle's location-alarm (geofence) list.
+
+        b21 (2026-09-08, disassembly of ``EditLocationAlarmsCommandPayload``'s
+        ``$$serializer`` and its ``Circle``/``Rectangle`` variant classes) —
+        GROUNDED field names, with two specific unconfirmed details flagged
+        below. Each entry in ``alarms`` must be a dict shaped as either::
+
+            {"id": ..., "isEnabled": ..., "name": ...,
+             "circle": {"location": "<lat>,<lng>", "radius": <int>}}
+            {"id": ..., "isEnabled": ..., "name": ...,
+             "rectangle": {"topLeft": "<lat>,<lng>", "bottomRight": "<lat>,<lng>"}}
+
+        Confirmed: ``id``/``isEnabled``/``name`` on every entry;
+        ``circle.radius`` is Int; ``circle.location``/``rectangle.topLeft``/
+        ``rectangle.bottomRight`` are confirmed String fields (not nested
+        objects) on both the write side and the matching read-side
+        ``LocationAlarmsMeasurementValue``. The ``"<lat>,<lng>"`` STRING
+        FORMAT itself is inferred by analogy to this same API's
+        ``GPS_LOCATION.location`` field (a confirmed comma-separated
+        "lat,lng" string, per this project's own ``get_status`` parsing and
+        CJNE's ``vehicle.py::location``), not independently disassembled for
+        this field. Also unconfirmed: whether the wire format needs a
+        polymorphic class-discriminator key (conventionally ``"type"``) to
+        distinguish circle vs. rectangle entries, since kotlinx.serialization
+        sealed classes normally add one at the outer level rather than in
+        either variant's own ``addElement`` calls — this payload is sent
+        WITHOUT one (the presence of ``circle`` vs. ``rectangle`` may be
+        sufficient on its own); if the real backend rejects it, adding a
+        discriminator is the first thing to try. NOT LIVE-VERIFIED.
+        """
+        await self._command(
+            vin, "LOCATION_ALARMS_EDIT", {"spin": None, "list": alarms},
+        )
+
+    async def command_delete_destination(self, vin: str, uuid: str, snapshot_id: str) -> None:
+        """Delete a saved destination.
+
+        b21 (2026-09-08, disassembly of ``DestinationDeleteCommandPayload``'s
+        ``$$serializer``) — GROUNDED, flat, no gaps:
+        ``{spin, uuid: String, snapshotId: String}``. ``uuid`` is the
+        destination entry's own id (not the vehicle's VIN); ``snapshotId``
+        is a sync/concurrency token for the destinations list — the
+        existing (already-requested, unparsed) ``DESTINATIONS`` measurement
+        is where a caller would read the current ``snapshotId`` from once
+        this project parses that field (not done yet). NOT LIVE-VERIFIED.
+
+        The sibling ``DESTINATIONS_EDIT`` (add/update a destination) is
+        deliberately NOT implemented — its payload nests a
+        ``DestinationEntry`` object from a different package that this
+        pass did not disassemble, so its shape is a genuine gap, not
+        something inferrable by analogy the way ``Location`` above was.
+        """
+        await self._command(
+            vin, "DESTINATIONS_DELETE",
+            {"spin": None, "uuid": uuid, "snapshotId": snapshot_id},
+        )
 
     async def command_start_climate(self, vin: str) -> None:
         await self._command(vin, "REMOTE_CLIMATIZER_START")
