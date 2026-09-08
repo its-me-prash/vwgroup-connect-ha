@@ -126,6 +126,47 @@ class TestTrunkUnlockAndWindows:
         assert keys == ["WINDOWS_SUNROOF_OPEN", "WINDOWS_SUNROOF_CLOSE", "WINDOWS_SUNROOF_VENT"]
 
 
+class TestFollowUpCommandsWithSafePayloads:
+    """b20 follow-up (2026-09-08) — commands implemented only where a
+    no-guess payload is defensible (empty, or matching an already-evidenced
+    sibling command's shape). See api/porsche.py for what was deliberately
+    NOT implemented (EDIT-suffixed commands needing an unevidenced config
+    shape)."""
+
+    @pytest.mark.asyncio
+    async def test_charging_start_uses_charging_family_payload(self):
+        c = _client()
+        c._post = AsyncMock(return_value={"status": {"result": "PERFORMED"}})
+        await c.command_charging_start(_VIN)
+        body = c._post.call_args.kwargs["json"]
+        assert body["key"] == "CHARGING_START"
+        assert body["payload"] == {"spin": None}
+
+    @pytest.mark.asyncio
+    async def test_charging_start_is_distinct_from_direct_charging_start(self):
+        c = _client()
+        c._post = AsyncMock(return_value={"status": {"result": "PERFORMED"}})
+        await c.command_charging_start(_VIN)
+        await c.command_start_charging(_VIN)
+        keys = [call.kwargs["json"]["key"] for call in c._post.call_args_list]
+        assert keys == ["CHARGING_START", "DIRECT_CHARGING_START"]
+
+    @pytest.mark.asyncio
+    async def test_no_payload_commands_send_correct_keys(self):
+        c = _client()
+        c._post = AsyncMock(return_value={"status": {"result": "PERFORMED"}})
+        await c.command_start_ota_update(_VIN)
+        await c.command_give_ota_consent(_VIN)
+        await c.command_revoke_ota_consent(_VIN)
+        await c.command_reset_service_predictions(_VIN)
+        await c.command_disable_valet_alarm(_VIN)
+        keys = [call.kwargs["json"]["key"] for call in c._post.call_args_list]
+        assert keys == [
+            "OTA_UPDATE_REMOTE_START", "OTA_CONSENT_GIVE", "OTA_CONSENT_REVOKE",
+            "SERVICE_PREDICTIONS_RESET", "VALET_ALARM_DISABLE",
+        ]
+
+
 class TestCommandStatusPolling:
     @pytest.mark.asyncio
     async def test_immediate_error_raises(self):

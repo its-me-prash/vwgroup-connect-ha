@@ -65,11 +65,27 @@ _COMMAND_POLL_TIMEOUT_S = 20
 #      below and the rewritten TPMS parsing in get_status. This is very
 #      likely why TPMS sensors have been reporting nothing: the previous key
 #      was requesting a measurement that doesn't exist.
-# The 33 other genuinely-new keys that dump surfaced (VALET_ALARM,
-# LOCATION_ALARMS, SPEED_ALARMS, CHARGING_SESSION, OTA_*, CONNECT_CONTRACT,
-# etc.) are deliberately NOT added here yet — this project doesn't parse
-# any of them into a VehicleData field, so requesting them would just be
-# unused payload; see the full inventory doc for the prioritized backlog.
+# b20 follow-up (2026-09-08) — the 29 other genuinely-new keys that dump
+# surfaced (+ CHARGING_SESSION_HISTORY, ROW-only) ARE requested below even
+# though none of them are parsed into a VehicleData field yet. Requesting
+# an unparsed key is zero-risk (this project's parser only ever reads keys
+# it explicitly knows about; anything else just sits unused in the raw
+# response) and it populates ``last_raw_responses`` (the Vehicle Data
+# Scout capture) with the real payload shape — the fastest path to
+# eventually building a sensor for any of these is a real user's
+# diagnostics export showing what actually comes back, not guessing.
+# Deliberately still NOT requested:
+#   - MDK_ACTIVATION_STATE/MDK_CARD_STATE/MDK_PAIRING_PASSWORD/
+#     MDK_PAIRING_STATE (Mobile Digital Key pairing) — MDK_PAIRING_PASSWORD
+#     in particular plausibly carries a live pairing credential; pulling
+#     that into diagnostics exports for zero HA benefit is a privacy risk
+#     this project's own redaction discipline argues against, not just
+#     "low relevance."
+#   - VTS_CERTIFICATE_LIST/VTS_CONFIGURATION (theft-tracking-system
+#     certs/config) and GUIDANCE_SETTINGS (in-car nav UI settings) — pure
+#     provisioning/app-UI data, genuinely nothing for a wider request to
+#     set up here even at the raw-capture level.
+# See the inventory doc for the full triage.
 _MEASUREMENTS = (
     "BATTERY_LEVEL", "E_RANGE", "FUEL_LEVEL", "FUEL_RESERVE", "MILEAGE",
     "CHARGING_SUMMARY", "CHARGING_RATE", "CHARGING_SETTINGS",
@@ -91,6 +107,15 @@ _MEASUREMENTS = (
     "OIL_LEVEL_CURRENT", "OIL_LEVEL_MAX", "OIL_LEVEL_MIN_WARNING",
     "TIRE_PRESSURE_FRONT_LEFT", "TIRE_PRESSURE_FRONT_RIGHT",
     "TIRE_PRESSURE_REAR_LEFT", "TIRE_PRESSURE_REAR_RIGHT",
+    # b20 follow-up — requested for Scout raw-capture only, not parsed yet.
+    "BATTERY_CONDITION", "BEM_LEVEL", "BIDIRECTIONAL_CHARGING",
+    "CAR_ALARMS_HISTORY", "CHARGING_SESSION", "CHARGING_SESSION_HISTORY",
+    "CONNECT_CONTRACT", "DESTINATIONS", "DIRECT_CHARGING",
+    "GLOBAL_TIMESTAMP", "HVAC_SUMMARY", "INSTRUMENT_CLUSTER_ALERTS",
+    "LOCATION_ALARMS", "LOCATION_ALARMS_HISTORY", "OTA_CONSENT_STATUS",
+    "OTA_UPDATE_DETAILS", "SPEED_ALARMS", "SPEED_ALARMS_HISTORY",
+    "TIMEZONE", "TRIP_STATISTICS_MONTHLY_REPORT", "VALET_ALARM",
+    "VALET_ALARM_HISTORY",
 )
 
 
@@ -494,6 +519,49 @@ class PorscheClient:
     async def command_vent_windows(self, vin: str) -> None:
         """See ``command_open_windows``. NOT LIVE-VERIFIED."""
         await self._command(vin, "WINDOWS_SUNROOF_VENT")
+
+    async def command_charging_start(self, vin: str) -> None:
+        """b20 (2026-09-08, androguard enum dump) — a SEPARATE, plain
+        ``CHARGING_START`` command exists alongside the already-implemented
+        ``DIRECT_CHARGING_START``/``DIRECT_CHARGING_STOP`` pair (deliberately
+        NOT named ``command_start_charging`` — that name is already taken by
+        the existing ``DIRECT_CHARGING_START`` method below). How the two
+        differ (scheduled vs. immediate charging, maybe) is not confirmed.
+        Payload assumed to match its charging-family siblings
+        (``{"spin": None}``) since nothing else is evidenced. NOT
+        LIVE-VERIFIED, and the semantic difference from DIRECT_CHARGING_*
+        is genuinely unknown, not just untested."""
+        await self._command(vin, "CHARGING_START", {"spin": None})
+
+    async def command_start_ota_update(self, vin: str) -> None:
+        """b20 (2026-09-08) — ``OTA_UPDATE_REMOTE_START``, real command
+        (software-update-available flow). No payload fields evidenced.
+        NOT LIVE-VERIFIED."""
+        await self._command(vin, "OTA_UPDATE_REMOTE_START")
+
+    async def command_give_ota_consent(self, vin: str) -> None:
+        """b20 (2026-09-08) — ``OTA_CONSENT_GIVE``. NOT LIVE-VERIFIED."""
+        await self._command(vin, "OTA_CONSENT_GIVE")
+
+    async def command_revoke_ota_consent(self, vin: str) -> None:
+        """b20 (2026-09-08) — ``OTA_CONSENT_REVOKE``. NOT LIVE-VERIFIED."""
+        await self._command(vin, "OTA_CONSENT_REVOKE")
+
+    async def command_reset_service_predictions(self, vin: str) -> None:
+        """b20 (2026-09-08) — ``SERVICE_PREDICTIONS_RESET``, presumably
+        clears/recalculates the service-due predictions after maintenance.
+        No payload fields evidenced. NOT LIVE-VERIFIED."""
+        await self._command(vin, "SERVICE_PREDICTIONS_RESET")
+
+    async def command_disable_valet_alarm(self, vin: str) -> None:
+        """b20 (2026-09-08) — ``VALET_ALARM_DISABLE``. The enum also has a
+        ``VALET_ALARM_EDIT`` for presumably enabling/configuring valet mode,
+        deliberately NOT implemented here — unlike DISABLE, EDIT very likely
+        needs config fields (at minimum an enable flag) with no evidenced
+        shape, and guessing one would risk silently-wrong behavior on a
+        real car. DISABLE is the only half of this pair a no-payload command
+        is a defensible guess for. NOT LIVE-VERIFIED."""
+        await self._command(vin, "VALET_ALARM_DISABLE")
 
     async def command_start_climate(self, vin: str) -> None:
         await self._command(vin, "REMOTE_CLIMATIZER_START")

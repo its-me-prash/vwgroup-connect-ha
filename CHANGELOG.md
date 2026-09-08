@@ -89,12 +89,21 @@ confirmed (#1337).
   anything (`CHARGING_STATE` — the charging-state sensor has always come from a different field).
 
 ### Added
-- **New Porsche commands found in a full read-through of the real app that neither this
-  integration nor the reference library it's grounded against had:** unlocking just the trunk
-  separate from the whole car, and opening/closing/venting the windows and sunroof remotely. Added
-  at the same level as existing commands (SPIN-protected the same way as unlock, where that applies)
-  — not yet exposed as buttons/switches in the UI, since that's a larger change across every brand's
-  entity files, not just Porsche's. NOT LIVE-VERIFIED.
+- **New Porsche commands and vehicle-data fields found in a full read-through of the real app that
+  neither this integration nor the reference library it's grounded against had:** unlocking just the
+  trunk separate from the whole car, opening/closing/venting the windows and sunroof remotely, a
+  software-update-available flow (start/consent), resetting service-due predictions, and disabling
+  valet mode. Also requesting ~20 more real data fields the app has that weren't being pulled before
+  (valet alarm, location/speed alerts, per-charging-session stats, software-update status, and more)
+  — even before there's a sensor for each one, so a diagnostics export shows what they actually
+  contain. Deliberately NOT added: anything where building the request would mean inventing a data
+  shape nobody has evidence for (editing a geofence or speed alert, configuring valet mode, sending a
+  destination to the car) — those need a live account to capture first, not a guess. Also skipped on
+  purpose: digital-key pairing data, since one of those fields plausibly carries a live pairing
+  credential and there's no reason to pull that in for zero benefit.
+  Commands are added at the same level as existing ones (SPIN-protected the same way as unlock, where
+  that applies) — not yet exposed as buttons/switches in the UI, since that's a larger change across
+  every brand's entity files, not just Porsche's. NOT LIVE-VERIFIED.
 - **Porsche login can now solve a captcha instead of just giving up.** If Porsche's sign-in shows
   you a captcha, the integration now displays it right in the setup screen and lets you type the
   answer in, instead of failing with a vague error. This has never been tested against a real

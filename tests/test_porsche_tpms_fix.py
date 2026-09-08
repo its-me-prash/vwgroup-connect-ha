@@ -39,6 +39,30 @@ class TestMeasurementListCorrections:
         dead weight in the request."""
         assert "CHARGING_STATE" not in _MEASUREMENTS
 
+    def test_new_scout_capture_keys_present(self) -> None:
+        """b20 follow-up — real, safe-to-request keys added purely so the
+        Vehicle Data Scout can capture their actual shape from a real
+        account, even though nothing parses them into a VehicleData field
+        yet."""
+        for key in (
+            "BATTERY_CONDITION", "VALET_ALARM", "LOCATION_ALARMS",
+            "SPEED_ALARMS", "CHARGING_SESSION", "OTA_UPDATE_DETAILS",
+            "CONNECT_CONTRACT",
+        ):
+            assert key in _MEASUREMENTS
+
+    def test_sensitive_or_provisioning_keys_excluded(self) -> None:
+        """MDK_PAIRING_PASSWORD plausibly carries a live pairing credential
+        — never request it just to have "more data". VTS/GUIDANCE are pure
+        provisioning/app-UI, nothing for a wider request to set up."""
+        for key in (
+            "MDK_ACTIVATION_STATE", "MDK_CARD_STATE",
+            "MDK_PAIRING_PASSWORD", "MDK_PAIRING_STATE",
+            "VTS_CERTIFICATE_LIST", "VTS_CONFIGURATION",
+            "GUIDANCE_SETTINGS",
+        ):
+            assert key not in _MEASUREMENTS
+
 
 class TestTirePressureParsing:
     @pytest.mark.asyncio
