@@ -268,6 +268,27 @@ def _heal_cached_sentinels(previous: dict[str, Any]) -> dict[str, Any]:
     if odo is not None and drop_odometer_sentinel(odo) is None:
         previous = dict(previous)
         previous.pop("odometer_km", None)
+
+    # #1316 — a pre-fix cache can hold a PHANTOM electric_range_km on a pure
+    # combustion car (a diesel/CNG the old mapper mislabelled hybrid). Once the
+    # fixed mapper resolves the car as combustion-only, ``has_battery`` goes False,
+    # but electric_range_km is a CARRY_FORWARD field: the fresh poll now yields
+    # None, so :func:`reconcile` would re-latch the cached phantom forever, leaving
+    # a self-contradictory snapshot (no battery, yet an electric range) that keeps
+    # the stale sensor fed and shows in diagnostics. That contradiction — an
+    # electric range with no battery on a combustion car — only ever arises from the
+    # bug, so drop it here (and total_range_km when it merely duplicates range_km).
+    # A genuine EV/PHEV cache keeps has_battery True, so this never touches a real
+    # electric range.
+    if (previous.get("electric_range_km") is not None
+            and not previous.get("has_battery")
+            and not previous.get("is_electric")
+            and not previous.get("is_hybrid")
+            and previous.get("has_combustion")):
+        previous = dict(previous)
+        previous.pop("electric_range_km", None)
+        if previous.get("total_range_km") == previous.get("range_km"):
+            previous.pop("total_range_km", None)
     return previous
 
 

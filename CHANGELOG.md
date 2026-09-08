@@ -74,6 +74,15 @@ code (not just a reference library) plus a live login test on a real account (#1
   only" from "honk and flash". 429 backoff honors Porsche's own suggested wait time when it sends
   one. Token refresh treats both of Porsche's "expired" signals as expired (not just one) and
   refreshes proactively instead of always waiting for a request to fail first.
+- **VW EU — combustion cars no longer show a phantom electric range or get flagged as a hybrid.** On
+  a diesel Transporter T6.1 (Commercial Vehicles / Nutzfahrzeuge feed) the portal sends a second
+  range figure alongside the fuel range, and the integration was mistaking it for an electric range —
+  so a plain diesel with no battery grew an "electric range" sensor and was mislabelled a plug-in
+  hybrid. A combustion-only car (fuel or CNG, no high-voltage battery, not charging) now keeps only
+  its combustion range; that stray figure is folded back into the fuel range where it belongs. Also
+  covers natural-gas (CNG/TGI) cars, which hit the same trap, and self-heals the cached value for
+  anyone who already saw the phantom. Thanks @EcksteinU for the diagnostics that pinned it down
+  (#1316).
 
 ### Added
 - **Real two-way control for geofence alerts, speed alerts, valet mode, and saved destinations** —
