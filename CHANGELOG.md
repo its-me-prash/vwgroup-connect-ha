@@ -42,86 +42,72 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
-## [4.7.1b1] - 2026-09-07 — Porsche: login, unlock, commands, and vehicle data all needed fixing
+## [4.7.1b1] - 2026-09-08 — Porsche: login, commands, vehicle data, and real two-way control
+
+A from-the-ground-up pass on Porsche, grounded against a full read-through of the real app's own
+code (not just a reference library) plus a live login test on a real account (#1337).
 
 ### Fixed
 - **Porsche login gets further than before.** The password login was giving up whenever Porsche's
   identity provider rendered a page instead of redirecting, assuming it was an unsolvable captcha.
-  On a real account it turned out that step is often just an optional "set up a passkey?" screen
-  — the integration now declines it automatically and continues, instead of stopping the login
-  right there. A genuine captcha still can't be solved headlessly and still fails with the same
-  honest message as before, but is now recognized distinctly from a wrong password. Login also
-  skips the whole sign-in form if you already had a valid session.
-- **Every Porsche command was very likely silently failing, not just unlock.** Found while adding
-  the fix below: commands were sent with the wrong JSON field name entirely (`commandName` instead
-  of `key`), confirmed against a maintained third-party library that has kept working against
-  Porsche's API. Since Porsche login was blocked until the fix above, no command had ever actually
-  been tested against the real backend — lock, unlock, climate, charging, honk-and-flash, timers,
-  all of it. That's fixed now, and commands are (best-effort) verified to have actually succeeded
-  instead of just assuming a 200 meant it worked.
+  On a real account it turned out that step is often just an optional "set up a passkey?" screen —
+  the integration now declines it automatically and continues, instead of stopping the login right
+  there. Login also skips the whole sign-in form if you already had a valid session, and now tells
+  wrong credentials apart from an actual wall instead of one vague message for both. **Live-verified
+  end to end on a real account** — this specific fix is confirmed working, not just grounded.
+- **Every Porsche command was very likely silently failing, not just unlock.** Commands were sent
+  with the wrong JSON field name entirely (`commandName` instead of `key`), confirmed against a
+  maintained third-party library that has kept working against Porsche's API. Since Porsche login
+  was blocked until the fix above, no command had ever actually been tested against the real
+  backend — lock, unlock, climate, charging, honk-and-flash, timers, all of it. Commands are now
+  also (best-effort) verified to have actually succeeded instead of just assuming a 200 meant it
+  worked.
 - **Unlock needs your S-PIN, and now actually uses it.** The setting was there, but nothing ever
-  read it or sent it to Porsche — so unlock most likely never worked at all. It now runs the
-  proper challenge/response Porsche expects.
-- **Vehicle data used a request shape that was never confirmed to work.** Login was only just
-  fixed, so nobody had verified the *next* step — reading the car's actual status. Switched to
-  the same request shape a maintained third-party library uses successfully today.
-- **Charging target now clamps to 25–100% and works on more vehicles.** Some Porsches expose the
-  charge target differently than others; the integration now checks which kind your car is and
-  edits the right place either way, instead of assuming everyone's car works the same way.
-- Honk-and-flash now actually distinguishes "flash only" from "honk and flash" (the setting
-  existed already, it just wasn't wired to anything). 429 rate-limit backoff now honors Porsche's
-  own suggested wait time when it sends one, instead of always guessing. Token refresh treats
-  both usual "expired" signals as expired instead of just one, and refreshes proactively instead
-  of always waiting for a request to fail first.
-
-**Honest status**: the login fix was live-verified on a real account. Everything else here —
-unlock, other commands, and vehicle data — has NOT been live-verified yet; it's grounded against a
-maintained library that works against the same API today, but Porsche's backend has been changing
-under everyone's feet lately. Porsche stays marked experimental. If you use Porsche, testing this
-beta and reporting back (either "it works" or exactly what broke) is genuinely how this gets
-confirmed (#1337).
-
-### Fixed
-- **Porsche tire pressure has very likely been silently empty this whole time.** The integration
-  was requesting a tire-pressure field that doesn't exist on Porsche's backend — a full APK
-  read-through of the real app found it split into four separate per-corner fields instead. Fixed
-  to request the real ones. Also dropped a second field that was never real either and never did
-  anything (`CHARGING_STATE` — the charging-state sensor has always come from a different field).
+  read it or sent it to Porsche, so unlock most likely never worked at all. It now runs the proper
+  challenge/response Porsche expects.
+- **Vehicle data used a request shape that was never confirmed to work**, and tire pressure was
+  requesting a field that doesn't exist on Porsche's backend at all. Both switched to the real
+  shape a full read-through of the app's own code confirmed (tire pressure is four separate
+  per-corner fields, not one combined one) — TPMS has very likely been silently empty until now.
+- Charging target now clamps to 25–100% and checks which of two different ways your car exposes it
+  instead of assuming everyone's car works the same way. Honk-and-flash now distinguishes "flash
+  only" from "honk and flash". 429 backoff honors Porsche's own suggested wait time when it sends
+  one. Token refresh treats both of Porsche's "expired" signals as expired (not just one) and
+  refreshes proactively instead of always waiting for a request to fail first.
 
 ### Added
-- **Real two-way geofencing, speed alerts, valet mode, and adding/updating/deleting saved
-  destinations for Porsche** — editing location-based alarms, speed alarms, valet-mode
-  configuration, and adding, updating or deleting a saved destination. These commands' exact data
-  shape was fully recovered by disassembling Porsche's own app code field-by-field (not guessed,
-  and not something the reference library this integration is grounded against has either — this
-  is ahead of it). One small gap remains, flagged rather than guessed: the exact geofence
-  coordinate string format is inferred from a different, already-confirmed field on the same API.
-  Adding/updating a destination is only really safe today by reading an existing one back and
-  resending it with the field you actually want to change edited — building one from scratch isn't,
-  since one of its nested objects is real but richer than initially assumed.
-- **New Porsche commands and vehicle-data fields found in a full read-through of the real app that
-  neither this integration nor the reference library it's grounded against had:** unlocking just the
-  trunk separate from the whole car, opening/closing/venting the windows and sunroof remotely, a
-  software-update-available flow (start/consent), resetting service-due predictions, and disabling
-  valet mode. Also requesting ~20 more real data fields the app has that weren't being pulled before
-  (valet alarm, location/speed alerts, per-charging-session stats, software-update status, and more)
-  — even before there's a sensor for each one, so a diagnostics export shows what they actually
-  contain. Deliberately NOT added: anything where building the request would mean inventing a data
-  shape nobody has evidence for (editing a geofence or speed alert, configuring valet mode, sending a
-  destination to the car) — those need a live account to capture first, not a guess. Also skipped on
-  purpose: digital-key pairing data, since one of those fields plausibly carries a live pairing
-  credential and there's no reason to pull that in for zero benefit.
-  Commands are added at the same level as existing ones (SPIN-protected the same way as unlock, where
-  that applies) — not yet exposed as buttons/switches in the UI, since that's a larger change across
-  every brand's entity files, not just Porsche's. NOT LIVE-VERIFIED.
-- **Porsche login can now solve a captcha instead of just giving up.** If Porsche's sign-in shows
-  you a captcha, the integration now displays it right in the setup screen and lets you type the
-  answer in, instead of failing with a vague error. This has never been tested against a real
-  Porsche captcha (nobody's account has hit one during development), and it's a deliberately
-  cautious implementation: you get one attempt per screen on purpose. Repeatedly retrying a wrong
-  guess is how real Porsche accounts have ended up locked for "suspicious activity" — that's not a
-  guess, it's what happened to other people using a similar tool. If you see this screen, take your
-  best shot; if it's wrong, wait rather than mashing retry.
+- **Real two-way control for geofence alerts, speed alerts, valet mode, and saved destinations** —
+  editing location-based alarms, speed alarms, valet-mode configuration, and adding, updating or
+  deleting a saved destination. Every field in these commands was recovered by disassembling
+  Porsche's own app code directly, not guessed and not something the reference library this
+  integration is grounded against has either. One coordinate format is inferred from a different,
+  already-confirmed field on the same API rather than directly confirmed; adding/updating a
+  destination is safest by reading an existing one back and resending it with only the changed
+  field edited, since hand-building one from scratch touches a richer nested object than it looks.
+- **New simple commands**: trunk unlock (separate from unlocking the whole car), opening/closing/
+  venting the windows and sunroof remotely, starting/consenting to a software update, resetting
+  service-due predictions, and disabling valet mode. None of the new commands above are exposed as
+  buttons/switches in the UI yet — that's a larger change across every brand's shared entity files,
+  not just Porsche's, and is tracked as a follow-up.
+- **~20 more real vehicle-data fields requested** that weren't being pulled before (valet alarm,
+  location/speed alerts, per-charging-session stats, software-update status, and more) — even
+  before there's a dedicated sensor for each one, so a diagnostics export shows what they actually
+  contain, which is the fastest path to building the sensor once someone's car returns real data.
+  Deliberately not requested: digital-key pairing fields, since one of them plausibly carries a live
+  pairing credential and there's no reason to pull that in for zero benefit.
+- **Porsche login can now solve a captcha instead of just giving up.** If Porsche's sign-in shows a
+  captcha, the integration displays it right in the setup screen and lets you type the answer in.
+  Deliberately cautious: one attempt per screen, no automatic retry. Repeatedly retrying a wrong
+  guess is how real Porsche accounts have ended up locked for "suspicious activity" elsewhere — if
+  you see this screen, take your best shot; if it's wrong, wait rather than mashing retry.
+- One thing found and confirmed NOT to exist: `POI_SEND_TO_CAR` is a real command name in the app
+  but isn't wired to anything in the shipped app itself — not implemented, and not a gap.
+
+**Honest status**: only the login fix above is live-verified on a real account. Everything else in
+this beta — commands, vehicle data, the new two-way control, the captcha screen — is grounded
+directly against the real app's own code but has NOT been tried against a real car yet. Porsche
+stays marked experimental. If you use Porsche, testing this beta and reporting back (either "it
+works" or exactly what broke) is genuinely how the rest of this gets confirmed (#1337).
 
 ## [4.7.0] - 2026-09-07 — Full release / Voll-Release
 
