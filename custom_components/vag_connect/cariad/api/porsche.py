@@ -653,16 +653,55 @@ class PorscheClient:
         is where a caller would read the current ``snapshotId`` from once
         this project parses that field (not done yet). NOT LIVE-VERIFIED.
 
-        The sibling ``DESTINATIONS_EDIT`` (add/update a destination) is
-        deliberately NOT implemented — its payload nests a
-        ``DestinationEntry`` object from a different package that this
-        pass did not disassemble, so its shape is a genuine gap, not
-        something inferrable by analogy the way ``Location`` above was.
+        See ``command_edit_destination`` for the sibling add/update command
+        (was a gap here, now grounded and implemented).
         """
         await self._command(
             vin, "DESTINATIONS_DELETE",
             {"spin": None, "uuid": uuid, "snapshotId": snapshot_id},
         )
+
+    async def command_edit_destination(
+        self, vin: str, destination_entry: dict[str, Any], snapshot_id: str,
+    ) -> None:
+        """Add or update a saved destination.
+
+        b22 (2026-09-08, disassembly of ``DestinationEntry``'s
+        ``$$serializer`` and its 4 direct nested classes — the one gap left
+        open in b21 above) — GROUNDED:
+        ``{spin, destinationEntry: DestinationEntry, snapshotId: String}``.
+
+        ``DestinationEntry`` itself is fully field-named:
+        ``{uuid?, destination: Destination?, attributes: Attributes,
+        createTime, lastModifiedTime, lastUsedTime, googleReference?,
+        vwPoiReference?}`` (the three timestamp fields are REQUIRED, not
+        optional — an edit send must include all three). 3 of its 4 nested
+        object types are also fully grounded (``Attributes``:
+        ``{attributes, phoneNumbers, aliases}``; ``GoogleReference``:
+        ``{placeId, language, expirationTime?}``; ``VwPoiReference``:
+        ``{vwGroupId}``). The 4th, ``Destination`` itself, is grounded at
+        its own top level (7 named fields: ``entryType``, ``tokens``,
+        ``metaTokens``, ``locationTokens``, ``entryFlags``,
+        ``isFromOnlineSearch: Boolean``, ``chargingStationInformation``) but
+        its own sub-objects were not expanded — genuinely richer than the
+        ``Waypoint``/``Point`` shape once guessed by analogy for this, which
+        turned out to be wrong; do not reconstruct ``Destination`` from
+        those.
+
+        Given that remaining depth, ``destination_entry`` is deliberately
+        NOT modelled as separate keyword arguments here — the realistic and
+        only safe use of this command is reading an existing entry from the
+        (already-requested, unparsed) ``DESTINATIONS`` measurement, mutating
+        only the field(s) actually being changed, and sending the whole
+        object back verbatim with a fresh ``snapshot_id``. Hand-constructing
+        a ``destination_entry`` from scratch is NOT recommended until a live
+        ``DESTINATIONS`` capture shows a real example. NOT LIVE-VERIFIED.
+        """
+        await self._command(vin, "DESTINATIONS_EDIT", {
+            "spin": None,
+            "destinationEntry": destination_entry,
+            "snapshotId": snapshot_id,
+        })
 
     async def command_start_climate(self, vin: str) -> None:
         await self._command(vin, "REMOTE_CLIMATIZER_START")

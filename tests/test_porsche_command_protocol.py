@@ -219,14 +219,27 @@ class TestGroundedEditCommands:
         assert body["key"] == "DESTINATIONS_DELETE"
         assert body["payload"] == {"spin": None, "uuid": "dest-1", "snapshotId": "snap-9"}
 
-    def test_poi_send_to_car_and_destination_edit_not_implemented(self):
-        """Confirmed dead code (POI_SEND_TO_CAR: no payload class, no call
-        site in either shipped app build) and a genuine nested-shape gap
-        (DESTINATIONS_EDIT: DestinationEntry not disassembled) — neither
-        should exist as a method, so there's nothing to accidentally call
-        with a made-up payload."""
+    def test_poi_send_to_car_not_implemented(self):
+        """Confirmed dead code (b22: a bounded probe of the separate
+        poisync package found no network-relevant classes either) — no
+        payload class, no call site in either shipped app build, so there's
+        nothing to accidentally call with a made-up payload."""
         assert not hasattr(PorscheClient, "command_send_poi_to_car")
-        assert not hasattr(PorscheClient, "command_edit_destination")
+
+    @pytest.mark.asyncio
+    async def test_edit_destination_sends_entry_and_snapshot_verbatim(self):
+        """b22 (2026-09-08) — DestinationEntry is now grounded; the command
+        passes the (caller-supplied, ideally round-tripped-from-a-real-read)
+        dict through verbatim rather than reconstructing it field by field."""
+        c = _client()
+        c._post = AsyncMock(return_value={"status": {"result": "PERFORMED"}})
+        entry = {"uuid": "d1", "destination": {"isFromOnlineSearch": False}}
+        await c.command_edit_destination(_VIN, entry, snapshot_id="snap-9")
+        body = c._post.call_args.kwargs["json"]
+        assert body["key"] == "DESTINATIONS_EDIT"
+        assert body["payload"] == {
+            "spin": None, "destinationEntry": entry, "snapshotId": "snap-9",
+        }
 
 
 class TestCommandStatusPolling:
