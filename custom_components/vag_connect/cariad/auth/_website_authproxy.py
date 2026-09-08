@@ -255,6 +255,22 @@ def map_charging_to_vehicle_data(payload: Any, d: VehicleData) -> VehicleData:
     if btemp is not None:
         d.battery_temp_c = btemp
 
+    # v4.7.2 — HV battery min/max cell temperature, the same leaves the BFF reads
+    # (batteryStatus.value.{minTemperature_K,maxTemperature_K}); the authproxy body
+    # carries them without the ``.value`` wrapper. Fail-soft: absent → unchanged.
+    # These feed the existing hv_battery_{min,max}_temperature_c sensors, so the
+    # vw.de channel now delivers cell temperatures the portal feed never carries.
+    _bmin = _kelvin_to_celsius(
+        battery.get("minTemperature_K") or battery.get("temperatureMin_K")
+    )
+    if _bmin is not None:
+        d.hv_battery_min_temperature_c = _bmin
+    _bmax = _kelvin_to_celsius(
+        battery.get("maxTemperature_K") or battery.get("temperatureMax_K")
+    )
+    if _bmax is not None:
+        d.hv_battery_max_temperature_c = _bmax
+
     state = drop_charge_sentinel(charging.get("chargingState"))  # #923-sweep
     if isinstance(state, str) and state:
         d.charging_state = state
@@ -275,6 +291,12 @@ def map_charging_to_vehicle_data(payload: Any, d: VehicleData) -> VehicleData:
     mode = charging.get("chargeMode")
     if isinstance(mode, str) and mode:
         d.charge_mode = mode
+
+    # v4.7.2 — AC/DC charge type, same leaf the BFF reads
+    # (chargingStatus.value.chargeType). Sentinel-guarded, fail-soft.
+    ctype = drop_charge_sentinel(charging.get("chargeType"))
+    if isinstance(ctype, str) and ctype:
+        d.charging_type = ctype
 
     plug_state = plug.get("plugConnectionState")
     if isinstance(plug_state, str) and plug_state:
