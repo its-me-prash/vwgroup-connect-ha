@@ -3472,6 +3472,37 @@ def map_dataset_to_vehicle_data(
     if _ssm is not None and d.start_stop_modification is None:
         d.start_stop_modification = _shorten_enum(_ssm)
 
+    # #1316 (EcksteinU, VW T6.1 Kombi 2.0 TDI on the Nutzfahrzeuge feed) — a pure
+    # combustion car can pick up a PHANTOM electric_range_km: the portal ships more
+    # than one range figure (a headline ``range`` + the primary-engine range, or a
+    # spurious secondary), and the b14 range block above mirrors one onto
+    # electric_range_km when it is still None. That value would then cascade into
+    # has_battery/is_hybrid just below and grow a bogus "electric range" sensor.
+    # Suppress it when the car shows COMBUSTION evidence (fuel, CNG tank, or a
+    # combustion ``engine_type`` token) and NO GENUINE electric evidence — HV SoC,
+    # charging, an electric engine_type, or a POSITIVE secondary engine range.
+    # EcksteinU's diagnostic carried ``cruising_range_secondary_engine = 0``, so the
+    # test is a positive secondary (``bool(secondary_raw)``), not mere presence — a
+    # 0 is noise, not a second powertrain. Reclaim the phantom as the combustion
+    # range when that slot is empty, then clear it. BEV-safe: a BEV never reports
+    # fuel/CNG, so combustion-evidence is False and this is inert.
+    _combustion_evidence = (
+        has_fuel
+        or d.cng_level_pct is not None
+        or any(t in et for t in _COMBUSTION_TOKENS)
+    )
+    _electric_evidence = (
+        d.battery_soc is not None
+        or d.charging_state is not None
+        or bool(secondary_raw)
+        or any(t in et for t in _ELECTRIC_TOKENS)
+    )
+    if (_combustion_evidence and not _electric_evidence
+            and d.electric_range_km is not None):
+        if d.combustion_range_km is None:
+            d.combustion_range_km = d.electric_range_km
+        d.electric_range_km = None
+
     # b1/B3 — derive drivetrain from the data actually present (fixes the
     # #37 class: an EV like the e-up! showing only combustion entities, or a
     # PHEV like the Golf GTE flagged as neither). Additive: only set flags True

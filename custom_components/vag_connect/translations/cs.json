@@ -79,6 +79,16 @@
           "mfa_code": "6místný kód — platný několik minut."
         }
       },
+      "porsche_captcha": {
+        "title": "Vyžadována captcha",
+        "description": "Porsche vyžaduje vyřešení captchy pro pokračování v přihlášení.\n\n{captcha_img}\n\nVyřešte to jen jednou podle svého nejlepšího odhadu — opakované neúspěšné pokusy již vedly k zablokování účtu Porsche kvůli podezřelé aktivitě.",
+        "data": {
+          "captcha_code": "Kód captcha"
+        },
+        "data_description": {
+          "captcha_code": "Zadejte znaky zobrazené na obrázku výše."
+        }
+      },
       "email_password": {
         "title": "Přihlášení e-mailem + heslem (starší způsob)",
         "description": "Připojte své vozidlo k Home Assistantu.\n\nVyberte značku a zadejte přihlašovací údaje z aplikace výrobce.",

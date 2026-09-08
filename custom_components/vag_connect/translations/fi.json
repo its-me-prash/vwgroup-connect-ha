@@ -31,6 +31,16 @@
           "mfa_code": "6-numeroinen koodi — voimassa muutaman minuutin."
         }
       },
+      "porsche_captcha": {
+        "title": "Captcha vaaditaan",
+        "description": "Porsche vaatii captchan ratkaisemista kirjautumisen jatkamiseksi.\n\n{captcha_img}\n\nRatkaise tämä vain kerran parhaan arviosi mukaan — toistuvat epäonnistuneet yritykset ovat johtaneet Porschen tilien lukitsemiseen epäilyttävän toiminnan vuoksi.",
+        "data": {
+          "captcha_code": "Captcha-koodi"
+        },
+        "data_description": {
+          "captcha_code": "Kirjoita yllä olevassa kuvassa näkyvät merkit."
+        }
+      },
       "email_password": {
         "title": "Kirjaudu sähköpostilla + salasanalla (vanha tapa)",
         "description": "Yhdistä ajoneuvosi Home Assistantiin.\n\nValitse merkkisi ja syötä valmistajan sovelluksen kirjautumistiedot.",

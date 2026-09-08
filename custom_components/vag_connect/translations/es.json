@@ -79,6 +79,16 @@
           "mfa_code": "Código de 6 dígitos — válido unos minutos."
         }
       },
+      "porsche_captcha": {
+        "title": "Captcha necesario",
+        "description": "Porsche requiere resolver un captcha para continuar con el inicio de sesión.\n\n{captcha_img}\n\nResuélvelo solo una vez con tu mejor intento — los intentos fallidos repetidos han provocado que Porsche bloquee cuentas por actividad sospechosa.",
+        "data": {
+          "captcha_code": "Código captcha"
+        },
+        "data_description": {
+          "captcha_code": "Introduce los caracteres que se muestran en la imagen de arriba."
+        }
+      },
       "email_password": {
         "title": "Iniciar sesión con correo electrónico + contraseña (heredado)",
         "description": "Conecta tu vehículo a Home Assistant.\n\nElige tu marca e introduce las credenciales de la app de tu fabricante.",

@@ -47,6 +47,7 @@ from .const import (
     CONF_ENABLE_REVERSE_GEOCODING,
     CONF_FORCE_PPE_CLIMATE,
     CONF_MBB_COMMAND_CHANNEL,
+    CONF_CAPTCHA_CODE,
     CONF_MBB_COMMAND_FALLBACK,
     CONF_MEB_COMMANDS_UNAVAILABLE,
     CONF_MBB_COMMAND_CLIENT_ID,
@@ -185,14 +186,27 @@ async def _validate_credentials(
     hass: HomeAssistant, brand: str, username: str, password: str,
     mfa_code: str | None = None,
     country: str = "us",
+    *,
+    captcha_code: str | None = None,
+    captcha_state: str | None = None,
+    captcha_verifier: str | None = None,
 ) -> None:
-    """Validate credentials by authenticating with the CARIAD API."""
+    """Validate credentials by authenticating with the CARIAD API.
+
+    ``captcha_code``/``captcha_state``/``captcha_verifier`` (b19, #1337,
+    CJNE-comparison #12) only apply to Porsche's Auth0 flow — resuming a
+    login that :class:`PorscheCaptchaRequiredError` interrupted. Other
+    brands' ``authenticate()`` signatures don't accept these kwargs, so they
+    are forwarded only when ``brand == "porsche"``.
+    """
     import aiohttp  # noqa: PLC0415
     from .cariad import CariadClientFactory  # noqa: PLC0415
+    from .cariad.api.porsche import PorscheClient  # noqa: PLC0415
     from .cariad.exceptions import (  # noqa: PLC0415
         AuthenticationError,
         MarketingConsentError,
         NorthAmericaAttestationError,
+        PorscheCaptchaRequiredError,
         RateLimitError,
         TermsAndConditionsError,
         TwoFactorRequiredError,
@@ -208,7 +222,26 @@ async def _validate_credentials(
             brand, auth_session, username, password, country=country
         )
         try:
-            await client.authenticate(mfa_code=mfa_code)
+            # isinstance (not brand == "porsche") so mypy narrows client to
+            # PorscheClient here — its authenticate() is the only one with
+            # these kwargs; every other brand client's signature would
+            # reject them.
+            if isinstance(client, PorscheClient) and captcha_code:
+                await client.authenticate(
+                    mfa_code=mfa_code,
+                    captcha_code=captcha_code,
+                    resume_state=captcha_state,
+                    resume_verifier=captcha_verifier,
+                )
+            else:
+                await client.authenticate(mfa_code=mfa_code)
+        except PorscheCaptchaRequiredError:
+            # Let the config flow catch this directly — it carries the
+            # captcha image/state/verifier the caller needs to show the
+            # solving form, which a plain ValueError string can't carry
+            # cleanly. Must precede the generic AuthenticationError catch
+            # below (it is a subclass).
+            raise
         except TermsAndConditionsError as err:
             raise ValueError("terms_and_conditions") from err
         except MarketingConsentError as err:
@@ -362,6 +395,18 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
         # exactly like the non-2FA path. Without it, a 2FA account silently got a
         # read-only portal entry and the command channel was dropped.
         self._pending_user_input: dict[str, Any] = {}
+        # b19 (#1337, CJNE-comparison #12) — Porsche Auth0 captcha resume state.
+        # PorscheCaptchaRequiredError carries the image + the state/verifier
+        # that are bound to the ORIGINAL /authorize transaction (cannot be
+        # regenerated — see auth/porsche.py's authenticate() docstring), plus
+        # which step to resume into on success.
+        self._porsche_captcha_image: str = ""
+        self._porsche_captcha_state: str = ""
+        self._porsche_captcha_verifier: str = ""
+        self._porsche_captcha_return: str = ""  # "email_password" | "reauth"
+        self._porsche_reauth_entry_id: str = ""
+        self._porsche_reauth_spin: str = ""
+        self._porsche_reauth_country: str = "us"
         # v2.7.0 — Device Authorization Grant (browser-login) state.
         # Two-phase flow so HA's show_progress can re-render with the
         # populated URL + user_code BEFORE the long polling wait begins.
@@ -686,10 +731,23 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             await self.async_set_unique_id(f"{brand}_{username}")
             self._abort_if_unique_id_configured()
 
+            from .cariad.exceptions import PorscheCaptchaRequiredError  # noqa: PLC0415
+
             try:
                 await _validate_credentials(
                     self.hass, brand, username, password, country=country
                 )
+            except PorscheCaptchaRequiredError as err:
+                self._pending_brand    = brand
+                self._pending_username = username
+                self._pending_password = password
+                self._pending_entry_data = self._build_entry_data(brand, username, password, user_input)
+                self._pending_user_input = dict(user_input)
+                self._porsche_captcha_return = "email_password"
+                self._porsche_captcha_image    = err.captcha_image
+                self._porsche_captcha_state    = err.state
+                self._porsche_captcha_verifier = err.code_verifier
+                return await self.async_step_porsche_captcha()
             except ValueError as err:
                 err_str = str(err)
                 if err_str.startswith("two_factor_required"):
@@ -1853,6 +1911,117 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             errors=errors,
         )
 
+    @staticmethod
+    def _porsche_captcha_img_html(data_uri: str) -> str:
+        """Resize a tiny inline captcha SVG for visibility.
+
+        b19 (#1337, CJNE-comparison #12) — mirrors ha-porscheconnect's
+        ``_async_form_captcha``: Porsche's native captcha SVG is 150x50,
+        too small to read comfortably; blown up to 300x100 with a white
+        background. Non-SVG images (a raster fallback) pass through as-is.
+        """
+        import base64  # noqa: PLC0415
+
+        try:
+            header, payload = data_uri.split(",", 1)
+            if "svg" in header:
+                svg = base64.b64decode(payload)
+                svg = svg.replace(
+                    b'width="150" height="50"',
+                    b'width="300" height="100" style="background-color:white"',
+                )
+                payload = base64.b64encode(svg).decode("ascii")
+                data_uri = f"{header},{payload}"
+        except Exception:  # noqa: BLE001 — cosmetic only, never break the form
+            pass
+        return f'<img src="{data_uri}" />'
+
+    async def async_step_porsche_captcha(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """b19 (#1337, CJNE-comparison #12) — solve Porsche's Auth0 captcha.
+
+        Reached only from Porsche email+password login (initial setup or
+        reauth) when Auth0 rendered a captcha instead of continuing the
+        redirect chain (``PorscheCaptchaRequiredError``). This is NOT a
+        generic "try again" retry: the Auth0 ``state`` and PKCE
+        ``code_verifier`` captured when the captcha was first raised must be
+        reused (see ``auth/porsche.py::PorscheAuth.authenticate`` — they are
+        bound to the original ``/authorize`` transaction and cannot be
+        regenerated), so this calls ``_validate_credentials`` with the
+        captcha resume kwargs rather than looping back to
+        ``async_step_email_password``.
+
+        NOT LIVE-VERIFIED — grounded against CJNE/pyporscheconnectapi's
+        extraction (Apache-2.0) and ``ha-porscheconnect``'s config-flow step
+        (same author, same license), but this project has no live account
+        that has actually hit a Porsche captcha yet.
+        """
+        errors: dict[str, str] = {}
+        from .cariad.exceptions import PorscheCaptchaRequiredError  # noqa: PLC0415
+
+        if user_input is not None:
+            code = str(user_input.get(CONF_CAPTCHA_CODE, "")).strip()
+            country = (
+                self._porsche_reauth_country
+                if self._porsche_captcha_return == "reauth"
+                else self._pending_entry_data.get(CONF_COUNTRY, "us")
+            )
+            try:
+                await _validate_credentials(
+                    self.hass, "porsche",
+                    self._pending_username, self._pending_password,
+                    country=country,
+                    captcha_code=code,
+                    captcha_state=self._porsche_captcha_state,
+                    captcha_verifier=self._porsche_captcha_verifier,
+                )
+            except PorscheCaptchaRequiredError as err:
+                # Chained captcha (CJNE-comparison #12 — ha-porscheconnect
+                # handles this the same way): Auth0 rendered ANOTHER one
+                # rather than accepting or cleanly rejecting the solution.
+                # Update state and re-show the form with the new image.
+                self._porsche_captcha_image    = err.captcha_image
+                self._porsche_captcha_state    = err.state
+                self._porsche_captcha_verifier = err.code_verifier
+            except ValueError as err:
+                errors["base"] = _map_error(str(err))
+            else:
+                if self._porsche_captcha_return == "reauth":
+                    reauth_entry = self.hass.config_entries.async_get_entry(
+                        self._porsche_reauth_entry_id
+                    )
+                    if reauth_entry is None:
+                        return self.async_abort(reason="reauth_failed")
+                    self.hass.config_entries.async_update_entry(
+                        reauth_entry,
+                        data={
+                            **reauth_entry.data,
+                            CONF_PASSWORD: self._pending_password,
+                            CONF_SPIN: self._porsche_reauth_spin,
+                        },
+                    )
+                    await self.hass.config_entries.async_reload(reauth_entry.entry_id)
+                    return self.async_abort(reason="reauth_successful")
+                # "email_password" — Porsche is never MBB-eligible (VW/Audi
+                # only), so the non-captcha path's plain create-entry branch
+                # is the only outcome here.
+                return self.async_create_entry(
+                    title=f"{_brand_label(self._pending_brand)} — {self._pending_username}",
+                    data=self._pending_entry_data,
+                )
+
+        return self.async_show_form(
+            step_id="porsche_captcha",
+            data_schema=vol.Schema({vol.Required(CONF_CAPTCHA_CODE): str}),
+            errors=errors,
+            description_placeholders={
+                "captcha_img": self._porsche_captcha_img_html(
+                    self._porsche_captcha_image
+                ),
+            },
+        )
+
     async def async_step_reauth(
         self, entry_data: dict[str, Any]
     ) -> config_entries.ConfigFlowResult:
@@ -1886,10 +2055,24 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
             spin     = user_input.get(CONF_SPIN, reauth_entry.data.get(CONF_SPIN, ""))
             country  = reauth_entry.data.get(CONF_COUNTRY, "us")
 
+            from .cariad.exceptions import PorscheCaptchaRequiredError  # noqa: PLC0415
+
             try:
                 await _validate_credentials(
                     self.hass, brand, username, password, country=country
                 )
+            except PorscheCaptchaRequiredError as err:
+                self._pending_brand    = brand
+                self._pending_username = username
+                self._pending_password = password
+                self._porsche_captcha_return = "reauth"
+                self._porsche_reauth_entry_id = reauth_entry.entry_id
+                self._porsche_reauth_spin     = spin
+                self._porsche_reauth_country  = country
+                self._porsche_captcha_image    = err.captcha_image
+                self._porsche_captcha_state    = err.state
+                self._porsche_captcha_verifier = err.code_verifier
+                return await self.async_step_porsche_captcha()
             except ValueError as err:
                 errors["base"] = _map_error(str(err))
             else:
