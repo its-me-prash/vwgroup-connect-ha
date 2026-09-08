@@ -42,6 +42,23 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.2] - 2026-09-08 — No more phantom "battery 0%", richer vw.de charging data
+
+### Fixed
+- **No more false "battery 0%" low-battery alerts on cars without a traction battery.** VW's EU Data
+  Act portal always sends the 12V/auxiliary battery reading as `0` — it's a placeholder, never a real
+  value (a car that can still talk to the cloud is never at a true 0%). Home Assistant treats that as
+  a battery and fired low-battery notifications, most visibly on plain combustion cars that have no
+  high-voltage battery at all (e.g. a petrol Arteon). The always-zero reading is now suppressed, so
+  the phantom "12V battery" sensor and its notifications go away (#923). Grounded on 53 real
+  diagnostics where this field was 0 every single time.
+
+### Added
+- **The vw.de channel now reads AC/DC charge type and HV battery cell temperatures.** If you use the
+  supplementary vw.de channel, it now also delivers the charge type (AC vs DC) and the high-voltage
+  battery's minimum/maximum cell temperature — the same fields VW's own backend exposes, which the EU
+  Data Act portal feed never carries. They feed the existing sensors, so nothing new to set up.
+
 ## [4.7.1] - 2026-09-08 — Porsche: login, commands, vehicle data, and real two-way control
 
 A from-the-ground-up pass on Porsche, grounded against a full read-through of the real app's own

@@ -194,6 +194,16 @@ def test_aux_battery_energy_pct() -> None:
     assert _map({"bem_level": "57"}).aux_battery_energy_pct == 57
 
 
+def test_aux_battery_energy_pct_zero_is_suppressed() -> None:
+    # #923 (dtech77pl) — bem_level only ever ships 0 across every captured
+    # diagnostic (a "no reading" placeholder). A 0 must NOT reach the
+    # BATTERY-device-class sensor, or it publishes 0% and triggers Home Assistant
+    # low-battery notifications on combustion cars with no HV pack.
+    assert _map({"bem_level": "0"}).aux_battery_energy_pct is None
+    # a genuine non-zero reading still comes through unchanged
+    assert _map({"bem_level": "80"}).aux_battery_energy_pct == 80
+
+
 def test_dashboard_warnings_raw_passthrough_no_decode() -> None:
     # We surface the raw hex/interpreted value ONLY — no invented enum decode.
     d = _map({"active_warnings_in_instrument_cluster_feff_filtered": "0x1A"})

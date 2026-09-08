@@ -81,6 +81,37 @@ def test_charging_mapping_populates_ev_fields() -> None:
     assert d.external_power is True
 
 
+def test_charging_mapping_reads_charge_type_and_hv_cell_temps() -> None:
+    """v4.7.2 — the vw.de charging body also carries AC/DC charge type and HV
+    battery min/max cell temperature (same leaves the BFF reads); the authproxy
+    channel now feeds the existing sensors. Fail-soft when absent."""
+    payload = {
+        "data": {
+            "batteryStatus": {
+                "currentSOC_pct": 60,
+                "minTemperature_K": 288.15,   # 15.0 °C
+                "maxTemperature_K": 298.15,   # 25.0 °C
+            },
+            "chargingStatus": {
+                "chargingState": "charging",
+                "chargeType": "dc",
+            },
+        }
+    }
+    d = map_charging_to_vehicle_data(payload, VehicleData(vin="WVWZZZTEST0000009"))
+    assert d.charging_type == "dc"
+    assert d.hv_battery_min_temperature_c == 15.0
+    assert d.hv_battery_max_temperature_c == 25.0
+    # absent → untouched (fail-soft)
+    d2 = map_charging_to_vehicle_data(
+        {"data": {"batteryStatus": {"currentSOC_pct": 60}, "chargingStatus": {}}},
+        VehicleData(vin="WVWZZZTEST0000010"),
+    )
+    assert d2.charging_type is None
+    assert d2.hv_battery_min_temperature_c is None
+    assert d2.hv_battery_max_temperature_c is None
+
+
 def test_charging_mapping_not_charging_when_disconnected() -> None:
     """A 'notConnected' plug + 'readyForCharging' state map to not-charging."""
     payload = {

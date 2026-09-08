@@ -3213,9 +3213,16 @@ def map_dataset_to_vehicle_data(
         d.parking_lights_state = {
             2: "off", 3: "left", 4: "right", 5: "both",
         }.get(_plights)
-    # bem_level — auxiliary/12V battery energy management level (%).
+    # bem_level — auxiliary/12V battery energy management level (%). Across every
+    # captured diagnostic (53 vehicles, combustion + PHEV) this leaf only ever
+    # arrives as 0 — a "no reading" placeholder, never a real 12V charge (a car
+    # that can still report telemetry is never at a true 0%). Left through, the
+    # BATTERY-device-class sensor publishes 0% and fires Home Assistant's
+    # low-battery notifications on cars with no HV pack at all (#923, dtech77pl's
+    # petrol Arteon "battery 0%"). Treat 0 as the unsupported-field sentinel; a
+    # genuine non-zero reading (if a car ever ships one) still comes through.
     _bem = _to_int(first("bem_level"))
-    if _bem is not None:
+    if _bem:
         d.aux_battery_energy_pct = _bem
     # bem_alert_time — 12V battery BEM level-2 pre-warning alert time. #897
     # (SparkyDan555) carried an absolute ISO timestamp, but the dict type is
