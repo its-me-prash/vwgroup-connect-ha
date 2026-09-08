@@ -42,7 +42,7 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
-## [4.7.1b1] - 2026-09-08 — Porsche: login, commands, vehicle data, and real two-way control
+## [4.7.1] - 2026-09-08 — Porsche: login, commands, vehicle data, and real two-way control
 
 A from-the-ground-up pass on Porsche, grounded against a full read-through of the real app's own
 code (not just a reference library) plus a live login test on a real account (#1337).
@@ -113,9 +113,9 @@ code (not just a reference library) plus a live login test on a real account (#1
   but isn't wired to anything in the shipped app itself — not implemented, and not a gap.
 
 **Honest status**: only the login fix above is live-verified on a real account. Everything else in
-this beta — commands, vehicle data, the new two-way control, the captcha screen — is grounded
+this release — commands, vehicle data, the new two-way control, the captcha screen — is grounded
 directly against the real app's own code but has NOT been tried against a real car yet. Porsche
-stays marked experimental. If you use Porsche, testing this beta and reporting back (either "it
+stays marked experimental. If you use Porsche, testing it and reporting back (either "it
 works" or exactly what broke) is genuinely how the rest of this gets confirmed (#1337).
 
 ## [4.7.0] - 2026-09-07 — Full release / Voll-Release
