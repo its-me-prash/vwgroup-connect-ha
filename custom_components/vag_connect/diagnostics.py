@@ -580,10 +580,20 @@ async def async_get_config_entry_diagnostics(
     # #923/#1157 — surface the experimental vw.de probe outcomes so the test
     # cohort can see WHY a probe yielded nothing (a 403/404/412 refusal vs an
     # empty 200 vs a never-fired probe). Bare status labels only — no PII.
+    # #584 — the fetched-role leapfrog probe runs on WHICHEVER VWEUClient hit the
+    # operationList; on the read-only-primary shape that is the ``_mbb_command``
+    # sub-connector, not the parent (same reason mbb_no_legacy is unioned below).
+    # Union the parent with both sub-connectors so the cohort's probe outcomes
+    # reach the export regardless of which instance recorded them.
     probe_outcomes: dict[str, str] = {}
-    _po = getattr(client, "probe_outcomes", None) if client is not None else None
-    if isinstance(_po, dict):
-        probe_outcomes = {str(k): str(v) for k, v in _po.items()}
+    for _obj in (
+        client,
+        getattr(client, "_mbb_command", None) if client is not None else None,
+        getattr(client, "_mbb_fallback", None) if client is not None else None,
+    ):
+        _po = getattr(_obj, "probe_outcomes", None) if _obj is not None else None
+        if isinstance(_po, dict):
+            probe_outcomes.update({str(k): str(v) for k, v in _po.items()})
 
     # #584 — surface the durable "no legacy MBB enrolment" verdict. These VINs
     # got the definitive ``gw.error.authentication`` reject on the MBB
