@@ -42,6 +42,16 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.5] - 2026-09-09 — Correct battery % on portal cars while charging
+
+### Fixed
+- **No more wrong battery % right after you plug in (VW-EU portal cars).** VW's EU Data Act portal
+  sends the battery state-of-charge twice — the live value and a separate "SoC at the moment charging
+  started" snapshot — and it stamps that snapshot as freshly updated whenever a charge begins. The
+  integration could then briefly show the stale charge-start figure instead of the real one (e.g. 37%
+  when the car was actually at 24%). The known charge-start reading is now kept apart, so the live
+  battery % always wins. Thanks to @hangout6690 for tracking it down to the exact source fields (#1195).
+
 ## [4.7.4] - 2026-09-09 — Fresher VW-EU data, richer Porsche readings, per-car source priority
 
 ### Fixed
