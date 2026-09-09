@@ -49,6 +49,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   electric-range sensor stayed empty and SoC/odometer fell back to the slower EU Data Act portal feed.
   Those reads now carry the same `gdc` + host the already-working warning-lights read uses, so the
   vw.de channel supplies range, SoC and odometer directly (#1357).
+- **Porsche electric range, odometer and service intervals now actually populate.** The Porsche
+  `measurements` reads were pulling the inner value under the wrong key names (guessed from the
+  measurement enum names), so battery range, the odometer and the service intervals came through
+  empty. Corrected against a real Taycan capture — they now read the `kilometers` member the backend
+  actually sends (E_RANGE, MILEAGE and the service ranges).
 
 ### Added
 - **Test cohort: a measurements-range + usable-capacity probe (diagnostics only).** For opt-in test
