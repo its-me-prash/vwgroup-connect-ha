@@ -30,7 +30,7 @@ def _coord(readers_return):
 def test_persist_runs_after_a_successful_supplementary_read(monkeypatch):
     from custom_components.vag_connect.cariad import _channel_merge as cm
 
-    async def _fake_gather(name, primary, suppliers):
+    async def _fake_gather(name, primary, suppliers, preferred=None):
         return primary  # a real read here would rotate the cookie jar
 
     monkeypatch.setattr(cm, "gather_and_merge", _fake_gather)
@@ -58,7 +58,7 @@ def test_persist_still_runs_is_guarded_idempotent(monkeypatch):
     # equality no-op is covered by the _persist_supplementary_cookies unit tests.
     from custom_components.vag_connect.cariad import _channel_merge as cm
 
-    async def _fake_gather(name, primary, suppliers):
+    async def _fake_gather(name, primary, suppliers, preferred=None):
         return primary
 
     monkeypatch.setattr(cm, "gather_and_merge", _fake_gather)

@@ -2123,6 +2123,12 @@
         "official_only": "Official API only",
         "mysmob_only": "Standard channel only"
       }
+    },
+    "read_priority": {
+      "options": {
+        "auto": "Automatic (recommended)",
+        "prefer_website_authproxy": "Prefer live vw.de data"
+      }
     }
   },
   "services": {

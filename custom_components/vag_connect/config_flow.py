@@ -2467,6 +2467,7 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
             # fresh one on the next update. Takes precedence over the key fields on
             # the same submit, so a re-save with the key still pre-filled clears.
             from .const import (  # noqa: PLC0415
+                CONF_READ_PRIORITY,
                 CONF_SKODA_OFFICIAL_API_KEY,
                 CONF_SKODA_OFFICIAL_KEYS,
             )
@@ -2509,6 +2510,37 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                         continue  # unchanged
                     _off_map[_vin] = {"key": _val, "source": "manual"}
                 user_input[CONF_SKODA_OFFICIAL_KEYS] = _off_map
+            # #1357 — fold the transient read_priority_<VIN> fields into the
+            # CONF_READ_PRIORITY map {VIN: mode}. The value is a plain enum that
+            # always renders, so a field set (back) to "auto" DROPS that VIN's entry
+            # (returns it to the default) — unlike the official keys, blanking here
+            # is a deliberate reset, not a lost secret.
+            _rp_fields = [
+                _k for _k in list(user_input.keys())
+                if _k.startswith(f"{CONF_READ_PRIORITY}_")
+            ]
+            if _rp_fields:
+                from .const import (  # noqa: PLC0415
+                    READ_PRIORITY_DEFAULT,
+                    READ_PRIORITY_MODES,
+                )
+                _stored_rp = (
+                    self._config_entry.options.get(CONF_READ_PRIORITY)
+                    or self._config_entry.data.get(CONF_READ_PRIORITY)
+                )
+                _rp_map = dict(_stored_rp) if isinstance(_stored_rp, dict) else {}
+                for _k in _rp_fields:
+                    _vin = _k[len(CONF_READ_PRIORITY) + 1:].strip().upper()
+                    _val = str(user_input.pop(_k) or "").strip()
+                    if (
+                        _val
+                        and _val != READ_PRIORITY_DEFAULT
+                        and _val in READ_PRIORITY_MODES
+                    ):
+                        _rp_map[_vin] = _val
+                    else:
+                        _rp_map.pop(_vin, None)  # auto/blank → back to the default
+                user_input[CONF_READ_PRIORITY] = _rp_map
             # b1/C1 — if the user ticked "add vw.de read channel", branch into
             # the login sub-flow; the remaining options are saved when it
             # completes. Default-False so untouched submits behave exactly as
@@ -2966,6 +2998,42 @@ class VagConnectOptionsFlow(config_entries.OptionsFlow):
                     f"{CONF_SKODA_OFFICIAL_KEYS}_{_vin}",
                     default=str(_cur_key),
                 )] = _PASSWORD_SELECTOR
+        # #1357 (Ra72xx) — per-VIN read-source priority. When a car reads over BOTH
+        # the EU Data Act portal and the live vw.de channel, the portal (batch) feed
+        # wins every shared field by default; this lets the user flip that PER car so
+        # the live vw.de channel wins the fields it carries and EU-DA fills the rest.
+        # Shown only when a vw.de channel is configured (else the reorder is a no-op).
+        # Options-then-data default (options-trap safe); folded into CONF_READ_PRIORITY
+        # on submit. "auto" for a VIN removes its entry (back to the default).
+        _has_vwde = bool(
+            current_data.get(CONF_SUPPLEMENTARY_AUTHPROXY)
+            or current_data.get(CONF_WEBSITE_AUTHPROXY)
+        )
+        if _has_vwde and isinstance(_vehicles, dict) and _vehicles:
+            from .const import (  # noqa: PLC0415
+                CONF_READ_PRIORITY,
+                READ_PRIORITY_DEFAULT,
+                READ_PRIORITY_MODES,
+            )
+            _rp_map = current_options.get(
+                CONF_READ_PRIORITY, current_data.get(CONF_READ_PRIORITY)
+            )
+            if not isinstance(_rp_map, dict):
+                _rp_map = {}
+            for _vin in _vehicles:
+                _cur_rp = str(
+                    _rp_map.get(_vin) or _rp_map.get(str(_vin).upper())
+                    or READ_PRIORITY_DEFAULT
+                )
+                if _cur_rp not in READ_PRIORITY_MODES:
+                    _cur_rp = READ_PRIORITY_DEFAULT
+                schema[vol.Optional(
+                    f"{CONF_READ_PRIORITY}_{_vin}", default=_cur_rp,
+                )] = SelectSelector(SelectSelectorConfig(
+                    options=list(READ_PRIORITY_MODES),
+                    mode=SelectSelectorMode.DROPDOWN,
+                    translation_key=CONF_READ_PRIORITY,
+                ))
         # v2.26.0 — companion (ADB) advanced opt-ins, surfaced only for a
         # companion entry (both default OFF: each TAPS the phone, so a user opts
         # in only after confirming the flow on their own device).

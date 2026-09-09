@@ -40,8 +40,15 @@ def _coord_stub(client: Any) -> Any:
     stub._cariad_client = client
     stub.entry = MagicMock()
     stub.entry.data = {}
+    stub.entry.options = {}
     stub._primary_channel_name = (
         VagConnectCoordinator._primary_channel_name.__get__(stub)
+    )
+    # #1357 — _merge_supplementary now consults the per-VIN read-priority reader;
+    # the minimal stub must bind it too (no read_priority config → returns None →
+    # today's primary-first order, so these parity tests are unaffected).
+    stub._read_priority_channel = (
+        VagConnectCoordinator._read_priority_channel.__get__(stub)
     )
     stub._merge_supplementary = (
         VagConnectCoordinator._merge_supplementary.__get__(stub)

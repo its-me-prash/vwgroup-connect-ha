@@ -2345,6 +2345,12 @@
         "official_only": "Endast officiellt API",
         "mysmob_only": "Endast standardkanal"
       }
+    },
+    "read_priority": {
+      "options": {
+        "auto": "Automatiskt (rekommenderas)",
+        "prefer_website_authproxy": "Föredra livedata från vw.de"
+      }
     }
   },
   "triggers": {

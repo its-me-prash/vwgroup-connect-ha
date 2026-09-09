@@ -331,6 +331,20 @@ SKODA_OFFICIAL_MODES: tuple[str, ...] = (
 )
 SKODA_OFFICIAL_MODE_DEFAULT = "auto"
 
+# Per-VIN read-source priority (#1357 @Ra72xx). On a car with more than one read
+# channel (EU Data Act portal + live vw.de), the per-field winner is the channel
+# ORDER handed to the merge, not the freshest value — so a portal-primary car has
+# the (slower, batch) EU-DA feed win every field the live vw.de channel also
+# carries. This lets a user flip that PER CAR so the live vw.de channel wins every
+# field it has while EU-DA keeps filling the fields only it provides.
+#   auto                      → today's behaviour (primary channel wins), default
+#   prefer_website_authproxy  → the live vw.de channel wins; EU-DA fills the gaps
+# Stored as a ``{VIN: mode}`` map (per-VIN, like CONF_SKODA_OFFICIAL_KEYS). Only
+# reorders the read merge; command routing / reconcile / write paths are untouched.
+CONF_READ_PRIORITY               = "read_priority"
+READ_PRIORITY_MODES: tuple[str, ...] = ("auto", "prefer_website_authproxy")
+READ_PRIORITY_DEFAULT = "auto"
+
 # v2.15.0b3 — "hide entities without data" (default ON). When enabled, data
 # sensors / binary sensors whose value hasn't arrived are not created, so a
 # device isn't flooded with dozens of "unknown" entities. The per-id dynamic

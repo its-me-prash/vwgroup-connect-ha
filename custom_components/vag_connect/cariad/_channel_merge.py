@@ -259,6 +259,7 @@ async def gather_and_merge(
     primary_name: str,
     primary: "VehicleData",
     suppliers: list[tuple[str, Awaitable["VehicleData | None"]]],
+    preferred: str | None = None,
 ) -> "VehicleData":
     """Read supplementary channels concurrently and merge them onto ``primary``.
 
@@ -288,4 +289,20 @@ async def gather_and_merge(
             sources.append((name, res))
     if len(sources) == 1:
         return primary
+    # #1357 — per-VIN read priority. The per-field winner is the ORDER of this
+    # list (merge_channels keeps sources[0] highest-trust and lets lower channels
+    # only fill gaps). When the caller names a ``preferred`` channel, stable-sort
+    # it to the front so it wins every field it carries while the others keep
+    # filling the rest. ``list.sort`` is stable, so every other tie-break — and
+    # thus the whole merge — is byte-for-byte identical to today when ``preferred``
+    # is None/"auto" or names the channel already at the front.
+    #
+    # NOTE: the preference reorders EVERY field the channel carries, INCLUDING
+    # position (lat/lon). The winning channel's ``position_captured_at`` travels
+    # with it, so freshness is still surfaced — but a caller that prefers a channel
+    # whose position is staler than another's will show the preferred channel's
+    # older fix (the whole point of the option is "trust this channel", so this is
+    # intended; the motivating case prefers the FRESHER channel).
+    if preferred and preferred != "auto":
+        sources.sort(key=lambda s: 0 if s[0] == preferred else 1)
     return merge_channels(sources)
