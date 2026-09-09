@@ -36,6 +36,9 @@ def _session_returning(locations: list[tuple[int, str]]) -> MagicMock:
         resp.__aexit__ = AsyncMock(return_value=False)
         resp.status = status
         resp.headers = {"Location": loc}
+        # A 200 hop now has its body read to identify the ACUL screen; give it a
+        # real (empty) string so that path exercises the no-code branch cleanly.
+        resp.text = AsyncMock(return_value="")
         return resp
 
     session = MagicMock()

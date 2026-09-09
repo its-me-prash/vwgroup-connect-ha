@@ -136,3 +136,67 @@ class TestPasskeyEnrollmentSkip:
         assert captured.get("js-available") == "true"
         assert captured.get("state") == "enroll-state-1"
         assert captured.get("action") == "abort-passkey-enrollment"
+
+
+def _acul_html(screen_name: str, state: str = "s1", captcha: bool = False) -> str:
+    """A page shaped like an Auth0 ACUL screen with a named ``screen``."""
+    ctx: dict = {"transaction": {"state": state}, "screen": {"name": screen_name}}
+    if captcha:
+        ctx["screen"]["captcha"] = {"image": "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4="}
+    payload = base64.b64encode(json.dumps(ctx).encode()).decode()
+    return f'<script>var ctx = JSON.parse(atob("{payload}"));</script>'
+
+
+class TestAculScreenGeneralisation:
+    """b23 (#1337 follow-up) — the 200-branch now identifies the ACUL screen by
+    its context ``screen.name`` (not just the URL path), declines the confirmed
+    passkey-enrollment screen even when the resume URL is generic, and names any
+    other screen it can't clear instead of guessing a decline for it."""
+
+    def test_passkey_matched_by_screen_name_on_generic_resume_path(self) -> None:
+        # No ``/u/passkey-enrollment`` in the path — identity comes from the
+        # ACUL context. The confirmed decline must still fire.
+        session = _session(
+            get_responses=[_Resp(200, text=_acul_html("passkey-enrollment"))],
+            post_responses=[_Resp(302, f"{_CB}?code=BY_NAME&state=x")],
+        )
+        assert _follow(session, "/authorize/resume?state=xyz") == "BY_NAME"
+
+    def test_unknown_acul_screen_is_not_declined(self) -> None:
+        # A screen we have no grounded decline action for must dead-end WITHOUT
+        # inventing a POST against the confirmed login path.
+        session = _session(get_responses=[_Resp(200, text=_acul_html("mfa-enroll"))])
+        assert _follow(session, "/u/mfa-enroll?state=xyz") is None
+        session.post.assert_not_called()
+
+    def test_captcha_in_redirect_chain_dead_ends_without_post(self) -> None:
+        # A captcha rendered mid-chain can't be solved here (the config-flow
+        # captcha step only resumes the identifier POST) — stop cleanly, no POST.
+        session = _session(
+            get_responses=[_Resp(200, text=_acul_html("login-id", captcha=True))],
+        )
+        assert _follow(session, "/authorize/resume?state=xyz") is None
+        session.post.assert_not_called()
+
+
+class TestAculScreenName:
+    def test_prefers_context_screen_name(self) -> None:
+        name = PorscheAuth._acul_screen_name(
+            "https://identity.porsche.com/authorize/resume?state=x",
+            _acul_html("passkey-enrollment"),
+        )
+        assert name == "passkey-enrollment"
+
+    def test_falls_back_to_path_segment(self) -> None:
+        name = PorscheAuth._acul_screen_name(
+            "https://identity.porsche.com/u/passkey-enrollment?state=x",
+            "<html>no context blob</html>",
+        )
+        assert name == "passkey-enrollment"
+
+    def test_none_when_neither_available(self) -> None:
+        name = PorscheAuth._acul_screen_name(
+            "https://identity.porsche.com/authorize/resume?state=x",
+            "<html>nothing</html>",
+        )
+        assert name is None
