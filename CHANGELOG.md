@@ -42,6 +42,8 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.4] - 2026-09-09 — Fresher VW-EU data, richer Porsche readings, per-car source priority
+
 ### Fixed
 - **vw.de channel now delivers electric range (and fresher SoC/odometer) on ID./MEB cars.** The
   vw.de charging and maintenance reads were the only live-status calls sent without the per-platform
