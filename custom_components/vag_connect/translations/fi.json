@@ -2345,6 +2345,12 @@
         "official_only": "Vain virallinen API",
         "mysmob_only": "Vain vakiokanava"
       }
+    },
+    "read_priority": {
+      "options": {
+        "auto": "Automaattinen (suositus)",
+        "prefer_website_authproxy": "Suosi vw.de-livedataa"
+      }
     }
   },
   "triggers": {

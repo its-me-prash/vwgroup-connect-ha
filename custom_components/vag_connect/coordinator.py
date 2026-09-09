@@ -2747,6 +2747,34 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         )
         return mode if mode in SKODA_OFFICIAL_MODES else SKODA_OFFICIAL_MODE_DEFAULT
 
+    def _read_priority_channel(self, vin: str) -> str | None:
+        """#1357 — the preferred READ channel for ``vin`` (per-VIN), or None for
+        the ``auto`` default. Reads the ``{VIN: mode}`` map options-then-data
+        (never options-only — the update listener folds options into data and
+        blanks options, so an options-only read would lose a saved map). Returns
+        the channel name the merge should sort to the front (``website_authproxy``
+        for ``prefer_website_authproxy``), else None so ``gather_and_merge`` keeps
+        today's primary-first order untouched."""
+        from .const import (  # noqa: PLC0415
+            CONF_READ_PRIORITY,
+            READ_PRIORITY_DEFAULT,
+            READ_PRIORITY_MODES,
+        )
+        entry = getattr(self, "entry", None)
+        if entry is None or not vin:
+            return None
+        raw = entry.options.get(
+            CONF_READ_PRIORITY, entry.data.get(CONF_READ_PRIORITY)
+        )
+        if not isinstance(raw, dict):
+            return None
+        mode = str(
+            raw.get(vin) or raw.get(str(vin).upper()) or READ_PRIORITY_DEFAULT
+        )
+        if mode not in READ_PRIORITY_MODES:
+            mode = READ_PRIORITY_DEFAULT
+        return "website_authproxy" if mode == "prefer_website_authproxy" else None
+
     def _push_official_mode(self, client: Any = None) -> None:
         """Push the configured source mode onto the Škoda client so its primary-read
         routing (``official_only``) reflects a live options change. Must run before
@@ -3395,6 +3423,7 @@ class VagConnectCoordinator(DataUpdateCoordinator):
         try:
             merged = await gather_and_merge(
                 self._primary_channel_name(), primary, suppliers,
+                preferred=self._read_priority_channel(vin),
             )
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(

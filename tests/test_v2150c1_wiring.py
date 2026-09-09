@@ -202,7 +202,10 @@ def _coord_stub(client: Any, entry_data: dict[str, Any]) -> Any:
     stub._cariad_client = client
     stub.entry = MagicMock()
     stub.entry.data = entry_data
+    stub.entry.options = {}
     stub._primary_channel_name = VagConnectCoordinator._primary_channel_name.__get__(stub)
+    # #1357 — _merge_supplementary consults the per-VIN read-priority reader.
+    stub._read_priority_channel = VagConnectCoordinator._read_priority_channel.__get__(stub)
     return stub
 
 

@@ -2345,6 +2345,12 @@
         "official_only": "Pouze oficiální API",
         "mysmob_only": "Pouze standardní kanál"
       }
+    },
+    "read_priority": {
+      "options": {
+        "auto": "Automaticky (doporučeno)",
+        "prefer_website_authproxy": "Upřednostnit živá data z vw.de"
+      }
     }
   },
   "triggers": {

@@ -2123,6 +2123,12 @@
         "official_only": "Nur offizielle API",
         "mysmob_only": "Nur Standard-Kanal"
       }
+    },
+    "read_priority": {
+      "options": {
+        "auto": "Automatisch (empfohlen)",
+        "prefer_website_authproxy": "Live-vw.de-Daten bevorzugen"
+      }
     }
   },
   "services": {

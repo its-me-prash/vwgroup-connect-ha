@@ -66,6 +66,13 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   dropped them; they're now wired onto the same sensors other brands use. Inner-value shapes are
   grounded against a real Taycan capture and every reader fail-softs to "unknown" on an unexpected
   shape (#1370).
+- **Choose which data source wins per car (EU Data Act portal vs live vw.de).** When a car reads over
+  both the EU Data Act portal and the live vw.de channel, the portal (a batched feed) wins every
+  shared field by default — which on some cars means slower, occasionally stale data even though the
+  live vw.de channel has a fresher value. A new per-car **"Data source priority"** option (in the
+  integration's options, shown when a vw.de channel is configured) lets you pick **"Prefer live
+  vw.de data"** for that car, so the live channel wins the fields it carries and the portal keeps
+  filling the rest. Default is **Automatic** — existing setups are unchanged (#1357).
 
 ## [4.7.3] - 2026-09-09 — Porsche login clarity + finding the command gate on newer VW cars
 

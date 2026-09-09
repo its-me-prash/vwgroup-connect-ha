@@ -2345,6 +2345,12 @@
         "official_only": "Tylko oficjalne API",
         "mysmob_only": "Tylko kanał standardowy"
       }
+    },
+    "read_priority": {
+      "options": {
+        "auto": "Automatycznie (zalecane)",
+        "prefer_website_authproxy": "Preferuj dane na żywo z vw.de"
+      }
     }
   },
   "triggers": {
