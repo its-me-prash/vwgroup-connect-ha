@@ -2701,6 +2701,8 @@ class VagConnectCoordinator(DataUpdateCoordinator):
                 conn.probe_position = cohort
                 if hasattr(conn, "probe_soh"):
                     conn.probe_soh = cohort  # 4.3.2 SoH probe, same opt-in
+                if hasattr(conn, "probe_measurements"):
+                    conn.probe_measurements = cohort  # #1357 range probe, same opt-in
                 has_web = True
 
         # #912 — the BFF/Audi primary client captures a command's pendingrequests
