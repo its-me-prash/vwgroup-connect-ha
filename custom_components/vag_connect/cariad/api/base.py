@@ -581,6 +581,21 @@ class CariadBaseClient:
                 if not isinstance(getattr(self, "mbb_eligibility", None), dict):
                     self.mbb_eligibility = {}
                 self.mbb_eligibility.update(_elig)
+            # #1357 — surface the connector's captured RAW vw.de bodies (charging,
+            # the measurements-range probe, the SoH probe, …) in diagnostics.
+            # ``_capture_raw`` stores them VIN-stripped on the CONNECTOR, but the
+            # diagnostics export reads ``client.last_raw_responses`` — so without this
+            # merge the supplementary channel's raw bodies never reached the export
+            # and the probes' "raw body captured for the maintainer" promise silently
+            # didn't hold (a portal-primary reporter's diagnostics carried only the
+            # BFF probe). Keys are already namespaced (``vwde:…``) so they can't
+            # collide with the client's own scout captures; bodies are redacted by
+            # ``_scrub_raw`` at export time.
+            _raw = getattr(connector, "last_raw_responses", None)
+            if _raw:
+                if not isinstance(getattr(self, "last_raw_responses", None), dict):
+                    self.last_raw_responses = {}
+                self.last_raw_responses.update(_raw)
 
     async def _read_eu_portal(
         self, connector: Any, vin: str
