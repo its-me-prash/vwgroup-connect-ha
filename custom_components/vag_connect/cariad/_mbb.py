@@ -78,6 +78,16 @@ _LOGGER = logging.getLogger(__name__)
 # MBB-backed VINs regardless of region.
 MBB_SETTER_BASE = "https://mal-1a.prd.ece.vwg-connect.com"
 
+# #584 — modern EU-DP "MAL" setter host. The shipping We Connect app (4.2.1 +
+# 4.3.2, APK-verified) does NOT call the legacy ``operationlist/v3`` on the
+# ``mal-1a.prd.ece`` host at all; it reads the per-vehicle permission gate via
+# ``rolesrights/permissions/v1/{Brand}/{country}/vehicles/{vin}/fetched-role``
+# on this newer host (the app carries no ``mal-1a`` string whatsoever). Used by
+# the cohort-only fetched-role diagnostic probe to test whether newer MBB_ODP
+# cars — whose legacy operationList/v3 answers ``gw.error.authentication`` — are
+# reachable on the modern gate instead.
+MBB_EUDP_SETTER_BASE = "https://mal-3a.prd.eu.dp.vwg-connect.com"
+
 # Default reader base — used as fallback when discovery fails.
 # upstream + volkswagencarnet historical default.
 MBB_DEFAULT_READ_BASE = "https://msg.volkswagen.de"
@@ -677,6 +687,25 @@ def build_mbb_operationlist_url(setter_base: str, vin: str) -> str:
     """GET URL for the per-VIN operationList (service directory)."""
     return (
         f"{setter_base}/api/rolesrights/operationlist/v3/vehicles/{vin.upper()}"
+    )
+
+
+def build_mbb_fetched_role_url(
+    setter_base: str, brand: str, country: str, vin: str
+) -> str:
+    """GET URL for the modern per-vehicle permission gate (#584).
+
+    Pattern (APK-verified, We Connect 4.2.1/4.3.2):
+    ``{base}/api/rolesrights/permissions/v1/{Brand}/{country}/vehicles/{vin}/fetched-role``
+
+    This is the read the shipping app uses in place of the legacy
+    ``operationlist/v3`` — the same rolesrights ``authorization/v2`` S-PIN
+    command handshake still applies, so only the gate READ differs.
+    """
+    seg = mbb_brand_segment(brand)
+    return (
+        f"{setter_base}/api/rolesrights/permissions/v1/{seg}/{country}"
+        f"/vehicles/{vin.upper()}/fetched-role"
     )
 
 

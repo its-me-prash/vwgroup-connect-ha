@@ -207,6 +207,7 @@ async def _validate_credentials(
         MarketingConsentError,
         NorthAmericaAttestationError,
         PorscheCaptchaRequiredError,
+        PorscheLoginWallError,
         RateLimitError,
         TermsAndConditionsError,
         TwoFactorRequiredError,
@@ -269,6 +270,18 @@ async def _validate_credentials(
                 "device attestation (not a credentials problem): %s", brand, err,
             )
             raise ValueError("na_signin_attestation") from err
+        except PorscheLoginWallError as err:
+            # b23 (#1337) — login got past credentials but hit a captcha/consent
+            # wall in the redirect chain. NOT a wrong password (both reporters
+            # verified theirs at my.porsche.com). Must precede the generic
+            # AuthenticationError catch (it is a subclass) so these users stop
+            # being told "email/password incorrect".
+            _LOGGER.warning(
+                "VW Group Connect (%s): login reached a Porsche captcha/consent "
+                "wall past the password step (not a credentials problem): %s",
+                brand, err,
+            )
+            raise ValueError("porsche_login_wall") from err
         except AuthenticationError as err:
             _LOGGER.warning("VW Group Connect auth failed (%s): %s", brand, err)
             raise ValueError("invalid_credentials") from err
@@ -304,6 +317,7 @@ def _map_error(err_code: str) -> str:
         "brand_not_dag_eligible",  # v2.7.0 — user picked non-DAG brand for browser login
         "portal_interaction_required",  # v2.15.4 (#527) — non-credential portal stop
         "na_signin_attestation",  # #1165/#659 — VW NA Play-Integrity sign-in wall
+        "porsche_login_wall",  # b23 #1337 — Porsche captcha/consent wall past password
     } else "cannot_connect"
 
 
@@ -1985,7 +1999,15 @@ class VagConnectConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: i
                 self._porsche_captcha_state    = err.state
                 self._porsche_captcha_verifier = err.code_verifier
             except ValueError as err:
-                errors["base"] = _map_error(str(err))
+                mapped = _map_error(str(err))
+                if mapped == "porsche_login_wall":
+                    # b23 (#1337) — the captcha was accepted but the login then
+                    # hit the post-password captcha/consent wall. Re-showing the
+                    # now-consumed captcha would just invite a lockout-risking
+                    # retry (repeated failures have locked Porsche accounts), so
+                    # stop cleanly with the honest reason instead.
+                    return self.async_abort(reason="porsche_login_wall")
+                errors["base"] = mapped
             else:
                 if self._porsche_captcha_return == "reauth":
                     reauth_entry = self.hass.config_entries.async_get_entry(
