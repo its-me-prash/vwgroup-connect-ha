@@ -119,6 +119,112 @@ _MEASUREMENTS = (
 )
 
 
+# ── b23 (competitor-triage ADOPT #1) — fail-soft `mf` value coercion ──────────
+# porsche.py already REQUESTS the full mf set above but ``get_status`` dropped
+# the windows / spoiler / charge-flap / service-flap / parking-brake / parking-
+# light / oil-level / service-time measurements. The helpers below wire them
+# onto VehicleData fields that already drive entities for other brands.
+#
+# INNER-VALUE SHAPES ARE NOT LIVE-VERIFIED. The b20 androguard pass confirmed
+# each measurement KEY and its ``$$serializer`` class exists but did NOT dump
+# the member field names inside each value class. The OPEN_STATE_* family
+# reuses the ``openState`` key already proven by the shipped door/lid/sunroof
+# parsing in ``get_status``; the four non-open-state measurements go through
+# ``_mf_flag`` / ``_mf_number`` which try a set of candidate inner keys and
+# return ``None`` on anything unrecognised — so a wrong guess degrades to
+# "unknown", never a crash or a false reading. Tighten the candidate keys
+# against one real Taycan/Panamera capture when it lands.
+_OPEN_TOKENS = frozenset({"OPEN", "OPENED", "AJAR", "TILTED", "VENTED"})
+_CLOSED_TOKENS = frozenset({"CLOSED", "CLOSE", "SHUT"})
+
+
+def _mf_open_bool(value: Any) -> bool | None:
+    """OPEN_STATE_* → bool (True == open), tolerant of case/synonyms.
+
+    Mirrors the shipped ``openState`` door parsing; ``None`` when the value
+    isn't a dict, carries no ``openState`` string, or carries one this doesn't
+    recognise (→ entity stays "unknown" instead of a wrong reading).
+    """
+    if isinstance(value, dict):
+        state = value.get("openState")
+        if isinstance(state, str):
+            s = state.strip().upper()
+            if s in _OPEN_TOKENS:
+                return True
+            if s in _CLOSED_TOKENS:
+                return False
+    return None
+
+
+def _mf_open_str(value: Any) -> str | None:
+    """OPEN_STATE_* → the raw ``openState`` string (for the plug-flap *string*
+    fields), or ``None`` when absent/blank/non-dict."""
+    if isinstance(value, dict):
+        state = value.get("openState")
+        if isinstance(state, str) and state.strip():
+            return state
+    return None
+
+
+def _mf_flag(
+    value: Any,
+    candidate_keys: tuple[str, ...],
+    true_tokens: frozenset[str],
+    false_tokens: frozenset[str],
+) -> bool | None:
+    """Fail-soft bool from a measurement whose inner shape isn't live-verified.
+
+    A bare bool value is taken as-is; otherwise the first present candidate
+    inner key is read — a bool as-is, a string matched case-insensitively
+    against the token sets. ``None`` on anything unrecognised.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, dict):
+        for key in candidate_keys:
+            if key not in value:
+                continue
+            inner = value[key]
+            if isinstance(inner, bool):
+                return inner
+            if isinstance(inner, str):
+                s = inner.strip().upper()
+                if s in true_tokens:
+                    return True
+                if s in false_tokens:
+                    return False
+            return None  # recognised key, unrecognised value → "unknown"
+    return None
+
+
+def _mf_number(value: Any, candidate_keys: tuple[str, ...]) -> float | None:
+    """Fail-soft numeric from a measurement value dict (or a bare number).
+
+    ``bool`` is rejected (it's an ``int`` subclass but never a real reading);
+    numeric-as-string ("80", "5.5") is accepted. ``None`` when nothing usable.
+    """
+    src: Any = None
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        src = value
+    elif isinstance(value, dict):
+        for key in candidate_keys:
+            raw = value.get(key)
+            if isinstance(raw, bool):
+                continue
+            if isinstance(raw, (int, float)):
+                src = raw
+                break
+            if isinstance(raw, str):
+                try:
+                    src = float(raw)
+                    break
+                except ValueError:
+                    continue
+    if isinstance(src, (int, float)) and not isinstance(src, bool):
+        return float(src)
+    return None
+
+
 class PorscheClient:
     """Porsche Connect API client.
 
@@ -401,6 +507,108 @@ class PorscheClient:
                         "TIRE_PRESSURE_REAR_LEFT", "TIRE_PRESSURE_REAR_RIGHT",
                     )
                 )
+
+            # ── b23 (competitor-triage ADOPT #1) — already-fetched mf fields ──
+            # These keys were requested all along (see ``_MEASUREMENTS``) but
+            # the parser mapped none of them. Pure wiring onto VehicleData
+            # fields that already drive entities for other brands; no new
+            # request/auth. Inner shapes fail-soft (see the module helpers).
+
+            # Windows — individual + aggregate. Convention (mirrors
+            # ``doors_individual`` / SEAT-CUPRA ``windows_individual``):
+            # stored True == CLOSED, so a WINDOW-device_class binary_sensor
+            # reports open correctly.
+            window_individual: dict[str, bool] = {}
+            for key, pos in (
+                ("OPEN_STATE_WINDOW_FRONT_LEFT", "frontLeft"),
+                ("OPEN_STATE_WINDOW_FRONT_RIGHT", "frontRight"),
+                ("OPEN_STATE_WINDOW_REAR_LEFT", "rearLeft"),
+                ("OPEN_STATE_WINDOW_REAR_RIGHT", "rearRight"),
+            ):
+                is_open = _mf_open_bool(m.get(key))
+                if is_open is not None:
+                    window_individual[pos] = not is_open
+            if window_individual:
+                d.windows_individual = window_individual
+                d.windows_open = any(not closed for closed in window_individual.values())
+
+            # Spoiler + service hatch (opening binary_sensors).
+            spoiler = _mf_open_bool(m.get("OPEN_STATE_SPOILER"))
+            if spoiler is not None:
+                d.spoiler_open = spoiler
+            service_flap = _mf_open_bool(m.get("OPEN_STATE_SERVICE_FLAP"))
+            if service_flap is not None:
+                d.service_hatch_open = service_flap
+
+            # Charge-port flaps (string state). Porsche dual-port cars (Taycan)
+            # have a LEFT and a RIGHT flap → map LEFT→plug1, RIGHT→plug2 so both
+            # surface; a single-port car leaves plug2 None (never a phantom).
+            # NOTE: this splits the flaps across the two existing plug fields
+            # rather than collapsing both into charging_plug1_flap_state, so a
+            # Scout capture never loses the second flap.
+            flap_left = _mf_open_str(m.get("OPEN_STATE_CHARGE_FLAP_LEFT"))
+            if flap_left is not None:
+                d.charging_plug1_flap_state = flap_left
+            flap_right = _mf_open_str(m.get("OPEN_STATE_CHARGE_FLAP_RIGHT"))
+            if flap_right is not None:
+                d.charging_plug2_flap_state = flap_right
+
+            # Parking brake + parking light (inner shapes NOT live-verified).
+            parking_brake = _mf_flag(
+                m.get("PARKING_BRAKE"),
+                ("parkingBrake", "parkingBrakeState", "state", "status",
+                 "active", "isActive", "value"),
+                frozenset({"ENGAGED", "APPLIED", "ACTIVE", "ON", "SET", "TRUE"}),
+                frozenset({"RELEASED", "DISENGAGED", "INACTIVE", "OFF",
+                           "UNSET", "FALSE"}),
+            )
+            if parking_brake is not None:
+                d.parking_brake_engaged = parking_brake
+            parking_light = _mf_flag(
+                m.get("PARKING_LIGHT"),
+                ("parkingLight", "parkingLightState", "state", "status",
+                 "active", "isActive", "value"),
+                frozenset({"ON", "ACTIVE", "TRUE", "LEFT", "RIGHT", "BOTH"}),
+                frozenset({"OFF", "INACTIVE", "FALSE", "NONE"}),
+            )
+            if parking_light is not None:
+                d.parking_light = parking_light
+
+            # Engine oil level → percent. OIL_LEVEL_CURRENT/_MAX/_MIN_WARNING
+            # is a triad, so CURRENT is quite likely an absolute value on a
+            # 0..MAX scale rather than a bare percent — normalise against MAX
+            # when that reading is available and isn't itself a 0..100 percent.
+            # NOT live-verified; only ever yields 0..100 or None.
+            _oil_keys = ("percent", "percentage", "currentValue", "value",
+                         "level", "current")
+            oil_cur = _mf_number(m.get("OIL_LEVEL_CURRENT"), _oil_keys)
+            oil_max = _mf_number(m.get("OIL_LEVEL_MAX"), _oil_keys + ("max", "maximum"))
+            oil_pct: float | None = None
+            if oil_cur is not None:
+                if 0.0 < oil_cur <= 1.0:                       # ratio 0..1
+                    oil_pct = oil_cur * 100.0
+                elif oil_max is not None and 0 < oil_max != 100 and oil_cur <= oil_max:
+                    oil_pct = oil_cur / oil_max * 100.0        # absolute on 0..max
+                elif 0.0 <= oil_cur <= 100.0:                  # already a percent
+                    oil_pct = oil_cur
+            if oil_pct is not None and 0.0 <= oil_pct <= 100.0:
+                d.oil_level_pct = int(round(oil_pct))
+
+            # Service-time intervals → days-remaining ints. Mirrors the
+            # *_SERVICE_RANGE→*_km mapping above: MAIN→service_due_in_days,
+            # OIL→oil_service_due_in_days. Negative = overdue (allowed);
+            # implausible magnitudes (a timestamp slipping into a day field)
+            # are rejected rather than shipped as a nonsense sensor.
+            for key, attr in (
+                ("MAIN_SERVICE_TIME", "service_due_in_days"),
+                ("OIL_SERVICE_TIME", "oil_service_due_in_days"),
+            ):
+                days = _mf_number(
+                    m.get(key),
+                    ("days", "remainingDays", "daysRemaining", "value", "time"),
+                )
+                if days is not None and -3650 <= days <= 3650:
+                    setattr(d, attr, int(round(days)))
 
         # v2.2.1 Phase 8 PR #5 — cross-brand car_type derivation.
         # Porsche PPA doesn't ship a direct `carType` enum — derive
