@@ -42,6 +42,21 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **vw.de channel now delivers electric range (and fresher SoC/odometer) on ID./MEB cars.** The
+  vw.de charging and maintenance reads were the only live-status calls sent without the per-platform
+  `gdc` parameter and VCF host, so on ID.x/MEB cars VW's backend returned no live body for them — the
+  electric-range sensor stayed empty and SoC/odometer fell back to the slower EU Data Act portal feed.
+  Those reads now carry the same `gdc` + host the already-working warning-lights read uses, so the
+  vw.de channel supplies range, SoC and odometer directly (#1357).
+
+### Added
+- **Test cohort: a measurements-range + usable-capacity probe (diagnostics only).** For opt-in test
+  cohort members, the vw.de channel now also probes the `measurements` job (electric / AdBlue /
+  combustion / total range) for firmware that ships range only there, and reads usable battery
+  capacity from the existing State-of-Health body. It records into diagnostics only — no sensor is
+  fed until a live capture confirms the field — so nothing changes for your entities.
+
 ## [4.7.3] - 2026-09-09 — Porsche login clarity + finding the command gate on newer VW cars
 
 ### Fixed
