@@ -106,6 +106,42 @@ def build_warninglights_url(vin: str, gdc: str | None = None) -> str:
     )
 
 
+def build_charging_url(vin: str, gdc: str | None = None) -> str:
+    """Live charging + battery status (``charging/status``).
+
+    #1357 — carries ``gdc`` + the live VCF host, exactly like the warning-lights
+    read (and the myVolkswagen web app / the other vw.de-reading integration).
+    WITHOUT the ``gdc`` the WeConnect proxy returns no live charging body for
+    MEB/ID.x cars: verified on an ID.3 (#1357) whose warning-lights read — WITH the
+    gdc — populates, while the param-less charging read yielded nothing, so SoC and
+    ``cruisingRangeElectric_km`` fell back to the stale EU-Data-Act portal feed and
+    the electric-range sensor stayed empty. ``gdc`` selects the global-data-centre
+    per platform (:func:`gdc_for_backend`); None keeps the WeConnect default.
+    """
+    return build_authproxy_url(
+        f"vehicles/{vin}/charging/status",
+        realm=_REALM_WECONNECT,
+        resource_host=_HOST_VCF_LIVE,
+        gdc=gdc or _GDC_WCAR,
+    )
+
+
+def build_maintenance_url(vin: str, gdc: str | None = None) -> str:
+    """Service / maintenance status (``maintenance/status``).
+
+    #1357 — ``vw-de`` realm, but the myVolkswagen web app (and the other
+    vw.de-reading integration) send ``gdc`` + the live VCF host here too; without
+    them the read yields no odometer / service-interval body for MEB/ID.x cars, so
+    those fields fell back to the portal feed exactly like the charging read.
+    """
+    return build_authproxy_url(
+        f"vehicles/{vin}/maintenance/status",
+        realm=_REALM_VWDE,
+        resource_host=_HOST_VCF_LIVE,
+        gdc=gdc or _GDC_WCAR,
+    )
+
+
 def build_parkingposition_url(vin: str, gdc: str | None = None) -> str:
     """Last-parked GPS position (``parkingposition``) — EXPERIMENTAL / UNCONFIRMED.
 
@@ -275,6 +311,142 @@ def parse_usable_battery_capacity(body: object) -> float | None:
     if 1 < val <= 300:
         return round(val, 1)
     return None
+
+
+# ── #1357 measurements / range probe (EXPERIMENTAL / UNCONFIRMED) ────────────
+# Some pure-EV ID.x firmware ships the electric range ONLY under
+# ``measurements.rangeStatus.value.electricRange`` (NOT under the charging job's
+# ``cruisingRangeElectric_km``) — which is why a portal-only ID.3 (#1357, Ra72xx)
+# surfaces a null electric range while the CARIAD BFF, which reads the measurements
+# fallback (vw_eu.py:3834), shows it. The charging/status body the authproxy already
+# fetches carries NO ``measurements`` block, so filling that gap needs a separate
+# ``selectivestatus?jobs=measurements`` read. Whether the attestation-free vw.de
+# reverse-proxy passes that job is UNCONFIRMED (same allowlist risk as the
+# parkingposition / SoH probes) → it ships behind the opt-in test cohort, fail-soft,
+# DIAGNOSTICS-ONLY (the raw body is captured redacted; no entity is fed) until a live
+# capture from the #1357 car confirms the leaf and the allowlist-pass. Candidates
+# ranked app-form-first: (1) the exact BFF form; (2) with fuelStatus for per-engine
+# ranges; (3) a dedicated measurements subpath in case the proxy passes only that.
+_MEASUREMENTS_PROBE_SUBPATHS: tuple[str, ...] = (
+    "selectivestatus?jobs=measurements",
+    "selectivestatus?jobs=fuelStatus,measurements",
+    "measurements",
+)
+
+# Engine-``type`` buckets — mirror vw_eu.py:3769-3770 so the authproxy parser maps a
+# per-engine range by TYPE (primary != electric forever) exactly like the BFF.
+_ELECTRIC_ENGINE_TYPES = frozenset({"electric", "ev"})
+_COMBUSTION_ENGINE_TYPES = frozenset(
+    {"gasoline", "petrol", "diesel", "gas", "cng", "lpg"}
+)
+
+
+def build_measurements_url(vin: str, subpath: str, gdc: str | None = None) -> str:
+    """One candidate vw.de measurements/range probe URL — EXPERIMENTAL/UNCONFIRMED.
+
+    Same recipe as the SoH / parkingposition probes (WeConnect realm + live VCF host
+    + per-platform ``gdc``); *subpath* is one of :data:`_MEASUREMENTS_PROBE_SUBPATHS`
+    and may carry its own ``?jobs=…`` query, merged AFTER the proxy's own params so
+    the URL stays single-``?``. The BFF form the app uses is
+    ``GET /vehicle/v1/vehicles/{vin}/selectivestatus?jobs=measurements`` (Play-
+    Integrity-walled); this probes whether the attestation-free proxy serves it.
+    """
+    base_path, _, query = subpath.partition("?")
+    url = build_authproxy_url(
+        f"vehicles/{vin}/{base_path}",
+        realm=_REALM_WECONNECT,
+        resource_host=_HOST_VCF_LIVE,
+        gdc=gdc or _GDC_WCAR,
+    )
+    if query:
+        url += ("&" if "?" in url else "?") + query
+    return url
+
+
+def _range_km(value: object) -> int | None:
+    """Coerce a CARIAD range leaf to an int km, or None.
+
+    Handles the BFF's dual form (vw_eu.py:3804-3805): a scalar km value OR a wrapped
+    ``{"distanceInKm": int}`` (the shape Škoda / some firmwares use). Rejects bools
+    and non-numeric junk; a plausible non-negative range is rounded to int. 0 is a
+    legitimate reading (empty tank / flat battery), unlike a SoH percentage.
+    """
+    if isinstance(value, dict):
+        value = value.get("distanceInKm")
+    if isinstance(value, bool):  # bool is an int subclass
+        return None
+    if isinstance(value, (int, float)):
+        km = int(round(value))
+        return km if km >= 0 else None
+    return None
+
+
+def parse_range_measurements(body: object) -> dict[str, int]:
+    """Extract range leaves from a vw.de ``selectivestatus?jobs=measurements`` body.
+
+    Mirrors the CARIAD-BFF range mapping (vw_eu.py:3772-3847) but returns only the
+    leaves actually present, WITHOUT choosing a headline range (that is the channel
+    merge's job). Because the vw.de proxy envelope is UNCONFIRMED and may wrap the
+    payload differently than the BFF, this WALKS the body for every ``rangeStatus``
+    block — the ``measurements`` one and the ``fuelStatus`` one may both be present —
+    and reads the known wire keys from each (first-found wins), a tolerant approach
+    identical to :func:`parse_battery_health`.
+
+    Leaves (exact BFF wire keys):
+      * ``rangeStatus.value.electricRange`` and a per-engine
+        ``primary/secondaryEngine{type,remainingRange_km}`` typed electric
+        → ``electric_range_km``   (#1357 item 1)
+      * ``dieselRange`` / ``gasolineRange`` (scalar or ``{distanceInKm}``), or a
+        combustion-typed engine's ``remainingRange_km`` → ``combustion_range_km``
+      * ``totalRange_km`` → ``total_range_km``
+      * ``adBlueRange`` → ``adblue_range_km``   (#1357 item 2)
+
+    Returns ``{}`` when nothing usable is found — a degraded 200 must feed no entity.
+    """
+    blocks: list[dict[str, Any]] = []
+
+    def _collect(node: object) -> None:
+        if isinstance(node, dict):
+            for key, val in node.items():
+                if key == "rangeStatus" and isinstance(val, dict):
+                    inner = val.get("value")
+                    blocks.append(inner if isinstance(inner, dict) else val)
+                _collect(val)
+        elif isinstance(node, list):
+            for item in node:
+                _collect(item)
+
+    _collect(body)
+
+    out: dict[str, int] = {}
+    for rs in blocks:
+        # fuelStatus form: per-engine, mapped by TYPE not by position.
+        for engine_key in ("primaryEngine", "secondaryEngine"):
+            engine = rs.get(engine_key)
+            if not isinstance(engine, dict):
+                continue
+            etype = str(engine.get("type") or "").lower()
+            km = _range_km(engine.get("remainingRange_km"))
+            if km is None:
+                continue
+            if etype in _ELECTRIC_ENGINE_TYPES:
+                out.setdefault("electric_range_km", km)
+            elif etype in _COMBUSTION_ENGINE_TYPES:
+                out.setdefault("combustion_range_km", km)
+        # measurements form: named scalar leaves (first-found wins).
+        for leaf, field_name in (
+            ("electricRange", "electric_range_km"),
+            ("dieselRange", "combustion_range_km"),
+            ("gasolineRange", "combustion_range_km"),
+            ("totalRange_km", "total_range_km"),
+            ("adBlueRange", "adblue_range_km"),
+        ):
+            if field_name in out or leaf not in rs:
+                continue
+            km = _range_km(rs.get(leaf))
+            if km is not None:
+                out[field_name] = km
+    return out
 
 
 def build_transactionhistory_url(vin: str, gdc: str | None = None) -> str:
