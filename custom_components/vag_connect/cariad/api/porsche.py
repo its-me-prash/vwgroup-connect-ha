@@ -119,81 +119,39 @@ _MEASUREMENTS = (
 )
 
 
-# ── b23 (competitor-triage ADOPT #1) — fail-soft `mf` value coercion ──────────
+# ── b23 (competitor-triage ADOPT #1) — wire already-fetched `mf` fields ──────
 # porsche.py already REQUESTS the full mf set above but ``get_status`` dropped
 # the windows / spoiler / charge-flap / service-flap / parking-brake / parking-
 # light / oil-level / service-time measurements. The helpers below wire them
 # onto VehicleData fields that already drive entities for other brands.
 #
-# INNER-VALUE SHAPES ARE NOT LIVE-VERIFIED. The b20 androguard pass confirmed
-# each measurement KEY and its ``$$serializer`` class exists but did NOT dump
-# the member field names inside each value class. The OPEN_STATE_* family
-# reuses the ``openState`` key already proven by the shipped door/lid/sunroof
-# parsing in ``get_status``; the four non-open-state measurements go through
-# ``_mf_flag`` / ``_mf_number`` which try a set of candidate inner keys and
-# return ``None`` on anything unrecognised — so a wrong guess degrades to
-# "unknown", never a crash or a false reading. Tighten the candidate keys
-# against one real Taycan/Panamera capture when it lands.
-_OPEN_TOKENS = frozenset({"OPEN", "OPENED", "AJAR", "TILTED", "VENTED"})
-_CLOSED_TOKENS = frozenset({"CLOSED", "CLOSE", "SHUT"})
+# INNER-VALUE SHAPES — GROUNDED against a REAL Taycan mf capture (a public CJNE
+# ha-porscheconnect issue paste, corroborated across every measurement in it and
+# matching CJNE's own parsing). The open-state family is ``{"isOpen": bool}``
+# (an earlier revision guessed an ``openState`` STRING from the androguard enum
+# names — wrong; the enum dump gives the KEYS, not the value field names), and
+# parking brake/light are ``{"isOn": bool}``. Service-time is ``{"days": int}``.
+# Only OIL_LEVEL_CURRENT was disabled on that capture, so its inner shape stays
+# unverified behind the defensive numeric reader. Every helper fail-softs to
+# ``None`` so a not-yet-seen shape degrades to "unknown", never a crash or a
+# wrong reading.
 
 
-def _mf_open_bool(value: Any) -> bool | None:
-    """OPEN_STATE_* → bool (True == open), tolerant of case/synonyms.
-
-    Mirrors the shipped ``openState`` door parsing; ``None`` when the value
-    isn't a dict, carries no ``openState`` string, or carries one this doesn't
-    recognise (→ entity stays "unknown" instead of a wrong reading).
-    """
+def _mf_is_open(value: Any) -> bool | None:
+    """OPEN_STATE_* → bool (True == open). Real shape ``{"isOpen": bool}``."""
     if isinstance(value, dict):
-        state = value.get("openState")
-        if isinstance(state, str):
-            s = state.strip().upper()
-            if s in _OPEN_TOKENS:
-                return True
-            if s in _CLOSED_TOKENS:
-                return False
+        is_open = value.get("isOpen")
+        if isinstance(is_open, bool):
+            return is_open
     return None
 
 
-def _mf_open_str(value: Any) -> str | None:
-    """OPEN_STATE_* → the raw ``openState`` string (for the plug-flap *string*
-    fields), or ``None`` when absent/blank/non-dict."""
+def _mf_is_on(value: Any) -> bool | None:
+    """PARKING_BRAKE / PARKING_LIGHT → bool. Real shape ``{"isOn": bool}``."""
     if isinstance(value, dict):
-        state = value.get("openState")
-        if isinstance(state, str) and state.strip():
-            return state
-    return None
-
-
-def _mf_flag(
-    value: Any,
-    candidate_keys: tuple[str, ...],
-    true_tokens: frozenset[str],
-    false_tokens: frozenset[str],
-) -> bool | None:
-    """Fail-soft bool from a measurement whose inner shape isn't live-verified.
-
-    A bare bool value is taken as-is; otherwise the first present candidate
-    inner key is read — a bool as-is, a string matched case-insensitively
-    against the token sets. ``None`` on anything unrecognised.
-    """
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, dict):
-        for key in candidate_keys:
-            if key not in value:
-                continue
-            inner = value[key]
-            if isinstance(inner, bool):
-                return inner
-            if isinstance(inner, str):
-                s = inner.strip().upper()
-                if s in true_tokens:
-                    return True
-                if s in false_tokens:
-                    return False
-            return None  # recognised key, unrecognised value → "unknown"
+        is_on = value.get("isOn")
+        if isinstance(is_on, bool):
+            return is_on
     return None
 
 
@@ -512,12 +470,13 @@ class PorscheClient:
             # These keys were requested all along (see ``_MEASUREMENTS``) but
             # the parser mapped none of them. Pure wiring onto VehicleData
             # fields that already drive entities for other brands; no new
-            # request/auth. Inner shapes fail-soft (see the module helpers).
+            # request/auth. Inner shapes grounded on a real Taycan capture
+            # (see the module helpers); OIL_LEVEL stays defensive (unverified).
 
-            # Windows — individual + aggregate. Convention (mirrors
-            # ``doors_individual`` / SEAT-CUPRA ``windows_individual``):
-            # stored True == CLOSED, so a WINDOW-device_class binary_sensor
-            # reports open correctly.
+            # Windows — individual + aggregate. Real shape {"isOpen": bool};
+            # stored True == CLOSED (mirrors doors_individual / SEAT-CUPRA
+            # windows_individual) so a WINDOW-device_class binary_sensor reads
+            # open correctly.
             window_individual: dict[str, bool] = {}
             for key, pos in (
                 ("OPEN_STATE_WINDOW_FRONT_LEFT", "frontLeft"),
@@ -525,7 +484,7 @@ class PorscheClient:
                 ("OPEN_STATE_WINDOW_REAR_LEFT", "rearLeft"),
                 ("OPEN_STATE_WINDOW_REAR_RIGHT", "rearRight"),
             ):
-                is_open = _mf_open_bool(m.get(key))
+                is_open = _mf_is_open(m.get(key))
                 if is_open is not None:
                     window_individual[pos] = not is_open
             if window_individual:
@@ -533,52 +492,41 @@ class PorscheClient:
                 d.windows_open = any(not closed for closed in window_individual.values())
 
             # Spoiler + service hatch (opening binary_sensors).
-            spoiler = _mf_open_bool(m.get("OPEN_STATE_SPOILER"))
+            spoiler = _mf_is_open(m.get("OPEN_STATE_SPOILER"))
             if spoiler is not None:
                 d.spoiler_open = spoiler
-            service_flap = _mf_open_bool(m.get("OPEN_STATE_SERVICE_FLAP"))
+            service_flap = _mf_is_open(m.get("OPEN_STATE_SERVICE_FLAP"))
             if service_flap is not None:
                 d.service_hatch_open = service_flap
 
-            # Charge-port flaps (string state). Porsche dual-port cars (Taycan)
-            # have a LEFT and a RIGHT flap → map LEFT→plug1, RIGHT→plug2 so both
-            # surface; a single-port car leaves plug2 None (never a phantom).
-            # NOTE: this splits the flaps across the two existing plug fields
-            # rather than collapsing both into charging_plug1_flap_state, so a
-            # Scout capture never loses the second flap.
-            flap_left = _mf_open_str(m.get("OPEN_STATE_CHARGE_FLAP_LEFT"))
-            if flap_left is not None:
-                d.charging_plug1_flap_state = flap_left
-            flap_right = _mf_open_str(m.get("OPEN_STATE_CHARGE_FLAP_RIGHT"))
-            if flap_right is not None:
-                d.charging_plug2_flap_state = flap_right
+            # Charge-port flaps → the existing (string) plug-flap state fields.
+            # Porsche dual-port cars (Taycan) have a LEFT and a RIGHT flap →
+            # map LEFT→plug1, RIGHT→plug2 so both surface; a single-port car
+            # leaves plug2 None (never a phantom). The measurement is a bool
+            # ({"isOpen": ...}); render it as the "OPEN"/"CLOSED" string the
+            # plug-flap sensors expect.
+            for flap_key, flap_attr in (
+                ("OPEN_STATE_CHARGE_FLAP_LEFT", "charging_plug1_flap_state"),
+                ("OPEN_STATE_CHARGE_FLAP_RIGHT", "charging_plug2_flap_state"),
+            ):
+                flap_open = _mf_is_open(m.get(flap_key))
+                if flap_open is not None:
+                    setattr(d, flap_attr, "OPEN" if flap_open else "CLOSED")
 
-            # Parking brake + parking light (inner shapes NOT live-verified).
-            parking_brake = _mf_flag(
-                m.get("PARKING_BRAKE"),
-                ("parkingBrake", "parkingBrakeState", "state", "status",
-                 "active", "isActive", "value"),
-                frozenset({"ENGAGED", "APPLIED", "ACTIVE", "ON", "SET", "TRUE"}),
-                frozenset({"RELEASED", "DISENGAGED", "INACTIVE", "OFF",
-                           "UNSET", "FALSE"}),
-            )
+            # Parking brake + parking light — real shape {"isOn": bool}.
+            parking_brake = _mf_is_on(m.get("PARKING_BRAKE"))
             if parking_brake is not None:
                 d.parking_brake_engaged = parking_brake
-            parking_light = _mf_flag(
-                m.get("PARKING_LIGHT"),
-                ("parkingLight", "parkingLightState", "state", "status",
-                 "active", "isActive", "value"),
-                frozenset({"ON", "ACTIVE", "TRUE", "LEFT", "RIGHT", "BOTH"}),
-                frozenset({"OFF", "INACTIVE", "FALSE", "NONE"}),
-            )
+            parking_light = _mf_is_on(m.get("PARKING_LIGHT"))
             if parking_light is not None:
                 d.parking_light = parking_light
 
-            # Engine oil level → percent. OIL_LEVEL_CURRENT/_MAX/_MIN_WARNING
-            # is a triad, so CURRENT is quite likely an absolute value on a
-            # 0..MAX scale rather than a bare percent — normalise against MAX
-            # when that reading is available and isn't itself a 0..100 percent.
-            # NOT live-verified; only ever yields 0..100 or None.
+            # Engine oil level → percent. OIL_LEVEL_CURRENT was DISABLED on the
+            # grounding capture, so its inner shape is still unverified — keep a
+            # defensive reader. OIL_LEVEL_CURRENT/_MAX/_MIN_WARNING is a triad,
+            # so CURRENT may be an absolute value on a 0..MAX scale rather than a
+            # bare percent — normalise against MAX when available and it isn't
+            # itself a 0..100 percent. Only ever yields 0..100 or None.
             _oil_keys = ("percent", "percentage", "currentValue", "value",
                          "level", "current")
             oil_cur = _mf_number(m.get("OIL_LEVEL_CURRENT"), _oil_keys)
