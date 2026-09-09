@@ -760,6 +760,21 @@ _MAPPED_UUIDS: frozenset[str] = frozenset({
     "30cc36fd-71ca-3c09-9296-e94ebd47bd2b",  # odometer fallback
 })
 
+# #1195 (hangout6690, ID.3) — the EU Data Act portal ships TWO
+# ``battery_state_report.soc`` points under DIFFERENT content-UUIDs: the live SoC
+# and a "SoC at charge start" snapshot (confirmed against the official EU Data Act
+# data dictionary, Continuous Data V6.0). The charge-start leaf is only updated —
+# and re-stamped with a fresh capture time — when a charging session BEGINS, so
+# the freshness resolver lets its stale value win the live SoC right after a
+# charge starts (his car: charge-start 37% beating the live 24%). These UUIDs are
+# the known charge-start-SoC datums; the walker remaps them onto a distinct leaf
+# so they never compete for the live ``battery_state_report.soc``. The live SoC
+# UUID (506cb83e) keeps the canonical leaf and wins. More UUIDs can be added here
+# as reporters surface them; inert for any car that never ships this UUID.
+_CHARGE_START_SOC_UUIDS: frozenset[str] = frozenset({
+    "93b55324-6628-36df-8f76-8eba797fc59c",  # "SoC at charge start" (#1195)
+})
+
 # #1022 — charge_power is emitted under the SAME dataFieldName
 # (battery_state_report.charge_power) by several dict UUIDs with DIFFERENT units,
 # so the UUID (not the value's fractional part) is the true scale discriminator.
@@ -1051,6 +1066,20 @@ def _walk_fields(
                         break
             # data-point shape: {dataFieldName|name: X, value: Y}
             fname = node.get("dataFieldName") or node.get("name")
+            # #1195 — a battery_state_report.soc point keyed by a known
+            # "SoC at charge start" UUID must NOT feed the live-SoC pool (its stale
+            # value is re-stamped fresh at charge start and would out-freshen the
+            # live reading). Remap it onto a distinct leaf: the value is still kept
+            # (never suppressed), just no longer mistaken for the live SoC, so the
+            # live battery_state_report.soc (UUID 506cb83e) wins cleanly.
+            _sc_key = node.get("key")
+            if (
+                isinstance(fname, str)
+                and fname.strip().lower() == "battery_state_report.soc"
+                and isinstance(_sc_key, str)
+                and _sc_key.strip().lower() in _CHARGE_START_SOC_UUIDS
+            ):
+                fname = "battery_state_report.soc_at_charge_start"
             if fname is not None and "value" in node:
                 add(fname, node.get("value"), ts, ts_real, ts_inh)
                 # v2.17.4/v2.17.5 — when the leaf name is a GENERIC token, also key
