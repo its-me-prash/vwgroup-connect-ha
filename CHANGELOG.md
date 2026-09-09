@@ -61,6 +61,11 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
   combustion / total range) for firmware that ships range only there, and reads usable battery
   capacity from the existing State-of-Health body. It records into diagnostics only — no sensor is
   fed until a live capture confirms the field — so nothing changes for your entities.
+- **More Porsche vehicle data: windows, spoiler, charge/service flaps, parking brake & light, oil
+  level and service interval.** Porsche already fetched these `mf` measurements but the parser
+  dropped them; they're now wired onto the same sensors other brands use. Inner-value shapes are
+  grounded against a real Taycan capture and every reader fail-softs to "unknown" on an unexpected
+  shape (#1370).
 
 ## [4.7.3] - 2026-09-09 — Porsche login clarity + finding the command gate on newer VW cars
 
