@@ -42,6 +42,25 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+## [4.7.3] - 2026-09-09 — Porsche login clarity + finding the command gate on newer VW cars
+
+### Fixed
+- **Porsche login no longer says "wrong password" when that isn't the problem.** After the password
+  step, Porsche's identity provider sometimes renders a captcha/consent wall instead of signing you
+  in. The setup dialog was labelling that as "Email address or password incorrect" even with
+  correct credentials — it now tells the two apart and shows an honest, actionable message about the
+  wall it actually hit, so you're not chasing a password that was fine all along (#1337).
+
+### Added
+- **Newer VW cars (MBB_ODP): a read-only diagnostic that looks for the modern command gate.** On
+  some newer VW cars the classic Car-Net command service is switched off at the backend — you may
+  see MBB commands unavailable while reads keep working. VW's own app reads its command permissions
+  from a newer endpoint on a different host instead. For members of the opt-in test cohort, the
+  integration now quietly checks whether that newer endpoint answers on affected cars and records
+  only the result (an HTTP status, no VIN/token/data) in the diagnostics file. Nothing is sent to
+  the car and nothing changes — it's purely how we find out whether commands can be brought back for
+  these cars (#584). Off unless you join the test cohort.
+
 ## [4.7.2] - 2026-09-08 — No more phantom "battery 0%", richer vw.de charging data
 
 ### Fixed
