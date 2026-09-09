@@ -20,6 +20,10 @@ import json
 from unittest.mock import MagicMock
 
 from custom_components.vag_connect.cariad.auth.porsche import PorscheAuth
+from custom_components.vag_connect.cariad.exceptions import (
+    AuthenticationError,
+    PorscheLoginWallError,
+)
 
 _CB = "my-porsche-app://auth0/callback"
 _PW_URL = "https://identity.porsche.com/u/login/password?state=xyz"
@@ -200,3 +204,38 @@ class TestAculScreenName:
             "<html>nothing</html>",
         )
         assert name is None
+
+
+class TestPageMarker:
+    """b23 (#1337) — the real v4.7.2 wall is a rendered 200 at my.porsche.com,
+    not an Auth0 ACUL screen. A secret-free page marker (title + keyword flags)
+    is logged so the next capture reveals what that page actually is."""
+
+    def test_extracts_title_and_keyword_markers(self) -> None:
+        html = (
+            "<html><head><title>  Porsche ID – Verify  </title></head>"
+            "<body>please solve the captcha to continue</body></html>"
+        )
+        marker = PorscheAuth._page_marker(html)
+        assert "Porsche ID" in marker
+        assert "captcha" in marker
+        assert "verify" in marker
+
+    def test_no_title_or_markers(self) -> None:
+        assert PorscheAuth._page_marker("<html><body>ok</body></html>") == "no title/markers"
+
+    def test_empty_html_does_not_crash(self) -> None:
+        assert PorscheAuth._page_marker("") == "no title/markers"
+
+    def test_title_is_length_capped(self) -> None:
+        long_title = "x" * 500
+        marker = PorscheAuth._page_marker(f"<title>{long_title}</title>")
+        # title value is capped at 80 chars (plus the "title=" wrapper/quotes)
+        assert len(marker) < 120
+
+
+def test_login_wall_error_is_authentication_error_subclass() -> None:
+    """Ordering guard: config_flow catches PorscheLoginWallError BEFORE the
+    generic AuthenticationError, so it must be a subclass (else the specific
+    catch is dead code and the generic one wins → back to 'wrong password')."""
+    assert issubclass(PorscheLoginWallError, AuthenticationError)

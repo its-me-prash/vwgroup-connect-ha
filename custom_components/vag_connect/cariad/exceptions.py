@@ -434,6 +434,27 @@ class PorscheCaptchaRequiredError(AuthenticationError):
         self.code_verifier = code_verifier
 
 
+class PorscheLoginWallError(AuthenticationError):
+    """b23 (#1337, @Hollywoodchaos + @mps222 on v4.7.2) — the Porsche login got
+    *past* credentials (identifier + password were accepted) but the Auth0
+    redirect chain ended on a rendered page instead of an authorization code:
+    a captcha/consent wall the headless flow can't clear (observed at
+    ``my.porsche.com`` after the passkey-enrollment screen was already
+    declined).
+
+    Distinct from the plain ``AuthenticationError`` raised for an actual 401/400
+    on the identifier/password step, so the config flow stops telling these
+    users "email or password incorrect" (their credentials are verified-good)
+    and instead names the real wall — mirroring how ``NorthAmericaAttestation
+    Error`` rescued the VW-NA case. Carries no secret; the message is static."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "Porsche login reached a captcha/consent screen after the password "
+            "step that a headless login cannot complete — credentials are fine."
+        )
+
+
 class PortalInteractionRequiredError(AuthenticationError):
     """v2.15.4 (#527) — the EU Data Act portal login stopped on a step that
     needs a one-time human action in the browser/app, but is NOT a wrong-

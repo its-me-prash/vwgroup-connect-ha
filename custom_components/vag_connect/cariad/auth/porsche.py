@@ -123,7 +123,12 @@ from urllib.parse import parse_qs, urljoin, urlsplit
 
 from aiohttp import ClientTimeout, ClientSession
 
-from ..exceptions import AuthenticationError, PorscheCaptchaRequiredError, TokenExpiredError
+from ..exceptions import (
+    AuthenticationError,
+    PorscheCaptchaRequiredError,
+    PorscheLoginWallError,
+    TokenExpiredError,
+)
 from ..models import TokenSet
 
 _AUTH_TIMEOUT = ClientTimeout(total=30)  # per-request timeout for auth flows
@@ -348,10 +353,13 @@ class PorscheAuth:
         # self-inflicted failure independent of the Porsche One migration.
         code = await self._follow_to_code(location, password_url)
         if not code:
-            raise AuthenticationError(
-                "Porsche auth failed — no authorization code after login "
-                "(a captcha/consent step we do not handle)"
-            )
+            # b23 (#1337) — the identifier + password were ACCEPTED above (a 401/
+            # 400 there already raised the "wrong credentials" error); reaching
+            # here means the redirect chain ended on a rendered wall instead of a
+            # code. Raise the distinct wall error so the config flow stops
+            # mislabelling these verified-good credentials as "email/password
+            # incorrect" (#1337 @Hollywoodchaos/@mps222 both hit exactly that).
+            raise PorscheLoginWallError()
 
         # Step 5: Exchange code for tokens
         return await self._exchange_code(code, verifier)
@@ -412,6 +420,37 @@ class PorscheAuth:
             if segment:
                 return segment
         return None
+
+    @staticmethod
+    def _page_marker(html: str) -> str:
+        """A short, secret-free marker of a rendered wall page.
+
+        b23 (#1337 follow-up) — the real wall on v4.7.2 is a rendered 200 at
+        ``my.porsche.com`` (NOT an Auth0 ACUL screen, so ``_acul_screen_name``
+        returns nothing for it). To learn what that page actually is — an
+        auto-acceptable consent page vs. a genuine bot-check — without logging
+        the body, return only the ``<title>`` text (whitespace-collapsed, capped
+        at 80 chars) plus which recognised wall keywords appear. Never a URL,
+        query, token or form value.
+        """
+        title = ""
+        m = re.search(r"<title[^>]*>(.*?)</title>", html, re.IGNORECASE | re.DOTALL)
+        if m:
+            title = re.sub(r"\s+", " ", m.group(1)).strip()[:80]
+        markers = [
+            kw for kw in (
+                "captcha", "recaptcha", "hcaptcha", "consent", "authorize",
+                "verify", "robot", "challenge", "forbidden", "access denied",
+                "blocked", "cookie",
+            )
+            if kw in html.lower()
+        ]
+        parts = []
+        if title:
+            parts.append(f"title={title!r}")
+        if markers:
+            parts.append("markers=" + ",".join(markers))
+        return "; ".join(parts) if parts else "no title/markers"
 
     async def _follow_to_code(self, location: str, base_url: str) -> str | None:
         """Walk the redirect chain from the password POST to the auth code.
@@ -489,10 +528,11 @@ class PorscheAuth:
                     )
                     return None
                 _LOGGER.debug(
-                    "Porsche auth: hop returned HTTP %s — rendered ACUL screen "
-                    "'%s' (host=%s) we do not handle; no authorization code. The "
-                    "screen name is what grounding a fix for it would need.",
-                    resp.status, screen or "unknown", urlsplit(target).hostname or "?",
+                    "Porsche auth: hop returned HTTP %s — rendered screen '%s' "
+                    "(host=%s; %s) we do not handle; no authorization code. The "
+                    "screen name/marker is what grounding a fix for it needs.",
+                    resp.status, screen or "unknown",
+                    urlsplit(target).hostname or "?", self._page_marker(html),
                 )
                 return None
         return None
