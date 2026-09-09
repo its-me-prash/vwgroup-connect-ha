@@ -42,7 +42,30 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **vw.de channel now delivers electric range (and fresher SoC/odometer) on ID./MEB cars.** The
+  vw.de charging and maintenance reads were the only live-status calls sent without the per-platform
+  `gdc` parameter and VCF host, so on ID.x/MEB cars VW's backend returned no live body for them — the
+  electric-range sensor stayed empty and SoC/odometer fell back to the slower EU Data Act portal feed.
+  Those reads now carry the same `gdc` + host the already-working warning-lights read uses, so the
+  vw.de channel supplies range, SoC and odometer directly (#1357).
+- **Porsche electric range, odometer and service intervals now actually populate.** The Porsche
+  `measurements` reads were pulling the inner value under the wrong key names (guessed from the
+  measurement enum names), so battery range, the odometer and the service intervals came through
+  empty. Corrected against a real Taycan capture — they now read the `kilometers` member the backend
+  actually sends (E_RANGE, MILEAGE and the service ranges).
+
 ### Added
+- **Test cohort: a measurements-range + usable-capacity probe (diagnostics only).** For opt-in test
+  cohort members, the vw.de channel now also probes the `measurements` job (electric / AdBlue /
+  combustion / total range) for firmware that ships range only there, and reads usable battery
+  capacity from the existing State-of-Health body. It records into diagnostics only — no sensor is
+  fed until a live capture confirms the field — so nothing changes for your entities.
+- **More Porsche vehicle data: windows, spoiler, charge/service flaps, parking brake & light, oil
+  level and service interval.** Porsche already fetched these `mf` measurements but the parser
+  dropped them; they're now wired onto the same sensors other brands use. Inner-value shapes are
+  grounded against a real Taycan capture and every reader fail-softs to "unknown" on an unexpected
+  shape (#1370).
 - **Choose which data source wins per car (EU Data Act portal vs live vw.de).** When a car reads over
   both the EU Data Act portal and the live vw.de channel, the portal (a batched feed) wins every
   shared field by default — which on some cars means slower, occasionally stale data even though the

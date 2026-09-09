@@ -83,27 +83,30 @@ _PORSCHE_OVERVIEW_HAPPY: dict = {
     "vin": "WP0ZZZ99ZTS300001",
     "modelName": "Taycan 4S",
     "modelType": {"year": 2024, "engine": "BEV"},
+    # Value member names are the REAL ones from a Taycan mf capture (public CJNE
+    # ha-porscheconnect paste): isOpen / isLocked / kilometers / location string
+    # — not the openState/lockState/distance/mileage/lat+long the parser once
+    # guessed from the androguard enum names.
     "measurements": [
         {"key": "BATTERY_LEVEL", "value": {"percent": 78}},
-        {"key": "E_RANGE", "value": {"distance": 312}},
-        {"key": "MILEAGE", "value": {"mileage": 14250}},
+        {"key": "E_RANGE", "value": {"kilometers": 312}},
+        {"key": "MILEAGE", "value": {"kilometers": 14250}},
         {"key": "CHARGING_SUMMARY", "value": {
-            "status": "NOT_CHARGING",
-            "plugState": "DISCONNECTED",
-            "targetSoc": 80,
+            "status": "NOT_PLUGGED",
+            "targetSoC": 80,
         }},
-        {"key": "LOCK_STATE_VEHICLE", "value": {"lockState": "LOCKED"}},
-        {"key": "OPEN_STATE_DOOR_FRONT_LEFT",  "value": {"openState": "CLOSED"}},
-        {"key": "OPEN_STATE_DOOR_FRONT_RIGHT", "value": {"openState": "CLOSED"}},
-        {"key": "OPEN_STATE_DOOR_REAR_LEFT",   "value": {"openState": "CLOSED"}},
-        {"key": "OPEN_STATE_DOOR_REAR_RIGHT",  "value": {"openState": "CLOSED"}},
-        {"key": "OPEN_STATE_LID_FRONT", "value": {"openState": "CLOSED"}},
-        {"key": "OPEN_STATE_LID_REAR",  "value": {"openState": "CLOSED"}},
-        {"key": "OPEN_STATE_SUNROOF",   "value": {"openState": "CLOSED"}},
-        {"key": "GPS_LOCATION", "value": {"latitude": 47.3769, "longitude": 8.5417}},
-        {"key": "MAIN_SERVICE_RANGE", "value": {"distance": 18000}},
-        {"key": "OIL_SERVICE_RANGE",  "value": {"distance": 12500}},
-        {"key": "CLIMATIZER_STATE", "value": {"climatisationState": "OFF"}},
+        {"key": "LOCK_STATE_VEHICLE", "value": {"isLocked": True}},
+        {"key": "OPEN_STATE_DOOR_FRONT_LEFT",  "value": {"isOpen": False}},
+        {"key": "OPEN_STATE_DOOR_FRONT_RIGHT", "value": {"isOpen": False}},
+        {"key": "OPEN_STATE_DOOR_REAR_LEFT",   "value": {"isOpen": False}},
+        {"key": "OPEN_STATE_DOOR_REAR_RIGHT",  "value": {"isOpen": False}},
+        {"key": "OPEN_STATE_LID_FRONT", "value": {"isOpen": False}},
+        {"key": "OPEN_STATE_LID_REAR",  "value": {"isOpen": False}},
+        {"key": "OPEN_STATE_SUNROOF",   "value": {"isOpen": False}},
+        {"key": "GPS_LOCATION", "value": {"location": "47.3769,8.5417", "direction": 90}},
+        {"key": "MAIN_SERVICE_RANGE", "value": {"kilometers": 18000}},
+        {"key": "OIL_SERVICE_RANGE",  "value": {"kilometers": 12500}},
+        {"key": "CLIMATIZER_STATE", "value": {"isOn": False}},
     ],
 }
 
@@ -127,7 +130,7 @@ class TestPorscheParserHappy:
         assert d.battery_soc == 78
         assert d.range_km == 312
         assert d.odometer_km == 14250
-        assert d.charging_state == "NOT_CHARGING"
+        assert d.charging_state == "NOT_PLUGGED"
         assert d.is_charging is False
         assert d.plug_connected is False
         assert d.target_soc == 80
