@@ -193,6 +193,7 @@
       "invalid_credentials": "Email address or password incorrect.",
       "upstream_unavailable": "VW backend temporarily unavailable. This is a server-side issue at VW, not a credentials problem. Please wait 5–15 minutes and try again. Do NOT reconfigure the integration.",
       "na_signin_attestation": "Your email and password are fine — Volkswagen North America now blocks this sign-in behind a Google device-attestation check (Play Integrity) that only the official app on a genuine phone can pass. Re-entering your password will not help; this is a VW server-side lock, not a credentials problem. (Tracked: #1165.)",
+      "porsche_login_wall": "Your email and password are fine — the login got past the password step but then landed on a Porsche captcha/consent screen (seen on some accounts at my.porsche.com) that a headless login can't clear. Re-entering your password won't help; this is a Porsche-side wall, not a credentials problem. Try at most once — repeated attempts have locked Porsche accounts. (Tracked: #1337.)",
       "brand_not_dag_eligible": "Selected brand does not support browser login. Use the email + password flow instead.",
       "skoda_qr_retired": "Škoda's passwordless (QR) login was switched off by Volkswagen and no longer works. Go back and choose “Email + Password (legacy)”, then pick Škoda there and sign in with your MyŠkoda email and password.",
       "device_grant_retired": "This brand's app device-login was switched off by the manufacturer and can't be completed automatically anymore — it now needs on-device app verification. Audi: go back and choose “Email + Password”, then set up the read-only EU Data Act Portal, which still works. Porsche: no read-only fallback exists yet (tracked in #1337).",
@@ -211,7 +212,8 @@
       "reconfigure_successful": "Configuration updated successfully.",
       "mbb_not_eligible": "Your vehicle isn't eligible for the MBB durable login — the backend returned \"Unknown user\". This means it's a newer ID / MEB model (ID.3/4/5, e-up, etc.) that was never enrolled in the legacy Car-Net/MBB system, so the durable login + remote commands can't reach it. Use the EU Data Act portal channel (or the Email + Password login) for these vehicles instead. The MBB login is for older Car-Net cars (most PHEV / combustion models).",
       "mbb_fallback_armed": "Backup connection set up. If your Audi's normal connection ever stops accepting remote commands, lock/unlock, climate and charging switch to the backup automatically. Nothing changes day to day.",
-      "no_devicegrant_audi": "No matching Audi found. This backup only applies to an Audi you added with the QR / app login that doesn't already have it. Add your Audi that way first, then come back here."
+      "no_devicegrant_audi": "No matching Audi found. This backup only applies to an Audi you added with the QR / app login that doesn't already have it. Add your Audi that way first, then come back here.",
+      "porsche_login_wall": "Your credentials are fine — the login got past the password step but stopped at a Porsche captcha/consent screen it can't complete automatically (seen at my.porsche.com). This is a Porsche-side wall, tracked in #1337, not a wrong password. Don't retry in a loop — repeated attempts have locked Porsche accounts."
     },
     "progress": {
       "awaiting_browser_login": "Open {verification_uri} in any browser, sign in with your Brand ID account, and confirm the code {user_code}.",

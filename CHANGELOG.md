@@ -42,6 +42,45 @@ Versioning: [Semantic Versioning 2.0.0](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- **vw.de channel now delivers electric range (and fresher SoC/odometer) on ID./MEB cars.** The
+  vw.de charging and maintenance reads were the only live-status calls sent without the per-platform
+  `gdc` parameter and VCF host, so on ID.x/MEB cars VW's backend returned no live body for them — the
+  electric-range sensor stayed empty and SoC/odometer fell back to the slower EU Data Act portal feed.
+  Those reads now carry the same `gdc` + host the already-working warning-lights read uses, so the
+  vw.de channel supplies range, SoC and odometer directly (#1357).
+- **Porsche electric range, odometer and service intervals now actually populate.** The Porsche
+  `measurements` reads were pulling the inner value under the wrong key names (guessed from the
+  measurement enum names), so battery range, the odometer and the service intervals came through
+  empty. Corrected against a real Taycan capture — they now read the `kilometers` member the backend
+  actually sends (E_RANGE, MILEAGE and the service ranges).
+
+### Added
+- **Test cohort: a measurements-range + usable-capacity probe (diagnostics only).** For opt-in test
+  cohort members, the vw.de channel now also probes the `measurements` job (electric / AdBlue /
+  combustion / total range) for firmware that ships range only there, and reads usable battery
+  capacity from the existing State-of-Health body. It records into diagnostics only — no sensor is
+  fed until a live capture confirms the field — so nothing changes for your entities.
+
+## [4.7.3] - 2026-09-09 — Porsche login clarity + finding the command gate on newer VW cars
+
+### Fixed
+- **Porsche login no longer says "wrong password" when that isn't the problem.** After the password
+  step, Porsche's identity provider sometimes renders a captcha/consent wall instead of signing you
+  in. The setup dialog was labelling that as "Email address or password incorrect" even with
+  correct credentials — it now tells the two apart and shows an honest, actionable message about the
+  wall it actually hit, so you're not chasing a password that was fine all along (#1337).
+
+### Added
+- **Newer VW cars (MBB_ODP): a read-only diagnostic that looks for the modern command gate.** On
+  some newer VW cars the classic Car-Net command service is switched off at the backend — you may
+  see MBB commands unavailable while reads keep working. VW's own app reads its command permissions
+  from a newer endpoint on a different host instead. For members of the opt-in test cohort, the
+  integration now quietly checks whether that newer endpoint answers on affected cars and records
+  only the result (an HTTP status, no VIN/token/data) in the diagnostics file. Nothing is sent to
+  the car and nothing changes — it's purely how we find out whether commands can be brought back for
+  these cars (#584). Off unless you join the test cohort.
+
 ## [4.7.2] - 2026-09-08 — No more phantom "battery 0%", richer vw.de charging data
 
 ### Fixed

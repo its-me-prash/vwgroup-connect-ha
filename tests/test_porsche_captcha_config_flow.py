@@ -14,8 +14,12 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from custom_components.vag_connect.cariad.api.porsche import PorscheClient
-from custom_components.vag_connect.cariad.exceptions import PorscheCaptchaRequiredError
-from custom_components.vag_connect.config_flow import _validate_credentials
+from custom_components.vag_connect.cariad.exceptions import (
+    AuthenticationError,
+    PorscheCaptchaRequiredError,
+    PorscheLoginWallError,
+)
+from custom_components.vag_connect.config_flow import _map_error, _validate_credentials
 
 
 class _FakeNonPorscheClient:
@@ -72,3 +76,42 @@ async def test_captcha_required_error_propagates_uncaught():
     ), pytest.raises(PorscheCaptchaRequiredError) as excinfo:
         await _validate_credentials(None, "porsche", "a@b.com", "pw")
     assert excinfo.value.captcha_image == "data:image/svg+xml;base64,X"
+
+
+class TestLoginWallMapping:
+    """b23 (#1337) — a captcha/consent wall PAST the password step must surface
+    as its own error, not the "email/password incorrect" that both v4.7.2
+    reporters saw despite verified-good credentials."""
+
+    @pytest.mark.asyncio
+    async def test_login_wall_maps_to_distinct_error(self) -> None:
+        client = PorscheClient.__new__(PorscheClient)
+        client.authenticate = AsyncMock(side_effect=PorscheLoginWallError())  # type: ignore[method-assign]
+        with patch(
+            "custom_components.vag_connect.cariad.CariadClientFactory.create",
+            return_value=client,
+        ), pytest.raises(ValueError) as excinfo:
+            await _validate_credentials(None, "porsche", "a@b.com", "pw")
+        assert str(excinfo.value) == "porsche_login_wall"
+        # The whole point of the fix: it must NOT be the credentials error.
+        assert str(excinfo.value) != "invalid_credentials"
+
+    @pytest.mark.asyncio
+    async def test_real_wrong_credentials_still_map_to_invalid(self) -> None:
+        """Regression: an actual 401/400 rejection (raised as a plain
+        AuthenticationError) must still say 'email/password incorrect'."""
+        client = PorscheClient.__new__(PorscheClient)
+        client.authenticate = AsyncMock(  # type: ignore[method-assign]
+            side_effect=AuthenticationError("Porsche auth failed — wrong credentials")
+        )
+        with patch(
+            "custom_components.vag_connect.cariad.CariadClientFactory.create",
+            return_value=client,
+        ), pytest.raises(ValueError) as excinfo:
+            await _validate_credentials(None, "porsche", "a@b.com", "pw")
+        assert str(excinfo.value) == "invalid_credentials"
+
+    def test_map_error_recognises_login_wall(self) -> None:
+        assert _map_error("porsche_login_wall") == "porsche_login_wall"
+        assert _map_error("invalid_credentials") == "invalid_credentials"
+        assert _map_error("something_unmapped") == "cannot_connect"

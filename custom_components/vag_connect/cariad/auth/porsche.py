@@ -123,7 +123,12 @@ from urllib.parse import parse_qs, urljoin, urlsplit
 
 from aiohttp import ClientTimeout, ClientSession
 
-from ..exceptions import AuthenticationError, PorscheCaptchaRequiredError, TokenExpiredError
+from ..exceptions import (
+    AuthenticationError,
+    PorscheCaptchaRequiredError,
+    PorscheLoginWallError,
+    TokenExpiredError,
+)
 from ..models import TokenSet
 
 _AUTH_TIMEOUT = ClientTimeout(total=30)  # per-request timeout for auth flows
@@ -348,10 +353,13 @@ class PorscheAuth:
         # self-inflicted failure independent of the Porsche One migration.
         code = await self._follow_to_code(location, password_url)
         if not code:
-            raise AuthenticationError(
-                "Porsche auth failed — no authorization code after login "
-                "(a captcha/consent step we do not handle)"
-            )
+            # b23 (#1337) — the identifier + password were ACCEPTED above (a 401/
+            # 400 there already raised the "wrong credentials" error); reaching
+            # here means the redirect chain ended on a rendered wall instead of a
+            # code. Raise the distinct wall error so the config flow stops
+            # mislabelling these verified-good credentials as "email/password
+            # incorrect" (#1337 @Hollywoodchaos/@mps222 both hit exactly that).
+            raise PorscheLoginWallError()
 
         # Step 5: Exchange code for tokens
         return await self._exchange_code(code, verifier)
@@ -381,6 +389,68 @@ class PorscheAuth:
         if svg_match:
             return svg_match.group(1)
         return None
+
+    @staticmethod
+    def _acul_screen_name(url: str, html: str) -> str | None:
+        """Best-effort identify which Auth0 ACUL screen a rendered 200 is.
+
+        b23 (#1337 follow-up). Prefers the ACUL context's own ``screen.name``
+        (parsed from the base64 ``atob("...")`` blob the hosted pages embed —
+        the same blob ``_extract_captcha_image``/``_skip_passkey_enrollment``
+        read), so a screen is matched by identity rather than only by URL path;
+        falls back to the first path segment after ``/u/``
+        (``/u/passkey-enrollment`` → ``"passkey-enrollment"``). Returns ``None``
+        when neither is available — the caller treats that as an unidentified
+        wall, exactly as before this helper existed.
+        """
+        match = re.search(r'atob\("([A-Za-z0-9+/=]+)"', html)
+        if match:
+            try:
+                context = json.loads(base64.b64decode(match.group(1)).decode("utf-8"))
+            except (ValueError, json.JSONDecodeError):
+                context = None
+            if isinstance(context, dict):
+                screen = context.get("screen")
+                name = screen.get("name") if isinstance(screen, dict) else None
+                if isinstance(name, str) and name:
+                    return name
+        path = urlsplit(url).path
+        if "/u/" in path:
+            segment = path.split("/u/", 1)[1].split("/", 1)[0].split("?", 1)[0]
+            if segment:
+                return segment
+        return None
+
+    @staticmethod
+    def _page_marker(html: str) -> str:
+        """A short, secret-free marker of a rendered wall page.
+
+        b23 (#1337 follow-up) — the real wall on v4.7.2 is a rendered 200 at
+        ``my.porsche.com`` (NOT an Auth0 ACUL screen, so ``_acul_screen_name``
+        returns nothing for it). To learn what that page actually is — an
+        auto-acceptable consent page vs. a genuine bot-check — without logging
+        the body, return only the ``<title>`` text (whitespace-collapsed, capped
+        at 80 chars) plus which recognised wall keywords appear. Never a URL,
+        query, token or form value.
+        """
+        title = ""
+        m = re.search(r"<title[^>]*>(.*?)</title>", html, re.IGNORECASE | re.DOTALL)
+        if m:
+            title = re.sub(r"\s+", " ", m.group(1)).strip()[:80]
+        markers = [
+            kw for kw in (
+                "captcha", "recaptcha", "hcaptcha", "consent", "authorize",
+                "verify", "robot", "challenge", "forbidden", "access denied",
+                "blocked", "cookie",
+            )
+            if kw in html.lower()
+        ]
+        parts = []
+        if title:
+            parts.append(f"title={title!r}")
+        if markers:
+            parts.append("markers=" + ",".join(markers))
+        return "; ".join(parts) if parts else "no title/markers"
 
     async def _follow_to_code(self, location: str, base_url: str) -> str | None:
         """Walk the redirect chain from the password POST to the auth code.
@@ -419,15 +489,24 @@ class PorscheAuth:
                     current_base = target
                     location = resp.headers.get("Location", "")
                     continue
-                # A 200 here means Auth0 rendered a page instead of redirecting.
-                # b18 (#1337, live-verified on a real account) — this is not
-                # always a captcha/consent wall: it is often the Auth0 ACUL
-                # passkey-enrollment nudge (``/u/passkey-enrollment``), which is
-                # just an extra screen, not a dead end. Decline it the same way
-                # CJNE/pyporscheconnectapi does and keep following the chain.
-                # A genuine captcha (or anything else rendered) still ends here.
-                if "/u/passkey-enrollment" in urlsplit(target).path:
-                    html = await resp.text()
+                # A 200 here means Auth0 rendered an ACUL screen instead of
+                # redirecting. b18 (#1337, live-verified) established that one
+                # such screen is benign — the passkey-enrollment nudge — which we
+                # decline and keep going. b23 (#1337 follow-up) generalises the
+                # *diagnosis* of every other 200: parse the ACUL context once,
+                # name the screen, and branch on it, so a screen we can't clear
+                # is reported by its real name instead of a blanket "captcha/
+                # consent wall" guess — the exact datapoint needed to ground
+                # handling for it later.
+                #
+                # Only the passkey-enrollment decline action is grounded (CJNE
+                # handles that one screen; there is no known decline verb for the
+                # others). We deliberately do NOT invent a decline POST for any
+                # other screen — a wrong action on the one confirmed-working
+                # login path is worse than an honest stop that names the wall.
+                html = await resp.text()
+                screen = self._acul_screen_name(target, html)
+                if screen and "passkey-enrollment" in screen:
                     resumed = await self._skip_passkey_enrollment(target, html)
                     if resumed:
                         _LOGGER.debug(
@@ -436,12 +515,24 @@ class PorscheAuth:
                         current_base = target
                         location = resumed
                         continue
+                    _LOGGER.debug(
+                        "Porsche auth: passkey-enrollment decline did not resume "
+                        "(stale state or unparseable context) — stopping",
+                    )
+                    return None
+                if self._extract_captcha_image(html):
+                    _LOGGER.debug(
+                        "Porsche auth: hop rendered a CAPTCHA screen (host=%s) — "
+                        "cannot be solved inside the redirect chain; no code",
+                        urlsplit(target).hostname or "?",
+                    )
+                    return None
                 _LOGGER.debug(
-                    "Porsche auth: hop returned HTTP %s (a rendered page, not "
-                    "a redirect, and not a passkey-enrollment screen we could "
-                    "clear) — no authorization code. This is the real captcha/"
-                    "consent wall the headless login cannot clear.",
-                    resp.status,
+                    "Porsche auth: hop returned HTTP %s — rendered screen '%s' "
+                    "(host=%s; %s) we do not handle; no authorization code. The "
+                    "screen name/marker is what grounding a fix for it needs.",
+                    resp.status, screen or "unknown",
+                    urlsplit(target).hostname or "?", self._page_marker(html),
                 )
                 return None
         return None

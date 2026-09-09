@@ -322,15 +322,18 @@ class PorscheClient:
             # 911 Cayenne EV) + PHEV (Cayenne E-Hybrid, Panamera
             # E-Hybrid) join the parity.
             #
-            # PPA measurement keys (verified per pcommit/iccarus +
-            # porsche-connect-cli traces):
-            # - E_RANGE.distance → battery-only range in km
-            # - FUEL_LEVEL.distanceToEmpty → combustion-only range in km
-            #
-            # The existing aggregate range_km keeps its or-fallback
-            # for back-compat (Porsche users on this sensor today
-            # see no change).
-            electric_range = v(m, "E_RANGE", "distance")
+            # PPA measurement keys — CORRECTED against a real Taycan mf capture
+            # (a public CJNE ha-porscheconnect paste, corroborated across every
+            # measurement and matching CJNE's own parsing). The value member is
+            # ``kilometers``, not ``distance``/``mileage``, which those reads
+            # guessed from the androguard enum NAMES — so electric range and the
+            # odometer were never actually populated on a real Porsche.
+            #   - E_RANGE.kilometers → battery-only range in km
+            #   - MILEAGE.kilometers → odometer
+            # FUEL_LEVEL was absent on that BEV capture, so its combustion-range
+            # / percent members stay as-is (still unverified) rather than being
+            # changed on a guess.
+            electric_range = v(m, "E_RANGE", "kilometers")
             combustion_range = v(m, "FUEL_LEVEL", "distanceToEmpty")
             if isinstance(electric_range, (int, float)):
                 d.electric_range_km = int(electric_range)
@@ -338,7 +341,7 @@ class PorscheClient:
                 d.combustion_range_km = int(combustion_range)
             d.range_km      = electric_range or combustion_range
             d.fuel_level    = v(m, "FUEL_LEVEL", "percent")
-            d.odometer_km   = drop_odometer_sentinel(v(m, "MILEAGE", "mileage"))
+            d.odometer_km   = drop_odometer_sentinel(v(m, "MILEAGE", "kilometers"))
 
             # Charging
             ch = m.get("CHARGING_SUMMARY", {})
@@ -348,11 +351,17 @@ class PorscheClient:
                 d.is_charging = d.charging_state.upper() in (
                     "CHARGING", "CHARGING_AC", "CHARGING_DC"
                 )
-            d.charging_power_kw = v(ch, "chargingPower")
-            plug_state = v(ch, "plugState")
-            if isinstance(plug_state, str):
-                d.plug_connected = plug_state.upper() == "CONNECTED"
-                d.plug_state = plug_state
+            # chargingPower lives on CHARGING_RATE, not CHARGING_SUMMARY (real
+            # capture: CHARGING_RATE={"chargingPower","chargingRate"}) — the old
+            # read from CHARGING_SUMMARY never returned a value.
+            d.charging_power_kw = v(m, "CHARGING_RATE", "chargingPower")
+            # Plug — CHARGING_SUMMARY.plugState does not exist. The real capture
+            # carries a combined status enum ("CHARGING"/"NOT_PLUGGED"/…) on
+            # CHARGING_SUMMARY.status; derive plug-connected from it (a BEV only
+            # reports non-"NOT_PLUGGED" states while the cable is connected).
+            if isinstance(d.charging_state, str):
+                d.plug_connected = d.charging_state.upper() != "NOT_PLUGGED"
+                d.plug_state = d.charging_state
 
             # b19 (CJNE-comparison #3.3) — target-SoC precedence chain ported
             # from CJNE's ``_update_vehicle_data`` (Apache-2.0): which field
@@ -384,43 +393,62 @@ class PorscheClient:
                 target_soc = 100
             d.target_soc = target_soc
 
-            # Lock — v2.0.1 (#131 follow-up): defensive parsing.
-            # Only assign when the source is an actual string; otherwise
-            # leave the dataclass default ``None`` so the entity stays
-            # "unknown" instead of falsely reporting "Unlocked".
-            lock = v(m, "LOCK_STATE_VEHICLE", "lockState")
-            if isinstance(lock, str):
-                d.doors_locked = lock.upper() == "LOCKED"
+            # Lock — real capture: LOCK_STATE_VEHICLE={"isLocked": bool}, not a
+            # ``lockState`` string. Only assign when the bool is actually
+            # present so the entity stays "unknown" rather than "unlocked".
+            lock = v(m, "LOCK_STATE_VEHICLE", "isLocked")
+            if isinstance(lock, bool):
+                d.doors_locked = lock
 
-            # Doors — v2.0.1: only assign when at least one door
-            # actually publishes its openState. PPA sometimes returns
-            # the LOCK_STATE_VEHICLE block but skips the per-door blocks
-            # for a few minutes after wake (observed against Taycan).
+            # Doors / lids / sunroof — real capture: {"isOpen": bool} (not the
+            # ``openState`` string these guessed). Only assign when at least one
+            # door publishes its state; PPA can return LOCK_STATE_VEHICLE but
+            # skip the per-door blocks for a few minutes after wake (Taycan).
             door_states = [
-                v(m, f"OPEN_STATE_DOOR_{pos}", "openState")
+                v(m, f"OPEN_STATE_DOOR_{pos}", "isOpen")
                 for pos in ("FRONT_LEFT", "FRONT_RIGHT", "REAR_LEFT", "REAR_RIGHT")
             ]
-            if any(isinstance(s, str) for s in door_states):
-                d.doors_open = any(
-                    isinstance(s, str) and s.upper() == "OPEN" for s in door_states
-                )
-            d.hood_open   = v(m, "OPEN_STATE_LID_FRONT",  "openState") == "OPEN"
-            d.trunk_open  = v(m, "OPEN_STATE_LID_REAR",   "openState") == "OPEN"
-            d.sunroof_open = v(m, "OPEN_STATE_SUNROOF",   "openState") == "OPEN"
+            if any(isinstance(s, bool) for s in door_states):
+                d.doors_open = any(s is True for s in door_states)
+            hood = v(m, "OPEN_STATE_LID_FRONT", "isOpen")
+            if isinstance(hood, bool):
+                d.hood_open = hood
+            trunk = v(m, "OPEN_STATE_LID_REAR", "isOpen")
+            if isinstance(trunk, bool):
+                d.trunk_open = trunk
+            sunroof = v(m, "OPEN_STATE_SUNROOF", "isOpen")
+            if isinstance(sunroof, bool):
+                d.sunroof_open = sunroof
 
-            # Climate
+            # Climate — real capture: CLIMATIZER_STATE={"isOn": bool,
+            # "targetTemperature": <Kelvin>, ...}, not a ``climatisationState``
+            # string. (targetTemperature is available for a future sensor.)
             clim = m.get("CLIMATIZER_STATE", {})
-            d.climatisation_state  = v(clim, "climatisationState")
-            d.climatisation_active = d.climatisation_state not in (None, "OFF")
+            clim_on = v(clim, "isOn")
+            if isinstance(clim_on, bool):
+                d.climatisation_active = clim_on
+                d.climatisation_state = "ON" if clim_on else "OFF"
 
-            # GPS
+            # GPS — real capture: GPS_LOCATION={"location":"<lat>,<lng>",
+            # "direction":int}, one comma-separated string, not separate
+            # latitude/longitude members.
             gps = m.get("GPS_LOCATION", {})
-            d.latitude  = v(gps, "latitude")
-            d.longitude = v(gps, "longitude")
+            loc = v(gps, "location")
+            if isinstance(loc, str) and "," in loc:
+                lat_str, _, lng_str = loc.partition(",")
+                try:
+                    d.latitude = float(lat_str.strip())
+                    d.longitude = float(lng_str.strip())
+                except ValueError:
+                    pass
+            direction = v(gps, "direction")
+            if isinstance(direction, (int, float)) and not isinstance(direction, bool):
+                d.heading = int(direction)
 
-            # Service
-            d.service_km    = v(m, "MAIN_SERVICE_RANGE", "distance")
-            d.oil_service_km = v(m, "OIL_SERVICE_RANGE", "distance")
+            # Service — real capture: *_SERVICE_RANGE={"kilometers": int}, not
+            # ``distance``.
+            d.service_km    = v(m, "MAIN_SERVICE_RANGE", "kilometers")
+            d.oil_service_km = v(m, "OIL_SERVICE_RANGE", "kilometers")
 
             # ── TPMS ───────────────────────────────────────────────────────
             # b20 (2026-09-08, androguard enum dump of the real

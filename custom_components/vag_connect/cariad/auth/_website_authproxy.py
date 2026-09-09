@@ -93,12 +93,10 @@ _LOGIN_PARAMS: dict[str, str] = {
 _RELATIONS_PATH = (
     "/app/authproxy/vw-de/proxy/v2/users/me/relations?resourceHost=myvw-vum-prod"
 )
-_CHARGING_PATH = (
-    "/app/authproxy/vwag-weconnect/proxy/vehicles/{vin}/charging/status"
-)
-_MAINTENANCE_PATH = (
-    "/app/authproxy/vw-de/proxy/vehicles/{vin}/maintenance/status"
-)
+# charging/status + maintenance/status are built at call time via
+# _authproxy.build_charging_url / build_maintenance_url so they carry the
+# per-platform ``gdc`` + live VCF host (#1357 — the param-less form returned no
+# live body for MEB/ID.x cars).
 
 # Realistic desktop browser identity — the authproxy fronts a public website
 # and is content-negotiation sensitive on the login pages.
@@ -438,6 +436,23 @@ class WebsiteAuthProxyConnector:
         self._soh_probe_tries: int = 0
         self._soh_available: bool = False
         self._soh_subpath: str | None = None
+        # #1357 item 3 — usable (net) pack capacity kWh captured from the SAME SoH
+        # body (parser existed but was never called). DIAGNOSTICS-ONLY: recorded for
+        # the cohort; battery_available_kwh / battery_cap_kwh stay unfed until a live
+        # capture confirms the value across cars.
+        self._soh_capacity_kwh: float | None = None
+
+        # #1357 (Ra72xx) — EXPERIMENTAL measurements/range probe, same opt-in test-
+        # cohort gate as the GPS / SoH probes. Discovers whether the vw.de proxy
+        # serves ``selectivestatus?jobs=measurements`` — the electricRange leaf a
+        # portal-only ID.3 needs (its charging/status body carries no measurements
+        # block), plus AdBlue range for diesels. ``_measurements_subpath`` pins the
+        # first candidate that yields any range leaf. DIAGNOSTICS-ONLY until a #1357
+        # capture confirms the leaf + allowlist-pass — no entity is fed.
+        self.probe_measurements: bool = False
+        self._measurements_probe_tries: int = 0
+        self._measurements_available: bool = False
+        self._measurements_subpath: str | None = None
 
         # #923/#1157 — last outcome of each experimental probe, surfaced in
         # diagnostics so the test cohort can see WHY a probe yielded nothing (a
@@ -455,6 +470,7 @@ class WebsiteAuthProxyConnector:
 
     _POSITION_PROBE_MAX_TRIES = 4
     _SOH_PROBE_MAX_TRIES = 4
+    _MEASUREMENTS_PROBE_MAX_TRIES = 4
 
     def _should_probe_soh(self) -> bool:
         """Whether to attempt the experimental vw.de battery-SoH read this poll.
@@ -483,6 +499,22 @@ class WebsiteAuthProxyConnector:
         return (
             self.probe_position
             and self._position_probe_tries < self._POSITION_PROBE_MAX_TRIES
+        )
+
+    def _should_probe_measurements(self) -> bool:
+        """Whether to attempt the experimental vw.de measurements/range read this poll.
+
+        Latches on once a candidate returns any range leaf (it becomes a real read),
+        else runs while the user is opted into the test cohort and still within the
+        self-limiting budget — mirroring the GPS / SoH probe gates, own budget. So an
+        opted-out user never issues the request, and an opted-in car whose proxy keeps
+        refusing stops after ``_MEASUREMENTS_PROBE_MAX_TRIES`` polls.
+        """
+        if self._measurements_available:
+            return True
+        return (
+            self.probe_measurements
+            and self._measurements_probe_tries < self._MEASUREMENTS_PROBE_MAX_TRIES
         )
 
     def _capture_raw(self, url: str, body: Any) -> None:
@@ -1478,6 +1510,7 @@ class WebsiteAuthProxyConnector:
             _SOH_PROBE_SUBPATHS,
             build_batteryhealth_url,
             parse_battery_health,
+            parse_usable_battery_capacity,
         )
 
         await self._ensure_backend(vin)
@@ -1492,6 +1525,14 @@ class WebsiteAuthProxyConnector:
             )
             if body is None:
                 continue
+            # #1357 item 3 — capture usable (net) pack capacity kWh from the SAME
+            # body (the parser existed but was never called). DIAGNOSTICS-ONLY:
+            # recorded into probe_outcomes for the cohort (no PII — a kWh figure);
+            # battery_available_kwh / battery_cap_kwh stay unfed until confirmed.
+            _cap = parse_usable_battery_capacity(body)
+            if _cap is not None:
+                self._soh_capacity_kwh = _cap
+                self.probe_outcomes[f"soh_cap:{base}"] = f"{_cap} kWh"
             soh = parse_battery_health(body)
             if soh is not None:
                 self._soh_subpath = subpath
@@ -1502,6 +1543,65 @@ class WebsiteAuthProxyConnector:
                 return soh
             self.probe_outcomes[f"soh:{base}"] = "200 no-value"
         _LOGGER.debug("Website authproxy SoH probe %s → no usable value", vin[-6:])
+        return None
+
+    async def get_range_measurements(self, vin: str) -> dict[str, int] | None:
+        """Range leaves via the vw.de ``selectivestatus?jobs=measurements`` read — EXPERIMENTAL.
+
+        #1357 (Ra72xx): a portal-only ID.3 surfaces a null electric range because the
+        EU-DA portal ships that leaf null AND the charging/status body the authproxy
+        already reads carries no ``measurements`` block. The electric range for such
+        firmware lives under ``measurements.rangeStatus.value.electricRange`` (the BFF
+        reads it at vw_eu.py:3834); the diesel AdBlue range rides the same body. Whether
+        the attestation-free vw.de proxy passes the measurements job is UNCONFIRMED —
+        same allowlist risk as ``get_parking_position`` / ``get_battery_health`` — so
+        this tries the ranked candidates in ``_MEASUREMENTS_PROBE_SUBPATHS`` fail-soft +
+        optional, pins the first that yields any leaf, and records every attempt into
+        ``probe_outcomes``. The raw body of every attempt is captured (VIN-stripped)
+        into diagnostics by ``_get_json`` regardless. DIAGNOSTICS-ONLY: nothing here is
+        fed to an entity until a live #1357 capture confirms the leaf + allowlist-pass.
+        Returns the ``{field: int_km}`` leaves found, or None on a miss.
+        """
+        from .._authproxy import (  # noqa: PLC0415
+            _MEASUREMENTS_PROBE_SUBPATHS,
+            build_measurements_url,
+            parse_range_measurements,
+        )
+
+        await self._ensure_backend(vin)
+        candidates = (
+            (self._measurements_subpath,)
+            if self._measurements_subpath
+            else _MEASUREMENTS_PROBE_SUBPATHS
+        )
+        for subpath in candidates:
+            base = subpath.split("?")[0]
+            body = await self._get_json(
+                build_measurements_url(vin, subpath, self._gdc(vin)),
+                accept="*/*", soft=True, optional=True,
+                record_as=f"measurements:{base}",
+            )
+            if body is None:
+                continue
+            leaves = parse_range_measurements(body)
+            if leaves:
+                self._measurements_subpath = subpath
+                # Refine the diagnostics label to the leaves seen (no PII — the range
+                # FIELD names only, not values) so the cohort can confirm the #1357
+                # electricRange leaf without needing the raw body. Still
+                # DIAGNOSTICS-ONLY: not fed to any entity.
+                self.probe_outcomes[f"measurements:{base}"] = "200 " + ",".join(
+                    sorted(leaves)
+                )
+                _LOGGER.debug(
+                    "Website authproxy measurements %s via %s → %s",
+                    vin[-6:], base, sorted(leaves),
+                )
+                return leaves
+            self.probe_outcomes[f"measurements:{base}"] = "200 no-range"
+        _LOGGER.debug(
+            "Website authproxy measurements probe %s → no usable range", vin[-6:]
+        )
         return None
 
     async def get_last_lock_action(self, vin: str) -> tuple[str, str | None] | None:
@@ -1624,8 +1724,18 @@ class WebsiteAuthProxyConnector:
                 vin[-6:], type(exc).__name__,
             )
 
+        # #1357 — build the live charging + maintenance URLs with the per-platform
+        # gdc + live VCF host (get_relations above populated the backend cache so
+        # self._gdc resolves right). The param-less form silently returned no live
+        # body for MEB/ID.x cars, so SoC / cruisingRangeElectric_km / odometer fell
+        # back to the stale portal feed — the #1357 electric-range gap.
+        from .._authproxy import (  # noqa: PLC0415
+            build_charging_url,
+            build_maintenance_url,
+        )
+
         charging = await self._get_json(
-            f"{_SITE_BASE}{_CHARGING_PATH.format(vin=vin)}",
+            build_charging_url(vin, self._gdc(vin)),
             accept="*/*",
             soft=True,
         )
@@ -1634,7 +1744,7 @@ class WebsiteAuthProxyConnector:
             got_data = True
 
         maintenance = await self._get_json(
-            f"{_SITE_BASE}{_MAINTENANCE_PATH.format(vin=vin)}",
+            build_maintenance_url(vin, self._gdc(vin)),
             accept="*/*",
             soft=True,
         )
@@ -1742,6 +1852,31 @@ class WebsiteAuthProxyConnector:
             except Exception as exc:  # noqa: BLE001
                 _LOGGER.debug(
                     "Website authproxy SoH probe skipped for %s (%s)",
+                    vin[-6:], type(exc).__name__,
+                )
+
+        # #1357 (Ra72xx) — EXPERIMENTAL measurements/range probe, same opt-in test-
+        # cohort gate as the GPS / SoH probes. A portal-only ID.3 surfaces a null
+        # electric range because the charging/status body carries no measurements
+        # block; the electricRange leaf (and diesel AdBlue range) live under
+        # selectivestatus?jobs=measurements, which the app reads via the attestation-
+        # walled BFF. This checks whether the attestation-free vw.de proxy serves it.
+        # DIAGNOSTICS-ONLY: the raw body + the leaves seen are captured for the cohort;
+        # we do NOT feed electric_range_km / adblue_range_km / combustion_range_km
+        # until a live #1357 capture confirms the leaf and the allowlist-pass (mirrors
+        # the SoH probe's diagnostics-only contract above). Fail-soft, self-limiting.
+        if self._should_probe_measurements():
+            if not self._measurements_available:
+                self._measurements_probe_tries += 1
+            try:
+                _leaves = await self.get_range_measurements(vin)
+                if _leaves:
+                    self._measurements_available = True
+            except AuthenticationError:
+                raise
+            except Exception as exc:  # noqa: BLE001
+                _LOGGER.debug(
+                    "Website authproxy measurements probe skipped for %s (%s)",
                     vin[-6:], type(exc).__name__,
                 )
 
