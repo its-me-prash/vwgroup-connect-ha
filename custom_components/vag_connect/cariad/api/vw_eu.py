@@ -932,6 +932,11 @@ class VWEUClient(CariadBaseClient):
             cmd.set_persisted_tokens(tokens)
             cmd._mbb_client_id = client_id or ""
             cmd._mbb_manual_vins = list(vins or [])
+            # #584 — the fetched-role diagnostic runs on WHICHEVER connector hits
+            # the operationList (here the command sub-connector), so inherit the
+            # primary's test-cohort flag; otherwise the probe never fires for the
+            # read-only-primary shape (VW-EU portal/vw.de + armed MBB channel).
+            cmd._test_cohort = getattr(self, "_test_cohort", False)
             if fallback_only:
                 self._mbb_fallback: "VWEUClient | None" = cmd
                 _LOGGER.info(
@@ -1980,6 +1985,16 @@ class VWEUClient(CariadBaseClient):
                     "change it. Not retried for %d h.",
                     vin[-6:], int(_MBB_OPLIST_DENY_TTL.total_seconds() // 3600),
                 )
+                # #584 — cohort-only, read-only leapfrog probe. The legacy
+                # operationList/v3 is dead for this car, but the shipping app
+                # reads the gate via the MODERN ``permissions/v1/…/fetched-role``
+                # on the EU-DP host instead. Test whether that answers where v3
+                # 401s, so an enrolled MBB_ODP reporter gives us the decisive
+                # data point (200 vs 404 vs 401) without extracting a bearer or
+                # exposing anything private — status codes only, into
+                # ``probe_outcomes``. Default off; never runs for normal users.
+                if getattr(self, "_test_cohort", False):
+                    await self._probe_fetched_role_cohort(vin)
                 return None
             if err.status in (401, 403):
                 # v2.24.2 — a 401/403 WITHOUT the explicit gateway verdict above
@@ -2025,6 +2040,69 @@ class VWEUClient(CariadBaseClient):
                 len(enabled), len(oplist.services),
             )
         return oplist
+
+    async def _probe_fetched_role_cohort(self, vin: str) -> None:
+        """#584 — cohort-only, READ-ONLY leapfrog probe. Fail-soft.
+
+        The legacy ``operationlist/v3`` on ``mal-1a.prd.ece`` answered
+        ``gw.error.authentication`` for this vehicle, but the shipping We Connect
+        app (4.2.1/4.3.2, APK-verified) never calls operationlist — it reads the
+        per-vehicle permission gate via ``rolesrights/permissions/v1/{Brand}/
+        {country}/vehicles/{vin}/fetched-role`` on the newer EU-DP host
+        ``mal-3a.prd.eu.dp``. This GETs that gate (EU-DP host, then the legacy
+        host as a fallback) with the connector's OWN MBB bearer and records only
+        the HTTP status into ``probe_outcomes`` — no VIN, no body, no token — so
+        an enrolled MBB_ODP reporter can hand us the decisive 200-vs-404-vs-401
+        signal from their diagnostics. A 200 here where operationlist/v3 401s
+        means the modern gate is reachable and the existing ``authorization/v2``
+        S-PIN command handshake could be wired for these cars.
+
+        One-shot per VIN. Never raises, never refreshes, never writes to the car.
+        """
+        from .._mbb import (  # noqa: PLC0415
+            MBB_EUDP_SETTER_BASE,
+            MBB_SETTER_BASE,
+            build_mbb_fetched_role_url,
+            mbb_brand_segment,
+        )
+
+        if not hasattr(self, "_fetched_role_probed"):
+            self._fetched_role_probed: set[str] = set()
+        if vin in self._fetched_role_probed:
+            return
+        self._fetched_role_probed.add(vin)
+
+        country = self._mbb_country_from_id_token() or "DE"
+        seg = mbb_brand_segment(self._brand.name)
+        targets = [
+            ("eudp", MBB_EUDP_SETTER_BASE),  # modern host the shipping app uses
+            ("ece", MBB_SETTER_BASE),        # legacy host, as a fallback data point
+        ]
+        for label, base in targets:
+            url = build_mbb_fetched_role_url(base, self._brand.name, country, vin)
+            key = f"fetched_role:{label}:{seg}/{country}"
+            try:
+                async with self._session.get(
+                    url, headers=self._mbb_headers()
+                ) as resp:
+                    status = resp.status
+                    body = await resp.text()
+            except Exception as err:  # noqa: BLE001
+                self.probe_outcomes[key] = f"error:{type(err).__name__}"
+                continue
+            if status == 200:
+                # A role/permission doc came back — the modern gate answers.
+                # Record only that it was a 200 with a role payload (no values).
+                has_role = '"role"' in body or "fetched" in body.lower()
+                self.probe_outcomes[key] = "200 role" if has_role else "200"
+            else:
+                self.probe_outcomes[key] = str(status)
+        _LOGGER.debug(
+            "MBB fetched-role cohort probe ***%s: %s",
+            vin[-6:],
+            {k: v for k, v in self.probe_outcomes.items()
+             if k.startswith("fetched_role:")},
+        )
 
     def _apply_mbb_subscription(
         self, d: VehicleData, oplist: "MbbOperationList | None",
